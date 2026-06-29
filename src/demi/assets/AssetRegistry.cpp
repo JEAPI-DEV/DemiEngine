@@ -72,7 +72,13 @@ std::vector<std::string> extractReferencesWithPrefix(const std::string& text, co
 std::optional<AssetManifest> loadAssetManifest(const std::filesystem::path& manifestPath, Diagnostic* diagnostic) {
   if (!std::filesystem::exists(manifestPath)) {
     if (diagnostic != nullptr) {
-      *diagnostic = Diagnostic{.severity = Severity::Error, .code = "ASSET_MANIFEST_NOT_FOUND", .message = "Asset manifest does not exist.", .path = manifestPath.string()};
+      *diagnostic = Diagnostic{
+        .severity = Severity::Error,
+        .code = "ASSET_MANIFEST_NOT_FOUND",
+        .message = "Asset manifest does not exist.",
+        .path = manifestPath.string(),
+        .suggestion = "Pass a valid .asset.json manifest path.",
+      };
     }
     return std::nullopt;
   }
@@ -83,7 +89,13 @@ std::optional<AssetManifest> loadAssetManifest(const std::filesystem::path& mani
   const std::optional<std::string> source = stringAfterKey(text, "source");
   if (!id.has_value() || !type.has_value() || !source.has_value()) {
     if (diagnostic != nullptr) {
-      *diagnostic = Diagnostic{.severity = Severity::Error, .code = "ASSET_MANIFEST_INVALID", .message = "Asset manifest must include id, type, and source.", .path = manifestPath.string()};
+      *diagnostic = Diagnostic{
+        .severity = Severity::Error,
+        .code = "ASSET_MANIFEST_INVALID",
+        .message = "Asset manifest must include id, type, and source.",
+        .path = manifestPath.string(),
+        .suggestion = "Add id, type, and source fields to the manifest.",
+      };
     }
     return std::nullopt;
   }
@@ -92,7 +104,8 @@ std::optional<AssetManifest> loadAssetManifest(const std::filesystem::path& mani
 }
 
 AssetRegistry loadAssetRegistry(const std::filesystem::path& projectDirectory) {
-  AssetRegistry registry{.projectDirectory = projectDirectory};
+  AssetRegistry registry;
+  registry.projectDirectory = projectDirectory;
   const std::filesystem::path assetsDirectory = projectDirectory / "assets";
   if (!std::filesystem::exists(assetsDirectory)) {
     return registry;

@@ -35,7 +35,10 @@ local function movement_axis()
 end
 
 function Player:on_update(dt)
-  local x, y = movement_axis()
+  local x, y = Input.vector("a", "d", "s", "w")
+  if x == 0.0 and y == 0.0 then
+    x, y = movement_axis()
+  end
   if x == 0.0 and y == 0.0 then
     return
   end

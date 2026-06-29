@@ -20,6 +20,7 @@ This repository is designed for AI-assisted development. Keep source data determ
 ## Data Format Rules
 
 - Every project, scene, save, and future asset manifest must include `format_version`.
+- Asset manifests use `*.asset.json` and stable `asset://` ids.
 - Prefer stable IDs over positional references.
 - Prefer URI-style references such as `scene://main`, `asset://textures/unit.png`, and `script://units/archer.lua`.
 - Keep formatting stable so diffs are small and reviewable.

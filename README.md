@@ -128,6 +128,7 @@ Authoring data should remain deterministic and text-based:
 - Projects: `*.project.json`
 - Scenes: `*.scene.json`
 - Saves: `*.save.json`
+- Assets: `*.asset.json`
 - Lua scripts: `*.lua`
 - Future asset manifests: `*.asset.json`
 

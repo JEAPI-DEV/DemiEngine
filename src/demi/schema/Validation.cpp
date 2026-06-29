@@ -251,8 +251,20 @@ Diagnostics validateTextFile(const std::filesystem::path& path, const SourceFile
     requireToken(diagnostics, text, path, "\"id\"", "ASSET_MISSING_ID", "Asset manifest is missing id.", "Add an id such as asset://sprites/player.");
     requireToken(diagnostics, text, path, "\"type\"", "ASSET_MISSING_TYPE", "Asset manifest is missing type.", "Add a type such as Texture2D.");
     requireToken(diagnostics, text, path, "\"source\"", "ASSET_MISSING_SOURCE", "Asset manifest is missing source.", "Add a source file path relative to the manifest.");
-    if (Diagnostic diagnostic; !loadAssetManifest(path, &diagnostic).has_value()) {
+    {
+      Diagnostic diagnostic;
+      const std::optional<AssetManifest> asset = loadAssetManifest(path, &diagnostic);
+      if (!asset.has_value()) {
       diagnostics.push_back(diagnostic);
+      } else if (!std::filesystem::exists(asset->sourcePath)) {
+        diagnostics.push_back(Diagnostic{
+          .severity = Severity::Error,
+          .code = "ASSET_SOURCE_NOT_FOUND",
+          .message = "Asset source file does not exist.",
+          .path = path.string(),
+          .suggestion = "Create the source file or update the asset manifest source path.",
+        });
+      }
     }
     break;
   case SourceFileKind::Unknown:

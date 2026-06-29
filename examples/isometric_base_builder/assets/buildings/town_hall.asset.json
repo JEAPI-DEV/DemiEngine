@@ -1,0 +1,10 @@
+{
+  "format_version": 1,
+  "id": "asset://buildings/town_hall.asset.json",
+  "type": "Texture2D",
+  "source": "town_hall.ppm",
+  "importer": "ppm-texture",
+  "settings": {
+    "filter": "nearest"
+  }
+}

@@ -129,6 +129,7 @@ int runProject(const RuntimeOptions& options) {
     previousTicks = currentTicks;
     fixedAccumulator += dt;
     while (fixedAccumulator >= fixedStep) {
+      luaHost.fixedUpdate(static_cast<float>(fixedStep));
       fixedAccumulator -= fixedStep;
     }
 

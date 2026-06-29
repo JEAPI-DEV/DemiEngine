@@ -14,6 +14,10 @@ Scene files use `*.scene.json` and declare stable scene IDs and entity lists.
 
 Save files use `*.save.json` and declare save slot metadata plus game-specific state.
 
+## Asset Manifests
+
+Asset manifests use `*.asset.json` and map stable `asset://` ids to source files. The first supported runtime texture source is text PPM (`P3`) for `Texture2D` assets.
+
 ## Versioning
 
 Every format includes `format_version`. Migrations should be explicit and test-covered.

@@ -11,6 +11,8 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
 - `demi scene list <project>`: list scene references from a project file.
 - `demi scene inspect <scene>`: validate and summarize a scene file.
 - `demi scene diff <old> <new>`: placeholder for deterministic scene diffs.
+- `demi asset inspect <asset>`: validate and summarize an asset manifest.
+- `demi asset deps <asset>`: list source-file dependencies for an asset manifest.
 - `demi save inspect <save>`: validate and summarize a save file.
 - `demi script check <script>`: placeholder for Lua static checks.
 - `demi test`: run built-in scaffold checks.

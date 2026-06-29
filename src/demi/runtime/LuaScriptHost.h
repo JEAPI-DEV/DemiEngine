@@ -21,9 +21,12 @@ public:
   [[nodiscard]] bool loadWorldScripts(const ProjectData& project, World& world, std::string& error);
   [[nodiscard]] bool isKeyDown(const std::string& key) const;
   [[nodiscard]] bool addEntityPosition(const std::string& entityId, float dx, float dy);
+  [[nodiscard]] bool setEntityPosition(const std::string& entityId, float x, float y);
   [[nodiscard]] std::optional<Vec2> entityPosition(const std::string& entityId) const;
+  [[nodiscard]] std::optional<std::string> findEntityId(const std::string& idOrName) const;
   void start();
   void update(float dt);
+  void fixedUpdate(float dt);
   void destroy();
 
 private:
