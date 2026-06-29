@@ -42,6 +42,7 @@ endif()
 
 add_library(demi-runtime-lib STATIC
   src/demi/runtime/LuaScriptHost.cpp
+  src/demi/runtime/Physics2D.cpp
   src/demi/runtime/Renderer2D.cpp
   src/demi/runtime/RuntimeApp.cpp
   src/demi/runtime/SceneLoader.cpp

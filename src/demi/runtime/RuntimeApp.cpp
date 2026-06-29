@@ -3,6 +3,7 @@
 #include "demi/assets/AssetRegistry.h"
 #include "demi/core/Version.h"
 #include "demi/runtime/LuaScriptHost.h"
+#include "demi/runtime/Physics2D.h"
 #include "demi/runtime/Renderer2D.h"
 #include "demi/runtime/SceneData.h"
 
@@ -130,6 +131,7 @@ int runProject(const RuntimeOptions& options) {
     fixedAccumulator += dt;
     while (fixedAccumulator >= fixedStep) {
       luaHost.fixedUpdate(static_cast<float>(fixedStep));
+      stepPhysics2D(loaded.world, static_cast<float>(fixedStep));
       fixedAccumulator -= fixedStep;
     }
 

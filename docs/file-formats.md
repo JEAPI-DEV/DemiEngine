@@ -10,6 +10,8 @@ Project files use `*.project.json` and declare the project name, scenes, and met
 
 Scene files use `*.scene.json` and declare stable scene IDs and entity lists.
 
+Scenes can declare generic components such as `Transform2D`, `Camera2D`, `Sprite`, `LuaScript`, `Rigidbody2D`, and `BoxCollider2D`. Gameplay-specific behavior should live in Lua scripts rather than engine code.
+
 ## Save Files
 
 Save files use `*.save.json` and declare save slot metadata plus game-specific state.

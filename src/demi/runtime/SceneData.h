@@ -74,11 +74,25 @@ struct HitboxControllerComponent {
 struct LuaScriptComponent {
   std::string module;
   float speed = 5.0F;
+  float jumpSpeed = 8.0F;
 };
 
 struct BuildableComponent {
   std::string asset;
   bool blocksMovement = false;
+};
+
+struct Rigidbody2DComponent {
+  std::string bodyType = "dynamic";
+  Vec2 velocity;
+  float gravityScale = 1.0F;
+  bool lockRotation = true;
+};
+
+struct BoxCollider2DComponent {
+  Vec2 size = {1.0F, 1.0F};
+  Vec2 offset;
+  bool isTrigger = false;
 };
 
 struct Entity {
@@ -92,6 +106,8 @@ struct Entity {
   std::optional<HitboxControllerComponent> hitboxController;
   std::optional<LuaScriptComponent> luaScript;
   std::optional<BuildableComponent> buildable;
+  std::optional<Rigidbody2DComponent> rigidbody2D;
+  std::optional<BoxCollider2DComponent> boxCollider2D;
 };
 
 struct World {
@@ -144,7 +160,7 @@ struct World {
 [[nodiscard]] inline std::size_t renderableEntityCount(const World& world) {
   std::size_t count = 0;
   for (const Entity& entity : world.entities) {
-    if (entity.sprite.has_value() || entity.hitboxController.has_value() || entity.isoGrid.has_value() || entity.buildable.has_value()) {
+    if (entity.sprite.has_value() || entity.hitboxController.has_value() || entity.isoGrid.has_value() || entity.buildable.has_value() || entity.boxCollider2D.has_value()) {
       ++count;
     }
   }

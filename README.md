@@ -113,6 +113,7 @@ The current runtime preview uses SDL3 and renders debug geometry from the main s
 - `HitboxController` entities draw as red outlined rectangles.
 - `IsoGrid` entities draw a simple isometric grid preview only when the scene declares an `IsoGrid` entity.
 - The runtime exposes key state to Lua; the minimal example's `player.lua` chooses to move the player with WASD and arrow keys.
+- `Rigidbody2D` and `BoxCollider2D` provide generic Unity-style 2D physics components. The engine applies gravity/collision, while Lua scripts decide movement and jump behavior through `Rigidbody2D` and `Physics2D` helpers.
 - Lua scripts attached with `LuaScript` are loaded from `script://` paths relative to the project directory and receive lifecycle callbacks.
 
 For automated smoke tests, limit the window loop to a fixed number of frames:

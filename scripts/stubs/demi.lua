@@ -67,9 +67,51 @@ Scene = {}
 ---@return boolean
 function Scene.load(scene_id) end
 
+---@class Rigidbody2DService
+Rigidbody2D = {}
+
+---@param entity_id string
+---@return number|nil x
+---@return number|nil y
+function Rigidbody2D.get_velocity(entity_id) end
+
+---@param entity_id string
+---@param x number
+---@param y number
+---@return boolean
+function Rigidbody2D.set_velocity(entity_id, x, y) end
+
+---@param entity_id string
+---@param x number
+---@return boolean
+function Rigidbody2D.set_velocity_x(entity_id, x) end
+
+---@param entity_id string
+---@param y number
+---@return boolean
+function Rigidbody2D.set_velocity_y(entity_id, y) end
+
+---@param entity_id string
+---@param x number
+---@param y number
+---@return boolean
+function Rigidbody2D.add_impulse(entity_id, x, y) end
+
+---@class Physics2DService
+Physics2D = {}
+
+---@param x number
+---@param y number
+---@param width number
+---@param height number
+---@param ignored_entity_id? string
+---@return boolean
+function Physics2D.overlap_box(x, y, width, height, ignored_entity_id) end
+
 ---@class DemiScript
 ---@field entity_id string
 ---@field speed number
+---@field jump_speed number
 local DemiScript = {}
 
 function DemiScript:on_create() end

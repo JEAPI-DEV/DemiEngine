@@ -4,13 +4,28 @@
   "name": "Village",
   "entities": [
     {
+      "id": "ent_iso_camera",
+      "name": "Village Camera",
+      "components": {
+        "Transform2D": {
+          "position": [0.0, 0.0],
+          "rotation": 0.0,
+          "scale": [1.0, 1.0]
+        },
+        "Camera2D": {
+          "clear_color": [0.07, 0.08, 0.10, 1.0],
+          "orthographic_size": 13.0
+        }
+      }
+    },
+    {
       "id": "ent_iso_grid",
       "name": "Village Grid",
       "components": {
         "IsoGrid": {
           "cell_size": [1.0, 0.5],
-          "width": 32,
-          "height": 32
+          "width": 18,
+          "height": 18
         }
       }
     },
@@ -19,17 +34,122 @@
       "name": "Town Hall",
       "components": {
         "IsoTransform": {
-          "tile": [16, 16],
+          "tile": [9, 9],
           "height": 0.0,
           "footprint": [3, 3]
         },
         "Buildable": {
-          "asset": "asset://buildings/town_hall.asset.json",
+          "asset": "asset://buildings/town_hall",
           "blocks_movement": true
         },
         "Health": {
           "max": 1500,
           "current": 1500
+        }
+      }
+    },
+    {
+      "id": "ent_gold_storage",
+      "name": "Gold Storage",
+      "components": {
+        "IsoTransform": {
+          "tile": [6, 11],
+          "height": 0.0,
+          "footprint": [2, 2]
+        },
+        "Buildable": {
+          "asset": "asset://buildings/gold_storage",
+          "blocks_movement": true
+        }
+      }
+    },
+    {
+      "id": "ent_wall_north_west",
+      "name": "North-West Wall",
+      "components": {
+        "IsoTransform": {
+          "tile": [7, 6],
+          "height": 0.0,
+          "footprint": [1, 1]
+        },
+        "Buildable": {
+          "asset": "asset://buildings/stone_wall",
+          "blocks_movement": true
+        }
+      }
+    },
+    {
+      "id": "ent_wall_north_mid",
+      "name": "North Wall",
+      "components": {
+        "IsoTransform": {
+          "tile": [8, 6],
+          "height": 0.0,
+          "footprint": [1, 1]
+        },
+        "Buildable": {
+          "asset": "asset://buildings/stone_wall",
+          "blocks_movement": true
+        }
+      }
+    },
+    {
+      "id": "ent_wall_north_east",
+      "name": "North-East Wall",
+      "components": {
+        "IsoTransform": {
+          "tile": [9, 6],
+          "height": 0.0,
+          "footprint": [1, 1]
+        },
+        "Buildable": {
+          "asset": "asset://buildings/stone_wall",
+          "blocks_movement": true
+        }
+      }
+    },
+    {
+      "id": "ent_wall_south_west",
+      "name": "South-West Wall",
+      "components": {
+        "IsoTransform": {
+          "tile": [9, 12],
+          "height": 0.0,
+          "footprint": [1, 1]
+        },
+        "Buildable": {
+          "asset": "asset://buildings/stone_wall",
+          "blocks_movement": true
+        }
+      }
+    },
+    {
+      "id": "ent_wall_south_mid",
+      "name": "South Wall",
+      "components": {
+        "IsoTransform": {
+          "tile": [10, 12],
+          "height": 0.0,
+          "footprint": [1, 1]
+        },
+        "Buildable": {
+          "asset": "asset://buildings/stone_wall",
+          "blocks_movement": true
+        }
+      }
+    },
+    {
+      "id": "ent_wall_south_east",
+      "name": "South-East Wall",
+      "components": {
+        "IsoTransform": {
+          "tile": [11, 12],
+          "height": 0.0,
+          "footprint": [1, 1]
+        },
+        "Buildable": {
+          "asset": "asset://buildings/stone_wall",
+          "blocks_movement": true
         }
       }
     }

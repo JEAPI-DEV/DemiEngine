@@ -1,8 +1,8 @@
 {
   "format_version": 1,
-  "id": "asset://buildings/town_hall",
+  "id": "asset://buildings/stone_wall",
   "type": "Texture2D",
-  "source": "town_hall.ppm",
+  "source": "stone_wall.ppm",
   "importer": "ppm-texture",
   "settings": {
     "filter": "nearest"

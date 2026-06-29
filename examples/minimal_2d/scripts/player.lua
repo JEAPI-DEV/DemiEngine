@@ -1,49 +1,66 @@
 local Player = {}
 
+local FALL_RESET_Y = -9.5
+
 function Player:on_create()
   Debug.log("Player created")
+  self.jump_was_down = false
+  self.spawn_x = 0.0
+  self.spawn_y = -2.05
 end
 
 function Player:on_start()
-  Debug.log("Use WASD or arrow keys to move the player")
+  Debug.log("Use A/D or arrows to move. Press Space/W/Up to jump.")
+  local x, y = Entity.get_position(self.entity_id)
+  if x ~= nil and y ~= nil then
+    self.spawn_x = x
+    self.spawn_y = y
+  end
 end
 
-local function movement_axis()
-  local x = 0.0
-  local y = 0.0
-
-  if Input.is_down("a") or Input.is_down("left") then
-    x = x - 1.0
+local function horizontal_axis()
+  local x = Input.axis("a", "d")
+  if x == 0.0 then
+    x = Input.axis("left", "right")
   end
-  if Input.is_down("d") or Input.is_down("right") then
-    x = x + 1.0
-  end
-  if Input.is_down("s") or Input.is_down("down") then
-    y = y - 1.0
-  end
-  if Input.is_down("w") or Input.is_down("up") then
-    y = y + 1.0
-  end
-
-  if x ~= 0.0 and y ~= 0.0 then
-    local diagonal = 0.70710678
-    x = x * diagonal
-    y = y * diagonal
-  end
-
-  return x, y
+  return x
 end
 
-function Player:on_update(dt)
-  local x, y = Input.vector("a", "d", "s", "w")
-  if x == 0.0 and y == 0.0 then
-    x, y = movement_axis()
+local function wants_jump()
+  return Input.is_down("space") or Input.is_down("w") or Input.is_down("up")
+end
+
+local function is_grounded(entity_id)
+  local x, y = Entity.get_position(entity_id)
+  if x == nil or y == nil then
+    return false
   end
-  if x == 0.0 and y == 0.0 then
+
+  return Physics2D.overlap_box(x, y - 0.56, 0.78, 0.12, entity_id)
+end
+
+function Player:reset_to_spawn_if_fallen()
+  local x, y = Entity.get_position(self.entity_id)
+  if y == nil or y > FALL_RESET_Y then
     return
   end
 
-  Entity.add_position(self.entity_id, x * self.speed * dt, y * self.speed * dt)
+  Entity.set_position(self.entity_id, self.spawn_x, self.spawn_y)
+  Rigidbody2D.set_velocity(self.entity_id, 0.0, 0.0)
+end
+
+function Player:on_update(dt)
+  self:reset_to_spawn_if_fallen()
+
+  local x = horizontal_axis()
+  Rigidbody2D.set_velocity_x(self.entity_id, x * self.speed)
+
+  local jump_down = wants_jump()
+  if jump_down and not self.jump_was_down and is_grounded(self.entity_id) then
+    Rigidbody2D.set_velocity_y(self.entity_id, self.jump_speed)
+  end
+
+  self.jump_was_down = jump_down
 end
 
 function Player:on_fixed_update(dt)

@@ -365,6 +365,9 @@ World parseScene(const std::filesystem::path& scenePath, const std::string& text
         if (const std::optional<float> speed = numberAfterKey(*properties, "speed")) {
           component.speed = *speed;
         }
+        if (const std::optional<float> jumpSpeed = numberAfterKey(*properties, "jump_speed")) {
+          component.jumpSpeed = *jumpSpeed;
+        }
       }
       entity.luaScript = component;
     }
@@ -374,6 +377,31 @@ World parseScene(const std::filesystem::path& scenePath, const std::string& text
       component.asset = stringAfterKey(*buildable, "asset").value_or(std::string{});
       component.blocksMovement = boolAfterKey(*buildable, "blocks_movement").value_or(false);
       entity.buildable = component;
+    }
+
+    if (const std::optional<std::string> rigidbody = objectAfterKey(entityObject, "Rigidbody2D")) {
+      Rigidbody2DComponent component;
+      component.bodyType = stringAfterKey(*rigidbody, "body_type").value_or("dynamic");
+      if (const std::optional<Vec2> velocity = vec2AfterKey(*rigidbody, "velocity")) {
+        component.velocity = *velocity;
+      }
+      if (const std::optional<float> gravityScale = numberAfterKey(*rigidbody, "gravity_scale")) {
+        component.gravityScale = *gravityScale;
+      }
+      component.lockRotation = boolAfterKey(*rigidbody, "lock_rotation").value_or(true);
+      entity.rigidbody2D = component;
+    }
+
+    if (const std::optional<std::string> boxCollider = objectAfterKey(entityObject, "BoxCollider2D")) {
+      BoxCollider2DComponent component;
+      if (const std::optional<Vec2> size = vec2AfterKey(*boxCollider, "size")) {
+        component.size = *size;
+      }
+      if (const std::optional<Vec2> offset = vec2AfterKey(*boxCollider, "offset")) {
+        component.offset = *offset;
+      }
+      component.isTrigger = boolAfterKey(*boxCollider, "is_trigger").value_or(false);
+      entity.boxCollider2D = component;
     }
 
     world.entities.push_back(entity);

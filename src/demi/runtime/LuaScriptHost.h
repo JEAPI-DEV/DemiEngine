@@ -24,6 +24,12 @@ public:
   [[nodiscard]] bool setEntityPosition(const std::string& entityId, float x, float y);
   [[nodiscard]] std::optional<Vec2> entityPosition(const std::string& entityId) const;
   [[nodiscard]] std::optional<std::string> findEntityId(const std::string& idOrName) const;
+  [[nodiscard]] std::optional<Vec2> getRigidbodyVelocity(const std::string& entityId) const;
+  [[nodiscard]] bool setRigidbodyVelocity(const std::string& entityId, float x, float y);
+  [[nodiscard]] bool setRigidbodyVelocityX(const std::string& entityId, float x);
+  [[nodiscard]] bool setRigidbodyVelocityY(const std::string& entityId, float y);
+  [[nodiscard]] bool addRigidbodyImpulse(const std::string& entityId, float x, float y);
+  [[nodiscard]] bool physicsOverlapBox(float x, float y, float width, float height, const std::string& ignoredEntityId) const;
   void start();
   void update(float dt);
   void fixedUpdate(float dt);

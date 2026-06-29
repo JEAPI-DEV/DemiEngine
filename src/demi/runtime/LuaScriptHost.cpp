@@ -1,5 +1,7 @@
 #include "demi/runtime/LuaScriptHost.h"
 
+#include "demi/runtime/Physics2D.h"
+
 #include <algorithm>
 #include <cctype>
 #include <iostream>
@@ -147,6 +149,69 @@ int sceneLoad(lua_State* state) {
   return 1;
 }
 
+int rigidbodyGetVelocity(lua_State* state) {
+  const LuaScriptHost* host = hostFromUpvalue(state);
+  const char* entityId = luaL_checkstring(state, 1);
+  const std::optional<Vec2> velocity = host != nullptr ? host->getRigidbodyVelocity(entityId) : std::nullopt;
+  if (!velocity.has_value()) {
+    lua_pushnil(state);
+    return 1;
+  }
+  lua_pushnumber(state, velocity->x);
+  lua_pushnumber(state, velocity->y);
+  return 2;
+}
+
+int rigidbodySetVelocity(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* entityId = luaL_checkstring(state, 1);
+  const float x = static_cast<float>(luaL_checknumber(state, 2));
+  const float y = static_cast<float>(luaL_checknumber(state, 3));
+  const bool changed = host != nullptr && host->setRigidbodyVelocity(entityId, x, y);
+  lua_pushboolean(state, changed);
+  return 1;
+}
+
+int rigidbodySetVelocityX(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* entityId = luaL_checkstring(state, 1);
+  const float x = static_cast<float>(luaL_checknumber(state, 2));
+  const bool changed = host != nullptr && host->setRigidbodyVelocityX(entityId, x);
+  lua_pushboolean(state, changed);
+  return 1;
+}
+
+int rigidbodySetVelocityY(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* entityId = luaL_checkstring(state, 1);
+  const float y = static_cast<float>(luaL_checknumber(state, 2));
+  const bool changed = host != nullptr && host->setRigidbodyVelocityY(entityId, y);
+  lua_pushboolean(state, changed);
+  return 1;
+}
+
+int rigidbodyAddImpulse(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* entityId = luaL_checkstring(state, 1);
+  const float x = static_cast<float>(luaL_checknumber(state, 2));
+  const float y = static_cast<float>(luaL_checknumber(state, 3));
+  const bool changed = host != nullptr && host->addRigidbodyImpulse(entityId, x, y);
+  lua_pushboolean(state, changed);
+  return 1;
+}
+
+int physicsOverlapBoxBinding(lua_State* state) {
+  const LuaScriptHost* host = hostFromUpvalue(state);
+  const float x = static_cast<float>(luaL_checknumber(state, 1));
+  const float y = static_cast<float>(luaL_checknumber(state, 2));
+  const float width = static_cast<float>(luaL_checknumber(state, 3));
+  const float height = static_cast<float>(luaL_checknumber(state, 4));
+  const char* ignoredEntityId = luaL_optstring(state, 5, "");
+  const bool overlaps = host != nullptr && host->physicsOverlapBox(x, y, width, height, ignoredEntityId);
+  lua_pushboolean(state, overlaps);
+  return 1;
+}
+
 void callLifecycle(lua_State* state, const int tableRef, const char* functionName, const float dt = 0.0F) {
   lua_rawgeti(state, LUA_REGISTRYINDEX, tableRef);
   lua_getfield(state, -1, functionName);
@@ -252,6 +317,30 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, std::strin
   lua_setfield(state, -2, "load");
   lua_setglobal(state, "Scene");
 
+  lua_newtable(state);
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, rigidbodyGetVelocity, 1);
+  lua_setfield(state, -2, "get_velocity");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, rigidbodySetVelocity, 1);
+  lua_setfield(state, -2, "set_velocity");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, rigidbodySetVelocityX, 1);
+  lua_setfield(state, -2, "set_velocity_x");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, rigidbodySetVelocityY, 1);
+  lua_setfield(state, -2, "set_velocity_y");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, rigidbodyAddImpulse, 1);
+  lua_setfield(state, -2, "add_impulse");
+  lua_setglobal(state, "Rigidbody2D");
+
+  lua_newtable(state);
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, physicsOverlapBoxBinding, 1);
+  lua_setfield(state, -2, "overlap_box");
+  lua_setglobal(state, "Physics2D");
+
   state_ = state;
   return true;
 #endif
@@ -292,6 +381,8 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData& project, World& world, s
     lua_setfield(state, -2, "entity_id");
     lua_pushnumber(state, entity.luaScript->speed);
     lua_setfield(state, -2, "speed");
+    lua_pushnumber(state, entity.luaScript->jumpSpeed);
+    lua_setfield(state, -2, "jump_speed");
 
     const int tableRef = luaL_ref(state, LUA_REGISTRYINDEX);
     scripts_.push_back(ScriptInstance{.entityId = entity.id, .module = entity.luaScript->module, .tableRef = tableRef});
@@ -358,6 +449,33 @@ std::optional<std::string> LuaScriptHost::findEntityId(const std::string& idOrNa
     }
   }
   return std::nullopt;
+}
+
+std::optional<Vec2> LuaScriptHost::getRigidbodyVelocity(const std::string& entityId) const {
+  if (world_ == nullptr) {
+    return std::nullopt;
+  }
+  return rigidbodyVelocity(*world_, entityId);
+}
+
+bool LuaScriptHost::setRigidbodyVelocity(const std::string& entityId, const float x, const float y) {
+  return world_ != nullptr && demi::runtime::setRigidbodyVelocity(*world_, entityId, Vec2{.x = x, .y = y});
+}
+
+bool LuaScriptHost::setRigidbodyVelocityX(const std::string& entityId, const float x) {
+  return world_ != nullptr && demi::runtime::setRigidbodyVelocityX(*world_, entityId, x);
+}
+
+bool LuaScriptHost::setRigidbodyVelocityY(const std::string& entityId, const float y) {
+  return world_ != nullptr && demi::runtime::setRigidbodyVelocityY(*world_, entityId, y);
+}
+
+bool LuaScriptHost::addRigidbodyImpulse(const std::string& entityId, const float x, const float y) {
+  return world_ != nullptr && demi::runtime::addRigidbodyImpulse(*world_, entityId, Vec2{.x = x, .y = y});
+}
+
+bool LuaScriptHost::physicsOverlapBox(const float x, const float y, const float width, const float height, const std::string& ignoredEntityId) const {
+  return world_ != nullptr && overlapBox(*world_, Vec2{.x = x, .y = y}, Vec2{.x = width, .y = height}, ignoredEntityId);
 }
 
 void LuaScriptHost::start() {
