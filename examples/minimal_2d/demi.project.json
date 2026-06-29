@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "name": "Minimal 2D",
+  "main_scene": "scene://minimal_2d/main",
+  "scenes": [
+    {
+      "id": "scene://minimal_2d/main",
+      "path": "scenes/main.scene.json"
+    }
+  ],
+  "scripting": {
+    "language": "lua54",
+    "entry": "script://scripts/player.lua"
+  }
+}

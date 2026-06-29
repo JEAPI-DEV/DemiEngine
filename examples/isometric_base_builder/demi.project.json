@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "name": "Isometric Base Builder",
+  "main_scene": "scene://isometric_base_builder/village",
+  "scenes": [
+    {
+      "id": "scene://isometric_base_builder/village",
+      "path": "scenes/village.scene.json"
+    }
+  ],
+  "gameplay_model": {
+    "projection": "isometric_2d",
+    "physics": "box2d"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "format_version": 1,
+  "id": "scene://minimal_2d/main",
+  "name": "Minimal Main",
+  "entities": [
+    {
+      "id": "ent_camera_main",
+      "name": "Main Camera",
+      "components": {
+        "Transform2D": {
+          "position": [0.0, 0.0],
+          "rotation": 0.0,
+          "scale": [1.0, 1.0]
+        },
+        "Camera2D": {
+          "clear_color": [0.08, 0.09, 0.12, 1.0],
+          "orthographic_size": 10.0
+        }
+      }
+    },
+    {
+      "id": "ent_player",
+      "name": "Player",
+      "components": {
+        "Transform2D": {
+          "position": [0.0, 0.0],
+          "rotation": 0.0,
+          "scale": [1.0, 1.0]
+        },
+        "Sprite": {
+          "texture": "asset://sprites/player",
+          "layer": "actors"
+        },
+        "LuaScript": {
+          "module": "script://scripts/player.lua",
+          "properties": {
+            "speed": 5.0
+          }
+        }
+      }
+    }
+  ]
+}

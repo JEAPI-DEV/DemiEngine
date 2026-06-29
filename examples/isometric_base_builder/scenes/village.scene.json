@@ -1,0 +1,37 @@
+{
+  "format_version": 1,
+  "id": "scene://isometric_base_builder/village",
+  "name": "Village",
+  "entities": [
+    {
+      "id": "ent_iso_grid",
+      "name": "Village Grid",
+      "components": {
+        "IsoGrid": {
+          "cell_size": [1.0, 0.5],
+          "width": 32,
+          "height": 32
+        }
+      }
+    },
+    {
+      "id": "ent_town_hall",
+      "name": "Town Hall",
+      "components": {
+        "IsoTransform": {
+          "tile": [16, 16],
+          "height": 0.0,
+          "footprint": [3, 3]
+        },
+        "Buildable": {
+          "asset": "asset://buildings/town_hall.asset.json",
+          "blocks_movement": true
+        },
+        "Health": {
+          "max": 1500,
+          "current": 1500
+        }
+      }
+    }
+  ]
+}

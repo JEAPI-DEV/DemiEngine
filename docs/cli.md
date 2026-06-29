@@ -1,0 +1,25 @@
+# CLI Contract
+
+The `demi` CLI is the automation interface for humans, scripts, CI, and AI agents.
+
+## Commands
+
+- `demi --help`: print command help.
+- `demi version`: print engine version.
+- `demi validate [path]`: validate a project, scene, save, or directory.
+- `demi schema export`: list schema files available in `schemas/`.
+- `demi scene list <project>`: list scene references from a project file.
+- `demi scene inspect <scene>`: validate and summarize a scene file.
+- `demi scene diff <old> <new>`: placeholder for deterministic scene diffs.
+- `demi save inspect <save>`: validate and summarize a save file.
+- `demi script check <script>`: placeholder for Lua static checks.
+- `demi test`: run built-in scaffold checks.
+- `demi run --project <project> [--frames count]`: launch the SDL3 runtime preview. Use `--frames 1` for automation.
+- `demi editor --project <project>`: launch the editor target once implemented.
+
+## Exit Codes
+
+- `0`: success.
+- `1`: validation or test failure.
+- `2`: CLI usage error.
+- `3`: internal engine error.

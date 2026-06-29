@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demiengine.local/schemas/save.schema.json",
+  "title": "DemiEngine Save",
+  "type": "object",
+  "required": ["format_version", "slot", "state"],
+  "additionalProperties": true,
+  "properties": {
+    "format_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "slot": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project": {
+      "type": "string"
+    },
+    "state": {
+      "type": "object"
+    }
+  }
+}

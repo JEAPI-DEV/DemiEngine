@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demiengine.local/schemas/asset.schema.json",
+  "title": "DemiEngine Asset Manifest",
+  "type": "object",
+  "required": ["format_version", "id", "type", "source"],
+  "additionalProperties": true,
+  "properties": {
+    "format_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^asset://"
+    },
+    "type": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    }
+  }
+}

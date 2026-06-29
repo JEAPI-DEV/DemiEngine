@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "name": "Fighting Game 2D",
+  "main_scene": "scene://fighting_game_2d/arena",
+  "scenes": [
+    {
+      "id": "scene://fighting_game_2d/arena",
+      "path": "scenes/arena.scene.json"
+    }
+  ],
+  "gameplay_model": {
+    "projection": "side_view_2d",
+    "physics": "box2d"
+  }
+}

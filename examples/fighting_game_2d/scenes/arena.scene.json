@@ -1,0 +1,51 @@
+{
+  "format_version": 1,
+  "id": "scene://fighting_game_2d/arena",
+  "name": "Arena",
+  "entities": [
+    {
+      "id": "ent_arena_camera",
+      "name": "Arena Camera",
+      "components": {
+        "Transform2D": {
+          "position": [0.0, 2.0],
+          "rotation": 0.0,
+          "scale": [1.0, 1.0]
+        },
+        "Camera2D": {
+          "orthographic_size": 8.0
+        }
+      }
+    },
+    {
+      "id": "ent_fighter_a",
+      "name": "Fighter A",
+      "components": {
+        "Transform2D": {
+          "position": [-2.0, 0.0],
+          "rotation": 0.0,
+          "scale": [1.0, 1.0]
+        },
+        "HitboxController": {
+          "hurtbox": [0.8, 1.8],
+          "script": "script://fighters/basic_fighter.lua"
+        }
+      }
+    },
+    {
+      "id": "ent_fighter_b",
+      "name": "Fighter B",
+      "components": {
+        "Transform2D": {
+          "position": [2.0, 0.0],
+          "rotation": 0.0,
+          "scale": [1.0, 1.0]
+        },
+        "HitboxController": {
+          "hurtbox": [0.8, 1.8],
+          "script": "script://fighters/basic_fighter.lua"
+        }
+      }
+    }
+  ]
+}

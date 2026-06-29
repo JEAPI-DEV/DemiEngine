@@ -1,0 +1,161 @@
+#pragma once
+
+#include <array>
+#include <filesystem>
+#include <optional>
+#include <string>
+#include <unordered_set>
+#include <vector>
+
+namespace demi::runtime {
+
+struct Vec2 {
+  float x = 0.0F;
+  float y = 0.0F;
+};
+
+struct Color {
+  float r = 0.08F;
+  float g = 0.09F;
+  float b = 0.12F;
+  float a = 1.0F;
+};
+
+struct InputState {
+  std::unordered_set<std::string> keysDown;
+};
+
+struct SceneEntry {
+  std::string id;
+  std::filesystem::path path;
+};
+
+struct ProjectData {
+  std::filesystem::path projectPath;
+  std::filesystem::path projectDirectory;
+  std::string name;
+  std::string mainScene;
+  std::vector<SceneEntry> scenes;
+};
+
+struct Transform2DComponent {
+  Vec2 position;
+  float rotation = 0.0F;
+  Vec2 scale = {1.0F, 1.0F};
+};
+
+struct Camera2DComponent {
+  Color clearColor;
+  float orthographicSize = 10.0F;
+};
+
+struct SpriteComponent {
+  std::string texture;
+  std::string layer;
+};
+
+struct IsoGridComponent {
+  Vec2 cellSize = {1.0F, 0.5F};
+  int width = 0;
+  int height = 0;
+};
+
+struct IsoTransformComponent {
+  Vec2 tile;
+  float height = 0.0F;
+  Vec2 footprint = {1.0F, 1.0F};
+};
+
+struct HitboxControllerComponent {
+  Vec2 hurtbox = {1.0F, 1.0F};
+  std::string script;
+};
+
+struct LuaScriptComponent {
+  std::string module;
+  float speed = 5.0F;
+};
+
+struct BuildableComponent {
+  std::string asset;
+  bool blocksMovement = false;
+};
+
+struct Entity {
+  std::string id;
+  std::string name;
+  std::optional<Transform2DComponent> transform2D;
+  std::optional<Camera2DComponent> camera2D;
+  std::optional<SpriteComponent> sprite;
+  std::optional<IsoGridComponent> isoGrid;
+  std::optional<IsoTransformComponent> isoTransform;
+  std::optional<HitboxControllerComponent> hitboxController;
+  std::optional<LuaScriptComponent> luaScript;
+  std::optional<BuildableComponent> buildable;
+};
+
+struct World {
+  std::filesystem::path scenePath;
+  std::string id;
+  std::string name;
+  std::vector<Entity> entities;
+};
+
+[[nodiscard]] inline Entity* findEntity(World& world, const std::string& id) {
+  for (Entity& entity : world.entities) {
+    if (entity.id == id) {
+      return &entity;
+    }
+  }
+  return nullptr;
+}
+
+[[nodiscard]] inline const Entity* findEntity(const World& world, const std::string& id) {
+  for (const Entity& entity : world.entities) {
+    if (entity.id == id) {
+      return &entity;
+    }
+  }
+  return nullptr;
+}
+
+[[nodiscard]] inline Entity* findFirstControllableEntity(World& world) {
+  if (Entity* player = findEntity(world, "ent_player")) {
+    return player;
+  }
+
+  for (Entity& entity : world.entities) {
+    if (entity.transform2D.has_value() && entity.sprite.has_value()) {
+      return &entity;
+    }
+  }
+  return nullptr;
+}
+
+[[nodiscard]] inline const Camera2DComponent* activeCamera(const World& world) {
+  for (const Entity& entity : world.entities) {
+    if (entity.camera2D.has_value()) {
+      return &*entity.camera2D;
+    }
+  }
+  return nullptr;
+}
+
+[[nodiscard]] inline std::size_t renderableEntityCount(const World& world) {
+  std::size_t count = 0;
+  for (const Entity& entity : world.entities) {
+    if (entity.sprite.has_value() || entity.hitboxController.has_value() || entity.isoGrid.has_value() || entity.buildable.has_value()) {
+      ++count;
+    }
+  }
+  return count;
+};
+
+struct LoadedProject {
+  ProjectData project;
+  World world;
+};
+
+[[nodiscard]] std::optional<LoadedProject> loadProject(const std::filesystem::path& projectPath, std::string& error);
+
+} // namespace demi::runtime
