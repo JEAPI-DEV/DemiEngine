@@ -64,6 +64,12 @@ Entity = {}
 ---@return string|nil
 function Entity.find(id_or_name) end
 
+---Creates or replaces an entity from a component table.
+---@param entity_id string
+---@param spec table
+---@return boolean
+function Entity.create(entity_id, spec) end
+
 ---Moves an entity with a Transform2D component by a world-space delta.
 ---@param entity_id string
 ---@param dx number

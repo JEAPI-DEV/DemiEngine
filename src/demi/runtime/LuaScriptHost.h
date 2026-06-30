@@ -30,6 +30,7 @@ public:
   [[nodiscard]] bool setRigidbodyVelocityY(const std::string& entityId, float y);
   [[nodiscard]] bool addRigidbodyImpulse(const std::string& entityId, float x, float y);
   [[nodiscard]] bool physicsOverlapBox(float x, float y, float width, float height, const std::string& ignoredEntityId) const;
+  [[nodiscard]] bool createEntity(Entity entity);
   [[nodiscard]] bool setHudText(const std::string& id, const std::string& text);
   [[nodiscard]] bool createHudText(const std::string& id, const std::string& text, float x, float y, float scale);
   [[nodiscard]] std::optional<std::string> hudText(const std::string& id) const;

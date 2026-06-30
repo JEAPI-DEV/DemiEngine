@@ -1,4 +1,5 @@
 local config = require("player_config")
+local state = require("game_state")
 local platformer = require("player_platformer")
 local slingshot = require("player_slingshot")
 
@@ -21,6 +22,8 @@ function Player:on_start()
   if x ~= nil and y ~= nil then
     self.spawn_x = x
     self.spawn_y = y
+    state.respawn_x = x
+    state.respawn_y = y
   end
 end
 

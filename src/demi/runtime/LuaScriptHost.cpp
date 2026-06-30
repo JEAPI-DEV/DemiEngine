@@ -191,6 +191,128 @@ int entityFind(lua_State* state) {
   return 1;
 }
 
+std::string stringField(lua_State* state, const int tableIndex, const char* fieldName, const std::string& fallback = {}) {
+  const int index = lua_absindex(state, tableIndex);
+  lua_getfield(state, index, fieldName);
+  std::string value = fallback;
+  if (lua_isstring(state, -1)) {
+    value = lua_tostring(state, -1);
+  }
+  lua_pop(state, 1);
+  return value;
+}
+
+float numberField(lua_State* state, const int tableIndex, const char* fieldName, const float fallback = 0.0F) {
+  const int index = lua_absindex(state, tableIndex);
+  lua_getfield(state, index, fieldName);
+  const float value = lua_isnumber(state, -1) ? static_cast<float>(lua_tonumber(state, -1)) : fallback;
+  lua_pop(state, 1);
+  return value;
+}
+
+bool boolField(lua_State* state, const int tableIndex, const char* fieldName, const bool fallback = false) {
+  const int index = lua_absindex(state, tableIndex);
+  lua_getfield(state, index, fieldName);
+  const bool value = lua_isboolean(state, -1) ? lua_toboolean(state, -1) != 0 : fallback;
+  lua_pop(state, 1);
+  return value;
+}
+
+Vec2 vec2Field(lua_State* state, const int tableIndex, const char* fieldName, const Vec2 fallback = {}) {
+  const int index = lua_absindex(state, tableIndex);
+  lua_getfield(state, index, fieldName);
+  Vec2 value = fallback;
+  if (lua_istable(state, -1)) {
+    lua_rawgeti(state, -1, 1);
+    if (lua_isnumber(state, -1)) {
+      value.x = static_cast<float>(lua_tonumber(state, -1));
+    }
+    lua_pop(state, 1);
+
+    lua_rawgeti(state, -1, 2);
+    if (lua_isnumber(state, -1)) {
+      value.y = static_cast<float>(lua_tonumber(state, -1));
+    }
+    lua_pop(state, 1);
+  }
+  lua_pop(state, 1);
+  return value;
+}
+
+void parseTransform2D(lua_State* state, const int componentIndex, Entity& entity) {
+  Transform2DComponent component;
+  component.position = vec2Field(state, componentIndex, "position", component.position);
+  component.rotation = numberField(state, componentIndex, "rotation", component.rotation);
+  component.scale = vec2Field(state, componentIndex, "scale", component.scale);
+  entity.transform2D = component;
+}
+
+void parseRigidbody2D(lua_State* state, const int componentIndex, Entity& entity) {
+  Rigidbody2DComponent component;
+  component.bodyType = stringField(state, componentIndex, "body_type", component.bodyType);
+  component.velocity = vec2Field(state, componentIndex, "velocity", component.velocity);
+  component.gravityScale = numberField(state, componentIndex, "gravity_scale", component.gravityScale);
+  component.lockRotation = boolField(state, componentIndex, "lock_rotation", component.lockRotation);
+  entity.rigidbody2D = component;
+}
+
+void parseBoxCollider2D(lua_State* state, const int componentIndex, Entity& entity) {
+  BoxCollider2DComponent component;
+  component.size = vec2Field(state, componentIndex, "size", component.size);
+  component.offset = vec2Field(state, componentIndex, "offset", component.offset);
+  component.isTrigger = boolField(state, componentIndex, "is_trigger", component.isTrigger);
+  entity.boxCollider2D = component;
+}
+
+void parseSprite(lua_State* state, const int componentIndex, Entity& entity) {
+  SpriteComponent component;
+  component.texture = stringField(state, componentIndex, "texture", component.texture);
+  component.layer = stringField(state, componentIndex, "layer", component.layer);
+  entity.sprite = component;
+}
+
+void parseLuaComponent(lua_State* state, const int componentsIndex, const char* componentName, Entity& entity) {
+  lua_getfield(state, componentsIndex, componentName);
+  if (!lua_istable(state, -1)) {
+    lua_pop(state, 1);
+    return;
+  }
+
+  const int componentIndex = lua_absindex(state, -1);
+  if (std::string_view(componentName) == "Transform2D") {
+    parseTransform2D(state, componentIndex, entity);
+  } else if (std::string_view(componentName) == "Rigidbody2D") {
+    parseRigidbody2D(state, componentIndex, entity);
+  } else if (std::string_view(componentName) == "BoxCollider2D") {
+    parseBoxCollider2D(state, componentIndex, entity);
+  } else if (std::string_view(componentName) == "Sprite") {
+    parseSprite(state, componentIndex, entity);
+  }
+  lua_pop(state, 1);
+}
+
+int entityCreateBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* entityId = luaL_checkstring(state, 1);
+  luaL_checktype(state, 2, LUA_TTABLE);
+
+  Entity entity;
+  entity.id = entityId;
+  entity.name = stringField(state, 2, "name", entity.id);
+
+  lua_getfield(state, 2, "components");
+  const int componentsIndex = lua_istable(state, -1) ? lua_absindex(state, -1) : lua_absindex(state, 2);
+  parseLuaComponent(state, componentsIndex, "Transform2D", entity);
+  parseLuaComponent(state, componentsIndex, "Rigidbody2D", entity);
+  parseLuaComponent(state, componentsIndex, "BoxCollider2D", entity);
+  parseLuaComponent(state, componentsIndex, "Sprite", entity);
+  lua_pop(state, 1);
+
+  const bool created = host != nullptr && host->createEntity(std::move(entity));
+  lua_pushboolean(state, created);
+  return 1;
+}
+
 int sceneLoad(lua_State* state) {
   const char* sceneId = luaL_checkstring(state, 1);
   std::cerr << "Scene.load is not implemented yet for " << sceneId << '\n';
@@ -420,6 +542,9 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, std::strin
   lua_pushcclosure(state, entityFind, 1);
   lua_setfield(state, -2, "find");
   lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, entityCreateBinding, 1);
+  lua_setfield(state, -2, "create");
+  lua_pushlightuserdata(state, this);
   lua_pushcclosure(state, entityAddPosition, 1);
   lua_setfield(state, -2, "add_position");
   lua_pushlightuserdata(state, this);
@@ -633,6 +758,24 @@ bool LuaScriptHost::physicsOverlapBox(const float x, const float y, const float 
   return world_ != nullptr && overlapBox(*world_, Vec2{.x = x, .y = y}, Vec2{.x = width, .y = height}, ignoredEntityId);
 }
 
+bool LuaScriptHost::createEntity(Entity entity) {
+  if (world_ == nullptr || entity.id.empty()) {
+    return false;
+  }
+
+  if (entity.name.empty()) {
+    entity.name = entity.id;
+  }
+
+  if (Entity* existing = findEntity(*world_, entity.id)) {
+    *existing = std::move(entity);
+    return true;
+  }
+
+  world_->entities.push_back(std::move(entity));
+  return true;
+}
+
 bool LuaScriptHost::setHudText(const std::string& id, const std::string& text) {
   if (world_ == nullptr) {
     return false;
@@ -698,11 +841,12 @@ Vec2 LuaScriptHost::mouseWorldPosition() const {
   }
 
   const Camera2DComponent* camera = activeCamera(*world_);
+  const Vec2 cameraPosition = activeCameraPosition(*world_);
   const float orthographicSize = camera != nullptr ? camera->orthographicSize : 10.0F;
   const float pixelsPerUnit = static_cast<float>(viewportHeight_) / std::max(orthographicSize * 2.0F, 1.0F);
   return Vec2{
-    .x = (input_->mousePosition.x - static_cast<float>(viewportWidth_) * 0.5F) / pixelsPerUnit,
-    .y = (static_cast<float>(viewportHeight_) * 0.5F - input_->mousePosition.y) / pixelsPerUnit,
+    .x = cameraPosition.x + (input_->mousePosition.x - static_cast<float>(viewportWidth_) * 0.5F) / pixelsPerUnit,
+    .y = cameraPosition.y + (static_cast<float>(viewportHeight_) * 0.5F - input_->mousePosition.y) / pixelsPerUnit,
   };
 }
 

@@ -168,13 +168,13 @@ float pixelsPerUnit(const Camera2DComponent& camera, const int height) {
   return static_cast<float>(height) / std::max(camera.orthographicSize * 2.0F, 1.0F);
 }
 
-float worldToScreenX(const Camera2DComponent& camera, const int width, const int height, const float x) {
-  return static_cast<float>(width) * 0.5F + x * pixelsPerUnit(camera, height);
+float worldToScreenX(const Camera2DComponent& camera, const Vec2 cameraPosition, const int width, const int height, const float x) {
+  return static_cast<float>(width) * 0.5F + (x - cameraPosition.x) * pixelsPerUnit(camera, height);
 }
 
-float worldToScreenY(const Camera2DComponent& camera, const int width, const int height, const float y) {
+float worldToScreenY(const Camera2DComponent& camera, const Vec2 cameraPosition, const int width, const int height, const float y) {
   (void)width;
-  return static_cast<float>(height) * 0.5F - y * pixelsPerUnit(camera, height);
+  return static_cast<float>(height) * 0.5F - (y - cameraPosition.y) * pixelsPerUnit(camera, height);
 }
 
 Vec2 isoTileToWorld(const Vec2 tile, const float gridWidth = 32.0F, const float gridHeight = 32.0F) {
@@ -184,9 +184,9 @@ Vec2 isoTileToWorld(const Vec2 tile, const float gridWidth = 32.0F, const float 
   };
 }
 
-void drawIsoDiamond(SDL_Renderer* renderer, const Camera2DComponent& camera, const int width, const int height, const float x, const float y, const float cells) {
-  const float centerX = worldToScreenX(camera, width, height, x);
-  const float centerY = worldToScreenY(camera, width, height, y);
+void drawIsoDiamond(SDL_Renderer* renderer, const Camera2DComponent& camera, const Vec2 cameraPosition, const int width, const int height, const float x, const float y, const float cells) {
+  const float centerX = worldToScreenX(camera, cameraPosition, width, height, x);
+  const float centerY = worldToScreenY(camera, cameraPosition, width, height, y);
   const float ppu = pixelsPerUnit(camera, height);
   const float halfW = cells * ppu * 0.65F;
   const float halfH = cells * ppu * 0.32F;
@@ -198,6 +198,7 @@ void drawIsoDiamond(SDL_Renderer* renderer, const Camera2DComponent& camera, con
 
 void drawIsoFootprint(SDL_Renderer* renderer,
                       const Camera2DComponent& camera,
+                      const Vec2 cameraPosition,
                       const int width,
                       const int height,
                       const Vec2 tile,
@@ -205,8 +206,8 @@ void drawIsoFootprint(SDL_Renderer* renderer,
                       const Vec2 gridSize) {
   const Vec2 centerTile{.x = tile.x + (footprint.x - 1.0F) * 0.5F, .y = tile.y + (footprint.y - 1.0F) * 0.5F};
   const Vec2 center = isoTileToWorld(centerTile, gridSize.x, gridSize.y);
-  const float centerX = worldToScreenX(camera, width, height, center.x);
-  const float centerY = worldToScreenY(camera, width, height, center.y);
+  const float centerX = worldToScreenX(camera, cameraPosition, width, height, center.x);
+  const float centerY = worldToScreenY(camera, cameraPosition, width, height, center.y);
   const float ppu = pixelsPerUnit(camera, height);
   const float halfW = std::max((footprint.x + footprint.y) * ppu * 0.33F, 12.0F);
   const float halfH = std::max((footprint.x + footprint.y) * ppu * 0.16F, 6.0F);
@@ -221,6 +222,7 @@ void drawIsoFootprint(SDL_Renderer* renderer,
 void drawEntity(SDL_Renderer* renderer,
                 const std::unordered_map<std::string, void*>& textures,
                 const Camera2DComponent& camera,
+                const Vec2 cameraPosition,
                 const Entity& entity,
                 const Vec2 isoGridSize,
                 const int width,
@@ -232,7 +234,7 @@ void drawEntity(SDL_Renderer* renderer,
         const Vec2 world = isoTileToWorld(Vec2{.x = static_cast<float>(x), .y = static_cast<float>(y)},
                                           static_cast<float>(entity.isoGrid->width),
                                           static_cast<float>(entity.isoGrid->height));
-        drawIsoDiamond(renderer, camera, width, height, world.x, world.y, 0.5F);
+        drawIsoDiamond(renderer, camera, cameraPosition, width, height, world.x, world.y, 0.5F);
       }
     }
     return;
@@ -268,11 +270,11 @@ void drawEntity(SDL_Renderer* renderer,
   }
 
   if (entity.buildable.has_value() && entity.isoTransform.has_value()) {
-    drawIsoFootprint(renderer, camera, width, height, entity.isoTransform->tile, entity.isoTransform->footprint, isoGridSize);
+    drawIsoFootprint(renderer, camera, cameraPosition, width, height, entity.isoTransform->tile, entity.isoTransform->footprint, isoGridSize);
   }
 
-  const float screenX = worldToScreenX(camera, width, height, position.x);
-  const float screenY = worldToScreenY(camera, width, height, position.y);
+  const float screenX = worldToScreenX(camera, cameraPosition, width, height, position.x);
+  const float screenY = worldToScreenY(camera, cameraPosition, width, height, position.y);
   SDL_FRect rect{
     .x = screenX - entityWidth * 0.5F,
     .y = screenY - entityHeight * 0.5F,
@@ -362,8 +364,9 @@ void Renderer2D::loadTextureAssets(const AssetRegistry& registry) {
 #endif
 }
 
-void Renderer2D::beginFrame(const Camera2DComponent& camera, const int width, const int height) {
+void Renderer2D::beginFrame(const Camera2DComponent& camera, const Vec2 cameraPosition, const int width, const int height) {
   camera_ = camera;
+  cameraPosition_ = cameraPosition;
   width_ = std::max(width, 1);
   height_ = std::max(height, 1);
 
@@ -410,7 +413,7 @@ void Renderer2D::drawWorld(const World& world) {
   });
 
   for (const Entity* entity : renderables) {
-    drawEntity(renderer, textures_, camera_, *entity, isoGridSize, width_, height_);
+      drawEntity(renderer, textures_, camera_, cameraPosition_, *entity, isoGridSize, width_, height_);
   }
 
   for (const DebugLine& line : world.debugLines) {
@@ -420,10 +423,10 @@ void Renderer2D::drawWorld(const World& world) {
                            colorChannel(line.color.b),
                            colorChannel(line.color.a));
     SDL_RenderLine(renderer,
-                   worldToScreenX(camera_, width_, height_, line.start.x),
-                   worldToScreenY(camera_, width_, height_, line.start.y),
-                   worldToScreenX(camera_, width_, height_, line.end.x),
-                   worldToScreenY(camera_, width_, height_, line.end.y));
+                   worldToScreenX(camera_, cameraPosition_, width_, height_, line.start.x),
+                   worldToScreenY(camera_, cameraPosition_, width_, height_, line.start.y),
+                   worldToScreenX(camera_, cameraPosition_, width_, height_, line.end.x),
+                   worldToScreenY(camera_, cameraPosition_, width_, height_, line.end.y));
   }
 #else
   (void)world;

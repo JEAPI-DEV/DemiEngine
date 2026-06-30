@@ -177,6 +177,15 @@ struct World {
   return nullptr;
 }
 
+[[nodiscard]] inline Vec2 activeCameraPosition(const World& world) {
+  for (const Entity& entity : world.entities) {
+    if (entity.camera2D.has_value() && entity.transform2D.has_value()) {
+      return entity.transform2D->position;
+    }
+  }
+  return {};
+}
+
 [[nodiscard]] inline std::size_t renderableEntityCount(const World& world) {
   std::size_t count = 0;
   for (const Entity& entity : world.entities) {

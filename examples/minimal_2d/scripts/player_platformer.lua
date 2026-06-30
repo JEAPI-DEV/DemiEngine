@@ -1,4 +1,5 @@
 local config = require("player_config")
+local state = require("game_state")
 
 local Platformer = {}
 
@@ -26,13 +27,16 @@ end
 function Platformer.reset_to_spawn_if_fallen(player)
   local x, y = Entity.get_position(player.entity_id)
   if y == nil or y > config.fall_reset_y then
-    return
+    return false
   end
 
-  Entity.set_position(player.entity_id, player.spawn_x, player.spawn_y)
+  Entity.set_position(player.entity_id, state.respawn_x, state.respawn_y)
   Rigidbody2D.set_velocity(player.entity_id, 0.0, 0.0)
   player.slingshot_active = false
   player.slingshot_frames = 0
+  player.aiming = false
+  state.camera_reset_requested = true
+  return true
 end
 
 return Platformer

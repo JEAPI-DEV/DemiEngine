@@ -176,7 +176,7 @@ int runProject(const RuntimeOptions& options) {
     luaHost.update(dt);
 
     const Camera2DComponent* camera = activeCamera(loaded.world);
-    renderer2D.beginFrame(camera != nullptr ? *camera : fallbackCamera, width, height);
+    renderer2D.beginFrame(camera != nullptr ? *camera : fallbackCamera, activeCameraPosition(loaded.world), width, height);
     renderer2D.drawWorld(loaded.world);
     renderer2D.drawHud(loaded.world);
     renderer2D.endFrame();
