@@ -8,16 +8,29 @@ Important files include:
 
 \begin{longtable}{>{\ttfamily}p{0.42\textwidth}p{0.46\textwidth}}
 demi.project.json & Project entry point. \\
-scenes/main.scene.json & Main scene and entity definitions. \\
-scenes/main.hud.json & Declarative main menu, options UI, and points HUD. \\
-scripts/game.lua & Game controller, platform generation, camera, and coins. \\
+scenes/main.scene.json & Level 1 scene and entity definitions. \\
+scenes/spiral.scene.json & Level 2 scene: a procedurally generated upward spiral climb. \\
+scenes/main.hud.json & Declarative main menu, level select, options UI, and points HUD. \\
+scripts/game.lua & Shared game controller: points, coins, platform tracking, and level dispatch. \\
+scripts/level\_main.lua & Level 1 generation and camera (horizontal platforms). \\
+scripts/level\_spiral.lua & Level 2 generation and camera (upward spiral climb). \\
+scripts/game\_state.lua & Shared state across scene switches (level, auto\_start, fall floor). \\
 scripts/player.lua & Player update entry point. \\
 scripts/player\_platformer.lua & Platformer movement and respawn helpers. \\
 scripts/player\_slingshot.lua & Slingshot aim, recharge, launch, and trajectory preview. \\
-scripts/main\_menu.lua & Menu state controller and settings persistence. \\
+scripts/main\_menu.lua & Menu state controller, level select, and settings persistence. \\
 scripts/menu\_button.lua & HUD button event dispatcher. \\
 saves/settings.save.json & Generated or updated settings save file. \\
 \end{longtable}
+
+\section{Levels and Scene Switching}
+
+The example ships two levels. The main menu has a Level Select screen showing one card per level (number, name, description, a mini preview, and a PLAY button). Selecting a level calls \code{Scene.load} with the target scene id; the runtime rebuilds the world and scripts between frames (see the Scene Switching section in the Lua API chapter). A shared state module carries an \code{auto\_start} flag from the menu button into the new scene's \code{on\_start} so the selected level begins immediately. On the Level Select screen, keyboard \code{1}/\code{2} pick a level and \code{Escape} returns to the main menu.
+
+\begin{itemize}
+  \item \textbf{Level 1 -- Orbit Run} (\filepath{scenes/main.scene.json}): the original deterministic horizontal slingshot platformer. Platforms generate ahead of the camera along the x axis.
+  \item \textbf{Level 2 -- Spiral Climb} (\filepath{scenes/spiral.scene.json}): a procedurally generated upward spiral. Platforms wind around a center point at a fixed angle step with a slowly growing radius, ascending by a fixed height per step. The camera follows the player on both axes. The fall floor is the same fixed value as Level 1, so a missed jump respawns at the start just like the main level.
+\end{itemize}
 
 \section{Gameplay}
 

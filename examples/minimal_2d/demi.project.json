@@ -6,6 +6,10 @@
     {
       "id": "scene://minimal_2d/main",
       "path": "scenes/main.scene.json"
+    },
+    {
+      "id": "scene://minimal_2d/spiral",
+      "path": "scenes/spiral.scene.json"
     }
   ],
   "scripting": {

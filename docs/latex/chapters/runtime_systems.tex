@@ -55,3 +55,9 @@ The runtime supports Lua-requested window mode changes:
 \end{itemize}
 
 Window mode changes are requested from Lua and applied by the runtime loop. Lua can also pause or resume physics through \code{Runtime.set\_physics\_enabled} and request shutdown through \code{Runtime.quit}.
+
+\section{Scene Switching}
+
+Runtime scene switching is implemented in \filepath{src/demi/runtime/SceneLoader.cpp} and \filepath{src/demi/runtime/LuaScriptHost.cpp}. The free function \code{loadScene} resolves a scene id against the project scene list, validates the scene and optional HUD, and returns a parsed \code{World}.
+
+Lua calls \code{Scene.load} from any callback. The host records the request as pending. The application loop in \filepath{src/demi/runtime/RuntimeApp.cpp} checks for a pending scene after the Lua update step and, if present, rebuilds the active world, destroys and re-loads scripts, and re-runs \code{on_create}/\code{on_start}. Switches are applied between frames so they never re-enter Lua mid-callback.

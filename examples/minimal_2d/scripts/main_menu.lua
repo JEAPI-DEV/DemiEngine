@@ -11,6 +11,8 @@ local Menu = {
 
 local PLAYER_ID = "ent_player"
 local SETTINGS_SLOT = "settings"
+local SCENE_MAIN = "scene://minimal_2d/main"
+local SCENE_SPIRAL = "scene://minimal_2d/spiral"
 
 local function show_group(group, visible)
   Hud.set_group_visible(group, visible)
@@ -62,6 +64,7 @@ end
 local function hide_menu()
   show_group("menu_base", false)
   show_group("menu_main", false)
+  show_group("menu_levels", false)
   show_group("menu_options", false)
   show_group("menu_sound", false)
   show_group("menu_video", false)
@@ -73,6 +76,19 @@ local function show_main()
   Menu.dropdown_open = false
   show_group("menu_base", true)
   show_group("menu_main", true)
+  show_group("menu_levels", false)
+  show_group("menu_options", false)
+  show_group("menu_sound", false)
+  show_group("menu_video", false)
+  show_group("menu_dropdown", false)
+end
+
+local function show_levels()
+  Menu.screen = "levels"
+  Menu.dropdown_open = false
+  show_group("menu_base", true)
+  show_group("menu_main", false)
+  show_group("menu_levels", true)
   show_group("menu_options", false)
   show_group("menu_sound", false)
   show_group("menu_video", false)
@@ -83,6 +99,7 @@ local function show_options()
   Menu.screen = "options"
   show_group("menu_base", true)
   show_group("menu_main", false)
+  show_group("menu_levels", false)
   show_group("menu_options", true)
   if Menu.active_tab == "sound" then
     Hud.set_color("menu_tab_sound", 0.24, 0.27, 0.46, 0.94)
@@ -106,14 +123,23 @@ local function show_tab(tab)
   show_options()
 end
 
-local function start_game()
-  hide_menu()
-  state.menu_open = false
-  state.game_started = true
-  Runtime.set_physics_enabled(true)
-  Hud.set_visible("points", true)
-  Entity.set_position(PLAYER_ID, state.respawn_x, state.respawn_y)
-  Rigidbody2D.set_velocity(PLAYER_ID, 0.0, 0.0)
+local function select_level(scene_id, level)
+  state.pending_scene = scene_id
+  state.level = level
+  state.auto_start = true
+  state.fall_floor_y = nil
+  Scene.load(scene_id)
+end
+
+function Menu.start_game()
+  select_level(SCENE_MAIN, 1)
+end
+
+function Menu.apply_settings()
+  Menu.volume = Save.get_number(SETTINGS_SLOT, "master_volume", Audio.get_master_volume())
+  Menu.window_mode = Save.get_string(SETTINGS_SLOT, "window_mode", Runtime.get_window_mode())
+  Audio.set_master_volume(Menu.volume)
+  Runtime.set_window_mode(Menu.window_mode)
 end
 
 function Menu.start()
@@ -121,18 +147,36 @@ function Menu.start()
   Menu.screen = "main"
   Menu.active_tab = "sound"
   Menu.dropdown_open = false
-  Menu.volume = Save.get_number(SETTINGS_SLOT, "master_volume", Audio.get_master_volume())
-  Menu.window_mode = Save.get_string(SETTINGS_SLOT, "window_mode", Runtime.get_window_mode())
-  Audio.set_master_volume(Menu.volume)
-  Runtime.set_window_mode(Menu.window_mode)
+  Menu.apply_settings()
   Runtime.set_physics_enabled(false)
   Hud.set_visible("points", false)
   show_main()
 end
 
+function Menu.begin_active_level()
+  hide_menu()
+  state.menu_open = false
+  state.game_started = true
+  Runtime.set_physics_enabled(true)
+  Hud.set_visible("points", true)
+  local px, py = Entity.get_position(PLAYER_ID)
+  if px ~= nil and py ~= nil then
+    state.respawn_x = px
+    state.respawn_y = py
+  end
+  Entity.set_position(PLAYER_ID, state.respawn_x, state.respawn_y)
+  Rigidbody2D.set_velocity(PLAYER_ID, 0.0, 0.0)
+end
+
 function Menu.handle_click(id)
-  if id == "menu_button_start" then
-    start_game()
+  if id == "menu_button_levels" then
+    show_levels()
+  elseif id == "menu_button_level_1" then
+    select_level(SCENE_MAIN, 1)
+  elseif id == "menu_button_level_2" then
+    select_level(SCENE_SPIRAL, 2)
+  elseif id == "menu_levels_back" then
+    show_main()
   elseif id == "menu_button_options" then
     show_options()
   elseif id == "menu_button_quit" then
@@ -165,7 +209,17 @@ function Menu.update(dt)
   local enter_pressed = enter_down and not Menu.enter_was_down
 
   if Menu.screen == "main" and enter_pressed then
-    start_game()
+    Menu.start_game()
+  end
+
+  if Menu.screen == "levels" then
+    if Input.is_down("1") then
+      select_level(SCENE_MAIN, 1)
+    elseif Input.is_down("2") then
+      select_level(SCENE_SPIRAL, 2)
+    elseif Input.is_down("escape") then
+      show_main()
+    end
   end
 
   if Menu.screen == "options" and Menu.active_tab == "sound" then

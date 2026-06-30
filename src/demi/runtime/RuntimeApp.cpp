@@ -204,6 +204,16 @@ int runProject(const RuntimeOptions& options) {
       applyWindowMode(window, luaHost.windowMode());
       luaHost.clearWindowModeDirty();
     }
+
+    if (luaHost.hasPendingSceneLoad()) {
+      std::string sceneError;
+      if (!luaHost.applyPendingSceneLoad(sceneError)) {
+        std::cerr << "Scene switch failed: " << sceneError << '\n';
+      } else {
+        std::cout << "Switched scene to " << loaded.world.id << " (" << loaded.world.name << ").\n";
+      }
+    }
+
     audioSystem.update();
 
     const Camera2DComponent* camera = activeCamera(loaded.world);

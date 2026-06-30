@@ -468,9 +468,15 @@ int entityDestroyBinding(lua_State* state) {
 }
 
 int sceneLoad(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
   const char* sceneId = luaL_checkstring(state, 1);
-  std::cerr << "Scene.load is not implemented yet for " << sceneId << '\n';
-  lua_pushboolean(state, false);
+  if (host != nullptr) {
+    host->requestSceneLoad(sceneId);
+    lua_pushboolean(state, true);
+  } else {
+    std::cerr << "Scene.load is not available without a runtime host.\n";
+    lua_pushboolean(state, false);
+  }
   return 1;
 }
 
@@ -914,7 +920,8 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, AudioSyste
   lua_setglobal(state, "Time");
 
   lua_newtable(state);
-  lua_pushcfunction(state, sceneLoad);
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, sceneLoad, 1);
   lua_setfield(state, -2, "load");
   lua_setglobal(state, "Scene");
 
@@ -1033,6 +1040,7 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData& project, World& world, s
   }
 
   projectDirectory_ = project.projectDirectory;
+  project_ = &project;
   configureLuaPackagePath(state, project);
 
   if (!project.scriptEntry.empty()) {
@@ -1714,9 +1722,14 @@ void LuaScriptHost::fixedUpdate(const float dt) {
 }
 
 void LuaScriptHost::destroy() {
+  unloadScripts();
+}
+
+void LuaScriptHost::unloadScripts() {
 #if DEMI_HAS_LUA54
   auto* state = static_cast<lua_State*>(state_);
   if (state == nullptr) {
+    scripts_.clear();
     return;
   }
   for (const ScriptInstance& script : scripts_) {
@@ -1724,6 +1737,51 @@ void LuaScriptHost::destroy() {
     luaL_unref(state, LUA_REGISTRYINDEX, script.tableRef);
   }
   scripts_.clear();
+#endif
+}
+
+void LuaScriptHost::requestSceneLoad(const std::string& sceneId) {
+  pendingSceneLoad_ = sceneId;
+}
+
+bool LuaScriptHost::hasPendingSceneLoad() const {
+  return pendingSceneLoad_.has_value();
+}
+
+bool LuaScriptHost::applyPendingSceneLoad(std::string& error) {
+  if (!pendingSceneLoad_.has_value()) {
+    return false;
+  }
+  const std::string sceneId = std::move(*pendingSceneLoad_);
+  pendingSceneLoad_.reset();
+
+#if !DEMI_HAS_LUA54
+  (void)sceneId;
+  error = "Lua 5.4 support is unavailable.";
+  return false;
+#else
+  if (project_ == nullptr || world_ == nullptr) {
+    error = "Scene load requested before runtime was initialized.";
+    return false;
+  }
+
+  std::optional<World> newWorld = loadScene(*project_, sceneId, error);
+  if (!newWorld.has_value()) {
+    return false;
+  }
+
+  unloadScripts();
+
+  *world_ = std::move(*newWorld);
+
+  std::string scriptError;
+  if (!loadWorldScripts(*project_, *world_, scriptError)) {
+    error = "Scene loaded but scripts failed: " + scriptError;
+    return false;
+  }
+
+  start();
+  return true;
 #endif
 }
 

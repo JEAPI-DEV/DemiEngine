@@ -37,7 +37,7 @@ Hud & Imperative HUD text, rects, visibility, colors, groups, and text updates. 
 Save & Simple number and string persistence in save slots. \\
 Audio & Play, stop, master volume get and set. \\
 Runtime & Quit, physics enable, window mode get and set. \\
-Scene & Scene load placeholder. \\
+Scene & Runtime scene switching by scene id. \\
 \end{longtable}
 
 \section{Save API}
@@ -65,3 +65,23 @@ Hud.set_color("menu_tab_sound", 0.24, 0.27, 0.46, 0.94)
 Hud.set_visible("points", true)
 Hud.set_group_visible("menu_main", false)
 \end{lstlisting}
+
+\section{Scene Switching}
+
+\code{Scene.load} requests a runtime scene switch by scene id. The switch is deferred: it is applied between frames by the runtime loop, so it is safe to call from any Lua callback (menu buttons, update, fixed update).
+
+\begin{lstlisting}[language={[5.2]Lua}]
+Scene.load("scene://minimal_2d/spiral")
+\end{lstlisting}
+
+When a scene switch is applied, the runtime:
+
+\begin{enumerate}
+  \item validates and parses the target scene (and its optional HUD) by id from the project scene list;
+  \item calls \code{on_destroy} on every active script and releases their script tables;
+  \item replaces the active world in place (so existing world references stay valid);
+  \item re-loads the project entry script, entity scripts, and HUD button scripts;
+  \item calls \code{on_create} and \code{on_start} on the freshly loaded scripts.
+\end{enumerate}
+
+Required modules stay cached across a switch, so a shared state module can carry a pending flag (for example an \code{auto\_start} flag) from the button that requested the switch into the new scene's \code{on_start}. Runtime-created entities from the previous scene are discarded with the old world.

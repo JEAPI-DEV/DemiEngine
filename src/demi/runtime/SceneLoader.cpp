@@ -534,7 +534,22 @@ std::optional<LoadedProject> loadProject(const std::filesystem::path& projectPat
     return std::nullopt;
   }
 
-  const std::filesystem::path scenePath = project->projectDirectory / mainScene->path;
+  std::optional<World> world = loadScene(*project, project->mainScene, error);
+  if (!world.has_value()) {
+    return std::nullopt;
+  }
+
+  return LoadedProject{.project = *project, .world = std::move(*world)};
+}
+
+std::optional<World> loadScene(const ProjectData& project, const std::string& sceneId, std::string& error) {
+  const auto scene = std::ranges::find_if(project.scenes, [&](const SceneEntry& entry) { return entry.id == sceneId; });
+  if (scene == project.scenes.end()) {
+    error = "No scene registered with id: " + sceneId;
+    return std::nullopt;
+  }
+
+  const std::filesystem::path scenePath = project.projectDirectory / scene->path;
   const ValidationSummary sceneValidation = validatePath(scenePath);
   if (hasErrors(sceneValidation.diagnostics)) {
     error = "Scene validation failed before runtime load: " + scenePath.string();
@@ -560,7 +575,7 @@ std::optional<LoadedProject> loadProject(const std::filesystem::path& projectPat
     }
   }
 
-  return LoadedProject{.project = *project, .world = std::move(world)};
+  return world;
 }
 
 } // namespace demi::runtime

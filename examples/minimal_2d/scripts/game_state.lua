@@ -5,4 +5,7 @@ return {
   camera_reset_requested = false,
   menu_open = true,
   game_started = false,
+  level = 1,
+  pending_scene = nil,
+  auto_start = false,
 }

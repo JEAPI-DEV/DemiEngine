@@ -27,6 +27,9 @@ public:
 
   [[nodiscard]] bool initialize(World& world, const InputState& input, AudioSystem* audio, std::string& error);
   [[nodiscard]] bool loadWorldScripts(const ProjectData& project, World& world, std::string& error);
+  void requestSceneLoad(const std::string& sceneId);
+  [[nodiscard]] bool hasPendingSceneLoad() const;
+  [[nodiscard]] bool applyPendingSceneLoad(std::string& error);
   [[nodiscard]] bool isKeyDown(const std::string& key) const;
   [[nodiscard]] bool addEntityPosition(const std::string& entityId, float dx, float dy);
   [[nodiscard]] bool setEntityPosition(const std::string& entityId, float x, float y);
@@ -84,11 +87,13 @@ private:
   };
 
   void dispatchHudEvents();
+  void unloadScripts();
   [[nodiscard]] std::unordered_map<std::string, SaveValue>& loadSaveSlot(const std::string& slot);
   [[nodiscard]] bool writeSaveSlot(const std::string& slot);
 
   void* state_ = nullptr;
   World* world_ = nullptr;
+  const ProjectData* project_ = nullptr;
   const InputState* input_ = nullptr;
   AudioSystem* audio_ = nullptr;
   std::filesystem::path projectDirectory_;
@@ -99,6 +104,7 @@ private:
   bool windowModeDirty_ = false;
   bool physicsEnabled_ = true;
   bool previousUiMouseDown_ = false;
+  std::optional<std::string> pendingSceneLoad_;
   std::unordered_map<std::string, std::unordered_map<std::string, SaveValue>> saves_;
   std::vector<ScriptInstance> scripts_;
 };

@@ -232,4 +232,8 @@ struct LoadedProject {
 
 [[nodiscard]] std::optional<LoadedProject> loadProject(const std::filesystem::path& projectPath, std::string& error);
 
+// Loads a single scene (and its optional HUD) by scene id from a project's scene
+// list. Used at runtime to switch scenes without reloading the whole project.
+[[nodiscard]] std::optional<World> loadScene(const ProjectData& project, const std::string& sceneId, std::string& error);
+
 } // namespace demi::runtime
