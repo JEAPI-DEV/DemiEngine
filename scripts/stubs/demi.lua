@@ -118,6 +118,12 @@ function Runtime.quit() end
 ---@param enabled boolean
 function Runtime.set_physics_enabled(enabled) end
 
+---@param mode string "windowed", "borderless", or "fullscreen"
+function Runtime.set_window_mode(mode) end
+
+---@return string mode
+function Runtime.get_window_mode() end
+
 ---@class Rigidbody2DService
 Rigidbody2D = {}
 
@@ -212,6 +218,11 @@ function Hud.set_color(id, r, g, b, a) end
 ---@return boolean
 function Hud.set_visible(id, visible) end
 
+---@param group string
+---@param visible boolean
+---@return boolean
+function Hud.set_group_visible(group, visible) end
+
 ---@param id string
 ---@return string|nil
 function Hud.get_text(id) end
@@ -229,6 +240,12 @@ function Audio.play(asset_id) end
 ---@return boolean
 function Audio.stop(handle) end
 
+---@param volume number 0.0 to 1.0
+function Audio.set_master_volume(volume) end
+
+---@return number volume
+function Audio.get_master_volume() end
+
 ---@class DemiScript
 ---@field entity_id string
 ---@field speed number
@@ -245,5 +262,17 @@ function DemiScript:on_update(dt) end
 function DemiScript:on_fixed_update(dt) end
 
 function DemiScript:on_destroy() end
+
+---@class UiEvent
+---@field id string
+---@field label string
+---@field mouse_x number
+---@field mouse_y number
+
+---@param event UiEvent
+function DemiScript:on_ui_hover(event) end
+
+---@param event UiEvent
+function DemiScript:on_ui_click(event) end
 
 return DemiScript

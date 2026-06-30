@@ -40,6 +40,7 @@ public:
   [[nodiscard]] bool setHudRect(const std::string& id, float x, float y, float width, float height);
   [[nodiscard]] bool setHudColor(const std::string& id, Color color);
   [[nodiscard]] bool setHudVisible(const std::string& id, bool visible);
+  [[nodiscard]] bool setHudGroupVisible(const std::string& group, bool visible);
   [[nodiscard]] std::optional<std::string> hudText(const std::string& id) const;
   [[nodiscard]] bool isMouseDown(const std::string& button) const;
   [[nodiscard]] Vec2 mousePosition() const;
@@ -49,9 +50,15 @@ public:
   void clearDebugLines();
   [[nodiscard]] std::uint64_t playAudio(const std::string& assetId);
   [[nodiscard]] bool stopAudio(std::uint64_t handle);
+  void setMasterVolume(float volume);
+  [[nodiscard]] float masterVolume() const;
   void setViewport(int width, int height);
   void requestQuit();
   [[nodiscard]] bool quitRequested() const;
+  void setWindowMode(std::string mode);
+  [[nodiscard]] const std::string& windowMode() const;
+  [[nodiscard]] bool windowModeDirty() const;
+  void clearWindowModeDirty();
   void setPhysicsEnabled(bool enabled);
   [[nodiscard]] bool physicsEnabled() const;
   void start();
@@ -66,6 +73,8 @@ private:
     int tableRef = 0;
   };
 
+  void dispatchHudEvents();
+
   void* state_ = nullptr;
   World* world_ = nullptr;
   const InputState* input_ = nullptr;
@@ -73,7 +82,10 @@ private:
   int viewportWidth_ = 1;
   int viewportHeight_ = 1;
   bool quitRequested_ = false;
+  std::string windowMode_ = "windowed";
+  bool windowModeDirty_ = false;
   bool physicsEnabled_ = true;
+  bool previousUiMouseDown_ = false;
   std::vector<ScriptInstance> scripts_;
 };
 

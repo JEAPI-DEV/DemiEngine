@@ -154,6 +154,9 @@ SourceFileKind classifySourceFile(const std::filesystem::path& path) {
   if (isSceneFile(path)) {
     return SourceFileKind::Scene;
   }
+  if (isHudFile(path)) {
+    return SourceFileKind::Hud;
+  }
   if (isSaveFile(path)) {
     return SourceFileKind::Save;
   }
@@ -184,7 +187,7 @@ ValidationSummary validatePath(const std::filesystem::path& path) {
       .code = "NO_SOURCE_FILES",
       .message = "No project, scene, or save files were found to validate.",
       .path = path.string(),
-      .suggestion = "Add files ending in .project.json, .scene.json, or .save.json.",
+        .suggestion = "Add files ending in .project.json, .scene.json, .hud.json, or .save.json.",
     });
     return summary;
   }
@@ -206,7 +209,7 @@ Diagnostics validateTextFile(const std::filesystem::path& path, const SourceFile
       .code = "UNKNOWN_SOURCE_KIND",
       .message = "File is not a known DemiEngine source data file.",
       .path = path.string(),
-      .suggestion = "Use a .project.json, .scene.json, or .save.json suffix.",
+        .suggestion = "Use a .project.json, .scene.json, .hud.json, or .save.json suffix.",
     });
     return diagnostics;
   }
@@ -241,6 +244,10 @@ Diagnostics validateTextFile(const std::filesystem::path& path, const SourceFile
     requireToken(diagnostics, text, path, "\"id\"", "SCENE_MISSING_ID", "Scene file is missing id.", "Add a stable scene id such as scene://main.");
     requireToken(diagnostics, text, path, "\"entities\"", "SCENE_MISSING_ENTITIES", "Scene file is missing entities.", "Add an entities array, even if it is empty.");
     validateDuplicateEntityIds(diagnostics, path, text);
+    validateReferences(diagnostics, path, text);
+    break;
+  case SourceFileKind::Hud:
+    requireToken(diagnostics, text, path, "\"elements\"", "HUD_MISSING_ELEMENTS", "HUD file is missing elements.", "Add an elements array, even if it is empty.");
     validateReferences(diagnostics, path, text);
     break;
   case SourceFileKind::Save:

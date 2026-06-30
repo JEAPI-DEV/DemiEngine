@@ -12,6 +12,7 @@ enum class SourceFileKind {
   Unknown,
   Project,
   Scene,
+  Hud,
   Save,
   Asset,
 };

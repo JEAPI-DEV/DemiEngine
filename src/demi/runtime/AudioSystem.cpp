@@ -205,6 +205,15 @@ bool AudioSystem::stop(const std::uint64_t handle) {
   return playing_.size() != before;
 }
 
+void AudioSystem::setMasterVolume(const float volume) {
+  std::scoped_lock lock(mutex_);
+  masterVolume_ = std::clamp(volume, 0.0F, 1.0F);
+}
+
+float AudioSystem::masterVolume() const {
+  return masterVolume_;
+}
+
 void AudioSystem::update() {
 }
 
@@ -239,9 +248,10 @@ void AudioSystem::mixAudio(void* stream, const int additionalAmount) {
       const std::size_t bytesToMix = std::min<std::size_t>(remainingBytes, mix.size() * sizeof(std::int16_t));
       const auto* source = reinterpret_cast<const std::int16_t*>(playing.sound->pcm.data() + playing.cursor);
       const std::size_t samplesToMix = bytesToMix / sizeof(std::int16_t);
+      const float volume = masterVolume_;
 
       for (std::size_t i = 0; i < samplesToMix; ++i) {
-        const int value = static_cast<int>(mix[i]) + static_cast<int>(source[i]);
+        const int value = static_cast<int>(mix[i]) + static_cast<int>(static_cast<float>(source[i]) * volume);
         mix[i] = static_cast<std::int16_t>(std::clamp(value, -32768, 32767));
       }
 

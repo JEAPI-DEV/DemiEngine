@@ -47,8 +47,24 @@ struct ProjectData {
   std::vector<SceneEntry> scenes;
 };
 
+struct HudButtonElement {
+  std::string id;
+  std::string group;
+  std::string label;
+  Vec2 position;
+  Vec2 size = {120.0F, 40.0F};
+  float scale = 3.0F;
+  Color color = {0.16F, 0.18F, 0.32F, 1.0F};
+  Color hoverColor = {0.24F, 0.28F, 0.48F, 1.0F};
+  Color textColor = {1.0F, 1.0F, 1.0F, 1.0F};
+  std::string script;
+  bool visible = true;
+  bool hovered = false;
+};
+
 struct HudTextElement {
   std::string id;
+  std::string group;
   std::string text;
   Vec2 position;
   float scale = 3.0F;
@@ -58,6 +74,7 @@ struct HudTextElement {
 
 struct HudRectElement {
   std::string id;
+  std::string group;
   Vec2 position;
   Vec2 size;
   Color color = {1.0F, 1.0F, 1.0F, 1.0F};
@@ -143,6 +160,7 @@ struct World {
   std::string name;
   std::vector<Entity> entities;
   std::vector<HudRectElement> hudRects;
+  std::vector<HudButtonElement> hudButtons;
   std::vector<HudTextElement> hudText;
   std::vector<DebugLine> debugLines;
 };

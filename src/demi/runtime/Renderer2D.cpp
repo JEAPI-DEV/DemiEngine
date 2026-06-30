@@ -67,11 +67,14 @@ Glyph glyphFor(const char raw) {
   case 'Y': return {"101", "101", "101", "010", "010", "010", "010"};
   case 'Z': return {"111", "001", "001", "010", "100", "100", "111"};
   case ':': return {"000", "010", "010", "000", "010", "010", "000"};
+  case '+': return {"000", "010", "010", "111", "010", "010", "000"};
   case '-': return {"000", "000", "000", "111", "000", "000", "000"};
   case '.': return {"000", "000", "000", "000", "000", "110", "110"};
   default: return {"000", "000", "000", "000", "000", "000", "000"};
   }
 }
+
+void drawText(SDL_Renderer* renderer, const HudTextElement& element);
 
 void drawHudRect(SDL_Renderer* renderer, const HudRectElement& element) {
   if (!element.visible) {
@@ -91,6 +94,40 @@ void drawHudRect(SDL_Renderer* renderer, const HudRectElement& element) {
     .h = element.size.y,
   };
   SDL_RenderFillRect(renderer, &rect);
+}
+
+void drawHudButton(SDL_Renderer* renderer, const HudButtonElement& element) {
+  if (!element.visible) {
+    return;
+  }
+
+  const Color color = element.hovered ? element.hoverColor : element.color;
+  SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+  SDL_SetRenderDrawColor(renderer,
+                         colorChannel(color.r),
+                         colorChannel(color.g),
+                         colorChannel(color.b),
+                         colorChannel(color.a));
+  SDL_FRect rect{
+    .x = element.position.x,
+    .y = element.position.y,
+    .w = element.size.x,
+    .h = element.size.y,
+  };
+  SDL_RenderFillRect(renderer, &rect);
+
+  HudTextElement label{
+    .id = element.id + ":label",
+    .group = element.group,
+    .text = element.label,
+    .position = Vec2{
+      .x = element.position.x + element.size.x * 0.5F - static_cast<float>(element.label.size()) * element.scale * 2.0F,
+      .y = element.position.y + element.size.y * 0.5F - element.scale * 3.5F,
+    },
+    .scale = element.scale,
+    .color = element.textColor,
+  };
+  drawText(renderer, label);
 }
 
 void drawText(SDL_Renderer* renderer, const HudTextElement& element) {
@@ -477,6 +514,9 @@ void Renderer2D::drawHud(const World& world) {
   auto* renderer = static_cast<SDL_Renderer*>(nativeRenderer_);
   for (const HudRectElement& element : world.hudRects) {
     drawHudRect(renderer, element);
+  }
+  for (const HudButtonElement& element : world.hudButtons) {
+    drawHudButton(renderer, element);
   }
   for (const HudTextElement& element : world.hudText) {
     drawText(renderer, element);

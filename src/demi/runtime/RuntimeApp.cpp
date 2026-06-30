@@ -66,6 +66,21 @@ void setMouseButtonState(InputState& input, const Uint8 button, const bool press
   }
 }
 
+void applyWindowMode(SDL_Window* window, const std::string& mode) {
+  if (mode == "fullscreen") {
+    SDL_SetWindowBordered(window, true);
+    SDL_SetWindowFullscreen(window, true);
+    return;
+  }
+
+  SDL_SetWindowFullscreen(window, false);
+  SDL_SetWindowBordered(window, mode != "borderless");
+  if (mode == "windowed") {
+    SDL_SetWindowSize(window, 960, 540);
+    SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+  }
+}
+
 #endif
 
 } // namespace
@@ -184,6 +199,10 @@ int runProject(const RuntimeOptions& options) {
     luaHost.update(dt);
     if (luaHost.quitRequested()) {
       running = false;
+    }
+    if (luaHost.windowModeDirty()) {
+      applyWindowMode(window, luaHost.windowMode());
+      luaHost.clearWindowModeDirty();
     }
     audioSystem.update();
 

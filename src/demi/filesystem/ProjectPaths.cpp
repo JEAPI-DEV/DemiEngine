@@ -18,6 +18,10 @@ bool isSceneFile(const std::filesystem::path& path) {
   return path.filename().string().ends_with(".scene.json");
 }
 
+bool isHudFile(const std::filesystem::path& path) {
+  return path.filename().string().ends_with(".hud.json");
+}
+
 bool isSaveFile(const std::filesystem::path& path) {
   return path.filename().string().ends_with(".save.json");
 }
@@ -33,7 +37,7 @@ std::vector<std::filesystem::path> collectKnownSourceFiles(const std::filesystem
   }
 
   if (std::filesystem::is_regular_file(root)) {
-    if (isProjectFile(root) || isSceneFile(root) || isSaveFile(root) || isAssetFile(root)) {
+    if (isProjectFile(root) || isSceneFile(root) || isHudFile(root) || isSaveFile(root) || isAssetFile(root)) {
       files.push_back(root);
     }
     return files;
@@ -45,7 +49,7 @@ std::vector<std::filesystem::path> collectKnownSourceFiles(const std::filesystem
     }
 
     const std::filesystem::path path = entry.path();
-    if (isProjectFile(path) || isSceneFile(path) || isSaveFile(path) || isAssetFile(path)) {
+    if (isProjectFile(path) || isSceneFile(path) || isHudFile(path) || isSaveFile(path) || isAssetFile(path)) {
       files.push_back(path);
     }
   }

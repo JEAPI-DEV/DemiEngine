@@ -414,6 +414,95 @@ World parseScene(const std::filesystem::path& scenePath, const std::string& text
   return world;
 }
 
+void parseHudElement(const std::string& elementObject, World& world) {
+  const std::string type = stringAfterKey(elementObject, "type").value_or(std::string{});
+  const std::string id = stringAfterKey(elementObject, "id").value_or(std::string{});
+  if (id.empty()) {
+    return;
+  }
+
+  if (type == "rect") {
+    HudRectElement rect;
+    rect.id = id;
+    rect.group = stringAfterKey(elementObject, "group").value_or(std::string{});
+    if (const std::optional<Vec2> position = vec2AfterKey(elementObject, "position")) {
+      rect.position = *position;
+    }
+    if (const std::optional<Vec2> size = vec2AfterKey(elementObject, "size")) {
+      rect.size = *size;
+    }
+    if (const std::optional<Color> color = colorAfterKey(elementObject, "color")) {
+      rect.color = *color;
+    }
+    rect.visible = boolAfterKey(elementObject, "visible").value_or(true);
+    world.hudRects.push_back(std::move(rect));
+    return;
+  }
+
+  if (type == "text") {
+    HudTextElement text;
+    text.id = id;
+    text.group = stringAfterKey(elementObject, "group").value_or(std::string{});
+    text.text = stringAfterKey(elementObject, "text").value_or(std::string{});
+    if (const std::optional<Vec2> position = vec2AfterKey(elementObject, "position")) {
+      text.position = *position;
+    }
+    if (const std::optional<float> scale = numberAfterKey(elementObject, "scale")) {
+      text.scale = *scale;
+    }
+    if (const std::optional<Color> color = colorAfterKey(elementObject, "color")) {
+      text.color = *color;
+    }
+    text.visible = boolAfterKey(elementObject, "visible").value_or(true);
+    world.hudText.push_back(std::move(text));
+    return;
+  }
+
+  if (type == "button") {
+    HudButtonElement button;
+    button.id = id;
+    button.group = stringAfterKey(elementObject, "group").value_or(std::string{});
+    button.label = stringAfterKey(elementObject, "label").value_or(id);
+    if (const std::optional<Vec2> position = vec2AfterKey(elementObject, "position")) {
+      button.position = *position;
+    }
+    if (const std::optional<Vec2> size = vec2AfterKey(elementObject, "size")) {
+      button.size = *size;
+    }
+    if (const std::optional<float> scale = numberAfterKey(elementObject, "scale")) {
+      button.scale = *scale;
+    }
+    if (const std::optional<Color> color = colorAfterKey(elementObject, "color")) {
+      button.color = *color;
+    }
+    if (const std::optional<Color> hoverColor = colorAfterKey(elementObject, "hover_color")) {
+      button.hoverColor = *hoverColor;
+    }
+    if (const std::optional<Color> textColor = colorAfterKey(elementObject, "text_color")) {
+      button.textColor = *textColor;
+    }
+    button.script = stringAfterKey(elementObject, "script").value_or(std::string{});
+    button.visible = boolAfterKey(elementObject, "visible").value_or(true);
+    world.hudButtons.push_back(std::move(button));
+  }
+}
+
+void loadHudFile(World& world, const std::filesystem::path& hudPath, std::string& error) {
+  const std::string hudText = readFile(hudPath, error);
+  if (!error.empty()) {
+    return;
+  }
+
+  const std::optional<std::string> elementsArray = arrayAfterKey(hudText, "elements");
+  if (!elementsArray.has_value()) {
+    return;
+  }
+
+  for (const std::string& elementObject : objectsInArray(*elementsArray)) {
+    parseHudElement(elementObject, world);
+  }
+}
+
 } // namespace
 
 std::optional<LoadedProject> loadProject(const std::filesystem::path& projectPath, std::string& error) {
@@ -451,7 +540,21 @@ std::optional<LoadedProject> loadProject(const std::filesystem::path& projectPat
     return std::nullopt;
   }
 
-  return LoadedProject{.project = *project, .world = parseScene(scenePath, sceneText)};
+  World world = parseScene(scenePath, sceneText);
+  if (const std::optional<std::string> hud = stringAfterKey(sceneText, "hud")) {
+    const std::filesystem::path hudPath = scenePath.parent_path() / *hud;
+    const ValidationSummary hudValidation = validatePath(hudPath);
+    if (hasErrors(hudValidation.diagnostics)) {
+      error = "HUD validation failed before runtime load: " + hudPath.string();
+      return std::nullopt;
+    }
+    loadHudFile(world, hudPath, error);
+    if (!error.empty()) {
+      return std::nullopt;
+    }
+  }
+
+  return LoadedProject{.project = *project, .world = std::move(world)};
 }
 
 } // namespace demi::runtime

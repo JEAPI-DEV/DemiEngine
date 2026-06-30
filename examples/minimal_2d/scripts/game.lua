@@ -41,7 +41,7 @@ function Game:on_create()
 end
 
 function Game:on_start()
-  Hud.text("points", "POINTS: " .. tostring(self.points), 24.0, 24.0, 3.0)
+  Hud.set_text("points", "POINTS: " .. tostring(self.points))
   Hud.set_visible("points", false)
   self:generate_platforms_until(GENERATE_AHEAD)
   main_menu.start()

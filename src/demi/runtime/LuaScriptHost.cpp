@@ -466,6 +466,15 @@ int hudSetVisibleBinding(lua_State* state) {
   return 1;
 }
 
+int hudSetGroupVisibleBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* group = luaL_checkstring(state, 1);
+  const bool visible = lua_toboolean(state, 2) != 0;
+  const bool changed = host != nullptr && host->setHudGroupVisible(group, visible);
+  lua_pushboolean(state, changed);
+  return 1;
+}
+
 int hudSetTextBinding(lua_State* state) {
   LuaScriptHost* host = hostFromUpvalue(state);
   const char* id = luaL_checkstring(state, 1);
@@ -503,6 +512,21 @@ int audioStopBinding(lua_State* state) {
   return 1;
 }
 
+int audioSetMasterVolumeBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const float volume = static_cast<float>(luaL_checknumber(state, 1));
+  if (host != nullptr) {
+    host->setMasterVolume(volume);
+  }
+  return 0;
+}
+
+int audioGetMasterVolumeBinding(lua_State* state) {
+  const LuaScriptHost* host = hostFromUpvalue(state);
+  lua_pushnumber(state, host != nullptr ? host->masterVolume() : 1.0F);
+  return 1;
+}
+
 int runtimeQuitBinding(lua_State* state) {
   LuaScriptHost* host = hostFromUpvalue(state);
   if (host != nullptr) {
@@ -518,6 +542,21 @@ int runtimeSetPhysicsEnabledBinding(lua_State* state) {
     host->setPhysicsEnabled(enabled);
   }
   return 0;
+}
+
+int runtimeSetWindowModeBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* mode = luaL_checkstring(state, 1);
+  if (host != nullptr) {
+    host->setWindowMode(mode);
+  }
+  return 0;
+}
+
+int runtimeGetWindowModeBinding(lua_State* state) {
+  const LuaScriptHost* host = hostFromUpvalue(state);
+  lua_pushstring(state, host != nullptr ? host->windowMode().c_str() : "windowed");
+  return 1;
 }
 
 void callLifecycle(lua_State* state, const int tableRef, const char* functionName, const float dt = 0.0F) {
@@ -536,6 +575,32 @@ void callLifecycle(lua_State* state, const int tableRef, const char* functionNam
   }
 
   if (lua_pcall(state, argCount, 0, 0) != LUA_OK) {
+    std::cerr << "Lua " << functionName << " failed: " << lua_tostring(state, -1) << '\n';
+    lua_pop(state, 1);
+  }
+  lua_pop(state, 1);
+}
+
+void callUiEvent(lua_State* state, const int tableRef, const char* functionName, const HudButtonElement& button, const Vec2 mousePosition) {
+  lua_rawgeti(state, LUA_REGISTRYINDEX, tableRef);
+  lua_getfield(state, -1, functionName);
+  if (!lua_isfunction(state, -1)) {
+    lua_pop(state, 2);
+    return;
+  }
+
+  lua_pushvalue(state, -2);
+  lua_newtable(state);
+  lua_pushstring(state, button.id.c_str());
+  lua_setfield(state, -2, "id");
+  lua_pushstring(state, button.label.c_str());
+  lua_setfield(state, -2, "label");
+  lua_pushnumber(state, mousePosition.x);
+  lua_setfield(state, -2, "mouse_x");
+  lua_pushnumber(state, mousePosition.y);
+  lua_setfield(state, -2, "mouse_y");
+
+  if (lua_pcall(state, 2, 0, 0) != LUA_OK) {
     std::cerr << "Lua " << functionName << " failed: " << lua_tostring(state, -1) << '\n';
     lua_pop(state, 1);
   }
@@ -684,6 +749,12 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, AudioSyste
   lua_pushlightuserdata(state, this);
   lua_pushcclosure(state, runtimeSetPhysicsEnabledBinding, 1);
   lua_setfield(state, -2, "set_physics_enabled");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, runtimeSetWindowModeBinding, 1);
+  lua_setfield(state, -2, "set_window_mode");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, runtimeGetWindowModeBinding, 1);
+  lua_setfield(state, -2, "get_window_mode");
   lua_setglobal(state, "Runtime");
 
   lua_newtable(state);
@@ -730,6 +801,9 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, AudioSyste
   lua_pushcclosure(state, hudSetVisibleBinding, 1);
   lua_setfield(state, -2, "set_visible");
   lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, hudSetGroupVisibleBinding, 1);
+  lua_setfield(state, -2, "set_group_visible");
+  lua_pushlightuserdata(state, this);
   lua_pushcclosure(state, hudGetTextBinding, 1);
   lua_setfield(state, -2, "get_text");
   lua_setglobal(state, "Hud");
@@ -741,6 +815,12 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, AudioSyste
   lua_pushlightuserdata(state, this);
   lua_pushcclosure(state, audioStopBinding, 1);
   lua_setfield(state, -2, "stop");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, audioSetMasterVolumeBinding, 1);
+  lua_setfield(state, -2, "set_master_volume");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, audioGetMasterVolumeBinding, 1);
+  lua_setfield(state, -2, "get_master_volume");
   lua_setglobal(state, "Audio");
 
   state_ = state;
@@ -808,6 +888,33 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData& project, World& world, s
 
     const int tableRef = luaL_ref(state, LUA_REGISTRYINDEX);
     scripts_.push_back(ScriptInstance{.entityId = entity.id, .module = entity.luaScript->module, .tableRef = tableRef});
+  }
+
+  for (const HudButtonElement& button : world.hudButtons) {
+    if (button.script.empty()) {
+      continue;
+    }
+
+    const std::filesystem::path scriptPath = resolveScriptPath(project, button.script);
+    if (luaL_dofile(state, scriptPath.string().c_str()) != LUA_OK) {
+      error = "Failed to load HUD button Lua script " + scriptPath.string() + ": " + lua_tostring(state, -1);
+      lua_pop(state, 1);
+      return false;
+    }
+
+    if (!lua_istable(state, -1)) {
+      lua_pop(state, 1);
+      error = "HUD button Lua script must return a table: " + scriptPath.string();
+      return false;
+    }
+
+    lua_pushstring(state, button.id.c_str());
+    lua_setfield(state, -2, "entity_id");
+    lua_pushstring(state, button.id.c_str());
+    lua_setfield(state, -2, "ui_id");
+
+    const int tableRef = luaL_ref(state, LUA_REGISTRYINDEX);
+    scripts_.push_back(ScriptInstance{.entityId = button.id, .module = button.script, .tableRef = tableRef});
   }
 
   return true;
@@ -960,6 +1067,7 @@ bool LuaScriptHost::createHudText(const std::string& id, const std::string& text
 
   world_->hudText.push_back(HudTextElement{
     .id = id,
+    .group = {},
     .text = text,
     .position = Vec2{.x = x, .y = y},
     .scale = scale,
@@ -985,6 +1093,7 @@ bool LuaScriptHost::createHudRect(const std::string& id, const float x, const fl
 
   world_->hudRects.push_back(HudRectElement{
     .id = id,
+    .group = {},
     .position = Vec2{.x = x, .y = y},
     .size = Vec2{.x = width, .y = height},
     .color = color,
@@ -1018,6 +1127,12 @@ bool LuaScriptHost::setHudColor(const std::string& id, const Color color) {
       return true;
     }
   }
+  for (HudButtonElement& element : world_->hudButtons) {
+    if (element.id == id) {
+      element.color = color;
+      return true;
+    }
+  }
   for (HudTextElement& element : world_->hudText) {
     if (element.id == id) {
       element.color = color;
@@ -1039,8 +1154,47 @@ bool LuaScriptHost::setHudVisible(const std::string& id, const bool visible) {
       changed = true;
     }
   }
+  for (HudButtonElement& element : world_->hudButtons) {
+    if (element.id == id) {
+      element.visible = visible;
+      if (!visible) {
+        element.hovered = false;
+      }
+      changed = true;
+    }
+  }
   for (HudTextElement& element : world_->hudText) {
     if (element.id == id) {
+      element.visible = visible;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+bool LuaScriptHost::setHudGroupVisible(const std::string& group, const bool visible) {
+  if (world_ == nullptr || group.empty()) {
+    return false;
+  }
+
+  bool changed = false;
+  for (HudRectElement& element : world_->hudRects) {
+    if (element.group == group) {
+      element.visible = visible;
+      changed = true;
+    }
+  }
+  for (HudButtonElement& element : world_->hudButtons) {
+    if (element.group == group) {
+      element.visible = visible;
+      if (!visible) {
+        element.hovered = false;
+      }
+      changed = true;
+    }
+  }
+  for (HudTextElement& element : world_->hudText) {
+    if (element.group == group) {
       element.visible = visible;
       changed = true;
     }
@@ -1113,9 +1267,57 @@ bool LuaScriptHost::stopAudio(const std::uint64_t handle) {
   return audio_ != nullptr && audio_->stop(handle);
 }
 
+void LuaScriptHost::setMasterVolume(const float volume) {
+  if (audio_ != nullptr) {
+    audio_->setMasterVolume(volume);
+  }
+}
+
+float LuaScriptHost::masterVolume() const {
+  return audio_ != nullptr ? audio_->masterVolume() : 1.0F;
+}
+
 void LuaScriptHost::setViewport(const int width, const int height) {
   viewportWidth_ = std::max(width, 1);
   viewportHeight_ = std::max(height, 1);
+}
+
+void LuaScriptHost::dispatchHudEvents() {
+#if DEMI_HAS_LUA54
+  auto* state = static_cast<lua_State*>(state_);
+  if (state == nullptr || world_ == nullptr || input_ == nullptr) {
+    return;
+  }
+
+  const Vec2 mouse = input_->mousePosition;
+  const bool mouseDown = isMouseDown("left");
+  for (HudButtonElement& button : world_->hudButtons) {
+    if (!button.visible) {
+      button.hovered = false;
+      continue;
+    }
+
+    button.hovered = mouse.x >= button.position.x &&
+                     mouse.x <= button.position.x + button.size.x &&
+                     mouse.y >= button.position.y &&
+                     mouse.y <= button.position.y + button.size.y;
+    if (!button.hovered) {
+      continue;
+    }
+
+    for (const ScriptInstance& script : scripts_) {
+      if (script.entityId != button.id) {
+        continue;
+      }
+      callUiEvent(state, script.tableRef, "on_ui_hover", button, mouse);
+      if (mouseDown && !previousUiMouseDown_) {
+        callUiEvent(state, script.tableRef, "on_ui_click", button, mouse);
+      }
+    }
+  }
+
+  previousUiMouseDown_ = mouseDown;
+#endif
 }
 
 void LuaScriptHost::requestQuit() {
@@ -1124,6 +1326,30 @@ void LuaScriptHost::requestQuit() {
 
 bool LuaScriptHost::quitRequested() const {
   return quitRequested_;
+}
+
+void LuaScriptHost::setWindowMode(std::string mode) {
+  mode = normalizedKey(std::move(mode));
+  if (mode != "windowed" && mode != "borderless" && mode != "fullscreen") {
+    return;
+  }
+  if (windowMode_ == mode) {
+    return;
+  }
+  windowMode_ = std::move(mode);
+  windowModeDirty_ = true;
+}
+
+const std::string& LuaScriptHost::windowMode() const {
+  return windowMode_;
+}
+
+bool LuaScriptHost::windowModeDirty() const {
+  return windowModeDirty_;
+}
+
+void LuaScriptHost::clearWindowModeDirty() {
+  windowModeDirty_ = false;
 }
 
 void LuaScriptHost::setPhysicsEnabled(const bool enabled) {
@@ -1160,6 +1386,8 @@ void LuaScriptHost::update(const float dt) {
     lua_setfield(state, -2, "delta_time");
   }
   lua_pop(state, 1);
+
+  dispatchHudEvents();
 
   for (const ScriptInstance& script : scripts_) {
     callLifecycle(state, script.tableRef, "on_update", dt);
