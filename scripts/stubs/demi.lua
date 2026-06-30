@@ -1,5 +1,9 @@
 ---@meta
 
+-- Project scripts can use standard Lua `require(...)` for modules inside the
+-- project root or project `scripts/` directory, for example:
+-- local movement = require("player_platformer")
+
 ---@class DebugService
 Debug = {}
 

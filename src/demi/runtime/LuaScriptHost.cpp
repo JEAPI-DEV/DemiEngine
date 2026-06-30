@@ -324,6 +324,32 @@ std::filesystem::path resolveScriptPath(const ProjectData& project, const std::s
   return project.projectDirectory / module;
 }
 
+void configureLuaPackagePath(lua_State* state, const ProjectData& project) {
+  lua_getglobal(state, "package");
+  if (!lua_istable(state, -1)) {
+    lua_pop(state, 1);
+    return;
+  }
+
+  lua_getfield(state, -1, "path");
+  const char* currentPath = lua_tostring(state, -1);
+  const std::string current = currentPath != nullptr ? currentPath : "";
+  lua_pop(state, 1);
+
+  const std::filesystem::path scripts = project.projectDirectory / "scripts";
+  const std::string projectRoot = project.projectDirectory.string();
+  const std::string scriptsRoot = scripts.string();
+  const std::string path = scriptsRoot + "/?.lua;" +
+                           scriptsRoot + "/?/init.lua;" +
+                           projectRoot + "/?.lua;" +
+                           projectRoot + "/?/init.lua;" +
+                           current;
+
+  lua_pushstring(state, path.c_str());
+  lua_setfield(state, -2, "path");
+  lua_pop(state, 1);
+}
+
 #endif
 
 } // namespace
@@ -467,6 +493,8 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData& project, World& world, s
     error = "LuaScriptHost was not initialized.";
     return false;
   }
+
+  configureLuaPackagePath(state, project);
 
   if (!project.scriptEntry.empty()) {
     const std::filesystem::path scriptPath = resolveScriptPath(project, project.scriptEntry);
