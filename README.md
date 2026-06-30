@@ -4,6 +4,8 @@ DemiEngine is a Linux-first game engine scaffold for AI-assisted development of 
 
 This repository currently implements the first buildable scaffold plus an SDL3-backed runtime preview: documentation, CMake targets, a minimal `demi` CLI, validation contracts, schemas, example project files, typed scene loading, player movement, Lua lifecycle calls, and a visible debug scene view. Full bgfx rendering, editor UI, physics, media, saves, and networking are still represented as documented subsystem boundaries before their external dependencies are wired in.
 
+## Docs 
+
 ## What This Engine Is
 
 - A Linux-focused C++20 engine framework.

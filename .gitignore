@@ -13,3 +13,7 @@ compile_commands.json
 generated/
 examples/**/build/
 examples/**/generated/
+docs/latex/main.log
+docs/latex/main.aux
+docs/latex/main.toc
+docs/latex/main.out
