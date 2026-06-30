@@ -6,6 +6,8 @@ This repository currently implements the first buildable scaffold plus an SDL3-b
 
 ## Docs 
 
+[Docs PDF](https://github.com/JEAPI-DEV/DemiEngine/blob/main/docs/latex/main.pdf)
+
 ## What This Engine Is
 
 - A Linux-focused C++20 engine framework.
