@@ -1,0 +1,57 @@
+\chapter{Runtime Systems}
+
+\section{Rendering}
+
+The renderer is implemented in \filepath{src/demi/runtime/Renderer2D.cpp}. It uses SDL3 when available. Current renderer capabilities include:
+
+\begin{itemize}
+  \item clearing with the active camera color;
+  \item drawing PPM-backed textures when available;
+  \item drawing fallback rectangles for entities without textures;
+  \item drawing collider outlines for debug visibility;
+  \item drawing debug lines;
+  \item drawing HUD rectangles, buttons, and pixel text;
+  \item scaling HUD coordinates from each HUD file canvas to the active window size.
+\end{itemize}
+
+The HUD text renderer is a built-in pixel font. It currently supports the glyphs needed by the example menu and HUD.
+
+\section{Physics}
+
+The 2D physics system is implemented in \filepath{src/demi/runtime/Physics2D.cpp}. It supports:
+
+\begin{itemize}
+  \item dynamic and static rigidbodies;
+  \item gravity scale per dynamic body;
+  \item axis-aligned box colliders;
+  \item static collider resolution;
+  \item bounciness on vertical contacts;
+  \item overlap box queries exposed to Lua;
+  \item regression coverage for edge-contact teleport behavior.
+\end{itemize}
+
+The resolver uses previous collider bounds for side decisions, which avoids incorrectly snapping a player across a platform when touching a top-right or top-left edge.
+
+\section{Audio}
+
+The audio system is implemented in \filepath{src/demi/runtime/AudioSystem.cpp}. It supports:
+
+\begin{itemize}
+  \item asset-backed audio loading;
+  \item MP3 decoding with libmpg123 when available;
+  \item playing and stopping audio handles from Lua;
+  \item master volume control;
+  \item mixing currently playing sounds into the SDL audio callback.
+\end{itemize}
+
+\section{Window and Runtime Control}
+
+The runtime supports Lua-requested window mode changes:
+
+\begin{itemize}
+  \item \code{windowed};
+  \item \code{borderless};
+  \item \code{fullscreen}.
+\end{itemize}
+
+Window mode changes are requested from Lua and applied by the runtime loop. Lua can also pause or resume physics through \code{Runtime.set\_physics\_enabled} and request shutdown through \code{Runtime.quit}.

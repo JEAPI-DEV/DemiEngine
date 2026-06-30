@@ -1,0 +1,81 @@
+\chapter{Data Formats}
+
+All source data files are JSON-like engine data and must include \code{format\_version}. The validator recognizes project, scene, HUD, save, and asset manifest files.
+
+\section{Project Files}
+
+Project files use \filepath{*.project.json}. A project declares a name, main scene, scene list, and optional scripting entry point.
+
+\begin{lstlisting}[language=json]
+{
+  "format_version": 1,
+  "name": "Minimal 2D",
+  "main_scene": "scene://minimal_2d/main",
+  "scenes": [
+    { "id": "scene://minimal_2d/main", "path": "scenes/main.scene.json" }
+  ],
+  "scripting": {
+    "language": "lua54",
+    "entry": "script://scripts/game.lua"
+  }
+}
+\end{lstlisting}
+
+\section{Scene Files}
+
+Scene files use \filepath{*.scene.json}. They declare a scene ID, scene name, optional HUD file, and an entity list.
+
+\begin{lstlisting}[language=json]
+{
+  "format_version": 1,
+  "id": "scene://minimal_2d/main",
+  "name": "Minimal Main",
+  "hud": "main.hud.json",
+  "entities": []
+}
+\end{lstlisting}
+
+\section{HUD Files}
+
+HUD files use \filepath{*.hud.json}. They declare a virtual canvas and HUD elements.
+
+\begin{lstlisting}[language=json]
+{
+  "format_version": 1,
+  "canvas_size": [960.0, 540.0],
+  "elements": [
+    {
+      "type": "button",
+      "id": "menu_button_start",
+      "group": "menu_main",
+      "label": "START GAME",
+      "position": [270.0, 226.0],
+      "size": [420.0, 52.0],
+      "script": "script://scripts/menu_button.lua"
+    }
+  ]
+}
+\end{lstlisting}
+
+The HUD canvas size is per HUD file. A game may author one HUD at 960 by 540 and another at 1920 by 1080. The renderer scales from the HUD canvas to the actual window size, and HUD mouse hit testing maps back into the same canvas.
+
+\section{Save Files}
+
+Save files use \filepath{*.save.json}. They contain a slot name and arbitrary state fields.
+
+\begin{lstlisting}[language=json]
+{
+  "format_version": 1,
+  "slot": "settings",
+  "state": {
+    "master_volume": 0.8,
+    "window_mode": "fullscreen"
+  }
+}
+\end{lstlisting}
+
+Lua can read and write simple string and number values in these files through the \code{Save} service.
+
+\section{Asset Manifests}
+
+Asset manifests use \filepath{*.asset.json}. They define stable \code{asset://} IDs and source paths. The current runtime loads PPM texture data for sprites and MP3 data for audio if libmpg123 is available.

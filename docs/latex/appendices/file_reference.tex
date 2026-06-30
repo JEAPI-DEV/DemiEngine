@@ -1,0 +1,33 @@
+\appendix
+\chapter{File Reference}
+
+\section{Core Source Files}
+
+\begin{longtable}{>{\ttfamily\small\raggedright\arraybackslash}p{0.54\textwidth}p{0.34\textwidth}}
+src/demi/assets/AssetRegistry.* & Asset manifests and reference extraction. \\
+src/demi/diagnostics/Diagnostic.* & Diagnostic data and helpers. \\
+src/demi/filesystem/ProjectPaths.* & Known source file classification and collection. \\
+src/demi/schema/Validation.* & Source data validation. \\
+src/demi/runtime/SceneData.h & Runtime data model and components. \\
+src/demi/runtime/SceneLoader.cpp & Project, scene, and HUD loading. \\
+src/demi/runtime/RuntimeApp.cpp & Main runtime loop. \\
+src/demi/runtime/Renderer2D.* & SDL renderer and HUD drawing. \\
+src/demi/runtime/Physics2D.* & Physics stepping and queries. \\
+src/demi/runtime/AudioSystem.* & Audio asset loading and playback. \\
+src/demi/runtime/LuaScriptHost.* & Lua services, lifecycle, UI events, and saves. \\
+\end{longtable}
+
+\section{Example Files}
+
+\begin{longtable}{>{\ttfamily\small\raggedright\arraybackslash}p{0.64\textwidth}p{0.24\textwidth}}
+examples/minimal\_2d/demi.project.json & Example project file. \\
+examples/minimal\_2d/scenes/main.scene.json & Main scene. \\
+examples/minimal\_2d/scenes/main.hud.json & Main HUD and menu layout. \\
+examples/minimal\_2d/scripts/game.lua & Main game script. \\
+examples/minimal\_2d/scripts/main\_menu.lua & Menu state and settings controller. \\
+examples/minimal\_2d/scripts/menu\_button.lua & HUD button click dispatcher. \\
+examples/minimal\_2d/scripts/player.lua & Player script. \\
+examples/minimal\_2d/scripts/player\_platformer.lua & Movement and platform contact helpers. \\
+examples/minimal\_2d/scripts/player\_slingshot.lua & Slingshot behavior. \\
+examples/minimal\_2d/saves/settings.save.json & User settings save slot. \\
+\end{longtable}

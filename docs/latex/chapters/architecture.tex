@@ -1,0 +1,58 @@
+\chapter{Architecture}
+
+\section{High Level Structure}
+
+The engine is split into a small set of modules under \filepath{src/demi}:
+
+\begin{itemize}
+  \item \filepath{assets}: asset manifest loading and reference extraction;
+  \item \filepath{diagnostics}: structured diagnostics and severity reporting;
+  \item \filepath{filesystem}: known source file discovery and file kind helpers;
+  \item \filepath{schema}: validation of project, scene, HUD, save, and asset source data;
+  \item \filepath{runtime}: scene loading, world data, rendering, physics, audio, Lua, and application loop;
+  \item \filepath{cli}: command line entry point;
+  \item \filepath{editor}: editor scaffold.
+\end{itemize}
+
+\section{Runtime Loop}
+
+The runtime performs the following steps:
+
+\begin{enumerate}
+  \item load and validate the project file;
+  \item load the main scene and optional HUD file;
+  \item create the SDL window and renderer if SDL3 is available;
+  \item load texture and audio assets from asset manifests;
+  \item initialize Lua and load project, entity, and HUD button scripts;
+  \item run fixed updates and physics at a fixed step;
+  \item run Lua update callbacks;
+  \item apply requested runtime changes such as window mode;
+  \item render the world and HUD;
+  \item shut down scripts, audio, renderer, and window.
+\end{enumerate}
+
+\section{World Model}
+
+The runtime world is represented by \code{World} in \filepath{src/demi/runtime/SceneData.h}. It contains:
+
+\begin{itemize}
+  \item scene metadata;
+  \item the HUD canvas size;
+  \item entities and optional components;
+  \item HUD rectangles, buttons, and text;
+  \item debug lines.
+\end{itemize}
+
+Entities are simple value objects with optional components. The current component set includes transforms, cameras, sprites, Lua scripts, rigidbodies, box colliders, isometric grid data, hitbox controller data, and buildable metadata.
+
+\section{Design Philosophy}
+
+The current implementation prefers explicit, small APIs. New engine capabilities are expected to follow this pattern:
+
+\begin{itemize}
+  \item add source data fields first where possible;
+  \item validate data through the CLI;
+  \item expose only deliberate Lua APIs;
+  \item keep generated outputs out of source directories;
+  \item keep runtime/editor behavior backed by the same data and diagnostics paths.
+\end{itemize}

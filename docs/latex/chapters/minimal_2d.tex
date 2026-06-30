@@ -1,0 +1,46 @@
+\chapter{Minimal 2D Example}
+
+The \filepath{examples/minimal\_2d} project is the main gameplay example. It demonstrates project loading, scene data, generated gameplay objects, Lua scripts, physics, audio, saves, and the HUD menu system.
+
+\section{Project Contents}
+
+Important files include:
+
+\begin{longtable}{>{\ttfamily}p{0.42\textwidth}p{0.46\textwidth}}
+demi.project.json & Project entry point. \\
+scenes/main.scene.json & Main scene and entity definitions. \\
+scenes/main.hud.json & Declarative main menu, options UI, and points HUD. \\
+scripts/game.lua & Game controller, platform generation, camera, and coins. \\
+scripts/player.lua & Player update entry point. \\
+scripts/player\_platformer.lua & Platformer movement and respawn helpers. \\
+scripts/player\_slingshot.lua & Slingshot aim, recharge, launch, and trajectory preview. \\
+scripts/main\_menu.lua & Menu state controller and settings persistence. \\
+scripts/menu\_button.lua & HUD button event dispatcher. \\
+saves/settings.save.json & Generated or updated settings save file. \\
+\end{longtable}
+
+\section{Gameplay}
+
+The example is a 2D slingshot platformer. The player can move, jump, bounce on platforms, collect coins, and use a slingshot mechanic. Platform generation is deterministic and happens ahead of the camera.
+
+Recent gameplay behavior includes:
+
+\begin{itemize}
+  \item slingshot can recharge after touching or bouncing off platforms;
+  \item mid-air slingshot preserves bounce velocity;
+  \item trajectory preview uses snapshotted velocity for a stable prediction line;
+  \item platform edge collision avoids teleporting across the platform.
+\end{itemize}
+
+\section{Menu}
+
+The main menu is authored in \filepath{main.hud.json}. Lua controls group visibility and dynamic settings. The menu includes:
+
+\begin{itemize}
+  \item cosmic themed start screen;
+  \item Start Game, Options, and Quit buttons;
+  \item Sound and Video tabs;
+  \item master volume controls;
+  \item window mode dropdown for windowed, borderless, and fullscreen;
+  \item persistent settings through the \code{Save} service.
+\end{itemize}

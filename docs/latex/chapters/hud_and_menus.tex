@@ -1,0 +1,69 @@
+\chapter{HUD and Menu System}
+
+\section{Two HUD Workflows}
+
+DemiEngine currently supports two HUD workflows:
+
+\begin{itemize}
+  \item imperative HUD creation through Lua functions such as \code{Hud.text} and \code{Hud.rect};
+  \item declarative HUD layout through \filepath{*.hud.json} files.
+\end{itemize}
+
+The declarative path is preferred for authored menus. The imperative path remains useful for generated UI, temporary debug HUDs, and dynamic game-specific overlays.
+
+\section{Declarative HUD Elements}
+
+HUD files currently support three element types:
+
+\begin{longtable}{>{\ttfamily}p{0.20\textwidth}p{0.68\textwidth}}
+rect & A colored rectangle with position, size, color, visibility, and group. \\
+text & Pixel font text with position, scale, color, visibility, and group. \\
+button & A clickable rectangle with label, colors, script callback, visibility, and group. \\
+\end{longtable}
+
+\section{Canvas Size}
+
+Each HUD file can define its own coordinate system:
+
+\begin{lstlisting}[language=json]
+"canvas_size": [1920.0, 1080.0]
+\end{lstlisting}
+
+All positions and sizes in that HUD file are authored against this canvas. At runtime, the renderer scales the HUD to the actual window size. HUD click detection uses the same conversion, so fullscreen and resized windows remain interactive.
+
+\section{Groups}
+
+Groups are inspired by Unity-style parent UI objects. Instead of keeping Lua arrays of every element ID, elements declare a \code{group}. Lua then toggles a whole group:
+
+\begin{lstlisting}[language={[5.2]Lua}]
+Hud.set_group_visible("menu_main", true)
+Hud.set_group_visible("menu_options", false)
+\end{lstlisting}
+
+The \filepath{minimal\_2d} menu uses these groups:
+
+\begin{itemize}
+  \item \code{menu\_base};
+  \item \code{menu\_main};
+  \item \code{menu\_options};
+  \item \code{menu\_sound};
+  \item \code{menu\_video};
+  \item \code{menu\_dropdown};
+  \item \code{game\_hud}.
+\end{itemize}
+
+\section{Button Events}
+
+Buttons can reference a Lua script:
+
+\begin{lstlisting}[language=json]
+{
+  "type": "button",
+  "id": "menu_button_start",
+  "group": "menu_main",
+  "label": "START GAME",
+  "script": "script://scripts/menu_button.lua"
+}
+\end{lstlisting}
+
+The referenced script receives \code{on\_ui\_click(event)} and can dispatch behavior based on \code{event.id}.

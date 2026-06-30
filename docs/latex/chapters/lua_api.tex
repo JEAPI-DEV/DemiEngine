@@ -1,0 +1,67 @@
+\chapter{Lua API}
+
+Lua 5.4 scripts are loaded when Lua is available. Scripts return a table and may implement lifecycle functions.
+
+\section{Lifecycle}
+
+Supported lifecycle functions are:
+
+\begin{lstlisting}[language={[5.2]Lua}]
+function Script:on_create() end
+function Script:on_start() end
+function Script:on_update(dt) end
+function Script:on_fixed_update(dt) end
+function Script:on_destroy() end
+\end{lstlisting}
+
+HUD button scripts may additionally implement:
+
+\begin{lstlisting}[language={[5.2]Lua}]
+function Script:on_ui_hover(event) end
+function Script:on_ui_click(event) end
+\end{lstlisting}
+
+The UI event contains \code{id}, \code{label}, \code{mouse\_x}, and \code{mouse\_y}. Mouse coordinates are in the HUD file canvas coordinate system.
+
+\section{Services}
+
+The current Lua services include:
+
+\begin{longtable}{>{\ttfamily}p{0.30\textwidth}p{0.58\textwidth}}
+Debug & Logging, debug lines, and clearing debug lines. \\
+Input & Keyboard, mouse buttons, mouse position, mouse world position, viewport size. \\
+Entity & Entity lookup, creation, destruction, and transform position access. \\
+Rigidbody2D & Get and set velocity and apply impulses. \\
+Physics2D & Overlap box queries. \\
+Hud & Imperative HUD text, rects, visibility, colors, groups, and text updates. \\
+Save & Simple number and string persistence in save slots. \\
+Audio & Play, stop, master volume get and set. \\
+Runtime & Quit, physics enable, window mode get and set. \\
+Scene & Scene load placeholder. \\
+\end{longtable}
+
+\section{Save API}
+
+The save API is designed for small game settings and simple persistent values.
+
+\begin{lstlisting}[language={[5.2]Lua}]
+local volume = Save.get_number("settings", "master_volume", 1.0)
+Save.set_number("settings", "master_volume", volume)
+
+local mode = Save.get_string("settings", "window_mode", "windowed")
+Save.set_string("settings", "window_mode", mode)
+\end{lstlisting}
+
+\section{HUD API}
+
+HUD elements can be generated or updated from Lua:
+
+\begin{lstlisting}[language={[5.2]Lua}]
+Hud.text("points", "POINTS: 0", 24.0, 24.0, 3.0)
+Hud.rect("panel", 20.0, 20.0, 320.0, 120.0, 0.1, 0.1, 0.2, 0.8)
+Hud.set_text("points", "POINTS: 10")
+Hud.set_rect("bar", 100.0, 100.0, 200.0, 16.0)
+Hud.set_color("menu_tab_sound", 0.24, 0.27, 0.46, 0.94)
+Hud.set_visible("points", true)
+Hud.set_group_visible("menu_main", false)
+\end{lstlisting}

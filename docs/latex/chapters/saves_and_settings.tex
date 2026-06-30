@@ -1,0 +1,33 @@
+\chapter{Saves and Settings}
+
+\section{Save File Shape}
+
+Save files are source-like JSON files with a stable format:
+
+\begin{lstlisting}[language=json]
+{
+  "format_version": 1,
+  "slot": "settings",
+  "state": {
+    "master_volume": 1.0,
+    "window_mode": "windowed"
+  }
+}
+\end{lstlisting}
+
+The Lua save service currently supports flat number and string values in the \code{state} object.
+
+\section{Settings Persistence}
+
+The \filepath{minimal\_2d} example uses save slot \code{settings}. On menu startup it loads:
+
+\begin{itemize}
+  \item \code{master\_volume};
+  \item \code{window\_mode}.
+\end{itemize}
+
+When the user changes volume or window mode in the options menu, Lua immediately updates the save file. The runtime applies the loaded values on startup.
+
+\section{Current Save API Scope}
+
+The save API is intentionally small. It is suitable for settings and simple values, but it is not yet a full save-game serialization system. Future work should decide whether structured tables, arrays, entity state snapshots, and schema-aware save migrations belong in this API or in a higher-level gameplay save service.

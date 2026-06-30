@@ -1,0 +1,52 @@
+\chapter{Overview}
+
+DemiEngine is a small C++20 and Lua game engine scaffold focused on deterministic, AI-friendly development. The current repository implements a playable 2D example, a runtime window, Lua gameplay scripting, data validation, asset manifests, simple physics, audio playback, save files, and a declarative HUD system.
+
+The engine is intentionally compact. Most systems are implemented as readable runtime services rather than large frameworks. This makes the codebase suitable for iterative engine development and for agents or humans to inspect, modify, and validate changes through the command line.
+
+\section{Current Goals}
+
+The current implementation emphasizes:
+
+\begin{itemize}
+  \item stable JSON source data for projects, scenes, HUD layouts, assets, and saves;
+  \item Lua scripts for game-specific behavior;
+  \item deterministic example data and small diffs;
+  \item a command line validation path shared by runtime and development workflows;
+  \item a minimal 2D runtime that can be extended into a broader game engine.
+\end{itemize}
+
+\section{Major Features}
+
+The implemented feature set includes:
+
+\begin{itemize}
+  \item project files using \filepath{*.project.json};
+  \item scene files using \filepath{*.scene.json};
+  \item HUD files using \filepath{*.hud.json};
+  \item save files using \filepath{*.save.json};
+  \item asset manifests using \filepath{*.asset.json};
+  \item SDL3 rendering and window management when SDL3 is available;
+  \item Lua 5.4 script hosting when Lua is available;
+  \item MP3 playback through libmpg123 when available;
+  \item AABB based 2D physics with gravity, static colliders, dynamic rigidbodies, and bounciness;
+  \item a built-in pixel text renderer for HUD text;
+  \item declarative HUD rectangles, text, and buttons;
+  \item Lua UI events for HUD buttons;
+  \item Lua save access for persistent settings;
+  \item an example game at \filepath{examples/minimal\_2d}.
+\end{itemize}
+
+\section{Current Limitations}
+
+The engine is still early. Important current limitations are:
+
+\begin{itemize}
+  \item JSON parsing is intentionally lightweight and not a full general JSON parser;
+  \item runtime scene switching is not fully implemented;
+  \item rendering is 2D oriented with simple fallback shapes and PPM texture loading;
+  \item the editor executable is currently only a scaffold;
+  \item UI layout supports fixed virtual canvas coordinates, not a full anchor/layout system;
+  \item Lua bindings are explicit and small, not a complete engine API surface;
+  \item asset handling supports stable IDs and simple manifests, but not a full import pipeline.
+\end{itemize}

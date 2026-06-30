@@ -1,0 +1,42 @@
+\chapter{Testing and Validation}
+
+\section{Validation}
+
+The validator checks known source data files. It currently recognizes:
+
+\begin{itemize}
+  \item \filepath{*.project.json};
+  \item \filepath{*.scene.json};
+  \item \filepath{*.hud.json};
+  \item \filepath{*.save.json};
+  \item \filepath{*.asset.json}.
+\end{itemize}
+
+The validator enforces \code{format\_version} and required fields for each file kind. For scenes and HUD files, it also validates referenced Lua scripts and asset IDs where those references are present in the text.
+
+\section{Automated Tests}
+
+Current tests include:
+
+\begin{itemize}
+  \item \code{demi-smoke-tests};
+  \item \code{demi-physics2d-tests};
+  \item \code{demi-runtime-minimal-frame}.
+\end{itemize}
+
+The runtime frame test uses SDL's dummy video driver and launches \filepath{minimal\_2d} for one frame.
+
+\section{Recommended Checks After Data Changes}
+
+After editing example project data, run:
+
+\begin{lstlisting}[language=bash]
+./build/linux-debug/demi validate examples/minimal_2d
+\end{lstlisting}
+
+After editing runtime code, run:
+
+\begin{lstlisting}[language=bash]
+cmake --build --preset linux-debug
+ctest --preset linux-debug
+\end{lstlisting}

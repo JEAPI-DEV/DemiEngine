@@ -1,0 +1,51 @@
+\chapter{Build and Command Line}
+
+\section{Build Requirements}
+
+The project uses CMake and C++20. Optional runtime functionality is enabled when dependencies are available:
+
+\begin{itemize}
+  \item SDL3 enables the runtime window and renderer;
+  \item Lua 5.4 enables game scripts;
+  \item libmpg123 enables MP3 audio playback.
+\end{itemize}
+
+Missing optional dependencies do not prevent the project from compiling. Instead, the corresponding runtime feature is compiled out or skipped.
+
+\section{Standard Commands}
+
+The expected development commands are:
+
+\begin{lstlisting}[language=bash]
+cmake --preset linux-debug
+cmake --build --preset linux-debug
+ctest --preset linux-debug
+./build/linux-debug/demi --help
+./build/linux-debug/demi validate examples/minimal_2d/demi.project.json
+\end{lstlisting}
+
+The runtime can be launched with:
+
+\begin{lstlisting}[language=bash]
+./build/linux-debug/demi run --project examples/minimal_2d/demi.project.json
+\end{lstlisting}
+
+For headless smoke testing, SDL can use its dummy video driver:
+
+\begin{lstlisting}[language=bash]
+SDL_VIDEODRIVER=dummy ./build/linux-debug/demi run --project examples/minimal_2d/demi.project.json --frames 5
+\end{lstlisting}
+
+\section{Build Targets}
+
+The current CMake configuration defines these major targets:
+
+\begin{longtable}{>{\ttfamily}p{0.28\textwidth}p{0.62\textwidth}}
+demi-core & Core validation, filesystem, diagnostics, and asset registry code. \\
+demi-runtime-lib & Runtime systems including scene loading, rendering, physics, audio, and Lua hosting. \\
+demi & Main command line executable. \\
+demi-runtime & Runtime-specific executable entry point. \\
+demi-editor & Editor scaffold. \\
+demi-smoke-tests & Core smoke tests. \\
+demi-physics2d-tests & Physics regression tests. \\
+\end{longtable}

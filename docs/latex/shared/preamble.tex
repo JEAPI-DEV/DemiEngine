@@ -1,0 +1,52 @@
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{listings}
+
+\lstdefinelanguage{json}{
+  morestring=[b]",
+  morecomment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  stringstyle=\color{orange!50!black},
+  literate=
+   *{0}{{{\color{blue!60!black}0}}}{1}
+    {1}{{{\color{blue!60!black}1}}}{1}
+    {2}{{{\color{blue!60!black}2}}}{1}
+    {3}{{{\color{blue!60!black}3}}}{1}
+    {4}{{{\color{blue!60!black}4}}}{1}
+    {5}{{{\color{blue!60!black}5}}}{1}
+    {6}{{{\color{blue!60!black}6}}}{1}
+    {7}{{{\color{blue!60!black}7}}}{1}
+    {8}{{{\color{blue!60!black}8}}}{1}
+    {9}{{{\color{blue!60!black}9}}}{1}
+}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!50!black,
+  urlcolor=blue!60!black
+}
+
+\setlist[itemize]{noitemsep, topsep=3pt}
+\setlist[enumerate]{noitemsep, topsep=3pt}
+
+\lstdefinestyle{demicode}{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  frame=single,
+  backgroundcolor=\color{black!3},
+  keywordstyle=\color{blue!60!black},
+  commentstyle=\color{green!40!black},
+  stringstyle=\color{orange!50!black},
+  showstringspaces=false
+}
+\lstset{style=demicode}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\filepath}[1]{\texttt{#1}}
