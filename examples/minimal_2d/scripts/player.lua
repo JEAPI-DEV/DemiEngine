@@ -12,12 +12,16 @@ function Player:on_create()
   self.aiming = false
   self.slingshot_active = false
   self.slingshot_frames = 0
+  self.can_slingshot = false
+  self.aiming_freezes_motion = false
+  self.aim_velocity_x = 0.0
+  self.aim_velocity_y = 0.0
   self.spawn_x = config.spawn_x
   self.spawn_y = config.spawn_y
 end
 
 function Player:on_start()
-  Debug.log("Drag with left mouse while grounded to slingshot. Press P for points.")
+  Debug.log("Drag with left mouse after touching a platform to slingshot. Press P for points.")
   local x, y = Entity.get_position(self.entity_id)
   if x ~= nil and y ~= nil then
     self.spawn_x = x
@@ -29,6 +33,12 @@ end
 
 function Player:on_update(dt)
   Debug.clear_lines()
+  if state.menu_open then
+    self.jump_was_down = false
+    self.mouse_was_down = Input.mouse_down("left")
+    return
+  end
+
   platformer.reset_to_spawn_if_fallen(self)
 
   local player_x, player_y = Entity.get_position(self.entity_id)
@@ -38,12 +48,15 @@ function Player:on_update(dt)
 
   local mouse_down = Input.mouse_down("left")
   local grounded = platformer.is_grounded(self.entity_id)
+  local touching_platform = platformer.is_touching_platform(self.entity_id)
 
-  if slingshot.update_aim(self, player_x, player_y, grounded, mouse_down) then
+  slingshot.update_recharge(self, touching_platform)
+
+  if slingshot.update_aim(self, player_x, player_y, self.can_slingshot, grounded, mouse_down) then
     return
   end
 
-  slingshot.update_active(self, grounded)
+  slingshot.update_active(self, touching_platform)
 
   if grounded and not self.slingshot_active then
     Rigidbody2D.set_velocity_x(self.entity_id, platformer.horizontal_axis() * self.speed)

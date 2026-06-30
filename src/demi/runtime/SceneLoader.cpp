@@ -389,6 +389,9 @@ World parseScene(const std::filesystem::path& scenePath, const std::string& text
       if (const std::optional<float> gravityScale = numberAfterKey(*rigidbody, "gravity_scale")) {
         component.gravityScale = *gravityScale;
       }
+      if (const std::optional<float> bounciness = numberAfterKey(*rigidbody, "bounciness")) {
+        component.bounciness = *bounciness;
+      }
       component.lockRotation = boolAfterKey(*rigidbody, "lock_rotation").value_or(true);
       entity.rigidbody2D = component;
     }

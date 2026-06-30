@@ -175,11 +175,16 @@ int runProject(const RuntimeOptions& options) {
     fixedAccumulator += dt;
     while (fixedAccumulator >= fixedStep) {
       luaHost.fixedUpdate(static_cast<float>(fixedStep));
-      stepPhysics2D(loaded.world, static_cast<float>(fixedStep));
+      if (luaHost.physicsEnabled()) {
+        stepPhysics2D(loaded.world, static_cast<float>(fixedStep));
+      }
       fixedAccumulator -= fixedStep;
     }
 
     luaHost.update(dt);
+    if (luaHost.quitRequested()) {
+      running = false;
+    }
     audioSystem.update();
 
     const Camera2DComponent* camera = activeCamera(loaded.world);

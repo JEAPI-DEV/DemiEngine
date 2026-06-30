@@ -56,6 +56,10 @@ function Input.mouse_position() end
 ---@return number y
 function Input.mouse_world_position() end
 
+---@return number width
+---@return number height
+function Input.viewport_size() end
+
 ---@class EntityService
 Entity = {}
 
@@ -106,6 +110,14 @@ Scene = {}
 ---@return boolean
 function Scene.load(scene_id) end
 
+---@class RuntimeService
+Runtime = {}
+
+function Runtime.quit() end
+
+---@param enabled boolean
+function Runtime.set_physics_enabled(enabled) end
+
 ---@class Rigidbody2DService
 Rigidbody2D = {}
 
@@ -146,6 +158,63 @@ Physics2D = {}
 ---@param ignored_entity_id? string
 ---@return boolean
 function Physics2D.overlap_box(x, y, width, height, ignored_entity_id) end
+
+---@class HudService
+Hud = {}
+
+---@param id string
+---@param text string
+---@param x number
+---@param y number
+---@param scale? number
+---@param r? number
+---@param g? number
+---@param b? number
+---@param a? number
+---@return boolean
+function Hud.text(id, text, x, y, scale, r, g, b, a) end
+
+---@param id string
+---@param x number
+---@param y number
+---@param width number
+---@param height number
+---@param r? number
+---@param g? number
+---@param b? number
+---@param a? number
+---@return boolean
+function Hud.rect(id, x, y, width, height, r, g, b, a) end
+
+---@param id string
+---@param text string
+---@return boolean
+function Hud.set_text(id, text) end
+
+---@param id string
+---@param x number
+---@param y number
+---@param width number
+---@param height number
+---@return boolean
+function Hud.set_rect(id, x, y, width, height) end
+
+---@param id string
+---@param r number
+---@param g number
+---@param b number
+---@param a? number
+---@return boolean
+function Hud.set_color(id, r, g, b, a) end
+
+---@param id string
+---@param visible boolean
+---@return boolean
+function Hud.set_visible(id, visible) end
+
+---@param id string
+---@return string|nil
+function Hud.get_text(id) end
 
 ---@class AudioService
 Audio = {}

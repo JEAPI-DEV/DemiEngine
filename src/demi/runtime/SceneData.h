@@ -56,6 +56,14 @@ struct HudTextElement {
   bool visible = true;
 };
 
+struct HudRectElement {
+  std::string id;
+  Vec2 position;
+  Vec2 size;
+  Color color = {1.0F, 1.0F, 1.0F, 1.0F};
+  bool visible = true;
+};
+
 struct Transform2DComponent {
   Vec2 position;
   float rotation = 0.0F;
@@ -104,6 +112,7 @@ struct Rigidbody2DComponent {
   std::string bodyType = "dynamic";
   Vec2 velocity;
   float gravityScale = 1.0F;
+  float bounciness = 0.0F;
   bool lockRotation = true;
 };
 
@@ -133,6 +142,7 @@ struct World {
   std::string id;
   std::string name;
   std::vector<Entity> entities;
+  std::vector<HudRectElement> hudRects;
   std::vector<HudTextElement> hudText;
   std::vector<DebugLine> debugLines;
 };

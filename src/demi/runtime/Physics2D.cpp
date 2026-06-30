@@ -53,6 +53,8 @@ void resolveAxis(World& world, Entity& moving, const Vec2 delta, const bool hori
     return;
   }
 
+  const std::optional<Aabb> previousAabb = moving.boxCollider2D.has_value() ? std::optional<Aabb>{colliderAabb(moving)} : std::nullopt;
+
   moving.transform2D->position.x += delta.x;
   moving.transform2D->position.y += delta.y;
 
@@ -72,19 +74,34 @@ void resolveAxis(World& world, Entity& moving, const Vec2 delta, const bool hori
     }
 
     if (horizontal) {
-      if (delta.x > 0.0F) {
+      if (previousAabb.has_value() && previousAabb->maxX <= otherAabb.minX) {
         moving.transform2D->position.x -= movingAabb.maxX - otherAabb.minX;
-      } else if (delta.x < 0.0F) {
+      } else if (previousAabb.has_value() && previousAabb->minX >= otherAabb.maxX) {
         moving.transform2D->position.x += otherAabb.maxX - movingAabb.minX;
+      } else {
+        continue;
       }
       moving.rigidbody2D->velocity.x = 0.0F;
     } else {
-      if (delta.y > 0.0F) {
+      const float incomingVelocity = moving.rigidbody2D->velocity.y;
+      if (previousAabb.has_value() && previousAabb->minY >= otherAabb.maxY) {
+        moving.transform2D->position.y += otherAabb.maxY - movingAabb.minY;
+      } else if (previousAabb.has_value() && previousAabb->maxY <= otherAabb.minY) {
         moving.transform2D->position.y -= movingAabb.maxY - otherAabb.minY;
       } else if (delta.y < 0.0F) {
         moving.transform2D->position.y += otherAabb.maxY - movingAabb.minY;
+      } else if (delta.y > 0.0F) {
+        moving.transform2D->position.y -= movingAabb.maxY - otherAabb.minY;
+      } else {
+        continue;
       }
-      moving.rigidbody2D->velocity.y = 0.0F;
+
+      const float bounciness = std::clamp(moving.rigidbody2D->bounciness, 0.0F, 1.0F);
+      if (bounciness > 0.0F && std::abs(incomingVelocity) > 2.0F) {
+        moving.rigidbody2D->velocity.y = -incomingVelocity * bounciness;
+      } else {
+        moving.rigidbody2D->velocity.y = 0.0F;
+      }
     }
   }
 }

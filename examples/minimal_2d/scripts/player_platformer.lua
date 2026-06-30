@@ -24,6 +24,15 @@ function Platformer.is_grounded(entity_id)
   return Physics2D.overlap_box(x, y - 0.56, 0.78, 0.12, entity_id)
 end
 
+function Platformer.is_touching_platform(entity_id)
+  local x, y = Entity.get_position(entity_id)
+  if x == nil or y == nil then
+    return false
+  end
+
+  return Physics2D.overlap_box(x, y - 0.50, 0.78, 0.10, entity_id)
+end
+
 function Platformer.reset_to_spawn_if_fallen(player)
   local x, y = Entity.get_position(player.entity_id)
   if y == nil or y > config.fall_reset_y then
@@ -35,7 +44,11 @@ function Platformer.reset_to_spawn_if_fallen(player)
   Audio.play("asset://audio/death")
   player.slingshot_active = false
   player.slingshot_frames = 0
+  player.can_slingshot = false
   player.aiming = false
+  player.aiming_freezes_motion = false
+  player.aim_velocity_x = 0.0
+  player.aim_velocity_y = 0.0
   state.camera_reset_requested = true
   return true
 end

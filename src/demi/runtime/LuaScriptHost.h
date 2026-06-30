@@ -35,16 +35,25 @@ public:
   [[nodiscard]] bool physicsOverlapBox(float x, float y, float width, float height, const std::string& ignoredEntityId) const;
   [[nodiscard]] bool createEntity(Entity entity);
   [[nodiscard]] bool setHudText(const std::string& id, const std::string& text);
-  [[nodiscard]] bool createHudText(const std::string& id, const std::string& text, float x, float y, float scale);
+  [[nodiscard]] bool createHudText(const std::string& id, const std::string& text, float x, float y, float scale, Color color);
+  [[nodiscard]] bool createHudRect(const std::string& id, float x, float y, float width, float height, Color color);
+  [[nodiscard]] bool setHudRect(const std::string& id, float x, float y, float width, float height);
+  [[nodiscard]] bool setHudColor(const std::string& id, Color color);
+  [[nodiscard]] bool setHudVisible(const std::string& id, bool visible);
   [[nodiscard]] std::optional<std::string> hudText(const std::string& id) const;
   [[nodiscard]] bool isMouseDown(const std::string& button) const;
   [[nodiscard]] Vec2 mousePosition() const;
   [[nodiscard]] Vec2 mouseWorldPosition() const;
+  [[nodiscard]] Vec2 viewportSize() const;
   void addDebugLine(float x1, float y1, float x2, float y2, float r, float g, float b, float a);
   void clearDebugLines();
   [[nodiscard]] std::uint64_t playAudio(const std::string& assetId);
   [[nodiscard]] bool stopAudio(std::uint64_t handle);
   void setViewport(int width, int height);
+  void requestQuit();
+  [[nodiscard]] bool quitRequested() const;
+  void setPhysicsEnabled(bool enabled);
+  [[nodiscard]] bool physicsEnabled() const;
   void start();
   void update(float dt);
   void fixedUpdate(float dt);
@@ -63,6 +72,8 @@ private:
   AudioSystem* audio_ = nullptr;
   int viewportWidth_ = 1;
   int viewportHeight_ = 1;
+  bool quitRequested_ = false;
+  bool physicsEnabled_ = true;
   std::vector<ScriptInstance> scripts_;
 };
 

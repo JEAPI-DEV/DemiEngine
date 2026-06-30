@@ -1,4 +1,5 @@
 local state = require("game_state")
+local main_menu = require("main_menu")
 
 local Game = {
   points = 0,
@@ -41,7 +42,9 @@ end
 
 function Game:on_start()
   Hud.text("points", "POINTS: " .. tostring(self.points), 24.0, 24.0, 3.0)
+  Hud.set_visible("points", false)
   self:generate_platforms_until(GENERATE_AHEAD)
+  main_menu.start()
 end
 
 function Game:add_points(amount)
@@ -194,6 +197,11 @@ function Game:collect_coins(player_x, player_y)
 end
 
 function Game:on_update(dt)
+  if state.menu_open then
+    main_menu.update(dt)
+    return
+  end
+
   local player_x, player_y = Entity.get_position(PLAYER_ID)
   if player_x == nil or player_y == nil then
     return

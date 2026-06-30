@@ -143,6 +143,14 @@ int inputMouseWorldPosition(lua_State* state) {
   return 2;
 }
 
+int inputViewportSize(lua_State* state) {
+  const LuaScriptHost* host = hostFromUpvalue(state);
+  const Vec2 size = host != nullptr ? host->viewportSize() : Vec2{.x = 1.0F, .y = 1.0F};
+  lua_pushnumber(state, size.x);
+  lua_pushnumber(state, size.y);
+  return 2;
+}
+
 int entityAddPosition(lua_State* state) {
   LuaScriptHost* host = hostFromUpvalue(state);
   const char* entityId = luaL_checkstring(state, 1);
@@ -253,6 +261,7 @@ void parseRigidbody2D(lua_State* state, const int componentIndex, Entity& entity
   component.bodyType = stringField(state, componentIndex, "body_type", component.bodyType);
   component.velocity = vec2Field(state, componentIndex, "velocity", component.velocity);
   component.gravityScale = numberField(state, componentIndex, "gravity_scale", component.gravityScale);
+  component.bounciness = numberField(state, componentIndex, "bounciness", component.bounciness);
   component.lockRotation = boolField(state, componentIndex, "lock_rotation", component.lockRotation);
   entity.rigidbody2D = component;
 }
@@ -392,6 +401,15 @@ int physicsOverlapBoxBinding(lua_State* state) {
   return 1;
 }
 
+Color colorArgs(lua_State* state, const int startIndex, const Color fallback = {}) {
+  return Color{
+    .r = static_cast<float>(luaL_optnumber(state, startIndex, fallback.r)),
+    .g = static_cast<float>(luaL_optnumber(state, startIndex + 1, fallback.g)),
+    .b = static_cast<float>(luaL_optnumber(state, startIndex + 2, fallback.b)),
+    .a = static_cast<float>(luaL_optnumber(state, startIndex + 3, fallback.a)),
+  };
+}
+
 int hudTextBinding(lua_State* state) {
   LuaScriptHost* host = hostFromUpvalue(state);
   const char* id = luaL_checkstring(state, 1);
@@ -399,7 +417,51 @@ int hudTextBinding(lua_State* state) {
   const float x = static_cast<float>(luaL_checknumber(state, 3));
   const float y = static_cast<float>(luaL_checknumber(state, 4));
   const float scale = static_cast<float>(luaL_optnumber(state, 5, 3.0));
-  const bool changed = host != nullptr && host->createHudText(id, text, x, y, scale);
+  const Color color = colorArgs(state, 6, Color{.r = 1.0F, .g = 1.0F, .b = 1.0F, .a = 1.0F});
+  const bool changed = host != nullptr && host->createHudText(id, text, x, y, scale, color);
+  lua_pushboolean(state, changed);
+  return 1;
+}
+
+int hudRectBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* id = luaL_checkstring(state, 1);
+  const float x = static_cast<float>(luaL_checknumber(state, 2));
+  const float y = static_cast<float>(luaL_checknumber(state, 3));
+  const float width = static_cast<float>(luaL_checknumber(state, 4));
+  const float height = static_cast<float>(luaL_checknumber(state, 5));
+  const Color color = colorArgs(state, 6, Color{.r = 1.0F, .g = 1.0F, .b = 1.0F, .a = 1.0F});
+  const bool changed = host != nullptr && host->createHudRect(id, x, y, width, height, color);
+  lua_pushboolean(state, changed);
+  return 1;
+}
+
+int hudSetRectBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* id = luaL_checkstring(state, 1);
+  const float x = static_cast<float>(luaL_checknumber(state, 2));
+  const float y = static_cast<float>(luaL_checknumber(state, 3));
+  const float width = static_cast<float>(luaL_checknumber(state, 4));
+  const float height = static_cast<float>(luaL_checknumber(state, 5));
+  const bool changed = host != nullptr && host->setHudRect(id, x, y, width, height);
+  lua_pushboolean(state, changed);
+  return 1;
+}
+
+int hudSetColorBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* id = luaL_checkstring(state, 1);
+  const Color color = colorArgs(state, 2, Color{.r = 1.0F, .g = 1.0F, .b = 1.0F, .a = 1.0F});
+  const bool changed = host != nullptr && host->setHudColor(id, color);
+  lua_pushboolean(state, changed);
+  return 1;
+}
+
+int hudSetVisibleBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* id = luaL_checkstring(state, 1);
+  const bool visible = lua_toboolean(state, 2) != 0;
+  const bool changed = host != nullptr && host->setHudVisible(id, visible);
   lua_pushboolean(state, changed);
   return 1;
 }
@@ -439,6 +501,23 @@ int audioStopBinding(lua_State* state) {
   const bool stopped = host != nullptr && host->stopAudio(handle);
   lua_pushboolean(state, stopped);
   return 1;
+}
+
+int runtimeQuitBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  if (host != nullptr) {
+    host->requestQuit();
+  }
+  return 0;
+}
+
+int runtimeSetPhysicsEnabledBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const bool enabled = lua_toboolean(state, 1) != 0;
+  if (host != nullptr) {
+    host->setPhysicsEnabled(enabled);
+  }
+  return 0;
 }
 
 void callLifecycle(lua_State* state, const int tableRef, const char* functionName, const float dt = 0.0F) {
@@ -562,6 +641,9 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, AudioSyste
   lua_pushlightuserdata(state, this);
   lua_pushcclosure(state, inputMouseWorldPosition, 1);
   lua_setfield(state, -2, "mouse_world_position");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, inputViewportSize, 1);
+  lua_setfield(state, -2, "viewport_size");
   lua_setglobal(state, "Input");
 
   lua_newtable(state);
@@ -597,6 +679,15 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, AudioSyste
 
   lua_newtable(state);
   lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, runtimeQuitBinding, 1);
+  lua_setfield(state, -2, "quit");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, runtimeSetPhysicsEnabledBinding, 1);
+  lua_setfield(state, -2, "set_physics_enabled");
+  lua_setglobal(state, "Runtime");
+
+  lua_newtable(state);
+  lua_pushlightuserdata(state, this);
   lua_pushcclosure(state, rigidbodyGetVelocity, 1);
   lua_setfield(state, -2, "get_velocity");
   lua_pushlightuserdata(state, this);
@@ -624,8 +715,20 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, AudioSyste
   lua_pushcclosure(state, hudTextBinding, 1);
   lua_setfield(state, -2, "text");
   lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, hudRectBinding, 1);
+  lua_setfield(state, -2, "rect");
+  lua_pushlightuserdata(state, this);
   lua_pushcclosure(state, hudSetTextBinding, 1);
   lua_setfield(state, -2, "set_text");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, hudSetRectBinding, 1);
+  lua_setfield(state, -2, "set_rect");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, hudSetColorBinding, 1);
+  lua_setfield(state, -2, "set_color");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, hudSetVisibleBinding, 1);
+  lua_setfield(state, -2, "set_visible");
   lua_pushlightuserdata(state, this);
   lua_pushcclosure(state, hudGetTextBinding, 1);
   lua_setfield(state, -2, "get_text");
@@ -839,7 +942,7 @@ bool LuaScriptHost::setHudText(const std::string& id, const std::string& text) {
   return false;
 }
 
-bool LuaScriptHost::createHudText(const std::string& id, const std::string& text, const float x, const float y, const float scale) {
+bool LuaScriptHost::createHudText(const std::string& id, const std::string& text, const float x, const float y, const float scale, const Color color) {
   if (world_ == nullptr) {
     return false;
   }
@@ -849,6 +952,7 @@ bool LuaScriptHost::createHudText(const std::string& id, const std::string& text
       element.text = text;
       element.position = Vec2{.x = x, .y = y};
       element.scale = scale;
+      element.color = color;
       element.visible = true;
       return true;
     }
@@ -859,8 +963,89 @@ bool LuaScriptHost::createHudText(const std::string& id, const std::string& text
     .text = text,
     .position = Vec2{.x = x, .y = y},
     .scale = scale,
+    .color = color,
   });
   return true;
+}
+
+bool LuaScriptHost::createHudRect(const std::string& id, const float x, const float y, const float width, const float height, const Color color) {
+  if (world_ == nullptr) {
+    return false;
+  }
+
+  for (HudRectElement& element : world_->hudRects) {
+    if (element.id == id) {
+      element.position = Vec2{.x = x, .y = y};
+      element.size = Vec2{.x = width, .y = height};
+      element.color = color;
+      element.visible = true;
+      return true;
+    }
+  }
+
+  world_->hudRects.push_back(HudRectElement{
+    .id = id,
+    .position = Vec2{.x = x, .y = y},
+    .size = Vec2{.x = width, .y = height},
+    .color = color,
+  });
+  return true;
+}
+
+bool LuaScriptHost::setHudRect(const std::string& id, const float x, const float y, const float width, const float height) {
+  if (world_ == nullptr) {
+    return false;
+  }
+
+  for (HudRectElement& element : world_->hudRects) {
+    if (element.id == id) {
+      element.position = Vec2{.x = x, .y = y};
+      element.size = Vec2{.x = width, .y = height};
+      return true;
+    }
+  }
+  return false;
+}
+
+bool LuaScriptHost::setHudColor(const std::string& id, const Color color) {
+  if (world_ == nullptr) {
+    return false;
+  }
+
+  for (HudRectElement& element : world_->hudRects) {
+    if (element.id == id) {
+      element.color = color;
+      return true;
+    }
+  }
+  for (HudTextElement& element : world_->hudText) {
+    if (element.id == id) {
+      element.color = color;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool LuaScriptHost::setHudVisible(const std::string& id, const bool visible) {
+  if (world_ == nullptr) {
+    return false;
+  }
+
+  bool changed = false;
+  for (HudRectElement& element : world_->hudRects) {
+    if (element.id == id) {
+      element.visible = visible;
+      changed = true;
+    }
+  }
+  for (HudTextElement& element : world_->hudText) {
+    if (element.id == id) {
+      element.visible = visible;
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 std::optional<std::string> LuaScriptHost::hudText(const std::string& id) const {
@@ -899,6 +1084,10 @@ Vec2 LuaScriptHost::mouseWorldPosition() const {
   };
 }
 
+Vec2 LuaScriptHost::viewportSize() const {
+  return Vec2{.x = static_cast<float>(viewportWidth_), .y = static_cast<float>(viewportHeight_)};
+}
+
 void LuaScriptHost::addDebugLine(const float x1, const float y1, const float x2, const float y2, const float r, const float g, const float b, const float a) {
   if (world_ == nullptr) {
     return;
@@ -927,6 +1116,22 @@ bool LuaScriptHost::stopAudio(const std::uint64_t handle) {
 void LuaScriptHost::setViewport(const int width, const int height) {
   viewportWidth_ = std::max(width, 1);
   viewportHeight_ = std::max(height, 1);
+}
+
+void LuaScriptHost::requestQuit() {
+  quitRequested_ = true;
+}
+
+bool LuaScriptHost::quitRequested() const {
+  return quitRequested_;
+}
+
+void LuaScriptHost::setPhysicsEnabled(const bool enabled) {
+  physicsEnabled_ = enabled;
+}
+
+bool LuaScriptHost::physicsEnabled() const {
+  return physicsEnabled_;
 }
 
 void LuaScriptHost::start() {

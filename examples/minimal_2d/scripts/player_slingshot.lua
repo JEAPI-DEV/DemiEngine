@@ -27,16 +27,28 @@ local function draw_trajectory(origin_x, origin_y, velocity_x, velocity_y)
   end
 end
 
-function Slingshot.update_aim(player, player_x, player_y, grounded, mouse_down)
-  if mouse_down and not player.mouse_was_down and grounded then
+function Slingshot.update_aim(player, player_x, player_y, can_slingshot, grounded, mouse_down)
+  if mouse_down and not player.mouse_was_down and can_slingshot then
     player.aiming = true
+    player.aiming_freezes_motion = grounded
+
+    local velocity_x, velocity_y = Rigidbody2D.get_velocity(player.entity_id)
+    player.aim_velocity_x = velocity_x or 0.0
+    player.aim_velocity_y = velocity_y or 0.0
   end
 
   if not player.aiming then
     return false
   end
 
-  Rigidbody2D.set_velocity(player.entity_id, 0.0, 0.0)
+  local velocity_x = player.aim_velocity_x or 0.0
+  local velocity_y = player.aim_velocity_y or 0.0
+
+  if player.aiming_freezes_motion then
+    Rigidbody2D.set_velocity(player.entity_id, 0.0, 0.0)
+    velocity_x = 0.0
+    velocity_y = 0.0
+  end
 
   local mouse_x, mouse_y = Input.mouse_world_position()
   local pull_x, pull_y = clamp_pull(player_x - mouse_x, player_y - mouse_y)
@@ -44,27 +56,35 @@ function Slingshot.update_aim(player, player_x, player_y, grounded, mouse_down)
   local launch_y = pull_y * config.sling_force
 
   Debug.line(player_x, player_y, player_x - pull_x, player_y - pull_y, 0.9, 0.25, 0.25, 1.0)
-  draw_trajectory(player_x, player_y, launch_x, launch_y)
+  draw_trajectory(player_x, player_y, velocity_x + launch_x, velocity_y + launch_y)
 
   if not mouse_down then
-    Rigidbody2D.set_velocity(player.entity_id, launch_x, launch_y)
+    Rigidbody2D.set_velocity(player.entity_id, velocity_x + launch_x, velocity_y + launch_y)
     player.slingshot_active = true
     player.slingshot_frames = 0
+    player.can_slingshot = false
     player.aiming = false
+    player.aiming_freezes_motion = false
   end
 
   player.mouse_was_down = mouse_down
   return true
 end
 
-function Slingshot.update_active(player, grounded)
+function Slingshot.update_recharge(player, touching_platform)
+  if touching_platform and (not player.slingshot_active or player.slingshot_frames > 8) then
+    player.can_slingshot = true
+  end
+end
+
+function Slingshot.update_active(player, touching_platform)
   if not player.slingshot_active then
     return
   end
 
   player.slingshot_frames = player.slingshot_frames + 1
   local velocity_x, velocity_y = Rigidbody2D.get_velocity(player.entity_id)
-  local has_landed = grounded and player.slingshot_frames > 8 and velocity_y ~= nil and math.abs(velocity_y) < 0.01
+  local has_landed = touching_platform and player.slingshot_frames > 8 and velocity_y ~= nil and math.abs(velocity_y) < 0.01
   if has_landed then
     player.slingshot_active = false
     player.slingshot_frames = 0

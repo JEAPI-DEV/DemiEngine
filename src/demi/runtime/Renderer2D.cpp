@@ -41,17 +41,56 @@ Glyph glyphFor(const char raw) {
   case '8': return {"111", "101", "101", "111", "101", "101", "111"};
   case '9': return {"111", "101", "101", "111", "001", "001", "111"};
   case 'A': return {"010", "101", "101", "111", "101", "101", "101"};
+  case 'B': return {"110", "101", "101", "110", "101", "101", "110"};
+  case 'C': return {"111", "100", "100", "100", "100", "100", "111"};
   case 'D': return {"110", "101", "101", "101", "101", "101", "110"};
+  case 'E': return {"111", "100", "100", "110", "100", "100", "111"};
+  case 'F': return {"111", "100", "100", "110", "100", "100", "100"};
+  case 'G': return {"111", "100", "100", "101", "101", "101", "111"};
+  case 'H': return {"101", "101", "101", "111", "101", "101", "101"};
   case 'I': return {"111", "010", "010", "010", "010", "010", "111"};
+  case 'J': return {"001", "001", "001", "001", "101", "101", "111"};
+  case 'K': return {"101", "101", "110", "100", "110", "101", "101"};
+  case 'L': return {"100", "100", "100", "100", "100", "100", "111"};
+  case 'M': return {"101", "111", "111", "101", "101", "101", "101"};
   case 'N': return {"101", "111", "111", "111", "101", "101", "101"};
   case 'O': return {"111", "101", "101", "101", "101", "101", "111"};
   case 'P': return {"110", "101", "101", "110", "100", "100", "100"};
+  case 'Q': return {"111", "101", "101", "101", "111", "001", "001"};
+  case 'R': return {"110", "101", "101", "110", "110", "101", "101"};
   case 'S': return {"111", "100", "100", "111", "001", "001", "111"};
   case 'T': return {"111", "010", "010", "010", "010", "010", "010"};
+  case 'U': return {"101", "101", "101", "101", "101", "101", "111"};
+  case 'V': return {"101", "101", "101", "101", "101", "101", "010"};
+  case 'W': return {"101", "101", "101", "101", "111", "111", "101"};
+  case 'X': return {"101", "101", "101", "010", "101", "101", "101"};
+  case 'Y': return {"101", "101", "101", "010", "010", "010", "010"};
+  case 'Z': return {"111", "001", "001", "010", "100", "100", "111"};
   case ':': return {"000", "010", "010", "000", "010", "010", "000"};
   case '-': return {"000", "000", "000", "111", "000", "000", "000"};
+  case '.': return {"000", "000", "000", "000", "000", "110", "110"};
   default: return {"000", "000", "000", "000", "000", "000", "000"};
   }
+}
+
+void drawHudRect(SDL_Renderer* renderer, const HudRectElement& element) {
+  if (!element.visible) {
+    return;
+  }
+
+  SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+  SDL_SetRenderDrawColor(renderer,
+                         colorChannel(element.color.r),
+                         colorChannel(element.color.g),
+                         colorChannel(element.color.b),
+                         colorChannel(element.color.a));
+  SDL_FRect rect{
+    .x = element.position.x,
+    .y = element.position.y,
+    .w = element.size.x,
+    .h = element.size.y,
+  };
+  SDL_RenderFillRect(renderer, &rect);
 }
 
 void drawText(SDL_Renderer* renderer, const HudTextElement& element) {
@@ -436,6 +475,9 @@ void Renderer2D::drawWorld(const World& world) {
 void Renderer2D::drawHud(const World& world) {
 #if DEMI_HAS_SDL3
   auto* renderer = static_cast<SDL_Renderer*>(nativeRenderer_);
+  for (const HudRectElement& element : world.hudRects) {
+    drawHudRect(renderer, element);
+  }
   for (const HudTextElement& element : world.hudText) {
     drawText(renderer, element);
   }
