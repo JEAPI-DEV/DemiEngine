@@ -10,6 +10,7 @@ local Menu = {
 }
 
 local PLAYER_ID = "ent_player"
+local SETTINGS_SLOT = "settings"
 
 local function show_group(group, visible)
   Hud.set_group_visible(group, visible)
@@ -45,12 +46,14 @@ end
 local function set_volume(volume)
   Menu.volume = math.max(0.0, math.min(1.0, volume))
   Audio.set_master_volume(Menu.volume)
+  Save.set_number(SETTINGS_SLOT, "master_volume", Menu.volume)
   update_volume_hud()
 end
 
 local function set_window_mode(mode)
   Menu.window_mode = mode
   Runtime.set_window_mode(mode)
+  Save.set_string(SETTINGS_SLOT, "window_mode", mode)
   Menu.dropdown_open = false
   update_video_hud()
   show_group("menu_dropdown", false)
@@ -118,8 +121,10 @@ function Menu.start()
   Menu.screen = "main"
   Menu.active_tab = "sound"
   Menu.dropdown_open = false
-  Menu.volume = Audio.get_master_volume()
-  Menu.window_mode = Runtime.get_window_mode()
+  Menu.volume = Save.get_number(SETTINGS_SLOT, "master_volume", Audio.get_master_volume())
+  Menu.window_mode = Save.get_string(SETTINGS_SLOT, "window_mode", Runtime.get_window_mode())
+  Audio.set_master_volume(Menu.volume)
+  Runtime.set_window_mode(Menu.window_mode)
   Runtime.set_physics_enabled(false)
   Hud.set_visible("points", false)
   show_main()

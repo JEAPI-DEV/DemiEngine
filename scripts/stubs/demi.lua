@@ -227,6 +227,33 @@ function Hud.set_group_visible(group, visible) end
 ---@return string|nil
 function Hud.get_text(id) end
 
+---@class SaveService
+Save = {}
+
+---@param slot string
+---@param key string
+---@param fallback? number
+---@return number
+function Save.get_number(slot, key, fallback) end
+
+---@param slot string
+---@param key string
+---@param value number
+---@return boolean
+function Save.set_number(slot, key, value) end
+
+---@param slot string
+---@param key string
+---@param fallback? string
+---@return string
+function Save.get_string(slot, key, fallback) end
+
+---@param slot string
+---@param key string
+---@param value string
+---@return boolean
+function Save.set_string(slot, key, value) end
+
 ---@class AudioService
 Audio = {}
 

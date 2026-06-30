@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace demi::runtime {
@@ -13,6 +14,11 @@ class AudioSystem;
 
 class LuaScriptHost {
 public:
+  struct SaveValue {
+    std::string value;
+    bool number = false;
+  };
+
   LuaScriptHost();
   ~LuaScriptHost();
 
@@ -42,6 +48,10 @@ public:
   [[nodiscard]] bool setHudVisible(const std::string& id, bool visible);
   [[nodiscard]] bool setHudGroupVisible(const std::string& group, bool visible);
   [[nodiscard]] std::optional<std::string> hudText(const std::string& id) const;
+  [[nodiscard]] std::optional<float> saveNumber(const std::string& slot, const std::string& key);
+  [[nodiscard]] std::optional<std::string> saveString(const std::string& slot, const std::string& key);
+  [[nodiscard]] bool setSaveNumber(const std::string& slot, const std::string& key, float value);
+  [[nodiscard]] bool setSaveString(const std::string& slot, const std::string& key, const std::string& value);
   [[nodiscard]] bool isMouseDown(const std::string& button) const;
   [[nodiscard]] Vec2 mousePosition() const;
   [[nodiscard]] Vec2 mouseWorldPosition() const;
@@ -74,11 +84,14 @@ private:
   };
 
   void dispatchHudEvents();
+  [[nodiscard]] std::unordered_map<std::string, SaveValue>& loadSaveSlot(const std::string& slot);
+  [[nodiscard]] bool writeSaveSlot(const std::string& slot);
 
   void* state_ = nullptr;
   World* world_ = nullptr;
   const InputState* input_ = nullptr;
   AudioSystem* audio_ = nullptr;
+  std::filesystem::path projectDirectory_;
   int viewportWidth_ = 1;
   int viewportHeight_ = 1;
   bool quitRequested_ = false;
@@ -86,6 +99,7 @@ private:
   bool windowModeDirty_ = false;
   bool physicsEnabled_ = true;
   bool previousUiMouseDown_ = false;
+  std::unordered_map<std::string, std::unordered_map<std::string, SaveValue>> saves_;
   std::vector<ScriptInstance> scripts_;
 };
 

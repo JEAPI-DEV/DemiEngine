@@ -5,10 +5,15 @@
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
+#include <system_error>
 
 #if DEMI_HAS_LUA54
 extern "C" {
@@ -25,6 +30,137 @@ namespace {
 std::string normalizedKey(std::string key) {
   std::ranges::transform(key, key.begin(), [](const unsigned char c) { return static_cast<char>(std::tolower(c)); });
   return key;
+}
+
+std::string sanitizedSaveSlot(std::string slot) {
+  if (slot.empty()) {
+    return "settings";
+  }
+  for (char& c : slot) {
+    const unsigned char value = static_cast<unsigned char>(c);
+    if (!std::isalnum(value) && c != '_' && c != '-') {
+      c = '_';
+    }
+  }
+  return slot;
+}
+
+std::string escapeJsonString(const std::string& text) {
+  std::string escaped;
+  escaped.reserve(text.size());
+  for (const char c : text) {
+    if (c == '\\' || c == '"') {
+      escaped.push_back('\\');
+    }
+    escaped.push_back(c);
+  }
+  return escaped;
+}
+
+std::optional<std::size_t> matchingClose(const std::string& text, const std::size_t open, const char openChar, const char closeChar) {
+  int depth = 0;
+  bool inString = false;
+  bool escaped = false;
+  for (std::size_t i = open; i < text.size(); ++i) {
+    const char c = text[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (c == '\\' && inString) {
+      escaped = true;
+      continue;
+    }
+    if (c == '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) {
+      continue;
+    }
+    if (c == openChar) {
+      ++depth;
+    } else if (c == closeChar) {
+      --depth;
+      if (depth == 0) {
+        return i;
+      }
+    }
+  }
+  return std::nullopt;
+}
+
+std::string unescapeJsonString(const std::string& text) {
+  std::string unescaped;
+  unescaped.reserve(text.size());
+  bool escaped = false;
+  for (const char c : text) {
+    if (escaped) {
+      unescaped.push_back(c);
+      escaped = false;
+      continue;
+    }
+    if (c == '\\') {
+      escaped = true;
+      continue;
+    }
+    unescaped.push_back(c);
+  }
+  return unescaped;
+}
+
+std::unordered_map<std::string, LuaScriptHost::SaveValue> parseSaveState(const std::string& text) {
+  std::unordered_map<std::string, LuaScriptHost::SaveValue> values;
+  const std::size_t stateKey = text.find("\"state\"");
+  const std::size_t open = stateKey == std::string::npos ? std::string::npos : text.find('{', stateKey);
+  if (open == std::string::npos) {
+    return values;
+  }
+  const std::optional<std::size_t> close = matchingClose(text, open, '{', '}');
+  if (!close.has_value()) {
+    return values;
+  }
+
+  std::size_t cursor = open + 1;
+  while (cursor < *close) {
+    const std::size_t keyStart = text.find('"', cursor);
+    if (keyStart == std::string::npos || keyStart >= *close) {
+      break;
+    }
+    const std::size_t keyEnd = text.find('"', keyStart + 1);
+    if (keyEnd == std::string::npos || keyEnd >= *close) {
+      break;
+    }
+    const std::size_t colon = text.find(':', keyEnd + 1);
+    if (colon == std::string::npos || colon >= *close) {
+      break;
+    }
+
+    std::size_t valueStart = text.find_first_not_of(" \t\r\n", colon + 1);
+    if (valueStart == std::string::npos || valueStart >= *close) {
+      break;
+    }
+
+    const std::string key = unescapeJsonString(text.substr(keyStart + 1, keyEnd - keyStart - 1));
+    if (text[valueStart] == '"') {
+      const std::size_t valueEnd = text.find('"', valueStart + 1);
+      if (valueEnd == std::string::npos || valueEnd >= *close) {
+        break;
+      }
+      values[key] = LuaScriptHost::SaveValue{.value = unescapeJsonString(text.substr(valueStart + 1, valueEnd - valueStart - 1)), .number = false};
+      cursor = valueEnd + 1;
+    } else {
+      const std::size_t valueEnd = text.find_first_of(",}\r\n", valueStart);
+      const std::size_t end = valueEnd == std::string::npos ? *close : std::min(valueEnd, *close);
+      std::string value = text.substr(valueStart, end - valueStart);
+      while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) {
+        value.pop_back();
+      }
+      values[key] = LuaScriptHost::SaveValue{.value = value, .number = true};
+      cursor = end + 1;
+    }
+  }
+  return values;
 }
 
 #if DEMI_HAS_LUA54
@@ -496,6 +632,46 @@ int hudGetTextBinding(lua_State* state) {
   return 1;
 }
 
+int saveGetNumberBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* slot = luaL_checkstring(state, 1);
+  const char* key = luaL_checkstring(state, 2);
+  const float fallback = static_cast<float>(luaL_optnumber(state, 3, 0.0));
+  const std::optional<float> value = host != nullptr ? host->saveNumber(slot, key) : std::nullopt;
+  lua_pushnumber(state, value.value_or(fallback));
+  return 1;
+}
+
+int saveSetNumberBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* slot = luaL_checkstring(state, 1);
+  const char* key = luaL_checkstring(state, 2);
+  const float value = static_cast<float>(luaL_checknumber(state, 3));
+  const bool changed = host != nullptr && host->setSaveNumber(slot, key, value);
+  lua_pushboolean(state, changed);
+  return 1;
+}
+
+int saveGetStringBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* slot = luaL_checkstring(state, 1);
+  const char* key = luaL_checkstring(state, 2);
+  const char* fallback = luaL_optstring(state, 3, "");
+  const std::optional<std::string> value = host != nullptr ? host->saveString(slot, key) : std::nullopt;
+  lua_pushstring(state, value.value_or(fallback).c_str());
+  return 1;
+}
+
+int saveSetStringBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* slot = luaL_checkstring(state, 1);
+  const char* key = luaL_checkstring(state, 2);
+  const char* value = luaL_checkstring(state, 3);
+  const bool changed = host != nullptr && host->setSaveString(slot, key, value);
+  lua_pushboolean(state, changed);
+  return 1;
+}
+
 int audioPlayBinding(lua_State* state) {
   LuaScriptHost* host = hostFromUpvalue(state);
   const char* assetId = luaL_checkstring(state, 1);
@@ -810,6 +986,21 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, AudioSyste
 
   lua_newtable(state);
   lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, saveGetNumberBinding, 1);
+  lua_setfield(state, -2, "get_number");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, saveSetNumberBinding, 1);
+  lua_setfield(state, -2, "set_number");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, saveGetStringBinding, 1);
+  lua_setfield(state, -2, "get_string");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, saveSetStringBinding, 1);
+  lua_setfield(state, -2, "set_string");
+  lua_setglobal(state, "Save");
+
+  lua_newtable(state);
+  lua_pushlightuserdata(state, this);
   lua_pushcclosure(state, audioPlayBinding, 1);
   lua_setfield(state, -2, "play");
   lua_pushlightuserdata(state, this);
@@ -841,6 +1032,7 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData& project, World& world, s
     return false;
   }
 
+  projectDirectory_ = project.projectDirectory;
   configureLuaPackagePath(state, project);
 
   if (!project.scriptEntry.empty()) {
@@ -1215,6 +1407,113 @@ std::optional<std::string> LuaScriptHost::hudText(const std::string& id) const {
   return std::nullopt;
 }
 
+std::unordered_map<std::string, LuaScriptHost::SaveValue>& LuaScriptHost::loadSaveSlot(const std::string& slot) {
+  const std::string safeSlot = sanitizedSaveSlot(slot);
+  if (const auto found = saves_.find(safeSlot); found != saves_.end()) {
+    return found->second;
+  }
+
+  std::unordered_map<std::string, SaveValue> values;
+  const std::filesystem::path path = projectDirectory_ / "saves" / (safeSlot + ".save.json");
+  std::ifstream input(path);
+  if (input) {
+    std::ostringstream buffer;
+    buffer << input.rdbuf();
+    values = parseSaveState(buffer.str());
+  }
+
+  auto [inserted, _] = saves_.emplace(safeSlot, std::move(values));
+  return inserted->second;
+}
+
+bool LuaScriptHost::writeSaveSlot(const std::string& slot) {
+  if (projectDirectory_.empty()) {
+    return false;
+  }
+
+  const std::string safeSlot = sanitizedSaveSlot(slot);
+  auto found = saves_.find(safeSlot);
+  if (found == saves_.end()) {
+    return false;
+  }
+
+  const std::filesystem::path savesDirectory = projectDirectory_ / "saves";
+  std::error_code error;
+  std::filesystem::create_directories(savesDirectory, error);
+  if (error) {
+    return false;
+  }
+
+  std::ofstream output(savesDirectory / (safeSlot + ".save.json"));
+  if (!output) {
+    return false;
+  }
+
+  output << "{\n";
+  output << "  \"format_version\": 1,\n";
+  output << "  \"slot\": \"" << escapeJsonString(safeSlot) << "\",\n";
+  output << "  \"state\": {\n";
+
+  std::vector<std::string> keys;
+  keys.reserve(found->second.size());
+  for (const auto& [key, _] : found->second) {
+    keys.push_back(key);
+  }
+  std::ranges::sort(keys);
+
+  for (std::size_t i = 0; i < keys.size(); ++i) {
+    const SaveValue& value = found->second.at(keys[i]);
+    output << "    \"" << escapeJsonString(keys[i]) << "\": ";
+    if (value.number) {
+      output << value.value;
+    } else {
+      output << "\"" << escapeJsonString(value.value) << "\"";
+    }
+    output << (i + 1 < keys.size() ? ",\n" : "\n");
+  }
+
+  output << "  }\n";
+  output << "}\n";
+  return true;
+}
+
+std::optional<float> LuaScriptHost::saveNumber(const std::string& slot, const std::string& key) {
+  std::unordered_map<std::string, SaveValue>& values = loadSaveSlot(slot);
+  const auto found = values.find(key);
+  if (found == values.end() || !found->second.number) {
+    return std::nullopt;
+  }
+
+  try {
+    return std::stof(found->second.value);
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+
+std::optional<std::string> LuaScriptHost::saveString(const std::string& slot, const std::string& key) {
+  std::unordered_map<std::string, SaveValue>& values = loadSaveSlot(slot);
+  const auto found = values.find(key);
+  if (found == values.end() || found->second.number) {
+    return std::nullopt;
+  }
+  return found->second.value;
+}
+
+bool LuaScriptHost::setSaveNumber(const std::string& slot, const std::string& key, const float value) {
+  std::unordered_map<std::string, SaveValue>& values = loadSaveSlot(slot);
+  std::ostringstream stream;
+  stream << std::setprecision(6) << value;
+  values[key] = SaveValue{.value = stream.str(), .number = true};
+  return writeSaveSlot(slot);
+}
+
+bool LuaScriptHost::setSaveString(const std::string& slot, const std::string& key, const std::string& value) {
+  std::unordered_map<std::string, SaveValue>& values = loadSaveSlot(slot);
+  values[key] = SaveValue{.value = value, .number = false};
+  return writeSaveSlot(slot);
+}
+
 bool LuaScriptHost::isMouseDown(const std::string& button) const {
   return input_ != nullptr && input_->mouseButtonsDown.contains(normalizedKey(button));
 }
@@ -1289,7 +1588,10 @@ void LuaScriptHost::dispatchHudEvents() {
     return;
   }
 
-  const Vec2 mouse = input_->mousePosition;
+  const Vec2 mouse{
+    .x = input_->mousePosition.x * std::max(world_->hudCanvasSize.x, 1.0F) / static_cast<float>(std::max(viewportWidth_, 1)),
+    .y = input_->mousePosition.y * std::max(world_->hudCanvasSize.y, 1.0F) / static_cast<float>(std::max(viewportHeight_, 1)),
+  };
   const bool mouseDown = isMouseDown("left");
   for (HudButtonElement& button : world_->hudButtons) {
     if (!button.visible) {

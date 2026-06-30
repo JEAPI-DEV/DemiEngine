@@ -158,6 +158,7 @@ struct World {
   std::filesystem::path scenePath;
   std::string id;
   std::string name;
+  Vec2 hudCanvasSize = {960.0F, 540.0F};
   std::vector<Entity> entities;
   std::vector<HudRectElement> hudRects;
   std::vector<HudButtonElement> hudButtons;

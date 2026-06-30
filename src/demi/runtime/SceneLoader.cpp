@@ -493,6 +493,12 @@ void loadHudFile(World& world, const std::filesystem::path& hudPath, std::string
     return;
   }
 
+  if (const std::optional<Vec2> canvasSize = vec2AfterKey(hudText, "canvas_size")) {
+    if (canvasSize->x > 0.0F && canvasSize->y > 0.0F) {
+      world.hudCanvasSize = *canvasSize;
+    }
+  }
+
   const std::optional<std::string> elementsArray = arrayAfterKey(hudText, "elements");
   if (!elementsArray.has_value()) {
     return;

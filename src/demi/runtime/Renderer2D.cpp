@@ -512,6 +512,9 @@ void Renderer2D::drawWorld(const World& world) {
 void Renderer2D::drawHud(const World& world) {
 #if DEMI_HAS_SDL3
   auto* renderer = static_cast<SDL_Renderer*>(nativeRenderer_);
+  const float canvasWidth = std::max(world.hudCanvasSize.x, 1.0F);
+  const float canvasHeight = std::max(world.hudCanvasSize.y, 1.0F);
+  SDL_SetRenderScale(renderer, static_cast<float>(width_) / canvasWidth, static_cast<float>(height_) / canvasHeight);
   for (const HudRectElement& element : world.hudRects) {
     drawHudRect(renderer, element);
   }
@@ -521,6 +524,7 @@ void Renderer2D::drawHud(const World& world) {
   for (const HudTextElement& element : world.hudText) {
     drawText(renderer, element);
   }
+  SDL_SetRenderScale(renderer, 1.0F, 1.0F);
 #else
   (void)world;
 #endif
