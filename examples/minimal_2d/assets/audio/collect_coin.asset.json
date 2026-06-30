@@ -1,0 +1,7 @@
+{
+  "format_version": 1,
+  "id": "asset://audio/collect_coin",
+  "type": "AudioClip",
+  "source": "collect_coin.mp3",
+  "importer": "mp3-audio"
+}

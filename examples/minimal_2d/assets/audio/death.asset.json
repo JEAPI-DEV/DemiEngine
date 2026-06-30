@@ -1,0 +1,7 @@
+{
+  "format_version": 1,
+  "id": "asset://audio/death",
+  "type": "AudioClip",
+  "source": "death.mp3",
+  "importer": "mp3-audio"
+}

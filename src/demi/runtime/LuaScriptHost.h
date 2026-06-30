@@ -9,6 +9,8 @@
 
 namespace demi::runtime {
 
+class AudioSystem;
+
 class LuaScriptHost {
 public:
   LuaScriptHost();
@@ -17,13 +19,14 @@ public:
   LuaScriptHost(const LuaScriptHost&) = delete;
   LuaScriptHost& operator=(const LuaScriptHost&) = delete;
 
-  [[nodiscard]] bool initialize(World& world, const InputState& input, std::string& error);
+  [[nodiscard]] bool initialize(World& world, const InputState& input, AudioSystem* audio, std::string& error);
   [[nodiscard]] bool loadWorldScripts(const ProjectData& project, World& world, std::string& error);
   [[nodiscard]] bool isKeyDown(const std::string& key) const;
   [[nodiscard]] bool addEntityPosition(const std::string& entityId, float dx, float dy);
   [[nodiscard]] bool setEntityPosition(const std::string& entityId, float x, float y);
   [[nodiscard]] std::optional<Vec2> entityPosition(const std::string& entityId) const;
   [[nodiscard]] std::optional<std::string> findEntityId(const std::string& idOrName) const;
+  [[nodiscard]] bool destroyEntity(const std::string& entityId);
   [[nodiscard]] std::optional<Vec2> getRigidbodyVelocity(const std::string& entityId) const;
   [[nodiscard]] bool setRigidbodyVelocity(const std::string& entityId, float x, float y);
   [[nodiscard]] bool setRigidbodyVelocityX(const std::string& entityId, float x);
@@ -39,6 +42,8 @@ public:
   [[nodiscard]] Vec2 mouseWorldPosition() const;
   void addDebugLine(float x1, float y1, float x2, float y2, float r, float g, float b, float a);
   void clearDebugLines();
+  [[nodiscard]] std::uint64_t playAudio(const std::string& assetId);
+  [[nodiscard]] bool stopAudio(std::uint64_t handle);
   void setViewport(int width, int height);
   void start();
   void update(float dt);
@@ -55,6 +60,7 @@ private:
   void* state_ = nullptr;
   World* world_ = nullptr;
   const InputState* input_ = nullptr;
+  AudioSystem* audio_ = nullptr;
   int viewportWidth_ = 1;
   int viewportHeight_ = 1;
   std::vector<ScriptInstance> scripts_;

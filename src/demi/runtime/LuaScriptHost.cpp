@@ -1,5 +1,6 @@
 #include "demi/runtime/LuaScriptHost.h"
 
+#include "demi/runtime/AudioSystem.h"
 #include "demi/runtime/Physics2D.h"
 
 #include <algorithm>
@@ -313,6 +314,14 @@ int entityCreateBinding(lua_State* state) {
   return 1;
 }
 
+int entityDestroyBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* entityId = luaL_checkstring(state, 1);
+  const bool destroyed = host != nullptr && host->destroyEntity(entityId);
+  lua_pushboolean(state, destroyed);
+  return 1;
+}
+
 int sceneLoad(lua_State* state) {
   const char* sceneId = luaL_checkstring(state, 1);
   std::cerr << "Scene.load is not implemented yet for " << sceneId << '\n';
@@ -416,6 +425,22 @@ int hudGetTextBinding(lua_State* state) {
   return 1;
 }
 
+int audioPlayBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* assetId = luaL_checkstring(state, 1);
+  const std::uint64_t handle = host != nullptr ? host->playAudio(assetId) : 0;
+  lua_pushinteger(state, static_cast<lua_Integer>(handle));
+  return 1;
+}
+
+int audioStopBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const std::uint64_t handle = static_cast<std::uint64_t>(luaL_checkinteger(state, 1));
+  const bool stopped = host != nullptr && host->stopAudio(handle);
+  lua_pushboolean(state, stopped);
+  return 1;
+}
+
 void callLifecycle(lua_State* state, const int tableRef, const char* functionName, const float dt = 0.0F) {
   lua_rawgeti(state, LUA_REGISTRYINDEX, tableRef);
   lua_getfield(state, -1, functionName);
@@ -488,15 +513,17 @@ LuaScriptHost::~LuaScriptHost() {
 #endif
 }
 
-bool LuaScriptHost::initialize(World& world, const InputState& input, std::string& error) {
+bool LuaScriptHost::initialize(World& world, const InputState& input, AudioSystem* audio, std::string& error) {
 #if !DEMI_HAS_LUA54
   (void)world;
   (void)input;
+  (void)audio;
   error = "Lua 5.4 support is unavailable because lua5.4 was not found at configure time.";
   return false;
 #else
   world_ = &world;
   input_ = &input;
+  audio_ = audio;
 
   auto* state = luaL_newstate();
   if (state == nullptr) {
@@ -544,6 +571,9 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, std::strin
   lua_pushlightuserdata(state, this);
   lua_pushcclosure(state, entityCreateBinding, 1);
   lua_setfield(state, -2, "create");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, entityDestroyBinding, 1);
+  lua_setfield(state, -2, "destroy");
   lua_pushlightuserdata(state, this);
   lua_pushcclosure(state, entityAddPosition, 1);
   lua_setfield(state, -2, "add_position");
@@ -600,6 +630,15 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, std::strin
   lua_pushcclosure(state, hudGetTextBinding, 1);
   lua_setfield(state, -2, "get_text");
   lua_setglobal(state, "Hud");
+
+  lua_newtable(state);
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, audioPlayBinding, 1);
+  lua_setfield(state, -2, "play");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, audioStopBinding, 1);
+  lua_setfield(state, -2, "stop");
+  lua_setglobal(state, "Audio");
 
   state_ = state;
   return true;
@@ -729,6 +768,16 @@ std::optional<std::string> LuaScriptHost::findEntityId(const std::string& idOrNa
     }
   }
   return std::nullopt;
+}
+
+bool LuaScriptHost::destroyEntity(const std::string& entityId) {
+  if (world_ == nullptr) {
+    return false;
+  }
+
+  const auto before = world_->entities.size();
+  std::erase_if(world_->entities, [&](const Entity& entity) { return entity.id == entityId; });
+  return world_->entities.size() != before;
 }
 
 std::optional<Vec2> LuaScriptHost::getRigidbodyVelocity(const std::string& entityId) const {
@@ -865,6 +914,14 @@ void LuaScriptHost::clearDebugLines() {
   if (world_ != nullptr) {
     world_->debugLines.clear();
   }
+}
+
+std::uint64_t LuaScriptHost::playAudio(const std::string& assetId) {
+  return audio_ != nullptr ? audio_->play(assetId) : 0;
+}
+
+bool LuaScriptHost::stopAudio(const std::uint64_t handle) {
+  return audio_ != nullptr && audio_->stop(handle);
 }
 
 void LuaScriptHost::setViewport(const int width, const int height) {

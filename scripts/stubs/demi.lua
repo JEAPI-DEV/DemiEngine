@@ -70,6 +70,11 @@ function Entity.find(id_or_name) end
 ---@return boolean
 function Entity.create(entity_id, spec) end
 
+---Destroys an entity by stable id.
+---@param entity_id string
+---@return boolean
+function Entity.destroy(entity_id) end
+
 ---Moves an entity with a Transform2D component by a world-space delta.
 ---@param entity_id string
 ---@param dx number
@@ -141,6 +146,19 @@ Physics2D = {}
 ---@param ignored_entity_id? string
 ---@return boolean
 function Physics2D.overlap_box(x, y, width, height, ignored_entity_id) end
+
+---@class AudioService
+Audio = {}
+
+---Plays an audio asset by asset:// id.
+---@param asset_id string
+---@return integer handle
+function Audio.play(asset_id) end
+
+---Stops a playing audio handle returned by Audio.play.
+---@param handle integer
+---@return boolean
+function Audio.stop(handle) end
 
 ---@class DemiScript
 ---@field entity_id string

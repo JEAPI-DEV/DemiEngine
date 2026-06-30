@@ -38,9 +38,11 @@ endif()
 
 if(PkgConfig_FOUND)
   pkg_check_modules(LUA54 QUIET IMPORTED_TARGET lua5.4)
+  pkg_check_modules(MPG123 QUIET IMPORTED_TARGET libmpg123)
 endif()
 
 add_library(demi-runtime-lib STATIC
+  src/demi/runtime/AudioSystem.cpp
   src/demi/runtime/LuaScriptHost.cpp
   src/demi/runtime/Physics2D.cpp
   src/demi/runtime/Renderer2D.cpp
@@ -73,6 +75,14 @@ if(TARGET PkgConfig::LUA54)
 else()
   target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_LUA54=0)
   message(WARNING "Lua 5.4 was not found. Lua scripts will be skipped by the runtime.")
+endif()
+
+if(TARGET PkgConfig::MPG123)
+  target_link_libraries(demi-runtime-lib PRIVATE PkgConfig::MPG123)
+  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_MPG123=1)
+else()
+  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_MPG123=0)
+  message(WARNING "libmpg123 was not found. MP3 audio assets will not play.")
 endif()
 
 add_executable(demi src/cli/main.cpp)

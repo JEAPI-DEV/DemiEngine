@@ -32,6 +32,7 @@ function Platformer.reset_to_spawn_if_fallen(player)
 
   Entity.set_position(player.entity_id, state.respawn_x, state.respawn_y)
   Rigidbody2D.set_velocity(player.entity_id, 0.0, 0.0)
+  Audio.play("asset://audio/death")
   player.slingshot_active = false
   player.slingshot_frames = 0
   player.aiming = false

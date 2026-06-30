@@ -2,6 +2,7 @@
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/core/Version.h"
+#include "demi/runtime/AudioSystem.h"
 #include "demi/runtime/LuaScriptHost.h"
 #include "demi/runtime/Physics2D.h"
 #include "demi/runtime/Renderer2D.h"
@@ -106,13 +107,18 @@ int runProject(const RuntimeOptions& options) {
   }
 
   Renderer2D renderer2D(renderer);
-  renderer2D.loadTextureAssets(loadAssetRegistry(loaded.project.projectDirectory));
+  const AssetRegistry assetRegistry = loadAssetRegistry(loaded.project.projectDirectory);
+  renderer2D.loadTextureAssets(assetRegistry);
+  AudioSystem audioSystem;
+  if (audioSystem.initialize()) {
+    audioSystem.loadAudioAssets(assetRegistry);
+  }
   const Camera2DComponent fallbackCamera;
   InputState input;
 
   LuaScriptHost luaHost;
   std::string luaError;
-  if (luaHost.initialize(loaded.world, input, luaError)) {
+  if (luaHost.initialize(loaded.world, input, &audioSystem, luaError)) {
     if (!luaHost.loadWorldScripts(loaded.project, loaded.world, luaError)) {
       std::cerr << "Lua scripts skipped: " << luaError << '\n';
     } else {
@@ -174,6 +180,7 @@ int runProject(const RuntimeOptions& options) {
     }
 
     luaHost.update(dt);
+    audioSystem.update();
 
     const Camera2DComponent* camera = activeCamera(loaded.world);
     renderer2D.beginFrame(camera != nullptr ? *camera : fallbackCamera, activeCameraPosition(loaded.world), width, height);
@@ -188,6 +195,7 @@ int runProject(const RuntimeOptions& options) {
   }
 
   luaHost.destroy();
+  audioSystem.shutdown();
   SDL_DestroyRenderer(renderer);
   SDL_DestroyWindow(window);
   SDL_Quit();

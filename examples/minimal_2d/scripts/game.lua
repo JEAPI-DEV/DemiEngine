@@ -5,12 +5,22 @@ local Game = {
   camera_x = 0.0,
   generated_until_x = 8.0,
   next_platform_index = 1,
+  next_coin_index = 1,
+  last_platform_y = -3.0,
+  coins = {},
 }
 
 local CAMERA_ID = "ent_camera_main"
 local PLAYER_ID = "ent_player"
 local PLATFORM_HEIGHT = 0.45
 local GENERATE_AHEAD = 32.0
+local COIN_COLLECT_RADIUS = 0.75
+local MIN_COIN_DISTANCE = 2.15
+
+local function pseudo_random(index, salt)
+  local value = math.sin(index * 12.9898 + salt * 78.233) * 43758.5453
+  return value - math.floor(value)
+end
 
 local function platform_width(index)
   return 2.6 + ((index * 37) % 5) * 0.35
@@ -39,6 +49,74 @@ function Game:add_points(amount)
   Hud.set_text("points", "POINTS: " .. tostring(self.points))
 end
 
+function Game:create_coin(x, y)
+  local min_distance_squared = MIN_COIN_DISTANCE * MIN_COIN_DISTANCE
+  for _, coin in pairs(self.coins) do
+    if not coin.collected then
+      local dx = x - coin.x
+      local dy = y - coin.y
+      if (dx * dx) + (dy * dy) < min_distance_squared then
+        return false
+      end
+    end
+  end
+
+  local id = "coin_" .. tostring(self.next_coin_index)
+  self.next_coin_index = self.next_coin_index + 1
+
+  Entity.create(id, {
+    name = "Gold Coin",
+    components = {
+      Transform2D = {
+        position = { x, y },
+        rotation = 0.0,
+        scale = { 1.0, 1.0 },
+      },
+      Sprite = {
+        texture = "asset://items/gold_coin",
+        layer = "collectibles",
+      },
+    },
+  })
+
+  self.coins[id] = { x = x, y = y, collected = false }
+  return true
+end
+
+function Game:create_gap_coins(index, start_x, end_x, from_y, to_y)
+  if index % 2 ~= 0 then
+    return
+  end
+
+  local gap = end_x - start_x
+  if gap < 2.2 then
+    return
+  end
+
+  local count = index % 4 == 0 and 2 or 1
+  for coin = 1, count do
+    local t = count == 1 and 0.5 or (0.22 + (coin - 1) * 0.56)
+    local x = start_x + gap * t
+    local base_y = from_y + (to_y - from_y) * t
+    local arc = math.sin(t * math.pi) * (1.8 + pseudo_random(index, coin + 11) * 1.15)
+    if count == 2 then
+      arc = arc + (coin - 1) * 0.65
+    end
+    self:create_coin(x, base_y + arc)
+  end
+end
+
+function Game:create_platform_coin(index, platform_x, platform_y)
+  if index % 5 ~= 0 then
+    return
+  end
+
+  local high_offset = 1.75 + pseudo_random(index, 23) * 1.25
+  if not self:create_coin(platform_x, platform_y + high_offset) then
+    self:create_coin(platform_x + 1.9, platform_y + high_offset + 0.75)
+  end
+end
+
 function Game:generate_platforms_until(target_x)
   while self.generated_until_x < target_x do
     local index = self.next_platform_index
@@ -47,6 +125,8 @@ function Game:generate_platforms_until(target_x)
     local x = self.generated_until_x + gap + width * 0.5
     local y = platform_y(index)
     local id = "platform_" .. tostring(index)
+    local previous_platform_edge = self.generated_until_x
+    local platform_left_edge = x - width * 0.5
 
     Entity.create(id, {
       name = "Generated Platform " .. tostring(index),
@@ -70,7 +150,11 @@ function Game:generate_platforms_until(target_x)
       },
     })
 
+    self:create_gap_coins(index, previous_platform_edge, platform_left_edge, self.last_platform_y, y)
+    self:create_platform_coin(index, x, y)
+
     self.generated_until_x = x + width * 0.5
+    self.last_platform_y = y
     self.next_platform_index = self.next_platform_index + 1
   end
 end
@@ -93,29 +177,31 @@ function Game:update_camera(player_x)
   Entity.set_position(CAMERA_ID, self.camera_x, 0.0)
 end
 
-function Game:update_points(player_x)
-  local score = math.max(0, math.floor(player_x * 0.5))
-  if score ~= self.points then
-    self.points = score
-    Hud.set_text("points", "POINTS: " .. tostring(self.points))
+function Game:collect_coins(player_x, player_y)
+  local radius_squared = COIN_COLLECT_RADIUS * COIN_COLLECT_RADIUS
+  for id, coin in pairs(self.coins) do
+    if not coin.collected then
+      local dx = player_x - coin.x
+      local dy = player_y - coin.y
+      if (dx * dx) + (dy * dy) <= radius_squared then
+        coin.collected = true
+        Entity.destroy(id)
+        Audio.play("asset://audio/collect_coin")
+        self:add_points(1)
+      end
+    end
   end
 end
 
 function Game:on_update(dt)
   local player_x, player_y = Entity.get_position(PLAYER_ID)
-  if player_x == nil then
+  if player_x == nil or player_y == nil then
     return
   end
 
   self:update_camera(player_x)
   self:generate_platforms_until(self.camera_x + GENERATE_AHEAD)
-  self:update_points(player_x)
-
-  if Input.is_down("p") and not self.p_was_down then
-    self:add_points(1)
-  end
-
-  self.p_was_down = Input.is_down("p")
+  self:collect_coins(player_x, player_y)
 end
 
 function Game:on_fixed_update(dt)
