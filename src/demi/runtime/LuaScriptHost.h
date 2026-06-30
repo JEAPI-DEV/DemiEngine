@@ -30,6 +30,15 @@ public:
   [[nodiscard]] bool setRigidbodyVelocityY(const std::string& entityId, float y);
   [[nodiscard]] bool addRigidbodyImpulse(const std::string& entityId, float x, float y);
   [[nodiscard]] bool physicsOverlapBox(float x, float y, float width, float height, const std::string& ignoredEntityId) const;
+  [[nodiscard]] bool setHudText(const std::string& id, const std::string& text);
+  [[nodiscard]] bool createHudText(const std::string& id, const std::string& text, float x, float y, float scale);
+  [[nodiscard]] std::optional<std::string> hudText(const std::string& id) const;
+  [[nodiscard]] bool isMouseDown(const std::string& button) const;
+  [[nodiscard]] Vec2 mousePosition() const;
+  [[nodiscard]] Vec2 mouseWorldPosition() const;
+  void addDebugLine(float x1, float y1, float x2, float y2, float r, float g, float b, float a);
+  void clearDebugLines();
+  void setViewport(int width, int height);
   void start();
   void update(float dt);
   void fixedUpdate(float dt);
@@ -45,6 +54,8 @@ private:
   void* state_ = nullptr;
   World* world_ = nullptr;
   const InputState* input_ = nullptr;
+  int viewportWidth_ = 1;
+  int viewportHeight_ = 1;
   std::vector<ScriptInstance> scripts_;
 };
 

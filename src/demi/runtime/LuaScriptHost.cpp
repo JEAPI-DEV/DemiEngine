@@ -28,9 +28,35 @@ std::string normalizedKey(std::string key) {
 
 #if DEMI_HAS_LUA54
 
+LuaScriptHost* hostFromUpvalue(lua_State* state);
+
 int debugLog(lua_State* state) {
   const char* message = luaL_checkstring(state, 1);
   std::cout << "[lua] " << message << '\n';
+  return 0;
+}
+
+int debugLine(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const float x1 = static_cast<float>(luaL_checknumber(state, 1));
+  const float y1 = static_cast<float>(luaL_checknumber(state, 2));
+  const float x2 = static_cast<float>(luaL_checknumber(state, 3));
+  const float y2 = static_cast<float>(luaL_checknumber(state, 4));
+  const float r = static_cast<float>(luaL_optnumber(state, 5, 1.0));
+  const float g = static_cast<float>(luaL_optnumber(state, 6, 1.0));
+  const float b = static_cast<float>(luaL_optnumber(state, 7, 1.0));
+  const float a = static_cast<float>(luaL_optnumber(state, 8, 1.0));
+  if (host != nullptr) {
+    host->addDebugLine(x1, y1, x2, y2, r, g, b, a);
+  }
+  return 0;
+}
+
+int debugClearLines(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  if (host != nullptr) {
+    host->clearDebugLines();
+  }
   return 0;
 }
 
@@ -90,6 +116,29 @@ int inputVector(lua_State* state) {
 
   lua_pushnumber(state, x);
   lua_pushnumber(state, y);
+  return 2;
+}
+
+int inputMouseDown(lua_State* state) {
+  const LuaScriptHost* host = hostFromUpvalue(state);
+  const char* button = luaL_checkstring(state, 1);
+  lua_pushboolean(state, host != nullptr && host->isMouseDown(button));
+  return 1;
+}
+
+int inputMousePosition(lua_State* state) {
+  const LuaScriptHost* host = hostFromUpvalue(state);
+  const Vec2 position = host != nullptr ? host->mousePosition() : Vec2{};
+  lua_pushnumber(state, position.x);
+  lua_pushnumber(state, position.y);
+  return 2;
+}
+
+int inputMouseWorldPosition(lua_State* state) {
+  const LuaScriptHost* host = hostFromUpvalue(state);
+  const Vec2 position = host != nullptr ? host->mouseWorldPosition() : Vec2{};
+  lua_pushnumber(state, position.x);
+  lua_pushnumber(state, position.y);
   return 2;
 }
 
@@ -212,6 +261,39 @@ int physicsOverlapBoxBinding(lua_State* state) {
   return 1;
 }
 
+int hudTextBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* id = luaL_checkstring(state, 1);
+  const char* text = luaL_checkstring(state, 2);
+  const float x = static_cast<float>(luaL_checknumber(state, 3));
+  const float y = static_cast<float>(luaL_checknumber(state, 4));
+  const float scale = static_cast<float>(luaL_optnumber(state, 5, 3.0));
+  const bool changed = host != nullptr && host->createHudText(id, text, x, y, scale);
+  lua_pushboolean(state, changed);
+  return 1;
+}
+
+int hudSetTextBinding(lua_State* state) {
+  LuaScriptHost* host = hostFromUpvalue(state);
+  const char* id = luaL_checkstring(state, 1);
+  const char* text = luaL_checkstring(state, 2);
+  const bool changed = host != nullptr && host->setHudText(id, text);
+  lua_pushboolean(state, changed);
+  return 1;
+}
+
+int hudGetTextBinding(lua_State* state) {
+  const LuaScriptHost* host = hostFromUpvalue(state);
+  const char* id = luaL_checkstring(state, 1);
+  const std::optional<std::string> text = host != nullptr ? host->hudText(id) : std::nullopt;
+  if (!text.has_value()) {
+    lua_pushnil(state);
+    return 1;
+  }
+  lua_pushstring(state, text->c_str());
+  return 1;
+}
+
 void callLifecycle(lua_State* state, const int tableRef, const char* functionName, const float dt = 0.0F) {
   lua_rawgeti(state, LUA_REGISTRYINDEX, tableRef);
   lua_getfield(state, -1, functionName);
@@ -278,6 +360,12 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, std::strin
   lua_newtable(state);
   lua_pushcfunction(state, debugLog);
   lua_setfield(state, -2, "log");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, debugLine, 1);
+  lua_setfield(state, -2, "line");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, debugClearLines, 1);
+  lua_setfield(state, -2, "clear_lines");
   lua_setglobal(state, "Debug");
 
   lua_newtable(state);
@@ -290,6 +378,15 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, std::strin
   lua_pushlightuserdata(state, this);
   lua_pushcclosure(state, inputVector, 1);
   lua_setfield(state, -2, "vector");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, inputMouseDown, 1);
+  lua_setfield(state, -2, "mouse_down");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, inputMousePosition, 1);
+  lua_setfield(state, -2, "mouse_position");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, inputMouseWorldPosition, 1);
+  lua_setfield(state, -2, "mouse_world_position");
   lua_setglobal(state, "Input");
 
   lua_newtable(state);
@@ -341,6 +438,18 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, std::strin
   lua_setfield(state, -2, "overlap_box");
   lua_setglobal(state, "Physics2D");
 
+  lua_newtable(state);
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, hudTextBinding, 1);
+  lua_setfield(state, -2, "text");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, hudSetTextBinding, 1);
+  lua_setfield(state, -2, "set_text");
+  lua_pushlightuserdata(state, this);
+  lua_pushcclosure(state, hudGetTextBinding, 1);
+  lua_setfield(state, -2, "get_text");
+  lua_setglobal(state, "Hud");
+
   state_ = state;
   return true;
 #endif
@@ -357,6 +466,24 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData& project, World& world, s
   if (state == nullptr) {
     error = "LuaScriptHost was not initialized.";
     return false;
+  }
+
+  if (!project.scriptEntry.empty()) {
+    const std::filesystem::path scriptPath = resolveScriptPath(project, project.scriptEntry);
+    if (luaL_dofile(state, scriptPath.string().c_str()) != LUA_OK) {
+      error = "Failed to load Lua project script " + scriptPath.string() + ": " + lua_tostring(state, -1);
+      lua_pop(state, 1);
+      return false;
+    }
+
+    if (!lua_istable(state, -1)) {
+      lua_pop(state, 1);
+      error = "Lua project script must return a table: " + scriptPath.string();
+      return false;
+    }
+
+    const int tableRef = luaL_ref(state, LUA_REGISTRYINDEX);
+    scripts_.push_back(ScriptInstance{.entityId = "", .module = project.scriptEntry, .tableRef = tableRef});
   }
 
   for (Entity& entity : world.entities) {
@@ -476,6 +603,101 @@ bool LuaScriptHost::addRigidbodyImpulse(const std::string& entityId, const float
 
 bool LuaScriptHost::physicsOverlapBox(const float x, const float y, const float width, const float height, const std::string& ignoredEntityId) const {
   return world_ != nullptr && overlapBox(*world_, Vec2{.x = x, .y = y}, Vec2{.x = width, .y = height}, ignoredEntityId);
+}
+
+bool LuaScriptHost::setHudText(const std::string& id, const std::string& text) {
+  if (world_ == nullptr) {
+    return false;
+  }
+
+  for (HudTextElement& element : world_->hudText) {
+    if (element.id == id) {
+      element.text = text;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool LuaScriptHost::createHudText(const std::string& id, const std::string& text, const float x, const float y, const float scale) {
+  if (world_ == nullptr) {
+    return false;
+  }
+
+  for (HudTextElement& element : world_->hudText) {
+    if (element.id == id) {
+      element.text = text;
+      element.position = Vec2{.x = x, .y = y};
+      element.scale = scale;
+      element.visible = true;
+      return true;
+    }
+  }
+
+  world_->hudText.push_back(HudTextElement{
+    .id = id,
+    .text = text,
+    .position = Vec2{.x = x, .y = y},
+    .scale = scale,
+  });
+  return true;
+}
+
+std::optional<std::string> LuaScriptHost::hudText(const std::string& id) const {
+  if (world_ == nullptr) {
+    return std::nullopt;
+  }
+
+  for (const HudTextElement& element : world_->hudText) {
+    if (element.id == id) {
+      return element.text;
+    }
+  }
+  return std::nullopt;
+}
+
+bool LuaScriptHost::isMouseDown(const std::string& button) const {
+  return input_ != nullptr && input_->mouseButtonsDown.contains(normalizedKey(button));
+}
+
+Vec2 LuaScriptHost::mousePosition() const {
+  return input_ != nullptr ? input_->mousePosition : Vec2{};
+}
+
+Vec2 LuaScriptHost::mouseWorldPosition() const {
+  if (input_ == nullptr || world_ == nullptr) {
+    return {};
+  }
+
+  const Camera2DComponent* camera = activeCamera(*world_);
+  const float orthographicSize = camera != nullptr ? camera->orthographicSize : 10.0F;
+  const float pixelsPerUnit = static_cast<float>(viewportHeight_) / std::max(orthographicSize * 2.0F, 1.0F);
+  return Vec2{
+    .x = (input_->mousePosition.x - static_cast<float>(viewportWidth_) * 0.5F) / pixelsPerUnit,
+    .y = (static_cast<float>(viewportHeight_) * 0.5F - input_->mousePosition.y) / pixelsPerUnit,
+  };
+}
+
+void LuaScriptHost::addDebugLine(const float x1, const float y1, const float x2, const float y2, const float r, const float g, const float b, const float a) {
+  if (world_ == nullptr) {
+    return;
+  }
+  world_->debugLines.push_back(DebugLine{
+    .start = Vec2{.x = x1, .y = y1},
+    .end = Vec2{.x = x2, .y = y2},
+    .color = Color{.r = r, .g = g, .b = b, .a = a},
+  });
+}
+
+void LuaScriptHost::clearDebugLines() {
+  if (world_ != nullptr) {
+    world_->debugLines.clear();
+  }
+}
+
+void LuaScriptHost::setViewport(const int width, const int height) {
+  viewportWidth_ = std::max(width, 1);
+  viewportHeight_ = std::max(height, 1);
 }
 
 void LuaScriptHost::start() {

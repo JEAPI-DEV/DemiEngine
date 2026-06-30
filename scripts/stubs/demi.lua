@@ -7,6 +7,18 @@ Debug = {}
 ---@param message string
 function Debug.log(message) end
 
+---@param x1 number
+---@param y1 number
+---@param x2 number
+---@param y2 number
+---@param r? number
+---@param g? number
+---@param b? number
+---@param a? number
+function Debug.line(x1, y1, x2, y2, r, g, b, a) end
+
+function Debug.clear_lines() end
+
 ---@class InputService
 Input = {}
 
@@ -27,6 +39,18 @@ function Input.axis(negative_key, positive_key) end
 ---@return number x
 ---@return number y
 function Input.vector(left, right, down, up) end
+
+---@param button string "left", "right", or "middle"
+---@return boolean
+function Input.mouse_down(button) end
+
+---@return number x
+---@return number y
+function Input.mouse_position() end
+
+---@return number x
+---@return number y
+function Input.mouse_world_position() end
 
 ---@class EntityService
 Entity = {}

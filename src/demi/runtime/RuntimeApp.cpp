@@ -43,6 +43,28 @@ void setKeyState(InputState& input, const SDL_Keycode key, const bool pressed) {
   }
 }
 
+std::string mouseButtonName(const Uint8 button) {
+  switch (button) {
+  case SDL_BUTTON_LEFT:
+    return "left";
+  case SDL_BUTTON_RIGHT:
+    return "right";
+  case SDL_BUTTON_MIDDLE:
+    return "middle";
+  default:
+    return "button" + std::to_string(static_cast<int>(button));
+  }
+}
+
+void setMouseButtonState(InputState& input, const Uint8 button, const bool pressed) {
+  const std::string name = mouseButtonName(button);
+  if (pressed) {
+    input.mouseButtonsDown.insert(name);
+  } else {
+    input.mouseButtonsDown.erase(name);
+  }
+}
+
 #endif
 
 } // namespace
@@ -123,11 +145,27 @@ int runProject(const RuntimeOptions& options) {
       if (event.type == SDL_EVENT_KEY_UP) {
         setKeyState(input, event.key.key, false);
       }
+      if (event.type == SDL_EVENT_MOUSE_MOTION) {
+        input.mousePosition = Vec2{.x = event.motion.x, .y = event.motion.y};
+      }
+      if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+        input.mousePosition = Vec2{.x = event.button.x, .y = event.button.y};
+        setMouseButtonState(input, event.button.button, true);
+      }
+      if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+        input.mousePosition = Vec2{.x = event.button.x, .y = event.button.y};
+        setMouseButtonState(input, event.button.button, false);
+      }
     }
 
     const Uint64 currentTicks = SDL_GetTicksNS();
     const float dt = std::min(static_cast<float>(static_cast<double>(currentTicks - previousTicks) / 1000000000.0), 0.1F);
     previousTicks = currentTicks;
+    int width = windowWidth;
+    int height = windowHeight;
+    SDL_GetWindowSize(window, &width, &height);
+    luaHost.setViewport(width, height);
+
     fixedAccumulator += dt;
     while (fixedAccumulator >= fixedStep) {
       luaHost.fixedUpdate(static_cast<float>(fixedStep));
@@ -137,13 +175,10 @@ int runProject(const RuntimeOptions& options) {
 
     luaHost.update(dt);
 
-    int width = windowWidth;
-    int height = windowHeight;
-    SDL_GetWindowSize(window, &width, &height);
-
     const Camera2DComponent* camera = activeCamera(loaded.world);
     renderer2D.beginFrame(camera != nullptr ? *camera : fallbackCamera, width, height);
     renderer2D.drawWorld(loaded.world);
+    renderer2D.drawHud(loaded.world);
     renderer2D.endFrame();
 
     ++frameCount;

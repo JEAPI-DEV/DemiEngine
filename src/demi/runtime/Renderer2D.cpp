@@ -1,10 +1,13 @@
 #include "demi/runtime/Renderer2D.h"
 
 #include <algorithm>
+#include <array>
+#include <cctype>
 #include <cmath>
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <string_view>
 #include <vector>
 
 #if DEMI_HAS_SDL3
@@ -20,6 +23,74 @@ namespace {
 Uint8 colorChannel(float value) {
   const float clamped = std::clamp(value, 0.0F, 1.0F);
   return static_cast<Uint8>(std::round(clamped * 255.0F));
+}
+
+using Glyph = std::array<std::string_view, 7>;
+
+Glyph glyphFor(const char raw) {
+  const char c = static_cast<char>(std::toupper(static_cast<unsigned char>(raw)));
+  switch (c) {
+  case '0': return {"111", "101", "101", "101", "101", "101", "111"};
+  case '1': return {"010", "110", "010", "010", "010", "010", "111"};
+  case '2': return {"111", "001", "001", "111", "100", "100", "111"};
+  case '3': return {"111", "001", "001", "111", "001", "001", "111"};
+  case '4': return {"101", "101", "101", "111", "001", "001", "001"};
+  case '5': return {"111", "100", "100", "111", "001", "001", "111"};
+  case '6': return {"111", "100", "100", "111", "101", "101", "111"};
+  case '7': return {"111", "001", "001", "010", "010", "010", "010"};
+  case '8': return {"111", "101", "101", "111", "101", "101", "111"};
+  case '9': return {"111", "101", "101", "111", "001", "001", "111"};
+  case 'A': return {"010", "101", "101", "111", "101", "101", "101"};
+  case 'D': return {"110", "101", "101", "101", "101", "101", "110"};
+  case 'I': return {"111", "010", "010", "010", "010", "010", "111"};
+  case 'N': return {"101", "111", "111", "111", "101", "101", "101"};
+  case 'O': return {"111", "101", "101", "101", "101", "101", "111"};
+  case 'P': return {"110", "101", "101", "110", "100", "100", "100"};
+  case 'S': return {"111", "100", "100", "111", "001", "001", "111"};
+  case 'T': return {"111", "010", "010", "010", "010", "010", "010"};
+  case ':': return {"000", "010", "010", "000", "010", "010", "000"};
+  case '-': return {"000", "000", "000", "111", "000", "000", "000"};
+  default: return {"000", "000", "000", "000", "000", "000", "000"};
+  }
+}
+
+void drawText(SDL_Renderer* renderer, const HudTextElement& element) {
+  if (!element.visible) {
+    return;
+  }
+
+  const float pixel = std::max(element.scale, 1.0F);
+  float x = element.position.x;
+  const float y = element.position.y;
+  SDL_SetRenderDrawColor(renderer,
+                         colorChannel(element.color.r),
+                         colorChannel(element.color.g),
+                         colorChannel(element.color.b),
+                         colorChannel(element.color.a));
+
+  for (const char c : element.text) {
+    if (c == ' ') {
+      x += pixel * 4.0F;
+      continue;
+    }
+
+    const Glyph glyph = glyphFor(c);
+    for (std::size_t row = 0; row < glyph.size(); ++row) {
+      for (std::size_t col = 0; col < glyph[row].size(); ++col) {
+        if (glyph[row][col] != '1') {
+          continue;
+        }
+        SDL_FRect rect{
+          .x = x + static_cast<float>(col) * pixel,
+          .y = y + static_cast<float>(row) * pixel,
+          .w = pixel,
+          .h = pixel,
+        };
+        SDL_RenderFillRect(renderer, &rect);
+      }
+    }
+    x += pixel * 4.0F;
+  }
 }
 
 struct ImageData {
@@ -340,6 +411,30 @@ void Renderer2D::drawWorld(const World& world) {
 
   for (const Entity* entity : renderables) {
     drawEntity(renderer, textures_, camera_, *entity, isoGridSize, width_, height_);
+  }
+
+  for (const DebugLine& line : world.debugLines) {
+    SDL_SetRenderDrawColor(renderer,
+                           colorChannel(line.color.r),
+                           colorChannel(line.color.g),
+                           colorChannel(line.color.b),
+                           colorChannel(line.color.a));
+    SDL_RenderLine(renderer,
+                   worldToScreenX(camera_, width_, height_, line.start.x),
+                   worldToScreenY(camera_, width_, height_, line.start.y),
+                   worldToScreenX(camera_, width_, height_, line.end.x),
+                   worldToScreenY(camera_, width_, height_, line.end.y));
+  }
+#else
+  (void)world;
+#endif
+}
+
+void Renderer2D::drawHud(const World& world) {
+#if DEMI_HAS_SDL3
+  auto* renderer = static_cast<SDL_Renderer*>(nativeRenderer_);
+  for (const HudTextElement& element : world.hudText) {
+    drawText(renderer, element);
   }
 #else
   (void)world;

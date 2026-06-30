@@ -256,6 +256,7 @@ std::optional<ProjectData> parseProject(const std::filesystem::path& projectPath
 
   project.name = *name;
   project.mainScene = *mainScene;
+  project.scriptEntry = stringAfterKey(text, "entry").value_or(std::string{});
 
   for (const std::string& sceneObject : objectsInArray(*scenesArray)) {
     const std::optional<std::string> id = stringAfterKey(sceneObject, "id");

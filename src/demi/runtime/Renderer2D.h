@@ -19,6 +19,7 @@ public:
   void loadTextureAssets(const AssetRegistry& registry);
   void beginFrame(const Camera2DComponent& camera, int width, int height);
   void drawWorld(const World& world);
+  void drawHud(const World& world);
   void endFrame();
 
 private:

@@ -23,6 +23,14 @@ struct Color {
 
 struct InputState {
   std::unordered_set<std::string> keysDown;
+  std::unordered_set<std::string> mouseButtonsDown;
+  Vec2 mousePosition;
+};
+
+struct DebugLine {
+  Vec2 start;
+  Vec2 end;
+  Color color = {1.0F, 1.0F, 1.0F, 1.0F};
 };
 
 struct SceneEntry {
@@ -35,7 +43,17 @@ struct ProjectData {
   std::filesystem::path projectDirectory;
   std::string name;
   std::string mainScene;
+  std::string scriptEntry;
   std::vector<SceneEntry> scenes;
+};
+
+struct HudTextElement {
+  std::string id;
+  std::string text;
+  Vec2 position;
+  float scale = 3.0F;
+  Color color = {1.0F, 1.0F, 1.0F, 1.0F};
+  bool visible = true;
 };
 
 struct Transform2DComponent {
@@ -115,6 +133,8 @@ struct World {
   std::string id;
   std::string name;
   std::vector<Entity> entities;
+  std::vector<HudTextElement> hudText;
+  std::vector<DebugLine> debugLines;
 };
 
 [[nodiscard]] inline Entity* findEntity(World& world, const std::string& id) {
