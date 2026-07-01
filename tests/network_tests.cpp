@@ -93,6 +93,50 @@ int main() {
   }
 
   client.disconnect();
+  pump(server, client, 10);
+
+  if (!client.connect("127.0.0.1", Port)) {
+    std::cerr << "Client failed to start reconnect to local ENet session.\n";
+    return 1;
+  }
+
+  std::optional<std::uint32_t> reconnectedPeerId;
+  for (int attempt = 0; attempt < 250 && !reconnectedPeerId.has_value(); ++attempt) {
+    pump(server, client);
+    for (const demi::runtime::NetworkEvent& event : server.drainEvents()) {
+      if (event.type == demi::runtime::NetworkEventType::Connected) {
+        reconnectedPeerId = event.peerId;
+      }
+    }
+    (void)client.drainEvents();
+  }
+
+  if (!reconnectedPeerId.has_value() || !client.isConnected()) {
+    std::cerr << "Local ENet client did not reconnect.\n";
+    return 1;
+  }
+
+  if (!client.send("client:again", true)) {
+    std::cerr << "Client failed to send reliable reconnect message.\n";
+    return 1;
+  }
+
+  bool serverReceivedReconnect = false;
+  for (int attempt = 0; attempt < 250 && !serverReceivedReconnect; ++attempt) {
+    pump(server, client);
+    for (const demi::runtime::NetworkEvent& event : server.drainEvents()) {
+      if (event.type == demi::runtime::NetworkEventType::Message && event.peerId == *reconnectedPeerId && event.message == "client:again") {
+        serverReceivedReconnect = true;
+      }
+    }
+    (void)client.drainEvents();
+  }
+  if (!serverReceivedReconnect) {
+    std::cerr << "Server did not receive reliable reconnect message.\n";
+    return 1;
+  }
+
+  client.disconnect();
   server.disconnect();
   return 0;
 }

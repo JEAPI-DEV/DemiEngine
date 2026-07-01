@@ -9,6 +9,9 @@ local Menu = {
   window_mode = "windowed",
   network_ip = "127.0.0.1",
   network_port = 39420,
+  network_join_pending = false,
+  network_join_elapsed = 0.0,
+  network_join_timeout = 4.0,
   key_was_down = {},
   enter_was_down = false,
 }
@@ -110,6 +113,8 @@ end
 
 local function show_network()
   Menu.screen = "network"
+  Menu.network_join_pending = false
+  Menu.network_join_elapsed = 0.0
   Menu.dropdown_open = false
   show_group("menu_base", true)
   show_group("menu_main", false)
@@ -179,6 +184,7 @@ function Menu.start_game()
 end
 
 function Menu.host_game()
+  Menu.network_join_pending = false
   if replication.host(Menu.network_port) then
     update_network_hud("HOSTING ON PORT " .. tostring(Menu.network_port))
     select_level(SCENE_PLATFORMER, 1)
@@ -193,9 +199,11 @@ function Menu.join_game()
     return
   end
   if replication.connect(Menu.network_ip, Menu.network_port) then
+    Menu.network_join_pending = true
+    Menu.network_join_elapsed = 0.0
     update_network_hud("CONNECTING TO " .. Menu.network_ip)
-    select_level(SCENE_PLATFORMER, 1)
   else
+    Menu.network_join_pending = false
     update_network_hud("JOIN FAILED - CHECK IP OR BUILD")
   end
 end
@@ -254,6 +262,8 @@ function Menu.show_game_over(points)
 end
 
 function Menu.back_to_main_menu()
+  replication.disconnect()
+  Menu.network_join_pending = false
   state.auto_start = false
   state.game_over = false
   state.game_over_pending = false
@@ -280,6 +290,10 @@ function Menu.handle_click(id)
   elseif id == "menu_network_join" then
     Menu.join_game()
   elseif id == "menu_network_back" then
+    if Menu.network_join_pending then
+      replication.disconnect()
+      Menu.network_join_pending = false
+    end
     show_main()
   elseif id == "menu_button_quit" then
     Runtime.quit()
@@ -305,6 +319,34 @@ function Menu.handle_click(id)
     set_window_mode("fullscreen")
   elseif id == "game_over_back" then
     Menu.back_to_main_menu()
+  end
+end
+
+local function update_network_connection(dt)
+  if not Menu.network_join_pending then
+    return
+  end
+
+  Menu.network_join_elapsed = Menu.network_join_elapsed + dt
+  local events = replication.process_events()
+  if events.connected or replication.is_connected() then
+    Menu.network_join_pending = false
+    update_network_hud("CONNECTED")
+    select_level(SCENE_PLATFORMER, 1)
+    return
+  end
+
+  if events.disconnected then
+    Menu.network_join_pending = false
+    replication.disconnect()
+    update_network_hud("JOIN FAILED - NO HOST")
+    return
+  end
+
+  if Menu.network_join_elapsed >= Menu.network_join_timeout then
+    Menu.network_join_pending = false
+    replication.disconnect()
+    update_network_hud("JOIN TIMED OUT")
   end
 end
 
@@ -366,7 +408,12 @@ function Menu.update(dt)
 
   if Menu.screen == "network" then
     update_network_input()
+    update_network_connection(dt)
     if Input.is_down("escape") then
+      if Menu.network_join_pending then
+        replication.disconnect()
+        Menu.network_join_pending = false
+      end
       show_main()
     end
   end

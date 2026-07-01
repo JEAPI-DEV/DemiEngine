@@ -58,6 +58,17 @@ function SnapshotReplication.new(options)
   }, SnapshotReplication)
 end
 
+function SnapshotReplication:reset(clear_remote_entities)
+  if clear_remote_entities then
+    for ghost_id, _ in pairs(self.remotes) do
+      Entity.destroy(ghost_id)
+    end
+  end
+  self.local_peer_id = nil
+  self.accumulator = 0.0
+  self.remotes = {}
+end
+
 function SnapshotReplication:available()
   return Network.available()
 end
@@ -71,7 +82,7 @@ function SnapshotReplication:host(port)
     self.log("Network unavailable: rebuild with DEMI_ENABLE_NETWORK=ON to host.")
     return false
   end
-  self.local_peer_id = nil
+  self:reset(true)
   return Network.host(port or self.default_port, self.max_peers)
 end
 
@@ -80,14 +91,13 @@ function SnapshotReplication:connect(address, port)
     self.log("Network unavailable: rebuild with DEMI_ENABLE_NETWORK=ON to connect.")
     return false
   end
-  self.local_peer_id = nil
+  self:reset(true)
   return Network.connect(address or "127.0.0.1", port or self.default_port)
 end
 
 function SnapshotReplication:disconnect()
   Network.disconnect()
-  self.local_peer_id = nil
-  self.remotes = {}
+  self:reset(true)
 end
 
 function SnapshotReplication:remote_id(snapshot)
@@ -128,21 +138,30 @@ function SnapshotReplication:update_remotes(dt)
 end
 
 function SnapshotReplication:process_events()
+  local summary = {
+    connected = false,
+    disconnected = false,
+    messages = 0,
+  }
+
   if not Network.available() then
-    return
+    return summary
   end
 
   for _, event in ipairs(Network.events()) do
     if event.type == "connected" then
+      summary.connected = true
       self.log("Network peer connected: " .. tostring(event.peer_id))
       if Network.is_host() then
         Network.send(Network.encode("assign_peer", { peer_id = "peer" .. tostring(event.peer_id) }), true, event.peer_id, 0)
       end
       self.on_connected(self, event)
     elseif event.type == "disconnected" then
+      summary.disconnected = true
       self.log("Network peer disconnected: " .. tostring(event.peer_id))
       self.on_disconnected(self, event)
     elseif event.type == "message" then
+      summary.messages = summary.messages + 1
       local message = Network.decode(event.message)
       if message ~= nil and message.type == "assign_peer" then
         self.local_peer_id = message.payload.peer_id
@@ -160,6 +179,7 @@ function SnapshotReplication:process_events()
       end
     end
   end
+  return summary
 end
 
 function SnapshotReplication:send_transform(entity_id)

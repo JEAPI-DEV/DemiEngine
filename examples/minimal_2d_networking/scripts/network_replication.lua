@@ -19,6 +19,15 @@ return {
   connect = function(address, port)
     return session:connect(address, port)
   end,
+  disconnect = function()
+    session:disconnect()
+  end,
+  is_connected = function()
+    return Network.is_connected()
+  end,
+  process_events = function()
+    return session:process_events()
+  end,
   update_local_transform = function(entity_id, dt)
     session:update_entity(entity_id, dt)
   end,

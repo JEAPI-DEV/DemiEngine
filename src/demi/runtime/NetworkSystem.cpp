@@ -121,6 +121,7 @@ bool NetworkSystem::connect(const std::string& addressText, const std::uint16_t 
     disconnect();
     return false;
   }
+  enet_peer_timeout(static_cast<ENetPeer*>(serverPeer_), 0, 1000, 3000);
   mode_ = NetworkMode::Client;
   connected_ = false;
   return true;
