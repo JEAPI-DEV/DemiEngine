@@ -397,6 +397,16 @@ function Network.is_connected() end
 function Network.latency_ms() end
 ---@return NetworkEvent[]
 function Network.events() end
+---@param assigned_peer_id? string
+---@return string
+function Network.sender_id(assigned_peer_id) end
+---@param type string
+---@param payload? table
+---@return string
+function Network.encode(type, payload) end
+---@param message string
+---@return table|nil
+function Network.decode(message) end
 
 ---@class DemiScript
 ---@field entity_id? string

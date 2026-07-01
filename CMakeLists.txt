@@ -103,7 +103,7 @@ target_link_libraries(demi-runtime-lib PUBLIC demi-core)
 target_include_directories(demi-runtime-lib PUBLIC src)
 target_compile_features(demi-runtime-lib PUBLIC cxx_std_20)
 target_link_libraries(demi-runtime-lib PRIVATE box2d miniaudio nlohmann_json::nlohmann_json)
-target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_BOX2D=1 DEMI_HAS_MINIAUDIO=1)
+target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_BOX2D=1 DEMI_HAS_MINIAUDIO=1 DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(demi-runtime-lib PRIVATE -Wall -Wextra -Wpedantic)

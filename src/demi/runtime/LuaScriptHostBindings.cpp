@@ -347,6 +347,29 @@ sol::table networkEventsTable(lua_State* state, const std::vector<NetworkEvent>&
   return result;
 }
 
+std::string encodeNetworkMessage(const std::string& type, const sol::optional<sol::object> payload) {
+  nlohmann::json message = nlohmann::json::object();
+  message["type"] = type;
+  message["payload"] = payload.has_value() ? luaObjectToJson(*payload) : nlohmann::json::object();
+  return message.dump();
+}
+
+sol::object decodeNetworkMessage(lua_State* state, const std::string& text) {
+  try {
+    const nlohmann::json message = nlohmann::json::parse(text);
+    if (!message.is_object() || !message.contains("type") || !message["type"].is_string()) {
+      return sol::nil;
+    }
+    sol::state_view lua(state);
+    sol::table result = lua.create_table();
+    result["type"] = message["type"].get<std::string>();
+    result["payload"] = jsonToLuaObject(state, message.value("payload", nlohmann::json::object()));
+    return sol::make_object(state, result);
+  } catch (...) {
+    return sol::nil;
+  }
+}
+
 void registerSol2Bindings(LuaScriptHost& host, lua_State* state) {
   sol::state_view lua(state);
 
@@ -484,6 +507,14 @@ void registerSol2Bindings(LuaScriptHost& host, lua_State* state) {
   network.set_function("is_connected", [&host] { return host.networkIsConnected(); });
   network.set_function("latency_ms", [&host] { return host.networkLatencyMs(); });
   network.set_function("events", [state, &host] { return networkEventsTable(state, host.networkDrainEvents()); });
+  network.set_function("sender_id", [&host](sol::optional<std::string> assignedPeerId) {
+      if (host.networkIsHost()) {
+        return std::string("host");
+      }
+      return assignedPeerId.value_or("client");
+    });
+  network.set_function("encode", [](const std::string& type, sol::optional<sol::object> payload) { return encodeNetworkMessage(type, payload); });
+  network.set_function("decode", [state](const std::string& message) { return decodeNetworkMessage(state, message); });
 }
 
 } // namespace
@@ -529,7 +560,8 @@ void luaConfigurePackagePath(lua_State* state, const ProjectData& project) {
   const std::string current = currentPath != nullptr ? currentPath : "";
   lua_pop(state, 1);
   const std::filesystem::path scripts = project.projectDirectory / "scripts";
-  const std::string path = scripts.string() + "/?.lua;" + scripts.string() + "/?/init.lua;" + project.projectDirectory.string() + "/?.lua;" + project.projectDirectory.string() + "/?/init.lua;" + current;
+  const std::filesystem::path runtimeScripts = std::filesystem::path(DEMI_SOURCE_DIR) / "scripts" / "runtime";
+  const std::string path = scripts.string() + "/?.lua;" + scripts.string() + "/?/init.lua;" + project.projectDirectory.string() + "/?.lua;" + project.projectDirectory.string() + "/?/init.lua;" + runtimeScripts.string() + "/?.lua;" + runtimeScripts.string() + "/?/init.lua;" + current;
   lua_pushstring(state, path.c_str());
   lua_setfield(state, -2, "path");
   lua_pop(state, 1);
