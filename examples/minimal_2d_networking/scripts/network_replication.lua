@@ -28,6 +28,12 @@ return {
   process_events = function()
     return session:process_events()
   end,
+  register_claim_once = function(id, options)
+    return session:register_claim_once(id, options)
+  end,
+  try_claim_once = function(id)
+    return session:try_claim_once(id)
+  end,
   update_local_transform = function(entity_id, dt)
     session:update_entity(entity_id, dt)
   end,

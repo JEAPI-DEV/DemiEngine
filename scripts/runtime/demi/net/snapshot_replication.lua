@@ -48,6 +48,8 @@ function SnapshotReplication.new(options)
     local_peer_id = nil,
     accumulator = 0.0,
     remotes = {},
+    claim_once_objects = {},
+    claim_once_claimed = {},
     remote_prefab = options.remote_prefab,
     create_remote = options.create_remote or default_create_remote,
     update_remote = options.update_remote or default_update_remote,
@@ -67,6 +69,8 @@ function SnapshotReplication:reset(clear_remote_entities)
   self.local_peer_id = nil
   self.accumulator = 0.0
   self.remotes = {}
+  self.claim_once_objects = {}
+  self.claim_once_claimed = {}
 end
 
 function SnapshotReplication:available()
@@ -137,6 +141,64 @@ function SnapshotReplication:update_remotes(dt)
   end
 end
 
+function SnapshotReplication:register_claim_once(id, options)
+  options = options or {}
+  local object = {
+    claimed = self.claim_once_claimed[id] ~= nil,
+    pending = false,
+    on_removed = options.on_removed or function(object_id)
+      Entity.destroy(object_id)
+    end,
+    on_claimed_local = options.on_claimed_local or noop,
+  }
+  self.claim_once_objects[id] = object
+
+  if object.claimed then
+    object.on_removed(id, self.claim_once_claimed[id])
+    return false
+  end
+  return true
+end
+
+function SnapshotReplication:apply_claim_once(id, collector_id, broadcast)
+  if id == nil or self.claim_once_claimed[id] ~= nil then
+    return false
+  end
+
+  self.claim_once_claimed[id] = collector_id
+  local object = self.claim_once_objects[id]
+  if object ~= nil then
+    object.claimed = true
+    object.pending = false
+    object.on_removed(id, collector_id)
+    if collector_id == self:sender_id() then
+      object.on_claimed_local(id, collector_id)
+    end
+  end
+
+  if broadcast and Network.available() and Network.is_host() then
+    Network.send(Network.encode("claim_once_claimed", {
+      object_id = id,
+      collector_id = collector_id,
+    }), true)
+  end
+  return true
+end
+
+function SnapshotReplication:try_claim_once(id)
+  local object = self.claim_once_objects[id]
+  if object == nil or object.claimed or object.pending then
+    return false
+  end
+
+  if not Network.available() or Network.is_host() or not Network.is_connected() then
+    return self:apply_claim_once(id, self:sender_id(), true)
+  end
+
+  object.pending = true
+  return Network.send(Network.encode("claim_once_request", { object_id = id }), true)
+end
+
 function SnapshotReplication:process_events()
   local summary = {
     connected = false,
@@ -173,8 +235,16 @@ function SnapshotReplication:process_events()
             Network.send(Network.encode("transform_snapshot", snapshot), false, 0, self.channel)
           end
           self:apply_snapshot(snapshot)
+        elseif message ~= nil and message.type == "claim_once_request" then
+          if Network.is_host() and message.payload ~= nil then
+            self:apply_claim_once(message.payload.object_id, "peer" .. tostring(event.peer_id), true)
+          end
+        elseif message ~= nil and message.type == "claim_once_claimed" then
+          if message.payload ~= nil then
+            self:apply_claim_once(message.payload.object_id, message.payload.collector_id, false)
+          end
         else
-          self.on_message(self, event)
+          self.on_message(self, event, message)
         end
       end
     end

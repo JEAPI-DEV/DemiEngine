@@ -3,6 +3,7 @@ local config = require("player_config")
 local main_menu = require("main_menu")
 local level_main = require("level_main")
 local level_spiral = require("level_spiral")
+local replication = require("network_replication")
 
 local Game = {
   points = 0,
@@ -162,6 +163,20 @@ function Game:create_coin(x, y)
   })
 
   self.coins[id] = { x = x, y = y, collected = false }
+  replication.register_claim_once(id, {
+    on_removed = function(object_id)
+      local coin = self.coins[object_id]
+      if coin ~= nil then
+        coin.collected = true
+      end
+      Entity.destroy(object_id)
+    end,
+    on_claimed_local = function()
+      Audio.play("asset://audio/collect_coin")
+      state.extra_jumps = math.min((state.extra_jumps or 0) + 1, config.max_extra_jumps)
+      self:update_extra_jump_hud(true)
+    end,
+  })
   return true
 end
 
@@ -176,11 +191,7 @@ function Game:collect_coins(player_x, player_y)
       local dx = player_x - coin.x
       local dy = player_y - coin.y
       if (dx * dx) + (dy * dy) <= radius_squared then
-        coin.collected = true
-        Entity.destroy(id)
-        Audio.play("asset://audio/collect_coin")
-        state.extra_jumps = math.min((state.extra_jumps or 0) + 1, config.max_extra_jumps)
-        self:update_extra_jump_hud(true)
+        replication.try_claim_once(id)
         if state.extra_jumps >= config.max_extra_jumps then
           return
         end
