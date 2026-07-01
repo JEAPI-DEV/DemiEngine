@@ -8,9 +8,14 @@
 #include <iomanip>
 #include <optional>
 #include <sstream>
+#include <system_error>
+
+#include <nlohmann/json.hpp>
 
 namespace demi::runtime {
 namespace {
+
+constexpr int CurrentSaveFormatVersion = 2;
 
 std::string sanitizedSaveSlot(std::string slot) {
   if (slot.empty()) {
@@ -89,7 +94,60 @@ std::string unescapeJsonString(const std::string& text) {
   return unescaped;
 }
 
+std::filesystem::path savePath(const std::filesystem::path& projectDirectory, const std::string& slot) {
+  return projectDirectory / "saves" / (sanitizedSaveSlot(slot) + ".save.json");
+}
+
+bool atomicWriteText(const std::filesystem::path& path, const std::string& text) {
+  std::error_code error;
+  std::filesystem::create_directories(path.parent_path(), error);
+  if (error) {
+    return false;
+  }
+
+  const std::filesystem::path tempPath = path.string() + ".tmp";
+  {
+    std::ofstream output(tempPath);
+    if (!output) {
+      return false;
+    }
+    output << text;
+  }
+
+  std::filesystem::rename(tempPath, path, error);
+  if (error) {
+    std::filesystem::remove(path, error);
+    error.clear();
+    std::filesystem::rename(tempPath, path, error);
+  }
+  return !error;
+}
+
+std::optional<nlohmann::json> parseSaveDocument(const std::string& text) {
+  try {
+    nlohmann::json document = nlohmann::json::parse(text);
+    if (!document.is_object() || !document.contains("format_version") || !document.contains("state") || !document["state"].is_object()) {
+      return std::nullopt;
+    }
+    return document;
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+
 std::unordered_map<std::string, LuaScriptHost::SaveValue> parseSaveState(const std::string& text) {
+  if (const std::optional<nlohmann::json> document = parseSaveDocument(text)) {
+    std::unordered_map<std::string, LuaScriptHost::SaveValue> values;
+    for (const auto& [key, value] : (*document)["state"].items()) {
+      if (value.is_number()) {
+        values[key] = LuaScriptHost::SaveValue{.value = value.dump(), .number = true};
+      } else if (value.is_string()) {
+        values[key] = LuaScriptHost::SaveValue{.value = value.get<std::string>(), .number = false};
+      }
+    }
+    return values;
+  }
+
   std::unordered_map<std::string, LuaScriptHost::SaveValue> values;
   const std::size_t stateKey = text.find("\"state\"");
   const std::size_t open = stateKey == std::string::npos ? std::string::npos : text.find('{', stateKey);
@@ -149,7 +207,7 @@ std::unordered_map<std::string, LuaScriptHost::SaveValue>& LuaScriptHost::loadSa
   }
 
   std::unordered_map<std::string, SaveValue> values;
-  const std::filesystem::path path = projectDirectory_ / "saves" / (safeSlot + ".save.json");
+  const std::filesystem::path path = savePath(projectDirectory_, safeSlot);
   std::ifstream input(path);
   if (input) {
     std::ostringstream buffer;
@@ -172,20 +230,9 @@ bool LuaScriptHost::writeSaveSlot(const std::string& slot) {
     return false;
   }
 
-  const std::filesystem::path savesDirectory = projectDirectory_ / "saves";
-  std::error_code error;
-  std::filesystem::create_directories(savesDirectory, error);
-  if (error) {
-    return false;
-  }
-
-  std::ofstream output(savesDirectory / (safeSlot + ".save.json"));
-  if (!output) {
-    return false;
-  }
-
+  std::ostringstream output;
   output << "{\n";
-  output << "  \"format_version\": 1,\n";
+  output << "  \"format_version\": " << CurrentSaveFormatVersion << ",\n";
   output << "  \"slot\": \"" << escapeJsonString(safeSlot) << "\",\n";
   output << "  \"state\": {\n";
 
@@ -205,7 +252,7 @@ bool LuaScriptHost::writeSaveSlot(const std::string& slot) {
 
   output << "  }\n";
   output << "}\n";
-  return true;
+  return atomicWriteText(savePath(projectDirectory_, safeSlot), output.str());
 }
 
 std::optional<float> LuaScriptHost::saveNumber(const std::string& slot, const std::string& key) {
@@ -242,6 +289,84 @@ bool LuaScriptHost::setSaveString(const std::string& slot, const std::string& ke
   std::unordered_map<std::string, SaveValue>& values = loadSaveSlot(slot);
   values[key] = SaveValue{.value = value, .number = false};
   return writeSaveSlot(slot);
+}
+
+bool LuaScriptHost::saveExists(const std::string& slot) const {
+  return !projectDirectory_.empty() && std::filesystem::exists(savePath(projectDirectory_, slot));
+}
+
+bool LuaScriptHost::deleteSave(const std::string& slot) {
+  if (projectDirectory_.empty()) {
+    return false;
+  }
+  std::error_code error;
+  const bool removed = std::filesystem::remove(savePath(projectDirectory_, slot), error);
+  saves_.erase(sanitizedSaveSlot(slot));
+  return removed && !error;
+}
+
+std::optional<std::string> LuaScriptHost::readSaveDocument(const std::string& slot) const {
+  if (projectDirectory_.empty()) {
+    return std::nullopt;
+  }
+  std::ifstream input(savePath(projectDirectory_, slot));
+  if (!input) {
+    return std::nullopt;
+  }
+  std::ostringstream buffer;
+  buffer << input.rdbuf();
+  if (!parseSaveDocument(buffer.str()).has_value()) {
+    return std::nullopt;
+  }
+  return buffer.str();
+}
+
+bool LuaScriptHost::writeSaveDocument(const std::string& slot, const std::string& stateJson, const int formatVersion) {
+  if (projectDirectory_.empty() || formatVersion < 1) {
+    return false;
+  }
+
+  nlohmann::json state;
+  try {
+    state = nlohmann::json::parse(stateJson);
+  } catch (...) {
+    return false;
+  }
+  if (!state.is_object()) {
+    return false;
+  }
+
+  const std::string safeSlot = sanitizedSaveSlot(slot);
+  nlohmann::json document = {
+    {"format_version", formatVersion},
+    {"slot", safeSlot},
+    {"state", std::move(state)},
+  };
+  saves_.erase(safeSlot);
+  return atomicWriteText(savePath(projectDirectory_, safeSlot), document.dump(2) + "\n");
+}
+
+int LuaScriptHost::saveFormatVersion(const std::string& slot) const {
+  const std::optional<std::string> documentText = readSaveDocument(slot);
+  if (!documentText.has_value()) {
+    return 0;
+  }
+  const std::optional<nlohmann::json> document = parseSaveDocument(*documentText);
+  if (!document.has_value() || !(*document)["format_version"].is_number_integer()) {
+    return 0;
+  }
+  return (*document)["format_version"].get<int>();
+}
+
+void LuaScriptHost::addSaveMigrationHook(const int fromVersion, const int toVersion, const int callbackRef) {
+  if (fromVersion < 1 || toVersion <= fromVersion || callbackRef == 0) {
+    return;
+  }
+  saveMigrationHooks_.push_back(SaveMigrationHook{.fromVersion = fromVersion, .toVersion = toVersion, .callbackRef = callbackRef});
+}
+
+const std::vector<LuaScriptHost::SaveMigrationHook>& LuaScriptHost::saveMigrationHooks() const {
+  return saveMigrationHooks_;
 }
 
 Diagnostics LuaScriptHost::checkScriptSyntax(const std::filesystem::path& path) {

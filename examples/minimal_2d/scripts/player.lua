@@ -66,6 +66,7 @@ function Player:on_update(dt)
   local jump_down = platformer.wants_jump()
   if jump_down and not self.jump_was_down and grounded then
     Rigidbody2D.set_velocity_y(self.entity_id, self.jump_speed)
+    self.can_slingshot = false
   end
 
   self.jump_was_down = jump_down

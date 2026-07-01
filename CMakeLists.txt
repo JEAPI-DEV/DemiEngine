@@ -14,8 +14,30 @@ FetchContent_Declare(sol2
 )
 FetchContent_MakeAvailable(sol2)
 
+set(BOX2D_BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(BOX2D_BUILD_TESTBED OFF CACHE BOOL "" FORCE)
+set(BOX2D_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(BOX2D_USER_SETTINGS OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(box2d
+  GIT_REPOSITORY https://github.com/erincatto/box2d.git
+  GIT_TAG v2.4.1
+)
+FetchContent_MakeAvailable(box2d)
+
+FetchContent_Declare(miniaudio
+  GIT_REPOSITORY https://github.com/mackron/miniaudio.git
+  GIT_TAG 0.11.22
+)
+FetchContent_MakeAvailable(miniaudio)
+
+FetchContent_Declare(nlohmann_json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG v3.11.3
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
 option(DEMI_ENABLE_NETWORK "Enable optional ENet networking module" OFF)
-option(DEMI_ENABLE_MEDIA "Enable FFmpeg-backed media module" OFF)
+option(DEMI_ENABLE_MEDIA "Enable FFmpeg-backed media module" ON)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -36,9 +58,9 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(demi-core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+find_package(PkgConfig QUIET)
 find_package(SDL3 CONFIG QUIET)
 if(NOT SDL3_FOUND)
-  find_package(PkgConfig QUIET)
   if(PkgConfig_FOUND)
     pkg_check_modules(SDL3 QUIET IMPORTED_TARGET sdl3)
   endif()
@@ -46,7 +68,13 @@ endif()
 
 if(PkgConfig_FOUND)
   pkg_check_modules(LUA54 QUIET IMPORTED_TARGET lua5.4)
-  pkg_check_modules(MPG123 QUIET IMPORTED_TARGET libmpg123)
+  if(DEMI_ENABLE_MEDIA)
+    pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libavutil libswscale)
+  endif()
+endif()
+
+if(DEMI_ENABLE_MEDIA AND NOT TARGET PkgConfig::FFMPEG)
+  message(FATAL_ERROR "DEMI_ENABLE_MEDIA requires FFmpeg development packages: libavformat, libavcodec, libavutil, and libswscale.")
 endif()
 
 add_library(demi-runtime-lib STATIC
@@ -55,6 +83,7 @@ add_library(demi-runtime-lib STATIC
   src/demi/runtime/LuaScriptHost.cpp
   src/demi/runtime/LuaScriptHostPersistence.cpp
   src/demi/runtime/LuaScriptHostServices.cpp
+  src/demi/runtime/MediaSystem.cpp
   src/demi/runtime/Physics2D.cpp
   src/demi/runtime/Renderer2D.cpp
   src/demi/runtime/RuntimeApp.cpp
@@ -64,6 +93,8 @@ add_library(demi-runtime-lib STATIC
 target_link_libraries(demi-runtime-lib PUBLIC demi-core)
 target_include_directories(demi-runtime-lib PUBLIC src)
 target_compile_features(demi-runtime-lib PUBLIC cxx_std_20)
+target_link_libraries(demi-runtime-lib PRIVATE box2d miniaudio nlohmann_json::nlohmann_json)
+target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_BOX2D=1 DEMI_HAS_MINIAUDIO=1)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(demi-runtime-lib PRIVATE -Wall -Wextra -Wpedantic)
@@ -90,12 +121,11 @@ endif()
 target_link_libraries(demi-runtime-lib PRIVATE sol2::sol2)
 target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_SOL2=1)
 
-if(TARGET PkgConfig::MPG123)
-  target_link_libraries(demi-runtime-lib PRIVATE PkgConfig::MPG123)
-  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_MPG123=1)
+if(DEMI_ENABLE_MEDIA)
+  target_link_libraries(demi-runtime-lib PRIVATE PkgConfig::FFMPEG)
+  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_FFMPEG=1)
 else()
-  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_MPG123=0)
-  message(WARNING "libmpg123 was not found. MP3 audio assets will not play.")
+  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_FFMPEG=0)
 endif()
 
 add_executable(demi src/cli/main.cpp)

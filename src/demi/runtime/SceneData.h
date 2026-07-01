@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -137,6 +138,34 @@ struct BoxCollider2DComponent {
   Vec2 size = {1.0F, 1.0F};
   Vec2 offset;
   bool isTrigger = false;
+  std::string layer;
+};
+
+struct PhysicsContact2D {
+  std::string entityId;
+  std::string otherEntityId;
+  std::string otherLayer;
+  Vec2 normal;
+  bool isTrigger = false;
+};
+
+struct AudioSourceComponent {
+  std::string clip;
+  bool playOnStart = false;
+  bool loop = false;
+  float volume = 1.0F;
+  std::uint64_t handle = 0;
+};
+
+struct AudioListenerComponent {
+  bool primary = true;
+};
+
+struct VideoPlayerComponent {
+  std::string clip;
+  bool playOnStart = false;
+  bool loop = false;
+  std::uint64_t handle = 0;
 };
 
 struct Entity {
@@ -152,6 +181,9 @@ struct Entity {
   std::optional<BuildableComponent> buildable;
   std::optional<Rigidbody2DComponent> rigidbody2D;
   std::optional<BoxCollider2DComponent> boxCollider2D;
+  std::optional<AudioSourceComponent> audioSource;
+  std::optional<AudioListenerComponent> audioListener;
+  std::optional<VideoPlayerComponent> videoPlayer;
 };
 
 struct World {
@@ -164,6 +196,7 @@ struct World {
   std::vector<HudButtonElement> hudButtons;
   std::vector<HudTextElement> hudText;
   std::vector<DebugLine> debugLines;
+  std::vector<PhysicsContact2D> physicsContacts;
 };
 
 [[nodiscard]] inline Entity* findEntity(World& world, const std::string& id) {
@@ -218,7 +251,7 @@ struct World {
 [[nodiscard]] inline std::size_t renderableEntityCount(const World& world) {
   std::size_t count = 0;
   for (const Entity& entity : world.entities) {
-    if (entity.sprite.has_value() || entity.hitboxController.has_value() || entity.isoGrid.has_value() || entity.buildable.has_value() || entity.boxCollider2D.has_value()) {
+    if (entity.sprite.has_value() || entity.hitboxController.has_value() || entity.isoGrid.has_value() || entity.buildable.has_value() || entity.boxCollider2D.has_value() || entity.videoPlayer.has_value()) {
       ++count;
     }
   }

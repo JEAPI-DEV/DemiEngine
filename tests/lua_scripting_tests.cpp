@@ -32,6 +32,27 @@ int main() {
 
   if (!writeFile(projectDirectory / "scripts" / "probe.lua", R"lua(
 local Probe = {}
+function Probe:on_start()
+  Save.write("profile", { name = "Ada", coins = 7 }, 1)
+  Save.register_migration(1, 2, function(state)
+    state.level = 3
+    return state
+  end)
+  local profile = Save.read("profile")
+  if profile and profile.name == "Ada" and profile.coins == 7 and profile.level == 3 and Save.version("profile") == 2 then
+    Save.set_string("test", "profile", "migrated")
+  end
+  Cutscene.play("cutscene://intro")
+  if Cutscene.is_playing() and Cutscene.active() == "cutscene://intro" then
+    Save.set_string("test", "cutscene", "playing")
+  end
+  Cutscene.pause()
+  if not Cutscene.is_playing() then
+    Save.set_string("test", "cutscene_paused", "true")
+  end
+  Cutscene.resume()
+  Cutscene.skip()
+end
 function Probe:on_update(dt)
   if Input.is_down("space") then
     Save.set_string("test", "space", "down")
@@ -86,6 +107,14 @@ return Button
 
   host.setViewport(100, 100);
   host.start();
+  if (host.saveString("test", "profile") != "migrated") {
+    std::cerr << "Save.read/write migration hook did not migrate profile data.\n";
+    return 1;
+  }
+  if (host.saveString("test", "cutscene") != "playing" || host.saveString("test", "cutscene_paused") != "true") {
+    std::cerr << "Cutscene Lua API did not report expected state transitions.\n";
+    return 1;
+  }
   host.update(1.0F / 60.0F);
   if (host.saveString("test", "space") != "up") {
     std::cerr << "Input.is_down returned true for an unpressed key.\n";

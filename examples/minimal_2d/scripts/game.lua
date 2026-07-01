@@ -108,6 +108,7 @@ function Game:create_platform(id, name, x, y, width, height)
         size = { width, height },
         offset = { 0.0, 0.0 },
         is_trigger = false,
+        layer = "platform",
       },
     },
   })

@@ -4,6 +4,7 @@
 #include "demi/core/Version.h"
 #include "demi/runtime/AudioSystem.h"
 #include "demi/runtime/LuaScriptHost.h"
+#include "demi/runtime/MediaSystem.h"
 #include "demi/runtime/Physics2D.h"
 #include "demi/runtime/Renderer2D.h"
 #include "demi/runtime/SceneData.h"
@@ -128,10 +129,13 @@ int runProject(const RuntimeOptions& options) {
   if (options.maxFrames == 0 && audioSystem.initialize()) {
     audioSystem.loadAudioAssets(assetRegistry);
   }
+  MediaSystem mediaSystem;
+  mediaSystem.loadVideoAssets(assetRegistry);
   const Camera2DComponent fallbackCamera;
   InputState input;
 
   LuaScriptHost luaHost;
+  luaHost.setMediaSystem(&mediaSystem);
   std::string luaError;
   if (luaHost.initialize(loaded.world, input, &audioSystem, luaError)) {
     if (!luaHost.loadWorldScripts(loaded.project, loaded.world, luaError)) {
@@ -215,6 +219,7 @@ int runProject(const RuntimeOptions& options) {
     }
 
     audioSystem.update();
+    mediaSystem.update(dt);
 
     const Camera2DComponent* camera = activeCamera(loaded.world);
     renderer2D.beginFrame(camera != nullptr ? *camera : fallbackCamera, activeCameraPosition(loaded.world), width, height);
@@ -229,6 +234,7 @@ int runProject(const RuntimeOptions& options) {
   }
 
   luaHost.destroy();
+  mediaSystem.shutdown();
   audioSystem.shutdown();
   SDL_DestroyRenderer(renderer);
   SDL_DestroyWindow(window);

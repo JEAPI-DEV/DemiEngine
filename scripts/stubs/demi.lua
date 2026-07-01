@@ -186,6 +186,27 @@ Physics2D = {}
 ---@param ignored_entity_id? string
 ---@return boolean
 function Physics2D.overlap_box(x, y, width, height, ignored_entity_id) end
+---@class PhysicsContactFilter2D
+---@field layer? string
+---@field normal_x_min? number
+---@field normal_x_max? number
+---@field normal_y_min? number
+---@field normal_y_max? number
+---@field include_triggers? boolean
+---@param entity_id string
+---@param filter? PhysicsContactFilter2D
+---@return boolean
+function Physics2D.has_contact(entity_id, filter) end
+---@class PhysicsContact2D
+---@field entity_id string
+---@field other_entity_id string
+---@field other_layer string
+---@field normal_x number
+---@field normal_y number
+---@field is_trigger boolean
+---@param entity_id string
+---@return PhysicsContact2D[]
+function Physics2D.contacts(entity_id) end
 
 ---@class HudService
 Hud = {}
@@ -263,6 +284,28 @@ function Save.get_string(slot, key, fallback) end
 ---@param value string
 ---@return boolean
 function Save.set_string(slot, key, value) end
+---@param slot string
+---@return table|nil
+function Save.read(slot) end
+---@param slot string
+---@param state table
+---@param format_version? integer
+---@return boolean
+function Save.write(slot, state, format_version) end
+---@param slot string
+---@return boolean
+function Save.exists(slot) end
+---@param slot string
+---@return boolean
+function Save.delete(slot) end
+---@param slot string
+---@return integer
+function Save.version(slot) end
+---@param from_version integer
+---@param to_version integer
+---@param callback fun(state: table, from_version: integer, to_version: integer): table
+---@return integer migration_id
+function Save.register_migration(from_version, to_version, callback) end
 
 ---@class AudioService
 Audio = {}
@@ -276,6 +319,49 @@ function Audio.stop(handle) end
 function Audio.set_master_volume(volume) end
 ---@return number
 function Audio.get_master_volume() end
+
+---@class AudioSourceService
+AudioSource = {}
+---@param entity_id string
+---@return integer handle
+function AudioSource.play(entity_id) end
+---@param entity_id string
+---@return boolean
+function AudioSource.stop(entity_id) end
+
+---@class VideoService
+Video = {}
+---@param asset_id string
+---@param loop? boolean
+---@return integer handle
+function Video.play(asset_id, loop) end
+---@param entity_id string
+---@return integer handle
+function Video.play_component(entity_id) end
+---@param handle integer
+---@return boolean
+function Video.stop(handle) end
+---@param handle integer
+---@return boolean
+function Video.is_playing(handle) end
+
+---@class CutsceneService
+Cutscene = {}
+---@param id string
+---@return boolean
+function Cutscene.play(id) end
+---@return boolean
+function Cutscene.pause() end
+---@return boolean
+function Cutscene.resume() end
+---@return boolean
+function Cutscene.skip() end
+---@return boolean
+function Cutscene.stop() end
+---@return boolean
+function Cutscene.is_playing() end
+---@return string
+function Cutscene.active() end
 
 ---@class DemiScript
 ---@field entity_id? string

@@ -15,7 +15,8 @@
       "pattern": "^asset://"
     },
     "type": {
-      "type": "string"
+      "type": "string",
+      "enum": ["Texture2D", "AudioClip", "VideoClip"]
     },
     "source": {
       "type": "string"

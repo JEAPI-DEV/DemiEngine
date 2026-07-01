@@ -8,6 +8,8 @@
 #include <system_error>
 #include <tuple>
 
+#include <nlohmann/json.hpp>
+
 namespace demi::runtime {
 
 #if DEMI_HAS_LUA54
@@ -75,6 +77,7 @@ Entity parseEntitySpec(const std::string& entityId, const sol::table spec) {
       .size = vec2Field(collider, "size", {1.0F, 1.0F}),
       .offset = vec2Field(collider, "offset"),
       .isTrigger = collider.get_or("is_trigger", false),
+      .layer = collider.get_or("layer", std::string{}),
     };
   }
 
@@ -82,6 +85,27 @@ Entity parseEntitySpec(const std::string& entityId, const sol::table spec) {
     entity.sprite = SpriteComponent{
       .texture = sprite.get_or("texture", std::string{}),
       .layer = sprite.get_or("layer", std::string{}),
+    };
+  }
+
+  if (const sol::table audioSource = componentTable(components, "AudioSource"); audioSource.valid()) {
+    entity.audioSource = AudioSourceComponent{
+      .clip = audioSource.get_or("clip", std::string{}),
+      .playOnStart = audioSource.get_or("play_on_start", false),
+      .loop = audioSource.get_or("loop", false),
+      .volume = audioSource.get_or("volume", 1.0F),
+    };
+  }
+
+  if (const sol::table audioListener = componentTable(components, "AudioListener"); audioListener.valid()) {
+    entity.audioListener = AudioListenerComponent{.primary = audioListener.get_or("primary", true)};
+  }
+
+  if (const sol::table videoPlayer = componentTable(components, "VideoPlayer"); videoPlayer.valid()) {
+    entity.videoPlayer = VideoPlayerComponent{
+      .clip = videoPlayer.get_or("clip", std::string{}),
+      .playOnStart = videoPlayer.get_or("play_on_start", false),
+      .loop = videoPlayer.get_or("loop", false),
     };
   }
 
@@ -121,6 +145,177 @@ int emitEvent(lua_State* state, LuaScriptHost& host, const std::string& eventNam
   const int delivered = host.emitEvent(eventName, payloadIndex);
   lua_pop(state, 1);
   return delivered;
+}
+
+nlohmann::json luaObjectToJson(const sol::object object) {
+  switch (object.get_type()) {
+  case sol::type::boolean:
+    return object.as<bool>();
+  case sol::type::number:
+    return object.as<double>();
+  case sol::type::string:
+    return object.as<std::string>();
+  case sol::type::table: {
+    nlohmann::json value = nlohmann::json::object();
+    const sol::table table = object.as<sol::table>();
+    for (const auto& [key, item] : table) {
+      if (key.is<std::string>()) {
+        value[key.as<std::string>()] = luaObjectToJson(item);
+      } else if (key.is<int>()) {
+        value[std::to_string(key.as<int>())] = luaObjectToJson(item);
+      }
+    }
+    return value;
+  }
+  default:
+    return nullptr;
+  }
+}
+
+sol::object jsonToLuaObject(lua_State* state, const nlohmann::json& value) {
+  sol::state_view lua(state);
+  if (value.is_object()) {
+    sol::table table = lua.create_table();
+    for (const auto& [key, item] : value.items()) {
+      table.set(key, jsonToLuaObject(state, item));
+    }
+    return sol::make_object(state, table);
+  }
+  if (value.is_array()) {
+    sol::table table = lua.create_table();
+    int index = 1;
+    for (const nlohmann::json& item : value) {
+      table.set(index++, jsonToLuaObject(state, item));
+    }
+    return sol::make_object(state, table);
+  }
+  if (value.is_boolean()) {
+    return sol::make_object(state, value.get<bool>());
+  }
+  if (value.is_number_integer()) {
+    return sol::make_object(state, value.get<int>());
+  }
+  if (value.is_number()) {
+    return sol::make_object(state, value.get<double>());
+  }
+  if (value.is_string()) {
+    return sol::make_object(state, value.get<std::string>());
+  }
+  return sol::nil;
+}
+
+sol::object readSaveTable(lua_State* state, LuaScriptHost& host, const std::string& slot) {
+  const std::optional<std::string> documentText = host.readSaveDocument(slot);
+  if (!documentText.has_value()) {
+    return sol::nil;
+  }
+
+  nlohmann::json document;
+  try {
+    document = nlohmann::json::parse(*documentText);
+  } catch (...) {
+    return sol::nil;
+  }
+  if (!document.is_object() || !document.contains("state") || !document["state"].is_object()) {
+    return sol::nil;
+  }
+
+  int version = document.value("format_version", 1);
+  sol::table stateTable = jsonToLuaObject(state, document["state"]).as<sol::table>();
+  bool migrated = false;
+  bool progressed = true;
+  while (progressed) {
+    progressed = false;
+    for (const LuaScriptHost::SaveMigrationHook& hook : host.saveMigrationHooks()) {
+      if (hook.fromVersion != version) {
+        continue;
+      }
+      lua_rawgeti(state, LUA_REGISTRYINDEX, hook.callbackRef);
+      stateTable.push();
+      lua_pushinteger(state, hook.fromVersion);
+      lua_pushinteger(state, hook.toVersion);
+      std::string error;
+      if (!luaCall(state, 3, 1, error)) {
+        luaReportCallbackError("Save.register_migration", {}, slot, error);
+        return sol::nil;
+      }
+      if (lua_istable(state, -1)) {
+        stateTable = sol::stack::get<sol::table>(state, -1);
+      }
+      lua_pop(state, 1);
+      version = hook.toVersion;
+      migrated = true;
+      progressed = true;
+      break;
+    }
+  }
+
+  stateTable["_format_version"] = version;
+  if (migrated) {
+    nlohmann::json migratedState = luaObjectToJson(stateTable);
+    migratedState.erase("_format_version");
+    (void)host.writeSaveDocument(slot, migratedState.dump(), version);
+  }
+  return sol::make_object(state, stateTable);
+}
+
+bool writeSaveTable(LuaScriptHost& host, const std::string& slot, const sol::table table, const sol::optional<int> version) {
+  nlohmann::json state = luaObjectToJson(table);
+  int formatVersion = version.value_or(2);
+  if (state.contains("_format_version") && state["_format_version"].is_number_integer()) {
+    formatVersion = state["_format_version"].get<int>();
+    state.erase("_format_version");
+  }
+  return host.writeSaveDocument(slot, state.dump(), formatVersion);
+}
+
+std::uint64_t registerSaveMigration(lua_State* state, LuaScriptHost& host, const int fromVersion, const int toVersion, const sol::function callback) {
+  const int ref = callbackRef(state, callback);
+  host.addSaveMigrationHook(fromVersion, toVersion, ref);
+  return static_cast<std::uint64_t>(ref);
+}
+
+PhysicsContactFilter2D contactFilterFromTable(const sol::optional<sol::table> filterTable) {
+  PhysicsContactFilter2D filter;
+  if (!filterTable.has_value()) {
+    return filter;
+  }
+
+  const sol::table table = *filterTable;
+  if (const sol::object layer = table["layer"]; layer.is<std::string>()) {
+    filter.layer = layer.as<std::string>();
+  }
+  if (const sol::object normalXMin = table["normal_x_min"]; normalXMin.is<float>()) {
+    filter.normalXMin = normalXMin.as<float>();
+  }
+  if (const sol::object normalXMax = table["normal_x_max"]; normalXMax.is<float>()) {
+    filter.normalXMax = normalXMax.as<float>();
+  }
+  if (const sol::object normalYMin = table["normal_y_min"]; normalYMin.is<float>()) {
+    filter.normalYMin = normalYMin.as<float>();
+  }
+  if (const sol::object normalYMax = table["normal_y_max"]; normalYMax.is<float>()) {
+    filter.normalYMax = normalYMax.as<float>();
+  }
+  filter.includeTriggers = table.get_or("include_triggers", false);
+  return filter;
+}
+
+sol::table contactsTable(lua_State* state, const std::vector<PhysicsContact2D>& contacts) {
+  sol::state_view lua(state);
+  sol::table result = lua.create_table();
+  int index = 1;
+  for (const PhysicsContact2D& contact : contacts) {
+    sol::table item = lua.create_table();
+    item["entity_id"] = contact.entityId;
+    item["other_entity_id"] = contact.otherEntityId;
+    item["other_layer"] = contact.otherLayer;
+    item["normal_x"] = contact.normal.x;
+    item["normal_y"] = contact.normal.y;
+    item["is_trigger"] = contact.isTrigger;
+    result[index++] = item;
+  }
+  return result;
 }
 
 void registerSol2Bindings(LuaScriptHost& host, lua_State* state) {
@@ -198,6 +393,8 @@ void registerSol2Bindings(LuaScriptHost& host, lua_State* state) {
 
   sol::table physics = lua.create_named_table("Physics2D");
   physics.set_function("overlap_box", [&host](float x, float y, float width, float height, sol::optional<std::string> ignoredEntityId) { return host.physicsOverlapBox(x, y, width, height, ignoredEntityId.value_or("")); });
+  physics.set_function("has_contact", [&host](const std::string& entityId, sol::optional<sol::table> filter) { return host.physicsHasContact(entityId, contactFilterFromTable(filter)); });
+  physics.set_function("contacts", [state, &host](const std::string& entityId) { return contactsTable(state, host.physicsContacts(entityId)); });
 
   sol::table hud = lua.create_named_table("Hud");
   hud.set_function("text", [&host](const std::string& id, const std::string& text, float x, float y, sol::optional<float> scale, sol::optional<float> r, sol::optional<float> g, sol::optional<float> b, sol::optional<float> a) { return host.createHudText(id, text, x, y, scale.value_or(3.0F), Color{r.value_or(1.0F), g.value_or(1.0F), b.value_or(1.0F), a.value_or(1.0F)}); });
@@ -214,12 +411,37 @@ void registerSol2Bindings(LuaScriptHost& host, lua_State* state) {
   save.set_function("set_number", [&host](const std::string& slot, const std::string& key, float value) { return host.setSaveNumber(slot, key, value); });
   save.set_function("get_string", [&host](const std::string& slot, const std::string& key, sol::optional<std::string> fallback) { return host.saveString(slot, key).value_or(fallback.value_or("")); });
   save.set_function("set_string", [&host](const std::string& slot, const std::string& key, const std::string& value) { return host.setSaveString(slot, key, value); });
+  save.set_function("read", [state, &host](const std::string& slot) { return readSaveTable(state, host, slot); });
+  save.set_function("write", [&host](const std::string& slot, const sol::table table, sol::optional<int> version) { return writeSaveTable(host, slot, table, version); });
+  save.set_function("exists", [&host](const std::string& slot) { return host.saveExists(slot); });
+  save.set_function("delete", [&host](const std::string& slot) { return host.deleteSave(slot); });
+  save.set_function("version", [&host](const std::string& slot) { return host.saveFormatVersion(slot); });
+  save.set_function("register_migration", [state, &host](int fromVersion, int toVersion, const sol::function callback) { return registerSaveMigration(state, host, fromVersion, toVersion, callback); });
 
   sol::table audio = lua.create_named_table("Audio");
   audio.set_function("play", [&host](const std::string& assetId) { return host.playAudio(assetId); });
   audio.set_function("stop", [&host](std::uint64_t handle) { return host.stopAudio(handle); });
   audio.set_function("set_master_volume", [&host](float volume) { host.setMasterVolume(volume); });
   audio.set_function("get_master_volume", [&host] { return host.masterVolume(); });
+
+  sol::table audioSource = lua.create_named_table("AudioSource");
+  audioSource.set_function("play", [&host](const std::string& entityId) { return host.playAudioSource(entityId); });
+  audioSource.set_function("stop", [&host](const std::string& entityId) { return host.stopAudioSource(entityId); });
+
+  sol::table video = lua.create_named_table("Video");
+  video.set_function("play", [&host](const std::string& assetId, sol::optional<bool> loop) { return host.playVideo(assetId, loop.value_or(false)); });
+  video.set_function("play_component", [&host](const std::string& entityId) { return host.playVideoPlayer(entityId); });
+  video.set_function("stop", [&host](std::uint64_t handle) { return host.stopVideo(handle); });
+  video.set_function("is_playing", [&host](std::uint64_t handle) { return host.isVideoPlaying(handle); });
+
+  sol::table cutscene = lua.create_named_table("Cutscene");
+  cutscene.set_function("play", [&host](const std::string& id) { return host.startCutscene(id); });
+  cutscene.set_function("pause", [&host] { return host.pauseCutscene(); });
+  cutscene.set_function("resume", [&host] { return host.resumeCutscene(); });
+  cutscene.set_function("skip", [&host] { return host.stopCutscene(); });
+  cutscene.set_function("stop", [&host] { return host.stopCutscene(); });
+  cutscene.set_function("is_playing", [&host] { return host.isCutscenePlaying(); });
+  cutscene.set_function("active", [&host] { return host.activeCutscene(); });
 }
 
 } // namespace

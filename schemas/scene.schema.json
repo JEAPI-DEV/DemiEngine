@@ -30,7 +30,42 @@
             "type": "string"
           },
           "components": {
-            "type": "object"
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "Rigidbody2D": {
+                "type": "object"
+              },
+              "BoxCollider2D": {
+                "type": "object",
+                "properties": {
+                  "layer": { "type": "string" }
+                }
+              },
+              "AudioSource": {
+                "type": "object",
+                "properties": {
+                  "clip": { "type": "string", "pattern": "^asset://" },
+                  "play_on_start": { "type": "boolean" },
+                  "loop": { "type": "boolean" },
+                  "volume": { "type": "number", "minimum": 0, "maximum": 1 }
+                }
+              },
+              "AudioListener": {
+                "type": "object",
+                "properties": {
+                  "primary": { "type": "boolean" }
+                }
+              },
+              "VideoPlayer": {
+                "type": "object",
+                "properties": {
+                  "clip": { "type": "string", "pattern": "^asset://" },
+                  "play_on_start": { "type": "boolean" },
+                  "loop": { "type": "boolean" }
+                }
+              }
+            }
           }
         }
       }

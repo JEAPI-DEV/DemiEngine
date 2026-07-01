@@ -405,7 +405,33 @@ World parseScene(const std::filesystem::path& scenePath, const std::string& text
         component.offset = *offset;
       }
       component.isTrigger = boolAfterKey(*boxCollider, "is_trigger").value_or(false);
+      component.layer = stringAfterKey(*boxCollider, "layer").value_or(std::string{});
       entity.boxCollider2D = component;
+    }
+
+    if (const std::optional<std::string> audioSource = objectAfterKey(entityObject, "AudioSource")) {
+      AudioSourceComponent component;
+      component.clip = stringAfterKey(*audioSource, "clip").value_or(std::string{});
+      component.playOnStart = boolAfterKey(*audioSource, "play_on_start").value_or(false);
+      component.loop = boolAfterKey(*audioSource, "loop").value_or(false);
+      if (const std::optional<float> volume = numberAfterKey(*audioSource, "volume")) {
+        component.volume = *volume;
+      }
+      entity.audioSource = component;
+    }
+
+    if (const std::optional<std::string> audioListener = objectAfterKey(entityObject, "AudioListener")) {
+      AudioListenerComponent component;
+      component.primary = boolAfterKey(*audioListener, "primary").value_or(true);
+      entity.audioListener = component;
+    }
+
+    if (const std::optional<std::string> videoPlayer = objectAfterKey(entityObject, "VideoPlayer")) {
+      VideoPlayerComponent component;
+      component.clip = stringAfterKey(*videoPlayer, "clip").value_or(std::string{});
+      component.playOnStart = boolAfterKey(*videoPlayer, "play_on_start").value_or(false);
+      component.loop = boolAfterKey(*videoPlayer, "loop").value_or(false);
+      entity.videoPlayer = component;
     }
 
     world.entities.push_back(entity);

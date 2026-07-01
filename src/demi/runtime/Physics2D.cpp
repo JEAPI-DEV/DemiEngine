@@ -2,10 +2,18 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <vector>
+
+#if DEMI_HAS_BOX2D
+#include <box2d/box2d.h>
+#endif
 
 namespace demi::runtime {
 
 namespace {
+
+constexpr float QueryContactSlop = 0.06F;
 
 struct Aabb {
   float minX = 0.0F;
@@ -13,10 +21,6 @@ struct Aabb {
   float maxX = 0.0F;
   float maxY = 0.0F;
 };
-
-[[nodiscard]] bool isDynamic(const Entity& entity) {
-  return entity.rigidbody2D.has_value() && entity.rigidbody2D->bodyType == "dynamic";
-}
 
 [[nodiscard]] bool participatesInCollision(const Entity& entity) {
   return entity.transform2D.has_value() && entity.boxCollider2D.has_value() && !entity.boxCollider2D->isTrigger;
@@ -35,8 +39,8 @@ struct Aabb {
   };
 }
 
-[[nodiscard]] bool intersects(const Aabb& a, const Aabb& b) {
-  return a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY;
+[[nodiscard]] bool queryIntersects(const Aabb& a, const Aabb& b) {
+  return a.minX <= b.maxX + QueryContactSlop && a.maxX >= b.minX - QueryContactSlop && a.minY <= b.maxY + QueryContactSlop && a.maxY >= b.minY - QueryContactSlop;
 }
 
 [[nodiscard]] Aabb makeAabb(const Vec2 center, const Vec2 size) {
@@ -46,6 +50,16 @@ struct Aabb {
     .maxX = center.x + size.x * 0.5F,
     .maxY = center.y + size.y * 0.5F,
   };
+}
+
+#if !DEMI_HAS_BOX2D
+
+[[nodiscard]] bool intersects(const Aabb& a, const Aabb& b) {
+  return a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY;
+}
+
+[[nodiscard]] bool isDynamic(const Entity& entity) {
+  return entity.rigidbody2D.has_value() && entity.rigidbody2D->bodyType == "dynamic";
 }
 
 void resolveAxis(World& world, Entity& moving, const Vec2 delta, const bool horizontal) {
@@ -106,6 +120,8 @@ void resolveAxis(World& world, Entity& moving, const Vec2 delta, const bool hori
   }
 }
 
+#endif
+
 } // namespace
 
 std::optional<Vec2> rigidbodyVelocity(const World& world, const std::string& entityId) {
@@ -159,14 +175,152 @@ bool overlapBox(const World& world, const Vec2 center, const Vec2 size, const st
     if (entity.id == ignoredEntityId || !participatesInCollision(entity)) {
       continue;
     }
-    if (intersects(query, colliderAabb(entity))) {
+    if (queryIntersects(query, colliderAabb(entity))) {
       return true;
     }
   }
   return false;
 }
 
+std::vector<PhysicsContact2D> contactsForEntity(const World& world, const std::string& entityId) {
+  std::vector<PhysicsContact2D> contacts;
+  for (const PhysicsContact2D& contact : world.physicsContacts) {
+    if (contact.entityId == entityId) {
+      contacts.push_back(contact);
+    }
+  }
+  return contacts;
+}
+
+bool hasContact(const World& world, const std::string& entityId, const PhysicsContactFilter2D& filter) {
+  for (const PhysicsContact2D& contact : world.physicsContacts) {
+    if (contact.entityId != entityId) {
+      continue;
+    }
+    if (!filter.includeTriggers && contact.isTrigger) {
+      continue;
+    }
+    if (filter.layer.has_value() && contact.otherLayer != *filter.layer) {
+      continue;
+    }
+    if (filter.normalXMin.has_value() && contact.normal.x < *filter.normalXMin) {
+      continue;
+    }
+    if (filter.normalXMax.has_value() && contact.normal.x > *filter.normalXMax) {
+      continue;
+    }
+    if (filter.normalYMin.has_value() && contact.normal.y < *filter.normalYMin) {
+      continue;
+    }
+    if (filter.normalYMax.has_value() && contact.normal.y > *filter.normalYMax) {
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+
 void stepPhysics2D(World& world, const float fixedDt, const PhysicsSettings2D& settings) {
+  world.physicsContacts.clear();
+#if DEMI_HAS_BOX2D
+  b2World physicsWorld({settings.gravity.x, settings.gravity.y});
+
+  struct BodyBinding {
+    Entity* entity = nullptr;
+    b2Body* body = nullptr;
+  };
+  std::vector<BodyBinding> bindings;
+
+  for (Entity& entity : world.entities) {
+    if (!entity.transform2D.has_value()) {
+      continue;
+    }
+    if (!entity.rigidbody2D.has_value() && !entity.boxCollider2D.has_value()) {
+      continue;
+    }
+
+    b2BodyDef bodyDef;
+    bodyDef.position.Set(entity.transform2D->position.x, entity.transform2D->position.y);
+    bodyDef.angle = entity.transform2D->rotation;
+    if (entity.rigidbody2D.has_value()) {
+      if (entity.rigidbody2D->bodyType == "dynamic") {
+        bodyDef.type = b2_dynamicBody;
+      } else if (entity.rigidbody2D->bodyType == "kinematic") {
+        bodyDef.type = b2_kinematicBody;
+      } else {
+        bodyDef.type = b2_staticBody;
+      }
+      bodyDef.linearVelocity.Set(entity.rigidbody2D->velocity.x, entity.rigidbody2D->velocity.y);
+      bodyDef.fixedRotation = entity.rigidbody2D->lockRotation;
+      bodyDef.gravityScale = entity.rigidbody2D->gravityScale;
+    } else {
+      bodyDef.type = b2_staticBody;
+    }
+
+    b2Body* body = physicsWorld.CreateBody(&bodyDef);
+    body->GetUserData().pointer = reinterpret_cast<std::uintptr_t>(&entity);
+    if (entity.boxCollider2D.has_value()) {
+      b2PolygonShape shape;
+      shape.SetAsBox(entity.boxCollider2D->size.x * 0.5F, entity.boxCollider2D->size.y * 0.5F, {entity.boxCollider2D->offset.x, entity.boxCollider2D->offset.y}, 0.0F);
+      b2FixtureDef fixtureDef;
+      fixtureDef.shape = &shape;
+      fixtureDef.density = 1.0F;
+      fixtureDef.restitution = entity.rigidbody2D.has_value() ? std::clamp(entity.rigidbody2D->bounciness, 0.0F, 1.0F) : 0.0F;
+      fixtureDef.isSensor = entity.boxCollider2D->isTrigger;
+      body->CreateFixture(&fixtureDef);
+    }
+    bindings.push_back(BodyBinding{.entity = &entity, .body = body});
+  }
+
+  physicsWorld.Step(fixedDt, 8, 3);
+
+  for (b2Contact* contact = physicsWorld.GetContactList(); contact != nullptr; contact = contact->GetNext()) {
+    if (!contact->IsTouching()) {
+      continue;
+    }
+
+    b2Fixture* fixtureA = contact->GetFixtureA();
+    b2Fixture* fixtureB = contact->GetFixtureB();
+    Entity* entityA = reinterpret_cast<Entity*>(fixtureA->GetBody()->GetUserData().pointer);
+    Entity* entityB = reinterpret_cast<Entity*>(fixtureB->GetBody()->GetUserData().pointer);
+    if (entityA == nullptr || entityB == nullptr) {
+      continue;
+    }
+
+    b2WorldManifold manifold;
+    contact->GetWorldManifold(&manifold);
+    const bool trigger = fixtureA->IsSensor() || fixtureB->IsSensor();
+    const std::string layerA = entityA->boxCollider2D.has_value() ? entityA->boxCollider2D->layer : std::string{};
+    const std::string layerB = entityB->boxCollider2D.has_value() ? entityB->boxCollider2D->layer : std::string{};
+    world.physicsContacts.push_back(PhysicsContact2D{
+      .entityId = entityA->id,
+      .otherEntityId = entityB->id,
+      .otherLayer = layerB,
+      .normal = Vec2{.x = -manifold.normal.x, .y = -manifold.normal.y},
+      .isTrigger = trigger,
+    });
+    world.physicsContacts.push_back(PhysicsContact2D{
+      .entityId = entityB->id,
+      .otherEntityId = entityA->id,
+      .otherLayer = layerA,
+      .normal = Vec2{.x = manifold.normal.x, .y = manifold.normal.y},
+      .isTrigger = trigger,
+    });
+  }
+
+  for (const BodyBinding& binding : bindings) {
+    if (binding.entity == nullptr || binding.body == nullptr || !binding.entity->transform2D.has_value()) {
+      continue;
+    }
+    const b2Vec2 position = binding.body->GetPosition();
+    binding.entity->transform2D->position = Vec2{.x = position.x, .y = position.y};
+    binding.entity->transform2D->rotation = binding.body->GetAngle();
+    if (binding.entity->rigidbody2D.has_value()) {
+      const b2Vec2 velocity = binding.body->GetLinearVelocity();
+      binding.entity->rigidbody2D->velocity = Vec2{.x = velocity.x, .y = velocity.y};
+    }
+  }
+#else
   for (Entity& entity : world.entities) {
     if (!isDynamic(entity) || !entity.transform2D.has_value()) {
       continue;
@@ -179,6 +333,7 @@ void stepPhysics2D(World& world, const float fixedDt, const PhysicsSettings2D& s
     resolveAxis(world, entity, Vec2{.x = entity.rigidbody2D->velocity.x * fixedDt, .y = 0.0F}, true);
     resolveAxis(world, entity, Vec2{.x = 0.0F, .y = entity.rigidbody2D->velocity.y * fixedDt}, false);
   }
+#endif
 }
 
 } // namespace demi::runtime

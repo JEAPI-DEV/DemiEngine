@@ -3,6 +3,22 @@ local state = require("game_state")
 
 local Platformer = {}
 
+local function has_platform_contact(entity_id)
+  return Physics2D.has_contact(entity_id, {
+    layer = "platform",
+    normal_y_min = 0.5,
+  })
+end
+
+local function has_platform_overlap(entity_id, probe_y, probe_height)
+  local x, y = Entity.get_position(entity_id)
+  if x == nil or y == nil then
+    return false
+  end
+
+  return Physics2D.overlap_box(x, y + probe_y, 0.78, probe_height, entity_id)
+end
+
 function Platformer.horizontal_axis()
   local x = Input.axis("a", "d")
   if x == 0.0 then
@@ -16,21 +32,11 @@ function Platformer.wants_jump()
 end
 
 function Platformer.is_grounded(entity_id)
-  local x, y = Entity.get_position(entity_id)
-  if x == nil or y == nil then
-    return false
-  end
-
-  return Physics2D.overlap_box(x, y - 0.56, 0.78, 0.12, entity_id)
+  return has_platform_contact(entity_id) or has_platform_overlap(entity_id, -0.56, 0.12)
 end
 
 function Platformer.is_touching_platform(entity_id)
-  local x, y = Entity.get_position(entity_id)
-  if x == nil or y == nil then
-    return false
-  end
-
-  return Physics2D.overlap_box(x, y - 0.50, 0.78, 0.10, entity_id)
+  return has_platform_contact(entity_id) or has_platform_overlap(entity_id, -0.50, 0.10)
 end
 
 function Platformer.check_game_over_if_fallen(player)

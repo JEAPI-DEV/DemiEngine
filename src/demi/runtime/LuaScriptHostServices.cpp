@@ -2,6 +2,7 @@
 
 #include "demi/runtime/AudioSystem.h"
 #include "demi/runtime/LuaScriptHostInternal.h"
+#include "demi/runtime/MediaSystem.h"
 #include "demi/runtime/Physics2D.h"
 
 #include <algorithm>
@@ -147,6 +148,14 @@ bool LuaScriptHost::addRigidbodyImpulse(const std::string& entityId, const float
 
 bool LuaScriptHost::physicsOverlapBox(const float x, const float y, const float width, const float height, const std::string& ignoredEntityId) const {
   return world_ != nullptr && overlapBox(*world_, Vec2{.x = x, .y = y}, Vec2{.x = width, .y = height}, ignoredEntityId);
+}
+
+bool LuaScriptHost::physicsHasContact(const std::string& entityId, const PhysicsContactFilter2D& filter) const {
+  return world_ != nullptr && hasContact(*world_, entityId, filter);
+}
+
+std::vector<PhysicsContact2D> LuaScriptHost::physicsContacts(const std::string& entityId) const {
+  return world_ != nullptr ? contactsForEntity(*world_, entityId) : std::vector<PhysicsContact2D>{};
 }
 
 bool LuaScriptHost::createEntity(Entity entity) {
@@ -358,6 +367,34 @@ std::uint64_t LuaScriptHost::playAudio(const std::string& assetId) {
   return audio_ != nullptr ? audio_->play(assetId) : 0;
 }
 
+std::uint64_t LuaScriptHost::playAudioSource(const std::string& entityId) {
+  if (world_ == nullptr || audio_ == nullptr) {
+    return 0;
+  }
+  Entity* entity = findEntity(*world_, entityId);
+  if (entity == nullptr || !entity->audioSource.has_value() || entity->audioSource->clip.empty()) {
+    return 0;
+  }
+  if (entity->audioSource->handle != 0) {
+    (void)audio_->stop(entity->audioSource->handle);
+  }
+  entity->audioSource->handle = audio_->play(entity->audioSource->clip, entity->audioSource->loop, entity->audioSource->volume);
+  return entity->audioSource->handle;
+}
+
+bool LuaScriptHost::stopAudioSource(const std::string& entityId) {
+  if (world_ == nullptr || audio_ == nullptr) {
+    return false;
+  }
+  Entity* entity = findEntity(*world_, entityId);
+  if (entity == nullptr || !entity->audioSource.has_value() || entity->audioSource->handle == 0) {
+    return false;
+  }
+  const bool stopped = audio_->stop(entity->audioSource->handle);
+  entity->audioSource->handle = 0;
+  return stopped;
+}
+
 bool LuaScriptHost::stopAudio(const std::uint64_t handle) {
   return audio_ != nullptr && audio_->stop(handle);
 }
@@ -370,6 +407,75 @@ void LuaScriptHost::setMasterVolume(const float volume) {
 
 float LuaScriptHost::masterVolume() const {
   return audio_ != nullptr ? audio_->masterVolume() : 1.0F;
+}
+
+std::uint64_t LuaScriptHost::playVideo(const std::string& assetId, const bool loop) {
+  return media_ != nullptr ? media_->playVideo(assetId, loop) : 0;
+}
+
+std::uint64_t LuaScriptHost::playVideoPlayer(const std::string& entityId) {
+  if (world_ == nullptr || media_ == nullptr) {
+    return 0;
+  }
+  Entity* entity = findEntity(*world_, entityId);
+  if (entity == nullptr || !entity->videoPlayer.has_value() || entity->videoPlayer->clip.empty()) {
+    return 0;
+  }
+  if (entity->videoPlayer->handle != 0) {
+    (void)media_->stopVideo(entity->videoPlayer->handle);
+  }
+  entity->videoPlayer->handle = media_->playVideo(entity->videoPlayer->clip, entity->videoPlayer->loop);
+  return entity->videoPlayer->handle;
+}
+
+bool LuaScriptHost::stopVideo(const std::uint64_t handle) {
+  return media_ != nullptr && media_->stopVideo(handle);
+}
+
+bool LuaScriptHost::isVideoPlaying(const std::uint64_t handle) const {
+  return media_ != nullptr && media_->isVideoPlaying(handle);
+}
+
+bool LuaScriptHost::startCutscene(std::string id) {
+  if (id.empty()) {
+    return false;
+  }
+  activeCutscene_ = std::move(id);
+  cutscenePaused_ = false;
+  return true;
+}
+
+bool LuaScriptHost::pauseCutscene() {
+  if (activeCutscene_.empty() || cutscenePaused_) {
+    return false;
+  }
+  cutscenePaused_ = true;
+  return true;
+}
+
+bool LuaScriptHost::resumeCutscene() {
+  if (activeCutscene_.empty() || !cutscenePaused_) {
+    return false;
+  }
+  cutscenePaused_ = false;
+  return true;
+}
+
+bool LuaScriptHost::stopCutscene() {
+  if (activeCutscene_.empty()) {
+    return false;
+  }
+  activeCutscene_.clear();
+  cutscenePaused_ = false;
+  return true;
+}
+
+bool LuaScriptHost::isCutscenePlaying() const {
+  return !activeCutscene_.empty() && !cutscenePaused_;
+}
+
+const std::string& LuaScriptHost::activeCutscene() const {
+  return activeCutscene_;
 }
 
 void LuaScriptHost::setViewport(const int width, const int height) {
@@ -577,10 +683,14 @@ void LuaScriptHost::clearTimersAndEvents() {
     for (const EventSubscription& subscription : eventSubscriptions_) {
       luaL_unref(state, LUA_REGISTRYINDEX, subscription.callbackRef);
     }
+    for (const SaveMigrationHook& hook : saveMigrationHooks_) {
+      luaL_unref(state, LUA_REGISTRYINDEX, hook.callbackRef);
+    }
   }
 #endif
   timers_.clear();
   eventSubscriptions_.clear();
+  saveMigrationHooks_.clear();
 }
 
 } // namespace demi::runtime

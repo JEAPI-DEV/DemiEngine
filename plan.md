@@ -283,7 +283,7 @@ Also create `AGENTS.md` during implementation with:
 - Generate LuaLS/EmmyLua stubs from bindings. -> (by source code not hard coded lua implementation in source code) -> Skip for now
 - Add `demi script check`.
 
-### Phase 5: Editor MVP
+### Phase 5: Editor MVP -> Skip for now
 - Integrate Dear ImGui docking.
 - Add Scene view, Game view, hierarchy, inspector, asset browser, console, and toolbar.
 - Implement embedded Play/Pause/Stop with edit-state restoration.

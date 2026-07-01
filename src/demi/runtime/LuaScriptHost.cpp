@@ -43,6 +43,10 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, AudioSyste
 #endif
 }
 
+void LuaScriptHost::setMediaSystem(MediaSystem* media) {
+  media_ = media;
+}
+
 bool LuaScriptHost::loadWorldScripts(const ProjectData& project, World& world, std::string& error) {
 #if !DEMI_HAS_LUA54
   (void)project;
@@ -137,6 +141,17 @@ void LuaScriptHost::start() {
     luaCallLifecycle(state, script.tableRef, "on_start", script.path, script.entityId);
   }
 #endif
+  if (world_ == nullptr) {
+    return;
+  }
+  for (Entity& entity : world_->entities) {
+    if (entity.audioSource.has_value() && entity.audioSource->playOnStart && entity.audioSource->handle == 0) {
+      entity.audioSource->handle = playAudioSource(entity.id);
+    }
+    if (entity.videoPlayer.has_value() && entity.videoPlayer->playOnStart && entity.videoPlayer->handle == 0) {
+      entity.videoPlayer->handle = playVideoPlayer(entity.id);
+    }
+  }
 }
 
 void LuaScriptHost::update(const float dt) {
