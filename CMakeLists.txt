@@ -39,6 +39,14 @@ FetchContent_MakeAvailable(nlohmann_json)
 option(DEMI_ENABLE_NETWORK "Enable optional ENet networking module" OFF)
 option(DEMI_ENABLE_MEDIA "Enable FFmpeg-backed media module" ON)
 
+if(DEMI_ENABLE_NETWORK)
+  FetchContent_Declare(enet
+    GIT_REPOSITORY https://github.com/lsalzman/enet.git
+    GIT_TAG v1.3.18
+  )
+  FetchContent_MakeAvailable(enet)
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -84,6 +92,7 @@ add_library(demi-runtime-lib STATIC
   src/demi/runtime/LuaScriptHostPersistence.cpp
   src/demi/runtime/LuaScriptHostServices.cpp
   src/demi/runtime/MediaSystem.cpp
+  src/demi/runtime/NetworkSystem.cpp
   src/demi/runtime/Physics2D.cpp
   src/demi/runtime/Renderer2D.cpp
   src/demi/runtime/RuntimeApp.cpp
@@ -128,6 +137,14 @@ else()
   target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_FFMPEG=0)
 endif()
 
+if(DEMI_ENABLE_NETWORK)
+  target_link_libraries(demi-runtime-lib PRIVATE enet)
+  target_include_directories(demi-runtime-lib PRIVATE ${enet_SOURCE_DIR}/include)
+  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_ENET=1)
+else()
+  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_ENET=0)
+endif()
+
 add_executable(demi src/cli/main.cpp)
 target_link_libraries(demi PRIVATE demi-core demi-runtime-lib)
 target_compile_definitions(demi PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
@@ -147,14 +164,26 @@ target_link_libraries(demi-physics2d-tests PRIVATE demi-runtime-lib)
 add_executable(demi-lua-scripting-tests tests/lua_scripting_tests.cpp)
 target_link_libraries(demi-lua-scripting-tests PRIVATE demi-runtime-lib)
 
+if(DEMI_ENABLE_NETWORK)
+  add_executable(demi-network-tests tests/network_tests.cpp)
+  target_link_libraries(demi-network-tests PRIVATE demi-runtime-lib)
+endif()
+
 enable_testing()
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-physics2d-tests COMMAND demi-physics2d-tests)
 add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
+if(DEMI_ENABLE_NETWORK)
+  add_test(NAME demi-network-tests COMMAND demi-network-tests)
+endif()
 add_test(NAME demi-runtime-minimal-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d/demi.project.json --frames 1
 )
 set_tests_properties(demi-runtime-minimal-frame PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
+add_test(NAME demi-runtime-networking-minimal-frame
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json --frames 1
+)
+set_tests_properties(demi-runtime-networking-minimal-frame PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
 add_test(NAME demi-script-check-minimal-player
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d/scripts/player.lua
 )

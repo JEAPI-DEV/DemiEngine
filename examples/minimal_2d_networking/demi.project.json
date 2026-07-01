@@ -1,18 +1,18 @@
 {
   "format_version": 1,
-  "name": "Minimal 2D",
-  "main_scene": "scene://minimal_2d/menu",
+  "name": "Minimal 2D Networking",
+  "main_scene": "scene://minimal_2d_networking/menu",
   "scenes": [
     {
-      "id": "scene://minimal_2d/menu",
+      "id": "scene://minimal_2d_networking/menu",
       "path": "scenes/menu.scene.json"
     },
     {
-      "id": "scene://minimal_2d/platformer",
+      "id": "scene://minimal_2d_networking/platformer",
       "path": "scenes/platformer.scene.json"
     },
     {
-      "id": "scene://minimal_2d/spiral",
+      "id": "scene://minimal_2d_networking/spiral",
       "path": "scenes/spiral.scene.json"
     }
   ],

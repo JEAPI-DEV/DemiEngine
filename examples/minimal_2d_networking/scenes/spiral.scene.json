@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "id": "scene://minimal_2d/spiral",
+  "id": "scene://minimal_2d_networking/spiral",
   "name": "Spiral Climb",
   "hud": "game.hud.json",
   "entities": [

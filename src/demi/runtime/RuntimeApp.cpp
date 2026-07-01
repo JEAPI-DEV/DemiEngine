@@ -5,6 +5,7 @@
 #include "demi/runtime/AudioSystem.h"
 #include "demi/runtime/LuaScriptHost.h"
 #include "demi/runtime/MediaSystem.h"
+#include "demi/runtime/NetworkSystem.h"
 #include "demi/runtime/Physics2D.h"
 #include "demi/runtime/Renderer2D.h"
 #include "demi/runtime/SceneData.h"
@@ -131,11 +132,14 @@ int runProject(const RuntimeOptions& options) {
   }
   MediaSystem mediaSystem;
   mediaSystem.loadVideoAssets(assetRegistry);
+  NetworkSystem networkSystem;
+  (void)networkSystem.initialize();
   const Camera2DComponent fallbackCamera;
   InputState input;
 
   LuaScriptHost luaHost;
   luaHost.setMediaSystem(&mediaSystem);
+  luaHost.setNetworkSystem(&networkSystem);
   std::string luaError;
   if (luaHost.initialize(loaded.world, input, &audioSystem, luaError)) {
     if (!luaHost.loadWorldScripts(loaded.project, loaded.world, luaError)) {
@@ -200,6 +204,7 @@ int runProject(const RuntimeOptions& options) {
       fixedAccumulator -= fixedStep;
     }
 
+    networkSystem.update();
     luaHost.update(dt);
     if (luaHost.quitRequested()) {
       running = false;
@@ -234,6 +239,7 @@ int runProject(const RuntimeOptions& options) {
   }
 
   luaHost.destroy();
+  networkSystem.shutdown();
   mediaSystem.shutdown();
   audioSystem.shutdown();
   SDL_DestroyRenderer(renderer);

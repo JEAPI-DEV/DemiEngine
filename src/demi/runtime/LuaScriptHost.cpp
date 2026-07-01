@@ -47,6 +47,10 @@ void LuaScriptHost::setMediaSystem(MediaSystem* media) {
   media_ = media;
 }
 
+void LuaScriptHost::setNetworkSystem(NetworkSystem* network) {
+  network_ = network;
+}
+
 bool LuaScriptHost::loadWorldScripts(const ProjectData& project, World& world, std::string& error) {
 #if !DEMI_HAS_LUA54
   (void)project;

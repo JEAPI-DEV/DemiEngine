@@ -3,11 +3,13 @@
 #include "demi/runtime/AudioSystem.h"
 #include "demi/runtime/LuaScriptHostInternal.h"
 #include "demi/runtime/MediaSystem.h"
+#include "demi/runtime/NetworkSystem.h"
 #include "demi/runtime/Physics2D.h"
 
 #include <algorithm>
 #include <cctype>
 #include <iostream>
+#include <optional>
 
 namespace demi::runtime {
 
@@ -436,6 +438,44 @@ bool LuaScriptHost::isVideoPlaying(const std::uint64_t handle) const {
   return media_ != nullptr && media_->isVideoPlaying(handle);
 }
 
+bool LuaScriptHost::networkAvailable() const {
+  return network_ != nullptr && network_->available();
+}
+
+bool LuaScriptHost::networkHost(const std::uint16_t port, const std::uint32_t maxPeers) {
+  return network_ != nullptr && network_->host(port, maxPeers);
+}
+
+bool LuaScriptHost::networkConnect(const std::string& address, const std::uint16_t port) {
+  return network_ != nullptr && network_->connect(address, port);
+}
+
+void LuaScriptHost::networkDisconnect() {
+  if (network_ != nullptr) {
+    network_->disconnect();
+  }
+}
+
+bool LuaScriptHost::networkSend(const std::string& message, const bool reliable, const std::uint8_t channel, const std::uint32_t peerId) {
+  return network_ != nullptr && network_->send(message, reliable, channel, peerId);
+}
+
+bool LuaScriptHost::networkIsHost() const {
+  return network_ != nullptr && network_->isHosting();
+}
+
+bool LuaScriptHost::networkIsConnected() const {
+  return network_ != nullptr && network_->isConnected();
+}
+
+std::uint32_t LuaScriptHost::networkLatencyMs() const {
+  return network_ != nullptr ? network_->latencyMs() : 0;
+}
+
+std::vector<NetworkEvent> LuaScriptHost::networkDrainEvents() {
+  return network_ != nullptr ? network_->drainEvents() : std::vector<NetworkEvent>{};
+}
+
 bool LuaScriptHost::startCutscene(std::string id) {
   if (id.empty()) {
     return false;
@@ -612,13 +652,20 @@ void LuaScriptHost::dispatchHudEvents() {
     .y = input_->mousePosition.y * std::max(world_->hudCanvasSize.y, 1.0F) / static_cast<float>(std::max(viewportHeight_, 1)),
   };
   const bool mouseDown = isMouseDown("left");
+  std::optional<std::string> clickedButtonId;
   for (HudButtonElement& button : world_->hudButtons) {
     if (!button.visible) {
       button.hovered = false;
       continue;
     }
     button.hovered = mouse.x >= button.position.x && mouse.x <= button.position.x + button.size.x && mouse.y >= button.position.y && mouse.y <= button.position.y + button.size.y;
-    if (!button.hovered) {
+    if (button.hovered && mouseDown && !previousUiMouseDown_) {
+      clickedButtonId = button.id;
+    }
+  }
+
+  for (const HudButtonElement& button : world_->hudButtons) {
+    if (!button.visible || !button.hovered) {
       continue;
     }
     for (const ScriptInstance& script : scripts_) {
@@ -626,7 +673,7 @@ void LuaScriptHost::dispatchHudEvents() {
         continue;
       }
       luaCallUiEvent(state, script.tableRef, "on_ui_hover", button, mouse, script.path);
-      if (mouseDown && !previousUiMouseDown_) {
+      if (clickedButtonId.has_value() && *clickedButtonId == button.id) {
         luaCallUiEvent(state, script.tableRef, "on_ui_click", button, mouse, script.path);
       }
     }

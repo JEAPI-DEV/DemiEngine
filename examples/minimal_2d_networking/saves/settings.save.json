@@ -1,8 +1,8 @@
 {
-  "format_version": 1,
+  "format_version": 2,
   "slot": "settings",
   "state": {
     "master_volume": 0.8,
-    "window_mode": "fullscreen"
+    "window_mode": "windowed"
   }
 }

@@ -363,6 +363,41 @@ function Cutscene.is_playing() end
 ---@return string
 function Cutscene.active() end
 
+---@class NetworkEvent
+---@field type "connected"|"disconnected"|"message"
+---@field peer_id integer
+---@field channel integer
+---@field message string
+---@field latency_ms integer
+
+---@class NetworkService
+Network = {}
+---@return boolean
+function Network.available() end
+---@param port integer
+---@param max_peers? integer
+---@return boolean
+function Network.host(port, max_peers) end
+---@param address string
+---@param port integer
+---@return boolean
+function Network.connect(address, port) end
+function Network.disconnect() end
+---@param message string
+---@param reliable? boolean
+---@param peer_id? integer
+---@param channel? integer
+---@return boolean
+function Network.send(message, reliable, peer_id, channel) end
+---@return boolean
+function Network.is_host() end
+---@return boolean
+function Network.is_connected() end
+---@return integer
+function Network.latency_ms() end
+---@return NetworkEvent[]
+function Network.events() end
+
 ---@class DemiScript
 ---@field entity_id? string
 ---@field ui_id? string

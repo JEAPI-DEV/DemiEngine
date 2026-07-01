@@ -2,6 +2,7 @@
 
 #include <sol/sol.hpp>
 
+#include <algorithm>
 #include <iostream>
 #include <optional>
 #include <string_view>
@@ -318,6 +319,34 @@ sol::table contactsTable(lua_State* state, const std::vector<PhysicsContact2D>& 
   return result;
 }
 
+const char* networkEventTypeName(const NetworkEventType type) {
+  switch (type) {
+  case NetworkEventType::Connected:
+    return "connected";
+  case NetworkEventType::Disconnected:
+    return "disconnected";
+  case NetworkEventType::Message:
+    return "message";
+  }
+  return "unknown";
+}
+
+sol::table networkEventsTable(lua_State* state, const std::vector<NetworkEvent>& events) {
+  sol::state_view lua(state);
+  sol::table result = lua.create_table();
+  int index = 1;
+  for (const NetworkEvent& event : events) {
+    sol::table item = lua.create_table();
+    item["type"] = networkEventTypeName(event.type);
+    item["peer_id"] = event.peerId;
+    item["channel"] = event.channel;
+    item["message"] = event.message;
+    item["latency_ms"] = event.latencyMs;
+    result[index++] = item;
+  }
+  return result;
+}
+
 void registerSol2Bindings(LuaScriptHost& host, lua_State* state) {
   sol::state_view lua(state);
 
@@ -442,6 +471,19 @@ void registerSol2Bindings(LuaScriptHost& host, lua_State* state) {
   cutscene.set_function("stop", [&host] { return host.stopCutscene(); });
   cutscene.set_function("is_playing", [&host] { return host.isCutscenePlaying(); });
   cutscene.set_function("active", [&host] { return host.activeCutscene(); });
+
+  sol::table network = lua.create_named_table("Network");
+  network.set_function("available", [&host] { return host.networkAvailable(); });
+  network.set_function("host", [&host](int port, sol::optional<int> maxPeers) { return host.networkHost(static_cast<std::uint16_t>(std::max(port, 0)), static_cast<std::uint32_t>(std::max(maxPeers.value_or(8), 1))); });
+  network.set_function("connect", [&host](const std::string& address, int port) { return host.networkConnect(address, static_cast<std::uint16_t>(std::max(port, 0))); });
+  network.set_function("disconnect", [&host] { host.networkDisconnect(); });
+  network.set_function("send", [&host](const std::string& message, sol::optional<bool> reliable, sol::optional<int> peerId, sol::optional<int> channel) {
+      return host.networkSend(message, reliable.value_or(true), static_cast<std::uint8_t>(std::max(channel.value_or(0), 0)), static_cast<std::uint32_t>(std::max(peerId.value_or(0), 0)));
+    });
+  network.set_function("is_host", [&host] { return host.networkIsHost(); });
+  network.set_function("is_connected", [&host] { return host.networkIsConnected(); });
+  network.set_function("latency_ms", [&host] { return host.networkLatencyMs(); });
+  network.set_function("events", [state, &host] { return networkEventsTable(state, host.networkDrainEvents()); });
 }
 
 } // namespace

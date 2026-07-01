@@ -2,6 +2,7 @@
 
 #include "demi/runtime/SceneData.h"
 #include "demi/diagnostics/Diagnostic.h"
+#include "demi/runtime/NetworkSystem.h"
 #include "demi/runtime/Physics2D.h"
 
 #include <cstdint>
@@ -15,6 +16,7 @@ namespace demi::runtime {
 
 class AudioSystem;
 class MediaSystem;
+class NetworkSystem;
 
 class LuaScriptHost {
 public:
@@ -37,6 +39,7 @@ public:
 
   [[nodiscard]] bool initialize(World& world, const InputState& input, AudioSystem* audio, std::string& error);
   void setMediaSystem(MediaSystem* media);
+  void setNetworkSystem(NetworkSystem* network);
   [[nodiscard]] bool loadWorldScripts(const ProjectData& project, World& world, std::string& error);
   void requestSceneLoad(const std::string& sceneId);
   [[nodiscard]] bool hasPendingSceneLoad() const;
@@ -95,6 +98,15 @@ public:
   [[nodiscard]] std::uint64_t playVideoPlayer(const std::string& entityId);
   [[nodiscard]] bool stopVideo(std::uint64_t handle);
   [[nodiscard]] bool isVideoPlaying(std::uint64_t handle) const;
+  [[nodiscard]] bool networkAvailable() const;
+  [[nodiscard]] bool networkHost(std::uint16_t port, std::uint32_t maxPeers);
+  [[nodiscard]] bool networkConnect(const std::string& address, std::uint16_t port);
+  void networkDisconnect();
+  [[nodiscard]] bool networkSend(const std::string& message, bool reliable, std::uint8_t channel, std::uint32_t peerId);
+  [[nodiscard]] bool networkIsHost() const;
+  [[nodiscard]] bool networkIsConnected() const;
+  [[nodiscard]] std::uint32_t networkLatencyMs() const;
+  [[nodiscard]] std::vector<NetworkEvent> networkDrainEvents();
   [[nodiscard]] bool startCutscene(std::string id);
   [[nodiscard]] bool pauseCutscene();
   [[nodiscard]] bool resumeCutscene();
@@ -161,6 +173,7 @@ private:
   const InputState* input_ = nullptr;
   AudioSystem* audio_ = nullptr;
   MediaSystem* media_ = nullptr;
+  NetworkSystem* network_ = nullptr;
   std::filesystem::path projectDirectory_;
   int viewportWidth_ = 1;
   int viewportHeight_ = 1;

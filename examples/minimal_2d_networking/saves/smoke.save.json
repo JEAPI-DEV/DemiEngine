@@ -3,7 +3,7 @@
   "slot": "smoke",
   "project": "Minimal 2D",
   "state": {
-    "active_scene": "scene://minimal_2d/platformer",
+    "active_scene": "scene://minimal_2d_networking/platformer",
     "player": {
       "entity": "ent_player",
       "position": [0.0, 0.0]

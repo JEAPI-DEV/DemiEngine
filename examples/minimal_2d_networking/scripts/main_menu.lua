@@ -1,4 +1,5 @@
 local state = require("game_state")
+local replication = require("network_replication")
 
 local Menu = {
   screen = "main",
@@ -6,14 +7,17 @@ local Menu = {
   dropdown_open = false,
   volume = 1.0,
   window_mode = "windowed",
+  network_ip = "127.0.0.1",
+  network_port = 39420,
+  key_was_down = {},
   enter_was_down = false,
 }
 
 local PLAYER_ID = "ent_player"
 local SETTINGS_SLOT = "settings"
-local SCENE_MENU = "scene://minimal_2d/menu"
-local SCENE_PLATFORMER = "scene://minimal_2d/platformer"
-local SCENE_SPIRAL = "scene://minimal_2d/spiral"
+local SCENE_MENU = "scene://minimal_2d_networking/menu"
+local SCENE_PLATFORMER = "scene://minimal_2d_networking/platformer"
+local SCENE_SPIRAL = "scene://minimal_2d_networking/spiral"
 local EXTRA_JUMP_SLOT_IDS = { "extra_jump_slot_1", "extra_jump_slot_2", "extra_jump_slot_3" }
 local EXTRA_JUMP_COIN_IDS = { "extra_jump_coin_1", "extra_jump_coin_2", "extra_jump_coin_3" }
 
@@ -48,6 +52,13 @@ local function update_video_hud()
   Hud.set_visible("menu_back", not Menu.dropdown_open)
 end
 
+local function update_network_hud(status)
+  Hud.set_text("menu_network_ip_value", Menu.network_ip == "" and "_" or Menu.network_ip)
+  if status ~= nil then
+    Hud.set_text("menu_network_status", status)
+  end
+end
+
 local function set_volume(volume)
   Menu.volume = math.max(0.0, math.min(1.0, volume))
   Audio.set_master_volume(Menu.volume)
@@ -68,6 +79,7 @@ local function hide_menu()
   show_group("menu_base", false)
   show_group("menu_main", false)
   show_group("menu_levels", false)
+  show_group("menu_network", false)
   show_group("menu_options", false)
   show_group("menu_sound", false)
   show_group("menu_video", false)
@@ -89,10 +101,25 @@ local function show_main()
   show_group("menu_base", true)
   show_group("menu_main", true)
   show_group("menu_levels", false)
+  show_group("menu_network", false)
   show_group("menu_options", false)
   show_group("menu_sound", false)
   show_group("menu_video", false)
   show_group("menu_dropdown", false)
+end
+
+local function show_network()
+  Menu.screen = "network"
+  Menu.dropdown_open = false
+  show_group("menu_base", true)
+  show_group("menu_main", false)
+  show_group("menu_levels", false)
+  show_group("menu_network", true)
+  show_group("menu_options", false)
+  show_group("menu_sound", false)
+  show_group("menu_video", false)
+  show_group("menu_dropdown", false)
+  update_network_hud(Network.available() and "PORT " .. tostring(Menu.network_port) or "NETWORK BUILD DISABLED")
 end
 
 local function show_levels()
@@ -101,6 +128,7 @@ local function show_levels()
   show_group("menu_base", true)
   show_group("menu_main", false)
   show_group("menu_levels", true)
+  show_group("menu_network", false)
   show_group("menu_options", false)
   show_group("menu_sound", false)
   show_group("menu_video", false)
@@ -112,6 +140,7 @@ local function show_options()
   show_group("menu_base", true)
   show_group("menu_main", false)
   show_group("menu_levels", false)
+  show_group("menu_network", false)
   show_group("menu_options", true)
   if Menu.active_tab == "sound" then
     Hud.set_color("menu_tab_sound", 0.24, 0.27, 0.46, 0.94)
@@ -149,6 +178,28 @@ function Menu.start_game()
   select_level(SCENE_PLATFORMER, 1)
 end
 
+function Menu.host_game()
+  if replication.host(Menu.network_port) then
+    update_network_hud("HOSTING ON PORT " .. tostring(Menu.network_port))
+    select_level(SCENE_PLATFORMER, 1)
+  else
+    update_network_hud("HOST FAILED - ENABLE NETWORK BUILD")
+  end
+end
+
+function Menu.join_game()
+  if Menu.network_ip == "" then
+    update_network_hud("ENTER SERVER IP")
+    return
+  end
+  if replication.connect(Menu.network_ip, Menu.network_port) then
+    update_network_hud("CONNECTING TO " .. Menu.network_ip)
+    select_level(SCENE_PLATFORMER, 1)
+  else
+    update_network_hud("JOIN FAILED - CHECK IP OR BUILD")
+  end
+end
+
 function Menu.apply_settings()
   Menu.volume = Save.get_number(SETTINGS_SLOT, "master_volume", Audio.get_master_volume())
   Menu.window_mode = Save.get_string(SETTINGS_SLOT, "window_mode", Runtime.get_window_mode())
@@ -163,6 +214,7 @@ function Menu.start()
   Menu.screen = "main"
   Menu.active_tab = "sound"
   Menu.dropdown_open = false
+  Menu.key_was_down = {}
   Menu.enter_was_down = true
   Menu.apply_settings()
   Runtime.set_physics_enabled(false)
@@ -213,6 +265,8 @@ end
 function Menu.handle_click(id)
   if id == "menu_button_levels" then
     show_levels()
+  elseif id == "menu_button_network" then
+    show_network()
   elseif id == "menu_button_level_1" then
     select_level(SCENE_PLATFORMER, 1)
   elseif id == "menu_button_level_2" then
@@ -221,6 +275,12 @@ function Menu.handle_click(id)
     show_main()
   elseif id == "menu_button_options" then
     show_options()
+  elseif id == "menu_network_host" then
+    Menu.host_game()
+  elseif id == "menu_network_join" then
+    Menu.join_game()
+  elseif id == "menu_network_back" then
+    show_main()
   elseif id == "menu_button_quit" then
     Runtime.quit()
   elseif id == "menu_back" then
@@ -248,6 +308,44 @@ function Menu.handle_click(id)
   end
 end
 
+local function pressed_once(key)
+  local down = Input.is_down(key)
+  local pressed = down and not Menu.key_was_down[key]
+  Menu.key_was_down[key] = down
+  return pressed
+end
+
+local function append_ip_char(value)
+  if string.len(Menu.network_ip) >= 15 then
+    return
+  end
+  Menu.network_ip = Menu.network_ip .. value
+  update_network_hud(nil)
+end
+
+local function update_network_input()
+  for digit = 0, 9 do
+    local key = tostring(digit)
+    if pressed_once(key) then
+      append_ip_char(key)
+    end
+  end
+
+  if pressed_once(".") or pressed_once("period") then
+    append_ip_char(".")
+  end
+
+  if pressed_once("backspace") and string.len(Menu.network_ip) > 0 then
+    Menu.network_ip = string.sub(Menu.network_ip, 1, string.len(Menu.network_ip) - 1)
+    update_network_hud(nil)
+  end
+
+  if pressed_once("delete") then
+    Menu.network_ip = ""
+    update_network_hud(nil)
+  end
+end
+
 function Menu.update(dt)
   local enter_down = Input.is_down("return") or Input.is_down("space")
   local enter_pressed = enter_down and not Menu.enter_was_down
@@ -262,6 +360,13 @@ function Menu.update(dt)
     elseif Input.is_down("2") then
       select_level(SCENE_SPIRAL, 2)
     elseif Input.is_down("escape") then
+      show_main()
+    end
+  end
+
+  if Menu.screen == "network" then
+    update_network_input()
+    if Input.is_down("escape") then
       show_main()
     end
   end

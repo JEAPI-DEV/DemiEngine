@@ -2,6 +2,7 @@ local config = require("player_config")
 local state = require("game_state")
 local platformer = require("player_platformer")
 local slingshot = require("player_slingshot")
+local replication = require("network_replication")
 
 local Player = {}
 
@@ -20,6 +21,7 @@ end
 
 function Player:on_start()
   Debug.log("Drag with left mouse after touching a platform to slingshot. Coins stack up to three extra airborne slingshots.")
+  Debug.log("Networking demo active. Use the main menu Network Play screen to host or join by IP.")
   local x, y = Entity.get_position(self.entity_id)
   if x ~= nil and y ~= nil then
     self.spawn_x = x
@@ -45,6 +47,8 @@ function Player:on_update(dt)
   if player_x == nil or player_y == nil then
     return
   end
+
+  replication.update_local_transform(self.entity_id, dt)
 
   local mouse_down = Input.mouse_down("left")
   local grounded = platformer.is_grounded(self.entity_id)
