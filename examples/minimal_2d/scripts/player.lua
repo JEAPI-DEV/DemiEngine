@@ -14,8 +14,6 @@ function Player:on_create()
   self.slingshot_frames = 0
   self.can_slingshot = false
   self.aiming_freezes_motion = false
-  self.aim_velocity_x = 0.0
-  self.aim_velocity_y = 0.0
   self.spawn_x = config.spawn_x
   self.spawn_y = config.spawn_y
 end

@@ -31,23 +31,14 @@ function Slingshot.update_aim(player, player_x, player_y, can_slingshot, grounde
   if mouse_down and not player.mouse_was_down and can_slingshot then
     player.aiming = true
     player.aiming_freezes_motion = grounded
-
-    local velocity_x, velocity_y = Rigidbody2D.get_velocity(player.entity_id)
-    player.aim_velocity_x = velocity_x or 0.0
-    player.aim_velocity_y = velocity_y or 0.0
   end
 
   if not player.aiming then
     return false
   end
 
-  local velocity_x = player.aim_velocity_x or 0.0
-  local velocity_y = player.aim_velocity_y or 0.0
-
   if player.aiming_freezes_motion then
     Rigidbody2D.set_velocity(player.entity_id, 0.0, 0.0)
-    velocity_x = 0.0
-    velocity_y = 0.0
   end
 
   local mouse_x, mouse_y = Input.mouse_world_position()
@@ -56,10 +47,10 @@ function Slingshot.update_aim(player, player_x, player_y, can_slingshot, grounde
   local launch_y = pull_y * config.sling_force
 
   Debug.line(player_x, player_y, player_x - pull_x, player_y - pull_y, 0.9, 0.25, 0.25, 1.0)
-  draw_trajectory(player_x, player_y, velocity_x + launch_x, velocity_y + launch_y)
+  draw_trajectory(player_x, player_y, launch_x, launch_y)
 
   if not mouse_down then
-    Rigidbody2D.set_velocity(player.entity_id, velocity_x + launch_x, velocity_y + launch_y)
+    Rigidbody2D.set_velocity(player.entity_id, launch_x, launch_y)
     player.slingshot_active = true
     player.slingshot_frames = 0
     player.can_slingshot = false

@@ -47,8 +47,6 @@ function Platformer.reset_to_spawn_if_fallen(player)
   player.can_slingshot = false
   player.aiming = false
   player.aiming_freezes_motion = false
-  player.aim_velocity_x = 0.0
-  player.aim_velocity_y = 0.0
   state.camera_reset_requested = true
   return true
 end
