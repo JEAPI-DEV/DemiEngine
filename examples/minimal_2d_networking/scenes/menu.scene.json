@@ -1,0 +1,32 @@
+{
+  "format_version": 1,
+  "id": "scene://minimal_2d/menu",
+  "name": "Minimal Menu",
+  "hud": "menu.hud.json",
+  "entities": [
+    {
+      "id": "ent_camera_menu",
+      "name": "Menu Camera",
+      "components": {
+        "Transform2D": {
+          "position": [0.0, 0.0],
+          "rotation": 0.0,
+          "scale": [1.0, 1.0]
+        },
+        "Camera2D": {
+          "clear_color": [0.02, 0.015, 0.09, 1.0],
+          "orthographic_size": 10.0
+        }
+      }
+    },
+    {
+      "id": "ent_menu_controller",
+      "name": "Menu Controller",
+      "components": {
+        "LuaScript": {
+          "module": "script://scripts/menu_scene.lua"
+        }
+      }
+    }
+  ]
+}

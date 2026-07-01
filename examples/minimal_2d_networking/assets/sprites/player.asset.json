@@ -1,0 +1,10 @@
+{
+  "format_version": 1,
+  "id": "asset://sprites/player",
+  "type": "Texture2D",
+  "source": "player.ppm",
+  "importer": "ppm-texture",
+  "settings": {
+    "filter": "nearest"
+  }
+}
