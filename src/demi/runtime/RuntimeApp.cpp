@@ -125,7 +125,7 @@ int runProject(const RuntimeOptions& options) {
   const AssetRegistry assetRegistry = loadAssetRegistry(loaded.project.projectDirectory);
   renderer2D.loadTextureAssets(assetRegistry);
   AudioSystem audioSystem;
-  if (audioSystem.initialize()) {
+  if (options.maxFrames == 0 && audioSystem.initialize()) {
     audioSystem.loadAudioAssets(assetRegistry);
   }
   const Camera2DComponent fallbackCamera;

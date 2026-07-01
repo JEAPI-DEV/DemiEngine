@@ -1,7 +1,9 @@
 #pragma once
 
 #include "demi/runtime/SceneData.h"
+#include "demi/diagnostics/Diagnostic.h"
 
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -34,6 +36,10 @@ public:
   [[nodiscard]] bool addEntityPosition(const std::string& entityId, float dx, float dy);
   [[nodiscard]] bool setEntityPosition(const std::string& entityId, float x, float y);
   [[nodiscard]] std::optional<Vec2> entityPosition(const std::string& entityId) const;
+  [[nodiscard]] std::optional<float> entityRotation(const std::string& entityId) const;
+  [[nodiscard]] bool setEntityRotation(const std::string& entityId, float rotation);
+  [[nodiscard]] std::optional<Vec2> entityScale(const std::string& entityId) const;
+  [[nodiscard]] bool setEntityScale(const std::string& entityId, float x, float y);
   [[nodiscard]] std::optional<std::string> findEntityId(const std::string& idOrName) const;
   [[nodiscard]] bool destroyEntity(const std::string& entityId);
   [[nodiscard]] std::optional<Vec2> getRigidbodyVelocity(const std::string& entityId) const;
@@ -74,20 +80,48 @@ public:
   void clearWindowModeDirty();
   void setPhysicsEnabled(bool enabled);
   [[nodiscard]] bool physicsEnabled() const;
+  [[nodiscard]] std::uint64_t addTimer(float seconds, bool repeating, int callbackRef);
+  [[nodiscard]] bool cancelTimer(std::uint64_t timerId);
+  [[nodiscard]] std::uint64_t addEventSubscription(std::string eventName, int callbackRef);
+  [[nodiscard]] bool removeEventSubscription(std::uint64_t subscriptionId);
+  [[nodiscard]] int emitEvent(const std::string& eventName, int payloadIndex);
   void start();
   void update(float dt);
   void fixedUpdate(float dt);
   void destroy();
 
+  [[nodiscard]] static Diagnostics checkScriptSyntax(const std::filesystem::path& path);
+
 private:
   struct ScriptInstance {
     std::string entityId;
     std::string module;
+    std::filesystem::path path;
+    std::filesystem::file_time_type lastWriteTime{};
     int tableRef = 0;
   };
 
+  struct TimerInstance {
+    std::uint64_t id = 0;
+    float remaining = 0.0F;
+    float interval = 0.0F;
+    bool repeating = false;
+    bool cancelled = false;
+    int callbackRef = 0;
+  };
+
+  struct EventSubscription {
+    std::uint64_t id = 0;
+    std::string eventName;
+    bool cancelled = false;
+    int callbackRef = 0;
+  };
+
   void dispatchHudEvents();
+  void updateTimers(float dt);
+  void reloadChangedScripts();
   void unloadScripts();
+  void clearTimersAndEvents();
   [[nodiscard]] std::unordered_map<std::string, SaveValue>& loadSaveSlot(const std::string& slot);
   [[nodiscard]] bool writeSaveSlot(const std::string& slot);
 
@@ -107,6 +141,10 @@ private:
   std::optional<std::string> pendingSceneLoad_;
   std::unordered_map<std::string, std::unordered_map<std::string, SaveValue>> saves_;
   std::vector<ScriptInstance> scripts_;
+  std::vector<TimerInstance> timers_;
+  std::vector<EventSubscription> eventSubscriptions_;
+  std::uint64_t nextTimerId_ = 1;
+  std::uint64_t nextEventSubscriptionId_ = 1;
 };
 
 } // namespace demi::runtime

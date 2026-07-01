@@ -6,6 +6,14 @@ project(DemiEngine
   LANGUAGES CXX
 )
 
+include(FetchContent)
+
+FetchContent_Declare(sol2
+  GIT_REPOSITORY https://github.com/ThePhD/sol2.git
+  GIT_TAG c1f95a773c6f8f4fde8ca3efe872e7286afe4444
+)
+FetchContent_MakeAvailable(sol2)
+
 option(DEMI_ENABLE_NETWORK "Enable optional ENet networking module" OFF)
 option(DEMI_ENABLE_MEDIA "Enable FFmpeg-backed media module" OFF)
 
@@ -43,7 +51,10 @@ endif()
 
 add_library(demi-runtime-lib STATIC
   src/demi/runtime/AudioSystem.cpp
+  src/demi/runtime/LuaScriptHostBindings.cpp
   src/demi/runtime/LuaScriptHost.cpp
+  src/demi/runtime/LuaScriptHostPersistence.cpp
+  src/demi/runtime/LuaScriptHostServices.cpp
   src/demi/runtime/Physics2D.cpp
   src/demi/runtime/Renderer2D.cpp
   src/demi/runtime/RuntimeApp.cpp
@@ -73,9 +84,11 @@ if(TARGET PkgConfig::LUA54)
   target_link_libraries(demi-runtime-lib PRIVATE PkgConfig::LUA54)
   target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_LUA54=1)
 else()
-  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_LUA54=0)
-  message(WARNING "Lua 5.4 was not found. Lua scripts will be skipped by the runtime.")
+  message(FATAL_ERROR "Lua 5.4 was not found. Install lua5.4 development files to build DemiEngine scripting.")
 endif()
+
+target_link_libraries(demi-runtime-lib PRIVATE sol2::sol2)
+target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_SOL2=1)
 
 if(TARGET PkgConfig::MPG123)
   target_link_libraries(demi-runtime-lib PRIVATE PkgConfig::MPG123)
@@ -87,6 +100,7 @@ endif()
 
 add_executable(demi src/cli/main.cpp)
 target_link_libraries(demi PRIVATE demi-core demi-runtime-lib)
+target_compile_definitions(demi PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 add_executable(demi-runtime src/runtime/main.cpp)
 target_link_libraries(demi-runtime PRIVATE demi-core demi-runtime-lib)
@@ -100,10 +114,20 @@ target_link_libraries(demi-smoke-tests PRIVATE demi-core)
 add_executable(demi-physics2d-tests tests/physics2d_tests.cpp)
 target_link_libraries(demi-physics2d-tests PRIVATE demi-runtime-lib)
 
+add_executable(demi-lua-scripting-tests tests/lua_scripting_tests.cpp)
+target_link_libraries(demi-lua-scripting-tests PRIVATE demi-runtime-lib)
+
 enable_testing()
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-physics2d-tests COMMAND demi-physics2d-tests)
+add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
 add_test(NAME demi-runtime-minimal-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d/demi.project.json --frames 1
 )
 set_tests_properties(demi-runtime-minimal-frame PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
+add_test(NAME demi-script-check-minimal-player
+  COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d/scripts/player.lua
+)
+add_test(NAME demi-lua-stubs-generate
+  COMMAND demi lua-stubs generate ${CMAKE_BINARY_DIR}/generated/demi.lua
+)

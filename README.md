@@ -141,7 +141,7 @@ All source formats must include `format_version`. Generated or cooked data belon
 
 ## Lua Direction
 
-Gameplay code will be written in Lua 5.4. The current runtime exposes `Debug.log` and calls `on_create`, `on_start`, `on_update(dt)`, `on_fixed_update(dt)`, and `on_destroy` when those functions exist on the returned script table. The initial LuaLS stub is in `scripts/stubs/demi.lua`; future phases should generate it from C++ bindings.
+Gameplay code is written in Lua 5.4 when the dependency is available. The runtime exposes explicit services for debug logging, input, entities, transforms, timers, events, physics, HUD, saves, audio, runtime control, and scene switching. Scripts can implement `on_create`, `on_start`, `on_update(dt)`, `on_fixed_update(dt)`, and `on_destroy`; HUD button scripts can also implement UI event callbacks. Use `demi script check <script>` for Lua syntax diagnostics. LuaLS/EmmyLua annotations live in `scripts/stubs/demi.lua`, and `demi lua-stubs generate [path]` copies that file to a target location.
 
 ## Roadmap
 

@@ -2,6 +2,8 @@
 
 Lua 5.4 scripts are loaded when Lua is available. Scripts return a table and may implement lifecycle functions.
 
+Scripts attached to the project, entities, and HUD buttons are checked for direct file timestamp changes each update. When a script file changes, the runtime calls \code{on\_destroy} on the old table, loads the new table, restores the engine-provided fields, and calls \code{on\_create} and \code{on\_start}. Lua syntax can be checked from automation with \code{demi script check <script>}. LuaLS/EmmyLua annotations for the exposed runtime API are maintained in \filepath{scripts/stubs/demi.lua}; \code{demi lua-stubs generate [path]} copies that checked-in stub file to a requested location.
+
 \section{Lifecycle}
 
 Supported lifecycle functions are:
@@ -30,7 +32,10 @@ The current Lua services include:
 \begin{longtable}{>{\ttfamily}p{0.30\textwidth}p{0.58\textwidth}}
 Debug & Logging, debug lines, and clearing debug lines. \\
 Input & Keyboard, mouse buttons, mouse position, mouse world position, viewport size. \\
-Entity & Entity lookup, creation, destruction, and transform position access. \\
+Entity & Entity lookup, creation, destruction, and compatibility transform position access. \\
+Transform & Position, rotation, and scale access for entities with \code{Transform2D}. \\
+Timer & Delayed and repeating callbacks cancellable by timer id. \\
+Events & In-process named event subscriptions and payload delivery. \\
 Rigidbody2D & Get and set velocity and apply impulses. \\
 Physics2D & Overlap box queries. \\
 Hud & Imperative HUD text, rects, visibility, colors, groups, and text updates. \\

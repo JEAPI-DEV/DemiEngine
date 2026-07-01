@@ -2,9 +2,11 @@
 #include "demi/assets/AssetRegistry.h"
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/RuntimeApp.h"
+#include "demi/runtime/LuaScriptHost.h"
 #include "demi/schema/Validation.h"
 
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -15,6 +17,14 @@ namespace {
 constexpr int ExitSuccess = 0;
 constexpr int ExitValidationFailure = 1;
 constexpr int ExitUsageError = 2;
+
+std::filesystem::path sourceRoot() {
+#ifdef DEMI_SOURCE_DIR
+  return std::filesystem::path(DEMI_SOURCE_DIR);
+#else
+  return std::filesystem::current_path();
+#endif
+}
 
 void printHelp() {
   std::cout << "DemiEngine CLI\n"
@@ -30,6 +40,7 @@ void printHelp() {
             << "  demi asset deps <asset>\n"
             << "  demi save inspect <save>\n"
             << "  demi script check <script>\n"
+            << "  demi lua-stubs generate [path]\n"
             << "  demi test\n"
             << "  demi run --project <project> [--frames count]\n"
             << "  demi editor --project <project>\n";
@@ -176,6 +187,51 @@ int runAsset(const std::vector<std::string>& args) {
   return ExitUsageError;
 }
 
+int runScript(const std::vector<std::string>& args) {
+  if (args.size() < 3 || args[1] != "check") {
+    std::cerr << "script requires: demi script check <script>.\n";
+    return ExitUsageError;
+  }
+
+  const demi::Diagnostics diagnostics = demi::runtime::LuaScriptHost::checkScriptSyntax(args[2]);
+  demi::printDiagnosticsText(std::cout, diagnostics);
+  return demi::hasErrors(diagnostics) ? ExitValidationFailure : ExitSuccess;
+}
+
+int runLuaStubs(const std::vector<std::string>& args) {
+  if (args.size() < 2 || args[1] != "generate") {
+    std::cerr << "lua-stubs requires: demi lua-stubs generate [path].\n";
+    return ExitUsageError;
+  }
+
+  const std::filesystem::path outputPath = args.size() >= 3 ? std::filesystem::path(args[2]) : std::filesystem::path("scripts/stubs/demi.lua");
+  std::error_code error;
+  if (!outputPath.parent_path().empty()) {
+    std::filesystem::create_directories(outputPath.parent_path(), error);
+  }
+  if (error) {
+    std::cerr << "Failed to create stub directory: " << outputPath.parent_path().string() << '\n';
+    return ExitValidationFailure;
+  }
+
+  const std::filesystem::path sourcePath = sourceRoot() / "scripts" / "stubs" / "demi.lua";
+  std::ifstream input(sourcePath);
+  if (!input) {
+    std::cerr << "Failed to read Lua stubs: " << sourcePath.string() << '\n';
+    return ExitValidationFailure;
+  }
+
+  std::ofstream output(outputPath);
+  if (!output) {
+    std::cerr << "Failed to write Lua stubs: " << outputPath.string() << '\n';
+    return ExitValidationFailure;
+  }
+
+  output << input.rdbuf();
+  std::cout << "Wrote LuaLS stubs: " << outputPath.string() << '\n';
+  return ExitSuccess;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -218,9 +274,12 @@ int main(int argc, char** argv) {
     return runSave(args);
   }
 
-  if (args[0] == "script" && args.size() >= 3 && args[1] == "check") {
-    std::cout << "Lua script static checks are not implemented yet: " << args[2] << '\n';
-    return ExitSuccess;
+  if (args[0] == "script") {
+    return runScript(args);
+  }
+
+  if (args[0] == "lua-stubs") {
+    return runLuaStubs(args);
   }
 
   if (args[0] == "test") {

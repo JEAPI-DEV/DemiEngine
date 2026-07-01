@@ -22,6 +22,8 @@ cmake --build --preset linux-debug
 ctest --preset linux-debug
 ./build/linux-debug/demi --help
 ./build/linux-debug/demi validate examples/minimal_2d/demi.project.json
+./build/linux-debug/demi script check examples/minimal_2d/scripts/player.lua
+./build/linux-debug/demi lua-stubs generate
 \end{lstlisting}
 
 The runtime can be launched with:

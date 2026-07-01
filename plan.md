@@ -280,7 +280,7 @@ Also create `AGENTS.md` during implementation with:
 - Bind entity, scene, transform, input, debug, timer, and events.
 - Add script components and lifecycle hooks.
 - Add Lua error reporting and hot reload.
-- Generate LuaLS/EmmyLua stubs from bindings.
+- Generate LuaLS/EmmyLua stubs from bindings. -> (by source code not hard coded lua implementation in source code) -> Skip for now
 - Add `demi script check`.
 
 ### Phase 5: Editor MVP
@@ -304,14 +304,13 @@ Also create `AGENTS.md` during implementation with:
 - Add dependency graph queries.
 - Add cooked asset output directory and generated-file policy.
 
-### Phase 8: Optional Networking
+### Phase 8: Networking
 - Add ENet module guarded by a CMake option.
 - Add host/connect/disconnect and message APIs.
 - Add basic replicated component examples.
 - Add local smoke test for two clients or simulated peers.
 
 ### Phase 9: Example Games
-- `minimal_2d`: movement, sprite, input, Lua script, save file.
 - `isometric_base_builder`: isometric grid, placement rules, selectable buildings, JSON save/load.
 - `fighting_game_2d`: 2D movement, hitboxes, animation states, audio, Lua gameplay scripts.
 - Each example must run through editor play mode and CLI smoke tests.
