@@ -33,13 +33,12 @@ function Platformer.is_touching_platform(entity_id)
   return Physics2D.overlap_box(x, y - 0.50, 0.78, 0.10, entity_id)
 end
 
-function Platformer.reset_to_spawn_if_fallen(player)
+function Platformer.check_game_over_if_fallen(player)
   local x, y = Entity.get_position(player.entity_id)
   if y == nil or y > config.fall_reset_y then
     return false
   end
 
-  Entity.set_position(player.entity_id, state.respawn_x, state.respawn_y)
   Rigidbody2D.set_velocity(player.entity_id, 0.0, 0.0)
   Audio.play("asset://audio/death")
   player.slingshot_active = false
@@ -47,7 +46,8 @@ function Platformer.reset_to_spawn_if_fallen(player)
   player.can_slingshot = false
   player.aiming = false
   player.aiming_freezes_motion = false
-  state.camera_reset_requested = true
+  state.game_over = true
+  state.game_over_pending = true
   return true
 end
 

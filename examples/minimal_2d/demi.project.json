@@ -1,11 +1,15 @@
 {
   "format_version": 1,
   "name": "Minimal 2D",
-  "main_scene": "scene://minimal_2d/main",
+  "main_scene": "scene://minimal_2d/menu",
   "scenes": [
     {
-      "id": "scene://minimal_2d/main",
-      "path": "scenes/main.scene.json"
+      "id": "scene://minimal_2d/menu",
+      "path": "scenes/menu.scene.json"
+    },
+    {
+      "id": "scene://minimal_2d/platformer",
+      "path": "scenes/platformer.scene.json"
     },
     {
       "id": "scene://minimal_2d/spiral",

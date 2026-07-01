@@ -11,8 +11,11 @@ local Menu = {
 
 local PLAYER_ID = "ent_player"
 local SETTINGS_SLOT = "settings"
-local SCENE_MAIN = "scene://minimal_2d/main"
+local SCENE_MENU = "scene://minimal_2d/menu"
+local SCENE_PLATFORMER = "scene://minimal_2d/platformer"
 local SCENE_SPIRAL = "scene://minimal_2d/spiral"
+local EXTRA_JUMP_SLOT_IDS = { "extra_jump_slot_1", "extra_jump_slot_2", "extra_jump_slot_3" }
+local EXTRA_JUMP_COIN_IDS = { "extra_jump_coin_1", "extra_jump_coin_2", "extra_jump_coin_3" }
 
 local function show_group(group, visible)
   Hud.set_group_visible(group, visible)
@@ -69,6 +72,15 @@ local function hide_menu()
   show_group("menu_sound", false)
   show_group("menu_video", false)
   show_group("menu_dropdown", false)
+  show_group("game_over", false)
+end
+
+local function set_game_hud_visible(visible)
+  Hud.set_visible("points", visible)
+  for i = 1, 3 do
+    Hud.set_visible(EXTRA_JUMP_SLOT_IDS[i], visible)
+    Hud.set_visible(EXTRA_JUMP_COIN_IDS[i], false)
+  end
 end
 
 local function show_main()
@@ -128,11 +140,13 @@ local function select_level(scene_id, level)
   state.level = level
   state.auto_start = true
   state.fall_floor_y = nil
+  state.game_over = false
+  state.game_over_pending = false
   Scene.load(scene_id)
 end
 
 function Menu.start_game()
-  select_level(SCENE_MAIN, 1)
+  select_level(SCENE_PLATFORMER, 1)
 end
 
 function Menu.apply_settings()
@@ -144,12 +158,16 @@ end
 
 function Menu.start()
   state.menu_open = true
+  state.game_over = false
+  state.game_over_pending = false
   Menu.screen = "main"
   Menu.active_tab = "sound"
   Menu.dropdown_open = false
+  Menu.enter_was_down = true
   Menu.apply_settings()
   Runtime.set_physics_enabled(false)
-  Hud.set_visible("points", false)
+  set_game_hud_visible(false)
+  show_group("game_over", false)
   show_main()
 end
 
@@ -157,8 +175,10 @@ function Menu.begin_active_level()
   hide_menu()
   state.menu_open = false
   state.game_started = true
+  state.game_over = false
+  state.game_over_pending = false
   Runtime.set_physics_enabled(true)
-  Hud.set_visible("points", true)
+  set_game_hud_visible(true)
   local px, py = Entity.get_position(PLAYER_ID)
   if px ~= nil and py ~= nil then
     state.respawn_x = px
@@ -168,11 +188,33 @@ function Menu.begin_active_level()
   Rigidbody2D.set_velocity(PLAYER_ID, 0.0, 0.0)
 end
 
+function Menu.show_game_over(points)
+  state.menu_open = true
+  state.game_started = false
+  state.game_over = true
+  state.game_over_pending = false
+  Runtime.set_physics_enabled(false)
+  set_game_hud_visible(false)
+  hide_menu()
+  Hud.set_text("game_over_points", "POINTS: " .. tostring(points))
+  show_group("game_over", true)
+  Menu.screen = "game_over"
+end
+
+function Menu.back_to_main_menu()
+  state.auto_start = false
+  state.game_over = false
+  state.game_over_pending = false
+  state.extra_jumps = 0
+  state.level = 1
+  Scene.load(SCENE_MENU)
+end
+
 function Menu.handle_click(id)
   if id == "menu_button_levels" then
     show_levels()
   elseif id == "menu_button_level_1" then
-    select_level(SCENE_MAIN, 1)
+    select_level(SCENE_PLATFORMER, 1)
   elseif id == "menu_button_level_2" then
     select_level(SCENE_SPIRAL, 2)
   elseif id == "menu_levels_back" then
@@ -201,6 +243,8 @@ function Menu.handle_click(id)
     set_window_mode("borderless")
   elseif id == "menu_window_mode_fullscreen" then
     set_window_mode("fullscreen")
+  elseif id == "game_over_back" then
+    Menu.back_to_main_menu()
   end
 end
 
@@ -214,7 +258,7 @@ function Menu.update(dt)
 
   if Menu.screen == "levels" then
     if Input.is_down("1") then
-      select_level(SCENE_MAIN, 1)
+      select_level(SCENE_PLATFORMER, 1)
     elseif Input.is_down("2") then
       select_level(SCENE_SPIRAL, 2)
     elseif Input.is_down("escape") then

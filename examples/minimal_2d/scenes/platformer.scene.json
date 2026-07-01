@@ -1,8 +1,8 @@
 {
   "format_version": 1,
-  "id": "scene://minimal_2d/main",
-  "name": "Minimal Main",
-  "hud": "main.hud.json",
+  "id": "scene://minimal_2d/platformer",
+  "name": "Platformer Run",
+  "hud": "game.hud.json",
   "entities": [
     {
       "id": "ent_camera_main",

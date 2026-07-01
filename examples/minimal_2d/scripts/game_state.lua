@@ -8,4 +8,7 @@ return {
   level = 1,
   pending_scene = nil,
   auto_start = false,
+  extra_jumps = 0,
+  game_over = false,
+  game_over_pending = false,
 }

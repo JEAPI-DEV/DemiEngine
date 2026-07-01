@@ -19,7 +19,7 @@ function Player:on_create()
 end
 
 function Player:on_start()
-  Debug.log("Drag with left mouse after touching a platform to slingshot. Press P for points.")
+  Debug.log("Drag with left mouse after touching a platform to slingshot. Coins stack up to three extra airborne slingshots.")
   local x, y = Entity.get_position(self.entity_id)
   if x ~= nil and y ~= nil then
     self.spawn_x = x
@@ -31,13 +31,15 @@ end
 
 function Player:on_update(dt)
   Debug.clear_lines()
-  if state.menu_open then
+  if state.menu_open or state.game_over then
     self.jump_was_down = false
     self.mouse_was_down = Input.mouse_down("left")
     return
   end
 
-  platformer.reset_to_spawn_if_fallen(self)
+  if platformer.check_game_over_if_fallen(self) then
+    return
+  end
 
   local player_x, player_y = Entity.get_position(self.entity_id)
   if player_x == nil or player_y == nil then
@@ -50,7 +52,8 @@ function Player:on_update(dt)
 
   slingshot.update_recharge(self, touching_platform)
 
-  if slingshot.update_aim(self, player_x, player_y, self.can_slingshot, grounded, mouse_down) then
+  local can_slingshot = self.can_slingshot or (state.extra_jumps or 0) > 0
+  if slingshot.update_aim(self, player_x, player_y, can_slingshot, grounded, mouse_down) then
     return
   end
 

@@ -1,4 +1,5 @@
 local config = require("player_config")
+local state = require("game_state")
 
 local Slingshot = {}
 
@@ -50,6 +51,10 @@ function Slingshot.update_aim(player, player_x, player_y, can_slingshot, grounde
   draw_trajectory(player_x, player_y, launch_x, launch_y)
 
   if not mouse_down then
+    if not player.can_slingshot then
+      state.extra_jumps = math.max((state.extra_jumps or 0) - 1, 0)
+    end
+
     Rigidbody2D.set_velocity(player.entity_id, launch_x, launch_y)
     player.slingshot_active = true
     player.slingshot_frames = 0

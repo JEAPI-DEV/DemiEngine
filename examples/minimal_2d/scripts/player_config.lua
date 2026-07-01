@@ -5,4 +5,5 @@ return {
   max_pull = 2.8,
   sling_force = 6.5,
   trajectory_gravity = -18.0,
+  max_extra_jumps = 3,
 }

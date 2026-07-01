@@ -41,7 +41,7 @@
     { "type": "rect", "id": "card1_bg", "group": "menu_levels", "position": [70.0, 130.0], "size": [380.0, 332.0], "color": [0.10, 0.10, 0.20, 0.92], "visible": false },
     { "type": "rect", "id": "card1_glow", "group": "menu_levels", "position": [78.0, 138.0], "size": [364.0, 4.0], "color": [0.38, 0.92, 1.0, 0.66], "visible": false },
     { "type": "text", "id": "card1_number", "group": "menu_levels", "text": "01", "position": [92.0, 156.0], "scale": 6.0, "color": [0.38, 0.92, 1.0, 0.92], "visible": false },
-    { "type": "text", "id": "card1_title", "group": "menu_levels", "text": "ORBIT RUN", "position": [92.0, 212.0], "scale": 4.0, "color": [0.94, 0.98, 1.0, 1.0], "visible": false },
+    { "type": "text", "id": "card1_title", "group": "menu_levels", "text": "PLATFORMER", "position": [92.0, 212.0], "scale": 4.0, "color": [0.94, 0.98, 1.0, 1.0], "visible": false },
     { "type": "text", "id": "card1_desc", "group": "menu_levels", "text": "HORIZONTAL SLINGSHOT RUN", "position": [92.0, 252.0], "scale": 2.5, "color": [1.0, 0.70, 0.36, 0.92], "visible": false },
     { "type": "rect", "id": "card1_preview_bg", "group": "menu_levels", "position": [92.0, 282.0], "size": [336.0, 96.0], "color": [0.05, 0.06, 0.11, 0.94], "visible": false },
     { "type": "rect", "id": "card1_plat_1", "group": "menu_levels", "position": [106.0, 346.0], "size": [62.0, 6.0], "color": [0.30, 0.34, 0.52, 0.94], "visible": false },
@@ -86,8 +86,6 @@
     { "type": "text", "id": "menu_dropdown_arrow", "group": "menu_video", "text": "+", "position": [664.0, 306.0], "scale": 3.0, "color": [1.0, 0.78, 0.46, 1.0], "visible": false },
     { "type": "button", "id": "menu_window_mode_windowed", "group": "menu_dropdown", "label": "WINDOWED", "position": [260.0, 344.0], "size": [440.0, 42.0], "scale": 3.0, "color": [0.17, 0.20, 0.38, 0.94], "hover_color": [0.28, 0.33, 0.52, 0.94], "text_color": [0.94, 0.98, 1.0, 1.0], "script": "script://scripts/menu_button.lua", "visible": false },
     { "type": "button", "id": "menu_window_mode_borderless", "group": "menu_dropdown", "label": "BORDERLESS", "position": [260.0, 390.0], "size": [440.0, 42.0], "scale": 3.0, "color": [0.17, 0.20, 0.38, 0.94], "hover_color": [0.28, 0.33, 0.52, 0.94], "text_color": [0.94, 0.98, 1.0, 1.0], "script": "script://scripts/menu_button.lua", "visible": false },
-    { "type": "button", "id": "menu_window_mode_fullscreen", "group": "menu_dropdown", "label": "FULLSCREEN", "position": [260.0, 436.0], "size": [440.0, 42.0], "scale": 3.0, "color": [0.17, 0.20, 0.38, 0.94], "hover_color": [0.28, 0.33, 0.52, 0.94], "text_color": [0.94, 0.98, 1.0, 1.0], "script": "script://scripts/menu_button.lua", "visible": false },
-
-    { "type": "text", "id": "points", "group": "game_hud", "text": "POINTS: 0", "position": [24.0, 24.0], "scale": 3.0, "color": [1.0, 1.0, 1.0, 1.0], "visible": false }
+    { "type": "button", "id": "menu_window_mode_fullscreen", "group": "menu_dropdown", "label": "FULLSCREEN", "position": [260.0, 436.0], "size": [440.0, 42.0], "scale": 3.0, "color": [0.17, 0.20, 0.38, 0.94], "hover_color": [0.28, 0.33, 0.52, 0.94], "text_color": [0.94, 0.98, 1.0, 1.0], "script": "script://scripts/menu_button.lua", "visible": false }
   ]
 }

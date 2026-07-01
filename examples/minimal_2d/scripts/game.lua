@@ -1,4 +1,5 @@
 local state = require("game_state")
+local config = require("player_config")
 local main_menu = require("main_menu")
 local level_main = require("level_main")
 local level_spiral = require("level_spiral")
@@ -9,12 +10,17 @@ local Game = {
   coins = {},
   platforms = {},
   level = nil,
+  score_origin_x = nil,
+  score_origin_y = nil,
+  best_distance = 0.0,
 }
 
 local PLAYER_ID = "ent_player"
 local COIN_COLLECT_RADIUS = 0.75
 local MIN_COIN_DISTANCE = 2.15
 local COIN_PLATFORM_CLEARANCE = 0.8
+local EXTRA_JUMP_SLOT_IDS = { "extra_jump_slot_1", "extra_jump_slot_2", "extra_jump_slot_3" }
+local EXTRA_JUMP_COIN_IDS = { "extra_jump_coin_1", "extra_jump_coin_2", "extra_jump_coin_3" }
 
 local function active_level()
   return state.level == 2 and level_spiral or level_main
@@ -28,28 +34,59 @@ function Game:reset_level_state()
   self.platforms = {}
   self.points = 0
   self.next_coin_index = 1
+  self.score_origin_x = nil
+  self.score_origin_y = nil
+  self.best_distance = 0.0
+  state.extra_jumps = 0
   self.level = active_level()
   self.level:reset()
 end
 
-function Game:on_start()
-  self:reset_level_state()
+function Game:update_points_hud()
   Hud.set_text("points", "POINTS: " .. tostring(self.points))
-  Hud.set_visible("points", false)
-  if state.auto_start then
-    state.auto_start = false
-    main_menu.apply_settings()
-    main_menu.begin_active_level()
-    self.level.on_start(self)
-  else
-    self.level.on_start(self)
-    main_menu.start()
+end
+
+function Game:update_extra_jump_hud(visible)
+  local extra_jumps = state.extra_jumps or 0
+  for i = 1, config.max_extra_jumps do
+    Hud.set_visible(EXTRA_JUMP_SLOT_IDS[i], visible)
+    Hud.set_visible(EXTRA_JUMP_COIN_IDS[i], visible and i <= extra_jumps)
   end
 end
 
-function Game:add_points(amount)
-  self.points = self.points + amount
-  Hud.set_text("points", "POINTS: " .. tostring(self.points))
+function Game:on_start()
+  if not state.auto_start then
+    Runtime.set_physics_enabled(false)
+    return
+  end
+
+  state.auto_start = false
+  self:reset_level_state()
+  self:update_points_hud()
+  self:update_extra_jump_hud(false)
+  Hud.set_visible("points", false)
+  main_menu.apply_settings()
+  main_menu.begin_active_level()
+  self.level.on_start(self)
+end
+
+function Game:update_distance_score(player_x, player_y)
+  if self.score_origin_x == nil or self.score_origin_y == nil then
+    self.score_origin_x = player_x
+    self.score_origin_y = player_y
+  end
+
+  local distance = player_x - self.score_origin_x
+  if state.level == 2 then
+    distance = player_y - self.score_origin_y
+  end
+
+  self.best_distance = math.max(self.best_distance, distance, 0.0)
+  local points = math.floor(self.best_distance)
+  if points ~= self.points then
+    self.points = points
+    self:update_points_hud()
+  end
 end
 
 function Game:create_platform(id, name, x, y, width, height)
@@ -128,6 +165,10 @@ function Game:create_coin(x, y)
 end
 
 function Game:collect_coins(player_x, player_y)
+  if (state.extra_jumps or 0) >= config.max_extra_jumps then
+    return
+  end
+
   local radius_squared = COIN_COLLECT_RADIUS * COIN_COLLECT_RADIUS
   for id, coin in pairs(self.coins) do
     if not coin.collected then
@@ -137,15 +178,23 @@ function Game:collect_coins(player_x, player_y)
         coin.collected = true
         Entity.destroy(id)
         Audio.play("asset://audio/collect_coin")
-        self:add_points(1)
+        state.extra_jumps = math.min((state.extra_jumps or 0) + 1, config.max_extra_jumps)
+        self:update_extra_jump_hud(true)
+        if state.extra_jumps >= config.max_extra_jumps then
+          return
+        end
       end
     end
   end
 end
 
 function Game:on_update(dt)
-  if state.menu_open then
-    main_menu.update(dt)
+  if state.game_over_pending then
+    main_menu.show_game_over(self.points)
+    return
+  end
+
+  if state.menu_open or state.game_over or self.level == nil then
     return
   end
 
@@ -157,7 +206,9 @@ function Game:on_update(dt)
   self.level.update_camera(self, player_x, player_y)
   self.level.generate_ahead(self)
   self.level.on_update_track(self, player_x, player_y)
+  self:update_distance_score(player_x, player_y)
   self:collect_coins(player_x, player_y)
+  self:update_extra_jump_hud(true)
 end
 
 function Game:on_fixed_update(dt)
