@@ -52,6 +52,9 @@ function Probe:on_start()
   end
   Cutscene.resume()
   Cutscene.skip()
+  if Hud.set_button_label("button_start", "GO") then
+    Save.set_string("test", "button_label", "updated")
+  end
   Runtime.set_max_fps(144)
   if Runtime.get_max_fps() == 144 then
     Save.set_number("test", "max_fps", 144)
@@ -121,6 +124,10 @@ return Button
   }
   if (host.saveNumber("test", "max_fps").value_or(0.0F) != 144.0F) {
     std::cerr << "Runtime max FPS Lua API did not persist expected value.\n";
+    return 1;
+  }
+  if (host.saveString("test", "button_label") != "updated" || world.hudButtons[0].label != "GO") {
+    std::cerr << "Hud.set_button_label did not update the HUD button label.\n";
     return 1;
   }
   host.update(1.0F / 60.0F);

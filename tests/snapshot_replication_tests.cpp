@@ -192,6 +192,9 @@ function Probe:on_start()
   assert_true(NetworkSession.apply_claim_once("coin_4", NetworkSession.sender_id(), true, { x = 1.0, y = 2.0 }), "engine NetworkSession did not apply valid local claim")
   assert_true(engine_removed, "engine NetworkSession did not call on_removed")
   assert_true(engine_claimed_local, "engine NetworkSession did not call on_claimed_local")
+  assert_true(not NetworkSession.try_claim_once("coin_4", { x = 1.0, y = 2.0 }), "claimed object should not be claimable before reset")
+  NetworkSession.reset_claims()
+  assert_true(NetworkSession.register_claim_once("coin_4"), "claim reset should allow scene-reloaded objects to register as unclaimed")
 
   Save.set_string("test", "snapshot_replication", "passed")
 end

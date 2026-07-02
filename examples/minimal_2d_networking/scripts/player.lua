@@ -57,7 +57,7 @@ function Player:on_update(dt)
   slingshot.update_recharge(self, touching_platform)
 
   local can_slingshot = self.can_slingshot or (state.extra_jumps or 0) > 0
-  if slingshot.update_aim(self, player_x, player_y, can_slingshot, grounded, mouse_down) then
+  if slingshot.update_aim(self, player_x, player_y, can_slingshot, grounded, touching_platform, mouse_down) then
     return
   end
 

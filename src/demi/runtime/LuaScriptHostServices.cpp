@@ -188,6 +188,19 @@ bool LuaScriptHost::setHudText(const std::string& id, const std::string& text) {
   return false;
 }
 
+bool LuaScriptHost::setHudButtonLabel(const std::string& id, const std::string& label) {
+  if (world_ == nullptr) {
+    return false;
+  }
+  for (HudButtonElement& element : world_->hudButtons) {
+    if (element.id == id) {
+      element.label = label;
+      return true;
+    }
+  }
+  return false;
+}
+
 bool LuaScriptHost::createHudText(const std::string& id, const std::string& text, const float x, const float y, const float scale, const Color color) {
   if (world_ == nullptr) {
     return false;

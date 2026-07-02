@@ -51,6 +51,16 @@ function Game:update_points_hud()
   Hud.set_text("points", "POINTS: " .. tostring(self.points))
 end
 
+function Game:reset_local_score()
+  self.points = 0
+  self.score_origin_x = nil
+  self.score_origin_y = nil
+  self.best_distance = 0.0
+  state.extra_jumps = 0
+  self:update_points_hud()
+  self:update_extra_jump_hud(true)
+end
+
 function Game:update_extra_jump_hud(visible)
   local extra_jumps = state.extra_jumps or 0
   for i = 1, config.max_extra_jumps do
@@ -243,6 +253,11 @@ end
 
 function Game:on_update(dt)
   self:update_fps_hud(dt)
+
+  if state.score_reset_requested then
+    state.score_reset_requested = false
+    self:reset_local_score()
+  end
 
   if state.game_over_pending then
     main_menu.show_game_over(self.points)

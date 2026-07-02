@@ -64,6 +64,7 @@ public:
   [[nodiscard]] std::vector<PhysicsContact2D> physicsContacts(const std::string& entityId) const;
   [[nodiscard]] bool createEntity(Entity entity);
   [[nodiscard]] bool setHudText(const std::string& id, const std::string& text);
+  [[nodiscard]] bool setHudButtonLabel(const std::string& id, const std::string& label);
   [[nodiscard]] bool createHudText(const std::string& id, const std::string& text, float x, float y, float scale, Color color);
   [[nodiscard]] bool createHudRect(const std::string& id, float x, float y, float width, float height, Color color);
   [[nodiscard]] bool setHudRect(const std::string& id, float x, float y, float width, float height);

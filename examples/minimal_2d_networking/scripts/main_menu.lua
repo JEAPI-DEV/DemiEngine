@@ -87,6 +87,15 @@ local function scene_for_level(level)
   return SCENE_PLATFORMER
 end
 
+local function active_scene()
+  return scene_for_level(state.level or 1)
+end
+
+local function multiplayer_active()
+  local session = replication.current_session()
+  return session ~= nil and session.scene_id ~= nil
+end
+
 local function set_volume(volume)
   Menu.volume = math.max(0.0, math.min(1.0, volume))
   Audio.set_master_volume(Menu.volume)
@@ -336,8 +345,34 @@ function Menu.show_game_over(points)
   set_game_hud_visible(false)
   hide_menu()
   Hud.set_text("game_over_points", "POINTS: " .. tostring(points))
+  Hud.set_button_label("game_retry", multiplayer_active() and "RESPAWN" or "TRY AGAIN")
   show_group("game_over", true)
   Menu.screen = "game_over"
+end
+
+function Menu.retry_game()
+  if multiplayer_active() then
+    state.menu_open = false
+    state.game_started = true
+    state.game_over = false
+    state.game_over_pending = false
+    state.score_reset_requested = true
+    state.camera_reset_requested = true
+    Runtime.set_physics_enabled(true)
+    set_game_hud_visible(true)
+    hide_menu()
+    Entity.set_position(PLAYER_ID, state.respawn_x, state.respawn_y)
+    Rigidbody2D.set_velocity(PLAYER_ID, 0.0, 0.0)
+    return
+  end
+
+  state.auto_start = true
+  state.game_over = false
+  state.game_over_pending = false
+  state.score_reset_requested = false
+  state.extra_jumps = 0
+  replication.reset_claims()
+  Scene.load(active_scene())
 end
 
 function Menu.back_to_main_menu()
@@ -407,6 +442,8 @@ function Menu.handle_click(id)
     begin_max_fps_edit()
   elseif id == "game_over_back" then
     Menu.back_to_main_menu()
+  elseif id == "game_retry" then
+    Menu.retry_game()
   end
 end
 

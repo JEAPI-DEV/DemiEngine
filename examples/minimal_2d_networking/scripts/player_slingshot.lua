@@ -28,7 +28,7 @@ local function draw_trajectory(origin_x, origin_y, velocity_x, velocity_y)
   end
 end
 
-function Slingshot.update_aim(player, player_x, player_y, can_slingshot, grounded, mouse_down)
+function Slingshot.update_aim(player, player_x, player_y, can_slingshot, grounded, touching_platform, mouse_down)
   if mouse_down and not player.mouse_was_down and can_slingshot then
     player.aiming = true
     player.aiming_freezes_motion = grounded
@@ -40,6 +40,10 @@ function Slingshot.update_aim(player, player_x, player_y, can_slingshot, grounde
 
   if player.aiming_freezes_motion then
     Rigidbody2D.set_velocity(player.entity_id, 0.0, 0.0)
+  end
+
+  if touching_platform then
+    player.can_slingshot = true
   end
 
   local mouse_x, mouse_y = Input.mouse_world_position()

@@ -11,4 +11,5 @@ return {
   extra_jumps = 0,
   game_over = false,
   game_over_pending = false,
+  score_reset_requested = false,
 }
