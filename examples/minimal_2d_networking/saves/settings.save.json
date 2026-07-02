@@ -4,6 +4,6 @@
   "state": {
     "master_volume": 0.8,
     "max_fps": 60,
-    "window_mode": "windowed"
+    "window_mode": "fullscreen"
   }
 }

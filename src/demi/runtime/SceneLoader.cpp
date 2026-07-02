@@ -26,19 +26,36 @@ std::string readFile(const std::filesystem::path& path, std::string& error) {
   return buffer.str();
 }
 
-std::optional<std::string> stringAfterKey(const std::string& text, std::string_view key, std::size_t start = 0) {
+std::optional<std::size_t> colonAfterKey(const std::string& text, std::string_view key, std::size_t start = 0) {
   const std::string quotedKey = "\"" + std::string(key) + "\"";
-  const std::size_t keyPos = text.find(quotedKey, start);
-  if (keyPos == std::string::npos) {
+  std::size_t cursor = start;
+
+  while (true) {
+    const std::size_t keyPos = text.find(quotedKey, cursor);
+    if (keyPos == std::string::npos) {
+      return std::nullopt;
+    }
+
+    std::size_t colon = keyPos + quotedKey.size();
+    while (colon < text.size() && std::isspace(static_cast<unsigned char>(text[colon]))) {
+      ++colon;
+    }
+
+    if (colon < text.size() && text[colon] == ':') {
+      return colon;
+    }
+
+    cursor = keyPos + quotedKey.size();
+  }
+}
+
+std::optional<std::string> stringAfterKey(const std::string& text, std::string_view key, std::size_t start = 0) {
+  const std::optional<std::size_t> colon = colonAfterKey(text, key, start);
+  if (!colon.has_value()) {
     return std::nullopt;
   }
 
-  const std::size_t colon = text.find(':', keyPos + quotedKey.size());
-  if (colon == std::string::npos) {
-    return std::nullopt;
-  }
-
-  const std::size_t firstQuote = text.find('"', colon + 1);
+  const std::size_t firstQuote = text.find('"', *colon + 1);
   if (firstQuote == std::string::npos) {
     return std::nullopt;
   }
@@ -87,13 +104,12 @@ std::optional<std::size_t> matchingClose(const std::string& text, std::size_t op
 }
 
 std::optional<std::string> objectAfterKey(const std::string& text, std::string_view key, std::size_t start = 0) {
-  const std::string quotedKey = "\"" + std::string(key) + "\"";
-  const std::size_t keyPos = text.find(quotedKey, start);
-  if (keyPos == std::string::npos) {
+  const std::optional<std::size_t> colon = colonAfterKey(text, key, start);
+  if (!colon.has_value()) {
     return std::nullopt;
   }
 
-  const std::size_t open = text.find('{', keyPos + quotedKey.size());
+  const std::size_t open = text.find('{', *colon + 1);
   if (open == std::string::npos) {
     return std::nullopt;
   }
@@ -107,13 +123,12 @@ std::optional<std::string> objectAfterKey(const std::string& text, std::string_v
 }
 
 std::optional<std::string> arrayAfterKey(const std::string& text, std::string_view key, std::size_t start = 0) {
-  const std::string quotedKey = "\"" + std::string(key) + "\"";
-  const std::size_t keyPos = text.find(quotedKey, start);
-  if (keyPos == std::string::npos) {
+  const std::optional<std::size_t> colon = colonAfterKey(text, key, start);
+  if (!colon.has_value()) {
     return std::nullopt;
   }
 
-  const std::size_t open = text.find('[', keyPos + quotedKey.size());
+  const std::size_t open = text.find('[', *colon + 1);
   if (open == std::string::npos) {
     return std::nullopt;
   }
@@ -166,34 +181,22 @@ std::optional<float> parseFloatAt(const std::string& text, std::size_t& cursor) 
 }
 
 std::optional<float> numberAfterKey(const std::string& text, std::string_view key) {
-  const std::string quotedKey = "\"" + std::string(key) + "\"";
-  const std::size_t keyPos = text.find(quotedKey);
-  if (keyPos == std::string::npos) {
+  const std::optional<std::size_t> colon = colonAfterKey(text, key);
+  if (!colon.has_value()) {
     return std::nullopt;
   }
 
-  const std::size_t colon = text.find(':', keyPos + quotedKey.size());
-  if (colon == std::string::npos) {
-    return std::nullopt;
-  }
-
-  std::size_t cursor = colon + 1;
+  std::size_t cursor = *colon + 1;
   return parseFloatAt(text, cursor);
 }
 
 std::optional<bool> boolAfterKey(const std::string& text, std::string_view key) {
-  const std::string quotedKey = "\"" + std::string(key) + "\"";
-  const std::size_t keyPos = text.find(quotedKey);
-  if (keyPos == std::string::npos) {
+  const std::optional<std::size_t> colon = colonAfterKey(text, key);
+  if (!colon.has_value()) {
     return std::nullopt;
   }
 
-  const std::size_t colon = text.find(':', keyPos + quotedKey.size());
-  if (colon == std::string::npos) {
-    return std::nullopt;
-  }
-
-  const std::size_t valueStart = text.find_first_not_of(" \t\r\n", colon + 1);
+  const std::size_t valueStart = text.find_first_not_of(" \t\r\n", *colon + 1);
   if (valueStart == std::string::npos) {
     return std::nullopt;
   }
