@@ -181,7 +181,7 @@ if(DEMI_ENABLE_NETWORK)
   add_test(NAME demi-network-tests COMMAND demi-network-tests)
 endif()
 add_test(NAME demi-runtime-minimal-frame
-  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d/demi.project.json --frames 1
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json --frames 1
 )
 set_tests_properties(demi-runtime-minimal-frame PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
 add_test(NAME demi-runtime-networking-minimal-frame
@@ -192,7 +192,7 @@ add_test(NAME demi-validate-minimal-2d-networking
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json
 )
 add_test(NAME demi-script-check-minimal-player
-  COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d/scripts/player.lua
+  COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/scripts/player.lua
 )
 add_test(NAME demi-script-check-runtime-net-snapshot-replication
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/scripts/runtime/demi/net/snapshot_replication.lua
