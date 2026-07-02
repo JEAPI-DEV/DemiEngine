@@ -120,6 +120,8 @@ public:
   [[nodiscard]] const std::string& windowMode() const;
   [[nodiscard]] bool windowModeDirty() const;
   void clearWindowModeDirty();
+  void setMaxFps(int maxFps);
+  [[nodiscard]] int maxFps() const;
   void setPhysicsEnabled(bool enabled);
   [[nodiscard]] bool physicsEnabled() const;
   [[nodiscard]] std::uint64_t addTimer(float seconds, bool repeating, int callbackRef);
@@ -180,6 +182,7 @@ private:
   bool quitRequested_ = false;
   std::string windowMode_ = "windowed";
   bool windowModeDirty_ = false;
+  int maxFps_ = 0;
   bool physicsEnabled_ = true;
   bool cutscenePaused_ = false;
   bool previousUiMouseDown_ = false;

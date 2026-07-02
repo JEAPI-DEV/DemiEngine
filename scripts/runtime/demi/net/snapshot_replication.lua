@@ -50,11 +50,13 @@ function SnapshotReplication.new(options)
     remotes = {},
     claim_once_objects = {},
     claim_once_claimed = {},
+    session_metadata = nil,
     remote_prefab = options.remote_prefab,
     create_remote = options.create_remote or default_create_remote,
     update_remote = options.update_remote or default_update_remote,
     on_connected = options.on_connected or noop,
     on_disconnected = options.on_disconnected or noop,
+    on_session_start = options.on_session_start or noop,
     on_message = options.on_message or noop,
     log = options.log or default_log,
   }, SnapshotReplication)
@@ -71,6 +73,7 @@ function SnapshotReplication:reset(clear_remote_entities)
   self.remotes = {}
   self.claim_once_objects = {}
   self.claim_once_claimed = {}
+  self.session_metadata = nil
 end
 
 function SnapshotReplication:available()
@@ -108,6 +111,69 @@ function SnapshotReplication:remote_id(snapshot)
   return "net_" .. snapshot.sender_id .. "_" .. snapshot.entity_id
 end
 
+function SnapshotReplication:remove_remotes_for_sender(sender_id)
+  if sender_id == nil then
+    return
+  end
+
+  for ghost_id, remote in pairs(self.remotes) do
+    if remote.sender_id == sender_id then
+      Entity.destroy(ghost_id)
+      self.remotes[ghost_id] = nil
+    end
+  end
+end
+
+function SnapshotReplication:remote_position(sender_id)
+  if sender_id == self:sender_id() then
+    return nil, nil
+  end
+
+  local best_remote = nil
+  for _, remote in pairs(self.remotes) do
+    if remote.sender_id == sender_id and (best_remote == nil or remote.age < best_remote.age) then
+      best_remote = remote
+    end
+  end
+
+  if best_remote == nil then
+    return nil, nil
+  end
+  return best_remote.x, best_remote.y
+end
+
+function SnapshotReplication:set_session_metadata(metadata)
+  self.session_metadata = metadata
+  if metadata ~= nil and Network.available() and Network.is_host() then
+    Network.send(Network.encode("session_start", metadata), true, 0, 0)
+  end
+end
+
+function SnapshotReplication:claim_once_sync_payload()
+  local claims = {}
+  for object_id, collector_id in pairs(self.claim_once_claimed) do
+    claims[#claims + 1] = {
+      object_id = object_id,
+      collector_id = collector_id,
+    }
+  end
+  return { claims = claims }
+end
+
+function SnapshotReplication:send_claim_once_sync(peer_id)
+  if not Network.available() or not Network.is_host() then
+    return false
+  end
+  return Network.send(Network.encode("claim_once_sync", self:claim_once_sync_payload()), true, peer_id or 0, 0)
+end
+
+function SnapshotReplication:request_claim_once_sync()
+  if not Network.available() or Network.is_host() or not Network.is_connected() then
+    return false
+  end
+  return Network.send(Network.encode("claim_once_sync_request", {}), true, 0, 0)
+end
+
 function SnapshotReplication:apply_snapshot(snapshot)
   if snapshot.sender_id == self:sender_id() or snapshot.x == nil or snapshot.y == nil then
     return
@@ -117,6 +183,7 @@ function SnapshotReplication:apply_snapshot(snapshot)
   if self.remotes[ghost_id] == nil then
     self.create_remote(self, ghost_id, snapshot)
     self.remotes[ghost_id] = {
+      sender_id = snapshot.sender_id,
       x = snapshot.x,
       y = snapshot.y,
       vx = 0.0,
@@ -150,6 +217,7 @@ function SnapshotReplication:register_claim_once(id, options)
       Entity.destroy(object_id)
     end,
     on_claimed_local = options.on_claimed_local or noop,
+    can_claim = options.can_claim,
   }
   self.claim_once_objects[id] = object
 
@@ -160,13 +228,17 @@ function SnapshotReplication:register_claim_once(id, options)
   return true
 end
 
-function SnapshotReplication:apply_claim_once(id, collector_id, broadcast)
+function SnapshotReplication:apply_claim_once(id, collector_id, broadcast, claim)
   if id == nil or self.claim_once_claimed[id] ~= nil then
     return false
   end
 
-  self.claim_once_claimed[id] = collector_id
   local object = self.claim_once_objects[id]
+  if broadcast and object ~= nil and object.can_claim ~= nil and not object.can_claim(id, collector_id, self, claim) then
+    return false
+  end
+
+  self.claim_once_claimed[id] = collector_id
   if object ~= nil then
     object.claimed = true
     object.pending = false
@@ -185,24 +257,47 @@ function SnapshotReplication:apply_claim_once(id, collector_id, broadcast)
   return true
 end
 
-function SnapshotReplication:try_claim_once(id)
+function SnapshotReplication:reject_claim_once(id, collector_id, peer_id)
+  if id == nil then
+    return false
+  end
+
+  local object = self.claim_once_objects[id]
+  if object ~= nil then
+    object.pending = false
+  end
+
+  if Network.available() and Network.is_host() and peer_id ~= nil then
+    Network.send(Network.encode("claim_once_rejected", {
+      object_id = id,
+      collector_id = collector_id,
+    }), true, peer_id, 0)
+  end
+  return true
+end
+
+function SnapshotReplication:try_claim_once(id, claim)
   local object = self.claim_once_objects[id]
   if object == nil or object.claimed or object.pending then
     return false
   end
 
   if not Network.available() or Network.is_host() or not Network.is_connected() then
-    return self:apply_claim_once(id, self:sender_id(), true)
+    return self:apply_claim_once(id, self:sender_id(), true, claim)
   end
 
   object.pending = true
-  return Network.send(Network.encode("claim_once_request", { object_id = id }), true)
+  claim = claim or {}
+  claim.object_id = id
+  return Network.send(Network.encode("claim_once_request", claim), true)
 end
 
 function SnapshotReplication:process_events()
   local summary = {
     connected = false,
     disconnected = false,
+    session_started = false,
+    session = nil,
     messages = 0,
   }
 
@@ -216,11 +311,20 @@ function SnapshotReplication:process_events()
       self.log("Network peer connected: " .. tostring(event.peer_id))
       if Network.is_host() then
         Network.send(Network.encode("assign_peer", { peer_id = "peer" .. tostring(event.peer_id) }), true, event.peer_id, 0)
+        if self.session_metadata ~= nil then
+          Network.send(Network.encode("session_start", self.session_metadata), true, event.peer_id, 0)
+        end
+        self:send_claim_once_sync(event.peer_id)
       end
       self.on_connected(self, event)
     elseif event.type == "disconnected" then
       summary.disconnected = true
       self.log("Network peer disconnected: " .. tostring(event.peer_id))
+      if Network.is_host() then
+        self:remove_remotes_for_sender("peer" .. tostring(event.peer_id))
+      else
+        self:reset(true)
+      end
       self.on_disconnected(self, event)
     elseif event.type == "message" then
       summary.messages = summary.messages + 1
@@ -237,12 +341,40 @@ function SnapshotReplication:process_events()
           self:apply_snapshot(snapshot)
         elseif message ~= nil and message.type == "claim_once_request" then
           if Network.is_host() and message.payload ~= nil then
-            self:apply_claim_once(message.payload.object_id, "peer" .. tostring(event.peer_id), true)
+            local object_id = message.payload.object_id
+            local collector_id = "peer" .. tostring(event.peer_id)
+            if self.claim_once_claimed[object_id] ~= nil then
+              Network.send(Network.encode("claim_once_claimed", {
+                object_id = object_id,
+                collector_id = self.claim_once_claimed[object_id],
+              }), true, event.peer_id, 0)
+            elseif not self:apply_claim_once(object_id, collector_id, true, message.payload) then
+              self:reject_claim_once(object_id, collector_id, event.peer_id)
+            end
           end
         elseif message ~= nil and message.type == "claim_once_claimed" then
           if message.payload ~= nil then
             self:apply_claim_once(message.payload.object_id, message.payload.collector_id, false)
           end
+        elseif message ~= nil and message.type == "claim_once_rejected" then
+          if message.payload ~= nil then
+            self:reject_claim_once(message.payload.object_id, message.payload.collector_id, nil)
+          end
+        elseif message ~= nil and message.type == "claim_once_sync" then
+          if message.payload ~= nil and message.payload.claims ~= nil then
+            for _, claim in pairs(message.payload.claims) do
+              self:apply_claim_once(claim.object_id, claim.collector_id, false)
+            end
+          end
+        elseif message ~= nil and message.type == "claim_once_sync_request" then
+          if Network.is_host() then
+            self:send_claim_once_sync(event.peer_id)
+          end
+        elseif message ~= nil and message.type == "session_start" then
+          self.session_metadata = message.payload
+          summary.session_started = true
+          summary.session = message.payload
+          self.on_session_start(self, message.payload)
         else
           self.on_message(self, event, message)
         end

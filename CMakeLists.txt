@@ -164,6 +164,9 @@ target_link_libraries(demi-physics2d-tests PRIVATE demi-runtime-lib)
 add_executable(demi-lua-scripting-tests tests/lua_scripting_tests.cpp)
 target_link_libraries(demi-lua-scripting-tests PRIVATE demi-runtime-lib)
 
+add_executable(demi-snapshot-replication-tests tests/snapshot_replication_tests.cpp)
+target_link_libraries(demi-snapshot-replication-tests PRIVATE demi-runtime-lib)
+
 if(DEMI_ENABLE_NETWORK)
   add_executable(demi-network-tests tests/network_tests.cpp)
   target_link_libraries(demi-network-tests PRIVATE demi-runtime-lib)
@@ -173,6 +176,7 @@ enable_testing()
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-physics2d-tests COMMAND demi-physics2d-tests)
 add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
+add_test(NAME demi-snapshot-replication-tests COMMAND demi-snapshot-replication-tests)
 if(DEMI_ENABLE_NETWORK)
   add_test(NAME demi-network-tests COMMAND demi-network-tests)
 endif()
@@ -184,9 +188,34 @@ add_test(NAME demi-runtime-networking-minimal-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json --frames 1
 )
 set_tests_properties(demi-runtime-networking-minimal-frame PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
+add_test(NAME demi-validate-minimal-2d-networking
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json
+)
 add_test(NAME demi-script-check-minimal-player
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d/scripts/player.lua
 )
+add_test(NAME demi-script-check-runtime-net-snapshot-replication
+  COMMAND demi script check ${CMAKE_SOURCE_DIR}/scripts/runtime/demi/net/snapshot_replication.lua
+)
+set(DEMI_NETWORKING_EXAMPLE_SCRIPTS
+  game
+  game_state
+  level_main
+  level_spiral
+  main_menu
+  menu_button
+  menu_scene
+  network_replication
+  player
+  player_config
+  player_platformer
+  player_slingshot
+)
+foreach(script_name IN LISTS DEMI_NETWORKING_EXAMPLE_SCRIPTS)
+  add_test(NAME demi-script-check-networking-${script_name}
+    COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/scripts/${script_name}.lua
+  )
+endforeach()
 add_test(NAME demi-lua-stubs-generate
   COMMAND demi lua-stubs generate ${CMAKE_BINARY_DIR}/generated/demi.lua
 )

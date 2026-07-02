@@ -52,6 +52,10 @@ function Probe:on_start()
   end
   Cutscene.resume()
   Cutscene.skip()
+  Runtime.set_max_fps(144)
+  if Runtime.get_max_fps() == 144 then
+    Save.set_number("test", "max_fps", 144)
+  end
 end
 function Probe:on_update(dt)
   if Input.is_down("space") then
@@ -113,6 +117,10 @@ return Button
   }
   if (host.saveString("test", "cutscene") != "playing" || host.saveString("test", "cutscene_paused") != "true") {
     std::cerr << "Cutscene Lua API did not report expected state transitions.\n";
+    return 1;
+  }
+  if (host.saveNumber("test", "max_fps").value_or(0.0F) != 144.0F) {
+    std::cerr << "Runtime max FPS Lua API did not persist expected value.\n";
     return 1;
   }
   host.update(1.0F / 60.0F);

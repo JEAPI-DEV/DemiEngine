@@ -555,6 +555,18 @@ void LuaScriptHost::clearWindowModeDirty() {
   windowModeDirty_ = false;
 }
 
+void LuaScriptHost::setMaxFps(const int maxFps) {
+  if (maxFps <= 0) {
+    maxFps_ = 0;
+    return;
+  }
+  maxFps_ = std::clamp(maxFps, 15, 1000);
+}
+
+int LuaScriptHost::maxFps() const {
+  return maxFps_;
+}
+
 void LuaScriptHost::setPhysicsEnabled(const bool enabled) {
   physicsEnabled_ = enabled;
 }

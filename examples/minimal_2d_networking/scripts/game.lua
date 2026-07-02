@@ -14,6 +14,8 @@ local Game = {
   score_origin_x = nil,
   score_origin_y = nil,
   best_distance = 0.0,
+  fps_accumulator = 0.0,
+  fps_frames = 0,
 }
 
 local PLAYER_ID = "ent_player"
@@ -38,6 +40,8 @@ function Game:reset_level_state()
   self.score_origin_x = nil
   self.score_origin_y = nil
   self.best_distance = 0.0
+  self.fps_accumulator = 0.0
+  self.fps_frames = 0
   state.extra_jumps = 0
   self.level = active_level()
   self.level:reset()
@@ -55,6 +59,19 @@ function Game:update_extra_jump_hud(visible)
   end
 end
 
+function Game:update_fps_hud(dt)
+  self.fps_accumulator = self.fps_accumulator + dt
+  self.fps_frames = self.fps_frames + 1
+  if self.fps_accumulator < 0.25 then
+    return
+  end
+
+  local fps = math.floor((self.fps_frames / self.fps_accumulator) + 0.5)
+  Hud.set_text("fps", "FPS: " .. tostring(fps))
+  self.fps_accumulator = 0.0
+  self.fps_frames = 0
+end
+
 function Game:on_start()
   if not state.auto_start then
     Runtime.set_physics_enabled(false)
@@ -69,6 +86,7 @@ function Game:on_start()
   main_menu.apply_settings()
   main_menu.begin_active_level()
   self.level.on_start(self)
+  replication.request_claim_once_sync()
 end
 
 function Game:update_distance_score(player_x, player_y)
@@ -164,6 +182,29 @@ function Game:create_coin(x, y)
 
   self.coins[id] = { x = x, y = y, collected = false }
   replication.register_claim_once(id, {
+    can_claim = function(object_id, collector_id, claim)
+      local coin = self.coins[object_id]
+      if coin == nil or coin.collected then
+        return false
+      end
+
+      local collector_x, collector_y = nil, nil
+      if claim ~= nil and claim.x ~= nil and claim.y ~= nil then
+        collector_x = claim.x
+        collector_y = claim.y
+      elseif collector_id == replication.sender_id() then
+        collector_x, collector_y = Entity.get_position(PLAYER_ID)
+      else
+        collector_x, collector_y = replication.remote_position(collector_id)
+      end
+      if collector_x == nil or collector_y == nil then
+        return false
+      end
+
+      local dx = collector_x - coin.x
+      local dy = collector_y - coin.y
+      return (dx * dx) + (dy * dy) <= COIN_COLLECT_RADIUS * COIN_COLLECT_RADIUS
+    end,
     on_removed = function(object_id)
       local coin = self.coins[object_id]
       if coin ~= nil then
@@ -191,7 +232,7 @@ function Game:collect_coins(player_x, player_y)
       local dx = player_x - coin.x
       local dy = player_y - coin.y
       if (dx * dx) + (dy * dy) <= radius_squared then
-        replication.try_claim_once(id)
+        replication.try_claim_once(id, { x = player_x, y = player_y })
         if state.extra_jumps >= config.max_extra_jumps then
           return
         end
@@ -201,6 +242,8 @@ function Game:collect_coins(player_x, player_y)
 end
 
 function Game:on_update(dt)
+  self:update_fps_hud(dt)
+
   if state.game_over_pending then
     main_menu.show_game_over(self.points)
     return

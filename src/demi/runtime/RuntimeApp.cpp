@@ -232,6 +232,16 @@ int runProject(const RuntimeOptions& options) {
     renderer2D.drawHud(loaded.world);
     renderer2D.endFrame();
 
+    const int maxFps = luaHost.maxFps();
+    if (maxFps > 0) {
+      const Uint64 frameEndTicks = SDL_GetTicksNS();
+      const double targetFrameSeconds = 1.0 / static_cast<double>(maxFps);
+      const double frameSeconds = static_cast<double>(frameEndTicks - currentTicks) / 1000000000.0;
+      if (frameSeconds < targetFrameSeconds) {
+        SDL_Delay(static_cast<Uint32>((targetFrameSeconds - frameSeconds) * 1000.0));
+      }
+    }
+
     ++frameCount;
     if (options.maxFrames > 0 && frameCount >= options.maxFrames) {
       running = false;

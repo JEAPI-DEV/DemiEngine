@@ -7,8 +7,12 @@ local Menu = {
   dropdown_open = false,
   volume = 1.0,
   window_mode = "windowed",
+  max_fps = 0,
+  max_fps_editing = false,
+  max_fps_buffer = "",
   network_ip = "127.0.0.1",
   network_port = 39420,
+  network_level = 1,
   network_join_pending = false,
   network_join_elapsed = 0.0,
   network_join_timeout = 4.0,
@@ -42,6 +46,16 @@ local function mode_label(value)
   return "WINDOWED"
 end
 
+local function max_fps_label()
+  if Menu.max_fps_editing then
+    return Menu.max_fps_buffer == "" and "_" or Menu.max_fps_buffer .. "_"
+  end
+  if Menu.max_fps <= 0 then
+    return "UNLIMITED"
+  end
+  return tostring(Menu.max_fps)
+end
+
 local function update_volume_hud()
   local fill_width = 308.0 * Menu.volume
   Hud.set_rect("menu_volume_fill", 326.0, 305.0, fill_width, 16.0)
@@ -50,16 +64,27 @@ local function update_volume_hud()
 end
 
 local function update_video_hud()
+  Hud.set_text("menu_max_fps_label", "Max-FPS:")
   Hud.set_text("menu_window_mode_label", mode_label(Menu.window_mode))
   Hud.set_text("menu_dropdown_arrow", Menu.dropdown_open and "-" or "+")
+  Hud.set_text("menu_max_fps_value", max_fps_label())
+  Hud.set_color("menu_max_fps_input", Menu.max_fps_editing and 0.12 or 0.05, Menu.max_fps_editing and 0.16 or 0.06, Menu.max_fps_editing and 0.28 or 0.13, 0.94)
   Hud.set_visible("menu_back", not Menu.dropdown_open)
 end
 
 local function update_network_hud(status)
   Hud.set_text("menu_network_ip_value", Menu.network_ip == "" and "_" or Menu.network_ip)
+  Hud.set_text("menu_network_level", "HOST LEVEL " .. tostring(Menu.network_level) .. "  -  F1/F2")
   if status ~= nil then
     Hud.set_text("menu_network_status", status)
   end
+end
+
+local function scene_for_level(level)
+  if level == 2 then
+    return SCENE_SPIRAL
+  end
+  return SCENE_PLATFORMER
 end
 
 local function set_volume(volume)
@@ -78,6 +103,51 @@ local function set_window_mode(mode)
   show_group("menu_dropdown", false)
 end
 
+local function set_max_fps(value)
+  if value <= 0 then
+    Menu.max_fps = 0
+  else
+    Menu.max_fps = math.max(15, math.min(1000, math.floor(value + 0.5)))
+  end
+  Runtime.set_max_fps(Menu.max_fps)
+  Save.set_number(SETTINGS_SLOT, "max_fps", Menu.max_fps)
+  update_video_hud()
+end
+
+local function begin_max_fps_edit()
+  Menu.max_fps_editing = true
+  Menu.max_fps_buffer = Menu.max_fps <= 0 and "" or tostring(Menu.max_fps)
+  update_video_hud()
+end
+
+local function commit_max_fps_edit()
+  if not Menu.max_fps_editing then
+    return
+  end
+  local value = tonumber(Menu.max_fps_buffer)
+  Menu.max_fps_editing = false
+  Menu.max_fps_buffer = ""
+  set_max_fps(value or 0)
+end
+
+local function cancel_max_fps_edit()
+  Menu.max_fps_editing = false
+  Menu.max_fps_buffer = ""
+  update_video_hud()
+end
+
+local function change_max_fps(delta)
+  if Menu.max_fps <= 0 and delta > 0 then
+    set_max_fps(60)
+    return
+  end
+  if Menu.max_fps <= 15 and delta < 0 then
+    set_max_fps(0)
+    return
+  end
+  set_max_fps(Menu.max_fps + delta)
+end
+
 local function hide_menu()
   show_group("menu_base", false)
   show_group("menu_main", false)
@@ -92,6 +162,7 @@ end
 
 local function set_game_hud_visible(visible)
   Hud.set_visible("points", visible)
+  Hud.set_visible("fps", visible)
   for i = 1, 3 do
     Hud.set_visible(EXTRA_JUMP_SLOT_IDS[i], visible)
     Hud.set_visible(EXTRA_JUMP_COIN_IDS[i], false)
@@ -186,8 +257,14 @@ end
 function Menu.host_game()
   Menu.network_join_pending = false
   if replication.host(Menu.network_port) then
-    update_network_hud("HOSTING ON PORT " .. tostring(Menu.network_port))
-    select_level(SCENE_PLATFORMER, 1)
+    local scene_id = scene_for_level(Menu.network_level)
+    replication.start_session({
+      scene_id = scene_id,
+      level = Menu.network_level,
+      seed = 1000 + Menu.network_level,
+    })
+    update_network_hud("HOSTING LEVEL " .. tostring(Menu.network_level) .. " ON PORT " .. tostring(Menu.network_port))
+    select_level(scene_id, Menu.network_level)
   else
     update_network_hud("HOST FAILED - ENABLE NETWORK BUILD")
   end
@@ -211,8 +288,10 @@ end
 function Menu.apply_settings()
   Menu.volume = Save.get_number(SETTINGS_SLOT, "master_volume", Audio.get_master_volume())
   Menu.window_mode = Save.get_string(SETTINGS_SLOT, "window_mode", Runtime.get_window_mode())
+  Menu.max_fps = Save.get_number(SETTINGS_SLOT, "max_fps", Runtime.get_max_fps())
   Audio.set_master_volume(Menu.volume)
   Runtime.set_window_mode(Menu.window_mode)
+  Runtime.set_max_fps(Menu.max_fps)
 end
 
 function Menu.start()
@@ -308,6 +387,7 @@ function Menu.handle_click(id)
   elseif id == "menu_volume_plus" then
     set_volume(Menu.volume + 0.10)
   elseif id == "menu_window_dropdown" then
+    cancel_max_fps_edit()
     Menu.dropdown_open = not Menu.dropdown_open
     update_video_hud()
     show_group("menu_dropdown", Menu.dropdown_open)
@@ -317,6 +397,14 @@ function Menu.handle_click(id)
     set_window_mode("borderless")
   elseif id == "menu_window_mode_fullscreen" then
     set_window_mode("fullscreen")
+  elseif id == "menu_max_fps_minus" then
+    cancel_max_fps_edit()
+    change_max_fps(-15)
+  elseif id == "menu_max_fps_plus" then
+    cancel_max_fps_edit()
+    change_max_fps(15)
+  elseif id == "menu_max_fps_input" then
+    begin_max_fps_edit()
   elseif id == "game_over_back" then
     Menu.back_to_main_menu()
   end
@@ -329,10 +417,16 @@ local function update_network_connection(dt)
 
   Menu.network_join_elapsed = Menu.network_join_elapsed + dt
   local events = replication.process_events()
-  if events.connected or replication.is_connected() then
+  local session = events.session or replication.current_session()
+  if session ~= nil and session.scene_id ~= nil then
     Menu.network_join_pending = false
-    update_network_hud("CONNECTED")
-    select_level(SCENE_PLATFORMER, 1)
+    update_network_hud("CONNECTED LEVEL " .. tostring(session.level or 1))
+    select_level(session.scene_id, session.level or 1)
+    return
+  end
+
+  if events.connected or replication.is_connected() then
+    update_network_hud("CONNECTED - WAITING FOR SESSION")
     return
   end
 
@@ -386,10 +480,49 @@ local function update_network_input()
     Menu.network_ip = ""
     update_network_hud(nil)
   end
+
+  if pressed_once("f1") then
+    Menu.network_level = 1
+    update_network_hud(nil)
+  elseif pressed_once("f2") then
+    Menu.network_level = 2
+    update_network_hud(nil)
+  end
+end
+
+local function update_max_fps_input()
+  if not Menu.max_fps_editing then
+    return false
+  end
+
+  for digit = 0, 9 do
+    local key = tostring(digit)
+    if pressed_once(key) and string.len(Menu.max_fps_buffer) < 4 then
+      Menu.max_fps_buffer = Menu.max_fps_buffer .. key
+      update_video_hud()
+    end
+  end
+
+  if pressed_once("backspace") and string.len(Menu.max_fps_buffer) > 0 then
+    Menu.max_fps_buffer = string.sub(Menu.max_fps_buffer, 1, string.len(Menu.max_fps_buffer) - 1)
+    update_video_hud()
+  end
+
+  if pressed_once("delete") then
+    Menu.max_fps_buffer = ""
+    update_video_hud()
+  end
+
+  if pressed_once("return") or pressed_once("space") then
+    commit_max_fps_edit()
+  elseif pressed_once("escape") then
+    cancel_max_fps_edit()
+  end
+  return true
 end
 
 function Menu.update(dt)
-  local enter_down = Input.is_down("return") or Input.is_down("space")
+  local enter_down = (Input.is_down("return") or Input.is_down("space")) and not Menu.max_fps_editing
   local enter_pressed = enter_down and not Menu.enter_was_down
 
   if Menu.screen == "main" and enter_pressed then
@@ -423,6 +556,17 @@ function Menu.update(dt)
       set_volume(Menu.volume - 0.02)
     elseif Input.is_down("right") then
       set_volume(Menu.volume + 0.02)
+    end
+  end
+
+  if Menu.screen == "options" and Menu.active_tab == "video" and not Menu.dropdown_open then
+    if update_max_fps_input() then
+      Menu.enter_was_down = enter_down
+      return
+    elseif Input.is_down("left") then
+      change_max_fps(-1)
+    elseif Input.is_down("right") then
+      change_max_fps(1)
     end
   end
 

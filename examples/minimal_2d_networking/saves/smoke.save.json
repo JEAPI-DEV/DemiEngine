@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "slot": "smoke",
-  "project": "Minimal 2D",
+  "project": "Minimal 2D Networking",
   "state": {
     "active_scene": "scene://minimal_2d_networking/platformer",
     "player": {

@@ -16,6 +16,9 @@
         "Camera2D": {
           "clear_color": [0.05, 0.06, 0.10, 1.0],
           "orthographic_size": 10.0
+        },
+        "AudioListener": {
+          "primary": true
         }
       }
     },
@@ -49,7 +52,14 @@
         "BoxCollider2D": {
           "size": [1.0, 1.0],
           "offset": [0.0, 0.0],
-          "is_trigger": false
+          "is_trigger": false,
+          "layer": "player"
+        },
+        "AudioSource": {
+          "clip": "asset://audio/collect_coin",
+          "play_on_start": false,
+          "loop": false,
+          "volume": 1.0
         }
       }
     },
@@ -71,7 +81,8 @@
         "BoxCollider2D": {
           "size": [8.0, 0.75],
           "offset": [0.0, 0.0],
-          "is_trigger": false
+          "is_trigger": false,
+          "layer": "platform"
         }
       }
     }
