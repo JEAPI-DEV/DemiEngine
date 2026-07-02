@@ -263,6 +263,7 @@ function Menu.start_game()
   select_level(SCENE_PLATFORMER, 1)
 end
 
+-- @HandleAction("menu_network_host")
 function Menu.host_game()
   Menu.network_join_pending = false
   if replication.host(Menu.network_port) then
@@ -279,6 +280,7 @@ function Menu.host_game()
   end
 end
 
+-- @HandleAction("menu_network_join")
 function Menu.join_game()
   if Menu.network_ip == "" then
     update_network_hud("ENTER SERVER IP")
@@ -350,6 +352,7 @@ function Menu.show_game_over(points)
   Menu.screen = "game_over"
 end
 
+-- @HandleAction("game_retry")
 function Menu.retry_game()
   if multiplayer_active() then
     state.menu_open = false
@@ -375,6 +378,7 @@ function Menu.retry_game()
   Scene.load(active_scene())
 end
 
+-- @HandleAction("game_over_back")
 function Menu.back_to_main_menu()
   replication.disconnect()
   Menu.network_join_pending = false
@@ -386,65 +390,109 @@ function Menu.back_to_main_menu()
   Scene.load(SCENE_MENU)
 end
 
-function Menu.handle_click(id)
-  if id == "menu_button_levels" then
-    show_levels()
-  elseif id == "menu_button_network" then
-    show_network()
-  elseif id == "menu_button_level_1" then
-    select_level(SCENE_PLATFORMER, 1)
-  elseif id == "menu_button_level_2" then
-    select_level(SCENE_SPIRAL, 2)
-  elseif id == "menu_levels_back" then
-    show_main()
-  elseif id == "menu_button_options" then
-    show_options()
-  elseif id == "menu_network_host" then
-    Menu.host_game()
-  elseif id == "menu_network_join" then
-    Menu.join_game()
-  elseif id == "menu_network_back" then
-    if Menu.network_join_pending then
-      replication.disconnect()
-      Menu.network_join_pending = false
-    end
-    show_main()
-  elseif id == "menu_button_quit" then
-    Runtime.quit()
-  elseif id == "menu_back" then
-    show_main()
-  elseif id == "menu_tab_sound" then
-    show_tab("sound")
-  elseif id == "menu_tab_video" then
-    show_tab("video")
-  elseif id == "menu_volume_minus" then
-    set_volume(Menu.volume - 0.10)
-  elseif id == "menu_volume_plus" then
-    set_volume(Menu.volume + 0.10)
-  elseif id == "menu_window_dropdown" then
-    cancel_max_fps_edit()
-    Menu.dropdown_open = not Menu.dropdown_open
-    update_video_hud()
-    show_group("menu_dropdown", Menu.dropdown_open)
-  elseif id == "menu_window_mode_windowed" then
-    set_window_mode("windowed")
-  elseif id == "menu_window_mode_borderless" then
-    set_window_mode("borderless")
-  elseif id == "menu_window_mode_fullscreen" then
-    set_window_mode("fullscreen")
-  elseif id == "menu_max_fps_minus" then
-    cancel_max_fps_edit()
-    change_max_fps(-15)
-  elseif id == "menu_max_fps_plus" then
-    cancel_max_fps_edit()
-    change_max_fps(15)
-  elseif id == "menu_max_fps_input" then
-    begin_max_fps_edit()
-  elseif id == "game_over_back" then
-    Menu.back_to_main_menu()
-  elseif id == "game_retry" then
-    Menu.retry_game()
+-- @HandleAction("menu_button_levels")
+function Menu.action_show_levels()
+  show_levels()
+end
+
+-- @HandleAction("menu_button_network")
+function Menu.action_show_network()
+  show_network()
+end
+
+-- @HandleAction("menu_button_options")
+function Menu.action_show_options()
+  show_options()
+end
+
+-- @HandleAction("menu_button_level_1")
+function Menu.action_level_1()
+  select_level(SCENE_PLATFORMER, 1)
+end
+
+-- @HandleAction("menu_button_level_2")
+function Menu.action_level_2()
+  select_level(SCENE_SPIRAL, 2)
+end
+
+-- @HandleAction("menu_levels_back")
+-- @HandleAction("menu_back")
+function Menu.action_show_main()
+  show_main()
+end
+
+-- @HandleAction("menu_network_back")
+function Menu.action_network_back()
+  if Menu.network_join_pending then
+    replication.disconnect()
+    Menu.network_join_pending = false
   end
+  show_main()
+end
+
+-- @HandleAction("menu_button_quit")
+function Menu.action_quit()
+  Runtime.quit()
+end
+
+-- @HandleAction("menu_tab_sound")
+function Menu.action_sound_tab()
+  show_tab("sound")
+end
+
+-- @HandleAction("menu_tab_video")
+function Menu.action_video_tab()
+  show_tab("video")
+end
+
+-- @HandleAction("menu_volume_minus")
+function Menu.action_volume_down()
+  set_volume(Menu.volume - 0.10)
+end
+
+-- @HandleAction("menu_volume_plus")
+function Menu.action_volume_up()
+  set_volume(Menu.volume + 0.10)
+end
+
+-- @HandleAction("menu_window_dropdown")
+function Menu.action_window_dropdown()
+  cancel_max_fps_edit()
+  Menu.dropdown_open = not Menu.dropdown_open
+  update_video_hud()
+  show_group("menu_dropdown", Menu.dropdown_open)
+end
+
+-- @HandleAction("menu_window_mode_windowed")
+function Menu.action_windowed()
+  set_window_mode("windowed")
+end
+
+-- @HandleAction("menu_window_mode_borderless")
+function Menu.action_borderless()
+  set_window_mode("borderless")
+end
+
+-- @HandleAction("menu_window_mode_fullscreen")
+function Menu.action_fullscreen()
+  set_window_mode("fullscreen")
+end
+
+-- @HandleAction("menu_max_fps_minus")
+function Menu.action_fps_down()
+  cancel_max_fps_edit()
+  change_max_fps(-15)
+end
+
+-- @HandleAction("menu_max_fps_plus")
+function Menu.action_fps_up()
+  cancel_max_fps_edit()
+  change_max_fps(15)
+end
+
+-- @HandleAction("menu_max_fps_input")
+function Menu.action_fps_input()
+  begin_max_fps_edit()
 end
 
 local function update_network_connection(dt)

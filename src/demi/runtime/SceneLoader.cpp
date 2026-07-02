@@ -161,6 +161,24 @@ std::vector<std::string> objectsInArray(const std::string& arrayText) {
   return objects;
 }
 
+std::vector<std::string> stringsInArray(const std::string& arrayText) {
+  std::vector<std::string> strings;
+  std::size_t cursor = 0;
+  while (true) {
+    const std::size_t firstQuote = arrayText.find('"', cursor);
+    if (firstQuote == std::string::npos) {
+      break;
+    }
+    const std::size_t secondQuote = arrayText.find('"', firstQuote + 1);
+    if (secondQuote == std::string::npos) {
+      break;
+    }
+    strings.push_back(arrayText.substr(firstQuote + 1, secondQuote - firstQuote - 1));
+    cursor = secondQuote + 1;
+  }
+  return strings;
+}
+
 std::optional<float> parseFloatAt(const std::string& text, std::size_t& cursor) {
   while (cursor < text.size() && (std::isspace(static_cast<unsigned char>(text[cursor])) || text[cursor] == ',' || text[cursor] == '[')) {
     ++cursor;
@@ -260,6 +278,12 @@ std::optional<ProjectData> parseProject(const std::filesystem::path& projectPath
   project.name = *name;
   project.mainScene = *mainScene;
   project.scriptEntry = stringAfterKey(text, "entry").value_or(std::string{});
+  if (const std::optional<std::string> scripting = objectAfterKey(text, "scripting")) {
+    project.scriptEntry = stringAfterKey(*scripting, "entry").value_or(project.scriptEntry);
+    if (const std::optional<std::string> modules = arrayAfterKey(*scripting, "modules")) {
+      project.scriptModules = stringsInArray(*modules);
+    }
+  }
 
   for (const std::string& sceneObject : objectsInArray(*scenesArray)) {
     const std::optional<std::string> id = stringAfterKey(sceneObject, "id");
@@ -366,12 +390,7 @@ World parseScene(const std::filesystem::path& scenePath, const std::string& text
       LuaScriptComponent component;
       component.module = stringAfterKey(*luaScript, "module").value_or(std::string{});
       if (const std::optional<std::string> properties = objectAfterKey(*luaScript, "properties")) {
-        if (const std::optional<float> speed = numberAfterKey(*properties, "speed")) {
-          component.speed = *speed;
-        }
-        if (const std::optional<float> jumpSpeed = numberAfterKey(*properties, "jump_speed")) {
-          component.jumpSpeed = *jumpSpeed;
-        }
+        component.propertiesJson = *properties;
       }
       entity.luaScript = component;
     }
@@ -511,6 +530,7 @@ void parseHudElement(const std::string& elementObject, World& world) {
       button.textColor = *textColor;
     }
     button.script = stringAfterKey(elementObject, "script").value_or(std::string{});
+    button.action = stringAfterKey(elementObject, "action").value_or(std::string{});
     button.visible = boolAfterKey(elementObject, "visible").value_or(true);
     world.hudButtons.push_back(std::move(button));
   }

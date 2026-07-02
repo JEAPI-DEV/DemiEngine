@@ -51,13 +51,15 @@ HUD files use \filepath{*.hud.json}. They declare a virtual canvas and HUD eleme
       "label": "START GAME",
       "position": [270.0, 226.0],
       "size": [420.0, 52.0],
-      "script": "script://scripts/menu_button.lua"
+      "action": "menu_button_start"
     }
   ]
 }
 \end{lstlisting}
 
 The HUD canvas size is per HUD file. A game may author one HUD at 960 by 540 and another at 1920 by 1080. The renderer scales from the HUD canvas to the actual window size, and HUD mouse hit testing maps back into the same canvas.
+
+Button actions are handled by Lua functions annotated with \code{@HandleAction("action")}; the annotation value should match the HUD element's \code{action} field.
 
 \section{Save Files}
 

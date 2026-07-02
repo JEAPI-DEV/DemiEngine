@@ -18,6 +18,9 @@
   ],
   "scripting": {
     "language": "lua54",
-    "entry": "script://scripts/game.lua"
+    "entry": "script://scripts/game.lua",
+    "modules": [
+      "main_menu"
+    ]
   }
 }

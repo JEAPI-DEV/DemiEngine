@@ -144,6 +144,7 @@ private:
     std::filesystem::path path;
     std::filesystem::file_time_type lastWriteTime{};
     int tableRef = 0;
+    std::vector<LuaActionHandler> actionHandlers;
   };
 
   struct TimerInstance {
@@ -160,6 +161,13 @@ private:
     std::string eventName;
     bool cancelled = false;
     int callbackRef = 0;
+  };
+
+  struct ModuleActionHandler {
+    std::string module;
+    std::filesystem::path path;
+    std::filesystem::file_time_type lastWriteTime{};
+    std::vector<LuaActionHandler> actionHandlers;
   };
 
   void dispatchHudEvents();
@@ -191,6 +199,7 @@ private:
   std::string activeCutscene_;
   std::unordered_map<std::string, std::unordered_map<std::string, SaveValue>> saves_;
   std::vector<ScriptInstance> scripts_;
+  std::vector<ModuleActionHandler> moduleActionHandlers_;
   std::vector<TimerInstance> timers_;
   std::vector<EventSubscription> eventSubscriptions_;
   std::vector<SaveMigrationHook> saveMigrationHooks_;

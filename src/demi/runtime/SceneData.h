@@ -28,6 +28,11 @@ struct InputState {
   Vec2 mousePosition;
 };
 
+struct LuaActionHandler {
+  std::string action;
+  std::string functionName;
+};
+
 struct DebugLine {
   Vec2 start;
   Vec2 end;
@@ -45,6 +50,7 @@ struct ProjectData {
   std::string name;
   std::string mainScene;
   std::string scriptEntry;
+  std::vector<std::string> scriptModules;
   std::vector<SceneEntry> scenes;
 };
 
@@ -59,6 +65,7 @@ struct HudButtonElement {
   Color hoverColor = {0.24F, 0.28F, 0.48F, 1.0F};
   Color textColor = {1.0F, 1.0F, 1.0F, 1.0F};
   std::string script;
+  std::string action;
   bool visible = true;
   bool hovered = false;
 };
@@ -117,8 +124,7 @@ struct HitboxControllerComponent {
 
 struct LuaScriptComponent {
   std::string module;
-  float speed = 5.0F;
-  float jumpSpeed = 8.0F;
+  std::string propertiesJson;
 };
 
 struct BuildableComponent {

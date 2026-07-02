@@ -33,6 +33,17 @@
           }
         }
       }
+    },
+    "scripting": {
+      "type": "object",
+      "properties": {
+        "language": { "type": "string" },
+        "entry": { "type": "string", "pattern": "^script://" },
+        "modules": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
     }
   }
 }

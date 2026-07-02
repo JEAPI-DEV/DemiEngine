@@ -33,6 +33,13 @@
             "type": "object",
             "additionalProperties": true,
             "properties": {
+              "LuaScript": {
+                "type": "object",
+                "properties": {
+                  "module": { "type": "string", "pattern": "^script://" },
+                  "properties": { "type": "object" }
+                }
+              },
               "Rigidbody2D": {
                 "type": "object"
               },
@@ -67,6 +74,17 @@
               }
             }
           }
+        }
+      }
+    },
+    "elements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string" },
+          "id": { "type": "string" },
+          "action": { "type": "string" }
         }
       }
     }

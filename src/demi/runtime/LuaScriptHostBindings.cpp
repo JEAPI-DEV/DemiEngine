@@ -1027,11 +1027,69 @@ void luaCallUiEvent(lua_State* state, const int tableRef, const char* functionNa
   lua_newtable(state);
   lua_pushstring(state, button.id.c_str()); lua_setfield(state, -2, "id");
   lua_pushstring(state, button.label.c_str()); lua_setfield(state, -2, "label");
+  lua_pushstring(state, button.action.c_str()); lua_setfield(state, -2, "action");
   lua_pushnumber(state, mousePosition.x); lua_setfield(state, -2, "mouse_x");
   lua_pushnumber(state, mousePosition.y); lua_setfield(state, -2, "mouse_y");
   std::string error;
   if (!luaCall(state, 2, 0, error)) {
     luaReportCallbackError(functionName, path, button.id, error);
+  }
+  lua_pop(state, 1);
+}
+
+void luaCallActionEvent(lua_State* state, const int tableRef, const std::string& functionName, const HudButtonElement& button, const Vec2 mousePosition, const std::filesystem::path& path) {
+  lua_rawgeti(state, LUA_REGISTRYINDEX, tableRef);
+  lua_getfield(state, -1, functionName.c_str());
+  if (!lua_isfunction(state, -1)) {
+    lua_pop(state, 2);
+    return;
+  }
+  lua_pushvalue(state, -2);
+  lua_newtable(state);
+  lua_pushstring(state, button.id.c_str()); lua_setfield(state, -2, "id");
+  lua_pushstring(state, button.label.c_str()); lua_setfield(state, -2, "label");
+  lua_pushstring(state, button.action.c_str()); lua_setfield(state, -2, "action");
+  lua_pushnumber(state, mousePosition.x); lua_setfield(state, -2, "mouse_x");
+  lua_pushnumber(state, mousePosition.y); lua_setfield(state, -2, "mouse_y");
+  std::string error;
+  if (!luaCall(state, 2, 0, error)) {
+    luaReportCallbackError(functionName.c_str(), path, button.action, error);
+  }
+  lua_pop(state, 1);
+}
+
+void luaCallModuleActionEvent(lua_State* state, const std::string& moduleName, const std::string& functionName, const HudButtonElement& button, const Vec2 mousePosition, const std::filesystem::path& path) {
+  lua_getglobal(state, "package");
+  if (!lua_istable(state, -1)) {
+    lua_pop(state, 1);
+    return;
+  }
+  lua_getfield(state, -1, "loaded");
+  lua_remove(state, -2);
+  if (!lua_istable(state, -1)) {
+    lua_pop(state, 1);
+    return;
+  }
+  lua_getfield(state, -1, moduleName.c_str());
+  lua_remove(state, -2);
+  if (!lua_istable(state, -1)) {
+    lua_pop(state, 1);
+    return;
+  }
+  lua_getfield(state, -1, functionName.c_str());
+  if (!lua_isfunction(state, -1)) {
+    lua_pop(state, 2);
+    return;
+  }
+  lua_newtable(state);
+  lua_pushstring(state, button.id.c_str()); lua_setfield(state, -2, "id");
+  lua_pushstring(state, button.label.c_str()); lua_setfield(state, -2, "label");
+  lua_pushstring(state, button.action.c_str()); lua_setfield(state, -2, "action");
+  lua_pushnumber(state, mousePosition.x); lua_setfield(state, -2, "mouse_x");
+  lua_pushnumber(state, mousePosition.y); lua_setfield(state, -2, "mouse_y");
+  std::string error;
+  if (!luaCall(state, 1, 0, error)) {
+    luaReportCallbackError(functionName.c_str(), path, button.action, error);
   }
   lua_pop(state, 1);
 }

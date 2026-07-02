@@ -54,7 +54,7 @@ The \filepath{minimal\_2d} menu uses these groups:
 
 \section{Button Events}
 
-Buttons can reference a Lua script:
+Buttons can declare an action annotation:
 
 \begin{lstlisting}[language=json]
 {
@@ -62,8 +62,17 @@ Buttons can reference a Lua script:
   "id": "menu_button_start",
   "group": "menu_main",
   "label": "START GAME",
-  "script": "script://scripts/menu_button.lua"
+  "action": "menu_button_start"
 }
 \end{lstlisting}
 
-The referenced script receives \code{on\_ui\_click(event)} and can dispatch behavior based on \code{event.id}.
+The runtime dispatches the action to Lua functions annotated with \code{@HandleAction}:
+
+\begin{lstlisting}[language=lua]
+-- @HandleAction("menu_button_start")
+function Menu.start_game(event)
+  Scene.load("scene://game/level_1")
+end
+\end{lstlisting}
+
+The lower-level \code{hud\_action} event is also emitted for systems that prefer event-bus routing.

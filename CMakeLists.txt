@@ -203,7 +203,6 @@ set(DEMI_NETWORKING_EXAMPLE_SCRIPTS
   level_main
   level_spiral
   main_menu
-  menu_button
   menu_scene
   network_replication
   player

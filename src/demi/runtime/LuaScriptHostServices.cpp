@@ -702,6 +702,31 @@ void LuaScriptHost::dispatchHudEvents() {
         luaCallUiEvent(state, script.tableRef, "on_ui_click", button, mouse, script.path);
       }
     }
+    if (clickedButtonId.has_value() && *clickedButtonId == button.id && !button.action.empty()) {
+      for (const ScriptInstance& script : scripts_) {
+        for (const LuaActionHandler& handler : script.actionHandlers) {
+          if (handler.action == button.action) {
+            luaCallActionEvent(state, script.tableRef, handler.functionName, button, mouse, script.path);
+          }
+        }
+      }
+      for (const ModuleActionHandler& module : moduleActionHandlers_) {
+        for (const LuaActionHandler& handler : module.actionHandlers) {
+          if (handler.action == button.action) {
+            luaCallModuleActionEvent(state, module.module, handler.functionName, button, mouse, module.path);
+          }
+        }
+      }
+      lua_newtable(state);
+      lua_pushstring(state, button.id.c_str()); lua_setfield(state, -2, "id");
+      lua_pushstring(state, button.label.c_str()); lua_setfield(state, -2, "label");
+      lua_pushstring(state, button.action.c_str()); lua_setfield(state, -2, "action");
+      lua_pushnumber(state, mouse.x); lua_setfield(state, -2, "mouse_x");
+      lua_pushnumber(state, mouse.y); lua_setfield(state, -2, "mouse_y");
+      const int payloadIndex = lua_gettop(state);
+      (void)emitEvent("hud_action", payloadIndex);
+      lua_pop(state, 1);
+    }
   }
   previousUiMouseDown_ = mouseDown;
 #endif

@@ -26,6 +26,8 @@ void luaConfigurePackagePath(lua_State* state, const ProjectData& project);
 [[nodiscard]] bool luaLoadScriptTable(lua_State* state, const std::filesystem::path& scriptPath, std::string& error);
 void luaCallLifecycle(lua_State* state, int tableRef, const char* functionName, const std::filesystem::path& path, const std::string& ownerId, float dt = 0.0F);
 void luaCallUiEvent(lua_State* state, int tableRef, const char* functionName, const HudButtonElement& button, Vec2 mousePosition, const std::filesystem::path& path);
+void luaCallActionEvent(lua_State* state, int tableRef, const std::string& functionName, const HudButtonElement& button, Vec2 mousePosition, const std::filesystem::path& path);
+void luaCallModuleActionEvent(lua_State* state, const std::string& moduleName, const std::string& functionName, const HudButtonElement& button, Vec2 mousePosition, const std::filesystem::path& path);
 [[nodiscard]] bool luaRegisterBindings(LuaScriptHost& host, lua_State* state, std::string& error);
 #endif
 

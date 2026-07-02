@@ -2,10 +2,194 @@
 
 #include "demi/runtime/LuaScriptHostInternal.h"
 
+#include <nlohmann/json.hpp>
+
+#include <fstream>
 #include <iostream>
+#include <optional>
 #include <utility>
 
 namespace demi::runtime {
+
+#if DEMI_HAS_LUA54
+namespace {
+
+void pushJsonToLua(lua_State* state, const nlohmann::json& value) {
+  if (value.is_boolean()) {
+    lua_pushboolean(state, value.get<bool>() ? 1 : 0);
+    return;
+  }
+  if (value.is_number()) {
+    lua_pushnumber(state, value.get<double>());
+    return;
+  }
+  if (value.is_string()) {
+    const std::string text = value.get<std::string>();
+    lua_pushlstring(state, text.c_str(), text.size());
+    return;
+  }
+  if (value.is_array()) {
+    lua_newtable(state);
+    int index = 1;
+    for (const nlohmann::json& item : value) {
+      pushJsonToLua(state, item);
+      lua_rawseti(state, -2, index++);
+    }
+    return;
+  }
+  if (value.is_object()) {
+    lua_newtable(state);
+    for (const auto& [key, item] : value.items()) {
+      pushJsonToLua(state, item);
+      lua_setfield(state, -2, key.c_str());
+    }
+    return;
+  }
+  lua_pushnil(state);
+}
+
+void applyScriptProperties(lua_State* state, const int tableRef, const std::string& propertiesJson) {
+  if (propertiesJson.empty()) {
+    return;
+  }
+
+  nlohmann::json properties;
+  try {
+    properties = nlohmann::json::parse(propertiesJson);
+  } catch (...) {
+    return;
+  }
+  if (!properties.is_object()) {
+    return;
+  }
+
+  lua_rawgeti(state, LUA_REGISTRYINDEX, tableRef);
+  for (const auto& [key, value] : properties.items()) {
+    pushJsonToLua(state, value);
+    lua_setfield(state, -2, key.c_str());
+  }
+  lua_pop(state, 1);
+}
+
+std::string trim(std::string value) {
+  const auto first = value.find_first_not_of(" \t\r\n");
+  if (first == std::string::npos) {
+    return {};
+  }
+  const auto last = value.find_last_not_of(" \t\r\n");
+  return value.substr(first, last - first + 1);
+}
+
+std::optional<std::string> handleActionAnnotation(const std::string& line) {
+  const std::string marker = "-- @HandleAction(";
+  const std::size_t markerPos = line.find(marker);
+  if (markerPos == std::string::npos) {
+    return std::nullopt;
+  }
+  const std::size_t firstQuote = line.find('"', markerPos + marker.size());
+  if (firstQuote == std::string::npos) {
+    return std::nullopt;
+  }
+  const std::size_t secondQuote = line.find('"', firstQuote + 1);
+  if (secondQuote == std::string::npos) {
+    return std::nullopt;
+  }
+  return line.substr(firstQuote + 1, secondQuote - firstQuote - 1);
+}
+
+std::optional<std::string> annotatedFunctionName(const std::string& line) {
+  constexpr std::string_view prefix = "function ";
+  const std::string text = trim(line);
+  if (!text.starts_with(prefix)) {
+    return std::nullopt;
+  }
+  const std::size_t nameStart = prefix.size();
+  const std::size_t paren = text.find('(', nameStart);
+  if (paren == std::string::npos) {
+    return std::nullopt;
+  }
+  std::string name = trim(text.substr(nameStart, paren - nameStart));
+  const std::size_t separator = name.find_last_of(".:");
+  if (separator != std::string::npos) {
+    name = name.substr(separator + 1);
+  }
+  if (name.empty()) {
+    return std::nullopt;
+  }
+  return name;
+}
+
+std::vector<LuaActionHandler> parseActionHandlers(const std::filesystem::path& path) {
+  std::vector<LuaActionHandler> handlers;
+  std::ifstream input(path);
+  if (!input) {
+    return handlers;
+  }
+
+  std::vector<std::string> pendingActions;
+  std::string line;
+  while (std::getline(input, line)) {
+    if (const std::optional<std::string> action = handleActionAnnotation(line)) {
+      pendingActions.push_back(*action);
+      continue;
+    }
+
+    if (pendingActions.empty()) {
+      continue;
+    }
+
+    const std::string text = trim(line);
+    if (text.empty() || text.starts_with("--")) {
+      continue;
+    }
+
+    if (const std::optional<std::string> functionName = annotatedFunctionName(text)) {
+      for (const std::string& action : pendingActions) {
+        handlers.push_back({.action = action, .functionName = *functionName});
+      }
+    }
+    pendingActions.clear();
+  }
+  return handlers;
+}
+
+std::string moduleNameFromProjectEntry(std::string module) {
+  constexpr std::string_view scriptPrefix = "script://";
+  if (module.starts_with(scriptPrefix)) {
+    module = module.substr(scriptPrefix.size());
+  }
+  constexpr std::string_view scriptsPrefix = "scripts/";
+  if (module.starts_with(scriptsPrefix)) {
+    module = module.substr(scriptsPrefix.size());
+  }
+  constexpr std::string_view luaSuffix = ".lua";
+  if (module.ends_with(luaSuffix)) {
+    module.resize(module.size() - luaSuffix.size());
+  }
+  for (char& c : module) {
+    if (c == '/' || c == '\\') {
+      c = '.';
+    }
+  }
+  return module;
+}
+
+std::string projectEntryToScriptUri(const std::string& module) {
+  constexpr std::string_view scriptPrefix = "script://";
+  if (module.starts_with(scriptPrefix)) {
+    return module;
+  }
+  std::string path = module;
+  for (char& c : path) {
+    if (c == '.') {
+      c = '/';
+    }
+  }
+  return "script://scripts/" + path + ".lua";
+}
+
+} // namespace
+#endif
 
 LuaScriptHost::LuaScriptHost() = default;
 
@@ -67,6 +251,18 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData& project, World& world, s
   projectDirectory_ = project.projectDirectory;
   project_ = &project;
   luaConfigurePackagePath(state, project);
+  moduleActionHandlers_.clear();
+
+  for (const std::string& module : project.scriptModules) {
+    const std::string scriptUri = projectEntryToScriptUri(module);
+    const std::filesystem::path scriptPath = luaResolveScriptPath(project, scriptUri);
+    moduleActionHandlers_.push_back(ModuleActionHandler{
+      .module = moduleNameFromProjectEntry(module),
+      .path = scriptPath,
+      .lastWriteTime = luaScriptWriteTime(scriptPath),
+      .actionHandlers = parseActionHandlers(scriptPath),
+    });
+  }
 
   auto loadScript = [&](std::string entityId, const std::string& module, const char* context) -> bool {
     const std::filesystem::path scriptPath = luaResolveScriptPath(project, module);
@@ -88,6 +284,7 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData& project, World& world, s
       .path = scriptPath,
       .lastWriteTime = luaScriptWriteTime(scriptPath),
       .tableRef = tableRef,
+      .actionHandlers = parseActionHandlers(scriptPath),
     });
     return true;
   };
@@ -106,12 +303,7 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData& project, World& world, s
       return false;
     }
 
-    lua_rawgeti(state, LUA_REGISTRYINDEX, scripts_[scriptIndex].tableRef);
-    lua_pushnumber(state, entity.luaScript->speed);
-    lua_setfield(state, -2, "speed");
-    lua_pushnumber(state, entity.luaScript->jumpSpeed);
-    lua_setfield(state, -2, "jump_speed");
-    lua_pop(state, 1);
+    applyScriptProperties(state, scripts_[scriptIndex].tableRef, entity.luaScript->propertiesJson);
   }
 
   for (const HudButtonElement& button : world.hudButtons) {
@@ -226,10 +418,7 @@ void LuaScriptHost::reloadChangedScripts() {
       lua_pushstring(state, script.entityId.c_str());
       lua_setfield(state, -2, "entity_id");
       if (const Entity* entity = findEntity(*world_, script.entityId); entity != nullptr && entity->luaScript.has_value()) {
-        lua_pushnumber(state, entity->luaScript->speed);
-        lua_setfield(state, -2, "speed");
-        lua_pushnumber(state, entity->luaScript->jumpSpeed);
-        lua_setfield(state, -2, "jump_speed");
+        (void)entity;
       } else {
         lua_pushstring(state, script.entityId.c_str());
         lua_setfield(state, -2, "ui_id");
@@ -240,6 +429,10 @@ void LuaScriptHost::reloadChangedScripts() {
     luaCallLifecycle(state, script.tableRef, "on_destroy", script.path, script.entityId);
     luaL_unref(state, LUA_REGISTRYINDEX, script.tableRef);
     script.tableRef = newTableRef;
+    if (const Entity* entity = findEntity(*world_, script.entityId); entity != nullptr && entity->luaScript.has_value()) {
+      applyScriptProperties(state, script.tableRef, entity->luaScript->propertiesJson);
+    }
+    script.actionHandlers = parseActionHandlers(script.path);
     script.lastWriteTime = currentWriteTime;
     luaCallLifecycle(state, script.tableRef, "on_create", script.path, script.entityId);
     luaCallLifecycle(state, script.tableRef, "on_start", script.path, script.entityId);
