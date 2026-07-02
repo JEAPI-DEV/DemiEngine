@@ -199,10 +199,18 @@ add_test(NAME demi-script-check-runtime-net-snapshot-replication
 )
 set(DEMI_NETWORKING_EXAMPLE_SCRIPTS
   game
+  game/collectibles
+  game/hud
+  game/score
+  game/world
   game_state
-  level_main
-  level_spiral
+  levels/platformer
+  levels/spiral
   main_menu
+  menu/actions
+  menu/network
+  menu/settings
+  menu/view
   menu_scene
   network_replication
   player

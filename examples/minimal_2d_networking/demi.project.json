@@ -18,9 +18,9 @@
   ],
   "scripting": {
     "language": "lua54",
-    "entry": "script://scripts/game.lua",
     "modules": [
-      "main_menu"
+      "main_menu",
+      "menu.actions"
     ]
   }
 }

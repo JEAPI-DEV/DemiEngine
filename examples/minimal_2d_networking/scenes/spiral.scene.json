@@ -23,6 +23,19 @@
       }
     },
     {
+      "id": "ent_game_controller",
+      "name": "Game Controller",
+      "components": {
+        "LuaScript": {
+          "module": "script://scripts/game.lua",
+          "properties": {
+            "level_module": "levels.spiral",
+            "score_axis": "y"
+          }
+        }
+      }
+    },
+    {
       "id": "ent_player",
       "name": "Player",
       "components": {
