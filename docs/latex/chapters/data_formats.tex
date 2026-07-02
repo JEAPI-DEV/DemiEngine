@@ -59,7 +59,7 @@ HUD files use \filepath{*.hud.json}. They declare a virtual canvas and HUD eleme
 
 The HUD canvas size is per HUD file. A game may author one HUD at 960 by 540 and another at 1920 by 1080. The renderer scales from the HUD canvas to the actual window size, and HUD mouse hit testing maps back into the same canvas.
 
-Button actions are handled by Lua functions annotated with \code{@HandleAction("action")}; the annotation value should match the HUD element's \code{action} field.
+Button actions are handled by Lua functions annotated with \code{@HandleAction("action")}; the annotation value should match the HUD element's \code{action} field. General events can use \code{@OnEvent("event")}; modules that contain annotations should be listed in the project file's \code{scripting.modules} array.
 
 \section{Save Files}
 

@@ -97,6 +97,23 @@ std::optional<std::string> handleActionAnnotation(const std::string& line) {
   return line.substr(firstQuote + 1, secondQuote - firstQuote - 1);
 }
 
+std::optional<std::string> onEventAnnotation(const std::string& line) {
+  const std::string marker = "-- @OnEvent(";
+  const std::size_t markerPos = line.find(marker);
+  if (markerPos == std::string::npos) {
+    return std::nullopt;
+  }
+  const std::size_t firstQuote = line.find('"', markerPos + marker.size());
+  if (firstQuote == std::string::npos) {
+    return std::nullopt;
+  }
+  const std::size_t secondQuote = line.find('"', firstQuote + 1);
+  if (secondQuote == std::string::npos) {
+    return std::nullopt;
+  }
+  return line.substr(firstQuote + 1, secondQuote - firstQuote - 1);
+}
+
 std::optional<std::string> annotatedFunctionName(const std::string& line) {
   constexpr std::string_view prefix = "function ";
   const std::string text = trim(line);
@@ -149,6 +166,40 @@ std::vector<LuaActionHandler> parseActionHandlers(const std::filesystem::path& p
       }
     }
     pendingActions.clear();
+  }
+  return handlers;
+}
+
+std::vector<LuaEventHandler> parseEventHandlers(const std::filesystem::path& path) {
+  std::vector<LuaEventHandler> handlers;
+  std::ifstream input(path);
+  if (!input) {
+    return handlers;
+  }
+
+  std::vector<std::string> pendingEvents;
+  std::string line;
+  while (std::getline(input, line)) {
+    if (const std::optional<std::string> eventName = onEventAnnotation(line)) {
+      pendingEvents.push_back(*eventName);
+      continue;
+    }
+
+    if (pendingEvents.empty()) {
+      continue;
+    }
+
+    const std::string text = trim(line);
+    if (text.empty() || text.starts_with("--")) {
+      continue;
+    }
+
+    if (const std::optional<std::string> functionName = annotatedFunctionName(text)) {
+      for (const std::string& eventName : pendingEvents) {
+        handlers.push_back({.eventName = eventName, .functionName = *functionName});
+      }
+    }
+    pendingEvents.clear();
   }
   return handlers;
 }
@@ -261,6 +312,7 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData& project, World& world, s
       .path = scriptPath,
       .lastWriteTime = luaScriptWriteTime(scriptPath),
       .actionHandlers = parseActionHandlers(scriptPath),
+      .eventHandlers = parseEventHandlers(scriptPath),
     });
   }
 
@@ -285,6 +337,7 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData& project, World& world, s
       .lastWriteTime = luaScriptWriteTime(scriptPath),
       .tableRef = tableRef,
       .actionHandlers = parseActionHandlers(scriptPath),
+      .eventHandlers = parseEventHandlers(scriptPath),
     });
     return true;
   };
@@ -433,6 +486,7 @@ void LuaScriptHost::reloadChangedScripts() {
       applyScriptProperties(state, script.tableRef, entity->luaScript->propertiesJson);
     }
     script.actionHandlers = parseActionHandlers(script.path);
+    script.eventHandlers = parseEventHandlers(script.path);
     script.lastWriteTime = currentWriteTime;
     luaCallLifecycle(state, script.tableRef, "on_create", script.path, script.entityId);
     luaCallLifecycle(state, script.tableRef, "on_start", script.path, script.entityId);

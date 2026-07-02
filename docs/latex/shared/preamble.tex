@@ -8,6 +8,14 @@
 \usepackage{array}
 \usepackage{listings}
 
+\lstdefinelanguage{Lua}{
+  morekeywords={and,break,do,else,elseif,end,false,for,function,if,in,local,nil,not,or,repeat,return,then,true,until,while},
+  sensitive=true,
+  morecomment=[l]{--},
+  morecomment=[s]{--[[}{]]},
+  morestring=[b]",
+  morestring=[b]',
+}
 \lstdefinelanguage{json}{
   morestring=[b]",
   morecomment=[l]{//},

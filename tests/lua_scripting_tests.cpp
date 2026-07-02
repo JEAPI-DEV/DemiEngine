@@ -57,6 +57,8 @@ function Probe:on_start()
   Events.subscribe("hud_action", function(event)
     Save.set_string("test", "hud_action", event.action .. ":" .. event.id)
   end)
+  Events.emit("test.script_event", { value = "script" })
+  Events.emit("test.module_event", { value = "module" })
   if Hud.set_button_label("button_start", "GO") then
     Save.set_string("test", "button_label", "updated")
   end
@@ -68,6 +70,10 @@ end
 -- @HandleAction("test.annotated")
 function Probe:handle_annotated_action(event)
   Save.set_string("test", "annotated_action", event.action .. ":" .. event.id)
+end
+-- @OnEvent("test.script_event")
+function Probe:handle_script_event(event)
+  Save.set_string("test", "script_event", event.value)
 end
 function Probe:on_update(dt)
   if Input.is_down("space") then
@@ -87,6 +93,10 @@ local ActionModule = {}
 -- @HandleAction("test.module")
 function ActionModule.handle_action(event)
   Save.set_string("test", "module_action", event.action .. ":" .. event.id)
+end
+-- @OnEvent("test.module_event")
+function ActionModule.handle_event(event)
+  Save.set_string("test", "module_event", event.value)
 end
 return ActionModule
 )lua")) {
@@ -183,6 +193,14 @@ return PropProbe
   }
   if (host.saveString("test", "button_label") != "updated" || world.hudButtons[0].label != "GO") {
     std::cerr << "Hud.set_button_label did not update the HUD button label.\n";
+    return 1;
+  }
+  if (host.saveString("test", "script_event") != "script") {
+    std::cerr << "Script @OnEvent did not handle emitted event.\n";
+    return 1;
+  }
+  if (host.saveString("test", "module_event") != "module") {
+    std::cerr << "Project-listed module @OnEvent did not handle emitted event.\n";
     return 1;
   }
   host.update(1.0F / 60.0F);

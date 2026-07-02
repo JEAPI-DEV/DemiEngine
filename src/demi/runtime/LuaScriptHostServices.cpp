@@ -662,6 +662,22 @@ int LuaScriptHost::emitEvent(const std::string& eventName, const int payloadInde
     }
     ++delivered;
   }
+  for (const ScriptInstance& script : scripts_) {
+    for (const LuaEventHandler& handler : script.eventHandlers) {
+      if (handler.eventName == eventName) {
+        luaCallScriptEvent(state, script.tableRef, handler.functionName, payloadIndex, script.path, eventName);
+        ++delivered;
+      }
+    }
+  }
+  for (const ModuleActionHandler& module : moduleActionHandlers_) {
+    for (const LuaEventHandler& handler : module.eventHandlers) {
+      if (handler.eventName == eventName) {
+        luaCallModuleEvent(state, module.module, handler.functionName, payloadIndex, module.path, eventName);
+        ++delivered;
+      }
+    }
+  }
   return delivered;
 #endif
 }

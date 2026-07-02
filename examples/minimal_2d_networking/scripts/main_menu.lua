@@ -132,6 +132,11 @@ function Menu.show_game_over(points)
   Menu.screen = "game_over"
 end
 
+-- @OnEvent("game.game_over")
+function Menu.on_game_over(event)
+  Menu.show_game_over(event.points or 0)
+end
+
 function Menu.retry_game()
   if multiplayer_active() then
     state.menu_open = false

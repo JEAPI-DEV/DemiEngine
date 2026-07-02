@@ -28,6 +28,8 @@ void luaCallLifecycle(lua_State* state, int tableRef, const char* functionName, 
 void luaCallUiEvent(lua_State* state, int tableRef, const char* functionName, const HudButtonElement& button, Vec2 mousePosition, const std::filesystem::path& path);
 void luaCallActionEvent(lua_State* state, int tableRef, const std::string& functionName, const HudButtonElement& button, Vec2 mousePosition, const std::filesystem::path& path);
 void luaCallModuleActionEvent(lua_State* state, const std::string& moduleName, const std::string& functionName, const HudButtonElement& button, Vec2 mousePosition, const std::filesystem::path& path);
+void luaCallScriptEvent(lua_State* state, int tableRef, const std::string& functionName, int payloadIndex, const std::filesystem::path& path, const std::string& eventName);
+void luaCallModuleEvent(lua_State* state, const std::string& moduleName, const std::string& functionName, int payloadIndex, const std::filesystem::path& path, const std::string& eventName);
 [[nodiscard]] bool luaRegisterBindings(LuaScriptHost& host, lua_State* state, std::string& error);
 #endif
 

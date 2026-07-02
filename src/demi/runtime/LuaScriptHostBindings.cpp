@@ -1094,6 +1094,53 @@ void luaCallModuleActionEvent(lua_State* state, const std::string& moduleName, c
   lua_pop(state, 1);
 }
 
+void luaCallScriptEvent(lua_State* state, const int tableRef, const std::string& functionName, const int payloadIndex, const std::filesystem::path& path, const std::string& eventName) {
+  lua_rawgeti(state, LUA_REGISTRYINDEX, tableRef);
+  lua_getfield(state, -1, functionName.c_str());
+  if (!lua_isfunction(state, -1)) {
+    lua_pop(state, 2);
+    return;
+  }
+  lua_pushvalue(state, -2);
+  payloadIndex > 0 ? lua_pushvalue(state, payloadIndex) : lua_newtable(state);
+  std::string error;
+  if (!luaCall(state, 2, 0, error)) {
+    luaReportCallbackError(functionName.c_str(), path, eventName, error);
+  }
+  lua_pop(state, 1);
+}
+
+void luaCallModuleEvent(lua_State* state, const std::string& moduleName, const std::string& functionName, const int payloadIndex, const std::filesystem::path& path, const std::string& eventName) {
+  lua_getglobal(state, "package");
+  if (!lua_istable(state, -1)) {
+    lua_pop(state, 1);
+    return;
+  }
+  lua_getfield(state, -1, "loaded");
+  lua_remove(state, -2);
+  if (!lua_istable(state, -1)) {
+    lua_pop(state, 1);
+    return;
+  }
+  lua_getfield(state, -1, moduleName.c_str());
+  lua_remove(state, -2);
+  if (!lua_istable(state, -1)) {
+    lua_pop(state, 1);
+    return;
+  }
+  lua_getfield(state, -1, functionName.c_str());
+  if (!lua_isfunction(state, -1)) {
+    lua_pop(state, 2);
+    return;
+  }
+  payloadIndex > 0 ? lua_pushvalue(state, payloadIndex) : lua_newtable(state);
+  std::string error;
+  if (!luaCall(state, 1, 0, error)) {
+    luaReportCallbackError(functionName.c_str(), path, eventName, error);
+  }
+  lua_pop(state, 1);
+}
+
 bool luaRegisterBindings(LuaScriptHost& host, lua_State* state, std::string& error) {
   if (state == nullptr) {
     error = "Lua state was not initialized.";

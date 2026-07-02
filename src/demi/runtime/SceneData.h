@@ -33,6 +33,11 @@ struct LuaActionHandler {
   std::string functionName;
 };
 
+struct LuaEventHandler {
+  std::string eventName;
+  std::string functionName;
+};
+
 struct DebugLine {
   Vec2 start;
   Vec2 end;

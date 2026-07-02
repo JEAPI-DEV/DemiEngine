@@ -145,6 +145,7 @@ private:
     std::filesystem::file_time_type lastWriteTime{};
     int tableRef = 0;
     std::vector<LuaActionHandler> actionHandlers;
+    std::vector<LuaEventHandler> eventHandlers;
   };
 
   struct TimerInstance {
@@ -168,6 +169,7 @@ private:
     std::filesystem::path path;
     std::filesystem::file_time_type lastWriteTime{};
     std::vector<LuaActionHandler> actionHandlers;
+    std::vector<LuaEventHandler> eventHandlers;
   };
 
   void dispatchHudEvents();

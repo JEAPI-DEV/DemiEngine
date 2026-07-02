@@ -78,7 +78,7 @@ function Game:on_update(dt)
   end
 
   if state.game_over_pending then
-    main_menu.show_game_over(self.points)
+    Events.emit("game.game_over", { points = self.points })
     return
   end
 

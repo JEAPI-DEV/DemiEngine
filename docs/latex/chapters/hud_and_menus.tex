@@ -76,3 +76,16 @@ end
 \end{lstlisting}
 
 The lower-level \code{hud\_action} event is also emitted for systems that prefer event-bus routing.
+
+\section{Event Annotations}
+
+Lua functions can subscribe to game events with \code{@OnEvent} instead of calling \code{Events.subscribe} manually:
+
+\begin{lstlisting}[language=lua]
+-- @OnEvent("player_died")
+function GameEvents.show_game_over(event)
+  Hud.set_text("game_over_points", "POINTS: " .. tostring(event.points))
+end
+\end{lstlisting}
+
+For reusable modules loaded with \code{require}, list the module in \code{scripting.modules} in the project file so the runtime can register its annotations.
