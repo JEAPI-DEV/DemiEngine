@@ -444,6 +444,7 @@ World parseScene(const std::filesystem::path& scenePath, const std::string& text
 
     if (const std::optional<std::string> transform = objectAfterKey(entityObject, "Transform3D")) {
       Transform3DComponent component;
+      component.parent = stringAfterKey(*transform, "parent").value_or(std::string{});
       if (const std::optional<Vec3> position = vec3AfterKey(*transform, "position")) {
         component.position = *position;
       }

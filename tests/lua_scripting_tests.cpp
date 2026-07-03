@@ -178,6 +178,25 @@ return PropProbe
     .size = runtime::Vec2{.x = 45.0F, .y = 100.0F},
     .action = "test.module",
   });
+  runtime::Entity mover3D;
+  mover3D.id = "ent_3d_mover";
+  mover3D.name = "3D Mover";
+  mover3D.transform3D = runtime::Transform3DComponent{.position = runtime::Vec3{.x = 0.0F, .y = 0.5F, .z = 0.0F}};
+  mover3D.boxCollider3D = runtime::BoxCollider3DComponent{.size = runtime::Vec3{.x = 1.0F, .y = 1.0F, .z = 1.0F}};
+  mover3D.rigidbody3D = runtime::Rigidbody3DComponent{.bodyType = "dynamic", .useGravity = false};
+  world.entities.push_back(std::move(mover3D));
+  runtime::Entity wall3D;
+  wall3D.id = "ent_3d_wall";
+  wall3D.name = "3D Wall";
+  wall3D.transform3D = runtime::Transform3DComponent{.position = runtime::Vec3{.x = 1.25F, .y = 0.5F, .z = 0.0F}};
+  wall3D.boxCollider3D = runtime::BoxCollider3DComponent{.size = runtime::Vec3{.x = 1.0F, .y = 1.0F, .z = 1.0F}};
+  wall3D.rigidbody3D = runtime::Rigidbody3DComponent{.bodyType = "static", .useGravity = false};
+  world.entities.push_back(std::move(wall3D));
+  runtime::Entity child3D;
+  child3D.id = "ent_3d_child";
+  child3D.name = "3D Child";
+  child3D.transform3D = runtime::Transform3DComponent{.parent = "ent_3d_mover", .position = runtime::Vec3{.x = 0.0F, .y = 2.0F, .z = 0.0F}};
+  world.entities.push_back(std::move(child3D));
 
   runtime::InputState input;
   input.mousePosition = runtime::Vec2{.x = 25.0F, .y = 50.0F};
@@ -232,6 +251,20 @@ return PropProbe
   }
   if (host.saveString("test", "module_event") != "module") {
     std::cerr << "Project-listed module @OnEvent did not handle emitted event.\n";
+    return 1;
+  }
+  if (!host.setEntityPosition3D("ent_3d_mover", 1.0F, 0.5F, 0.0F)) {
+    std::cerr << "Transform3D.set_position failed for test mover.\n";
+    return 1;
+  }
+  const std::optional<runtime::Vec3> moved3D = host.entityPosition3D("ent_3d_mover");
+  if (!moved3D.has_value() || moved3D->x != 0.0F) {
+    std::cerr << "3D dynamic mover passed through a static BoxCollider3D.\n";
+    return 1;
+  }
+  const runtime::Entity* child = runtime::findEntity(world, "ent_3d_child");
+  if (child == nullptr || runtime::worldPosition3D(world, *child).y != 2.5F) {
+    std::cerr << "Transform3D parent world position did not include parent transform.\n";
     return 1;
   }
   host.update(1.0F / 60.0F);

@@ -343,6 +343,7 @@ namespace demi::runtime
         renderer3D.beginFrame(
             camera != nullptr ? *camera : fallbackCamera3D,
             activeCamera3DPosition(loaded.world),
+            activeCamera3DRotation(loaded.world),
             width,
             height);
         renderer3D.drawWorld(loaded.world);

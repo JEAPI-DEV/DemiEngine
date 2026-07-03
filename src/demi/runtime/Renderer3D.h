@@ -19,7 +19,7 @@ public:
   Renderer3D& operator=(const Renderer3D&) = delete;
 
   void loadTextureAssets(const AssetRegistry& registry);
-  void beginFrame(const Camera3DComponent& camera, Vec3 cameraPosition, int width, int height);
+  void beginFrame(const Camera3DComponent& camera, Vec3 cameraPosition, Vec3 cameraRotation, int width, int height);
   void drawWorld(const World& world);
   void drawHud(const World& world);
   void endFrame();
@@ -27,6 +27,7 @@ public:
 private:
   Camera3DComponent camera_;
   Vec3 cameraPosition_;
+  Vec3 cameraRotation_;
   int width_ = 1;
   int height_ = 1;
   std::unordered_map<std::string, Texture2D> textures_;

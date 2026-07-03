@@ -9,15 +9,16 @@
       "name": "Main Camera 3D",
       "components": {
         "Transform3D": {
-          "position": [0.0, 8.0, 12.0],
-          "rotation": [0.6, 0.0, 0.0],
+          "parent": "ent_player",
+          "position": [0.0, 5.5, 9.0],
+          "rotation": [0.0, 0.0, 0.0],
           "scale": [1.0, 1.0, 1.0]
         },
         "Camera3D": {
           "clear_color": [0.05, 0.06, 0.09, 1.0],
           "fov": 60.0,
           "perspective": true,
-          "target_offset": [0.0, -1.5, -1.0],
+          "target_offset": [0.0, -3.0, -9.0],
           "up_axis": 1.0
         }
       }

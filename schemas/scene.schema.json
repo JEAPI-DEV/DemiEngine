@@ -83,6 +83,7 @@
               "Transform3D": {
                 "type": "object",
                 "properties": {
+                  "parent": { "type": "string" },
                   "position": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
                   "rotation": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
                   "scale": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 }

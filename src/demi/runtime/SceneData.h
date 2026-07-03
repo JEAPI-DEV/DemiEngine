@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -160,6 +161,7 @@ struct BoxCollider2DComponent {
 };
 
 struct Transform3DComponent {
+  std::string parent;
   Vec3 position;
   Vec3 rotation;
   Vec3 scale = {1.0F, 1.0F, 1.0F};
@@ -325,10 +327,60 @@ struct World {
   return nullptr;
 }
 
+[[nodiscard]] inline Vec3 rotateYaw(const Vec3 value, const float yaw) {
+  const float sinY = std::sin(yaw);
+  const float cosY = std::cos(yaw);
+  return Vec3{
+    .x = value.x * cosY + value.z * sinY,
+    .y = value.y,
+    .z = -value.x * sinY + value.z * cosY,
+  };
+}
+
+[[nodiscard]] inline Vec3 worldPosition3D(const World& world, const Entity& entity) {
+  if (!entity.transform3D.has_value()) {
+    return {};
+  }
+  Vec3 position = entity.transform3D->position;
+  if (!entity.transform3D->parent.empty()) {
+    if (const Entity* parent = findEntity(world, entity.transform3D->parent); parent != nullptr && parent->transform3D.has_value()) {
+      const Vec3 rotated = rotateYaw(position, parent->transform3D->rotation.y);
+      const Vec3 parentPosition = worldPosition3D(world, *parent);
+      position = Vec3{.x = parentPosition.x + rotated.x, .y = parentPosition.y + rotated.y, .z = parentPosition.z + rotated.z};
+    }
+  }
+  return position;
+}
+
+[[nodiscard]] inline Vec3 worldRotation3D(const World& world, const Entity& entity) {
+  if (!entity.transform3D.has_value()) {
+    return {};
+  }
+  Vec3 rotation = entity.transform3D->rotation;
+  if (!entity.transform3D->parent.empty()) {
+    if (const Entity* parent = findEntity(world, entity.transform3D->parent); parent != nullptr && parent->transform3D.has_value()) {
+      const Vec3 parentRotation = worldRotation3D(world, *parent);
+      rotation.x += parentRotation.x;
+      rotation.y += parentRotation.y;
+      rotation.z += parentRotation.z;
+    }
+  }
+  return rotation;
+}
+
 [[nodiscard]] inline Vec3 activeCamera3DPosition(const World& world) {
   for (const Entity& entity : world.entities) {
     if (entity.camera3D.has_value() && entity.transform3D.has_value()) {
-      return entity.transform3D->position;
+      return worldPosition3D(world, entity);
+    }
+  }
+  return {};
+}
+
+[[nodiscard]] inline Vec3 activeCamera3DRotation(const World& world) {
+  for (const Entity& entity : world.entities) {
+    if (entity.camera3D.has_value() && entity.transform3D.has_value()) {
+      return worldRotation3D(world, entity);
     }
   }
   return {};

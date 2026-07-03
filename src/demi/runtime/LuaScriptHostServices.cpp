@@ -7,11 +7,80 @@
 #include "demi/runtime/Physics2D.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <iostream>
 #include <optional>
 
 namespace demi::runtime {
+
+namespace {
+
+struct Aabb3D {
+  Vec3 min;
+  Vec3 max;
+};
+
+[[nodiscard]] Aabb3D colliderAabb3D(const Entity& entity, const Vec3 position) {
+  const BoxCollider3DComponent& collider = *entity.boxCollider3D;
+  const Vec3 center{
+    .x = position.x + collider.offset.x,
+    .y = position.y + collider.offset.y,
+    .z = position.z + collider.offset.z,
+  };
+  const Vec3 half{.x = collider.size.x * 0.5F, .y = collider.size.y * 0.5F, .z = collider.size.z * 0.5F};
+  return Aabb3D{
+    .min = Vec3{.x = center.x - half.x, .y = center.y - half.y, .z = center.z - half.z},
+    .max = Vec3{.x = center.x + half.x, .y = center.y + half.y, .z = center.z + half.z},
+  };
+}
+
+[[nodiscard]] bool intersects(const Aabb3D& left, const Aabb3D& right) {
+  return left.min.x < right.max.x && left.max.x > right.min.x &&
+         left.min.y < right.max.y && left.max.y > right.min.y &&
+         left.min.z < right.max.z && left.max.z > right.min.z;
+}
+
+[[nodiscard]] bool collidesAt3D(const World& world, const Entity& moving, const Vec3 position) {
+  if (!moving.boxCollider3D.has_value()) {
+    return false;
+  }
+  const Aabb3D movingAabb = colliderAabb3D(moving, position);
+  for (const Entity& other : world.entities) {
+    if (other.id == moving.id || !other.transform3D.has_value() || !other.boxCollider3D.has_value() || other.boxCollider3D->isTrigger) {
+      continue;
+    }
+    if (other.rigidbody3D.has_value() && other.rigidbody3D->bodyType != "static") {
+      continue;
+    }
+    if (intersects(movingAabb, colliderAabb3D(other, other.transform3D->position))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+[[nodiscard]] Vec3 resolveMove3D(const World& world, const Entity& entity, const Vec3 from, const Vec3 delta) {
+  if (!entity.rigidbody3D.has_value() || entity.rigidbody3D->bodyType != "dynamic" || !entity.boxCollider3D.has_value()) {
+    return Vec3{.x = from.x + delta.x, .y = from.y + delta.y, .z = from.z + delta.z};
+  }
+
+  Vec3 resolved = from;
+  const std::array<Vec3, 3> axes{{
+    Vec3{.x = delta.x, .y = 0.0F, .z = 0.0F},
+    Vec3{.x = 0.0F, .y = delta.y, .z = 0.0F},
+    Vec3{.x = 0.0F, .y = 0.0F, .z = delta.z},
+  }};
+  for (const Vec3 axis : axes) {
+    const Vec3 candidate{.x = resolved.x + axis.x, .y = resolved.y + axis.y, .z = resolved.z + axis.z};
+    if (!collidesAt3D(world, entity, candidate)) {
+      resolved = candidate;
+    }
+  }
+  return resolved;
+}
+
+} // namespace
 
 std::string normalizedKey(std::string key) {
   std::ranges::transform(key, key.begin(), [](const unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -112,9 +181,7 @@ bool LuaScriptHost::addEntityPosition3D(const std::string& entityId, const float
   if (entity == nullptr || !entity->transform3D.has_value()) {
     return false;
   }
-  entity->transform3D->position.x += dx;
-  entity->transform3D->position.y += dy;
-  entity->transform3D->position.z += dz;
+  entity->transform3D->position = resolveMove3D(*world_, *entity, entity->transform3D->position, Vec3{.x = dx, .y = dy, .z = dz});
   return true;
 }
 
@@ -126,7 +193,9 @@ bool LuaScriptHost::setEntityPosition3D(const std::string& entityId, const float
   if (entity == nullptr || !entity->transform3D.has_value()) {
     return false;
   }
-  entity->transform3D->position = Vec3{.x = x, .y = y, .z = z};
+  const Vec3 target{.x = x, .y = y, .z = z};
+  const Vec3 delta{.x = target.x - entity->transform3D->position.x, .y = target.y - entity->transform3D->position.y, .z = target.z - entity->transform3D->position.z};
+  entity->transform3D->position = resolveMove3D(*world_, *entity, entity->transform3D->position, delta);
   return true;
 }
 

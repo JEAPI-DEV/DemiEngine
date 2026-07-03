@@ -102,18 +102,17 @@ std::optional<ImageData> loadPpm(const std::filesystem::path& path) {
   return image;
 }
 
-void drawMeshEntity(const Entity& entity, const std::unordered_map<std::string, Texture2D>& textures) {
+void drawMeshEntity(const World& world, const Entity& entity, const std::unordered_map<std::string, Texture2D>& textures) {
   if (!entity.meshRenderer.has_value() || !entity.transform3D.has_value()) {
     return;
   }
 
-  const Transform3DComponent& transform = *entity.transform3D;
   const MeshRendererComponent& mesh = *entity.meshRenderer;
-  const ::Vector3 position = toRlVec3(transform.position);
+  const ::Vector3 position = toRlVec3(worldPosition3D(world, entity));
   const ::Vector3 size = toRlVec3(mesh.size);
   const ::Color color = toRlColor(mesh.color);
 
-  const ::Vector3 rotation = toRlVec3(transform.rotation);
+  const ::Vector3 rotation = toRlVec3(worldRotation3D(world, entity));
   const float rotationX = rotation.x * (180.0F / 3.14159265358979F);
   const float rotationY = rotation.y * (180.0F / 3.14159265358979F);
   const float rotationZ = rotation.z * (180.0F / 3.14159265358979F);
@@ -217,9 +216,10 @@ void Renderer3D::loadTextureAssets(const AssetRegistry& registry) {
   }
 }
 
-void Renderer3D::beginFrame(const Camera3DComponent& camera, const Vec3 cameraPosition, const int width, const int height) {
+void Renderer3D::beginFrame(const Camera3DComponent& camera, const Vec3 cameraPosition, const Vec3 cameraRotation, const int width, const int height) {
   camera_ = camera;
   cameraPosition_ = cameraPosition;
+  cameraRotation_ = cameraRotation;
   width_ = std::max(width, 1);
   height_ = std::max(height, 1);
 
@@ -227,10 +227,11 @@ void Renderer3D::beginFrame(const Camera3DComponent& camera, const Vec3 cameraPo
   ClearBackground(toRlColor(camera.clearColor));
 
   const ::Vector3 position = toRlVec3(cameraPosition);
+  const Vec3 rotatedTargetOffset = rotateYaw(camera.targetOffset, cameraRotation.y);
   const ::Vector3 target = {
-    position.x + camera.targetOffset.x,
-    position.y + camera.targetOffset.y,
-    position.z + camera.targetOffset.z,
+    position.x + rotatedTargetOffset.x,
+    position.y + rotatedTargetOffset.y,
+    position.z + rotatedTargetOffset.z,
   };
   const ::Vector3 up = {0.0F, 1.0F, 0.0F};
   ::Camera3D rlCamera{
@@ -255,11 +256,20 @@ void Renderer3D::drawWorld(const World& world) {
 
   for (const Entity& entity : world.entities) {
     if (entity.meshRenderer.has_value() || entity.boxCollider3D.has_value()) {
-      drawMeshEntity(entity, textures_);
+      drawMeshEntity(world, entity, textures_);
     }
   }
 
-  DrawGrid(20, 1.0F);
+  constexpr int slices = 40;
+  constexpr float spacing = 1.0F;
+  constexpr float half = static_cast<float>(slices) * spacing * 0.5F;
+  constexpr float y = 0.0125F;
+  const ::Color gridColor = {170, 188, 180, 110};
+  for (int i = 0; i <= slices; ++i) {
+    const float p = -half + static_cast<float>(i) * spacing;
+    DrawLine3D({-half, y, p}, {half, y, p}, gridColor);
+    DrawLine3D({p, y, -half}, {p, y, half}, gridColor);
+  }
 }
 
 void Renderer3D::drawHud(const World& world) {

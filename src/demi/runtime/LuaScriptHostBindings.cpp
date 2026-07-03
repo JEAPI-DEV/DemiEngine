@@ -52,6 +52,15 @@ Vec2 vec2Field(const sol::table table, const char* fieldName, const Vec2 fallbac
   return Vec2{.x = vec.get_or(1, fallback.x), .y = vec.get_or(2, fallback.y)};
 }
 
+Vec3 vec3Field(const sol::table table, const char* fieldName, const Vec3 fallback = {}) {
+  const sol::object object = table[fieldName];
+  if (!object.is<sol::table>()) {
+    return fallback;
+  }
+  const sol::table vec = object.as<sol::table>();
+  return Vec3{.x = vec.get_or(1, fallback.x), .y = vec.get_or(2, fallback.y), .z = vec.get_or(3, fallback.z)};
+}
+
 Color colorField(const sol::table table, const char* fieldName, const Color fallback = {1.0F, 1.0F, 1.0F, 1.0F}) {
   const sol::object object = table[fieldName];
   if (!object.is<sol::table>()) {
@@ -95,6 +104,15 @@ Entity parseEntitySpec(const std::string& entityId, const sol::table spec) {
     };
   }
 
+  if (const sol::table transform = componentTable(components, "Transform3D"); transform.valid()) {
+    entity.transform3D = Transform3DComponent{
+      .parent = transform.get_or("parent", std::string{}),
+      .position = vec3Field(transform, "position"),
+      .rotation = vec3Field(transform, "rotation"),
+      .scale = vec3Field(transform, "scale", {1.0F, 1.0F, 1.0F}),
+    };
+  }
+
   if (const sol::table rigidbody = componentTable(components, "Rigidbody2D"); rigidbody.valid()) {
     entity.rigidbody2D = Rigidbody2DComponent{
       .bodyType = rigidbody.get_or("body_type", std::string("dynamic")),
@@ -119,6 +137,34 @@ Entity parseEntitySpec(const std::string& entityId, const sol::table spec) {
       .texture = sprite.get_or("texture", std::string{}),
       .layer = sprite.get_or("layer", std::string{}),
       .color = colorField(sprite, "color"),
+    };
+  }
+
+  if (const sol::table mesh = componentTable(components, "MeshRenderer"); mesh.valid()) {
+    entity.meshRenderer = MeshRendererComponent{
+      .shape = mesh.get_or("shape", std::string("cube")),
+      .size = vec3Field(mesh, "size", {1.0F, 1.0F, 1.0F}),
+      .color = colorField(mesh, "color", {0.8F, 0.8F, 0.8F, 1.0F}),
+      .texture = mesh.get_or("texture", std::string{}),
+      .wireframe = mesh.get_or("wireframe", false),
+    };
+  }
+
+  if (const sol::table collider = componentTable(components, "BoxCollider3D"); collider.valid()) {
+    entity.boxCollider3D = BoxCollider3DComponent{
+      .size = vec3Field(collider, "size", {1.0F, 1.0F, 1.0F}),
+      .offset = vec3Field(collider, "offset"),
+      .isTrigger = collider.get_or("is_trigger", false),
+      .layer = collider.get_or("layer", std::string{}),
+    };
+  }
+
+  if (const sol::table rigidbody = componentTable(components, "Rigidbody3D"); rigidbody.valid()) {
+    entity.rigidbody3D = Rigidbody3DComponent{
+      .bodyType = rigidbody.get_or("body_type", std::string("dynamic")),
+      .velocity = vec3Field(rigidbody, "velocity"),
+      .useGravity = rigidbody.get_or("use_gravity", true),
+      .gravityScale = rigidbody.get_or("gravity_scale", 1.0F),
     };
   }
 
