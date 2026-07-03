@@ -4,6 +4,7 @@ return {
   spawn_y = 0,
   max_pull = 2.8,
   sling_force = 6.5,
+  max_sling_speed = 24.0,
   trajectory_gravity = -18.0,
   max_extra_jumps = 3,
 }

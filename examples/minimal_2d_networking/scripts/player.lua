@@ -41,6 +41,10 @@ function Player:on_update(dt)
   if state.menu_open or state.game_over then
     self.jump_was_down = false
     self.mouse_was_down = Input.mouse_down("left")
+    self.aiming = false
+    self.aiming_freezes_motion = false
+    self.aim_base_velocity_x = nil
+    self.aim_base_velocity_y = nil
     return
   end
 

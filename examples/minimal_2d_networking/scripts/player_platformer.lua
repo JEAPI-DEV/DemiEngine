@@ -52,6 +52,8 @@ function Platformer.check_game_over_if_fallen(player)
   player.can_slingshot = false
   player.aiming = false
   player.aiming_freezes_motion = false
+  player.aim_base_velocity_x = nil
+  player.aim_base_velocity_y = nil
   state.game_over = true
   state.game_over_pending = true
   return true
