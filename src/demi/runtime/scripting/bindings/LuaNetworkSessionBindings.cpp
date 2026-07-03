@@ -13,7 +13,6 @@
 
 namespace demi::runtime {
 
-#if DEMI_HAS_LUA54
 namespace {
 
 struct NetworkSessionClaimObject {
@@ -441,6 +440,5 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost& host, lua_State* sta
     });
 }
 
-#endif
 
 } // namespace demi::runtime

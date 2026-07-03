@@ -4,7 +4,6 @@
 
 namespace demi::runtime {
 
-#if DEMI_HAS_LUA54
 namespace {
 
 void pushJsonToLua(lua_State* state, const nlohmann::json& value) {
@@ -65,6 +64,5 @@ void applyScriptProperties(lua_State* state, const int tableRef, const std::stri
   }
   lua_pop(state, 1);
 }
-#endif
 
 } // namespace demi::runtime

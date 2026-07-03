@@ -8,22 +8,13 @@ LuaScriptHost::LuaScriptHost() = default;
 
 LuaScriptHost::~LuaScriptHost() {
   destroy();
-#if DEMI_HAS_LUA54
   if (state_ != nullptr) {
     lua_close(static_cast<lua_State*>(state_));
     state_ = nullptr;
   }
-#endif
 }
 
 bool LuaScriptHost::initialize(World& world, const InputState& input, AudioSystem* audio, std::string& error) {
-#if !DEMI_HAS_LUA54
-  (void)world;
-  (void)input;
-  (void)audio;
-  error = "Lua 5.4 support is unavailable because lua5.4 was not found at configure time.";
-  return false;
-#else
   world_ = &world;
   input_ = &input;
   audio_ = audio;
@@ -37,7 +28,6 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, AudioSyste
   state_ = state;
 
   return luaRegisterBindings(*this, state, error);
-#endif
 }
 
 void LuaScriptHost::setMediaSystem(MediaSystem* media) {
@@ -50,7 +40,6 @@ void LuaScriptHost::setNetworkSystem(NetworkSystem* network) {
 
 
 void LuaScriptHost::start() {
-#if DEMI_HAS_LUA54
   auto* state = static_cast<lua_State*>(state_);
   if (state == nullptr) {
     return;
@@ -59,7 +48,6 @@ void LuaScriptHost::start() {
     luaCallLifecycle(state, script.tableRef, "on_create", script.path, script.entityId);
     luaCallLifecycle(state, script.tableRef, "on_start", script.path, script.entityId);
   }
-#endif
   if (world_ == nullptr) {
     return;
   }
@@ -74,7 +62,6 @@ void LuaScriptHost::start() {
 }
 
 void LuaScriptHost::update(const float dt) {
-#if DEMI_HAS_LUA54
   auto* state = static_cast<lua_State*>(state_);
   if (state == nullptr) {
     return;
@@ -94,13 +81,9 @@ void LuaScriptHost::update(const float dt) {
   for (const ScriptInstance& script : scripts_) {
     luaCallLifecycle(state, script.tableRef, "on_update", script.path, script.entityId, dt);
   }
-#else
-  (void)dt;
-#endif
 }
 
 void LuaScriptHost::fixedUpdate(const float dt) {
-#if DEMI_HAS_LUA54
   auto* state = static_cast<lua_State*>(state_);
   if (state == nullptr) {
     return;
@@ -108,19 +91,14 @@ void LuaScriptHost::fixedUpdate(const float dt) {
   for (const ScriptInstance& script : scripts_) {
     luaCallLifecycle(state, script.tableRef, "on_fixed_update", script.path, script.entityId, dt);
   }
-#else
-  (void)dt;
-#endif
 }
 
 void LuaScriptHost::destroy() {
   unloadScripts();
-#if DEMI_HAS_LUA54
   auto* state = static_cast<lua_State*>(state_);
   if (state != nullptr) {
     clearLuaBindingGlobals(state);
   }
-#endif
 }
 
 

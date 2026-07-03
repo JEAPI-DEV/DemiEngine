@@ -9,7 +9,6 @@
 
 namespace demi::runtime {
 
-#if DEMI_HAS_LUA54
 namespace {
 
 const char* networkEventTypeName(const NetworkEventType type) {
@@ -65,6 +64,5 @@ void LuaNetworkBindingModule::install(LuaScriptHost& host, lua_State* state) con
   network.set_function("encode", [](const std::string& type, sol::optional<sol::object> payload) { return encodeNetworkMessage(type, payload); });
   network.set_function("decode", [state](const std::string& message) { return decodeNetworkMessage(state, message); });
 }
-#endif
 
 } // namespace demi::runtime

@@ -2,7 +2,6 @@
 
 namespace demi::runtime {
 
-#if DEMI_HAS_LUA54
 
 void clearLuaBindingGlobals(lua_State* state) {
   constexpr const char* globals[] = {
@@ -16,6 +15,5 @@ void clearLuaBindingGlobals(lua_State* state) {
   lua_gc(state, LUA_GCCOLLECT, 0);
 }
 
-#endif
 
 } // namespace demi::runtime

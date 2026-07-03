@@ -14,7 +14,6 @@
 
 namespace demi::runtime {
 
-#if DEMI_HAS_LUA54
 namespace {
 
 int luaTraceback(lua_State* state) {
@@ -271,6 +270,5 @@ bool luaRegisterBindings(LuaScriptHost& host, lua_State* state, std::string& err
   return true;
 }
 
-#endif
 
 } // namespace demi::runtime

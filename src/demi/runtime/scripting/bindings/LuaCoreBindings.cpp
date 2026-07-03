@@ -19,7 +19,6 @@
 
 namespace demi::runtime {
 
-#if DEMI_HAS_LUA54
 void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const {
   sol::state_view lua(state);
 
@@ -72,6 +71,5 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
   runtime.set_function("set_max_fps", [&host](double maxFps) { host.setMaxFps(static_cast<int>(std::round(maxFps))); });
   runtime.set_function("get_max_fps", [&host] { return host.maxFps(); });
 }
-#endif
 
 } // namespace demi::runtime

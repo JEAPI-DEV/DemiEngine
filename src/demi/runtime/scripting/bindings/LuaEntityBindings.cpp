@@ -6,7 +6,6 @@
 
 namespace demi::runtime {
 
-#if DEMI_HAS_LUA54
 void LuaEntityBindingModule::install(LuaScriptHost& host, lua_State* state) const {
   sol::state_view lua(state);
 
@@ -49,6 +48,5 @@ void LuaEntityBindingModule::install(LuaScriptHost& host, lua_State* state) cons
   physics.set_function("has_contact", [&host](const std::string& entityId, sol::optional<sol::table> filter) { return host.physicsHasContact(entityId, luaContactFilterFromTable(filter)); });
   physics.set_function("contacts", [state, &host](const std::string& entityId) { return luaContactsTable(state, host.physicsContacts(entityId)); });
 }
-#endif
 
 } // namespace demi::runtime

@@ -5,7 +5,6 @@
 
 namespace demi::runtime {
 
-#if DEMI_HAS_LUA54
 nlohmann::json luaObjectToJson(const sol::object object) {
   switch (object.get_type()) {
   case sol::type::boolean:
@@ -106,6 +105,5 @@ sol::object decodeNetworkMessage(lua_State* state, const std::string& text) {
     return sol::nil;
   }
 }
-#endif
 
 } // namespace demi::runtime

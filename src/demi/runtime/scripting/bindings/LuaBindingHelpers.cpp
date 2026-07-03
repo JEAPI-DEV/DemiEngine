@@ -8,7 +8,6 @@
 
 namespace demi::runtime {
 
-#if DEMI_HAS_LUA54
 namespace {
 
 sol::table componentTable(const sol::table components, const char* name) {
@@ -334,6 +333,5 @@ sol::table luaContactsTable(lua_State* state, const std::vector<PhysicsContact2D
   }
   return result;
 }
-#endif
 
 } // namespace demi::runtime

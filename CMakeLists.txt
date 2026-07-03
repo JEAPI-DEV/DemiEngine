@@ -99,6 +99,10 @@ add_library(demi-runtime-lib STATIC
   src/demi/runtime/physics/Physics3D.cpp
   src/demi/runtime/render/Renderer2D.cpp
   src/demi/runtime/render/Renderer3D.cpp
+  src/demi/runtime/scene/HudParser.cpp
+  src/demi/runtime/scene/ProjectParser.cpp
+  src/demi/runtime/scene/SceneEntityParser.cpp
+  src/demi/runtime/scene/SceneJson.cpp
   src/demi/runtime/scene/SceneLoader.cpp
   src/demi/runtime/scripting/LuaScriptHostBindings.cpp
   src/demi/runtime/scripting/LuaScriptHost.cpp
@@ -137,7 +141,6 @@ target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_RAYLIB=1)
 
 if(TARGET PkgConfig::LUA54)
   target_link_libraries(demi-runtime-lib PRIVATE PkgConfig::LUA54)
-  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_LUA54=1)
 else()
   message(FATAL_ERROR "Lua 5.4 was not found. Install lua5.4 development files to build DemiEngine scripting.")
 endif()
@@ -185,6 +188,9 @@ target_link_libraries(demi-lua-stub-contract-tests PRIVATE demi-runtime-lib)
 add_executable(demi-lua-scripting-tests tests/lua_scripting_tests.cpp)
 target_link_libraries(demi-lua-scripting-tests PRIVATE demi-runtime-lib)
 
+add_executable(demi-scene-loader-tests tests/scene_loader_tests.cpp)
+target_link_libraries(demi-scene-loader-tests PRIVATE demi-runtime-lib)
+
 add_executable(demi-snapshot-replication-tests tests/snapshot_replication_tests.cpp)
 target_link_libraries(demi-snapshot-replication-tests PRIVATE demi-runtime-lib)
 
@@ -199,6 +205,7 @@ add_test(NAME demi-physics2d-tests COMMAND demi-physics2d-tests)
 add_test(NAME demi-physics3d-tests COMMAND demi-physics3d-tests)
 add_test(NAME demi-lua-stub-contract-tests COMMAND demi-lua-stub-contract-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
+add_test(NAME demi-scene-loader-tests COMMAND demi-scene-loader-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-snapshot-replication-tests COMMAND demi-snapshot-replication-tests)
 if(DEMI_ENABLE_NETWORK)
   add_test(NAME demi-network-tests COMMAND demi-network-tests)

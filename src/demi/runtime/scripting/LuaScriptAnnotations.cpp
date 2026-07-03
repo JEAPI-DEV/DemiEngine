@@ -6,7 +6,6 @@
 
 namespace demi::runtime {
 
-#if DEMI_HAS_LUA54
 namespace {
 
 std::string trim(std::string value) {
@@ -178,6 +177,5 @@ std::string projectEntryToScriptUri(const std::string& module) {
   }
   return "script://scripts/" + path + ".lua";
 }
-#endif
 
 } // namespace demi::runtime

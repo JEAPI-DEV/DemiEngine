@@ -9,12 +9,6 @@
 namespace demi::runtime {
 
 bool LuaScriptHost::loadWorldScripts(const ProjectData& project, World& world, std::string& error) {
-#if !DEMI_HAS_LUA54
-  (void)project;
-  (void)world;
-  error = "Lua 5.4 support is unavailable.";
-  return false;
-#else
   auto* state = static_cast<lua_State*>(state_);
   if (state == nullptr) {
     error = "LuaScriptHost was not initialized.";
@@ -98,10 +92,8 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData& project, World& world, s
   }
 
   return true;
-#endif
 }
 void LuaScriptHost::reloadChangedScripts() {
-#if DEMI_HAS_LUA54
   auto* state = static_cast<lua_State*>(state_);
   if (state == nullptr || world_ == nullptr) {
     return;
@@ -145,11 +137,9 @@ void LuaScriptHost::reloadChangedScripts() {
     luaCallLifecycle(state, script.tableRef, "on_start", script.path, script.entityId);
     std::cout << "Lua hot reloaded: " << script.path.string() << '\n';
   }
-#endif
 }
 
 void LuaScriptHost::unloadScripts() {
-#if DEMI_HAS_LUA54
   auto* state = static_cast<lua_State*>(state_);
   if (state == nullptr) {
     scripts_.clear();
@@ -163,7 +153,6 @@ void LuaScriptHost::unloadScripts() {
   }
   scripts_.clear();
   clearTimersAndEvents();
-#endif
 }
 
 void LuaScriptHost::requestSceneLoad(const std::string& sceneId) {
@@ -181,11 +170,6 @@ bool LuaScriptHost::applyPendingSceneLoad(std::string& error) {
   const std::string sceneId = std::move(*pendingSceneLoad_);
   pendingSceneLoad_.reset();
 
-#if !DEMI_HAS_LUA54
-  (void)sceneId;
-  error = "Lua 5.4 support is unavailable.";
-  return false;
-#else
   if (project_ == nullptr || world_ == nullptr) {
     error = "Scene load requested before runtime was initialized.";
     return false;
@@ -207,7 +191,6 @@ bool LuaScriptHost::applyPendingSceneLoad(std::string& error) {
 
   start();
   return true;
-#endif
 }
 
 } // namespace demi::runtime

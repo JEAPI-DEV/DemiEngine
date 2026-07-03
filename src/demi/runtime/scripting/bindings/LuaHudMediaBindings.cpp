@@ -6,7 +6,6 @@
 
 namespace demi::runtime {
 
-#if DEMI_HAS_LUA54
 void LuaHudMediaBindingModule::install(LuaScriptHost& host, lua_State* state) const {
   sol::state_view lua(state);
 
@@ -58,6 +57,5 @@ void LuaHudMediaBindingModule::install(LuaScriptHost& host, lua_State* state) co
   cutscene.set_function("is_playing", [&host] { return host.isCutscenePlaying(); });
   cutscene.set_function("active", [&host] { return host.activeCutscene(); });
 }
-#endif
 
 } // namespace demi::runtime

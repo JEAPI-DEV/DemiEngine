@@ -72,19 +72,12 @@ bool LuaScriptHost::physicsEnabled() const {
 }
 
 std::uint64_t LuaScriptHost::addTimer(const float seconds, const bool repeating, const int callbackRef) {
-#if !DEMI_HAS_LUA54
-  (void)seconds;
-  (void)repeating;
-  (void)callbackRef;
-  return 0;
-#else
   if (state_ == nullptr || seconds < 0.0F || callbackRef == LUA_NOREF) {
     return 0;
   }
   const std::uint64_t id = nextTimerId_++;
   timers_.push_back(TimerInstance{.id = id, .remaining = seconds, .interval = std::max(seconds, 0.0F), .repeating = repeating, .callbackRef = callbackRef});
   return id;
-#endif
 }
 
 bool LuaScriptHost::cancelTimer(const std::uint64_t timerId) {
@@ -98,18 +91,12 @@ bool LuaScriptHost::cancelTimer(const std::uint64_t timerId) {
 }
 
 std::uint64_t LuaScriptHost::addEventSubscription(std::string eventName, const int callbackRef) {
-#if !DEMI_HAS_LUA54
-  (void)eventName;
-  (void)callbackRef;
-  return 0;
-#else
   if (state_ == nullptr || eventName.empty() || callbackRef == LUA_NOREF) {
     return 0;
   }
   const std::uint64_t id = nextEventSubscriptionId_++;
   eventSubscriptions_.push_back(EventSubscription{.id = id, .eventName = std::move(eventName), .callbackRef = callbackRef});
   return id;
-#endif
 }
 
 bool LuaScriptHost::removeEventSubscription(const std::uint64_t subscriptionId) {
@@ -123,11 +110,6 @@ bool LuaScriptHost::removeEventSubscription(const std::uint64_t subscriptionId) 
 }
 
 int LuaScriptHost::emitEvent(const std::string& eventName, const int payloadIndex) {
-#if !DEMI_HAS_LUA54
-  (void)eventName;
-  (void)payloadIndex;
-  return 0;
-#else
   auto* state = static_cast<lua_State*>(state_);
   if (state == nullptr || eventName.empty()) {
     return 0;
@@ -162,11 +144,9 @@ int LuaScriptHost::emitEvent(const std::string& eventName, const int payloadInde
     }
   }
   return delivered;
-#endif
 }
 
 void LuaScriptHost::dispatchHudEvents() {
-#if DEMI_HAS_LUA54
   auto* state = static_cast<lua_State*>(state_);
   if (state == nullptr || world_ == nullptr || input_ == nullptr) {
     return;
@@ -228,11 +208,9 @@ void LuaScriptHost::dispatchHudEvents() {
     }
   }
   previousUiMouseDown_ = mouseDown;
-#endif
 }
 
 void LuaScriptHost::updateTimers(const float dt) {
-#if DEMI_HAS_LUA54
   auto* state = static_cast<lua_State*>(state_);
   if (state == nullptr) {
     return;
@@ -264,13 +242,9 @@ void LuaScriptHost::updateTimers(const float dt) {
     luaL_unref(state, LUA_REGISTRYINDEX, timer.callbackRef);
     return true;
   });
-#else
-  (void)dt;
-#endif
 }
 
 void LuaScriptHost::clearTimersAndEvents() {
-#if DEMI_HAS_LUA54
   auto* state = static_cast<lua_State*>(state_);
   if (state != nullptr) {
     for (const TimerInstance& timer : timers_) {
@@ -283,7 +257,6 @@ void LuaScriptHost::clearTimersAndEvents() {
       luaL_unref(state, LUA_REGISTRYINDEX, hook.callbackRef);
     }
   }
-#endif
   timers_.clear();
   eventSubscriptions_.clear();
   saveMigrationHooks_.clear();
