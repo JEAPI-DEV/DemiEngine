@@ -1,4 +1,4 @@
-#include "demi/runtime/LuaScriptHostInternal.h"
+#include "demi/runtime/scripting/LuaScriptHostInternal.h"
 
 #include <sol/sol.hpp>
 

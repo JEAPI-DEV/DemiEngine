@@ -1,4 +1,4 @@
-#include "demi/runtime/SceneData.h"
+#include "demi/runtime/scene/SceneData.h"
 
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/schema/Validation.h"

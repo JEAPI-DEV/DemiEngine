@@ -1,15 +1,15 @@
-#include "demi/runtime/RuntimeApp.h"
+#include "demi/runtime/app/RuntimeApp.h"
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/core/Version.h"
-#include "demi/runtime/AudioSystem.h"
-#include "demi/runtime/LuaScriptHost.h"
-#include "demi/runtime/MediaSystem.h"
-#include "demi/runtime/NetworkSystem.h"
-#include "demi/runtime/Physics2D.h"
-#include "demi/runtime/Renderer2D.h"
-#include "demi/runtime/Renderer3D.h"
-#include "demi/runtime/SceneData.h"
+#include "demi/runtime/audio/AudioSystem.h"
+#include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/media/MediaSystem.h"
+#include "demi/runtime/network/NetworkSystem.h"
+#include "demi/runtime/physics/Physics2D.h"
+#include "demi/runtime/render/Renderer2D.h"
+#include "demi/runtime/render/Renderer3D.h"
+#include "demi/runtime/scene/SceneData.h"
 
 #include <algorithm>
 #include <array>

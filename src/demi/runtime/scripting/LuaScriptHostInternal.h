@@ -1,6 +1,6 @@
 #pragma once
 
-#include "demi/runtime/LuaScriptHost.h"
+#include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include <filesystem>
 #include <string>

@@ -1,6 +1,6 @@
-#include "demi/runtime/LuaScriptHost.h"
+#include "demi/runtime/scripting/LuaScriptHost.h"
 
-#include "demi/runtime/LuaScriptHostInternal.h"
+#include "demi/runtime/scripting/LuaScriptHostInternal.h"
 
 #include <algorithm>
 #include <cctype>

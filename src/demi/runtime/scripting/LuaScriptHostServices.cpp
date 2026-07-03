@@ -1,11 +1,11 @@
-#include "demi/runtime/LuaScriptHost.h"
+#include "demi/runtime/scripting/LuaScriptHost.h"
 
-#include "demi/runtime/AudioSystem.h"
-#include "demi/runtime/LuaScriptHostInternal.h"
-#include "demi/runtime/MediaSystem.h"
-#include "demi/runtime/NetworkSystem.h"
-#include "demi/runtime/Physics2D.h"
-#include "demi/runtime/Physics3D.h"
+#include "demi/runtime/audio/AudioSystem.h"
+#include "demi/runtime/scripting/LuaScriptHostInternal.h"
+#include "demi/runtime/media/MediaSystem.h"
+#include "demi/runtime/network/NetworkSystem.h"
+#include "demi/runtime/physics/Physics2D.h"
+#include "demi/runtime/physics/Physics3D.h"
 
 #include <algorithm>
 #include <cctype>

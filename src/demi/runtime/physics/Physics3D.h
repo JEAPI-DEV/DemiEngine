@@ -1,6 +1,6 @@
 #pragma once
 
-#include "demi/runtime/SceneData.h"
+#include "demi/runtime/scene/SceneData.h"
 
 namespace demi::runtime {
 

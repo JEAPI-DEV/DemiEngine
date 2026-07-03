@@ -1,4 +1,4 @@
-#include "demi/runtime/Renderer2D.h"
+#include "demi/runtime/render/Renderer2D.h"
 
 #include <algorithm>
 #include <cmath>
@@ -10,26 +10,6 @@
 
 namespace demi::runtime {
 
-namespace {
-
-// A glyph is a 4x4 pixel grid represented as 4 strings of 4 characters ('0' or '1').
-using Glyph = std::array<std::string, 4>;
-
-// Returns a 4x4 bitmap for a printable ASCII character (32–126).
-Glyph glyphFor(char c) {
-    // Define a few basic characters; you can expand this as needed.
-    // For now, we provide a minimal set to avoid linker errors.
-    // The actual engine likely expects a full ASCII table.
-    switch (c) {
-        case 'A': return { "0110", "1001", "1111", "1001" };
-        case 'B': return { "1110", "1001", "1110", "1001" };
-        case 'C': return { "0110", "1000", "1000", "0110" };
-        // Add more characters as needed. For simplicity, fallback to a rectangle.
-        default:  return { "1111", "1001", "1001", "1111" };
-    }
-}
-
-} // namespace
 namespace {
 
 ::Color toRlColor(const Color& value) {

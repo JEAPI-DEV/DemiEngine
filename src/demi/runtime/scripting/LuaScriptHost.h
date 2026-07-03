@@ -1,9 +1,9 @@
 #pragma once
 
-#include "demi/runtime/SceneData.h"
+#include "demi/runtime/scene/SceneData.h"
 #include "demi/diagnostics/Diagnostic.h"
-#include "demi/runtime/NetworkSystem.h"
-#include "demi/runtime/Physics2D.h"
+#include "demi/runtime/network/NetworkSystem.h"
+#include "demi/runtime/physics/Physics2D.h"
 
 #include <cstdint>
 #include <filesystem>

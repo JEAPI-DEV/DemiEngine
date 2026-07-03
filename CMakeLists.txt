@@ -91,19 +91,19 @@ if(DEMI_ENABLE_MEDIA AND NOT TARGET PkgConfig::FFMPEG)
 endif()
 
 add_library(demi-runtime-lib STATIC
-  src/demi/runtime/AudioSystem.cpp
-  src/demi/runtime/LuaScriptHostBindings.cpp
-  src/demi/runtime/LuaScriptHost.cpp
-  src/demi/runtime/LuaScriptHostPersistence.cpp
-  src/demi/runtime/LuaScriptHostServices.cpp
-  src/demi/runtime/MediaSystem.cpp
-  src/demi/runtime/NetworkSystem.cpp
-  src/demi/runtime/Physics2D.cpp
-  src/demi/runtime/Physics3D.cpp
-  src/demi/runtime/Renderer2D.cpp
-  src/demi/runtime/Renderer3D.cpp
-  src/demi/runtime/RuntimeApp.cpp
-  src/demi/runtime/SceneLoader.cpp
+  src/demi/runtime/app/RuntimeApp.cpp
+  src/demi/runtime/audio/AudioSystem.cpp
+  src/demi/runtime/media/MediaSystem.cpp
+  src/demi/runtime/network/NetworkSystem.cpp
+  src/demi/runtime/physics/Physics2D.cpp
+  src/demi/runtime/physics/Physics3D.cpp
+  src/demi/runtime/render/Renderer2D.cpp
+  src/demi/runtime/render/Renderer3D.cpp
+  src/demi/runtime/scene/SceneLoader.cpp
+  src/demi/runtime/scripting/LuaScriptHostBindings.cpp
+  src/demi/runtime/scripting/LuaScriptHost.cpp
+  src/demi/runtime/scripting/LuaScriptHostPersistence.cpp
+  src/demi/runtime/scripting/LuaScriptHostServices.cpp
 )
 
 target_link_libraries(demi-runtime-lib PUBLIC demi-core)

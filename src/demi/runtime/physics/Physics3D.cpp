@@ -1,4 +1,4 @@
-#include "demi/runtime/Physics3D.h"
+#include "demi/runtime/physics/Physics3D.h"
 
 #include <algorithm>
 #include <array>

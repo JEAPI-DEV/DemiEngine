@@ -1,7 +1,7 @@
 #pragma once
 
 #include "demi/assets/AssetRegistry.h"
-#include "demi/runtime/SceneData.h"
+#include "demi/runtime/scene/SceneData.h"
 
 #include <raylib.h>
 
