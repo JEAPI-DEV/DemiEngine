@@ -111,6 +111,48 @@ function Transform.get_scale(entity_id) end
 ---@return boolean
 function Transform.set_scale(entity_id, x, y) end
 
+---@class Transform3DService
+Transform3D = {}
+---@param entity_id string
+---@return number|nil x
+---@return number|nil y
+---@return number|nil z
+function Transform3D.get_position(entity_id) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@return boolean
+function Transform3D.set_position(entity_id, x, y, z) end
+---@param entity_id string
+---@param dx number
+---@param dy number
+---@param dz number
+---@return boolean
+function Transform3D.add_position(entity_id, dx, dy, dz) end
+---@param entity_id string
+---@return number|nil x
+---@return number|nil y
+---@return number|nil z
+function Transform3D.get_rotation(entity_id) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@return boolean
+function Transform3D.set_rotation(entity_id, x, y, z) end
+---@param entity_id string
+---@return number|nil x
+---@return number|nil y
+---@return number|nil z
+function Transform3D.get_scale(entity_id) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@return boolean
+function Transform3D.set_scale(entity_id, x, y, z) end
+
 ---@class TimeService
 ---@field delta_time number
 Time = {}
@@ -158,6 +200,10 @@ function Runtime.set_physics_enabled(enabled) end
 function Runtime.set_window_mode(mode) end
 ---@return string mode
 function Runtime.get_window_mode() end
+---@param max_fps number
+function Runtime.set_max_fps(max_fps) end
+---@return integer max_fps
+function Runtime.get_max_fps() end
 
 ---@class Rigidbody2DService
 Rigidbody2D = {}
@@ -243,6 +289,10 @@ function Hud.rect(id, x, y, width, height, r, g, b, a) end
 ---@param text string
 ---@return boolean
 function Hud.set_text(id, text) end
+---@param id string
+---@param label string
+---@return boolean
+function Hud.set_button_label(id, label) end
 ---@param id string
 ---@param x number
 ---@param y number

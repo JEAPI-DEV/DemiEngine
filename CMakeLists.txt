@@ -159,6 +159,9 @@ target_link_libraries(demi-smoke-tests PRIVATE demi-core)
 add_executable(demi-physics2d-tests tests/physics2d_tests.cpp)
 target_link_libraries(demi-physics2d-tests PRIVATE demi-runtime-lib)
 
+add_executable(demi-lua-stub-contract-tests tests/lua_stub_contract_tests.cpp)
+target_link_libraries(demi-lua-stub-contract-tests PRIVATE demi-runtime-lib)
+
 add_executable(demi-lua-scripting-tests tests/lua_scripting_tests.cpp)
 target_link_libraries(demi-lua-scripting-tests PRIVATE demi-runtime-lib)
 
@@ -173,6 +176,7 @@ endif()
 enable_testing()
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-physics2d-tests COMMAND demi-physics2d-tests)
+add_test(NAME demi-lua-stub-contract-tests COMMAND demi-lua-stub-contract-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
 add_test(NAME demi-snapshot-replication-tests COMMAND demi-snapshot-replication-tests)
 if(DEMI_ENABLE_NETWORK)
