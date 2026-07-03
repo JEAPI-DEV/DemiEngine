@@ -102,6 +102,16 @@ add_library(demi-runtime-lib STATIC
   src/demi/runtime/scene/SceneLoader.cpp
   src/demi/runtime/scripting/LuaScriptHostBindings.cpp
   src/demi/runtime/scripting/LuaScriptHost.cpp
+  src/demi/runtime/scripting/LuaScriptHostEntityServices.cpp
+  src/demi/runtime/scripting/LuaScriptHostHudServices.cpp
+  src/demi/runtime/scripting/LuaScriptHostMediaNetworkServices.cpp
+  src/demi/runtime/scripting/bindings/LuaBindingHelpers.cpp
+  src/demi/runtime/scripting/bindings/LuaCoreBindings.cpp
+  src/demi/runtime/scripting/bindings/LuaEntityBindings.cpp
+  src/demi/runtime/scripting/bindings/LuaHudMediaBindings.cpp
+  src/demi/runtime/scripting/bindings/LuaJsonBridge.cpp
+  src/demi/runtime/scripting/bindings/LuaNetworkBindings.cpp
+  src/demi/runtime/scripting/bindings/LuaNetworkSessionBindings.cpp
   src/demi/runtime/scripting/LuaScriptHostPersistence.cpp
   src/demi/runtime/scripting/LuaScriptHostServices.cpp
 )
