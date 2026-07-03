@@ -33,6 +33,7 @@ public:
 private:
   struct CachedSound {
     std::filesystem::path path;
+    std::uint64_t trimFrames = 0;
     void* sound = nullptr;
   };
 
@@ -45,6 +46,7 @@ private:
   static void audioProcessDebug(void* userData, float* framesOut, unsigned long long frameCount);
 
   bool initialized_ = false;
+  void* context_ = nullptr;
   void* engine_ = nullptr;
   std::unordered_map<std::string, CachedSound> sounds_;
   std::vector<PlayingSound> playing_;
