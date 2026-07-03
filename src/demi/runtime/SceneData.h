@@ -102,6 +102,7 @@ struct HudRectElement {
 };
 
 struct Transform2DComponent {
+  std::string parent;
   Vec2 position;
   float rotation = 0.0F;
   Vec2 scale = {1.0F, 1.0F};
@@ -192,6 +193,13 @@ struct BoxCollider3DComponent {
   std::string layer;
 };
 
+struct SphereCollider3DComponent {
+  float radius = 0.5F;
+  Vec3 offset;
+  bool isTrigger = false;
+  std::string layer;
+};
+
 struct Rigidbody3DComponent {
   std::string bodyType = "dynamic";
   Vec3 velocity;
@@ -249,6 +257,7 @@ struct Entity {
   std::optional<Camera3DComponent> camera3D;
   std::optional<MeshRendererComponent> meshRenderer;
   std::optional<BoxCollider3DComponent> boxCollider3D;
+  std::optional<SphereCollider3DComponent> sphereCollider3D;
   std::optional<Rigidbody3DComponent> rigidbody3D;
   std::optional<DirectionalLightComponent> directionalLight;
   std::optional<AudioSourceComponent> audioSource;
@@ -309,10 +318,44 @@ struct World {
   return nullptr;
 }
 
+[[nodiscard]] inline Vec2 rotate2D(const Vec2 value, const float rotation) {
+  const float sinR = std::sin(rotation);
+  const float cosR = std::cos(rotation);
+  return Vec2{.x = value.x * cosR - value.y * sinR, .y = value.x * sinR + value.y * cosR};
+}
+
+[[nodiscard]] inline Vec2 worldPosition2D(const World& world, const Entity& entity) {
+  if (!entity.transform2D.has_value()) {
+    return {};
+  }
+  Vec2 position = entity.transform2D->position;
+  if (!entity.transform2D->parent.empty()) {
+    if (const Entity* parent = findEntity(world, entity.transform2D->parent); parent != nullptr && parent->transform2D.has_value()) {
+      const Vec2 rotated = rotate2D(position, parent->transform2D->rotation);
+      const Vec2 parentPosition = worldPosition2D(world, *parent);
+      position = Vec2{.x = parentPosition.x + rotated.x, .y = parentPosition.y + rotated.y};
+    }
+  }
+  return position;
+}
+
+[[nodiscard]] inline float worldRotation2D(const World& world, const Entity& entity) {
+  if (!entity.transform2D.has_value()) {
+    return 0.0F;
+  }
+  float rotation = entity.transform2D->rotation;
+  if (!entity.transform2D->parent.empty()) {
+    if (const Entity* parent = findEntity(world, entity.transform2D->parent); parent != nullptr && parent->transform2D.has_value()) {
+      rotation += worldRotation2D(world, *parent);
+    }
+  }
+  return rotation;
+}
+
 [[nodiscard]] inline Vec2 activeCameraPosition(const World& world) {
   for (const Entity& entity : world.entities) {
     if (entity.camera2D.has_value() && entity.transform2D.has_value()) {
-      return entity.transform2D->position;
+      return worldPosition2D(world, entity);
     }
   }
   return {};
@@ -393,7 +436,7 @@ struct World {
 [[nodiscard]] inline std::size_t renderableEntityCount(const World& world) {
   std::size_t count = 0;
   for (const Entity& entity : world.entities) {
-    if (entity.sprite.has_value() || entity.hitboxController.has_value() || entity.isoGrid.has_value() || entity.buildable.has_value() || entity.boxCollider2D.has_value() || entity.videoPlayer.has_value() || entity.meshRenderer.has_value() || entity.boxCollider3D.has_value()) {
+    if (entity.sprite.has_value() || entity.hitboxController.has_value() || entity.isoGrid.has_value() || entity.buildable.has_value() || entity.boxCollider2D.has_value() || entity.videoPlayer.has_value() || entity.meshRenderer.has_value() || entity.boxCollider3D.has_value() || entity.sphereCollider3D.has_value()) {
       ++count;
     }
   }

@@ -233,6 +233,7 @@ void drawIsoFootprint(const Camera2DComponent& camera,
 }
 
 void drawEntity(const std::unordered_map<std::string, Texture2D>& textures,
+                const World& world,
                 const Camera2DComponent& camera,
                 const Vec2 cameraPosition,
                 const Entity& entity,
@@ -254,7 +255,7 @@ void drawEntity(const std::unordered_map<std::string, Texture2D>& textures,
   Vec2 position;
   Vec2 size = {1.0F, 1.0F};
   if (entity.transform2D.has_value()) {
-    position = entity.transform2D->position;
+    position = worldPosition2D(world, entity);
   }
   if (entity.isoTransform.has_value()) {
     position = isoTileToWorld(entity.isoTransform->tile, isoGridSize.x, isoGridSize.y);
@@ -400,7 +401,7 @@ void Renderer2D::drawWorld(const World& world) {
   });
 
   for (const Entity* entity : renderables) {
-    drawEntity(textures_, camera_, cameraPosition_, *entity, isoGridSize, width_, height_);
+    drawEntity(textures_, world, camera_, cameraPosition_, *entity, isoGridSize, width_, height_);
   }
 
   for (const DebugLine& line : world.debugLines) {

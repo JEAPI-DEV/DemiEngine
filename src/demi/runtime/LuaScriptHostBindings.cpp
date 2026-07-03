@@ -98,6 +98,7 @@ Entity parseEntitySpec(const std::string& entityId, const sol::table spec) {
 
   if (const sol::table transform = componentTable(components, "Transform2D"); transform.valid()) {
     entity.transform2D = Transform2DComponent{
+      .parent = transform.get_or("parent", std::string{}),
       .position = vec2Field(transform, "position"),
       .rotation = transform.get_or("rotation", 0.0F),
       .scale = vec2Field(transform, "scale", {1.0F, 1.0F}),
@@ -153,6 +154,15 @@ Entity parseEntitySpec(const std::string& entityId, const sol::table spec) {
   if (const sol::table collider = componentTable(components, "BoxCollider3D"); collider.valid()) {
     entity.boxCollider3D = BoxCollider3DComponent{
       .size = vec3Field(collider, "size", {1.0F, 1.0F, 1.0F}),
+      .offset = vec3Field(collider, "offset"),
+      .isTrigger = collider.get_or("is_trigger", false),
+      .layer = collider.get_or("layer", std::string{}),
+    };
+  }
+
+  if (const sol::table collider = componentTable(components, "SphereCollider3D"); collider.valid()) {
+    entity.sphereCollider3D = SphereCollider3DComponent{
+      .radius = collider.get_or("radius", 0.5F),
       .offset = vec3Field(collider, "offset"),
       .isTrigger = collider.get_or("is_trigger", false),
       .layer = collider.get_or("layer", std::string{}),
@@ -554,6 +564,7 @@ void networkSessionApplySnapshot(LuaScriptHost& host, NetworkSessionState& sessi
       entity.id = ghostId;
       entity.name = session.remotePrefab.get_or("name", std::string("Network Ghost"));
       entity.transform2D = Transform2DComponent{
+        .parent = session.remotePrefab.get_or("parent", std::string{}),
         .position = Vec2{.x = snapshot.get_or("x", 0.0F), .y = snapshot.get_or("y", 0.0F)},
         .rotation = session.remotePrefab.get_or("rotation", 0.0F),
         .scale = vec2Field(session.remotePrefab, "scale", {1.0F, 1.0F}),

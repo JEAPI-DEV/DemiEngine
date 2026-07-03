@@ -139,8 +139,8 @@
           "color": [0.93, 0.78, 0.36, 1.0],
           "wireframe": false
         },
-        "BoxCollider3D": {
-          "size": [1.5, 1.5, 1.5],
+        "SphereCollider3D": {
+          "radius": 0.75,
           "offset": [0.0, 0.0, 0.0],
           "is_trigger": false,
           "layer": "obstacle"

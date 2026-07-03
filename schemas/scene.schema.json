@@ -43,6 +43,15 @@
               "Rigidbody2D": {
                 "type": "object"
               },
+              "Transform2D": {
+                "type": "object",
+                "properties": {
+                  "parent": { "type": "string" },
+                  "position": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+                  "rotation": { "type": "number" },
+                  "scale": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }
+                }
+              },
               "BoxCollider2D": {
                 "type": "object",
                 "properties": {
@@ -114,6 +123,15 @@
                 "type": "object",
                 "properties": {
                   "size": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+                  "offset": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+                  "is_trigger": { "type": "boolean" },
+                  "layer": { "type": "string" }
+                }
+              },
+              "SphereCollider3D": {
+                "type": "object",
+                "properties": {
+                  "radius": { "type": "number", "minimum": 0 },
                   "offset": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
                   "is_trigger": { "type": "boolean" },
                   "layer": { "type": "string" }

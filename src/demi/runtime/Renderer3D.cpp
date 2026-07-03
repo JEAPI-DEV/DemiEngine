@@ -175,6 +175,14 @@ void drawMeshEntity(const World& world, const Entity& entity, const std::unorder
     const ::Vector3 colliderSize = toRlVec3(entity.boxCollider3D->size);
     DrawCubeWiresV(colliderCenter, colliderSize, {244, 91, 105, 255});
   }
+  if (entity.sphereCollider3D.has_value()) {
+    const ::Vector3 colliderCenter{
+      .x = position.x + entity.sphereCollider3D->offset.x,
+      .y = position.y + entity.sphereCollider3D->offset.y,
+      .z = position.z + entity.sphereCollider3D->offset.z,
+    };
+    DrawSphereWires(colliderCenter, entity.sphereCollider3D->radius, 16, 16, {244, 91, 105, 255});
+  }
 }
 
 } // namespace
@@ -255,7 +263,7 @@ void Renderer3D::drawWorld(const World& world) {
   }
 
   for (const Entity& entity : world.entities) {
-    if (entity.meshRenderer.has_value() || entity.boxCollider3D.has_value()) {
+    if (entity.meshRenderer.has_value() || entity.boxCollider3D.has_value() || entity.sphereCollider3D.has_value()) {
       drawMeshEntity(world, entity, textures_);
     }
   }

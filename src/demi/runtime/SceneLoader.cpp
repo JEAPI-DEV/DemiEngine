@@ -327,6 +327,7 @@ World parseScene(const std::filesystem::path& scenePath, const std::string& text
 
     if (const std::optional<std::string> transform = objectAfterKey(entityObject, "Transform2D")) {
       Transform2DComponent component;
+      component.parent = stringAfterKey(*transform, "parent").value_or(std::string{});
       if (const std::optional<Vec2> position = vec2AfterKey(*transform, "position")) {
         component.position = *position;
       }
@@ -506,6 +507,19 @@ World parseScene(const std::filesystem::path& scenePath, const std::string& text
       component.isTrigger = boolAfterKey(*boxCollider, "is_trigger").value_or(false);
       component.layer = stringAfterKey(*boxCollider, "layer").value_or(std::string{});
       entity.boxCollider3D = component;
+    }
+
+    if (const std::optional<std::string> sphereCollider = objectAfterKey(entityObject, "SphereCollider3D")) {
+      SphereCollider3DComponent component;
+      if (const std::optional<float> radius = numberAfterKey(*sphereCollider, "radius")) {
+        component.radius = *radius;
+      }
+      if (const std::optional<Vec3> offset = vec3AfterKey(*sphereCollider, "offset")) {
+        component.offset = *offset;
+      }
+      component.isTrigger = boolAfterKey(*sphereCollider, "is_trigger").value_or(false);
+      component.layer = stringAfterKey(*sphereCollider, "layer").value_or(std::string{});
+      entity.sphereCollider3D = component;
     }
 
     if (const std::optional<std::string> rigidbody = objectAfterKey(entityObject, "Rigidbody3D")) {

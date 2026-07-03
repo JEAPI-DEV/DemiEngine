@@ -192,11 +192,28 @@ return PropProbe
   wall3D.boxCollider3D = runtime::BoxCollider3DComponent{.size = runtime::Vec3{.x = 1.0F, .y = 1.0F, .z = 1.0F}};
   wall3D.rigidbody3D = runtime::Rigidbody3DComponent{.bodyType = "static", .useGravity = false};
   world.entities.push_back(std::move(wall3D));
+  runtime::Entity sphere3D;
+  sphere3D.id = "ent_3d_sphere";
+  sphere3D.name = "3D Sphere";
+  sphere3D.transform3D = runtime::Transform3DComponent{.position = runtime::Vec3{.x = -1.25F, .y = 0.5F, .z = 0.0F}};
+  sphere3D.sphereCollider3D = runtime::SphereCollider3DComponent{.radius = 0.5F};
+  sphere3D.rigidbody3D = runtime::Rigidbody3DComponent{.bodyType = "static", .useGravity = false};
+  world.entities.push_back(std::move(sphere3D));
   runtime::Entity child3D;
   child3D.id = "ent_3d_child";
   child3D.name = "3D Child";
   child3D.transform3D = runtime::Transform3DComponent{.parent = "ent_3d_mover", .position = runtime::Vec3{.x = 0.0F, .y = 2.0F, .z = 0.0F}};
   world.entities.push_back(std::move(child3D));
+  runtime::Entity parent2D;
+  parent2D.id = "ent_2d_parent";
+  parent2D.name = "2D Parent";
+  parent2D.transform2D = runtime::Transform2DComponent{.position = runtime::Vec2{.x = 3.0F, .y = 4.0F}};
+  world.entities.push_back(std::move(parent2D));
+  runtime::Entity child2D;
+  child2D.id = "ent_2d_child";
+  child2D.name = "2D Child";
+  child2D.transform2D = runtime::Transform2DComponent{.parent = "ent_2d_parent", .position = runtime::Vec2{.x = 1.0F, .y = 2.0F}};
+  world.entities.push_back(std::move(child2D));
 
   runtime::InputState input;
   input.mousePosition = runtime::Vec2{.x = 25.0F, .y = 50.0F};
@@ -262,9 +279,23 @@ return PropProbe
     std::cerr << "3D dynamic mover passed through a static BoxCollider3D.\n";
     return 1;
   }
+  if (!host.setEntityPosition3D("ent_3d_mover", -1.0F, 0.5F, 0.0F)) {
+    std::cerr << "Transform3D.set_position failed for sphere test mover.\n";
+    return 1;
+  }
+  const std::optional<runtime::Vec3> sphereBlocked3D = host.entityPosition3D("ent_3d_mover");
+  if (!sphereBlocked3D.has_value() || sphereBlocked3D->x != 0.0F) {
+    std::cerr << "3D dynamic mover passed through a static SphereCollider3D.\n";
+    return 1;
+  }
   const runtime::Entity* child = runtime::findEntity(world, "ent_3d_child");
   if (child == nullptr || runtime::worldPosition3D(world, *child).y != 2.5F) {
     std::cerr << "Transform3D parent world position did not include parent transform.\n";
+    return 1;
+  }
+  const runtime::Entity* child2DLookup = runtime::findEntity(world, "ent_2d_child");
+  if (child2DLookup == nullptr || runtime::worldPosition2D(world, *child2DLookup).x != 4.0F || runtime::worldPosition2D(world, *child2DLookup).y != 6.0F) {
+    std::cerr << "Transform2D parent world position did not include parent transform.\n";
     return 1;
   }
   host.update(1.0F / 60.0F);
