@@ -1,74 +1,103 @@
 # DemiEngine
 
-DemiEngine is a Linux-first game engine scaffold for AI-assisted development of 2D and isometric 2.5D games. The goal is a C++20 engine/runtime with Lua gameplay scripting, deterministic text-based project data, schema validation, and a Unity-like editor workflow with Scene and Game views.
+DemiEngine is a Linux-first C++20 game engine scaffold for AI-assisted development. It focuses on deterministic project data, Lua gameplay scripting, small example games, and a command-line workflow that agents can validate without hidden editor state.
 
-This repository currently implements the first buildable scaffold plus an SDL3-backed runtime preview: documentation, CMake targets, a minimal `demi` CLI, validation contracts, schemas, example project files, typed scene loading, player movement, Lua lifecycle calls, and a visible debug scene view. Full bgfx rendering, editor UI, physics, media, saves, and networking are still represented as documented subsystem boundaries before their external dependencies are wired in.
+The runtime is no longer just a placeholder. It can load JSON projects and scenes, run Lua 5.4 scripts, render 2D and simple 3D scenes through raylib, step 2D/3D physics helpers, play audio/media services where dependencies are enabled, save JSON-backed state, and drive HUD menus from data plus Lua actions.
 
-## Docs 
+It is still early. The editor executable exists as a boundary, not a finished tool.
 
-[Docs PDF](https://github.com/JEAPI-DEV/DemiEngine/blob/main/docs/latex/main.pdf)
+## Current Output
+
+These screenshots are from the checked-in examples. They are small probes, but they show the runtime pieces working together: JSON scenes, HUD data, Lua actions, rendering, and camera/player logic.
+
+![Minimal 2D networking menu](images/minimal_2d_networking.png)
+
+`examples/minimal_2d_networking` uses a data-driven HUD menu, Lua action handlers, save-backed settings, scene switching, and optional networking paths.
+
+![Minimal 3D runtime scene](images/minimal_3d.png)
+
+`examples/minimal_3d` exercises the 3D renderer, scene loader, and Lua-controlled movement.
+
+## Docs
+
+- [Generated docs PDF](https://github.com/JEAPI-DEV/DemiEngine/blob/main/docs/latex/main.pdf)
+- [Architecture notes](docs/architecture.md)
+- [CLI notes](docs/cli.md)
+- [File formats](docs/file-formats.md)
 
 ## What This Engine Is
 
-- A Linux-focused C++20 engine framework.
-- A Lua-driven game development environment.
-- A planned editor with embedded Play/Pause/Stop mode.
-- A schema-first project format designed for humans and AI agents.
-- A focused engine for 2D and isometric 2.5D games such as base builders and 2D fighting/action games.
+- A Linux-focused C++20 runtime.
+- A Lua-driven gameplay layer with high-level engine services.
+- A schema-first project format built from deterministic JSON files.
+- A small engine for 2D, isometric, and lightweight 3D experiments.
+- A repo designed to be changed by humans and coding agents without editor-only state.
 
 ## What This Engine Is Not
 
 - Not a Unity clone.
-- Not a general 3D engine in the first version.
+- Not a full editor yet.
 - Not a live-service backend, account system, or matchmaking platform.
 - Not cross-platform yet.
 
-## Planned Dependency Stack
+## Current Runtime Features
 
-- SDL3, platform/input/windowing: https://github.com/libsdl-org/SDL
-- bgfx, renderer abstraction: https://github.com/bkaradzic/bgfx
-- Dear ImGui, editor UI/docking: https://github.com/ocornut/imgui
-- ImGuizmo, scene transform gizmos: https://github.com/CedricGuillemet/ImGuizmo
-- Lua, gameplay VM: https://github.com/lua/lua
-- sol2, C++/Lua binding: https://github.com/ThePhD/sol2
-- EnTT, ECS/runtime registry: https://github.com/skypjack/entt
-- Box2D, 2D physics: https://github.com/erincatto/box2d
-- miniaudio, audio playback/mixing: https://github.com/mackron/miniaudio
-- FFmpeg, video/cutscene decoding: https://github.com/FFmpeg/FFmpeg
-- ENet, optional reliable UDP networking: https://github.com/lsalzman/enet
-- nlohmann/json, JSON data/save support: https://github.com/nlohmann/json
-- toml++, project/config files: https://github.com/marzer/tomlplusplus
-- SQLite, optional advanced save/editor DB: https://github.com/sqlite/sqlite
-- Tracy, profiling: https://github.com/wolfpld/tracy
-- Native File Dialog Extended, native file dialogs: https://github.com/btzy/nativefiledialog-extended
-- RmlUi, optional runtime UI: https://github.com/mikke89/RmlUi
+- Project, scene, HUD, asset, and save validation through the `demi` CLI.
+- Scene loading from `*.scene.json`, including nested `components` data.
+- HUD loading from `*.hud.json`, with buttons, text, rectangles, groups, visibility, hover state, and click actions.
+- Lua 5.4 scripting through sol2.
+- Lua lifecycle functions: `on_create`, `on_start`, `on_update`, `on_fixed_update`, and `on_destroy`.
+- Lua action/event annotations: `@HandleAction("...")` and `@OnEvent("...")`.
+- Lua services for `Debug`, `Input`, `Timer`, `Events`, `Scene`, `Runtime`, `Entity`, `Transform2D`, `Transform3D`, `Physics2D`, `Rigidbody2D`, `HUD`, `Save`, `Audio`, `Video`, `Cutscene`, `Network`, and `NetworkSession`.
+- 2D rendering, HUD rendering, debug lines, and pixel-style text rendering.
+- Basic 3D rendering and 3D collision helpers.
+- Box2D-backed 2D physics.
+- JSON save slots with versioned migration hooks.
+- Optional ENet networking when `DEMI_ENABLE_NETWORK=ON`.
+- FFmpeg-backed media support when `DEMI_ENABLE_MEDIA=ON`, which is the default.
 
-## Current Architecture
+## Runtime Layout
 
-- `src/demi/core`: version and shared core definitions.
-- `src/demi/diagnostics`: structured diagnostics and CLI rendering.
-- `src/demi/filesystem`: project path discovery helpers.
-- `src/demi/schema`: lightweight scaffold validation for project, scene, and save files.
-- `src/demi/runtime`: project/scene loading and SDL3 debug rendering.
-- `src/demi/assets`: project-local asset manifest loading and `asset://` resolution.
-- `scripts/stubs`: initial LuaLS annotations for the exposed runtime Lua API.
-- `src/cli`: `demi` command-line interface.
-- `src/runtime`: placeholder runtime executable.
-- `src/editor`: placeholder editor executable.
-- `schemas`: source schemas for project, scene, and save files.
-- `examples`: AI-editable example projects and scenes.
-- `tests`: smoke tests for the scaffold.
+The runtime code is split by responsibility:
 
-## Build
+- `src/demi/runtime/app`: runtime loop, input polling, window setup, and subsystem orchestration.
+- `src/demi/runtime/audio`: audio playback through miniaudio.
+- `src/demi/runtime/media`: video/cutscene media plumbing.
+- `src/demi/runtime/network`: optional network transport and session helpers.
+- `src/demi/runtime/physics`: 2D and 3D movement/collision helpers.
+- `src/demi/runtime/render`: 2D/3D renderers and font support.
+- `src/demi/runtime/scene`: project loading, scene parsing, HUD parsing, JSON helpers, and runtime scene data.
+- `src/demi/runtime/scripting`: Lua host lifecycle, services, diagnostics, loading, persistence, and bindings.
+- `src/demi/runtime/scripting/bindings`: installable Lua binding modules.
+- `src/demi/runtime/scripting/persistence`: save-slot parsing and serialization.
 
-Prerequisites:
+The scene loader is intentionally small now. `SceneLoader.cpp` acts as the facade, while `ProjectParser`, `SceneEntityParser`, `HudParser`, and `SceneJson` own the parsing details. Component parsing uses a small strategy table keyed by component name, so adding a scene component no longer means extending one long loader function.
 
-- Linux
-- CMake 3.25 or newer
+Lua bindings follow the same idea. `LuaScriptHostBindings.cpp` installs binding modules; the module files own their own API surface. Save persistence is split behind `LuaSaveCodec`, with separate parsers for current JSON saves and legacy save data.
+
+## Dependencies
+
+Required for the default Linux debug build:
+
+- CMake 3.25+
 - Ninja
-- A C++20 compiler such as GCC 12+ or Clang 15+
+- GCC 12+ or Clang 15+
+- PkgConfig
+- Lua 5.4 development files
+- FFmpeg development packages when `DEMI_ENABLE_MEDIA=ON`
 
-Build with presets:
+Fetched or linked by CMake:
+
+- raylib: rendering, windowing, input, and platform layer
+- sol2: C++/Lua binding
+- Box2D: 2D physics
+- miniaudio: audio playback
+- nlohmann/json: project, scene, HUD, and save parsing
+- ENet: optional networking
+
+## Build And Test
+
+Use the presets:
 
 ```bash
 cmake --preset linux-debug
@@ -76,80 +105,146 @@ cmake --build --preset linux-debug
 ctest --preset linux-debug
 ```
 
-Fallback without presets:
+The repo also has a release preset:
 
 ```bash
-cmake -S . -B build/linux-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug
-cmake --build build/linux-debug
-ctest --test-dir build/linux-debug --output-on-failure
+cmake --preset linux-release
+cmake --build --preset linux-release
+```
+
+Headless runtime smoke:
+
+```bash
+DEMI_HEADLESS=1 ./build/linux-debug/demi run --project examples/minimal_2d_networking/demi.project.json --frames 1
+DEMI_HEADLESS=1 ./build/linux-debug/demi run --project examples/minimal_3d/demi.project.json --frames 1
 ```
 
 ## CLI
 
-After building, run:
+After building:
 
 ```bash
 ./build/linux-debug/demi --help
-./build/linux-debug/demi validate examples/minimal_2d/demi.project.json
+./build/linux-debug/demi version
+./build/linux-debug/demi validate examples/minimal_2d_networking/demi.project.json
+./build/linux-debug/demi validate examples/minimal_3d/demi.project.json
 ./build/linux-debug/demi schema export
-./build/linux-debug/demi asset inspect examples/minimal_2d/assets/sprites/player.asset.json
-./build/linux-debug/demi scene list examples/minimal_2d/demi.project.json
-./build/linux-debug/demi save inspect examples/minimal_2d/saves/smoke.save.json
-./build/linux-debug/demi run --project examples/minimal_2d/demi.project.json
-./build/linux-debug/demi editor --project examples/minimal_2d/demi.project.json
+./build/linux-debug/demi scene list examples/minimal_2d_networking/demi.project.json
+./build/linux-debug/demi scene inspect examples/minimal_2d_networking/scenes/menu.scene.json
+./build/linux-debug/demi save inspect examples/minimal_2d_networking/saves/settings.save.json
+./build/linux-debug/demi script check examples/minimal_2d_networking/scripts/main_menu.lua
+./build/linux-debug/demi lua-stubs generate build/linux-debug/generated/demi.lua
+./build/linux-debug/demi run --project examples/minimal_2d_networking/demi.project.json
 ```
 
-The CLI is the automation contract for AI agents. Editor actions should eventually map to CLI-compatible operations or replayable editor commands.
+`demi editor --project <project>` exists as a command boundary. Treat the CLI as the automation contract for now.
 
-## Runtime Preview
+## Examples
 
-Launch the visible game/view window with:
+- `examples/minimal_2d_networking`: the main runtime probe. It has a data-driven HUD menu, Lua action handlers, scene switching, save-backed settings, platformer/slingshot levels, and optional networking code paths.
+- `examples/minimal_3d`: a small 3D runtime probe with a Lua-controlled player script.
+- `examples/fighting_game_2d`: early fighting-game data and Lua scripts.
+- `examples/isometric_base_builder`: early isometric/base-builder scene data.
 
-```bash
-./build/linux-debug/demi run --project examples/minimal_2d/demi.project.json
-```
-
-The current runtime preview uses SDL3 and renders debug geometry from the main scene:
-
-- `Camera2D.clear_color` sets the background.
-- `Transform2D.position` controls placeholder entity placement.
-- `Sprite.texture` resolves through project-local `*.asset.json` manifests. The minimal example loads a real `Texture2D` source from `examples/minimal_2d/assets/sprites/player.ppm`.
-- `HitboxController` entities draw as red outlined rectangles.
-- `IsoGrid` entities draw a simple isometric grid preview only when the scene declares an `IsoGrid` entity.
-- The runtime exposes key state to Lua; the minimal example's `player.lua` chooses to move the player with WASD and arrow keys.
-- `Rigidbody2D` and `BoxCollider2D` provide generic Unity-style 2D physics components. The engine applies gravity/collision, while Lua scripts decide movement and jump behavior through `Rigidbody2D` and `Physics2D` helpers.
-- Lua scripts attached with `LuaScript` are loaded from `script://` paths relative to the project directory and receive lifecycle callbacks.
-
-For automated smoke tests, limit the window loop to a fixed number of frames:
-
-```bash
-SDL_VIDEODRIVER=dummy ./build/linux-debug/demi run --project examples/minimal_2d/demi.project.json --frames 1
-```
+Examples are not throwaway demos. They are probes for engine features. If an example needs a behavior that belongs in the engine, add the reusable runtime feature instead of patching the script around it.
 
 ## File Formats
 
-Authoring data should remain deterministic and text-based:
+Authoring data stays deterministic and text-based:
 
-- Projects: `*.project.json`
+- Projects: `demi.project.json`
 - Scenes: `*.scene.json`
+- HUD files: `*.hud.json`
 - Saves: `*.save.json`
 - Assets: `*.asset.json`
 - Lua scripts: `*.lua`
-- Future asset manifests: `*.asset.json`
 
-All source formats must include `format_version`. Generated or cooked data belongs in `generated/` or `build/` and should not be hand-edited.
+Every project, scene, save, and future asset manifest should include `format_version`. Generated files belong in `build/`, `generated/`, or `examples/**/generated/`.
 
-## Lua Direction
+Scene components live under an entity's `components` object:
 
-Gameplay code is written in Lua 5.4 when the dependency is available. The runtime exposes explicit services for debug logging, input, entities, transforms, timers, events, physics, HUD, saves, audio, runtime control, and scene switching. Scripts can implement `on_create`, `on_start`, `on_update(dt)`, `on_fixed_update(dt)`, and `on_destroy`; HUD button scripts can also implement UI event callbacks. Use `demi script check <script>` for Lua syntax diagnostics. LuaLS/EmmyLua annotations live in `scripts/stubs/demi.lua`, and `demi lua-stubs generate [path]` copies that file to a target location.
+```json
+{
+  "id": "ent_menu_controller",
+  "name": "Menu Controller",
+  "components": {
+    "LuaScript": {
+      "module": "script://scripts/menu_scene.lua"
+    }
+  }
+}
+```
 
-## Roadmap
+HUD button actions are plain data:
 
-1. Core diagnostics, project formats, CLI validation, and examples.
-2. SDL3 plus bgfx window and sprite rendering.
-3. EnTT scene/entity/component runtime.
-4. Lua 5.4 plus sol2 scripting lifecycle and hot reload.
-5. Dear ImGui editor with Scene/Game views and embedded play mode.
-6. Box2D physics, miniaudio audio, FFmpeg video, JSON save/load.
-7. Asset pipeline and dependency graph.
-8. Optional ENet networking module.
+```json
+{
+  "type": "button",
+  "id": "menu_button_network",
+  "label": "NETWORK PLAY",
+  "action": "menu_button_network"
+}
+```
+
+Lua can bind that action with an annotation:
+
+```lua
+-- @HandleAction("menu_button_network")
+function Actions.show_network()
+  -- ...
+end
+```
+
+## Lua API
+
+Public Lua API stubs live in `scripts/stubs/demi.lua`. Regenerate a copy for tools with:
+
+```bash
+./build/linux-debug/demi lua-stubs generate build/linux-debug/generated/demi.lua
+```
+
+Lua scripts should use explicit lifecycle functions:
+
+```lua
+local Player = {}
+
+function Player:on_start()
+  Debug.log("ready")
+end
+
+function Player:on_update(dt)
+  local x, y = Input.vector("a", "d", "s", "w")
+  Transform2D.add_position(self.entity_id, x * dt * 6.0, y * dt * 6.0)
+end
+
+return Player
+```
+
+Keep gameplay scripts high-level. Use `Entity`, `Transform2D`, `Transform3D`, `Network`, `NetworkSession`, `HUD`, and save/runtime services instead of raw C++ internals.
+
+## Tests
+
+The test suite covers validation, Lua scripting, Lua stubs, scene loading, physics, networking paths, runtime smoke, and example script checks.
+
+```bash
+ctest --preset linux-debug --output-on-failure
+```
+
+Useful focused checks:
+
+```bash
+./build/linux-debug/demi-scene-loader-tests .
+./build/linux-debug/demi-lua-scripting-tests
+./build/linux-debug/demi-physics2d-tests
+./build/linux-debug/demi-physics3d-tests
+```
+
+`demi-scene-loader-tests` specifically guards the nested scene component shape and HUD button action loading used by the menu example.
+
+## Development Notes
+
+- Keep public APIs small and explicit.
+- Prefer stable IDs and URI-style references: `scene://main`, `asset://textures/unit.png`, `script://scripts/player.lua`.
+- Update components as a full slice: C++ data, scene parsing, validation/schema, Lua bindings if public, stubs, and tests.
+- Keep runtime data serializable. If state matters outside one frame, it probably belongs in scene/project/save data, not a hidden script global.
+- Run validation after editing example data.
