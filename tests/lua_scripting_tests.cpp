@@ -62,6 +62,26 @@ function Probe:on_start()
   if Hud.set_button_label("button_start", "GO") then
     Save.set_string("test", "button_label", "updated")
   end
+  Entity.create("ent_tinted_sprite", {
+    components = {
+      Transform2D = {
+        position = { 0.0, 0.0 },
+      },
+      Sprite = {
+        texture = "asset://sprites/test",
+        color = { 0.10, 0.20, 0.30, 0.40 },
+      },
+    },
+  })
+  if Entity.set_sprite_color("ent_tinted_sprite", 0.45, 0.55, 0.65, 0.75) then
+    Save.set_string("test", "sprite_color", "updated")
+  end
+  local roundtrip = Network.decode(Network.encode("color_probe", {
+    color = { 0.45, 0.55, 0.65, 0.75 },
+  }))
+  if roundtrip ~= nil and roundtrip.payload.color[1] == 0.45 and roundtrip.payload.color[4] == 0.75 then
+    Save.set_string("test", "network_array_roundtrip", "passed")
+  end
   Runtime.set_max_fps(144)
   if Runtime.get_max_fps() == 144 then
     Save.set_number("test", "max_fps", 144)
@@ -193,6 +213,17 @@ return PropProbe
   }
   if (host.saveString("test", "button_label") != "updated" || world.hudButtons[0].label != "GO") {
     std::cerr << "Hud.set_button_label did not update the HUD button label.\n";
+    return 1;
+  }
+  const runtime::Entity* tintedSprite = runtime::findEntity(world, "ent_tinted_sprite");
+  if (host.saveString("test", "sprite_color") != "updated" || tintedSprite == nullptr || !tintedSprite->sprite.has_value() ||
+      tintedSprite->sprite->color.r != 0.45F || tintedSprite->sprite->color.g != 0.55F ||
+      tintedSprite->sprite->color.b != 0.65F || tintedSprite->sprite->color.a != 0.75F) {
+    std::cerr << "Sprite color Lua API did not create and update a tinted sprite.\n";
+    return 1;
+  }
+  if (host.saveString("test", "network_array_roundtrip") != "passed") {
+    std::cerr << "Network Lua message encoding did not preserve array-style tables.\n";
     return 1;
   }
   if (host.saveString("test", "script_event") != "script") {

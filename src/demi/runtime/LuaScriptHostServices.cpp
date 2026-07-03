@@ -208,6 +208,18 @@ bool LuaScriptHost::destroyEntity(const std::string& entityId) {
   return world_->entities.size() != before;
 }
 
+bool LuaScriptHost::setEntitySpriteColor(const std::string& entityId, const Color color) {
+  if (world_ == nullptr) {
+    return false;
+  }
+  Entity* entity = findEntity(*world_, entityId);
+  if (entity == nullptr || !entity->sprite.has_value()) {
+    return false;
+  }
+  entity->sprite->color = color;
+  return true;
+}
+
 std::optional<Vec2> LuaScriptHost::getRigidbodyVelocity(const std::string& entityId) const {
   if (world_ == nullptr) {
     return std::nullopt;

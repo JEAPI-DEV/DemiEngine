@@ -354,6 +354,9 @@ World parseScene(const std::filesystem::path& scenePath, const std::string& text
       SpriteComponent component;
       component.texture = stringAfterKey(*sprite, "texture").value_or(std::string{});
       component.layer = stringAfterKey(*sprite, "layer").value_or(std::string{});
+      if (const std::optional<Color> color = colorAfterKey(*sprite, "color")) {
+        component.color = *color;
+      }
       entity.sprite = component;
     }
 

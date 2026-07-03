@@ -58,6 +58,13 @@ function Entity.create(entity_id, spec) end
 ---@return boolean
 function Entity.destroy(entity_id) end
 ---@param entity_id string
+---@param r number
+---@param g number
+---@param b number
+---@param a? number
+---@return boolean
+function Entity.set_sprite_color(entity_id, r, g, b, a) end
+---@param entity_id string
 ---@param dx number
 ---@param dy number
 function Entity.add_position(entity_id, dx, dy) end
@@ -407,6 +414,59 @@ function Network.encode(type, payload) end
 ---@param message string
 ---@return table|nil
 function Network.decode(message) end
+
+---@class NetworkSessionService
+NetworkSession = {}
+---@param options table
+function NetworkSession.configure(options) end
+---@return string
+function NetworkSession.sender_id() end
+---@param r number
+---@param g number
+---@param b number
+---@param a? number
+function NetworkSession.set_local_color(r, g, b, a) end
+---@param port? integer
+---@return boolean
+function NetworkSession.host(port) end
+---@param address? string
+---@param port? integer
+---@return boolean
+function NetworkSession.connect(address, port) end
+function NetworkSession.disconnect() end
+---@return boolean
+function NetworkSession.is_connected() end
+---@param metadata table
+function NetworkSession.start_session(metadata) end
+---@return table|nil
+function NetworkSession.current_session() end
+function NetworkSession.reset_claims() end
+---@param sender_id string
+---@return number|nil x
+---@return number|nil y
+function NetworkSession.remote_position(sender_id) end
+---@param id string
+---@param options? table
+---@return boolean
+function NetworkSession.register_claim_once(id, options) end
+---@param id string
+---@param collector_id string
+---@param broadcast? boolean
+---@param claim? table
+---@return boolean
+function NetworkSession.apply_claim_once(id, collector_id, broadcast, claim) end
+---@param peer_id? integer
+---@return boolean
+function NetworkSession.request_claim_once_sync(peer_id) end
+---@param id string
+---@param claim? table
+---@return boolean
+function NetworkSession.try_claim_once(id, claim) end
+---@return table
+function NetworkSession.process_events() end
+---@param entity_id string
+---@param dt number
+function NetworkSession.update_local_transform(entity_id, dt) end
 
 ---@class DemiScript
 ---@field entity_id? string

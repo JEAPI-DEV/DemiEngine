@@ -61,6 +61,7 @@ public:
   [[nodiscard]] bool setEntityScale3D(const std::string& entityId, float x, float y, float z);
   [[nodiscard]] std::optional<std::string> findEntityId(const std::string& idOrName) const;
   [[nodiscard]] bool destroyEntity(const std::string& entityId);
+  [[nodiscard]] bool setEntitySpriteColor(const std::string& entityId, Color color);
   [[nodiscard]] std::optional<Vec2> getRigidbodyVelocity(const std::string& entityId) const;
   [[nodiscard]] bool setRigidbodyVelocity(const std::string& entityId, float x, float y);
   [[nodiscard]] bool setRigidbodyVelocityX(const std::string& entityId, float x);

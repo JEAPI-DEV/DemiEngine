@@ -49,6 +49,14 @@
                   "layer": { "type": "string" }
                 }
               },
+              "Sprite": {
+                "type": "object",
+                "properties": {
+                  "texture": { "type": "string", "pattern": "^asset://" },
+                  "layer": { "type": "string" },
+                  "color": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 }
+                }
+              },
               "AudioSource": {
                 "type": "object",
                 "properties": {

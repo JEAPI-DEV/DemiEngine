@@ -10,6 +10,7 @@
 #include <system_error>
 #include <tuple>
 #include <unordered_map>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -49,6 +50,28 @@ Vec2 vec2Field(const sol::table table, const char* fieldName, const Vec2 fallbac
   }
   const sol::table vec = object.as<sol::table>();
   return Vec2{.x = vec.get_or(1, fallback.x), .y = vec.get_or(2, fallback.y)};
+}
+
+Color colorField(const sol::table table, const char* fieldName, const Color fallback = {1.0F, 1.0F, 1.0F, 1.0F}) {
+  const sol::object object = table[fieldName];
+  if (!object.is<sol::table>()) {
+    return fallback;
+  }
+  const sol::table color = object.as<sol::table>();
+  const auto channel = [&](const int index, const float channelFallback) {
+    const sol::object numeric = color[index];
+    if (numeric.is<double>() || numeric.is<int>()) {
+      return numeric.as<float>();
+    }
+    const sol::object string = color[std::to_string(index)];
+    return (string.is<double>() || string.is<int>()) ? string.as<float>() : channelFallback;
+  };
+  return Color{
+    .r = channel(1, fallback.r),
+    .g = channel(2, fallback.g),
+    .b = channel(3, fallback.b),
+    .a = channel(4, fallback.a),
+  };
 }
 
 sol::table componentTable(const sol::table components, const char* name) {
@@ -95,6 +118,7 @@ Entity parseEntitySpec(const std::string& entityId, const sol::table spec) {
     entity.sprite = SpriteComponent{
       .texture = sprite.get_or("texture", std::string{}),
       .layer = sprite.get_or("layer", std::string{}),
+      .color = colorField(sprite, "color"),
     };
   }
 
@@ -166,8 +190,29 @@ nlohmann::json luaObjectToJson(const sol::object object) {
   case sol::type::string:
     return object.as<std::string>();
   case sol::type::table: {
-    nlohmann::json value = nlohmann::json::object();
     const sol::table table = object.as<sol::table>();
+    bool arrayLike = true;
+    int maxIndex = 0;
+    std::vector<std::pair<int, sol::object>> indexedItems;
+    for (const auto& [key, item] : table) {
+      if (!key.is<int>() || key.as<int>() <= 0) {
+        arrayLike = false;
+        break;
+      }
+      const int index = key.as<int>();
+      maxIndex = std::max(maxIndex, index);
+      indexedItems.push_back({index, item});
+    }
+    if (arrayLike && !indexedItems.empty() && maxIndex == static_cast<int>(indexedItems.size())) {
+      std::ranges::sort(indexedItems, {}, &std::pair<int, sol::object>::first);
+      nlohmann::json value = nlohmann::json::array();
+      for (const auto& [_, item] : indexedItems) {
+        value.push_back(luaObjectToJson(item));
+      }
+      return value;
+    }
+
+    nlohmann::json value = nlohmann::json::object();
     for (const auto& [key, item] : table) {
       if (key.is<std::string>()) {
         value[key.as<std::string>()] = luaObjectToJson(item);
@@ -388,6 +433,7 @@ struct NetworkSessionState {
   std::uint32_t maxPeers = 8;
   float accumulator = 0.0F;
   std::string localPeerId;
+  Color localColor = {1.0F, 1.0F, 1.0F, 1.0F};
   sol::object sessionMetadata = sol::nil;
   sol::table remotePrefab;
   std::unordered_map<std::string, NetworkSessionRemote> remotes;
@@ -455,7 +501,8 @@ void networkSessionApplySnapshot(LuaScriptHost& host, NetworkSessionState& sessi
   }
 
   const std::string ghostId = networkSessionRemoteId(snapshot);
-  if (!session.remotes.contains(ghostId)) {
+  const bool needsCreate = !session.remotes.contains(ghostId) || !host.findEntityId(ghostId).has_value();
+  if (needsCreate) {
     if (session.remotePrefab.valid()) {
       Entity entity;
       entity.id = ghostId;
@@ -468,6 +515,7 @@ void networkSessionApplySnapshot(LuaScriptHost& host, NetworkSessionState& sessi
       entity.sprite = SpriteComponent{
         .texture = session.remotePrefab.get_or("texture", std::string{}),
         .layer = session.remotePrefab.get_or("layer", std::string("network")),
+        .color = colorField(snapshot, "color", colorField(session.remotePrefab, "color")),
       };
       (void)host.createEntity(std::move(entity));
     }
@@ -475,11 +523,15 @@ void networkSessionApplySnapshot(LuaScriptHost& host, NetworkSessionState& sessi
   }
 
   NetworkSessionRemote& remote = session.remotes[ghostId];
+  remote.senderId = senderId;
   remote.x = snapshot.get_or("x", 0.0F);
   remote.y = snapshot.get_or("y", 0.0F);
   remote.vx = snapshot.get_or("vx", 0.0F);
   remote.vy = snapshot.get_or("vy", 0.0F);
   remote.age = 0.0F;
+  if (snapshot["color"].is<sol::table>()) {
+    (void)host.setEntitySpriteColor(ghostId, colorField(snapshot, "color", colorField(session.remotePrefab, "color")));
+  }
   (void)host.setEntityPosition(ghostId, remote.x + remote.vx * session.initialPrediction, remote.y + remote.vy * session.initialPrediction);
 }
 
@@ -569,6 +621,7 @@ void registerSol2Bindings(LuaScriptHost& host, lua_State* state) {
   entity.set_function("find", [&host](const std::string& idOrName) { return host.findEntityId(idOrName); });
   entity.set_function("create", [&host](const std::string& entityId, const sol::table spec) { return host.createEntity(parseEntitySpec(entityId, spec)); });
   entity.set_function("destroy", [&host](const std::string& entityId) { return host.destroyEntity(entityId); });
+  entity.set_function("set_sprite_color", [&host](const std::string& entityId, float r, float g, float b, sol::optional<float> a) { return host.setEntitySpriteColor(entityId, Color{r, g, b, a.value_or(1.0F)}); });
   entity.set_function("add_position", [&host](const std::string& entityId, float dx, float dy) { (void)host.addEntityPosition(entityId, dx, dy); });
   entity.set_function("set_position", [&host](const std::string& entityId, float x, float y) { return host.setEntityPosition(entityId, x, y); });
   entity.set_function("get_position", [state, &host](const std::string& entityId) { return vec2Result(state, host.entityPosition(entityId)); });
@@ -711,6 +764,9 @@ void registerSol2Bindings(LuaScriptHost& host, lua_State* state) {
       }
     });
   networkSession.set_function("sender_id", [&host, session] { return networkSessionSenderId(host, *session); });
+  networkSession.set_function("set_local_color", [session](float r, float g, float b, sol::optional<float> a) {
+      session->localColor = Color{.r = r, .g = g, .b = b, .a = a.value_or(1.0F)};
+    });
   networkSession.set_function("host", [&host, session](sol::optional<int> port) {
       if (!host.networkAvailable()) {
         return false;
@@ -935,6 +991,12 @@ void registerSol2Bindings(LuaScriptHost& host, lua_State* state) {
       payload["y"] = position->y;
       payload["vx"] = velocity.has_value() ? velocity->x : 0.0F;
       payload["vy"] = velocity.has_value() ? velocity->y : 0.0F;
+      sol::table color = lua.create_table();
+      color[1] = session->localColor.r;
+      color[2] = session->localColor.g;
+      color[3] = session->localColor.b;
+      color[4] = session->localColor.a;
+      payload["color"] = color;
       networkSessionSendMessage(state, host, "transform_snapshot", sol::make_object(state, payload), false, 0, session->channel);
     });
 }

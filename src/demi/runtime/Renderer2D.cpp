@@ -301,10 +301,10 @@ void drawEntity(const std::unordered_map<std::string, Texture2D>& textures,
     const auto texture = textures.find(entity.sprite->texture);
     if (texture != textures.end()) {
       ::Rectangle source{.x = 0, .y = 0, .width = static_cast<float>(texture->second.width), .height = static_cast<float>(texture->second.height)};
-      DrawTexturePro(texture->second, source, rect, {0, 0}, 0.0F, WhiteTint);
+      DrawTexturePro(texture->second, source, rect, {0, 0}, 0.0F, toRlColor(entity.sprite->color));
       return;
     }
-    fillColor = {92, 172, 238, 255};
+    fillColor = toRlColor(entity.sprite->color);
   } else if (entity.buildable.has_value()) {
     const auto texture = textures.find(entity.buildable->asset);
     if (texture != textures.end()) {

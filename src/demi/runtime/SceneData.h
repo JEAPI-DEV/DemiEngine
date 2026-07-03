@@ -114,6 +114,7 @@ struct Camera2DComponent {
 struct SpriteComponent {
   std::string texture;
   std::string layer;
+  Color color = {1.0F, 1.0F, 1.0F, 1.0F};
 };
 
 struct IsoGridComponent {
