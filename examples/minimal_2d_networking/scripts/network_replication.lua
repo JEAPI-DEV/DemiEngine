@@ -7,6 +7,7 @@ NetworkSession.configure({
     texture = "asset://sprites/player",
     layer = "network",
     scale = { 0.8, 0.8 },
+    color = { 0.30, 0.62, 1.0, 1.0 },
   },
 })
 

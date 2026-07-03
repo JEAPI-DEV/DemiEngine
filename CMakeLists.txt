@@ -36,6 +36,17 @@ FetchContent_Declare(nlohmann_json
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(BUILD_GAMES OFF CACHE BOOL "" FORCE)
+set(CUSTOMIZE_BUILD ON CACHE BOOL "" FORCE)
+set(SUPPORT_MODULE_RPRAND ON CACHE BOOL "" FORCE)
+FetchContent_Declare(raylib
+  GIT_REPOSITORY https://github.com/raysan5/raylib.git
+  GIT_TAG 5.5
+)
+FetchContent_MakeAvailable(raylib)
+
 option(DEMI_ENABLE_NETWORK "Enable optional ENet networking module" OFF)
 option(DEMI_ENABLE_MEDIA "Enable FFmpeg-backed media module" ON)
 
@@ -67,12 +78,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
 endif()
 
 find_package(PkgConfig QUIET)
-find_package(SDL3 CONFIG QUIET)
-if(NOT SDL3_FOUND)
-  if(PkgConfig_FOUND)
-    pkg_check_modules(SDL3 QUIET IMPORTED_TARGET sdl3)
-  endif()
-endif()
 
 if(PkgConfig_FOUND)
   pkg_check_modules(LUA54 QUIET IMPORTED_TARGET lua5.4)
@@ -86,17 +91,39 @@ if(DEMI_ENABLE_MEDIA AND NOT TARGET PkgConfig::FFMPEG)
 endif()
 
 add_library(demi-runtime-lib STATIC
-  src/demi/runtime/AudioSystem.cpp
-  src/demi/runtime/LuaScriptHostBindings.cpp
-  src/demi/runtime/LuaScriptHost.cpp
-  src/demi/runtime/LuaScriptHostPersistence.cpp
-  src/demi/runtime/LuaScriptHostServices.cpp
-  src/demi/runtime/MediaSystem.cpp
-  src/demi/runtime/NetworkSystem.cpp
-  src/demi/runtime/Physics2D.cpp
-  src/demi/runtime/Renderer2D.cpp
-  src/demi/runtime/RuntimeApp.cpp
-  src/demi/runtime/SceneLoader.cpp
+  src/demi/runtime/app/RuntimeApp.cpp
+  src/demi/runtime/audio/AudioSystem.cpp
+  src/demi/runtime/media/MediaSystem.cpp
+  src/demi/runtime/network/NetworkSystem.cpp
+  src/demi/runtime/physics/Physics2D.cpp
+  src/demi/runtime/physics/Physics3D.cpp
+  src/demi/runtime/render/Renderer2D.cpp
+  src/demi/runtime/render/Renderer3D.cpp
+  src/demi/runtime/scene/HudParser.cpp
+  src/demi/runtime/scene/ProjectParser.cpp
+  src/demi/runtime/scene/SceneEntityParser.cpp
+  src/demi/runtime/scene/SceneJson.cpp
+  src/demi/runtime/scene/SceneLoader.cpp
+  src/demi/runtime/scripting/LuaScriptHostBindings.cpp
+  src/demi/runtime/scripting/LuaScriptHost.cpp
+  src/demi/runtime/scripting/LuaBindingCleanup.cpp
+  src/demi/runtime/scripting/LuaScriptAnnotations.cpp
+  src/demi/runtime/scripting/LuaScriptDiagnostics.cpp
+  src/demi/runtime/scripting/LuaScriptHostEntityServices.cpp
+  src/demi/runtime/scripting/LuaScriptHostHudServices.cpp
+  src/demi/runtime/scripting/LuaScriptHostLoading.cpp
+  src/demi/runtime/scripting/LuaScriptHostMediaNetworkServices.cpp
+  src/demi/runtime/scripting/LuaScriptProperties.cpp
+  src/demi/runtime/scripting/bindings/LuaBindingHelpers.cpp
+  src/demi/runtime/scripting/bindings/LuaCoreBindings.cpp
+  src/demi/runtime/scripting/bindings/LuaEntityBindings.cpp
+  src/demi/runtime/scripting/bindings/LuaHudMediaBindings.cpp
+  src/demi/runtime/scripting/bindings/LuaJsonBridge.cpp
+  src/demi/runtime/scripting/bindings/LuaNetworkBindings.cpp
+  src/demi/runtime/scripting/bindings/LuaNetworkSessionBindings.cpp
+  src/demi/runtime/scripting/persistence/LuaSaveCodec.cpp
+  src/demi/runtime/scripting/LuaScriptHostPersistence.cpp
+  src/demi/runtime/scripting/LuaScriptHostServices.cpp
 )
 
 target_link_libraries(demi-runtime-lib PUBLIC demi-core)
@@ -109,20 +136,11 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(demi-runtime-lib PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-if(TARGET SDL3::SDL3)
-  target_link_libraries(demi-runtime-lib PRIVATE SDL3::SDL3)
-  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_SDL3=1)
-elseif(TARGET PkgConfig::SDL3)
-  target_link_libraries(demi-runtime-lib PRIVATE PkgConfig::SDL3)
-  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_SDL3=1)
-else()
-  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_SDL3=0)
-  message(WARNING "SDL3 was not found. demi run will build but cannot open a game window.")
-endif()
+target_link_libraries(demi-runtime-lib PRIVATE raylib)
+target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_RAYLIB=1)
 
 if(TARGET PkgConfig::LUA54)
   target_link_libraries(demi-runtime-lib PRIVATE PkgConfig::LUA54)
-  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_LUA54=1)
 else()
   message(FATAL_ERROR "Lua 5.4 was not found. Install lua5.4 development files to build DemiEngine scripting.")
 endif()
@@ -161,8 +179,17 @@ target_link_libraries(demi-smoke-tests PRIVATE demi-core)
 add_executable(demi-physics2d-tests tests/physics2d_tests.cpp)
 target_link_libraries(demi-physics2d-tests PRIVATE demi-runtime-lib)
 
+add_executable(demi-physics3d-tests tests/physics3d_tests.cpp)
+target_link_libraries(demi-physics3d-tests PRIVATE demi-runtime-lib)
+
+add_executable(demi-lua-stub-contract-tests tests/lua_stub_contract_tests.cpp)
+target_link_libraries(demi-lua-stub-contract-tests PRIVATE demi-runtime-lib)
+
 add_executable(demi-lua-scripting-tests tests/lua_scripting_tests.cpp)
 target_link_libraries(demi-lua-scripting-tests PRIVATE demi-runtime-lib)
+
+add_executable(demi-scene-loader-tests tests/scene_loader_tests.cpp)
+target_link_libraries(demi-scene-loader-tests PRIVATE demi-runtime-lib)
 
 add_executable(demi-snapshot-replication-tests tests/snapshot_replication_tests.cpp)
 target_link_libraries(demi-snapshot-replication-tests PRIVATE demi-runtime-lib)
@@ -175,7 +202,10 @@ endif()
 enable_testing()
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-physics2d-tests COMMAND demi-physics2d-tests)
+add_test(NAME demi-physics3d-tests COMMAND demi-physics3d-tests)
+add_test(NAME demi-lua-stub-contract-tests COMMAND demi-lua-stub-contract-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
+add_test(NAME demi-scene-loader-tests COMMAND demi-scene-loader-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-snapshot-replication-tests COMMAND demi-snapshot-replication-tests)
 if(DEMI_ENABLE_NETWORK)
   add_test(NAME demi-network-tests COMMAND demi-network-tests)
@@ -183,13 +213,20 @@ endif()
 add_test(NAME demi-runtime-minimal-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json --frames 1
 )
-set_tests_properties(demi-runtime-minimal-frame PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
+set_tests_properties(demi-runtime-minimal-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-runtime-networking-minimal-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json --frames 1
 )
-set_tests_properties(demi-runtime-networking-minimal-frame PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
+set_tests_properties(demi-runtime-networking-minimal-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-minimal-3d-frame
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json --frames 1
+)
+set_tests_properties(demi-runtime-minimal-3d-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-validate-minimal-2d-networking
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json
+)
+add_test(NAME demi-validate-minimal-3d
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json
 )
 add_test(NAME demi-script-check-minimal-player
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/scripts/player.lua

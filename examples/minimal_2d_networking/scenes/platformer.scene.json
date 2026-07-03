@@ -46,7 +46,8 @@
         },
         "Sprite": {
           "texture": "asset://sprites/player",
-          "layer": "actors"
+          "layer": "actors",
+          "color": [0.30, 0.62, 1.0, 1.0]
         },
         "LuaScript": {
           "module": "script://scripts/player.lua",

@@ -1,5 +1,5 @@
 #include "demi/core/Version.h"
-#include "demi/runtime/RuntimeApp.h"
+#include "demi/runtime/app/RuntimeApp.h"
 
 #include <iostream>
 #include <string>

@@ -70,6 +70,7 @@ function Game:on_start()
 end
 
 function Game:on_update(dt)
+  replication.process_events()
   hud.update_fps(self, dt)
 
   if state.score_reset_requested then

@@ -1,4 +1,4 @@
-#include "demi/runtime/LuaScriptHost.h"
+#include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include <filesystem>
 #include <fstream>
@@ -61,6 +61,26 @@ function Probe:on_start()
   Events.emit("test.module_event", { value = "module" })
   if Hud.set_button_label("button_start", "GO") then
     Save.set_string("test", "button_label", "updated")
+  end
+  Entity.create("ent_tinted_sprite", {
+    components = {
+      Transform2D = {
+        position = { 0.0, 0.0 },
+      },
+      Sprite = {
+        texture = "asset://sprites/test",
+        color = { 0.10, 0.20, 0.30, 0.40 },
+      },
+    },
+  })
+  if Entity.set_sprite_color("ent_tinted_sprite", 0.45, 0.55, 0.65, 0.75) then
+    Save.set_string("test", "sprite_color", "updated")
+  end
+  local roundtrip = Network.decode(Network.encode("color_probe", {
+    color = { 0.45, 0.55, 0.65, 0.75 },
+  }))
+  if roundtrip ~= nil and roundtrip.payload.color[1] == 0.45 and roundtrip.payload.color[4] == 0.75 then
+    Save.set_string("test", "network_array_roundtrip", "passed")
   end
   Runtime.set_max_fps(144)
   if Runtime.get_max_fps() == 144 then
@@ -158,6 +178,42 @@ return PropProbe
     .size = runtime::Vec2{.x = 45.0F, .y = 100.0F},
     .action = "test.module",
   });
+  runtime::Entity mover3D;
+  mover3D.id = "ent_3d_mover";
+  mover3D.name = "3D Mover";
+  mover3D.transform3D = runtime::Transform3DComponent{.position = runtime::Vec3{.x = 0.0F, .y = 0.5F, .z = 0.0F}};
+  mover3D.boxCollider3D = runtime::BoxCollider3DComponent{.size = runtime::Vec3{.x = 1.0F, .y = 1.0F, .z = 1.0F}};
+  mover3D.rigidbody3D = runtime::Rigidbody3DComponent{.bodyType = "dynamic", .useGravity = false};
+  world.entities.push_back(std::move(mover3D));
+  runtime::Entity wall3D;
+  wall3D.id = "ent_3d_wall";
+  wall3D.name = "3D Wall";
+  wall3D.transform3D = runtime::Transform3DComponent{.position = runtime::Vec3{.x = 1.25F, .y = 0.5F, .z = 0.0F}};
+  wall3D.boxCollider3D = runtime::BoxCollider3DComponent{.size = runtime::Vec3{.x = 1.0F, .y = 1.0F, .z = 1.0F}};
+  wall3D.rigidbody3D = runtime::Rigidbody3DComponent{.bodyType = "static", .useGravity = false};
+  world.entities.push_back(std::move(wall3D));
+  runtime::Entity sphere3D;
+  sphere3D.id = "ent_3d_sphere";
+  sphere3D.name = "3D Sphere";
+  sphere3D.transform3D = runtime::Transform3DComponent{.position = runtime::Vec3{.x = -1.25F, .y = 0.5F, .z = 0.0F}};
+  sphere3D.sphereCollider3D = runtime::SphereCollider3DComponent{.radius = 0.5F};
+  sphere3D.rigidbody3D = runtime::Rigidbody3DComponent{.bodyType = "static", .useGravity = false};
+  world.entities.push_back(std::move(sphere3D));
+  runtime::Entity child3D;
+  child3D.id = "ent_3d_child";
+  child3D.name = "3D Child";
+  child3D.transform3D = runtime::Transform3DComponent{.parent = "ent_3d_mover", .position = runtime::Vec3{.x = 0.0F, .y = 2.0F, .z = 0.0F}};
+  world.entities.push_back(std::move(child3D));
+  runtime::Entity parent2D;
+  parent2D.id = "ent_2d_parent";
+  parent2D.name = "2D Parent";
+  parent2D.transform2D = runtime::Transform2DComponent{.position = runtime::Vec2{.x = 3.0F, .y = 4.0F}};
+  world.entities.push_back(std::move(parent2D));
+  runtime::Entity child2D;
+  child2D.id = "ent_2d_child";
+  child2D.name = "2D Child";
+  child2D.transform2D = runtime::Transform2DComponent{.parent = "ent_2d_parent", .position = runtime::Vec2{.x = 1.0F, .y = 2.0F}};
+  world.entities.push_back(std::move(child2D));
 
   runtime::InputState input;
   input.mousePosition = runtime::Vec2{.x = 25.0F, .y = 50.0F};
@@ -195,12 +251,51 @@ return PropProbe
     std::cerr << "Hud.set_button_label did not update the HUD button label.\n";
     return 1;
   }
+  const runtime::Entity* tintedSprite = runtime::findEntity(world, "ent_tinted_sprite");
+  if (host.saveString("test", "sprite_color") != "updated" || tintedSprite == nullptr || !tintedSprite->sprite.has_value() ||
+      tintedSprite->sprite->color.r != 0.45F || tintedSprite->sprite->color.g != 0.55F ||
+      tintedSprite->sprite->color.b != 0.65F || tintedSprite->sprite->color.a != 0.75F) {
+    std::cerr << "Sprite color Lua API did not create and update a tinted sprite.\n";
+    return 1;
+  }
+  if (host.saveString("test", "network_array_roundtrip") != "passed") {
+    std::cerr << "Network Lua message encoding did not preserve array-style tables.\n";
+    return 1;
+  }
   if (host.saveString("test", "script_event") != "script") {
     std::cerr << "Script @OnEvent did not handle emitted event.\n";
     return 1;
   }
   if (host.saveString("test", "module_event") != "module") {
     std::cerr << "Project-listed module @OnEvent did not handle emitted event.\n";
+    return 1;
+  }
+  if (!host.setEntityPosition3D("ent_3d_mover", 1.0F, 0.5F, 0.0F)) {
+    std::cerr << "Transform3D.set_position failed for test mover.\n";
+    return 1;
+  }
+  const std::optional<runtime::Vec3> moved3D = host.entityPosition3D("ent_3d_mover");
+  if (!moved3D.has_value() || moved3D->x != 0.0F) {
+    std::cerr << "3D dynamic mover passed through a static BoxCollider3D.\n";
+    return 1;
+  }
+  if (!host.setEntityPosition3D("ent_3d_mover", -1.0F, 0.5F, 0.0F)) {
+    std::cerr << "Transform3D.set_position failed for sphere test mover.\n";
+    return 1;
+  }
+  const std::optional<runtime::Vec3> sphereBlocked3D = host.entityPosition3D("ent_3d_mover");
+  if (!sphereBlocked3D.has_value() || sphereBlocked3D->x != 0.0F) {
+    std::cerr << "3D dynamic mover passed through a static SphereCollider3D.\n";
+    return 1;
+  }
+  const runtime::Entity* child = runtime::findEntity(world, "ent_3d_child");
+  if (child == nullptr || runtime::worldPosition3D(world, *child).y != 2.5F) {
+    std::cerr << "Transform3D parent world position did not include parent transform.\n";
+    return 1;
+  }
+  const runtime::Entity* child2DLookup = runtime::findEntity(world, "ent_2d_child");
+  if (child2DLookup == nullptr || runtime::worldPosition2D(world, *child2DLookup).x != 4.0F || runtime::worldPosition2D(world, *child2DLookup).y != 6.0F) {
+    std::cerr << "Transform2D parent world position did not include parent transform.\n";
     return 1;
   }
   host.update(1.0F / 60.0F);

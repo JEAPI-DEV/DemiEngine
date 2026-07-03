@@ -1,0 +1,49 @@
+#include "demi/runtime/scene/ProjectParser.h"
+
+namespace demi::runtime::scene_loading {
+
+std::optional<ProjectData> parseProjectData(const std::filesystem::path& projectPath, const Json& document, std::string& error) {
+  ProjectData project;
+  project.projectPath = projectPath;
+  project.projectDirectory = projectPath.parent_path();
+
+  const std::optional<std::string> name = stringField(document, "name");
+  const std::optional<std::string> mainScene = stringField(document, "main_scene");
+  const Json* scenes = arrayField(document, "scenes");
+  if (!name.has_value() || !mainScene.has_value() || scenes == nullptr) {
+    error = "Project file is missing name, main_scene, or scenes.";
+    return std::nullopt;
+  }
+
+  project.name = *name;
+  project.mainScene = *mainScene;
+  project.scriptEntry = stringOr(document, "entry");
+
+  if (const Json* scripting = objectField(document, "scripting")) {
+    project.scriptEntry = stringOr(*scripting, "entry", project.scriptEntry);
+    if (const Json* modules = arrayField(*scripting, "modules")) {
+      for (const Json& module : *modules) {
+        if (module.is_string()) {
+          project.scriptModules.push_back(module.get<std::string>());
+        }
+      }
+    }
+  }
+
+  for (const Json& scene : *scenes) {
+    const std::optional<std::string> id = stringField(scene, "id");
+    const std::optional<std::string> path = stringField(scene, "path");
+    if (id.has_value() && path.has_value()) {
+      project.scenes.push_back(SceneEntry{.id = *id, .path = *path});
+    }
+  }
+
+  if (project.scenes.empty()) {
+    error = "Project does not contain any loadable scenes.";
+    return std::nullopt;
+  }
+
+  return project;
+}
+
+} // namespace demi::runtime::scene_loading

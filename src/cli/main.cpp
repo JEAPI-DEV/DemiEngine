@@ -1,8 +1,8 @@
 #include "demi/core/Version.h"
 #include "demi/assets/AssetRegistry.h"
 #include "demi/diagnostics/Diagnostic.h"
-#include "demi/runtime/RuntimeApp.h"
-#include "demi/runtime/LuaScriptHost.h"
+#include "demi/runtime/app/RuntimeApp.h"
+#include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/schema/Validation.h"
 
 #include <filesystem>

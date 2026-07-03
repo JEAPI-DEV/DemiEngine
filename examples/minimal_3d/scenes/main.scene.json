@@ -1,0 +1,157 @@
+{
+  "format_version": 1,
+  "id": "scene://minimal_3d/main",
+  "name": "Minimal 3D Scene",
+  "hud": "main.hud.json",
+  "entities": [
+    {
+      "id": "ent_camera_3d",
+      "name": "Main Camera 3D",
+      "components": {
+        "Transform3D": {
+          "parent": "ent_player",
+          "position": [0.0, 5.5, 9.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "Camera3D": {
+          "clear_color": [0.05, 0.06, 0.09, 1.0],
+          "fov": 60.0,
+          "perspective": true,
+          "target_offset": [0.0, -3.0, -9.0],
+          "up_axis": 1.0
+        }
+      }
+    },
+    {
+      "id": "ent_directional_light",
+      "name": "Sun Light",
+      "components": {
+        "DirectionalLight": {
+          "direction": [-0.4, -1.0, -0.3],
+          "color": [1.0, 0.97, 0.9, 1.0],
+          "intensity": 1.0
+        }
+      }
+    },
+    {
+      "id": "ent_ground",
+      "name": "Ground Plane",
+      "components": {
+        "Transform3D": {
+          "position": [0.0, 0.0, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "MeshRenderer": {
+          "shape": "plane",
+          "size": [40.0, 1.0, 40.0],
+          "color": [0.18, 0.22, 0.20, 1.0],
+          "wireframe": false
+        },
+        "BoxCollider3D": {
+          "size": [40.0, 0.2, 40.0],
+          "offset": [0.0, -0.1, 0.0],
+          "is_trigger": false,
+          "layer": "ground"
+        },
+        "Rigidbody3D": {
+          "body_type": "static",
+          "velocity": [0.0, 0.0, 0.0],
+          "use_gravity": false,
+          "gravity_scale": 0.0
+        }
+      }
+    },
+    {
+      "id": "ent_player",
+      "name": "Player Cube",
+      "components": {
+        "Transform3D": {
+          "position": [0.0, 0.5, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "MeshRenderer": {
+          "shape": "cube",
+          "size": [1.0, 1.0, 1.0],
+          "color": [0.36, 0.67, 0.93, 1.0],
+          "wireframe": false
+        },
+        "BoxCollider3D": {
+          "size": [1.0, 1.0, 1.0],
+          "offset": [0.0, 0.0, 0.0],
+          "is_trigger": false,
+          "layer": "player"
+        },
+        "Rigidbody3D": {
+          "body_type": "dynamic",
+          "velocity": [0.0, 0.0, 0.0],
+          "use_gravity": false,
+          "gravity_scale": 0.0
+        },
+        "LuaScript": {
+          "module": "script://scripts/player_3d.lua"
+        }
+      }
+    },
+    {
+      "id": "ent_obstacle_1",
+      "name": "Obstacle Wall",
+      "components": {
+        "Transform3D": {
+          "position": [4.0, 1.0, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "MeshRenderer": {
+          "shape": "cube",
+          "size": [1.0, 2.0, 4.0],
+          "color": [0.85, 0.42, 0.36, 1.0],
+          "wireframe": false
+        },
+        "BoxCollider3D": {
+          "size": [1.0, 2.0, 4.0],
+          "offset": [0.0, 0.0, 0.0],
+          "is_trigger": false,
+          "layer": "obstacle"
+        },
+        "Rigidbody3D": {
+          "body_type": "static",
+          "velocity": [0.0, 0.0, 0.0],
+          "use_gravity": false,
+          "gravity_scale": 0.0
+        }
+      }
+    },
+    {
+      "id": "ent_obstacle_2",
+      "name": "Pillar Sphere",
+      "components": {
+        "Transform3D": {
+          "position": [-3.0, 0.75, -3.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "MeshRenderer": {
+          "shape": "sphere",
+          "size": [1.5, 1.5, 1.5],
+          "color": [0.93, 0.78, 0.36, 1.0],
+          "wireframe": false
+        },
+        "SphereCollider3D": {
+          "radius": 0.75,
+          "offset": [0.0, 0.0, 0.0],
+          "is_trigger": false,
+          "layer": "obstacle"
+        },
+        "Rigidbody3D": {
+          "body_type": "static",
+          "velocity": [0.0, 0.0, 0.0],
+          "use_gravity": false,
+          "gravity_scale": 0.0
+        }
+      }
+    }
+  ]
+}
