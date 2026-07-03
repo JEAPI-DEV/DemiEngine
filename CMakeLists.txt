@@ -36,6 +36,17 @@ FetchContent_Declare(nlohmann_json
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(BUILD_GAMES OFF CACHE BOOL "" FORCE)
+set(CUSTOMIZE_BUILD ON CACHE BOOL "" FORCE)
+set(SUPPORT_MODULE_RPRAND ON CACHE BOOL "" FORCE)
+FetchContent_Declare(raylib
+  GIT_REPOSITORY https://github.com/raysan5/raylib.git
+  GIT_TAG 5.5
+)
+FetchContent_MakeAvailable(raylib)
+
 option(DEMI_ENABLE_NETWORK "Enable optional ENet networking module" OFF)
 option(DEMI_ENABLE_MEDIA "Enable FFmpeg-backed media module" ON)
 
@@ -67,12 +78,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
 endif()
 
 find_package(PkgConfig QUIET)
-find_package(SDL3 CONFIG QUIET)
-if(NOT SDL3_FOUND)
-  if(PkgConfig_FOUND)
-    pkg_check_modules(SDL3 QUIET IMPORTED_TARGET sdl3)
-  endif()
-endif()
 
 if(PkgConfig_FOUND)
   pkg_check_modules(LUA54 QUIET IMPORTED_TARGET lua5.4)
@@ -95,6 +100,7 @@ add_library(demi-runtime-lib STATIC
   src/demi/runtime/NetworkSystem.cpp
   src/demi/runtime/Physics2D.cpp
   src/demi/runtime/Renderer2D.cpp
+  src/demi/runtime/Renderer3D.cpp
   src/demi/runtime/RuntimeApp.cpp
   src/demi/runtime/SceneLoader.cpp
 )
@@ -109,16 +115,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(demi-runtime-lib PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-if(TARGET SDL3::SDL3)
-  target_link_libraries(demi-runtime-lib PRIVATE SDL3::SDL3)
-  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_SDL3=1)
-elseif(TARGET PkgConfig::SDL3)
-  target_link_libraries(demi-runtime-lib PRIVATE PkgConfig::SDL3)
-  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_SDL3=1)
-else()
-  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_SDL3=0)
-  message(WARNING "SDL3 was not found. demi run will build but cannot open a game window.")
-endif()
+target_link_libraries(demi-runtime-lib PRIVATE raylib)
+target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_RAYLIB=1)
 
 if(TARGET PkgConfig::LUA54)
   target_link_libraries(demi-runtime-lib PRIVATE PkgConfig::LUA54)
@@ -183,13 +181,20 @@ endif()
 add_test(NAME demi-runtime-minimal-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json --frames 1
 )
-set_tests_properties(demi-runtime-minimal-frame PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
+set_tests_properties(demi-runtime-minimal-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-runtime-networking-minimal-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json --frames 1
 )
-set_tests_properties(demi-runtime-networking-minimal-frame PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
+set_tests_properties(demi-runtime-networking-minimal-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-minimal-3d-frame
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json --frames 1
+)
+set_tests_properties(demi-runtime-minimal-3d-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-validate-minimal-2d-networking
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json
+)
+add_test(NAME demi-validate-minimal-3d
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json
 )
 add_test(NAME demi-script-check-minimal-player
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/scripts/player.lua

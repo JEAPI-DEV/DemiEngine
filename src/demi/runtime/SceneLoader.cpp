@@ -254,6 +254,14 @@ std::optional<Vec2> vec2AfterKey(const std::string& text, std::string_view key) 
   return Vec2{.x = (*values)[0], .y = (*values)[1]};
 }
 
+std::optional<Vec3> vec3AfterKey(const std::string& text, std::string_view key) {
+  const std::optional<std::array<float, 3>> values = floatArrayAfterKey<3>(text, key);
+  if (!values.has_value()) {
+    return std::nullopt;
+  }
+  return Vec3{.x = (*values)[0], .y = (*values)[1], .z = (*values)[2]};
+}
+
 std::optional<Color> colorAfterKey(const std::string& text, std::string_view key) {
   const std::optional<std::array<float, 4>> values = floatArrayAfterKey<4>(text, key);
   if (!values.has_value()) {
@@ -429,6 +437,98 @@ World parseScene(const std::filesystem::path& scenePath, const std::string& text
       component.isTrigger = boolAfterKey(*boxCollider, "is_trigger").value_or(false);
       component.layer = stringAfterKey(*boxCollider, "layer").value_or(std::string{});
       entity.boxCollider2D = component;
+    }
+
+    if (const std::optional<std::string> transform = objectAfterKey(entityObject, "Transform3D")) {
+      Transform3DComponent component;
+      if (const std::optional<Vec3> position = vec3AfterKey(*transform, "position")) {
+        component.position = *position;
+      }
+      if (const std::optional<Vec3> rotation = vec3AfterKey(*transform, "rotation")) {
+        component.rotation = *rotation;
+      }
+      if (const std::optional<Vec3> scale = vec3AfterKey(*transform, "scale")) {
+        component.scale = *scale;
+      }
+      entity.transform3D = component;
+    }
+
+    if (const std::optional<std::string> camera = objectAfterKey(entityObject, "Camera3D")) {
+      Camera3DComponent component;
+      if (const std::optional<Color> clearColor = colorAfterKey(*camera, "clear_color")) {
+        component.clearColor = *clearColor;
+      }
+      if (const std::optional<float> fov = numberAfterKey(*camera, "fov")) {
+        component.fov = *fov;
+      }
+      if (const std::optional<float> orthoSize = numberAfterKey(*camera, "orthographic_size")) {
+        component.orthographicSize = *orthoSize;
+      }
+      if (const std::optional<Vec3> targetOffset = vec3AfterKey(*camera, "target_offset")) {
+        component.targetOffset = *targetOffset;
+      }
+      component.perspective = boolAfterKey(*camera, "perspective").value_or(true);
+      if (const std::optional<float> positionX = numberAfterKey(*camera, "position_x")) {
+        component.positionX = *positionX;
+      }
+      if (const std::optional<float> upAxis = numberAfterKey(*camera, "up_axis")) {
+        component.upAxis = *upAxis;
+      }
+      entity.camera3D = component;
+    }
+
+    if (const std::optional<std::string> mesh = objectAfterKey(entityObject, "MeshRenderer")) {
+      MeshRendererComponent component;
+      component.shape = stringAfterKey(*mesh, "shape").value_or("cube");
+      if (const std::optional<Vec3> size = vec3AfterKey(*mesh, "size")) {
+        component.size = *size;
+      }
+      if (const std::optional<Color> color = colorAfterKey(*mesh, "color")) {
+        component.color = *color;
+      }
+      component.texture = stringAfterKey(*mesh, "texture").value_or(std::string{});
+      component.wireframe = boolAfterKey(*mesh, "wireframe").value_or(false);
+      entity.meshRenderer = component;
+    }
+
+    if (const std::optional<std::string> boxCollider = objectAfterKey(entityObject, "BoxCollider3D")) {
+      BoxCollider3DComponent component;
+      if (const std::optional<Vec3> size = vec3AfterKey(*boxCollider, "size")) {
+        component.size = *size;
+      }
+      if (const std::optional<Vec3> offset = vec3AfterKey(*boxCollider, "offset")) {
+        component.offset = *offset;
+      }
+      component.isTrigger = boolAfterKey(*boxCollider, "is_trigger").value_or(false);
+      component.layer = stringAfterKey(*boxCollider, "layer").value_or(std::string{});
+      entity.boxCollider3D = component;
+    }
+
+    if (const std::optional<std::string> rigidbody = objectAfterKey(entityObject, "Rigidbody3D")) {
+      Rigidbody3DComponent component;
+      component.bodyType = stringAfterKey(*rigidbody, "body_type").value_or("dynamic");
+      if (const std::optional<Vec3> velocity = vec3AfterKey(*rigidbody, "velocity")) {
+        component.velocity = *velocity;
+      }
+      component.useGravity = boolAfterKey(*rigidbody, "use_gravity").value_or(true);
+      if (const std::optional<float> gravityScale = numberAfterKey(*rigidbody, "gravity_scale")) {
+        component.gravityScale = *gravityScale;
+      }
+      entity.rigidbody3D = component;
+    }
+
+    if (const std::optional<std::string> light = objectAfterKey(entityObject, "DirectionalLight")) {
+      DirectionalLightComponent component;
+      if (const std::optional<Vec3> direction = vec3AfterKey(*light, "direction")) {
+        component.direction = *direction;
+      }
+      if (const std::optional<Color> color = colorAfterKey(*light, "color")) {
+        component.color = *color;
+      }
+      if (const std::optional<float> intensity = numberAfterKey(*light, "intensity")) {
+        component.intensity = *intensity;
+      }
+      entity.directionalLight = component;
     }
 
     if (const std::optional<std::string> audioSource = objectAfterKey(entityObject, "AudioSource")) {

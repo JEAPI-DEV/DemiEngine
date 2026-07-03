@@ -104,6 +104,89 @@ bool LuaScriptHost::setEntityScale(const std::string& entityId, const float x, c
   return true;
 }
 
+bool LuaScriptHost::addEntityPosition3D(const std::string& entityId, const float dx, const float dy, const float dz) {
+  if (world_ == nullptr) {
+    return false;
+  }
+  Entity* entity = findEntity(*world_, entityId);
+  if (entity == nullptr || !entity->transform3D.has_value()) {
+    return false;
+  }
+  entity->transform3D->position.x += dx;
+  entity->transform3D->position.y += dy;
+  entity->transform3D->position.z += dz;
+  return true;
+}
+
+bool LuaScriptHost::setEntityPosition3D(const std::string& entityId, const float x, const float y, const float z) {
+  if (world_ == nullptr) {
+    return false;
+  }
+  Entity* entity = findEntity(*world_, entityId);
+  if (entity == nullptr || !entity->transform3D.has_value()) {
+    return false;
+  }
+  entity->transform3D->position = Vec3{.x = x, .y = y, .z = z};
+  return true;
+}
+
+std::optional<Vec3> LuaScriptHost::entityPosition3D(const std::string& entityId) const {
+  if (world_ == nullptr) {
+    return std::nullopt;
+  }
+  const Entity* entity = findEntity(*world_, entityId);
+  if (entity == nullptr || !entity->transform3D.has_value()) {
+    return std::nullopt;
+  }
+  return entity->transform3D->position;
+}
+
+std::optional<Vec3> LuaScriptHost::entityRotation3D(const std::string& entityId) const {
+  if (world_ == nullptr) {
+    return std::nullopt;
+  }
+  const Entity* entity = findEntity(*world_, entityId);
+  if (entity == nullptr || !entity->transform3D.has_value()) {
+    return std::nullopt;
+  }
+  return entity->transform3D->rotation;
+}
+
+bool LuaScriptHost::setEntityRotation3D(const std::string& entityId, const float x, const float y, const float z) {
+  if (world_ == nullptr) {
+    return false;
+  }
+  Entity* entity = findEntity(*world_, entityId);
+  if (entity == nullptr || !entity->transform3D.has_value()) {
+    return false;
+  }
+  entity->transform3D->rotation = Vec3{.x = x, .y = y, .z = z};
+  return true;
+}
+
+std::optional<Vec3> LuaScriptHost::entityScale3D(const std::string& entityId) const {
+  if (world_ == nullptr) {
+    return std::nullopt;
+  }
+  const Entity* entity = findEntity(*world_, entityId);
+  if (entity == nullptr || !entity->transform3D.has_value()) {
+    return std::nullopt;
+  }
+  return entity->transform3D->scale;
+}
+
+bool LuaScriptHost::setEntityScale3D(const std::string& entityId, const float x, const float y, const float z) {
+  if (world_ == nullptr) {
+    return false;
+  }
+  Entity* entity = findEntity(*world_, entityId);
+  if (entity == nullptr || !entity->transform3D.has_value()) {
+    return false;
+  }
+  entity->transform3D->scale = Vec3{.x = x, .y = y, .z = z};
+  return true;
+}
+
 std::optional<std::string> LuaScriptHost::findEntityId(const std::string& idOrName) const {
   if (world_ == nullptr) {
     return std::nullopt;

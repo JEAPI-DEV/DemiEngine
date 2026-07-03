@@ -35,6 +35,13 @@ std::tuple<sol::object, sol::object> vec2Result(lua_State* state, const std::opt
   return {sol::make_object(state, value->x), sol::make_object(state, value->y)};
 }
 
+std::tuple<sol::object, sol::object, sol::object> vec3Result(lua_State* state, const std::optional<Vec3> value) {
+  if (!value.has_value()) {
+    return {sol::nil, sol::nil, sol::nil};
+  }
+  return {sol::make_object(state, value->x), sol::make_object(state, value->y), sol::make_object(state, value->z)};
+}
+
 Vec2 vec2Field(const sol::table table, const char* fieldName, const Vec2 fallback = {}) {
   const sol::object object = table[fieldName];
   if (!object.is<sol::table>()) {
@@ -574,6 +581,15 @@ void registerSol2Bindings(LuaScriptHost& host, lua_State* state) {
   transform.set_function("set_rotation", [&host](const std::string& entityId, float rotation) { return host.setEntityRotation(entityId, rotation); });
   transform.set_function("get_scale", [state, &host](const std::string& entityId) { return vec2Result(state, host.entityScale(entityId)); });
   transform.set_function("set_scale", [&host](const std::string& entityId, float x, float y) { return host.setEntityScale(entityId, x, y); });
+
+  sol::table transform3d = lua.create_named_table("Transform3D");
+  transform3d.set_function("get_position", [state, &host](const std::string& entityId) { return vec3Result(state, host.entityPosition3D(entityId)); });
+  transform3d.set_function("set_position", [&host](const std::string& entityId, float x, float y, float z) { return host.setEntityPosition3D(entityId, x, y, z); });
+  transform3d.set_function("add_position", [&host](const std::string& entityId, float dx, float dy, float dz) { return host.addEntityPosition3D(entityId, dx, dy, dz); });
+  transform3d.set_function("get_rotation", [state, &host](const std::string& entityId) { return vec3Result(state, host.entityRotation3D(entityId)); });
+  transform3d.set_function("set_rotation", [&host](const std::string& entityId, float x, float y, float z) { return host.setEntityRotation3D(entityId, x, y, z); });
+  transform3d.set_function("get_scale", [state, &host](const std::string& entityId) { return vec3Result(state, host.entityScale3D(entityId)); });
+  transform3d.set_function("set_scale", [&host](const std::string& entityId, float x, float y, float z) { return host.setEntityScale3D(entityId, x, y, z); });
 
   sol::table time = lua.create_named_table("Time");
   time["delta_time"] = 0.0F;

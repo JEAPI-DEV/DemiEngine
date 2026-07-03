@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "name": "Minimal 3D",
+  "main_scene": "scene://minimal_3d/main",
+  "scenes": [
+    {
+      "id": "scene://minimal_3d/main",
+      "path": "scenes/main.scene.json"
+    }
+  ],
+  "scripting": {
+    "language": "lua54",
+    "modules": []
+  }
+}

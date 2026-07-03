@@ -15,6 +15,12 @@ struct Vec2 {
   float y = 0.0F;
 };
 
+struct Vec3 {
+  float x = 0.0F;
+  float y = 0.0F;
+  float z = 0.0F;
+};
+
 struct Color {
   float r = 0.08F;
   float g = 0.09F;
@@ -152,6 +158,50 @@ struct BoxCollider2DComponent {
   std::string layer;
 };
 
+struct Transform3DComponent {
+  Vec3 position;
+  Vec3 rotation;
+  Vec3 scale = {1.0F, 1.0F, 1.0F};
+};
+
+struct Camera3DComponent {
+  Color clearColor;
+  float fov = 60.0F;
+  float orthographicSize = 10.0F;
+  Vec3 targetOffset = {0.0F, 0.0F, 1.0F};
+  bool perspective = true;
+  float positionX = 0.0F;
+  float upAxis = 1.0F;
+};
+
+struct MeshRendererComponent {
+  std::string shape = "cube";
+  Vec3 size = {1.0F, 1.0F, 1.0F};
+  Color color = {0.8F, 0.8F, 0.8F, 1.0F};
+  std::string texture;
+  bool wireframe = false;
+};
+
+struct BoxCollider3DComponent {
+  Vec3 size = {1.0F, 1.0F, 1.0F};
+  Vec3 offset;
+  bool isTrigger = false;
+  std::string layer;
+};
+
+struct Rigidbody3DComponent {
+  std::string bodyType = "dynamic";
+  Vec3 velocity;
+  bool useGravity = true;
+  float gravityScale = 1.0F;
+};
+
+struct DirectionalLightComponent {
+  Vec3 direction = {-0.4F, -1.0F, -0.3F};
+  Color color = {1.0F, 1.0F, 0.95F, 1.0F};
+  float intensity = 1.0F;
+};
+
 struct PhysicsContact2D {
   std::string entityId;
   std::string otherEntityId;
@@ -192,6 +242,12 @@ struct Entity {
   std::optional<BuildableComponent> buildable;
   std::optional<Rigidbody2DComponent> rigidbody2D;
   std::optional<BoxCollider2DComponent> boxCollider2D;
+  std::optional<Transform3DComponent> transform3D;
+  std::optional<Camera3DComponent> camera3D;
+  std::optional<MeshRendererComponent> meshRenderer;
+  std::optional<BoxCollider3DComponent> boxCollider3D;
+  std::optional<Rigidbody3DComponent> rigidbody3D;
+  std::optional<DirectionalLightComponent> directionalLight;
   std::optional<AudioSourceComponent> audioSource;
   std::optional<AudioListenerComponent> audioListener;
   std::optional<VideoPlayerComponent> videoPlayer;
@@ -259,10 +315,32 @@ struct World {
   return {};
 }
 
+[[nodiscard]] inline const Camera3DComponent* activeCamera3D(const World& world) {
+  for (const Entity& entity : world.entities) {
+    if (entity.camera3D.has_value()) {
+      return &*entity.camera3D;
+    }
+  }
+  return nullptr;
+}
+
+[[nodiscard]] inline Vec3 activeCamera3DPosition(const World& world) {
+  for (const Entity& entity : world.entities) {
+    if (entity.camera3D.has_value() && entity.transform3D.has_value()) {
+      return entity.transform3D->position;
+    }
+  }
+  return {};
+}
+
+[[nodiscard]] inline bool sceneIs3D(const World& world) {
+  return activeCamera3D(world) != nullptr;
+}
+
 [[nodiscard]] inline std::size_t renderableEntityCount(const World& world) {
   std::size_t count = 0;
   for (const Entity& entity : world.entities) {
-    if (entity.sprite.has_value() || entity.hitboxController.has_value() || entity.isoGrid.has_value() || entity.buildable.has_value() || entity.boxCollider2D.has_value() || entity.videoPlayer.has_value()) {
+    if (entity.sprite.has_value() || entity.hitboxController.has_value() || entity.isoGrid.has_value() || entity.buildable.has_value() || entity.boxCollider2D.has_value() || entity.videoPlayer.has_value() || entity.meshRenderer.has_value() || entity.boxCollider3D.has_value()) {
       ++count;
     }
   }

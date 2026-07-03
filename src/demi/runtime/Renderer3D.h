@@ -10,23 +10,23 @@
 
 namespace demi::runtime {
 
-class Renderer2D {
+class Renderer3D {
 public:
-  Renderer2D() = default;
-  ~Renderer2D();
+  Renderer3D() = default;
+  ~Renderer3D();
 
-  Renderer2D(const Renderer2D&) = delete;
-  Renderer2D& operator=(const Renderer2D&) = delete;
+  Renderer3D(const Renderer3D&) = delete;
+  Renderer3D& operator=(const Renderer3D&) = delete;
 
   void loadTextureAssets(const AssetRegistry& registry);
-  void beginFrame(const Camera2DComponent& camera, Vec2 cameraPosition, int width, int height);
+  void beginFrame(const Camera3DComponent& camera, Vec3 cameraPosition, int width, int height);
   void drawWorld(const World& world);
   void drawHud(const World& world);
   void endFrame();
 
 private:
-  Camera2DComponent camera_;
-  Vec2 cameraPosition_;
+  Camera3DComponent camera_;
+  Vec3 cameraPosition_;
   int width_ = 1;
   int height_ = 1;
   std::unordered_map<std::string, Texture2D> textures_;

@@ -52,6 +52,13 @@ public:
   [[nodiscard]] bool setEntityRotation(const std::string& entityId, float rotation);
   [[nodiscard]] std::optional<Vec2> entityScale(const std::string& entityId) const;
   [[nodiscard]] bool setEntityScale(const std::string& entityId, float x, float y);
+  [[nodiscard]] bool addEntityPosition3D(const std::string& entityId, float dx, float dy, float dz);
+  [[nodiscard]] bool setEntityPosition3D(const std::string& entityId, float x, float y, float z);
+  [[nodiscard]] std::optional<Vec3> entityPosition3D(const std::string& entityId) const;
+  [[nodiscard]] std::optional<Vec3> entityRotation3D(const std::string& entityId) const;
+  [[nodiscard]] bool setEntityRotation3D(const std::string& entityId, float x, float y, float z);
+  [[nodiscard]] std::optional<Vec3> entityScale3D(const std::string& entityId) const;
+  [[nodiscard]] bool setEntityScale3D(const std::string& entityId, float x, float y, float z);
   [[nodiscard]] std::optional<std::string> findEntityId(const std::string& idOrName) const;
   [[nodiscard]] bool destroyEntity(const std::string& entityId);
   [[nodiscard]] std::optional<Vec2> getRigidbodyVelocity(const std::string& entityId) const;
