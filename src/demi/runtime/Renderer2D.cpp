@@ -44,87 +44,66 @@ namespace {
 const ::Color WhiteTint = {255, 255, 255, 255};
 }
 
-void drawText(const HudTextElement& element, const float scaleX, const float scaleY) {
-  if (!element.visible) {
-    return;
-  }
-
-  const float pixelX = std::max(element.scale, 1.0F) * scaleX;
-  const float pixelY = std::max(element.scale, 1.0F) * scaleY;
-  const ::Color color = toRlColor(element.color);
-  float x = element.position.x * scaleX;
-  const float y = element.position.y * scaleY;
-
-  for (const char c : element.text) {
-    if (c == ' ') {
-      x += pixelX * 4.0F;
-      continue;
+void drawText(const HudTextElement& element, float scaleX, float scaleY) {
+    constexpr float HudFontBaseSize = 8.0F;
+    constexpr float HudFontMinSize = 4.0F;
+    constexpr float HudLetterSpacing = 5.0F;
+    if (!element.visible || element.text.empty()) return;
+    float fontSize = std::max(element.scale * HudFontBaseSize * std::min(scaleX, scaleY), HudFontMinSize);
+    Vector2 pos{element.position.x * scaleX, element.position.y * scaleY};
+    DrawTextEx(GetFontDefault(), element.text.c_str(), pos, fontSize, HudLetterSpacing, toRlColor(element.color));
+}
+void drawHudRect(const HudRectElement& element, float scaleX, float scaleY) {
+    if (!element.visible) {
+        return;
     }
 
-    const Glyph glyph = glyphFor(c);
-    for (std::size_t row = 0; row < glyph.size(); ++row) {
-      for (std::size_t col = 0; col < glyph[row].size(); ++col) {
-        if (glyph[row][col] != '1') {
-          continue;
-        }
-        ::Rectangle rect{
-          .x = x + static_cast<float>(col) * pixelX,
-          .y = y + static_cast<float>(row) * pixelY,
-          .width = pixelX,
-          .height = pixelY,
+    Rectangle rect{
+        .x = element.position.x * scaleX,
+        .y = element.position.y * scaleY,
+        .width = element.size.x * scaleX,
+        .height = element.size.y * scaleY,
+    };
+
+    DrawRectangleRec(rect, toRlColor(element.color));
+}
+
+void drawHudButton(const HudButtonElement& element, float scaleX, float scaleY) {
+    constexpr float HudFontBaseSize = 8.0F;
+    constexpr float HudFontMinSize = 4.0F;
+    constexpr float HudLetterSpacing = 5.0F;
+
+    if (!element.visible) {
+        return;
+    }
+
+    Rectangle rect{
+        .x = element.position.x * scaleX,
+        .y = element.position.y * scaleY,
+        .width = element.size.x * scaleX,
+        .height = element.size.y * scaleY,
+    };
+
+    DrawRectangleRec(
+        rect,
+        toRlColor(element.hovered ? element.hoverColor : element.color)
+    );
+
+    if (!element.label.empty()) {
+        const float textScale = std::min(scaleX, scaleY);
+        const float fontSize = std::max(element.scale * HudFontBaseSize * textScale, HudFontMinSize);
+
+        Font font = GetFontDefault();
+        Vector2 textSize = MeasureTextEx(font, element.label.c_str(), fontSize, HudLetterSpacing);
+
+        Vector2 textPos{
+            rect.x + (rect.width - textSize.x) * 0.5F,
+            rect.y + (rect.height - textSize.y) * 0.5F,
         };
-        DrawRectangleRec(rect, color);
-      }
+
+        DrawTextEx(font, element.label.c_str(), textPos, fontSize, HudLetterSpacing, toRlColor(element.textColor));
     }
-    x += pixelX * 4.0F;
-  }
 }
-
-void drawHudRect(const HudRectElement& element, const float scaleX, const float scaleY) {
-  if (!element.visible) {
-    return;
-  }
-  ::Rectangle rect{
-    .x = element.position.x * scaleX,
-    .y = element.position.y * scaleY,
-    .width = element.size.x * scaleX,
-    .height = element.size.y * scaleY,
-  };
-  DrawRectangleRec(rect, toRlColor(element.color));
-}
-
-void drawHudButton(const HudButtonElement& element, const float scaleX, const float scaleY) {
-  if (!element.visible) {
-    return;
-  }
-
-  const ::Color color = toRlColor(element.hovered ? element.hoverColor : element.color);
-  ::Rectangle rect{
-    .x = element.position.x * scaleX,
-    .y = element.position.y * scaleY,
-    .width = element.size.x * scaleX,
-    .height = element.size.y * scaleY,
-  };
-  DrawRectangleRec(rect, color);
-
-  const float pixelX = std::max(element.scale, 1.0F) * scaleX;
-  const float pixelY = std::max(element.scale, 1.0F) * scaleY;
-  HudTextElement label{
-    .id = element.id + ":label",
-    .group = element.group,
-    .text = element.label,
-    .position = Vec2{
-      .x = element.position.x + element.size.x * 0.5F - static_cast<float>(element.label.size()) * element.scale * 2.0F,
-      .y = element.position.y + element.size.y * 0.5F - element.scale * 3.5F,
-    },
-    .scale = element.scale,
-    .color = element.textColor,
-  };
-  (void)pixelX;
-  (void)pixelY;
-  drawText(label, scaleX, scaleY);
-}
-
 struct ImageData {
   int width = 0;
   int height = 0;
@@ -433,20 +412,23 @@ void Renderer2D::drawWorld(const World& world) {
 }
 
 void Renderer2D::drawHud(const World& world) {
-  const float canvasWidth = std::max(world.hudCanvasSize.x, 1.0F);
-  const float canvasHeight = std::max(world.hudCanvasSize.y, 1.0F);
-  const float scaleX = static_cast<float>(width_) / canvasWidth;
-  const float scaleY = static_cast<float>(height_) / canvasHeight;
+    const float canvasWidth = std::max(world.hudCanvasSize.x, 1.0F);
+    const float canvasHeight = std::max(world.hudCanvasSize.y, 1.0F);
 
-  for (const HudRectElement& element : world.hudRects) {
-    drawHudRect(element, scaleX, scaleY);
-  }
-  for (const HudButtonElement& element : world.hudButtons) {
-    drawHudButton(element, scaleX, scaleY);
-  }
-  for (const HudTextElement& element : world.hudText) {
-    drawText(element, scaleX, scaleY);
-  }
+    const float scaleX = static_cast<float>(width_) / canvasWidth;
+    const float scaleY = static_cast<float>(height_) / canvasHeight;
+
+    for (const HudRectElement& element : world.hudRects) {
+        drawHudRect(element, scaleX, scaleY);
+    }
+
+    for (const HudButtonElement& element : world.hudButtons) {
+        drawHudButton(element, scaleX, scaleY);
+    }
+
+    for (const HudTextElement& element : world.hudText) {
+        drawText(element, scaleX, scaleY);
+    }
 }
 
 void Renderer2D::endFrame() {
