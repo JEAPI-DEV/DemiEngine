@@ -2,6 +2,7 @@
 #include "demi/runtime/voxel/VoxelChunk.h"
 #include "demi/runtime/voxel/VoxelMesher.h"
 #include "demi/runtime/voxel/VoxelTerrain.h"
+#include "demi/runtime/scene/VoxelChunkBuilder.h"
 
 #include <filesystem>
 #include <fstream>
@@ -65,6 +66,24 @@ int main() {
   adjacent.setBlock(2, 1, 1, 1);
   passed = expectFaces("adjacent blocks", adjacent, 10) && passed;
 
+  demi::runtime::VoxelChunk edge(1, 1, 1);
+  edge.setBlock(0, 0, 0, 1);
+  const demi::runtime::VoxelBlockSet edgeBlockSet = testBlockSet();
+  const demi::runtime::VoxelMeshData edgeMesh = demi::runtime::buildVoxelMesh(
+    edge,
+    edgeBlockSet,
+    demi::runtime::VoxelMeshBuildOptions{
+      .atlasColumns = 1,
+      .atlasRows = 1,
+      .isSolidNeighbor = [](const int x, const int y, const int z) {
+        return x == 1 && y == 0 && z == 0;
+      },
+    });
+  if (edgeMesh.faceCount != 5) {
+    std::cerr << "chunk edge meshing did not hide a face against a solid neighbor chunk.\n";
+    passed = false;
+  }
+
   demi::runtime::VoxelChunk full(2, 2, 2);
   full.fill(1);
   passed = expectFaces("full 2x2x2 chunk", full, 24) && passed;
@@ -125,6 +144,31 @@ int main() {
         }
       }
     }
+  }
+
+  demi::runtime::VoxelChunkComponent layeredComponent;
+  layeredComponent.width = 4;
+  layeredComponent.height = 4;
+  layeredComponent.depth = 4;
+  layeredComponent.layers.push_back(demi::runtime::VoxelLayer{.block = "stone", .fromY = 2, .toY = 1});
+  const demi::runtime::VoxelChunk layeredChunk = demi::runtime::buildVoxelChunkFromComponent(layeredComponent, blockSet);
+  if (layeredChunk.block(0, 0, 0) != 0 || layeredChunk.block(0, 1, 0) != 1 || layeredChunk.block(0, 2, 0) != 1 ||
+      layeredChunk.block(0, 3, 0) != 0) {
+    std::cerr << "voxel chunk component builder did not apply clamped layer ranges.\n";
+    passed = false;
+  }
+
+  demi::runtime::VoxelChunkComponent terrainComponent;
+  terrainComponent.width = 16;
+  terrainComponent.height = 16;
+  terrainComponent.depth = 16;
+  terrainComponent.terrain = terrain;
+  terrainComponent.terrain.enabled = true;
+  const demi::runtime::VoxelChunk componentTerrainA = demi::runtime::buildVoxelChunkFromComponent(terrainComponent, blockSet, demi::runtime::Vec3{16.0F, 0.0F, 0.0F});
+  const demi::runtime::VoxelChunk componentTerrainB = demi::runtime::buildVoxelChunkFromComponent(terrainComponent, blockSet, demi::runtime::Vec3{16.0F, 0.0F, 0.0F});
+  if (componentTerrainA.block(4, firstHeight, 4) != componentTerrainB.block(4, firstHeight, 4)) {
+    std::cerr << "voxel chunk component builder did not produce stable terrain for the same origin.\n";
+    passed = false;
   }
 
   return passed ? 0 : 1;

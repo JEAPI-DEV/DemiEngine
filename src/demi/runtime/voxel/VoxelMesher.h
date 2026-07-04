@@ -4,6 +4,7 @@
 #include "demi/runtime/voxel/VoxelBlockSet.h"
 #include "demi/runtime/voxel/VoxelChunk.h"
 
+#include <functional>
 #include <vector>
 
 namespace demi::runtime {
@@ -11,6 +12,7 @@ namespace demi::runtime {
 struct VoxelMeshBuildOptions {
   int atlasColumns = 1;
   int atlasRows = 1;
+  std::function<bool(int x, int y, int z)> isSolidNeighbor;
 };
 
 struct VoxelMeshData {

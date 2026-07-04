@@ -104,6 +104,7 @@ add_library(demi-runtime-lib STATIC
   src/demi/runtime/render/VoxelRenderer.cpp
   src/demi/runtime/scene/HudParser.cpp
   src/demi/runtime/scene/ProjectParser.cpp
+  src/demi/runtime/scene/VoxelChunkBuilder.cpp
   src/demi/runtime/scene/SceneEntityParser.cpp
   src/demi/runtime/scene/SceneJson.cpp
   src/demi/runtime/scene/SceneLoader.cpp

@@ -37,7 +37,9 @@ private:
     bool hasModel = false;
   };
 
-  [[nodiscard]] CachedChunkMesh buildChunkMesh(const Entity& entity, const LoadedBlockSet& blockSet) const;
+  struct RenderChunk;
+
+  [[nodiscard]] CachedChunkMesh buildChunkMesh(const RenderChunk& chunk, const std::vector<RenderChunk>& chunks) const;
 
   std::unordered_map<std::string, LoadedBlockSet> blockSets_;
   std::unordered_map<std::string, CachedChunkMesh> chunkMeshes_;

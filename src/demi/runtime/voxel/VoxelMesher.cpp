@@ -61,8 +61,13 @@ VoxelMeshData buildVoxelMesh(const VoxelChunk& chunk, const VoxelBlockSet& block
           continue;
         }
         for (const FaceGeometry& face : FaceGeometries) {
-          const std::uint16_t neighbor = chunk.block(x + face.dx, y + face.dy, z + face.dz);
-          if (blockSet.isSolid(neighbor)) {
+          const int neighborX = x + face.dx;
+          const int neighborY = y + face.dy;
+          const int neighborZ = z + face.dz;
+          const bool neighborSolid = chunk.contains(neighborX, neighborY, neighborZ)
+                                       ? blockSet.isSolid(chunk.block(neighborX, neighborY, neighborZ))
+                                       : (options.isSolidNeighbor ? options.isSolidNeighbor(neighborX, neighborY, neighborZ) : false);
+          if (neighborSolid) {
             continue;
           }
           appendFace(mesh, x, y, z, face, tileUvs(blockSet.tileForFace(block, face.face), options));

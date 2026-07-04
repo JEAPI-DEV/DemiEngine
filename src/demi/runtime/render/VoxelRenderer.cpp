@@ -1,8 +1,7 @@
 #include "demi/runtime/render/VoxelRenderer.h"
 
-#include "demi/runtime/voxel/VoxelChunk.h"
+#include "demi/runtime/scene/VoxelChunkBuilder.h"
 #include "demi/runtime/voxel/VoxelMesher.h"
-#include "demi/runtime/voxel/VoxelTerrain.h"
 
 #include <raylib.h>
 #include <rlgl.h>
@@ -20,6 +19,12 @@
 namespace demi::runtime {
 
 namespace {
+
+struct ChunkOrigin {
+  int x = 0;
+  int y = 0;
+  int z = 0;
+};
 
 struct ImageData {
   int width = 0;
@@ -140,7 +145,7 @@ Texture2D composeAtlasTexture(const std::vector<VoxelAtlasSource>& sources, cons
   return texture;
 }
 
-std::string chunkSignature(const Entity& entity) {
+std::string chunkSignature(const Entity& entity, const Vec3 worldOrigin) {
   if (!entity.voxelChunk.has_value()) {
     return {};
   }
@@ -155,34 +160,19 @@ std::string chunkSignature(const Entity& entity) {
               << chunk.terrain.frequency << ',' << chunk.terrain.dirtDepth << ',' << chunk.terrain.surfaceBlock << ','
               << chunk.terrain.subsurfaceBlock << ',' << chunk.terrain.stoneBlock;
     if (entity.transform3D.has_value()) {
-      signature << '@' << static_cast<int>(std::floor(entity.transform3D->position.x)) << ',' << static_cast<int>(std::floor(entity.transform3D->position.z));
+      signature << '@' << static_cast<int>(std::floor(worldOrigin.x)) << ',' << static_cast<int>(std::floor(worldOrigin.z));
     }
     signature << '}';
   }
   return signature.str();
 }
 
-VoxelChunk buildChunkFromComponent(const Entity& entity, const VoxelBlockSet& blockSet) {
-  const VoxelChunkComponent& component = *entity.voxelChunk;
-  VoxelChunk chunk(std::max(component.width, 1), std::max(component.height, 1), std::max(component.depth, 1));
-  if (component.terrain.enabled) {
-    const Vec3 origin = entity.transform3D.has_value() ? entity.transform3D->position : Vec3{};
-    generateVoxelTerrain(chunk, blockSet, component.terrain, static_cast<int>(std::floor(origin.x)), static_cast<int>(std::floor(origin.z)));
-    return chunk;
-  }
-  for (const VoxelLayer& layer : component.layers) {
-    const std::uint16_t blockId = blockSet.blockIdByName(layer.block);
-    const int fromY = std::clamp(std::min(layer.fromY, layer.toY), 0, chunk.height() - 1);
-    const int toY = std::clamp(std::max(layer.fromY, layer.toY), 0, chunk.height() - 1);
-    for (int y = fromY; y <= toY; ++y) {
-      for (int z = 0; z < chunk.depth(); ++z) {
-        for (int x = 0; x < chunk.width(); ++x) {
-          chunk.setBlock(x, y, z, blockId);
-        }
-      }
-    }
-  }
-  return chunk;
+ChunkOrigin chunkOrigin(const Vec3 worldOrigin) {
+  return ChunkOrigin{
+    .x = static_cast<int>(std::floor(worldOrigin.x)),
+    .y = static_cast<int>(std::floor(worldOrigin.y)),
+    .z = static_cast<int>(std::floor(worldOrigin.z)),
+  };
 }
 
 Mesh uploadVoxelMesh(const VoxelMeshData& meshData) {
@@ -213,6 +203,14 @@ Mesh uploadVoxelMesh(const VoxelMeshData& meshData) {
 }
 
 } // namespace
+
+struct VoxelRenderer::RenderChunk {
+  const Entity* entity = nullptr;
+  const LoadedBlockSet* blockSet = nullptr;
+  VoxelChunk data;
+  ChunkOrigin origin;
+  std::string signature;
+};
 
 VoxelRenderer::~VoxelRenderer() {
   for (auto& [id, chunk] : chunkMeshes_) {
@@ -257,11 +255,31 @@ void VoxelRenderer::loadAssets(const AssetRegistry& registry) {
   }
 }
 
-VoxelRenderer::CachedChunkMesh VoxelRenderer::buildChunkMesh(const Entity& entity, const LoadedBlockSet& blockSet) const {
+VoxelRenderer::CachedChunkMesh VoxelRenderer::buildChunkMesh(const RenderChunk& chunk, const std::vector<RenderChunk>& chunks) const {
   CachedChunkMesh cached;
-  cached.signature = chunkSignature(entity);
-  const VoxelChunk chunk = buildChunkFromComponent(entity, blockSet.blockSet);
-  const VoxelMeshData meshData = buildVoxelMesh(chunk, blockSet.blockSet, VoxelMeshBuildOptions{.atlasColumns = blockSet.atlasColumns, .atlasRows = blockSet.atlasRows});
+  cached.signature = chunk.signature;
+  const VoxelMeshData meshData = buildVoxelMesh(
+    chunk.data,
+    chunk.blockSet->blockSet,
+    VoxelMeshBuildOptions{
+      .atlasColumns = chunk.blockSet->atlasColumns,
+      .atlasRows = chunk.blockSet->atlasRows,
+      .isSolidNeighbor =
+        [&chunk, &chunks](const int x, const int y, const int z) {
+          const int worldX = chunk.origin.x + x;
+          const int worldY = chunk.origin.y + y;
+          const int worldZ = chunk.origin.z + z;
+          for (const RenderChunk& neighbor : chunks) {
+            const bool contains = worldX >= neighbor.origin.x && worldX < neighbor.origin.x + neighbor.data.width() && worldY >= neighbor.origin.y &&
+                                  worldY < neighbor.origin.y + neighbor.data.height() && worldZ >= neighbor.origin.z && worldZ < neighbor.origin.z + neighbor.data.depth();
+            if (neighbor.entity == chunk.entity || !contains) {
+              continue;
+            }
+            return neighbor.blockSet->blockSet.isSolid(neighbor.data.block(worldX - neighbor.origin.x, worldY - neighbor.origin.y, worldZ - neighbor.origin.z));
+          }
+          return false;
+        },
+    });
   cached.faceCount = meshData.faceCount;
   if (meshData.positions.empty()) {
     return cached;
@@ -270,13 +288,15 @@ VoxelRenderer::CachedChunkMesh VoxelRenderer::buildChunkMesh(const Entity& entit
   Mesh mesh = uploadVoxelMesh(meshData);
   cached.model = LoadModelFromMesh(mesh);
   if (cached.model.materialCount > 0) {
-    SetMaterialTexture(&cached.model.materials[0], MATERIAL_MAP_DIFFUSE, blockSet.atlas);
+    SetMaterialTexture(&cached.model.materials[0], MATERIAL_MAP_DIFFUSE, chunk.blockSet->atlas);
   }
   cached.hasModel = true;
   return cached;
 }
 
 void VoxelRenderer::drawWorld(const World& world) {
+  std::vector<RenderChunk> chunks;
+  chunks.reserve(world.entities.size());
   for (const Entity& entity : world.entities) {
     if (!entity.voxelChunk.has_value() || !entity.transform3D.has_value()) {
       continue;
@@ -286,23 +306,41 @@ void VoxelRenderer::drawWorld(const World& world) {
     if (blockSet == blockSets_.end()) {
       continue;
     }
+    const Vec3 origin = worldPosition3D(world, entity);
+    chunks.push_back(RenderChunk{
+      .entity = &entity,
+      .blockSet = &blockSet->second,
+      .data = buildVoxelChunkFromComponent(*entity.voxelChunk, blockSet->second.blockSet, origin),
+      .origin = chunkOrigin(origin),
+      .signature = chunkSignature(entity, origin),
+    });
+  }
 
-    const std::string signature = chunkSignature(entity);
-    auto cached = chunkMeshes_.find(entity.id);
-    if (cached == chunkMeshes_.end() || cached->second.signature != signature) {
+  std::ostringstream worldSignature;
+  for (const RenderChunk& chunk : chunks) {
+    worldSignature << chunk.entity->id << '=' << chunk.signature << ';';
+  }
+  const std::string neighborSignature = worldSignature.str();
+  for (RenderChunk& chunk : chunks) {
+    chunk.signature += "|neighbors{" + neighborSignature + '}';
+  }
+
+  for (const RenderChunk& chunk : chunks) {
+    auto cached = chunkMeshes_.find(chunk.entity->id);
+    if (cached == chunkMeshes_.end() || cached->second.signature != chunk.signature) {
       if (cached != chunkMeshes_.end() && cached->second.hasModel) {
         UnloadModel(cached->second.model);
       }
-      cached = chunkMeshes_.insert_or_assign(entity.id, buildChunkMesh(entity, blockSet->second)).first;
-      std::cerr << "Voxel debug: built " << entity.id << " with " << cached->second.faceCount << " visible face(s).\n";
+      cached = chunkMeshes_.insert_or_assign(chunk.entity->id, buildChunkMesh(chunk, chunks)).first;
+      std::cerr << "Voxel debug: built " << chunk.entity->id << " with " << cached->second.faceCount << " visible face(s).\n";
     }
 
     if (!cached->second.hasModel) {
       continue;
     }
 
-    const Vec3 position = worldPosition3D(world, entity);
-    const Vec3 rotation = worldRotation3D(world, entity);
+    const Vec3 position = worldPosition3D(world, *chunk.entity);
+    const Vec3 rotation = worldRotation3D(world, *chunk.entity);
     rlPushMatrix();
     rlTranslatef(position.x, position.y, position.z);
     rlRotatef(rotation.x * (180.0F / 3.14159265358979F), 1.0F, 0.0F, 0.0F);
@@ -311,8 +349,8 @@ void VoxelRenderer::drawWorld(const World& world) {
     DrawModel(cached->second.model, {0.0F, 0.0F, 0.0F}, 1.0F, ::Color{255, 255, 255, 255});
     rlPopMatrix();
 
-    if (entity.voxelChunk->debug) {
-      const Vector3 size{static_cast<float>(entity.voxelChunk->width), static_cast<float>(entity.voxelChunk->height), static_cast<float>(entity.voxelChunk->depth)};
+    if (chunk.entity->voxelChunk->debug) {
+      const Vector3 size{static_cast<float>(chunk.entity->voxelChunk->width), static_cast<float>(chunk.entity->voxelChunk->height), static_cast<float>(chunk.entity->voxelChunk->depth)};
       const Vector3 center{position.x + size.x * 0.5F, position.y + size.y * 0.5F, position.z + size.z * 0.5F};
       DrawCubeWiresV(center, size, {245, 245, 245, 255});
     }
