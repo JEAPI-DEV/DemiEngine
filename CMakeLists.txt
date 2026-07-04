@@ -92,7 +92,9 @@ endif()
 
 add_library(demi-runtime-lib STATIC
   src/demi/runtime/app/RuntimeApp.cpp
+  src/demi/runtime/audio/AudioClipPreprocess.cpp
   src/demi/runtime/audio/AudioSystem.cpp
+  src/demi/runtime/audio/MiniaudioAudioBackend.cpp
   src/demi/runtime/media/MediaSystem.cpp
   src/demi/runtime/network/NetworkSystem.cpp
   src/demi/runtime/physics/Physics2D.cpp

@@ -2,16 +2,13 @@
 
 #include "demi/assets/AssetRegistry.h"
 
-#include <atomic>
-#include <cstddef>
 #include <cstdint>
-#include <filesystem>
-#include <mutex>
+#include <memory>
 #include <string>
-#include <unordered_map>
-#include <vector>
 
 namespace demi::runtime {
+
+class AudioBackend;
 
 class AudioSystem {
 public:
@@ -31,29 +28,7 @@ public:
   void shutdown();
 
 private:
-  struct CachedSound {
-    std::filesystem::path path;
-    std::uint64_t trimFrames = 0;
-    void* sound = nullptr;
-  };
-
-  struct PlayingSound {
-    std::uint64_t handle = 0;
-    void* sound = nullptr;
-  };
-
-  void unloadCachedSounds();
-  static void audioProcessDebug(void* userData, float* framesOut, unsigned long long frameCount);
-
-  bool initialized_ = false;
-  void* context_ = nullptr;
-  void* engine_ = nullptr;
-  std::unordered_map<std::string, CachedSound> sounds_;
-  std::vector<PlayingSound> playing_;
-  std::mutex mutex_;
-  std::atomic<std::int64_t> pendingDebugStartNs_ = 0;
-  std::uint64_t nextHandle_ = 1;
-  float masterVolume_ = 1.0F;
+  std::unique_ptr<AudioBackend> backend_;
 };
 
 } // namespace demi::runtime
