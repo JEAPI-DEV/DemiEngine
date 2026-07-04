@@ -76,6 +76,7 @@
           "shape": "cube",
           "size": [1.0, 1.0, 1.0],
           "color": [0.36, 0.67, 0.93, 1.0],
+          "texture": "asset://textures/checker",
           "wireframe": false
         },
         "BoxCollider3D": {
@@ -121,6 +122,23 @@
           "velocity": [0.0, 0.0, 0.0],
           "use_gravity": false,
           "gravity_scale": 0.0
+        }
+      }
+    },
+    {
+      "id": "ent_hyena_model",
+      "name": "Hyena Model",
+      "components": {
+        "Transform3D": {
+          "position": [0.0, 0, -6.0],
+          "rotation": [1.5708, 0.0, 0.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "MeshRenderer": {
+          "model": "asset://models/hyena",
+          "size": [1.2, 1.2, 1.2],
+          "color": [1.0, 1.0, 1.0, 1.0],
+          "wireframe": false
         }
       }
     },

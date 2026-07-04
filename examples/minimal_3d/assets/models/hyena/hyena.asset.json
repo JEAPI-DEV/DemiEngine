@@ -1,0 +1,8 @@
+{
+  "format_version": 1,
+  "id": "asset://models/hyena",
+  "type": "Model3D",
+  "source": "scene.gltf",
+  "texture": "textures/M_Hyena_diffuse.png",
+  "importer": "gltf-model"
+}

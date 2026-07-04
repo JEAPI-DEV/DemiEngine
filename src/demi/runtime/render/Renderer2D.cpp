@@ -286,6 +286,21 @@ void drawEntity(const std::unordered_map<std::string, Texture2D>& textures,
       return;
     }
     fillColor = toRlColor(entity.sprite->color);
+    if (entity.sprite->shape == "circle") {
+      DrawEllipse(static_cast<int>(screenX), static_cast<int>(screenY), entityWidth * 0.5F, entityHeight * 0.5F, fillColor);
+      DrawEllipseLines(static_cast<int>(screenX), static_cast<int>(screenY), entityWidth * 0.5F, entityHeight * 0.5F, {245, 245, 245, 255});
+      return;
+    }
+    if (entity.sprite->shape == "triangle") {
+      const ::Vector2 top{screenX, rect.y};
+      const ::Vector2 right{rect.x + rect.width, rect.y + rect.height};
+      const ::Vector2 left{rect.x, rect.y + rect.height};
+      DrawTriangle(top, left, right, fillColor);
+      DrawLineV(top, right, {245, 245, 245, 255});
+      DrawLineV(right, left, {245, 245, 245, 255});
+      DrawLineV(left, top, {245, 245, 245, 255});
+      return;
+    }
   } else if (entity.buildable.has_value()) {
     const auto texture = textures.find(entity.buildable->asset);
     if (texture != textures.end()) {

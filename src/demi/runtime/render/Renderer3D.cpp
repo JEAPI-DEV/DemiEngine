@@ -102,7 +102,59 @@ std::optional<ImageData> loadPpm(const std::filesystem::path& path) {
   return image;
 }
 
-void drawMeshEntity(const World& world, const Entity& entity, const std::unordered_map<std::string, Texture2D>& textures) {
+void drawTexturedPlane(const ::Vector3 center, const ::Vector2 size, const Texture2D& texture, const ::Color tint) {
+  const float halfX = size.x * 0.5F;
+  const float halfZ = size.y * 0.5F;
+  rlSetTexture(texture.id);
+  rlBegin(RL_QUADS);
+  rlColor4ub(tint.r, tint.g, tint.b, tint.a);
+  rlNormal3f(0.0F, 1.0F, 0.0F);
+  rlTexCoord2f(0.0F, 0.0F);
+  rlVertex3f(center.x - halfX, center.y, center.z - halfZ);
+  rlTexCoord2f(1.0F, 0.0F);
+  rlVertex3f(center.x + halfX, center.y, center.z - halfZ);
+  rlTexCoord2f(1.0F, 1.0F);
+  rlVertex3f(center.x + halfX, center.y, center.z + halfZ);
+  rlTexCoord2f(0.0F, 1.0F);
+  rlVertex3f(center.x - halfX, center.y, center.z + halfZ);
+  rlEnd();
+  rlSetTexture(0);
+}
+
+void drawTexturedCube(const ::Vector3 center, const ::Vector3 size, const Texture2D& texture, const ::Color tint) {
+  const float x0 = center.x - size.x * 0.5F;
+  const float x1 = center.x + size.x * 0.5F;
+  const float y0 = center.y - size.y * 0.5F;
+  const float y1 = center.y + size.y * 0.5F;
+  const float z0 = center.z - size.z * 0.5F;
+  const float z1 = center.z + size.z * 0.5F;
+
+  const auto face = [&](const ::Vector3 normal, const ::Vector3 a, const ::Vector3 b, const ::Vector3 c, const ::Vector3 d) {
+    rlNormal3f(normal.x, normal.y, normal.z);
+    rlTexCoord2f(0.0F, 0.0F);
+    rlVertex3f(a.x, a.y, a.z);
+    rlTexCoord2f(1.0F, 0.0F);
+    rlVertex3f(b.x, b.y, b.z);
+    rlTexCoord2f(1.0F, 1.0F);
+    rlVertex3f(c.x, c.y, c.z);
+    rlTexCoord2f(0.0F, 1.0F);
+    rlVertex3f(d.x, d.y, d.z);
+  };
+
+  rlSetTexture(texture.id);
+  rlBegin(RL_QUADS);
+  rlColor4ub(tint.r, tint.g, tint.b, tint.a);
+  face({0.0F, 0.0F, 1.0F}, {x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1});
+  face({0.0F, 0.0F, -1.0F}, {x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0});
+  face({1.0F, 0.0F, 0.0F}, {x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1});
+  face({-1.0F, 0.0F, 0.0F}, {x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0});
+  face({0.0F, 1.0F, 0.0F}, {x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0});
+  face({0.0F, -1.0F, 0.0F}, {x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1});
+  rlEnd();
+  rlSetTexture(0);
+}
+
+void drawMeshEntity(const World& world, const Entity& entity, const std::unordered_map<std::string, Texture2D>& textures, const std::unordered_map<std::string, Model>& models) {
   if (!entity.meshRenderer.has_value() || !entity.transform3D.has_value()) {
     return;
   }
@@ -126,20 +178,27 @@ void drawMeshEntity(const World& world, const Entity& entity, const std::unorder
       hasTexture = true;
     }
   }
+  const Model* model = nullptr;
+  if (!mesh.model.empty()) {
+    const auto found = models.find(mesh.model);
+    if (found != models.end()) {
+      model = &found->second;
+    }
+  }
 
   const auto drawShape = [&](const Texture2D& tex, bool textured) {
     if (mesh.shape == "sphere") {
-      if (textured) {
-        DrawSphereEx(position, size.x * 0.5F, 16, 16, color);
-      } else {
-        DrawSphere(position, size.x * 0.5F, color);
-      }
+      DrawSphere(position, size.x * 0.5F, color);
     } else if (mesh.shape == "plane") {
-      const ::Rectangle source{.x = 0, .y = 0, .width = static_cast<float>(textured ? tex.width : 1), .height = static_cast<float>(textured ? tex.height : 1)};
-      DrawPlane(position, {size.x, size.z}, color);
-      (void)source;
+      if (textured) {
+        drawTexturedPlane(position, {size.x, size.z}, tex, color);
+      } else {
+        DrawPlane(position, {size.x, size.z}, color);
+      }
     } else if (mesh.shape == "cylinder") {
       DrawCylinder(position, size.x * 0.5F, size.x * 0.5F, size.y, 16, color);
+    } else if (textured) {
+      drawTexturedCube(position, size, tex, color);
     } else {
       DrawCubeV(position, size, color);
     }
@@ -152,7 +211,15 @@ void drawMeshEntity(const World& world, const Entity& entity, const std::unorder
   rlRotatef(rotationZ, 0.0F, 0.0F, 1.0F);
   rlTranslatef(-position.x, -position.y, -position.z);
 
-  drawShape(texture, hasTexture);
+  if (model != nullptr) {
+    rlPushMatrix();
+    rlTranslatef(position.x, position.y, position.z);
+    rlScalef(size.x, size.y, size.z);
+    DrawModel(*model, {0.0F, 0.0F, 0.0F}, 1.0F, color);
+    rlPopMatrix();
+  } else {
+    drawShape(texture, hasTexture);
+  }
 
   rlPopMatrix();
 
@@ -192,10 +259,43 @@ Renderer3D::~Renderer3D() {
     (void)id;
     UnloadTexture(texture);
   }
+  for (auto& [id, model] : models_) {
+    (void)id;
+    UnloadModel(model);
+  }
+  for (auto& [id, texture] : modelTextures_) {
+    (void)id;
+    UnloadTexture(texture);
+  }
 }
 
 void Renderer3D::loadTextureAssets(const AssetRegistry& registry) {
   for (const AssetManifest& asset : registry.assets) {
+    if (asset.type == "Model3D") {
+      Model model = LoadModel(asset.sourcePath.string().c_str());
+      if (model.meshCount <= 0) {
+        std::cerr << "Model load failed for " << asset.id << " from " << asset.sourcePath.string() << ".\n";
+        continue;
+      }
+      if (asset.texturePath.has_value()) {
+        Texture2D texture = LoadTexture(asset.texturePath->string().c_str());
+        if (texture.id == 0) {
+          std::cerr << "Model texture load failed for " << asset.id << " from " << asset.texturePath->string() << ".\n";
+        } else if (model.materialCount > 0) {
+          SetTextureFilter(texture, TEXTURE_FILTER_BILINEAR);
+          SetMaterialTexture(&model.materials[0], MATERIAL_MAP_DIFFUSE, texture);
+          for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+            model.meshMaterial[meshIndex] = 0;
+          }
+          modelTextures_[asset.id] = texture;
+        } else {
+          UnloadTexture(texture);
+        }
+      }
+      models_[asset.id] = model;
+      continue;
+    }
+
     if (asset.type != "Texture2D") {
       continue;
     }
@@ -264,7 +364,7 @@ void Renderer3D::drawWorld(const World& world) {
 
   for (const Entity& entity : world.entities) {
     if (entity.meshRenderer.has_value() || entity.boxCollider3D.has_value() || entity.sphereCollider3D.has_value()) {
-      drawMeshEntity(world, entity, textures_);
+      drawMeshEntity(world, entity, textures_, models_);
     }
   }
 

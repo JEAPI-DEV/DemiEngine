@@ -1,0 +1,11 @@
+Model Information:
+* title:	HYENA - Realistic 3D Model (DEMO FREE)
+* source:	https://sketchfab.com/3d-models/hyena-realistic-3d-model-demo-free-c1edd7dcb2f1478990858c1fccad8efe
+* author:	WildMesh 3D (https://sketchfab.com/WildMesh_3D)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "HYENA - Realistic 3D Model (DEMO FREE)" (https://sketchfab.com/3d-models/hyena-realistic-3d-model-demo-free-c1edd7dcb2f1478990858c1fccad8efe) by WildMesh 3D (https://sketchfab.com/WildMesh_3D) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

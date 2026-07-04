@@ -16,9 +16,12 @@
     },
     "type": {
       "type": "string",
-      "enum": ["Texture2D", "AudioClip", "VideoClip"]
+      "enum": ["Texture2D", "Model3D", "AudioClip", "VideoClip"]
     },
     "source": {
+      "type": "string"
+    },
+    "texture": {
       "type": "string"
     }
   }

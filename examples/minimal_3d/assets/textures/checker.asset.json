@@ -1,0 +1,7 @@
+{
+  "format_version": 1,
+  "id": "asset://textures/checker",
+  "type": "Texture2D",
+  "source": "checker.ppm",
+  "importer": "ppm-texture"
+}

@@ -124,6 +124,7 @@ Entity luaParseEntitySpec(const std::string& entityId, const sol::table spec) {
   if (const sol::table sprite = componentTable(components, "Sprite"); sprite.valid()) {
     entity.sprite = SpriteComponent{
       .texture = sprite.get_or("texture", std::string{}),
+      .shape = sprite.get_or("shape", std::string("rectangle")),
       .layer = sprite.get_or("layer", std::string{}),
       .color = luaColorField(sprite, "color"),
     };
@@ -131,6 +132,7 @@ Entity luaParseEntitySpec(const std::string& entityId, const sol::table spec) {
 
   if (const sol::table mesh = componentTable(components, "MeshRenderer"); mesh.valid()) {
     entity.meshRenderer = MeshRendererComponent{
+      .model = mesh.get_or("model", std::string{}),
       .shape = mesh.get_or("shape", std::string("cube")),
       .size = luaVec3Field(mesh, "size", {1.0F, 1.0F, 1.0F}),
       .color = luaColorField(mesh, "color", {0.8F, 0.8F, 0.8F, 1.0F}),

@@ -271,6 +271,14 @@ Diagnostics validateTextFile(const std::filesystem::path& path, const SourceFile
           .path = path.string(),
           .suggestion = "Create the source file or update the asset manifest source path.",
         });
+      } else if (asset->texturePath.has_value() && !std::filesystem::exists(*asset->texturePath)) {
+        diagnostics.push_back(Diagnostic{
+          .severity = Severity::Error,
+          .code = "ASSET_TEXTURE_NOT_FOUND",
+          .message = "Asset texture file does not exist.",
+          .path = path.string(),
+          .suggestion = "Create the texture file or update the asset manifest texture path.",
+        });
       }
     }
     break;

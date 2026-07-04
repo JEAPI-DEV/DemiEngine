@@ -31,6 +31,8 @@ private:
   int width_ = 1;
   int height_ = 1;
   std::unordered_map<std::string, Texture2D> textures_;
+  std::unordered_map<std::string, Model> models_;
+  std::unordered_map<std::string, Texture2D> modelTextures_;
 };
 
 } // namespace demi::runtime

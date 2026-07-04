@@ -14,6 +14,7 @@ struct AssetManifest {
   std::string type;
   std::filesystem::path manifestPath;
   std::filesystem::path sourcePath;
+  std::optional<std::filesystem::path> texturePath;
 };
 
 struct AssetRegistry {

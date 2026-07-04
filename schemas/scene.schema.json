@@ -62,6 +62,7 @@
                 "type": "object",
                 "properties": {
                   "texture": { "type": "string", "pattern": "^asset://" },
+                  "shape": { "type": "string", "enum": ["rectangle", "circle", "triangle"] },
                   "layer": { "type": "string" },
                   "color": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 }
                 }
@@ -112,6 +113,7 @@
               "MeshRenderer": {
                 "type": "object",
                 "properties": {
+                  "model": { "type": "string", "pattern": "^asset://" },
                   "shape": { "type": "string", "enum": ["cube", "sphere", "plane", "cylinder"] },
                   "size": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
                   "color": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 },

@@ -43,6 +43,7 @@ void parseCamera2D(const Json& json, Entity& entity) {
 void parseSprite(const Json& json, Entity& entity) {
   SpriteComponent component;
   component.texture = stringOr(json, "texture");
+  component.shape = stringOr(json, "shape", "rectangle");
   component.layer = stringOr(json, "layer");
   if (const std::optional<Color> color = colorField(json, "color")) {
     component.color = *color;
@@ -173,6 +174,7 @@ void parseCamera3D(const Json& json, Entity& entity) {
 
 void parseMeshRenderer(const Json& json, Entity& entity) {
   MeshRendererComponent component;
+  component.model = stringOr(json, "model");
   component.shape = stringOr(json, "shape", "cube");
   if (const std::optional<Vec3> size = vec3Field(json, "size")) {
     component.size = *size;

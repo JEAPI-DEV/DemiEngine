@@ -115,6 +115,7 @@ struct Camera2DComponent {
 
 struct SpriteComponent {
   std::string texture;
+  std::string shape = "rectangle";
   std::string layer;
   Color color = {1.0F, 1.0F, 1.0F, 1.0F};
 };
@@ -179,6 +180,7 @@ struct Camera3DComponent {
 };
 
 struct MeshRendererComponent {
+  std::string model;
   std::string shape = "cube";
   Vec3 size = {1.0F, 1.0F, 1.0F};
   Color color = {0.8F, 0.8F, 0.8F, 1.0F};

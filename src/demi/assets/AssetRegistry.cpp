@@ -105,6 +105,7 @@ std::optional<AssetManifest> loadAssetManifest(const std::filesystem::path& mani
   const std::optional<std::string> id = stringAfterKey(text, "id");
   const std::optional<std::string> type = stringAfterKey(text, "type");
   const std::optional<std::string> source = stringAfterKey(text, "source");
+  const std::optional<std::string> texture = stringAfterKey(text, "texture");
   if (!id.has_value() || !type.has_value() || !source.has_value()) {
     if (diagnostic != nullptr) {
       *diagnostic = Diagnostic{
@@ -118,7 +119,13 @@ std::optional<AssetManifest> loadAssetManifest(const std::filesystem::path& mani
     return std::nullopt;
   }
 
-  return AssetManifest{.id = *id, .type = *type, .manifestPath = manifestPath, .sourcePath = manifestPath.parent_path() / *source};
+  return AssetManifest{
+    .id = *id,
+    .type = *type,
+    .manifestPath = manifestPath,
+    .sourcePath = manifestPath.parent_path() / *source,
+    .texturePath = texture.has_value() ? std::make_optional(manifestPath.parent_path() / *texture) : std::nullopt,
+  };
 }
 
 AssetRegistry loadAssetRegistry(const std::filesystem::path& projectDirectory) {
