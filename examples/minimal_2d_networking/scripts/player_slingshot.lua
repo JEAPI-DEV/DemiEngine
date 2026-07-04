@@ -48,21 +48,53 @@ local function launch_velocity(base_x, base_y, impulse_x, impulse_y)
     return clamp_velocity(impulse_x, impulse_y)
   end
 
-  return clamp_velocity(impulse_x + (impulse_x * matching_speed), impulse_y + (impulse_y * matching_speed))
+  local projected_x = impulse_x * matching_speed
+  local projected_y = impulse_y * matching_speed
+  local carry = config.sling_velocity_carry or 0.35
+  local carry_x = projected_x * carry
+  local carry_y = projected_y * carry
+  local max_carry_speed = config.max_sling_carry_speed or 4.0
+  local carry_speed = math.sqrt((carry_x * carry_x) + (carry_y * carry_y))
+  if carry_speed > max_carry_speed then
+    local carry_scale = max_carry_speed / carry_speed
+    carry_x = carry_x * carry_scale
+    carry_y = carry_y * carry_scale
+  end
+
+  return clamp_velocity(impulse_x + carry_x, impulse_y + carry_y)
 end
 
-local function draw_trajectory(origin_x, origin_y, velocity_x, velocity_y)
+local function draw_impact_marker(x, y)
+  local size = 0.16
+  Debug.line(x - size, y - size, x + size, y + size, 1.0, 0.26, 0.22, 1.0)
+  Debug.line(x - size, y + size, x + size, y - size, 1.0, 0.26, 0.22, 1.0)
+end
+
+local function draw_trajectory(player, origin_x, origin_y, velocity_x, velocity_y)
   local previous_x = origin_x
   local previous_y = origin_y
-  local step = 0.12
+  local predicted_x = origin_x
+  local predicted_y = origin_y
+  local predicted_velocity_y = velocity_y
+  local fixed_dt = config.trajectory_fixed_dt or (1.0 / 60.0)
+  local steps = config.trajectory_steps or 120
+  local collider_size = config.trajectory_collider_size or 1.0
 
-  for i = 1, 18 do
-    local t = i * step
-    local next_x = origin_x + velocity_x * t
-    local next_y = origin_y + velocity_y * t + 0.5 * config.trajectory_gravity * t * t
-    Debug.line(previous_x, previous_y, next_x, next_y, 1.0, 0.92, 0.35, 1.0)
-    previous_x = next_x
-    previous_y = next_y
+  for _ = 1, steps do
+    predicted_velocity_y = predicted_velocity_y + config.trajectory_gravity * fixed_dt
+    predicted_x = predicted_x + velocity_x * fixed_dt
+    predicted_y = predicted_y + predicted_velocity_y * fixed_dt
+
+    Debug.line(previous_x, previous_y, predicted_x, predicted_y, 1.0, 0.92, 0.35, 1.0)
+
+    local hit = Physics2D.overlap_box(predicted_x, predicted_y, collider_size, collider_size, player.entity_id)
+    if hit then
+      draw_impact_marker(predicted_x, predicted_y)
+      break
+    end
+
+    previous_x = predicted_x
+    previous_y = predicted_y
   end
 end
 
@@ -91,7 +123,7 @@ function Slingshot.update_aim(player, player_x, player_y, can_slingshot, grounde
   local launch_x, launch_y = launch_velocity(base_x, base_y, pull_x * config.sling_force, pull_y * config.sling_force)
 
   Debug.line(player_x, player_y, player_x - pull_x, player_y - pull_y, 0.9, 0.25, 0.25, 1.0)
-  draw_trajectory(player_x, player_y, launch_x, launch_y)
+  draw_trajectory(player, player_x, player_y, launch_x, launch_y)
 
   if not mouse_down then
     if not player.can_slingshot then
