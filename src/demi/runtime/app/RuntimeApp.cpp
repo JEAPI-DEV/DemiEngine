@@ -14,7 +14,9 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <chrono>
 #include <cstdlib>
+#include <iomanip>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -31,6 +33,20 @@ namespace demi::runtime
   {
 
     constexpr int RuntimeFailure = 3;
+
+    struct RuntimeProfile
+    {
+      int frames = 0;
+      double updateMs = 0.0;
+      double renderMs = 0.0;
+      double voxelMs = 0.0;
+      double voxelDataMs = 0.0;
+      double voxelMeshMs = 0.0;
+      int maxVisibleVoxelChunks = 0;
+      int voxelDataBuilds = 0;
+      int voxelMeshBuilds = 0;
+      int voxelUploadedFaces = 0;
+    };
 
     struct KeyMapping
     {
@@ -224,6 +240,49 @@ namespace demi::runtime
       return value != nullptr && std::string(value) != "0";
     }
 
+    [[nodiscard]] bool profilingEnabled()
+    {
+      const char *value = std::getenv("DEMI_PROFILE");
+      return value != nullptr && std::string(value) != "0";
+    }
+
+    [[nodiscard]] double millisecondsSince(const std::chrono::steady_clock::time_point start)
+    {
+      return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    }
+
+    void addVoxelProfile(RuntimeProfile &profile, const VoxelRendererStats &stats)
+    {
+      profile.voxelMs += stats.totalMs;
+      profile.voxelDataMs += stats.chunkDataMs;
+      profile.voxelMeshMs += stats.meshBuildMs;
+      profile.maxVisibleVoxelChunks = std::max(profile.maxVisibleVoxelChunks, stats.visibleChunks);
+      profile.voxelDataBuilds += stats.chunkDataBuilds;
+      profile.voxelMeshBuilds += stats.chunkMeshBuilds;
+      profile.voxelUploadedFaces += stats.uploadedFaces;
+    }
+
+    void printProfile(const RuntimeProfile &profile)
+    {
+      if (profile.frames <= 0)
+      {
+        return;
+      }
+      const double frames = static_cast<double>(profile.frames);
+      std::cout << std::fixed << std::setprecision(3)
+                << "Profile: frames=" << profile.frames
+                << " avg_update_ms=" << profile.updateMs / frames
+                << " avg_render_ms=" << profile.renderMs / frames
+                << " avg_voxel_ms=" << profile.voxelMs / frames
+                << " avg_voxel_data_ms=" << profile.voxelDataMs / frames
+                << " avg_voxel_mesh_ms=" << profile.voxelMeshMs / frames
+                << " max_visible_voxel_chunks=" << profile.maxVisibleVoxelChunks
+                << " voxel_data_builds=" << profile.voxelDataBuilds
+                << " voxel_mesh_builds=" << profile.voxelMeshBuilds
+                << " voxel_uploaded_faces=" << profile.voxelUploadedFaces
+                << '\n';
+    }
+
   } // namespace
 
   int runProject(const RuntimeOptions &options)
@@ -278,6 +337,8 @@ namespace demi::runtime
 
     double fixedAccumulator = 0.0;
     constexpr double fixedStep = 1.0 / 60.0;
+    RuntimeProfile profile;
+    const bool profileRun = profilingEnabled();
 
 #if !DEMI_HAS_RAYLIB
     std::cerr << "Runtime windowing is unavailable because raylib was not found at configure time.\n";
@@ -290,9 +351,19 @@ namespace demi::runtime
       bool running = true;
       while (running && frameCount < targetFrames)
       {
+        const auto updateStart = std::chrono::steady_clock::now();
         stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem, networkSystem,
                        static_cast<float>(fixedStep), static_cast<float>(fixedStep), fixedAccumulator, running);
+        if (profileRun)
+        {
+          profile.updateMs += millisecondsSince(updateStart);
+          ++profile.frames;
+        }
         ++frameCount;
+      }
+      if (profileRun)
+      {
+        printProfile(profile);
       }
       luaHost.destroy();
       networkSystem.shutdown();
@@ -323,6 +394,7 @@ namespace demi::runtime
 
       const float dt = std::min(GetFrameTime(), 0.1F);
 
+      const auto updateStart = std::chrono::steady_clock::now();
       stepSimulation(
           loaded,
           luaHost,
@@ -334,6 +406,10 @@ namespace demi::runtime
           static_cast<float>(fixedStep),
           fixedAccumulator,
           running);
+      if (profileRun)
+      {
+        profile.updateMs += millisecondsSince(updateStart);
+      }
 
       if (luaHost.windowModeDirty())
       {
@@ -358,6 +434,7 @@ namespace demi::runtime
 
       luaHost.setViewport(width, height);
 
+      const auto renderStart = std::chrono::steady_clock::now();
       if (use3D)
       {
         const Camera3DComponent *camera = activeCamera3D(loaded.world);
@@ -368,6 +445,10 @@ namespace demi::runtime
             width,
             height);
         renderer3D.drawWorld(loaded.world);
+        if (profileRun)
+        {
+          addVoxelProfile(profile, renderer3D.voxelStats());
+        }
         renderer3D.drawHud(loaded.world);
         renderer3D.endFrame();
       }
@@ -382,6 +463,11 @@ namespace demi::runtime
         renderer2D.drawWorld(loaded.world);
         renderer2D.drawHud(loaded.world);
         renderer2D.endFrame();
+      }
+      if (profileRun)
+      {
+        profile.renderMs += millisecondsSince(renderStart);
+        ++profile.frames;
       }
 
       const int maxFps = luaHost.maxFps();
@@ -407,6 +493,10 @@ namespace demi::runtime
     mediaSystem.shutdown();
     audioSystem.shutdown();
     CloseWindow();
+    if (profileRun)
+    {
+      printProfile(profile);
+    }
     return 0;
 #endif
   }

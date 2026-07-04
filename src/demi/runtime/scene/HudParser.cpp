@@ -44,6 +44,9 @@ void parseText(const Json& json, const std::string& id, World& world) {
   if (const std::optional<float> scale = numberField(json, "scale")) {
     text.scale = *scale;
   }
+  if (const std::optional<float> fontSize = numberField(json, "font_size")) {
+    text.fontSize = *fontSize;
+  }
   if (const std::optional<Color> color = colorField(json, "color")) {
     text.color = *color;
   }
@@ -64,6 +67,9 @@ void parseButton(const Json& json, const std::string& id, World& world) {
   }
   if (const std::optional<float> scale = numberField(json, "scale")) {
     button.scale = *scale;
+  }
+  if (const std::optional<float> fontSize = numberField(json, "font_size")) {
+    button.fontSize = *fontSize;
   }
   if (const std::optional<Color> color = colorField(json, "color")) {
     button.color = *color;

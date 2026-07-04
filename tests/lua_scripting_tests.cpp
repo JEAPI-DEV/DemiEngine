@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <ranges>
 #include <utility>
 
 namespace {
@@ -61,6 +62,10 @@ function Probe:on_start()
   Events.emit("test.module_event", { value = "module" })
   if Hud.set_button_label("button_start", "GO") then
     Save.set_string("test", "button_label", "updated")
+  end
+  Hud.text("hud_probe", "probe", 8.0, 12.0, 2.0)
+  if Hud.set_text_scale("hud_probe", 5.5) then
+    Save.set_string("test", "hud_text_scale", "updated")
   end
   Entity.create("ent_tinted_sprite", {
     components = {
@@ -254,6 +259,11 @@ return PropProbe
   }
   if (host.saveString("test", "button_label") != "updated" || world.hudButtons[0].label != "GO") {
     std::cerr << "Hud.set_button_label did not update the HUD button label.\n";
+    return 1;
+  }
+  const auto hudProbe = std::ranges::find_if(world.hudText, [](const runtime::HudTextElement& element) { return element.id == "hud_probe"; });
+  if (host.saveString("test", "hud_text_scale") != "updated" || hudProbe == world.hudText.end() || hudProbe->scale != 5.5F) {
+    std::cerr << "Hud.set_text_scale did not update the HUD text scale.\n";
     return 1;
   }
   const runtime::Entity* tintedSprite = runtime::findEntity(world, "ent_tinted_sprite");

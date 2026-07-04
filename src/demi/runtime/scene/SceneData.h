@@ -77,6 +77,7 @@ struct HudButtonElement {
   Vec2 position;
   Vec2 size = {120.0F, 40.0F};
   float scale = 3.0F;
+  float fontSize = 0.0F;
   Color color = {0.16F, 0.18F, 0.32F, 1.0F};
   Color hoverColor = {0.24F, 0.28F, 0.48F, 1.0F};
   Color textColor = {1.0F, 1.0F, 1.0F, 1.0F};
@@ -92,6 +93,7 @@ struct HudTextElement {
   std::string text;
   Vec2 position;
   float scale = 3.0F;
+  float fontSize = 0.0F;
   Color color = {1.0F, 1.0F, 1.0F, 1.0F};
   bool visible = true;
 };

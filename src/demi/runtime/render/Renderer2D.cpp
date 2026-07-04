@@ -29,7 +29,8 @@ void drawText(const HudTextElement& element, float scaleX, float scaleY) {
     constexpr float HudFontMinSize = 4.0F;
     constexpr float HudLetterSpacing = 5.0F;
     if (!element.visible || element.text.empty()) return;
-    float fontSize = std::max(element.scale * HudFontBaseSize * std::min(scaleX, scaleY), HudFontMinSize);
+    const float authoredFontSize = element.fontSize > 0.0F ? element.fontSize : element.scale * HudFontBaseSize;
+    const float fontSize = std::max(authoredFontSize * std::min(scaleX, scaleY), HudFontMinSize);
     Vector2 pos{element.position.x * scaleX, element.position.y * scaleY};
     DrawTextEx(GetFontDefault(), element.text.c_str(), pos, fontSize, HudLetterSpacing, toRlColor(element.color));
 }
@@ -71,7 +72,8 @@ void drawHudButton(const HudButtonElement& element, float scaleX, float scaleY) 
 
     if (!element.label.empty()) {
         const float textScale = std::min(scaleX, scaleY);
-        const float fontSize = std::max(element.scale * HudFontBaseSize * textScale, HudFontMinSize);
+        const float authoredFontSize = element.fontSize > 0.0F ? element.fontSize : element.scale * HudFontBaseSize;
+        const float fontSize = std::max(authoredFontSize * textScale, HudFontMinSize);
 
         Font font = GetFontDefault();
         Vector2 textSize = MeasureTextEx(font, element.label.c_str(), fontSize, HudLetterSpacing);

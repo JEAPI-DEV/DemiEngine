@@ -201,7 +201,9 @@
         "properties": {
           "type": { "type": "string" },
           "id": { "type": "string" },
-          "action": { "type": "string" }
+          "action": { "type": "string" },
+          "scale": { "type": "number" },
+          "font_size": { "type": "number", "minimum": 0 }
         }
       }
     }

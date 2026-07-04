@@ -285,6 +285,10 @@ Hud = {}
 ---@return boolean
 function Hud.text(id, text, x, y, scale, r, g, b, a) end
 ---@param id string
+---@param scale number
+---@return boolean
+function Hud.set_text_scale(id, scale) end
+---@param id string
 ---@param x number
 ---@param y number
 ---@param width number

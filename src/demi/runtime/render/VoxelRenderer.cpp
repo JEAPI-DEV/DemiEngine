@@ -7,6 +7,7 @@
 #include <rlgl.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <fstream>
@@ -14,6 +15,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace demi::runtime {
@@ -207,10 +209,22 @@ Mesh uploadVoxelMesh(const VoxelMeshData& meshData) {
 struct VoxelRenderer::RenderChunk {
   const Entity* entity = nullptr;
   const LoadedBlockSet* blockSet = nullptr;
-  VoxelChunk data;
+  const VoxelChunk* data = nullptr;
   ChunkOrigin origin;
   std::string signature;
 };
+
+namespace {
+
+bool rangesOverlap(const int aMin, const int aMax, const int bMin, const int bMax) {
+  return aMin < bMax && bMin < aMax;
+}
+
+double elapsedMs(const std::chrono::steady_clock::time_point start, const std::chrono::steady_clock::time_point end) {
+  return std::chrono::duration<double, std::milli>(end - start).count();
+}
+
+} // namespace
 
 VoxelRenderer::~VoxelRenderer() {
   for (auto& [id, chunk] : chunkMeshes_) {
@@ -255,11 +269,15 @@ void VoxelRenderer::loadAssets(const AssetRegistry& registry) {
   }
 }
 
+const VoxelRendererStats& VoxelRenderer::stats() const {
+  return stats_;
+}
+
 VoxelRenderer::CachedChunkMesh VoxelRenderer::buildChunkMesh(const RenderChunk& chunk, const std::vector<RenderChunk>& chunks) const {
   CachedChunkMesh cached;
   cached.signature = chunk.signature;
   const VoxelMeshData meshData = buildVoxelMesh(
-    chunk.data,
+    *chunk.data,
     chunk.blockSet->blockSet,
     VoxelMeshBuildOptions{
       .atlasColumns = chunk.blockSet->atlasColumns,
@@ -270,12 +288,12 @@ VoxelRenderer::CachedChunkMesh VoxelRenderer::buildChunkMesh(const RenderChunk& 
           const int worldY = chunk.origin.y + y;
           const int worldZ = chunk.origin.z + z;
           for (const RenderChunk& neighbor : chunks) {
-            const bool contains = worldX >= neighbor.origin.x && worldX < neighbor.origin.x + neighbor.data.width() && worldY >= neighbor.origin.y &&
-                                  worldY < neighbor.origin.y + neighbor.data.height() && worldZ >= neighbor.origin.z && worldZ < neighbor.origin.z + neighbor.data.depth();
+            const bool contains = worldX >= neighbor.origin.x && worldX < neighbor.origin.x + neighbor.data->width() && worldY >= neighbor.origin.y &&
+                                  worldY < neighbor.origin.y + neighbor.data->height() && worldZ >= neighbor.origin.z && worldZ < neighbor.origin.z + neighbor.data->depth();
             if (neighbor.entity == chunk.entity || !contains) {
               continue;
             }
-            return neighbor.blockSet->blockSet.isSolid(neighbor.data.block(worldX - neighbor.origin.x, worldY - neighbor.origin.y, worldZ - neighbor.origin.z));
+            return neighbor.blockSet->blockSet.isSolid(neighbor.data->block(worldX - neighbor.origin.x, worldY - neighbor.origin.y, worldZ - neighbor.origin.z));
           }
           return false;
         },
@@ -294,9 +312,53 @@ VoxelRenderer::CachedChunkMesh VoxelRenderer::buildChunkMesh(const RenderChunk& 
   return cached;
 }
 
+bool VoxelRenderer::canAffectBoundaryMesh(const RenderChunk& chunk, const RenderChunk& neighbor) {
+  if (chunk.entity == neighbor.entity || chunk.data == nullptr || neighbor.data == nullptr) {
+    return false;
+  }
+  return rangesOverlap(chunk.origin.x - 1, chunk.origin.x + chunk.data->width() + 1, neighbor.origin.x, neighbor.origin.x + neighbor.data->width()) &&
+         rangesOverlap(chunk.origin.y - 1, chunk.origin.y + chunk.data->height() + 1, neighbor.origin.y, neighbor.origin.y + neighbor.data->height()) &&
+         rangesOverlap(chunk.origin.z - 1, chunk.origin.z + chunk.data->depth() + 1, neighbor.origin.z, neighbor.origin.z + neighbor.data->depth());
+}
+
+std::string VoxelRenderer::chunkNeighborSignature(const RenderChunk& chunk, const std::vector<RenderChunk>& chunks) {
+  std::ostringstream signature;
+  for (const RenderChunk& neighbor : chunks) {
+    if (canAffectBoundaryMesh(chunk, neighbor)) {
+      signature << neighbor.entity->id << '=' << neighbor.signature << ';';
+    }
+  }
+  return signature.str();
+}
+
+void VoxelRenderer::unloadStaleChunks(const std::unordered_set<std::string>& visibleChunkIds) {
+  for (auto iterator = chunkMeshes_.begin(); iterator != chunkMeshes_.end();) {
+    if (visibleChunkIds.contains(iterator->first)) {
+      ++iterator;
+      continue;
+    }
+    if (iterator->second.hasModel) {
+      UnloadModel(iterator->second.model);
+    }
+    iterator = chunkMeshes_.erase(iterator);
+  }
+  for (auto iterator = chunkData_.begin(); iterator != chunkData_.end();) {
+    if (visibleChunkIds.contains(iterator->first)) {
+      ++iterator;
+      continue;
+    }
+    iterator = chunkData_.erase(iterator);
+  }
+}
+
 void VoxelRenderer::drawWorld(const World& world) {
+  const auto totalStart = std::chrono::steady_clock::now();
+  stats_ = {};
   std::vector<RenderChunk> chunks;
   chunks.reserve(world.entities.size());
+  chunkData_.reserve(world.entities.size());
+  std::unordered_set<std::string> visibleChunkIds;
+  visibleChunkIds.reserve(world.entities.size());
   for (const Entity& entity : world.entities) {
     if (!entity.voxelChunk.has_value() || !entity.transform3D.has_value()) {
       continue;
@@ -307,23 +369,42 @@ void VoxelRenderer::drawWorld(const World& world) {
       continue;
     }
     const Vec3 origin = worldPosition3D(world, entity);
+    const std::string dataSignature = chunkSignature(entity, origin);
+    auto cachedData = chunkData_.find(entity.id);
+    if (cachedData == chunkData_.end() || cachedData->second.signature != dataSignature) {
+      const auto buildStart = std::chrono::steady_clock::now();
+      VoxelChunk data = buildVoxelChunkFromComponent(*entity.voxelChunk, blockSet->second.blockSet, origin);
+      stats_.chunkDataMs += elapsedMs(buildStart, std::chrono::steady_clock::now());
+      ++stats_.chunkDataBuilds;
+      cachedData = chunkData_
+                     .insert_or_assign(entity.id,
+                                       CachedChunkData{
+                                         .signature = dataSignature,
+                                         .data = std::move(data),
+                                       })
+                     .first;
+    }
     chunks.push_back(RenderChunk{
       .entity = &entity,
       .blockSet = &blockSet->second,
-      .data = buildVoxelChunkFromComponent(*entity.voxelChunk, blockSet->second.blockSet, origin),
+      .data = &cachedData->second.data,
       .origin = chunkOrigin(origin),
-      .signature = chunkSignature(entity, origin),
+      .signature = dataSignature,
     });
+    visibleChunkIds.insert(entity.id);
+  }
+  stats_.visibleChunks = static_cast<int>(chunks.size());
+
+  std::vector<std::string> meshSignatures;
+  meshSignatures.reserve(chunks.size());
+  for (const RenderChunk& chunk : chunks) {
+    meshSignatures.push_back(chunk.signature + "|neighbors{" + chunkNeighborSignature(chunk, chunks) + '}');
+  }
+  for (std::size_t index = 0; index < chunks.size(); ++index) {
+    chunks[index].signature = std::move(meshSignatures[index]);
   }
 
-  std::ostringstream worldSignature;
-  for (const RenderChunk& chunk : chunks) {
-    worldSignature << chunk.entity->id << '=' << chunk.signature << ';';
-  }
-  const std::string neighborSignature = worldSignature.str();
-  for (RenderChunk& chunk : chunks) {
-    chunk.signature += "|neighbors{" + neighborSignature + '}';
-  }
+  unloadStaleChunks(visibleChunkIds);
 
   for (const RenderChunk& chunk : chunks) {
     auto cached = chunkMeshes_.find(chunk.entity->id);
@@ -331,8 +412,14 @@ void VoxelRenderer::drawWorld(const World& world) {
       if (cached != chunkMeshes_.end() && cached->second.hasModel) {
         UnloadModel(cached->second.model);
       }
+      const auto meshStart = std::chrono::steady_clock::now();
       cached = chunkMeshes_.insert_or_assign(chunk.entity->id, buildChunkMesh(chunk, chunks)).first;
-      std::cerr << "Voxel debug: built " << chunk.entity->id << " with " << cached->second.faceCount << " visible face(s).\n";
+      stats_.meshBuildMs += elapsedMs(meshStart, std::chrono::steady_clock::now());
+      ++stats_.chunkMeshBuilds;
+      stats_.uploadedFaces += cached->second.faceCount;
+      if (chunk.entity->voxelChunk->debug) {
+        std::cerr << "Voxel debug: built " << chunk.entity->id << " with " << cached->second.faceCount << " visible face(s).\n";
+      }
     }
 
     if (!cached->second.hasModel) {
@@ -355,6 +442,7 @@ void VoxelRenderer::drawWorld(const World& world) {
       DrawCubeWiresV(center, size, {245, 245, 245, 255});
     }
   }
+  stats_.totalMs = elapsedMs(totalStart, std::chrono::steady_clock::now());
 }
 
 } // namespace demi::runtime

@@ -24,6 +24,7 @@ public:
   void drawWorld(const World& world);
   void drawHud(const World& world);
   void endFrame();
+  [[nodiscard]] const VoxelRendererStats& voxelStats() const;
 
 private:
   Camera3DComponent camera_;

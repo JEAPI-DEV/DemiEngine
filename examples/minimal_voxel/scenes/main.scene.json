@@ -8,7 +8,7 @@
       "name": "Fly Camera",
       "components": {
         "Transform3D": {
-          "position": [16.0, 12.0, 36.0],
+          "position": [0.0, 18.0, 44.0],
           "rotation": [-0.35, 0.0, 0.0],
           "scale": [1.0, 1.0, 1.0]
         },
@@ -32,110 +32,6 @@
           "direction": [-0.4, -1.0, -0.2],
           "color": [1.0, 0.96, 0.88, 1.0],
           "intensity": 1.0
-        }
-      }
-    },
-    {
-      "id": "ent_chunk_0_0",
-      "name": "Terrain Chunk 0 0",
-      "components": {
-        "Transform3D": {
-          "position": [0.0, 0.0, 0.0],
-          "rotation": [0.0, 0.0, 0.0],
-          "scale": [1.0, 1.0, 1.0]
-        },
-        "VoxelChunk": {
-          "block_set": "asset://blocksets/basic",
-          "dimensions": [16, 12, 16],
-          "debug": false,
-          "terrain": {
-            "seed": 4242,
-            "base_height": 4,
-            "amplitude": 3,
-            "frequency": 0.11,
-            "dirt_depth": 3,
-            "surface_block": "grass",
-            "subsurface_block": "dirt",
-            "stone_block": "stone"
-          }
-        }
-      }
-    },
-    {
-      "id": "ent_chunk_1_0",
-      "name": "Terrain Chunk 1 0",
-      "components": {
-        "Transform3D": {
-          "position": [16.0, 0.0, 0.0],
-          "rotation": [0.0, 0.0, 0.0],
-          "scale": [1.0, 1.0, 1.0]
-        },
-        "VoxelChunk": {
-          "block_set": "asset://blocksets/basic",
-          "dimensions": [16, 12, 16],
-          "debug": false,
-          "terrain": {
-            "seed": 4242,
-            "base_height": 4,
-            "amplitude": 3,
-            "frequency": 0.11,
-            "dirt_depth": 3,
-            "surface_block": "grass",
-            "subsurface_block": "dirt",
-            "stone_block": "stone"
-          }
-        }
-      }
-    },
-    {
-      "id": "ent_chunk_0_1",
-      "name": "Terrain Chunk 0 1",
-      "components": {
-        "Transform3D": {
-          "position": [0.0, 0.0, 16.0],
-          "rotation": [0.0, 0.0, 0.0],
-          "scale": [1.0, 1.0, 1.0]
-        },
-        "VoxelChunk": {
-          "block_set": "asset://blocksets/basic",
-          "dimensions": [16, 12, 16],
-          "debug": false,
-          "terrain": {
-            "seed": 4242,
-            "base_height": 4,
-            "amplitude": 3,
-            "frequency": 0.11,
-            "dirt_depth": 3,
-            "surface_block": "grass",
-            "subsurface_block": "dirt",
-            "stone_block": "stone"
-          }
-        }
-      }
-    },
-    {
-      "id": "ent_chunk_1_1",
-      "name": "Terrain Chunk 1 1",
-      "components": {
-        "Transform3D": {
-          "position": [16.0, 0.0, 16.0],
-          "rotation": [0.0, 0.0, 0.0],
-          "scale": [1.0, 1.0, 1.0]
-        },
-        "VoxelChunk": {
-          "block_set": "asset://blocksets/basic",
-          "dimensions": [16, 12, 16],
-          "debug": false,
-          "terrain": {
-            "seed": 4242,
-            "base_height": 4,
-            "amplitude": 3,
-            "frequency": 0.11,
-            "dirt_depth": 3,
-            "surface_block": "grass",
-            "subsurface_block": "dirt",
-            "stone_block": "stone"
-          }
         }
       }
     }

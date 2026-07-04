@@ -8,6 +8,8 @@ local pause_hud_ids = {
   "pause_resume",
 }
 
+local hud_scale = 3
+
 local function clamp(value, min_value, max_value)
   if value < min_value then
     return min_value
@@ -37,8 +39,8 @@ function FlyCamera:on_create()
   self.yaw = 0.0
   self.pitch = -0.35
   self.paused = false
-  Hud.text("hud_hint", "WASD fly - Space/Shift vertical - Mouse look - ESC pause", 20.0, 20.0, 2.5)
-  Hud.text("hud_pos", "pos: (0.0, 0.0, 0.0)", 20.0, 56.0, 2.5)
+  Hud.text("hud_hint", "WASD fly - Space/Shift vertical - Mouse look - ESC pause", 20.0, 20.0, hud_scale)
+  Hud.text("hud_pos", "pos: (0.0, 0.0, 0.0)", 20.0, 68.0, hud_scale)
   Hud.rect("pause_dim", 0.0, 0.0, 960.0, 540.0, 0.02, 0.02, 0.03, 0.68)
   Hud.rect("pause_panel", 300.0, 176.0, 360.0, 188.0, 0.08, 0.09, 0.11, 0.94)
   Hud.text("pause_title", "PAUSED", 378.0, 214.0, 6.0, 0.94, 0.98, 1.0, 1.0)
@@ -80,7 +82,7 @@ function FlyCamera:on_update(dt)
   end
 
   local x, y, z = Transform3D.get_position(self.entity_id)
-  Hud.set_text("hud_pos", string.format("pos: (%.1f, %.1f, %.1f)", x or 0.0, y or 0.0, z or 0.0), 20.0, 56.0, 2.5)
+  Hud.set_text("hud_pos", string.format("pos: (%.1f, %.1f, %.1f)", x or 0.0, y or 0.0, z or 0.0))
 end
 
 function FlyCamera:on_destroy()

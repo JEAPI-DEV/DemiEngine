@@ -51,6 +51,19 @@ bool LuaScriptHost::createHudText(const std::string& id, const std::string& text
   return true;
 }
 
+bool LuaScriptHost::setHudTextScale(const std::string& id, const float scale) {
+  if (world_ == nullptr) {
+    return false;
+  }
+  for (HudTextElement& element : world_->hudText) {
+    if (element.id == id) {
+      element.scale = scale;
+      return true;
+    }
+  }
+  return false;
+}
+
 bool LuaScriptHost::createHudRect(const std::string& id, const float x, const float y, const float width, const float height, const Color color) {
   if (world_ == nullptr) {
     return false;

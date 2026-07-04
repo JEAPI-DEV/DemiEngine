@@ -392,6 +392,10 @@ void Renderer3D::drawWorld(const World& world) {
   }
 }
 
+const VoxelRendererStats& Renderer3D::voxelStats() const {
+  return voxelRenderer_.stats();
+}
+
 void Renderer3D::drawHud(const World& world) {
   EndMode3D();
 
@@ -399,6 +403,10 @@ void Renderer3D::drawHud(const World& world) {
   const float canvasHeight = std::max(world.hudCanvasSize.y, 1.0F);
   const float scaleX = static_cast<float>(width_) / canvasWidth;
   const float scaleY = static_cast<float>(height_) / canvasHeight;
+  const float textScale = std::min(scaleX, scaleY);
+  constexpr float HudFontBaseSize = 8.0F;
+  constexpr float HudFontMinSize = 4.0F;
+  constexpr float HudLetterSpacing = 5.0F;
 
   for (const HudRectElement& element : world.hudRects) {
     if (!element.visible) {
@@ -417,12 +425,14 @@ void Renderer3D::drawHud(const World& world) {
     if (!element.visible) {
       continue;
     }
-    const int fontSize = std::max(static_cast<int>(element.scale * 6), 8);
-    DrawText(element.text.c_str(),
-             static_cast<int>(element.position.x * scaleX),
-             static_cast<int>(element.position.y * scaleY),
-             fontSize,
-             toRlColor(element.color));
+    const float authoredFontSize = element.fontSize > 0.0F ? element.fontSize : element.scale * HudFontBaseSize;
+    const float fontSize = std::max(authoredFontSize * textScale, HudFontMinSize);
+    DrawTextEx(GetFontDefault(),
+               element.text.c_str(),
+               Vector2{element.position.x * scaleX, element.position.y * scaleY},
+               fontSize,
+               HudLetterSpacing,
+               toRlColor(element.color));
   }
 
   for (const HudButtonElement& element : world.hudButtons) {
@@ -437,13 +447,15 @@ void Renderer3D::drawHud(const World& world) {
       .height = element.size.y * scaleY,
     };
     DrawRectangleRec(rect, color);
-    const int fontSize = std::max(static_cast<int>(element.scale * 6), 8);
-    const ::Vector2 measured = MeasureTextEx(GetFontDefault(), element.label.c_str(), static_cast<float>(fontSize), 1.0F);
-    DrawText(element.label.c_str(),
-             static_cast<int>(rect.x + rect.width * 0.5F - measured.x * 0.5F),
-             static_cast<int>(rect.y + rect.height * 0.5F - measured.y * 0.5F),
-             fontSize,
-             toRlColor(element.textColor));
+    const float authoredFontSize = element.fontSize > 0.0F ? element.fontSize : element.scale * HudFontBaseSize;
+    const float fontSize = std::max(authoredFontSize * textScale, HudFontMinSize);
+    const ::Vector2 measured = MeasureTextEx(GetFontDefault(), element.label.c_str(), fontSize, HudLetterSpacing);
+    DrawTextEx(GetFontDefault(),
+               element.label.c_str(),
+               Vector2{rect.x + rect.width * 0.5F - measured.x * 0.5F, rect.y + rect.height * 0.5F - measured.y * 0.5F},
+               fontSize,
+               HudLetterSpacing,
+               toRlColor(element.textColor));
   }
 }
 
