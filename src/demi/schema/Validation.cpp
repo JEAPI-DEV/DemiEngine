@@ -279,6 +279,14 @@ Diagnostics validateTextFile(const std::filesystem::path& path, const SourceFile
           .path = path.string(),
           .suggestion = "Create the texture file or update the asset manifest texture path.",
         });
+      } else if (asset->atlasPath.has_value() && !std::filesystem::exists(*asset->atlasPath)) {
+        diagnostics.push_back(Diagnostic{
+          .severity = Severity::Error,
+          .code = "ASSET_ATLAS_NOT_FOUND",
+          .message = "Asset atlas file does not exist.",
+          .path = path.string(),
+          .suggestion = "Create the atlas file or update the asset manifest atlas path.",
+        });
       }
     }
     break;

@@ -121,6 +121,39 @@
                   "wireframe": { "type": "boolean" }
                 }
               },
+              "VoxelChunk": {
+                "type": "object",
+                "properties": {
+                  "block_set": { "type": "string", "pattern": "^asset://" },
+                  "dimensions": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+                  "debug": { "type": "boolean" },
+                  "layers": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "block": { "type": "string" },
+                        "from_y": { "type": "integer" },
+                        "to_y": { "type": "integer" }
+                      }
+                    }
+                  },
+                  "terrain": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": { "type": "boolean" },
+                      "seed": { "type": "integer" },
+                      "base_height": { "type": "integer" },
+                      "amplitude": { "type": "integer" },
+                      "frequency": { "type": "number" },
+                      "dirt_depth": { "type": "integer" },
+                      "surface_block": { "type": "string" },
+                      "subsurface_block": { "type": "string" },
+                      "stone_block": { "type": "string" }
+                    }
+                  }
+                }
+              },
               "BoxCollider3D": {
                 "type": "object",
                 "properties": {

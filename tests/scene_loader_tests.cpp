@@ -40,5 +40,17 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  const std::optional<runtime::LoadedProject> voxel = runtime::loadProject(root / "examples" / "minimal_voxel" / "demi.project.json", error);
+  if (!voxel.has_value()) {
+    std::cerr << "Failed to load minimal_voxel project: " << error << '\n';
+    return 1;
+  }
+
+  const runtime::Entity* chunk = runtime::findEntity(voxel->world, "ent_chunk_0_0");
+  if (chunk == nullptr || !chunk->voxelChunk.has_value() || chunk->voxelChunk->blockSet != "asset://blocksets/basic" || !chunk->voxelChunk->terrain.enabled) {
+    std::cerr << "Scene loader did not read VoxelChunk component data.\n";
+    return 1;
+  }
+
   return 0;
 }

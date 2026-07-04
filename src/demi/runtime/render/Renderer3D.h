@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/runtime/render/VoxelRenderer.h"
 #include "demi/runtime/scene/SceneData.h"
 
 #include <raylib.h>
@@ -33,6 +34,7 @@ private:
   std::unordered_map<std::string, Texture2D> textures_;
   std::unordered_map<std::string, Model> models_;
   std::unordered_map<std::string, Texture2D> modelTextures_;
+  VoxelRenderer voxelRenderer_;
 };
 
 } // namespace demi::runtime

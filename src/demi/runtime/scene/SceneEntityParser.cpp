@@ -187,6 +187,57 @@ void parseMeshRenderer(const Json& json, Entity& entity) {
   entity.meshRenderer = component;
 }
 
+void parseVoxelChunk(const Json& json, Entity& entity) {
+  VoxelChunkComponent component;
+  component.blockSet = stringOr(json, "block_set");
+  if (const std::optional<Vec3> dimensions = vec3Field(json, "dimensions")) {
+    component.width = static_cast<int>(dimensions->x);
+    component.height = static_cast<int>(dimensions->y);
+    component.depth = static_cast<int>(dimensions->z);
+  }
+  component.debug = boolField(json, "debug").value_or(false);
+  if (const Json* layers = arrayField(json, "layers")) {
+    for (const Json& layerJson : *layers) {
+      if (!layerJson.is_object()) {
+        continue;
+      }
+      VoxelLayer layer;
+      layer.block = stringOr(layerJson, "block", "air");
+      if (const std::optional<float> fromY = numberField(layerJson, "from_y")) {
+        layer.fromY = static_cast<int>(*fromY);
+      }
+      if (const std::optional<float> toY = numberField(layerJson, "to_y")) {
+        layer.toY = static_cast<int>(*toY);
+      } else {
+        layer.toY = layer.fromY;
+      }
+      component.layers.push_back(std::move(layer));
+    }
+  }
+  if (const Json* terrain = objectField(json, "terrain")) {
+    component.terrain.enabled = boolField(*terrain, "enabled").value_or(true);
+    if (const std::optional<float> seed = numberField(*terrain, "seed")) {
+      component.terrain.seed = static_cast<std::uint32_t>(*seed);
+    }
+    if (const std::optional<float> baseHeight = numberField(*terrain, "base_height")) {
+      component.terrain.baseHeight = static_cast<int>(*baseHeight);
+    }
+    if (const std::optional<float> amplitude = numberField(*terrain, "amplitude")) {
+      component.terrain.amplitude = static_cast<int>(*amplitude);
+    }
+    if (const std::optional<float> frequency = numberField(*terrain, "frequency")) {
+      component.terrain.frequency = *frequency;
+    }
+    if (const std::optional<float> dirtDepth = numberField(*terrain, "dirt_depth")) {
+      component.terrain.dirtDepth = static_cast<int>(*dirtDepth);
+    }
+    component.terrain.surfaceBlock = stringOr(*terrain, "surface_block", component.terrain.surfaceBlock);
+    component.terrain.subsurfaceBlock = stringOr(*terrain, "subsurface_block", component.terrain.subsurfaceBlock);
+    component.terrain.stoneBlock = stringOr(*terrain, "stone_block", component.terrain.stoneBlock);
+  }
+  entity.voxelChunk = component;
+}
+
 void parseBoxCollider3D(const Json& json, Entity& entity) {
   BoxCollider3DComponent component;
   if (const std::optional<Vec3> size = vec3Field(json, "size")) {
@@ -279,6 +330,7 @@ constexpr std::array componentParsers{
   ComponentParser{.name = "Transform3D", .parse = parseTransform3D},
   ComponentParser{.name = "Camera3D", .parse = parseCamera3D},
   ComponentParser{.name = "MeshRenderer", .parse = parseMeshRenderer},
+  ComponentParser{.name = "VoxelChunk", .parse = parseVoxelChunk},
   ComponentParser{.name = "BoxCollider3D", .parse = parseBoxCollider3D},
   ComponentParser{.name = "SphereCollider3D", .parse = parseSphereCollider3D},
   ComponentParser{.name = "Rigidbody3D", .parse = parseRigidbody3D},

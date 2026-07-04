@@ -101,6 +101,11 @@ function Probe:on_update(dt)
   else
     Save.set_string("test", "space", "up")
   end
+  if Input.is_pressed("escape") then
+    Save.set_string("test", "escape_pressed", "pressed")
+  else
+    Save.set_string("test", "escape_pressed", "released")
+  end
 end
 return Probe
 )lua")) {
@@ -301,6 +306,18 @@ return PropProbe
   host.update(1.0F / 60.0F);
   if (host.saveString("test", "space") != "up") {
     std::cerr << "Input.is_down returned true for an unpressed key.\n";
+    return 1;
+  }
+  input.keysPressed.insert("escape");
+  host.update(1.0F / 60.0F);
+  if (host.saveString("test", "escape_pressed") != "pressed") {
+    std::cerr << "Input.is_pressed did not report a pressed key.\n";
+    return 1;
+  }
+  input.keysPressed.clear();
+  host.update(1.0F / 60.0F);
+  if (host.saveString("test", "escape_pressed") != "released") {
+    std::cerr << "Input.is_pressed stayed true after the press frame.\n";
     return 1;
   }
 

@@ -179,6 +179,10 @@ Vec2 LuaScriptHost::mousePosition() const {
   return input_ != nullptr ? input_->mousePosition : Vec2{};
 }
 
+Vec2 LuaScriptHost::mouseDelta() const {
+  return input_ != nullptr ? input_->mouseDelta : Vec2{};
+}
+
 Vec2 LuaScriptHost::mouseWorldPosition() const {
   if (input_ == nullptr || world_ == nullptr) {
     return {};

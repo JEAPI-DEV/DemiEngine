@@ -270,6 +270,7 @@ Renderer3D::~Renderer3D() {
 }
 
 void Renderer3D::loadTextureAssets(const AssetRegistry& registry) {
+  voxelRenderer_.loadAssets(registry);
   for (const AssetManifest& asset : registry.assets) {
     if (asset.type == "Model3D") {
       Model model = LoadModel(asset.sourcePath.string().c_str());
@@ -335,7 +336,17 @@ void Renderer3D::beginFrame(const Camera3DComponent& camera, const Vec3 cameraPo
   ClearBackground(toRlColor(camera.clearColor));
 
   const ::Vector3 position = toRlVec3(cameraPosition);
-  const Vec3 rotatedTargetOffset = rotateYaw(camera.targetOffset, cameraRotation.y);
+  const auto rotatePitchYaw = [](const Vec3 value, const Vec3 rotation) {
+    const float sinX = std::sin(rotation.x);
+    const float cosX = std::cos(rotation.x);
+    const Vec3 pitched{
+      .x = value.x,
+      .y = value.y * cosX - value.z * sinX,
+      .z = value.y * sinX + value.z * cosX,
+    };
+    return rotateYaw(pitched, rotation.y);
+  };
+  const Vec3 rotatedTargetOffset = rotatePitchYaw(camera.targetOffset, cameraRotation);
   const ::Vector3 target = {
     position.x + rotatedTargetOffset.x,
     position.y + rotatedTargetOffset.y,
@@ -367,6 +378,7 @@ void Renderer3D::drawWorld(const World& world) {
       drawMeshEntity(world, entity, textures_, models_);
     }
   }
+  voxelRenderer_.drawWorld(world);
 
   constexpr int slices = 40;
   constexpr float spacing = 1.0F;

@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "name": "Minimal Voxel",
+  "main_scene": "scene://minimal_voxel/main",
+  "scenes": [
+    {
+      "id": "scene://minimal_voxel/main",
+      "path": "scenes/main.scene.json"
+    }
+  ],
+  "scripting": {
+    "language": "lua54",
+    "modules": []
+  }
+}

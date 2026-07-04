@@ -1,0 +1,6 @@
+{
+  "format_version": 1,
+  "id": "asset://blocksets/basic",
+  "type": "VoxelBlockSet",
+  "source": "basic.voxel.json"
+}

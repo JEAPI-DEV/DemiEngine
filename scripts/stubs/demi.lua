@@ -21,6 +21,9 @@ Input = {}
 ---@param key string
 ---@return boolean
 function Input.is_down(key) end
+---@param key string
+---@return boolean
+function Input.is_pressed(key) end
 ---@param negative_key string
 ---@param positive_key string
 ---@return number
@@ -38,6 +41,9 @@ function Input.mouse_down(button) end
 ---@return number x
 ---@return number y
 function Input.mouse_position() end
+---@return number dx
+---@return number dy
+function Input.mouse_delta() end
 ---@return number x
 ---@return number y
 function Input.mouse_world_position() end
@@ -204,6 +210,10 @@ function Runtime.get_window_mode() end
 function Runtime.set_max_fps(max_fps) end
 ---@return integer max_fps
 function Runtime.get_max_fps() end
+---@param captured boolean
+function Runtime.set_mouse_captured(captured) end
+---@return boolean captured
+function Runtime.get_mouse_captured() end
 
 ---@class Rigidbody2DService
 Rigidbody2D = {}

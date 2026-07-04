@@ -1,0 +1,43 @@
+{
+  "format_version": 1,
+  "tile_size": 16,
+  "atlas_sources": [
+    {
+      "path": "../../resources/assets/minecraft/textures/blocks/grass_top.png",
+      "tint": [0.36, 0.78, 0.24, 1.0]
+    },
+    "../../resources/assets/minecraft/textures/blocks/grass_side.png",
+    "../../resources/assets/minecraft/textures/blocks/dirt.png",
+    "../../resources/assets/minecraft/textures/blocks/stone.png"
+  ],
+  "blocks": [
+    {
+      "id": 0,
+      "name": "air",
+      "solid": false,
+      "tile": 0
+    },
+    {
+      "id": 1,
+      "name": "grass",
+      "solid": true,
+      "tiles": {
+        "top": 0,
+        "side": 1,
+        "bottom": 2
+      }
+    },
+    {
+      "id": 2,
+      "name": "dirt",
+      "solid": true,
+      "tile": 2
+    },
+    {
+      "id": 3,
+      "name": "stone",
+      "solid": true,
+      "tile": 3
+    }
+  ]
+}

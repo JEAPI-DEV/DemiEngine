@@ -14,6 +14,10 @@ bool LuaScriptHost::isKeyDown(const std::string& key) const {
   return input_ != nullptr && input_->keysDown.contains(normalizedKey(key));
 }
 
+bool LuaScriptHost::isKeyPressed(const std::string& key) const {
+  return input_ != nullptr && input_->keysPressed.contains(normalizedKey(key));
+}
+
 bool LuaScriptHost::addEntityPosition(const std::string& entityId, const float dx, const float dy) {
   if (world_ == nullptr) {
     return false;

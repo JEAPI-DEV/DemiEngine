@@ -106,12 +106,18 @@ namespace demi::runtime
 
     void pollKeys(InputState &input)
     {
+      const std::unordered_set<std::string> previousKeysDown = input.keysDown;
       input.keysDown.clear();
+      input.keysPressed.clear();
       for (const KeyMapping &mapping : KeyMap)
       {
         if (IsKeyDown(mapping.key))
         {
           input.keysDown.emplace(mapping.name);
+          if (!previousKeysDown.contains(std::string(mapping.name)))
+          {
+            input.keysPressed.emplace(mapping.name);
+          }
         }
       }
     }
@@ -132,6 +138,8 @@ namespace demi::runtime
         input.mouseButtonsDown.emplace("middle");
       }
       input.mousePosition = Vec2{.x = static_cast<float>(GetMouseX()), .y = static_cast<float>(GetMouseY())};
+      const Vector2 delta = GetMouseDelta();
+      input.mouseDelta = Vec2{.x = delta.x, .y = delta.y};
     }
 
     void applyWindowMode(const std::string &mode)
@@ -262,7 +270,7 @@ namespace demi::runtime
     }
 
     std::cout << "Running " << loaded.project.name << " scene " << loaded.world.id << " with " << renderableEntityCount(loaded.world) << " renderable entity/entities.\n";
-    std::cout << "Game scripts now own controls. Close the window or press Escape to stop.\n";
+    std::cout << "Game scripts now own controls. Close the window or use script-defined controls to stop.\n";
 
     const bool use3D = sceneIs3D(loaded.world);
     const Camera2DComponent fallbackCamera2D;
@@ -298,6 +306,7 @@ namespace demi::runtime
     constexpr int windowHeight = 540;
     const std::string title = std::string(EngineName) + " - " + loaded.project.name + " - " + loaded.world.name;
     InitWindow(windowWidth, windowHeight, title.c_str());
+    SetExitKey(KEY_NULL);
 
     Renderer2D renderer2D;
     Renderer3D renderer3D;
@@ -330,6 +339,18 @@ namespace demi::runtime
       {
         applyWindowMode(luaHost.windowMode());
         luaHost.clearWindowModeDirty();
+      }
+      if (luaHost.mouseCapturedDirty())
+      {
+        if (luaHost.mouseCaptured())
+        {
+          DisableCursor();
+        }
+        else
+        {
+          EnableCursor();
+        }
+        luaHost.clearMouseCapturedDirty();
       }
 
       const int width = GetRenderWidth();

@@ -141,6 +141,52 @@ Entity luaParseEntitySpec(const std::string& entityId, const sol::table spec) {
     };
   }
 
+  if (const sol::table voxel = componentTable(components, "VoxelChunk"); voxel.valid()) {
+    VoxelChunkComponent component{
+      .blockSet = voxel.get_or("block_set", std::string{}),
+      .width = 16,
+      .height = 16,
+      .depth = 16,
+      .layers = {},
+      .terrain = {},
+      .debug = voxel.get_or("debug", false),
+    };
+    const Vec3 dimensions = luaVec3Field(voxel, "dimensions", {16.0F, 16.0F, 16.0F});
+    component.width = static_cast<int>(dimensions.x);
+    component.height = static_cast<int>(dimensions.y);
+    component.depth = static_cast<int>(dimensions.z);
+    const sol::object layersObject = voxel["layers"];
+    if (layersObject.is<sol::table>()) {
+      const sol::table layers = layersObject.as<sol::table>();
+      for (const auto& entry : layers) {
+        if (!entry.second.is<sol::table>()) {
+          continue;
+        }
+        const sol::table layerTable = entry.second.as<sol::table>();
+        VoxelLayer layer{
+          .block = layerTable.get_or("block", std::string("air")),
+          .fromY = layerTable.get_or("from_y", 0),
+          .toY = layerTable.get_or("to_y", layerTable.get_or("from_y", 0)),
+        };
+        component.layers.push_back(std::move(layer));
+      }
+    }
+    const sol::object terrainObject = voxel["terrain"];
+    if (terrainObject.is<sol::table>()) {
+      const sol::table terrain = terrainObject.as<sol::table>();
+      component.terrain.enabled = terrain.get_or("enabled", true);
+      component.terrain.seed = static_cast<std::uint32_t>(terrain.get_or("seed", static_cast<int>(component.terrain.seed)));
+      component.terrain.baseHeight = terrain.get_or("base_height", component.terrain.baseHeight);
+      component.terrain.amplitude = terrain.get_or("amplitude", component.terrain.amplitude);
+      component.terrain.frequency = terrain.get_or("frequency", component.terrain.frequency);
+      component.terrain.dirtDepth = terrain.get_or("dirt_depth", component.terrain.dirtDepth);
+      component.terrain.surfaceBlock = terrain.get_or("surface_block", component.terrain.surfaceBlock);
+      component.terrain.subsurfaceBlock = terrain.get_or("subsurface_block", component.terrain.subsurfaceBlock);
+      component.terrain.stoneBlock = terrain.get_or("stone_block", component.terrain.stoneBlock);
+    }
+    entity.voxelChunk = std::move(component);
+  }
+
   if (const sol::table collider = componentTable(components, "BoxCollider3D"); collider.valid()) {
     entity.boxCollider3D = BoxCollider3DComponent{
       .size = luaVec3Field(collider, "size", {1.0F, 1.0F, 1.0F}),

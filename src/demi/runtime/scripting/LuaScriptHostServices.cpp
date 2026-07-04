@@ -63,6 +63,26 @@ int LuaScriptHost::maxFps() const {
   return maxFps_;
 }
 
+void LuaScriptHost::setMouseCaptured(const bool captured) {
+  if (mouseCaptured_ == captured) {
+    return;
+  }
+  mouseCaptured_ = captured;
+  mouseCapturedDirty_ = true;
+}
+
+bool LuaScriptHost::mouseCaptured() const {
+  return mouseCaptured_;
+}
+
+bool LuaScriptHost::mouseCapturedDirty() const {
+  return mouseCapturedDirty_;
+}
+
+void LuaScriptHost::clearMouseCapturedDirty() {
+  mouseCapturedDirty_ = false;
+}
+
 void LuaScriptHost::setPhysicsEnabled(const bool enabled) {
   physicsEnabled_ = enabled;
 }

@@ -101,6 +101,7 @@ add_library(demi-runtime-lib STATIC
   src/demi/runtime/physics/Physics3D.cpp
   src/demi/runtime/render/Renderer2D.cpp
   src/demi/runtime/render/Renderer3D.cpp
+  src/demi/runtime/render/VoxelRenderer.cpp
   src/demi/runtime/scene/HudParser.cpp
   src/demi/runtime/scene/ProjectParser.cpp
   src/demi/runtime/scene/SceneEntityParser.cpp
@@ -126,6 +127,10 @@ add_library(demi-runtime-lib STATIC
   src/demi/runtime/scripting/persistence/LuaSaveCodec.cpp
   src/demi/runtime/scripting/LuaScriptHostPersistence.cpp
   src/demi/runtime/scripting/LuaScriptHostServices.cpp
+  src/demi/runtime/voxel/VoxelBlockSet.cpp
+  src/demi/runtime/voxel/VoxelChunk.cpp
+  src/demi/runtime/voxel/VoxelMesher.cpp
+  src/demi/runtime/voxel/VoxelTerrain.cpp
 )
 
 target_link_libraries(demi-runtime-lib PUBLIC demi-core)
@@ -193,6 +198,9 @@ target_link_libraries(demi-lua-scripting-tests PRIVATE demi-runtime-lib)
 add_executable(demi-scene-loader-tests tests/scene_loader_tests.cpp)
 target_link_libraries(demi-scene-loader-tests PRIVATE demi-runtime-lib)
 
+add_executable(demi-voxel-tests tests/voxel_tests.cpp)
+target_link_libraries(demi-voxel-tests PRIVATE demi-runtime-lib)
+
 add_executable(demi-snapshot-replication-tests tests/snapshot_replication_tests.cpp)
 target_link_libraries(demi-snapshot-replication-tests PRIVATE demi-runtime-lib)
 
@@ -208,6 +216,7 @@ add_test(NAME demi-physics3d-tests COMMAND demi-physics3d-tests)
 add_test(NAME demi-lua-stub-contract-tests COMMAND demi-lua-stub-contract-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
 add_test(NAME demi-scene-loader-tests COMMAND demi-scene-loader-tests ${CMAKE_SOURCE_DIR})
+add_test(NAME demi-voxel-tests COMMAND demi-voxel-tests)
 add_test(NAME demi-snapshot-replication-tests COMMAND demi-snapshot-replication-tests)
 if(DEMI_ENABLE_NETWORK)
   add_test(NAME demi-network-tests COMMAND demi-network-tests)
@@ -224,14 +233,24 @@ add_test(NAME demi-runtime-minimal-3d-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json --frames 1
 )
 set_tests_properties(demi-runtime-minimal-3d-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-minimal-voxel-frame
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/demi.project.json --frames 1
+)
+set_tests_properties(demi-runtime-minimal-voxel-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-validate-minimal-2d-networking
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json
 )
 add_test(NAME demi-validate-minimal-3d
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json
 )
+add_test(NAME demi-validate-minimal-voxel
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/demi.project.json
+)
 add_test(NAME demi-script-check-minimal-player
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/scripts/player.lua
+)
+add_test(NAME demi-script-check-minimal-voxel-fly-camera
+  COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/scripts/fly_camera.lua
 )
 add_test(NAME demi-script-check-runtime-net-snapshot-replication
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/scripts/runtime/demi/net/snapshot_replication.lua

@@ -45,6 +45,7 @@ public:
   [[nodiscard]] bool hasPendingSceneLoad() const;
   [[nodiscard]] bool applyPendingSceneLoad(std::string& error);
   [[nodiscard]] bool isKeyDown(const std::string& key) const;
+  [[nodiscard]] bool isKeyPressed(const std::string& key) const;
   [[nodiscard]] bool addEntityPosition(const std::string& entityId, float dx, float dy);
   [[nodiscard]] bool setEntityPosition(const std::string& entityId, float x, float y);
   [[nodiscard]] std::optional<Vec2> entityPosition(const std::string& entityId) const;
@@ -93,6 +94,7 @@ public:
   [[nodiscard]] const std::vector<SaveMigrationHook>& saveMigrationHooks() const;
   [[nodiscard]] bool isMouseDown(const std::string& button) const;
   [[nodiscard]] Vec2 mousePosition() const;
+  [[nodiscard]] Vec2 mouseDelta() const;
   [[nodiscard]] Vec2 mouseWorldPosition() const;
   [[nodiscard]] Vec2 viewportSize() const;
   void addDebugLine(float x1, float y1, float x2, float y2, float r, float g, float b, float a);
@@ -131,6 +133,10 @@ public:
   void clearWindowModeDirty();
   void setMaxFps(int maxFps);
   [[nodiscard]] int maxFps() const;
+  void setMouseCaptured(bool captured);
+  [[nodiscard]] bool mouseCaptured() const;
+  [[nodiscard]] bool mouseCapturedDirty() const;
+  void clearMouseCapturedDirty();
   void setPhysicsEnabled(bool enabled);
   [[nodiscard]] bool physicsEnabled() const;
   [[nodiscard]] std::uint64_t addTimer(float seconds, bool repeating, int callbackRef);
@@ -202,6 +208,8 @@ private:
   std::string windowMode_ = "windowed";
   bool windowModeDirty_ = false;
   int maxFps_ = 0;
+  bool mouseCaptured_ = false;
+  bool mouseCapturedDirty_ = false;
   bool physicsEnabled_ = true;
   bool cutscenePaused_ = false;
   bool previousUiMouseDown_ = false;

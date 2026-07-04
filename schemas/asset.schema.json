@@ -16,12 +16,15 @@
     },
     "type": {
       "type": "string",
-      "enum": ["Texture2D", "Model3D", "AudioClip", "VideoClip"]
+      "enum": ["Texture2D", "Model3D", "VoxelBlockSet", "AudioClip", "VideoClip"]
     },
     "source": {
       "type": "string"
     },
     "texture": {
+      "type": "string"
+    },
+    "atlas": {
       "type": "string"
     }
   }
