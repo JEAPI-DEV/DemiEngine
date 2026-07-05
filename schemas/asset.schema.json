@@ -16,7 +16,7 @@
     },
     "type": {
       "type": "string",
-      "enum": ["Texture2D", "Model3D", "VoxelBlockSet", "AudioClip", "VideoClip"]
+      "enum": ["Texture2D", "Model3D", "AudioClip", "VideoClip"]
     },
     "source": {
       "type": "string"

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "demi/assets/AssetRegistry.h"
-#include "demi/runtime/render/VoxelRenderer.h"
 #include "demi/runtime/scene/SceneData.h"
 
 #include <raylib.h>
@@ -10,6 +9,12 @@
 #include <unordered_map>
 
 namespace demi::runtime {
+
+struct DynamicModelCacheEntry {
+  std::string signature;
+  Model model{};
+  bool hasModel = false;
+};
 
 class Renderer3D {
 public:
@@ -24,7 +29,6 @@ public:
   void drawWorld(const World& world);
   void drawHud(const World& world);
   void endFrame();
-  [[nodiscard]] const VoxelRendererStats& voxelStats() const;
 
 private:
   Camera3DComponent camera_;
@@ -35,7 +39,7 @@ private:
   std::unordered_map<std::string, Texture2D> textures_;
   std::unordered_map<std::string, Model> models_;
   std::unordered_map<std::string, Texture2D> modelTextures_;
-  VoxelRenderer voxelRenderer_;
+  std::unordered_map<std::string, DynamicModelCacheEntry> dynamicModels_;
 };
 
 } // namespace demi::runtime

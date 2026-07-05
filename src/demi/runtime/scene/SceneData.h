@@ -9,8 +9,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "demi/runtime/voxel/VoxelTerrain.h"
-
 namespace demi::runtime {
 
 struct Vec2 {
@@ -191,23 +189,10 @@ struct MeshRendererComponent {
   Vec3 size = {1.0F, 1.0F, 1.0F};
   Color color = {0.8F, 0.8F, 0.8F, 1.0F};
   std::string texture;
+  std::vector<Vec3> vertices;
+  std::vector<Vec3> normals;
+  std::vector<Vec2> uvs;
   bool wireframe = false;
-};
-
-struct VoxelLayer {
-  std::string block;
-  int fromY = 0;
-  int toY = 0;
-};
-
-struct VoxelChunkComponent {
-  std::string blockSet;
-  int width = 16;
-  int height = 16;
-  int depth = 16;
-  std::vector<VoxelLayer> layers;
-  VoxelTerrainSettings terrain;
-  bool debug = false;
 };
 
 struct BoxCollider3DComponent {
@@ -280,7 +265,6 @@ struct Entity {
   std::optional<Transform3DComponent> transform3D;
   std::optional<Camera3DComponent> camera3D;
   std::optional<MeshRendererComponent> meshRenderer;
-  std::optional<VoxelChunkComponent> voxelChunk;
   std::optional<BoxCollider3DComponent> boxCollider3D;
   std::optional<SphereCollider3DComponent> sphereCollider3D;
   std::optional<Rigidbody3DComponent> rigidbody3D;
@@ -461,7 +445,7 @@ struct World {
 [[nodiscard]] inline std::size_t renderableEntityCount(const World& world) {
   std::size_t count = 0;
   for (const Entity& entity : world.entities) {
-    if (entity.sprite.has_value() || entity.hitboxController.has_value() || entity.isoGrid.has_value() || entity.buildable.has_value() || entity.boxCollider2D.has_value() || entity.videoPlayer.has_value() || entity.meshRenderer.has_value() || entity.voxelChunk.has_value() || entity.boxCollider3D.has_value() || entity.sphereCollider3D.has_value()) {
+    if (entity.sprite.has_value() || entity.hitboxController.has_value() || entity.isoGrid.has_value() || entity.buildable.has_value() || entity.boxCollider2D.has_value() || entity.videoPlayer.has_value() || entity.meshRenderer.has_value() || entity.boxCollider3D.has_value() || entity.sphereCollider3D.has_value()) {
       ++count;
     }
   }

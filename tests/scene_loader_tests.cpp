@@ -87,12 +87,12 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  const std::filesystem::path voxelFixture = std::filesystem::temp_directory_path() / "demi_scene_loader_voxel_fixture";
+  const std::filesystem::path meshFixture = std::filesystem::temp_directory_path() / "demi_scene_loader_mesh_fixture";
   std::error_code fsError;
-  std::filesystem::remove_all(voxelFixture, fsError);
-  if (!writeFile(voxelFixture / "demi.project.json", R"json({
+  std::filesystem::remove_all(meshFixture, fsError);
+  if (!writeFile(meshFixture / "demi.project.json", R"json({
     "format_version": 1,
-    "name": "Voxel Fixture",
+    "name": "Mesh Fixture",
     "main_scene": "scene://fixture/main",
     "scenes": [
       {
@@ -101,86 +101,41 @@ int main(int argc, char** argv) {
       }
     ]
   })json") ||
-      !writeFile(voxelFixture / "assets" / "blocksets" / "basic.asset.json", R"json({
-    "format_version": 1,
-    "id": "asset://blocksets/basic",
-    "type": "VoxelBlockSet",
-    "source": "basic.voxel.json"
-  })json") ||
-      !writeFile(voxelFixture / "assets" / "blocksets" / "basic.voxel.json", R"json({
-    "format_version": 1,
-    "tile_size": 16,
-    "atlas_sources": [],
-    "blocks": [
-      {
-        "id": 0,
-        "name": "air",
-        "solid": false,
-        "tile": 0
-      },
-      {
-        "id": 1,
-        "name": "grass",
-        "solid": true,
-        "tile": 0
-      },
-      {
-        "id": 2,
-        "name": "dirt",
-        "solid": true,
-        "tile": 0
-      },
-      {
-        "id": 3,
-        "name": "stone",
-        "solid": true,
-        "tile": 0
-      }
-    ]
-  })json") ||
-      !writeFile(voxelFixture / "scenes" / "main.scene.json", R"json({
+      !writeFile(meshFixture / "scenes" / "main.scene.json", R"json({
     "format_version": 1,
     "id": "scene://fixture/main",
-    "name": "Voxel Fixture Scene",
+    "name": "Mesh Fixture Scene",
     "entities": [
       {
-        "id": "ent_chunk_0_0",
-        "name": "Terrain Chunk",
+        "id": "ent_mesh_0",
+        "name": "Generated Mesh",
         "components": {
           "Transform3D": {
             "position": [0.0, 0.0, 0.0]
           },
-          "VoxelChunk": {
-            "block_set": "asset://blocksets/basic",
-            "dimensions": [16, 12, 16],
-            "terrain": {
-              "seed": 4242,
-              "base_height": 4,
-              "amplitude": 3,
-              "frequency": 0.11,
-              "dirt_depth": 3,
-              "surface_block": "grass",
-              "subsurface_block": "dirt",
-              "stone_block": "stone"
-            }
+          "MeshRenderer": {
+            "vertices": [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            "normals": [[0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]],
+            "uvs": [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]
           }
         }
       }
     ]
   })json")) {
-    std::cerr << "Failed to write voxel scene loader fixture.\n";
+    std::cerr << "Failed to write mesh scene loader fixture.\n";
     return 1;
   }
 
-  const std::optional<runtime::LoadedProject> voxel = runtime::loadProject(voxelFixture / "demi.project.json", error);
-  if (!voxel.has_value()) {
-    std::cerr << "Failed to load voxel fixture project: " << error << '\n';
+  const std::optional<runtime::LoadedProject> meshProject = runtime::loadProject(meshFixture / "demi.project.json", error);
+  if (!meshProject.has_value()) {
+    std::cerr << "Failed to load mesh fixture project: " << error << '\n';
     return 1;
   }
 
-  const runtime::Entity* chunk = runtime::findEntity(voxel->world, "ent_chunk_0_0");
-  if (chunk == nullptr || !chunk->voxelChunk.has_value() || chunk->voxelChunk->blockSet != "asset://blocksets/basic" || !chunk->voxelChunk->terrain.enabled) {
-    std::cerr << "Scene loader did not read VoxelChunk component data.\n";
+  const runtime::Entity* mesh = runtime::findEntity(meshProject->world, "ent_mesh_0");
+  if (mesh == nullptr || !mesh->meshRenderer.has_value() || mesh->meshRenderer->vertices.size() != 3 || mesh->meshRenderer->normals.size() != 3 ||
+      mesh->meshRenderer->uvs.size() != 3 || mesh->meshRenderer->vertices[1].x != 1.0F || mesh->meshRenderer->uvs[2].y != 1.0F) {
+    std::cerr << "Scene loader did not read dynamic MeshRenderer data.\n";
     return 1;
   }
 

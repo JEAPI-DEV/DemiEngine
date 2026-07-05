@@ -1,6 +1,8 @@
 #include "demi/runtime/scene/SceneEntityParser.h"
 
+#include <algorithm>
 #include <array>
+#include <cstdint>
 #include <string_view>
 
 namespace demi::runtime::scene_loading {
@@ -184,58 +186,34 @@ void parseMeshRenderer(const Json& json, Entity& entity) {
   }
   component.texture = stringOr(json, "texture");
   component.wireframe = boolField(json, "wireframe").value_or(false);
-  entity.meshRenderer = component;
-}
-
-void parseVoxelChunk(const Json& json, Entity& entity) {
-  VoxelChunkComponent component;
-  component.blockSet = stringOr(json, "block_set");
-  if (const std::optional<Vec3> dimensions = vec3Field(json, "dimensions")) {
-    component.width = static_cast<int>(dimensions->x);
-    component.height = static_cast<int>(dimensions->y);
-    component.depth = static_cast<int>(dimensions->z);
-  }
-  component.debug = boolField(json, "debug").value_or(false);
-  if (const Json* layers = arrayField(json, "layers")) {
-    for (const Json& layerJson : *layers) {
-      if (!layerJson.is_object()) {
+  if (const Json* vertices = arrayField(json, "vertices")) {
+    component.vertices.reserve(vertices->size());
+    for (const Json& vertexJson : *vertices) {
+      if (!vertexJson.is_array() || vertexJson.size() < 3) {
         continue;
       }
-      VoxelLayer layer;
-      layer.block = stringOr(layerJson, "block", "air");
-      if (const std::optional<float> fromY = numberField(layerJson, "from_y")) {
-        layer.fromY = static_cast<int>(*fromY);
-      }
-      if (const std::optional<float> toY = numberField(layerJson, "to_y")) {
-        layer.toY = static_cast<int>(*toY);
-      } else {
-        layer.toY = layer.fromY;
-      }
-      component.layers.push_back(std::move(layer));
+      component.vertices.push_back(Vec3{vertexJson[0].get<float>(), vertexJson[1].get<float>(), vertexJson[2].get<float>()});
     }
   }
-  if (const Json* terrain = objectField(json, "terrain")) {
-    component.terrain.enabled = boolField(*terrain, "enabled").value_or(true);
-    if (const std::optional<float> seed = numberField(*terrain, "seed")) {
-      component.terrain.seed = static_cast<std::uint32_t>(*seed);
+  if (const Json* normals = arrayField(json, "normals")) {
+    component.normals.reserve(normals->size());
+    for (const Json& normalJson : *normals) {
+      if (!normalJson.is_array() || normalJson.size() < 3) {
+        continue;
+      }
+      component.normals.push_back(Vec3{normalJson[0].get<float>(), normalJson[1].get<float>(), normalJson[2].get<float>()});
     }
-    if (const std::optional<float> baseHeight = numberField(*terrain, "base_height")) {
-      component.terrain.baseHeight = static_cast<int>(*baseHeight);
-    }
-    if (const std::optional<float> amplitude = numberField(*terrain, "amplitude")) {
-      component.terrain.amplitude = static_cast<int>(*amplitude);
-    }
-    if (const std::optional<float> frequency = numberField(*terrain, "frequency")) {
-      component.terrain.frequency = *frequency;
-    }
-    if (const std::optional<float> dirtDepth = numberField(*terrain, "dirt_depth")) {
-      component.terrain.dirtDepth = static_cast<int>(*dirtDepth);
-    }
-    component.terrain.surfaceBlock = stringOr(*terrain, "surface_block", component.terrain.surfaceBlock);
-    component.terrain.subsurfaceBlock = stringOr(*terrain, "subsurface_block", component.terrain.subsurfaceBlock);
-    component.terrain.stoneBlock = stringOr(*terrain, "stone_block", component.terrain.stoneBlock);
   }
-  entity.voxelChunk = component;
+  if (const Json* uvs = arrayField(json, "uvs")) {
+    component.uvs.reserve(uvs->size());
+    for (const Json& uvJson : *uvs) {
+      if (!uvJson.is_array() || uvJson.size() < 2) {
+        continue;
+      }
+      component.uvs.push_back(Vec2{uvJson[0].get<float>(), uvJson[1].get<float>()});
+    }
+  }
+  entity.meshRenderer = component;
 }
 
 void parseBoxCollider3D(const Json& json, Entity& entity) {
@@ -330,7 +308,6 @@ constexpr std::array componentParsers{
   ComponentParser{.name = "Transform3D", .parse = parseTransform3D},
   ComponentParser{.name = "Camera3D", .parse = parseCamera3D},
   ComponentParser{.name = "MeshRenderer", .parse = parseMeshRenderer},
-  ComponentParser{.name = "VoxelChunk", .parse = parseVoxelChunk},
   ComponentParser{.name = "BoxCollider3D", .parse = parseBoxCollider3D},
   ComponentParser{.name = "SphereCollider3D", .parse = parseSphereCollider3D},
   ComponentParser{.name = "Rigidbody3D", .parse = parseRigidbody3D},

@@ -6,9 +6,14 @@
 #include <algorithm>
 #include <cmath>
 #include <fstream>
+#include <functional>
 #include <iostream>
+#include <numbers>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace demi::runtime {
@@ -154,7 +159,93 @@ void drawTexturedCube(const ::Vector3 center, const ::Vector3 size, const Textur
   rlSetTexture(0);
 }
 
-void drawMeshEntity(const World& world, const Entity& entity, const std::unordered_map<std::string, Texture2D>& textures, const std::unordered_map<std::string, Model>& models) {
+template <typename T>
+std::size_t bytesHash(const std::vector<T>& values) {
+  const auto* bytes = reinterpret_cast<const char*>(values.data());
+  return std::hash<std::string_view>{}(std::string_view{bytes, values.size() * sizeof(T)});
+}
+
+std::string dynamicMeshSignature(const MeshRendererComponent& mesh) {
+  if (mesh.vertices.empty()) {
+    return {};
+  }
+  return std::to_string(mesh.vertices.size()) + ":" + std::to_string(bytesHash(mesh.vertices)) + ":" + std::to_string(mesh.normals.size()) + ":" +
+         std::to_string(bytesHash(mesh.normals)) + ":" + std::to_string(mesh.uvs.size()) + ":" + std::to_string(bytesHash(mesh.uvs)) + ":" + mesh.texture;
+}
+
+Mesh uploadDynamicMesh(const MeshRendererComponent& source) {
+  Mesh mesh{};
+  mesh.vertexCount = static_cast<int>(source.vertices.size());
+  mesh.triangleCount = mesh.vertexCount / 3;
+  if (mesh.vertexCount <= 0 || mesh.triangleCount <= 0) {
+    return mesh;
+  }
+
+  mesh.vertices = static_cast<float*>(MemAlloc(static_cast<unsigned int>(source.vertices.size() * 3 * sizeof(float))));
+  mesh.normals = static_cast<float*>(MemAlloc(static_cast<unsigned int>(source.vertices.size() * 3 * sizeof(float))));
+  mesh.texcoords = static_cast<float*>(MemAlloc(static_cast<unsigned int>(source.vertices.size() * 2 * sizeof(float))));
+
+  for (std::size_t i = 0; i < source.vertices.size(); ++i) {
+    const Vec3& vertex = source.vertices[i];
+    const Vec3 normal = i < source.normals.size() ? source.normals[i] : Vec3{0.0F, 1.0F, 0.0F};
+    const Vec2 uv = i < source.uvs.size() ? source.uvs[i] : Vec2{};
+    mesh.vertices[i * 3 + 0] = vertex.x;
+    mesh.vertices[i * 3 + 1] = vertex.y;
+    mesh.vertices[i * 3 + 2] = vertex.z;
+    mesh.normals[i * 3 + 0] = normal.x;
+    mesh.normals[i * 3 + 1] = normal.y;
+    mesh.normals[i * 3 + 2] = normal.z;
+    mesh.texcoords[i * 2 + 0] = uv.x;
+    mesh.texcoords[i * 2 + 1] = uv.y;
+  }
+
+  UploadMesh(&mesh, false);
+  return mesh;
+}
+
+const Model* dynamicModelForEntity(const Entity& entity,
+                                   const MeshRendererComponent& mesh,
+                                   const std::unordered_map<std::string, Texture2D>& textures,
+                                   std::unordered_map<std::string, DynamicModelCacheEntry>& dynamicModels) {
+  const std::string signature = dynamicMeshSignature(mesh);
+  if (signature.empty()) {
+    return nullptr;
+  }
+  auto cached = dynamicModels.find(entity.id);
+  if (cached != dynamicModels.end() && cached->second.signature == signature && cached->second.hasModel) {
+    return &cached->second.model;
+  }
+  if (cached != dynamicModels.end() && cached->second.hasModel) {
+    UnloadModel(cached->second.model);
+  }
+  Mesh uploaded = uploadDynamicMesh(mesh);
+  if (uploaded.vertexCount <= 0) {
+    dynamicModels.erase(entity.id);
+    return nullptr;
+  }
+  Model model = LoadModelFromMesh(uploaded);
+  if (!mesh.texture.empty() && model.materialCount > 0) {
+    const auto texture = textures.find(mesh.texture);
+    if (texture != textures.end()) {
+      SetMaterialTexture(&model.materials[0], MATERIAL_MAP_DIFFUSE, texture->second);
+    }
+  }
+  cached = dynamicModels
+             .insert_or_assign(entity.id,
+                               DynamicModelCacheEntry{
+                                 .signature = signature,
+                                 .model = model,
+                                 .hasModel = true,
+                               })
+             .first;
+  return &cached->second.model;
+}
+
+void drawMeshEntity(const World& world,
+                    const Entity& entity,
+                    const std::unordered_map<std::string, Texture2D>& textures,
+                    const std::unordered_map<std::string, Model>& models,
+                    std::unordered_map<std::string, DynamicModelCacheEntry>& dynamicModels) {
   if (!entity.meshRenderer.has_value() || !entity.transform3D.has_value()) {
     return;
   }
@@ -165,9 +256,10 @@ void drawMeshEntity(const World& world, const Entity& entity, const std::unorder
   const ::Color color = toRlColor(mesh.color);
 
   const ::Vector3 rotation = toRlVec3(worldRotation3D(world, entity));
-  const float rotationX = rotation.x * (180.0F / 3.14159265358979F);
-  const float rotationY = rotation.y * (180.0F / 3.14159265358979F);
-  const float rotationZ = rotation.z * (180.0F / 3.14159265358979F);
+  constexpr float RadiansToDegrees = 180.0F / std::numbers::pi_v<float>;
+  const float rotationX = rotation.x * RadiansToDegrees;
+  const float rotationY = rotation.y * RadiansToDegrees;
+  const float rotationZ = rotation.z * RadiansToDegrees;
 
   Texture2D texture{};
   bool hasTexture = false;
@@ -179,7 +271,9 @@ void drawMeshEntity(const World& world, const Entity& entity, const std::unorder
     }
   }
   const Model* model = nullptr;
-  if (!mesh.model.empty()) {
+  if (!mesh.vertices.empty()) {
+    model = dynamicModelForEntity(entity, mesh, textures, dynamicModels);
+  } else if (!mesh.model.empty()) {
     const auto found = models.find(mesh.model);
     if (found != models.end()) {
       model = &found->second;
@@ -255,6 +349,12 @@ void drawMeshEntity(const World& world, const Entity& entity, const std::unorder
 } // namespace
 
 Renderer3D::~Renderer3D() {
+  for (auto& [id, model] : dynamicModels_) {
+    (void)id;
+    if (model.hasModel) {
+      UnloadModel(model.model);
+    }
+  }
   for (auto& [id, texture] : textures_) {
     (void)id;
     UnloadTexture(texture);
@@ -270,7 +370,6 @@ Renderer3D::~Renderer3D() {
 }
 
 void Renderer3D::loadTextureAssets(const AssetRegistry& registry) {
-  voxelRenderer_.loadAssets(registry);
   for (const AssetManifest& asset : registry.assets) {
     if (asset.type == "Model3D") {
       Model model = LoadModel(asset.sourcePath.string().c_str());
@@ -301,26 +400,25 @@ void Renderer3D::loadTextureAssets(const AssetRegistry& registry) {
       continue;
     }
 
-    const std::optional<ImageData> image = loadPpm(asset.sourcePath);
-    if (!image.has_value()) {
+    Texture2D texture{};
+    if (const std::optional<ImageData> image = loadPpm(asset.sourcePath)) {
+      ::Image rlImage{
+        .data = const_cast<void*>(static_cast<const void*>(image->pixels.data())),
+        .width = image->width,
+        .height = image->height,
+        .mipmaps = 1,
+        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
+      };
+      texture = LoadTextureFromImage(rlImage);
+    } else {
+      texture = LoadTexture(asset.sourcePath.string().c_str());
+    }
+    if (texture.id == 0) {
       std::cerr << "Texture load failed for " << asset.id << " from " << asset.sourcePath.string() << ". Using fallback material.\n";
       continue;
     }
 
-    ::Image rlImage{
-      .data = const_cast<void*>(static_cast<const void*>(image->pixels.data())),
-      .width = image->width,
-      .height = image->height,
-      .mipmaps = 1,
-      .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
-    };
-    Texture2D texture = LoadTextureFromImage(rlImage);
-    if (texture.id == 0) {
-      std::cerr << "LoadTextureFromImage failed for " << asset.id << ". Using fallback material.\n";
-      continue;
-    }
-
-    SetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
+    SetTextureFilter(texture, TEXTURE_FILTER_POINT);
     textures_[asset.id] = texture;
   }
 }
@@ -375,10 +473,26 @@ void Renderer3D::drawWorld(const World& world) {
 
   for (const Entity& entity : world.entities) {
     if (entity.meshRenderer.has_value() || entity.boxCollider3D.has_value() || entity.sphereCollider3D.has_value()) {
-      drawMeshEntity(world, entity, textures_, models_);
+      drawMeshEntity(world, entity, textures_, models_, dynamicModels_);
     }
   }
-  voxelRenderer_.drawWorld(world);
+
+  std::unordered_set<std::string> liveDynamicModelIds;
+  for (const Entity& entity : world.entities) {
+    if (entity.meshRenderer.has_value() && !entity.meshRenderer->vertices.empty()) {
+      liveDynamicModelIds.insert(entity.id);
+    }
+  }
+  for (auto iterator = dynamicModels_.begin(); iterator != dynamicModels_.end();) {
+    if (liveDynamicModelIds.contains(iterator->first)) {
+      ++iterator;
+      continue;
+    }
+    if (iterator->second.hasModel) {
+      UnloadModel(iterator->second.model);
+    }
+    iterator = dynamicModels_.erase(iterator);
+  }
 
   constexpr int slices = 40;
   constexpr float spacing = 1.0F;
@@ -390,10 +504,6 @@ void Renderer3D::drawWorld(const World& world) {
     DrawLine3D({-half, y, p}, {half, y, p}, gridColor);
     DrawLine3D({p, y, -half}, {p, y, half}, gridColor);
   }
-}
-
-const VoxelRendererStats& Renderer3D::voxelStats() const {
-  return voxelRenderer_.stats();
 }
 
 void Renderer3D::drawHud(const World& world) {

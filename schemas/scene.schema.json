@@ -118,40 +118,34 @@
                   "size": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
                   "color": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 },
                   "texture": { "type": "string", "pattern": "^asset://" },
-                  "wireframe": { "type": "boolean" }
-                }
-              },
-              "VoxelChunk": {
-                "type": "object",
-                "properties": {
-                  "block_set": { "type": "string", "pattern": "^asset://" },
-                  "dimensions": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
-                  "debug": { "type": "boolean" },
-                  "layers": {
+                  "vertices": {
                     "type": "array",
                     "items": {
-                      "type": "object",
-                      "properties": {
-                        "block": { "type": "string" },
-                        "from_y": { "type": "integer" },
-                        "to_y": { "type": "integer" }
-                      }
+                      "type": "array",
+                      "items": { "type": "number" },
+                      "minItems": 3,
+                      "maxItems": 3
                     }
                   },
-                  "terrain": {
-                    "type": "object",
-                    "properties": {
-                      "enabled": { "type": "boolean" },
-                      "seed": { "type": "integer" },
-                      "base_height": { "type": "integer" },
-                      "amplitude": { "type": "integer" },
-                      "frequency": { "type": "number" },
-                      "dirt_depth": { "type": "integer" },
-                      "surface_block": { "type": "string" },
-                      "subsurface_block": { "type": "string" },
-                      "stone_block": { "type": "string" }
+                  "normals": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": { "type": "number" },
+                      "minItems": 3,
+                      "maxItems": 3
                     }
-                  }
+                  },
+                  "uvs": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": { "type": "number" },
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  },
+                  "wireframe": { "type": "boolean" }
                 }
               },
               "BoxCollider3D": {
