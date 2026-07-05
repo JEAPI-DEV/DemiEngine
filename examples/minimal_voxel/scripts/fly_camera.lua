@@ -39,7 +39,7 @@ function FlyCamera:on_create()
   self.yaw = 0.0
   self.pitch = -0.35
   self.paused = false
-  Hud.text("hud_hint", "WASD fly - Space/Shift vertical - Mouse look - ESC pause", 20.0, 20.0, hud_scale)
+  Hud.text("hud_hint", "WASD fly - Space/Shift vertical - Mouse look - L/R click edit - ESC pause", 20.0, 20.0, hud_scale)
   Hud.text("hud_pos", "pos: (0.0, 0.0, 0.0)", 20.0, 68.0, hud_scale)
   Hud.rect("pause_dim", 0.0, 0.0, 960.0, 540.0, 0.02, 0.02, 0.03, 0.68)
   Hud.rect("pause_panel", 300.0, 176.0, 360.0, 188.0, 0.08, 0.09, 0.11, 0.94)

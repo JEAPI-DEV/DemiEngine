@@ -31,7 +31,7 @@ local manifest_path = path(generated_assets, "terrain_atlas.asset.json")
 local lua_data_path = path(generated_scripts, "pack_import.lua")
 
 local tiles = {
-  { name = "grass_top", file = path(pack_blocks, "grass_top.png") },
+  { name = "grass_top", file = path(pack_blocks, "grass_top.png"), tint = "#6fb34a" },
   { name = "grass_side", file = path(pack_blocks, "grass_side.png") },
   { name = "dirt", file = path(pack_blocks, "dirt.png") },
   { name = "stone", file = path(pack_blocks, "stone.png") },
@@ -52,6 +52,18 @@ for index, tile in ipairs(tiles) do
   command[#command + 1] = shell_quote(tile.file)
   command[#command + 1] = "-resize"
   command[#command + 1] = "16x16!"
+  if tile.tint then
+    command[#command + 1] = "\\("
+    command[#command + 1] = "+clone"
+    command[#command + 1] = "-fill"
+    command[#command + 1] = shell_quote(tile.tint)
+    command[#command + 1] = "-colorize"
+    command[#command + 1] = "100"
+    command[#command + 1] = "\\)"
+    command[#command + 1] = "-compose"
+    command[#command + 1] = "Multiply"
+    command[#command + 1] = "-composite"
+  end
   command[#command + 1] = "\\)"
   command[#command + 1] = "-geometry"
   command[#command + 1] = "+" .. x .. "+0"

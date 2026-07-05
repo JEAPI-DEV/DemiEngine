@@ -246,6 +246,17 @@ add_test(NAME demi-script-check-minimal-voxel-fly-camera
 add_test(NAME demi-script-check-minimal-voxel-worldgen
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/scripts/worldgen.lua
 )
+foreach(script_name
+  config
+  terrain
+  mesh
+  chunks
+  interaction
+)
+  add_test(NAME demi-script-check-minimal-voxel-worldgen-${script_name}
+    COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/scripts/worldgen/${script_name}.lua
+  )
+endforeach()
 add_test(NAME demi-script-check-minimal-voxel-import-pack
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/tools/import_pack.lua
 )
