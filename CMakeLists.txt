@@ -99,6 +99,7 @@ add_library(demi-runtime-lib STATIC
   src/demi/runtime/network/NetworkSystem.cpp
   src/demi/runtime/physics/Physics2D.cpp
   src/demi/runtime/physics/Physics3D.cpp
+  src/demi/runtime/profiling/RuntimeProfiler.cpp
   src/demi/runtime/render/Renderer2D.cpp
   src/demi/runtime/render/Renderer3D.cpp
   src/demi/runtime/scene/HudParser.cpp
@@ -252,6 +253,7 @@ foreach(script_name
   mesh
   chunks
   interaction
+  performance
 )
   add_test(NAME demi-script-check-minimal-voxel-worldgen-${script_name}
     COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/scripts/worldgen/${script_name}.lua

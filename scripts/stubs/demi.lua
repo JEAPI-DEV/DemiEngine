@@ -16,6 +16,15 @@ function Debug.log(message) end
 function Debug.line(x1, y1, x2, y2, r, g, b, a) end
 function Debug.clear_lines() end
 
+---@class ProfileService
+Profile = {}
+---@return boolean
+function Profile.enabled() end
+---@param name string
+---@param callback fun()
+---@return boolean
+function Profile.scope(name, callback) end
+
 ---@class InputService
 Input = {}
 ---@param key string
@@ -50,6 +59,24 @@ function Input.mouse_world_position() end
 ---@return number width
 ---@return number height
 function Input.viewport_size() end
+
+---@class ProceduralMeshBuilder
+---@field clear fun(self: ProceduralMeshBuilder)
+---@field reserve fun(self: ProceduralMeshBuilder, vertex_count: integer)
+---@field vertex_count fun(self: ProceduralMeshBuilder): integer
+---@field add_vertex fun(self: ProceduralMeshBuilder, x: number, y: number, z: number, nx: number, ny: number, nz: number, u: number, v: number)
+---@field add_quad fun(self: ProceduralMeshBuilder, nx: number, ny: number, nz: number, x1: number, y1: number, z1: number, u1: number, v1: number, x2: number, y2: number, z2: number, u2: number, v2: number, x3: number, y3: number, z3: number, u3: number, v3: number, x4: number, y4: number, z4: number, u4: number, v4: number)
+
+---@class ProceduralMeshService
+ProceduralMesh = {}
+---@param capacity? integer
+---@return ProceduralMeshBuilder
+function ProceduralMesh.create(capacity) end
+---@param entity_id string
+---@param builder ProceduralMeshBuilder
+---@param texture? string
+---@return boolean
+function ProceduralMesh.apply(entity_id, builder, texture) end
 
 ---@class EntityService
 Entity = {}

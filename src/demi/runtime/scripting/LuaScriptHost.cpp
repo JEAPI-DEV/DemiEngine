@@ -1,6 +1,10 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
+
+#include <cstdlib>
+#include <string>
 
 namespace demi::runtime {
 
@@ -18,6 +22,8 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, AudioSyste
   world_ = &world;
   input_ = &input;
   audio_ = audio;
+  const char* hotReload = std::getenv("DEMI_LUA_HOT_RELOAD");
+  hotReloadEnabled_ = hotReload != nullptr && std::string(hotReload) != "0";
 
   auto* state = luaL_newstate();
   if (state == nullptr) {
@@ -62,6 +68,7 @@ void LuaScriptHost::start() {
 }
 
 void LuaScriptHost::update(const float dt) {
+  ProfileScope updateScope("LuaScriptHost.update");
   auto* state = static_cast<lua_State*>(state_);
   if (state == nullptr) {
     return;
@@ -74,21 +81,33 @@ void LuaScriptHost::update(const float dt) {
   }
   lua_pop(state, 1);
 
-  reloadChangedScripts();
-  dispatchHudEvents();
-  updateTimers(dt);
+  if (hotReloadEnabled_) {
+    ProfileScope scope("Lua.reload_changed_scripts");
+    reloadChangedScripts();
+  }
+  {
+    ProfileScope scope("Lua.dispatch_hud_events");
+    dispatchHudEvents();
+  }
+  {
+    ProfileScope scope("Lua.update_timers");
+    updateTimers(dt);
+  }
 
   for (const ScriptInstance& script : scripts_) {
+    ProfileScope scope("Lua.on_update");
     luaCallLifecycle(state, script.tableRef, "on_update", script.path, script.entityId, dt);
   }
 }
 
 void LuaScriptHost::fixedUpdate(const float dt) {
+  ProfileScope fixedUpdateScope("LuaScriptHost.fixed_update");
   auto* state = static_cast<lua_State*>(state_);
   if (state == nullptr) {
     return;
   }
   for (const ScriptInstance& script : scripts_) {
+    ProfileScope scope("Lua.on_fixed_update");
     luaCallLifecycle(state, script.tableRef, "on_fixed_update", script.path, script.entityId, dt);
   }
 }

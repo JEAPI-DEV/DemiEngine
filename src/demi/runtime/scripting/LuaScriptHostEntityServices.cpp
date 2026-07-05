@@ -266,4 +266,43 @@ bool LuaScriptHost::createEntity(Entity entity) {
   return true;
 }
 
+bool LuaScriptHost::setEntityMeshRenderer(const std::string& entityId,
+                                          std::string texture,
+                                          std::vector<Vec3> vertices,
+                                          std::vector<Vec3> normals,
+                                          std::vector<Vec2> uvs) {
+  if (world_ == nullptr || entityId.empty()) {
+    return false;
+  }
+  Entity* entity = findEntity(*world_, entityId);
+  if (entity == nullptr) {
+    return false;
+  }
+
+  MeshRendererComponent mesh;
+  if (entity->meshRenderer.has_value()) {
+    mesh = *entity->meshRenderer;
+  }
+  mesh.texture = std::move(texture);
+  mesh.vertices = std::move(vertices);
+  mesh.normals = std::move(normals);
+  mesh.uvs = std::move(uvs);
+  mesh.revision = nextMeshRevision_++;
+  mesh.hasBounds = !mesh.vertices.empty();
+  if (mesh.hasBounds) {
+    mesh.boundsMin = mesh.vertices.front();
+    mesh.boundsMax = mesh.vertices.front();
+    for (const Vec3& vertex : mesh.vertices) {
+      mesh.boundsMin.x = std::min(mesh.boundsMin.x, vertex.x);
+      mesh.boundsMin.y = std::min(mesh.boundsMin.y, vertex.y);
+      mesh.boundsMin.z = std::min(mesh.boundsMin.z, vertex.z);
+      mesh.boundsMax.x = std::max(mesh.boundsMax.x, vertex.x);
+      mesh.boundsMax.y = std::max(mesh.boundsMax.y, vertex.y);
+      mesh.boundsMax.z = std::max(mesh.boundsMax.z, vertex.z);
+    }
+  }
+  entity->meshRenderer = std::move(mesh);
+  return true;
+}
+
 } // namespace demi::runtime

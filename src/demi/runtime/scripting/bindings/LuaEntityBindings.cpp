@@ -1,13 +1,106 @@
 #include "demi/runtime/scripting/bindings/LuaEntityBindings.h"
 
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scripting/bindings/LuaBindingHelpers.h"
 
+#include <algorithm>
 #include <sol/sol.hpp>
+#include <vector>
 
 namespace demi::runtime {
 
+namespace {
+
+struct LuaProceduralMeshBuilder {
+  std::vector<Vec3> vertices;
+  std::vector<Vec3> normals;
+  std::vector<Vec2> uvs;
+
+  void clear() {
+    vertices.clear();
+    normals.clear();
+    uvs.clear();
+  }
+
+  void reserve(const int vertexCount) {
+    const auto count = static_cast<std::size_t>(std::max(vertexCount, 0));
+    vertices.reserve(count);
+    normals.reserve(count);
+    uvs.reserve(count);
+  }
+
+  [[nodiscard]] int vertexCount() const {
+    return static_cast<int>(vertices.size());
+  }
+
+  void addVertex(const float x, const float y, const float z, const float nx, const float ny, const float nz, const float u, const float v) {
+    vertices.push_back(Vec3{x, y, z});
+    normals.push_back(Vec3{nx, ny, nz});
+    uvs.push_back(Vec2{u, v});
+  }
+
+  void addQuad(const float nx,
+               const float ny,
+               const float nz,
+               const float x1,
+               const float y1,
+               const float z1,
+               const float u1,
+               const float v1,
+               const float x2,
+               const float y2,
+               const float z2,
+               const float u2,
+               const float v2,
+               const float x3,
+               const float y3,
+               const float z3,
+               const float u3,
+               const float v3,
+               const float x4,
+               const float y4,
+               const float z4,
+               const float u4,
+               const float v4) {
+    addVertex(x1, y1, z1, nx, ny, nz, u1, v1);
+    addVertex(x2, y2, z2, nx, ny, nz, u2, v2);
+    addVertex(x3, y3, z3, nx, ny, nz, u3, v3);
+    addVertex(x1, y1, z1, nx, ny, nz, u1, v1);
+    addVertex(x3, y3, z3, nx, ny, nz, u3, v3);
+    addVertex(x4, y4, z4, nx, ny, nz, u4, v4);
+  }
+};
+
+} // namespace
+
 void LuaEntityBindingModule::install(LuaScriptHost& host, lua_State* state) const {
   sol::state_view lua(state);
+
+  lua.new_usertype<LuaProceduralMeshBuilder>(
+      "ProceduralMeshBuilder",
+      "clear",
+      &LuaProceduralMeshBuilder::clear,
+      "reserve",
+      &LuaProceduralMeshBuilder::reserve,
+      "vertex_count",
+      &LuaProceduralMeshBuilder::vertexCount,
+      "add_vertex",
+      &LuaProceduralMeshBuilder::addVertex,
+      "add_quad",
+      &LuaProceduralMeshBuilder::addQuad);
+
+  sol::table proceduralMesh = lua.create_named_table("ProceduralMesh");
+  proceduralMesh.set_function("create", [](sol::optional<int> capacity) {
+    LuaProceduralMeshBuilder builder;
+    builder.reserve(capacity.value_or(0));
+    return builder;
+  });
+  proceduralMesh.set_function("apply", [&host](const std::string& entityId, LuaProceduralMeshBuilder& builder, sol::optional<std::string> texture) {
+    ProfileScope scope("ProceduralMesh.apply");
+    RuntimeProfiler::addBytes("ProceduralMesh.apply.copy_to_component",
+                              (builder.vertices.size() * sizeof(Vec3)) + (builder.normals.size() * sizeof(Vec3)) + (builder.uvs.size() * sizeof(Vec2)));
+    return host.setEntityMeshRenderer(entityId, texture.value_or(std::string{}), builder.vertices, builder.normals, builder.uvs);
+  });
 
   sol::table entity = lua.create_named_table("Entity");
   entity.set_function("find", [&host](const std::string& idOrName) { return host.findEntityId(idOrName); });

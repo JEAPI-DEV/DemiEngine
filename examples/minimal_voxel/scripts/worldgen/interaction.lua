@@ -79,12 +79,11 @@ function Interaction.break_block(world, hit)
   if hit == nil then
     return
   end
-  local height = terrain.column_height(world, hit.x, hit.z)
-  if hit.y > height then
+  if terrain.block_at(world, hit.x, hit.y, hit.z) == 0 then
     return
   end
-  world.column_heights[terrain.column_key(hit.x, hit.z)] = math.max(hit.y - 1, -1)
-  chunks.rebuild_column(world, hit.x, hit.z)
+  terrain.set_block(world, hit.x, hit.y, hit.z, 0)
+  chunks.rebuild_block(world, hit.x, hit.y, hit.z)
 end
 
 function Interaction.place_block(world, hit)
@@ -97,12 +96,11 @@ function Interaction.place_block(world, hit)
   if place_y < 0 or place_y >= config.chunk_height then
     return
   end
-  local height = terrain.column_height(world, place_x, place_z)
-  if place_y <= height then
+  if terrain.block_at(world, place_x, place_y, place_z) ~= 0 then
     return
   end
-  world.column_heights[terrain.column_key(place_x, place_z)] = place_y
-  chunks.rebuild_column(world, place_x, place_z)
+  terrain.set_block(world, place_x, place_y, place_z, config.placement_block)
+  chunks.rebuild_block(world, place_x, place_y, place_z)
 end
 
 function Interaction.update(world)

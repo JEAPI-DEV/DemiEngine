@@ -35,6 +35,9 @@ local tiles = {
   { name = "grass_side", file = path(pack_blocks, "grass_side.png") },
   { name = "dirt", file = path(pack_blocks, "dirt.png") },
   { name = "stone", file = path(pack_blocks, "stone.png") },
+  { name = "log_oak", file = path(pack_blocks, "log_oak.png") },
+  { name = "log_oak_top", file = path(pack_blocks, "log_oak_top.png") },
+  { name = "leaves_oak_opaque", file = path(pack_blocks, "leaves_oak_opaque.png") },
 }
 
 run("mkdir -p " .. shell_quote(generated_assets) .. " " .. shell_quote(generated_scripts))
@@ -42,7 +45,7 @@ run("mkdir -p " .. shell_quote(generated_assets) .. " " .. shell_quote(generated
 local command = {
   "magick",
   "-size",
-  "64x16",
+  "112x16",
   "xc:none",
 }
 
@@ -69,7 +72,9 @@ for index, tile in ipairs(tiles) do
   command[#command + 1] = "+" .. x .. "+0"
   command[#command + 1] = "-composite"
 end
-command[#command + 1] = shell_quote(atlas_path)
+command[#command + 1] = "-depth"
+command[#command + 1] = "8"
+command[#command + 1] = shell_quote("PNG32:" .. atlas_path)
 run(table.concat(command, " "))
 
 write_file(manifest_path, [[{
@@ -82,11 +87,13 @@ write_file(manifest_path, [[{
 
 write_file(lua_data_path, [[return {
   texture = "asset://textures/terrain_atlas",
-  atlas_columns = 4,
+  atlas_columns = 7,
   blocks = {
     [1] = { top = 0, side = 1, bottom = 2 },
     [2] = { top = 2, side = 2, bottom = 2 },
     [3] = { top = 3, side = 3, bottom = 3 },
+    [4] = { top = 5, side = 4, bottom = 5 },
+    [5] = { top = 6, side = 6, bottom = 6 },
   },
 }
 ]])

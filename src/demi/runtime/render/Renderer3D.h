@@ -12,6 +12,8 @@ namespace demi::runtime {
 
 struct DynamicModelCacheEntry {
   std::string signature;
+  std::string texture;
+  std::uint64_t revision = 0;
   Model model{};
   bool hasModel = false;
 };

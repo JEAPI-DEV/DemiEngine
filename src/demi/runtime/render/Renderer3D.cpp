@@ -1,5 +1,7 @@
 #include "demi/runtime/render/Renderer3D.h"
 
+#include "demi/runtime/profiling/RuntimeProfiler.h"
+
 #include <raylib.h>
 #include <rlgl.h>
 
@@ -31,6 +33,62 @@ namespace {
 
 ::Vector3 toRlVec3(const Vec3& value) {
   return ::Vector3{.x = value.x, .y = value.y, .z = value.z};
+}
+
+Vec3 add(const Vec3 a, const Vec3 b) {
+  return Vec3{a.x + b.x, a.y + b.y, a.z + b.z};
+}
+
+Vec3 subtract(const Vec3 a, const Vec3 b) {
+  return Vec3{a.x - b.x, a.y - b.y, a.z - b.z};
+}
+
+Vec3 multiply(const Vec3 a, const Vec3 b) {
+  return Vec3{a.x * b.x, a.y * b.y, a.z * b.z};
+}
+
+Vec3 scale(const Vec3 value, const float amount) {
+  return Vec3{value.x * amount, value.y * amount, value.z * amount};
+}
+
+float dot(const Vec3 a, const Vec3 b) {
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+Vec3 cross(const Vec3 a, const Vec3 b) {
+  return Vec3{
+    .x = a.y * b.z - a.z * b.y,
+    .y = a.z * b.x - a.x * b.z,
+    .z = a.x * b.y - a.y * b.x,
+  };
+}
+
+float length(const Vec3 value) {
+  return std::sqrt(dot(value, value));
+}
+
+Vec3 normalize(const Vec3 value) {
+  const float valueLength = length(value);
+  if (valueLength <= 0.0001F) {
+    return Vec3{0.0F, 0.0F, -1.0F};
+  }
+  return scale(value, 1.0F / valueLength);
+}
+
+Vec3 rotatePitchYaw(const Vec3 value, const Vec3 rotation) {
+  const float sinX = std::sin(rotation.x);
+  const float cosX = std::cos(rotation.x);
+  const Vec3 pitched{
+    .x = value.x,
+    .y = value.y * cosX - value.z * sinX,
+    .z = value.y * sinX + value.z * cosX,
+  };
+  return rotateYaw(pitched, rotation.y);
+}
+
+float horizontalRadiusForBounds(const Vec3 min, const Vec3 max, const Vec3 scaleValue) {
+  const Vec3 extents = multiply(scale(subtract(max, min), 0.5F), scaleValue);
+  return length(Vec3{std::abs(extents.x), std::abs(extents.y), std::abs(extents.z)});
 }
 
 struct ImageData {
@@ -169,11 +227,15 @@ std::string dynamicMeshSignature(const MeshRendererComponent& mesh) {
   if (mesh.vertices.empty()) {
     return {};
   }
+  if (mesh.revision > 0) {
+    return "revision:" + std::to_string(mesh.revision) + ":" + mesh.texture;
+  }
   return std::to_string(mesh.vertices.size()) + ":" + std::to_string(bytesHash(mesh.vertices)) + ":" + std::to_string(mesh.normals.size()) + ":" +
          std::to_string(bytesHash(mesh.normals)) + ":" + std::to_string(mesh.uvs.size()) + ":" + std::to_string(bytesHash(mesh.uvs)) + ":" + mesh.texture;
 }
 
 Mesh uploadDynamicMesh(const MeshRendererComponent& source) {
+  ProfileScope uploadScope("Renderer3D.dynamic_mesh_upload_total");
   Mesh mesh{};
   mesh.vertexCount = static_cast<int>(source.vertices.size());
   mesh.triangleCount = mesh.vertexCount / 3;
@@ -181,25 +243,36 @@ Mesh uploadDynamicMesh(const MeshRendererComponent& source) {
     return mesh;
   }
 
-  mesh.vertices = static_cast<float*>(MemAlloc(static_cast<unsigned int>(source.vertices.size() * 3 * sizeof(float))));
-  mesh.normals = static_cast<float*>(MemAlloc(static_cast<unsigned int>(source.vertices.size() * 3 * sizeof(float))));
-  mesh.texcoords = static_cast<float*>(MemAlloc(static_cast<unsigned int>(source.vertices.size() * 2 * sizeof(float))));
+  const std::size_t vertexBytes = source.vertices.size() * 3 * sizeof(float);
+  const std::size_t normalBytes = source.vertices.size() * 3 * sizeof(float);
+  const std::size_t uvBytes = source.vertices.size() * 2 * sizeof(float);
+  RuntimeProfiler::addBytes("Renderer3D.dynamic_mesh_cpu_pack", vertexBytes + normalBytes + uvBytes);
 
-  for (std::size_t i = 0; i < source.vertices.size(); ++i) {
-    const Vec3& vertex = source.vertices[i];
-    const Vec3 normal = i < source.normals.size() ? source.normals[i] : Vec3{0.0F, 1.0F, 0.0F};
-    const Vec2 uv = i < source.uvs.size() ? source.uvs[i] : Vec2{};
-    mesh.vertices[i * 3 + 0] = vertex.x;
-    mesh.vertices[i * 3 + 1] = vertex.y;
-    mesh.vertices[i * 3 + 2] = vertex.z;
-    mesh.normals[i * 3 + 0] = normal.x;
-    mesh.normals[i * 3 + 1] = normal.y;
-    mesh.normals[i * 3 + 2] = normal.z;
-    mesh.texcoords[i * 2 + 0] = uv.x;
-    mesh.texcoords[i * 2 + 1] = uv.y;
+  {
+    ProfileScope scope("Renderer3D.dynamic_mesh_cpu_pack");
+    mesh.vertices = static_cast<float*>(MemAlloc(static_cast<unsigned int>(vertexBytes)));
+    mesh.normals = static_cast<float*>(MemAlloc(static_cast<unsigned int>(normalBytes)));
+    mesh.texcoords = static_cast<float*>(MemAlloc(static_cast<unsigned int>(uvBytes)));
+
+    for (std::size_t i = 0; i < source.vertices.size(); ++i) {
+      const Vec3& vertex = source.vertices[i];
+      const Vec3 normal = i < source.normals.size() ? source.normals[i] : Vec3{0.0F, 1.0F, 0.0F};
+      const Vec2 uv = i < source.uvs.size() ? source.uvs[i] : Vec2{};
+      mesh.vertices[i * 3 + 0] = vertex.x;
+      mesh.vertices[i * 3 + 1] = vertex.y;
+      mesh.vertices[i * 3 + 2] = vertex.z;
+      mesh.normals[i * 3 + 0] = normal.x;
+      mesh.normals[i * 3 + 1] = normal.y;
+      mesh.normals[i * 3 + 2] = normal.z;
+      mesh.texcoords[i * 2 + 0] = uv.x;
+      mesh.texcoords[i * 2 + 1] = uv.y;
+    }
   }
 
-  UploadMesh(&mesh, false);
+  {
+    ProfileScope scope("Renderer3D.dynamic_mesh_vram_upload");
+    UploadMesh(&mesh, false);
+  }
   return mesh;
 }
 
@@ -207,15 +280,22 @@ const Model* dynamicModelForEntity(const Entity& entity,
                                    const MeshRendererComponent& mesh,
                                    const std::unordered_map<std::string, Texture2D>& textures,
                                    std::unordered_map<std::string, DynamicModelCacheEntry>& dynamicModels) {
+  if (mesh.vertices.empty()) {
+    return nullptr;
+  }
+  auto cached = dynamicModels.find(entity.id);
+  if (mesh.revision > 0 && cached != dynamicModels.end() && cached->second.revision == mesh.revision && cached->second.texture == mesh.texture && cached->second.hasModel) {
+    return &cached->second.model;
+  }
   const std::string signature = dynamicMeshSignature(mesh);
   if (signature.empty()) {
     return nullptr;
   }
-  auto cached = dynamicModels.find(entity.id);
   if (cached != dynamicModels.end() && cached->second.signature == signature && cached->second.hasModel) {
     return &cached->second.model;
   }
   if (cached != dynamicModels.end() && cached->second.hasModel) {
+    ProfileScope scope("Renderer3D.unload_dynamic_model");
     UnloadModel(cached->second.model);
   }
   Mesh uploaded = uploadDynamicMesh(mesh);
@@ -223,7 +303,11 @@ const Model* dynamicModelForEntity(const Entity& entity,
     dynamicModels.erase(entity.id);
     return nullptr;
   }
-  Model model = LoadModelFromMesh(uploaded);
+  Model model{};
+  {
+    ProfileScope scope("Renderer3D.load_model_from_mesh");
+    model = LoadModelFromMesh(uploaded);
+  }
   if (!mesh.texture.empty() && model.materialCount > 0) {
     const auto texture = textures.find(mesh.texture);
     if (texture != textures.end()) {
@@ -234,11 +318,59 @@ const Model* dynamicModelForEntity(const Entity& entity,
              .insert_or_assign(entity.id,
                                DynamicModelCacheEntry{
                                  .signature = signature,
+                                 .texture = mesh.texture,
+                                 .revision = mesh.revision,
                                  .model = model,
                                  .hasModel = true,
                                })
              .first;
   return &cached->second.model;
+}
+
+bool meshEntityVisible(const World& world,
+                       const Entity& entity,
+                       const MeshRendererComponent& mesh,
+                       const Vec3 camera,
+                       const Vec3 cameraRotation,
+                       const Camera3DComponent& cameraComponent,
+                       const float aspectRatio) {
+  if (!entity.transform3D.has_value() || !cameraComponent.perspective) {
+    return true;
+  }
+
+  const Vec3 position = worldPosition3D(world, entity);
+  const Vec3 scaleValue = entity.transform3D->scale;
+  Vec3 center = position;
+  float radius = length(scaleValue) * 0.5F;
+
+  if (mesh.hasBounds) {
+    const Vec3 localCenter = scale(add(mesh.boundsMin, mesh.boundsMax), 0.5F);
+    center = add(position, multiply(localCenter, scaleValue));
+    radius = horizontalRadiusForBounds(mesh.boundsMin, mesh.boundsMax, scaleValue);
+  } else if (!mesh.model.empty()) {
+    return true;
+  } else if (mesh.shape == "sphere") {
+    radius = std::abs(scaleValue.x) * 0.5F;
+  } else {
+    radius = length(multiply(mesh.size, scaleValue)) * 0.5F;
+  }
+
+  const Vec3 forward = normalize(rotatePitchYaw(cameraComponent.targetOffset, cameraRotation));
+  Vec3 right = normalize(cross(forward, Vec3{0.0F, 1.0F, 0.0F}));
+  if (length(right) <= 0.0001F) {
+    right = Vec3{1.0F, 0.0F, 0.0F};
+  }
+  const Vec3 up = normalize(cross(right, forward));
+  const Vec3 toCenter = subtract(center, camera);
+  const float distanceAlongForward = dot(toCenter, forward);
+  if (distanceAlongForward < -radius) {
+    return false;
+  }
+
+  const float halfVerticalFov = (std::max(cameraComponent.fov, 1.0F) * std::numbers::pi_v<float> / 180.0F) * 0.5F;
+  const float verticalLimit = std::max(distanceAlongForward, 0.0F) * std::tan(halfVerticalFov) + radius;
+  const float horizontalLimit = verticalLimit * std::max(aspectRatio, 1.0F) + radius;
+  return std::abs(dot(toCenter, up)) <= verticalLimit && std::abs(dot(toCenter, right)) <= horizontalLimit;
 }
 
 void drawMeshEntity(const World& world,
@@ -272,6 +404,7 @@ void drawMeshEntity(const World& world,
   }
   const Model* model = nullptr;
   if (!mesh.vertices.empty()) {
+    ProfileScope scope("Renderer3D.dynamic_model_lookup");
     model = dynamicModelForEntity(entity, mesh, textures, dynamicModels);
   } else if (!mesh.model.empty()) {
     const auto found = models.find(mesh.model);
@@ -309,9 +442,13 @@ void drawMeshEntity(const World& world,
     rlPushMatrix();
     rlTranslatef(position.x, position.y, position.z);
     rlScalef(size.x, size.y, size.z);
-    DrawModel(*model, {0.0F, 0.0F, 0.0F}, 1.0F, color);
+    {
+      ProfileScope scope("Renderer3D.draw_model");
+      DrawModel(*model, {0.0F, 0.0F, 0.0F}, 1.0F, color);
+    }
     rlPopMatrix();
   } else {
+    ProfileScope scope("Renderer3D.draw_shape");
     drawShape(texture, hasTexture);
   }
 
@@ -370,15 +507,24 @@ Renderer3D::~Renderer3D() {
 }
 
 void Renderer3D::loadTextureAssets(const AssetRegistry& registry) {
+  ProfileScope scope("Renderer3D.load_texture_assets");
   for (const AssetManifest& asset : registry.assets) {
     if (asset.type == "Model3D") {
-      Model model = LoadModel(asset.sourcePath.string().c_str());
+      Model model{};
+      {
+        ProfileScope modelScope("Renderer3D.load_model_asset");
+        model = LoadModel(asset.sourcePath.string().c_str());
+      }
       if (model.meshCount <= 0) {
         std::cerr << "Model load failed for " << asset.id << " from " << asset.sourcePath.string() << ".\n";
         continue;
       }
       if (asset.texturePath.has_value()) {
-        Texture2D texture = LoadTexture(asset.texturePath->string().c_str());
+        Texture2D texture{};
+        {
+          ProfileScope textureScope("Renderer3D.load_model_texture");
+          texture = LoadTexture(asset.texturePath->string().c_str());
+        }
         if (texture.id == 0) {
           std::cerr << "Model texture load failed for " << asset.id << " from " << asset.texturePath->string() << ".\n";
         } else if (model.materialCount > 0) {
@@ -409,9 +555,15 @@ void Renderer3D::loadTextureAssets(const AssetRegistry& registry) {
         .mipmaps = 1,
         .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
       };
-      texture = LoadTextureFromImage(rlImage);
+      {
+        ProfileScope textureScope("Renderer3D.load_texture_from_image");
+        texture = LoadTextureFromImage(rlImage);
+      }
     } else {
-      texture = LoadTexture(asset.sourcePath.string().c_str());
+      {
+        ProfileScope textureScope("Renderer3D.load_texture_file");
+        texture = LoadTexture(asset.sourcePath.string().c_str());
+      }
     }
     if (texture.id == 0) {
       std::cerr << "Texture load failed for " << asset.id << " from " << asset.sourcePath.string() << ". Using fallback material.\n";
@@ -424,6 +576,7 @@ void Renderer3D::loadTextureAssets(const AssetRegistry& registry) {
 }
 
 void Renderer3D::beginFrame(const Camera3DComponent& camera, const Vec3 cameraPosition, const Vec3 cameraRotation, const int width, const int height) {
+  ProfileScope scope("Renderer3D.begin_frame");
   camera_ = camera;
   cameraPosition_ = cameraPosition;
   cameraRotation_ = cameraRotation;
@@ -434,16 +587,6 @@ void Renderer3D::beginFrame(const Camera3DComponent& camera, const Vec3 cameraPo
   ClearBackground(toRlColor(camera.clearColor));
 
   const ::Vector3 position = toRlVec3(cameraPosition);
-  const auto rotatePitchYaw = [](const Vec3 value, const Vec3 rotation) {
-    const float sinX = std::sin(rotation.x);
-    const float cosX = std::cos(rotation.x);
-    const Vec3 pitched{
-      .x = value.x,
-      .y = value.y * cosX - value.z * sinX,
-      .z = value.y * sinX + value.z * cosX,
-    };
-    return rotateYaw(pitched, rotation.y);
-  };
   const Vec3 rotatedTargetOffset = rotatePitchYaw(camera.targetOffset, cameraRotation);
   const ::Vector3 target = {
     position.x + rotatedTargetOffset.x,
@@ -463,6 +606,7 @@ void Renderer3D::beginFrame(const Camera3DComponent& camera, const Vec3 cameraPo
 }
 
 void Renderer3D::drawWorld(const World& world) {
+  ProfileScope drawWorldScope("Renderer3D.draw_world");
   for (const Entity& entity : world.entities) {
     if (entity.directionalLight.has_value()) {
       const ::Vector3 direction = toRlVec3(entity.directionalLight->direction);
@@ -473,6 +617,14 @@ void Renderer3D::drawWorld(const World& world) {
 
   for (const Entity& entity : world.entities) {
     if (entity.meshRenderer.has_value() || entity.boxCollider3D.has_value() || entity.sphereCollider3D.has_value()) {
+      if (entity.meshRenderer.has_value() &&
+          ![&]() {
+            ProfileScope scope("Renderer3D.frustum_cull");
+            return meshEntityVisible(
+                world, entity, *entity.meshRenderer, cameraPosition_, cameraRotation_, camera_, static_cast<float>(width_) / static_cast<float>(height_));
+          }()) {
+          continue;
+      }
       drawMeshEntity(world, entity, textures_, models_, dynamicModels_);
     }
   }
@@ -507,6 +659,7 @@ void Renderer3D::drawWorld(const World& world) {
 }
 
 void Renderer3D::drawHud(const World& world) {
+  ProfileScope scope("Renderer3D.draw_hud");
   EndMode3D();
 
   const float canvasWidth = std::max(world.hudCanvasSize.x, 1.0F);
@@ -570,6 +723,7 @@ void Renderer3D::drawHud(const World& world) {
 }
 
 void Renderer3D::endFrame() {
+  ProfileScope scope("Renderer3D.end_frame");
   EndDrawing();
 }
 

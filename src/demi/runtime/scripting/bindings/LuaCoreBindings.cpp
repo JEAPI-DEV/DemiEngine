@@ -1,5 +1,6 @@
 #include "demi/runtime/scripting/bindings/LuaCoreBindings.h"
 
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scripting/bindings/LuaBindingHelpers.h"
 
 #include <sol/sol.hpp>
@@ -28,6 +29,19 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
       host.addDebugLine(x1, y1, x2, y2, r.value_or(1.0F), g.value_or(1.0F), b.value_or(1.0F), a.value_or(1.0F));
     });
   debug.set_function("clear_lines", [&host] { host.clearDebugLines(); });
+
+  sol::table profile = lua.create_named_table("Profile");
+  profile.set_function("enabled", [] { return RuntimeProfiler::enabled(); });
+  profile.set_function("scope", [](const std::string& name, const sol::protected_function& callback) {
+    ProfileScope scope(name);
+    const sol::protected_function_result result = callback();
+    if (!result.valid()) {
+      const sol::error error = result;
+      std::cerr << "[lua] Profile.scope callback failed: " << error.what() << '\n';
+      return false;
+    }
+    return true;
+  });
 
   sol::table input = lua.create_named_table("Input");
   input.set_function("is_down", [&host](const std::string& key) { return host.isKeyDown(key); });

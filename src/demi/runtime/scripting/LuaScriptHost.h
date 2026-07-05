@@ -72,6 +72,11 @@ public:
   [[nodiscard]] bool physicsHasContact(const std::string& entityId, const PhysicsContactFilter2D& filter) const;
   [[nodiscard]] std::vector<PhysicsContact2D> physicsContacts(const std::string& entityId) const;
   [[nodiscard]] bool createEntity(Entity entity);
+  [[nodiscard]] bool setEntityMeshRenderer(const std::string& entityId,
+                                           std::string texture,
+                                           std::vector<Vec3> vertices,
+                                           std::vector<Vec3> normals,
+                                           std::vector<Vec2> uvs);
   [[nodiscard]] bool setHudText(const std::string& id, const std::string& text);
   [[nodiscard]] bool setHudButtonLabel(const std::string& id, const std::string& label);
   [[nodiscard]] bool createHudText(const std::string& id, const std::string& text, float x, float y, float scale, Color color);
@@ -212,6 +217,7 @@ private:
   bool mouseCaptured_ = false;
   bool mouseCapturedDirty_ = false;
   bool physicsEnabled_ = true;
+  bool hotReloadEnabled_ = false;
   bool cutscenePaused_ = false;
   bool previousUiMouseDown_ = false;
   std::optional<std::string> pendingSceneLoad_;
@@ -223,6 +229,7 @@ private:
   std::vector<EventSubscription> eventSubscriptions_;
   std::vector<SaveMigrationHook> saveMigrationHooks_;
   std::uint64_t nextTimerId_ = 1;
+  std::uint64_t nextMeshRevision_ = 1;
   std::uint64_t nextEventSubscriptionId_ = 1;
 };
 

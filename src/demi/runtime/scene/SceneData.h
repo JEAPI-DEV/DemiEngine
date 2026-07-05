@@ -192,6 +192,10 @@ struct MeshRendererComponent {
   std::vector<Vec3> vertices;
   std::vector<Vec3> normals;
   std::vector<Vec2> uvs;
+  std::uint64_t revision = 0;
+  Vec3 boundsMin;
+  Vec3 boundsMax;
+  bool hasBounds = false;
   bool wireframe = false;
 };
 

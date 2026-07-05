@@ -174,6 +174,10 @@ Entity luaParseEntitySpec(const std::string& entityId, const sol::table spec) {
       .vertices = luaVec3ArrayField(mesh, "vertices"),
       .normals = luaVec3ArrayField(mesh, "normals"),
       .uvs = luaVec2ArrayField(mesh, "uvs"),
+      .revision = 0,
+      .boundsMin = {},
+      .boundsMax = {},
+      .hasBounds = false,
       .wireframe = mesh.get_or("wireframe", false),
     };
   }
