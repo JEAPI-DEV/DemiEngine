@@ -246,6 +246,9 @@ add_test(NAME demi-script-check-minimal-voxel-fly-camera
 add_test(NAME demi-script-check-minimal-voxel-worldgen
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/scripts/worldgen.lua
 )
+add_test(NAME demi-script-check-minimal-voxel-import-pack
+  COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/tools/import_pack.lua
+)
 add_test(NAME demi-script-check-runtime-net-snapshot-replication
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/scripts/runtime/demi/net/snapshot_replication.lua
 )

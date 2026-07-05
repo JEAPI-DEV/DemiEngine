@@ -1,4 +1,16 @@
 local Worldgen = {}
+local pack_loaded, pack = pcall(require, "generated.pack_import")
+if not pack_loaded then
+  pack = {
+    texture = "",
+    atlas_columns = 4,
+    blocks = {
+      [1] = { top = 0, side = 1, bottom = 2 },
+      [2] = { top = 2, side = 2, bottom = 2 },
+      [3] = { top = 3, side = 3, bottom = 3 },
+    },
+  }
+end
 
 local chunk_size = 16
 local chunk_height = 24
@@ -21,12 +33,8 @@ local terrain = {
   base_block = 3,
 }
 
-local atlas_columns = 4
-local block_tiles = {
-  [1] = { top = 0, side = 1, bottom = 2 },
-  [2] = { top = 2, side = 2, bottom = 2 },
-  [3] = { top = 3, side = 3, bottom = 3 },
-}
+local atlas_columns = pack.atlas_columns
+local block_tiles = pack.blocks
 
 local faces = {
   {
@@ -251,7 +259,7 @@ local function create_chunk(self, cx, cz)
         scale = { 1.0, 1.0, 1.0 },
       },
       MeshRenderer = {
-        texture = "asset://blocksets/basic",
+        texture = pack.texture,
         vertices = mesh.vertices,
         normals = mesh.normals,
         uvs = mesh.uvs,

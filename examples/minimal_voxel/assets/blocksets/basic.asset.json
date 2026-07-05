@@ -1,6 +1,0 @@
-{
-  "format_version": 1,
-  "id": "asset://blocksets/basic",
-  "type": "Texture2D",
-  "source": "basic_atlas.png"
-}
