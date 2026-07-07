@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "slot": "smoke",
+  "project": "Minimal 2D Android",
+  "state": {
+    "active_scene": "scene://minimal_2d_android/platformer",
+    "player": {
+      "entity": "ent_player",
+      "position": [0.0, 0.0]
+    }
+  }
+}

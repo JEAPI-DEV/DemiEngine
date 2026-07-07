@@ -2,7 +2,7 @@
   "format_version": 2,
   "slot": "settings",
   "state": {
-    "master_volume": 0.8,
+    "master_volume": 0.4,
     "max_fps": 60,
     "window_mode": "windowed"
   }

@@ -1,0 +1,104 @@
+{
+  "format_version": 1,
+  "id": "scene://minimal_2d_android/platformer",
+  "name": "Platformer Run",
+  "hud": "game.hud.json",
+  "entities": [
+    {
+      "id": "ent_camera_main",
+      "name": "Main Camera",
+      "components": {
+        "Transform2D": {
+          "position": [0.0, -2.05],
+          "rotation": 0.0,
+          "scale": [1.0, 1.0]
+        },
+        "Camera2D": {
+          "clear_color": [0.08, 0.09, 0.12, 1.0],
+          "orthographic_size": 10.0
+        },
+        "AudioListener": {
+          "primary": true
+        }
+      }
+    },
+    {
+      "id": "ent_game_controller",
+      "name": "Game Controller",
+      "components": {
+        "LuaScript": {
+          "module": "script://scripts/game.lua",
+          "properties": {
+            "level_module": "levels.platformer",
+            "score_axis": "x"
+          }
+        }
+      }
+    },
+    {
+      "id": "ent_player",
+      "name": "Player",
+      "components": {
+        "Transform2D": {
+          "position": [0.0, 0.0],
+          "rotation": 0.0,
+          "scale": [1.0, 1.0]
+        },
+        "Sprite": {
+          "texture": "asset://sprites/player",
+          "layer": "actors",
+          "color": [0.30, 0.62, 1.0, 1.0]
+        },
+        "LuaScript": {
+          "module": "script://scripts/player.lua",
+          "properties": {
+            "speed": 5.0,
+            "jump_speed": 9.0
+          }
+        },
+        "Rigidbody2D": {
+          "body_type": "dynamic",
+          "velocity": [0.0, 0.0],
+          "gravity_scale": 1.0,
+          "bounciness": 0.55,
+          "lock_rotation": true
+        },
+        "BoxCollider2D": {
+          "size": [1.0, 1.0],
+          "offset": [0.0, 0.0],
+          "is_trigger": false,
+          "layer": "player"
+        },
+        "AudioSource": {
+          "clip": "asset://audio/collect_coin",
+          "play_on_start": false,
+          "loop": false,
+          "volume": 1.0
+        }
+      }
+    },
+    {
+      "id": "ent_ground",
+      "name": "Ground Platform",
+      "components": {
+        "Transform2D": {
+          "position": [0.0, -3.0],
+          "rotation": 0.0,
+          "scale": [1.0, 1.0]
+        },
+        "Rigidbody2D": {
+          "body_type": "static",
+          "velocity": [0.0, 0.0],
+          "gravity_scale": 0.0,
+          "lock_rotation": true
+        },
+        "BoxCollider2D": {
+          "size": [12.0, 0.75],
+          "offset": [0.0, 0.0],
+          "is_trigger": false,
+          "layer": "platform"
+        }
+      }
+    }
+  ]
+}

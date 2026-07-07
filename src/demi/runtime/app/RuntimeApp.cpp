@@ -154,6 +154,22 @@ namespace demi::runtime
     void pollMouse(InputState &input)
     {
       input.mouseButtonsDown.clear();
+#if defined(__ANDROID__)
+      const int touchCount = GetTouchPointCount();
+      if (touchCount > 0)
+      {
+        input.mouseButtonsDown.emplace("left");
+        const Vector2 touch = GetTouchPosition(0);
+        const Vec2 previous = input.mousePosition;
+        input.mousePosition = Vec2{.x = touch.x, .y = touch.y};
+        input.mouseDelta = Vec2{.x = input.mousePosition.x - previous.x, .y = input.mousePosition.y - previous.y};
+      }
+      else
+      {
+        input.mouseDelta = Vec2{};
+      }
+      return;
+#endif
       if (IsMouseButtonDown(MOUSE_BUTTON_LEFT))
       {
         input.mouseButtonsDown.emplace("left");

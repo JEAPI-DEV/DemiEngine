@@ -42,7 +42,7 @@ void printHelp() {
             << "  demi script check <script>\n"
             << "  demi lua-stubs generate [path]\n"
             << "  demi test\n"
-            << "  demi run --project <project> [--frames count]\n"
+            << "  demi run --project <project> [--frames count|--max-frames count]\n"
             << "  demi editor --project <project>\n";
 }
 
@@ -100,6 +100,11 @@ int numericValueAfter(const std::vector<std::string>& args, const std::string& k
   } catch (...) {
     return 0;
   }
+}
+
+int frameLimitFrom(const std::vector<std::string>& args) {
+  const int maxFrames = numericValueAfter(args, "--max-frames");
+  return maxFrames > 0 ? maxFrames : numericValueAfter(args, "--frames");
 }
 
 int runScene(const std::vector<std::string>& args) {
@@ -296,7 +301,7 @@ int main(int argc, char** argv) {
     }
     return demi::runtime::runProject(demi::runtime::RuntimeOptions{
       .projectPath = project,
-      .maxFrames = numericValueAfter(args, "--frames"),
+      .maxFrames = frameLimitFrom(args),
     });
   }
 

@@ -1,18 +1,38 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.22)
 
 project(DemiEngine
   VERSION 0.1.0
   DESCRIPTION "AI-friendly C++/Lua game engine scaffold for Linux 2D and isometric 2.5D games"
-  LANGUAGES CXX
+  LANGUAGES C CXX
 )
 
 include(FetchContent)
+
+if(POLICY CMP0169)
+  cmake_policy(SET CMP0169 OLD)
+endif()
+
+if(ANDROID)
+  set(DEMI_ENABLE_MEDIA OFF CACHE BOOL "Disable FFmpeg media on Android v1" FORCE)
+  set(DEMI_ENABLE_NETWORK OFF CACHE BOOL "Disable ENet networking on Android v1" FORCE)
+  if(NOT DEFINED ANDROID_NDK AND DEFINED CMAKE_ANDROID_NDK)
+    set(ANDROID_NDK "${CMAKE_ANDROID_NDK}")
+  endif()
+  set(PLATFORM Android CACHE STRING "raylib target platform" FORCE)
+  set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+endif()
 
 FetchContent_Declare(sol2
   GIT_REPOSITORY https://github.com/ThePhD/sol2.git
   GIT_TAG c1f95a773c6f8f4fde8ca3efe872e7286afe4444
 )
-FetchContent_MakeAvailable(sol2)
+FetchContent_GetProperties(sol2)
+if(NOT sol2_POPULATED)
+  FetchContent_Populate(sol2)
+endif()
+add_library(sol2 INTERFACE)
+add_library(sol2::sol2 ALIAS sol2)
+target_include_directories(sol2 INTERFACE ${sol2_SOURCE_DIR}/include)
 
 set(BOX2D_BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
 set(BOX2D_BUILD_TESTBED OFF CACHE BOOL "" FORCE)
@@ -35,6 +55,50 @@ FetchContent_Declare(nlohmann_json
   GIT_TAG v3.11.3
 )
 FetchContent_MakeAvailable(nlohmann_json)
+
+if(ANDROID)
+  FetchContent_Declare(lua
+    GIT_REPOSITORY https://github.com/lua/lua.git
+    GIT_TAG v5.4.7
+  )
+  FetchContent_MakeAvailable(lua)
+  add_library(lua54 STATIC
+    ${lua_SOURCE_DIR}/lapi.c
+    ${lua_SOURCE_DIR}/lauxlib.c
+    ${lua_SOURCE_DIR}/lbaselib.c
+    ${lua_SOURCE_DIR}/lcode.c
+    ${lua_SOURCE_DIR}/lcorolib.c
+    ${lua_SOURCE_DIR}/lctype.c
+    ${lua_SOURCE_DIR}/ldblib.c
+    ${lua_SOURCE_DIR}/ldebug.c
+    ${lua_SOURCE_DIR}/ldo.c
+    ${lua_SOURCE_DIR}/ldump.c
+    ${lua_SOURCE_DIR}/lfunc.c
+    ${lua_SOURCE_DIR}/lgc.c
+    ${lua_SOURCE_DIR}/linit.c
+    ${lua_SOURCE_DIR}/liolib.c
+    ${lua_SOURCE_DIR}/llex.c
+    ${lua_SOURCE_DIR}/lmathlib.c
+    ${lua_SOURCE_DIR}/lmem.c
+    ${lua_SOURCE_DIR}/loadlib.c
+    ${lua_SOURCE_DIR}/lobject.c
+    ${lua_SOURCE_DIR}/lopcodes.c
+    ${lua_SOURCE_DIR}/loslib.c
+    ${lua_SOURCE_DIR}/lparser.c
+    ${lua_SOURCE_DIR}/lstate.c
+    ${lua_SOURCE_DIR}/lstring.c
+    ${lua_SOURCE_DIR}/lstrlib.c
+    ${lua_SOURCE_DIR}/ltable.c
+    ${lua_SOURCE_DIR}/ltablib.c
+    ${lua_SOURCE_DIR}/ltm.c
+    ${lua_SOURCE_DIR}/lundump.c
+    ${lua_SOURCE_DIR}/lutf8lib.c
+    ${lua_SOURCE_DIR}/lvm.c
+    ${lua_SOURCE_DIR}/lzio.c
+  )
+  target_include_directories(lua54 PUBLIC ${lua_SOURCE_DIR})
+  target_compile_definitions(lua54 PRIVATE LUA_USE_POSIX)
+endif()
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -77,12 +141,14 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(demi-core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-find_package(PkgConfig QUIET)
+if(NOT ANDROID)
+  find_package(PkgConfig QUIET)
 
-if(PkgConfig_FOUND)
-  pkg_check_modules(LUA54 QUIET IMPORTED_TARGET lua5.4)
-  if(DEMI_ENABLE_MEDIA)
-    pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libavutil libswscale)
+  if(PkgConfig_FOUND)
+    pkg_check_modules(LUA54 QUIET IMPORTED_TARGET lua5.4)
+    if(DEMI_ENABLE_MEDIA)
+      pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libavutil libswscale)
+    endif()
   endif()
 endif()
 
@@ -142,7 +208,9 @@ endif()
 target_link_libraries(demi-runtime-lib PRIVATE raylib)
 target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_RAYLIB=1)
 
-if(TARGET PkgConfig::LUA54)
+if(ANDROID)
+  target_link_libraries(demi-runtime-lib PRIVATE lua54)
+elseif(TARGET PkgConfig::LUA54)
   target_link_libraries(demi-runtime-lib PRIVATE PkgConfig::LUA54)
 else()
   message(FATAL_ERROR "Lua 5.4 was not found. Install lua5.4 development files to build DemiEngine scripting.")
@@ -166,43 +234,50 @@ else()
   target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_ENET=0)
 endif()
 
-add_executable(demi src/cli/main.cpp)
-target_link_libraries(demi PRIVATE demi-core demi-runtime-lib)
-target_compile_definitions(demi PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+if(ANDROID)
+  add_library(demi_android SHARED src/android/main.cpp)
+  target_link_libraries(demi_android PRIVATE demi-runtime-lib)
+  target_include_directories(demi_android PRIVATE ${ANDROID_NDK}/sources/android/native_app_glue)
+  target_link_libraries(demi_android PRIVATE android log OpenSLES EGL GLESv2)
+  target_link_options(demi_android PRIVATE "LINKER:-u,ANativeActivity_onCreate")
+else()
+  add_executable(demi src/cli/main.cpp)
+  target_link_libraries(demi PRIVATE demi-core demi-runtime-lib)
+  target_compile_definitions(demi PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
-add_executable(demi-runtime src/runtime/main.cpp)
-target_link_libraries(demi-runtime PRIVATE demi-core demi-runtime-lib)
+  add_executable(demi-runtime src/runtime/main.cpp)
+  target_link_libraries(demi-runtime PRIVATE demi-core demi-runtime-lib)
 
-add_executable(demi-editor src/editor/main.cpp)
-target_link_libraries(demi-editor PRIVATE demi-core)
+  add_executable(demi-editor src/editor/main.cpp)
+  target_link_libraries(demi-editor PRIVATE demi-core)
 
-add_executable(demi-smoke-tests tests/smoke_tests.cpp)
-target_link_libraries(demi-smoke-tests PRIVATE demi-core)
+  add_executable(demi-smoke-tests tests/smoke_tests.cpp)
+  target_link_libraries(demi-smoke-tests PRIVATE demi-core)
 
-add_executable(demi-physics2d-tests tests/physics2d_tests.cpp)
-target_link_libraries(demi-physics2d-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-physics2d-tests tests/physics2d_tests.cpp)
+  target_link_libraries(demi-physics2d-tests PRIVATE demi-runtime-lib)
 
-add_executable(demi-physics3d-tests tests/physics3d_tests.cpp)
-target_link_libraries(demi-physics3d-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-physics3d-tests tests/physics3d_tests.cpp)
+  target_link_libraries(demi-physics3d-tests PRIVATE demi-runtime-lib)
 
-add_executable(demi-lua-stub-contract-tests tests/lua_stub_contract_tests.cpp)
-target_link_libraries(demi-lua-stub-contract-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-lua-stub-contract-tests tests/lua_stub_contract_tests.cpp)
+  target_link_libraries(demi-lua-stub-contract-tests PRIVATE demi-runtime-lib)
 
-add_executable(demi-lua-scripting-tests tests/lua_scripting_tests.cpp)
-target_link_libraries(demi-lua-scripting-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-lua-scripting-tests tests/lua_scripting_tests.cpp)
+  target_link_libraries(demi-lua-scripting-tests PRIVATE demi-runtime-lib)
 
-add_executable(demi-scene-loader-tests tests/scene_loader_tests.cpp)
-target_link_libraries(demi-scene-loader-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-scene-loader-tests tests/scene_loader_tests.cpp)
+  target_link_libraries(demi-scene-loader-tests PRIVATE demi-runtime-lib)
 
-add_executable(demi-snapshot-replication-tests tests/snapshot_replication_tests.cpp)
-target_link_libraries(demi-snapshot-replication-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-snapshot-replication-tests tests/snapshot_replication_tests.cpp)
+  target_link_libraries(demi-snapshot-replication-tests PRIVATE demi-runtime-lib)
 
-if(DEMI_ENABLE_NETWORK)
-  add_executable(demi-network-tests tests/network_tests.cpp)
-  target_link_libraries(demi-network-tests PRIVATE demi-runtime-lib)
-endif()
+  if(DEMI_ENABLE_NETWORK)
+    add_executable(demi-network-tests tests/network_tests.cpp)
+    target_link_libraries(demi-network-tests PRIVATE demi-runtime-lib)
+  endif()
 
-enable_testing()
+  enable_testing()
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-physics2d-tests COMMAND demi-physics2d-tests)
 add_test(NAME demi-physics3d-tests COMMAND demi-physics3d-tests)
@@ -231,6 +306,9 @@ add_test(NAME demi-runtime-minimal-voxel-frame
 set_tests_properties(demi-runtime-minimal-voxel-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-validate-minimal-2d-networking
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json
+)
+add_test(NAME demi-validate-minimal-2d-android
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_android/demi.project.json
 )
 add_test(NAME demi-validate-minimal-3d
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json
@@ -294,6 +372,32 @@ foreach(script_name IN LISTS DEMI_NETWORKING_EXAMPLE_SCRIPTS)
     COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/scripts/${script_name}.lua
   )
 endforeach()
+set(DEMI_ANDROID_EXAMPLE_SCRIPTS
+  game
+  game/collectibles
+  game/hud
+  game/platforms
+  game/score
+  game/world
+  game_state
+  levels/platformer
+  levels/spiral
+  main_menu
+  menu/actions
+  menu/settings
+  menu/view
+  menu_scene
+  player
+  player_config
+  player_platformer
+  player_slingshot
+)
+foreach(script_name IN LISTS DEMI_ANDROID_EXAMPLE_SCRIPTS)
+  add_test(NAME demi-script-check-android-${script_name}
+    COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d_android/scripts/${script_name}.lua
+  )
+endforeach()
 add_test(NAME demi-lua-stubs-generate
   COMMAND demi lua-stubs generate ${CMAKE_BINARY_DIR}/generated/demi.lua
 )
+endif()

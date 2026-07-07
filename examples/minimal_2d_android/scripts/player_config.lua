@@ -1,0 +1,15 @@
+return {
+  fall_reset_y = -9.5,
+  spawn_x = 0.0,
+  spawn_y = 0,
+  max_pull = 2.8,
+  sling_force = 6.5,
+  max_sling_speed = 24.0,
+  sling_velocity_carry = 0.35,
+  max_sling_carry_speed = 4.0,
+  trajectory_gravity = -18.0,
+  trajectory_fixed_dt = 1.0 / 60.0,
+  trajectory_steps = 120,
+  trajectory_collider_size = 1.0,
+  max_extra_jumps = 3,
+}

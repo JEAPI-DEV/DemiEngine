@@ -1,0 +1,15 @@
+return {
+  respawn_x = 0.0,
+  respawn_y = -2.05,
+  camera_x = 0.0,
+  camera_reset_requested = false,
+  menu_open = true,
+  game_started = false,
+  level = 1,
+  pending_scene = nil,
+  auto_start = false,
+  extra_jumps = 0,
+  game_over = false,
+  game_over_pending = false,
+  score_reset_requested = false,
+}
