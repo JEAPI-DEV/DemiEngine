@@ -1,8 +1,24 @@
 #include "demi/runtime/scene/SceneData.h"
+#include "demi/runtime/scene/HudParser.h"
 
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <optional>
+
+namespace {
+
+bool writeFile(const std::filesystem::path& path, const char* contents) {
+  std::filesystem::create_directories(path.parent_path());
+  std::ofstream output(path);
+  if (!output) {
+    return false;
+  }
+  output << contents;
+  return true;
+}
+
+} // namespace
 
 int main(int argc, char** argv) {
   namespace runtime = demi::runtime;
@@ -37,6 +53,89 @@ int main(int argc, char** argv) {
   }
   if (!foundNetworkButton) {
     std::cerr << "HUD loader did not preserve menu button action.\n";
+    return 1;
+  }
+
+  const std::filesystem::path hudFixture = std::filesystem::temp_directory_path() / "demi_scene_loader_hud_fixture.json";
+  if (!writeFile(hudFixture, R"json({
+    "canvas_size": [960.0, 540.0],
+    "elements": [
+      {
+        "type": "text",
+        "id": "hud_text_font_size",
+        "text": "Readable",
+        "position": [12.0, 16.0],
+        "font_size": 32.0
+      },
+      {
+        "type": "button",
+        "id": "hud_button_font_size",
+        "label": "OK",
+        "position": [12.0, 64.0],
+        "size": [120.0, 40.0],
+        "font_size": 24.0
+      }
+    ]
+  })json")) {
+    std::cerr << "Failed to write HUD parser fixture.\n";
+    return 1;
+  }
+  runtime::World hudWorld;
+  runtime::scene_loading::loadHudFile(hudWorld, hudFixture, error);
+  if (hudWorld.hudText.empty() || hudWorld.hudText[0].fontSize != 32.0F || hudWorld.hudButtons.empty() || hudWorld.hudButtons[0].fontSize != 24.0F) {
+    std::cerr << "HUD loader did not read font_size fields.\n";
+    return 1;
+  }
+
+  const std::filesystem::path meshFixture = std::filesystem::temp_directory_path() / "demi_scene_loader_mesh_fixture";
+  std::error_code fsError;
+  std::filesystem::remove_all(meshFixture, fsError);
+  if (!writeFile(meshFixture / "demi.project.json", R"json({
+    "format_version": 1,
+    "name": "Mesh Fixture",
+    "main_scene": "scene://fixture/main",
+    "scenes": [
+      {
+        "id": "scene://fixture/main",
+        "path": "scenes/main.scene.json"
+      }
+    ]
+  })json") ||
+      !writeFile(meshFixture / "scenes" / "main.scene.json", R"json({
+    "format_version": 1,
+    "id": "scene://fixture/main",
+    "name": "Mesh Fixture Scene",
+    "entities": [
+      {
+        "id": "ent_mesh_0",
+        "name": "Generated Mesh",
+        "components": {
+          "Transform3D": {
+            "position": [0.0, 0.0, 0.0]
+          },
+          "MeshRenderer": {
+            "vertices": [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            "normals": [[0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]],
+            "uvs": [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]
+          }
+        }
+      }
+    ]
+  })json")) {
+    std::cerr << "Failed to write mesh scene loader fixture.\n";
+    return 1;
+  }
+
+  const std::optional<runtime::LoadedProject> meshProject = runtime::loadProject(meshFixture / "demi.project.json", error);
+  if (!meshProject.has_value()) {
+    std::cerr << "Failed to load mesh fixture project: " << error << '\n';
+    return 1;
+  }
+
+  const runtime::Entity* mesh = runtime::findEntity(meshProject->world, "ent_mesh_0");
+  if (mesh == nullptr || !mesh->meshRenderer.has_value() || mesh->meshRenderer->vertices.size() != 3 || mesh->meshRenderer->normals.size() != 3 ||
+      mesh->meshRenderer->uvs.size() != 3 || mesh->meshRenderer->vertices[1].x != 1.0F || mesh->meshRenderer->uvs[2].y != 1.0F) {
+    std::cerr << "Scene loader did not read dynamic MeshRenderer data.\n";
     return 1;
   }
 

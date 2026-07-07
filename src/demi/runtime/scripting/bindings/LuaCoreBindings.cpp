@@ -1,5 +1,6 @@
 #include "demi/runtime/scripting/bindings/LuaCoreBindings.h"
 
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scripting/bindings/LuaBindingHelpers.h"
 
 #include <sol/sol.hpp>
@@ -29,8 +30,22 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
     });
   debug.set_function("clear_lines", [&host] { host.clearDebugLines(); });
 
+  sol::table profile = lua.create_named_table("Profile");
+  profile.set_function("enabled", [] { return RuntimeProfiler::enabled(); });
+  profile.set_function("scope", [](const std::string& name, const sol::protected_function& callback) {
+    ProfileScope scope(name);
+    const sol::protected_function_result result = callback();
+    if (!result.valid()) {
+      const sol::error error = result;
+      std::cerr << "[lua] Profile.scope callback failed: " << error.what() << '\n';
+      return false;
+    }
+    return true;
+  });
+
   sol::table input = lua.create_named_table("Input");
   input.set_function("is_down", [&host](const std::string& key) { return host.isKeyDown(key); });
+  input.set_function("is_pressed", [&host](const std::string& key) { return host.isKeyPressed(key); });
   input.set_function("axis", [&host](const std::string& negative, const std::string& positive) { return (host.isKeyDown(positive) ? 1.0F : 0.0F) - (host.isKeyDown(negative) ? 1.0F : 0.0F); });
   input.set_function("vector", [&host](const std::string& left, const std::string& right, const std::string& down, const std::string& up) {
       Vector2 vector{
@@ -44,6 +59,7 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
     });
   input.set_function("mouse_down", [&host](const std::string& button) { return host.isMouseDown(button); });
   input.set_function("mouse_position", [&host] { const Vec2 value = host.mousePosition(); return std::tuple{value.x, value.y}; });
+  input.set_function("mouse_delta", [&host] { const Vec2 value = host.mouseDelta(); return std::tuple{value.x, value.y}; });
   input.set_function("mouse_world_position", [&host] { const Vec2 value = host.mouseWorldPosition(); return std::tuple{value.x, value.y}; });
   input.set_function("viewport_size", [&host] { const Vec2 value = host.viewportSize(); return std::tuple{value.x, value.y}; });
 
@@ -70,6 +86,8 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
   runtime.set_function("get_window_mode", [&host] { return host.windowMode(); });
   runtime.set_function("set_max_fps", [&host](double maxFps) { host.setMaxFps(static_cast<int>(std::round(maxFps))); });
   runtime.set_function("get_max_fps", [&host] { return host.maxFps(); });
+  runtime.set_function("set_mouse_captured", [&host](bool captured) { host.setMouseCaptured(captured); });
+  runtime.set_function("get_mouse_captured", [&host] { return host.mouseCaptured(); });
 }
 
 } // namespace demi::runtime

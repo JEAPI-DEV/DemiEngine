@@ -1,0 +1,40 @@
+{
+  "format_version": 1,
+  "id": "scene://minimal_voxel/main",
+  "name": "Minimal Voxel Scene",
+  "hud": "main.hud.json",
+  "entities": [
+    {
+      "id": "ent_camera",
+      "name": "Fly Camera",
+      "components": {
+        "Transform3D": {
+          "position": [0.0, 86.0, 44.0],
+          "rotation": [-0.35, 0.0, 0.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "Camera3D": {
+          "clear_color": [0.56, 0.74, 0.95, 1.0],
+          "fov": 70.0,
+          "perspective": true,
+          "target_offset": [0.0, 0.0, -1.0],
+          "up_axis": 1.0
+        },
+        "LuaScript": {
+          "module": "script://scripts/fly_camera.lua"
+        }
+      }
+    },
+    {
+      "id": "ent_sun",
+      "name": "Sun Light",
+      "components": {
+        "DirectionalLight": {
+          "direction": [-0.4, -1.0, -0.2],
+          "color": [1.0, 0.96, 0.88, 1.0],
+          "intensity": 1.0
+        }
+      }
+    }
+  ]
+}

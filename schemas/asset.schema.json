@@ -23,6 +23,9 @@
     },
     "texture": {
       "type": "string"
+    },
+    "atlas": {
+      "type": "string"
     }
   }
 }

@@ -1,0 +1,76 @@
+plugins {
+    id "com.android.application"
+}
+
+def demiProjectAssetsDir = file("../../examples/minimal_2d_android")
+def demiGeneratedAssetsDir = layout.buildDirectory.dir("generated/demi/assets")
+def demiAssetIndexTask = tasks.register("generateDemiAssetIndex") {
+    def outputFile = demiGeneratedAssetsDir.map { it.file("demi_asset_index.txt") }
+    inputs.dir(demiProjectAssetsDir)
+    outputs.file(outputFile)
+    doLast {
+        def lines = fileTree(demiProjectAssetsDir) {
+            include "demi.project.json"
+            include "assets/**"
+            include "scenes/**"
+            include "scripts/**"
+        }.files
+            .findAll { it.isFile() }
+            .collect { demiProjectAssetsDir.toPath().relativize(it.toPath()).toString().replace(File.separatorChar, '/' as char) }
+            .sort()
+        def file = outputFile.get().asFile
+        file.parentFile.mkdirs()
+        file.text = lines.join("\n") + "\n"
+    }
+}
+
+android {
+    namespace "dev.jeapi.demi.android"
+    compileSdk 36
+    ndkVersion "29.0.14206865"
+
+    defaultConfig {
+        applicationId "dev.jeapi.demi.android"
+        minSdk 23
+        targetSdk 36
+        versionCode 1
+        versionName "0.1.0"
+
+        externalNativeBuild {
+            cmake {
+                arguments "-DDEMI_ENABLE_MEDIA=OFF",
+                          "-DDEMI_ENABLE_NETWORK=OFF",
+                          "-DANDROID_STL=c++_shared",
+                          "-DANDROID_PLATFORM=android-23"
+                cppFlags "-std=c++20"
+            }
+        }
+
+        ndk {
+            abiFilters "arm64-v8a"
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "../../CMakeLists.txt"
+            version "3.22.1"
+        }
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs = [demiProjectAssetsDir, demiGeneratedAssetsDir]
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(demiAssetIndexTask)
+}

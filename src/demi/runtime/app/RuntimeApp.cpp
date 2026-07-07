@@ -7,6 +7,7 @@
 #include "demi/runtime/media/MediaSystem.h"
 #include "demi/runtime/network/NetworkSystem.h"
 #include "demi/runtime/physics/Physics2D.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/Renderer2D.h"
 #include "demi/runtime/render/Renderer3D.h"
 #include "demi/runtime/scene/SceneData.h"
@@ -14,11 +15,15 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <chrono>
+#include <cmath>
 #include <cstdlib>
+#include <iomanip>
 #include <iostream>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #if DEMI_HAS_RAYLIB
 #include <raylib.h>
@@ -31,6 +36,30 @@ namespace demi::runtime
   {
 
     constexpr int RuntimeFailure = 3;
+
+    void configureRaylibLogging()
+    {
+#if DEMI_HAS_RAYLIB
+      if (std::getenv("DEMI_RAYLIB_INFO") == nullptr)
+      {
+        SetTraceLogLevel(LOG_WARNING);
+      }
+#endif
+    }
+
+    struct RuntimeProfile
+    {
+      int frames = 0;
+      double updateMs = 0.0;
+      double renderMs = 0.0;
+      double frameMs = 0.0;
+      double maxUpdateMs = 0.0;
+      double maxRenderMs = 0.0;
+      double maxFrameMs = 0.0;
+      std::vector<double> updateSamples;
+      std::vector<double> renderSamples;
+      std::vector<double> frameSamples;
+    };
 
     struct KeyMapping
     {
@@ -106,12 +135,18 @@ namespace demi::runtime
 
     void pollKeys(InputState &input)
     {
+      const std::unordered_set<std::string> previousKeysDown = input.keysDown;
       input.keysDown.clear();
+      input.keysPressed.clear();
       for (const KeyMapping &mapping : KeyMap)
       {
         if (IsKeyDown(mapping.key))
         {
           input.keysDown.emplace(mapping.name);
+          if (!previousKeysDown.contains(std::string(mapping.name)))
+          {
+            input.keysPressed.emplace(mapping.name);
+          }
         }
       }
     }
@@ -119,6 +154,22 @@ namespace demi::runtime
     void pollMouse(InputState &input)
     {
       input.mouseButtonsDown.clear();
+#if defined(__ANDROID__)
+      const int touchCount = GetTouchPointCount();
+      if (touchCount > 0)
+      {
+        input.mouseButtonsDown.emplace("left");
+        const Vector2 touch = GetTouchPosition(0);
+        const Vec2 previous = input.mousePosition;
+        input.mousePosition = Vec2{.x = touch.x, .y = touch.y};
+        input.mouseDelta = Vec2{.x = input.mousePosition.x - previous.x, .y = input.mousePosition.y - previous.y};
+      }
+      else
+      {
+        input.mouseDelta = Vec2{};
+      }
+      return;
+#endif
       if (IsMouseButtonDown(MOUSE_BUTTON_LEFT))
       {
         input.mouseButtonsDown.emplace("left");
@@ -132,6 +183,8 @@ namespace demi::runtime
         input.mouseButtonsDown.emplace("middle");
       }
       input.mousePosition = Vec2{.x = static_cast<float>(GetMouseX()), .y = static_cast<float>(GetMouseY())};
+      const Vector2 delta = GetMouseDelta();
+      input.mouseDelta = Vec2{.x = delta.x, .y = delta.y};
     }
 
     void applyWindowMode(const std::string &mode)
@@ -175,19 +228,30 @@ namespace demi::runtime
                         MediaSystem &mediaSystem, NetworkSystem &networkSystem, const float dt, const float fixedStep,
                         double &fixedAccumulator, bool &running)
     {
+      ProfileScope stepScope("Runtime.step_simulation");
       fixedAccumulator += dt;
       while (fixedAccumulator >= fixedStep)
       {
-        luaHost.fixedUpdate(static_cast<float>(fixedStep));
+        {
+          ProfileScope scope("Lua.fixed_update");
+          luaHost.fixedUpdate(static_cast<float>(fixedStep));
+        }
         if (luaHost.physicsEnabled())
         {
+          ProfileScope scope("Physics2D.step");
           stepPhysics2D(loaded.world, static_cast<float>(fixedStep));
         }
         fixedAccumulator -= fixedStep;
       }
 
-      networkSystem.update();
-      luaHost.update(dt);
+      {
+        ProfileScope scope("Network.update");
+        networkSystem.update();
+      }
+      {
+        ProfileScope scope("Lua.update");
+        luaHost.update(dt);
+      }
       if (luaHost.quitRequested())
       {
         running = false;
@@ -205,8 +269,14 @@ namespace demi::runtime
         }
       }
 
-      audioSystem.update();
-      mediaSystem.update(dt);
+      {
+        ProfileScope scope("Audio.update");
+        audioSystem.update();
+      }
+      {
+        ProfileScope scope("Media.update");
+        mediaSystem.update(dt);
+      }
       (void)input;
     }
 
@@ -214,6 +284,91 @@ namespace demi::runtime
     {
       const char *value = std::getenv("DEMI_HEADLESS");
       return value != nullptr && std::string(value) != "0";
+    }
+
+    [[nodiscard]] bool profilingEnabled()
+    {
+      const char *value = std::getenv("DEMI_PROFILE");
+      return value != nullptr && std::string(value) != "0";
+    }
+
+    [[nodiscard]] double profileSlowThresholdMs()
+    {
+      const char *value = std::getenv("DEMI_PROFILE_SLOW_MS");
+      if (value == nullptr || std::string(value).empty())
+      {
+        return 16.667;
+      }
+      try
+      {
+        return std::max(0.0, std::stod(value));
+      }
+      catch (...)
+      {
+        return 16.667;
+      }
+    }
+
+    [[nodiscard]] double millisecondsSince(const std::chrono::steady_clock::time_point start)
+    {
+      return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    }
+
+    double percentile(std::vector<double> samples, const double fraction)
+    {
+      if (samples.empty())
+      {
+        return 0.0;
+      }
+      std::ranges::sort(samples);
+      const std::size_t index = std::min<std::size_t>(
+          samples.size() - 1,
+          static_cast<std::size_t>(std::ceil(static_cast<double>(samples.size()) * fraction)) - 1);
+      return samples[index];
+    }
+
+    void printProfile(const RuntimeProfile &profile)
+    {
+      if (profile.frames <= 0)
+      {
+        return;
+      }
+      const double frames = static_cast<double>(profile.frames);
+      std::cout << std::fixed << std::setprecision(3)
+                << "Profile: frames=" << profile.frames
+                << " avg_update_ms=" << profile.updateMs / frames
+                << " avg_render_ms=" << profile.renderMs / frames
+                << " avg_frame_ms=" << profile.frameMs / frames
+                << " max_update_ms=" << profile.maxUpdateMs
+                << " max_render_ms=" << profile.maxRenderMs
+                << " max_frame_ms=" << profile.maxFrameMs
+                << " p95_update_ms=" << percentile(profile.updateSamples, 0.95)
+                << " p95_render_ms=" << percentile(profile.renderSamples, 0.95)
+                << " p95_frame_ms=" << percentile(profile.frameSamples, 0.95)
+                << " p99_update_ms=" << percentile(profile.updateSamples, 0.99)
+                << " p99_render_ms=" << percentile(profile.renderSamples, 0.99)
+                << " p99_frame_ms=" << percentile(profile.frameSamples, 0.99)
+                << '\n';
+    }
+
+    void logSlowProfileFrame(const int frame, const double updateMs, const double renderMs, const double frameMs, const double thresholdMs)
+    {
+      if (frameMs < thresholdMs && updateMs < thresholdMs && renderMs < thresholdMs)
+      {
+        return;
+      }
+      const std::string scopes = RuntimeProfiler::frameSummary();
+      std::cout << std::fixed << std::setprecision(3)
+                << "Profile slow frame: frame=" << frame
+                << " update_ms=" << updateMs
+                << " render_ms=" << renderMs
+                << " frame_ms=" << frameMs
+                << " threshold_ms=" << thresholdMs;
+      if (!scopes.empty())
+      {
+        std::cout << " scopes=[" << scopes << ']';
+      }
+      std::cout << '\n';
     }
 
   } // namespace
@@ -262,7 +417,7 @@ namespace demi::runtime
     }
 
     std::cout << "Running " << loaded.project.name << " scene " << loaded.world.id << " with " << renderableEntityCount(loaded.world) << " renderable entity/entities.\n";
-    std::cout << "Game scripts now own controls. Close the window or press Escape to stop.\n";
+    std::cout << "Game scripts now own controls. Close the window or use script-defined controls to stop.\n";
 
     const bool use3D = sceneIs3D(loaded.world);
     const Camera2DComponent fallbackCamera2D;
@@ -270,6 +425,10 @@ namespace demi::runtime
 
     double fixedAccumulator = 0.0;
     constexpr double fixedStep = 1.0 / 60.0;
+    RuntimeProfile profile;
+    const bool profileRun = profilingEnabled();
+    RuntimeProfiler::setEnabled(profileRun);
+    const double slowProfileThresholdMs = profileSlowThresholdMs();
 
 #if !DEMI_HAS_RAYLIB
     std::cerr << "Runtime windowing is unavailable because raylib was not found at configure time.\n";
@@ -282,9 +441,29 @@ namespace demi::runtime
       bool running = true;
       while (running && frameCount < targetFrames)
       {
+        RuntimeProfiler::beginFrame();
+        const auto frameStart = std::chrono::steady_clock::now();
+        const auto updateStart = std::chrono::steady_clock::now();
         stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem, networkSystem,
                        static_cast<float>(fixedStep), static_cast<float>(fixedStep), fixedAccumulator, running);
+        if (profileRun)
+        {
+          const double updateMs = millisecondsSince(updateStart);
+          const double frameMs = millisecondsSince(frameStart);
+          profile.updateMs += updateMs;
+          profile.frameMs += frameMs;
+          profile.maxUpdateMs = std::max(profile.maxUpdateMs, updateMs);
+          profile.maxFrameMs = std::max(profile.maxFrameMs, frameMs);
+          profile.updateSamples.push_back(updateMs);
+          profile.frameSamples.push_back(frameMs);
+          logSlowProfileFrame(frameCount, updateMs, 0.0, frameMs, slowProfileThresholdMs);
+          ++profile.frames;
+        }
         ++frameCount;
+      }
+      if (profileRun)
+      {
+        printProfile(profile);
       }
       luaHost.destroy();
       networkSystem.shutdown();
@@ -293,27 +472,39 @@ namespace demi::runtime
       return 0;
     }
 
+    configureRaylibLogging();
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     constexpr int windowWidth = 960;
     constexpr int windowHeight = 540;
     const std::string title = std::string(EngineName) + " - " + loaded.project.name + " - " + loaded.world.name;
     InitWindow(windowWidth, windowHeight, title.c_str());
+    SetExitKey(KEY_NULL);
 
     Renderer2D renderer2D;
     Renderer3D renderer3D;
-    renderer2D.loadTextureAssets(assetRegistry);
-    renderer3D.loadTextureAssets(assetRegistry);
+    if (use3D)
+    {
+      renderer3D.loadTextureAssets(assetRegistry);
+    }
+    else
+    {
+      renderer2D.loadTextureAssets(assetRegistry);
+    }
 
     bool running = true;
     int frameCount = 0;
     int appliedMaxFps = -1;
     while (running && !WindowShouldClose())
     {
+      RuntimeProfiler::beginFrame();
+      const auto frameStart = std::chrono::steady_clock::now();
       pollKeys(input);
       pollMouse(input);
 
       const float dt = std::min(GetFrameTime(), 0.1F);
 
+      double updateMs = 0.0;
+      const auto updateStart = std::chrono::steady_clock::now();
       stepSimulation(
           loaded,
           luaHost,
@@ -325,11 +516,30 @@ namespace demi::runtime
           static_cast<float>(fixedStep),
           fixedAccumulator,
           running);
+      if (profileRun)
+      {
+        updateMs = millisecondsSince(updateStart);
+        profile.updateMs += updateMs;
+        profile.maxUpdateMs = std::max(profile.maxUpdateMs, updateMs);
+        profile.updateSamples.push_back(updateMs);
+      }
 
       if (luaHost.windowModeDirty())
       {
         applyWindowMode(luaHost.windowMode());
         luaHost.clearWindowModeDirty();
+      }
+      if (luaHost.mouseCapturedDirty())
+      {
+        if (luaHost.mouseCaptured())
+        {
+          DisableCursor();
+        }
+        else
+        {
+          EnableCursor();
+        }
+        luaHost.clearMouseCapturedDirty();
       }
 
       const int width = GetRenderWidth();
@@ -337,6 +547,7 @@ namespace demi::runtime
 
       luaHost.setViewport(width, height);
 
+      const auto renderStart = std::chrono::steady_clock::now();
       if (use3D)
       {
         const Camera3DComponent *camera = activeCamera3D(loaded.world);
@@ -362,6 +573,20 @@ namespace demi::runtime
         renderer2D.drawHud(loaded.world);
         renderer2D.endFrame();
       }
+      double renderMs = 0.0;
+      if (profileRun)
+      {
+        renderMs = millisecondsSince(renderStart);
+        const double frameMs = millisecondsSince(frameStart);
+        profile.renderMs += renderMs;
+        profile.frameMs += frameMs;
+        profile.maxRenderMs = std::max(profile.maxRenderMs, renderMs);
+        profile.maxFrameMs = std::max(profile.maxFrameMs, frameMs);
+        profile.renderSamples.push_back(renderMs);
+        profile.frameSamples.push_back(frameMs);
+        logSlowProfileFrame(frameCount, updateMs, renderMs, frameMs, slowProfileThresholdMs);
+        ++profile.frames;
+      }
 
       const int maxFps = luaHost.maxFps();
       if (maxFps != appliedMaxFps) {
@@ -386,6 +611,10 @@ namespace demi::runtime
     mediaSystem.shutdown();
     audioSystem.shutdown();
     CloseWindow();
+    if (profileRun)
+    {
+      printProfile(profile);
+    }
     return 0;
 #endif
   }

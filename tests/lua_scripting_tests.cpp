@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <ranges>
 #include <utility>
 
 namespace {
@@ -62,6 +63,10 @@ function Probe:on_start()
   if Hud.set_button_label("button_start", "GO") then
     Save.set_string("test", "button_label", "updated")
   end
+  Hud.text("hud_probe", "probe", 8.0, 12.0, 2.0)
+  if Hud.set_text_scale("hud_probe", 5.5) then
+    Save.set_string("test", "hud_text_scale", "updated")
+  end
   Entity.create("ent_tinted_sprite", {
     components = {
       Transform2D = {
@@ -100,6 +105,11 @@ function Probe:on_update(dt)
     Save.set_string("test", "space", "down")
   else
     Save.set_string("test", "space", "up")
+  end
+  if Input.is_pressed("escape") then
+    Save.set_string("test", "escape_pressed", "pressed")
+  else
+    Save.set_string("test", "escape_pressed", "released")
   end
 end
 return Probe
@@ -251,6 +261,11 @@ return PropProbe
     std::cerr << "Hud.set_button_label did not update the HUD button label.\n";
     return 1;
   }
+  const auto hudProbe = std::ranges::find_if(world.hudText, [](const runtime::HudTextElement& element) { return element.id == "hud_probe"; });
+  if (host.saveString("test", "hud_text_scale") != "updated" || hudProbe == world.hudText.end() || hudProbe->scale != 5.5F) {
+    std::cerr << "Hud.set_text_scale did not update the HUD text scale.\n";
+    return 1;
+  }
   const runtime::Entity* tintedSprite = runtime::findEntity(world, "ent_tinted_sprite");
   if (host.saveString("test", "sprite_color") != "updated" || tintedSprite == nullptr || !tintedSprite->sprite.has_value() ||
       tintedSprite->sprite->color.r != 0.45F || tintedSprite->sprite->color.g != 0.55F ||
@@ -301,6 +316,18 @@ return PropProbe
   host.update(1.0F / 60.0F);
   if (host.saveString("test", "space") != "up") {
     std::cerr << "Input.is_down returned true for an unpressed key.\n";
+    return 1;
+  }
+  input.keysPressed.insert("escape");
+  host.update(1.0F / 60.0F);
+  if (host.saveString("test", "escape_pressed") != "pressed") {
+    std::cerr << "Input.is_pressed did not report a pressed key.\n";
+    return 1;
+  }
+  input.keysPressed.clear();
+  host.update(1.0F / 60.0F);
+  if (host.saveString("test", "escape_pressed") != "released") {
+    std::cerr << "Input.is_pressed stayed true after the press frame.\n";
     return 1;
   }
 

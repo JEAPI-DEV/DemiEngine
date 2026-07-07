@@ -118,6 +118,33 @@
                   "size": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
                   "color": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 },
                   "texture": { "type": "string", "pattern": "^asset://" },
+                  "vertices": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": { "type": "number" },
+                      "minItems": 3,
+                      "maxItems": 3
+                    }
+                  },
+                  "normals": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": { "type": "number" },
+                      "minItems": 3,
+                      "maxItems": 3
+                    }
+                  },
+                  "uvs": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": { "type": "number" },
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  },
                   "wireframe": { "type": "boolean" }
                 }
               },
@@ -168,7 +195,9 @@
         "properties": {
           "type": { "type": "string" },
           "id": { "type": "string" },
-          "action": { "type": "string" }
+          "action": { "type": "string" },
+          "scale": { "type": "number" },
+          "font_size": { "type": "number", "minimum": 0 }
         }
       }
     }

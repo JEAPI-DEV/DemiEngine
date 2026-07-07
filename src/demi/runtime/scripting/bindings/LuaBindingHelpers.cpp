@@ -76,6 +76,40 @@ Color luaColorField(const sol::table table, const char* fieldName, const Color f
   };
 }
 
+std::vector<Vec3> luaVec3ArrayField(const sol::table table, const char* fieldName) {
+  std::vector<Vec3> values;
+  const sol::object object = table[fieldName];
+  if (!object.is<sol::table>()) {
+    return values;
+  }
+  const sol::table array = object.as<sol::table>();
+  for (const auto& entry : array) {
+    if (!entry.second.is<sol::table>()) {
+      continue;
+    }
+    const sol::table value = entry.second.as<sol::table>();
+    values.push_back(Vec3{.x = value.get_or(1, 0.0F), .y = value.get_or(2, 0.0F), .z = value.get_or(3, 0.0F)});
+  }
+  return values;
+}
+
+std::vector<Vec2> luaVec2ArrayField(const sol::table table, const char* fieldName) {
+  std::vector<Vec2> values;
+  const sol::object object = table[fieldName];
+  if (!object.is<sol::table>()) {
+    return values;
+  }
+  const sol::table array = object.as<sol::table>();
+  for (const auto& entry : array) {
+    if (!entry.second.is<sol::table>()) {
+      continue;
+    }
+    const sol::table value = entry.second.as<sol::table>();
+    values.push_back(Vec2{.x = value.get_or(1, 0.0F), .y = value.get_or(2, 0.0F)});
+  }
+  return values;
+}
+
 Entity luaParseEntitySpec(const std::string& entityId, const sol::table spec) {
   Entity entity;
   entity.id = entityId;
@@ -137,6 +171,13 @@ Entity luaParseEntitySpec(const std::string& entityId, const sol::table spec) {
       .size = luaVec3Field(mesh, "size", {1.0F, 1.0F, 1.0F}),
       .color = luaColorField(mesh, "color", {0.8F, 0.8F, 0.8F, 1.0F}),
       .texture = mesh.get_or("texture", std::string{}),
+      .vertices = luaVec3ArrayField(mesh, "vertices"),
+      .normals = luaVec3ArrayField(mesh, "normals"),
+      .uvs = luaVec2ArrayField(mesh, "uvs"),
+      .revision = 0,
+      .boundsMin = {},
+      .boundsMax = {},
+      .hasBounds = false,
       .wireframe = mesh.get_or("wireframe", false),
     };
   }

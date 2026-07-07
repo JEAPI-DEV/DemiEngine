@@ -13,6 +13,17 @@ compile_commands.json
 generated/
 examples/**/build/
 examples/**/generated/
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/.kotlin/
+android/captures/
+android/logs/
+android/local.properties
+*.apk
+*.ap_
+*.aab
 docs/latex/main.log
 docs/latex/main.aux
 docs/latex/main.toc

@@ -45,6 +45,7 @@ public:
   [[nodiscard]] bool hasPendingSceneLoad() const;
   [[nodiscard]] bool applyPendingSceneLoad(std::string& error);
   [[nodiscard]] bool isKeyDown(const std::string& key) const;
+  [[nodiscard]] bool isKeyPressed(const std::string& key) const;
   [[nodiscard]] bool addEntityPosition(const std::string& entityId, float dx, float dy);
   [[nodiscard]] bool setEntityPosition(const std::string& entityId, float x, float y);
   [[nodiscard]] std::optional<Vec2> entityPosition(const std::string& entityId) const;
@@ -61,6 +62,7 @@ public:
   [[nodiscard]] bool setEntityScale3D(const std::string& entityId, float x, float y, float z);
   [[nodiscard]] std::optional<std::string> findEntityId(const std::string& idOrName) const;
   [[nodiscard]] bool destroyEntity(const std::string& entityId);
+  [[nodiscard]] int destroyEntities(const std::vector<std::string>& entityIds);
   [[nodiscard]] bool setEntitySpriteColor(const std::string& entityId, Color color);
   [[nodiscard]] std::optional<Vec2> getRigidbodyVelocity(const std::string& entityId) const;
   [[nodiscard]] bool setRigidbodyVelocity(const std::string& entityId, float x, float y);
@@ -71,11 +73,18 @@ public:
   [[nodiscard]] bool physicsHasContact(const std::string& entityId, const PhysicsContactFilter2D& filter) const;
   [[nodiscard]] std::vector<PhysicsContact2D> physicsContacts(const std::string& entityId) const;
   [[nodiscard]] bool createEntity(Entity entity);
+  [[nodiscard]] bool setEntityMeshRenderer(const std::string& entityId,
+                                           std::string texture,
+                                           std::vector<Vec3> vertices,
+                                           std::vector<Vec3> normals,
+                                           std::vector<Vec2> uvs);
   [[nodiscard]] bool setHudText(const std::string& id, const std::string& text);
   [[nodiscard]] bool setHudButtonLabel(const std::string& id, const std::string& label);
   [[nodiscard]] bool createHudText(const std::string& id, const std::string& text, float x, float y, float scale, Color color);
+  [[nodiscard]] bool setHudTextScale(const std::string& id, float scale);
   [[nodiscard]] bool createHudRect(const std::string& id, float x, float y, float width, float height, Color color);
   [[nodiscard]] bool setHudRect(const std::string& id, float x, float y, float width, float height);
+  [[nodiscard]] bool setHudImage(const std::string& id, std::string texture, float sourceX, float sourceY, float sourceWidth, float sourceHeight);
   [[nodiscard]] bool setHudColor(const std::string& id, Color color);
   [[nodiscard]] bool setHudVisible(const std::string& id, bool visible);
   [[nodiscard]] bool setHudGroupVisible(const std::string& group, bool visible);
@@ -93,6 +102,7 @@ public:
   [[nodiscard]] const std::vector<SaveMigrationHook>& saveMigrationHooks() const;
   [[nodiscard]] bool isMouseDown(const std::string& button) const;
   [[nodiscard]] Vec2 mousePosition() const;
+  [[nodiscard]] Vec2 mouseDelta() const;
   [[nodiscard]] Vec2 mouseWorldPosition() const;
   [[nodiscard]] Vec2 viewportSize() const;
   void addDebugLine(float x1, float y1, float x2, float y2, float r, float g, float b, float a);
@@ -131,6 +141,10 @@ public:
   void clearWindowModeDirty();
   void setMaxFps(int maxFps);
   [[nodiscard]] int maxFps() const;
+  void setMouseCaptured(bool captured);
+  [[nodiscard]] bool mouseCaptured() const;
+  [[nodiscard]] bool mouseCapturedDirty() const;
+  void clearMouseCapturedDirty();
   void setPhysicsEnabled(bool enabled);
   [[nodiscard]] bool physicsEnabled() const;
   [[nodiscard]] std::uint64_t addTimer(float seconds, bool repeating, int callbackRef);
@@ -202,7 +216,10 @@ private:
   std::string windowMode_ = "windowed";
   bool windowModeDirty_ = false;
   int maxFps_ = 0;
+  bool mouseCaptured_ = false;
+  bool mouseCapturedDirty_ = false;
   bool physicsEnabled_ = true;
+  bool hotReloadEnabled_ = false;
   bool cutscenePaused_ = false;
   bool previousUiMouseDown_ = false;
   std::optional<std::string> pendingSceneLoad_;
@@ -214,6 +231,7 @@ private:
   std::vector<EventSubscription> eventSubscriptions_;
   std::vector<SaveMigrationHook> saveMigrationHooks_;
   std::uint64_t nextTimerId_ = 1;
+  std::uint64_t nextMeshRevision_ = 1;
   std::uint64_t nextEventSubscriptionId_ = 1;
 };
 

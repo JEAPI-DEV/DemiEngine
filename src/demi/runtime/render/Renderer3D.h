@@ -10,6 +10,14 @@
 
 namespace demi::runtime {
 
+struct DynamicModelCacheEntry {
+  std::string signature;
+  std::string texture;
+  std::uint64_t revision = 0;
+  Model model{};
+  bool hasModel = false;
+};
+
 class Renderer3D {
 public:
   Renderer3D() = default;
@@ -33,6 +41,9 @@ private:
   std::unordered_map<std::string, Texture2D> textures_;
   std::unordered_map<std::string, Model> models_;
   std::unordered_map<std::string, Texture2D> modelTextures_;
+  std::unordered_map<std::string, DynamicModelCacheEntry> dynamicModels_;
+  Shader alphaCutoutShader_{};
+  bool hasAlphaCutoutShader_ = false;
 };
 
 } // namespace demi::runtime

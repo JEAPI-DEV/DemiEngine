@@ -106,6 +106,7 @@ std::optional<AssetManifest> loadAssetManifest(const std::filesystem::path& mani
   const std::optional<std::string> type = stringAfterKey(text, "type");
   const std::optional<std::string> source = stringAfterKey(text, "source");
   const std::optional<std::string> texture = stringAfterKey(text, "texture");
+  const std::optional<std::string> atlas = stringAfterKey(text, "atlas");
   if (!id.has_value() || !type.has_value() || !source.has_value()) {
     if (diagnostic != nullptr) {
       *diagnostic = Diagnostic{
@@ -125,6 +126,7 @@ std::optional<AssetManifest> loadAssetManifest(const std::filesystem::path& mani
     .manifestPath = manifestPath,
     .sourcePath = manifestPath.parent_path() / *source,
     .texturePath = texture.has_value() ? std::make_optional(manifestPath.parent_path() / *texture) : std::nullopt,
+    .atlasPath = atlas.has_value() ? std::make_optional(manifestPath.parent_path() / *atlas) : std::nullopt,
   };
 }
 

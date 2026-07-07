@@ -1,6 +1,8 @@
 #include "demi/runtime/scene/SceneEntityParser.h"
 
+#include <algorithm>
 #include <array>
+#include <cstdint>
 #include <string_view>
 
 namespace demi::runtime::scene_loading {
@@ -184,6 +186,33 @@ void parseMeshRenderer(const Json& json, Entity& entity) {
   }
   component.texture = stringOr(json, "texture");
   component.wireframe = boolField(json, "wireframe").value_or(false);
+  if (const Json* vertices = arrayField(json, "vertices")) {
+    component.vertices.reserve(vertices->size());
+    for (const Json& vertexJson : *vertices) {
+      if (!vertexJson.is_array() || vertexJson.size() < 3) {
+        continue;
+      }
+      component.vertices.push_back(Vec3{vertexJson[0].get<float>(), vertexJson[1].get<float>(), vertexJson[2].get<float>()});
+    }
+  }
+  if (const Json* normals = arrayField(json, "normals")) {
+    component.normals.reserve(normals->size());
+    for (const Json& normalJson : *normals) {
+      if (!normalJson.is_array() || normalJson.size() < 3) {
+        continue;
+      }
+      component.normals.push_back(Vec3{normalJson[0].get<float>(), normalJson[1].get<float>(), normalJson[2].get<float>()});
+    }
+  }
+  if (const Json* uvs = arrayField(json, "uvs")) {
+    component.uvs.reserve(uvs->size());
+    for (const Json& uvJson : *uvs) {
+      if (!uvJson.is_array() || uvJson.size() < 2) {
+        continue;
+      }
+      component.uvs.push_back(Vec2{uvJson[0].get<float>(), uvJson[1].get<float>()});
+    }
+  }
   entity.meshRenderer = component;
 }
 

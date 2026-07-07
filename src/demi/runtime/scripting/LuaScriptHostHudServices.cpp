@@ -51,6 +51,19 @@ bool LuaScriptHost::createHudText(const std::string& id, const std::string& text
   return true;
 }
 
+bool LuaScriptHost::setHudTextScale(const std::string& id, const float scale) {
+  if (world_ == nullptr) {
+    return false;
+  }
+  for (HudTextElement& element : world_->hudText) {
+    if (element.id == id) {
+      element.scale = scale;
+      return true;
+    }
+  }
+  return false;
+}
+
 bool LuaScriptHost::createHudRect(const std::string& id, const float x, const float y, const float width, const float height, const Color color) {
   if (world_ == nullptr) {
     return false;
@@ -79,6 +92,33 @@ bool LuaScriptHost::setHudRect(const std::string& id, const float x, const float
       return true;
     }
   }
+  for (HudImageElement& element : world_->hudImages) {
+    if (element.id == id) {
+      element.position = Vec2{.x = x, .y = y};
+      element.size = Vec2{.x = width, .y = height};
+      return true;
+    }
+  }
+  return false;
+}
+
+bool LuaScriptHost::setHudImage(const std::string& id,
+                                std::string texture,
+                                const float sourceX,
+                                const float sourceY,
+                                const float sourceWidth,
+                                const float sourceHeight) {
+  if (world_ == nullptr) {
+    return false;
+  }
+  for (HudImageElement& element : world_->hudImages) {
+    if (element.id == id) {
+      element.texture = std::move(texture);
+      element.sourcePosition = Vec2{.x = sourceX, .y = sourceY};
+      element.sourceSize = Vec2{.x = sourceWidth, .y = sourceHeight};
+      return true;
+    }
+  }
   return false;
 }
 
@@ -93,6 +133,12 @@ bool LuaScriptHost::setHudColor(const std::string& id, const Color color) {
     }
   }
   for (HudRectElement& element : world_->hudRects) {
+    if (element.id == id) {
+      element.color = color;
+      return true;
+    }
+  }
+  for (HudImageElement& element : world_->hudImages) {
     if (element.id == id) {
       element.color = color;
       return true;
@@ -124,6 +170,12 @@ bool LuaScriptHost::setHudVisible(const std::string& id, const bool visible) {
       changed = true;
     }
   }
+  for (HudImageElement& element : world_->hudImages) {
+    if (element.id == id) {
+      element.visible = visible;
+      changed = true;
+    }
+  }
   for (HudButtonElement& element : world_->hudButtons) {
     if (element.id == id) {
       element.visible = visible;
@@ -145,6 +197,12 @@ bool LuaScriptHost::setHudGroupVisible(const std::string& group, const bool visi
     }
   }
   for (HudRectElement& element : world_->hudRects) {
+    if (element.group == group) {
+      element.visible = visible;
+      changed = true;
+    }
+  }
+  for (HudImageElement& element : world_->hudImages) {
     if (element.group == group) {
       element.visible = visible;
       changed = true;
@@ -177,6 +235,10 @@ bool LuaScriptHost::isMouseDown(const std::string& button) const {
 
 Vec2 LuaScriptHost::mousePosition() const {
   return input_ != nullptr ? input_->mousePosition : Vec2{};
+}
+
+Vec2 LuaScriptHost::mouseDelta() const {
+  return input_ != nullptr ? input_->mouseDelta : Vec2{};
 }
 
 Vec2 LuaScriptHost::mouseWorldPosition() const {

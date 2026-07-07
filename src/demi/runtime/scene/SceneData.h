@@ -31,8 +31,10 @@ struct Color {
 
 struct InputState {
   std::unordered_set<std::string> keysDown;
+  std::unordered_set<std::string> keysPressed;
   std::unordered_set<std::string> mouseButtonsDown;
   Vec2 mousePosition;
+  Vec2 mouseDelta;
 };
 
 struct LuaActionHandler {
@@ -73,6 +75,7 @@ struct HudButtonElement {
   Vec2 position;
   Vec2 size = {120.0F, 40.0F};
   float scale = 3.0F;
+  float fontSize = 0.0F;
   Color color = {0.16F, 0.18F, 0.32F, 1.0F};
   Color hoverColor = {0.24F, 0.28F, 0.48F, 1.0F};
   Color textColor = {1.0F, 1.0F, 1.0F, 1.0F};
@@ -88,6 +91,7 @@ struct HudTextElement {
   std::string text;
   Vec2 position;
   float scale = 3.0F;
+  float fontSize = 0.0F;
   Color color = {1.0F, 1.0F, 1.0F, 1.0F};
   bool visible = true;
 };
@@ -97,6 +101,18 @@ struct HudRectElement {
   std::string group;
   Vec2 position;
   Vec2 size;
+  Color color = {1.0F, 1.0F, 1.0F, 1.0F};
+  bool visible = true;
+};
+
+struct HudImageElement {
+  std::string id;
+  std::string group;
+  std::string texture;
+  Vec2 position;
+  Vec2 size;
+  Vec2 sourcePosition;
+  Vec2 sourceSize;
   Color color = {1.0F, 1.0F, 1.0F, 1.0F};
   bool visible = true;
 };
@@ -185,6 +201,13 @@ struct MeshRendererComponent {
   Vec3 size = {1.0F, 1.0F, 1.0F};
   Color color = {0.8F, 0.8F, 0.8F, 1.0F};
   std::string texture;
+  std::vector<Vec3> vertices;
+  std::vector<Vec3> normals;
+  std::vector<Vec2> uvs;
+  std::uint64_t revision = 0;
+  Vec3 boundsMin;
+  Vec3 boundsMax;
+  bool hasBounds = false;
   bool wireframe = false;
 };
 
@@ -274,6 +297,7 @@ struct World {
   Vec2 hudCanvasSize = {960.0F, 540.0F};
   std::vector<Entity> entities;
   std::vector<HudRectElement> hudRects;
+  std::vector<HudImageElement> hudImages;
   std::vector<HudButtonElement> hudButtons;
   std::vector<HudTextElement> hudText;
   std::vector<DebugLine> debugLines;

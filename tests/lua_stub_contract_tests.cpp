@@ -117,6 +117,10 @@ int main(int argc, char** argv) {
          "Hud.set_button_label",
          "Runtime.get_max_fps",
          "Runtime.set_max_fps",
+         "Runtime.get_mouse_captured",
+         "Runtime.set_mouse_captured",
+         "Input.is_pressed",
+         "Input.mouse_delta",
        }) {
     passed = requireStub(stubApis, api) && passed;
   }

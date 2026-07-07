@@ -1,0 +1,6 @@
+{
+  "format_version": 1,
+  "id": "asset://textures/gui_icons",
+  "type": "Texture2D",
+  "source": "icons.png"
+}

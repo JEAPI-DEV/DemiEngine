@@ -16,11 +16,23 @@ function Debug.log(message) end
 function Debug.line(x1, y1, x2, y2, r, g, b, a) end
 function Debug.clear_lines() end
 
+---@class ProfileService
+Profile = {}
+---@return boolean
+function Profile.enabled() end
+---@param name string
+---@param callback fun()
+---@return boolean
+function Profile.scope(name, callback) end
+
 ---@class InputService
 Input = {}
 ---@param key string
 ---@return boolean
 function Input.is_down(key) end
+---@param key string
+---@return boolean
+function Input.is_pressed(key) end
 ---@param negative_key string
 ---@param positive_key string
 ---@return number
@@ -38,12 +50,47 @@ function Input.mouse_down(button) end
 ---@return number x
 ---@return number y
 function Input.mouse_position() end
+---@return number dx
+---@return number dy
+function Input.mouse_delta() end
 ---@return number x
 ---@return number y
 function Input.mouse_world_position() end
 ---@return number width
 ---@return number height
 function Input.viewport_size() end
+
+---@class ProceduralMeshBuilder
+---@field clear fun(self: ProceduralMeshBuilder)
+---@field reserve fun(self: ProceduralMeshBuilder, vertex_count: integer)
+---@field vertex_count fun(self: ProceduralMeshBuilder): integer
+---@field add_vertex fun(self: ProceduralMeshBuilder, x: number, y: number, z: number, nx: number, ny: number, nz: number, u: number, v: number)
+---@field add_quad fun(self: ProceduralMeshBuilder, nx: number, ny: number, nz: number, x1: number, y1: number, z1: number, u1: number, v1: number, x2: number, y2: number, z2: number, u2: number, v2: number, x3: number, y3: number, z3: number, u3: number, v3: number, x4: number, y4: number, z4: number, u4: number, v4: number)
+---@field add_voxel_blocks fun(self: ProceduralMeshBuilder, blocks: table, occupancy: table, block_tiles: table, atlas_columns: integer, occupancy_stride: integer)
+
+---@class ProceduralMeshService
+ProceduralMesh = {}
+---@param capacity? integer
+---@return ProceduralMeshBuilder
+function ProceduralMesh.create(capacity) end
+---@param entity_id string
+---@param builder ProceduralMeshBuilder
+---@param texture? string
+---@return boolean
+function ProceduralMesh.apply(entity_id, builder, texture) end
+
+---@class VoxelWorldHandle
+---@field clear fun(self: VoxelWorldHandle)
+---@field set_section fun(self: VoxelWorldHandle, cx: integer, section_y: integer, cz: integer, blocks: table)
+---@field erase_section fun(self: VoxelWorldHandle, cx: integer, section_y: integer, cz: integer)
+---@field build_section_mesh fun(self: VoxelWorldHandle, cx: integer, section_y: integer, cz: integer, block_tiles: table, atlas_columns: integer): ProceduralMeshBuilder
+
+---@class VoxelWorldService
+VoxelWorld = {}
+---@param chunk_size integer
+---@param section_height integer
+---@return VoxelWorldHandle
+function VoxelWorld.create(chunk_size, section_height) end
 
 ---@class EntityService
 Entity = {}
@@ -57,6 +104,9 @@ function Entity.create(entity_id, spec) end
 ---@param entity_id string
 ---@return boolean
 function Entity.destroy(entity_id) end
+---@param entity_ids string[]
+---@return integer
+function Entity.destroy_many(entity_ids) end
 ---@param entity_id string
 ---@param r number
 ---@param g number
@@ -204,6 +254,10 @@ function Runtime.get_window_mode() end
 function Runtime.set_max_fps(max_fps) end
 ---@return integer max_fps
 function Runtime.get_max_fps() end
+---@param captured boolean
+function Runtime.set_mouse_captured(captured) end
+---@return boolean captured
+function Runtime.get_mouse_captured() end
 
 ---@class Rigidbody2DService
 Rigidbody2D = {}
@@ -275,6 +329,10 @@ Hud = {}
 ---@return boolean
 function Hud.text(id, text, x, y, scale, r, g, b, a) end
 ---@param id string
+---@param scale number
+---@return boolean
+function Hud.set_text_scale(id, scale) end
+---@param id string
 ---@param x number
 ---@param y number
 ---@param width number
@@ -300,6 +358,14 @@ function Hud.set_button_label(id, label) end
 ---@param height number
 ---@return boolean
 function Hud.set_rect(id, x, y, width, height) end
+---@param id string
+---@param texture string
+---@param source_x number
+---@param source_y number
+---@param source_width number
+---@param source_height number
+---@return boolean
+function Hud.set_image(id, texture, source_x, source_y, source_width, source_height) end
 ---@param id string
 ---@param r number
 ---@param g number
