@@ -38,6 +38,13 @@ local tiles = {
   { name = "log_oak", file = path(pack_blocks, "log_oak.png") },
   { name = "log_oak_top", file = path(pack_blocks, "log_oak_top.png") },
   { name = "leaves_oak_opaque", file = path(pack_blocks, "leaves_oak_opaque.png") },
+  { name = "sand", file = path(pack_blocks, "sand.png") },
+  { name = "leaves_spruce_dark", file = path(pack_blocks, "leaves_spruce_opaque.png"), tint = "#2f5f3f" },
+  { name = "leaves_orange", file = path(pack_blocks, "leaves_oak_opaque.png"), tint = "#c76523" },
+  { name = "tallgrass", file = path(pack_blocks, "tallgrass.png"), tint = "#5fa63d" },
+  { name = "flower_dandelion", file = path(pack_blocks, "flower_dandelion.png") },
+  { name = "flower_oxeye_daisy", file = path(pack_blocks, "flower_oxeye_daisy.png") },
+  { name = "flower_blue_orchid", file = path(pack_blocks, "flower_blue_orchid.png") },
 }
 
 run("mkdir -p " .. shell_quote(generated_assets) .. " " .. shell_quote(generated_scripts))
@@ -45,7 +52,7 @@ run("mkdir -p " .. shell_quote(generated_assets) .. " " .. shell_quote(generated
 local command = {
   "magick",
   "-size",
-  "112x16",
+  "224x16",
   "xc:none",
 }
 
@@ -87,13 +94,20 @@ write_file(manifest_path, [[{
 
 write_file(lua_data_path, [[return {
   texture = "asset://textures/terrain_atlas",
-  atlas_columns = 7,
+  atlas_columns = 14,
   blocks = {
     [1] = { top = 0, side = 1, bottom = 2 },
     [2] = { top = 2, side = 2, bottom = 2 },
     [3] = { top = 3, side = 3, bottom = 3 },
     [4] = { top = 5, side = 4, bottom = 5 },
     [5] = { top = 6, side = 6, bottom = 6 },
+    [6] = { top = 7, side = 7, bottom = 7 },
+    [7] = { top = 8, side = 8, bottom = 8 },
+    [8] = { top = 9, side = 9, bottom = 9 },
+    [9] = { top = 10, side = 10, bottom = 10 },
+    [10] = { top = 11, side = 11, bottom = 11 },
+    [11] = { top = 12, side = 12, bottom = 12 },
+    [12] = { top = 13, side = 13, bottom = 13 },
   },
 }
 ]])

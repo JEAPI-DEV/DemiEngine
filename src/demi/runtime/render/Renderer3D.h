@@ -42,6 +42,8 @@ private:
   std::unordered_map<std::string, Model> models_;
   std::unordered_map<std::string, Texture2D> modelTextures_;
   std::unordered_map<std::string, DynamicModelCacheEntry> dynamicModels_;
+  Shader alphaCutoutShader_{};
+  bool hasAlphaCutoutShader_ = false;
 };
 
 } // namespace demi::runtime

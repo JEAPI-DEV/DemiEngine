@@ -49,6 +49,32 @@ void drawHudRect(const HudRectElement& element, float scaleX, float scaleY) {
     DrawRectangleRec(rect, toRlColor(element.color));
 }
 
+void drawHudImage(const HudImageElement& element, const std::unordered_map<std::string, Texture2D>& textures, float scaleX, float scaleY) {
+    if (!element.visible || element.texture.empty()) {
+        return;
+    }
+
+    const auto texture = textures.find(element.texture);
+    if (texture == textures.end()) {
+        return;
+    }
+
+    Rectangle source{
+        .x = element.sourcePosition.x,
+        .y = element.sourcePosition.y,
+        .width = element.sourceSize.x != 0.0F ? element.sourceSize.x : static_cast<float>(texture->second.width),
+        .height = element.sourceSize.y != 0.0F ? element.sourceSize.y : static_cast<float>(texture->second.height),
+    };
+    Rectangle dest{
+        .x = element.position.x * scaleX,
+        .y = element.position.y * scaleY,
+        .width = element.size.x * scaleX,
+        .height = element.size.y * scaleY,
+    };
+
+    DrawTexturePro(texture->second, source, dest, Vector2{0.0F, 0.0F}, 0.0F, toRlColor(element.color));
+}
+
 void drawHudButton(const HudButtonElement& element, float scaleX, float scaleY) {
     constexpr float HudFontBaseSize = 8.0F;
     constexpr float HudFontMinSize = 4.0F;
@@ -418,6 +444,10 @@ void Renderer2D::drawHud(const World& world) {
 
     for (const HudRectElement& element : world.hudRects) {
         drawHudRect(element, scaleX, scaleY);
+    }
+
+    for (const HudImageElement& element : world.hudImages) {
+        drawHudImage(element, textures_, scaleX, scaleY);
     }
 
     for (const HudButtonElement& element : world.hudButtons) {

@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <sol/sol.hpp>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace demi::runtime {
@@ -69,6 +71,194 @@ struct LuaProceduralMeshBuilder {
     addVertex(x3, y3, z3, nx, ny, nz, u3, v3);
     addVertex(x4, y4, z4, nx, ny, nz, u4, v4);
   }
+
+  void addVoxelBlocks(const sol::table& blocks, const sol::table& occupancy, const sol::table& blockTiles, const int atlasColumns, const int occupancyStride) {
+    if (atlasColumns <= 0 || occupancyStride <= 0) {
+      return;
+    }
+    const float tileWidth = 1.0F / static_cast<float>(atlasColumns);
+    for (const auto& pair : blocks) {
+      const sol::table block = pair.second.as<sol::table>();
+      const int x = block.get_or("x", 0);
+      const int y = block.get_or("y", 0);
+      const int z = block.get_or("z", 0);
+      const int blockId = block.get_or("block", 0);
+      const sol::object tileObject = blockTiles[blockId];
+      if (!tileObject.valid() || tileObject.get_type() != sol::type::table) {
+        continue;
+      }
+      const sol::table tiles = tileObject.as<sol::table>();
+      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y, z, 1, 0, 0, "side");
+      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y, z, -1, 0, 0, "side");
+      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y, z, 0, 1, 0, "top");
+      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y, z, 0, -1, 0, "bottom");
+      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y, z, 0, 0, 1, "side");
+      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y, z, 0, 0, -1, "side");
+    }
+  }
+
+  void addVoxelFaceIfVisible(const sol::table& occupancy,
+                             const sol::table& tiles,
+                             const float tileWidth,
+                             const int occupancyStride,
+                             const int x,
+                             const int y,
+                             const int z,
+                             const int nx,
+                             const int ny,
+                             const int nz,
+                             const std::string& tileName) {
+    const int neighborKey = voxelOccupancyKey(x + nx, y + ny, z + nz, occupancyStride);
+    const sol::object occupied = occupancy[neighborKey];
+    if (occupied.valid() && occupied != sol::nil && occupied.as<bool>()) {
+      return;
+    }
+    int tile = tiles.get_or(tileName, tiles.get_or("side", 0));
+    const float u0 = static_cast<float>(tile) * tileWidth;
+    const float u1 = u0 + tileWidth;
+    addVoxelFace(x, y, z, nx, ny, nz, u0, u1);
+  }
+
+  static int voxelOccupancyKey(const int x, const int y, const int z, const int occupancyStride) {
+    return (y * occupancyStride * occupancyStride) + ((z + 1) * occupancyStride) + (x + 1);
+  }
+
+  void addVoxelFace(const int x, const int y, const int z, const int nx, const int ny, const int nz, const float u0, const float u1) {
+    if (nx == 1) {
+      addQuad(1.0F, 0.0F, 0.0F, x + 1.0F, y + 0.0F, z + 1.0F, u0, 1.0F, x + 1.0F, y + 0.0F, z + 0.0F, u1, 1.0F,
+              x + 1.0F, y + 1.0F, z + 0.0F, u1, 0.0F, x + 1.0F, y + 1.0F, z + 1.0F, u0, 0.0F);
+    } else if (nx == -1) {
+      addQuad(-1.0F, 0.0F, 0.0F, x + 0.0F, y + 0.0F, z + 0.0F, u0, 1.0F, x + 0.0F, y + 0.0F, z + 1.0F, u1, 1.0F,
+              x + 0.0F, y + 1.0F, z + 1.0F, u1, 0.0F, x + 0.0F, y + 1.0F, z + 0.0F, u0, 0.0F);
+    } else if (ny == 1) {
+      addQuad(0.0F, 1.0F, 0.0F, x + 0.0F, y + 1.0F, z + 1.0F, u0, 1.0F, x + 1.0F, y + 1.0F, z + 1.0F, u1, 1.0F,
+              x + 1.0F, y + 1.0F, z + 0.0F, u1, 0.0F, x + 0.0F, y + 1.0F, z + 0.0F, u0, 0.0F);
+    } else if (ny == -1) {
+      addQuad(0.0F, -1.0F, 0.0F, x + 0.0F, y + 0.0F, z + 0.0F, u0, 1.0F, x + 1.0F, y + 0.0F, z + 0.0F, u1, 1.0F,
+              x + 1.0F, y + 0.0F, z + 1.0F, u1, 0.0F, x + 0.0F, y + 0.0F, z + 1.0F, u0, 0.0F);
+    } else if (nz == 1) {
+      addQuad(0.0F, 0.0F, 1.0F, x + 0.0F, y + 0.0F, z + 1.0F, u0, 1.0F, x + 1.0F, y + 0.0F, z + 1.0F, u1, 1.0F,
+              x + 1.0F, y + 1.0F, z + 1.0F, u1, 0.0F, x + 0.0F, y + 1.0F, z + 1.0F, u0, 0.0F);
+    } else if (nz == -1) {
+      addQuad(0.0F, 0.0F, -1.0F, x + 1.0F, y + 0.0F, z + 0.0F, u0, 1.0F, x + 0.0F, y + 0.0F, z + 0.0F, u1, 1.0F,
+              x + 0.0F, y + 1.0F, z + 0.0F, u1, 0.0F, x + 1.0F, y + 1.0F, z + 0.0F, u0, 0.0F);
+    }
+  }
+};
+
+struct LuaVoxelWorld {
+  int chunkSize = 16;
+  int sectionHeight = 16;
+  std::unordered_map<std::string, std::vector<int>> sections;
+
+  LuaVoxelWorld(const int chunkSizeValue, const int sectionHeightValue)
+      : chunkSize(std::max(chunkSizeValue, 1)), sectionHeight(std::max(sectionHeightValue, 1)) {}
+
+  [[nodiscard]] std::string sectionKey(const int cx, const int sy, const int cz) const {
+    return std::to_string(cx) + ":" + std::to_string(sy) + ":" + std::to_string(cz);
+  }
+
+  [[nodiscard]] int sectionIndex(const int x, const int y, const int z) const {
+    return (y * chunkSize * chunkSize) + (z * chunkSize) + x;
+  }
+
+  void clear() {
+    sections.clear();
+  }
+
+  void setSection(const int cx, const int sy, const int cz, const sol::table& blocks) {
+    std::vector<int> section(static_cast<std::size_t>(chunkSize * sectionHeight * chunkSize), 0);
+    for (const auto& pair : blocks) {
+      const sol::table block = pair.second.as<sol::table>();
+      const int x = block.get_or("x", 0);
+      const int y = block.get_or("y", 0);
+      const int z = block.get_or("z", 0);
+      if (x < 0 || x >= chunkSize || y < 0 || y >= sectionHeight || z < 0 || z >= chunkSize) {
+        continue;
+      }
+      section[static_cast<std::size_t>(sectionIndex(x, y, z))] = block.get_or("block", 0);
+    }
+    sections[sectionKey(cx, sy, cz)] = std::move(section);
+  }
+
+  void eraseSection(const int cx, const int sy, const int cz) {
+    sections.erase(sectionKey(cx, sy, cz));
+  }
+
+  [[nodiscard]] int blockAt(const int cx, const int sy, const int cz, int x, int y, int z) const {
+    int sectionCx = cx;
+    int sectionSy = sy;
+    int sectionCz = cz;
+    while (x < 0) {
+      x += chunkSize;
+      --sectionCx;
+    }
+    while (x >= chunkSize) {
+      x -= chunkSize;
+      ++sectionCx;
+    }
+    while (z < 0) {
+      z += chunkSize;
+      --sectionCz;
+    }
+    while (z >= chunkSize) {
+      z -= chunkSize;
+      ++sectionCz;
+    }
+    while (y < 0) {
+      y += sectionHeight;
+      --sectionSy;
+    }
+    while (y >= sectionHeight) {
+      y -= sectionHeight;
+      ++sectionSy;
+    }
+    const auto it = sections.find(sectionKey(sectionCx, sectionSy, sectionCz));
+    if (it == sections.end()) {
+      return 0;
+    }
+    return it->second[static_cast<std::size_t>(sectionIndex(x, y, z))];
+  }
+
+  [[nodiscard]] LuaProceduralMeshBuilder buildSectionMesh(const int cx, const int sy, const int cz, const sol::table& blockTiles, const int atlasColumns) const {
+    LuaProceduralMeshBuilder builder;
+    const auto it = sections.find(sectionKey(cx, sy, cz));
+    if (it == sections.end() || atlasColumns <= 0) {
+      return builder;
+    }
+    const float tileWidth = 1.0F / static_cast<float>(atlasColumns);
+    builder.reserve(4096);
+    const std::vector<int>& section = it->second;
+    constexpr int directions[6][3] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    constexpr const char* tileNames[6] = {"side", "side", "top", "bottom", "side", "side"};
+    for (int z = 0; z < chunkSize; ++z) {
+      for (int y = 0; y < sectionHeight; ++y) {
+        for (int x = 0; x < chunkSize; ++x) {
+          const int block = section[static_cast<std::size_t>(sectionIndex(x, y, z))];
+          if (block == 0) {
+            continue;
+          }
+          const sol::object tileObject = blockTiles[block];
+          if (!tileObject.valid() || tileObject.get_type() != sol::type::table) {
+            continue;
+          }
+          const sol::table tiles = tileObject.as<sol::table>();
+          for (int face = 0; face < 6; ++face) {
+            const int nx = directions[face][0];
+            const int ny = directions[face][1];
+            const int nz = directions[face][2];
+            if (blockAt(cx, sy, cz, x + nx, y + ny, z + nz) != 0) {
+              continue;
+            }
+            const int tile = tiles.get_or(tileNames[face], tiles.get_or("side", 0));
+            const float u0 = static_cast<float>(tile) * tileWidth;
+            builder.addVoxelFace(x, y, z, nx, ny, nz, u0, u0 + tileWidth);
+          }
+        }
+      }
+    }
+    return builder;
+  }
 };
 
 } // namespace
@@ -87,7 +277,22 @@ void LuaEntityBindingModule::install(LuaScriptHost& host, lua_State* state) cons
       "add_vertex",
       &LuaProceduralMeshBuilder::addVertex,
       "add_quad",
-      &LuaProceduralMeshBuilder::addQuad);
+      &LuaProceduralMeshBuilder::addQuad,
+      "add_voxel_blocks",
+      &LuaProceduralMeshBuilder::addVoxelBlocks);
+
+  lua.new_usertype<LuaVoxelWorld>("VoxelWorldHandle",
+                                  "clear",
+                                  &LuaVoxelWorld::clear,
+                                  "set_section",
+                                  &LuaVoxelWorld::setSection,
+                                  "erase_section",
+                                  &LuaVoxelWorld::eraseSection,
+                                  "build_section_mesh",
+                                  &LuaVoxelWorld::buildSectionMesh);
+
+  sol::table voxelWorld = lua.create_named_table("VoxelWorld");
+  voxelWorld.set_function("create", [](const int chunkSize, const int sectionHeight) { return LuaVoxelWorld{chunkSize, sectionHeight}; });
 
   sol::table proceduralMesh = lua.create_named_table("ProceduralMesh");
   proceduralMesh.set_function("create", [](sol::optional<int> capacity) {
@@ -106,6 +311,16 @@ void LuaEntityBindingModule::install(LuaScriptHost& host, lua_State* state) cons
   entity.set_function("find", [&host](const std::string& idOrName) { return host.findEntityId(idOrName); });
   entity.set_function("create", [&host](const std::string& entityId, const sol::table spec) { return host.createEntity(luaParseEntitySpec(entityId, spec)); });
   entity.set_function("destroy", [&host](const std::string& entityId) { return host.destroyEntity(entityId); });
+  entity.set_function("destroy_many", [&host](const sol::table entityIds) {
+    std::vector<std::string> ids;
+    ids.reserve(entityIds.size());
+    for (const auto& pair : entityIds) {
+      if (pair.second.is<std::string>()) {
+        ids.push_back(pair.second.as<std::string>());
+      }
+    }
+    return host.destroyEntities(ids);
+  });
   entity.set_function("set_sprite_color", [&host](const std::string& entityId, float r, float g, float b, sol::optional<float> a) { return host.setEntitySpriteColor(entityId, Color{r, g, b, a.value_or(1.0F)}); });
   entity.set_function("add_position", [&host](const std::string& entityId, float dx, float dy) { (void)host.addEntityPosition(entityId, dx, dy); });
   entity.set_function("set_position", [&host](const std::string& entityId, float x, float y) { return host.setEntityPosition(entityId, x, y); });

@@ -1,5 +1,6 @@
 local chunks = require("worldgen.chunks")
 local config = require("worldgen.config")
+local inventory = require("worldgen.inventory")
 local terrain = require("worldgen.terrain")
 
 local Interaction = {}
@@ -68,7 +69,7 @@ function Interaction.create_selection()
       MeshRenderer = {
         shape = "cube",
         size = { 1.04, 1.04, 1.04 },
-        color = { 1.0, 1.0, 1.0, 0.08 },
+        color = { 1.0, 1.0, 1.0, 0.0 },
         wireframe = true,
       },
     },
@@ -82,7 +83,9 @@ function Interaction.break_block(world, hit)
   if terrain.block_at(world, hit.x, hit.y, hit.z) == 0 then
     return
   end
+  local block = terrain.block_at(world, hit.x, hit.y, hit.z)
   terrain.set_block(world, hit.x, hit.y, hit.z, 0)
+  inventory.add(world.inventory, inventory.drop_for(block), 1)
   chunks.rebuild_block(world, hit.x, hit.y, hit.z)
 end
 
@@ -93,13 +96,17 @@ function Interaction.place_block(world, hit)
   local place_x = hit.x + hit.normal.x
   local place_y = hit.y + hit.normal.y
   local place_z = hit.z + hit.normal.z
-  if place_y < 0 or place_y >= config.chunk_height then
+  if place_y < 0 then
     return
   end
   if terrain.block_at(world, place_x, place_y, place_z) ~= 0 then
     return
   end
-  terrain.set_block(world, place_x, place_y, place_z, config.placement_block)
+  local block = inventory.consume_selected(world.inventory)
+  if block == nil then
+    return
+  end
+  terrain.set_block(world, place_x, place_y, place_z, block)
   chunks.rebuild_block(world, place_x, place_y, place_z)
 end
 

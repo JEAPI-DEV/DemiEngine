@@ -105,6 +105,18 @@ struct HudRectElement {
   bool visible = true;
 };
 
+struct HudImageElement {
+  std::string id;
+  std::string group;
+  std::string texture;
+  Vec2 position;
+  Vec2 size;
+  Vec2 sourcePosition;
+  Vec2 sourceSize;
+  Color color = {1.0F, 1.0F, 1.0F, 1.0F};
+  bool visible = true;
+};
+
 struct Transform2DComponent {
   std::string parent;
   Vec2 position;
@@ -285,6 +297,7 @@ struct World {
   Vec2 hudCanvasSize = {960.0F, 540.0F};
   std::vector<Entity> entities;
   std::vector<HudRectElement> hudRects;
+  std::vector<HudImageElement> hudImages;
   std::vector<HudButtonElement> hudButtons;
   std::vector<HudTextElement> hudText;
   std::vector<DebugLine> debugLines;

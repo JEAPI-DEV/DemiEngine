@@ -248,12 +248,15 @@ add_test(NAME demi-script-check-minimal-voxel-worldgen
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/scripts/worldgen.lua
 )
 foreach(script_name
+  biomes
   config
   terrain
   mesh
   chunks
   interaction
+  inventory
   performance
+  state
 )
   add_test(NAME demi-script-check-minimal-voxel-worldgen-${script_name}
     COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/scripts/worldgen/${script_name}.lua

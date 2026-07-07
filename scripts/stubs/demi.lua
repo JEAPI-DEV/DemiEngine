@@ -66,6 +66,7 @@ function Input.viewport_size() end
 ---@field vertex_count fun(self: ProceduralMeshBuilder): integer
 ---@field add_vertex fun(self: ProceduralMeshBuilder, x: number, y: number, z: number, nx: number, ny: number, nz: number, u: number, v: number)
 ---@field add_quad fun(self: ProceduralMeshBuilder, nx: number, ny: number, nz: number, x1: number, y1: number, z1: number, u1: number, v1: number, x2: number, y2: number, z2: number, u2: number, v2: number, x3: number, y3: number, z3: number, u3: number, v3: number, x4: number, y4: number, z4: number, u4: number, v4: number)
+---@field add_voxel_blocks fun(self: ProceduralMeshBuilder, blocks: table, occupancy: table, block_tiles: table, atlas_columns: integer, occupancy_stride: integer)
 
 ---@class ProceduralMeshService
 ProceduralMesh = {}
@@ -77,6 +78,19 @@ function ProceduralMesh.create(capacity) end
 ---@param texture? string
 ---@return boolean
 function ProceduralMesh.apply(entity_id, builder, texture) end
+
+---@class VoxelWorldHandle
+---@field clear fun(self: VoxelWorldHandle)
+---@field set_section fun(self: VoxelWorldHandle, cx: integer, section_y: integer, cz: integer, blocks: table)
+---@field erase_section fun(self: VoxelWorldHandle, cx: integer, section_y: integer, cz: integer)
+---@field build_section_mesh fun(self: VoxelWorldHandle, cx: integer, section_y: integer, cz: integer, block_tiles: table, atlas_columns: integer): ProceduralMeshBuilder
+
+---@class VoxelWorldService
+VoxelWorld = {}
+---@param chunk_size integer
+---@param section_height integer
+---@return VoxelWorldHandle
+function VoxelWorld.create(chunk_size, section_height) end
 
 ---@class EntityService
 Entity = {}
@@ -90,6 +104,9 @@ function Entity.create(entity_id, spec) end
 ---@param entity_id string
 ---@return boolean
 function Entity.destroy(entity_id) end
+---@param entity_ids string[]
+---@return integer
+function Entity.destroy_many(entity_ids) end
 ---@param entity_id string
 ---@param r number
 ---@param g number
@@ -341,6 +358,14 @@ function Hud.set_button_label(id, label) end
 ---@param height number
 ---@return boolean
 function Hud.set_rect(id, x, y, width, height) end
+---@param id string
+---@param texture string
+---@param source_x number
+---@param source_y number
+---@param source_width number
+---@param source_height number
+---@return boolean
+function Hud.set_image(id, texture, source_x, source_y, source_width, source_height) end
 ---@param id string
 ---@param r number
 ---@param g number

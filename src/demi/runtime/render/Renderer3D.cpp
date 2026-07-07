@@ -165,6 +165,37 @@ std::optional<ImageData> loadPpm(const std::filesystem::path& path) {
   return image;
 }
 
+std::optional<std::filesystem::path> findShaderPath(const std::filesystem::path& relativePath) {
+  std::filesystem::path cursor = std::filesystem::current_path();
+  while (true) {
+    const std::filesystem::path candidate = cursor / relativePath;
+    if (std::filesystem::exists(candidate)) {
+      return candidate;
+    }
+    if (!cursor.has_parent_path() || cursor == cursor.parent_path()) {
+      break;
+    }
+    cursor = cursor.parent_path();
+  }
+  return std::nullopt;
+}
+
+Shader loadAlphaCutoutShader() {
+  const std::optional<std::filesystem::path> vertexShader = findShaderPath("src/demi/runtime/render/shaders/alpha_cutout.vs");
+  const std::optional<std::filesystem::path> fragmentShader = findShaderPath("src/demi/runtime/render/shaders/alpha_cutout.fs");
+  if (!vertexShader.has_value() || !fragmentShader.has_value()) {
+    std::cerr << "Alpha cutout shader files were not found. Textured cutout meshes will use the default material.\n";
+    return {};
+  }
+
+  Shader shader = LoadShader(vertexShader->string().c_str(), fragmentShader->string().c_str());
+  shader.locs[SHADER_LOC_MATRIX_MVP] = GetShaderLocation(shader, "mvp");
+  shader.locs[SHADER_LOC_MATRIX_MODEL] = GetShaderLocation(shader, "matModel");
+  shader.locs[SHADER_LOC_MAP_DIFFUSE] = GetShaderLocation(shader, "texture0");
+  shader.locs[SHADER_LOC_COLOR_DIFFUSE] = GetShaderLocation(shader, "colDiffuse");
+  return shader;
+}
+
 void drawTexturedPlane(const ::Vector3 center, const ::Vector2 size, const Texture2D& texture, const ::Color tint) {
   const float halfX = size.x * 0.5F;
   const float halfZ = size.y * 0.5F;
@@ -223,15 +254,16 @@ std::size_t bytesHash(const std::vector<T>& values) {
   return std::hash<std::string_view>{}(std::string_view{bytes, values.size() * sizeof(T)});
 }
 
-std::string dynamicMeshSignature(const MeshRendererComponent& mesh) {
+std::string dynamicMeshSignature(const MeshRendererComponent& mesh, const bool alphaCutout) {
   if (mesh.vertices.empty()) {
     return {};
   }
   if (mesh.revision > 0) {
-    return "revision:" + std::to_string(mesh.revision) + ":" + mesh.texture;
+    return "revision:" + std::to_string(mesh.revision) + ":" + mesh.texture + ":cutout:" + std::to_string(alphaCutout);
   }
   return std::to_string(mesh.vertices.size()) + ":" + std::to_string(bytesHash(mesh.vertices)) + ":" + std::to_string(mesh.normals.size()) + ":" +
-         std::to_string(bytesHash(mesh.normals)) + ":" + std::to_string(mesh.uvs.size()) + ":" + std::to_string(bytesHash(mesh.uvs)) + ":" + mesh.texture;
+         std::to_string(bytesHash(mesh.normals)) + ":" + std::to_string(mesh.uvs.size()) + ":" + std::to_string(bytesHash(mesh.uvs)) + ":" + mesh.texture +
+         ":cutout:" + std::to_string(alphaCutout);
 }
 
 Mesh uploadDynamicMesh(const MeshRendererComponent& source) {
@@ -276,18 +308,21 @@ Mesh uploadDynamicMesh(const MeshRendererComponent& source) {
   return mesh;
 }
 
-const Model* dynamicModelForEntity(const Entity& entity,
-                                   const MeshRendererComponent& mesh,
-                                   const std::unordered_map<std::string, Texture2D>& textures,
-                                   std::unordered_map<std::string, DynamicModelCacheEntry>& dynamicModels) {
+Model* dynamicModelForEntity(const Entity& entity,
+                             const MeshRendererComponent& mesh,
+                             const std::unordered_map<std::string, Texture2D>& textures,
+                             std::unordered_map<std::string, DynamicModelCacheEntry>& dynamicModels,
+                             const Shader* alphaCutoutShader) {
   if (mesh.vertices.empty()) {
     return nullptr;
   }
   auto cached = dynamicModels.find(entity.id);
-  if (mesh.revision > 0 && cached != dynamicModels.end() && cached->second.revision == mesh.revision && cached->second.texture == mesh.texture && cached->second.hasModel) {
+  const bool useAlphaCutout = alphaCutoutShader != nullptr && !mesh.texture.empty();
+  if (mesh.revision > 0 && cached != dynamicModels.end() && cached->second.revision == mesh.revision && cached->second.texture == mesh.texture &&
+      cached->second.hasModel && cached->second.signature == dynamicMeshSignature(mesh, useAlphaCutout)) {
     return &cached->second.model;
   }
-  const std::string signature = dynamicMeshSignature(mesh);
+  const std::string signature = dynamicMeshSignature(mesh, useAlphaCutout);
   if (signature.empty()) {
     return nullptr;
   }
@@ -312,6 +347,9 @@ const Model* dynamicModelForEntity(const Entity& entity,
     const auto texture = textures.find(mesh.texture);
     if (texture != textures.end()) {
       SetMaterialTexture(&model.materials[0], MATERIAL_MAP_DIFFUSE, texture->second);
+      if (useAlphaCutout) {
+        model.materials[0].shader = *alphaCutoutShader;
+      }
     }
   }
   cached = dynamicModels
@@ -377,7 +415,8 @@ void drawMeshEntity(const World& world,
                     const Entity& entity,
                     const std::unordered_map<std::string, Texture2D>& textures,
                     const std::unordered_map<std::string, Model>& models,
-                    std::unordered_map<std::string, DynamicModelCacheEntry>& dynamicModels) {
+                    std::unordered_map<std::string, DynamicModelCacheEntry>& dynamicModels,
+                    const Shader* alphaCutoutShader) {
   if (!entity.meshRenderer.has_value() || !entity.transform3D.has_value()) {
     return;
   }
@@ -386,6 +425,7 @@ void drawMeshEntity(const World& world,
   const ::Vector3 position = toRlVec3(worldPosition3D(world, entity));
   const ::Vector3 size = toRlVec3(mesh.size);
   const ::Color color = toRlColor(mesh.color);
+  const bool drawSolid = color.a > 0;
 
   const ::Vector3 rotation = toRlVec3(worldRotation3D(world, entity));
   constexpr float RadiansToDegrees = 180.0F / std::numbers::pi_v<float>;
@@ -402,14 +442,15 @@ void drawMeshEntity(const World& world,
       hasTexture = true;
     }
   }
-  const Model* model = nullptr;
+  Model* dynamicModel = nullptr;
+  const Model* staticModel = nullptr;
   if (!mesh.vertices.empty()) {
     ProfileScope scope("Renderer3D.dynamic_model_lookup");
-    model = dynamicModelForEntity(entity, mesh, textures, dynamicModels);
+    dynamicModel = dynamicModelForEntity(entity, mesh, textures, dynamicModels, alphaCutoutShader);
   } else if (!mesh.model.empty()) {
     const auto found = models.find(mesh.model);
     if (found != models.end()) {
-      model = &found->second;
+      staticModel = &found->second;
     }
   }
 
@@ -438,16 +479,23 @@ void drawMeshEntity(const World& world,
   rlRotatef(rotationZ, 0.0F, 0.0F, 1.0F);
   rlTranslatef(-position.x, -position.y, -position.z);
 
-  if (model != nullptr) {
+  if (drawSolid && (dynamicModel != nullptr || staticModel != nullptr)) {
     rlPushMatrix();
     rlTranslatef(position.x, position.y, position.z);
     rlScalef(size.x, size.y, size.z);
     {
       ProfileScope scope("Renderer3D.draw_model");
-      DrawModel(*model, {0.0F, 0.0F, 0.0F}, 1.0F, color);
+      if (dynamicModel != nullptr) {
+        if (alphaCutoutShader != nullptr && !mesh.texture.empty() && dynamicModel->materialCount > 0) {
+          dynamicModel->materials[0].shader = *alphaCutoutShader;
+        }
+        DrawModel(*dynamicModel, {0.0F, 0.0F, 0.0F}, 1.0F, color);
+      } else {
+        DrawModel(*staticModel, {0.0F, 0.0F, 0.0F}, 1.0F, color);
+      }
     }
     rlPopMatrix();
-  } else {
+  } else if (drawSolid) {
     ProfileScope scope("Renderer3D.draw_shape");
     drawShape(texture, hasTexture);
   }
@@ -504,10 +552,17 @@ Renderer3D::~Renderer3D() {
     (void)id;
     UnloadTexture(texture);
   }
+  if (hasAlphaCutoutShader_) {
+    UnloadShader(alphaCutoutShader_);
+  }
 }
 
 void Renderer3D::loadTextureAssets(const AssetRegistry& registry) {
   ProfileScope scope("Renderer3D.load_texture_assets");
+  if (!hasAlphaCutoutShader_) {
+    alphaCutoutShader_ = loadAlphaCutoutShader();
+    hasAlphaCutoutShader_ = alphaCutoutShader_.id != 0;
+  }
   for (const AssetManifest& asset : registry.assets) {
     if (asset.type == "Model3D") {
       Model model{};
@@ -607,6 +662,17 @@ void Renderer3D::beginFrame(const Camera3DComponent& camera, const Vec3 cameraPo
 
 void Renderer3D::drawWorld(const World& world) {
   ProfileScope drawWorldScope("Renderer3D.draw_world");
+  if (hasAlphaCutoutShader_) {
+    const float viewPos[3] = {cameraPosition_.x, cameraPosition_.y, cameraPosition_.z};
+    const float fogColor[4] = {camera_.clearColor.r, camera_.clearColor.g, camera_.clearColor.b, camera_.clearColor.a};
+    constexpr float FogStart = 160.0F;
+    constexpr float FogEnd = 224.0F;
+    SetShaderValue(alphaCutoutShader_, GetShaderLocation(alphaCutoutShader_, "viewPos"), viewPos, SHADER_UNIFORM_VEC3);
+    SetShaderValue(alphaCutoutShader_, GetShaderLocation(alphaCutoutShader_, "fogColor"), fogColor, SHADER_UNIFORM_VEC4);
+    SetShaderValue(alphaCutoutShader_, GetShaderLocation(alphaCutoutShader_, "fogStart"), &FogStart, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(alphaCutoutShader_, GetShaderLocation(alphaCutoutShader_, "fogEnd"), &FogEnd, SHADER_UNIFORM_FLOAT);
+  }
+
   for (const Entity& entity : world.entities) {
     if (entity.directionalLight.has_value()) {
       const ::Vector3 direction = toRlVec3(entity.directionalLight->direction);
@@ -625,7 +691,7 @@ void Renderer3D::drawWorld(const World& world) {
           }()) {
           continue;
       }
-      drawMeshEntity(world, entity, textures_, models_, dynamicModels_);
+      drawMeshEntity(world, entity, textures_, models_, dynamicModels_, hasAlphaCutoutShader_ ? &alphaCutoutShader_ : nullptr);
     }
   }
 
@@ -682,6 +748,31 @@ void Renderer3D::drawHud(const World& world) {
       .height = element.size.y * scaleY,
     };
     DrawRectangleRec(rect, toRlColor(element.color));
+  }
+
+  for (const HudImageElement& element : world.hudImages) {
+    if (!element.visible || element.texture.empty()) {
+      continue;
+    }
+    const auto texture = textures_.find(element.texture);
+    if (texture == textures_.end()) {
+      continue;
+    }
+    const float sourceWidth = element.sourceSize.x != 0.0F ? element.sourceSize.x : static_cast<float>(texture->second.width);
+    const float sourceHeight = element.sourceSize.y != 0.0F ? element.sourceSize.y : static_cast<float>(texture->second.height);
+    const ::Rectangle source{
+      .x = element.sourcePosition.x,
+      .y = element.sourcePosition.y,
+      .width = sourceWidth,
+      .height = sourceHeight,
+    };
+    const ::Rectangle dest{
+      .x = element.position.x * scaleX,
+      .y = element.position.y * scaleY,
+      .width = element.size.x * scaleX,
+      .height = element.size.y * scaleY,
+    };
+    DrawTexturePro(texture->second, source, dest, ::Vector2{0.0F, 0.0F}, 0.0F, toRlColor(element.color));
   }
 
   for (const HudTextElement& element : world.hudText) {

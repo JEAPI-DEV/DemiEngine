@@ -33,6 +33,30 @@ void parseRect(const Json& json, const std::string& id, World& world) {
   world.hudRects.push_back(std::move(rect));
 }
 
+void parseImage(const Json& json, const std::string& id, World& world) {
+  HudImageElement image;
+  image.id = id;
+  image.group = stringOr(json, "group");
+  image.texture = stringOr(json, "texture");
+  if (const std::optional<Vec2> position = vec2Field(json, "position")) {
+    image.position = *position;
+  }
+  if (const std::optional<Vec2> size = vec2Field(json, "size")) {
+    image.size = *size;
+  }
+  if (const std::optional<Vec2> sourcePosition = vec2Field(json, "source_position")) {
+    image.sourcePosition = *sourcePosition;
+  }
+  if (const std::optional<Vec2> sourceSize = vec2Field(json, "source_size")) {
+    image.sourceSize = *sourceSize;
+  }
+  if (const std::optional<Color> color = colorField(json, "color")) {
+    image.color = *color;
+  }
+  image.visible = boolField(json, "visible").value_or(true);
+  world.hudImages.push_back(std::move(image));
+}
+
 void parseText(const Json& json, const std::string& id, World& world) {
   HudTextElement text;
   text.id = id;
@@ -88,6 +112,7 @@ void parseButton(const Json& json, const std::string& id, World& world) {
 
 constexpr std::array hudElementParsers{
   HudElementParser{.type = "rect", .parse = parseRect},
+  HudElementParser{.type = "image", .parse = parseImage},
   HudElementParser{.type = "text", .parse = parseText},
   HudElementParser{.type = "button", .parse = parseButton},
 };

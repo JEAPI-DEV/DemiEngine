@@ -1,0 +1,6 @@
+{
+  "format_version": 1,
+  "id": "asset://textures/gui_widgets",
+  "type": "Texture2D",
+  "source": "widgets.png"
+}

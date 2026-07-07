@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <unordered_set>
 #include <utility>
 
 namespace demi::runtime {
@@ -202,6 +203,25 @@ bool LuaScriptHost::destroyEntity(const std::string& entityId) {
   const auto before = world_->entities.size();
   std::erase_if(world_->entities, [&](const Entity& entity) { return entity.id == entityId; });
   return world_->entities.size() != before;
+}
+
+int LuaScriptHost::destroyEntities(const std::vector<std::string>& entityIds) {
+  if (world_ == nullptr || entityIds.empty()) {
+    return 0;
+  }
+  std::unordered_set<std::string> ids;
+  ids.reserve(entityIds.size());
+  for (const std::string& entityId : entityIds) {
+    if (!entityId.empty()) {
+      ids.insert(entityId);
+    }
+  }
+  if (ids.empty()) {
+    return 0;
+  }
+  const auto before = world_->entities.size();
+  std::erase_if(world_->entities, [&](const Entity& entity) { return ids.contains(entity.id); });
+  return static_cast<int>(before - world_->entities.size());
 }
 
 bool LuaScriptHost::setEntitySpriteColor(const std::string& entityId, const Color color) {

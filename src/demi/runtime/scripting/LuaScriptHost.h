@@ -62,6 +62,7 @@ public:
   [[nodiscard]] bool setEntityScale3D(const std::string& entityId, float x, float y, float z);
   [[nodiscard]] std::optional<std::string> findEntityId(const std::string& idOrName) const;
   [[nodiscard]] bool destroyEntity(const std::string& entityId);
+  [[nodiscard]] int destroyEntities(const std::vector<std::string>& entityIds);
   [[nodiscard]] bool setEntitySpriteColor(const std::string& entityId, Color color);
   [[nodiscard]] std::optional<Vec2> getRigidbodyVelocity(const std::string& entityId) const;
   [[nodiscard]] bool setRigidbodyVelocity(const std::string& entityId, float x, float y);
@@ -83,6 +84,7 @@ public:
   [[nodiscard]] bool setHudTextScale(const std::string& id, float scale);
   [[nodiscard]] bool createHudRect(const std::string& id, float x, float y, float width, float height, Color color);
   [[nodiscard]] bool setHudRect(const std::string& id, float x, float y, float width, float height);
+  [[nodiscard]] bool setHudImage(const std::string& id, std::string texture, float sourceX, float sourceY, float sourceWidth, float sourceHeight);
   [[nodiscard]] bool setHudColor(const std::string& id, Color color);
   [[nodiscard]] bool setHudVisible(const std::string& id, bool visible);
   [[nodiscard]] bool setHudGroupVisible(const std::string& group, bool visible);
