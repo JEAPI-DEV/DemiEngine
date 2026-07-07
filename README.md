@@ -1,6 +1,6 @@
 # DemiEngine
 
-DemiEngine is a Linux-first C++20 game engine scaffold for AI-assisted development. It focuses on deterministic project data, Lua gameplay scripting, small example games, and a command-line workflow that agents can validate without hidden editor state.
+DemiEngine is a Linux-first (added android support (minimal currently)) C++20 game engine scaffold for AI-assisted development. It focuses on deterministic project data, Lua gameplay scripting, small example games, and a command-line workflow that agents can validate without hidden editor state.
 
 The runtime is no longer just a placeholder. It can load JSON projects and scenes, run Lua 5.4 scripts, render 2D and simple 3D scenes through raylib, step 2D/3D physics helpers, play audio/media services where dependencies are enabled, save JSON-backed state, and drive HUD menus from data plus Lua actions.
 
