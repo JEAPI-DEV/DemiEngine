@@ -304,6 +304,10 @@ add_test(NAME demi-runtime-minimal-voxel-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/demi.project.json --frames 1
 )
 set_tests_properties(demi-runtime-minimal-voxel-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-elite-frontier-frame
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/elite_frontier/demi.project.json --frames 1
+)
+set_tests_properties(demi-runtime-elite-frontier-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-validate-minimal-2d-networking
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json
 )
@@ -315,6 +319,9 @@ add_test(NAME demi-validate-minimal-3d
 )
 add_test(NAME demi-validate-minimal-voxel
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/demi.project.json
+)
+add_test(NAME demi-validate-elite-frontier
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/elite_frontier/demi.project.json
 )
 add_test(NAME demi-script-check-minimal-player
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/scripts/player.lua
@@ -395,6 +402,23 @@ set(DEMI_ANDROID_EXAMPLE_SCRIPTS
 foreach(script_name IN LISTS DEMI_ANDROID_EXAMPLE_SCRIPTS)
   add_test(NAME demi-script-check-android-${script_name}
     COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d_android/scripts/${script_name}.lua
+  )
+endforeach()
+set(DEMI_ELITE_FRONTIER_SCRIPTS
+  core/save
+  core/state
+  input/controls
+  main
+  render/wireframe
+  sim/galaxy
+  sim/market
+  sim/ship
+  ui/actions
+  ui/hud
+)
+foreach(script_name IN LISTS DEMI_ELITE_FRONTIER_SCRIPTS)
+  add_test(NAME demi-script-check-elite-frontier-${script_name}
+    COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/elite_frontier/scripts/${script_name}.lua
   )
 endforeach()
 add_test(NAME demi-lua-stubs-generate

@@ -18,8 +18,8 @@ extern "C" android_app* GetAndroidApp(void);
 namespace {
 
 constexpr const char* LogTag = "DemiEngine";
-constexpr const char* ProjectDirectory = "minimal_2d_android";
-constexpr const char* ProjectFile = "minimal_2d_android/demi.project.json";
+constexpr const char* ProjectDirectory = "elite_frontier";
+constexpr const char* ProjectFile = "elite_frontier/demi.project.json";
 constexpr const char* AssetIndexFile = "demi_asset_index.txt";
 
 void logInfo(const std::string& message) {

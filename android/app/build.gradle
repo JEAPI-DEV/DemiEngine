@@ -2,7 +2,7 @@ plugins {
     id "com.android.application"
 }
 
-def demiProjectAssetsDir = file("../../examples/minimal_2d_android")
+def demiProjectAssetsDir = file("../../examples/elite_frontier")
 def demiGeneratedAssetsDir = layout.buildDirectory.dir("generated/demi/assets")
 def demiAssetIndexTask = tasks.register("generateDemiAssetIndex") {
     def outputFile = demiGeneratedAssetsDir.map { it.file("demi_asset_index.txt") }
