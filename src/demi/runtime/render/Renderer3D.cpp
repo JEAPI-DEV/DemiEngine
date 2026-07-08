@@ -425,7 +425,7 @@ void drawMeshEntity(const World& world,
   const ::Vector3 position = toRlVec3(worldPosition3D(world, entity));
   const ::Vector3 size = toRlVec3(mesh.size);
   const ::Color color = toRlColor(mesh.color);
-  const bool drawSolid = color.a > 0;
+  const bool drawSolid = color.a > 0 && !mesh.wireframe;
 
   const ::Vector3 rotation = toRlVec3(worldRotation3D(world, entity));
   constexpr float RadiansToDegrees = 180.0F / std::numbers::pi_v<float>;
@@ -503,13 +503,31 @@ void drawMeshEntity(const World& world,
   rlPopMatrix();
 
   if (mesh.wireframe) {
-    if (mesh.shape == "sphere") {
-      DrawSphereWires(position, size.x * 0.5F, 16, 16, {245, 245, 245, 255});
+    rlPushMatrix();
+    rlTranslatef(position.x, position.y, position.z);
+    rlRotatef(rotationX, 1.0F, 0.0F, 0.0F);
+    rlRotatef(rotationY, 0.0F, 1.0F, 0.0F);
+    rlRotatef(rotationZ, 0.0F, 0.0F, 1.0F);
+    rlTranslatef(-position.x, -position.y, -position.z);
+
+    if (dynamicModel != nullptr || staticModel != nullptr) {
+      rlPushMatrix();
+      rlTranslatef(position.x, position.y, position.z);
+      rlScalef(size.x, size.y, size.z);
+      if (dynamicModel != nullptr) {
+        DrawModelWires(*dynamicModel, {0.0F, 0.0F, 0.0F}, 1.0F, color);
+      } else {
+        DrawModelWires(*staticModel, {0.0F, 0.0F, 0.0F}, 1.0F, color);
+      }
+      rlPopMatrix();
+    } else if (mesh.shape == "sphere") {
+      DrawSphereWires(position, size.x * 0.5F, 16, 16, color);
     } else if (mesh.shape == "cylinder") {
-      DrawCylinderWires(position, size.x * 0.5F, size.x * 0.5F, size.y, 16, {245, 245, 245, 255});
+      DrawCylinderWires(position, size.x * 0.5F, size.x * 0.5F, size.y, 16, color);
     } else {
-      DrawCubeWiresV(position, size, {245, 245, 245, 255});
+      DrawCubeWiresV(position, size, color);
     }
+    rlPopMatrix();
   }
 
   if (entity.boxCollider3D.has_value()) {

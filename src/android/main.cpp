@@ -18,8 +18,8 @@ extern "C" android_app* GetAndroidApp(void);
 namespace {
 
 constexpr const char* LogTag = "DemiEngine";
-constexpr const char* ProjectDirectory = "elite_frontier";
-constexpr const char* ProjectFile = "elite_frontier/demi.project.json";
+constexpr const char* ProjectDirectory = "project";
+constexpr const char* ProjectFile = "project/demi.project.json";
 constexpr const char* AssetIndexFile = "demi_asset_index.txt";
 
 void logInfo(const std::string& message) {
@@ -95,6 +95,17 @@ std::vector<std::string> readAssetIndex(AAssetManager* manager) {
   return paths;
 }
 
+void clearBundledProjectFiles(const std::filesystem::path& projectRoot) {
+  std::error_code error;
+  std::filesystem::remove(projectRoot / "demi.project.json", error);
+  error.clear();
+  std::filesystem::remove_all(projectRoot / "assets", error);
+  error.clear();
+  std::filesystem::remove_all(projectRoot / "scenes", error);
+  error.clear();
+  std::filesystem::remove_all(projectRoot / "scripts", error);
+}
+
 std::filesystem::path prepareProject(android_app* app) {
   const std::filesystem::path storageRoot = app->activity->internalDataPath;
   const std::filesystem::path projectRoot = storageRoot / ProjectDirectory;
@@ -104,6 +115,7 @@ std::filesystem::path prepareProject(android_app* app) {
   if (assetPaths.empty()) {
     logError("Android asset index is empty.");
   }
+  clearBundledProjectFiles(projectRoot);
   for (const std::string& assetPath : assetPaths) {
     if (!copyAssetFile(manager, assetPath, projectRoot / assetPath)) {
       logError("Failed to copy Android asset: " + assetPath);

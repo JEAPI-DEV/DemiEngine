@@ -241,7 +241,10 @@ if(ANDROID)
   target_link_libraries(demi_android PRIVATE android log OpenSLES EGL GLESv2)
   target_link_options(demi_android PRIVATE "LINKER:-u,ANativeActivity_onCreate")
 else()
-  add_executable(demi src/cli/main.cpp)
+  add_executable(demi
+    src/cli/BuildCommands.cpp
+    src/cli/main.cpp
+  )
   target_link_libraries(demi PRIVATE demi-core demi-runtime-lib)
   target_compile_definitions(demi PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
@@ -409,6 +412,7 @@ set(DEMI_ELITE_FRONTIER_SCRIPTS
   core/state
   input/controls
   main
+  render/navmap
   render/wireframe
   sim/galaxy
   sim/market

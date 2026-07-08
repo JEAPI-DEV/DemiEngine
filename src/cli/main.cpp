@@ -1,3 +1,5 @@
+#include "cli/BuildCommands.h"
+
 #include "demi/core/Version.h"
 #include "demi/assets/AssetRegistry.h"
 #include "demi/diagnostics/Diagnostic.h"
@@ -43,6 +45,9 @@ void printHelp() {
             << "  demi lua-stubs generate [path]\n"
             << "  demi test\n"
             << "  demi run --project <project> [--frames count|--max-frames count]\n"
+            << "  demi run linux [--project <project>] [--frames count|--max-frames count]\n"
+            << "  demi build apk [--project <project>] [--gradle gradle]\n"
+            << "  demi build linux [--project <project>] [--output path]\n"
             << "  demi editor --project <project>\n";
 }
 
@@ -105,6 +110,18 @@ int numericValueAfter(const std::vector<std::string>& args, const std::string& k
 int frameLimitFrom(const std::vector<std::string>& args) {
   const int maxFrames = numericValueAfter(args, "--max-frames");
   return maxFrames > 0 ? maxFrames : numericValueAfter(args, "--frames");
+}
+
+int runProjectCommand(const std::vector<std::string>& args) {
+  const std::filesystem::path project = demi::cli::projectFileFromArgs(args);
+  if (project.empty()) {
+    std::cerr << "run requires --project <project> or a demi.project.json in the current directory.\n";
+    return ExitUsageError;
+  }
+  return demi::runtime::runProject(demi::runtime::RuntimeOptions{
+    .projectPath = project,
+    .maxFrames = frameLimitFrom(args),
+  });
 }
 
 int runScene(const std::vector<std::string>& args) {
@@ -293,16 +310,19 @@ int main(int argc, char** argv) {
     return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure : ExitSuccess;
   }
 
+  if (args[0] == "build") {
+    return demi::cli::runBuildCommand(args, demi::cli::BuildContext{
+                                                .engineRoot = sourceRoot(),
+                                                .executablePath = argv[0],
+                                            });
+  }
+
   if (args[0] == "run") {
-    const std::string project = valueAfter(args, "--project");
-    if (project.empty()) {
-      std::cerr << "run requires --project <project>.\n";
+    if (args.size() >= 2 && !args[1].starts_with("--") && args[1] != "linux") {
+      std::cerr << "Unknown run target: " << args[1] << '\n';
       return ExitUsageError;
     }
-    return demi::runtime::runProject(demi::runtime::RuntimeOptions{
-      .projectPath = project,
-      .maxFrames = frameLimitFrom(args),
-    });
+    return runProjectCommand(args);
   }
 
   if (args[0] == "editor") {

@@ -2,7 +2,17 @@ plugins {
     id "com.android.application"
 }
 
-def demiProjectAssetsDir = file("../../examples/elite_frontier")
+def demiProjectFileProperty = providers.gradleProperty("demiProjectFile")
+if (!demiProjectFileProperty.isPresent()) {
+    throw new GradleException("Missing -PdemiProjectFile=/path/to/demi.project.json")
+}
+def demiProjectFile = rootProject.file(demiProjectFileProperty.get())
+if (!demiProjectFile.isFile()) {
+    throw new GradleException("Demi Android project not found: ${demiProjectFile}")
+}
+def demiProjectAssetsDir = demiProjectFile.parentFile
+def demiProjectJson = new groovy.json.JsonSlurper().parse(demiProjectFile)
+def demiProjectDisplayName = demiProjectJson.name ?: demiProjectAssetsDir.name
 def demiGeneratedAssetsDir = layout.buildDirectory.dir("generated/demi/assets")
 def demiAssetIndexTask = tasks.register("generateDemiAssetIndex") {
     def outputFile = demiGeneratedAssetsDir.map { it.file("demi_asset_index.txt") }
@@ -29,12 +39,17 @@ android {
     compileSdk 36
     ndkVersion "29.0.14206865"
 
+    buildFeatures {
+        resValues true
+    }
+
     defaultConfig {
         applicationId "dev.jeapi.demi.android"
         minSdk 23
         targetSdk 36
         versionCode 1
         versionName "0.1.0"
+        resValue "string", "app_name", demiProjectDisplayName
 
         externalNativeBuild {
             cmake {
