@@ -72,6 +72,7 @@ struct ProjectData {
 struct HudButtonElement {
   std::string id;
   std::string group;
+  int layer = 2;
   std::string label;
   Vec2 position;
   Vec2 size = {120.0F, 40.0F};
@@ -89,6 +90,7 @@ struct HudButtonElement {
 struct HudTextElement {
   std::string id;
   std::string group;
+  int layer = 3;
   std::string text;
   Vec2 position;
   float scale = 3.0F;
@@ -100,8 +102,32 @@ struct HudTextElement {
 struct HudRectElement {
   std::string id;
   std::string group;
+  int layer = 0;
   Vec2 position;
   Vec2 size;
+  Color color = {1.0F, 1.0F, 1.0F, 1.0F};
+  bool visible = true;
+};
+
+struct HudPanelElement {
+  std::string id;
+  std::string group;
+  int layer = 2;
+  Vec2 position;
+  Vec2 size;
+  float cornerRadius = 0.0F;
+  float borderWidth = 0.0F;
+  Color color = {0.06F, 0.07F, 0.18F, 0.70F};
+  Color borderColor = {1.0F, 1.0F, 1.0F, 0.20F};
+  bool visible = true;
+};
+
+struct HudCircleElement {
+  std::string id;
+  std::string group;
+  int layer = 2;
+  Vec2 center;
+  float radius = 16.0F;
   Color color = {1.0F, 1.0F, 1.0F, 1.0F};
   bool visible = true;
 };
@@ -109,6 +135,7 @@ struct HudRectElement {
 struct HudImageElement {
   std::string id;
   std::string group;
+  int layer = 1;
   std::string texture;
   std::string animation;
   int animationFrame = 0;
@@ -300,6 +327,8 @@ struct World {
   Vec2 hudCanvasSize = {960.0F, 540.0F};
   std::vector<Entity> entities;
   std::vector<HudRectElement> hudRects;
+  std::vector<HudPanelElement> hudPanels;
+  std::vector<HudCircleElement> hudCircles;
   std::vector<HudImageElement> hudImages;
   std::vector<HudButtonElement> hudButtons;
   std::vector<HudTextElement> hudText;

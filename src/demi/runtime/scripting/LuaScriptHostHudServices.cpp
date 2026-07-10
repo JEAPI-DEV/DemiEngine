@@ -92,6 +92,13 @@ bool LuaScriptHost::setHudRect(const std::string& id, const float x, const float
       return true;
     }
   }
+  for (HudPanelElement& element : world_->hudPanels) {
+    if (element.id == id) {
+      element.position = Vec2{.x = x, .y = y};
+      element.size = Vec2{.x = width, .y = height};
+      return true;
+    }
+  }
   for (HudImageElement& element : world_->hudImages) {
     if (element.id == id) {
       element.position = Vec2{.x = x, .y = y};
@@ -158,6 +165,18 @@ bool LuaScriptHost::setHudPosition(const std::string& id, const float x, const f
       return true;
     }
   }
+  for (HudPanelElement& element : world_->hudPanels) {
+    if (element.id == id) {
+      element.position = position;
+      return true;
+    }
+  }
+  for (HudCircleElement& element : world_->hudCircles) {
+    if (element.id == id) {
+      element.center = position;
+      return true;
+    }
+  }
   for (HudImageElement& element : world_->hudImages) {
     if (element.id == id) {
       element.position = position;
@@ -179,6 +198,12 @@ bool LuaScriptHost::setHudSize(const std::string& id, const float width, const f
   }
   const Vec2 size{.x = width, .y = height};
   for (HudRectElement& element : world_->hudRects) {
+    if (element.id == id) {
+      element.size = size;
+      return true;
+    }
+  }
+  for (HudPanelElement& element : world_->hudPanels) {
     if (element.id == id) {
       element.size = size;
       return true;
@@ -215,6 +240,18 @@ bool LuaScriptHost::setHudColor(const std::string& id, const Color color) {
       return true;
     }
   }
+  for (HudPanelElement& element : world_->hudPanels) {
+    if (element.id == id) {
+      element.color = color;
+      return true;
+    }
+  }
+  for (HudCircleElement& element : world_->hudCircles) {
+    if (element.id == id) {
+      element.color = color;
+      return true;
+    }
+  }
   for (HudImageElement& element : world_->hudImages) {
     if (element.id == id) {
       element.color = color;
@@ -242,6 +279,19 @@ bool LuaScriptHost::setHudOpacity(const std::string& id, const float opacity) {
     }
   }
   for (HudRectElement& element : world_->hudRects) {
+    if (element.id == id) {
+      element.color.a = alpha;
+      return true;
+    }
+  }
+  for (HudPanelElement& element : world_->hudPanels) {
+    if (element.id == id) {
+      element.color.a = alpha;
+      element.borderColor.a = alpha;
+      return true;
+    }
+  }
+  for (HudCircleElement& element : world_->hudCircles) {
     if (element.id == id) {
       element.color.a = alpha;
       return true;
@@ -281,6 +331,18 @@ bool LuaScriptHost::setHudVisible(const std::string& id, const bool visible) {
       changed = true;
     }
   }
+  for (HudPanelElement& element : world_->hudPanels) {
+    if (element.id == id) {
+      element.visible = visible;
+      changed = true;
+    }
+  }
+  for (HudCircleElement& element : world_->hudCircles) {
+    if (element.id == id) {
+      element.visible = visible;
+      changed = true;
+    }
+  }
   for (HudImageElement& element : world_->hudImages) {
     if (element.id == id) {
       element.visible = visible;
@@ -308,6 +370,18 @@ bool LuaScriptHost::setHudGroupVisible(const std::string& group, const bool visi
     }
   }
   for (HudRectElement& element : world_->hudRects) {
+    if (element.group == group) {
+      element.visible = visible;
+      changed = true;
+    }
+  }
+  for (HudPanelElement& element : world_->hudPanels) {
+    if (element.group == group) {
+      element.visible = visible;
+      changed = true;
+    }
+  }
+  for (HudCircleElement& element : world_->hudCircles) {
     if (element.group == group) {
       element.visible = visible;
       changed = true;

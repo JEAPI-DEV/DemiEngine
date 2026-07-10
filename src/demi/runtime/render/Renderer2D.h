@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/runtime/render/RendererAssetData.h"
 #include "demi/runtime/scene/SceneData.h"
 
 #include <raylib.h>
@@ -9,10 +10,6 @@
 #include <unordered_map>
 
 namespace demi::runtime {
-
-struct ImageAnimationTextureData {
-  int frameCount = 0;
-};
 
 class Renderer2D {
 public:
@@ -35,6 +32,8 @@ private:
   int height_ = 1;
   std::unordered_map<std::string, Texture2D> textures_;
   std::unordered_map<std::string, ImageAnimationTextureData> imageAnimations_;
+  std::unordered_map<std::string, GifAnimationTextureData> gifAnimations_;
+  float animationTime_ = 0.0F;
 };
 
 } // namespace demi::runtime

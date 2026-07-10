@@ -20,6 +20,7 @@ void parseRect(const Json& json, const std::string& id, World& world) {
   HudRectElement rect;
   rect.id = id;
   rect.group = stringOr(json, "group");
+  rect.layer = static_cast<int>(numberField(json, "layer").value_or(0.0F));
   if (const std::optional<Vec2> position = vec2Field(json, "position")) {
     rect.position = *position;
   }
@@ -33,10 +34,38 @@ void parseRect(const Json& json, const std::string& id, World& world) {
   world.hudRects.push_back(std::move(rect));
 }
 
+void parsePanel(const Json& json, const std::string& id, World& world) {
+  HudPanelElement panel;
+  panel.id = id;
+  panel.group = stringOr(json, "group");
+  panel.layer = static_cast<int>(numberField(json, "layer").value_or(2.0F));
+  if (const std::optional<Vec2> position = vec2Field(json, "position")) panel.position = *position;
+  if (const std::optional<Vec2> size = vec2Field(json, "size")) panel.size = *size;
+  if (const std::optional<float> radius = numberField(json, "corner_radius")) panel.cornerRadius = *radius;
+  if (const std::optional<float> width = numberField(json, "border_width")) panel.borderWidth = *width;
+  if (const std::optional<Color> color = colorField(json, "color")) panel.color = *color;
+  if (const std::optional<Color> borderColor = colorField(json, "border_color")) panel.borderColor = *borderColor;
+  panel.visible = boolField(json, "visible").value_or(true);
+  world.hudPanels.push_back(std::move(panel));
+}
+
+void parseCircle(const Json& json, const std::string& id, World& world) {
+  HudCircleElement circle;
+  circle.id = id;
+  circle.group = stringOr(json, "group");
+  circle.layer = static_cast<int>(numberField(json, "layer").value_or(2.0F));
+  if (const std::optional<Vec2> center = vec2Field(json, "center")) circle.center = *center;
+  if (const std::optional<float> radius = numberField(json, "radius")) circle.radius = *radius;
+  if (const std::optional<Color> color = colorField(json, "color")) circle.color = *color;
+  circle.visible = boolField(json, "visible").value_or(true);
+  world.hudCircles.push_back(std::move(circle));
+}
+
 void parseImage(const Json& json, const std::string& id, World& world) {
   HudImageElement image;
   image.id = id;
   image.group = stringOr(json, "group");
+  image.layer = static_cast<int>(numberField(json, "layer").value_or(1.0F));
   image.texture = stringOr(json, "texture");
   if (const std::optional<Vec2> position = vec2Field(json, "position")) {
     image.position = *position;
@@ -61,6 +90,7 @@ void parseText(const Json& json, const std::string& id, World& world) {
   HudTextElement text;
   text.id = id;
   text.group = stringOr(json, "group");
+  text.layer = static_cast<int>(numberField(json, "layer").value_or(3.0F));
   text.text = stringOr(json, "text");
   if (const std::optional<Vec2> position = vec2Field(json, "position")) {
     text.position = *position;
@@ -82,6 +112,7 @@ void parseButton(const Json& json, const std::string& id, World& world) {
   HudButtonElement button;
   button.id = id;
   button.group = stringOr(json, "group");
+  button.layer = static_cast<int>(numberField(json, "layer").value_or(2.0F));
   button.label = stringOr(json, "label", id);
   if (const std::optional<Vec2> position = vec2Field(json, "position")) {
     button.position = *position;
@@ -112,6 +143,8 @@ void parseButton(const Json& json, const std::string& id, World& world) {
 
 constexpr std::array hudElementParsers{
   HudElementParser{.type = "rect", .parse = parseRect},
+  HudElementParser{.type = "panel", .parse = parsePanel},
+  HudElementParser{.type = "circle", .parse = parseCircle},
   HudElementParser{.type = "image", .parse = parseImage},
   HudElementParser{.type = "text", .parse = parseText},
   HudElementParser{.type = "button", .parse = parseButton},

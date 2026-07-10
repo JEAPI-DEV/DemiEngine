@@ -164,6 +164,7 @@ if(NOT ANDROID)
 
   if(PkgConfig_FOUND)
     pkg_check_modules(LUA54 QUIET IMPORTED_TARGET lua5.4)
+    pkg_check_modules(RSVG QUIET IMPORTED_TARGET librsvg-2.0)
     if(DEMI_ENABLE_MEDIA)
       pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libavutil libswscale)
     endif()
@@ -236,8 +237,14 @@ function(configure_demi_runtime target with_renderer)
   if(${with_renderer})
     target_link_libraries(${target} PRIVATE raylib)
     target_compile_definitions(${target} PRIVATE DEMI_HAS_RAYLIB=1)
+    if(TARGET PkgConfig::RSVG)
+      target_link_libraries(${target} PRIVATE PkgConfig::RSVG)
+      target_compile_definitions(${target} PRIVATE DEMI_HAS_RSVG=1)
+    else()
+      target_compile_definitions(${target} PRIVATE DEMI_HAS_RSVG=0)
+    endif()
   else()
-    target_compile_definitions(${target} PRIVATE DEMI_HAS_RAYLIB=0)
+    target_compile_definitions(${target} PRIVATE DEMI_HAS_RAYLIB=0 DEMI_HAS_RSVG=0)
   endif()
 
   if(ANDROID)
@@ -380,6 +387,10 @@ add_test(NAME demi-runtime-animated-main-menu-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/main_menu_animated/demi.project.json --frames 3
 )
 set_tests_properties(demi-runtime-animated-main-menu-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-gif-main-menu-frame
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/main_menu_gif/demi.project.json --frames 3
+)
+set_tests_properties(demi-runtime-gif-main-menu-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-validate-minimal-2d-networking
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json
 )
@@ -394,6 +405,9 @@ add_test(NAME demi-validate-minimal-voxel
 )
 add_test(NAME demi-validate-animated-main-menu
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/main_menu_animated/demi.project.json
+)
+add_test(NAME demi-validate-gif-main-menu
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/main_menu_gif/demi.project.json
 )
 add_test(NAME demi-script-check-minimal-player
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/scripts/player.lua

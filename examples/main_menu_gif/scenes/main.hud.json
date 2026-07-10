@@ -1,0 +1,51 @@
+{
+  "format_version": 1,
+  "canvas_size": [678.0, 960.0],
+  "elements": [
+    { "type": "image", "id": "wallpaper", "texture": "asset://background/main", "position": [0.0, 0.0], "size": [678.0, 960.0], "color": [0.78, 0.82, 1.0, 1.0] },
+    { "type": "rect", "id": "screen_vignette", "layer": 2, "position": [0.0, 0.0], "size": [678.0, 960.0], "color": [0.02, 0.02, 0.10, 0.18] },
+
+    { "type": "panel", "id": "identity_panel", "position": [92.0, 36.0], "size": [530.0, 76.0], "corner_radius": 5.0, "border_width": 1.0, "color": [0.063, 0.067, 0.18, 0.70], "border_color": [0.78, 0.80, 1.0, 0.40] },
+    { "type": "panel", "id": "episode_panel", "position": [248.0, 132.0], "size": [212.0, 36.0], "corner_radius": 4.0, "border_width": 1.0, "color": [0.94, 0.20, 0.29, 0.94], "border_color": [1.0, 0.70, 0.75, 0.72] },
+    { "type": "panel", "id": "gem_panel", "position": [496.0, 132.0], "size": [128.0, 36.0], "corner_radius": 4.0, "border_width": 1.0, "color": [0.063, 0.067, 0.18, 0.70], "border_color": [0.78, 0.80, 1.0, 0.40] },
+
+    { "type": "circle", "id": "dice_well", "center": [52.0, 214.0], "radius": 31.0, "color": [0.063, 0.067, 0.18, 0.52] },
+    { "type": "circle", "id": "mail_well", "center": [52.0, 290.0], "radius": 31.0, "color": [0.063, 0.067, 0.18, 0.52] },
+    { "type": "circle", "id": "card_well", "center": [52.0, 366.0], "radius": 31.0, "color": [0.063, 0.067, 0.18, 0.52] },
+    { "type": "circle", "id": "fullscreen_well", "center": [626.0, 242.0], "radius": 31.0, "color": [0.063, 0.067, 0.18, 0.52] },
+    { "type": "circle", "id": "gem_well", "center": [624.0, 606.0], "radius": 31.0, "color": [0.063, 0.067, 0.18, 0.52] },
+
+    { "type": "panel", "id": "carousel_panel", "position": [22.0, 624.0], "size": [634.0, 54.0], "corner_radius": 8.0, "color": [0.063, 0.067, 0.18, 0.70] },
+    { "type": "panel", "id": "summon_card", "position": [20.0, 692.0], "size": [302.0, 154.0], "corner_radius": 8.0, "border_width": 2.0, "color": [0.063, 0.067, 0.18, 0.70], "border_color": [0.86, 0.88, 1.0, 0.46] },
+    { "type": "panel", "id": "story_card", "position": [356.0, 692.0], "size": [302.0, 154.0], "corner_radius": 8.0, "border_width": 2.0, "color": [0.063, 0.067, 0.18, 0.70], "border_color": [0.86, 0.88, 1.0, 0.46] },
+    { "type": "panel", "id": "specials_chip", "position": [162.0, 864.0], "size": [164.0, 46.0], "corner_radius": 23.0, "color": [0.063, 0.067, 0.18, 0.72] },
+    { "type": "panel", "id": "shop_chip", "position": [352.0, 864.0], "size": [164.0, 46.0], "corner_radius": 23.0, "color": [0.063, 0.067, 0.18, 0.72] },
+    { "type": "panel", "id": "bottom_navigation", "position": [0.0, 912.0], "size": [678.0, 48.0], "color": [0.01, 0.01, 0.06, 0.88] },
+
+    { "type": "image", "id": "fire_icon", "layer": 3, "texture": "asset://icons/fire", "position": [112.0, 56.0], "size": [26.0, 26.0], "color": [1.0, 0.25, 0.34, 1.0] },
+    { "type": "image", "id": "gem_icon", "layer": 3, "texture": "asset://icons/gem", "position": [510.0, 140.0], "size": [20.0, 20.0], "color": [1.0, 1.0, 1.0, 1.0] },
+    { "type": "image", "id": "dice_icon", "layer": 3, "texture": "asset://icons/dice", "position": [36.0, 198.0], "size": [32.0, 32.0], "color": [1.0, 1.0, 1.0, 1.0] },
+    { "type": "image", "id": "mail_icon", "layer": 3, "texture": "asset://icons/mail", "position": [36.0, 274.0], "size": [32.0, 32.0], "color": [1.0, 1.0, 1.0, 1.0] },
+    { "type": "image", "id": "card_icon", "layer": 3, "texture": "asset://icons/credit_card", "position": [36.0, 350.0], "size": [32.0, 32.0], "color": [1.0, 1.0, 1.0, 1.0] },
+    { "type": "image", "id": "fullscreen_icon", "layer": 3, "texture": "asset://icons/fullscreen", "position": [610.0, 226.0], "size": [32.0, 32.0], "color": [1.0, 1.0, 1.0, 1.0] },
+    { "type": "image", "id": "sale_icon", "layer": 3, "texture": "asset://icons/sale", "position": [176.0, 872.0], "size": [28.0, 28.0], "color": [1.0, 0.25, 0.34, 1.0] },
+    { "type": "image", "id": "crown_icon", "layer": 3, "texture": "asset://icons/crown", "position": [396.0, 872.0], "size": [28.0, 28.0], "color": [1.0, 1.0, 1.0, 1.0] },
+    { "type": "image", "id": "base_icon", "layer": 3, "texture": "asset://icons/base", "position": [76.0, 918.0], "size": [22.0, 22.0], "color": [1.0, 1.0, 1.0, 0.82] },
+    { "type": "image", "id": "home_icon", "layer": 3, "texture": "asset://icons/house", "position": [244.0, 918.0], "size": [22.0, 22.0], "color": [1.0, 0.25, 0.34, 1.0] },
+    { "type": "image", "id": "guild_icon", "layer": 3, "texture": "asset://icons/gem", "position": [412.0, 918.0], "size": [22.0, 22.0], "color": [1.0, 1.0, 1.0, 0.82] },
+    { "type": "image", "id": "chat_icon", "layer": 3, "texture": "asset://icons/talk_chat", "position": [580.0, 918.0], "size": [22.0, 22.0], "color": [1.0, 1.0, 1.0, 0.82] },
+
+    { "type": "text", "id": "player", "text": "JEAPI", "position": [154.0, 52.0], "scale": 3.0, "color": [1.0, 1.0, 1.0, 1.0] },
+    { "type": "text", "id": "currency", "text": "1,815,872", "position": [154.0, 84.0], "scale": 2.0, "color": [1.0, 1.0, 1.0, 0.92] },
+    { "type": "text", "id": "episode_text", "text": "NEXT EPISODE: 21D", "position": [270.0, 142.0], "scale": 1.8, "color": [1.0, 1.0, 1.0, 1.0] },
+    { "type": "text", "id": "gems", "text": "581", "position": [540.0, 140.0], "scale": 2.0, "color": [1.0, 1.0, 1.0, 1.0] },
+    { "type": "text", "id": "summon", "text": "SUMMON", "position": [88.0, 766.0], "scale": 3.4, "color": [1.0, 1.0, 1.0, 1.0] },
+    { "type": "text", "id": "story", "text": "STORY", "position": [436.0, 766.0], "scale": 3.4, "color": [1.0, 1.0, 1.0, 1.0] },
+    { "type": "text", "id": "specials", "text": "SPECIALS", "position": [214.0, 878.0], "scale": 1.5, "color": [1.0, 1.0, 1.0, 0.92] },
+    { "type": "text", "id": "shop", "text": "SHOP", "position": [444.0, 878.0], "scale": 1.5, "color": [1.0, 1.0, 1.0, 0.92] },
+    { "type": "text", "id": "base", "text": "BASE", "position": [62.0, 942.0], "scale": 1.25, "color": [1.0, 1.0, 1.0, 0.82] },
+    { "type": "text", "id": "home", "text": "HOME", "position": [224.0, 942.0], "scale": 1.25, "color": [1.0, 0.25, 0.34, 1.0] },
+    { "type": "text", "id": "guild", "text": "GUILD", "position": [390.0, 942.0], "scale": 1.25, "color": [1.0, 1.0, 1.0, 0.82] },
+    { "type": "text", "id": "chat", "text": "CHAT", "position": [562.0, 942.0], "scale": 1.25, "color": [1.0, 1.0, 1.0, 0.82] }
+  ]
+}

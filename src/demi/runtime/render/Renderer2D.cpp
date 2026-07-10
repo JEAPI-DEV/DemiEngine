@@ -8,6 +8,12 @@
 #include <string_view>
 #include <vector>
 
+#if DEMI_HAS_RSVG
+#include <librsvg/rsvg.h>
+#include <librsvg/rsvg-cairo.h>
+#include <cairo.h>
+#endif
+
 namespace demi::runtime {
 
 namespace {
@@ -22,6 +28,147 @@ namespace {
 }
 
 const ::Color WhiteTint = {255, 255, 255, 255};
+
+std::optional<Texture2D> loadSvgIcon(const std::filesystem::path& path) {
+#if DEMI_HAS_RSVG
+  constexpr int IconRasterSize = 256;
+  GError* error = nullptr;
+  RsvgHandle* handle = rsvg_handle_new_from_file(path.string().c_str(), &error);
+  if (handle == nullptr) {
+    if (error != nullptr) {
+      g_error_free(error);
+    }
+    return std::nullopt;
+  }
+
+  cairo_surface_t* surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, IconRasterSize, IconRasterSize);
+  cairo_t* context = cairo_create(surface);
+  const RsvgRectangle viewport{.x = 0.0, .y = 0.0, .width = static_cast<double>(IconRasterSize), .height = static_cast<double>(IconRasterSize)};
+  const gboolean rendered = rsvg_handle_render_document(handle, context, &viewport, &error);
+  cairo_surface_flush(surface);
+
+  std::vector<unsigned char> pixels(static_cast<std::size_t>(IconRasterSize * IconRasterSize * 4));
+  if (rendered) {
+    const unsigned char* source = cairo_image_surface_get_data(surface);
+    const int stride = cairo_image_surface_get_stride(surface);
+    for (int y = 0; y < IconRasterSize; ++y) {
+      for (int x = 0; x < IconRasterSize; ++x) {
+        const unsigned char* bgra = source + y * stride + x * 4;
+        unsigned char* rgba = pixels.data() + (y * IconRasterSize + x) * 4;
+        const unsigned char alpha = bgra[3];
+        rgba[0] = 255;
+        rgba[1] = 255;
+        rgba[2] = 255;
+        rgba[3] = alpha;
+      }
+    }
+  }
+
+  if (error != nullptr) {
+    g_error_free(error);
+  }
+  cairo_destroy(context);
+  cairo_surface_destroy(surface);
+  g_object_unref(handle);
+  if (!rendered) {
+    return std::nullopt;
+  }
+
+  Image image{.data = pixels.data(), .width = IconRasterSize, .height = IconRasterSize, .mipmaps = 1, .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
+  Texture2D texture = LoadTextureFromImage(image);
+  return texture.id == 0 ? std::nullopt : std::make_optional(texture);
+#else
+  (void)path;
+  return std::nullopt;
+#endif
+}
+
+void skipGifSubBlocks(const std::vector<unsigned char>& bytes, std::size_t& cursor) {
+  while (cursor < bytes.size()) {
+    const std::size_t size = bytes[cursor++];
+    if (size == 0 || cursor + size > bytes.size()) {
+      return;
+    }
+    cursor += size;
+  }
+}
+
+std::vector<float> loadGifFrameDurations(const std::filesystem::path& path) {
+  std::ifstream input(path, std::ios::binary);
+  const std::vector<unsigned char> bytes{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+  if (bytes.size() < 13 || bytes[0] != 'G' || bytes[1] != 'I' || bytes[2] != 'F') {
+    return {};
+  }
+
+  std::size_t cursor = 13;
+  if ((bytes[10] & 0x80U) != 0U) {
+    cursor += 3U * (1U << ((bytes[10] & 0x07U) + 1U));
+  }
+
+  std::vector<float> durations;
+  int pendingDelayCentiseconds = 10;
+  while (cursor < bytes.size()) {
+    const unsigned char block = bytes[cursor++];
+    if (block == 0x3BU) {
+      break;
+    }
+    if (block == 0x21U) {
+      if (cursor >= bytes.size()) {
+        break;
+      }
+      const unsigned char label = bytes[cursor++];
+      if (label == 0xF9U && cursor < bytes.size()) {
+        const std::size_t blockSize = bytes[cursor++];
+        if (blockSize >= 4 && cursor + blockSize <= bytes.size()) {
+          pendingDelayCentiseconds = static_cast<int>(bytes[cursor + 1]) | (static_cast<int>(bytes[cursor + 2]) << 8);
+        }
+        cursor += blockSize;
+        if (cursor < bytes.size() && bytes[cursor] == 0U) {
+          ++cursor;
+        }
+      } else {
+        skipGifSubBlocks(bytes, cursor);
+      }
+      continue;
+    }
+    if (block != 0x2CU || cursor + 9 > bytes.size()) {
+      break;
+    }
+
+    const unsigned char packed = bytes[cursor + 8];
+    cursor += 9;
+    if ((packed & 0x80U) != 0U) {
+      cursor += 3U * (1U << ((packed & 0x07U) + 1U));
+    }
+    if (cursor >= bytes.size()) {
+      break;
+    }
+    ++cursor; // LZW minimum code size.
+    skipGifSubBlocks(bytes, cursor);
+    durations.push_back(std::max(pendingDelayCentiseconds, 1) / 100.0F);
+    pendingDelayCentiseconds = 10;
+  }
+  return durations;
+}
+
+int gifFrameAt(const GifAnimationTextureData& animation, const float elapsed) {
+  float duration = 0.0F;
+  for (const float frameDuration : animation.frameDurations) {
+    duration += frameDuration;
+  }
+  if (duration <= 0.0F) {
+    return 0;
+  }
+
+  float frameTime = std::fmod(elapsed, duration);
+  for (std::size_t frame = 0; frame < animation.frameDurations.size(); ++frame) {
+    if (frameTime < animation.frameDurations[frame]) {
+      return static_cast<int>(frame);
+    }
+    frameTime -= animation.frameDurations[frame];
+  }
+  return 0;
+}
 }
 
 void drawText(const HudTextElement& element, float scaleX, float scaleY) {
@@ -49,9 +196,36 @@ void drawHudRect(const HudRectElement& element, float scaleX, float scaleY) {
     DrawRectangleRec(rect, toRlColor(element.color));
 }
 
+void drawHudPanel(const HudPanelElement& element, float scaleX, float scaleY) {
+    if (!element.visible) return;
+    const Rectangle rect{
+        .x = element.position.x * scaleX,
+        .y = element.position.y * scaleY,
+        .width = element.size.x * scaleX,
+        .height = element.size.y * scaleY,
+    };
+    const float radius = element.cornerRadius * std::min(scaleX, scaleY);
+    if (radius <= 0.0F) {
+        DrawRectangleRec(rect, toRlColor(element.color));
+        if (element.borderWidth > 0.0F) DrawRectangleLinesEx(rect, element.borderWidth * std::min(scaleX, scaleY), toRlColor(element.borderColor));
+        return;
+    }
+    const float roundness = std::min(radius / std::max(std::min(rect.width, rect.height) * 0.5F, 1.0F), 1.0F);
+    DrawRectangleRounded(rect, roundness, 8, toRlColor(element.color));
+    if (element.borderWidth > 0.0F) DrawRectangleRoundedLinesEx(rect, roundness, 8, element.borderWidth * std::min(scaleX, scaleY), toRlColor(element.borderColor));
+}
+
+void drawHudCircle(const HudCircleElement& element, float scaleX, float scaleY) {
+    if (!element.visible) return;
+    const float scale = std::min(scaleX, scaleY);
+    DrawCircleV(Vector2{element.center.x * scaleX, element.center.y * scaleY}, element.radius * scale, toRlColor(element.color));
+}
+
 void drawHudImage(const HudImageElement& element,
                   const std::unordered_map<std::string, Texture2D>& textures,
                   const std::unordered_map<std::string, ImageAnimationTextureData>& imageAnimations,
+                  const std::unordered_map<std::string, GifAnimationTextureData>& gifAnimations,
+                  const float animationTime,
                   float scaleX,
                   float scaleY) {
     if (!element.visible || element.texture.empty()) {
@@ -65,6 +239,12 @@ void drawHudImage(const HudImageElement& element,
             return;
         }
         textureId = element.animation + "#" + std::to_string(element.animationFrame % animation->second.frameCount);
+    } else if (const auto animation = gifAnimations.find(element.texture); animation != gifAnimations.end()) {
+        if (animation->second.frameDurations.empty()) {
+            return;
+        }
+        const int frame = gifFrameAt(animation->second, animationTime);
+        textureId = element.texture + "#" + std::to_string(frame);
     }
 
     const auto texture = textures.find(textureId);
@@ -369,6 +549,39 @@ Renderer2D::~Renderer2D() {
 
 void Renderer2D::loadTextureAssets(const AssetRegistry& registry) {
   for (const AssetManifest& asset : registry.assets) {
+    if (asset.type == "GifAnimation2D") {
+      int frameCount = 0;
+      Image frames = LoadImageAnim(asset.sourcePath.string().c_str(), &frameCount);
+      if (frames.data == nullptr || frameCount <= 0) {
+        std::cerr << "GIF load failed for " << asset.id << " from " << asset.sourcePath.string() << ".\n";
+        continue;
+      }
+      const int frameBytes = GetPixelDataSize(frames.width, frames.height, frames.format);
+      for (int frame = 0; frame < frameCount; ++frame) {
+        Image image{.data = static_cast<unsigned char*>(frames.data) + frameBytes * frame, .width = frames.width, .height = frames.height, .mipmaps = 1, .format = frames.format};
+        Texture2D texture = LoadTextureFromImage(image);
+        if (texture.id != 0) {
+          textures_[asset.id + "#" + std::to_string(frame)] = texture;
+        }
+      }
+      UnloadImage(frames);
+      std::vector<float> frameDurations = loadGifFrameDurations(asset.sourcePath);
+      if (frameDurations.size() != static_cast<std::size_t>(frameCount)) {
+        frameDurations.assign(static_cast<std::size_t>(frameCount), 0.1F);
+      }
+      gifAnimations_[asset.id] = GifAnimationTextureData{.frameDurations = std::move(frameDurations)};
+      continue;
+    }
+    if (asset.type == "Icon2D") {
+      const std::optional<Texture2D> texture = loadSvgIcon(asset.sourcePath);
+      if (!texture.has_value()) {
+        std::cerr << "Icon load failed for " << asset.id << " from " << asset.sourcePath.string() << ".\n";
+        continue;
+      }
+      SetTextureFilter(*texture, TEXTURE_FILTER_BILINEAR);
+      textures_[asset.id] = *texture;
+      continue;
+    }
     if (asset.type == "ImageAnimation2D") {
       bool loaded = true;
       for (std::size_t frame = 0; frame < asset.sourcePaths.size(); ++frame) {
@@ -419,6 +632,7 @@ void Renderer2D::beginFrame(const Camera2DComponent& camera, const Vec2 cameraPo
   cameraPosition_ = cameraPosition;
   width_ = std::max(width, 1);
   height_ = std::max(height, 1);
+  animationTime_ += GetFrameTime();
 
   BeginDrawing();
   ClearBackground(toRlColor(camera.clearColor));
@@ -472,20 +686,24 @@ void Renderer2D::drawHud(const World& world) {
     const float scaleX = static_cast<float>(width_) / canvasWidth;
     const float scaleY = static_cast<float>(height_) / canvasHeight;
 
-    for (const HudRectElement& element : world.hudRects) {
-        drawHudRect(element, scaleX, scaleY);
-    }
+    int maxLayer = 0;
+    const auto findMaxLayer = [&maxLayer](const auto& elements) {
+        for (const auto& element : elements) maxLayer = std::max(maxLayer, element.layer);
+    };
+    findMaxLayer(world.hudRects);
+    findMaxLayer(world.hudPanels);
+    findMaxLayer(world.hudCircles);
+    findMaxLayer(world.hudImages);
+    findMaxLayer(world.hudButtons);
+    findMaxLayer(world.hudText);
 
-    for (const HudImageElement& element : world.hudImages) {
-        drawHudImage(element, textures_, imageAnimations_, scaleX, scaleY);
-    }
-
-    for (const HudButtonElement& element : world.hudButtons) {
-        drawHudButton(element, scaleX, scaleY);
-    }
-
-    for (const HudTextElement& element : world.hudText) {
-        drawText(element, scaleX, scaleY);
+    for (int layer = 0; layer <= maxLayer; ++layer) {
+        for (const HudRectElement& element : world.hudRects) if (element.layer == layer) drawHudRect(element, scaleX, scaleY);
+        for (const HudPanelElement& element : world.hudPanels) if (element.layer == layer) drawHudPanel(element, scaleX, scaleY);
+        for (const HudCircleElement& element : world.hudCircles) if (element.layer == layer) drawHudCircle(element, scaleX, scaleY);
+        for (const HudImageElement& element : world.hudImages) if (element.layer == layer) drawHudImage(element, textures_, imageAnimations_, gifAnimations_, animationTime_, scaleX, scaleY);
+        for (const HudButtonElement& element : world.hudButtons) if (element.layer == layer) drawHudButton(element, scaleX, scaleY);
+        for (const HudTextElement& element : world.hudText) if (element.layer == layer) drawText(element, scaleX, scaleY);
     }
 }
 

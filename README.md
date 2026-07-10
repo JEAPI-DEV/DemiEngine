@@ -46,6 +46,7 @@ These screenshots are from the checked-in examples. They are small probes, but t
 - Scene loading from `*.scene.json`, including nested `components` data.
 - HUD loading from `*.hud.json`, with buttons, text, rectangles, images, groups, visibility, hover state, click actions, and Lua-controlled position/size/opacity.
 - `require("demi.gui_animation")`: a small Lua callback scheduler for HUD animation.
+- `GifAnimation2D` assets loop using the GIF's native frame delays; `Icon2D` assets render SVG icons for HUD use.
 - Lua 5.4 scripting through sol2.
 - Lua lifecycle functions: `on_create`, `on_start`, `on_update`, `on_fixed_update`, and `on_destroy`.
 - Lua action/event annotations: `@HandleAction("...")` and `@OnEvent("...")`.
@@ -145,6 +146,7 @@ After building:
 - `examples/minimal_2d_networking`: the main runtime probe. It has a data-driven HUD menu, Lua action handlers, scene switching, save-backed settings, platformer/slingshot levels, and optional networking code paths.
 - `examples/minimal_3d`: a small 3D runtime probe with a Lua-controlled player script.
 - `examples/main_menu_animated`: a polished block-adventure menu probe that loops a walking sprite behind the menu with `GuiAnimation`.
+- `examples/main_menu_gif`: a portrait mobile-hub probe using the supplied animated GIF wallpaper and SVG icon assets.
 - `examples/fighting_game_2d`: early fighting-game data and Lua scripts.
 - `examples/isometric_base_builder`: early isometric/base-builder scene data.
 

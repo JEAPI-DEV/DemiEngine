@@ -1,0 +1,6 @@
+{
+  "format_version": 1,
+  "id": "asset://background/main",
+  "type": "GifAnimation2D",
+  "source": "wallpaper.gif"
+}

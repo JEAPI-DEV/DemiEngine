@@ -74,6 +74,23 @@ int main(int argc, char** argv) {
         "position": [12.0, 64.0],
         "size": [120.0, 40.0],
         "font_size": 24.0
+      },
+      {
+        "type": "panel",
+        "id": "hud_panel",
+        "position": [100.0, 120.0],
+        "size": [220.0, 80.0],
+        "corner_radius": 12.0,
+        "border_width": 2.0,
+        "color": [0.06, 0.07, 0.18, 0.70],
+        "border_color": [1.0, 1.0, 1.0, 0.40]
+      },
+      {
+        "type": "circle",
+        "id": "hud_circle",
+        "center": [64.0, 220.0],
+        "radius": 28.0,
+        "color": [0.06, 0.07, 0.18, 0.50]
       }
     ]
   })json")) {
@@ -82,8 +99,10 @@ int main(int argc, char** argv) {
   }
   runtime::World hudWorld;
   runtime::scene_loading::loadHudFile(hudWorld, hudFixture, error);
-  if (hudWorld.hudText.empty() || hudWorld.hudText[0].fontSize != 32.0F || hudWorld.hudButtons.empty() || hudWorld.hudButtons[0].fontSize != 24.0F) {
-    std::cerr << "HUD loader did not read font_size fields.\n";
+  if (hudWorld.hudText.empty() || hudWorld.hudText[0].fontSize != 32.0F || hudWorld.hudButtons.empty() || hudWorld.hudButtons[0].fontSize != 24.0F ||
+      hudWorld.hudPanels.empty() || hudWorld.hudPanels[0].cornerRadius != 12.0F || hudWorld.hudPanels[0].borderWidth != 2.0F ||
+      hudWorld.hudCircles.empty() || hudWorld.hudCircles[0].radius != 28.0F) {
+    std::cerr << "HUD loader did not read panel, circle, or font_size fields.\n";
     return 1;
   }
 

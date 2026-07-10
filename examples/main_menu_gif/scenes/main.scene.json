@@ -1,0 +1,7 @@
+{
+  "format_version": 1,
+  "id": "scene://main_menu_gif/main",
+  "name": "GIF Main Menu",
+  "hud": "main.hud.json",
+  "entities": []
+}
