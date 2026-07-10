@@ -17,7 +17,6 @@ bool writeFile(const std::filesystem::path& path, const char* contents) {
   output << contents;
   return true;
 }
-
 } // namespace
 
 int main() {
@@ -66,6 +65,9 @@ function Probe:on_start()
   Hud.text("hud_probe", "probe", 8.0, 12.0, 2.0)
   if Hud.set_text_scale("hud_probe", 5.5) then
     Save.set_string("test", "hud_text_scale", "updated")
+  end
+  if Hud.set_position("hud_image", 18.0, 24.0) and Hud.set_image_animation_frame("hud_image", "asset://animations/test", 3) and Hud.set_size("button_start", 40.0, 90.0) and Hud.set_opacity("button_start", 0.25) then
+    Save.set_string("test", "hud_animation_properties", "updated")
   end
   Entity.create("ent_tinted_sprite", {
     components = {
@@ -192,6 +194,11 @@ return PropProbe
     .script = "script://scripts/button.lua",
     .action = "test.annotated",
   });
+  world.hudImages.push_back(runtime::HudImageElement{
+    .id = "hud_image",
+    .position = runtime::Vec2{.x = 0.0F, .y = 0.0F},
+    .size = runtime::Vec2{.x = 8.0F, .y = 8.0F},
+  });
   world.hudButtons.push_back(runtime::HudButtonElement{
     .id = "button_module",
     .label = "MODULE",
@@ -275,6 +282,14 @@ return PropProbe
   const auto hudProbe = std::ranges::find_if(world.hudText, [](const runtime::HudTextElement& element) { return element.id == "hud_probe"; });
   if (host.saveString("test", "hud_text_scale") != "updated" || hudProbe == world.hudText.end() || hudProbe->scale != 5.5F) {
     std::cerr << "Hud.set_text_scale did not update the HUD text scale.\n";
+    return 1;
+  }
+  if (host.saveString("test", "hud_animation_properties") != "updated" || world.hudButtons[0].position.x != 0.0F ||
+      world.hudButtons[0].size.x != 40.0F || world.hudButtons[0].size.y != 90.0F || world.hudButtons[0].color.a != 0.25F ||
+      world.hudButtons[0].hoverColor.a != 0.25F || world.hudButtons[0].textColor.a != 0.25F ||
+      world.hudImages[0].position.x != 18.0F || world.hudImages[0].position.y != 24.0F ||
+      world.hudImages[0].animation != "asset://animations/test" || world.hudImages[0].animationFrame != 3) {
+    std::cerr << "HUD animation property setters did not update the expected elements.\n";
     return 1;
   }
   const runtime::Entity* tintedSprite = runtime::findEntity(world, "ent_tinted_sprite");

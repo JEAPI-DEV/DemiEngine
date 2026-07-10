@@ -373,12 +373,31 @@ function Hud.set_rect(id, x, y, width, height) end
 ---@return boolean
 function Hud.set_image(id, texture, source_x, source_y, source_width, source_height) end
 ---@param id string
+---@param animation_id string
+---@param frame integer
+---@return boolean
+function Hud.set_image_animation_frame(id, animation_id, frame) end
+---@param id string
+---@param x number
+---@param y number
+---@return boolean
+function Hud.set_position(id, x, y) end
+---@param id string
+---@param width number
+---@param height number
+---@return boolean
+function Hud.set_size(id, width, height) end
+---@param id string
 ---@param r number
 ---@param g number
 ---@param b number
 ---@param a? number
 ---@return boolean
 function Hud.set_color(id, r, g, b, a) end
+---@param id string
+---@param opacity number
+---@return boolean
+function Hud.set_opacity(id, opacity) end
 ---@param id string
 ---@param visible boolean
 ---@return boolean

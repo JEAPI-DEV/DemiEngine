@@ -17,7 +17,6 @@ std::string readFile(const std::filesystem::path& path) {
   buffer << input.rdbuf();
   return buffer.str();
 }
-
 std::string withoutLineComments(const std::string& text) {
   std::istringstream input(text);
   std::ostringstream output;
@@ -115,6 +114,10 @@ int main(int argc, char** argv) {
          "Transform3D.get_scale",
          "Transform3D.set_scale",
          "Hud.set_button_label",
+         "Hud.set_position",
+         "Hud.set_size",
+         "Hud.set_opacity",
+         "Hud.set_image_animation_frame",
          "Runtime.get_max_fps",
          "Runtime.set_max_fps",
          "Runtime.get_mouse_captured",

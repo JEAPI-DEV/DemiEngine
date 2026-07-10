@@ -49,12 +49,25 @@ void drawHudRect(const HudRectElement& element, float scaleX, float scaleY) {
     DrawRectangleRec(rect, toRlColor(element.color));
 }
 
-void drawHudImage(const HudImageElement& element, const std::unordered_map<std::string, Texture2D>& textures, float scaleX, float scaleY) {
+void drawHudImage(const HudImageElement& element,
+                  const std::unordered_map<std::string, Texture2D>& textures,
+                  const std::unordered_map<std::string, ImageAnimationTextureData>& imageAnimations,
+                  float scaleX,
+                  float scaleY) {
     if (!element.visible || element.texture.empty()) {
         return;
     }
 
-    const auto texture = textures.find(element.texture);
+    std::string textureId = element.texture;
+    if (!element.animation.empty()) {
+        const auto animation = imageAnimations.find(element.animation);
+        if (animation == imageAnimations.end() || animation->second.frameCount <= 0) {
+            return;
+        }
+        textureId = element.animation + "#" + std::to_string(element.animationFrame % animation->second.frameCount);
+    }
+
+    const auto texture = textures.find(textureId);
     if (texture == textures.end()) {
         return;
     }
@@ -356,6 +369,23 @@ Renderer2D::~Renderer2D() {
 
 void Renderer2D::loadTextureAssets(const AssetRegistry& registry) {
   for (const AssetManifest& asset : registry.assets) {
+    if (asset.type == "ImageAnimation2D") {
+      bool loaded = true;
+      for (std::size_t frame = 0; frame < asset.sourcePaths.size(); ++frame) {
+        Texture2D texture = LoadTexture(asset.sourcePaths[frame].string().c_str());
+        if (texture.id == 0) {
+          std::cerr << "Animation frame load failed for " << asset.id << " from " << asset.sourcePaths[frame].string() << ".\n";
+          loaded = false;
+          break;
+        }
+        SetTextureFilter(texture, TEXTURE_FILTER_POINT);
+        textures_[asset.id + "#" + std::to_string(frame)] = texture;
+      }
+      if (loaded) {
+        imageAnimations_[asset.id] = ImageAnimationTextureData{.frameCount = static_cast<int>(asset.sourcePaths.size())};
+      }
+      continue;
+    }
     if (asset.type != "Texture2D") {
       continue;
     }
@@ -447,7 +477,7 @@ void Renderer2D::drawHud(const World& world) {
     }
 
     for (const HudImageElement& element : world.hudImages) {
-        drawHudImage(element, textures_, scaleX, scaleY);
+        drawHudImage(element, textures_, imageAnimations_, scaleX, scaleY);
     }
 
     for (const HudButtonElement& element : world.hudButtons) {

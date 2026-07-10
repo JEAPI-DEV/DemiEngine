@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "id": "scene://main_menu_animated/main",
+  "name": "Animated Main Menu",
+  "hud": "main.hud.json",
+  "entities": [
+    {
+      "id": "ent_menu_controller",
+      "name": "Menu Animation Controller",
+      "components": {
+        "LuaScript": {
+          "module": "script://scripts/main_menu.lua"
+        }
+      }
+    }
+  ]
+}

@@ -114,8 +114,85 @@ bool LuaScriptHost::setHudImage(const std::string& id,
   for (HudImageElement& element : world_->hudImages) {
     if (element.id == id) {
       element.texture = std::move(texture);
+      element.animation.clear();
+      element.animationFrame = 0;
       element.sourcePosition = Vec2{.x = sourceX, .y = sourceY};
       element.sourceSize = Vec2{.x = sourceWidth, .y = sourceHeight};
+      return true;
+    }
+  }
+  return false;
+}
+
+bool LuaScriptHost::setHudImageAnimationFrame(const std::string& id, std::string animation, const int frame) {
+  if (world_ == nullptr) {
+    return false;
+  }
+  for (HudImageElement& element : world_->hudImages) {
+    if (element.id == id) {
+      element.texture = animation;
+      element.animation = std::move(animation);
+      element.animationFrame = std::max(frame, 0);
+      element.sourcePosition = {};
+      element.sourceSize = {};
+      return true;
+    }
+  }
+  return false;
+}
+
+bool LuaScriptHost::setHudPosition(const std::string& id, const float x, const float y) {
+  if (world_ == nullptr) {
+    return false;
+  }
+  const Vec2 position{.x = x, .y = y};
+  for (HudTextElement& element : world_->hudText) {
+    if (element.id == id) {
+      element.position = position;
+      return true;
+    }
+  }
+  for (HudRectElement& element : world_->hudRects) {
+    if (element.id == id) {
+      element.position = position;
+      return true;
+    }
+  }
+  for (HudImageElement& element : world_->hudImages) {
+    if (element.id == id) {
+      element.position = position;
+      return true;
+    }
+  }
+  for (HudButtonElement& element : world_->hudButtons) {
+    if (element.id == id) {
+      element.position = position;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool LuaScriptHost::setHudSize(const std::string& id, const float width, const float height) {
+  if (world_ == nullptr) {
+    return false;
+  }
+  const Vec2 size{.x = width, .y = height};
+  for (HudRectElement& element : world_->hudRects) {
+    if (element.id == id) {
+      element.size = size;
+      return true;
+    }
+  }
+  for (HudImageElement& element : world_->hudImages) {
+    if (element.id == id) {
+      element.size = size;
+      return true;
+    }
+  }
+  for (HudButtonElement& element : world_->hudButtons) {
+    if (element.id == id) {
+      element.size = size;
       return true;
     }
   }
@@ -147,6 +224,40 @@ bool LuaScriptHost::setHudColor(const std::string& id, const Color color) {
   for (HudButtonElement& element : world_->hudButtons) {
     if (element.id == id) {
       element.color = color;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool LuaScriptHost::setHudOpacity(const std::string& id, const float opacity) {
+  if (world_ == nullptr) {
+    return false;
+  }
+  const float alpha = std::clamp(opacity, 0.0F, 1.0F);
+  for (HudTextElement& element : world_->hudText) {
+    if (element.id == id) {
+      element.color.a = alpha;
+      return true;
+    }
+  }
+  for (HudRectElement& element : world_->hudRects) {
+    if (element.id == id) {
+      element.color.a = alpha;
+      return true;
+    }
+  }
+  for (HudImageElement& element : world_->hudImages) {
+    if (element.id == id) {
+      element.color.a = alpha;
+      return true;
+    }
+  }
+  for (HudButtonElement& element : world_->hudButtons) {
+    if (element.id == id) {
+      element.color.a = alpha;
+      element.hoverColor.a = alpha;
+      element.textColor.a = alpha;
       return true;
     }
   }

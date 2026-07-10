@@ -376,6 +376,10 @@ add_test(NAME demi-runtime-minimal-voxel-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/demi.project.json --frames 1
 )
 set_tests_properties(demi-runtime-minimal-voxel-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-animated-main-menu-frame
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/main_menu_animated/demi.project.json --frames 3
+)
+set_tests_properties(demi-runtime-animated-main-menu-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-validate-minimal-2d-networking
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json
 )
@@ -387,6 +391,9 @@ add_test(NAME demi-validate-minimal-3d
 )
 add_test(NAME demi-validate-minimal-voxel
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/demi.project.json
+)
+add_test(NAME demi-validate-animated-main-menu
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/main_menu_animated/demi.project.json
 )
 add_test(NAME demi-script-check-minimal-player
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/scripts/player.lua

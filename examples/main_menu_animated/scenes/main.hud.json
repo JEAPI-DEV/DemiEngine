@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "canvas_size": [960.0, 540.0],
+  "elements": [
+    { "type": "rect", "id": "sky", "position": [0.0, 0.0], "size": [960.0, 540.0], "color": [0.32, 0.54, 0.72, 1.0] },
+    { "type": "rect", "id": "cloud_left", "position": [92.0, 108.0], "size": [194.0, 18.0], "color": [0.77, 0.87, 0.91, 0.38] },
+    { "type": "rect", "id": "cloud_right", "position": [650.0, 148.0], "size": [150.0, 16.0], "color": [0.77, 0.87, 0.91, 0.30] },
+    { "type": "rect", "id": "distant_hills", "position": [0.0, 306.0], "size": [960.0, 96.0], "color": [0.22, 0.38, 0.36, 1.0] },
+    { "type": "rect", "id": "ground", "position": [0.0, 368.0], "size": [960.0, 172.0], "color": [0.26, 0.47, 0.28, 1.0] },
+    { "type": "rect", "id": "ground_light", "position": [0.0, 368.0], "size": [960.0, 8.0], "color": [0.47, 0.66, 0.34, 0.82] },
+    { "type": "image", "id": "walker", "texture": "asset://walk/warrior", "position": [-104.0, 220.0], "size": [92.0, 120.0], "color": [1.0, 1.0, 1.0, 1.0] },
+    { "type": "button", "id": "menu_panel", "label": "", "position": [270.0, 112.0], "size": [420.0, 312.0], "color": [0.05, 0.09, 0.12, 0.82], "hover_color": [0.05, 0.09, 0.12, 0.82], "text_color": [1.0, 1.0, 1.0, 0.0] },
+    { "type": "button", "id": "play", "label": "PLAY", "position": [322.0, 264.0], "size": [316.0, 48.0], "scale": 3.0, "color": [0.19, 0.42, 0.30, 0.96], "hover_color": [0.29, 0.58, 0.39, 1.0], "text_color": [0.96, 0.98, 0.91, 1.0] },
+    { "type": "button", "id": "options", "label": "OPTIONS", "position": [322.0, 322.0], "size": [316.0, 42.0], "scale": 2.5, "color": [0.12, 0.19, 0.22, 0.96], "hover_color": [0.18, 0.29, 0.32, 1.0], "text_color": [0.88, 0.94, 0.90, 1.0] },
+    { "type": "text", "id": "title", "text": "MEADOWBOUND", "position": [336.0, 158.0], "scale": 5.0, "color": [0.96, 0.90, 0.67, 1.0] },
+    { "type": "text", "id": "subtitle", "text": "A SMALL BLOCK ADVENTURE", "position": [370.0, 212.0], "scale": 2.0, "color": [0.74, 0.85, 0.80, 1.0] },
+    { "type": "text", "id": "hint", "text": "THE TRAVELLER LOOPS WITH GuiAnimation", "position": [264.0, 456.0], "scale": 1.5, "color": [0.90, 0.94, 0.83, 0.88] }
+  ]
+}

@@ -10,6 +10,10 @@
 
 namespace demi::runtime {
 
+struct ImageAnimationTextureData {
+  int frameCount = 0;
+};
+
 class Renderer2D {
 public:
   Renderer2D() = default;
@@ -30,6 +34,7 @@ private:
   int width_ = 1;
   int height_ = 1;
   std::unordered_map<std::string, Texture2D> textures_;
+  std::unordered_map<std::string, ImageAnimationTextureData> imageAnimations_;
 };
 
 } // namespace demi::runtime

@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "name": "Animated Main Menu",
+  "main_scene": "scene://main_menu_animated/main",
+  "scenes": [
+    {
+      "id": "scene://main_menu_animated/main",
+      "path": "scenes/main.scene.json"
+    }
+  ],
+  "scripting": {
+    "language": "lua54",
+    "modules": []
+  }
+}

@@ -44,7 +44,8 @@ These screenshots are from the checked-in examples. They are small probes, but t
 
 - Project, scene, HUD, asset, and save validation through the `demi` CLI.
 - Scene loading from `*.scene.json`, including nested `components` data.
-- HUD loading from `*.hud.json`, with buttons, text, rectangles, groups, visibility, hover state, and click actions.
+- HUD loading from `*.hud.json`, with buttons, text, rectangles, images, groups, visibility, hover state, click actions, and Lua-controlled position/size/opacity.
+- `require("demi.gui_animation")`: a small Lua callback scheduler for HUD animation.
 - Lua 5.4 scripting through sol2.
 - Lua lifecycle functions: `on_create`, `on_start`, `on_update`, `on_fixed_update`, and `on_destroy`.
 - Lua action/event annotations: `@HandleAction("...")` and `@OnEvent("...")`.
@@ -143,6 +144,7 @@ After building:
 
 - `examples/minimal_2d_networking`: the main runtime probe. It has a data-driven HUD menu, Lua action handlers, scene switching, save-backed settings, platformer/slingshot levels, and optional networking code paths.
 - `examples/minimal_3d`: a small 3D runtime probe with a Lua-controlled player script.
+- `examples/main_menu_animated`: a polished block-adventure menu probe that loops a walking sprite behind the menu with `GuiAnimation`.
 - `examples/fighting_game_2d`: early fighting-game data and Lua scripts.
 - `examples/isometric_base_builder`: early isometric/base-builder scene data.
 

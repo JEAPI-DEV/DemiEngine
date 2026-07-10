@@ -58,6 +58,34 @@ std::optional<std::string> stringAfterKey(const std::string& text, const std::st
   return text.substr(firstQuote + 1, secondQuote - firstQuote - 1);
 }
 
+std::vector<std::string> stringsInArrayAfterKey(const std::string& text, const std::string& key) {
+  const std::optional<std::size_t> colon = colonAfterKey(text, key);
+  if (!colon.has_value()) {
+    return {};
+  }
+  const std::size_t openBracket = text.find('[', *colon + 1);
+  const std::size_t closeBracket = openBracket == std::string::npos ? std::string::npos : text.find(']', openBracket + 1);
+  if (openBracket == std::string::npos || closeBracket == std::string::npos) {
+    return {};
+  }
+
+  std::vector<std::string> values;
+  std::size_t cursor = openBracket + 1;
+  while (cursor < closeBracket) {
+    const std::size_t firstQuote = text.find('"', cursor);
+    if (firstQuote == std::string::npos || firstQuote >= closeBracket) {
+      break;
+    }
+    const std::size_t secondQuote = text.find('"', firstQuote + 1);
+    if (secondQuote == std::string::npos || secondQuote >= closeBracket) {
+      break;
+    }
+    values.push_back(text.substr(firstQuote + 1, secondQuote - firstQuote - 1));
+    cursor = secondQuote + 1;
+  }
+  return values;
+}
+
 std::vector<std::string> extractReferencesWithPrefix(const std::string& text, const std::string& prefix) {
   std::vector<std::string> references;
   std::size_t cursor = 0;
@@ -105,26 +133,39 @@ std::optional<AssetManifest> loadAssetManifest(const std::filesystem::path& mani
   const std::optional<std::string> id = stringAfterKey(text, "id");
   const std::optional<std::string> type = stringAfterKey(text, "type");
   const std::optional<std::string> source = stringAfterKey(text, "source");
+  const std::vector<std::string> sources = stringsInArrayAfterKey(text, "sources");
   const std::optional<std::string> texture = stringAfterKey(text, "texture");
   const std::optional<std::string> atlas = stringAfterKey(text, "atlas");
-  if (!id.has_value() || !type.has_value() || !source.has_value()) {
+  const bool isImageAnimation = type.has_value() && *type == "ImageAnimation2D";
+  if (!id.has_value() || !type.has_value() || (isImageAnimation ? sources.empty() : !source.has_value())) {
     if (diagnostic != nullptr) {
       *diagnostic = Diagnostic{
         .severity = Severity::Error,
         .code = "ASSET_MANIFEST_INVALID",
-        .message = "Asset manifest must include id, type, and source.",
+        .message = "Asset manifest must include id, type, and source, or an ImageAnimation2D sources array.",
         .path = manifestPath.string(),
-        .suggestion = "Add id, type, and source fields to the manifest.",
+        .suggestion = "Add id, type, and source fields, or an ImageAnimation2D sources array, to the manifest.",
       };
     }
     return std::nullopt;
+  }
+
+  std::vector<std::filesystem::path> sourcePaths;
+  if (isImageAnimation) {
+    sourcePaths.reserve(sources.size());
+    for (const std::string& entry : sources) {
+      sourcePaths.push_back(manifestPath.parent_path() / entry);
+    }
+  } else {
+    sourcePaths.push_back(manifestPath.parent_path() / *source);
   }
 
   return AssetManifest{
     .id = *id,
     .type = *type,
     .manifestPath = manifestPath,
-    .sourcePath = manifestPath.parent_path() / *source,
+    .sourcePath = sourcePaths.front(),
+    .sourcePaths = std::move(sourcePaths),
     .texturePath = texture.has_value() ? std::make_optional(manifestPath.parent_path() / *texture) : std::nullopt,
     .atlasPath = atlas.has_value() ? std::make_optional(manifestPath.parent_path() / *atlas) : std::nullopt,
   };

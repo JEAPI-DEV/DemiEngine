@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "id": "asset://walk/warrior",
+  "type": "ImageAnimation2D",
+  "sources": [
+    "Warrior_1_Axe_Walk_000.png",
+    "Warrior_1_Axe_Walk_001.png",
+    "Warrior_1_Axe_Walk_002.png",
+    "Warrior_1_Axe_Walk_003.png",
+    "Warrior_1_Axe_Walk_004.png",
+    "Warrior_1_Axe_Walk_005.png",
+    "Warrior_1_Axe_Walk_006.png",
+    "Warrior_1_Axe_Walk_007.png"
+  ],
+  "settings": {
+    "filter": "nearest"
+  }
+}

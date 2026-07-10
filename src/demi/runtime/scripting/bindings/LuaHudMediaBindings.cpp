@@ -17,7 +17,11 @@ void LuaHudMediaBindingModule::install(LuaScriptHost& host, lua_State* state) co
   hud.set_function("set_button_label", [&host](const std::string& id, const std::string& label) { return host.setHudButtonLabel(id, label); });
   hud.set_function("set_rect", [&host](const std::string& id, float x, float y, float width, float height) { return host.setHudRect(id, x, y, width, height); });
   hud.set_function("set_image", [&host](const std::string& id, const std::string& texture, float sourceX, float sourceY, float sourceWidth, float sourceHeight) { return host.setHudImage(id, texture, sourceX, sourceY, sourceWidth, sourceHeight); });
+  hud.set_function("set_image_animation_frame", [&host](const std::string& id, const std::string& animation, int frame) { return host.setHudImageAnimationFrame(id, animation, frame); });
+  hud.set_function("set_position", [&host](const std::string& id, float x, float y) { return host.setHudPosition(id, x, y); });
+  hud.set_function("set_size", [&host](const std::string& id, float width, float height) { return host.setHudSize(id, width, height); });
   hud.set_function("set_color", [&host](const std::string& id, float r, float g, float b, sol::optional<float> a) { return host.setHudColor(id, Color{r, g, b, a.value_or(1.0F)}); });
+  hud.set_function("set_opacity", [&host](const std::string& id, float opacity) { return host.setHudOpacity(id, opacity); });
   hud.set_function("set_visible", [&host](const std::string& id, bool visible) { return host.setHudVisible(id, visible); });
   hud.set_function("set_group_visible", [&host](const std::string& group, bool visible) { return host.setHudGroupVisible(group, visible); });
   hud.set_function("get_text", [&host](const std::string& id) { return host.hudText(id); });

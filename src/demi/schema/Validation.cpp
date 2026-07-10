@@ -92,14 +92,16 @@ void validateReferences(Diagnostics& diagnostics, const std::filesystem::path& p
       continue;
     }
 
-    if (!std::filesystem::exists(asset->sourcePath)) {
-      diagnostics.push_back(Diagnostic{
-        .severity = Severity::Error,
-        .code = "ASSET_SOURCE_NOT_FOUND",
-        .message = "Asset source file does not exist for " + reference,
-        .path = asset->manifestPath.string(),
-        .suggestion = "Create the source file or update the asset manifest source path.",
-      });
+    for (const std::filesystem::path& sourcePath : asset->sourcePaths) {
+      if (!std::filesystem::exists(sourcePath)) {
+        diagnostics.push_back(Diagnostic{
+          .severity = Severity::Error,
+          .code = "ASSET_SOURCE_NOT_FOUND",
+          .message = "Asset source file does not exist for " + reference,
+          .path = asset->manifestPath.string(),
+          .suggestion = "Create the source file or update the asset manifest source path.",
+        });
+      }
     }
   }
 
@@ -257,13 +259,17 @@ Diagnostics validateTextFile(const std::filesystem::path& path, const SourceFile
   case SourceFileKind::Asset:
     requireToken(diagnostics, text, path, "\"id\"", "ASSET_MISSING_ID", "Asset manifest is missing id.", "Add an id such as asset://sprites/player.");
     requireToken(diagnostics, text, path, "\"type\"", "ASSET_MISSING_TYPE", "Asset manifest is missing type.", "Add a type such as Texture2D.");
-    requireToken(diagnostics, text, path, "\"source\"", "ASSET_MISSING_SOURCE", "Asset manifest is missing source.", "Add a source file path relative to the manifest.");
+    if (text.find("\"type\": \"ImageAnimation2D\"") != std::string::npos) {
+      requireToken(diagnostics, text, path, "\"sources\"", "ASSET_MISSING_SOURCES", "ImageAnimation2D asset is missing sources.", "Add a sources array in playback order.");
+    } else {
+      requireToken(diagnostics, text, path, "\"source\"", "ASSET_MISSING_SOURCE", "Asset manifest is missing source.", "Add a source file path relative to the manifest.");
+    }
     {
       Diagnostic diagnostic;
       const std::optional<AssetManifest> asset = loadAssetManifest(path, &diagnostic);
       if (!asset.has_value()) {
       diagnostics.push_back(diagnostic);
-      } else if (!std::filesystem::exists(asset->sourcePath)) {
+      } else if (std::ranges::any_of(asset->sourcePaths, [](const std::filesystem::path& sourcePath) { return !std::filesystem::exists(sourcePath); })) {
         diagnostics.push_back(Diagnostic{
           .severity = Severity::Error,
           .code = "ASSET_SOURCE_NOT_FOUND",

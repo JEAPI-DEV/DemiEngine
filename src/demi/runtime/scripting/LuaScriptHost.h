@@ -87,7 +87,11 @@ public:
   [[nodiscard]] bool createHudRect(const std::string& id, float x, float y, float width, float height, Color color);
   [[nodiscard]] bool setHudRect(const std::string& id, float x, float y, float width, float height);
   [[nodiscard]] bool setHudImage(const std::string& id, std::string texture, float sourceX, float sourceY, float sourceWidth, float sourceHeight);
+  [[nodiscard]] bool setHudImageAnimationFrame(const std::string& id, std::string animation, int frame);
+  [[nodiscard]] bool setHudPosition(const std::string& id, float x, float y);
+  [[nodiscard]] bool setHudSize(const std::string& id, float width, float height);
   [[nodiscard]] bool setHudColor(const std::string& id, Color color);
+  [[nodiscard]] bool setHudOpacity(const std::string& id, float opacity);
   [[nodiscard]] bool setHudVisible(const std::string& id, bool visible);
   [[nodiscard]] bool setHudGroupVisible(const std::string& group, bool visible);
   [[nodiscard]] std::optional<std::string> hudText(const std::string& id) const;

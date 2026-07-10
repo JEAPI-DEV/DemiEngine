@@ -582,6 +582,23 @@ void Renderer3D::loadTextureAssets(const AssetRegistry& registry) {
     hasAlphaCutoutShader_ = alphaCutoutShader_.id != 0;
   }
   for (const AssetManifest& asset : registry.assets) {
+    if (asset.type == "ImageAnimation2D") {
+      bool loaded = true;
+      for (std::size_t frame = 0; frame < asset.sourcePaths.size(); ++frame) {
+        Texture2D texture = LoadTexture(asset.sourcePaths[frame].string().c_str());
+        if (texture.id == 0) {
+          std::cerr << "Animation frame load failed for " << asset.id << " from " << asset.sourcePaths[frame].string() << ".\n";
+          loaded = false;
+          break;
+        }
+        SetTextureFilter(texture, TEXTURE_FILTER_POINT);
+        textures_[asset.id + "#" + std::to_string(frame)] = texture;
+      }
+      if (loaded) {
+        imageAnimations_[asset.id] = static_cast<int>(asset.sourcePaths.size());
+      }
+      continue;
+    }
     if (asset.type == "Model3D") {
       Model model{};
       {
@@ -772,7 +789,15 @@ void Renderer3D::drawHud(const World& world) {
     if (!element.visible || element.texture.empty()) {
       continue;
     }
-    const auto texture = textures_.find(element.texture);
+    std::string textureId = element.texture;
+    if (!element.animation.empty()) {
+      const auto animation = imageAnimations_.find(element.animation);
+      if (animation == imageAnimations_.end() || animation->second <= 0) {
+        continue;
+      }
+      textureId = element.animation + "#" + std::to_string(element.animationFrame % animation->second);
+    }
+    const auto texture = textures_.find(textureId);
     if (texture == textures_.end()) {
       continue;
     }

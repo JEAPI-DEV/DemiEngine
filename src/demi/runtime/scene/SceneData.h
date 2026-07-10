@@ -110,6 +110,8 @@ struct HudImageElement {
   std::string id;
   std::string group;
   std::string texture;
+  std::string animation;
+  int animationFrame = 0;
   Vec2 position;
   Vec2 size;
   Vec2 sourcePosition;
