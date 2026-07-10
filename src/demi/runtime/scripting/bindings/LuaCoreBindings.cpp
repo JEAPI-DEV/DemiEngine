@@ -14,15 +14,6 @@
 extern "C" ANativeActivity* DemiGetNativeActivity(void);
 #endif
 
-#if defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-#endif
-#include <raymath.h>
-#if defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
-
 namespace demi::runtime {
 
 void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const {
@@ -65,14 +56,14 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
     });
   input.set_function("axis", [&host](const std::string& negative, const std::string& positive) { return (host.isKeyDown(positive) ? 1.0F : 0.0F) - (host.isKeyDown(negative) ? 1.0F : 0.0F); });
   input.set_function("vector", [&host](const std::string& left, const std::string& right, const std::string& down, const std::string& up) {
-      Vector2 vector{
-        .x = (host.isKeyDown(right) ? 1.0F : 0.0F) - (host.isKeyDown(left) ? 1.0F : 0.0F),
-        .y = (host.isKeyDown(up) ? 1.0F : 0.0F) - (host.isKeyDown(down) ? 1.0F : 0.0F),
-      };
-      if (vector.x != 0.0F || vector.y != 0.0F) {
-        vector = Vector2Normalize(vector);
+      float x = (host.isKeyDown(right) ? 1.0F : 0.0F) - (host.isKeyDown(left) ? 1.0F : 0.0F);
+      float y = (host.isKeyDown(up) ? 1.0F : 0.0F) - (host.isKeyDown(down) ? 1.0F : 0.0F);
+      const float length = std::sqrt(x * x + y * y);
+      if (length > 0.0F) {
+        x /= length;
+        y /= length;
       }
-      return std::tuple{vector.x, vector.y};
+      return std::tuple{x, y};
     });
   input.set_function("mouse_down", [&host](const std::string& button) { return host.isMouseDown(button); });
   input.set_function("mouse_position", [&host] { const Vec2 value = host.mousePosition(); return std::tuple{value.x, value.y}; });

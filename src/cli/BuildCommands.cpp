@@ -140,6 +140,11 @@ bool copyRuntimeExecutable(const std::string& executablePath, const std::filesys
   return true;
 }
 
+std::filesystem::path serverRuntimeExecutable(const BuildContext& context) {
+  const std::filesystem::path cliPath = std::filesystem::absolute(context.executablePath);
+  return cliPath.parent_path() / "demi-server";
+}
+
 std::filesystem::path defaultLinuxOutputRoot(const std::filesystem::path& projectFile, const LinuxBundleMode mode) {
   const std::string folder = mode == LinuxBundleMode::Server ? "linux_server" : "linux";
   return std::filesystem::current_path() / "build" / folder / launcherNameFor(projectFile);
@@ -183,9 +188,16 @@ int buildLinuxBundle(const std::filesystem::path& absoluteProject,
                                              ? defaultLinuxOutputRoot(absoluteProject, mode)
                                              : std::filesystem::path(valueAfter(args, "--output"));
   const std::filesystem::path bundledProject = outputRoot / "project";
+  const std::filesystem::path runtimeExecutable = mode == LinuxBundleMode::Server
+                                                    ? serverRuntimeExecutable(context)
+                                                    : std::filesystem::path(context.executablePath);
   std::string error;
+  if (mode == LinuxBundleMode::Server && !std::filesystem::is_regular_file(runtimeExecutable)) {
+    std::cerr << "Dedicated server runtime was not found: " << runtimeExecutable.string() << '\n';
+    return ExitValidationFailure;
+  }
   if (!copyProjectDirectory(absoluteProject.parent_path(), bundledProject, mode, error) ||
-      !copyRuntimeExecutable(context.executablePath, outputRoot, error) ||
+      !copyRuntimeExecutable(runtimeExecutable.string(), outputRoot, error) ||
       !writeLinuxLauncher(outputRoot / launcherFileNameFor(absoluteProject, mode),
                           runtimeCommand(),
                           mode,

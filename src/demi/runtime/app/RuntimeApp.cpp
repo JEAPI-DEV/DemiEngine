@@ -8,8 +8,6 @@
 #include "demi/runtime/network/NetworkSystem.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
-#include "demi/runtime/render/Renderer2D.h"
-#include "demi/runtime/render/Renderer3D.h"
 #include "demi/runtime/scene/SceneData.h"
 
 #include <algorithm>
@@ -27,6 +25,8 @@
 #include <vector>
 
 #if DEMI_HAS_RAYLIB
+#include "demi/runtime/render/Renderer2D.h"
+#include "demi/runtime/render/Renderer3D.h"
 #include <raylib.h>
 #endif
 
@@ -38,15 +38,15 @@ namespace demi::runtime
 
     constexpr int RuntimeFailure = 3;
 
+#if DEMI_HAS_RAYLIB
     void configureRaylibLogging()
     {
-#if DEMI_HAS_RAYLIB
       if (std::getenv("DEMI_RAYLIB_INFO") == nullptr)
       {
         SetTraceLogLevel(LOG_WARNING);
       }
-#endif
     }
+#endif
 
     struct RuntimeProfile
     {
@@ -62,6 +62,7 @@ namespace demi::runtime
       std::vector<double> frameSamples;
     };
 
+#if DEMI_HAS_RAYLIB
     struct KeyMapping
     {
       int key;
@@ -131,8 +132,6 @@ namespace demi::runtime
         {KEY_F11, "f11"},
         {KEY_F12, "f12"},
     }};
-
-#if DEMI_HAS_RAYLIB
 
     void pollKeys(InputState &input)
     {
@@ -428,10 +427,6 @@ namespace demi::runtime
     std::cout << "Running " << loaded.project.name << " scene " << loaded.world.id << " with " << renderableEntityCount(loaded.world) << " renderable entity/entities.\n";
     std::cout << "Game scripts now own controls. Close the window or use script-defined controls to stop.\n";
 
-    const bool use3D = sceneIs3D(loaded.world);
-    const Camera2DComponent fallbackCamera2D;
-    const Camera3DComponent fallbackCamera3D;
-
     double fixedAccumulator = 0.0;
     constexpr double fixedStep = 1.0 / 60.0;
     RuntimeProfile profile;
@@ -439,10 +434,6 @@ namespace demi::runtime
     RuntimeProfiler::setEnabled(profileRun);
     const double slowProfileThresholdMs = profileSlowThresholdMs();
 
-#if !DEMI_HAS_RAYLIB
-    std::cerr << "Runtime windowing is unavailable because raylib was not found at configure time.\n";
-    return RuntimeFailure;
-#else
     if (isHeadless() || options.serve)
     {
       int frameCount = 0;
@@ -485,6 +476,18 @@ namespace demi::runtime
       audioSystem.shutdown();
       return 0;
     }
+
+#if !DEMI_HAS_RAYLIB
+    std::cerr << "Runtime windowing is unavailable because raylib was not found at configure time.\n";
+    luaHost.destroy();
+    networkSystem.shutdown();
+    mediaSystem.shutdown();
+    audioSystem.shutdown();
+    return RuntimeFailure;
+#else
+    const bool use3D = sceneIs3D(loaded.world);
+    const Camera2DComponent fallbackCamera2D;
+    const Camera3DComponent fallbackCamera3D;
 
     configureRaylibLogging();
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);

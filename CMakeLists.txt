@@ -64,13 +64,17 @@ FetchContent_Declare(mbedtls
 )
 FetchContent_MakeAvailable(mbedtls)
 
-if(ANDROID)
-  FetchContent_Declare(lua
-    GIT_REPOSITORY https://github.com/lua/lua.git
-    GIT_TAG v5.4.7
-  )
-  FetchContent_MakeAvailable(lua)
-  add_library(lua54 STATIC
+FetchContent_Declare(lua
+  GIT_REPOSITORY https://github.com/lua/lua.git
+  GIT_TAG v5.4.7
+)
+FetchContent_GetProperties(lua)
+if(NOT lua_POPULATED)
+  FetchContent_Populate(lua)
+endif()
+
+function(add_demi_lua_static target)
+  add_library(${target} STATIC
     ${lua_SOURCE_DIR}/lapi.c
     ${lua_SOURCE_DIR}/lauxlib.c
     ${lua_SOURCE_DIR}/lbaselib.c
@@ -104,8 +108,14 @@ if(ANDROID)
     ${lua_SOURCE_DIR}/lvm.c
     ${lua_SOURCE_DIR}/lzio.c
   )
-  target_include_directories(lua54 PUBLIC ${lua_SOURCE_DIR})
-  target_compile_definitions(lua54 PRIVATE LUA_USE_POSIX)
+  target_include_directories(${target} PUBLIC ${lua_SOURCE_DIR})
+  target_compile_definitions(${target} PRIVATE LUA_USE_POSIX)
+endfunction()
+
+if(ANDROID)
+  add_demi_lua_static(lua54)
+else()
+  add_demi_lua_static(demi-server-lua54)
 endif()
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
@@ -164,7 +174,7 @@ if(DEMI_ENABLE_MEDIA AND NOT TARGET PkgConfig::FFMPEG)
   message(FATAL_ERROR "DEMI_ENABLE_MEDIA requires FFmpeg development packages: libavformat, libavcodec, libavutil, and libswscale.")
 endif()
 
-add_library(demi-runtime-lib STATIC
+set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/app/RuntimeApp.cpp
   src/demi/runtime/audio/AudioClipPreprocess.cpp
   src/demi/runtime/audio/AudioSystem.cpp
@@ -177,8 +187,6 @@ add_library(demi-runtime-lib STATIC
   src/demi/runtime/physics/Physics2D.cpp
   src/demi/runtime/physics/Physics3D.cpp
   src/demi/runtime/profiling/RuntimeProfiler.cpp
-  src/demi/runtime/render/Renderer2D.cpp
-  src/demi/runtime/render/Renderer3D.cpp
   src/demi/runtime/scene/HudParser.cpp
   src/demi/runtime/scene/ProjectParser.cpp
   src/demi/runtime/scene/SceneEntityParser.cpp
@@ -207,45 +215,68 @@ add_library(demi-runtime-lib STATIC
   src/demi/runtime/scripting/LuaScriptHostServices.cpp
 )
 
-target_link_libraries(demi-runtime-lib PUBLIC demi-core)
-target_include_directories(demi-runtime-lib PUBLIC src)
-target_compile_features(demi-runtime-lib PUBLIC cxx_std_20)
-target_link_libraries(demi-runtime-lib PRIVATE box2d miniaudio nlohmann_json::nlohmann_json)
-target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_BOX2D=1 DEMI_HAS_MINIAUDIO=1 DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-target_link_libraries(demi-runtime-lib PRIVATE mbedtls mbedx509 mbedcrypto)
-target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_MBEDTLS=1)
+function(configure_demi_runtime target with_renderer)
+  add_library(${target} STATIC ${DEMI_RUNTIME_COMMON_SOURCES} ${ARGN})
+  target_link_libraries(${target} PUBLIC demi-core)
+  target_include_directories(${target} PUBLIC src)
+  target_compile_features(${target} PUBLIC cxx_std_20)
+  target_link_libraries(${target} PRIVATE box2d miniaudio nlohmann_json::nlohmann_json mbedtls mbedx509 mbedcrypto sol2::sol2)
+  target_compile_definitions(${target} PRIVATE
+    DEMI_HAS_BOX2D=1
+    DEMI_HAS_MINIAUDIO=1
+    DEMI_HAS_MBEDTLS=1
+    DEMI_HAS_SOL2=1
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+  )
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-  target_compile_options(demi-runtime-lib PRIVATE -Wall -Wextra -Wpedantic)
-endif()
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+  endif()
 
-target_link_libraries(demi-runtime-lib PRIVATE raylib)
-target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_RAYLIB=1)
+  if(${with_renderer})
+    target_link_libraries(${target} PRIVATE raylib)
+    target_compile_definitions(${target} PRIVATE DEMI_HAS_RAYLIB=1)
+  else()
+    target_compile_definitions(${target} PRIVATE DEMI_HAS_RAYLIB=0)
+  endif()
 
-if(ANDROID)
-  target_link_libraries(demi-runtime-lib PRIVATE lua54)
-elseif(TARGET PkgConfig::LUA54)
-  target_link_libraries(demi-runtime-lib PRIVATE PkgConfig::LUA54)
-else()
-  message(FATAL_ERROR "Lua 5.4 was not found. Install lua5.4 development files to build DemiEngine scripting.")
-endif()
+  if(ANDROID)
+    target_link_libraries(${target} PRIVATE lua54)
+  elseif(NOT ${with_renderer})
+    target_include_directories(${target} BEFORE PRIVATE
+      ${CMAKE_SOURCE_DIR}/src/demi/runtime/scripting/lua_compat
+      ${lua_SOURCE_DIR}
+    )
+    target_link_libraries(${target} PRIVATE demi-server-lua54 ${CMAKE_DL_LIBS})
+  elseif(TARGET PkgConfig::LUA54)
+    target_link_libraries(${target} PRIVATE PkgConfig::LUA54)
+  else()
+    message(FATAL_ERROR "Lua 5.4 was not found. Install lua5.4 development files to build DemiEngine scripting.")
+  endif()
 
-target_link_libraries(demi-runtime-lib PRIVATE sol2::sol2)
-target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_SOL2=1)
+  if(DEMI_ENABLE_MEDIA)
+    target_link_libraries(${target} PRIVATE PkgConfig::FFMPEG)
+    target_compile_definitions(${target} PRIVATE DEMI_HAS_FFMPEG=1)
+  else()
+    target_compile_definitions(${target} PRIVATE DEMI_HAS_FFMPEG=0)
+  endif()
 
-if(DEMI_ENABLE_MEDIA)
-  target_link_libraries(demi-runtime-lib PRIVATE PkgConfig::FFMPEG)
-  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_FFMPEG=1)
-else()
-  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_FFMPEG=0)
-endif()
+  if(DEMI_ENABLE_NETWORK)
+    target_link_libraries(${target} PRIVATE enet)
+    target_include_directories(${target} PRIVATE ${enet_SOURCE_DIR}/include)
+    target_compile_definitions(${target} PRIVATE DEMI_HAS_ENET=1)
+  else()
+    target_compile_definitions(${target} PRIVATE DEMI_HAS_ENET=0)
+  endif()
+endfunction()
 
-if(DEMI_ENABLE_NETWORK)
-  target_link_libraries(demi-runtime-lib PRIVATE enet)
-  target_include_directories(demi-runtime-lib PRIVATE ${enet_SOURCE_DIR}/include)
-  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_ENET=1)
-else()
-  target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_ENET=0)
+configure_demi_runtime(demi-runtime-lib TRUE
+  src/demi/runtime/render/Renderer2D.cpp
+  src/demi/runtime/render/Renderer3D.cpp
+)
+
+if(NOT ANDROID)
+  configure_demi_runtime(demi-server-runtime-lib FALSE)
 endif()
 
 if(ANDROID)
@@ -261,6 +292,13 @@ else()
   )
   target_link_libraries(demi PRIVATE demi-core demi-runtime-lib)
   target_compile_definitions(demi PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
+  add_executable(demi-server
+    src/cli/BuildCommands.cpp
+    src/cli/main.cpp
+  )
+  target_link_libraries(demi-server PRIVATE demi-core demi-server-runtime-lib)
+  target_compile_definitions(demi-server PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
   add_executable(demi-runtime src/runtime/main.cpp)
   target_link_libraries(demi-runtime PRIVATE demi-core demi-runtime-lib)
