@@ -90,14 +90,32 @@ bool LuaScriptHost::networkHost(const std::uint16_t port, const std::uint32_t ma
   return network_ != nullptr && network_->host(port, maxPeers);
 }
 
+bool LuaScriptHost::networkHostSecure(const std::uint16_t port, const std::string& certificate, const std::string& privateKey, const std::uint32_t maxPeers) {
+  const std::filesystem::path certificateValue(certificate);
+  const std::filesystem::path privateKeyValue(privateKey);
+  const std::filesystem::path certificatePath = certificateValue.is_absolute() ? certificateValue : projectDirectory_ / certificateValue;
+  const std::filesystem::path privateKeyPath = privateKeyValue.is_absolute() ? privateKeyValue : projectDirectory_ / privateKeyValue;
+  return network_ != nullptr && network_->hostSecure(port, certificatePath, privateKeyPath, maxPeers);
+}
+
 bool LuaScriptHost::networkConnect(const std::string& address, const std::uint16_t port) {
   return network_ != nullptr && network_->connect(address, port);
+}
+
+bool LuaScriptHost::networkConnectSecure(const std::string& address, const std::uint16_t port, const std::string& trustedCertificate, const std::string& serverName) {
+  const std::filesystem::path certificateValue(trustedCertificate);
+  const std::filesystem::path certificatePath = certificateValue.is_absolute() ? certificateValue : projectDirectory_ / certificateValue;
+  return network_ != nullptr && network_->connectSecure(address, port, certificatePath, serverName);
 }
 
 void LuaScriptHost::networkDisconnect() {
   if (network_ != nullptr) {
     network_->disconnect();
   }
+}
+
+void LuaScriptHost::networkDisconnectPeer(const std::uint32_t peerId) {
+  if (network_ != nullptr) network_->disconnectPeer(peerId);
 }
 
 bool LuaScriptHost::networkSend(const std::string& message, const bool reliable, const std::uint8_t channel, const std::uint32_t peerId) {
@@ -114,6 +132,14 @@ bool LuaScriptHost::networkIsConnected() const {
 
 std::uint32_t LuaScriptHost::networkLatencyMs() const {
   return network_ != nullptr ? network_->latencyMs() : 0;
+}
+
+bool LuaScriptHost::networkIsSecure() const {
+  return network_ != nullptr && network_->isSecure();
+}
+
+std::string LuaScriptHost::networkSecurityError() const {
+  return network_ != nullptr ? network_->securityError() : "Networking is unavailable.";
 }
 
 std::vector<NetworkEvent> LuaScriptHost::networkDrainEvents() {

@@ -2,6 +2,8 @@ local config = require("player_config")
 local state = require("game_state")
 local platformer = require("player_platformer")
 local slingshot = require("player_slingshot")
+local replication = require("network_replication")
+local player_colors = require("player_colors")
 
 local Player = {}
 
@@ -31,6 +33,9 @@ end
 
 function Player:on_update(dt)
   Debug.clear_lines()
+  local color = player_colors.for_sender(replication.sender_id())
+  Entity.set_sprite_color(self.entity_id, color[1], color[2], color[3], color[4])
+  replication.set_local_color(color[1], color[2], color[3], color[4])
 
   if state.menu_open or state.game_over then
     self.jump_was_down = false
@@ -50,6 +55,8 @@ function Player:on_update(dt)
   if player_x == nil or player_y == nil then
     return
   end
+
+  replication.update_local_transform(self.entity_id, dt)
 
   local mouse_down = Input.mouse_down("left")
   local grounded = platformer.is_grounded(self.entity_id)

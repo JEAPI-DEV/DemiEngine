@@ -23,6 +23,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #if DEMI_HAS_RAYLIB
@@ -138,6 +139,7 @@ namespace demi::runtime
       const std::unordered_set<std::string> previousKeysDown = input.keysDown;
       input.keysDown.clear();
       input.keysPressed.clear();
+      input.textEntered.clear();
       for (const KeyMapping &mapping : KeyMap)
       {
         if (IsKeyDown(mapping.key))
@@ -147,6 +149,13 @@ namespace demi::runtime
           {
             input.keysPressed.emplace(mapping.name);
           }
+        }
+      }
+      for (int character = GetCharPressed(); character > 0; character = GetCharPressed())
+      {
+        if (character >= 32 && character <= 126)
+        {
+          input.textEntered.push_back(static_cast<char>(character));
         }
       }
     }
@@ -386,7 +395,7 @@ namespace demi::runtime
 
     const AssetRegistry assetRegistry = loadAssetRegistry(loaded.project.projectDirectory);
     AudioSystem audioSystem;
-    if (!isHeadless() && options.maxFrames == 0 && audioSystem.initialize())
+    if (!isHeadless() && !options.serve && options.maxFrames == 0 && audioSystem.initialize())
     {
       audioSystem.loadAudioAssets(assetRegistry);
     }
@@ -434,13 +443,14 @@ namespace demi::runtime
     std::cerr << "Runtime windowing is unavailable because raylib was not found at configure time.\n";
     return RuntimeFailure;
 #else
-    if (isHeadless())
+    if (isHeadless() || options.serve)
     {
       int frameCount = 0;
       const int targetFrames = options.maxFrames > 0 ? options.maxFrames : 1;
       bool running = true;
-      while (running && frameCount < targetFrames)
+      while (running && (options.serve || frameCount < targetFrames))
       {
+        const auto nextFrame = std::chrono::steady_clock::now() + std::chrono::duration<double>(fixedStep);
         RuntimeProfiler::beginFrame();
         const auto frameStart = std::chrono::steady_clock::now();
         const auto updateStart = std::chrono::steady_clock::now();
@@ -460,6 +470,10 @@ namespace demi::runtime
           ++profile.frames;
         }
         ++frameCount;
+        if (options.serve)
+        {
+          std::this_thread::sleep_until(nextFrame);
+        }
       }
       if (profileRun)
       {

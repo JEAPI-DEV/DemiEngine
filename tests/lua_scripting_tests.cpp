@@ -87,6 +87,17 @@ function Probe:on_start()
   if roundtrip ~= nil and roundtrip.payload.color[1] == 0.45 and roundtrip.payload.color[4] == 0.75 then
     Save.set_string("test", "network_array_roundtrip", "passed")
   end
+  if Runtime.platform() == "linux" then
+    Save.set_string("test", "runtime_platform", "linux")
+  end
+  local http_probe = Network.http_get("ftp://simplehardware.net/lobby.php")
+  if http_probe and http_probe.ok == false and http_probe.status == 0 and string.find(http_probe.error, "URL") then
+    Save.set_string("test", "network_http_probe", "passed")
+  end
+  local lobby_probe = Network.lobby_list("ftp://simplehardware.net/lobby.php", "minimal_2d_android")
+  if lobby_probe and lobby_probe.ok == false and lobby_probe.status == 0 and string.find(lobby_probe.error, "URL") then
+    Save.set_string("test", "network_lobby_probe", "passed")
+  end
   Runtime.set_max_fps(144)
   if Runtime.get_max_fps() == 144 then
     Save.set_number("test", "max_fps", 144)
@@ -275,6 +286,14 @@ return PropProbe
   }
   if (host.saveString("test", "network_array_roundtrip") != "passed") {
     std::cerr << "Network Lua message encoding did not preserve array-style tables.\n";
+    return 1;
+  }
+  if (host.saveString("test", "network_http_probe") != "passed") {
+    std::cerr << "Network Lua HTTP API did not return the expected unsupported TLS error.\n";
+    return 1;
+  }
+  if (host.saveString("test", "network_lobby_probe") != "passed") {
+    std::cerr << "Network Lua lobby API did not share HTTP validation behavior.\n";
     return 1;
   }
   if (host.saveString("test", "script_event") != "script") {

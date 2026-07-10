@@ -42,7 +42,7 @@ function Level.generate_ahead(game)
 
     game:create_platform(id, "Spiral Platform " .. tostring(index), x, y, SPIRAL_WIDTH, PLATFORM_HEIGHT)
 
-    if index % 3 == 0 then
+    if index % 6 == 0 then
       game:create_coin(x, y + SPIRAL_COIN_OFFSET)
     end
 

@@ -15,6 +15,11 @@
 
 extern "C" android_app* GetAndroidApp(void);
 
+extern "C" ANativeActivity* DemiGetNativeActivity(void) {
+  android_app* app = GetAndroidApp();
+  return app != nullptr ? app->activity : nullptr;
+}
+
 namespace {
 
 constexpr const char* LogTag = "DemiEngine";
@@ -104,6 +109,8 @@ void clearBundledProjectFiles(const std::filesystem::path& projectRoot) {
   std::filesystem::remove_all(projectRoot / "scenes", error);
   error.clear();
   std::filesystem::remove_all(projectRoot / "scripts", error);
+  error.clear();
+  std::filesystem::remove_all(projectRoot / "certs", error);
 }
 
 std::filesystem::path prepareProject(android_app* app) {

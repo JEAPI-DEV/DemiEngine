@@ -16,6 +16,11 @@ constexpr int ExitSuccess = 0;
 constexpr int ExitValidationFailure = 1;
 constexpr int ExitUsageError = 2;
 
+enum class LinuxBundleMode {
+  Game,
+  Server,
+};
+
 std::string valueAfter(const std::vector<std::string>& args, const std::string& key) {
   for (std::size_t i = 0; i + 1 < args.size(); ++i) {
     if (args[i] == key) {
@@ -52,22 +57,25 @@ std::string launcherNameFor(const std::filesystem::path& projectFile) {
   return name.empty() ? "demi-game" : name;
 }
 
-std::string runtimeCommandFor(const std::string& executablePath) {
-  if (executablePath.empty() || executablePath.find('/') == std::string::npos) {
-    return "demi";
-  }
-  return std::filesystem::absolute(executablePath).string();
+std::string runtimeCommand() {
+  return "\"$DIR/bin/demi\"";
 }
 
-bool shouldSkipBundlePath(const std::filesystem::path& relativePath) {
+bool shouldSkipBundlePath(const std::filesystem::path& relativePath, const LinuxBundleMode mode) {
   if (relativePath.empty()) {
     return false;
   }
   const std::string first = relativePath.begin()->string();
-  return first == ".git" || first == "build" || first == "generated";
+  if (first == ".git" || first == "build" || first == "generated") {
+    return true;
+  }
+  return mode == LinuxBundleMode::Server && first == "tests";
 }
 
-bool copyProjectDirectory(const std::filesystem::path& source, const std::filesystem::path& target, std::string& error) {
+bool copyProjectDirectory(const std::filesystem::path& source,
+                          const std::filesystem::path& target,
+                          const LinuxBundleMode mode,
+                          std::string& error) {
   std::error_code code;
   std::filesystem::remove_all(target, code);
   code.clear();
@@ -88,7 +96,7 @@ bool copyProjectDirectory(const std::filesystem::path& source, const std::filesy
       error = "Failed to resolve project path: " + code.message();
       return false;
     }
-    if (shouldSkipBundlePath(relativePath)) {
+    if (shouldSkipBundlePath(relativePath, mode)) {
       if (entry->is_directory()) {
         entry.disable_recursion_pending();
       }
@@ -112,6 +120,85 @@ bool copyProjectDirectory(const std::filesystem::path& source, const std::filesy
   return true;
 }
 
+bool copyRuntimeExecutable(const std::string& executablePath, const std::filesystem::path& outputRoot, std::string& error) {
+  const std::filesystem::path source = std::filesystem::absolute(executablePath);
+  const std::filesystem::path target = outputRoot / "bin" / "demi";
+  std::error_code code;
+  std::filesystem::create_directories(target.parent_path(), code);
+  if (!code) {
+    std::filesystem::copy_file(source, target, std::filesystem::copy_options::overwrite_existing, code);
+  }
+  if (code) {
+    error = "Failed to copy Demi runtime: " + source.string();
+    return false;
+  }
+  std::filesystem::permissions(target,
+                               std::filesystem::perms::owner_exec | std::filesystem::perms::group_exec |
+                                   std::filesystem::perms::others_exec,
+                               std::filesystem::perm_options::add,
+                               code);
+  return true;
+}
+
+std::filesystem::path defaultLinuxOutputRoot(const std::filesystem::path& projectFile, const LinuxBundleMode mode) {
+  const std::string folder = mode == LinuxBundleMode::Server ? "linux_server" : "linux";
+  return std::filesystem::current_path() / "build" / folder / launcherNameFor(projectFile);
+}
+
+std::string launcherFileNameFor(const std::filesystem::path& projectFile, const LinuxBundleMode mode) {
+  return mode == LinuxBundleMode::Server ? "serve" : launcherNameFor(projectFile);
+}
+
+bool writeLinuxLauncher(const std::filesystem::path& launcherPath,
+                        const std::string& runtimeCommand,
+                        const LinuxBundleMode mode,
+                        std::string& error) {
+  std::error_code code;
+  std::filesystem::create_directories(launcherPath.parent_path(), code);
+  std::ofstream launcher(launcherPath);
+  if (!launcher) {
+    error = "Failed to write launcher: " + launcherPath.string();
+    return false;
+  }
+
+  const std::string command = mode == LinuxBundleMode::Server ? "serve" : "run";
+  launcher << "#!/usr/bin/env sh\n"
+           << "set -eu\n"
+           << "DIR=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\n"
+           << "exec " << runtimeCommand << ' ' << command << " --project \"$DIR/project/demi.project.json\" \"$@\"\n";
+  launcher.close();
+  std::filesystem::permissions(launcherPath,
+                               std::filesystem::perms::owner_exec | std::filesystem::perms::group_exec |
+                                   std::filesystem::perms::others_exec,
+                               std::filesystem::perm_options::add,
+                               code);
+  return true;
+}
+
+int buildLinuxBundle(const std::filesystem::path& absoluteProject,
+                     const BuildContext& context,
+                     const std::vector<std::string>& args,
+                     const LinuxBundleMode mode) {
+  const std::filesystem::path outputRoot = valueAfter(args, "--output").empty()
+                                             ? defaultLinuxOutputRoot(absoluteProject, mode)
+                                             : std::filesystem::path(valueAfter(args, "--output"));
+  const std::filesystem::path bundledProject = outputRoot / "project";
+  std::string error;
+  if (!copyProjectDirectory(absoluteProject.parent_path(), bundledProject, mode, error) ||
+      !copyRuntimeExecutable(context.executablePath, outputRoot, error) ||
+      !writeLinuxLauncher(outputRoot / launcherFileNameFor(absoluteProject, mode),
+                          runtimeCommand(),
+                          mode,
+                          error)) {
+    std::cerr << error << '\n';
+    return ExitValidationFailure;
+  }
+
+  std::cout << "Wrote Linux " << (mode == LinuxBundleMode::Server ? "server " : "")
+            << "bundle: " << outputRoot.string() << '\n';
+  return ExitSuccess;
+}
+
 } // namespace
 
 std::filesystem::path projectFileFromArgs(const std::vector<std::string>& args) {
@@ -124,7 +211,7 @@ std::filesystem::path projectFileFromArgs(const std::vector<std::string>& args) 
 
 int runBuildCommand(const std::vector<std::string>& args, const BuildContext& context) {
   if (args.size() < 2) {
-    std::cerr << "build requires a target: apk or linux.\n";
+    std::cerr << "build requires a target: apk, linux, or linux_server.\n";
     return ExitUsageError;
   }
 
@@ -150,38 +237,11 @@ int runBuildCommand(const std::vector<std::string>& args, const BuildContext& co
   }
 
   if (args[1] == "linux") {
-    const std::filesystem::path outputRoot = valueAfter(args, "--output").empty()
-                                                ? std::filesystem::current_path() / "build" / "linux" /
-                                                      launcherNameFor(absoluteProject)
-                                                : std::filesystem::path(valueAfter(args, "--output"));
-    const std::filesystem::path bundledProject = outputRoot / "project";
-    std::string error;
-    if (!copyProjectDirectory(absoluteProject.parent_path(), bundledProject, error)) {
-      std::cerr << error << '\n';
-      return ExitValidationFailure;
-    }
+    return buildLinuxBundle(absoluteProject, context, args, LinuxBundleMode::Game);
+  }
 
-    const std::filesystem::path launcherPath = outputRoot / launcherNameFor(absoluteProject);
-    std::error_code code;
-    std::filesystem::create_directories(outputRoot, code);
-    std::ofstream launcher(launcherPath);
-    if (!launcher) {
-      std::cerr << "Failed to write launcher: " << launcherPath.string() << '\n';
-      return ExitValidationFailure;
-    }
-    launcher << "#!/usr/bin/env sh\n"
-             << "set -eu\n"
-             << "DIR=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\n"
-             << "exec " << shellQuote(runtimeCommandFor(context.executablePath))
-             << " run --project \"$DIR/project/demi.project.json\" \"$@\"\n";
-    launcher.close();
-    std::filesystem::permissions(launcherPath,
-                                 std::filesystem::perms::owner_exec | std::filesystem::perms::group_exec |
-                                     std::filesystem::perms::others_exec,
-                                 std::filesystem::perm_options::add,
-                                 code);
-    std::cout << "Wrote Linux bundle: " << outputRoot.string() << '\n';
-    return ExitSuccess;
+  if (args[1] == "linux_server") {
+    return buildLinuxBundle(absoluteProject, context, args, LinuxBundleMode::Server);
   }
 
   std::cerr << "Unknown build target: " << args[1] << '\n';

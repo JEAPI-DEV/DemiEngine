@@ -14,7 +14,6 @@ endif()
 
 if(ANDROID)
   set(DEMI_ENABLE_MEDIA OFF CACHE BOOL "Disable FFmpeg media on Android v1" FORCE)
-  set(DEMI_ENABLE_NETWORK OFF CACHE BOOL "Disable ENet networking on Android v1" FORCE)
   if(NOT DEFINED ANDROID_NDK AND DEFINED CMAKE_ANDROID_NDK)
     set(ANDROID_NDK "${CMAKE_ANDROID_NDK}")
   endif()
@@ -55,6 +54,15 @@ FetchContent_Declare(nlohmann_json
   GIT_TAG v3.11.3
 )
 FetchContent_MakeAvailable(nlohmann_json)
+
+set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
+set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+set(MBEDTLS_FATAL_WARNINGS OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(mbedtls
+  GIT_REPOSITORY https://github.com/Mbed-TLS/mbedtls.git
+  GIT_TAG v3.6.2
+)
+FetchContent_MakeAvailable(mbedtls)
 
 if(ANDROID)
   FetchContent_Declare(lua
@@ -162,7 +170,10 @@ add_library(demi-runtime-lib STATIC
   src/demi/runtime/audio/AudioSystem.cpp
   src/demi/runtime/audio/MiniaudioAudioBackend.cpp
   src/demi/runtime/media/MediaSystem.cpp
+  src/demi/runtime/network/DtlsTransport.cpp
+  src/demi/runtime/network/HttpClient.cpp
   src/demi/runtime/network/NetworkSystem.cpp
+  src/demi/runtime/network/TlsMessaging.cpp
   src/demi/runtime/physics/Physics2D.cpp
   src/demi/runtime/physics/Physics3D.cpp
   src/demi/runtime/profiling/RuntimeProfiler.cpp
@@ -190,6 +201,7 @@ add_library(demi-runtime-lib STATIC
   src/demi/runtime/scripting/bindings/LuaJsonBridge.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkBindings.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkSessionBindings.cpp
+  src/demi/runtime/scripting/bindings/LuaTlsBindings.cpp
   src/demi/runtime/scripting/persistence/LuaSaveCodec.cpp
   src/demi/runtime/scripting/LuaScriptHostPersistence.cpp
   src/demi/runtime/scripting/LuaScriptHostServices.cpp
@@ -200,6 +212,8 @@ target_include_directories(demi-runtime-lib PUBLIC src)
 target_compile_features(demi-runtime-lib PUBLIC cxx_std_20)
 target_link_libraries(demi-runtime-lib PRIVATE box2d miniaudio nlohmann_json::nlohmann_json)
 target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_BOX2D=1 DEMI_HAS_MINIAUDIO=1 DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+target_link_libraries(demi-runtime-lib PRIVATE mbedtls mbedx509 mbedcrypto)
+target_compile_definitions(demi-runtime-lib PRIVATE DEMI_HAS_MBEDTLS=1)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(demi-runtime-lib PRIVATE -Wall -Wextra -Wpedantic)
@@ -278,6 +292,13 @@ else()
   if(DEMI_ENABLE_NETWORK)
     add_executable(demi-network-tests tests/network_tests.cpp)
     target_link_libraries(demi-network-tests PRIVATE demi-runtime-lib)
+    target_compile_definitions(demi-network-tests PRIVATE
+      DEMI_DTLS_TEST_CERT="${mbedtls_SOURCE_DIR}/framework/data_files/server5.crt"
+      DEMI_DTLS_TEST_KEY="${mbedtls_SOURCE_DIR}/framework/data_files/server5.key"
+      DEMI_DTLS_TEST_CA="${mbedtls_SOURCE_DIR}/framework/data_files/test-ca2.crt"
+    )
+    add_executable(demi-lua-server-tests tests/lua_server_tests.cpp)
+    target_link_libraries(demi-lua-server-tests PRIVATE demi-runtime-lib)
   endif()
 
   enable_testing()
@@ -290,6 +311,16 @@ add_test(NAME demi-scene-loader-tests COMMAND demi-scene-loader-tests ${CMAKE_SO
 add_test(NAME demi-snapshot-replication-tests COMMAND demi-snapshot-replication-tests)
 if(DEMI_ENABLE_NETWORK)
   add_test(NAME demi-network-tests COMMAND demi-network-tests)
+  add_test(
+    NAME demi-lua-server-tests
+    COMMAND demi-lua-server-tests
+      $<TARGET_FILE:demi>
+      ${CMAKE_SOURCE_DIR}/examples/minimal_2d_android_server/demi.project.json
+      ${mbedtls_SOURCE_DIR}/framework/data_files/server5.crt
+      ${mbedtls_SOURCE_DIR}/framework/data_files/server5.key
+      ${mbedtls_SOURCE_DIR}/framework/data_files/test-ca2.crt
+      localhost
+  )
 endif()
 add_test(NAME demi-runtime-minimal-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json --frames 1
@@ -307,10 +338,6 @@ add_test(NAME demi-runtime-minimal-voxel-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/demi.project.json --frames 1
 )
 set_tests_properties(demi-runtime-minimal-voxel-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
-add_test(NAME demi-runtime-elite-frontier-frame
-  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/elite_frontier/demi.project.json --frames 1
-)
-set_tests_properties(demi-runtime-elite-frontier-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-validate-minimal-2d-networking
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json
 )
@@ -322,9 +349,6 @@ add_test(NAME demi-validate-minimal-3d
 )
 add_test(NAME demi-validate-minimal-voxel
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/demi.project.json
-)
-add_test(NAME demi-validate-elite-frontier
-  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/elite_frontier/demi.project.json
 )
 add_test(NAME demi-script-check-minimal-player
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/scripts/player.lua
@@ -394,10 +418,14 @@ set(DEMI_ANDROID_EXAMPLE_SCRIPTS
   levels/spiral
   main_menu
   menu/actions
+  menu/network
   menu/settings
   menu/view
   menu_scene
+  network_lobby
+  network_replication
   player
+  player_colors
   player_config
   player_platformer
   player_slingshot
@@ -405,24 +433,6 @@ set(DEMI_ANDROID_EXAMPLE_SCRIPTS
 foreach(script_name IN LISTS DEMI_ANDROID_EXAMPLE_SCRIPTS)
   add_test(NAME demi-script-check-android-${script_name}
     COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d_android/scripts/${script_name}.lua
-  )
-endforeach()
-set(DEMI_ELITE_FRONTIER_SCRIPTS
-  core/save
-  core/state
-  input/controls
-  main
-  render/navmap
-  render/wireframe
-  sim/galaxy
-  sim/market
-  sim/ship
-  ui/actions
-  ui/hud
-)
-foreach(script_name IN LISTS DEMI_ELITE_FRONTIER_SCRIPTS)
-  add_test(NAME demi-script-check-elite-frontier-${script_name}
-    COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/elite_frontier/scripts/${script_name}.lua
   )
 endforeach()
 add_test(NAME demi-lua-stubs-generate

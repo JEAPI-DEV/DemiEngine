@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "id": "scene://minimal_2d_android_server_test_client/main",
+  "name": "Server Test Client",
+  "entities": [
+    {
+      "id": "ent_client",
+      "name": "Client",
+      "components": {
+        "LuaScript": {
+          "module": "script://scripts/client.lua"
+        }
+      }
+    }
+  ]
+}

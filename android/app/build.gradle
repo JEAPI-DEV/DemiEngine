@@ -22,6 +22,7 @@ def demiAssetIndexTask = tasks.register("generateDemiAssetIndex") {
         def lines = fileTree(demiProjectAssetsDir) {
             include "demi.project.json"
             include "assets/**"
+            include "certs/**"
             include "scenes/**"
             include "scripts/**"
         }.files
@@ -54,7 +55,7 @@ android {
         externalNativeBuild {
             cmake {
                 arguments "-DDEMI_ENABLE_MEDIA=OFF",
-                          "-DDEMI_ENABLE_NETWORK=OFF",
+                          "-DDEMI_ENABLE_NETWORK=ON",
                           "-DANDROID_STL=c++_shared",
                           "-DANDROID_PLATFORM=android-23"
                 cppFlags "-std=c++20"

@@ -35,6 +35,7 @@ struct InputState {
   std::unordered_set<std::string> mouseButtonsDown;
   Vec2 mousePosition;
   Vec2 mouseDelta;
+  std::string textEntered;
 };
 
 struct LuaActionHandler {

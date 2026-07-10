@@ -44,7 +44,7 @@ function Level.on_start(game)
 end
 
 function Level.create_gap_coins(game, index, start_x, end_x, from_y, to_y)
-  if index % 2 ~= 0 then
+  if index % 4 ~= 0 then
     return
   end
 
@@ -53,21 +53,15 @@ function Level.create_gap_coins(game, index, start_x, end_x, from_y, to_y)
     return
   end
 
-  local count = index % 4 == 0 and 2 or 1
-  for coin = 1, count do
-    local t = count == 1 and 0.5 or (0.22 + (coin - 1) * 0.56)
-    local x = start_x + gap * t
-    local base_y = from_y + (to_y - from_y) * t
-    local arc = math.sin(t * math.pi) * (1.8 + pseudo_random(index, coin + 11) * 1.15)
-    if count == 2 then
-      arc = arc + (coin - 1) * 0.65
-    end
-    game:create_coin(x, base_y + arc)
-  end
+  local t = 0.5
+  local x = start_x + gap * t
+  local base_y = from_y + (to_y - from_y) * t
+  local arc = math.sin(t * math.pi) * (1.8 + pseudo_random(index, 12) * 1.15)
+  game:create_coin(x, base_y + arc)
 end
 
 function Level.create_platform_coin(game, index, platform_x, platform_y)
-  if index % 5 ~= 0 then
+  if index % 9 ~= 0 then
     return
   end
 
@@ -90,8 +84,11 @@ function Level.generate_ahead(game)
 
     game:create_platform(id, "Generated Platform " .. tostring(index), x, y, width, PLATFORM_HEIGHT)
 
-    Level.create_gap_coins(game, index, previous_platform_edge, platform_left_edge, Level.last_platform_y, y)
-    Level.create_platform_coin(game, index, x, y)
+    if index % 9 == 0 then
+      Level.create_platform_coin(game, index, x, y)
+    else
+      Level.create_gap_coins(game, index, previous_platform_edge, platform_left_edge, Level.last_platform_y, y)
+    end
 
     Level.generated_until_x = x + width * 0.5
     Level.last_platform_y = y

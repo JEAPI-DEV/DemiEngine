@@ -38,6 +38,10 @@ struct NetworkSessionState {
   std::uint8_t channel = 1;
   std::uint16_t defaultPort = 39420;
   std::uint32_t maxPeers = 8;
+  std::string certificate;
+  std::string privateKey;
+  std::string trustedCertificate;
+  std::string serverName;
   float accumulator = 0.0F;
   std::string localPeerId;
   Color localColor = {1.0F, 1.0F, 1.0F, 1.0F};
@@ -197,6 +201,10 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost& host, lua_State* sta
       session->channel = static_cast<std::uint8_t>(std::max(options.get_or("channel", static_cast<int>(session->channel)), 0));
       session->defaultPort = static_cast<std::uint16_t>(std::max(options.get_or("port", static_cast<int>(session->defaultPort)), 0));
       session->maxPeers = static_cast<std::uint32_t>(std::max(options.get_or("max_peers", static_cast<int>(session->maxPeers)), 1));
+      session->certificate = options.get_or("certificate", session->certificate);
+      session->privateKey = options.get_or("private_key", session->privateKey);
+      session->trustedCertificate = options.get_or("trusted_certificate", session->trustedCertificate);
+      session->serverName = options.get_or("server_name", session->serverName);
       const sol::object remotePrefab = options["remote_prefab"];
       if (remotePrefab.is<sol::table>()) {
         session->remotePrefab = remotePrefab.as<sol::table>();
@@ -211,14 +219,25 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost& host, lua_State* sta
         return false;
       }
       networkSessionReset(host, *session, true);
-      return host.networkHost(static_cast<std::uint16_t>(std::max(port.value_or(session->defaultPort), 0)), session->maxPeers);
+      const std::uint16_t selectedPort = static_cast<std::uint16_t>(std::max(port.value_or(session->defaultPort), 0));
+      if (!session->certificate.empty() || !session->privateKey.empty()) {
+        return !session->certificate.empty() && !session->privateKey.empty()
+          && host.networkHostSecure(selectedPort, session->certificate, session->privateKey, session->maxPeers);
+      }
+      return host.networkHost(selectedPort, session->maxPeers);
     });
   networkSession.set_function("connect", [&host, session](sol::optional<std::string> address, sol::optional<int> port) {
       if (!host.networkAvailable()) {
         return false;
       }
       networkSessionReset(host, *session, true);
-      return host.networkConnect(address.value_or("127.0.0.1"), static_cast<std::uint16_t>(std::max(port.value_or(session->defaultPort), 0)));
+      const std::string selectedAddress = address.value_or("127.0.0.1");
+      const std::uint16_t selectedPort = static_cast<std::uint16_t>(std::max(port.value_or(session->defaultPort), 0));
+      if (!session->trustedCertificate.empty()) {
+        return host.networkConnectSecure(selectedAddress, selectedPort, session->trustedCertificate,
+                                         session->serverName.empty() ? selectedAddress : session->serverName);
+      }
+      return host.networkConnect(selectedAddress, selectedPort);
     });
   networkSession.set_function("disconnect", [&host, session] {
       host.networkDisconnect();

@@ -20,7 +20,11 @@
     "language": "lua54",
     "modules": [
       "main_menu",
-      "menu.actions"
+      "menu.actions",
+      "menu.network",
+      "network_lobby",
+      "network_replication",
+      "player_colors"
     ]
   }
 }

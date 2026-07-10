@@ -9,6 +9,11 @@
 #include <iostream>
 #include <tuple>
 
+#if defined(__ANDROID__)
+#include <android/native_activity.h>
+extern "C" ANativeActivity* DemiGetNativeActivity(void);
+#endif
+
 #if defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
@@ -46,6 +51,18 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
   sol::table input = lua.create_named_table("Input");
   input.set_function("is_down", [&host](const std::string& key) { return host.isKeyDown(key); });
   input.set_function("is_pressed", [&host](const std::string& key) { return host.isKeyPressed(key); });
+  input.set_function("text_entered", [&host] { return host.textEntered(); });
+  input.set_function("set_text_input_active", [](const bool active) {
+#if defined(__ANDROID__)
+      ANativeActivity* activity = DemiGetNativeActivity();
+      if (activity != nullptr) {
+        if (active) ANativeActivity_showSoftInput(activity, ANATIVEACTIVITY_SHOW_SOFT_INPUT_IMPLICIT);
+        else ANativeActivity_hideSoftInput(activity, ANATIVEACTIVITY_HIDE_SOFT_INPUT_NOT_ALWAYS);
+      }
+#else
+      (void)active;
+#endif
+    });
   input.set_function("axis", [&host](const std::string& negative, const std::string& positive) { return (host.isKeyDown(positive) ? 1.0F : 0.0F) - (host.isKeyDown(negative) ? 1.0F : 0.0F); });
   input.set_function("vector", [&host](const std::string& left, const std::string& right, const std::string& down, const std::string& up) {
       Vector2 vector{
@@ -81,6 +98,17 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
 
   sol::table runtime = lua.create_named_table("Runtime");
   runtime.set_function("quit", [&host] { host.requestQuit(); });
+#if defined(__ANDROID__)
+  runtime.set_function("platform", [] { return "android"; });
+#elif defined(_WIN32)
+  runtime.set_function("platform", [] { return "windows"; });
+#elif defined(__APPLE__)
+  runtime.set_function("platform", [] { return "macos"; });
+#elif defined(__linux__)
+  runtime.set_function("platform", [] { return "linux"; });
+#else
+  runtime.set_function("platform", [] { return "unknown"; });
+#endif
   runtime.set_function("set_physics_enabled", [&host](bool enabled) { host.setPhysicsEnabled(enabled); });
   runtime.set_function("set_window_mode", [&host](const std::string& mode) { host.setWindowMode(mode); });
   runtime.set_function("get_window_mode", [&host] { return host.windowMode(); });

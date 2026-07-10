@@ -5,6 +5,7 @@
 #include "demi/runtime/scripting/bindings/LuaHudMediaBindings.h"
 #include "demi/runtime/scripting/bindings/LuaNetworkBindings.h"
 #include "demi/runtime/scripting/bindings/LuaNetworkSessionBindings.h"
+#include "demi/runtime/scripting/bindings/LuaTlsBindings.h"
 
 #include <sol/sol.hpp>
 
@@ -33,7 +34,8 @@ void installBindingModules(LuaScriptHost& host, lua_State* state) {
   const LuaHudMediaBindingModule hudMedia;
   const LuaNetworkBindingModule network;
   const LuaNetworkSessionBindingModule networkSession;
-  const LuaBindingModule* modules[] = {&core, &entity, &hudMedia, &network, &networkSession};
+  const LuaTlsBindingModule tls;
+  const LuaBindingModule* modules[] = {&core, &entity, &hudMedia, &network, &networkSession, &tls};
   for (const LuaBindingModule* module : modules) {
     module->install(host, state);
   }

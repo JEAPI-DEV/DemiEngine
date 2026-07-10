@@ -7,10 +7,19 @@ local function show_group(group, visible)
   Hud.set_group_visible(group, visible)
 end
 
+local function hide_network_groups()
+  show_group("menu_network", false)
+  show_group("network_browser", false)
+  show_group("network_empty", false)
+  show_group("network_create", false)
+  show_group("network_password", false)
+end
+
 function View.hide_menu()
   show_group("menu_base", false)
   show_group("menu_main", false)
   show_group("menu_levels", false)
+  hide_network_groups()
   show_group("menu_options", false)
   show_group("menu_sound", false)
   show_group("game_over", false)
@@ -30,6 +39,7 @@ function View.show_main(menu)
   show_group("menu_base", true)
   show_group("menu_main", true)
   show_group("menu_levels", false)
+  hide_network_groups()
   show_group("menu_options", false)
   show_group("menu_sound", false)
 end
@@ -39,8 +49,28 @@ function View.show_levels(menu)
   show_group("menu_base", true)
   show_group("menu_main", false)
   show_group("menu_levels", true)
+  hide_network_groups()
   show_group("menu_options", false)
   show_group("menu_sound", false)
+end
+
+function View.show_network(menu, status)
+  menu.screen = "network"
+  menu.network_join_pending = false
+  menu.network_join_elapsed = 0.0
+  show_group("menu_base", true)
+  show_group("menu_main", false)
+  show_group("menu_levels", false)
+  show_group("menu_network", true)
+  show_group("network_browser", true)
+  show_group("network_empty", true)
+  show_group("network_create", false)
+  show_group("network_password", false)
+  show_group("menu_options", false)
+  show_group("menu_sound", false)
+  if status ~= nil then
+    Hud.set_text("menu_network_status", status)
+  end
 end
 
 function View.show_options(menu, update_volume_hud)
@@ -48,6 +78,7 @@ function View.show_options(menu, update_volume_hud)
   show_group("menu_base", true)
   show_group("menu_main", false)
   show_group("menu_levels", false)
+  hide_network_groups()
   show_group("menu_options", true)
   show_group("menu_sound", true)
   update_volume_hud()

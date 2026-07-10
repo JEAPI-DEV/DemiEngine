@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "name": "Minimal 2D Android Server",
+  "main_scene": "scene://minimal_2d_android_server/main",
+  "scenes": [
+    {
+      "id": "scene://minimal_2d_android_server/main",
+      "path": "scenes/main.scene.json"
+    }
+  ],
+  "scripting": {
+    "language": "lua54",
+    "modules": [
+      "matchmaking",
+      "server"
+    ]
+  }
+}

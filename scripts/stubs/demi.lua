@@ -33,6 +33,10 @@ function Input.is_down(key) end
 ---@param key string
 ---@return boolean
 function Input.is_pressed(key) end
+---@return string
+function Input.text_entered() end
+---@param active boolean
+function Input.set_text_input_active(active) end
 ---@param negative_key string
 ---@param positive_key string
 ---@return number
@@ -244,6 +248,8 @@ function Scene.load(scene_id) end
 ---@class RuntimeService
 Runtime = {}
 function Runtime.quit() end
+---@return "android"|"windows"|"macos"|"linux"|"unknown"
+function Runtime.platform() end
 ---@param enabled boolean
 function Runtime.set_physics_enabled(enabled) end
 ---@param mode string
@@ -493,6 +499,13 @@ function Cutscene.active() end
 ---@field message string
 ---@field latency_ms integer
 
+---@class NetworkHttpResponse
+---@field ok boolean
+---@field status integer
+---@field body string
+---@field error string
+---@field json table|nil
+
 ---@class NetworkService
 Network = {}
 ---@return boolean
@@ -501,11 +514,25 @@ function Network.available() end
 ---@param max_peers? integer
 ---@return boolean
 function Network.host(port, max_peers) end
+---@param port integer
+---@param certificate string
+---@param private_key string
+---@param max_peers? integer
+---@return boolean
+function Network.host_dtls(port, certificate, private_key, max_peers) end
 ---@param address string
 ---@param port integer
 ---@return boolean
 function Network.connect(address, port) end
+---@param address string
+---@param port integer
+---@param trusted_certificate string
+---@param server_name? string
+---@return boolean
+function Network.connect_dtls(address, port, trusted_certificate, server_name) end
 function Network.disconnect() end
+---@param peer_id integer
+function Network.disconnect_peer(peer_id) end
 ---@param message string
 ---@param reliable? boolean
 ---@param peer_id? integer
@@ -516,10 +543,53 @@ function Network.send(message, reliable, peer_id, channel) end
 function Network.is_host() end
 ---@return boolean
 function Network.is_connected() end
+---@return boolean
+function Network.is_secure() end
+---@return string
+function Network.security_error() end
 ---@return integer
 function Network.latency_ms() end
 ---@return NetworkEvent[]
 function Network.events() end
+---@param url string
+---@param timeout_ms? integer
+---@return NetworkHttpResponse
+function Network.http_get(url, timeout_ms) end
+---@param url string
+---@param fields table<string, string|number|boolean>
+---@param timeout_ms? integer
+---@return NetworkHttpResponse
+function Network.http_post_form(url, fields, timeout_ms) end
+---@param url string
+---@param game? string
+---@param timeout_ms? integer
+---@return NetworkHttpResponse
+function Network.lobby_list(url, game, timeout_ms) end
+---@param url string
+---@param game string|nil
+---@param port integer
+---@param player_name? string
+---@param timeout_ms? integer
+---@return NetworkHttpResponse
+function Network.lobby_create(url, game, port, player_name, timeout_ms) end
+---@param url string
+---@param lobby_id integer
+---@param player_name? string
+---@param timeout_ms? integer
+---@return NetworkHttpResponse
+function Network.lobby_join(url, lobby_id, player_name, timeout_ms) end
+---@param url string
+---@param lobby_id integer
+---@param player_token string
+---@param timeout_ms? integer
+---@return NetworkHttpResponse
+function Network.lobby_heartbeat(url, lobby_id, player_token, timeout_ms) end
+---@param url string
+---@param lobby_id integer
+---@param player_token string
+---@param timeout_ms? integer
+---@return NetworkHttpResponse
+function Network.lobby_leave(url, lobby_id, player_token, timeout_ms) end
 ---@param assigned_peer_id? string
 ---@return string
 function Network.sender_id(assigned_peer_id) end
@@ -531,9 +601,67 @@ function Network.encode(type, payload) end
 ---@return table|nil
 function Network.decode(message) end
 
+---@class TlsEvent
+---@field type "connected"|"disconnected"|"message"
+---@field client_id integer
+---@field message string
+
+---@class TlsServerService
+TlsServer = {}
+---@param port integer
+---@param certificate string
+---@param private_key string
+---@param max_clients? integer
+---@return boolean
+function TlsServer.listen(port, certificate, private_key, max_clients) end
+---@return TlsEvent[]
+function TlsServer.events() end
+---@param client_id integer
+---@param message string
+---@return boolean
+function TlsServer.send(client_id, message) end
+---@param client_id integer
+function TlsServer.disconnect(client_id) end
+---@return string
+function TlsServer.error() end
+
+---@class TlsClientService
+TlsClient = {}
+---@param host string
+---@param port integer
+---@param trusted_certificate string
+---@param server_name? string
+---@return boolean
+function TlsClient.connect(host, port, trusted_certificate, server_name) end
+---@return TlsEvent[]
+function TlsClient.events() end
+---@param message string
+---@return boolean
+function TlsClient.send(message) end
+function TlsClient.disconnect() end
+---@return boolean
+function TlsClient.is_connected() end
+---@return string
+function TlsClient.error() end
+
+---@class CryptoService
+Crypto = {}
+---@param bytes? integer
+---@return string
+function Crypto.random_token(bytes) end
+---@param password string
+---@param salt string
+---@param iterations? integer
+---@return string
+function Crypto.password_hash(password, salt, iterations) end
+---@param left string
+---@param right string
+---@return boolean
+function Crypto.secure_equals(left, right) end
+
 ---@class NetworkSessionService
 NetworkSession = {}
----@param options table
+---@param options {send_interval?: number, extrapolation_limit?: number, initial_prediction?: number, channel?: integer, port?: integer, max_peers?: integer, remote_prefab?: table, certificate?: string, private_key?: string, trusted_certificate?: string, server_name?: string}
 function NetworkSession.configure(options) end
 ---@return string
 function NetworkSession.sender_id() end

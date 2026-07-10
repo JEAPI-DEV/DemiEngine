@@ -24,6 +24,7 @@ function Settings.apply()
   local menu = Settings.menu
   menu.volume = Save.get_number(SETTINGS_SLOT, "master_volume", Audio.get_master_volume())
   Audio.set_master_volume(menu.volume)
+  Runtime.set_max_fps(60)
 end
 
 function Settings.set_volume(volume)

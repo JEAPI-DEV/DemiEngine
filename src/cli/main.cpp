@@ -46,8 +46,10 @@ void printHelp() {
             << "  demi test\n"
             << "  demi run --project <project> [--frames count|--max-frames count]\n"
             << "  demi run linux [--project <project>] [--frames count|--max-frames count]\n"
+            << "  demi serve --project <project>\n"
             << "  demi build apk [--project <project>] [--gradle gradle]\n"
             << "  demi build linux [--project <project>] [--output path]\n"
+            << "  demi build linux_server [--project <project>] [--output path]\n"
             << "  demi editor --project <project>\n";
 }
 
@@ -112,7 +114,7 @@ int frameLimitFrom(const std::vector<std::string>& args) {
   return maxFrames > 0 ? maxFrames : numericValueAfter(args, "--frames");
 }
 
-int runProjectCommand(const std::vector<std::string>& args) {
+int runProjectCommand(const std::vector<std::string>& args, const bool serve = false) {
   const std::filesystem::path project = demi::cli::projectFileFromArgs(args);
   if (project.empty()) {
     std::cerr << "run requires --project <project> or a demi.project.json in the current directory.\n";
@@ -121,6 +123,7 @@ int runProjectCommand(const std::vector<std::string>& args) {
   return demi::runtime::runProject(demi::runtime::RuntimeOptions{
     .projectPath = project,
     .maxFrames = frameLimitFrom(args),
+    .serve = serve,
   });
 }
 
@@ -323,6 +326,10 @@ int main(int argc, char** argv) {
       return ExitUsageError;
     }
     return runProjectCommand(args);
+  }
+
+  if (args[0] == "serve") {
+    return runProjectCommand(args, true);
   }
 
   if (args[0] == "editor") {

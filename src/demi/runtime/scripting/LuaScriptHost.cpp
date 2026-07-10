@@ -44,6 +44,10 @@ void LuaScriptHost::setNetworkSystem(NetworkSystem* network) {
   network_ = network;
 }
 
+std::filesystem::path LuaScriptHost::resolveProjectPath(const std::string& path) const {
+  const std::filesystem::path value(path);
+  return value.is_absolute() ? value : projectDirectory_ / value;
+}
 
 void LuaScriptHost::start() {
   auto* state = static_cast<lua_State*>(state_);

@@ -1,5 +1,6 @@
 local state = require("game_state")
 local main_menu = require("main_menu")
+local replication = require("network_replication")
 local collectibles = require("game.collectibles")
 local hud = require("game.hud")
 local score = require("game.score")
@@ -65,9 +66,12 @@ function Game:on_start()
   main_menu.apply_settings()
   main_menu.begin_active_level()
   self.level.on_start(self)
+  replication.request_claim_once_sync()
 end
 
 function Game:on_update(dt)
+  main_menu.update_network(dt)
+  replication.process_events()
   hud.update_fps(self, dt)
 
   if state.score_reset_requested then
