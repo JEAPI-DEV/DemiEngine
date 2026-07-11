@@ -22,5 +22,10 @@ struct HudButtonElement {
   std::string action;
   bool visible = true;
   bool hovered = false;
+
+  void setPosition(Vec2 value) { position = value; }
+  void setSize(Vec2 value) { size = value; }
+  void setColor(Color value) { color = value; }
+  void setOpacity(float value) { color.a = hoverColor.a = textColor.a = value; }
 };
 } // namespace demi::runtime

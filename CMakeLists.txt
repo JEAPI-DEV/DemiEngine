@@ -225,10 +225,14 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/LuaScriptHostBindings.cpp
   src/demi/runtime/scripting/LuaScriptHost.cpp
   src/demi/runtime/scripting/LuaBindingCleanup.cpp
-  src/demi/runtime/scripting/LuaScriptAnnotations.cpp
+  src/demi/runtime/scripting/annotations/HandleActionAnnotation.cpp
+  src/demi/runtime/scripting/annotations/LuaAnnotationScanner.cpp
+  src/demi/runtime/scripting/annotations/LuaModulePath.cpp
+  src/demi/runtime/scripting/annotations/OnEventAnnotation.cpp
   src/demi/runtime/scripting/LuaScriptDiagnostics.cpp
   src/demi/runtime/scripting/LuaScriptHostEntityServices.cpp
   src/demi/runtime/scripting/LuaScriptHostHudServices.cpp
+  src/demi/runtime/scripting/LuaScriptHostInputDebugServices.cpp
   src/demi/runtime/scripting/LuaScriptHostLoading.cpp
   src/demi/runtime/scripting/LuaScriptHostMediaNetworkServices.cpp
   src/demi/runtime/scripting/LuaScriptProperties.cpp

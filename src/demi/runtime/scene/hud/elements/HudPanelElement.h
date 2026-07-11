@@ -17,5 +17,14 @@ struct HudPanelElement {
   Color color = {0.06F, 0.07F, 0.18F, 0.70F};
   Color borderColor = {1.0F, 1.0F, 1.0F, 0.20F};
   bool visible = true;
+
+  void setPosition(Vec2 value) { position = value; }
+  void setSize(Vec2 value) { size = value; }
+  void setRect(Vec2 newPosition, Vec2 newSize) {
+    position = newPosition;
+    size = newSize;
+  }
+  void setColor(Color value) { color = value; }
+  void setOpacity(float value) { color.a = borderColor.a = value; }
 };
 } // namespace demi::runtime

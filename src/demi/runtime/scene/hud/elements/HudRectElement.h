@@ -14,5 +14,14 @@ struct HudRectElement {
   Vec2 size;
   Color color = {1.0F, 1.0F, 1.0F, 1.0F};
   bool visible = true;
+
+  void setPosition(Vec2 value) { position = value; }
+  void setSize(Vec2 value) { size = value; }
+  void setRect(Vec2 newPosition, Vec2 newSize) {
+    position = newPosition;
+    size = newSize;
+  }
+  void setColor(Color value) { color = value; }
+  void setOpacity(float value) { color.a = value; }
 };
 } // namespace demi::runtime

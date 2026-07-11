@@ -16,5 +16,9 @@ struct HudTextElement {
   float fontSize = 0.0F;
   Color color = {1.0F, 1.0F, 1.0F, 1.0F};
   bool visible = true;
+
+  void setPosition(Vec2 value) { position = value; }
+  void setColor(Color value) { color = value; }
+  void setOpacity(float value) { color.a = value; }
 };
 } // namespace demi::runtime
