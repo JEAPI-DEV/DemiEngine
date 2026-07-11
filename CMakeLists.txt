@@ -235,7 +235,15 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/LuaBindingHelpers.cpp
   src/demi/runtime/scripting/bindings/LuaCoreBindings.cpp
   src/demi/runtime/scripting/bindings/LuaEntityBindings.cpp
-  src/demi/runtime/scripting/bindings/LuaHudMediaBindings.cpp
+  src/demi/runtime/scripting/bindings/components/LuaPhysics2DBindings.cpp
+  src/demi/runtime/scripting/bindings/components/LuaRigidbody2DBindings.cpp
+  src/demi/runtime/scripting/bindings/components/LuaTransform2DBindings.cpp
+  src/demi/runtime/scripting/bindings/components/LuaTransform3DBindings.cpp
+  src/demi/runtime/scripting/bindings/hud/LuaHudBindings.cpp
+  src/demi/runtime/scripting/bindings/media/LuaAudioBindings.cpp
+  src/demi/runtime/scripting/bindings/media/LuaCutsceneBindings.cpp
+  src/demi/runtime/scripting/bindings/media/LuaVideoBindings.cpp
+  src/demi/runtime/scripting/bindings/persistence/LuaSaveBindings.cpp
   src/demi/runtime/scripting/bindings/LuaJsonBridge.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkBindings.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkSessionBindings.cpp
