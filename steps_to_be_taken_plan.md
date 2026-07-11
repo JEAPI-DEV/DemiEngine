@@ -31,6 +31,9 @@ cases. The next work must make component authoring and reuse scalable.
 
 ## Milestone 0 — Establish The Contract
 
+**Status: complete.** The architecture, product tiers, compatibility policy,
+dependency list, and capability matrix now describe the implemented engine.
+
 1. Update `docs/architecture.md`, `README.md`, and `plan.md` to match the
    actual implementation: raylib, sol2, current 3D support, and the current
    dependency set. Remove obsolete SDL3/bgfx/EnTT future-tense statements.
