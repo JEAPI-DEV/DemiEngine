@@ -1,6 +1,7 @@
-#include "demi/runtime/scene/SceneData.h"
-#include "demi/runtime/scene/HudParser.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/runtime/scene/HudParser.h"
+#include "demi/runtime/scene/SceneData.h"
+#include "demi/runtime/scene/hud/HudElementRegistry.h"
 
 #include <filesystem>
 #include <fstream>
@@ -9,7 +10,7 @@
 
 namespace {
 
-bool writeFile(const std::filesystem::path& path, const char* contents) {
+bool writeFile(const std::filesystem::path &path, const char *contents) {
   std::filesystem::create_directories(path.parent_path());
   std::ofstream output(path);
   if (!output) {
@@ -21,40 +22,62 @@ bool writeFile(const std::filesystem::path& path, const char* contents) {
 
 } // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   namespace runtime = demi::runtime;
 
-  const std::filesystem::path root = argc > 1 ? std::filesystem::path(argv[1]) : std::filesystem::current_path();
+  const std::filesystem::path root = argc > 1 ? std::filesystem::path(argv[1])
+                                              : std::filesystem::current_path();
 
-  const runtime::scene_loading::ComponentDescriptor* transform2D = runtime::scene_loading::findComponentDescriptor("Transform2D");
-  const runtime::scene_loading::ComponentDescriptor* animation = runtime::scene_loading::findComponentDescriptor("AnimationPlayer3D");
-  if (transform2D == nullptr || transform2D->parse == nullptr || !transform2D->exposedToLua || animation == nullptr || animation->parse == nullptr || animation->type != runtime::scene_loading::ComponentType::AnimationPlayer3D ||
-      runtime::scene_loading::findComponentDescriptor("NotAComponent") != nullptr) {
-    std::cerr << "Component registry does not provide canonical component lookup.\n";
+  const runtime::scene_loading::ComponentDescriptor *transform2D =
+      runtime::scene_loading::findComponentDescriptor("Transform2D");
+  const runtime::scene_loading::ComponentDescriptor *animation =
+      runtime::scene_loading::findComponentDescriptor("AnimationPlayer3D");
+  if (transform2D == nullptr || transform2D->parse == nullptr ||
+      !transform2D->exposedToLua || animation == nullptr ||
+      animation->parse == nullptr || animation->name != "AnimationPlayer3D" ||
+      runtime::scene_loading::findComponentDescriptor("NotAComponent") !=
+          nullptr) {
+    std::cerr
+        << "Component registry does not provide canonical component lookup.\n";
+    return 1;
+  }
+
+  const runtime::scene_loading::HudElementDescriptor *buttonDescriptor =
+      runtime::scene_loading::findHudElementDescriptor("button");
+  if (buttonDescriptor == nullptr || buttonDescriptor->parse == nullptr ||
+      runtime::scene_loading::findHudElementDescriptor("not-an-element") !=
+          nullptr) {
+    std::cerr << "HUD registry does not provide canonical element lookup.\n";
     return 1;
   }
 
   std::string error;
-  const std::optional<runtime::LoadedProject> loaded = runtime::loadProject(root / "examples" / "minimal_2d_networking" / "demi.project.json", error);
+  const std::optional<runtime::LoadedProject> loaded = runtime::loadProject(
+      root / "examples" / "minimal_2d_networking" / "demi.project.json", error);
   if (!loaded.has_value()) {
-    std::cerr << "Failed to load minimal_2d_networking project: " << error << '\n';
+    std::cerr << "Failed to load minimal_2d_networking project: " << error
+              << '\n';
     return 1;
   }
 
-  const runtime::Entity* camera = runtime::findEntity(loaded->world, "ent_camera_menu");
-  if (camera == nullptr || !camera->transform2D.has_value() || !camera->camera2D.has_value()) {
+  const runtime::Entity *camera =
+      runtime::findEntity(loaded->world, "ent_camera_menu");
+  if (camera == nullptr || !camera->transform2D.has_value() ||
+      !camera->camera2D.has_value()) {
     std::cerr << "Scene loader did not read nested camera components.\n";
     return 1;
   }
 
-  const runtime::Entity* controller = runtime::findEntity(loaded->world, "ent_menu_controller");
-  if (controller == nullptr || !controller->luaScript.has_value() || controller->luaScript->module != "script://scripts/menu_scene.lua") {
+  const runtime::Entity *controller =
+      runtime::findEntity(loaded->world, "ent_menu_controller");
+  if (controller == nullptr || !controller->luaScript.has_value() ||
+      controller->luaScript->module != "script://scripts/menu_scene.lua") {
     std::cerr << "Scene loader did not read nested LuaScript component.\n";
     return 1;
   }
 
   bool foundNetworkButton = false;
-  for (const runtime::HudButtonElement& button : loaded->world.hudButtons) {
+  for (const runtime::HudButtonElement &button : loaded->world.hudButtons) {
     if (button.id == "menu_button_network") {
       foundNetworkButton = button.action == "menu_button_network";
       break;
@@ -65,7 +88,9 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  const std::filesystem::path hudFixture = std::filesystem::temp_directory_path() / "demi_scene_loader_hud_fixture.json";
+  const std::filesystem::path hudFixture =
+      std::filesystem::temp_directory_path() /
+      "demi_scene_loader_hud_fixture.json";
   if (!writeFile(hudFixture, R"json({
     "canvas_size": [960.0, 540.0],
     "elements": [
@@ -108,14 +133,19 @@ int main(int argc, char** argv) {
   }
   runtime::World hudWorld;
   runtime::scene_loading::loadHudFile(hudWorld, hudFixture, error);
-  if (hudWorld.hudText.empty() || hudWorld.hudText[0].fontSize != 32.0F || hudWorld.hudButtons.empty() || hudWorld.hudButtons[0].fontSize != 24.0F ||
-      hudWorld.hudPanels.empty() || hudWorld.hudPanels[0].cornerRadius != 12.0F || hudWorld.hudPanels[0].borderWidth != 2.0F ||
+  if (hudWorld.hudText.empty() || hudWorld.hudText[0].fontSize != 32.0F ||
+      hudWorld.hudButtons.empty() || hudWorld.hudButtons[0].fontSize != 24.0F ||
+      hudWorld.hudPanels.empty() ||
+      hudWorld.hudPanels[0].cornerRadius != 12.0F ||
+      hudWorld.hudPanels[0].borderWidth != 2.0F ||
       hudWorld.hudCircles.empty() || hudWorld.hudCircles[0].radius != 28.0F) {
-    std::cerr << "HUD loader did not read panel, circle, or font_size fields.\n";
+    std::cerr
+        << "HUD loader did not read panel, circle, or font_size fields.\n";
     return 1;
   }
 
-  const std::filesystem::path meshFixture = std::filesystem::temp_directory_path() / "demi_scene_loader_mesh_fixture";
+  const std::filesystem::path meshFixture =
+      std::filesystem::temp_directory_path() / "demi_scene_loader_mesh_fixture";
   std::error_code fsError;
   std::filesystem::remove_all(meshFixture, fsError);
   if (!writeFile(meshFixture / "demi.project.json", R"json({
@@ -154,20 +184,28 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  const std::optional<runtime::LoadedProject> meshProject = runtime::loadProject(meshFixture / "demi.project.json", error);
+  const std::optional<runtime::LoadedProject> meshProject =
+      runtime::loadProject(meshFixture / "demi.project.json", error);
   if (!meshProject.has_value()) {
     std::cerr << "Failed to load mesh fixture project: " << error << '\n';
     return 1;
   }
 
-  const runtime::Entity* mesh = runtime::findEntity(meshProject->world, "ent_mesh_0");
-  if (mesh == nullptr || !mesh->meshRenderer.has_value() || mesh->meshRenderer->vertices.size() != 3 || mesh->meshRenderer->normals.size() != 3 ||
-      mesh->meshRenderer->uvs.size() != 3 || mesh->meshRenderer->vertices[1].x != 1.0F || mesh->meshRenderer->uvs[2].y != 1.0F) {
+  const runtime::Entity *mesh =
+      runtime::findEntity(meshProject->world, "ent_mesh_0");
+  if (mesh == nullptr || !mesh->meshRenderer.has_value() ||
+      mesh->meshRenderer->vertices.size() != 3 ||
+      mesh->meshRenderer->normals.size() != 3 ||
+      mesh->meshRenderer->uvs.size() != 3 ||
+      mesh->meshRenderer->vertices[1].x != 1.0F ||
+      mesh->meshRenderer->uvs[2].y != 1.0F) {
     std::cerr << "Scene loader did not read dynamic MeshRenderer data.\n";
     return 1;
   }
 
-  const std::filesystem::path gameplayFixture = std::filesystem::temp_directory_path() / "demi_scene_loader_gameplay_fixture";
+  const std::filesystem::path gameplayFixture =
+      std::filesystem::temp_directory_path() /
+      "demi_scene_loader_gameplay_fixture";
   std::filesystem::remove_all(gameplayFixture, fsError);
   if (!writeFile(gameplayFixture / "demi.project.json", R"json({
     "format_version": 1, "name": "Gameplay Fixture", "main_scene": "scene://fixture/main",
@@ -184,11 +222,20 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  const std::optional<runtime::LoadedProject> gameplayProject = runtime::loadProject(gameplayFixture / "demi.project.json", error);
-  const runtime::Entity* gameplay = gameplayProject.has_value() ? runtime::findEntity(gameplayProject->world, "ent_gameplay") : nullptr;
-  const std::string* health = gameplay != nullptr ? runtime::serializedComponent(*gameplay, "Health") : nullptr;
-  if (health == nullptr || health->find("\"current\":50") == std::string::npos || !gameplay->transform2D.has_value()) {
-    std::cerr << "Scene loader did not preserve generic gameplay component data.\n";
+  const std::optional<runtime::LoadedProject> gameplayProject =
+      runtime::loadProject(gameplayFixture / "demi.project.json", error);
+  const runtime::Entity *gameplay =
+      gameplayProject.has_value()
+          ? runtime::findEntity(gameplayProject->world, "ent_gameplay")
+          : nullptr;
+  const std::string *health =
+      gameplay != nullptr ? runtime::serializedComponent(*gameplay, "Health")
+                          : nullptr;
+  if (health == nullptr ||
+      health->find("\"current\":50") == std::string::npos ||
+      !gameplay->transform2D.has_value()) {
+    std::cerr
+        << "Scene loader did not preserve generic gameplay component data.\n";
     return 1;
   }
 

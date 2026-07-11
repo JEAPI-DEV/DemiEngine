@@ -3,7 +3,6 @@
 #include "demi/runtime/scene/Component2D.h"
 #include "demi/runtime/scene/Component3D.h"
 #include "demi/runtime/scene/GenericComponent.h"
-#include "demi/runtime/scene/SceneJson.h"
 #include "demi/runtime/scene/model/Entity.h"
 
 #include <memory>
@@ -12,43 +11,24 @@
 
 namespace demi::runtime::scene_loading {
 
-// Component identity is centralized here so loaders, validation, Lua bindings,
-// and future editor tooling do not each define their own component-name list.
-enum class ComponentType {
-  Transform2D,
-  Camera2D,
-  Sprite,
-  IsoGrid,
-  IsoTransform,
-  HitboxController,
-  LuaScript,
-  Buildable,
-  Rigidbody2D,
-  BoxCollider2D,
-  Transform3D,
-  Camera3D,
-  MeshRenderer,
-  AnimationPlayer3D,
-  BoxCollider3D,
-  SphereCollider3D,
-  Rigidbody3D,
-  DirectionalLight,
-  AudioSource,
-  AudioListener,
-  VideoPlayer,
-};
-
-enum class ComponentDomain { Generic, TwoDimensional, ThreeDimensional };
-
-using ComponentParseFn = void (*)(const Json &, Entity &);
+using ComponentParseFn = void (*)(const nlohmann::json &, Entity &);
 
 struct ComponentDescriptor {
-  ComponentType type;
   std::string_view name;
   ComponentParseFn parse;
   bool exposedToLua = false;
   ComponentDomain domain = ComponentDomain::Generic;
 };
+
+template <typename ComponentClass>
+[[nodiscard]] constexpr ComponentDescriptor makeComponentDescriptor() {
+  return ComponentDescriptor{
+      .name = ComponentClass::typeName,
+      .parse = &ComponentClass::parse,
+      .exposedToLua = ComponentClass::exposedToLua,
+      .domain = ComponentClass::domain,
+  };
+}
 
 [[nodiscard]] std::span<const ComponentDescriptor> componentDescriptors();
 [[nodiscard]] const ComponentDescriptor *

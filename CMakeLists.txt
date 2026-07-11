@@ -189,7 +189,35 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/physics/Physics3D.cpp
   src/demi/runtime/profiling/RuntimeProfiler.cpp
   src/demi/runtime/scene/HudParser.cpp
+  src/demi/runtime/scene/hud/HudElementRegistry.cpp
+  src/demi/runtime/scene/hud/elements/HudButtonElement.cpp
+  src/demi/runtime/scene/hud/elements/HudCircleElement.cpp
+  src/demi/runtime/scene/hud/elements/HudImageElement.cpp
+  src/demi/runtime/scene/hud/elements/HudPanelElement.cpp
+  src/demi/runtime/scene/hud/elements/HudRectElement.cpp
+  src/demi/runtime/scene/hud/elements/HudTextElement.cpp
   src/demi/runtime/scene/ComponentRegistry.cpp
+  src/demi/runtime/scene/components/2dcomponents/BoxCollider2DComponent.cpp
+  src/demi/runtime/scene/components/2dcomponents/Camera2DComponent.cpp
+  src/demi/runtime/scene/components/2dcomponents/IsoGridComponent.cpp
+  src/demi/runtime/scene/components/2dcomponents/IsoTransformComponent.cpp
+  src/demi/runtime/scene/components/2dcomponents/Rigidbody2DComponent.cpp
+  src/demi/runtime/scene/components/2dcomponents/SpriteComponent.cpp
+  src/demi/runtime/scene/components/2dcomponents/Transform2DComponent.cpp
+  src/demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.cpp
+  src/demi/runtime/scene/components/3dcomponents/BoxCollider3DComponent.cpp
+  src/demi/runtime/scene/components/3dcomponents/Camera3DComponent.cpp
+  src/demi/runtime/scene/components/3dcomponents/DirectionalLightComponent.cpp
+  src/demi/runtime/scene/components/3dcomponents/MeshRendererComponent.cpp
+  src/demi/runtime/scene/components/3dcomponents/Rigidbody3DComponent.cpp
+  src/demi/runtime/scene/components/3dcomponents/SphereCollider3DComponent.cpp
+  src/demi/runtime/scene/components/3dcomponents/Transform3DComponent.cpp
+  src/demi/runtime/scene/components/gameplay/BuildableComponent.cpp
+  src/demi/runtime/scene/components/gameplay/HitboxControllerComponent.cpp
+  src/demi/runtime/scene/components/gameplay/LuaScriptComponent.cpp
+  src/demi/runtime/scene/components/media/AudioListenerComponent.cpp
+  src/demi/runtime/scene/components/media/AudioSourceComponent.cpp
+  src/demi/runtime/scene/components/media/VideoPlayerComponent.cpp
   src/demi/runtime/scene/ProjectParser.cpp
   src/demi/runtime/scene/SceneEntityParser.cpp
   src/demi/runtime/scene/SceneJson.cpp

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "demi/runtime/scene/components/ComponentDefinition.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <cstdint>
@@ -8,17 +9,12 @@
 
 namespace demi::runtime {
 
-struct Camera3DComponent {
-  Color clearColor;
-  float fov = 60.0F;
-  float orthographicSize = 10.0F;
-  Vec3 targetOffset = {0.0F, 0.0F, 1.0F};
-  bool perspective = true;
-  float positionX = 0.0F;
-  float upAxis = 1.0F;
-};
-
 struct MeshRendererComponent {
+  static constexpr std::string_view typeName = "MeshRenderer";
+  static constexpr bool exposedToLua = false;
+  static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
+  static void parse(const nlohmann::json &json, Entity &entity);
+
   std::string model;
   std::string shape = "cube";
   Vec3 size = {1.0F, 1.0F, 1.0F};
@@ -32,20 +28,6 @@ struct MeshRendererComponent {
   Vec3 boundsMax;
   bool hasBounds = false;
   bool wireframe = false;
-};
-
-struct AnimationPlayer3DComponent {
-  int clip = 0;
-  float speed = 1.0F;
-  float time = 0.0F;
-  bool loop = true;
-  bool playing = true;
-};
-
-struct DirectionalLightComponent {
-  Vec3 direction = {-0.4F, -1.0F, -0.3F};
-  Color color = {1.0F, 1.0F, 0.95F, 1.0F};
-  float intensity = 1.0F;
 };
 
 } // namespace demi::runtime

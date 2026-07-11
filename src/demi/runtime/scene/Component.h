@@ -6,6 +6,8 @@
 
 namespace demi::runtime {
 
+enum class ComponentDomain { Generic, TwoDimensional, ThreeDimensional };
+
 // Polymorphism belongs at the authored-component boundary. Runtime systems use
 // the typed value components below, while tools can uniformly inspect every
 // component authored in JSON.
