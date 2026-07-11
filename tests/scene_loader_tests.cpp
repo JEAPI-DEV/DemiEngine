@@ -1,5 +1,6 @@
 #include "demi/runtime/scene/SceneData.h"
 #include "demi/runtime/scene/HudParser.h"
+#include "demi/runtime/scene/ComponentRegistry.h"
 
 #include <filesystem>
 #include <fstream>
@@ -24,6 +25,14 @@ int main(int argc, char** argv) {
   namespace runtime = demi::runtime;
 
   const std::filesystem::path root = argc > 1 ? std::filesystem::path(argv[1]) : std::filesystem::current_path();
+
+  const runtime::scene_loading::ComponentDescriptor* transform2D = runtime::scene_loading::findComponentDescriptor("Transform2D");
+  const runtime::scene_loading::ComponentDescriptor* animation = runtime::scene_loading::findComponentDescriptor("AnimationPlayer3D");
+  if (transform2D == nullptr || transform2D->parse == nullptr || !transform2D->exposedToLua || animation == nullptr || animation->parse == nullptr || animation->type != runtime::scene_loading::ComponentType::AnimationPlayer3D ||
+      runtime::scene_loading::findComponentDescriptor("NotAComponent") != nullptr) {
+    std::cerr << "Component registry does not provide canonical component lookup.\n";
+    return 1;
+  }
 
   std::string error;
   const std::optional<runtime::LoadedProject> loaded = runtime::loadProject(root / "examples" / "minimal_2d_networking" / "demi.project.json", error);
@@ -155,6 +164,31 @@ int main(int argc, char** argv) {
   if (mesh == nullptr || !mesh->meshRenderer.has_value() || mesh->meshRenderer->vertices.size() != 3 || mesh->meshRenderer->normals.size() != 3 ||
       mesh->meshRenderer->uvs.size() != 3 || mesh->meshRenderer->vertices[1].x != 1.0F || mesh->meshRenderer->uvs[2].y != 1.0F) {
     std::cerr << "Scene loader did not read dynamic MeshRenderer data.\n";
+    return 1;
+  }
+
+  const std::filesystem::path gameplayFixture = std::filesystem::temp_directory_path() / "demi_scene_loader_gameplay_fixture";
+  std::filesystem::remove_all(gameplayFixture, fsError);
+  if (!writeFile(gameplayFixture / "demi.project.json", R"json({
+    "format_version": 1, "name": "Gameplay Fixture", "main_scene": "scene://fixture/main",
+    "scenes": [{"id": "scene://fixture/main", "path": "scenes/main.scene.json"}]
+  })json") ||
+      !writeFile(gameplayFixture / "scenes" / "main.scene.json", R"json({
+    "format_version": 1, "id": "scene://fixture/main", "entities": [{
+      "id": "ent_gameplay", "name": "Gameplay Entity", "components": {
+        "Health": {"current": 50, "maximum": 100}, "Transform2D": {"position": [2.0, 3.0]}
+      }
+    }]
+  })json")) {
+    std::cerr << "Failed to write gameplay component fixture.\n";
+    return 1;
+  }
+
+  const std::optional<runtime::LoadedProject> gameplayProject = runtime::loadProject(gameplayFixture / "demi.project.json", error);
+  const runtime::Entity* gameplay = gameplayProject.has_value() ? runtime::findEntity(gameplayProject->world, "ent_gameplay") : nullptr;
+  const std::string* health = gameplay != nullptr ? runtime::serializedComponent(*gameplay, "Health") : nullptr;
+  if (health == nullptr || health->find("\"current\":50") == std::string::npos || !gameplay->transform2D.has_value()) {
+    std::cerr << "Scene loader did not preserve generic gameplay component data.\n";
     return 1;
   }
 

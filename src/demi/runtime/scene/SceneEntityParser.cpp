@@ -1,22 +1,17 @@
 #include "demi/runtime/scene/SceneEntityParser.h"
 
+#include "demi/runtime/scene/ComponentParsers.h"
+#include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/runtime/scene/GenericComponent.h"
+
 #include <algorithm>
-#include <array>
 #include <cstdint>
-#include <string_view>
 
 namespace demi::runtime::scene_loading {
 
-namespace {
+namespace component_parsing {
 
-using ComponentParseFn = void (*)(const Json& componentJson, Entity& entity);
-
-struct ComponentParser {
-  std::string_view name;
-  ComponentParseFn parse;
-};
-
-void parseTransform2D(const Json& json, Entity& entity) {
+void parseTransform2D(const Json &json, Entity &entity) {
   Transform2DComponent component;
   component.parent = stringOr(json, "parent");
   if (const std::optional<Vec2> position = vec2Field(json, "position")) {
@@ -31,18 +26,19 @@ void parseTransform2D(const Json& json, Entity& entity) {
   entity.transform2D = component;
 }
 
-void parseCamera2D(const Json& json, Entity& entity) {
+void parseCamera2D(const Json &json, Entity &entity) {
   Camera2DComponent component;
   if (const std::optional<Color> clearColor = colorField(json, "clear_color")) {
     component.clearColor = *clearColor;
   }
-  if (const std::optional<float> orthographicSize = numberField(json, "orthographic_size")) {
+  if (const std::optional<float> orthographicSize =
+          numberField(json, "orthographic_size")) {
     component.orthographicSize = *orthographicSize;
   }
   entity.camera2D = component;
 }
 
-void parseSprite(const Json& json, Entity& entity) {
+void parseSprite(const Json &json, Entity &entity) {
   SpriteComponent component;
   component.texture = stringOr(json, "texture");
   component.shape = stringOr(json, "shape", "rectangle");
@@ -53,7 +49,7 @@ void parseSprite(const Json& json, Entity& entity) {
   entity.sprite = component;
 }
 
-void parseIsoGrid(const Json& json, Entity& entity) {
+void parseIsoGrid(const Json &json, Entity &entity) {
   IsoGridComponent component;
   if (const std::optional<Vec2> cellSize = vec2Field(json, "cell_size")) {
     component.cellSize = *cellSize;
@@ -67,7 +63,7 @@ void parseIsoGrid(const Json& json, Entity& entity) {
   entity.isoGrid = component;
 }
 
-void parseIsoTransform(const Json& json, Entity& entity) {
+void parseIsoTransform(const Json &json, Entity &entity) {
   IsoTransformComponent component;
   if (const std::optional<Vec2> tile = vec2Field(json, "tile")) {
     component.tile = *tile;
@@ -81,7 +77,7 @@ void parseIsoTransform(const Json& json, Entity& entity) {
   entity.isoTransform = component;
 }
 
-void parseHitboxController(const Json& json, Entity& entity) {
+void parseHitboxController(const Json &json, Entity &entity) {
   HitboxControllerComponent component;
   if (const std::optional<Vec2> hurtbox = vec2Field(json, "hurtbox")) {
     component.hurtbox = *hurtbox;
@@ -90,29 +86,30 @@ void parseHitboxController(const Json& json, Entity& entity) {
   entity.hitboxController = component;
 }
 
-void parseLuaScript(const Json& json, Entity& entity) {
+void parseLuaScript(const Json &json, Entity &entity) {
   LuaScriptComponent component;
   component.module = stringOr(json, "module");
-  if (const Json* properties = objectField(json, "properties")) {
+  if (const Json *properties = objectField(json, "properties")) {
     component.propertiesJson = properties->dump();
   }
   entity.luaScript = component;
 }
 
-void parseBuildable(const Json& json, Entity& entity) {
+void parseBuildable(const Json &json, Entity &entity) {
   BuildableComponent component;
   component.asset = stringOr(json, "asset");
   component.blocksMovement = boolField(json, "blocks_movement").value_or(false);
   entity.buildable = component;
 }
 
-void parseRigidbody2D(const Json& json, Entity& entity) {
+void parseRigidbody2D(const Json &json, Entity &entity) {
   Rigidbody2DComponent component;
   component.bodyType = stringOr(json, "body_type", "dynamic");
   if (const std::optional<Vec2> velocity = vec2Field(json, "velocity")) {
     component.velocity = *velocity;
   }
-  if (const std::optional<float> gravityScale = numberField(json, "gravity_scale")) {
+  if (const std::optional<float> gravityScale =
+          numberField(json, "gravity_scale")) {
     component.gravityScale = *gravityScale;
   }
   if (const std::optional<float> bounciness = numberField(json, "bounciness")) {
@@ -122,7 +119,7 @@ void parseRigidbody2D(const Json& json, Entity& entity) {
   entity.rigidbody2D = component;
 }
 
-void parseBoxCollider2D(const Json& json, Entity& entity) {
+void parseBoxCollider2D(const Json &json, Entity &entity) {
   BoxCollider2DComponent component;
   if (const std::optional<Vec2> size = vec2Field(json, "size")) {
     component.size = *size;
@@ -135,7 +132,7 @@ void parseBoxCollider2D(const Json& json, Entity& entity) {
   entity.boxCollider2D = component;
 }
 
-void parseTransform3D(const Json& json, Entity& entity) {
+void parseTransform3D(const Json &json, Entity &entity) {
   Transform3DComponent component;
   component.parent = stringOr(json, "parent");
   if (const std::optional<Vec3> position = vec3Field(json, "position")) {
@@ -150,7 +147,7 @@ void parseTransform3D(const Json& json, Entity& entity) {
   entity.transform3D = component;
 }
 
-void parseCamera3D(const Json& json, Entity& entity) {
+void parseCamera3D(const Json &json, Entity &entity) {
   Camera3DComponent component;
   if (const std::optional<Color> clearColor = colorField(json, "clear_color")) {
     component.clearColor = *clearColor;
@@ -158,10 +155,12 @@ void parseCamera3D(const Json& json, Entity& entity) {
   if (const std::optional<float> fov = numberField(json, "fov")) {
     component.fov = *fov;
   }
-  if (const std::optional<float> orthoSize = numberField(json, "orthographic_size")) {
+  if (const std::optional<float> orthoSize =
+          numberField(json, "orthographic_size")) {
     component.orthographicSize = *orthoSize;
   }
-  if (const std::optional<Vec3> targetOffset = vec3Field(json, "target_offset")) {
+  if (const std::optional<Vec3> targetOffset =
+          vec3Field(json, "target_offset")) {
     component.targetOffset = *targetOffset;
   }
   component.perspective = boolField(json, "perspective").value_or(true);
@@ -174,7 +173,7 @@ void parseCamera3D(const Json& json, Entity& entity) {
   entity.camera3D = component;
 }
 
-void parseMeshRenderer(const Json& json, Entity& entity) {
+void parseMeshRenderer(const Json &json, Entity &entity) {
   MeshRendererComponent component;
   component.model = stringOr(json, "model");
   component.shape = stringOr(json, "shape", "cube");
@@ -186,37 +185,58 @@ void parseMeshRenderer(const Json& json, Entity& entity) {
   }
   component.texture = stringOr(json, "texture");
   component.wireframe = boolField(json, "wireframe").value_or(false);
-  if (const Json* vertices = arrayField(json, "vertices")) {
+  if (const Json *vertices = arrayField(json, "vertices")) {
     component.vertices.reserve(vertices->size());
-    for (const Json& vertexJson : *vertices) {
+    for (const Json &vertexJson : *vertices) {
       if (!vertexJson.is_array() || vertexJson.size() < 3) {
         continue;
       }
-      component.vertices.push_back(Vec3{vertexJson[0].get<float>(), vertexJson[1].get<float>(), vertexJson[2].get<float>()});
+      component.vertices.push_back(Vec3{vertexJson[0].get<float>(),
+                                        vertexJson[1].get<float>(),
+                                        vertexJson[2].get<float>()});
     }
   }
-  if (const Json* normals = arrayField(json, "normals")) {
+  if (const Json *normals = arrayField(json, "normals")) {
     component.normals.reserve(normals->size());
-    for (const Json& normalJson : *normals) {
+    for (const Json &normalJson : *normals) {
       if (!normalJson.is_array() || normalJson.size() < 3) {
         continue;
       }
-      component.normals.push_back(Vec3{normalJson[0].get<float>(), normalJson[1].get<float>(), normalJson[2].get<float>()});
+      component.normals.push_back(Vec3{normalJson[0].get<float>(),
+                                       normalJson[1].get<float>(),
+                                       normalJson[2].get<float>()});
     }
   }
-  if (const Json* uvs = arrayField(json, "uvs")) {
+  if (const Json *uvs = arrayField(json, "uvs")) {
     component.uvs.reserve(uvs->size());
-    for (const Json& uvJson : *uvs) {
+    for (const Json &uvJson : *uvs) {
       if (!uvJson.is_array() || uvJson.size() < 2) {
         continue;
       }
-      component.uvs.push_back(Vec2{uvJson[0].get<float>(), uvJson[1].get<float>()});
+      component.uvs.push_back(
+          Vec2{uvJson[0].get<float>(), uvJson[1].get<float>()});
     }
   }
   entity.meshRenderer = component;
 }
 
-void parseBoxCollider3D(const Json& json, Entity& entity) {
+void parseAnimationPlayer3D(const Json &json, Entity &entity) {
+  AnimationPlayer3DComponent component;
+  if (const std::optional<float> clip = numberField(json, "clip")) {
+    component.clip = std::max(0, static_cast<int>(*clip));
+  }
+  if (const std::optional<float> speed = numberField(json, "speed")) {
+    component.speed = std::max(0.0F, *speed);
+  }
+  if (const std::optional<float> time = numberField(json, "time")) {
+    component.time = std::max(0.0F, *time);
+  }
+  component.loop = boolField(json, "loop").value_or(true);
+  component.playing = boolField(json, "playing").value_or(true);
+  entity.animationPlayer3D = component;
+}
+
+void parseBoxCollider3D(const Json &json, Entity &entity) {
   BoxCollider3DComponent component;
   if (const std::optional<Vec3> size = vec3Field(json, "size")) {
     component.size = *size;
@@ -229,7 +249,7 @@ void parseBoxCollider3D(const Json& json, Entity& entity) {
   entity.boxCollider3D = component;
 }
 
-void parseSphereCollider3D(const Json& json, Entity& entity) {
+void parseSphereCollider3D(const Json &json, Entity &entity) {
   SphereCollider3DComponent component;
   if (const std::optional<float> radius = numberField(json, "radius")) {
     component.radius = *radius;
@@ -242,20 +262,21 @@ void parseSphereCollider3D(const Json& json, Entity& entity) {
   entity.sphereCollider3D = component;
 }
 
-void parseRigidbody3D(const Json& json, Entity& entity) {
+void parseRigidbody3D(const Json &json, Entity &entity) {
   Rigidbody3DComponent component;
   component.bodyType = stringOr(json, "body_type", "dynamic");
   if (const std::optional<Vec3> velocity = vec3Field(json, "velocity")) {
     component.velocity = *velocity;
   }
   component.useGravity = boolField(json, "use_gravity").value_or(true);
-  if (const std::optional<float> gravityScale = numberField(json, "gravity_scale")) {
+  if (const std::optional<float> gravityScale =
+          numberField(json, "gravity_scale")) {
     component.gravityScale = *gravityScale;
   }
   entity.rigidbody3D = component;
 }
 
-void parseDirectionalLight(const Json& json, Entity& entity) {
+void parseDirectionalLight(const Json &json, Entity &entity) {
   DirectionalLightComponent component;
   if (const std::optional<Vec3> direction = vec3Field(json, "direction")) {
     component.direction = *direction;
@@ -269,7 +290,7 @@ void parseDirectionalLight(const Json& json, Entity& entity) {
   entity.directionalLight = component;
 }
 
-void parseAudioSource(const Json& json, Entity& entity) {
+void parseAudioSource(const Json &json, Entity &entity) {
   AudioSourceComponent component;
   component.clip = stringOr(json, "clip");
   component.playOnStart = boolField(json, "play_on_start").value_or(false);
@@ -280,13 +301,13 @@ void parseAudioSource(const Json& json, Entity& entity) {
   entity.audioSource = component;
 }
 
-void parseAudioListener(const Json& json, Entity& entity) {
+void parseAudioListener(const Json &json, Entity &entity) {
   AudioListenerComponent component;
   component.primary = boolField(json, "primary").value_or(true);
   entity.audioListener = component;
 }
 
-void parseVideoPlayer(const Json& json, Entity& entity) {
+void parseVideoPlayer(const Json &json, Entity &entity) {
   VideoPlayerComponent component;
   component.clip = stringOr(json, "clip");
   component.playOnStart = boolField(json, "play_on_start").value_or(false);
@@ -294,40 +315,36 @@ void parseVideoPlayer(const Json& json, Entity& entity) {
   entity.videoPlayer = component;
 }
 
-constexpr std::array componentParsers{
-  ComponentParser{.name = "Transform2D", .parse = parseTransform2D},
-  ComponentParser{.name = "Camera2D", .parse = parseCamera2D},
-  ComponentParser{.name = "Sprite", .parse = parseSprite},
-  ComponentParser{.name = "IsoGrid", .parse = parseIsoGrid},
-  ComponentParser{.name = "IsoTransform", .parse = parseIsoTransform},
-  ComponentParser{.name = "HitboxController", .parse = parseHitboxController},
-  ComponentParser{.name = "LuaScript", .parse = parseLuaScript},
-  ComponentParser{.name = "Buildable", .parse = parseBuildable},
-  ComponentParser{.name = "Rigidbody2D", .parse = parseRigidbody2D},
-  ComponentParser{.name = "BoxCollider2D", .parse = parseBoxCollider2D},
-  ComponentParser{.name = "Transform3D", .parse = parseTransform3D},
-  ComponentParser{.name = "Camera3D", .parse = parseCamera3D},
-  ComponentParser{.name = "MeshRenderer", .parse = parseMeshRenderer},
-  ComponentParser{.name = "BoxCollider3D", .parse = parseBoxCollider3D},
-  ComponentParser{.name = "SphereCollider3D", .parse = parseSphereCollider3D},
-  ComponentParser{.name = "Rigidbody3D", .parse = parseRigidbody3D},
-  ComponentParser{.name = "DirectionalLight", .parse = parseDirectionalLight},
-  ComponentParser{.name = "AudioSource", .parse = parseAudioSource},
-  ComponentParser{.name = "AudioListener", .parse = parseAudioListener},
-  ComponentParser{.name = "VideoPlayer", .parse = parseVideoPlayer},
-};
+} // namespace component_parsing
 
-void parseComponents(const Json& entityJson, Entity& entity) {
-  const Json* components = objectField(entityJson, "components");
-  const Json& componentSource = components != nullptr ? *components : entityJson;
-  for (const ComponentParser& parser : componentParsers) {
-    if (const Json* componentJson = objectField(componentSource, parser.name.data())) {
-      parser.parse(*componentJson, entity);
+namespace {
+
+void parseComponents(const Json &entityJson, Entity &entity) {
+  const Json *components = objectField(entityJson, "components");
+  const Json &componentSource =
+      components != nullptr ? *components : entityJson;
+  for (auto iterator = componentSource.begin();
+       iterator != componentSource.end(); ++iterator) {
+    if (!iterator.value().is_object()) {
+      continue;
+    }
+
+    const std::string serialized = iterator.value().dump();
+    entity.serializedComponents.emplace(iterator.key(), serialized);
+    const ComponentDescriptor *descriptor =
+        findComponentDescriptor(iterator.key());
+    if (descriptor != nullptr) {
+      entity.authoredComponents.push_back(
+          makeAuthoredComponent(*descriptor, serialized));
+      descriptor->parse(iterator.value(), entity);
+    } else {
+      entity.authoredComponents.push_back(
+          std::make_shared<GenericComponent>(iterator.key(), serialized));
     }
   }
 }
 
-Entity parseEntity(const Json& entityJson) {
+Entity parseEntity(const Json &entityJson) {
   Entity entity;
   entity.id = stringOr(entityJson, "id", "ent_unknown");
   entity.name = stringOr(entityJson, "name", entity.id);
@@ -337,18 +354,19 @@ Entity parseEntity(const Json& entityJson) {
 
 } // namespace
 
-World parseSceneWorld(const std::filesystem::path& scenePath, const Json& document) {
+World parseSceneWorld(const std::filesystem::path &scenePath,
+                      const Json &document) {
   World world;
   world.scenePath = scenePath;
   world.id = stringOr(document, "id", "scene://unknown");
   world.name = stringOr(document, "name", world.id);
 
-  const Json* entities = arrayField(document, "entities");
+  const Json *entities = arrayField(document, "entities");
   if (entities == nullptr) {
     return world;
   }
 
-  for (const Json& entityJson : *entities) {
+  for (const Json &entityJson : *entities) {
     if (entityJson.is_object()) {
       world.entities.push_back(parseEntity(entityJson));
     }

@@ -189,6 +189,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/physics/Physics3D.cpp
   src/demi/runtime/profiling/RuntimeProfiler.cpp
   src/demi/runtime/scene/HudParser.cpp
+  src/demi/runtime/scene/ComponentRegistry.cpp
   src/demi/runtime/scene/ProjectParser.cpp
   src/demi/runtime/scene/SceneEntityParser.cpp
   src/demi/runtime/scene/SceneJson.cpp

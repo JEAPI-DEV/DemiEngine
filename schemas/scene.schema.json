@@ -148,6 +148,16 @@
                   "wireframe": { "type": "boolean" }
                 }
               },
+              "AnimationPlayer3D": {
+                "type": "object",
+                "properties": {
+                  "clip": { "type": "integer", "minimum": 0 },
+                  "speed": { "type": "number", "minimum": 0 },
+                  "time": { "type": "number", "minimum": 0 },
+                  "loop": { "type": "boolean" },
+                  "playing": { "type": "boolean" }
+                }
+              },
               "BoxCollider3D": {
                 "type": "object",
                 "properties": {

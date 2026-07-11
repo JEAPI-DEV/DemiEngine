@@ -1,0 +1,7 @@
+{
+  "format_version": 1,
+  "id": "asset://animation_lib/ual1_standard",
+  "type": "Model3D",
+  "source": "UAL1_Standard.glb",
+  "importer": "gltf-model"
+}

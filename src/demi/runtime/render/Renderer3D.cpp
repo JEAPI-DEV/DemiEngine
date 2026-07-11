@@ -411,10 +411,76 @@ bool meshEntityVisible(const World& world,
   return std::abs(dot(toCenter, up)) <= verticalLimit && std::abs(dot(toCenter, right)) <= horizontalLimit;
 }
 
+Model* animatedModelForEntity(const Entity& entity,
+                              const MeshRendererComponent& mesh,
+                              const std::unordered_map<std::string, std::filesystem::path>& modelPaths,
+                              const std::unordered_map<std::string, Texture2D>& modelTextures,
+                              std::unordered_map<std::string, AnimatedModelCacheEntry>& animatedModels) {
+  if (mesh.model.empty()) {
+    return nullptr;
+  }
+  const auto source = modelPaths.find(mesh.model);
+  if (source == modelPaths.end()) {
+    return nullptr;
+  }
+
+  auto cached = animatedModels.find(entity.id);
+  if (cached != animatedModels.end() && cached->second.assetId == mesh.model && cached->second.hasModel) {
+    return &cached->second.model;
+  }
+  if (cached != animatedModels.end() && cached->second.hasModel) {
+    UnloadModel(cached->second.model);
+  }
+
+  Model model = LoadModel(source->second.string().c_str());
+  if (model.meshCount <= 0) {
+    std::cerr << "Animated model load failed for " << mesh.model << " from " << source->second.string() << ".\n";
+    return nullptr;
+  }
+  const auto texture = modelTextures.find(mesh.model);
+  if (texture != modelTextures.end() && model.materialCount > 0) {
+    SetMaterialTexture(&model.materials[0], MATERIAL_MAP_DIFFUSE, texture->second);
+    for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+      model.meshMaterial[meshIndex] = 0;
+    }
+  }
+  cached = animatedModels
+               .insert_or_assign(entity.id, AnimatedModelCacheEntry{.assetId = mesh.model, .model = model, .hasModel = true})
+               .first;
+  return &cached->second.model;
+}
+
+void updateModelAnimation(Model& model,
+                          AnimationPlayer3DComponent& player,
+                          const ModelAnimationAsset& animations) {
+  if (animations.clips == nullptr || animations.clipCount <= 0) {
+    return;
+  }
+  const int clip = std::clamp(player.clip, 0, animations.clipCount - 1);
+  const ModelAnimation& animation = animations.clips[clip];
+  if (animation.frameCount <= 0) {
+    return;
+  }
+
+  constexpr float GlTfAnimationFramesPerSecond = 60.0F;
+  const float framePosition = player.time * GlTfAnimationFramesPerSecond;
+  int frame = static_cast<int>(std::floor(framePosition));
+  if (player.loop) {
+    frame %= animation.frameCount;
+  } else {
+    frame = std::min(frame, animation.frameCount - 1);
+  }
+  UpdateModelAnimation(model, animation, std::max(frame, 0));
+}
+
 void drawMeshEntity(const World& world,
-                    const Entity& entity,
+                    Entity& entity,
                     const std::unordered_map<std::string, Texture2D>& textures,
                     const std::unordered_map<std::string, Model>& models,
+                    const std::unordered_map<std::string, std::filesystem::path>& modelPaths,
+                    const std::unordered_map<std::string, Texture2D>& modelTextures,
+                    const std::unordered_map<std::string, ModelAnimationAsset>& modelAnimations,
+                    std::unordered_map<std::string, AnimatedModelCacheEntry>& animatedModels,
                     std::unordered_map<std::string, DynamicModelCacheEntry>& dynamicModels,
                     const Shader* alphaCutoutShader) {
   if (!entity.meshRenderer.has_value() || !entity.transform3D.has_value()) {
@@ -448,9 +514,20 @@ void drawMeshEntity(const World& world,
     ProfileScope scope("Renderer3D.dynamic_model_lookup");
     dynamicModel = dynamicModelForEntity(entity, mesh, textures, dynamicModels, alphaCutoutShader);
   } else if (!mesh.model.empty()) {
-    const auto found = models.find(mesh.model);
-    if (found != models.end()) {
-      staticModel = &found->second;
+    if (entity.animationPlayer3D.has_value()) {
+      const auto animations = modelAnimations.find(mesh.model);
+      if (animations != modelAnimations.end()) {
+        if (Model* animatedModel = animatedModelForEntity(entity, mesh, modelPaths, modelTextures, animatedModels)) {
+          updateModelAnimation(*animatedModel, *entity.animationPlayer3D, animations->second);
+          staticModel = animatedModel;
+        }
+      }
+    }
+    if (staticModel == nullptr) {
+      const auto found = models.find(mesh.model);
+      if (found != models.end()) {
+        staticModel = &found->second;
+      }
     }
   }
 
@@ -566,6 +643,18 @@ Renderer3D::~Renderer3D() {
     (void)id;
     UnloadModel(model);
   }
+  for (auto& [id, animatedModel] : animatedModels_) {
+    (void)id;
+    if (animatedModel.hasModel) {
+      UnloadModel(animatedModel.model);
+    }
+  }
+  for (auto& [id, animations] : modelAnimations_) {
+    (void)id;
+    if (animations.clips != nullptr) {
+      UnloadModelAnimations(animations.clips, animations.clipCount);
+    }
+  }
   for (auto& [id, texture] : modelTextures_) {
     (void)id;
     UnloadTexture(texture);
@@ -629,6 +718,12 @@ void Renderer3D::loadTextureAssets(const AssetRegistry& registry) {
         }
       }
       models_[asset.id] = model;
+      modelPaths_[asset.id] = asset.sourcePath;
+      int clipCount = 0;
+      ModelAnimation* clips = LoadModelAnimations(asset.sourcePath.string().c_str(), &clipCount);
+      if (clips != nullptr && clipCount > 0) {
+        modelAnimations_[asset.id] = ModelAnimationAsset{.clips = clips, .clipCount = clipCount};
+      }
       continue;
     }
 
@@ -695,7 +790,7 @@ void Renderer3D::beginFrame(const Camera3DComponent& camera, const Vec3 cameraPo
   BeginMode3D(rlCamera);
 }
 
-void Renderer3D::drawWorld(const World& world) {
+void Renderer3D::drawWorld(World& world, const float deltaTime) {
   ProfileScope drawWorldScope("Renderer3D.draw_world");
   if (hasAlphaCutoutShader_) {
     const float viewPos[3] = {cameraPosition_.x, cameraPosition_.y, cameraPosition_.z};
@@ -716,7 +811,13 @@ void Renderer3D::drawWorld(const World& world) {
     }
   }
 
-  for (const Entity& entity : world.entities) {
+  for (Entity& entity : world.entities) {
+    if (entity.animationPlayer3D.has_value() && entity.animationPlayer3D->playing) {
+      entity.animationPlayer3D->time += std::max(deltaTime, 0.0F) * entity.animationPlayer3D->speed;
+    }
+  }
+
+  for (Entity& entity : world.entities) {
     if (entity.meshRenderer.has_value() || entity.boxCollider3D.has_value() || entity.sphereCollider3D.has_value()) {
       if (entity.meshRenderer.has_value() &&
           ![&]() {
@@ -726,7 +827,16 @@ void Renderer3D::drawWorld(const World& world) {
           }()) {
           continue;
       }
-      drawMeshEntity(world, entity, textures_, models_, dynamicModels_, hasAlphaCutoutShader_ ? &alphaCutoutShader_ : nullptr);
+      drawMeshEntity(world,
+                     entity,
+                     textures_,
+                     models_,
+                     modelPaths_,
+                     modelTextures_,
+                     modelAnimations_,
+                     animatedModels_,
+                     dynamicModels_,
+                     hasAlphaCutoutShader_ ? &alphaCutoutShader_ : nullptr);
     }
   }
 

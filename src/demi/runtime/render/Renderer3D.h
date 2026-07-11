@@ -6,6 +6,7 @@
 
 #include <raylib.h>
 
+#include <filesystem>
 #include <string>
 #include <unordered_map>
 
@@ -15,6 +16,17 @@ struct DynamicModelCacheEntry {
   std::string signature;
   std::string texture;
   std::uint64_t revision = 0;
+  Model model{};
+  bool hasModel = false;
+};
+
+struct ModelAnimationAsset {
+  ModelAnimation* clips = nullptr;
+  int clipCount = 0;
+};
+
+struct AnimatedModelCacheEntry {
+  std::string assetId;
   Model model{};
   bool hasModel = false;
 };
@@ -29,7 +41,7 @@ public:
 
   void loadTextureAssets(const AssetRegistry& registry);
   void beginFrame(const Camera3DComponent& camera, Vec3 cameraPosition, Vec3 cameraRotation, int width, int height);
-  void drawWorld(const World& world);
+  void drawWorld(World& world, float deltaTime);
   void drawHud(const World& world);
   void endFrame();
 
@@ -44,7 +56,10 @@ private:
   std::unordered_map<std::string, GifAnimationTextureData> gifAnimations_;
   float animationTime_ = 0.0F;
   std::unordered_map<std::string, Model> models_;
+  std::unordered_map<std::string, std::filesystem::path> modelPaths_;
   std::unordered_map<std::string, Texture2D> modelTextures_;
+  std::unordered_map<std::string, ModelAnimationAsset> modelAnimations_;
+  std::unordered_map<std::string, AnimatedModelCacheEntry> animatedModels_;
   std::unordered_map<std::string, DynamicModelCacheEntry> dynamicModels_;
   Shader alphaCutoutShader_{};
   bool hasAlphaCutoutShader_ = false;
