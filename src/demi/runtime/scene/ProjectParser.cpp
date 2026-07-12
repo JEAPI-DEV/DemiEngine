@@ -1,4 +1,5 @@
 #include "demi/runtime/scene/ProjectParser.h"
+#include "demi/runtime/input/InputActionParser.h"
 
 namespace demi::runtime::scene_loading {
 
@@ -17,6 +18,7 @@ std::optional<ProjectData> parseProjectData(const std::filesystem::path& project
 
   project.name = *name;
   project.mainScene = *mainScene;
+  project.inputActions = input::parseInputActions(document);
   project.scriptEntry = stringOr(document, "entry");
 
   if (const Json* scripting = objectField(document, "scripting")) {

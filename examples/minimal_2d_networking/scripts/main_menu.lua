@@ -158,7 +158,6 @@ function Menu.retry_game()
   state.game_over_pending = false
   state.score_reset_requested = false
   state.extra_jumps = 0
-  replication.reset_claims()
   Scene.load(active_scene())
 end
 

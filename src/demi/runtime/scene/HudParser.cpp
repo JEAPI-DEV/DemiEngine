@@ -76,17 +76,18 @@ void loadHudFile(World &world, const std::filesystem::path &hudPath,
   Json expanded = *expansion.document;
   if (!mergeUiResources(expanded, hudPath, error))
     return;
-  world.ui = ui::parseUiDocument(expanded);
-
   if (const std::optional<Vec2> canvasSize = vec2Field(expanded, "canvas_size");
       canvasSize.has_value() && canvasSize->x > 0.0F && canvasSize->y > 0.0F) {
     world.hudCanvasSize = *canvasSize;
   }
 
   if (expanded.contains("root")) {
+    world.ui = ui::parseUiDocument(expanded);
     ui::projectUiDocument(world);
     return;
   }
+
+  world.ui = {};
 
   const Json *elements = arrayField(expanded, "elements");
   if (elements == nullptr)

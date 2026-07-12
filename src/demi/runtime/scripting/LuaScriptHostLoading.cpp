@@ -21,6 +21,7 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData &project, World &world,
   }
 
   projectDirectory_ = project.projectDirectory;
+  inputActions_ = project.inputActions;
   project_ = &project;
   luaConfigurePackagePath(state, project);
   moduleActionHandlers_.clear();

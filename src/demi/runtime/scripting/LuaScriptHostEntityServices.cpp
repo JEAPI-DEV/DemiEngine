@@ -3,6 +3,7 @@
 
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/Physics3D.h"
+#include "demi/runtime/input/InputActionResolver.h"
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
 
 #include <algorithm>
@@ -18,6 +19,23 @@ bool LuaScriptHost::isKeyDown(const std::string &key) const {
 
 bool LuaScriptHost::isKeyPressed(const std::string &key) const {
   return input_ != nullptr && input_->keysPressed.contains(normalizedKey(key));
+}
+
+bool LuaScriptHost::isActionDown(const std::string &action) const {
+  return input_ != nullptr &&
+         input::InputActionResolver{}.down(inputActions_, *input_, action);
+}
+
+bool LuaScriptHost::isActionPressed(const std::string &action) const {
+  return input_ != nullptr &&
+         input::InputActionResolver{}.pressed(inputActions_, *input_, action);
+}
+
+float LuaScriptHost::actionValue(const std::string &action) const {
+  return input_ == nullptr
+             ? 0.0F
+             : input::InputActionResolver{}.value(inputActions_, *input_,
+                                                   action);
 }
 
 std::string LuaScriptHost::textEntered() const {

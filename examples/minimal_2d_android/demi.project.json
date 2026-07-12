@@ -16,6 +16,17 @@
       "path": "scenes/spiral.scene.json"
     }
   ],
+  "input": {
+    "actions": {
+      "move": [
+        {"input": "a", "scale": -1},
+        {"input": "left", "scale": -1},
+        {"input": "d", "scale": 1},
+        {"input": "right", "scale": 1}
+      ],
+      "jump": ["space", "w", "up"]
+    }
+  },
   "scripting": {
     "language": "lua54",
     "modules": [

@@ -192,6 +192,10 @@ int main(int argc, char **argv) {
         << "HUD loader did not read panel, circle, or font_size fields.\n";
     return 1;
   }
+  if (!hudWorld.ui.nodes.empty()) {
+    std::cerr << "Flat HUD was also loaded into the tree UI representation.\n";
+    return 1;
+  }
 
   const std::filesystem::path meshFixture =
       std::filesystem::temp_directory_path() / "demi_scene_loader_mesh_fixture";

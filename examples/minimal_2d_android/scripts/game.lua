@@ -29,6 +29,7 @@ function Game:on_create()
 end
 
 function Game:reset_level_state()
+  replication.reset_claims()
   self.coins = {}
   self.platforms = {}
   self.next_coin_index = 1

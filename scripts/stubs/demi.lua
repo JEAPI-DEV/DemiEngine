@@ -33,6 +33,15 @@ function Input.is_down(key) end
 ---@param key string
 ---@return boolean
 function Input.is_pressed(key) end
+---@param action string
+---@return boolean
+function Input.action_down(action) end
+---@param action string
+---@return boolean
+function Input.action_pressed(action) end
+---@param action string
+---@return number
+function Input.action_value(action) end
 ---@return string
 function Input.text_entered() end
 ---@param active boolean

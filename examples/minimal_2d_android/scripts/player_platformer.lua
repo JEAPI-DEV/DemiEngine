@@ -20,15 +20,11 @@ local function has_platform_overlap(entity_id, probe_y, probe_height)
 end
 
 function Platformer.horizontal_axis()
-  local x = Input.axis("a", "d")
-  if x == 0.0 then
-    x = Input.axis("left", "right")
-  end
-  return x
+  return Input.action_value("move")
 end
 
 function Platformer.wants_jump()
-  return Input.is_down("space") or Input.is_down("w") or Input.is_down("up")
+  return Input.action_down("jump")
 end
 
 function Platformer.is_grounded(entity_id)

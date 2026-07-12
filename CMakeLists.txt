@@ -186,6 +186,8 @@ add_library(demi-core STATIC
   src/demi/runtime/ui/UiLegacyProjection.cpp
   src/demi/runtime/ui/UiStateController.cpp
   src/demi/runtime/ui/UiActionController.cpp
+  src/demi/runtime/input/InputActionResolver.cpp
+  src/demi/runtime/input/InputActionParser.cpp
   ${DEMI_COMPONENT_MODEL_SOURCES}
 )
 
@@ -401,6 +403,8 @@ else()
   target_link_libraries(demi-ui-tests PRIVATE demi-core)
   add_executable(demi-regex-matcher-tests tests/regex_matcher_tests.cpp)
   target_link_libraries(demi-regex-matcher-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-input-action-tests tests/input_action_tests.cpp)
+  target_link_libraries(demi-input-action-tests PRIVATE demi-core)
 
   add_executable(demi-snapshot-replication-tests tests/snapshot_replication_tests.cpp)
   target_link_libraries(demi-snapshot-replication-tests PRIVATE demi-runtime-lib)
@@ -427,6 +431,7 @@ add_test(NAME demi-scene-loader-tests COMMAND demi-scene-loader-tests ${CMAKE_SO
 add_test(NAME demi-prefab-tests COMMAND demi-prefab-tests)
 add_test(NAME demi-ui-tests COMMAND demi-ui-tests)
 add_test(NAME demi-regex-matcher-tests COMMAND demi-regex-matcher-tests)
+add_test(NAME demi-input-action-tests COMMAND demi-input-action-tests)
 add_test(NAME demi-prefab-inspect-cli
   COMMAND demi prefab inspect ${CMAKE_SOURCE_DIR}/examples/minimal_3d/prefabs/player.prefab.json)
 add_test(NAME demi-scene-expand-cli

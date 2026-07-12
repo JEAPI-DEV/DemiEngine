@@ -42,6 +42,9 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
   sol::table input = lua.create_named_table("Input");
   input.set_function("is_down", [&host](const std::string& key) { return host.isKeyDown(key); });
   input.set_function("is_pressed", [&host](const std::string& key) { return host.isKeyPressed(key); });
+  input.set_function("action_down", [&host](const std::string& action) { return host.isActionDown(action); });
+  input.set_function("action_pressed", [&host](const std::string& action) { return host.isActionPressed(action); });
+  input.set_function("action_value", [&host](const std::string& action) { return host.actionValue(action); });
   input.set_function("text_entered", [&host] { return host.textEntered(); });
   input.set_function("set_text_input_active", [](const bool active) {
 #if defined(__ANDROID__)

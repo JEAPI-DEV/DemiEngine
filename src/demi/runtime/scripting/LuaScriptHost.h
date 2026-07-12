@@ -50,6 +50,9 @@ public:
   [[nodiscard]] bool applyPendingSceneLoad(std::string &error);
   [[nodiscard]] bool isKeyDown(const std::string &key) const;
   [[nodiscard]] bool isKeyPressed(const std::string &key) const;
+  [[nodiscard]] bool isActionDown(const std::string &action) const;
+  [[nodiscard]] bool isActionPressed(const std::string &action) const;
+  [[nodiscard]] float actionValue(const std::string &action) const;
   [[nodiscard]] std::string textEntered() const;
   [[nodiscard]] bool addEntityPosition(const std::string &entityId, float dx,
                                        float dy);
@@ -283,6 +286,7 @@ private:
   World *world_ = nullptr;
   const ProjectData *project_ = nullptr;
   const InputState *input_ = nullptr;
+  input::InputActionMap inputActions_;
   AudioSystem *audio_ = nullptr;
   MediaSystem *media_ = nullptr;
   NetworkSystem *network_ = nullptr;

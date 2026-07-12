@@ -1,5 +1,7 @@
 #pragma once
 
+#include "demi/runtime/input/InputActionMap.h"
+
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -28,6 +30,7 @@ struct ProjectData {
   std::string scriptEntry;
   std::vector<std::string> scriptModules;
   std::vector<SceneEntry> scenes;
+  input::InputActionMap inputActions;
 };
 
 } // namespace demi::runtime

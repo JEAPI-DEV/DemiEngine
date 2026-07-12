@@ -18,6 +18,26 @@
       "type": "string",
       "pattern": "^scene://"
     },
+    "input": {
+      "type": "object",
+      "properties": {
+        "actions": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {"$ref": "#/$defs/input_bindings"},
+              {
+                "type": "object",
+                "required": ["bindings"],
+                "properties": {
+                  "bindings": {"$ref": "#/$defs/input_bindings"}
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
     "scenes": {
       "type": "array",
       "items": {
@@ -43,6 +63,24 @@
           "type": "array",
           "items": { "type": "string" }
         }
+      }
+    }
+  },
+  "$defs": {
+    "input_bindings": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {"type": "string"},
+          {
+            "type": "object",
+            "required": ["input"],
+            "properties": {
+              "input": {"type": "string"},
+              "scale": {"type": "number", "minimum": -1, "maximum": 1}
+            }
+          }
+        ]
       }
     }
   }
