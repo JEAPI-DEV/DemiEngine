@@ -1,7 +1,7 @@
 #pragma once
 
-#include "demi/runtime/scene/SceneData.h"
 #include "demi/runtime/scene/SceneJson.h"
+#include "demi/runtime/scene/model/ProjectData.h"
 
 #include <filesystem>
 #include <optional>
@@ -9,6 +9,8 @@
 
 namespace demi::runtime::scene_loading {
 
-[[nodiscard]] std::optional<ProjectData> parseProjectData(const std::filesystem::path& projectPath, const Json& document, std::string& error);
+[[nodiscard]] std::optional<ProjectData>
+parseProjectData(const std::filesystem::path &projectPath, const Json &document,
+                 std::string &error);
 
 } // namespace demi::runtime::scene_loading

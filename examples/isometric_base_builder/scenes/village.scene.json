@@ -42,9 +42,13 @@
           "asset": "asset://buildings/town_hall",
           "blocks_movement": true
         },
-        "Health": {
-          "max": 1500,
-          "current": 1500
+        "GameplayData": {
+          "values": {
+            "health": {
+              "max": 1500,
+              "current": 1500
+            }
+          }
         }
       }
     },

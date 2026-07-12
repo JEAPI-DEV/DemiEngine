@@ -1,0 +1,71 @@
+{
+  "format_version": 1,
+  "id": "scene://animation_3d/main",
+  "name": "GLB Animation Playback",
+  "hud": "main.hud.json",
+  "entities": [
+    {
+      "id": "ent_camera",
+      "name": "Main Camera",
+      "components": {
+        "Transform3D": {
+          "position": [2.5, 1.5, 4.0],
+          "rotation": [0.0, 0.0, 0.0]
+        },
+        "Camera3D": {
+          "clear_color": [0.035, 0.045, 0.075, 1.0],
+          "fov": 50.0,
+          "perspective": true,
+          "target_offset": [-2.5, -0.8, -4.0]
+        }
+      }
+    },
+    {
+      "id": "ent_key_light",
+      "name": "Key Light",
+      "components": {
+        "DirectionalLight": {
+          "direction": [-0.5, -1.0, -0.35],
+          "color": [1.0, 0.92, 0.78, 1.0],
+          "intensity": 1.0
+        }
+      }
+    },
+    {
+      "id": "ent_floor",
+      "name": "Floor",
+      "components": {
+        "Transform3D": {
+          "position": [0.0, -0.02, 0.0]
+        },
+        "MeshRenderer": {
+          "shape": "plane",
+          "size": [12.0, 1.0, 12.0],
+          "color": [0.08, 0.13, 0.20, 1.0]
+        }
+      }
+    },
+    {
+      "id": "ent_animated_character",
+      "name": "Animated GLB Character",
+      "components": {
+        "Transform3D": {
+          "position": [0.0, 0.0, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "scale": [1.6, 1.6, 1.6]
+        },
+        "MeshRenderer": {
+          "model": "asset://animation_lib/ual1_standard",
+          "size": [1.0, 1.0, 1.0],
+          "color": [0.82, 0.9, 1.0, 1.0]
+        },
+        "AnimationPlayer3D": {
+          "clip": 0,
+          "speed": 1.0,
+          "loop": true,
+          "playing": true
+        }
+      }
+    }
+  ]
+}

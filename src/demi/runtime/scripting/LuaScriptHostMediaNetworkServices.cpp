@@ -1,3 +1,4 @@
+#include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include "demi/runtime/audio/AudioSystem.h"
@@ -9,35 +10,41 @@
 
 namespace demi::runtime {
 
-std::uint64_t LuaScriptHost::playAudio(const std::string& assetId) {
+std::uint64_t LuaScriptHost::playAudio(const std::string &assetId) {
   return audio_ != nullptr ? audio_->play(assetId) : 0;
 }
 
-std::uint64_t LuaScriptHost::playAudioSource(const std::string& entityId) {
+std::uint64_t LuaScriptHost::playAudioSource(const std::string &entityId) {
   if (world_ == nullptr || audio_ == nullptr) {
     return 0;
   }
-  Entity* entity = findEntity(*world_, entityId);
-  if (entity == nullptr || !entity->audioSource.has_value() || entity->audioSource->clip.empty()) {
+  Entity *entity = findEntity(*world_, entityId);
+  if (entity == nullptr || !entity->hasComponent<AudioSourceComponent>() ||
+      entity->component<AudioSourceComponent>()->clip.empty()) {
     return 0;
   }
-  if (entity->audioSource->handle != 0) {
-    (void)audio_->stop(entity->audioSource->handle);
+  if (entity->component<AudioSourceComponent>()->handle != 0) {
+    (void)audio_->stop(entity->component<AudioSourceComponent>()->handle);
   }
-  entity->audioSource->handle = audio_->play(entity->audioSource->clip, entity->audioSource->loop, entity->audioSource->volume);
-  return entity->audioSource->handle;
+  entity->component<AudioSourceComponent>()->handle =
+      audio_->play(entity->component<AudioSourceComponent>()->clip,
+                   entity->component<AudioSourceComponent>()->loop,
+                   entity->component<AudioSourceComponent>()->volume);
+  return entity->component<AudioSourceComponent>()->handle;
 }
 
-bool LuaScriptHost::stopAudioSource(const std::string& entityId) {
+bool LuaScriptHost::stopAudioSource(const std::string &entityId) {
   if (world_ == nullptr || audio_ == nullptr) {
     return false;
   }
-  Entity* entity = findEntity(*world_, entityId);
-  if (entity == nullptr || !entity->audioSource.has_value() || entity->audioSource->handle == 0) {
+  Entity *entity = findEntity(*world_, entityId);
+  if (entity == nullptr || !entity->hasComponent<AudioSourceComponent>() ||
+      entity->component<AudioSourceComponent>()->handle == 0) {
     return false;
   }
-  const bool stopped = audio_->stop(entity->audioSource->handle);
-  entity->audioSource->handle = 0;
+  const bool stopped =
+      audio_->stop(entity->component<AudioSourceComponent>()->handle);
+  entity->component<AudioSourceComponent>()->handle = 0;
   return stopped;
 }
 
@@ -55,23 +62,27 @@ float LuaScriptHost::masterVolume() const {
   return audio_ != nullptr ? audio_->masterVolume() : 1.0F;
 }
 
-std::uint64_t LuaScriptHost::playVideo(const std::string& assetId, const bool loop) {
+std::uint64_t LuaScriptHost::playVideo(const std::string &assetId,
+                                       const bool loop) {
   return media_ != nullptr ? media_->playVideo(assetId, loop) : 0;
 }
 
-std::uint64_t LuaScriptHost::playVideoPlayer(const std::string& entityId) {
+std::uint64_t LuaScriptHost::playVideoPlayer(const std::string &entityId) {
   if (world_ == nullptr || media_ == nullptr) {
     return 0;
   }
-  Entity* entity = findEntity(*world_, entityId);
-  if (entity == nullptr || !entity->videoPlayer.has_value() || entity->videoPlayer->clip.empty()) {
+  Entity *entity = findEntity(*world_, entityId);
+  if (entity == nullptr || !entity->hasComponent<VideoPlayerComponent>() ||
+      entity->component<VideoPlayerComponent>()->clip.empty()) {
     return 0;
   }
-  if (entity->videoPlayer->handle != 0) {
-    (void)media_->stopVideo(entity->videoPlayer->handle);
+  if (entity->component<VideoPlayerComponent>()->handle != 0) {
+    (void)media_->stopVideo(entity->component<VideoPlayerComponent>()->handle);
   }
-  entity->videoPlayer->handle = media_->playVideo(entity->videoPlayer->clip, entity->videoPlayer->loop);
-  return entity->videoPlayer->handle;
+  entity->component<VideoPlayerComponent>()->handle =
+      media_->playVideo(entity->component<VideoPlayerComponent>()->clip,
+                        entity->component<VideoPlayerComponent>()->loop);
+  return entity->component<VideoPlayerComponent>()->handle;
 }
 
 bool LuaScriptHost::stopVideo(const std::uint64_t handle) {
@@ -86,26 +97,42 @@ bool LuaScriptHost::networkAvailable() const {
   return network_ != nullptr && network_->available();
 }
 
-bool LuaScriptHost::networkHost(const std::uint16_t port, const std::uint32_t maxPeers) {
+bool LuaScriptHost::networkHost(const std::uint16_t port,
+                                const std::uint32_t maxPeers) {
   return network_ != nullptr && network_->host(port, maxPeers);
 }
 
-bool LuaScriptHost::networkHostSecure(const std::uint16_t port, const std::string& certificate, const std::string& privateKey, const std::uint32_t maxPeers) {
+bool LuaScriptHost::networkHostSecure(const std::uint16_t port,
+                                      const std::string &certificate,
+                                      const std::string &privateKey,
+                                      const std::uint32_t maxPeers) {
   const std::filesystem::path certificateValue(certificate);
   const std::filesystem::path privateKeyValue(privateKey);
-  const std::filesystem::path certificatePath = certificateValue.is_absolute() ? certificateValue : projectDirectory_ / certificateValue;
-  const std::filesystem::path privateKeyPath = privateKeyValue.is_absolute() ? privateKeyValue : projectDirectory_ / privateKeyValue;
-  return network_ != nullptr && network_->hostSecure(port, certificatePath, privateKeyPath, maxPeers);
+  const std::filesystem::path certificatePath =
+      certificateValue.is_absolute() ? certificateValue
+                                     : projectDirectory_ / certificateValue;
+  const std::filesystem::path privateKeyPath =
+      privateKeyValue.is_absolute() ? privateKeyValue
+                                    : projectDirectory_ / privateKeyValue;
+  return network_ != nullptr &&
+         network_->hostSecure(port, certificatePath, privateKeyPath, maxPeers);
 }
 
-bool LuaScriptHost::networkConnect(const std::string& address, const std::uint16_t port) {
+bool LuaScriptHost::networkConnect(const std::string &address,
+                                   const std::uint16_t port) {
   return network_ != nullptr && network_->connect(address, port);
 }
 
-bool LuaScriptHost::networkConnectSecure(const std::string& address, const std::uint16_t port, const std::string& trustedCertificate, const std::string& serverName) {
+bool LuaScriptHost::networkConnectSecure(const std::string &address,
+                                         const std::uint16_t port,
+                                         const std::string &trustedCertificate,
+                                         const std::string &serverName) {
   const std::filesystem::path certificateValue(trustedCertificate);
-  const std::filesystem::path certificatePath = certificateValue.is_absolute() ? certificateValue : projectDirectory_ / certificateValue;
-  return network_ != nullptr && network_->connectSecure(address, port, certificatePath, serverName);
+  const std::filesystem::path certificatePath =
+      certificateValue.is_absolute() ? certificateValue
+                                     : projectDirectory_ / certificateValue;
+  return network_ != nullptr &&
+         network_->connectSecure(address, port, certificatePath, serverName);
 }
 
 void LuaScriptHost::networkDisconnect() {
@@ -115,11 +142,15 @@ void LuaScriptHost::networkDisconnect() {
 }
 
 void LuaScriptHost::networkDisconnectPeer(const std::uint32_t peerId) {
-  if (network_ != nullptr) network_->disconnectPeer(peerId);
+  if (network_ != nullptr)
+    network_->disconnectPeer(peerId);
 }
 
-bool LuaScriptHost::networkSend(const std::string& message, const bool reliable, const std::uint8_t channel, const std::uint32_t peerId) {
-  return network_ != nullptr && network_->send(message, reliable, channel, peerId);
+bool LuaScriptHost::networkSend(const std::string &message, const bool reliable,
+                                const std::uint8_t channel,
+                                const std::uint32_t peerId) {
+  return network_ != nullptr &&
+         network_->send(message, reliable, channel, peerId);
 }
 
 bool LuaScriptHost::networkIsHost() const {
@@ -139,11 +170,13 @@ bool LuaScriptHost::networkIsSecure() const {
 }
 
 std::string LuaScriptHost::networkSecurityError() const {
-  return network_ != nullptr ? network_->securityError() : "Networking is unavailable.";
+  return network_ != nullptr ? network_->securityError()
+                             : "Networking is unavailable.";
 }
 
 std::vector<NetworkEvent> LuaScriptHost::networkDrainEvents() {
-  return network_ != nullptr ? network_->drainEvents() : std::vector<NetworkEvent>{};
+  return network_ != nullptr ? network_->drainEvents()
+                             : std::vector<NetworkEvent>{};
 }
 
 bool LuaScriptHost::startCutscene(std::string id) {
@@ -184,7 +217,7 @@ bool LuaScriptHost::isCutscenePlaying() const {
   return !activeCutscene_.empty() && !cutscenePaused_;
 }
 
-const std::string& LuaScriptHost::activeCutscene() const {
+const std::string &LuaScriptHost::activeCutscene() const {
   return activeCutscene_;
 }
 

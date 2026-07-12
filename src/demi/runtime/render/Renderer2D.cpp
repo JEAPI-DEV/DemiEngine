@@ -1,4 +1,5 @@
 #include "demi/runtime/render/Renderer2D.h"
+#include "demi/runtime/scene/components/EngineComponents.h"
 
 #include <algorithm>
 #include <cmath>
@@ -9,31 +10,37 @@
 #include <vector>
 
 #if DEMI_HAS_RSVG
+// clang-format off: librsvg requires its primary header before rsvg-cairo.h.
+#include <cairo.h>
 #include <librsvg/rsvg.h>
 #include <librsvg/rsvg-cairo.h>
-#include <cairo.h>
+// clang-format on
 #endif
 
 namespace demi::runtime {
 
 namespace {
 
-::Color toRlColor(const Color& value) {
+::Color toRlColor(const Color &value) {
   return ::Color{
-    static_cast<unsigned char>(std::round(std::clamp(value.r, 0.0F, 1.0F) * 255.0F)),
-    static_cast<unsigned char>(std::round(std::clamp(value.g, 0.0F, 1.0F) * 255.0F)),
-    static_cast<unsigned char>(std::round(std::clamp(value.b, 0.0F, 1.0F) * 255.0F)),
-    static_cast<unsigned char>(std::round(std::clamp(value.a, 0.0F, 1.0F) * 255.0F)),
+      static_cast<unsigned char>(
+          std::round(std::clamp(value.r, 0.0F, 1.0F) * 255.0F)),
+      static_cast<unsigned char>(
+          std::round(std::clamp(value.g, 0.0F, 1.0F) * 255.0F)),
+      static_cast<unsigned char>(
+          std::round(std::clamp(value.b, 0.0F, 1.0F) * 255.0F)),
+      static_cast<unsigned char>(
+          std::round(std::clamp(value.a, 0.0F, 1.0F) * 255.0F)),
   };
 }
 
 const ::Color WhiteTint = {255, 255, 255, 255};
 
-std::optional<Texture2D> loadSvgIcon(const std::filesystem::path& path) {
+std::optional<Texture2D> loadSvgIcon(const std::filesystem::path &path) {
 #if DEMI_HAS_RSVG
   constexpr int IconRasterSize = 256;
-  GError* error = nullptr;
-  RsvgHandle* handle = rsvg_handle_new_from_file(path.string().c_str(), &error);
+  GError *error = nullptr;
+  RsvgHandle *handle = rsvg_handle_new_from_file(path.string().c_str(), &error);
   if (handle == nullptr) {
     if (error != nullptr) {
       g_error_free(error);
@@ -41,20 +48,26 @@ std::optional<Texture2D> loadSvgIcon(const std::filesystem::path& path) {
     return std::nullopt;
   }
 
-  cairo_surface_t* surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, IconRasterSize, IconRasterSize);
-  cairo_t* context = cairo_create(surface);
-  const RsvgRectangle viewport{.x = 0.0, .y = 0.0, .width = static_cast<double>(IconRasterSize), .height = static_cast<double>(IconRasterSize)};
-  const gboolean rendered = rsvg_handle_render_document(handle, context, &viewport, &error);
+  cairo_surface_t *surface = cairo_image_surface_create(
+      CAIRO_FORMAT_ARGB32, IconRasterSize, IconRasterSize);
+  cairo_t *context = cairo_create(surface);
+  const RsvgRectangle viewport{.x = 0.0,
+                               .y = 0.0,
+                               .width = static_cast<double>(IconRasterSize),
+                               .height = static_cast<double>(IconRasterSize)};
+  const gboolean rendered =
+      rsvg_handle_render_document(handle, context, &viewport, &error);
   cairo_surface_flush(surface);
 
-  std::vector<unsigned char> pixels(static_cast<std::size_t>(IconRasterSize * IconRasterSize * 4));
+  std::vector<unsigned char> pixels(
+      static_cast<std::size_t>(IconRasterSize * IconRasterSize * 4));
   if (rendered) {
-    const unsigned char* source = cairo_image_surface_get_data(surface);
+    const unsigned char *source = cairo_image_surface_get_data(surface);
     const int stride = cairo_image_surface_get_stride(surface);
     for (int y = 0; y < IconRasterSize; ++y) {
       for (int x = 0; x < IconRasterSize; ++x) {
-        const unsigned char* bgra = source + y * stride + x * 4;
-        unsigned char* rgba = pixels.data() + (y * IconRasterSize + x) * 4;
+        const unsigned char *bgra = source + y * stride + x * 4;
+        unsigned char *rgba = pixels.data() + (y * IconRasterSize + x) * 4;
         const unsigned char alpha = bgra[3];
         rgba[0] = 255;
         rgba[1] = 255;
@@ -74,7 +87,11 @@ std::optional<Texture2D> loadSvgIcon(const std::filesystem::path& path) {
     return std::nullopt;
   }
 
-  Image image{.data = pixels.data(), .width = IconRasterSize, .height = IconRasterSize, .mipmaps = 1, .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
+  Image image{.data = pixels.data(),
+              .width = IconRasterSize,
+              .height = IconRasterSize,
+              .mipmaps = 1,
+              .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
   Texture2D texture = LoadTextureFromImage(image);
   return texture.id == 0 ? std::nullopt : std::make_optional(texture);
 #else
@@ -83,7 +100,8 @@ std::optional<Texture2D> loadSvgIcon(const std::filesystem::path& path) {
 #endif
 }
 
-void skipGifSubBlocks(const std::vector<unsigned char>& bytes, std::size_t& cursor) {
+void skipGifSubBlocks(const std::vector<unsigned char> &bytes,
+                      std::size_t &cursor) {
   while (cursor < bytes.size()) {
     const std::size_t size = bytes[cursor++];
     if (size == 0 || cursor + size > bytes.size()) {
@@ -93,10 +111,12 @@ void skipGifSubBlocks(const std::vector<unsigned char>& bytes, std::size_t& curs
   }
 }
 
-std::vector<float> loadGifFrameDurations(const std::filesystem::path& path) {
+std::vector<float> loadGifFrameDurations(const std::filesystem::path &path) {
   std::ifstream input(path, std::ios::binary);
-  const std::vector<unsigned char> bytes{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
-  if (bytes.size() < 13 || bytes[0] != 'G' || bytes[1] != 'I' || bytes[2] != 'F') {
+  const std::vector<unsigned char> bytes{std::istreambuf_iterator<char>(input),
+                                         std::istreambuf_iterator<char>()};
+  if (bytes.size() < 13 || bytes[0] != 'G' || bytes[1] != 'I' ||
+      bytes[2] != 'F') {
     return {};
   }
 
@@ -120,7 +140,8 @@ std::vector<float> loadGifFrameDurations(const std::filesystem::path& path) {
       if (label == 0xF9U && cursor < bytes.size()) {
         const std::size_t blockSize = bytes[cursor++];
         if (blockSize >= 4 && cursor + blockSize <= bytes.size()) {
-          pendingDelayCentiseconds = static_cast<int>(bytes[cursor + 1]) | (static_cast<int>(bytes[cursor + 2]) << 8);
+          pendingDelayCentiseconds = static_cast<int>(bytes[cursor + 1]) |
+                                     (static_cast<int>(bytes[cursor + 2]) << 8);
         }
         cursor += blockSize;
         if (cursor < bytes.size() && bytes[cursor] == 0U) {
@@ -151,7 +172,7 @@ std::vector<float> loadGifFrameDurations(const std::filesystem::path& path) {
   return durations;
 }
 
-int gifFrameAt(const GifAnimationTextureData& animation, const float elapsed) {
+int gifFrameAt(const GifAnimationTextureData &animation, const float elapsed) {
   float duration = 0.0F;
   for (const float frameDuration : animation.frameDurations) {
     duration += frameDuration;
@@ -161,7 +182,8 @@ int gifFrameAt(const GifAnimationTextureData& animation, const float elapsed) {
   }
 
   float frameTime = std::fmod(elapsed, duration);
-  for (std::size_t frame = 0; frame < animation.frameDurations.size(); ++frame) {
+  for (std::size_t frame = 0; frame < animation.frameDurations.size();
+       ++frame) {
     if (frameTime < animation.frameDurations[frame]) {
       return static_cast<int>(frame);
     }
@@ -169,141 +191,170 @@ int gifFrameAt(const GifAnimationTextureData& animation, const float elapsed) {
   }
   return 0;
 }
+} // namespace
+
+void drawText(const HudTextElement &element, float scaleX, float scaleY) {
+  constexpr float HudFontBaseSize = 8.0F;
+  constexpr float HudFontMinSize = 4.0F;
+  constexpr float HudLetterSpacing = 5.0F;
+  if (!element.visible || element.text.empty())
+    return;
+  const float authoredFontSize = element.fontSize > 0.0F
+                                     ? element.fontSize
+                                     : element.scale * HudFontBaseSize;
+  const float fontSize =
+      std::max(authoredFontSize * std::min(scaleX, scaleY), HudFontMinSize);
+  Vector2 pos{element.position.x * scaleX, element.position.y * scaleY};
+  DrawTextEx(GetFontDefault(), element.text.c_str(), pos, fontSize,
+             HudLetterSpacing, toRlColor(element.color));
+}
+void drawHudRect(const HudRectElement &element, float scaleX, float scaleY) {
+  if (!element.visible) {
+    return;
+  }
+
+  Rectangle rect{
+      .x = element.position.x * scaleX,
+      .y = element.position.y * scaleY,
+      .width = element.size.x * scaleX,
+      .height = element.size.y * scaleY,
+  };
+
+  DrawRectangleRec(rect, toRlColor(element.color));
 }
 
-void drawText(const HudTextElement& element, float scaleX, float scaleY) {
-    constexpr float HudFontBaseSize = 8.0F;
-    constexpr float HudFontMinSize = 4.0F;
-    constexpr float HudLetterSpacing = 5.0F;
-    if (!element.visible || element.text.empty()) return;
-    const float authoredFontSize = element.fontSize > 0.0F ? element.fontSize : element.scale * HudFontBaseSize;
-    const float fontSize = std::max(authoredFontSize * std::min(scaleX, scaleY), HudFontMinSize);
-    Vector2 pos{element.position.x * scaleX, element.position.y * scaleY};
-    DrawTextEx(GetFontDefault(), element.text.c_str(), pos, fontSize, HudLetterSpacing, toRlColor(element.color));
-}
-void drawHudRect(const HudRectElement& element, float scaleX, float scaleY) {
-    if (!element.visible) {
-        return;
-    }
-
-    Rectangle rect{
-        .x = element.position.x * scaleX,
-        .y = element.position.y * scaleY,
-        .width = element.size.x * scaleX,
-        .height = element.size.y * scaleY,
-    };
-
+void drawHudPanel(const HudPanelElement &element, float scaleX, float scaleY) {
+  if (!element.visible)
+    return;
+  const Rectangle rect{
+      .x = element.position.x * scaleX,
+      .y = element.position.y * scaleY,
+      .width = element.size.x * scaleX,
+      .height = element.size.y * scaleY,
+  };
+  const float radius = element.cornerRadius * std::min(scaleX, scaleY);
+  if (radius <= 0.0F) {
     DrawRectangleRec(rect, toRlColor(element.color));
+    if (element.borderWidth > 0.0F)
+      DrawRectangleLinesEx(rect, element.borderWidth * std::min(scaleX, scaleY),
+                           toRlColor(element.borderColor));
+    return;
+  }
+  const float roundness = std::min(
+      radius / std::max(std::min(rect.width, rect.height) * 0.5F, 1.0F), 1.0F);
+  DrawRectangleRounded(rect, roundness, 8, toRlColor(element.color));
+  if (element.borderWidth > 0.0F)
+    DrawRectangleRoundedLinesEx(rect, roundness, 8,
+                                element.borderWidth * std::min(scaleX, scaleY),
+                                toRlColor(element.borderColor));
 }
 
-void drawHudPanel(const HudPanelElement& element, float scaleX, float scaleY) {
-    if (!element.visible) return;
-    const Rectangle rect{
-        .x = element.position.x * scaleX,
-        .y = element.position.y * scaleY,
-        .width = element.size.x * scaleX,
-        .height = element.size.y * scaleY,
-    };
-    const float radius = element.cornerRadius * std::min(scaleX, scaleY);
-    if (radius <= 0.0F) {
-        DrawRectangleRec(rect, toRlColor(element.color));
-        if (element.borderWidth > 0.0F) DrawRectangleLinesEx(rect, element.borderWidth * std::min(scaleX, scaleY), toRlColor(element.borderColor));
-        return;
-    }
-    const float roundness = std::min(radius / std::max(std::min(rect.width, rect.height) * 0.5F, 1.0F), 1.0F);
-    DrawRectangleRounded(rect, roundness, 8, toRlColor(element.color));
-    if (element.borderWidth > 0.0F) DrawRectangleRoundedLinesEx(rect, roundness, 8, element.borderWidth * std::min(scaleX, scaleY), toRlColor(element.borderColor));
+void drawHudCircle(const HudCircleElement &element, float scaleX,
+                   float scaleY) {
+  if (!element.visible)
+    return;
+  const float scale = std::min(scaleX, scaleY);
+  DrawCircleV(Vector2{element.center.x * scaleX, element.center.y * scaleY},
+              element.radius * scale, toRlColor(element.color));
 }
 
-void drawHudCircle(const HudCircleElement& element, float scaleX, float scaleY) {
-    if (!element.visible) return;
-    const float scale = std::min(scaleX, scaleY);
-    DrawCircleV(Vector2{element.center.x * scaleX, element.center.y * scaleY}, element.radius * scale, toRlColor(element.color));
+void drawHudImage(
+    const HudImageElement &element,
+    const std::unordered_map<std::string, Texture2D> &textures,
+    const std::unordered_map<std::string, ImageAnimationTextureData>
+        &imageAnimations,
+    const std::unordered_map<std::string, GifAnimationTextureData>
+        &gifAnimations,
+    const float animationTime, float scaleX, float scaleY) {
+  if (!element.visible || element.texture.empty()) {
+    return;
+  }
+
+  std::string textureId = element.texture;
+  if (!element.animation.empty()) {
+    const auto animation = imageAnimations.find(element.animation);
+    if (animation == imageAnimations.end() ||
+        animation->second.frameCount <= 0) {
+      return;
+    }
+    textureId =
+        element.animation + "#" +
+        std::to_string(element.animationFrame % animation->second.frameCount);
+  } else if (const auto animation = gifAnimations.find(element.texture);
+             animation != gifAnimations.end()) {
+    if (animation->second.frameDurations.empty()) {
+      return;
+    }
+    const int frame = gifFrameAt(animation->second, animationTime);
+    textureId = element.texture + "#" + std::to_string(frame);
+  }
+
+  const auto texture = textures.find(textureId);
+  if (texture == textures.end()) {
+    return;
+  }
+
+  Rectangle source{
+      .x = element.sourcePosition.x,
+      .y = element.sourcePosition.y,
+      .width = element.sourceSize.x != 0.0F
+                   ? element.sourceSize.x
+                   : static_cast<float>(texture->second.width),
+      .height = element.sourceSize.y != 0.0F
+                    ? element.sourceSize.y
+                    : static_cast<float>(texture->second.height),
+  };
+  Rectangle dest{
+      .x = element.position.x * scaleX,
+      .y = element.position.y * scaleY,
+      .width = element.size.x * scaleX,
+      .height = element.size.y * scaleY,
+  };
+
+  DrawTexturePro(texture->second, source, dest, Vector2{0.0F, 0.0F}, 0.0F,
+                 toRlColor(element.color));
 }
 
-void drawHudImage(const HudImageElement& element,
-                  const std::unordered_map<std::string, Texture2D>& textures,
-                  const std::unordered_map<std::string, ImageAnimationTextureData>& imageAnimations,
-                  const std::unordered_map<std::string, GifAnimationTextureData>& gifAnimations,
-                  const float animationTime,
-                  float scaleX,
-                  float scaleY) {
-    if (!element.visible || element.texture.empty()) {
-        return;
-    }
+void drawHudButton(const HudButtonElement &element, float scaleX,
+                   float scaleY) {
+  constexpr float HudFontBaseSize = 8.0F;
+  constexpr float HudFontMinSize = 4.0F;
+  constexpr float HudLetterSpacing = 5.0F;
 
-    std::string textureId = element.texture;
-    if (!element.animation.empty()) {
-        const auto animation = imageAnimations.find(element.animation);
-        if (animation == imageAnimations.end() || animation->second.frameCount <= 0) {
-            return;
-        }
-        textureId = element.animation + "#" + std::to_string(element.animationFrame % animation->second.frameCount);
-    } else if (const auto animation = gifAnimations.find(element.texture); animation != gifAnimations.end()) {
-        if (animation->second.frameDurations.empty()) {
-            return;
-        }
-        const int frame = gifFrameAt(animation->second, animationTime);
-        textureId = element.texture + "#" + std::to_string(frame);
-    }
+  if (!element.visible) {
+    return;
+  }
 
-    const auto texture = textures.find(textureId);
-    if (texture == textures.end()) {
-        return;
-    }
+  Rectangle rect{
+      .x = element.position.x * scaleX,
+      .y = element.position.y * scaleY,
+      .width = element.size.x * scaleX,
+      .height = element.size.y * scaleY,
+  };
 
-    Rectangle source{
-        .x = element.sourcePosition.x,
-        .y = element.sourcePosition.y,
-        .width = element.sourceSize.x != 0.0F ? element.sourceSize.x : static_cast<float>(texture->second.width),
-        .height = element.sourceSize.y != 0.0F ? element.sourceSize.y : static_cast<float>(texture->second.height),
-    };
-    Rectangle dest{
-        .x = element.position.x * scaleX,
-        .y = element.position.y * scaleY,
-        .width = element.size.x * scaleX,
-        .height = element.size.y * scaleY,
+  DrawRectangleRec(
+      rect, toRlColor(element.hovered ? element.hoverColor : element.color));
+
+  if (!element.label.empty()) {
+    const float textScale = std::min(scaleX, scaleY);
+    const float authoredFontSize = element.fontSize > 0.0F
+                                       ? element.fontSize
+                                       : element.scale * HudFontBaseSize;
+    const float fontSize =
+        std::max(authoredFontSize * textScale, HudFontMinSize);
+
+    Font font = GetFontDefault();
+    Vector2 textSize =
+        MeasureTextEx(font, element.label.c_str(), fontSize, HudLetterSpacing);
+
+    Vector2 textPos{
+        rect.x + (rect.width - textSize.x) * 0.5F,
+        rect.y + (rect.height - textSize.y) * 0.5F,
     };
 
-    DrawTexturePro(texture->second, source, dest, Vector2{0.0F, 0.0F}, 0.0F, toRlColor(element.color));
-}
-
-void drawHudButton(const HudButtonElement& element, float scaleX, float scaleY) {
-    constexpr float HudFontBaseSize = 8.0F;
-    constexpr float HudFontMinSize = 4.0F;
-    constexpr float HudLetterSpacing = 5.0F;
-
-    if (!element.visible) {
-        return;
-    }
-
-    Rectangle rect{
-        .x = element.position.x * scaleX,
-        .y = element.position.y * scaleY,
-        .width = element.size.x * scaleX,
-        .height = element.size.y * scaleY,
-    };
-
-    DrawRectangleRec(
-        rect,
-        toRlColor(element.hovered ? element.hoverColor : element.color)
-    );
-
-    if (!element.label.empty()) {
-        const float textScale = std::min(scaleX, scaleY);
-        const float authoredFontSize = element.fontSize > 0.0F ? element.fontSize : element.scale * HudFontBaseSize;
-        const float fontSize = std::max(authoredFontSize * textScale, HudFontMinSize);
-
-        Font font = GetFontDefault();
-        Vector2 textSize = MeasureTextEx(font, element.label.c_str(), fontSize, HudLetterSpacing);
-
-        Vector2 textPos{
-            rect.x + (rect.width - textSize.x) * 0.5F,
-            rect.y + (rect.height - textSize.y) * 0.5F,
-        };
-
-        DrawTextEx(font, element.label.c_str(), textPos, fontSize, HudLetterSpacing, toRlColor(element.textColor));
-    }
+    DrawTextEx(font, element.label.c_str(), textPos, fontSize, HudLetterSpacing,
+               toRlColor(element.textColor));
+  }
 }
 struct ImageData {
   int width = 0;
@@ -311,7 +362,7 @@ struct ImageData {
   std::vector<unsigned char> pixels;
 };
 
-std::optional<std::string> nextPpmToken(std::istream& input) {
+std::optional<std::string> nextPpmToken(std::istream &input) {
   std::string token;
   while (input >> token) {
     if (!token.empty() && token[0] == '#') {
@@ -324,7 +375,7 @@ std::optional<std::string> nextPpmToken(std::istream& input) {
   return std::nullopt;
 }
 
-std::optional<ImageData> loadPpm(const std::filesystem::path& path) {
+std::optional<ImageData> loadPpm(const std::filesystem::path &path) {
   std::ifstream input(path);
   if (!input) {
     return std::nullopt;
@@ -338,7 +389,8 @@ std::optional<ImageData> loadPpm(const std::filesystem::path& path) {
   const std::optional<std::string> widthText = nextPpmToken(input);
   const std::optional<std::string> heightText = nextPpmToken(input);
   const std::optional<std::string> maxText = nextPpmToken(input);
-  if (!widthText.has_value() || !heightText.has_value() || !maxText.has_value()) {
+  if (!widthText.has_value() || !heightText.has_value() ||
+      !maxText.has_value()) {
     return std::nullopt;
   }
 
@@ -351,7 +403,8 @@ std::optional<ImageData> loadPpm(const std::filesystem::path& path) {
       return std::nullopt;
     }
 
-    image.pixels.reserve(static_cast<std::size_t>(image.width * image.height * 4));
+    image.pixels.reserve(
+        static_cast<std::size_t>(image.width * image.height * 4));
     for (int i = 0; i < image.width * image.height; ++i) {
       const std::optional<std::string> rText = nextPpmToken(input);
       const std::optional<std::string> gText = nextPpmToken(input);
@@ -361,7 +414,8 @@ std::optional<ImageData> loadPpm(const std::filesystem::path& path) {
       }
 
       const auto scale = [maxValue](const int value) {
-        return static_cast<unsigned char>(std::clamp(value * 255 / maxValue, 0, 255));
+        return static_cast<unsigned char>(
+            std::clamp(value * 255 / maxValue, 0, 255));
       };
       const unsigned char r = scale(std::stoi(*rText));
       const unsigned char g = scale(std::stoi(*gText));
@@ -379,51 +433,66 @@ std::optional<ImageData> loadPpm(const std::filesystem::path& path) {
   return image;
 }
 
-float pixelsPerUnit(const Camera2DComponent& camera, const int height) {
-  return static_cast<float>(height) / std::max(camera.orthographicSize * 2.0F, 1.0F);
+float pixelsPerUnit(const Camera2DComponent &camera, const int height) {
+  return static_cast<float>(height) /
+         std::max(camera.orthographicSize * 2.0F, 1.0F);
 }
 
-float worldToScreenX(const Camera2DComponent& camera, const Vec2 cameraPosition, const int width, const int height, const float x) {
-  return static_cast<float>(width) * 0.5F + (x - cameraPosition.x) * pixelsPerUnit(camera, height);
+float worldToScreenX(const Camera2DComponent &camera, const Vec2 cameraPosition,
+                     const int width, const int height, const float x) {
+  return static_cast<float>(width) * 0.5F +
+         (x - cameraPosition.x) * pixelsPerUnit(camera, height);
 }
 
-float worldToScreenY(const Camera2DComponent& camera, const Vec2 cameraPosition, const int width, const int height, const float y) {
+float worldToScreenY(const Camera2DComponent &camera, const Vec2 cameraPosition,
+                     const int width, const int height, const float y) {
   (void)width;
-  return static_cast<float>(height) * 0.5F - (y - cameraPosition.y) * pixelsPerUnit(camera, height);
+  return static_cast<float>(height) * 0.5F -
+         (y - cameraPosition.y) * pixelsPerUnit(camera, height);
 }
 
-Vec2 isoTileToWorld(const Vec2 tile, const float gridWidth = 32.0F, const float gridHeight = 32.0F) {
+Vec2 isoTileToWorld(const Vec2 tile, const float gridWidth = 32.0F,
+                    const float gridHeight = 32.0F) {
   return Vec2{
-    .x = (tile.x - tile.y) * 0.65F,
-    .y = -((tile.x + tile.y) - ((gridWidth + gridHeight) * 0.5F)) * 0.32F,
+      .x = (tile.x - tile.y) * 0.65F,
+      .y = -((tile.x + tile.y) - ((gridWidth + gridHeight) * 0.5F)) * 0.32F,
   };
 }
 
-void drawIsoDiamond(const Camera2DComponent& camera, const Vec2 cameraPosition, const int width, const int height, const float x, const float y, const float cells) {
-  const float centerX = worldToScreenX(camera, cameraPosition, width, height, x);
-  const float centerY = worldToScreenY(camera, cameraPosition, width, height, y);
+void drawIsoDiamond(const Camera2DComponent &camera, const Vec2 cameraPosition,
+                    const int width, const int height, const float x,
+                    const float y, const float cells) {
+  const float centerX =
+      worldToScreenX(camera, cameraPosition, width, height, x);
+  const float centerY =
+      worldToScreenY(camera, cameraPosition, width, height, y);
   const float ppu = pixelsPerUnit(camera, height);
   const float halfW = cells * ppu * 0.65F;
   const float halfH = cells * ppu * 0.32F;
-  DrawLineV({centerX, centerY - halfH}, {centerX + halfW, centerY}, {55, 88, 78, 255});
-  DrawLineV({centerX + halfW, centerY}, {centerX, centerY + halfH}, {55, 88, 78, 255});
-  DrawLineV({centerX, centerY + halfH}, {centerX - halfW, centerY}, {55, 88, 78, 255});
-  DrawLineV({centerX - halfW, centerY}, {centerX, centerY - halfH}, {55, 88, 78, 255});
+  DrawLineV({centerX, centerY - halfH}, {centerX + halfW, centerY},
+            {55, 88, 78, 255});
+  DrawLineV({centerX + halfW, centerY}, {centerX, centerY + halfH},
+            {55, 88, 78, 255});
+  DrawLineV({centerX, centerY + halfH}, {centerX - halfW, centerY},
+            {55, 88, 78, 255});
+  DrawLineV({centerX - halfW, centerY}, {centerX, centerY - halfH},
+            {55, 88, 78, 255});
 }
 
-void drawIsoFootprint(const Camera2DComponent& camera,
-                      const Vec2 cameraPosition,
-                      const int width,
-                      const int height,
-                      const Vec2 tile,
-                      const Vec2 footprint,
+void drawIsoFootprint(const Camera2DComponent &camera,
+                      const Vec2 cameraPosition, const int width,
+                      const int height, const Vec2 tile, const Vec2 footprint,
                       const Vec2 gridSize) {
-  const Vec2 centerTile{.x = tile.x + (footprint.x - 1.0F) * 0.5F, .y = tile.y + (footprint.y - 1.0F) * 0.5F};
+  const Vec2 centerTile{.x = tile.x + (footprint.x - 1.0F) * 0.5F,
+                        .y = tile.y + (footprint.y - 1.0F) * 0.5F};
   const Vec2 center = isoTileToWorld(centerTile, gridSize.x, gridSize.y);
-  const float centerX = worldToScreenX(camera, cameraPosition, width, height, center.x);
-  const float centerY = worldToScreenY(camera, cameraPosition, width, height, center.y);
+  const float centerX =
+      worldToScreenX(camera, cameraPosition, width, height, center.x);
+  const float centerY =
+      worldToScreenY(camera, cameraPosition, width, height, center.y);
   const float ppu = pixelsPerUnit(camera, height);
-  const float halfW = std::max((footprint.x + footprint.y) * ppu * 0.33F, 12.0F);
+  const float halfW =
+      std::max((footprint.x + footprint.y) * ppu * 0.33F, 12.0F);
   const float halfH = std::max((footprint.x + footprint.y) * ppu * 0.16F, 6.0F);
 
   const ::Color color = {42, 88, 78, 180};
@@ -433,21 +502,19 @@ void drawIsoFootprint(const Camera2DComponent& camera,
   DrawLineV({centerX - halfW, centerY}, {centerX, centerY - halfH}, color);
 }
 
-void drawEntity(const std::unordered_map<std::string, Texture2D>& textures,
-                const World& world,
-                const Camera2DComponent& camera,
-                const Vec2 cameraPosition,
-                const Entity& entity,
-                const Vec2 isoGridSize,
-                const int width,
-                const int height) {
-  if (entity.isoGrid.has_value()) {
-    for (int y = 0; y < entity.isoGrid->height; ++y) {
-      for (int x = 0; x < entity.isoGrid->width; ++x) {
-        const Vec2 world = isoTileToWorld(Vec2{.x = static_cast<float>(x), .y = static_cast<float>(y)},
-                                          static_cast<float>(entity.isoGrid->width),
-                                          static_cast<float>(entity.isoGrid->height));
-        drawIsoDiamond(camera, cameraPosition, width, height, world.x, world.y, 0.5F);
+void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
+                const World &world, const Camera2DComponent &camera,
+                const Vec2 cameraPosition, const Entity &entity,
+                const Vec2 isoGridSize, const int width, const int height) {
+  if (entity.hasComponent<IsoGridComponent>()) {
+    for (int y = 0; y < entity.component<IsoGridComponent>()->height; ++y) {
+      for (int x = 0; x < entity.component<IsoGridComponent>()->width; ++x) {
+        const Vec2 world = isoTileToWorld(
+            Vec2{.x = static_cast<float>(x), .y = static_cast<float>(y)},
+            static_cast<float>(entity.component<IsoGridComponent>()->width),
+            static_cast<float>(entity.component<IsoGridComponent>()->height));
+        drawIsoDiamond(camera, cameraPosition, width, height, world.x, world.y,
+                       0.5F);
       }
     }
     return;
@@ -455,64 +522,82 @@ void drawEntity(const std::unordered_map<std::string, Texture2D>& textures,
 
   Vec2 position;
   Vec2 size = {1.0F, 1.0F};
-  if (entity.transform2D.has_value()) {
+  if (entity.hasComponent<Transform2DComponent>()) {
     position = worldPosition2D(world, entity);
   }
-  if (entity.isoTransform.has_value()) {
-    position = isoTileToWorld(entity.isoTransform->tile, isoGridSize.x, isoGridSize.y);
-    position.y += entity.isoTransform->height;
-    size = entity.isoTransform->footprint;
+  if (entity.hasComponent<IsoTransformComponent>()) {
+    position = isoTileToWorld(entity.component<IsoTransformComponent>()->tile,
+                              isoGridSize.x, isoGridSize.y);
+    position.y += entity.component<IsoTransformComponent>()->height;
+    size = entity.component<IsoTransformComponent>()->footprint;
   }
-  if (entity.hitboxController.has_value()) {
-    size = entity.hitboxController->hurtbox;
+  if (entity.hasComponent<HitboxControllerComponent>()) {
+    size = entity.component<HitboxControllerComponent>()->hurtbox;
   }
-  if (entity.boxCollider2D.has_value()) {
-    size = entity.boxCollider2D->size;
-    if (entity.transform2D.has_value()) {
-      position.x += entity.boxCollider2D->offset.x;
-      position.y += entity.boxCollider2D->offset.y;
+  if (entity.hasComponent<BoxCollider2DComponent>()) {
+    size = entity.component<BoxCollider2DComponent>()->size;
+    if (entity.hasComponent<Transform2DComponent>()) {
+      position.x += entity.component<BoxCollider2DComponent>()->offset.x;
+      position.y += entity.component<BoxCollider2DComponent>()->offset.y;
     }
   }
 
   const float ppu = pixelsPerUnit(camera, height);
   float entityWidth = std::max(size.x * ppu, 24.0F);
   float entityHeight = std::max(size.y * ppu, 24.0F);
-  if (entity.buildable.has_value() && entity.isoTransform.has_value()) {
+  if (entity.hasComponent<BuildableComponent>() &&
+      entity.hasComponent<IsoTransformComponent>()) {
     entityWidth = std::max((size.x + size.y) * ppu * 0.62F, 22.0F);
     entityHeight = std::max((size.x + size.y) * ppu * 0.58F, 22.0F);
   }
 
-  if (entity.buildable.has_value() && entity.isoTransform.has_value()) {
-    drawIsoFootprint(camera, cameraPosition, width, height, entity.isoTransform->tile, entity.isoTransform->footprint, isoGridSize);
+  if (entity.hasComponent<BuildableComponent>() &&
+      entity.hasComponent<IsoTransformComponent>()) {
+    drawIsoFootprint(camera, cameraPosition, width, height,
+                     entity.component<IsoTransformComponent>()->tile,
+                     entity.component<IsoTransformComponent>()->footprint,
+                     isoGridSize);
   }
 
-  const float screenX = worldToScreenX(camera, cameraPosition, width, height, position.x);
-  const float screenY = worldToScreenY(camera, cameraPosition, width, height, position.y);
+  const float screenX =
+      worldToScreenX(camera, cameraPosition, width, height, position.x);
+  const float screenY =
+      worldToScreenY(camera, cameraPosition, width, height, position.y);
   ::Rectangle rect{
-    .x = screenX - entityWidth * 0.5F,
-    .y = screenY - entityHeight * 0.5F,
-    .width = entityWidth,
-    .height = entityHeight,
+      .x = screenX - entityWidth * 0.5F,
+      .y = screenY - entityHeight * 0.5F,
+      .width = entityWidth,
+      .height = entityHeight,
   };
-  if (entity.buildable.has_value() && entity.isoTransform.has_value()) {
-    rect.y = screenY - entityHeight + std::max((size.x + size.y) * ppu * 0.10F, 4.0F);
+  if (entity.hasComponent<BuildableComponent>() &&
+      entity.hasComponent<IsoTransformComponent>()) {
+    rect.y = screenY - entityHeight +
+             std::max((size.x + size.y) * ppu * 0.10F, 4.0F);
   }
 
   ::Color fillColor = {222, 166, 82, 255};
-  if (entity.sprite.has_value()) {
-    const auto texture = textures.find(entity.sprite->texture);
+  if (entity.hasComponent<SpriteComponent>()) {
+    const auto texture =
+        textures.find(entity.component<SpriteComponent>()->texture);
     if (texture != textures.end()) {
-      ::Rectangle source{.x = 0, .y = 0, .width = static_cast<float>(texture->second.width), .height = static_cast<float>(texture->second.height)};
-      DrawTexturePro(texture->second, source, rect, {0, 0}, 0.0F, toRlColor(entity.sprite->color));
+      ::Rectangle source{.x = 0,
+                         .y = 0,
+                         .width = static_cast<float>(texture->second.width),
+                         .height = static_cast<float>(texture->second.height)};
+      DrawTexturePro(texture->second, source, rect, {0, 0}, 0.0F,
+                     toRlColor(entity.component<SpriteComponent>()->color));
       return;
     }
-    fillColor = toRlColor(entity.sprite->color);
-    if (entity.sprite->shape == "circle") {
-      DrawEllipse(static_cast<int>(screenX), static_cast<int>(screenY), entityWidth * 0.5F, entityHeight * 0.5F, fillColor);
-      DrawEllipseLines(static_cast<int>(screenX), static_cast<int>(screenY), entityWidth * 0.5F, entityHeight * 0.5F, {245, 245, 245, 255});
+    fillColor = toRlColor(entity.component<SpriteComponent>()->color);
+    if (entity.component<SpriteComponent>()->shape == "circle") {
+      DrawEllipse(static_cast<int>(screenX), static_cast<int>(screenY),
+                  entityWidth * 0.5F, entityHeight * 0.5F, fillColor);
+      DrawEllipseLines(static_cast<int>(screenX), static_cast<int>(screenY),
+                       entityWidth * 0.5F, entityHeight * 0.5F,
+                       {245, 245, 245, 255});
       return;
     }
-    if (entity.sprite->shape == "triangle") {
+    if (entity.component<SpriteComponent>()->shape == "triangle") {
       const ::Vector2 top{screenX, rect.y};
       const ::Vector2 right{rect.x + rect.width, rect.y + rect.height};
       const ::Vector2 left{rect.x, rect.y + rect.height};
@@ -522,60 +607,79 @@ void drawEntity(const std::unordered_map<std::string, Texture2D>& textures,
       DrawLineV(left, top, {245, 245, 245, 255});
       return;
     }
-  } else if (entity.buildable.has_value()) {
-    const auto texture = textures.find(entity.buildable->asset);
+  } else if (entity.hasComponent<BuildableComponent>()) {
+    const auto texture =
+        textures.find(entity.component<BuildableComponent>()->asset);
     if (texture != textures.end()) {
-      ::Rectangle source{.x = 0, .y = 0, .width = static_cast<float>(texture->second.width), .height = static_cast<float>(texture->second.height)};
+      ::Rectangle source{.x = 0,
+                         .y = 0,
+                         .width = static_cast<float>(texture->second.width),
+                         .height = static_cast<float>(texture->second.height)};
       DrawTexturePro(texture->second, source, rect, {0, 0}, 0.0F, WhiteTint);
       return;
     }
     fillColor = {186, 128, 55, 255};
-  } else if (entity.rigidbody2D.has_value() && entity.rigidbody2D->bodyType == "static") {
+  } else if (entity.hasComponent<Rigidbody2DComponent>() &&
+             entity.component<Rigidbody2DComponent>()->bodyType == "static") {
     fillColor = {96, 136, 96, 255};
   }
   DrawRectangleRec(rect, fillColor);
 
-  const ::Color outlineColor = (entity.hitboxController.has_value() || entity.boxCollider2D.has_value()) ? ::Color{244, 91, 105, 255} : ::Color{245, 245, 245, 255};
+  const ::Color outlineColor =
+      (entity.hasComponent<HitboxControllerComponent>() ||
+       entity.hasComponent<BoxCollider2DComponent>())
+          ? ::Color{244, 91, 105, 255}
+          : ::Color{245, 245, 245, 255};
   DrawRectangleLinesEx(rect, 1.0F, outlineColor);
 }
 
-
 Renderer2D::~Renderer2D() {
-  for (auto& [id, texture] : textures_) {
+  for (auto &[id, texture] : textures_) {
     (void)id;
     UnloadTexture(texture);
   }
 }
 
-void Renderer2D::loadTextureAssets(const AssetRegistry& registry) {
-  for (const AssetManifest& asset : registry.assets) {
+void Renderer2D::loadTextureAssets(const AssetRegistry &registry) {
+  for (const AssetManifest &asset : registry.assets) {
     if (asset.type == "GifAnimation2D") {
       int frameCount = 0;
-      Image frames = LoadImageAnim(asset.sourcePath.string().c_str(), &frameCount);
+      Image frames =
+          LoadImageAnim(asset.sourcePath.string().c_str(), &frameCount);
       if (frames.data == nullptr || frameCount <= 0) {
-        std::cerr << "GIF load failed for " << asset.id << " from " << asset.sourcePath.string() << ".\n";
+        std::cerr << "GIF load failed for " << asset.id << " from "
+                  << asset.sourcePath.string() << ".\n";
         continue;
       }
-      const int frameBytes = GetPixelDataSize(frames.width, frames.height, frames.format);
+      const int frameBytes =
+          GetPixelDataSize(frames.width, frames.height, frames.format);
       for (int frame = 0; frame < frameCount; ++frame) {
-        Image image{.data = static_cast<unsigned char*>(frames.data) + frameBytes * frame, .width = frames.width, .height = frames.height, .mipmaps = 1, .format = frames.format};
+        Image image{.data = static_cast<unsigned char *>(frames.data) +
+                            frameBytes * frame,
+                    .width = frames.width,
+                    .height = frames.height,
+                    .mipmaps = 1,
+                    .format = frames.format};
         Texture2D texture = LoadTextureFromImage(image);
         if (texture.id != 0) {
           textures_[asset.id + "#" + std::to_string(frame)] = texture;
         }
       }
       UnloadImage(frames);
-      std::vector<float> frameDurations = loadGifFrameDurations(asset.sourcePath);
+      std::vector<float> frameDurations =
+          loadGifFrameDurations(asset.sourcePath);
       if (frameDurations.size() != static_cast<std::size_t>(frameCount)) {
         frameDurations.assign(static_cast<std::size_t>(frameCount), 0.1F);
       }
-      gifAnimations_[asset.id] = GifAnimationTextureData{.frameDurations = std::move(frameDurations)};
+      gifAnimations_[asset.id] =
+          GifAnimationTextureData{.frameDurations = std::move(frameDurations)};
       continue;
     }
     if (asset.type == "Icon2D") {
       const std::optional<Texture2D> texture = loadSvgIcon(asset.sourcePath);
       if (!texture.has_value()) {
-        std::cerr << "Icon load failed for " << asset.id << " from " << asset.sourcePath.string() << ".\n";
+        std::cerr << "Icon load failed for " << asset.id << " from "
+                  << asset.sourcePath.string() << ".\n";
         continue;
       }
       SetTextureFilter(*texture, TEXTURE_FILTER_BILINEAR);
@@ -585,9 +689,11 @@ void Renderer2D::loadTextureAssets(const AssetRegistry& registry) {
     if (asset.type == "ImageAnimation2D") {
       bool loaded = true;
       for (std::size_t frame = 0; frame < asset.sourcePaths.size(); ++frame) {
-        Texture2D texture = LoadTexture(asset.sourcePaths[frame].string().c_str());
+        Texture2D texture =
+            LoadTexture(asset.sourcePaths[frame].string().c_str());
         if (texture.id == 0) {
-          std::cerr << "Animation frame load failed for " << asset.id << " from " << asset.sourcePaths[frame].string() << ".\n";
+          std::cerr << "Animation frame load failed for " << asset.id
+                    << " from " << asset.sourcePaths[frame].string() << ".\n";
           loaded = false;
           break;
         }
@@ -595,7 +701,8 @@ void Renderer2D::loadTextureAssets(const AssetRegistry& registry) {
         textures_[asset.id + "#" + std::to_string(frame)] = texture;
       }
       if (loaded) {
-        imageAnimations_[asset.id] = ImageAnimationTextureData{.frameCount = static_cast<int>(asset.sourcePaths.size())};
+        imageAnimations_[asset.id] = ImageAnimationTextureData{
+            .frameCount = static_cast<int>(asset.sourcePaths.size())};
       }
       continue;
     }
@@ -605,20 +712,23 @@ void Renderer2D::loadTextureAssets(const AssetRegistry& registry) {
 
     const std::optional<ImageData> image = loadPpm(asset.sourcePath);
     if (!image.has_value()) {
-      std::cerr << "Texture load failed for " << asset.id << " from " << asset.sourcePath.string() << ". Using fallback rectangle.\n";
+      std::cerr << "Texture load failed for " << asset.id << " from "
+                << asset.sourcePath.string() << ". Using fallback rectangle.\n";
       continue;
     }
 
     ::Image rlImage{
-      .data = const_cast<void*>(static_cast<const void*>(image->pixels.data())),
-      .width = image->width,
-      .height = image->height,
-      .mipmaps = 1,
-      .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
+        .data =
+            const_cast<void *>(static_cast<const void *>(image->pixels.data())),
+        .width = image->width,
+        .height = image->height,
+        .mipmaps = 1,
+        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
     };
     Texture2D texture = LoadTextureFromImage(rlImage);
     if (texture.id == 0) {
-      std::cerr << "LoadTextureFromImage failed for " << asset.id << ". Using fallback rectangle.\n";
+      std::cerr << "LoadTextureFromImage failed for " << asset.id
+                << ". Using fallback rectangle.\n";
       continue;
     }
 
@@ -627,7 +737,9 @@ void Renderer2D::loadTextureAssets(const AssetRegistry& registry) {
   }
 }
 
-void Renderer2D::beginFrame(const Camera2DComponent& camera, const Vec2 cameraPosition, const int width, const int height) {
+void Renderer2D::beginFrame(const Camera2DComponent &camera,
+                            const Vec2 cameraPosition, const int width,
+                            const int height) {
   camera_ = camera;
   cameraPosition_ = cameraPosition;
   width_ = std::max(width, 1);
@@ -638,77 +750,104 @@ void Renderer2D::beginFrame(const Camera2DComponent& camera, const Vec2 cameraPo
   ClearBackground(toRlColor(camera.clearColor));
 }
 
-void Renderer2D::drawWorld(const World& world) {
+void Renderer2D::drawWorld(const World &world) {
   Vec2 isoGridSize{.x = 32.0F, .y = 32.0F};
-  for (const Entity& entity : world.entities) {
-    if (entity.isoGrid.has_value()) {
-      isoGridSize = Vec2{.x = static_cast<float>(entity.isoGrid->width), .y = static_cast<float>(entity.isoGrid->height)};
+  for (const Entity &entity : world.entities) {
+    if (entity.hasComponent<IsoGridComponent>()) {
+      isoGridSize = Vec2{
+          .x = static_cast<float>(entity.component<IsoGridComponent>()->width),
+          .y =
+              static_cast<float>(entity.component<IsoGridComponent>()->height)};
       break;
     }
   }
 
-  std::vector<const Entity*> renderables;
-  for (const Entity& entity : world.entities) {
-    if (entity.sprite.has_value() || entity.hitboxController.has_value() || entity.isoGrid.has_value() || entity.buildable.has_value() || entity.boxCollider2D.has_value()) {
+  std::vector<const Entity *> renderables;
+  for (const Entity &entity : world.entities) {
+    if (entity.hasComponent<SpriteComponent>() ||
+        entity.hasComponent<HitboxControllerComponent>() ||
+        entity.hasComponent<IsoGridComponent>() ||
+        entity.hasComponent<BuildableComponent>() ||
+        entity.hasComponent<BoxCollider2DComponent>()) {
       renderables.push_back(&entity);
     }
   }
 
-  std::ranges::stable_sort(renderables, [](const Entity* left, const Entity* right) {
-    const auto depth = [](const Entity* entity) {
-      if (entity->isoGrid.has_value()) {
-        return -10000.0F;
-      }
-      if (entity->isoTransform.has_value()) {
-        return entity->isoTransform->tile.x + entity->isoTransform->tile.y + entity->isoTransform->height;
-      }
-      return 0.0F;
-    };
-    return depth(left) < depth(right);
-  });
+  std::ranges::stable_sort(
+      renderables, [](const Entity *left, const Entity *right) {
+        const auto depth = [](const Entity *entity) {
+          if (entity->hasComponent<IsoGridComponent>()) {
+            return -10000.0F;
+          }
+          if (entity->hasComponent<IsoTransformComponent>()) {
+            return entity->component<IsoTransformComponent>()->tile.x +
+                   entity->component<IsoTransformComponent>()->tile.y +
+                   entity->component<IsoTransformComponent>()->height;
+          }
+          return 0.0F;
+        };
+        return depth(left) < depth(right);
+      });
 
-  for (const Entity* entity : renderables) {
-    drawEntity(textures_, world, camera_, cameraPosition_, *entity, isoGridSize, width_, height_);
+  for (const Entity *entity : renderables) {
+    drawEntity(textures_, world, camera_, cameraPosition_, *entity, isoGridSize,
+               width_, height_);
   }
 
-  for (const DebugLine& line : world.debugLines) {
+  for (const DebugLine &line : world.debugLines) {
     DrawLineV(
-      {worldToScreenX(camera_, cameraPosition_, width_, height_, line.start.x), worldToScreenY(camera_, cameraPosition_, width_, height_, line.start.y)},
-      {worldToScreenX(camera_, cameraPosition_, width_, height_, line.end.x), worldToScreenY(camera_, cameraPosition_, width_, height_, line.end.y)},
-      toRlColor(line.color));
+        {worldToScreenX(camera_, cameraPosition_, width_, height_,
+                        line.start.x),
+         worldToScreenY(camera_, cameraPosition_, width_, height_,
+                        line.start.y)},
+        {worldToScreenX(camera_, cameraPosition_, width_, height_, line.end.x),
+         worldToScreenY(camera_, cameraPosition_, width_, height_, line.end.y)},
+        toRlColor(line.color));
   }
 }
 
-void Renderer2D::drawHud(const World& world) {
-    const float canvasWidth = std::max(world.hudCanvasSize.x, 1.0F);
-    const float canvasHeight = std::max(world.hudCanvasSize.y, 1.0F);
+void Renderer2D::drawHud(const World &world) {
+  const float canvasWidth = std::max(world.hudCanvasSize.x, 1.0F);
+  const float canvasHeight = std::max(world.hudCanvasSize.y, 1.0F);
 
-    const float scaleX = static_cast<float>(width_) / canvasWidth;
-    const float scaleY = static_cast<float>(height_) / canvasHeight;
+  const float scaleX = static_cast<float>(width_) / canvasWidth;
+  const float scaleY = static_cast<float>(height_) / canvasHeight;
 
-    int maxLayer = 0;
-    const auto findMaxLayer = [&maxLayer](const auto& elements) {
-        for (const auto& element : elements) maxLayer = std::max(maxLayer, element.layer);
-    };
-    findMaxLayer(world.hudRects);
-    findMaxLayer(world.hudPanels);
-    findMaxLayer(world.hudCircles);
-    findMaxLayer(world.hudImages);
-    findMaxLayer(world.hudButtons);
-    findMaxLayer(world.hudText);
+  int maxLayer = 0;
+  const auto findMaxLayer = [&maxLayer](const auto &elements) {
+    for (const auto &element : elements)
+      maxLayer = std::max(maxLayer, element.layer);
+  };
+  findMaxLayer(world.hudRects);
+  findMaxLayer(world.hudPanels);
+  findMaxLayer(world.hudCircles);
+  findMaxLayer(world.hudImages);
+  findMaxLayer(world.hudButtons);
+  findMaxLayer(world.hudText);
 
-    for (int layer = 0; layer <= maxLayer; ++layer) {
-        for (const HudRectElement& element : world.hudRects) if (element.layer == layer) drawHudRect(element, scaleX, scaleY);
-        for (const HudPanelElement& element : world.hudPanels) if (element.layer == layer) drawHudPanel(element, scaleX, scaleY);
-        for (const HudCircleElement& element : world.hudCircles) if (element.layer == layer) drawHudCircle(element, scaleX, scaleY);
-        for (const HudImageElement& element : world.hudImages) if (element.layer == layer) drawHudImage(element, textures_, imageAnimations_, gifAnimations_, animationTime_, scaleX, scaleY);
-        for (const HudButtonElement& element : world.hudButtons) if (element.layer == layer) drawHudButton(element, scaleX, scaleY);
-        for (const HudTextElement& element : world.hudText) if (element.layer == layer) drawText(element, scaleX, scaleY);
-    }
+  for (int layer = 0; layer <= maxLayer; ++layer) {
+    for (const HudRectElement &element : world.hudRects)
+      if (element.layer == layer)
+        drawHudRect(element, scaleX, scaleY);
+    for (const HudPanelElement &element : world.hudPanels)
+      if (element.layer == layer)
+        drawHudPanel(element, scaleX, scaleY);
+    for (const HudCircleElement &element : world.hudCircles)
+      if (element.layer == layer)
+        drawHudCircle(element, scaleX, scaleY);
+    for (const HudImageElement &element : world.hudImages)
+      if (element.layer == layer)
+        drawHudImage(element, textures_, imageAnimations_, gifAnimations_,
+                     animationTime_, scaleX, scaleY);
+    for (const HudButtonElement &element : world.hudButtons)
+      if (element.layer == layer)
+        drawHudButton(element, scaleX, scaleY);
+    for (const HudTextElement &element : world.hudText)
+      if (element.layer == layer)
+        drawText(element, scaleX, scaleY);
+  }
 }
 
-void Renderer2D::endFrame() {
-  EndDrawing();
-}
+void Renderer2D::endFrame() { EndDrawing(); }
 
-} 
+} // namespace demi::runtime

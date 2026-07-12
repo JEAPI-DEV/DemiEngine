@@ -1,6 +1,9 @@
 # DemiEngine
 
-DemiEngine is a Linux-first (added android support (minimal currently)) C++20 game engine scaffold for AI-assisted development. It focuses on deterministic project data, Lua gameplay scripting, small example games, and a command-line workflow that agents can validate without hidden editor state.
+DemiEngine is a Linux-first C++20 game engine for AI-assisted development, with
+minimal experimental Android support. It focuses on deterministic project data,
+Lua gameplay scripting, small reference games, and a command-line workflow that
+agents can validate without hidden editor state.
 
 The runtime is no longer just a placeholder. It can load JSON projects and scenes, run Lua 5.4 scripts, render 2D and simple 3D scenes through raylib, step 2D/3D physics helpers, play audio/media services where dependencies are enabled, save JSON-backed state, and drive HUD menus from data plus Lua actions.
 
@@ -24,13 +27,16 @@ These screenshots are from the checked-in examples. They are small probes, but t
 - [Architecture notes](docs/architecture.md)
 - [CLI notes](docs/cli.md)
 - [File formats](docs/file-formats.md)
+- [Capability matrix](docs/capabilities.md)
+- [Compatibility policy](docs/compatibility.md)
 
 ## What This Engine Is
 
 - A Linux-focused C++20 runtime.
 - A Lua-driven gameplay layer with high-level engine services.
 - A schema-first project format built from deterministic JSON files.
-- A small engine for 2D, isometric, and lightweight 3D experiments.
+- A production-focused engine for 2D, isometric/2.5D, and data-heavy/UI-heavy games.
+- An experimental lightweight 3D runtime for small exploration, action, and puzzle games.
 - A repo designed to be changed by humans and coding agents without editor-only state.
 
 ## What This Engine Is Not
@@ -38,7 +44,8 @@ These screenshots are from the checked-in examples. They are small probes, but t
 - Not a Unity clone.
 - Not a full editor yet.
 - Not a live-service backend, account system, or matchmaking platform.
-- Not cross-platform yet.
+- Not a high-end Unity-style 3D renderer or editor.
+- Not broadly cross-platform; Linux is the supported desktop target.
 
 ## Current Runtime Features
 
@@ -81,21 +88,24 @@ Lua bindings follow the same idea. `LuaScriptHostBindings.cpp` installs binding 
 
 Required for the default Linux debug build:
 
-- CMake 3.25+
+- CMake 3.22+
 - Ninja
 - GCC 12+ or Clang 15+
 - PkgConfig
 - Lua 5.4 development files
-- FFmpeg development packages when `DEMI_ENABLE_MEDIA=ON`
+- FFmpeg development packages when `DEMI_ENABLE_MEDIA=ON` (the desktop default)
 
 Fetched or linked by CMake:
 
-- raylib: rendering, windowing, input, and platform layer
-- sol2: C++/Lua binding
-- Box2D: 2D physics
-- miniaudio: audio playback
-- nlohmann/json: project, scene, HUD, and save parsing
-- ENet: optional networking
+- raylib 5.5: rendering, windowing, input, models, and platform layer
+- Lua 5.4.7 and sol2: gameplay VM and C++/Lua binding
+- Box2D 2.4.1: 2D physics
+- miniaudio 0.11.22: audio playback
+- nlohmann/json 3.11.3: project, scene, HUD, asset, and save parsing
+- mbedTLS 3.6.2: TLS and DTLS security
+- ENet 1.3.18: optional networking when `DEMI_ENABLE_NETWORK=ON`
+- FFmpeg: system media libraries when `DEMI_ENABLE_MEDIA=ON`
+- librsvg: optional system SVG rasterization support when available
 
 ## Build And Test
 

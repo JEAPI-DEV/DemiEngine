@@ -1,4 +1,5 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/scene/components/EngineComponents.h"
 
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
@@ -13,19 +14,20 @@ LuaScriptHost::LuaScriptHost() = default;
 LuaScriptHost::~LuaScriptHost() {
   destroy();
   if (state_ != nullptr) {
-    lua_close(static_cast<lua_State*>(state_));
+    lua_close(static_cast<lua_State *>(state_));
     state_ = nullptr;
   }
 }
 
-bool LuaScriptHost::initialize(World& world, const InputState& input, AudioSystem* audio, std::string& error) {
+bool LuaScriptHost::initialize(World &world, const InputState &input,
+                               AudioSystem *audio, std::string &error) {
   world_ = &world;
   input_ = &input;
   audio_ = audio;
-  const char* hotReload = std::getenv("DEMI_LUA_HOT_RELOAD");
+  const char *hotReload = std::getenv("DEMI_LUA_HOT_RELOAD");
   hotReloadEnabled_ = hotReload != nullptr && std::string(hotReload) != "0";
 
-  auto* state = luaL_newstate();
+  auto *state = luaL_newstate();
   if (state == nullptr) {
     error = "Failed to allocate Lua state.";
     return false;
@@ -36,44 +38,51 @@ bool LuaScriptHost::initialize(World& world, const InputState& input, AudioSyste
   return luaRegisterBindings(*this, state, error);
 }
 
-void LuaScriptHost::setMediaSystem(MediaSystem* media) {
-  media_ = media;
-}
+void LuaScriptHost::setMediaSystem(MediaSystem *media) { media_ = media; }
 
-void LuaScriptHost::setNetworkSystem(NetworkSystem* network) {
+void LuaScriptHost::setNetworkSystem(NetworkSystem *network) {
   network_ = network;
 }
 
-std::filesystem::path LuaScriptHost::resolveProjectPath(const std::string& path) const {
+std::filesystem::path
+LuaScriptHost::resolveProjectPath(const std::string &path) const {
   const std::filesystem::path value(path);
   return value.is_absolute() ? value : projectDirectory_ / value;
 }
 
 void LuaScriptHost::start() {
-  auto* state = static_cast<lua_State*>(state_);
+  auto *state = static_cast<lua_State *>(state_);
   if (state == nullptr) {
     return;
   }
-  for (const ScriptInstance& script : scripts_) {
-    luaCallLifecycle(state, script.tableRef, "on_create", script.path, script.entityId);
-    luaCallLifecycle(state, script.tableRef, "on_start", script.path, script.entityId);
+  for (const ScriptInstance &script : scripts_) {
+    luaCallLifecycle(state, script.tableRef, "on_create", script.path,
+                     script.entityId);
+    luaCallLifecycle(state, script.tableRef, "on_start", script.path,
+                     script.entityId);
   }
   if (world_ == nullptr) {
     return;
   }
-  for (Entity& entity : world_->entities) {
-    if (entity.audioSource.has_value() && entity.audioSource->playOnStart && entity.audioSource->handle == 0) {
-      entity.audioSource->handle = playAudioSource(entity.id);
+  for (Entity &entity : world_->entities) {
+    if (entity.hasComponent<AudioSourceComponent>() &&
+        entity.component<AudioSourceComponent>()->playOnStart &&
+        entity.component<AudioSourceComponent>()->handle == 0) {
+      entity.component<AudioSourceComponent>()->handle =
+          playAudioSource(entity.id);
     }
-    if (entity.videoPlayer.has_value() && entity.videoPlayer->playOnStart && entity.videoPlayer->handle == 0) {
-      entity.videoPlayer->handle = playVideoPlayer(entity.id);
+    if (entity.hasComponent<VideoPlayerComponent>() &&
+        entity.component<VideoPlayerComponent>()->playOnStart &&
+        entity.component<VideoPlayerComponent>()->handle == 0) {
+      entity.component<VideoPlayerComponent>()->handle =
+          playVideoPlayer(entity.id);
     }
   }
 }
 
 void LuaScriptHost::update(const float dt) {
   ProfileScope updateScope("LuaScriptHost.update");
-  auto* state = static_cast<lua_State*>(state_);
+  auto *state = static_cast<lua_State *>(state_);
   if (state == nullptr) {
     return;
   }
@@ -98,31 +107,32 @@ void LuaScriptHost::update(const float dt) {
     updateTimers(dt);
   }
 
-  for (const ScriptInstance& script : scripts_) {
+  for (const ScriptInstance &script : scripts_) {
     ProfileScope scope("Lua.on_update");
-    luaCallLifecycle(state, script.tableRef, "on_update", script.path, script.entityId, dt);
+    luaCallLifecycle(state, script.tableRef, "on_update", script.path,
+                     script.entityId, dt);
   }
 }
 
 void LuaScriptHost::fixedUpdate(const float dt) {
   ProfileScope fixedUpdateScope("LuaScriptHost.fixed_update");
-  auto* state = static_cast<lua_State*>(state_);
+  auto *state = static_cast<lua_State *>(state_);
   if (state == nullptr) {
     return;
   }
-  for (const ScriptInstance& script : scripts_) {
+  for (const ScriptInstance &script : scripts_) {
     ProfileScope scope("Lua.on_fixed_update");
-    luaCallLifecycle(state, script.tableRef, "on_fixed_update", script.path, script.entityId, dt);
+    luaCallLifecycle(state, script.tableRef, "on_fixed_update", script.path,
+                     script.entityId, dt);
   }
 }
 
 void LuaScriptHost::destroy() {
   unloadScripts();
-  auto* state = static_cast<lua_State*>(state_);
+  auto *state = static_cast<lua_State *>(state_);
   if (state != nullptr) {
     clearLuaBindingGlobals(state);
   }
 }
-
 
 } // namespace demi::runtime

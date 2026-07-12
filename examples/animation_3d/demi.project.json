@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "name": "3D Animation",
+  "main_scene": "scene://animation_3d/main",
+  "scenes": [
+    {
+      "id": "scene://animation_3d/main",
+      "path": "scenes/main.scene.json"
+    }
+  ],
+  "scripting": {
+    "language": "lua54",
+    "modules": []
+  }
+}

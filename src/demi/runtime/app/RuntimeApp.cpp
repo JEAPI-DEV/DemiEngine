@@ -574,7 +574,7 @@ namespace demi::runtime
             activeCamera3DRotation(loaded.world),
             width,
             height);
-        renderer3D.drawWorld(loaded.world);
+        renderer3D.drawWorld(loaded.world, dt);
         renderer3D.drawHud(loaded.world);
         renderer3D.endFrame();
       }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "demi/runtime/scene/components/2dcomponents/Camera2DComponent.h"
+
 #include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/render/RendererAssetData.h"
 #include "demi/runtime/scene/SceneData.h"
@@ -16,13 +18,14 @@ public:
   Renderer2D() = default;
   ~Renderer2D();
 
-  Renderer2D(const Renderer2D&) = delete;
-  Renderer2D& operator=(const Renderer2D&) = delete;
+  Renderer2D(const Renderer2D &) = delete;
+  Renderer2D &operator=(const Renderer2D &) = delete;
 
-  void loadTextureAssets(const AssetRegistry& registry);
-  void beginFrame(const Camera2DComponent& camera, Vec2 cameraPosition, int width, int height);
-  void drawWorld(const World& world);
-  void drawHud(const World& world);
+  void loadTextureAssets(const AssetRegistry &registry);
+  void beginFrame(const Camera2DComponent &camera, Vec2 cameraPosition,
+                  int width, int height);
+  void drawWorld(const World &world);
+  void drawHud(const World &world);
   void endFrame();
 
 private:
