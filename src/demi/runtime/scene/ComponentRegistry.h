@@ -3,7 +3,10 @@
 #include "demi/runtime/scene/Component2D.h"
 #include "demi/runtime/scene/Component3D.h"
 #include "demi/runtime/scene/GenericComponent.h"
+#include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scene/model/Entity.h"
+
+#include <nlohmann/json_fwd.hpp>
 
 #include <memory>
 #include <span>

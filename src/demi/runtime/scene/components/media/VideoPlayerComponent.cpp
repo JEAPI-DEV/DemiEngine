@@ -8,6 +8,6 @@ void VideoPlayerComponent::parse(const nlohmann::json &json, Entity &entity) {
   component.playOnStart =
       scene_loading::boolField(json, "play_on_start").value_or(false);
   component.loop = scene_loading::boolField(json, "loop").value_or(false);
-  entity.videoPlayer = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

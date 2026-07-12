@@ -7,6 +7,6 @@ void BuildableComponent::parse(const nlohmann::json &json, Entity &entity) {
   component.asset = scene_loading::stringOr(json, "asset");
   component.blocksMovement =
       scene_loading::boolField(json, "blocks_movement").value_or(false);
-  entity.buildable = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

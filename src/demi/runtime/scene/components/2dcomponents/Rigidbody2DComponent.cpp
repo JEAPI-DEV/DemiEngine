@@ -13,6 +13,6 @@ void Rigidbody2DComponent::parse(const nlohmann::json &json, Entity &entity) {
     component.bounciness = *value;
   component.lockRotation =
       scene_loading::boolField(json, "lock_rotation").value_or(true);
-  entity.rigidbody2D = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

@@ -18,6 +18,6 @@ void Camera3DComponent::parse(const nlohmann::json &json, Entity &entity) {
     component.positionX = *value;
   if (auto value = scene_loading::numberField(json, "up_axis"))
     component.upAxis = *value;
-  entity.camera3D = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

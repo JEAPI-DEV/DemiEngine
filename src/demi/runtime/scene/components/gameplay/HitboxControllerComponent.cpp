@@ -8,6 +8,6 @@ void HitboxControllerComponent::parse(const nlohmann::json &json,
   if (auto value = scene_loading::vec2Field(json, "hurtbox"))
     component.hurtbox = *value;
   component.script = scene_loading::stringOr(json, "script");
-  entity.hitboxController = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

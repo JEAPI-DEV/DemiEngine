@@ -10,6 +10,6 @@ void IsoTransformComponent::parse(const nlohmann::json &json, Entity &entity) {
     component.height = *value;
   if (auto value = scene_loading::vec2Field(json, "footprint"))
     component.footprint = *value;
-  entity.isoTransform = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

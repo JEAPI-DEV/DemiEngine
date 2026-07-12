@@ -14,6 +14,6 @@ void AnimationPlayer3DComponent::parse(const nlohmann::json &json,
     component.time = std::max(0.0F, *value);
   component.loop = scene_loading::boolField(json, "loop").value_or(true);
   component.playing = scene_loading::boolField(json, "playing").value_or(true);
-  entity.animationPlayer3D = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

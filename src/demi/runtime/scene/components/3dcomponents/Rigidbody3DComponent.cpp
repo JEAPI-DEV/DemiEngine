@@ -11,6 +11,6 @@ void Rigidbody3DComponent::parse(const nlohmann::json &json, Entity &entity) {
       scene_loading::boolField(json, "use_gravity").value_or(true);
   if (auto value = scene_loading::numberField(json, "gravity_scale"))
     component.gravityScale = *value;
-  entity.rigidbody3D = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

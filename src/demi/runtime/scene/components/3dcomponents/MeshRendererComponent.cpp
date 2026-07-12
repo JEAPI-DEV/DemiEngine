@@ -35,6 +35,6 @@ void MeshRendererComponent::parse(const nlohmann::json &json, Entity &entity) {
       if (value.is_array() && value.size() >= 2)
         component.uvs.push_back({value[0].get<float>(), value[1].get<float>()});
   }
-  entity.meshRenderer = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

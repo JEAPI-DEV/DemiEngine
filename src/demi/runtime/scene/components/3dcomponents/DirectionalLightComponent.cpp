@@ -11,6 +11,6 @@ void DirectionalLightComponent::parse(const nlohmann::json &json,
     component.color = *value;
   if (auto value = scene_loading::numberField(json, "intensity"))
     component.intensity = *value;
-  entity.directionalLight = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

@@ -321,6 +321,10 @@ endfunction()
 configure_demi_runtime(demi-runtime-lib TRUE
   src/demi/runtime/render/Renderer2D.cpp
   src/demi/runtime/render/Renderer3D.cpp
+  src/demi/runtime/render/Renderer3DAssets.cpp
+  src/demi/runtime/render/Renderer3DHudRenderer.cpp
+  src/demi/runtime/render/Renderer3DMeshRenderer.cpp
+  src/demi/runtime/render/Renderer3DModelResources.cpp
 )
 
 if(NOT ANDROID)

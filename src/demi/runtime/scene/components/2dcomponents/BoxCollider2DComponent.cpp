@@ -11,6 +11,6 @@ void BoxCollider2DComponent::parse(const nlohmann::json &json, Entity &entity) {
   component.isTrigger =
       scene_loading::boolField(json, "is_trigger").value_or(false);
   component.layer = scene_loading::stringOr(json, "layer");
-  entity.boxCollider2D = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

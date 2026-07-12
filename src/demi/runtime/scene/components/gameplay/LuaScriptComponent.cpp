@@ -7,6 +7,6 @@ void LuaScriptComponent::parse(const nlohmann::json &json, Entity &entity) {
   component.module = scene_loading::stringOr(json, "module");
   if (const auto *properties = scene_loading::objectField(json, "properties"))
     component.propertiesJson = properties->dump();
-  entity.luaScript = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

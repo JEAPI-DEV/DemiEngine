@@ -10,6 +10,6 @@ void AudioSourceComponent::parse(const nlohmann::json &json, Entity &entity) {
   component.loop = scene_loading::boolField(json, "loop").value_or(false);
   if (auto value = scene_loading::numberField(json, "volume"))
     component.volume = *value;
-  entity.audioSource = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

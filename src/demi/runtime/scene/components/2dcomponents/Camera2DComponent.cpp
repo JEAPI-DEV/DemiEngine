@@ -8,6 +8,6 @@ void Camera2DComponent::parse(const nlohmann::json &json, Entity &entity) {
     component.clearColor = *value;
   if (auto value = scene_loading::numberField(json, "orthographic_size"))
     component.orthographicSize = *value;
-  entity.camera2D = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

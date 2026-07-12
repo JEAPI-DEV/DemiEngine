@@ -1,3 +1,4 @@
+#include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
@@ -72,17 +73,19 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData &project, World &world,
   }
 
   for (Entity &entity : world.entities) {
-    if (!entity.luaScript.has_value()) {
+    if (!entity.hasComponent<LuaScriptComponent>()) {
       continue;
     }
 
     const std::size_t scriptIndex = scripts_.size();
-    if (!loadScript(entity.id, entity.luaScript->module, "Lua script")) {
+    if (!loadScript(entity.id, entity.component<LuaScriptComponent>()->module,
+                    "Lua script")) {
       return false;
     }
 
-    applyScriptProperties(state, scripts_[scriptIndex].tableRef,
-                          entity.luaScript->propertiesJson);
+    applyScriptProperties(
+        state, scripts_[scriptIndex].tableRef,
+        entity.component<LuaScriptComponent>()->propertiesJson);
   }
 
   for (const HudButtonElement &button : world.hudButtons) {
@@ -129,7 +132,7 @@ void LuaScriptHost::reloadChangedScripts() {
       lua_pushstring(state, script.entityId.c_str());
       lua_setfield(state, -2, "entity_id");
       if (const Entity *entity = findEntity(*world_, script.entityId);
-          entity != nullptr && entity->luaScript.has_value()) {
+          entity != nullptr && entity->hasComponent<LuaScriptComponent>()) {
         (void)entity;
       } else {
         lua_pushstring(state, script.entityId.c_str());
@@ -143,9 +146,10 @@ void LuaScriptHost::reloadChangedScripts() {
     luaL_unref(state, LUA_REGISTRYINDEX, script.tableRef);
     script.tableRef = newTableRef;
     if (const Entity *entity = findEntity(*world_, script.entityId);
-        entity != nullptr && entity->luaScript.has_value()) {
-      applyScriptProperties(state, script.tableRef,
-                            entity->luaScript->propertiesJson);
+        entity != nullptr && entity->hasComponent<LuaScriptComponent>()) {
+      applyScriptProperties(
+          state, script.tableRef,
+          entity->component<LuaScriptComponent>()->propertiesJson);
     }
     script.actionHandlers = HandleActionAnnotation::parse(script.path);
     script.eventHandlers = OnEventAnnotation::parse(script.path);

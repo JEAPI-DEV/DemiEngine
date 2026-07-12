@@ -5,6 +5,6 @@ namespace demi::runtime {
 void AudioListenerComponent::parse(const nlohmann::json &json, Entity &entity) {
   AudioListenerComponent component;
   component.primary = scene_loading::boolField(json, "primary").value_or(true);
-  entity.audioListener = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
+
 #include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/render/RendererAssetData.h"
 #include "demi/runtime/scene/SceneData.h"
@@ -21,7 +23,7 @@ struct DynamicModelCacheEntry {
 };
 
 struct ModelAnimationAsset {
-  ModelAnimation* clips = nullptr;
+  ModelAnimation *clips = nullptr;
   int clipCount = 0;
 };
 
@@ -36,13 +38,14 @@ public:
   Renderer3D() = default;
   ~Renderer3D();
 
-  Renderer3D(const Renderer3D&) = delete;
-  Renderer3D& operator=(const Renderer3D&) = delete;
+  Renderer3D(const Renderer3D &) = delete;
+  Renderer3D &operator=(const Renderer3D &) = delete;
 
-  void loadTextureAssets(const AssetRegistry& registry);
-  void beginFrame(const Camera3DComponent& camera, Vec3 cameraPosition, Vec3 cameraRotation, int width, int height);
-  void drawWorld(World& world, float deltaTime);
-  void drawHud(const World& world);
+  void loadTextureAssets(const AssetRegistry &registry);
+  void beginFrame(const Camera3DComponent &camera, Vec3 cameraPosition,
+                  Vec3 cameraRotation, int width, int height);
+  void drawWorld(World &world, float deltaTime);
+  void drawHud(const World &world);
   void endFrame();
 
 private:

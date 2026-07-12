@@ -1,43 +1,46 @@
 #include "demi/runtime/physics/Physics3D.h"
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/components/EngineComponents.h"
 
 #include <iostream>
 
 namespace {
 
+using namespace demi::runtime;
+
 demi::runtime::Entity makeDynamicBox() {
   demi::runtime::Entity entity;
   entity.id = "mover";
-  entity.transform3D =
-      demi::runtime::Transform3DComponent{.position = {0.0F, 0.5F, 0.0F}};
-  entity.boxCollider3D =
-      demi::runtime::BoxCollider3DComponent{.size = {1.0F, 1.0F, 1.0F}};
-  entity.rigidbody3D = demi::runtime::Rigidbody3DComponent{
-      .bodyType = "dynamic", .useGravity = false};
+  entity.setComponent<Transform3DComponent>(
+      demi::runtime::Transform3DComponent{.position = {0.0F, 0.5F, 0.0F}});
+  entity.setComponent<BoxCollider3DComponent>(
+      demi::runtime::BoxCollider3DComponent{.size = {1.0F, 1.0F, 1.0F}});
+  entity.setComponent<Rigidbody3DComponent>(demi::runtime::Rigidbody3DComponent{
+      .bodyType = "dynamic", .useGravity = false});
   return entity;
 }
 
 demi::runtime::Entity makeStaticBox() {
   demi::runtime::Entity entity;
   entity.id = "box_wall";
-  entity.transform3D =
-      demi::runtime::Transform3DComponent{.position = {1.25F, 0.5F, 0.0F}};
-  entity.boxCollider3D =
-      demi::runtime::BoxCollider3DComponent{.size = {1.0F, 1.0F, 1.0F}};
-  entity.rigidbody3D = demi::runtime::Rigidbody3DComponent{.bodyType = "static",
-                                                           .useGravity = false};
+  entity.setComponent<Transform3DComponent>(
+      demi::runtime::Transform3DComponent{.position = {1.25F, 0.5F, 0.0F}});
+  entity.setComponent<BoxCollider3DComponent>(
+      demi::runtime::BoxCollider3DComponent{.size = {1.0F, 1.0F, 1.0F}});
+  entity.setComponent<Rigidbody3DComponent>(demi::runtime::Rigidbody3DComponent{
+      .bodyType = "static", .useGravity = false});
   return entity;
 }
 
 demi::runtime::Entity makeStaticSphere() {
   demi::runtime::Entity entity;
   entity.id = "sphere_wall";
-  entity.transform3D =
-      demi::runtime::Transform3DComponent{.position = {-1.25F, 0.5F, 0.0F}};
-  entity.sphereCollider3D =
-      demi::runtime::SphereCollider3DComponent{.radius = 0.5F};
-  entity.rigidbody3D = demi::runtime::Rigidbody3DComponent{.bodyType = "static",
-                                                           .useGravity = false};
+  entity.setComponent<Transform3DComponent>(
+      demi::runtime::Transform3DComponent{.position = {-1.25F, 0.5F, 0.0F}});
+  entity.setComponent<SphereCollider3DComponent>(
+      demi::runtime::SphereCollider3DComponent{.radius = 0.5F});
+  entity.setComponent<Rigidbody3DComponent>(demi::runtime::Rigidbody3DComponent{
+      .bodyType = "static", .useGravity = false});
   return entity;
 }
 
@@ -58,7 +61,7 @@ int main() {
   }
 
   const runtime::Vec3 blockedByBox = runtime::resolveDynamicMove3D(
-      world, *mover, mover->transform3D->position,
+      world, *mover, mover->component<Transform3DComponent>()->position,
       runtime::Vec3{.x = 1.0F, .y = 0.0F, .z = 2.0F});
   if (blockedByBox.x != 0.0F || blockedByBox.z != 2.0F) {
     std::cerr << "3D box collision should block only the colliding axis; "
@@ -68,7 +71,7 @@ int main() {
   }
 
   const runtime::Vec3 blockedBySphere = runtime::resolveDynamicMove3D(
-      world, *mover, mover->transform3D->position,
+      world, *mover, mover->component<Transform3DComponent>()->position,
       runtime::Vec3{.x = -1.0F, .y = 0.0F, .z = 0.0F});
   if (blockedBySphere.x != 0.0F) {
     std::cerr << "3D sphere collision should block dynamic box movement; "
@@ -79,13 +82,13 @@ int main() {
 
   runtime::Entity triggerWall = makeStaticBox();
   triggerWall.id = "trigger_wall";
-  triggerWall.transform3D->position.x = 0.0F;
-  triggerWall.transform3D->position.z = 1.25F;
-  triggerWall.boxCollider3D->isTrigger = true;
+  triggerWall.component<Transform3DComponent>()->position.x = 0.0F;
+  triggerWall.component<Transform3DComponent>()->position.z = 1.25F;
+  triggerWall.component<BoxCollider3DComponent>()->isTrigger = true;
   world.entities.push_back(triggerWall);
 
   const runtime::Vec3 throughTrigger = runtime::resolveDynamicMove3D(
-      world, *mover, mover->transform3D->position,
+      world, *mover, mover->component<Transform3DComponent>()->position,
       runtime::Vec3{.x = 0.0F, .y = 0.0F, .z = 1.0F});
   if (throughTrigger.z != 1.0F) {
     std::cerr << "3D trigger collider should not block movement; resolved to z="
@@ -95,9 +98,9 @@ int main() {
 
   runtime::Entity kinematic = makeDynamicBox();
   kinematic.id = "kinematic";
-  kinematic.rigidbody3D->bodyType = "kinematic";
+  kinematic.component<Rigidbody3DComponent>()->bodyType = "kinematic";
   const runtime::Vec3 kinematicMove = runtime::resolveDynamicMove3D(
-      world, kinematic, kinematic.transform3D->position,
+      world, kinematic, kinematic.component<Transform3DComponent>()->position,
       runtime::Vec3{.x = 1.0F, .y = 0.0F, .z = 0.0F});
   if (kinematicMove.x != 1.0F) {
     std::cerr << "Non-dynamic 3D body should bypass dynamic collision "

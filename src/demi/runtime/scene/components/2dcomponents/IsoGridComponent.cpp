@@ -10,6 +10,6 @@ void IsoGridComponent::parse(const nlohmann::json &json, Entity &entity) {
     component.width = static_cast<int>(*value);
   if (auto value = scene_loading::numberField(json, "height"))
     component.height = static_cast<int>(*value);
-  entity.isoGrid = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

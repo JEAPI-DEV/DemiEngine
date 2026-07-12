@@ -11,6 +11,6 @@ void Transform3DComponent::parse(const nlohmann::json &json, Entity &entity) {
     component.rotation = *value;
   if (auto value = scene_loading::vec3Field(json, "scale"))
     component.scale = *value;
-  entity.transform3D = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

@@ -1,6 +1,7 @@
 #include "demi/runtime/scene/ComponentRegistry.h"
 #include "demi/runtime/scene/HudParser.h"
 #include "demi/runtime/scene/SceneData.h"
+#include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scene/hud/HudElementRegistry.h"
 
 #include <filesystem>
@@ -9,6 +10,8 @@
 #include <optional>
 
 namespace {
+
+using namespace demi::runtime;
 
 bool writeFile(const std::filesystem::path &path, const char *contents) {
   std::filesystem::create_directories(path.parent_path());
@@ -62,16 +65,18 @@ int main(int argc, char **argv) {
 
   const runtime::Entity *camera =
       runtime::findEntity(loaded->world, "ent_camera_menu");
-  if (camera == nullptr || !camera->transform2D.has_value() ||
-      !camera->camera2D.has_value()) {
+  if (camera == nullptr || !camera->hasComponent<Transform2DComponent>() ||
+      !camera->hasComponent<Camera2DComponent>()) {
     std::cerr << "Scene loader did not read nested camera components.\n";
     return 1;
   }
 
   const runtime::Entity *controller =
       runtime::findEntity(loaded->world, "ent_menu_controller");
-  if (controller == nullptr || !controller->luaScript.has_value() ||
-      controller->luaScript->module != "script://scripts/menu_scene.lua") {
+  if (controller == nullptr ||
+      !controller->hasComponent<LuaScriptComponent>() ||
+      controller->component<LuaScriptComponent>()->module !=
+          "script://scripts/menu_scene.lua") {
     std::cerr << "Scene loader did not read nested LuaScript component.\n";
     return 1;
   }
@@ -193,12 +198,12 @@ int main(int argc, char **argv) {
 
   const runtime::Entity *mesh =
       runtime::findEntity(meshProject->world, "ent_mesh_0");
-  if (mesh == nullptr || !mesh->meshRenderer.has_value() ||
-      mesh->meshRenderer->vertices.size() != 3 ||
-      mesh->meshRenderer->normals.size() != 3 ||
-      mesh->meshRenderer->uvs.size() != 3 ||
-      mesh->meshRenderer->vertices[1].x != 1.0F ||
-      mesh->meshRenderer->uvs[2].y != 1.0F) {
+  if (mesh == nullptr || !mesh->hasComponent<MeshRendererComponent>() ||
+      mesh->component<MeshRendererComponent>()->vertices.size() != 3 ||
+      mesh->component<MeshRendererComponent>()->normals.size() != 3 ||
+      mesh->component<MeshRendererComponent>()->uvs.size() != 3 ||
+      mesh->component<MeshRendererComponent>()->vertices[1].x != 1.0F ||
+      mesh->component<MeshRendererComponent>()->uvs[2].y != 1.0F) {
     std::cerr << "Scene loader did not read dynamic MeshRenderer data.\n";
     return 1;
   }
@@ -233,7 +238,7 @@ int main(int argc, char **argv) {
                           : nullptr;
   if (health == nullptr ||
       health->find("\"current\":50") == std::string::npos ||
-      !gameplay->transform2D.has_value()) {
+      !gameplay->hasComponent<Transform2DComponent>()) {
     std::cerr
         << "Scene loader did not preserve generic gameplay component data.\n";
     return 1;

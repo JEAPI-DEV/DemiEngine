@@ -9,6 +9,6 @@ void SpriteComponent::parse(const nlohmann::json &json, Entity &entity) {
   component.layer = scene_loading::stringOr(json, "layer");
   if (auto value = scene_loading::colorField(json, "color"))
     component.color = *value;
-  entity.sprite = component;
+  entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime
