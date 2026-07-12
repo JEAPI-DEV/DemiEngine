@@ -106,6 +106,12 @@ override properties per instance, and get deterministic expanded scene output.
 
 ## Milestone 3 — Authorable Runtime UI
 
+**Status: complete.** HUD trees, renderer-independent responsive layout,
+practical controls, focus/pointer/controller interaction, modal focus layers,
+themes, localization, action maps, Lua state APIs, schema/docs, and the
+multi-aspect `ui_showcase` probe are implemented. Legacy flat HUD documents
+remain supported through their existing parser path.
+
 1. Preserve `*.hud.json`, but evolve it from a flat list of positioned drawing
    primitives into a tree of elements with parent/child relationships.
 2. Add layout primitives: anchors, margins/padding, min/max size, alignment,

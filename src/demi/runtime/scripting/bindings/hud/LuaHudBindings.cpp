@@ -66,6 +66,20 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
   hud.set_function("set_visible", [&host](const std::string &id, bool visible) {
     return host.setHudVisible(id, visible);
   });
+  hud.set_function("set_value", [&host](const std::string &id, float value) {
+    return host.setHudValue(id, value);
+  });
+  hud.set_function("set_checked", [&host](const std::string &id, bool checked) {
+    return host.setHudChecked(id, checked);
+  });
+  hud.set_function("set_disabled",
+                   [&host](const std::string &id, bool disabled) {
+                     return host.setHudDisabled(id, disabled);
+                   });
+  hud.set_function("focus_next", [&host](sol::optional<bool> reverse) {
+    return host.focusNextHudControl(reverse.value_or(false));
+  });
+  hud.set_function("focused", [&host]() { return host.focusedHudControl(); });
   hud.set_function("set_group_visible",
                    [&host](const std::string &group, bool visible) {
                      return host.setHudGroupVisible(group, visible);

@@ -180,6 +180,12 @@ add_library(demi-core STATIC
   src/demi/filesystem/ProjectPaths.cpp
   src/demi/schema/Validation.cpp
   src/demi/runtime/scene/composition/PrefabResolver.cpp
+  src/demi/runtime/ui/UiLayoutEngine.cpp
+  src/demi/runtime/ui/UiInteractionController.cpp
+  src/demi/runtime/ui/UiDocumentParser.cpp
+  src/demi/runtime/ui/UiLegacyProjection.cpp
+  src/demi/runtime/ui/UiStateController.cpp
+  src/demi/runtime/ui/UiActionController.cpp
   ${DEMI_COMPONENT_MODEL_SOURCES}
 )
 
@@ -389,6 +395,8 @@ else()
   target_link_libraries(demi-scene-loader-tests PRIVATE demi-runtime-lib)
   add_executable(demi-prefab-tests tests/prefab_tests.cpp)
   target_link_libraries(demi-prefab-tests PRIVATE demi-core)
+  add_executable(demi-ui-tests tests/ui_tests.cpp)
+  target_link_libraries(demi-ui-tests PRIVATE demi-core)
 
   add_executable(demi-snapshot-replication-tests tests/snapshot_replication_tests.cpp)
   target_link_libraries(demi-snapshot-replication-tests PRIVATE demi-runtime-lib)
@@ -413,6 +421,7 @@ add_test(NAME demi-lua-stub-contract-tests COMMAND demi-lua-stub-contract-tests 
 add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
 add_test(NAME demi-scene-loader-tests COMMAND demi-scene-loader-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-prefab-tests COMMAND demi-prefab-tests)
+add_test(NAME demi-ui-tests COMMAND demi-ui-tests)
 add_test(NAME demi-prefab-inspect-cli
   COMMAND demi prefab inspect ${CMAKE_SOURCE_DIR}/examples/minimal_3d/prefabs/player.prefab.json)
 add_test(NAME demi-scene-expand-cli

@@ -348,9 +348,17 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
     validateReferences(diagnostics, path, text);
     break;
   case SourceFileKind::Hud:
-    requireToken(diagnostics, text, path, "\"elements\"",
-                 "HUD_MISSING_ELEMENTS", "HUD file is missing elements.",
-                 "Add an elements array, even if it is empty.");
+    if (text.find("\"elements\"") == std::string::npos &&
+        text.find("\"root\"") == std::string::npos) {
+      diagnostics.push_back(Diagnostic{
+          .severity = Severity::Error,
+          .code = "HUD_MISSING_CONTENT",
+          .message = "HUD file is missing elements or a root UI node.",
+          .path = path.string(),
+          .suggestion =
+              "Add a root object for tree UI or an elements array for legacy "
+              "HUD data."});
+    }
     validateReferences(diagnostics, path, text);
     break;
   case SourceFileKind::Save:

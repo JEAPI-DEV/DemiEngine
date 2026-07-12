@@ -1,0 +1,28 @@
+{
+  "format_version": 1,
+  "styles": {
+    "screen": {
+      "background_color": [0.035, 0.045, 0.08, 0.96],
+      "padding": 28,
+      "gap": 16
+    },
+    "section": {
+      "background_color": [0.08, 0.10, 0.17, 1.0],
+      "padding": 18,
+      "gap": 10
+    },
+    "control": {
+      "color": [0.96, 0.97, 1.0, 1.0],
+      "background_color": [0.18, 0.24, 0.42, 1.0]
+    },
+    "accent": {
+      "color": [0.30, 0.82, 0.72, 1.0],
+      "background_color": [0.10, 0.15, 0.24, 1.0]
+    }
+  },
+  "action_map": {
+    "next": "ui_next",
+    "previous": "ui_previous",
+    "submit": "ui_accept"
+  }
+}

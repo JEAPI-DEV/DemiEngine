@@ -402,6 +402,23 @@ function Hud.set_opacity(id, opacity) end
 ---@param visible boolean
 ---@return boolean
 function Hud.set_visible(id, visible) end
+---@param id string
+---@param value number
+---@return boolean
+function Hud.set_value(id, value) end
+---@param id string
+---@param checked boolean
+---@return boolean
+function Hud.set_checked(id, checked) end
+---@param id string
+---@param disabled boolean
+---@return boolean
+function Hud.set_disabled(id, disabled) end
+---@param reverse? boolean
+---@return boolean
+function Hud.focus_next(reverse) end
+---@return string
+function Hud.focused() end
 ---@param group string
 ---@param visible boolean
 ---@return boolean

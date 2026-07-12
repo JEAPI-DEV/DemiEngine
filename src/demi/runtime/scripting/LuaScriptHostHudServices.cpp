@@ -1,6 +1,9 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include "demi/runtime/scene/hud/HudElementTraversal.h"
+#include "demi/runtime/ui/UiInteractionController.h"
+#include "demi/runtime/ui/UiLegacyProjection.h"
+#include "demi/runtime/ui/UiStateController.h"
 
 #include <algorithm>
 
@@ -9,6 +12,10 @@ namespace demi::runtime {
 bool LuaScriptHost::setHudText(const std::string &id, const std::string &text) {
   if (world_ == nullptr)
     return false;
+  if (ui::UiStateController{}.setText(world_->ui, id, text)) {
+    ui::projectUiDocument(*world_);
+    return true;
+  }
   for (HudTextElement &element : world_->hudText) {
     if (element.id == id) {
       element.text = text;
@@ -22,6 +29,10 @@ bool LuaScriptHost::setHudButtonLabel(const std::string &id,
                                       const std::string &label) {
   if (world_ == nullptr)
     return false;
+  if (ui::UiStateController{}.setText(world_->ui, id, label)) {
+    ui::projectUiDocument(*world_);
+    return true;
+  }
   for (HudButtonElement &element : world_->hudButtons) {
     if (element.id == id) {
       element.label = label;
@@ -174,9 +185,47 @@ bool LuaScriptHost::setHudOpacity(const std::string &id, float opacity) {
 }
 
 bool LuaScriptHost::setHudVisible(const std::string &id, bool visible) {
+  if (world_ != nullptr &&
+      ui::UiStateController{}.setVisible(world_->ui, id, visible)) {
+    ui::projectUiDocument(*world_);
+    return true;
+  }
   return world_ != nullptr && visitHudElement(*world_, id, [&](auto &element) {
            element.visible = visible;
          });
+}
+
+bool LuaScriptHost::setHudValue(const std::string &id, const float value) {
+  if (world_ == nullptr ||
+      !ui::UiStateController{}.setValue(world_->ui, id, value))
+    return false;
+  ui::projectUiDocument(*world_);
+  return true;
+}
+
+bool LuaScriptHost::setHudChecked(const std::string &id, const bool checked) {
+  if (world_ == nullptr ||
+      !ui::UiStateController{}.setChecked(world_->ui, id, checked))
+    return false;
+  ui::projectUiDocument(*world_);
+  return true;
+}
+
+bool LuaScriptHost::setHudDisabled(const std::string &id, const bool disabled) {
+  if (world_ == nullptr ||
+      !ui::UiStateController{}.setDisabled(world_->ui, id, disabled))
+    return false;
+  ui::projectUiDocument(*world_);
+  return true;
+}
+
+bool LuaScriptHost::focusNextHudControl(const bool reverse) {
+  return world_ != nullptr &&
+         ui::UiInteractionController{}.focusNext(world_->ui, reverse);
+}
+
+std::string LuaScriptHost::focusedHudControl() const {
+  return world_ == nullptr ? std::string{} : world_->ui.focusedId;
 }
 
 bool LuaScriptHost::setHudGroupVisible(const std::string &group, bool visible) {

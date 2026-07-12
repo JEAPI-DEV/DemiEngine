@@ -2,6 +2,7 @@
 
 #include "demi/runtime/scene/model/Entity.h"
 #include "demi/runtime/scene/model/HudData.h"
+#include "demi/runtime/ui/UiModel.h"
 
 #include <filesystem>
 #include <string>
@@ -22,6 +23,7 @@ struct World {
   std::string id;
   std::string name;
   Vec2 hudCanvasSize = {960.0F, 540.0F};
+  ui::UiDocument ui;
   std::vector<Entity> entities;
   std::vector<HudRectElement> hudRects;
   std::vector<HudPanelElement> hudPanels;

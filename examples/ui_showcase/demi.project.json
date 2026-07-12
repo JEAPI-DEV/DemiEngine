@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "name": "Responsive UI Showcase",
+  "main_scene": "scene://ui_showcase/main",
+  "scenes": [
+    {
+      "id": "scene://ui_showcase/main",
+      "path": "scenes/main.scene.json"
+    }
+  ],
+  "scripting": {
+    "language": "lua54",
+    "modules": []
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "format_version": 1,
+  "id": "scene://ui_showcase/main",
+  "name": "Responsive UI Showcase",
+  "hud": "main.hud.json",
+  "entities": []
+}

@@ -1,0 +1,105 @@
+{
+  "format_version": 1,
+  "canvas_size": [960, 540],
+  "theme": "../ui/default.theme.json",
+  "localization_file": "../ui/en.localization.json",
+  "action_effects": {
+    "play": {
+      "show": ["confirm_modal"],
+      "focus": "confirm"
+    },
+    "open_settings": {
+      "show": ["settings_panel"],
+      "hide": ["inventory_panel"],
+      "focus": "fullscreen"
+    },
+    "open_inventory": {
+      "show": ["inventory_panel"],
+      "hide": ["settings_panel"],
+      "focus": "inventory_search"
+    },
+    "confirm": {
+      "hide": ["confirm_modal"],
+      "focus": "play"
+    }
+  },
+  "root": {
+    "id": "ui_root",
+    "type": "container",
+    "anchor_min": [0, 0],
+    "anchor_max": [1, 1],
+    "layout": "column",
+    "alignment": "center",
+    "children": [
+      {
+        "id": "main_screen",
+        "type": "panel",
+        "style": "screen",
+        "size": [900, 500],
+        "min_size": [320, 460],
+        "max_size": [900, 500],
+        "layout": "row",
+        "alignment": "stretch",
+        "children": [
+          {
+            "id": "menu",
+            "type": "list",
+            "style": "section",
+            "size": [240, 440],
+            "layout": "column",
+            "children": [
+              {"id": "title", "type": "label", "style": "accent", "localization_key": "title", "size": [200, 42], "font_size": 30},
+              {"id": "play", "type": "button", "style": "control", "localization_key": "play", "action": "play", "accessibility_label": "Start game", "size": [200, 48]},
+              {"id": "open_settings", "type": "button", "style": "control", "localization_key": "settings", "action": "open_settings", "size": [200, 48]},
+              {"id": "open_inventory", "type": "button", "style": "control", "localization_key": "inventory", "action": "open_inventory", "size": [200, 48]}
+            ]
+          },
+          {
+            "id": "settings_panel",
+            "type": "panel",
+            "style": "section",
+            "size": [290, 440],
+            "layout": "column",
+            "children": [
+              {"id": "settings_title", "type": "label", "localization_key": "settings", "size": [250, 38], "font_size": 26},
+              {"id": "fullscreen", "type": "toggle", "style": "control", "localization_key": "fullscreen", "action": "toggle_fullscreen", "checked": true, "size": [250, 44]},
+              {"id": "volume", "type": "slider", "style": "accent", "accessibility_label": "Master volume", "minimum": 0, "maximum": 100, "value": 70, "size": [250, 24]},
+              {"id": "loading", "type": "progress", "style": "accent", "value": 0.65, "size": [250, 16]}
+            ]
+          },
+          {
+            "id": "inventory_panel",
+            "type": "scroll",
+            "style": "section",
+            "visible": false,
+            "size": [290, 440],
+            "layout": "column",
+            "children": [
+              {"id": "inventory_title", "type": "label", "localization_key": "inventory", "size": [250, 38], "font_size": 26},
+              {"id": "inventory_search", "type": "text_input", "style": "control", "placeholder_localization_key": "search", "size": [250, 42]},
+              {"id": "inventory_grid", "type": "list", "size": [250, 300], "layout": "grid", "columns": 3, "gap": 8,
+                "children": [
+                  {"id": "slot_1", "type": "button", "style": "control", "text": "Potion", "action": "use_potion", "size": [72, 72]},
+                  {"id": "slot_2", "type": "button", "style": "control", "text": "Key", "action": "use_key", "size": [72, 72]},
+                  {"id": "slot_image", "type": "image", "texture": "", "visible": false, "size": [72, 72]}
+                ]}
+            ]
+          }
+        ]
+      },
+      {
+        "id": "confirm_modal",
+        "type": "modal",
+        "style": "screen",
+        "visible": false,
+        "size": [360, 180],
+        "layout": "column",
+        "alignment": "center",
+        "children": [
+          {"id": "confirm_text", "type": "label", "text": "Confirm action?", "size": [280, 40]},
+          {"id": "confirm", "type": "button", "style": "control", "text": "Confirm", "action": "confirm", "size": [180, 44]}
+        ]
+      }
+    ]
+  }
+}

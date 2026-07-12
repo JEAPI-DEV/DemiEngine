@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demiengine.local/schemas/hud.schema.json",
+  "title": "DemiEngine HUD",
+  "type": "object",
+  "required": ["format_version"],
+  "anyOf": [
+    {"required": ["root"]},
+    {"required": ["elements"]}
+  ],
+  "properties": {
+    "format_version": {"type": "integer", "minimum": 1},
+    "canvas_size": {"$ref": "#/$defs/vec2"},
+    "theme": {"type": "string"},
+    "localization_file": {"type": "string"},
+    "styles": {"type": "object"},
+    "localization": {"type": "object", "additionalProperties": {"type": "string"}},
+    "action_map": {"type": "object", "additionalProperties": {"type": "string"}},
+    "action_effects": {"type": "object"},
+    "root": {"$ref": "#/$defs/node"},
+    "elements": {"type": "array", "items": {"type": "object"}}
+  },
+  "$defs": {
+    "vec2": {
+      "type": "array",
+      "prefixItems": [{"type": "number"}, {"type": "number"}],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "node": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "type": {"enum": ["container", "panel", "label", "text", "image", "button", "toggle", "slider", "text_input", "scroll", "list", "progress", "modal"]},
+        "children": {"type": "array", "items": {"$ref": "#/$defs/node"}},
+        "layout": {"enum": ["row", "column", "grid"]},
+        "alignment": {"enum": ["start", "center", "end", "stretch"]},
+        "position": {"$ref": "#/$defs/vec2"},
+        "size": {"$ref": "#/$defs/vec2"},
+        "anchor_min": {"$ref": "#/$defs/vec2"},
+        "anchor_max": {"$ref": "#/$defs/vec2"},
+        "min_size": {"$ref": "#/$defs/vec2"},
+        "max_size": {"$ref": "#/$defs/vec2"},
+        "disabled": {"type": "boolean"},
+        "visible": {"type": "boolean"},
+        "accessibility_label": {"type": "string"},
+        "action": {"type": "string"},
+        "placeholder": {"type": "string"},
+        "placeholder_localization_key": {"type": "string"}
+      }
+    }
+  }
+}
