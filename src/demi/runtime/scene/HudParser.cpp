@@ -1,6 +1,7 @@
 #include "demi/runtime/scene/HudParser.h"
 
 #include "demi/runtime/scene/SceneJson.h"
+#include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/runtime/scene/hud/HudElementRegistry.h"
 
 namespace demi::runtime::scene_loading {
@@ -25,13 +26,22 @@ void loadHudFile(World &world, const std::filesystem::path &hudPath,
   if (!document.has_value())
     return;
 
-  if (const std::optional<Vec2> canvasSize =
-          vec2Field(*document, "canvas_size");
+  const composition::ExpansionResult expansion =
+      composition::expandScene(hudPath, *document);
+  if (!expansion.document.has_value()) {
+    error = expansion.diagnostics.empty()
+                ? "HUD prefab expansion failed: " + hudPath.string()
+                : expansion.diagnostics.front().message;
+    return;
+  }
+  const Json &expanded = *expansion.document;
+
+  if (const std::optional<Vec2> canvasSize = vec2Field(expanded, "canvas_size");
       canvasSize.has_value() && canvasSize->x > 0.0F && canvasSize->y > 0.0F) {
     world.hudCanvasSize = *canvasSize;
   }
 
-  const Json *elements = arrayField(*document, "elements");
+  const Json *elements = arrayField(expanded, "elements");
   if (elements == nullptr)
     return;
 

@@ -1,4 +1,5 @@
 #include "cli/BuildCommands.h"
+#include "cli/SceneCompositionCommands.h"
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/core/Version.h"
@@ -37,8 +38,10 @@ void printHelp() {
       << "  demi version\n"
       << "  demi validate [path] [--format text|json]\n"
       << "  demi schema export\n"
+      << "  demi prefab inspect <prefab>\n"
       << "  demi scene list <project>\n"
       << "  demi scene inspect <scene>\n"
+      << "  demi scene expand <scene>\n"
       << "  demi scene diff <old> <new>\n"
       << "  demi asset inspect <asset>\n"
       << "  demi asset deps <asset>\n"
@@ -163,13 +166,11 @@ int runScene(const std::vector<std::string> &args) {
   }
 
   if (subcommand == "diff") {
-    if (args.size() < 4) {
-      std::cerr << "scene diff requires <old> and <new>.\n";
-      return ExitUsageError;
-    }
-    std::cout << "Scene diff placeholder: " << args[2] << " -> " << args[3]
-              << '\n';
-    return ExitSuccess;
+    return demi::cli::runSceneDiff(args, std::cout, std::cerr);
+  }
+
+  if (subcommand == "expand") {
+    return demi::cli::runSceneExpand(args, std::cout, std::cerr);
   }
 
   std::cerr << "Unknown scene subcommand: " << subcommand << '\n';
@@ -318,6 +319,10 @@ int main(int argc, char **argv) {
 
   if (args[0] == "scene") {
     return runScene(args);
+  }
+
+  if (args[0] == "prefab") {
+    return demi::cli::runPrefabCommand(args, std::cout, std::cerr);
   }
 
   if (args[0] == "asset") {

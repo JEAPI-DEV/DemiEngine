@@ -15,6 +15,7 @@ enum class SourceFileKind {
   Hud,
   Save,
   Asset,
+  Prefab,
 };
 
 struct ValidationSummary {
@@ -22,9 +23,12 @@ struct ValidationSummary {
   Diagnostics diagnostics;
 };
 
-[[nodiscard]] SourceFileKind classifySourceFile(const std::filesystem::path& path);
-[[nodiscard]] ValidationSummary validatePath(const std::filesystem::path& path);
-[[nodiscard]] Diagnostics validateTextFile(const std::filesystem::path& path, SourceFileKind kind);
-[[nodiscard]] std::vector<std::string> extractSceneReferences(const std::filesystem::path& projectPath);
+[[nodiscard]] SourceFileKind
+classifySourceFile(const std::filesystem::path &path);
+[[nodiscard]] ValidationSummary validatePath(const std::filesystem::path &path);
+[[nodiscard]] Diagnostics validateTextFile(const std::filesystem::path &path,
+                                           SourceFileKind kind);
+[[nodiscard]] std::vector<std::string>
+extractSceneReferences(const std::filesystem::path &projectPath);
 
 } // namespace demi

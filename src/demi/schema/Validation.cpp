@@ -3,6 +3,7 @@
 #include "demi/assets/AssetRegistry.h"
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/runtime/scene/composition/PrefabResolver.h"
 
 #include <nlohmann/json.hpp>
 
@@ -224,6 +225,9 @@ void validateSceneComponents(Diagnostics &diagnostics,
 } // namespace
 
 SourceFileKind classifySourceFile(const std::filesystem::path &path) {
+  if (isPrefabFile(path)) {
+    return SourceFileKind::Prefab;
+  }
   if (isProjectFile(path)) {
     return SourceFileKind::Project;
   }
@@ -333,6 +337,14 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
                  "Add an entities array, even if it is empty.");
     validateDuplicateEntityIds(diagnostics, path, text);
     validateSceneComponents(diagnostics, path, text);
+    try {
+      const auto expansion =
+          runtime::composition::expandScene(path, nlohmann::json::parse(text));
+      diagnostics.insert(diagnostics.end(), expansion.diagnostics.begin(),
+                         expansion.diagnostics.end());
+    } catch (const nlohmann::json::parse_error &) {
+      // validateSceneComponents already reports malformed JSON.
+    }
     validateReferences(diagnostics, path, text);
     break;
   case SourceFileKind::Hud:
@@ -407,6 +419,15 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
       }
     }
     break;
+  case SourceFileKind::Prefab: {
+    requireToken(diagnostics, text, path, "\"id\"", "PREFAB_MISSING_ID",
+                 "Prefab is missing id.", "Add a prefab:// id.");
+    const auto expansion = runtime::composition::inspectPrefab(path);
+    diagnostics.insert(diagnostics.end(), expansion.diagnostics.begin(),
+                       expansion.diagnostics.end());
+    validateSceneComponents(diagnostics, path, text);
+    break;
+  }
   case SourceFileKind::Unknown:
     break;
   }

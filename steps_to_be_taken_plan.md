@@ -82,6 +82,11 @@ lists independently.
 
 ## Milestone 2 — Prefabs And Scene Composition
 
+**Status: complete.** Versioned entity/UI prefabs, deterministic overrides,
+nested expansion with cycle diagnostics, runtime/CLI integration, structural
+expanded-scene diffing, schemas, tests, and three focused example conversions
+are implemented.
+
 1. Add versioned `*.prefab.json` files with stable entity/component IDs.
 2. Add scene instances that reference `prefab://` IDs and provide deterministic
    component-field overrides.

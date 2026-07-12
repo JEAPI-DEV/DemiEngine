@@ -1,0 +1,10 @@
+{
+  "format_version": 1,
+  "id": "prefab://position_label",
+  "name": "Position HUD Label",
+  "elements": [{
+    "type":"text","id":"label","group":"main",
+    "text":"pos: (0.0, 0.0, 0.0)","position":[20.0,100.0],
+    "font_size":20.0,"color":[0.85,0.92,1.0,1.0],"visible":true
+  }]
+}

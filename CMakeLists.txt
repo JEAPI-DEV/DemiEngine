@@ -179,6 +179,7 @@ add_library(demi-core STATIC
   src/demi/diagnostics/Diagnostic.cpp
   src/demi/filesystem/ProjectPaths.cpp
   src/demi/schema/Validation.cpp
+  src/demi/runtime/scene/composition/PrefabResolver.cpp
   ${DEMI_COMPONENT_MODEL_SOURCES}
 )
 
@@ -349,6 +350,7 @@ if(ANDROID)
 else()
   add_executable(demi
     src/cli/BuildCommands.cpp
+    src/cli/SceneCompositionCommands.cpp
     src/cli/main.cpp
   )
   target_link_libraries(demi PRIVATE demi-core demi-runtime-lib)
@@ -356,6 +358,7 @@ else()
 
   add_executable(demi-server
     src/cli/BuildCommands.cpp
+    src/cli/SceneCompositionCommands.cpp
     src/cli/main.cpp
   )
   target_link_libraries(demi-server PRIVATE demi-core demi-server-runtime-lib)
@@ -384,6 +387,8 @@ else()
 
   add_executable(demi-scene-loader-tests tests/scene_loader_tests.cpp)
   target_link_libraries(demi-scene-loader-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-prefab-tests tests/prefab_tests.cpp)
+  target_link_libraries(demi-prefab-tests PRIVATE demi-core)
 
   add_executable(demi-snapshot-replication-tests tests/snapshot_replication_tests.cpp)
   target_link_libraries(demi-snapshot-replication-tests PRIVATE demi-runtime-lib)
@@ -407,6 +412,13 @@ add_test(NAME demi-physics3d-tests COMMAND demi-physics3d-tests)
 add_test(NAME demi-lua-stub-contract-tests COMMAND demi-lua-stub-contract-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
 add_test(NAME demi-scene-loader-tests COMMAND demi-scene-loader-tests ${CMAKE_SOURCE_DIR})
+add_test(NAME demi-prefab-tests COMMAND demi-prefab-tests)
+add_test(NAME demi-prefab-inspect-cli
+  COMMAND demi prefab inspect ${CMAKE_SOURCE_DIR}/examples/minimal_3d/prefabs/player.prefab.json)
+add_test(NAME demi-scene-expand-cli
+  COMMAND demi scene expand ${CMAKE_SOURCE_DIR}/examples/minimal_3d/scenes/main.scene.json)
+add_test(NAME demi-scene-diff-cli
+  COMMAND demi scene diff ${CMAKE_SOURCE_DIR}/examples/minimal_3d/scenes/main.scene.json ${CMAKE_SOURCE_DIR}/examples/minimal_3d/scenes/main.scene.json)
 add_test(NAME demi-snapshot-replication-tests COMMAND demi-snapshot-replication-tests)
 if(DEMI_ENABLE_NETWORK)
   add_test(NAME demi-network-tests COMMAND demi-network-tests)

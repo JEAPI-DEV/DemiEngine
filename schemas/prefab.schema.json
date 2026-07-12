@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demiengine.local/schemas/prefab.schema.json",
+  "title": "DemiEngine Prefab",
+  "type": "object",
+  "required": ["format_version", "id"],
+  "anyOf": [
+    { "required": ["entities"] },
+    { "required": ["elements"] },
+    { "required": ["instances"] }
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "format_version": { "type": "integer", "minimum": 1 },
+    "id": { "type": "string", "pattern": "^prefab://" },
+    "name": { "type": "string" },
+    "entities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "components"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "components": { "$ref": "components.schema.json" }
+        }
+      }
+    },
+    "elements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string" }
+        }
+      }
+    },
+    "instances": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/instance" }
+    }
+  },
+  "$defs": {
+    "instance": {
+      "type": "object",
+      "required": ["id", "prefab"],
+      "properties": {
+        "id": { "type": "string" },
+        "prefab": { "type": "string", "pattern": "^prefab://" },
+        "overrides": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [{ "type": "object" }, { "type": "null" }]
+          }
+        }
+      }
+    }
+  }
+}

@@ -43,6 +43,18 @@
         }
       }
     },
+    "instances": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "prefab"],
+        "properties": {
+          "id": { "type": "string" },
+          "prefab": { "type": "string", "pattern": "^prefab://" },
+          "overrides": { "type": "object" }
+        }
+      }
+    },
     "elements": {
       "type": "array",
       "items": {

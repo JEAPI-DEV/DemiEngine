@@ -42,7 +42,7 @@ function Player3D:on_update(dt)
   end
 
   local px2, py2, pz2 = Transform3D.get_position(self.entity_id)
-  Hud.set_text("hud_pos", string.format("pos: (%.1f, %.1f, %.1f)", px2, py2, pz2), 20.0, 100.0, 2.5)
+  Hud.set_text("position/label", string.format("pos: (%.1f, %.1f, %.1f)", px2, py2, pz2), 20.0, 100.0, 2.5)
 end
 
 function Player3D:on_fixed_update(dt)
