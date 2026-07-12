@@ -144,16 +144,48 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(DEMI_GENERATED_INCLUDE_DIR "${CMAKE_BINARY_DIR}/generated")
+file(MAKE_DIRECTORY "${DEMI_GENERATED_INCLUDE_DIR}/demi/generated")
+file(GLOB_RECURSE DEMI_COMPONENT_HEADERS CONFIGURE_DEPENDS
+  RELATIVE "${CMAKE_SOURCE_DIR}/src"
+  "${CMAKE_SOURCE_DIR}/src/demi/runtime/scene/components/*Component.h"
+)
+file(GLOB_RECURSE DEMI_COMPONENT_SOURCES CONFIGURE_DEPENDS
+  "${CMAKE_SOURCE_DIR}/src/demi/runtime/scene/components/*Component.cpp"
+)
+list(SORT DEMI_COMPONENT_HEADERS)
+set(DEMI_COMPONENT_INCLUDES "#pragma once\n\n")
+set(DEMI_COMPONENT_DESCRIPTORS "")
+foreach(component_header IN LISTS DEMI_COMPONENT_HEADERS)
+  get_filename_component(component_class "${component_header}" NAME_WE)
+  string(APPEND DEMI_COMPONENT_INCLUDES
+    "#include \"${component_header}\"\n")
+  string(APPEND DEMI_COMPONENT_DESCRIPTORS
+    "    makeComponentDescriptor<${component_class}>(),\n")
+endforeach()
+file(WRITE "${DEMI_GENERATED_INCLUDE_DIR}/demi/generated/ComponentIncludes.h"
+  "${DEMI_COMPONENT_INCLUDES}")
+file(WRITE "${DEMI_GENERATED_INCLUDE_DIR}/demi/generated/ComponentDescriptors.inc"
+  "${DEMI_COMPONENT_DESCRIPTORS}")
+
+set(DEMI_COMPONENT_MODEL_SOURCES
+  src/demi/runtime/scene/ComponentRegistry.cpp
+  src/demi/runtime/scene/SceneJson.cpp
+  ${DEMI_COMPONENT_SOURCES}
+)
+
 add_library(demi-core STATIC
   src/demi/assets/AssetRegistry.cpp
   src/demi/diagnostics/Diagnostic.cpp
   src/demi/filesystem/ProjectPaths.cpp
   src/demi/schema/Validation.cpp
+  ${DEMI_COMPONENT_MODEL_SOURCES}
 )
 
-target_include_directories(demi-core PUBLIC src)
+target_include_directories(demi-core PUBLIC src "${DEMI_GENERATED_INCLUDE_DIR}")
 
 target_compile_features(demi-core PUBLIC cxx_std_20)
+target_link_libraries(demi-core PUBLIC nlohmann_json::nlohmann_json)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(demi-core PRIVATE -Wall -Wextra -Wpedantic)
@@ -196,31 +228,8 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scene/hud/elements/HudPanelElement.cpp
   src/demi/runtime/scene/hud/elements/HudRectElement.cpp
   src/demi/runtime/scene/hud/elements/HudTextElement.cpp
-  src/demi/runtime/scene/ComponentRegistry.cpp
-  src/demi/runtime/scene/components/2dcomponents/BoxCollider2DComponent.cpp
-  src/demi/runtime/scene/components/2dcomponents/Camera2DComponent.cpp
-  src/demi/runtime/scene/components/2dcomponents/IsoGridComponent.cpp
-  src/demi/runtime/scene/components/2dcomponents/IsoTransformComponent.cpp
-  src/demi/runtime/scene/components/2dcomponents/Rigidbody2DComponent.cpp
-  src/demi/runtime/scene/components/2dcomponents/SpriteComponent.cpp
-  src/demi/runtime/scene/components/2dcomponents/Transform2DComponent.cpp
-  src/demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.cpp
-  src/demi/runtime/scene/components/3dcomponents/BoxCollider3DComponent.cpp
-  src/demi/runtime/scene/components/3dcomponents/Camera3DComponent.cpp
-  src/demi/runtime/scene/components/3dcomponents/DirectionalLightComponent.cpp
-  src/demi/runtime/scene/components/3dcomponents/MeshRendererComponent.cpp
-  src/demi/runtime/scene/components/3dcomponents/Rigidbody3DComponent.cpp
-  src/demi/runtime/scene/components/3dcomponents/SphereCollider3DComponent.cpp
-  src/demi/runtime/scene/components/3dcomponents/Transform3DComponent.cpp
-  src/demi/runtime/scene/components/gameplay/BuildableComponent.cpp
-  src/demi/runtime/scene/components/gameplay/HitboxControllerComponent.cpp
-  src/demi/runtime/scene/components/gameplay/LuaScriptComponent.cpp
-  src/demi/runtime/scene/components/media/AudioListenerComponent.cpp
-  src/demi/runtime/scene/components/media/AudioSourceComponent.cpp
-  src/demi/runtime/scene/components/media/VideoPlayerComponent.cpp
   src/demi/runtime/scene/ProjectParser.cpp
   src/demi/runtime/scene/SceneEntityParser.cpp
-  src/demi/runtime/scene/SceneJson.cpp
   src/demi/runtime/scene/SceneLoader.cpp
   src/demi/runtime/scripting/LuaScriptHostBindings.cpp
   src/demi/runtime/scripting/LuaScriptHost.cpp

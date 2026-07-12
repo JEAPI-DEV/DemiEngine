@@ -9,6 +9,15 @@ struct Camera3DComponent {
   static constexpr std::string_view typeName = "Camera3D";
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
+  static constexpr std::array fields{
+      ComponentFieldDescriptor{"clear_color", ComponentFieldType::Color},
+      ComponentFieldDescriptor{"fov", ComponentFieldType::Number},
+      ComponentFieldDescriptor{"orthographic_size", ComponentFieldType::Number},
+      ComponentFieldDescriptor{"target_offset", ComponentFieldType::Vec3},
+      ComponentFieldDescriptor{"perspective", ComponentFieldType::Boolean},
+      ComponentFieldDescriptor{"position_x", ComponentFieldType::Number},
+      ComponentFieldDescriptor{"up_axis", ComponentFieldType::Number}};
+  static constexpr ComponentEditorMetadata editor{"3D", "Camera 3D"};
   static void parse(const nlohmann::json &json, Entity &entity);
 
   Color clearColor;

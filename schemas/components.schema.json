@@ -1,0 +1,544 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "AnimationPlayer3D": {
+      "additionalProperties": false,
+      "properties": {
+        "clip": {
+          "type": "integer"
+        },
+        "loop": {
+          "type": "boolean"
+        },
+        "playing": {
+          "type": "boolean"
+        },
+        "speed": {
+          "type": "number"
+        },
+        "time": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "AudioListener": {
+      "additionalProperties": false,
+      "properties": {
+        "primary": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "AudioSource": {
+      "additionalProperties": false,
+      "properties": {
+        "clip": {
+          "type": "string"
+        },
+        "loop": {
+          "type": "boolean"
+        },
+        "play_on_start": {
+          "type": "boolean"
+        },
+        "volume": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "BoxCollider2D": {
+      "additionalProperties": false,
+      "properties": {
+        "is_trigger": {
+          "type": "boolean"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "offset": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "size": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "BoxCollider3D": {
+      "additionalProperties": false,
+      "properties": {
+        "is_trigger": {
+          "type": "boolean"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "offset": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "size": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "Buildable": {
+      "additionalProperties": false,
+      "properties": {
+        "asset": {
+          "type": "string"
+        },
+        "blocks_movement": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "Camera2D": {
+      "additionalProperties": false,
+      "properties": {
+        "clear_color": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "orthographic_size": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "Camera3D": {
+      "additionalProperties": false,
+      "properties": {
+        "clear_color": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "fov": {
+          "type": "number"
+        },
+        "orthographic_size": {
+          "type": "number"
+        },
+        "perspective": {
+          "type": "boolean"
+        },
+        "position_x": {
+          "type": "number"
+        },
+        "target_offset": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "up_axis": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "DirectionalLight": {
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "direction": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "intensity": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "GameplayData": {
+      "additionalProperties": false,
+      "properties": {
+        "values": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "values"
+      ],
+      "type": "object"
+    },
+    "HitboxController": {
+      "additionalProperties": false,
+      "properties": {
+        "hurtbox": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "script": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "IsoGrid": {
+      "additionalProperties": false,
+      "properties": {
+        "cell_size": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "width": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "IsoTransform": {
+      "additionalProperties": false,
+      "properties": {
+        "footprint": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "height": {
+          "type": "number"
+        },
+        "tile": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "LuaScript": {
+      "additionalProperties": false,
+      "properties": {
+        "module": {
+          "type": "string"
+        },
+        "properties": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "module"
+      ],
+      "type": "object"
+    },
+    "MeshRenderer": {
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "model": {
+          "type": "string"
+        },
+        "normals": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 3,
+            "minItems": 3,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "shape": {
+          "type": "string"
+        },
+        "size": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "texture": {
+          "type": "string"
+        },
+        "uvs": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "vertices": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 3,
+            "minItems": 3,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "wireframe": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "Rigidbody2D": {
+      "additionalProperties": false,
+      "properties": {
+        "body_type": {
+          "enum": [
+            "dynamic",
+            "static",
+            "kinematic"
+          ],
+          "type": "string"
+        },
+        "bounciness": {
+          "type": "number"
+        },
+        "gravity_scale": {
+          "type": "number"
+        },
+        "lock_rotation": {
+          "type": "boolean"
+        },
+        "velocity": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "Rigidbody3D": {
+      "additionalProperties": false,
+      "properties": {
+        "body_type": {
+          "enum": [
+            "dynamic",
+            "static",
+            "kinematic"
+          ],
+          "type": "string"
+        },
+        "gravity_scale": {
+          "type": "number"
+        },
+        "use_gravity": {
+          "type": "boolean"
+        },
+        "velocity": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "SphereCollider3D": {
+      "additionalProperties": false,
+      "properties": {
+        "is_trigger": {
+          "type": "boolean"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "offset": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "radius": {
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "Sprite": {
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "shape": {
+          "enum": [
+            "rectangle",
+            "circle",
+            "triangle"
+          ],
+          "type": "string"
+        },
+        "texture": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Transform2D": {
+      "additionalProperties": false,
+      "properties": {
+        "parent": {
+          "type": "string"
+        },
+        "position": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "Transform3D": {
+      "additionalProperties": false,
+      "properties": {
+        "parent": {
+          "type": "string"
+        },
+        "position": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "rotation": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "scale": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "VideoPlayer": {
+      "additionalProperties": false,
+      "properties": {
+        "clip": {
+          "type": "string"
+        },
+        "loop": {
+          "type": "boolean"
+        },
+        "play_on_start": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "type": "object"
+}

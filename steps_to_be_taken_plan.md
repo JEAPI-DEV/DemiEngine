@@ -51,6 +51,11 @@ engine builds with and which game types it targets.
 
 ## Milestone 1 — Component Metadata And Runtime World
 
+**Status: complete.** Components own their field/editor/Lua metadata, the
+generated registry drives parsing, validation, and canonical schema export,
+and entities use type-keyed component storage. Unknown components are rejected;
+declared arbitrary gameplay state uses `GameplayData.values`.
+
 1. Define a `ComponentDescriptor` registry in C++ for every engine component.
    It must contain the component name, JSON parser/serializer, validation
    rules, defaults, Lua exposure policy, and editor metadata placeholder.

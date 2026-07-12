@@ -3,7 +3,11 @@
   "$id": "https://demiengine.local/schemas/scene.schema.json",
   "title": "DemiEngine Scene",
   "type": "object",
-  "required": ["format_version", "id", "entities"],
+  "required": [
+    "format_version",
+    "id",
+    "entities"
+  ],
   "additionalProperties": true,
   "properties": {
     "format_version": {
@@ -21,7 +25,11 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "name", "components"],
+        "required": [
+          "id",
+          "name",
+          "components"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -30,170 +38,7 @@
             "type": "string"
           },
           "components": {
-            "type": "object",
-            "additionalProperties": true,
-            "properties": {
-              "LuaScript": {
-                "type": "object",
-                "properties": {
-                  "module": { "type": "string", "pattern": "^script://" },
-                  "properties": { "type": "object" }
-                }
-              },
-              "Rigidbody2D": {
-                "type": "object"
-              },
-              "Transform2D": {
-                "type": "object",
-                "properties": {
-                  "parent": { "type": "string" },
-                  "position": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
-                  "rotation": { "type": "number" },
-                  "scale": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }
-                }
-              },
-              "BoxCollider2D": {
-                "type": "object",
-                "properties": {
-                  "layer": { "type": "string" }
-                }
-              },
-              "Sprite": {
-                "type": "object",
-                "properties": {
-                  "texture": { "type": "string", "pattern": "^asset://" },
-                  "shape": { "type": "string", "enum": ["rectangle", "circle", "triangle"] },
-                  "layer": { "type": "string" },
-                  "color": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 }
-                }
-              },
-              "AudioSource": {
-                "type": "object",
-                "properties": {
-                  "clip": { "type": "string", "pattern": "^asset://" },
-                  "play_on_start": { "type": "boolean" },
-                  "loop": { "type": "boolean" },
-                  "volume": { "type": "number", "minimum": 0, "maximum": 1 }
-                }
-              },
-              "AudioListener": {
-                "type": "object",
-                "properties": {
-                  "primary": { "type": "boolean" }
-                }
-              },
-              "VideoPlayer": {
-                "type": "object",
-                "properties": {
-                  "clip": { "type": "string", "pattern": "^asset://" },
-                  "play_on_start": { "type": "boolean" },
-                  "loop": { "type": "boolean" }
-                }
-              },
-              "Transform3D": {
-                "type": "object",
-                "properties": {
-                  "parent": { "type": "string" },
-                  "position": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
-                  "rotation": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
-                  "scale": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 }
-                }
-              },
-              "Camera3D": {
-                "type": "object",
-                "properties": {
-                  "clear_color": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 },
-                  "fov": { "type": "number", "minimum": 1, "maximum": 170 },
-                  "orthographic_size": { "type": "number", "minimum": 0 },
-                  "perspective": { "type": "boolean" },
-                  "target_offset": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
-                  "up_axis": { "type": "number" }
-                }
-              },
-              "MeshRenderer": {
-                "type": "object",
-                "properties": {
-                  "model": { "type": "string", "pattern": "^asset://" },
-                  "shape": { "type": "string", "enum": ["cube", "sphere", "plane", "cylinder"] },
-                  "size": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
-                  "color": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 },
-                  "texture": { "type": "string", "pattern": "^asset://" },
-                  "vertices": {
-                    "type": "array",
-                    "items": {
-                      "type": "array",
-                      "items": { "type": "number" },
-                      "minItems": 3,
-                      "maxItems": 3
-                    }
-                  },
-                  "normals": {
-                    "type": "array",
-                    "items": {
-                      "type": "array",
-                      "items": { "type": "number" },
-                      "minItems": 3,
-                      "maxItems": 3
-                    }
-                  },
-                  "uvs": {
-                    "type": "array",
-                    "items": {
-                      "type": "array",
-                      "items": { "type": "number" },
-                      "minItems": 2,
-                      "maxItems": 2
-                    }
-                  },
-                  "wireframe": { "type": "boolean" }
-                }
-              },
-              "AnimationPlayer3D": {
-                "type": "object",
-                "properties": {
-                  "clip": { "type": "integer", "minimum": 0 },
-                  "speed": { "type": "number", "minimum": 0 },
-                  "time": { "type": "number", "minimum": 0 },
-                  "loop": { "type": "boolean" },
-                  "playing": { "type": "boolean" }
-                }
-              },
-              "BoxCollider3D": {
-                "type": "object",
-                "properties": {
-                  "size": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
-                  "offset": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
-                  "is_trigger": { "type": "boolean" },
-                  "layer": { "type": "string" }
-                }
-              },
-              "SphereCollider3D": {
-                "type": "object",
-                "properties": {
-                  "radius": { "type": "number", "minimum": 0 },
-                  "offset": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
-                  "is_trigger": { "type": "boolean" },
-                  "layer": { "type": "string" }
-                }
-              },
-              "Rigidbody3D": {
-                "type": "object",
-                "properties": {
-                  "body_type": { "type": "string", "enum": ["dynamic", "static", "kinematic"] },
-                  "velocity": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
-                  "use_gravity": { "type": "boolean" },
-                  "gravity_scale": { "type": "number" }
-                }
-              },
-              "DirectionalLight": {
-                "type": "object",
-                "properties": {
-                  "direction": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
-                  "color": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 },
-                  "intensity": { "type": "number", "minimum": 0 }
-                }
-              }
-            }
+            "$ref": "components.schema.json"
           }
         }
       }
@@ -203,11 +48,22 @@
       "items": {
         "type": "object",
         "properties": {
-          "type": { "type": "string" },
-          "id": { "type": "string" },
-          "action": { "type": "string" },
-          "scale": { "type": "number" },
-          "font_size": { "type": "number", "minimum": 0 }
+          "type": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "scale": {
+            "type": "number"
+          },
+          "font_size": {
+            "type": "number",
+            "minimum": 0
+          }
         }
       }
     }

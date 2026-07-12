@@ -3,6 +3,7 @@
 #include "demi/runtime/scene/SceneData.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scene/hud/HudElementRegistry.h"
+#include "demi/schema/Validation.h"
 
 #include <filesystem>
 #include <fstream>
@@ -36,12 +37,55 @@ int main(int argc, char **argv) {
   const runtime::scene_loading::ComponentDescriptor *animation =
       runtime::scene_loading::findComponentDescriptor("AnimationPlayer3D");
   if (transform2D == nullptr || transform2D->parse == nullptr ||
-      !transform2D->exposedToLua || animation == nullptr ||
-      animation->parse == nullptr || animation->name != "AnimationPlayer3D" ||
+      transform2D->serialize == nullptr || transform2D->fields.empty() ||
+      transform2D->defaults == nullptr ||
+      transform2D->editor.category != "2D" || !transform2D->exposedToLua ||
+      animation == nullptr || animation->parse == nullptr ||
+      animation->name != "AnimationPlayer3D" ||
       runtime::scene_loading::findComponentDescriptor("NotAComponent") !=
           nullptr) {
     std::cerr
         << "Component registry does not provide canonical component lookup.\n";
+    return 1;
+  }
+
+  runtime::Entity metadataEntity;
+  const nlohmann::json transformJson = {{"position", {2.0, 3.0}},
+                                        {"rotation", 0.5}};
+  transform2D->parse(transformJson, metadataEntity);
+  if (transform2D->serialize(metadataEntity) != transformJson ||
+      !runtime::scene_loading::componentDefaults(*transform2D).empty() ||
+      runtime::scene_loading::validateComponent(*transform2D, transformJson)
+              .size() != 0 ||
+      runtime::scene_loading::validateComponent(
+          *transform2D, nlohmann::json{{"position", "wrong"}})
+          .empty() ||
+      !runtime::scene_loading::canonicalComponentSchema()["properties"]
+           .contains("GameplayData")) {
+    std::cerr << "Component metadata defaults, validation, schema, or "
+                 "round-trip failed.\n";
+    return 1;
+  }
+
+  const std::filesystem::path invalidComponentFixture =
+      std::filesystem::temp_directory_path() /
+      "demi_unknown_component.scene.json";
+  if (!writeFile(invalidComponentFixture, R"json({
+    "format_version": 1,
+    "id": "scene://fixture/unknown",
+    "entities": [{"id": "ent_unknown", "name": "Unknown", "components": {
+      "UnregisteredHealth": {"current": 10}
+    }}]
+  })json")) {
+    std::cerr << "Failed to write unknown-component fixture.\n";
+    return 1;
+  }
+  const demi::Diagnostics unknownDiagnostics = demi::validateTextFile(
+      invalidComponentFixture, demi::SourceFileKind::Scene);
+  if (std::ranges::none_of(unknownDiagnostics, [](const auto &diagnostic) {
+        return diagnostic.code == "SCENE_UNKNOWN_COMPONENT";
+      })) {
+    std::cerr << "Unknown scene components were not rejected.\n";
     return 1;
   }
 
@@ -219,7 +263,8 @@ int main(int argc, char **argv) {
       !writeFile(gameplayFixture / "scenes" / "main.scene.json", R"json({
     "format_version": 1, "id": "scene://fixture/main", "entities": [{
       "id": "ent_gameplay", "name": "Gameplay Entity", "components": {
-        "Health": {"current": 50, "maximum": 100}, "Transform2D": {"position": [2.0, 3.0]}
+        "GameplayData": {"values": {"health": {"current": 50, "maximum": 100}}},
+        "Transform2D": {"position": [2.0, 3.0]}
       }
     }]
   })json")) {
@@ -233,11 +278,13 @@ int main(int argc, char **argv) {
       gameplayProject.has_value()
           ? runtime::findEntity(gameplayProject->world, "ent_gameplay")
           : nullptr;
-  const std::string *health =
-      gameplay != nullptr ? runtime::serializedComponent(*gameplay, "Health")
-                          : nullptr;
-  if (health == nullptr ||
-      health->find("\"current\":50") == std::string::npos ||
+  const std::string *gameplayData =
+      gameplay != nullptr
+          ? runtime::serializedComponent(*gameplay, "GameplayData")
+          : nullptr;
+  if (gameplayData == nullptr ||
+      gameplayData->find("\"current\":50") == std::string::npos ||
+      !gameplay->hasComponent<GameplayDataComponent>() ||
       !gameplay->hasComponent<Transform2DComponent>()) {
     std::cerr
         << "Scene loader did not preserve generic gameplay component data.\n";

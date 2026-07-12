@@ -1,7 +1,6 @@
 #include "demi/runtime/scene/SceneEntityParser.h"
 
 #include "demi/runtime/scene/ComponentRegistry.h"
-#include "demi/runtime/scene/GenericComponent.h"
 
 namespace demi::runtime::scene_loading {
 
@@ -19,13 +18,9 @@ void parseComponents(const Json &entityJson, Entity &entity) {
     }
 
     const std::string serialized = iterator.value().dump();
-    entity.serializedComponents.emplace(iterator.key(), serialized);
-
     const ComponentDescriptor *descriptor =
         findComponentDescriptor(iterator.key());
     if (descriptor == nullptr) {
-      entity.authoredComponents.push_back(
-          std::make_shared<GenericComponent>(iterator.key(), serialized));
       continue;
     }
 

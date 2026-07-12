@@ -1,9 +1,10 @@
 #include "cli/BuildCommands.h"
 
-#include "demi/core/Version.h"
 #include "demi/assets/AssetRegistry.h"
+#include "demi/core/Version.h"
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/app/RuntimeApp.h"
+#include "demi/runtime/scene/ComponentRegistry.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/schema/Validation.h"
 
@@ -29,32 +30,34 @@ std::filesystem::path sourceRoot() {
 }
 
 void printHelp() {
-  std::cout << "DemiEngine CLI\n"
-            << "Usage:\n"
-            << "  demi --help\n"
-            << "  demi version\n"
-            << "  demi validate [path] [--format text|json]\n"
-            << "  demi schema export\n"
-            << "  demi scene list <project>\n"
-            << "  demi scene inspect <scene>\n"
-            << "  demi scene diff <old> <new>\n"
-            << "  demi asset inspect <asset>\n"
-            << "  demi asset deps <asset>\n"
-            << "  demi save inspect <save>\n"
-            << "  demi script check <script>\n"
-            << "  demi lua-stubs generate [path]\n"
-            << "  demi test\n"
-            << "  demi run --project <project> [--frames count|--max-frames count]\n"
-            << "  demi run linux [--project <project>] [--frames count|--max-frames count]\n"
-            << "  demi serve --project <project>\n"
-            << "  demi build apk [--project <project>] [--gradle gradle]\n"
-            << "  demi build linux [--project <project>] [--output path]\n"
-            << "  demi build linux_server [--project <project>] [--output path]\n"
-            << "  demi editor --project <project>\n";
+  std::cout
+      << "DemiEngine CLI\n"
+      << "Usage:\n"
+      << "  demi --help\n"
+      << "  demi version\n"
+      << "  demi validate [path] [--format text|json]\n"
+      << "  demi schema export\n"
+      << "  demi scene list <project>\n"
+      << "  demi scene inspect <scene>\n"
+      << "  demi scene diff <old> <new>\n"
+      << "  demi asset inspect <asset>\n"
+      << "  demi asset deps <asset>\n"
+      << "  demi save inspect <save>\n"
+      << "  demi script check <script>\n"
+      << "  demi lua-stubs generate [path]\n"
+      << "  demi test\n"
+      << "  demi run --project <project> [--frames count|--max-frames count]\n"
+      << "  demi run linux [--project <project>] [--frames count|--max-frames "
+         "count]\n"
+      << "  demi serve --project <project>\n"
+      << "  demi build apk [--project <project>] [--gradle gradle]\n"
+      << "  demi build linux [--project <project>] [--output path]\n"
+      << "  demi build linux_server [--project <project>] [--output path]\n"
+      << "  demi editor --project <project>\n";
 }
 
-bool hasArg(const std::vector<std::string>& args, const std::string& needle) {
-  for (const std::string& arg : args) {
+bool hasArg(const std::vector<std::string> &args, const std::string &needle) {
+  for (const std::string &arg : args) {
     if (arg == needle) {
       return true;
     }
@@ -62,7 +65,8 @@ bool hasArg(const std::vector<std::string>& args, const std::string& needle) {
   return false;
 }
 
-std::string valueAfter(const std::vector<std::string>& args, const std::string& key) {
+std::string valueAfter(const std::vector<std::string> &args,
+                       const std::string &key) {
   for (std::size_t i = 0; i + 1 < args.size(); ++i) {
     if (args[i] == key) {
       return args[i + 1];
@@ -71,7 +75,7 @@ std::string valueAfter(const std::vector<std::string>& args, const std::string& 
   return {};
 }
 
-int runValidate(const std::vector<std::string>& args) {
+int runValidate(const std::vector<std::string> &args) {
   std::filesystem::path target = ".";
   std::string format = "text";
 
@@ -94,10 +98,12 @@ int runValidate(const std::vector<std::string>& args) {
     demi::printDiagnosticsText(std::cout, summary.diagnostics);
   }
 
-  return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure : ExitSuccess;
+  return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure
+                                              : ExitSuccess;
 }
 
-int numericValueAfter(const std::vector<std::string>& args, const std::string& key) {
+int numericValueAfter(const std::vector<std::string> &args,
+                      const std::string &key) {
   const std::string value = valueAfter(args, key);
   if (value.empty()) {
     return 0;
@@ -109,35 +115,37 @@ int numericValueAfter(const std::vector<std::string>& args, const std::string& k
   }
 }
 
-int frameLimitFrom(const std::vector<std::string>& args) {
+int frameLimitFrom(const std::vector<std::string> &args) {
   const int maxFrames = numericValueAfter(args, "--max-frames");
   return maxFrames > 0 ? maxFrames : numericValueAfter(args, "--frames");
 }
 
-int runProjectCommand(const std::vector<std::string>& args, const bool serve = false) {
+int runProjectCommand(const std::vector<std::string> &args,
+                      const bool serve = false) {
   const std::filesystem::path project = demi::cli::projectFileFromArgs(args);
   if (project.empty()) {
-    std::cerr << "run requires --project <project> or a demi.project.json in the current directory.\n";
+    std::cerr << "run requires --project <project> or a demi.project.json in "
+                 "the current directory.\n";
     return ExitUsageError;
   }
   return demi::runtime::runProject(demi::runtime::RuntimeOptions{
-    .projectPath = project,
-    .maxFrames = frameLimitFrom(args),
-    .serve = serve,
+      .projectPath = project,
+      .maxFrames = frameLimitFrom(args),
+      .serve = serve,
   });
 }
 
-int runScene(const std::vector<std::string>& args) {
+int runScene(const std::vector<std::string> &args) {
   if (args.size() < 3) {
     std::cerr << "scene requires a subcommand.\n";
     return ExitUsageError;
   }
 
-  const std::string& subcommand = args[1];
+  const std::string &subcommand = args[1];
   if (subcommand == "list") {
     const std::filesystem::path project = args[2];
     const auto references = demi::extractSceneReferences(project);
-    for (const std::string& reference : references) {
+    for (const std::string &reference : references) {
       std::cout << reference << '\n';
     }
     return references.empty() ? ExitValidationFailure : ExitSuccess;
@@ -150,7 +158,8 @@ int runScene(const std::vector<std::string>& args) {
     if (!demi::hasErrors(summary.diagnostics)) {
       std::cout << "Scene inspection complete: " << scene.string() << '\n';
     }
-    return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure : ExitSuccess;
+    return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure
+                                                : ExitSuccess;
   }
 
   if (subcommand == "diff") {
@@ -158,7 +167,8 @@ int runScene(const std::vector<std::string>& args) {
       std::cerr << "scene diff requires <old> and <new>.\n";
       return ExitUsageError;
     }
-    std::cout << "Scene diff placeholder: " << args[2] << " -> " << args[3] << '\n';
+    std::cout << "Scene diff placeholder: " << args[2] << " -> " << args[3]
+              << '\n';
     return ExitSuccess;
   }
 
@@ -166,7 +176,7 @@ int runScene(const std::vector<std::string>& args) {
   return ExitUsageError;
 }
 
-int runSave(const std::vector<std::string>& args) {
+int runSave(const std::vector<std::string> &args) {
   if (args.size() < 3 || args[1] != "inspect") {
     std::cerr << "save requires: demi save inspect <save>.\n";
     return ExitUsageError;
@@ -178,10 +188,11 @@ int runSave(const std::vector<std::string>& args) {
   if (!demi::hasErrors(summary.diagnostics)) {
     std::cout << "Save inspection complete: " << save.string() << '\n';
   }
-  return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure : ExitSuccess;
+  return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure
+                                              : ExitSuccess;
 }
 
-int runAsset(const std::vector<std::string>& args) {
+int runAsset(const std::vector<std::string> &args) {
   if (args.size() < 3) {
     std::cerr << "asset requires a subcommand and asset manifest path.\n";
     return ExitUsageError;
@@ -189,7 +200,8 @@ int runAsset(const std::vector<std::string>& args) {
 
   const std::filesystem::path manifestPath = args[2];
   demi::Diagnostic diagnostic;
-  const std::optional<demi::AssetManifest> manifest = demi::loadAssetManifest(manifestPath, &diagnostic);
+  const std::optional<demi::AssetManifest> manifest =
+      demi::loadAssetManifest(manifestPath, &diagnostic);
   if (!manifest.has_value()) {
     demi::printDiagnosticsText(std::cerr, demi::Diagnostics{diagnostic});
     return ExitValidationFailure;
@@ -199,8 +211,13 @@ int runAsset(const std::vector<std::string>& args) {
     std::cout << "id: " << manifest->id << '\n';
     std::cout << "type: " << manifest->type << '\n';
     std::cout << "source: " << manifest->sourcePath.string() << '\n';
-    std::cout << "source_exists: " << (std::filesystem::exists(manifest->sourcePath) ? "true" : "false") << '\n';
-    return std::filesystem::exists(manifest->sourcePath) ? ExitSuccess : ExitValidationFailure;
+    std::cout << "source_exists: "
+              << (std::filesystem::exists(manifest->sourcePath) ? "true"
+                                                                : "false")
+              << '\n';
+    return std::filesystem::exists(manifest->sourcePath)
+               ? ExitSuccess
+               : ExitValidationFailure;
   }
 
   if (args[1] == "deps") {
@@ -212,34 +229,39 @@ int runAsset(const std::vector<std::string>& args) {
   return ExitUsageError;
 }
 
-int runScript(const std::vector<std::string>& args) {
+int runScript(const std::vector<std::string> &args) {
   if (args.size() < 3 || args[1] != "check") {
     std::cerr << "script requires: demi script check <script>.\n";
     return ExitUsageError;
   }
 
-  const demi::Diagnostics diagnostics = demi::runtime::LuaScriptHost::checkScriptSyntax(args[2]);
+  const demi::Diagnostics diagnostics =
+      demi::runtime::LuaScriptHost::checkScriptSyntax(args[2]);
   demi::printDiagnosticsText(std::cout, diagnostics);
   return demi::hasErrors(diagnostics) ? ExitValidationFailure : ExitSuccess;
 }
 
-int runLuaStubs(const std::vector<std::string>& args) {
+int runLuaStubs(const std::vector<std::string> &args) {
   if (args.size() < 2 || args[1] != "generate") {
     std::cerr << "lua-stubs requires: demi lua-stubs generate [path].\n";
     return ExitUsageError;
   }
 
-  const std::filesystem::path outputPath = args.size() >= 3 ? std::filesystem::path(args[2]) : std::filesystem::path("scripts/stubs/demi.lua");
+  const std::filesystem::path outputPath =
+      args.size() >= 3 ? std::filesystem::path(args[2])
+                       : std::filesystem::path("scripts/stubs/demi.lua");
   std::error_code error;
   if (!outputPath.parent_path().empty()) {
     std::filesystem::create_directories(outputPath.parent_path(), error);
   }
   if (error) {
-    std::cerr << "Failed to create stub directory: " << outputPath.parent_path().string() << '\n';
+    std::cerr << "Failed to create stub directory: "
+              << outputPath.parent_path().string() << '\n';
     return ExitValidationFailure;
   }
 
-  const std::filesystem::path sourcePath = sourceRoot() / "scripts" / "stubs" / "demi.lua";
+  const std::filesystem::path sourcePath =
+      sourceRoot() / "scripts" / "stubs" / "demi.lua";
   std::ifstream input(sourcePath);
   if (!input) {
     std::cerr << "Failed to read Lua stubs: " << sourcePath.string() << '\n';
@@ -259,7 +281,7 @@ int runLuaStubs(const std::vector<std::string>& args) {
 
 } // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   std::vector<std::string> args;
   for (int i = 1; i < argc; ++i) {
     args.emplace_back(argv[i]);
@@ -280,10 +302,17 @@ int main(int argc, char** argv) {
   }
 
   if (args[0] == "schema" && args.size() >= 2 && args[1] == "export") {
-    std::cout << "schemas/project.schema.json\n"
-              << "schemas/scene.schema.json\n"
-              << "schemas/asset.schema.json\n"
-              << "schemas/save.schema.json\n";
+    const std::filesystem::path outputPath =
+        args.size() >= 3 ? std::filesystem::path(args[2])
+                         : sourceRoot() / "schemas" / "components.schema.json";
+    std::ofstream output(outputPath);
+    if (!output) {
+      std::cerr << "Failed to write component schema: " << outputPath << '\n';
+      return ExitValidationFailure;
+    }
+    output << demi::runtime::scene_loading::canonicalComponentSchema().dump(2)
+           << '\n';
+    std::cout << "Wrote component schema: " << outputPath << '\n';
     return ExitSuccess;
   }
 
@@ -310,7 +339,8 @@ int main(int argc, char** argv) {
   if (args[0] == "test") {
     const demi::ValidationSummary summary = demi::validatePath("examples");
     demi::printDiagnosticsText(std::cout, summary.diagnostics);
-    return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure : ExitSuccess;
+    return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure
+                                                : ExitSuccess;
   }
 
   if (args[0] == "build") {

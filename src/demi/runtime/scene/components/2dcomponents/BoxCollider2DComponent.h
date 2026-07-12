@@ -11,6 +11,13 @@ struct BoxCollider2DComponent {
   static constexpr std::string_view typeName = "BoxCollider2D";
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::TwoDimensional;
+  static constexpr std::array fields{
+      ComponentFieldDescriptor{"size", ComponentFieldType::Vec2},
+      ComponentFieldDescriptor{"offset", ComponentFieldType::Vec2},
+      ComponentFieldDescriptor{"is_trigger", ComponentFieldType::Boolean},
+      ComponentFieldDescriptor{"layer", ComponentFieldType::String}};
+  static constexpr ComponentEditorMetadata editor{"Physics 2D",
+                                                  "Box Collider 2D"};
   static void parse(const nlohmann::json &json, Entity &entity);
 
   Vec2 size = {1.0F, 1.0F};

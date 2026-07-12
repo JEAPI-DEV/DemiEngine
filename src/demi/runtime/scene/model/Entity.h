@@ -1,6 +1,5 @@
 #pragma once
 
-#include "demi/runtime/scene/Component.h"
 #include "demi/runtime/scene/model/ComponentStorage.h"
 
 #include <memory>
@@ -9,6 +8,8 @@
 #include <vector>
 
 namespace demi::runtime {
+
+class Component;
 
 struct Entity {
   std::string id;

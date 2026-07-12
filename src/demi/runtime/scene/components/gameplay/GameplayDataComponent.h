@@ -1,17 +1,22 @@
 #pragma once
+
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+
 #include <string>
+
 namespace demi::runtime {
-struct LuaScriptComponent {
-  static constexpr std::string_view typeName = "LuaScript";
+
+struct GameplayDataComponent {
+  static constexpr std::string_view typeName = "GameplayData";
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::Generic;
   static constexpr std::array fields{
-      ComponentFieldDescriptor{"module", ComponentFieldType::String, true},
-      ComponentFieldDescriptor{"properties", ComponentFieldType::Object}};
-  static constexpr ComponentEditorMetadata editor{"Scripting", "Lua Script"};
+      ComponentFieldDescriptor{"values", ComponentFieldType::Object, true}};
+  static constexpr ComponentEditorMetadata editor{"Gameplay", "Gameplay Data"};
+
   static void parse(const nlohmann::json &json, Entity &entity);
-  std::string module;
-  std::string propertiesJson;
+
+  std::string valuesJson = "{}";
 };
+
 } // namespace demi::runtime

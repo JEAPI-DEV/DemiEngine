@@ -13,6 +13,17 @@ struct MeshRendererComponent {
   static constexpr std::string_view typeName = "MeshRenderer";
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
+  static constexpr std::array fields{
+      ComponentFieldDescriptor{"model", ComponentFieldType::String},
+      ComponentFieldDescriptor{"shape", ComponentFieldType::String},
+      ComponentFieldDescriptor{"size", ComponentFieldType::Vec3},
+      ComponentFieldDescriptor{"color", ComponentFieldType::Color},
+      ComponentFieldDescriptor{"texture", ComponentFieldType::String},
+      ComponentFieldDescriptor{"vertices", ComponentFieldType::Vec3Array},
+      ComponentFieldDescriptor{"normals", ComponentFieldType::Vec3Array},
+      ComponentFieldDescriptor{"uvs", ComponentFieldType::Vec2Array},
+      ComponentFieldDescriptor{"wireframe", ComponentFieldType::Boolean}};
+  static constexpr ComponentEditorMetadata editor{"3D", "Mesh Renderer"};
   static void parse(const nlohmann::json &json, Entity &entity);
 
   std::string model;

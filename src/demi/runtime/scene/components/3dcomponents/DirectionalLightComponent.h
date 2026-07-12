@@ -9,6 +9,12 @@ struct DirectionalLightComponent {
   static constexpr std::string_view typeName = "DirectionalLight";
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
+  static constexpr std::array fields{
+      ComponentFieldDescriptor{"direction", ComponentFieldType::Vec3},
+      ComponentFieldDescriptor{"color", ComponentFieldType::Color},
+      ComponentFieldDescriptor{"intensity", ComponentFieldType::Number}};
+  static constexpr ComponentEditorMetadata editor{"Lighting",
+                                                  "Directional Light"};
   static void parse(const nlohmann::json &json, Entity &entity);
 
   Vec3 direction = {-0.4F, -1.0F, -0.3F};

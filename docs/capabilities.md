@@ -20,7 +20,7 @@ Status meanings:
 | Video/cutscenes | Experimental | FFmpeg-backed playback when enabled |
 | Networking | Experimental | Optional ENet, TLS/DTLS, Lua session helpers |
 | Android | Experimental | Minimal client/server-oriented build support |
-| Component metadata as sole source | Planned | Registry exists; validation/schema/serialization convergence remains |
+| Component metadata as sole source | Stable | Generated registry drives parsing, validation, schema export, Lua policy, and editor placeholders |
 | Prefabs | Planned | Versioned files, nesting, overrides, CLI expansion |
 | Tree/layout runtime UI | Planned | Layout containers, controls, focus, themes, localization |
 | Tilemaps and sprite animation system | Planned | Milestone 4 |
