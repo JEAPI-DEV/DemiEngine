@@ -37,3 +37,10 @@ Lua changes state without controlling layout:
 
 Control actions continue through `---@handle_action` and the `hud_action`
 event. No Lua code is required to position or resize widgets.
+
+For searchable lists, `Hud.get_text` returns a tree text-input's current value.
+`Regex.matches(value, pattern, case_sensitive)` performs an ECMAScript regular
+expression search (`case_sensitive` defaults to `false`), and
+`Regex.is_valid(pattern)` lets scripts handle incomplete expressions while the
+user is typing. The showcase filters inventory item visibility only when the
+search pattern changes.

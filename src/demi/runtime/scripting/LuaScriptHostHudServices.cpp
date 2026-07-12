@@ -237,6 +237,9 @@ bool LuaScriptHost::setHudGroupVisible(const std::string &group, bool visible) {
 std::optional<std::string> LuaScriptHost::hudText(const std::string &id) const {
   if (world_ == nullptr)
     return std::nullopt;
+  if (const ui::UiNode *node =
+          ui::UiStateController{}.find(world_->ui, id))
+    return node->text;
   for (const HudTextElement &element : world_->hudText)
     if (element.id == id)
       return element.text;

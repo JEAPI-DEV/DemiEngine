@@ -81,7 +81,7 @@
                 "children": [
                   {"id": "slot_1", "type": "button", "style": "control", "text": "Potion", "action": "use_potion", "size": [72, 72]},
                   {"id": "slot_2", "type": "button", "style": "control", "text": "Key", "action": "use_key", "size": [72, 72]},
-                  {"id": "slot_image", "type": "image", "texture": "", "visible": false, "size": [72, 72]}
+                  {"id": "slot_3", "type": "button", "style": "control", "text": "Sword", "action": "use_sword", "size": [72, 72]}
                 ]}
             ]
           }

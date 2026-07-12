@@ -10,6 +10,7 @@
   ],
   "scripting": {
     "language": "lua54",
+    "entry": "script://scripts/ui_showcase.lua",
     "modules": []
   }
 }

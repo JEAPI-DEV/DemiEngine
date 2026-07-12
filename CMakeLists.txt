@@ -264,6 +264,8 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/media/LuaCutsceneBindings.cpp
   src/demi/runtime/scripting/bindings/media/LuaVideoBindings.cpp
   src/demi/runtime/scripting/bindings/persistence/LuaSaveBindings.cpp
+  src/demi/runtime/scripting/bindings/text/LuaRegexBindings.cpp
+  src/demi/runtime/scripting/text/RegexMatcher.cpp
   src/demi/runtime/scripting/bindings/LuaJsonBridge.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkBindings.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkSessionBindings.cpp
@@ -397,6 +399,8 @@ else()
   target_link_libraries(demi-prefab-tests PRIVATE demi-core)
   add_executable(demi-ui-tests tests/ui_tests.cpp)
   target_link_libraries(demi-ui-tests PRIVATE demi-core)
+  add_executable(demi-regex-matcher-tests tests/regex_matcher_tests.cpp)
+  target_link_libraries(demi-regex-matcher-tests PRIVATE demi-runtime-lib)
 
   add_executable(demi-snapshot-replication-tests tests/snapshot_replication_tests.cpp)
   target_link_libraries(demi-snapshot-replication-tests PRIVATE demi-runtime-lib)
@@ -422,6 +426,7 @@ add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
 add_test(NAME demi-scene-loader-tests COMMAND demi-scene-loader-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-prefab-tests COMMAND demi-prefab-tests)
 add_test(NAME demi-ui-tests COMMAND demi-ui-tests)
+add_test(NAME demi-regex-matcher-tests COMMAND demi-regex-matcher-tests)
 add_test(NAME demi-prefab-inspect-cli
   COMMAND demi prefab inspect ${CMAKE_SOURCE_DIR}/examples/minimal_3d/prefabs/player.prefab.json)
 add_test(NAME demi-scene-expand-cli

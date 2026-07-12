@@ -14,6 +14,7 @@
 #include "demi/runtime/scripting/bindings/media/LuaCutsceneBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaVideoBindings.h"
 #include "demi/runtime/scripting/bindings/persistence/LuaSaveBindings.h"
+#include "demi/runtime/scripting/bindings/text/LuaRegexBindings.h"
 
 #include <sol/sol.hpp>
 
@@ -50,10 +51,11 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaNetworkBindingModule network;
   const LuaNetworkSessionBindingModule networkSession;
   const LuaTlsBindingModule tls;
+  const LuaRegexBindingModule regex;
   const LuaBindingModule *modules[] = {
       &core,      &entity,  &transform2D,    &transform3D, &rigidbody2D,
       &physics2D, &hud,     &save,           &audio,       &video,
-      &cutscene,  &network, &networkSession, &tls};
+      &cutscene,  &network, &networkSession, &tls,         &regex};
   for (const LuaBindingModule *module : modules) {
     module->install(host, state);
   }
