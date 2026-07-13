@@ -1,4 +1,6 @@
 #include "demi/runtime/render/Renderer2D.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/render/ProfilerHudRenderer.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/tilemap/TilemapAsset.h"
 
@@ -881,6 +883,25 @@ void Renderer2D::beginFrame(const Camera2DComponent &camera,
 }
 
 void Renderer2D::drawWorld(const World &world) {
+  if (world.debug.grid) {
+    const float ppu = pixelsPerUnit(camera_, height_);
+    const int halfColumns = static_cast<int>(width_ / ppu * 0.5F) + 2;
+    const int halfRows = static_cast<int>(height_ / ppu * 0.5F) + 2;
+    const int centerX = static_cast<int>(std::floor(cameraPosition_.x));
+    const int centerY = static_cast<int>(std::floor(cameraPosition_.y));
+    for (int x = centerX - halfColumns; x <= centerX + halfColumns; ++x) {
+      const float screenX = worldToScreenX(camera_, cameraPosition_, width_,
+                                           height_, static_cast<float>(x));
+      DrawLine(static_cast<int>(screenX), 0, static_cast<int>(screenX), height_,
+               {70, 90, 110, 90});
+    }
+    for (int y = centerY - halfRows; y <= centerY + halfRows; ++y) {
+      const float screenY = worldToScreenY(camera_, cameraPosition_, width_,
+                                           height_, static_cast<float>(y));
+      DrawLine(0, static_cast<int>(screenY), width_, static_cast<int>(screenY),
+               {70, 90, 110, 90});
+    }
+  }
   Vec2 isoGridSize{.x = 32.0F, .y = 32.0F};
   for (const Entity &entity : world.entities) {
     if (entity.hasComponent<IsoGridComponent>()) {
@@ -948,6 +969,60 @@ void Renderer2D::drawWorld(const World &world) {
          worldToScreenY(camera_, cameraPosition_, width_, height_, line.end.y)},
         toRlColor(line.color));
   }
+
+  const float ppu = pixelsPerUnit(camera_, height_);
+  int drawIndex = 0;
+  for (const Entity *entity : renderables) {
+    const Vec2 position = worldPosition2D(world, *entity);
+    const float screenX =
+        worldToScreenX(camera_, cameraPosition_, width_, height_, position.x);
+    const float screenY =
+        worldToScreenY(camera_, cameraPosition_, width_, height_, position.y);
+    if (world.debug.colliders) {
+      if (const auto *box = entity->component<BoxCollider2DComponent>()) {
+        const float boxX = screenX + box->offset.x * ppu;
+        const float boxY = screenY - box->offset.y * ppu;
+        DrawRectangleLinesEx({boxX - box->size.x * ppu * 0.5F,
+                              boxY - box->size.y * ppu * 0.5F,
+                              box->size.x * ppu, box->size.y * ppu},
+                             2.0F, {70, 220, 255, 230});
+      }
+      if (const auto *circle = entity->component<CircleCollider2DComponent>()) {
+        DrawCircleLines(static_cast<int>(screenX + circle->offset.x * ppu),
+                        static_cast<int>(screenY - circle->offset.y * ppu),
+                        circle->radius * ppu, {70, 220, 255, 230});
+      }
+    }
+    if (world.debug.entityIds || world.debug.drawOrder) {
+      std::string label;
+      if (world.debug.drawOrder)
+        label = "#" + std::to_string(drawIndex) + " ";
+      if (world.debug.entityIds)
+        label += entity->id;
+      DrawText(label.c_str(), static_cast<int>(screenX + 5.0F),
+               static_cast<int>(screenY - 18.0F), 14, {255, 226, 100, 255});
+    }
+    ++drawIndex;
+  }
+  if (world.debug.contacts) {
+    for (const PhysicsContact2D &contact : world.physicsContacts) {
+      const auto found =
+          std::ranges::find_if(world.entities, [&](const Entity &entity) {
+            return entity.id == contact.entityId;
+          });
+      if (found == world.entities.end())
+        continue;
+      const Vec2 position = worldPosition2D(world, *found);
+      const ::Vector2 start{
+          worldToScreenX(camera_, cameraPosition_, width_, height_, position.x),
+          worldToScreenY(camera_, cameraPosition_, width_, height_,
+                         position.y)};
+      DrawLineV(start,
+                {start.x + contact.normal.x * 28.0F,
+                 start.y - contact.normal.y * 28.0F},
+                {255, 90, 90, 255});
+    }
+  }
 }
 
 void Renderer2D::drawHud(const World &world) {
@@ -989,6 +1064,32 @@ void Renderer2D::drawHud(const World &world) {
     for (const HudTextElement &element : world.hudText)
       if (element.layer == layer)
         drawText(element, scaleX, scaleY);
+  }
+
+  if (world.debug.uiBounds) {
+    const auto drawBounds = [scaleX, scaleY](const auto &elements) {
+      for (const auto &element : elements) {
+        if (!element.visible)
+          continue;
+        DrawRectangleLinesEx({element.position.x * scaleX,
+                              element.position.y * scaleY,
+                              element.size.x * scaleX, element.size.y * scaleY},
+                             1.0F, {255, 80, 210, 230});
+      }
+    };
+    drawBounds(world.hudRects);
+    drawBounds(world.hudPanels);
+    drawBounds(world.hudImages);
+    drawBounds(world.hudButtons);
+    for (const HudCircleElement &circle : world.hudCircles)
+      if (circle.visible)
+        DrawCircleLines(static_cast<int>(circle.center.x * scaleX),
+                        static_cast<int>(circle.center.y * scaleY),
+                        circle.radius * std::min(scaleX, scaleY),
+                        {255, 80, 210, 230});
+  }
+  if (world.debug.profilerHud && RuntimeProfiler::enabled()) {
+    drawProfilerHud(RuntimeProfiler::frameSummary(0.05), width_, height_);
   }
 }
 

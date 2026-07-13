@@ -4,6 +4,7 @@
 #include "demi/runtime/scripting/bindings/LuaEntityBindings.h"
 #include "demi/runtime/scripting/bindings/LuaNetworkBindings.h"
 #include "demi/runtime/scripting/bindings/LuaNetworkSessionBindings.h"
+#include "demi/runtime/scripting/bindings/LuaRandomBindings.h"
 #include "demi/runtime/scripting/bindings/LuaTlsBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaRigidbody2DBindings.h"
@@ -54,11 +55,13 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaNetworkSessionBindingModule networkSession;
   const LuaTlsBindingModule tls;
   const LuaRegexBindingModule regex;
+  const LuaRandomBindingModule random;
   const LuaBindingModule *modules[] = {
       &core,        &entity,         &transform2D, &transform3D,
       &rigidbody2D, &sprite2D,       &physics2D,   &hud,
       &save,        &audio,          &video,       &cutscene,
-      &network,     &networkSession, &tls,         &regex};
+      &network,     &networkSession, &tls,         &regex,
+      &random};
   for (const LuaBindingModule *module : modules) {
     module->install(host, state);
   }

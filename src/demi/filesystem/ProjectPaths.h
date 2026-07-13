@@ -13,6 +13,7 @@ namespace demi {
 [[nodiscard]] bool isSaveFile(const std::filesystem::path &path);
 [[nodiscard]] bool isAssetFile(const std::filesystem::path &path);
 [[nodiscard]] bool isPrefabFile(const std::filesystem::path &path);
+[[nodiscard]] bool isInputReplayFile(const std::filesystem::path &path);
 [[nodiscard]] std::vector<std::filesystem::path>
 collectKnownSourceFiles(const std::filesystem::path &root);
 

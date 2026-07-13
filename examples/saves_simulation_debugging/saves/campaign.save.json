@@ -1,0 +1,31 @@
+{
+  "format_version": 2,
+  "metadata": {
+    "autosave": true,
+    "reason": "manual_checkpoint",
+    "sequence": 2
+  },
+  "slot": "campaign",
+  "state": {
+    "game": {
+      "random_state": "2026",
+      "score": 4448.0
+    },
+    "lua": {
+      "save_probe": {
+        "position": [
+          -2.2006845474243164,
+          -1.2450002431869507
+        ],
+        "roll": 37.0
+      }
+    },
+    "prefab_instances": {
+      "player": "prefab://debug/player"
+    },
+    "selected_entities": {
+      "player": "ent_player"
+    }
+  },
+  "state_model": "game_state_v1"
+}

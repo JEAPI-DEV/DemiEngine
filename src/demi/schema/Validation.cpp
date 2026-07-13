@@ -225,6 +225,9 @@ void validateSceneComponents(Diagnostics &diagnostics,
 } // namespace
 
 SourceFileKind classifySourceFile(const std::filesystem::path &path) {
+  if (isInputReplayFile(path)) {
+    return SourceFileKind::InputReplay;
+  }
   if (isPrefabFile(path)) {
     return SourceFileKind::Prefab;
   }
@@ -367,6 +370,51 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
     requireToken(diagnostics, text, path, "\"state\"", "SAVE_MISSING_STATE",
                  "Save file is missing state.",
                  "Add a state object for game-specific data.");
+    try {
+      const nlohmann::json document = nlohmann::json::parse(text);
+      if (document.value("state_model", std::string{}) == "game_state_v1") {
+        const int version = document.value("format_version", 0);
+        if (version < 1 || version > 2) {
+          diagnostics.push_back(Diagnostic{
+              .severity = Severity::Error,
+              .code = "SAVE_INCOMPATIBLE_FORMAT",
+              .message = "Structured save format_version " +
+                         std::to_string(version) +
+                         " is incompatible with this runtime (supported: 1-2).",
+              .path = path.string(),
+              .suggestion =
+                  "Register and run a save migration before loading it."});
+        }
+        if (!document.contains("metadata") ||
+            !document["metadata"].is_object()) {
+          diagnostics.push_back(Diagnostic{
+              .severity = Severity::Error,
+              .code = "SAVE_MISSING_METADATA",
+              .message = "Structured save is missing autosave metadata.",
+              .path = path.string(),
+              .suggestion =
+                  "Add metadata with autosave, sequence, and reason."});
+        }
+        if (document.contains("state") && document["state"].is_object()) {
+          for (const char *section :
+               {"game", "selected_entities", "prefab_instances", "lua"}) {
+            if (!document["state"].contains(section) ||
+                !document["state"][section].is_object()) {
+              diagnostics.push_back(Diagnostic{
+                  .severity = Severity::Error,
+                  .code = "SAVE_MISSING_STATE_SECTION",
+                  .message = std::string(
+                                 "Structured save is missing state section: ") +
+                             section,
+                  .path = path.string(),
+                  .suggestion = "Write saves through Save.write_state."});
+            }
+          }
+        }
+      }
+    } catch (const nlohmann::json::parse_error &) {
+      // The common JSON diagnostics already report malformed documents.
+    }
     break;
   case SourceFileKind::Asset:
     requireToken(diagnostics, text, path, "\"id\"", "ASSET_MISSING_ID",
@@ -436,6 +484,15 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
     validateSceneComponents(diagnostics, path, text);
     break;
   }
+  case SourceFileKind::InputReplay:
+    requireToken(diagnostics, text, path, "\"fixed_timestep\"",
+                 "REPLAY_MISSING_FIXED_TIMESTEP",
+                 "Input replay is missing fixed_timestep.",
+                 "Add the project simulation fixed timestep.");
+    requireToken(diagnostics, text, path, "\"frames\"", "REPLAY_MISSING_FRAMES",
+                 "Input replay is missing frames.",
+                 "Add a deterministic frames array.");
+    break;
   case SourceFileKind::Unknown:
     break;
   }

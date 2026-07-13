@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "fixed_timestep": 0.016666667,
+  "frames": [
+    {},
+    { "keys_down": ["d"], "keys_pressed": ["d"] },
+    { "keys_down": ["d"] },
+    { "keys_down": ["r"], "keys_pressed": ["r"] },
+    {}
+  ]
+}

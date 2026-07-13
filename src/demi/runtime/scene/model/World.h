@@ -1,5 +1,6 @@
 #pragma once
 
+#include "demi/runtime/debug/DebugOverlayConfig.h"
 #include "demi/runtime/scene/model/Entity.h"
 #include "demi/runtime/scene/model/HudData.h"
 #include "demi/runtime/ui/UiModel.h"
@@ -45,6 +46,7 @@ struct World {
   std::vector<AnimationEvent2D> animationEvents;
   std::unordered_map<std::string, std::uint16_t> physicsCategoryBits;
   std::unordered_map<std::string, std::uint16_t> physicsMaskBits;
+  DebugOverlayConfig debug;
 };
 
 } // namespace demi::runtime

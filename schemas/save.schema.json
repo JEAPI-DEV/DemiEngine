@@ -18,8 +18,44 @@
     "project": {
       "type": "string"
     },
+    "state_model": {
+      "type": "string",
+      "enum": ["game_state_v1"]
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["autosave", "sequence", "reason"],
+      "additionalProperties": true,
+      "properties": {
+        "autosave": { "type": "boolean" },
+        "sequence": { "type": "integer", "minimum": 0 },
+        "reason": { "type": "string" }
+      }
+    },
     "state": {
       "type": "object"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "state_model": { "const": "game_state_v1" } },
+        "required": ["state_model"]
+      },
+      "then": {
+        "required": ["metadata"],
+        "properties": {
+          "state": {
+            "required": ["game", "selected_entities", "prefab_instances", "lua"],
+            "properties": {
+              "game": { "type": "object" },
+              "selected_entities": { "type": "object" },
+              "prefab_instances": { "type": "object" },
+              "lua": { "type": "object" }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

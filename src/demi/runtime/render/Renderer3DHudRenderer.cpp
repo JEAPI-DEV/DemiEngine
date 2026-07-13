@@ -1,4 +1,5 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/render/ProfilerHudRenderer.h"
 #include "demi/runtime/render/Renderer3DInternal.h"
 
 #include <algorithm>
@@ -111,6 +112,9 @@ void Renderer3D::drawHud(const World &world) {
                        rect.y + rect.height * 0.5F - measured.y * 0.5F},
                fontSize, HudLetterSpacing,
                renderer3d_detail::toRlColor(element.textColor));
+  }
+  if (world.debug.profilerHud && RuntimeProfiler::enabled()) {
+    drawProfilerHud(RuntimeProfiler::frameSummary(0.05), width_, height_);
   }
 }
 } // namespace demi::runtime

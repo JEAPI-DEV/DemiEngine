@@ -50,6 +50,10 @@ void printHelp() {
       << "  demi lua-stubs generate [path]\n"
       << "  demi test\n"
       << "  demi run --project <project> [--frames count|--max-frames count]\n"
+      << "           [--input-replay <fixture.replay.json>]\n"
+      << "           [--profile-report <report.csv>]\n"
+      << "           [--debug-overlays <colliders,contacts,grid,entity_ids,"
+         "draw_order,ui_bounds,profiler>]\n"
       << "  demi run linux [--project <project>] [--frames count|--max-frames "
          "count]\n"
       << "  demi serve --project <project>\n"
@@ -135,6 +139,9 @@ int runProjectCommand(const std::vector<std::string> &args,
       .projectPath = project,
       .maxFrames = frameLimitFrom(args),
       .serve = serve,
+      .inputReplayPath = valueAfter(args, "--input-replay"),
+      .profileReportPath = valueAfter(args, "--profile-report"),
+      .debugOverlays = valueAfter(args, "--debug-overlays"),
   });
 }
 

@@ -175,5 +175,30 @@ int main() {
     return 1;
   }
 
+  World landingWorld;
+  Entity fallingCircle;
+  fallingCircle.id = "falling_circle";
+  fallingCircle.setComponent(
+      Transform2DComponent{.position = {.x = 0.0F, .y = 2.0F}});
+  fallingCircle.setComponent(Rigidbody2DComponent{
+      .bodyType = "dynamic", .gravityScale = 1.0F, .bounciness = 0.0F});
+  fallingCircle.setComponent(CircleCollider2DComponent{.radius = 0.5F});
+  landingWorld.entities.push_back(std::move(fallingCircle));
+  Entity landingPlatform;
+  landingPlatform.id = "landing_platform";
+  landingPlatform.setComponent(Transform2DComponent{});
+  landingPlatform.setComponent(BoxCollider2DComponent{.size = {8.0F, 0.5F}});
+  landingWorld.entities.push_back(std::move(landingPlatform));
+  for (int step = 0; step < 120; ++step)
+    stepPhysics2D(landingWorld, 1.0F / 60.0F);
+  const Entity *landed = findEntity(landingWorld, "falling_circle");
+  const float landedY = landed->component<Transform2DComponent>()->position.y;
+  if (std::abs(landedY - 0.75F) > 0.06F ||
+      std::abs(landed->component<Rigidbody2DComponent>()->velocity.y) > 0.05F) {
+    std::cerr << "Dynamic circle did not settle on the platform: y=" << landedY
+              << '\n';
+    return 1;
+  }
+
   return 0;
 }

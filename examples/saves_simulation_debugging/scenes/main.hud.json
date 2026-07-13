@@ -1,0 +1,28 @@
+{
+  "format_version": 1,
+  "canvas_size": [960.0, 540.0],
+  "elements": [
+    {
+      "type": "panel",
+      "id": "status_panel",
+      "position": [24.0, 24.0],
+      "size": [390.0, 92.0],
+      "color": [0.05, 0.08, 0.14, 0.9]
+    },
+    {
+      "type": "text",
+      "id": "save_status",
+      "text": "Loading structured save...",
+      "position": [44.0, 44.0],
+      "scale": 3.0
+    },
+    {
+      "type": "text",
+      "id": "help",
+      "text": "A/D move | R deterministic roll | S autosave",
+      "position": [44.0, 78.0],
+      "scale": 2.0,
+      "color": [0.55, 0.75, 0.85, 1.0]
+    }
+  ]
+}

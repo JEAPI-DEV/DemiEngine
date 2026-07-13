@@ -5,6 +5,7 @@
 #include "demi/runtime/animation/SpriteAnimationSystem.h"
 #include "demi/runtime/audio/AudioSystem.h"
 #include "demi/runtime/camera/Camera2DSystem.h"
+#include "demi/runtime/input/replay/InputReplay.h"
 #include "demi/runtime/media/MediaSystem.h"
 #include "demi/runtime/network/NetworkSystem.h"
 #include "demi/runtime/physics/Physics2D.h"
@@ -19,6 +20,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <optional>
@@ -350,6 +352,41 @@ void printProfile(const RuntimeProfile &profile) {
             << '\n';
 }
 
+void writeProfileReport(const std::filesystem::path &path) {
+  if (path.empty())
+    return;
+  std::ofstream output(path);
+  if (!output) {
+    std::cerr << "Profile report write failed: " << path << '\n';
+    return;
+  }
+  output << RuntimeProfiler::sessionReport();
+  std::cout << "Profile report written to " << path << '\n';
+}
+
+void applyDebugOverlayFlags(DebugOverlayConfig &config,
+                            const std::string &flags) {
+  if (flags.empty())
+    return;
+  config = {};
+  std::size_t start = 0;
+  while (start <= flags.size()) {
+    const std::size_t end = flags.find(',', start);
+    const std::string flag = flags.substr(start, end - start);
+    const bool all = flag == "all";
+    config.colliders |= all || flag == "colliders";
+    config.contacts |= all || flag == "contacts";
+    config.grid |= all || flag == "grid" || flag == "navigation";
+    config.entityIds |= all || flag == "entity_ids";
+    config.drawOrder |= all || flag == "draw_order";
+    config.uiBounds |= all || flag == "ui_bounds";
+    config.profilerHud |= all || flag == "profiler";
+    if (end == std::string::npos)
+      break;
+    start = end + 1;
+  }
+}
+
 void logSlowProfileFrame(const int frame, const double updateMs,
                          const double renderMs, const double frameMs,
                          const double thresholdMs) {
@@ -371,6 +408,9 @@ void logSlowProfileFrame(const int frame, const double updateMs,
 } // namespace
 
 int runProject(const RuntimeOptions &options) {
+  bool profileRun = profilingEnabled() || !options.profileReportPath.empty();
+  RuntimeProfiler::setEnabled(profileRun);
+  RuntimeProfiler::resetSession();
   std::string error;
   const std::optional<LoadedProject> loadedProject =
       loadProject(options.projectPath, error);
@@ -379,17 +419,45 @@ int runProject(const RuntimeOptions &options) {
     return 1;
   }
   LoadedProject loaded = *loadedProject;
+  applyDebugOverlayFlags(loaded.project.debug, options.debugOverlays);
+  loaded.world.debug = loaded.project.debug;
+  if (loaded.project.debug.profilerHud && !profileRun) {
+    profileRun = true;
+    RuntimeProfiler::setEnabled(true);
+  }
 
-  const AssetRegistry assetRegistry =
-      loadAssetRegistry(loaded.project.projectDirectory);
+  AssetRegistry assetRegistry;
+  {
+    ProfileScope scope("Asset.registry_load");
+    assetRegistry = loadAssetRegistry(loaded.project.projectDirectory);
+  }
+  std::optional<input::InputReplay> inputReplay;
+  if (!options.inputReplayPath.empty()) {
+    std::string replayError;
+    inputReplay = input::loadInputReplay(options.inputReplayPath, replayError);
+    if (!inputReplay) {
+      std::cerr << "Input replay load failed: " << replayError << '\n';
+      return 1;
+    }
+    if (std::abs(inputReplay->fixedTimestep -
+                 loaded.project.simulation.fixedTimestep) > 0.000001F) {
+      std::cerr << "Input replay fixed_timestep does not match the project "
+                   "simulation.fixed_timestep.\n";
+      return 1;
+    }
+  }
   generateTilemapColliders(loaded.world, assetRegistry);
   AudioSystem audioSystem;
   if (!isHeadless() && !options.serve && options.maxFrames == 0 &&
       audioSystem.initialize()) {
+    ProfileScope scope("Asset.audio_load");
     audioSystem.loadAudioAssets(assetRegistry);
   }
   MediaSystem mediaSystem;
-  mediaSystem.loadVideoAssets(assetRegistry);
+  {
+    ProfileScope scope("Asset.media_load");
+    mediaSystem.loadVideoAssets(assetRegistry);
+  }
   NetworkSystem networkSystem;
   (void)networkSystem.initialize();
   InputState input;
@@ -399,6 +467,7 @@ int runProject(const RuntimeOptions &options) {
   luaHost.setNetworkSystem(&networkSystem);
   std::string luaError;
   if (luaHost.initialize(loaded.world, input, &audioSystem, luaError)) {
+    luaHost.seedRandom(loaded.project.simulation.randomSeed);
     if (!luaHost.loadWorldScripts(loaded.project, loaded.world, luaError)) {
       std::cerr << "Lua scripts skipped: " << luaError << '\n';
     } else {
@@ -415,17 +484,21 @@ int runProject(const RuntimeOptions &options) {
                "script-defined controls to stop.\n";
 
   double fixedAccumulator = 0.0;
-  constexpr double fixedStep = 1.0 / 60.0;
+  const double fixedStep = loaded.project.simulation.fixedTimestep;
   RuntimeProfile profile;
-  const bool profileRun = profilingEnabled();
-  RuntimeProfiler::setEnabled(profileRun);
   const double slowProfileThresholdMs = profileSlowThresholdMs();
 
   if (isHeadless() || options.serve) {
     int frameCount = 0;
-    const int targetFrames = options.maxFrames > 0 ? options.maxFrames : 1;
+    const int targetFrames =
+        options.maxFrames > 0
+            ? options.maxFrames
+            : (inputReplay ? static_cast<int>(inputReplay->frames.size()) : 1);
     bool running = true;
     while (running && (options.serve || frameCount < targetFrames)) {
+      if (inputReplay &&
+          !inputReplay->apply(static_cast<std::size_t>(frameCount), input))
+        break;
       const auto nextFrame = std::chrono::steady_clock::now() +
                              std::chrono::duration<double>(fixedStep);
       RuntimeProfiler::beginFrame();
@@ -438,6 +511,8 @@ int runProject(const RuntimeOptions &options) {
       if (profileRun) {
         const double updateMs = millisecondsSince(updateStart);
         const double frameMs = millisecondsSince(frameStart);
+        RuntimeProfiler::record("Frame.update", updateMs);
+        RuntimeProfiler::record("Frame.total", frameMs);
         profile.updateMs += updateMs;
         profile.frameMs += frameMs;
         profile.maxUpdateMs = std::max(profile.maxUpdateMs, updateMs);
@@ -456,6 +531,7 @@ int runProject(const RuntimeOptions &options) {
     if (profileRun) {
       printProfile(profile);
     }
+    writeProfileReport(options.profileReportPath);
     luaHost.destroy();
     networkSystem.shutdown();
     mediaSystem.shutdown();
@@ -488,8 +564,10 @@ int runProject(const RuntimeOptions &options) {
   Renderer2D renderer2D;
   Renderer3D renderer3D;
   if (use3D) {
+    ProfileScope scope("Asset.renderer_load");
     renderer3D.loadTextureAssets(assetRegistry);
   } else {
+    ProfileScope scope("Asset.renderer_load");
     renderer2D.loadTextureAssets(assetRegistry);
   }
 
@@ -499,8 +577,13 @@ int runProject(const RuntimeOptions &options) {
   while (running && !WindowShouldClose()) {
     RuntimeProfiler::beginFrame();
     const auto frameStart = std::chrono::steady_clock::now();
-    pollKeys(input);
-    pollMouse(input);
+    if (inputReplay) {
+      if (!inputReplay->apply(static_cast<std::size_t>(frameCount), input))
+        break;
+    } else {
+      pollKeys(input);
+      pollMouse(input);
+    }
 
     const float dt = std::min(GetFrameTime(), 0.1F);
 
@@ -535,27 +618,34 @@ int runProject(const RuntimeOptions &options) {
     luaHost.setViewport(width, height);
 
     const auto renderStart = std::chrono::steady_clock::now();
-    if (use3D) {
-      const Camera3DComponent *camera = activeCamera3D(loaded.world);
-      renderer3D.beginFrame(camera != nullptr ? *camera : fallbackCamera3D,
-                            activeCamera3DPosition(loaded.world),
-                            activeCamera3DRotation(loaded.world), width,
-                            height);
-      renderer3D.drawWorld(loaded.world, dt);
-      renderer3D.drawHud(loaded.world);
-      renderer3D.endFrame();
-    } else {
-      const Camera2DComponent *camera = activeCamera(loaded.world);
-      renderer2D.beginFrame(camera != nullptr ? *camera : fallbackCamera2D,
-                            activeCameraPosition(loaded.world), width, height);
-      renderer2D.drawWorld(loaded.world);
-      renderer2D.drawHud(loaded.world);
-      renderer2D.endFrame();
+    {
+      ProfileScope renderScope("Render.frame");
+      if (use3D) {
+        const Camera3DComponent *camera = activeCamera3D(loaded.world);
+        renderer3D.beginFrame(camera != nullptr ? *camera : fallbackCamera3D,
+                              activeCamera3DPosition(loaded.world),
+                              activeCamera3DRotation(loaded.world), width,
+                              height);
+        renderer3D.drawWorld(loaded.world, dt);
+        renderer3D.drawHud(loaded.world);
+        renderer3D.endFrame();
+      } else {
+        const Camera2DComponent *camera = activeCamera(loaded.world);
+        renderer2D.beginFrame(camera != nullptr ? *camera : fallbackCamera2D,
+                              activeCameraPosition(loaded.world), width,
+                              height);
+        renderer2D.drawWorld(loaded.world);
+        renderer2D.drawHud(loaded.world);
+        renderer2D.endFrame();
+      }
     }
     double renderMs = 0.0;
     if (profileRun) {
       renderMs = millisecondsSince(renderStart);
       const double frameMs = millisecondsSince(frameStart);
+      RuntimeProfiler::record("Frame.update", updateMs);
+      RuntimeProfiler::record("Render.total", renderMs);
+      RuntimeProfiler::record("Frame.total", frameMs);
       profile.renderMs += renderMs;
       profile.frameMs += frameMs;
       profile.maxRenderMs = std::max(profile.maxRenderMs, renderMs);
@@ -592,6 +682,7 @@ int runProject(const RuntimeOptions &options) {
   if (profileRun) {
     printProfile(profile);
   }
+  writeProfileReport(options.profileReportPath);
   return 0;
 #endif
 }

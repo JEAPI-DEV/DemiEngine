@@ -155,6 +155,13 @@ physics queries, and reusable player logic with no engine changes.
 
 ## Milestone 5 — Saves, Simulation, And Debuggability
 
+**Status: complete.** Explicit structured game saves and migration diagnostics,
+configurable fixed-step simulation and deterministic Lua random services,
+session profiler HUD/CLI reports, project/runtime debug overlays, and versioned
+headless input replays are implemented. The focused
+`saves_simulation_debugging` example exercises meaningful save/load state and a
+replay-driven profile probe without coupling those concerns to another sample.
+
 1. Define explicit serializable game state: game-level state, selected entity
 state, prefab instance state, and Lua tables deliberately nominated for saving.
 2. Add save schemas, migration registration, autosave metadata, and clear

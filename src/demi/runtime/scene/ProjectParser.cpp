@@ -26,6 +26,25 @@ parseProjectData(const std::filesystem::path &projectPath, const Json &document,
   project.inputActions = input::parseInputActions(document);
   project.scriptEntry = stringOr(document, "entry");
 
+  if (const Json *simulation = objectField(document, "simulation")) {
+    project.simulation.fixedTimestep = std::clamp(
+        numberField(*simulation, "fixed_timestep").value_or(1.0F / 60.0F),
+        1.0F / 1000.0F, 1.0F);
+    project.simulation.randomSeed = static_cast<std::uint64_t>(
+        std::max(numberField(*simulation, "random_seed").value_or(1.0F), 1.0F));
+  }
+
+  if (const Json *debug = objectField(document, "debug")) {
+    project.debug.colliders = boolField(*debug, "colliders").value_or(false);
+    project.debug.contacts = boolField(*debug, "contacts").value_or(false);
+    project.debug.grid = boolField(*debug, "grid").value_or(false);
+    project.debug.entityIds = boolField(*debug, "entity_ids").value_or(false);
+    project.debug.drawOrder = boolField(*debug, "draw_order").value_or(false);
+    project.debug.uiBounds = boolField(*debug, "ui_bounds").value_or(false);
+    project.debug.profilerHud =
+        boolField(*debug, "profiler_hud").value_or(false);
+  }
+
   if (const Json *physics = objectField(document, "physics")) {
     if (const Json *layers = objectField(*physics, "layers")) {
       for (const auto &[name, targets] : layers->items()) {

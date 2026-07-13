@@ -1,0 +1,44 @@
+{
+  "format_version": 1,
+  "id": "scene://saves_simulation_debugging/main",
+  "name": "Save And Debug Probe",
+  "hud": "main.hud.json",
+  "entities": [
+    {
+      "id": "ent_camera",
+      "name": "Camera",
+      "components": {
+        "Transform2D": { "position": [0.0, 0.0] },
+        "Camera2D": {
+          "clear_color": [0.035, 0.045, 0.07, 1.0],
+          "orthographic_size": 6.0
+        }
+      }
+    },
+    {
+      "id": "ent_player",
+      "name": "Saved Player",
+      "components": {
+        "Transform2D": { "position": [1.5, 0.0] },
+        "Sprite": { "shape": "circle", "color": [0.25, 0.9, 0.75, 1.0] },
+        "Rigidbody2D": {
+          "body_type": "dynamic",
+          "velocity": [0.0, 0.0],
+          "gravity_scale": 1.0,
+          "bounciness": 0.0,
+          "lock_rotation": true
+        },
+        "CircleCollider2D": { "radius": 0.5 },
+        "LuaScript": { "module": "script://scripts/save_probe.lua" }
+      }
+    },
+    {
+      "id": "ent_floor",
+      "name": "Debug Floor",
+      "components": {
+        "Transform2D": { "position": [0.0, -2.0] },
+        "BoxCollider2D": { "size": [8.0, 0.5] }
+      }
+    }
+  ]
+}

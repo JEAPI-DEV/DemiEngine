@@ -1,6 +1,11 @@
 #include "demi/runtime/scripting/bindings/persistence/LuaSaveBindings.h"
 #include "demi/runtime/scripting/bindings/LuaBindingHelpers.h"
+#include "demi/runtime/scripting/bindings/LuaJsonBridge.h"
+#include "demi/runtime/scripting/persistence/GameSaveDocument.h"
+
+#include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
+
 namespace demi::runtime {
 void LuaSaveBindingModule::install(LuaScriptHost &host,
                                    lua_State *state) const {
@@ -32,6 +37,39 @@ void LuaSaveBindingModule::install(LuaScriptHost &host,
                             sol::optional<int> version) {
                       return luaWriteSaveTable(host, slot, table, version);
                     });
+  save.set_function("write_state", [&host](const std::string &slot,
+                                           const sol::table state,
+                                           sol::optional<sol::table> options) {
+    int version = persistence::CurrentGameSaveVersion;
+    bool autosave = false;
+    int sequence = 0;
+    std::string reason;
+    if (options) {
+      version = options->get_or("format_version", version);
+      autosave = options->get_or("autosave", false);
+      sequence = options->get_or("sequence", 0);
+      reason = options->get_or("reason", std::string{});
+    }
+    return host.writeGameSaveDocument(slot, luaObjectToJson(state).dump(),
+                                      version, autosave, sequence, reason);
+  });
+  save.set_function("read_state", [state, &host](const std::string &slot) {
+    if (!host.readGameSaveDocument(slot))
+      return sol::make_object(state, sol::nil);
+    return luaReadSaveTable(state, host, slot);
+  });
+  save.set_function("metadata", [state, &host](const std::string &slot) {
+    const auto text = host.readGameSaveDocument(slot);
+    if (!text)
+      return sol::make_object(state, sol::nil);
+    try {
+      const auto document = nlohmann::json::parse(*text);
+      return jsonToLuaObject(state, document.at("metadata"));
+    } catch (...) {
+      return sol::make_object(state, sol::nil);
+    }
+  });
+  save.set_function("last_error", [&host]() { return host.lastSaveError(); });
   save.set_function("exists", [&host](const std::string &slot) {
     return host.saveExists(slot);
   });

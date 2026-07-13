@@ -52,6 +52,35 @@
         }
       }
     },
+    "simulation": {
+      "type": "object",
+      "properties": {
+        "fixed_timestep": {
+          "type": "number",
+          "minimum": 0.001,
+          "maximum": 1.0,
+          "default": 0.016666667
+        },
+        "random_seed": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        }
+      }
+    },
+    "debug": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "colliders": { "type": "boolean", "default": false },
+        "contacts": { "type": "boolean", "default": false },
+        "grid": { "type": "boolean", "default": false },
+        "entity_ids": { "type": "boolean", "default": false },
+        "draw_order": { "type": "boolean", "default": false },
+        "ui_bounds": { "type": "boolean", "default": false },
+        "profiler_hud": { "type": "boolean", "default": false }
+      }
+    },
     "scenes": {
       "type": "array",
       "items": {

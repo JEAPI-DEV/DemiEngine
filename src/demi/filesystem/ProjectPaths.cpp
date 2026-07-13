@@ -34,6 +34,10 @@ bool isPrefabFile(const std::filesystem::path &path) {
   return path.filename().string().ends_with(".prefab.json");
 }
 
+bool isInputReplayFile(const std::filesystem::path &path) {
+  return path.filename().string().ends_with(".replay.json");
+}
+
 std::vector<std::filesystem::path>
 collectKnownSourceFiles(const std::filesystem::path &root) {
   std::vector<std::filesystem::path> files;
@@ -43,7 +47,8 @@ collectKnownSourceFiles(const std::filesystem::path &root) {
 
   if (std::filesystem::is_regular_file(root)) {
     if (isProjectFile(root) || isSceneFile(root) || isHudFile(root) ||
-        isSaveFile(root) || isAssetFile(root) || isPrefabFile(root)) {
+        isSaveFile(root) || isAssetFile(root) || isPrefabFile(root) ||
+        isInputReplayFile(root)) {
       files.push_back(root);
     }
     return files;
@@ -57,7 +62,8 @@ collectKnownSourceFiles(const std::filesystem::path &root) {
 
     const std::filesystem::path path = entry.path();
     if (isProjectFile(path) || isSceneFile(path) || isHudFile(path) ||
-        isSaveFile(path) || isAssetFile(path) || isPrefabFile(path)) {
+        isSaveFile(path) || isAssetFile(path) || isPrefabFile(path) ||
+        isInputReplayFile(path)) {
       files.push_back(path);
     }
   }

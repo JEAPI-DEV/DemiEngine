@@ -1,0 +1,38 @@
+{
+  "format_version": 1,
+  "name": "Saves Simulation Debugging",
+  "main_scene": "scene://saves_simulation_debugging/main",
+  "scenes": [
+    {
+      "id": "scene://saves_simulation_debugging/main",
+      "path": "scenes/main.scene.json"
+    }
+  ],
+  "simulation": {
+    "fixed_timestep": 0.016666667,
+    "random_seed": 2026
+  },
+  "debug": {
+    "colliders": true,
+    "contacts": true,
+    "grid": true,
+    "entity_ids": true,
+    "draw_order": true,
+    "ui_bounds": true,
+    "profiler_hud": true
+  },
+  "input": {
+    "actions": {
+      "move": [
+        { "input": "a", "scale": -1 },
+        { "input": "d", "scale": 1 }
+      ],
+      "save": ["s"],
+      "randomize": ["r"]
+    }
+  },
+  "scripting": {
+    "language": "lua54",
+    "modules": []
+  }
+}

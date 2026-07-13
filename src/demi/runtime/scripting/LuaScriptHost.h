@@ -4,6 +4,7 @@
 #include "demi/runtime/network/NetworkSystem.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/scene/SceneData.h"
+#include "demi/runtime/simulation/DeterministicRandom.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -53,6 +54,12 @@ public:
   [[nodiscard]] bool isActionDown(const std::string &action) const;
   [[nodiscard]] bool isActionPressed(const std::string &action) const;
   [[nodiscard]] float actionValue(const std::string &action) const;
+  void seedRandom(std::uint64_t seed);
+  [[nodiscard]] std::uint64_t randomState() const;
+  void restoreRandomState(std::uint64_t state);
+  [[nodiscard]] float randomValue();
+  [[nodiscard]] float randomRange(float minimum, float maximum);
+  [[nodiscard]] int randomInteger(int minimum, int maximum);
   [[nodiscard]] std::string textEntered() const;
   [[nodiscard]] bool addEntityPosition(const std::string &entityId, float dx,
                                        float dy);
@@ -174,6 +181,14 @@ public:
                                        const std::string &stateJson,
                                        int formatVersion);
   [[nodiscard]] int saveFormatVersion(const std::string &slot) const;
+  [[nodiscard]] bool writeGameSaveDocument(const std::string &slot,
+                                           const std::string &stateJson,
+                                           int formatVersion, bool autosave,
+                                           int sequence,
+                                           const std::string &reason);
+  [[nodiscard]] std::optional<std::string>
+  readGameSaveDocument(const std::string &slot);
+  [[nodiscard]] const std::string &lastSaveError() const;
   void addSaveMigrationHook(int fromVersion, int toVersion, int callbackRef);
   [[nodiscard]] const std::vector<SaveMigrationHook> &
   saveMigrationHooks() const;
@@ -304,6 +319,7 @@ private:
   const ProjectData *project_ = nullptr;
   const InputState *input_ = nullptr;
   input::InputActionMap inputActions_;
+  simulation::DeterministicRandom random_;
   AudioSystem *audio_ = nullptr;
   MediaSystem *media_ = nullptr;
   NetworkSystem *network_ = nullptr;
@@ -329,6 +345,7 @@ private:
   std::vector<TimerInstance> timers_;
   std::vector<EventSubscription> eventSubscriptions_;
   std::vector<SaveMigrationHook> saveMigrationHooks_;
+  std::string lastSaveError_;
   std::uint64_t nextTimerId_ = 1;
   std::uint64_t nextMeshRevision_ = 1;
   std::uint64_t nextEventSubscriptionId_ = 1;

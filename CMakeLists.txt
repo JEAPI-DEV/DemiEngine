@@ -187,6 +187,7 @@ add_library(demi-core STATIC
   src/demi/runtime/ui/UiStateController.cpp
   src/demi/runtime/ui/UiActionController.cpp
   src/demi/runtime/input/InputActionResolver.cpp
+  src/demi/runtime/input/replay/InputReplay.cpp
   src/demi/runtime/input/InputActionParser.cpp
   ${DEMI_COMPONENT_MODEL_SOURCES}
 )
@@ -233,6 +234,8 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/physics/Physics2D.cpp
   src/demi/runtime/physics/Physics3D.cpp
   src/demi/runtime/profiling/RuntimeProfiler.cpp
+  src/demi/runtime/profiling/ProfilerHudLayout.cpp
+  src/demi/runtime/simulation/DeterministicRandom.cpp
   src/demi/runtime/scene/HudParser.cpp
   src/demi/runtime/scene/hud/HudElementRegistry.cpp
   src/demi/runtime/scene/hud/elements/HudButtonElement.cpp
@@ -278,10 +281,13 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/LuaJsonBridge.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkBindings.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkSessionBindings.cpp
+  src/demi/runtime/scripting/bindings/LuaRandomBindings.cpp
   src/demi/runtime/scripting/bindings/LuaTlsBindings.cpp
   src/demi/runtime/scripting/persistence/LuaSaveCodec.cpp
+  src/demi/runtime/scripting/persistence/GameSaveDocument.cpp
   src/demi/runtime/scripting/LuaScriptHostPersistence.cpp
   src/demi/runtime/scripting/LuaScriptHostServices.cpp
+  src/demi/runtime/scripting/LuaScriptHostSimulationServices.cpp
 )
 
 function(configure_demi_runtime target with_renderer)
@@ -346,6 +352,7 @@ function(configure_demi_runtime target with_renderer)
 endfunction()
 
 configure_demi_runtime(demi-runtime-lib TRUE
+  src/demi/runtime/render/ProfilerHudRenderer.cpp
   src/demi/runtime/render/Renderer2D.cpp
   src/demi/runtime/render/Renderer3D.cpp
   src/demi/runtime/render/Renderer3DAssets.cpp
@@ -418,6 +425,10 @@ else()
   target_link_libraries(demi-camera2d-tests PRIVATE demi-runtime-lib)
   add_executable(demi-tilemap-tests tests/tilemap_tests.cpp)
   target_link_libraries(demi-tilemap-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-simulation-tests tests/simulation_tests.cpp)
+  target_link_libraries(demi-simulation-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-input-replay-tests tests/input_replay_tests.cpp)
+  target_link_libraries(demi-input-replay-tests PRIVATE demi-runtime-lib)
 
   add_executable(demi-snapshot-replication-tests tests/snapshot_replication_tests.cpp)
   target_link_libraries(demi-snapshot-replication-tests PRIVATE demi-runtime-lib)
@@ -448,6 +459,18 @@ add_test(NAME demi-input-action-tests COMMAND demi-input-action-tests)
 add_test(NAME demi-sprite-animation-tests COMMAND demi-sprite-animation-tests)
 add_test(NAME demi-camera2d-tests COMMAND demi-camera2d-tests)
 add_test(NAME demi-tilemap-tests COMMAND demi-tilemap-tests)
+add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)
+  add_test(NAME demi-input-replay-tests COMMAND demi-input-replay-tests)
+
+  add_executable(demi-game-save-document-tests tests/game_save_document_tests.cpp)
+  target_link_libraries(demi-game-save-document-tests PRIVATE demi-runtime-lib)
+  add_test(NAME demi-game-save-document-tests COMMAND demi-game-save-document-tests)
+  add_executable(demi-runtime-profiler-tests tests/runtime_profiler_tests.cpp)
+  target_link_libraries(demi-runtime-profiler-tests PRIVATE demi-runtime-lib)
+  add_test(NAME demi-runtime-profiler-tests COMMAND demi-runtime-profiler-tests)
+  add_executable(demi-profiler-hud-layout-tests tests/profiler_hud_layout_tests.cpp)
+  target_link_libraries(demi-profiler-hud-layout-tests PRIVATE demi-runtime-lib)
+  add_test(NAME demi-profiler-hud-layout-tests COMMAND demi-profiler-hud-layout-tests)
 add_test(NAME demi-prefab-inspect-cli
   COMMAND demi prefab inspect ${CMAKE_SOURCE_DIR}/examples/minimal_3d/prefabs/player.prefab.json)
 add_test(NAME demi-scene-expand-cli
@@ -476,6 +499,13 @@ add_test(NAME demi-runtime-networking-minimal-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json --frames 1
 )
 set_tests_properties(demi-runtime-networking-minimal-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-saves-simulation-debugging-replay
+  COMMAND demi run
+    --project ${CMAKE_SOURCE_DIR}/examples/saves_simulation_debugging/demi.project.json
+    --input-replay ${CMAKE_SOURCE_DIR}/examples/saves_simulation_debugging/replays/move_and_roll.replay.json
+    --profile-report ${CMAKE_BINARY_DIR}/generated/saves_simulation_debugging_profile.csv
+)
+set_tests_properties(demi-runtime-saves-simulation-debugging-replay PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-runtime-minimal-3d-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json --frames 1
 )
@@ -494,6 +524,12 @@ add_test(NAME demi-runtime-gif-main-menu-frame
 set_tests_properties(demi-runtime-gif-main-menu-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-validate-minimal-2d-networking
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json
+)
+add_test(NAME demi-validate-saves-simulation-debugging
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/saves_simulation_debugging/demi.project.json
+)
+add_test(NAME demi-script-check-saves-simulation-debugging
+  COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/saves_simulation_debugging/scripts/save_probe.lua
 )
 add_test(NAME demi-validate-minimal-2d-android
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_android/demi.project.json

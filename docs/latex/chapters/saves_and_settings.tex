@@ -28,6 +28,13 @@ The \filepath{minimal\_2d} example uses save slot \code{settings}. On menu start
 
 When the user changes volume or window mode in the options menu, Lua immediately updates the save file. The runtime applies the loaded values on startup.
 
-\section{Current Save API Scope}
+\section{Structured Game Saves}
 
-The save API is intentionally small. It is suitable for settings and simple values, but it is not yet a full save-game serialization system. Future work should decide whether structured tables, arrays, entity state snapshots, and schema-aware save migrations belong in this API or in a higher-level gameplay save service.
+The settings helpers remain available, while \code{Save.write\_state} and
+\code{Save.read\_state} provide the explicit game-save boundary. A structured
+state contains \code{game}, \code{selected\_entities},
+\code{prefab\_instances}, and deliberately nominated \code{lua} tables.
+Autosave sequence and reason metadata are available through
+\code{Save.metadata}; incompatible versions are rejected with a message from
+\code{Save.last\_error}. Registered migration hooks run while reading older
+state versions.

@@ -100,6 +100,7 @@ std::optional<World> loadScene(const ProjectData &project,
   }
 
   World world = scene_loading::parseSceneWorld(scenePath, *expansion.document);
+  world.debug = project.debug;
   const std::size_t layerCount =
       std::min<std::size_t>(project.physicsLayers2D.size(), 16);
   for (std::size_t index = 0; index < layerCount; ++index) {

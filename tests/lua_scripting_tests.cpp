@@ -39,6 +39,11 @@ int main() {
 local Probe = {}
 function Probe:on_start()
   require("action_module")
+  Random.seed(1234)
+  local exact_random_state = Random.state()
+  if type(exact_random_state) == "string" and Random.restore(exact_random_state) then
+    Save.set_string("test", "random_state", "exact")
+  end
   Save.write("profile", { name = "Ada", coins = 7 }, 1)
   Save.register_migration(1, 2, function(state)
     state.level = 3
@@ -47,6 +52,17 @@ function Probe:on_start()
   local profile = Save.read("profile")
   if profile and profile.name == "Ada" and profile.coins == 7 and profile.level == 3 and Save.version("profile") == 2 then
     Save.set_string("test", "profile", "migrated")
+  end
+  local structured_ok = Save.write_state("campaign", {
+    game = { score = 42 },
+    selected_entities = { player = "ent_player" },
+    prefab_instances = { enemy = "prefab://enemy" },
+    lua = { quest = { stage = 2 } },
+  }, { autosave = true, sequence = 7, reason = "checkpoint" })
+  local campaign = Save.read_state("campaign")
+  local metadata = Save.metadata("campaign")
+  if structured_ok and campaign and campaign.game.score == 42 and metadata and metadata.autosave and metadata.sequence == 7 then
+    Save.set_string("test", "structured_save", "passed")
   end
   Cutscene.play("cutscene://intro")
   if Cutscene.is_playing() and Cutscene.active() == "cutscene://intro" then
@@ -281,6 +297,14 @@ return PropProbe
   if (host.saveString("test", "profile") != "migrated") {
     std::cerr
         << "Save.read/write migration hook did not migrate profile data.\n";
+    return 1;
+  }
+  if (host.saveString("test", "structured_save") != "passed") {
+    std::cerr << "Structured game-state Lua save did not round-trip.\n";
+    return 1;
+  }
+  if (host.saveString("test", "random_state") != "exact") {
+    std::cerr << "Lua deterministic random state was not string-safe.\n";
     return 1;
   }
   if (host.saveString("test", "cutscene") != "playing" ||

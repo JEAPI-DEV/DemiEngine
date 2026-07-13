@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demiengine.local/schemas/input-replay.schema.json",
+  "title": "DemiEngine Input Replay",
+  "type": "object",
+  "required": ["format_version", "fixed_timestep", "frames"],
+  "additionalProperties": false,
+  "properties": {
+    "format_version": {"const": 1},
+    "fixed_timestep": {"type": "number", "minimum": 0.001, "maximum": 1.0},
+    "frames": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "keys_down": {"type": "array", "items": {"type": "string"}},
+          "keys_pressed": {"type": "array", "items": {"type": "string"}},
+          "mouse_buttons_down": {"type": "array", "items": {"type": "string"}},
+          "mouse_position": {"$ref": "#/$defs/vec2"},
+          "mouse_delta": {"$ref": "#/$defs/vec2"},
+          "text_entered": {"type": "string"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "vec2": {
+      "type": "array",
+      "prefixItems": [{"type": "number"}, {"type": "number"}],
+      "minItems": 2,
+      "maxItems": 2
+    }
+  }
+}

@@ -1,7 +1,9 @@
 #pragma once
 
+#include "demi/runtime/debug/DebugOverlayConfig.h"
 #include "demi/runtime/input/InputActionMap.h"
 
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -27,6 +29,11 @@ struct PhysicsLayer2D {
   std::vector<std::string> collidesWith;
 };
 
+struct SimulationConfig {
+  float fixedTimestep = 1.0F / 60.0F;
+  std::uint64_t randomSeed = 1;
+};
+
 struct ProjectData {
   std::filesystem::path projectPath;
   std::filesystem::path projectDirectory;
@@ -37,6 +44,8 @@ struct ProjectData {
   std::vector<SceneEntry> scenes;
   input::InputActionMap inputActions;
   std::vector<PhysicsLayer2D> physicsLayers2D;
+  SimulationConfig simulation;
+  DebugOverlayConfig debug;
 };
 
 } // namespace demi::runtime

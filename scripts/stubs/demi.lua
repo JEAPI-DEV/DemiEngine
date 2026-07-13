@@ -242,6 +242,26 @@ function Sprite2D.set_flip(entity_id, flip_x, flip_y) end
 ---@field delta_time number
 Time = {}
 
+---@class RandomService
+Random = {}
+---@param seed integer
+function Random.seed(seed) end
+---@return string Exact unsigned 64-bit state suitable for JSON saves.
+function Random.state() end
+---@param state string State previously returned by Random.state.
+---@return boolean
+function Random.restore(state) end
+---@return number
+function Random.value() end
+---@param minimum number
+---@param maximum number
+---@return number
+function Random.range(minimum, maximum) end
+---@param minimum integer
+---@param maximum integer
+---@return integer
+function Random.integer(minimum, maximum) end
+
 ---@class TimerService
 Timer = {}
 ---@param seconds number
@@ -520,6 +540,40 @@ function Save.read(slot) end
 ---@param format_version? integer
 ---@return boolean
 function Save.write(slot, state, format_version) end
+
+---@class GameSaveState
+---@field game table<string, any>
+---@field selected_entities table<string, any>
+---@field prefab_instances table<string, any>
+---@field lua table<string, any>
+
+---@class GameSaveOptions
+---@field format_version? integer
+---@field autosave? boolean
+---@field sequence? integer
+---@field reason? string
+
+---@class GameSaveMetadata
+---@field autosave boolean
+---@field sequence integer
+---@field reason string
+
+---@param slot string
+---@param state GameSaveState
+---@param options? GameSaveOptions
+---@return boolean
+function Save.write_state(slot, state, options) end
+
+---@param slot string
+---@return GameSaveState?
+function Save.read_state(slot) end
+
+---@param slot string
+---@return GameSaveMetadata?
+function Save.metadata(slot) end
+
+---@return string
+function Save.last_error() end
 ---@param slot string
 ---@return boolean
 function Save.exists(slot) end
