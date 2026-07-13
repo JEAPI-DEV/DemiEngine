@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "id": "asset://music/background_music",
+  "type": "AudioClip",
+  "source": "background_music.wav",
+  "importer": "audio",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:764683ce5fb5356d",
+  "dependencies": [],
+  "settings": {}
+}

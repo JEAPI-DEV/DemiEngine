@@ -1,5 +1,6 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/Renderer3D.h"
+#include "demi/runtime/render/Renderer3DInternal.h"
 
 #include <algorithm>
 #include <fstream>
@@ -123,8 +124,9 @@ Shader loadAlphaCutoutShader() {
       GetShaderLocation(shader, "colDiffuse");
   return shader;
 }
+
 } // namespace
-Renderer3D::~Renderer3D() {
+void Renderer3D::unloadAssets() {
   for (auto &[id, model] : dynamicModels_) {
     (void)id;
     if (model.hasModel) {
@@ -139,11 +141,16 @@ Renderer3D::~Renderer3D() {
     (void)id;
     UnloadModel(model);
   }
+  for (auto &[id, textures] : modelOwnedTextures_) {
+    (void)id;
+    renderer3d_detail::unloadOwnedTextures(textures);
+  }
   for (auto &[id, animatedModel] : animatedModels_) {
     (void)id;
     if (animatedModel.hasModel) {
       UnloadModel(animatedModel.model);
     }
+    renderer3d_detail::unloadOwnedTextures(animatedModel.ownedTextures);
   }
   for (auto &[id, animations] : modelAnimations_) {
     (void)id;
@@ -158,10 +165,26 @@ Renderer3D::~Renderer3D() {
   if (hasAlphaCutoutShader_) {
     UnloadShader(alphaCutoutShader_);
   }
+  dynamicModels_.clear();
+  textures_.clear();
+  models_.clear();
+  modelOwnedTextures_.clear();
+  animatedModels_.clear();
+  modelAnimations_.clear();
+  modelTextures_.clear();
+  modelPaths_.clear();
+  modelTextureSettings_.clear();
+  imageAnimations_.clear();
+  gifAnimations_.clear();
+  alphaCutoutShader_ = {};
+  hasAlphaCutoutShader_ = false;
 }
+
+Renderer3D::~Renderer3D() { unloadAssets(); }
 
 void Renderer3D::loadTextureAssets(const AssetRegistry &registry) {
   ProfileScope scope("Renderer3D.load_texture_assets");
+  unloadAssets();
   if (!hasAlphaCutoutShader_) {
     alphaCutoutShader_ = loadAlphaCutoutShader();
     hasAlphaCutoutShader_ = alphaCutoutShader_.id != 0;
@@ -178,7 +201,8 @@ void Renderer3D::loadTextureAssets(const AssetRegistry &registry) {
           loaded = false;
           break;
         }
-        SetTextureFilter(texture, TEXTURE_FILTER_POINT);
+        renderer3d_detail::applyTextureSettings(texture, asset.textureSettings,
+                                                TEXTURE_FILTER_POINT);
         textures_[asset.id + "#" + std::to_string(frame)] = texture;
       }
       if (loaded) {
@@ -197,6 +221,11 @@ void Renderer3D::loadTextureAssets(const AssetRegistry &registry) {
                   << asset.sourcePath.string() << ".\n";
         continue;
       }
+      renderer3d_detail::applyModelTextureSettings(model,
+                                                   asset.textureSettings);
+      modelTextureSettings_[asset.id] = asset.textureSettings;
+      modelOwnedTextures_[asset.id] =
+          renderer3d_detail::ownedTexturesForModel(model);
       if (asset.texturePath.has_value()) {
         Texture2D texture{};
         {
@@ -207,7 +236,8 @@ void Renderer3D::loadTextureAssets(const AssetRegistry &registry) {
           std::cerr << "Model texture load failed for " << asset.id << " from "
                     << asset.texturePath->string() << ".\n";
         } else if (model.materialCount > 0) {
-          SetTextureFilter(texture, TEXTURE_FILTER_BILINEAR);
+          renderer3d_detail::applyTextureSettings(
+              texture, asset.textureSettings, TEXTURE_FILTER_BILINEAR);
           SetMaterialTexture(&model.materials[0], MATERIAL_MAP_DIFFUSE,
                              texture);
           for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
@@ -224,8 +254,15 @@ void Renderer3D::loadTextureAssets(const AssetRegistry &registry) {
       ModelAnimation *clips =
           LoadModelAnimations(asset.sourcePath.string().c_str(), &clipCount);
       if (clips != nullptr && clipCount > 0) {
-        modelAnimations_[asset.id] =
-            ModelAnimationAsset{.clips = clips, .clipCount = clipCount};
+        ModelAnimationAsset animationAsset{
+            .clips = clips, .clipCount = clipCount, .clipsByName = {}};
+        for (int clip = 0; clip < clipCount; ++clip) {
+          const std::string name = clips[clip].name;
+          animationAsset.clipsByName["clip_" + std::to_string(clip)] = clip;
+          if (!name.empty())
+            animationAsset.clipsByName[name] = clip;
+        }
+        modelAnimations_[asset.id] = std::move(animationAsset);
       }
       continue;
     }
@@ -260,7 +297,8 @@ void Renderer3D::loadTextureAssets(const AssetRegistry &registry) {
       continue;
     }
 
-    SetTextureFilter(texture, TEXTURE_FILTER_POINT);
+    renderer3d_detail::applyTextureSettings(texture, asset.textureSettings,
+                                            TEXTURE_FILTER_POINT);
     textures_[asset.id] = texture;
   }
 }

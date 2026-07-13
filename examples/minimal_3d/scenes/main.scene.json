@@ -34,6 +34,8 @@
             1.0
           ],
           "fov": 60.0,
+          "near_clip": 0.05,
+          "far_clip": 200.0,
           "perspective": true,
           "target_offset": [
             0.0,
@@ -61,6 +63,18 @@
             1.0
           ],
           "intensity": 1.0
+        }
+      }
+    },
+    {
+      "id": "ent_background_music",
+      "name": "Background Music",
+      "components": {
+        "AudioSource": {
+          "clip": "asset://music/background_music",
+          "play_on_start": true,
+          "loop": true,
+          "volume": 0.6
         }
       }
     },

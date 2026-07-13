@@ -34,6 +34,12 @@ struct SimulationConfig {
   std::uint64_t randomSeed = 1;
 };
 
+struct PerformanceBudgets {
+  float maximumFrameMilliseconds = 16.67F;
+  int maximumDrawCalls = 500;
+  int maximumResidentAssets = 256;
+};
+
 struct ProjectData {
   std::filesystem::path projectPath;
   std::filesystem::path projectDirectory;
@@ -45,6 +51,7 @@ struct ProjectData {
   input::InputActionMap inputActions;
   std::vector<PhysicsLayer2D> physicsLayers2D;
   SimulationConfig simulation;
+  PerformanceBudgets performanceBudgets;
   DebugOverlayConfig debug;
 };
 

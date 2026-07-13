@@ -34,6 +34,17 @@ parseProjectData(const std::filesystem::path &projectPath, const Json &document,
         std::max(numberField(*simulation, "random_seed").value_or(1.0F), 1.0F));
   }
 
+  if (const Json *budgets = objectField(document, "performance_budgets")) {
+    project.performanceBudgets.maximumFrameMilliseconds = std::max(
+        numberField(*budgets, "maximum_frame_ms").value_or(16.67F), 0.1F);
+    project.performanceBudgets.maximumDrawCalls = static_cast<int>(std::max(
+        numberField(*budgets, "maximum_draw_calls").value_or(500.0F), 1.0F));
+    project.performanceBudgets.maximumResidentAssets =
+        static_cast<int>(std::max(
+            numberField(*budgets, "maximum_resident_assets").value_or(256.0F),
+            1.0F));
+  }
+
   if (const Json *debug = objectField(document, "debug")) {
     project.debug.colliders = boolField(*debug, "colliders").value_or(false);
     project.debug.contacts = boolField(*debug, "contacts").value_or(false);

@@ -5,6 +5,7 @@
 #include "demi/runtime/scene/ProjectParser.h"
 #include "demi/runtime/scene/SceneEntityParser.h"
 #include "demi/runtime/scene/SceneJson.h"
+#include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/schema/Validation.h"
 
@@ -100,6 +101,16 @@ std::optional<World> loadScene(const ProjectData &project,
   }
 
   World world = scene_loading::parseSceneWorld(scenePath, *expansion.document);
+  if (const auto issues = validateTransform3DHierarchy(world);
+      !issues.empty()) {
+    const auto &issue = issues.front();
+    error =
+        issue.kind == Transform3DHierarchyIssueKind::Cycle
+            ? "Transform3D hierarchy cycle includes entity: " + issue.entityId
+            : "Transform3D parent was not found for " + issue.entityId + ": " +
+                  issue.parentId;
+    return std::nullopt;
+  }
   world.debug = project.debug;
   const std::size_t layerCount =
       std::min<std::size_t>(project.physicsLayers2D.size(), 16);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 
 #include "demi/runtime/scene/model/World.h"
@@ -106,60 +107,49 @@ activeCamera3D(const World &world) {
       return &*entity.component<Camera3DComponent>();
   return nullptr;
 }
-[[nodiscard]] inline Vec3 rotateYaw(const Vec3 value, const float yaw) {
-  const float sinY = std::sin(yaw);
-  const float cosY = std::cos(yaw);
-  return {.x = value.x * cosY + value.z * sinY,
-          .y = value.y,
-          .z = -value.x * sinY + value.z * cosY};
+[[nodiscard]] inline const Entity *activeCamera3DEntity(const World &world) {
+  for (const Entity &entity : world.entities)
+    if (entity.component<Camera3DComponent>() &&
+        entity.component<Transform3DComponent>())
+      return &entity;
+  return nullptr;
 }
 [[nodiscard]] inline Vec3 worldPosition3D(const World &world,
                                           const Entity &entity) {
-  if (!entity.component<Transform3DComponent>())
-    return {};
-  Vec3 position = entity.component<Transform3DComponent>()->position;
-  if (!entity.component<Transform3DComponent>()->parent.empty())
-    if (const Entity *parent =
-            findEntity(world, entity.component<Transform3DComponent>()->parent);
-        parent != nullptr && parent->component<Transform3DComponent>()) {
-      const Vec3 rotated = rotateYaw(
-          position, parent->component<Transform3DComponent>()->rotation.y);
-      const Vec3 parentPosition = worldPosition3D(world, *parent);
-      position = {.x = parentPosition.x + rotated.x,
-                  .y = parentPosition.y + rotated.y,
-                  .z = parentPosition.z + rotated.z};
-    }
-  return position;
+  const auto transform = resolveWorldTransform3D(world, entity);
+  return transform ? transform->position : Vec3{};
 }
 [[nodiscard]] inline Vec3 worldRotation3D(const World &world,
                                           const Entity &entity) {
-  if (!entity.component<Transform3DComponent>())
-    return {};
-  Vec3 rotation = entity.component<Transform3DComponent>()->rotation;
-  if (!entity.component<Transform3DComponent>()->parent.empty())
-    if (const Entity *parent =
-            findEntity(world, entity.component<Transform3DComponent>()->parent);
-        parent != nullptr && parent->component<Transform3DComponent>()) {
-      const Vec3 parentRotation = worldRotation3D(world, *parent);
-      rotation.x += parentRotation.x;
-      rotation.y += parentRotation.y;
-      rotation.z += parentRotation.z;
-    }
-  return rotation;
+  const auto transform = resolveWorldTransform3D(world, entity);
+  return transform ? transform->rotation : Vec3{};
+}
+[[nodiscard]] inline Vec3 worldScale3D(const World &world,
+                                       const Entity &entity) {
+  const auto transform = resolveWorldTransform3D(world, entity);
+  return transform ? transform->scale : Vec3{1.0F, 1.0F, 1.0F};
 }
 [[nodiscard]] inline Vec3 activeCamera3DPosition(const World &world) {
-  for (const Entity &entity : world.entities)
-    if (entity.component<Camera3DComponent>() &&
-        entity.component<Transform3DComponent>())
-      return worldPosition3D(world, entity);
-  return {};
+  const Entity *camera = activeCamera3DEntity(world);
+  return camera != nullptr ? worldPosition3D(world, *camera) : Vec3{};
 }
-[[nodiscard]] inline Vec3 activeCamera3DRotation(const World &world) {
-  for (const Entity &entity : world.entities)
-    if (entity.component<Camera3DComponent>() &&
-        entity.component<Transform3DComponent>())
-      return worldRotation3D(world, entity);
-  return {};
+[[nodiscard]] inline Vec3 activeCamera3DForward(const World &world) {
+  const Entity *camera = activeCamera3DEntity(world);
+  if (camera == nullptr)
+    return {0.0F, 0.0F, 1.0F};
+  const auto transform = resolveWorldTransform3D(world, *camera);
+  const auto &component = *camera->component<Camera3DComponent>();
+  return transform ? transformDirection3D(*transform, component.targetOffset)
+                   : component.targetOffset;
+}
+[[nodiscard]] inline Vec3 activeCamera3DUp(const World &world) {
+  const Entity *camera = activeCamera3DEntity(world);
+  if (camera == nullptr)
+    return {0.0F, 1.0F, 0.0F};
+  const auto transform = resolveWorldTransform3D(world, *camera);
+  const auto &component = *camera->component<Camera3DComponent>();
+  const Vec3 localUp{0.0F, component.upAxis, 0.0F};
+  return transform ? transformDirection3D(*transform, localUp) : localUp;
 }
 [[nodiscard]] inline bool sceneIs3D(const World &world) {
   return activeCamera3D(world) != nullptr;

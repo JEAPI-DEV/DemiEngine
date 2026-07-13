@@ -17,6 +17,7 @@ struct AnimationStateEvent {
 struct AnimationState {
   std::string spriteClip;
   int modelClip = -1;
+  std::string modelClipName;
   float duration = 0.0F;
   float speed = 1.0F;
   bool loop = true;

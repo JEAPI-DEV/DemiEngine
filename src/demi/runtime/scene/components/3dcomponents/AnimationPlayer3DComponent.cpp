@@ -8,6 +8,7 @@ void AnimationPlayer3DComponent::parse(const nlohmann::json &json,
   AnimationPlayer3DComponent component;
   if (auto value = scene_loading::numberField(json, "clip"))
     component.clip = std::max(0, static_cast<int>(*value));
+  component.clipName = scene_loading::stringOr(json, "clip_name");
   if (auto value = scene_loading::numberField(json, "speed"))
     component.speed = std::max(0.0F, *value);
   if (auto value = scene_loading::numberField(json, "time"))

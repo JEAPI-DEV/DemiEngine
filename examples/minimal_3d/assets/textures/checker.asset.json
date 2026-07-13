@@ -3,5 +3,10 @@
   "id": "asset://textures/checker",
   "type": "Texture2D",
   "source": "checker.ppm",
-  "importer": "ppm-texture"
+  "importer": "ppm-texture",
+  "settings": {
+    "filter": "nearest",
+    "wrap": "repeat",
+    "mipmaps": false
+  }
 }

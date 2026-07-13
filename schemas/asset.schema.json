@@ -26,6 +26,23 @@
     },
     "atlas": {
       "type": "string"
+    },
+    "settings": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "filter": {
+          "type": "string",
+          "enum": ["nearest", "bilinear", "trilinear"]
+        },
+        "wrap": {
+          "type": "string",
+          "enum": ["repeat", "clamp", "mirror"]
+        },
+        "mipmaps": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }

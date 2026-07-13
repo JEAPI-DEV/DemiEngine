@@ -1,6 +1,7 @@
 #include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
 #include "demi/runtime/scene/SceneJson.h"
 #include "demi/runtime/scene/model/Entity.h"
+#include <algorithm>
 namespace demi::runtime {
 void Camera3DComponent::parse(const nlohmann::json &json, Entity &entity) {
   Camera3DComponent component;
@@ -8,6 +9,10 @@ void Camera3DComponent::parse(const nlohmann::json &json, Entity &entity) {
     component.clearColor = *value;
   if (auto value = scene_loading::numberField(json, "fov"))
     component.fov = *value;
+  if (auto value = scene_loading::numberField(json, "near_clip"))
+    component.nearClip = std::max(*value, 0.001F);
+  if (auto value = scene_loading::numberField(json, "far_clip"))
+    component.farClip = std::max(*value, component.nearClip);
   if (auto value = scene_loading::numberField(json, "orthographic_size"))
     component.orthographicSize = *value;
   if (auto value = scene_loading::vec3Field(json, "target_offset"))

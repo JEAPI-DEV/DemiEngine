@@ -32,7 +32,11 @@ files. New imports record all pipeline metadata:
   "source_hash": "fnv1a64:...",
   "dependencies": ["asset://materials/hero"],
   "generated_output": "../../../generated/assets/characters/hero/hero.png",
-  "settings": {"filter": "nearest"},
+  "settings": {
+    "filter": "nearest",
+    "wrap": "repeat",
+    "mipmaps": false
+  },
   "license": "License.txt",
   "attribution": "Artist name"
 }
@@ -43,6 +47,26 @@ metadata when the source format has a registered importer. Current pass-through
 importers support PNG, JPEG, BMP, TGA, QOI, PPM, SVG, GIF, WAV, OGG, MP3,
 FLAC, glTF, GLB, OBJ, IQM, M3D, MP4, WebM, and MOV. glTF URI sidecars are
 discovered and carried through import, export, and cooking.
+
+Texture-bearing assets accept `nearest`, `bilinear`, or `trilinear` filtering;
+`repeat`, `clamp`, or `mirror` wrapping; and optional mipmap generation. The
+same settings apply to standalone textures, explicit model textures, and
+textures embedded in glTF materials.
+
+## Performance Budgets
+
+Projects may document reference limits that profiling and CI can evaluate:
+
+```json
+"performance_budgets": {
+  "maximum_frame_ms": 16.67,
+  "maximum_draw_calls": 128,
+  "maximum_resident_assets": 64
+}
+```
+
+Budgets are authored project data. They do not silently alter rendering or
+simulation quality.
 
 Portable `*.demipack` files are deterministic binary containers with a
 versioned JSON index followed by sorted file data. The index records stable

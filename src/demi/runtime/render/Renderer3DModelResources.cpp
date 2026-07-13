@@ -146,6 +146,8 @@ Model *animatedModelForEntity(
     const Entity &entity, const MeshRendererComponent &mesh,
     const std::unordered_map<std::string, std::filesystem::path> &modelPaths,
     const std::unordered_map<std::string, Texture2D> &modelTextures,
+    const std::unordered_map<std::string, TextureImporterSettings>
+        &textureSettings,
     std::unordered_map<std::string, AnimatedModelCacheEntry> &animatedModels) {
   if (mesh.model.empty()) {
     return nullptr;
@@ -162,6 +164,7 @@ Model *animatedModelForEntity(
   }
   if (cached != animatedModels.end() && cached->second.hasModel) {
     UnloadModel(cached->second.model);
+    unloadOwnedTextures(cached->second.ownedTextures);
   }
 
   Model model = LoadModel(source->second.string().c_str());
@@ -170,6 +173,10 @@ Model *animatedModelForEntity(
               << source->second.string() << ".\n";
     return nullptr;
   }
+  if (const auto settings = textureSettings.find(mesh.model);
+      settings != textureSettings.end())
+    applyModelTextureSettings(model, settings->second);
+  std::vector<Texture2D> ownedTextures = ownedTexturesForModel(model);
   const auto texture = modelTextures.find(mesh.model);
   if (texture != modelTextures.end() && model.materialCount > 0) {
     SetMaterialTexture(&model.materials[0], MATERIAL_MAP_DIFFUSE,
@@ -180,9 +187,11 @@ Model *animatedModelForEntity(
   }
   cached = animatedModels
                .insert_or_assign(entity.id,
-                                 AnimatedModelCacheEntry{.assetId = mesh.model,
-                                                         .model = model,
-                                                         .hasModel = true})
+                                 AnimatedModelCacheEntry{
+                                     .assetId = mesh.model,
+                                     .model = model,
+                                     .ownedTextures = std::move(ownedTextures),
+                                     .hasModel = true})
                .first;
   return &cached->second.model;
 }
@@ -192,7 +201,13 @@ void updateModelAnimation(Model &model, AnimationPlayer3DComponent &player,
   if (animations.clips == nullptr || animations.clipCount <= 0) {
     return;
   }
-  const int clip = std::clamp(player.clip, 0, animations.clipCount - 1);
+  int requestedClip = player.clip;
+  if (!player.clipName.empty()) {
+    if (const auto named = animations.clipsByName.find(player.clipName);
+        named != animations.clipsByName.end())
+      requestedClip = named->second;
+  }
+  const int clip = std::clamp(requestedClip, 0, animations.clipCount - 1);
   const ModelAnimation &animation = animations.clips[clip];
   if (animation.frameCount <= 0) {
     return;

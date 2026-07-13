@@ -1,11 +1,11 @@
 local Player3D = {}
 
 function Player3D:on_create()
-  Debug.log("3D Player created. Move with WASD, rotate camera with Q/E.")
+  Debug.log("3D Player created. Move with WASD, rotate camera with Q/E, inspect with F.")
   self.speed = 6.0
   self.rotation_speed = 1.5
   self.yaw = 0.0
-  Hud.set_text("hud_hint", "WASD move - Q/E rotate - ESC quit", 20.0, 20.0, 3.0)
+  Hud.set_text("hud_hint", "WASD move - Q/E rotate - F inspect - ESC quit", 20.0, 20.0, 3.0)
 end
 
 function Player3D:on_start()
@@ -43,6 +43,15 @@ function Player3D:on_update(dt)
 
   local px2, py2, pz2 = Transform3D.get_position(self.entity_id)
   Hud.set_text("position/label", string.format("pos: (%.1f, %.1f, %.1f)", px2, py2, pz2), 20.0, 100.0, 2.5)
+
+  if Input.is_pressed("f") then
+    local hit = Physics3D.raycast(px2, py2 + 0.5, pz2, -sin_y, 0.0, -cos_y, 8.0, self.entity_id)
+    if hit then
+      Hud.set_text("hud_label", "Inspecting " .. hit.entity_id, 20.0, 60.0, 4.0)
+    else
+      Hud.set_text("hud_label", "Nothing in range", 20.0, 60.0, 4.0)
+    end
+  end
 end
 
 function Player3D:on_fixed_update(dt)

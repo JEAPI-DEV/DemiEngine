@@ -35,7 +35,8 @@ The current source layout reflects those boundaries:
 - `src/demi/runtime/app`: window, input, loop, and subsystem orchestration.
 - `src/demi/runtime/scene`: project/scene/HUD models, registries, and loading.
 - `src/demi/runtime/render`: raylib-backed 2D and lightweight 3D rendering.
-- `src/demi/runtime/physics`: Box2D integration and simple 3D collision.
+- `src/demi/runtime/physics`: Box2D integration plus lightweight 3D collision,
+  overlap, and raycast queries.
 - `src/demi/runtime/scripting`: Lua lifecycle, services, annotations, and
   installable bindings.
 - `src/demi/runtime/audio`, `media`, and `network`: isolated integrations.

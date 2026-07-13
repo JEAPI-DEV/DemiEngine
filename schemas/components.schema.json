@@ -1,11 +1,26 @@
 {
   "additionalProperties": false,
   "properties": {
+    "AnimationCollision2D": {
+      "additionalProperties": false,
+      "properties": {
+        "receivers": {
+          "type": "object"
+        },
+        "windows": {
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
     "AnimationPlayer3D": {
       "additionalProperties": false,
       "properties": {
         "clip": {
           "type": "integer"
+        },
+        "clip_name": {
+          "type": "string"
         },
         "loop": {
           "type": "boolean"
@@ -20,6 +35,27 @@
           "type": "number"
         }
       },
+      "type": "object"
+    },
+    "AnimationStateMachine": {
+      "additionalProperties": false,
+      "properties": {
+        "initial_state": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "object"
+        },
+        "states": {
+          "type": "object"
+        },
+        "transitions": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "states"
+      ],
       "type": "object"
     },
     "AudioListener": {
@@ -184,7 +220,13 @@
           "minItems": 4,
           "type": "array"
         },
+        "far_clip": {
+          "type": "number"
+        },
         "fov": {
+          "type": "number"
+        },
+        "near_clip": {
           "type": "number"
         },
         "orthographic_size": {
@@ -316,23 +358,6 @@
       ],
       "type": "object"
     },
-    "HitboxController": {
-      "additionalProperties": false,
-      "properties": {
-        "hurtbox": {
-          "items": {
-            "type": "number"
-          },
-          "maxItems": 2,
-          "minItems": 2,
-          "type": "array"
-        },
-        "script": {
-          "type": "string"
-        }
-      },
-      "type": "object"
-    },
     "IsoGrid": {
       "additionalProperties": false,
       "properties": {
@@ -343,6 +368,12 @@
           "maxItems": 2,
           "minItems": 2,
           "type": "array"
+        },
+        "cell_textures": {
+          "type": "object"
+        },
+        "default_texture": {
+          "type": "string"
         },
         "height": {
           "type": "integer"
@@ -366,6 +397,9 @@
         },
         "height": {
           "type": "number"
+        },
+        "parent": {
+          "type": "string"
         },
         "tile": {
           "items": {
@@ -578,6 +612,14 @@
             "triangle"
           ],
           "type": "string"
+        },
+        "size": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
         },
         "sorting_order": {
           "type": "integer"

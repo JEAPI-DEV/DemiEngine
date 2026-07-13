@@ -139,9 +139,11 @@ When an example needs behavior that belongs in the engine, the preferred approac
 - Lua 5.4 scripting through sol2.
 - Lua lifecycle functions: `on_create`, `on_start`, `on_update`, `on_fixed_update`, and `on_destroy`.
 - Lua action and event annotations: `@HandleAction("...")` and `@OnEvent("...")`.
-- Lua services for `Debug`, `Input`, `Timer`, `Events`, `Scene`, `Runtime`, `Entity`, `Transform2D`, `Transform3D`, `Physics2D`, `Rigidbody2D`, `HUD`, `Save`, `Audio`, `Video`, `Cutscene`, `Network`, and `NetworkSession`.
+- Lua services for `Debug`, `Input`, `Timer`, `Events`, `Scene`, `Runtime`, `Entity`, `Transform2D`, `Transform3D`, `Physics2D`, `Physics3D`, `Rigidbody2D`, `HUD`, `Save`, `Audio`, `Video`, `Cutscene`, `Network`, and `NetworkSession`.
 - 2D rendering, HUD rendering, debug lines, and pixel-style text rendering.
-- Lightweight 3D rendering and collision helpers.
+- Lightweight 3D rendering with hierarchical transforms, glTF materials and
+  named skeletal clips, frustum culling, deterministic material batches,
+  collision-aware movement, and Lua spatial queries.
 - Box2D-backed 2D physics.
 - JSON save slots with versioned migration hooks.
 - Optional ENet networking when `DEMI_ENABLE_NETWORK=ON`.

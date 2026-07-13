@@ -9,6 +9,12 @@
 
 namespace demi {
 
+struct TextureImporterSettings {
+  std::string filter;
+  std::string wrap = "repeat";
+  bool mipmaps = false;
+};
+
 struct AssetManifest {
   int formatVersion = 1;
   std::string id;
@@ -18,6 +24,7 @@ struct AssetManifest {
   std::string sourceHash;
   std::vector<std::string> dependencies;
   std::string settingsJson;
+  TextureImporterSettings textureSettings;
   std::string attribution;
   std::filesystem::path manifestPath;
   std::filesystem::path sourcePath;

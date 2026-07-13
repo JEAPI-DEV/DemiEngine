@@ -634,8 +634,8 @@ int runProject(const RuntimeOptions &options) {
         const Camera3DComponent *camera = activeCamera3D(loaded.world);
         renderer3D.beginFrame(camera != nullptr ? *camera : fallbackCamera3D,
                               activeCamera3DPosition(loaded.world),
-                              activeCamera3DRotation(loaded.world), width,
-                              height);
+                              activeCamera3DForward(loaded.world),
+                              activeCamera3DUp(loaded.world), width, height);
         renderer3D.drawWorld(loaded.world, dt);
         renderer3D.drawHud(loaded.world);
         renderer3D.endFrame();

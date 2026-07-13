@@ -1,4 +1,5 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/render/Renderer3DBatcher.h"
 #include "demi/runtime/render/Renderer3DInternal.h"
 
 #include <algorithm>
@@ -6,13 +7,14 @@
 
 namespace demi::runtime {
 void Renderer3D::beginFrame(const Camera3DComponent &camera,
-                            const Vec3 cameraPosition,
-                            const Vec3 cameraRotation, const int width,
+                            const Vec3 cameraPosition, const Vec3 cameraForward,
+                            const Vec3 cameraUp, const int width,
                             const int height) {
   ProfileScope scope("Renderer3D.begin_frame");
   camera_ = camera;
   cameraPosition_ = cameraPosition;
-  cameraRotation_ = cameraRotation;
+  cameraForward_ = cameraForward;
+  cameraUp_ = cameraUp;
   width_ = std::max(width, 1);
   height_ = std::max(height, 1);
 
@@ -20,19 +22,18 @@ void Renderer3D::beginFrame(const Camera3DComponent &camera,
   ClearBackground(renderer3d_detail::toRlColor(camera.clearColor));
 
   const ::Vector3 position = renderer3d_detail::toRlVec3(cameraPosition);
-  const Vec3 rotatedTargetOffset =
-      renderer3d_detail::rotatePitchYaw(camera.targetOffset, cameraRotation);
   const ::Vector3 target = {
-      position.x + rotatedTargetOffset.x,
-      position.y + rotatedTargetOffset.y,
-      position.z + rotatedTargetOffset.z,
+      position.x + cameraForward.x,
+      position.y + cameraForward.y,
+      position.z + cameraForward.z,
   };
-  const ::Vector3 up = {0.0F, 1.0F, 0.0F};
+  const ::Vector3 up = renderer3d_detail::toRlVec3(cameraUp);
   ::Camera3D rlCamera{
       .position = position,
       .target = target,
       .up = up,
-      .fovy = std::max(camera.fov, 1.0F),
+      .fovy = camera.perspective ? std::max(camera.fov, 1.0F)
+                                 : std::max(camera.orthographicSize, 0.01F),
       .projection =
           camera.perspective ? CAMERA_PERSPECTIVE : CAMERA_ORTHOGRAPHIC,
   };
@@ -63,15 +64,16 @@ void Renderer3D::drawWorld(World &world, const float deltaTime) {
                    SHADER_UNIFORM_FLOAT);
   }
 
-  for (const Entity &entity : world.entities) {
-    if (entity.hasComponent<DirectionalLightComponent>()) {
-      const ::Vector3 direction = renderer3d_detail::toRlVec3(
-          entity.component<DirectionalLightComponent>()->direction);
-      const ::Color color = renderer3d_detail::toRlColor(
-          entity.component<DirectionalLightComponent>()->color);
-      DrawLine3D({0, 0, 0}, direction, color);
+  if (world.debug.drawOrder)
+    for (const Entity &entity : world.entities) {
+      if (entity.hasComponent<DirectionalLightComponent>()) {
+        const ::Vector3 direction = renderer3d_detail::toRlVec3(
+            entity.component<DirectionalLightComponent>()->direction);
+        const ::Color color = renderer3d_detail::toRlColor(
+            entity.component<DirectionalLightComponent>()->color);
+        DrawLine3D({0, 0, 0}, direction, color);
+      }
     }
-  }
 
   for (Entity &entity : world.entities) {
     if (entity.hasComponent<AnimationPlayer3DComponent>() &&
@@ -82,6 +84,7 @@ void Renderer3D::drawWorld(World &world, const float deltaTime) {
     }
   }
 
+  std::vector<Entity *> visibleEntities;
   for (Entity &entity : world.entities) {
     if (entity.hasComponent<MeshRendererComponent>() ||
         entity.hasComponent<BoxCollider3DComponent>() ||
@@ -90,16 +93,27 @@ void Renderer3D::drawWorld(World &world, const float deltaTime) {
             ProfileScope scope("Renderer3D.frustum_cull");
             return renderer3d_detail::meshEntityVisible(
                 world, entity, *entity.component<MeshRendererComponent>(),
-                cameraPosition_, cameraRotation_, camera_,
+                cameraPosition_, cameraForward_, cameraUp_, camera_,
                 static_cast<float>(width_) / static_cast<float>(height_));
           }()) {
         continue;
       }
-      renderer3d_detail::drawMeshEntity(
-          world, entity, textures_, models_, modelPaths_, modelTextures_,
-          modelAnimations_, animatedModels_, dynamicModels_,
-          hasAlphaCutoutShader_ ? &alphaCutoutShader_ : nullptr);
+      visibleEntities.push_back(&entity);
     }
+  }
+  std::vector<RenderBatch3D> renderBatches;
+  {
+    ProfileScope scope("Renderer3D.build_batches");
+    renderBatches = buildRenderBatches3D(visibleEntities);
+  }
+  for (RenderBatch3D &batch : renderBatches) {
+    RuntimeProfiler::record("Renderer3D.material_batch", 0.0);
+    for (Entity *entity : batch.entities)
+      renderer3d_detail::drawMeshEntity(
+          world, *entity, textures_, models_, modelPaths_, modelTextures_,
+          modelTextureSettings_, modelAnimations_, animatedModels_,
+          dynamicModels_, world.debug.colliders,
+          hasAlphaCutoutShader_ ? &alphaCutoutShader_ : nullptr);
   }
 
   std::unordered_set<std::string> liveDynamicModelIds;
@@ -121,6 +135,8 @@ void Renderer3D::drawWorld(World &world, const float deltaTime) {
     iterator = dynamicModels_.erase(iterator);
   }
 
+  if (!world.debug.grid)
+    return;
   constexpr int slices = 40;
   constexpr float spacing = 1.0F;
   constexpr float half = static_cast<float>(slices) * spacing * 0.5F;

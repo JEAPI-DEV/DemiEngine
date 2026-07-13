@@ -257,6 +257,14 @@ and validated without manual file copying or broken `asset://` references.
 
 ## Milestone 9 — Lightweight 3D Maturity
 
+**Status: complete.** Transform hierarchies now compose translation, rotation,
+and scale with deterministic cycle/missing-parent diagnostics. The lightweight
+3D runtime provides shared overlap/raycast collision queries and Lua bindings,
+named glTF animation states, material texture settings, corrected debug
+rendering, frustum clipping, deterministic material batches, explicit GPU asset
+lifetime management, and profiling. `minimal_3d` and `animation_3d` exercise
+these APIs with validated manifests and explicit performance budgets.
+
 1. Stabilize transform hierarchy: full parent transform composition, cycle
 detection, consistent scale/rotation handling, and tests.
 2. Provide reliable glTF asset importing, skinned-model animation states,
@@ -270,7 +278,15 @@ profiling before adding visually ambitious renderer features.
 performance budgets.
 
 **Done when:** small exploration, third-person, or 3D puzzle games can ship on
-the supported platform without promising Unity-class graphics tooling.
+the supported platform.
+
+## Milestone 9.5 - Dynamic Collider for 3D Physics
+
+Add support for dynamic, (cli generated) collider asset for a
+gltf file 
+
+**Done when:** the minimal_3d, collider hyena collider is working
+and tested, without manualy making the collider ourselfs.
 
 ## Milestone 10 — Networking As A Game-Facing Layer
 

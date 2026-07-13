@@ -407,6 +407,32 @@ function Physics2D.overlap_circle(x, y, radius, layer, ignored_entity_id) end
 ---@param ignored_entity_id? string
 ---@return PhysicsRaycastHit2D|nil
 function Physics2D.raycast(origin_x, origin_y, direction_x, direction_y, distance, layer, ignored_entity_id) end
+
+---@class Physics3DService
+Physics3D = {}
+---@class PhysicsRaycastHit3D
+---@field entity_id string
+---@field point number[]
+---@field normal number[]
+---@field distance number
+---@param x number
+---@param y number
+---@param z number
+---@param radius number
+---@param ignored_entity_id? string
+---@return string[]
+function Physics3D.overlap_sphere(x, y, z, radius, ignored_entity_id) end
+---@param origin_x number
+---@param origin_y number
+---@param origin_z number
+---@param direction_x number
+---@param direction_y number
+---@param direction_z number
+---@param distance number
+---@param ignored_entity_id? string
+---@return PhysicsRaycastHit3D|nil
+function Physics3D.raycast(origin_x, origin_y, origin_z, direction_x, direction_y, direction_z, distance, ignored_entity_id) end
+
 ---@class PhysicsContactFilter2D
 ---@field layer? string
 ---@field normal_x_min? number

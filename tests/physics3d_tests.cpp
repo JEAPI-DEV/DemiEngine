@@ -1,4 +1,5 @@
 #include "demi/runtime/physics/Physics3D.h"
+#include "demi/runtime/physics/SpatialQuery3D.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 
@@ -106,6 +107,17 @@ int main() {
     std::cerr << "Non-dynamic 3D body should bypass dynamic collision "
                  "resolution; resolved to x="
               << kinematicMove.x << ".\n";
+    return 1;
+  }
+
+  const auto overlaps = runtime::overlapSphere3D(
+      world, {.x = 1.25F, .y = 0.5F, .z = 0.0F}, 0.6F, "mover");
+  const auto hit =
+      runtime::raycast3D(world, {.x = 0.0F, .y = 0.5F, .z = 0.0F},
+                         {.x = 1.0F, .y = 0.0F, .z = 0.0F}, 4.0F, "mover");
+  if (overlaps != std::vector<std::string>{"box_wall"} || !hit ||
+      hit->entityId != "box_wall" || hit->distance <= 0.0F) {
+    std::cerr << "Reusable 3D overlap or raycast query failed.\n";
     return 1;
   }
 

@@ -9,9 +9,11 @@
 
 #include <algorithm>
 #include <fstream>
+#include <map>
 #include <optional>
 #include <set>
 #include <sstream>
+#include <unordered_set>
 
 namespace demi {
 
@@ -222,6 +224,57 @@ void validateSceneComponents(Diagnostics &diagnostics,
   }
 }
 
+void validateTransform3DHierarchy(Diagnostics &diagnostics,
+                                  const std::filesystem::path &path,
+                                  const nlohmann::json &document) {
+  if (!document.contains("entities") || !document["entities"].is_array())
+    return;
+  std::map<std::string, std::string> parents;
+  for (const auto &entity : document["entities"]) {
+    if (!entity.is_object() || !entity.contains("id") ||
+        !entity["id"].is_string() || !entity.contains("components") ||
+        !entity["components"].is_object())
+      continue;
+    const auto transform = entity["components"].find("Transform3D");
+    if (transform == entity["components"].end() || !transform->is_object())
+      continue;
+    const auto parent = transform->find("parent");
+    if (parent != transform->end() && parent->is_string() &&
+        !parent->get<std::string>().empty())
+      parents[entity["id"].get<std::string>()] = parent->get<std::string>();
+    else
+      parents.try_emplace(entity["id"].get<std::string>(), "");
+  }
+
+  std::set<std::string> reportedCycles;
+  for (const auto &[entityId, parentId] : parents) {
+    if (!parentId.empty() && !parents.contains(parentId))
+      diagnostics.push_back(Diagnostic{
+          .severity = Severity::Error,
+          .code = "TRANSFORM3D_PARENT_NOT_FOUND",
+          .message = "Transform3D parent was not found for " + entityId + ": " +
+                     parentId,
+          .path = path.string(),
+          .suggestion = "Reference an entity with Transform3D by stable ID."});
+    std::unordered_set<std::string> visiting;
+    std::string current = entityId;
+    while (parents.contains(current) && !parents.at(current).empty()) {
+      if (!visiting.insert(current).second) {
+        if (reportedCycles.insert(current).second)
+          diagnostics.push_back(Diagnostic{
+              .severity = Severity::Error,
+              .code = "TRANSFORM3D_HIERARCHY_CYCLE",
+              .message =
+                  "Transform3D hierarchy cycle includes entity: " + current,
+              .path = path.string(),
+              .suggestion = "Remove one parent edge from the cycle."});
+        break;
+      }
+      current = parents.at(current);
+    }
+  }
+}
+
 } // namespace
 
 SourceFileKind classifySourceFile(const std::filesystem::path &path) {
@@ -353,6 +406,8 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
           runtime::composition::expandScene(path, nlohmann::json::parse(text));
       diagnostics.insert(diagnostics.end(), expansion.diagnostics.begin(),
                          expansion.diagnostics.end());
+      if (expansion.document)
+        validateTransform3DHierarchy(diagnostics, path, *expansion.document);
     } catch (const nlohmann::json::parse_error &) {
       // validateSceneComponents already reports malformed JSON.
     }

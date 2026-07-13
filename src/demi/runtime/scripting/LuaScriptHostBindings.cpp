@@ -8,6 +8,7 @@
 #include "demi/runtime/scripting/bindings/LuaTlsBindings.h"
 #include "demi/runtime/scripting/bindings/animation/LuaAnimationBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics2DBindings.h"
+#include "demi/runtime/scripting/bindings/components/LuaPhysics3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaRigidbody2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaSprite2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaTransform2DBindings.h"
@@ -48,6 +49,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaRigidbody2DBindingModule rigidbody2D;
   const LuaSprite2DBindingModule sprite2D;
   const LuaPhysics2DBindingModule physics2D;
+  const LuaPhysics3DBindingModule physics3D;
   const LuaHudBindingModule hud;
   const LuaSaveBindingModule save;
   const LuaAudioBindingModule audio;
@@ -61,10 +63,10 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaIsoGridBindingModule isoGrid;
   const LuaAnimationBindingModule animation;
   const LuaBindingModule *modules[] = {
-      &core,     &entity,    &transform2D, &transform3D,    &rigidbody2D,
-      &sprite2D, &physics2D, &hud,         &save,           &audio,
-      &video,    &cutscene,  &network,     &networkSession, &tls,
-      &regex,    &random,    &isoGrid,     &animation};
+      &core,     &entity,    &transform2D, &transform3D, &rigidbody2D,
+      &sprite2D, &physics2D, &physics3D,   &hud,         &save,
+      &audio,    &video,     &cutscene,    &network,     &networkSession,
+      &tls,      &regex,     &random,      &isoGrid,     &animation};
   for (const LuaBindingModule *module : modules) {
     module->install(host, state);
   }

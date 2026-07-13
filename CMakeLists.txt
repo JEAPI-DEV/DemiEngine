@@ -171,6 +171,7 @@ file(WRITE "${DEMI_GENERATED_INCLUDE_DIR}/demi/generated/ComponentDescriptors.in
 set(DEMI_COMPONENT_MODEL_SOURCES
   src/demi/runtime/scene/ComponentRegistry.cpp
   src/demi/runtime/scene/SceneJson.cpp
+  src/demi/runtime/scene/Transform3DHierarchy.cpp
   ${DEMI_COMPONENT_SOURCES}
 )
 
@@ -201,6 +202,7 @@ add_library(demi-core STATIC
   src/demi/runtime/isometric/PlacementRules.cpp
   src/demi/runtime/isometric/IsoWorldQueries.cpp
   src/demi/runtime/isometric/IsoGridApi.cpp
+  src/demi/runtime/physics/SpatialQuery3D.cpp
   ${DEMI_COMPONENT_MODEL_SOURCES}
 )
 
@@ -281,6 +283,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/LuaCoreBindings.cpp
   src/demi/runtime/scripting/bindings/LuaEntityBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaPhysics2DBindings.cpp
+  src/demi/runtime/scripting/bindings/components/LuaPhysics3DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaRigidbody2DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaSprite2DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaTransform2DBindings.cpp
@@ -371,10 +374,12 @@ configure_demi_runtime(demi-runtime-lib TRUE
   src/demi/runtime/render/ProfilerHudRenderer.cpp
   src/demi/runtime/render/Renderer2D.cpp
   src/demi/runtime/render/Renderer3D.cpp
+  src/demi/runtime/render/Renderer3DBatcher.cpp
   src/demi/runtime/render/Renderer3DAssets.cpp
   src/demi/runtime/render/Renderer3DHudRenderer.cpp
   src/demi/runtime/render/Renderer3DMeshRenderer.cpp
   src/demi/runtime/render/Renderer3DModelResources.cpp
+  src/demi/runtime/render/Renderer3DTextureSettings.cpp
 )
 
 if(NOT ANDROID)
@@ -422,6 +427,14 @@ else()
 
   add_executable(demi-physics3d-tests tests/physics3d_tests.cpp)
   target_link_libraries(demi-physics3d-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-transform3d-hierarchy-tests
+    tests/transform3d_hierarchy_tests.cpp)
+  target_link_libraries(demi-transform3d-hierarchy-tests PRIVATE demi-core)
+  add_executable(demi-validation-3d-tests tests/validation_3d_tests.cpp)
+  target_link_libraries(demi-validation-3d-tests PRIVATE demi-core)
+  add_executable(demi-renderer3d-batcher-tests
+    tests/renderer3d_batcher_tests.cpp)
+  target_link_libraries(demi-renderer3d-batcher-tests PRIVATE demi-runtime-lib raylib)
 
   add_executable(demi-lua-stub-contract-tests tests/lua_stub_contract_tests.cpp)
   target_link_libraries(demi-lua-stub-contract-tests PRIVATE demi-runtime-lib)
@@ -473,6 +486,11 @@ else()
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-physics2d-tests COMMAND demi-physics2d-tests)
 add_test(NAME demi-physics3d-tests COMMAND demi-physics3d-tests)
+add_test(NAME demi-transform3d-hierarchy-tests
+  COMMAND demi-transform3d-hierarchy-tests)
+add_test(NAME demi-validation-3d-tests COMMAND demi-validation-3d-tests)
+add_test(NAME demi-renderer3d-batcher-tests
+  COMMAND demi-renderer3d-batcher-tests)
 add_test(NAME demi-lua-stub-contract-tests COMMAND demi-lua-stub-contract-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
 add_test(NAME demi-scene-loader-tests COMMAND demi-scene-loader-tests ${CMAKE_SOURCE_DIR})
@@ -577,6 +595,14 @@ add_test(NAME demi-runtime-minimal-3d-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json --frames 1
 )
 set_tests_properties(demi-runtime-minimal-3d-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-animation-3d-frame
+  COMMAND demi run
+    --project ${CMAKE_SOURCE_DIR}/examples/animation_3d/demi.project.json
+    --frames 3
+    --profile-report ${CMAKE_BINARY_DIR}/generated/animation_3d_profile.csv
+)
+set_tests_properties(demi-runtime-animation-3d-frame PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-runtime-minimal-voxel-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/demi.project.json --frames 1
 )
@@ -637,6 +663,9 @@ add_test(NAME demi-validate-minimal-2d-android
 )
 add_test(NAME demi-validate-minimal-3d
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json
+)
+add_test(NAME demi-validate-animation-3d
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/animation_3d/demi.project.json
 )
 add_test(NAME demi-validate-minimal-voxel
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/demi.project.json

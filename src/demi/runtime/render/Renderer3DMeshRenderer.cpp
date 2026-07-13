@@ -66,17 +66,6 @@ Vec3 normalize(const Vec3 value) {
   return scale(value, 1.0F / valueLength);
 }
 
-Vec3 rotatePitchYaw(const Vec3 value, const Vec3 rotation) {
-  const float sinX = std::sin(rotation.x);
-  const float cosX = std::cos(rotation.x);
-  const Vec3 pitched{
-      .x = value.x,
-      .y = value.y * cosX - value.z * sinX,
-      .z = value.y * sinX + value.z * cosX,
-  };
-  return rotateYaw(pitched, rotation.y);
-}
-
 float horizontalRadiusForBounds(const Vec3 min, const Vec3 max,
                                 const Vec3 scaleValue) {
   const Vec3 extents = multiply(scale(subtract(max, min), 0.5F), scaleValue);
@@ -147,7 +136,7 @@ void drawTexturedCube(const ::Vector3 center, const ::Vector3 size,
 
 bool meshEntityVisible(const World &world, const Entity &entity,
                        const MeshRendererComponent &mesh, const Vec3 camera,
-                       const Vec3 cameraRotation,
+                       const Vec3 cameraForward, const Vec3 cameraUp,
                        const Camera3DComponent &cameraComponent,
                        const float aspectRatio) {
   if (!entity.hasComponent<Transform3DComponent>() ||
@@ -155,34 +144,39 @@ bool meshEntityVisible(const World &world, const Entity &entity,
     return true;
   }
 
-  const Vec3 position = worldPosition3D(world, entity);
-  const Vec3 scaleValue = entity.component<Transform3DComponent>()->scale;
+  const auto transform = resolveWorldTransform3D(world, entity);
+  if (!transform)
+    return false;
+  const Vec3 position = transform->position;
+  const Vec3 scaleValue = transform->scale;
   Vec3 center = position;
   float radius = length(scaleValue) * 0.5F;
 
   if (mesh.hasBounds) {
-    const Vec3 localCenter = scale(add(mesh.boundsMin, mesh.boundsMax), 0.5F);
-    center = add(position, multiply(localCenter, scaleValue));
-    radius =
-        horizontalRadiusForBounds(mesh.boundsMin, mesh.boundsMax, scaleValue);
-  } else if (!mesh.model.empty()) {
-    return true;
+    const Vec3 localCenter =
+        multiply(scale(add(mesh.boundsMin, mesh.boundsMax), 0.5F), mesh.size);
+    center = transformPoint3D(*transform, localCenter);
+    radius = horizontalRadiusForBounds(mesh.boundsMin, mesh.boundsMax,
+                                       multiply(scaleValue, mesh.size));
   } else if (mesh.shape == "sphere") {
-    radius = std::abs(scaleValue.x) * 0.5F;
+    const Vec3 scaledSize = multiply(mesh.size, scaleValue);
+    radius = std::max({std::abs(scaledSize.x), std::abs(scaledSize.y),
+                       std::abs(scaledSize.z)}) *
+             0.5F;
   } else {
     radius = length(multiply(mesh.size, scaleValue)) * 0.5F;
   }
 
-  const Vec3 forward =
-      normalize(rotatePitchYaw(cameraComponent.targetOffset, cameraRotation));
-  Vec3 right = normalize(cross(forward, Vec3{0.0F, 1.0F, 0.0F}));
+  const Vec3 forward = normalize(cameraForward);
+  Vec3 right = normalize(cross(forward, normalize(cameraUp)));
   if (length(right) <= 0.0001F) {
     right = Vec3{1.0F, 0.0F, 0.0F};
   }
   const Vec3 up = normalize(cross(right, forward));
   const Vec3 toCenter = subtract(center, camera);
   const float distanceAlongForward = dot(toCenter, forward);
-  if (distanceAlongForward < -radius) {
+  if (distanceAlongForward + radius < cameraComponent.nearClip ||
+      distanceAlongForward - radius > cameraComponent.farClip) {
     return false;
   }
 
@@ -203,10 +197,12 @@ void drawMeshEntity(
     const std::unordered_map<std::string, Model> &models,
     const std::unordered_map<std::string, std::filesystem::path> &modelPaths,
     const std::unordered_map<std::string, Texture2D> &modelTextures,
+    const std::unordered_map<std::string, TextureImporterSettings>
+        &modelTextureSettings,
     const std::unordered_map<std::string, ModelAnimationAsset> &modelAnimations,
     std::unordered_map<std::string, AnimatedModelCacheEntry> &animatedModels,
     std::unordered_map<std::string, DynamicModelCacheEntry> &dynamicModels,
-    const Shader *alphaCutoutShader) {
+    const bool drawDebugColliders, const Shader *alphaCutoutShader) {
   if (!entity.hasComponent<MeshRendererComponent>() ||
       !entity.hasComponent<Transform3DComponent>()) {
     return;
@@ -214,12 +210,16 @@ void drawMeshEntity(
 
   const MeshRendererComponent &mesh =
       *entity.component<MeshRendererComponent>();
-  const ::Vector3 position = toRlVec3(worldPosition3D(world, entity));
-  const ::Vector3 size = toRlVec3(mesh.size);
+  const auto worldTransform = resolveWorldTransform3D(world, entity);
+  if (!worldTransform)
+    return;
+  const ::Vector3 position = toRlVec3(worldTransform->position);
+  const Vec3 scaledSize = multiply(mesh.size, worldTransform->scale);
+  const ::Vector3 size = toRlVec3(scaledSize);
   const ::Color color = toRlColor(mesh.color);
   const bool drawSolid = color.a > 0 && !mesh.wireframe;
 
-  const ::Vector3 rotation = toRlVec3(worldRotation3D(world, entity));
+  const ::Vector3 rotation = toRlVec3(worldTransform->rotation);
   constexpr float RadiansToDegrees = 180.0F / std::numbers::pi_v<float>;
   const float rotationX = rotation.x * RadiansToDegrees;
   const float rotationY = rotation.y * RadiansToDegrees;
@@ -244,8 +244,9 @@ void drawMeshEntity(
     if (entity.hasComponent<AnimationPlayer3DComponent>()) {
       const auto animations = modelAnimations.find(mesh.model);
       if (animations != modelAnimations.end()) {
-        if (Model *animatedModel = animatedModelForEntity(
-                entity, mesh, modelPaths, modelTextures, animatedModels)) {
+        if (Model *animatedModel =
+                animatedModelForEntity(entity, mesh, modelPaths, modelTextures,
+                                       modelTextureSettings, animatedModels)) {
           updateModelAnimation(*animatedModel,
                                *entity.component<AnimationPlayer3DComponent>(),
                                animations->second);
@@ -339,28 +340,30 @@ void drawMeshEntity(
     rlPopMatrix();
   }
 
-  if (entity.hasComponent<BoxCollider3DComponent>()) {
-    const ::Vector3 colliderCenter{
-        .x = position.x + entity.component<BoxCollider3DComponent>()->offset.x,
-        .y = position.y + entity.component<BoxCollider3DComponent>()->offset.y,
-        .z = position.z + entity.component<BoxCollider3DComponent>()->offset.z,
-    };
+  if (drawDebugColliders && entity.hasComponent<BoxCollider3DComponent>()) {
+    const auto &collider = *entity.component<BoxCollider3DComponent>();
+    const ::Vector3 colliderCenter =
+        toRlVec3(transformPoint3D(*worldTransform, collider.offset));
     const ::Vector3 colliderSize =
-        toRlVec3(entity.component<BoxCollider3DComponent>()->size);
+        toRlVec3(multiply(collider.size, worldTransform->scale));
+    rlPushMatrix();
+    rlTranslatef(colliderCenter.x, colliderCenter.y, colliderCenter.z);
+    rlRotatef(rotationX, 1.0F, 0.0F, 0.0F);
+    rlRotatef(rotationY, 0.0F, 1.0F, 0.0F);
+    rlRotatef(rotationZ, 0.0F, 0.0F, 1.0F);
+    rlTranslatef(-colliderCenter.x, -colliderCenter.y, -colliderCenter.z);
     DrawCubeWiresV(colliderCenter, colliderSize, {244, 91, 105, 255});
+    rlPopMatrix();
   }
-  if (entity.hasComponent<SphereCollider3DComponent>()) {
-    const ::Vector3 colliderCenter{
-        .x = position.x +
-             entity.component<SphereCollider3DComponent>()->offset.x,
-        .y = position.y +
-             entity.component<SphereCollider3DComponent>()->offset.y,
-        .z = position.z +
-             entity.component<SphereCollider3DComponent>()->offset.z,
-    };
-    DrawSphereWires(colliderCenter,
-                    entity.component<SphereCollider3DComponent>()->radius, 16,
-                    16, {244, 91, 105, 255});
+  if (drawDebugColliders && entity.hasComponent<SphereCollider3DComponent>()) {
+    const auto &collider = *entity.component<SphereCollider3DComponent>();
+    const ::Vector3 colliderCenter =
+        toRlVec3(transformPoint3D(*worldTransform, collider.offset));
+    const float maximumScale = std::max({std::abs(worldTransform->scale.x),
+                                         std::abs(worldTransform->scale.y),
+                                         std::abs(worldTransform->scale.z)});
+    DrawSphereWires(colliderCenter, collider.radius * maximumScale, 16, 16,
+                    {244, 91, 105, 255});
   }
 }
 

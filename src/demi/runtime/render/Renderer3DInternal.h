@@ -6,16 +6,26 @@
 #include <filesystem>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace demi::runtime::renderer3d_detail {
 
 [[nodiscard]] ::Color toRlColor(const Color &value);
 [[nodiscard]] ::Vector3 toRlVec3(const Vec3 &value);
-[[nodiscard]] Vec3 rotatePitchYaw(Vec3 value, Vec3 rotation);
+
+void applyTextureSettings(Texture2D &texture,
+                          const TextureImporterSettings &settings,
+                          int defaultFilter);
+void applyModelTextureSettings(Model &model,
+                               const TextureImporterSettings &settings);
+[[nodiscard]] std::vector<Texture2D>
+ownedTexturesForModel(const Model &model, unsigned int excludedTextureId = 0);
+void unloadOwnedTextures(std::vector<Texture2D> &textures);
 
 [[nodiscard]] bool meshEntityVisible(const World &world, const Entity &entity,
                                      const MeshRendererComponent &mesh,
-                                     Vec3 camera, Vec3 cameraRotation,
+                                     Vec3 camera, Vec3 cameraForward,
+                                     Vec3 cameraUp,
                                      const Camera3DComponent &cameraComponent,
                                      float aspectRatio);
 
@@ -29,6 +39,8 @@ namespace demi::runtime::renderer3d_detail {
     const Entity &entity, const MeshRendererComponent &mesh,
     const std::unordered_map<std::string, std::filesystem::path> &modelPaths,
     const std::unordered_map<std::string, Texture2D> &modelTextures,
+    const std::unordered_map<std::string, TextureImporterSettings>
+        &textureSettings,
     std::unordered_map<std::string, AnimatedModelCacheEntry> &animatedModels);
 
 void updateModelAnimation(Model &model, AnimationPlayer3DComponent &player,
@@ -40,9 +52,11 @@ void drawMeshEntity(
     const std::unordered_map<std::string, Model> &models,
     const std::unordered_map<std::string, std::filesystem::path> &modelPaths,
     const std::unordered_map<std::string, Texture2D> &modelTextures,
+    const std::unordered_map<std::string, TextureImporterSettings>
+        &modelTextureSettings,
     const std::unordered_map<std::string, ModelAnimationAsset> &modelAnimations,
     std::unordered_map<std::string, AnimatedModelCacheEntry> &animatedModels,
     std::unordered_map<std::string, DynamicModelCacheEntry> &dynamicModels,
-    const Shader *alphaCutoutShader);
+    bool drawDebugColliders, const Shader *alphaCutoutShader);
 
 } // namespace demi::runtime::renderer3d_detail

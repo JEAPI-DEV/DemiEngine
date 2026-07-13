@@ -2,6 +2,15 @@
   "format_version": 1,
   "name": "Minimal 3D",
   "main_scene": "scene://minimal_3d/main",
+  "performance_budgets": {
+    "maximum_frame_ms": 16.67,
+    "maximum_draw_calls": 128,
+    "maximum_resident_assets": 64
+  },
+  "debug": {
+    "colliders": true,
+    "grid": true
+  },
   "scenes": [
     {
       "id": "scene://minimal_3d/main",

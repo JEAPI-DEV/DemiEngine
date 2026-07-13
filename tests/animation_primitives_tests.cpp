@@ -57,7 +57,8 @@ int main() {
   AnimationPlayer3DComponent::parse(nlohmann::json::parse(R"({"clip":0})"),
                                     model);
   AnimationStateMachineComponent::parse(nlohmann::json::parse(R"({
-    "initial_state":"run", "states":{"run":{"model_clip":3,"speed":1.5}}
+    "initial_state":"run", "states":{"run":{"model_clip":3,
+      "model_clip_name":"Run","speed":1.5}}
   })"),
                                         model);
 
@@ -72,7 +73,9 @@ int main() {
   AnimationCollision2DSystem collisionSystem;
   stateSystem.update(world, 0.0F);
   if (machine->state != "attack" ||
-      world.entities[2].component<AnimationPlayer3DComponent>()->clip != 3) {
+      world.entities[2].component<AnimationPlayer3DComponent>()->clip != 3 ||
+      world.entities[2].component<AnimationPlayer3DComponent>()->clipName !=
+          "Run") {
     std::cerr << "Shared animation state adapters failed.\n";
     return 1;
   }

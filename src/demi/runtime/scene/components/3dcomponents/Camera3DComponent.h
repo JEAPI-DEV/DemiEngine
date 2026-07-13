@@ -12,6 +12,8 @@ struct Camera3DComponent {
   static constexpr std::array fields{
       ComponentFieldDescriptor{"clear_color", ComponentFieldType::Color},
       ComponentFieldDescriptor{"fov", ComponentFieldType::Number},
+      ComponentFieldDescriptor{"near_clip", ComponentFieldType::Number},
+      ComponentFieldDescriptor{"far_clip", ComponentFieldType::Number},
       ComponentFieldDescriptor{"orthographic_size", ComponentFieldType::Number},
       ComponentFieldDescriptor{"target_offset", ComponentFieldType::Vec3},
       ComponentFieldDescriptor{"perspective", ComponentFieldType::Boolean},
@@ -22,6 +24,8 @@ struct Camera3DComponent {
 
   Color clearColor;
   float fov = 60.0F;
+  float nearClip = 0.05F;
+  float farClip = 500.0F;
   float orthographicSize = 10.0F;
   Vec3 targetOffset = {0.0F, 0.0F, 1.0F};
   bool perspective = true;

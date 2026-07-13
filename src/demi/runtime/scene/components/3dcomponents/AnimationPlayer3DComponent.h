@@ -10,6 +10,7 @@ struct AnimationPlayer3DComponent {
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
   static constexpr std::array fields{
       ComponentFieldDescriptor{"clip", ComponentFieldType::Integer},
+      ComponentFieldDescriptor{"clip_name", ComponentFieldType::String},
       ComponentFieldDescriptor{"speed", ComponentFieldType::Number},
       ComponentFieldDescriptor{"time", ComponentFieldType::Number},
       ComponentFieldDescriptor{"loop", ComponentFieldType::Boolean},
@@ -19,6 +20,7 @@ struct AnimationPlayer3DComponent {
   static void parse(const nlohmann::json &json, Entity &entity);
 
   int clip = 0;
+  std::string clipName;
   float speed = 1.0F;
   float time = 0.0F;
   bool loop = true;

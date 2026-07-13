@@ -4,6 +4,7 @@
 #include "demi/runtime/isometric/IsoGridApi.h"
 #include "demi/runtime/network/NetworkSystem.h"
 #include "demi/runtime/physics/Physics2D.h"
+#include "demi/runtime/physics/SpatialQuery3D.h"
 #include "demi/runtime/scene/SceneData.h"
 #include "demi/runtime/simulation/DeterministicRandom.h"
 
@@ -136,6 +137,13 @@ public:
   physicsRaycast(float originX, float originY, float directionX,
                  float directionY, float distance, const std::string &layer,
                  const std::string &ignoredEntityId) const;
+  [[nodiscard]] std::vector<std::string>
+  physicsOverlapSphere3D(float x, float y, float z, float radius,
+                         const std::string &ignoredEntityId) const;
+  [[nodiscard]] std::optional<PhysicsRaycastHit3D>
+  physicsRaycast3D(float originX, float originY, float originZ,
+                   float directionX, float directionY, float directionZ,
+                   float distance, const std::string &ignoredEntityId) const;
   [[nodiscard]] bool
   physicsHasContact(const std::string &entityId,
                     const PhysicsContactFilter2D &filter) const;

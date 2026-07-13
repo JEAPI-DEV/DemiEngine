@@ -74,15 +74,30 @@ int main() {
   auto mainDocument = readJson(mainAsset.manifestPath);
   mainDocument["dependencies"] = {"asset://fixture/dependency"};
   mainDocument["attribution"] = "DemiEngine test fixture";
+  mainDocument["settings"] = {
+      {"filter", "nearest"}, {"wrap", "clamp"}, {"mipmaps", true}};
   writeJson(mainAsset.manifestPath, mainDocument);
   const auto manifest = loadAssetManifest(mainAsset.manifestPath);
   if (!manifest || manifest->importer != "image" ||
       manifest->importerVersion != 1 || manifest->sourceHash.empty() ||
-      manifest->dependencies.size() != 1 || !manifest->generatedOutputPath ||
+      manifest->dependencies.size() != 1 ||
+      manifest->textureSettings.filter != "nearest" ||
+      manifest->textureSettings.wrap != "clamp" ||
+      !manifest->textureSettings.mipmaps || !manifest->generatedOutputPath ||
       !std::filesystem::exists(*manifest->generatedOutputPath)) {
     std::cerr << "Expanded manifest metadata was not preserved.\n";
     return 1;
   }
+
+  mainDocument["settings"]["filter"] = "invalid";
+  writeJson(mainAsset.manifestPath, mainDocument);
+  if (!containsCode(validateAssetRegistry(loadAssetRegistry(sourceProject)),
+                    "ASSET_TEXTURE_FILTER_INVALID")) {
+    std::cerr << "Invalid texture importer setting was not diagnosed.\n";
+    return 1;
+  }
+  mainDocument["settings"]["filter"] = "nearest";
+  writeJson(mainAsset.manifestPath, mainDocument);
 
   writeText(external / "duplicate.png", "duplicate-id-fixture");
   const auto duplicate =

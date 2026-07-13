@@ -15,6 +15,8 @@
         "Camera3D": {
           "clear_color": [0.035, 0.045, 0.075, 1.0],
           "fov": 50.0,
+          "near_clip": 0.05,
+          "far_clip": 100.0,
           "perspective": true,
           "target_offset": [-2.5, -0.8, -4.0]
         }
@@ -60,10 +62,20 @@
           "color": [0.82, 0.9, 1.0, 1.0]
         },
         "AnimationPlayer3D": {
-          "clip": 0,
+          "clip_name": "clip_0",
           "speed": 1.0,
           "loop": true,
           "playing": true
+        },
+        "AnimationStateMachine": {
+          "initial_state": "showcase",
+          "states": {
+            "showcase": {
+              "model_clip_name": "clip_0",
+              "speed": 1.0,
+              "loop": true
+            }
+          }
         }
       }
     }

@@ -2,6 +2,14 @@
   "format_version": 1,
   "name": "3D Animation",
   "main_scene": "scene://animation_3d/main",
+  "performance_budgets": {
+    "maximum_frame_ms": 16.67,
+    "maximum_draw_calls": 64,
+    "maximum_resident_assets": 32
+  },
+  "debug": {
+    "grid": true
+  },
   "scenes": [
     {
       "id": "scene://animation_3d/main",

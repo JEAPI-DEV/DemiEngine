@@ -167,6 +167,12 @@ loadAssetManifest(const std::filesystem::path &manifestPath,
         document.value("dependencies", std::vector<std::string>{});
     manifest.settingsJson =
         document.value("settings", nlohmann::json::object()).dump();
+    if (const auto settings = document.find("settings");
+        settings != document.end() && settings->is_object()) {
+      manifest.textureSettings.filter = settings->value("filter", "");
+      manifest.textureSettings.wrap = settings->value("wrap", "repeat");
+      manifest.textureSettings.mipmaps = settings->value("mipmaps", false);
+    }
     manifest.attribution = document.value("attribution", "");
     manifest.manifestPath = manifestPath;
     manifest.sourcePath = sources.front();
@@ -322,6 +328,24 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
                                .path = asset.manifestPath.string(),
                                .suggestion = "Run demi asset reimport."});
     }
+    if (!asset.textureSettings.filter.empty() &&
+        asset.textureSettings.filter != "nearest" &&
+        asset.textureSettings.filter != "bilinear" &&
+        asset.textureSettings.filter != "trilinear")
+      diagnostics.push_back({.severity = Severity::Error,
+                             .code = "ASSET_TEXTURE_FILTER_INVALID",
+                             .message = "Unsupported texture filter setting.",
+                             .path = asset.manifestPath.string(),
+                             .suggestion = "Use nearest, bilinear, or "
+                                           "trilinear."});
+    if (asset.textureSettings.wrap != "repeat" &&
+        asset.textureSettings.wrap != "clamp" &&
+        asset.textureSettings.wrap != "mirror")
+      diagnostics.push_back({.severity = Severity::Error,
+                             .code = "ASSET_TEXTURE_WRAP_INVALID",
+                             .message = "Unsupported texture wrap setting.",
+                             .path = asset.manifestPath.string(),
+                             .suggestion = "Use repeat, clamp, or mirror."});
   }
   std::set<std::string> visiting;
   std::set<std::string> visited;

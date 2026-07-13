@@ -4,5 +4,10 @@
   "type": "Model3D",
   "source": "scene.gltf",
   "texture": "textures/M_Hyena_diffuse.png",
-  "importer": "gltf-model"
+  "importer": "gltf-model",
+  "settings": {
+    "filter": "bilinear",
+    "wrap": "repeat",
+    "mipmaps": true
+  }
 }

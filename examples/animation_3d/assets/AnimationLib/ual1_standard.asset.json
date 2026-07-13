@@ -3,5 +3,10 @@
   "id": "asset://animation_lib/ual1_standard",
   "type": "Model3D",
   "source": "UAL1_Standard.glb",
-  "importer": "gltf-model"
+  "importer": "gltf-model",
+  "settings": {
+    "filter": "bilinear",
+    "wrap": "repeat",
+    "mipmaps": true
+  }
 }

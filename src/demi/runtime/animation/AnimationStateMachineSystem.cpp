@@ -48,10 +48,14 @@ void applyState(Entity &entity, AnimationStateMachineComponent &machine,
         state.loop || state.duration <= 0.0F || machine.time < state.duration;
   }
   if (auto *model = entity.component<AnimationPlayer3DComponent>();
-      model != nullptr && state.modelClip >= 0) {
-    if (machine.entered || model->clip != state.modelClip)
+      model != nullptr &&
+      (state.modelClip >= 0 || !state.modelClipName.empty())) {
+    if (machine.entered || model->clip != state.modelClip ||
+        model->clipName != state.modelClipName)
       model->time = 0.0F;
-    model->clip = state.modelClip;
+    if (state.modelClip >= 0)
+      model->clip = state.modelClip;
+    model->clipName = state.modelClipName;
     model->speed = state.speed;
     model->loop = state.loop;
     model->playing =

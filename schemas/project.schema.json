@@ -68,6 +68,15 @@
         }
       }
     },
+    "performance_budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maximum_frame_ms": { "type": "number", "exclusiveMinimum": 0 },
+        "maximum_draw_calls": { "type": "integer", "minimum": 1 },
+        "maximum_resident_assets": { "type": "integer", "minimum": 1 }
+      }
+    },
     "debug": {
       "type": "object",
       "additionalProperties": false,

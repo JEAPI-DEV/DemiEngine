@@ -16,7 +16,7 @@ Status meanings:
 | Saves | Stable | JSON slots, versions, migration hooks |
 | Audio | Stable | miniaudio playback and entity audio sources |
 | CLI validation and smoke tests | Stable | Project/example validation and headless runtime probes |
-| Lightweight 3D | Experimental | Models, primitives, camera, animation, simple collision |
+| Lightweight 3D | Experimental | Cycle-safe transform hierarchies, glTF materials and skeletal clips, spatial queries, deterministic batching, frustum culling, resource ownership, debug rendering, and profiled reference budgets |
 | Video/cutscenes | Experimental | FFmpeg-backed playback when enabled |
 | Networking | Experimental | Optional ENet, TLS/DTLS, Lua session helpers |
 | Android | Experimental | Minimal client/server-oriented build support |
@@ -28,7 +28,7 @@ Status meanings:
 | Isometric placement/pathfinding | Stable | Grid conversion, occupancy, placement diagnostics, pathfinding, and rendering |
 | Animation state machines | Stable | Shared named states, transitions, parameters, timed events, and Lua control for 2D/3D players |
 | Animation-timed 2D collision | Stable | Named receiver volumes and state-time windows with neutral overlap events; gameplay policy stays in scripts |
-| Lightweight 3D animation adapter | Experimental | Shared state-machine control over model clip indexes; the wider 3D pipeline remains limited |
+| Lightweight 3D animation adapter | Experimental | Shared state-machine control over embedded glTF clip names and deterministic `clip_N` aliases |
 | Asset import and validation | Stable | Versioned importer metadata, source hashes, dependencies, stale-output and cycle diagnostics |
 | Portable asset packages | Stable | Deterministic dependency-complete export/import with checksums, path safety, licenses, and explicit conflicts |
 | Linux cooking and packaging | Stable | Runtime-only deterministic cook output, manifest, Linux runtime bundle, and headless smoke coverage |

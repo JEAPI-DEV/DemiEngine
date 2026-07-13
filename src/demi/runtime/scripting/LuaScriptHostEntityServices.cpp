@@ -347,6 +347,25 @@ LuaScriptHost::physicsRaycast(const float originX, const float originY,
                          distance, layer, ignoredEntityId);
 }
 
+std::vector<std::string> LuaScriptHost::physicsOverlapSphere3D(
+    const float x, const float y, const float z, const float radius,
+    const std::string &ignoredEntityId) const {
+  return world_ != nullptr ? overlapSphere3D(*world_, {.x = x, .y = y, .z = z},
+                                             radius, ignoredEntityId)
+                           : std::vector<std::string>{};
+}
+
+std::optional<PhysicsRaycastHit3D> LuaScriptHost::physicsRaycast3D(
+    const float originX, const float originY, const float originZ,
+    const float directionX, const float directionY, const float directionZ,
+    const float distance, const std::string &ignoredEntityId) const {
+  return world_ == nullptr
+             ? std::nullopt
+             : raycast3D(*world_, {.x = originX, .y = originY, .z = originZ},
+                         {.x = directionX, .y = directionY, .z = directionZ},
+                         distance, ignoredEntityId);
+}
+
 bool LuaScriptHost::physicsHasContact(
     const std::string &entityId, const PhysicsContactFilter2D &filter) const {
   return world_ != nullptr && hasContact(*world_, entityId, filter);
