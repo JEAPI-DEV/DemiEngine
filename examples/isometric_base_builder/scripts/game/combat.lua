@@ -25,11 +25,13 @@ function Combat.update(state, config, projectiles, dt)
   end
 
   for id in pairs(projectiles.update(dt)) do
-    if state.enemies[id] then
+    local enemy = state.enemies[id]
+    if enemy then
       Entity.destroy(id)
       state.enemies[id] = nil
-      state.gold = state.gold + config.enemy.reward
-      state.status = "Raider defeated: +" .. tostring(config.enemy.reward) .. " gold."
+      local reward = enemy.reward or 0
+      state.gold = state.gold + reward
+      state.status = (enemy.label or "Enemy") .. " defeated: +" .. tostring(reward) .. " gold."
     end
   end
 end

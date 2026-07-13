@@ -24,6 +24,7 @@ function Game:on_create()
 end
 
 function Game:on_start()
+  Runtime.set_max_fps(60)
   self.state.status = "Defend the keep. Build towers without blocking the route."
   Ui.update(self.state, Config)
 end

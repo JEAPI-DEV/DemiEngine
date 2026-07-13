@@ -3,30 +3,81 @@ local Waves = {}
 function Waves.new(state, config)
   local self = {}
 
+  local function available_enemy_types()
+    local available = {}
+    for kind, definition in pairs(config.enemy.types) do
+      if state.wave >= definition.unlock_wave then
+        available[#available + 1] = { kind = kind, definition = definition }
+      end
+    end
+    table.sort(available, function(a, b)
+      if a.definition.unlock_wave == b.definition.unlock_wave then
+        return a.kind < b.kind
+      end
+      return a.definition.unlock_wave < b.definition.unlock_wave
+    end)
+    return available
+  end
+
+  local function choose_enemy_type()
+    local available = available_enemy_types()
+    local total_weight = 0
+    for _, entry in ipairs(available) do
+      local weight = entry.definition.weight
+      -- Newly unlocked enemies get a temporary introduction boost.
+      if state.wave == entry.definition.unlock_wave then weight = weight * 2 end
+      entry.current_weight = weight
+      total_weight = total_weight + weight
+    end
+    local roll = math.random() * total_weight
+    local accumulated = 0
+    for _, entry in ipairs(available) do
+      accumulated = accumulated + entry.current_weight
+      if roll <= accumulated then return entry.kind, entry.definition end
+    end
+    local fallback = available[#available]
+    return fallback.kind, fallback.definition
+  end
+
   local function spawn_enemy()
     local path = config.road
-    local id = "ent_raider_" .. tostring(state.next_enemy_id)
+    local kind, definition = choose_enemy_type()
+    local id = "ent_" .. kind .. "_" .. tostring(state.next_enemy_id)
     state.next_enemy_id = state.next_enemy_id + 1
-    local health = config.enemy.base_health + state.wave * config.enemy.health_per_wave
+
+    local wave_index = math.max(0, state.wave - 1)
+    local health_multiplier = 1 + wave_index * config.enemy.health_growth_per_wave
+    local speed_multiplier = 1 + wave_index * config.enemy.speed_growth_per_wave
+    local health = math.floor(definition.health * health_multiplier + 0.5)
+    local speed = definition.speed * speed_multiplier
+    local reward_bonus = math.floor(wave_index / config.enemy.reward_growth_every)
+    local reward = definition.reward + reward_bonus
+
     if not Entity.create(id, {
-      name = "Raider",
+      name = definition.label,
       components = {
         IsoTransform = { tile = { path[1][1], path[1][2] }, height = 0.18, footprint = { 1, 1 } },
         Sprite = {
           texture = config.enemy.texture,
           size = config.enemy.size,
           pivot = { 0.5, 1.0 },
+          color = definition.tint,
         },
       },
     }) then return end
+
     state.enemies[id] = {
       id = id,
+      kind = kind,
+      label = definition.label,
       health = health,
       max_health = health,
+      reward = reward,
+      base_damage = definition.base_damage,
       path = path,
       segment = 1,
       progress = 0,
-      speed = config.enemy.base_speed + state.wave * 0.06,
+      speed = speed,
       x = path[1][1],
       y = path[1][2],
     }
@@ -60,7 +111,9 @@ function Waves.new(state, config)
     if state.spawn_remaining > 0 and state.spawn_timer <= 0 then
       spawn_enemy()
       state.spawn_remaining = state.spawn_remaining - 1
-      state.spawn_timer = 0.72
+      state.spawn_timer = math.max(
+        config.enemy.minimum_spawn_interval,
+        config.enemy.base_spawn_interval - (state.wave - 1) * config.enemy.spawn_interval_reduction)
     end
 
     local reached = {}
@@ -81,10 +134,13 @@ function Waves.new(state, config)
       end
     end
     for _, id in ipairs(reached) do
+      local enemy = state.enemies[id]
       Entity.destroy(id)
       state.enemies[id] = nil
-      state.base_health = math.max(0, state.base_health - 1)
-      state.status = "A raider reached the keep!"
+      local damage = enemy and enemy.base_damage or 1
+      state.base_health = math.max(0, state.base_health - damage)
+      local label = enemy and enemy.label or "Enemy"
+      state.status = label .. " reached the keep: -" .. tostring(damage) .. " health."
     end
 
     if state.spawn_remaining == 0 and next(state.enemies) == nil then
