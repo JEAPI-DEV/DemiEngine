@@ -176,6 +176,21 @@ Entity luaParseEntitySpec(const std::string &entityId, const sol::table spec) {
     });
   }
 
+  if (const sol::table collider =
+          componentTable(components, "CircleCollider2D");
+      collider.valid()) {
+    CircleCollider2DComponent circle;
+    circle.radius = collider.get_or("radius", 0.5F);
+    circle.offset = luaVec2Field(collider, "offset");
+    circle.isTrigger = collider.get_or("is_trigger", false);
+    circle.layer = collider.get_or("layer", std::string{});
+    circle.categoryBits =
+        static_cast<std::uint16_t>(collider.get_or("category_bits", 1));
+    circle.maskBits =
+        static_cast<std::uint16_t>(collider.get_or("mask_bits", 65535));
+    entity.setComponent(std::move(circle));
+  }
+
   if (const sol::table sprite = componentTable(components, "Sprite");
       sprite.valid()) {
     entity.setComponent<SpriteComponent>(SpriteComponent{

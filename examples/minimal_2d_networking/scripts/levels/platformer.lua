@@ -8,7 +8,6 @@ local Level = {
   camera_y = 0.0,
 }
 
-local CAMERA_ID = "ent_camera_main"
 local PLATFORM_HEIGHT = 0.45
 local GENERATE_AHEAD = 32.0
 
@@ -105,7 +104,6 @@ function Level.update_camera(game, player_x, player_y)
     Level.camera_y = 0.0
     state.camera_x = Level.camera_x
     state.camera_reset_requested = false
-    Entity.set_position(CAMERA_ID, Level.camera_x, Level.camera_y)
     return
   end
 
@@ -116,7 +114,6 @@ function Level.update_camera(game, player_x, player_y)
   Level.camera_y = 0.0
 
   state.camera_x = Level.camera_x
-  Entity.set_position(CAMERA_ID, Level.camera_x, Level.camera_y)
 end
 
 function Level.on_update_track(game, player_x, player_y)

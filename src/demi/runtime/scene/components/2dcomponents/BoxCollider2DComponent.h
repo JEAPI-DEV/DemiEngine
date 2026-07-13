@@ -3,6 +3,7 @@
 #include "demi/runtime/scene/components/ComponentDefinition.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
+#include <cstdint>
 #include <string>
 
 namespace demi::runtime {
@@ -15,7 +16,10 @@ struct BoxCollider2DComponent {
       ComponentFieldDescriptor{"size", ComponentFieldType::Vec2},
       ComponentFieldDescriptor{"offset", ComponentFieldType::Vec2},
       ComponentFieldDescriptor{"is_trigger", ComponentFieldType::Boolean},
-      ComponentFieldDescriptor{"layer", ComponentFieldType::String}};
+      ComponentFieldDescriptor{"layer", ComponentFieldType::String},
+      ComponentFieldDescriptor{"category_bits", ComponentFieldType::Integer},
+      ComponentFieldDescriptor{"mask_bits", ComponentFieldType::Integer},
+      ComponentFieldDescriptor{"debug_visible", ComponentFieldType::Boolean}};
   static constexpr ComponentEditorMetadata editor{"Physics 2D",
                                                   "Box Collider 2D"};
   static void parse(const nlohmann::json &json, Entity &entity);
@@ -24,6 +28,9 @@ struct BoxCollider2DComponent {
   Vec2 offset;
   bool isTrigger = false;
   std::string layer;
+  std::uint16_t categoryBits = 1;
+  std::uint16_t maskBits = 0xFFFF;
+  bool debugVisible = true;
 };
 
 } // namespace demi::runtime

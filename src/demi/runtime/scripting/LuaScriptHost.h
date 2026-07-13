@@ -88,6 +88,14 @@ public:
   [[nodiscard]] int destroyEntities(const std::vector<std::string> &entityIds);
   [[nodiscard]] bool setEntitySpriteColor(const std::string &entityId,
                                           Color color);
+  [[nodiscard]] bool playSpriteAnimation(const std::string &entityId,
+                                         const std::string &clip, bool restart);
+  [[nodiscard]] bool setSpriteAnimationPlaying(const std::string &entityId,
+                                               bool playing);
+  [[nodiscard]] std::optional<std::string>
+  spriteAnimationClip(const std::string &entityId) const;
+  [[nodiscard]] bool setSpriteFlip(const std::string &entityId, bool flipX,
+                                   bool flipY);
   [[nodiscard]] std::optional<Vec2>
   getRigidbodyVelocity(const std::string &entityId) const;
   [[nodiscard]] bool setRigidbodyVelocity(const std::string &entityId, float x,
@@ -101,6 +109,13 @@ public:
   [[nodiscard]] bool
   physicsOverlapBox(float x, float y, float width, float height,
                     const std::string &ignoredEntityId) const;
+  [[nodiscard]] std::vector<std::string>
+  physicsOverlapCircle(float x, float y, float radius, const std::string &layer,
+                       const std::string &ignoredEntityId) const;
+  [[nodiscard]] std::optional<PhysicsRaycastHit2D>
+  physicsRaycast(float originX, float originY, float directionX,
+                 float directionY, float distance, const std::string &layer,
+                 const std::string &ignoredEntityId) const;
   [[nodiscard]] bool
   physicsHasContact(const std::string &entityId,
                     const PhysicsContactFilter2D &filter) const;
@@ -274,6 +289,8 @@ private:
   };
 
   void dispatchHudEvents();
+  void dispatchAnimationEvents();
+  void dispatchPhysicsEvents();
   void updateTimers(float dt);
   void reloadChangedScripts();
   void unloadScripts();

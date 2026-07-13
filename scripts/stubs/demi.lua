@@ -216,6 +216,28 @@ function Transform3D.get_scale(entity_id) end
 ---@return boolean
 function Transform3D.set_scale(entity_id, x, y, z) end
 
+---@class Sprite2DService
+Sprite2D = {}
+---@param entity_id string
+---@param clip string
+---@param restart? boolean
+---@return boolean
+function Sprite2D.play_animation(entity_id, clip, restart) end
+---@param entity_id string
+---@return boolean
+function Sprite2D.pause_animation(entity_id) end
+---@param entity_id string
+---@return boolean
+function Sprite2D.resume_animation(entity_id) end
+---@param entity_id string
+---@return string
+function Sprite2D.current_animation(entity_id) end
+---@param entity_id string
+---@param flip_x boolean
+---@param flip_y boolean
+---@return boolean
+function Sprite2D.set_flip(entity_id, flip_x, flip_y) end
+
 ---@class TimeService
 ---@field delta_time number
 Time = {}
@@ -308,6 +330,27 @@ Physics2D = {}
 ---@param ignored_entity_id? string
 ---@return boolean
 function Physics2D.overlap_box(x, y, width, height, ignored_entity_id) end
+---@class PhysicsRaycastHit2D
+---@field entity_id string
+---@field point number[]
+---@field normal number[]
+---@field distance number
+---@param x number
+---@param y number
+---@param radius number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return string[]
+function Physics2D.overlap_circle(x, y, radius, layer, ignored_entity_id) end
+---@param origin_x number
+---@param origin_y number
+---@param direction_x number
+---@param direction_y number
+---@param distance number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return PhysicsRaycastHit2D|nil
+function Physics2D.raycast(origin_x, origin_y, direction_x, direction_y, distance, layer, ignored_entity_id) end
 ---@class PhysicsContactFilter2D
 ---@field layer? string
 ---@field normal_x_min? number

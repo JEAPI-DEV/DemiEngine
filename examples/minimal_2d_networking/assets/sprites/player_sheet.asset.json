@@ -1,0 +1,10 @@
+{
+  "format_version": 1,
+  "id": "asset://sprites/player_sheet",
+  "type": "Texture2D",
+  "source": "player_sheet.ppm",
+  "importer": "ppm-texture",
+  "settings": {
+    "filter": "nearest"
+  }
+}

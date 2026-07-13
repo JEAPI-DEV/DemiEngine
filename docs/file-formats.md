@@ -18,7 +18,7 @@ Save files use `*.save.json` and declare save slot metadata plus game-specific s
 
 ## Asset Manifests
 
-Asset manifests use `*.asset.json` and map stable `asset://` ids to source files. The first supported runtime texture source is text PPM (`P3`) for `Texture2D` assets.
+Asset manifests use `*.asset.json` and map stable `asset://` ids to source files. The first supported runtime texture source is text PPM (`P3`) for `Texture2D` assets. `Tilemap2D` manifests point to versioned `*.tilemap.json` sources as documented in [2D gameplay](2d-gameplay.md).
 
 ## Versioning
 

@@ -27,6 +27,14 @@
       "jump": ["space", "w", "up"]
     }
   },
+  "physics": {
+    "layers": {
+      "collectibles": ["player"],
+      "network": ["platform", "player"],
+      "platform": ["network", "player"],
+      "player": ["collectibles", "network", "platform"]
+    }
+  },
   "scripting": {
     "language": "lua54",
     "modules": [

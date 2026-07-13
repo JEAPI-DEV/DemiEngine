@@ -132,6 +132,11 @@ coordinates or custom Lua layout code.
 
 ## Milestone 4 — Complete The 2D Gameplay Foundation
 
+**Status: complete.** Named gameplay actions, sprite clips and events, camera
+follow, layered tilemaps with generated collision, expanded Box2D fixtures and
+queries, a Lua character controller, and the platformer reference slice are
+implemented and covered by focused tests.
+
 1. Add input actions and bindings in project JSON. Gameplay scripts refer to
    actions such as `move_left` and `jump`, not raw keyboard names.
 2. Add sprite sheets, clips, animation playback, events, flip, pivot, sorting

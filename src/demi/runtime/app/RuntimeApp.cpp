@@ -2,13 +2,16 @@
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/core/Version.h"
+#include "demi/runtime/animation/SpriteAnimationSystem.h"
 #include "demi/runtime/audio/AudioSystem.h"
+#include "demi/runtime/camera/Camera2DSystem.h"
 #include "demi/runtime/media/MediaSystem.h"
 #include "demi/runtime/network/NetworkSystem.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/SceneData.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/tilemap/TilemapCollisionGenerator.h"
 
 #include <algorithm>
 #include <array>
@@ -226,8 +229,9 @@ void applyWindowMode(const std::string &mode) {
 void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
                     InputState &input, AudioSystem &audioSystem,
                     MediaSystem &mediaSystem, NetworkSystem &networkSystem,
-                    const float dt, const float fixedStep,
-                    double &fixedAccumulator, bool &running) {
+                    const AssetRegistry &assetRegistry, const float dt,
+                    const float fixedStep, double &fixedAccumulator,
+                    bool &running) {
   ProfileScope stepScope("Runtime.step_simulation");
   fixedAccumulator += dt;
   while (fixedAccumulator >= fixedStep) {
@@ -247,8 +251,16 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
     networkSystem.update();
   }
   {
+    ProfileScope scope("SpriteAnimation2D.update");
+    SpriteAnimationSystem{}.update(loaded.world, dt);
+  }
+  {
     ProfileScope scope("Lua.update");
     luaHost.update(dt);
+  }
+  {
+    ProfileScope scope("Camera2D.update");
+    Camera2DSystem{}.update(loaded.world, dt);
   }
   if (luaHost.quitRequested()) {
     running = false;
@@ -258,6 +270,7 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
     if (!luaHost.applyPendingSceneLoad(sceneError)) {
       std::cerr << "Scene switch failed: " << sceneError << '\n';
     } else {
+      generateTilemapColliders(loaded.world, assetRegistry);
       std::cout << "Switched scene to " << loaded.world.id << " ("
                 << loaded.world.name << ").\n";
     }
@@ -369,6 +382,7 @@ int runProject(const RuntimeOptions &options) {
 
   const AssetRegistry assetRegistry =
       loadAssetRegistry(loaded.project.projectDirectory);
+  generateTilemapColliders(loaded.world, assetRegistry);
   AudioSystem audioSystem;
   if (!isHeadless() && !options.serve && options.maxFrames == 0 &&
       audioSystem.initialize()) {
@@ -418,7 +432,8 @@ int runProject(const RuntimeOptions &options) {
       const auto frameStart = std::chrono::steady_clock::now();
       const auto updateStart = std::chrono::steady_clock::now();
       stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem,
-                     networkSystem, static_cast<float>(fixedStep),
+                     networkSystem, assetRegistry,
+                     static_cast<float>(fixedStep),
                      static_cast<float>(fixedStep), fixedAccumulator, running);
       if (profileRun) {
         const double updateMs = millisecondsSince(updateStart);
@@ -492,8 +507,8 @@ int runProject(const RuntimeOptions &options) {
     double updateMs = 0.0;
     const auto updateStart = std::chrono::steady_clock::now();
     stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem,
-                   networkSystem, dt, static_cast<float>(fixedStep),
-                   fixedAccumulator, running);
+                   networkSystem, assetRegistry, dt,
+                   static_cast<float>(fixedStep), fixedAccumulator, running);
     if (profileRun) {
       updateMs = millisecondsSince(updateStart);
       profile.updateMs += updateMs;

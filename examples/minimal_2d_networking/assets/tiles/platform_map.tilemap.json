@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "texture": "asset://tiles/platform",
+  "tile_size": [1, 1],
+  "map_size": [24, 1],
+  "layers": [
+    {
+      "name": "ground",
+      "collision": true,
+      "collision_layer": "platform",
+      "tiles": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    }
+  ]
+}

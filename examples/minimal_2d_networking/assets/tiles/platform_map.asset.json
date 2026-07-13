@@ -1,0 +1,6 @@
+{
+  "format_version": 1,
+  "id": "asset://tilemaps/platform",
+  "type": "Tilemap2D",
+  "source": "platform_map.tilemap.json"
+}

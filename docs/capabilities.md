@@ -10,8 +10,8 @@ Status meanings:
 |---|---|---|
 | JSON projects/scenes | Stable | Versioned loading, stable IDs, CLI validation |
 | Lua lifecycle and services | Stable | Lua 5.4, sol2, lifecycle, annotations, hot reload |
-| 2D rendering | Stable | Sprites, shapes, cameras, HUD, debug drawing |
-| 2D physics | Stable | Box2D rigid bodies, box colliders, contacts and overlap queries |
+| 2D rendering | Stable | Sprite sheets/clips/events, sorting, camera follow, tilemaps, shapes, HUD, debug drawing |
+| 2D physics | Stable | Box2D rigid bodies, box/circle colliders, filtering, triggers, queries, raycasts, and distance joints |
 | HUD authoring | Stable | Flat versioned HUD elements and Lua mutation APIs |
 | Saves | Stable | JSON slots, versions, migration hooks |
 | Audio | Stable | miniaudio playback and entity audio sources |
@@ -22,8 +22,8 @@ Status meanings:
 | Android | Experimental | Minimal client/server-oriented build support |
 | Component metadata as sole source | Stable | Generated registry drives parsing, validation, schema export, Lua policy, and editor placeholders |
 | Prefabs | Stable | Versioned entity/UI files, nesting, overrides, cycle diagnostics, CLI expansion/diff |
-| Tree/layout runtime UI | Planned | Layout containers, controls, focus, themes, localization |
-| Tilemaps and sprite animation system | Planned | Milestone 4 |
+| Tree/layout runtime UI | Stable | Layout containers, controls, focus, themes, and localization |
+| Tilemaps and sprite animation system | Stable | Layered/parallax tilemaps, generated collision, clips, playback, and events |
 | Deterministic replay/debug tooling | Planned | Milestone 5 |
 | Isometric placement/pathfinding | Planned | Milestone 6 |
 | Combat animation primitives | Planned | Milestone 7 |

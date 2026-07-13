@@ -1,9 +1,9 @@
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
+#include "demi/runtime/input/InputActionResolver.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/Physics3D.h"
-#include "demi/runtime/input/InputActionResolver.h"
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
 
 #include <algorithm>
@@ -32,10 +32,9 @@ bool LuaScriptHost::isActionPressed(const std::string &action) const {
 }
 
 float LuaScriptHost::actionValue(const std::string &action) const {
-  return input_ == nullptr
-             ? 0.0F
-             : input::InputActionResolver{}.value(inputActions_, *input_,
-                                                   action);
+  return input_ == nullptr ? 0.0F
+                           : input::InputActionResolver{}.value(
+                                 inputActions_, *input_, action);
 }
 
 std::string LuaScriptHost::textEntered() const {
@@ -327,6 +326,25 @@ bool LuaScriptHost::physicsOverlapBox(
   return world_ != nullptr &&
          overlapBox(*world_, Vec2{.x = x, .y = y},
                     Vec2{.x = width, .y = height}, ignoredEntityId);
+}
+
+std::vector<std::string> LuaScriptHost::physicsOverlapCircle(
+    const float x, const float y, const float radius, const std::string &layer,
+    const std::string &ignoredEntityId) const {
+  return world_ != nullptr ? overlapCircle(*world_, Vec2{.x = x, .y = y},
+                                           radius, layer, ignoredEntityId)
+                           : std::vector<std::string>{};
+}
+
+std::optional<PhysicsRaycastHit2D>
+LuaScriptHost::physicsRaycast(const float originX, const float originY,
+                              const float directionX, const float directionY,
+                              const float distance, const std::string &layer,
+                              const std::string &ignoredEntityId) const {
+  return world_ == nullptr
+             ? std::nullopt
+             : raycast2D(*world_, {originX, originY}, {directionX, directionY},
+                         distance, layer, ignoredEntityId);
 }
 
 bool LuaScriptHost::physicsHasContact(

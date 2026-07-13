@@ -5,6 +5,7 @@
 #include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/render/RendererAssetData.h"
 #include "demi/runtime/scene/SceneData.h"
+#include "demi/runtime/tilemap/TilemapAsset.h"
 
 #include <raylib.h>
 
@@ -36,6 +37,7 @@ private:
   std::unordered_map<std::string, Texture2D> textures_;
   std::unordered_map<std::string, ImageAnimationTextureData> imageAnimations_;
   std::unordered_map<std::string, GifAnimationTextureData> gifAnimations_;
+  std::unordered_map<std::string, TilemapAsset2D> tilemaps_;
   float animationTime_ = 0.0F;
 };
 

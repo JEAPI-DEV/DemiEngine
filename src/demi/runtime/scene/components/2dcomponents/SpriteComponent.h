@@ -18,6 +18,12 @@ struct SpriteComponent {
       ComponentFieldDescriptor{"shape", ComponentFieldType::String, false, true,
                                shapes},
       ComponentFieldDescriptor{"layer", ComponentFieldType::String},
+      ComponentFieldDescriptor{"sorting_order", ComponentFieldType::Integer},
+      ComponentFieldDescriptor{"source_position", ComponentFieldType::Vec2},
+      ComponentFieldDescriptor{"source_size", ComponentFieldType::Vec2},
+      ComponentFieldDescriptor{"pivot", ComponentFieldType::Vec2},
+      ComponentFieldDescriptor{"flip_x", ComponentFieldType::Boolean},
+      ComponentFieldDescriptor{"flip_y", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"color", ComponentFieldType::Color}};
   static constexpr ComponentEditorMetadata editor{"2D", "Sprite"};
   static void parse(const nlohmann::json &json, Entity &entity);
@@ -25,6 +31,12 @@ struct SpriteComponent {
   std::string texture;
   std::string shape = "rectangle";
   std::string layer;
+  int sortingOrder = 0;
+  Vec2 sourcePosition{};
+  Vec2 sourceSize{};
+  Vec2 pivot{0.5F, 0.5F};
+  bool flipX = false;
+  bool flipY = false;
   Color color = {1.0F, 1.0F, 1.0F, 1.0F};
 };
 

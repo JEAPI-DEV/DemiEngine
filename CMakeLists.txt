@@ -217,6 +217,10 @@ if(DEMI_ENABLE_MEDIA AND NOT TARGET PkgConfig::FFMPEG)
 endif()
 
 set(DEMI_RUNTIME_COMMON_SOURCES
+  src/demi/runtime/animation/SpriteAnimationSystem.cpp
+  src/demi/runtime/camera/Camera2DSystem.cpp
+  src/demi/runtime/tilemap/TilemapAsset.cpp
+  src/demi/runtime/tilemap/TilemapCollisionGenerator.cpp
   src/demi/runtime/app/RuntimeApp.cpp
   src/demi/runtime/audio/AudioClipPreprocess.cpp
   src/demi/runtime/audio/AudioSystem.cpp
@@ -249,6 +253,8 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/annotations/OnEventAnnotation.cpp
   src/demi/runtime/scripting/LuaScriptDiagnostics.cpp
   src/demi/runtime/scripting/LuaScriptHostEntityServices.cpp
+  src/demi/runtime/scripting/LuaScriptHostAnimationServices.cpp
+  src/demi/runtime/scripting/LuaScriptHostPhysicsServices.cpp
   src/demi/runtime/scripting/LuaScriptHostHudServices.cpp
   src/demi/runtime/scripting/LuaScriptHostInputDebugServices.cpp
   src/demi/runtime/scripting/LuaScriptHostLoading.cpp
@@ -259,6 +265,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/LuaEntityBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaPhysics2DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaRigidbody2DBindings.cpp
+  src/demi/runtime/scripting/bindings/components/LuaSprite2DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaTransform2DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaTransform3DBindings.cpp
   src/demi/runtime/scripting/bindings/hud/LuaHudBindings.cpp
@@ -405,6 +412,12 @@ else()
   target_link_libraries(demi-regex-matcher-tests PRIVATE demi-runtime-lib)
   add_executable(demi-input-action-tests tests/input_action_tests.cpp)
   target_link_libraries(demi-input-action-tests PRIVATE demi-core)
+  add_executable(demi-sprite-animation-tests tests/sprite_animation_tests.cpp)
+  target_link_libraries(demi-sprite-animation-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-camera2d-tests tests/camera2d_tests.cpp)
+  target_link_libraries(demi-camera2d-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-tilemap-tests tests/tilemap_tests.cpp)
+  target_link_libraries(demi-tilemap-tests PRIVATE demi-runtime-lib)
 
   add_executable(demi-snapshot-replication-tests tests/snapshot_replication_tests.cpp)
   target_link_libraries(demi-snapshot-replication-tests PRIVATE demi-runtime-lib)
@@ -432,6 +445,9 @@ add_test(NAME demi-prefab-tests COMMAND demi-prefab-tests)
 add_test(NAME demi-ui-tests COMMAND demi-ui-tests)
 add_test(NAME demi-regex-matcher-tests COMMAND demi-regex-matcher-tests)
 add_test(NAME demi-input-action-tests COMMAND demi-input-action-tests)
+add_test(NAME demi-sprite-animation-tests COMMAND demi-sprite-animation-tests)
+add_test(NAME demi-camera2d-tests COMMAND demi-camera2d-tests)
+add_test(NAME demi-tilemap-tests COMMAND demi-tilemap-tests)
 add_test(NAME demi-prefab-inspect-cli
   COMMAND demi prefab inspect ${CMAKE_SOURCE_DIR}/examples/minimal_3d/prefabs/player.prefab.json)
 add_test(NAME demi-scene-expand-cli

@@ -7,6 +7,7 @@
 #include "demi/runtime/scripting/bindings/LuaTlsBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaRigidbody2DBindings.h"
+#include "demi/runtime/scripting/bindings/components/LuaSprite2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaTransform2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaTransform3DBindings.h"
 #include "demi/runtime/scripting/bindings/hud/LuaHudBindings.h"
@@ -42,6 +43,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaTransform2DBindingModule transform2D;
   const LuaTransform3DBindingModule transform3D;
   const LuaRigidbody2DBindingModule rigidbody2D;
+  const LuaSprite2DBindingModule sprite2D;
   const LuaPhysics2DBindingModule physics2D;
   const LuaHudBindingModule hud;
   const LuaSaveBindingModule save;
@@ -53,9 +55,10 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaTlsBindingModule tls;
   const LuaRegexBindingModule regex;
   const LuaBindingModule *modules[] = {
-      &core,      &entity,  &transform2D,    &transform3D, &rigidbody2D,
-      &physics2D, &hud,     &save,           &audio,       &video,
-      &cutscene,  &network, &networkSession, &tls,         &regex};
+      &core,        &entity,         &transform2D, &transform3D,
+      &rigidbody2D, &sprite2D,       &physics2D,   &hud,
+      &save,        &audio,          &video,       &cutscene,
+      &network,     &networkSession, &tls,         &regex};
   for (const LuaBindingModule *module : modules) {
     module->install(host, state);
   }

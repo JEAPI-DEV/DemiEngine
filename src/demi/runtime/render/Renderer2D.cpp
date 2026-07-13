@@ -1,5 +1,6 @@
 #include "demi/runtime/render/Renderer2D.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
+#include "demi/runtime/tilemap/TilemapAsset.h"
 
 #include <algorithm>
 #include <cmath>
@@ -7,6 +8,7 @@
 #include <iostream>
 #include <optional>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 #if DEMI_HAS_RSVG
@@ -502,10 +504,86 @@ void drawIsoFootprint(const Camera2DComponent &camera,
   DrawLineV({centerX - halfW, centerY}, {centerX, centerY - halfH}, color);
 }
 
+void drawTilemap(
+    const std::unordered_map<std::string, Texture2D> &textures,
+    const std::unordered_map<std::string, TilemapAsset2D> &tilemaps,
+    const World &world, const Camera2DComponent &camera,
+    const Vec2 cameraPosition, const Entity &entity, const int width,
+    const int height) {
+  const auto *component = entity.component<Tilemap2DComponent>();
+  if (component == nullptr)
+    return;
+  const auto foundAsset = tilemaps.find(component->asset);
+  if (foundAsset == tilemaps.end())
+    return;
+  const TilemapAsset2D &asset = foundAsset->second;
+  const auto foundTexture = textures.find(asset.texture);
+  if (foundTexture == textures.end())
+    return;
+  const Texture2D &texture = foundTexture->second;
+  const Vec2 origin = worldPosition2D(world, entity);
+  const float tileWorldWidth =
+      static_cast<float>(asset.tileWidth) / component->pixelsPerUnit;
+  const float tileWorldHeight =
+      static_cast<float>(asset.tileHeight) / component->pixelsPerUnit;
+  const int atlasColumns = std::max(texture.width / asset.tileWidth, 1);
+  const float ppu = pixelsPerUnit(camera, height);
+
+  for (const TilemapLayer2D &layer : asset.layers) {
+    const Vec2 layerCamera{cameraPosition.x * layer.parallax,
+                           cameraPosition.y * layer.parallax};
+    for (int row = 0; row < asset.rows; ++row) {
+      for (int column = 0; column < asset.columns; ++column) {
+        const int tile =
+            layer.tiles[static_cast<std::size_t>(row * asset.columns + column)];
+        if (tile <= 0)
+          continue;
+        const int atlasIndex = tile - 1;
+        const ::Rectangle source{
+            .x =
+                static_cast<float>(atlasIndex % atlasColumns * asset.tileWidth),
+            .y = static_cast<float>(atlasIndex / atlasColumns *
+                                    asset.tileHeight),
+            .width = static_cast<float>(asset.tileWidth),
+            .height = static_cast<float>(asset.tileHeight)};
+        const Vec2 center{
+            origin.x + (static_cast<float>(column) + 0.5F) * tileWorldWidth,
+            origin.y + (static_cast<float>(asset.rows - row) - 0.5F) *
+                           tileWorldHeight};
+        const float screenX =
+            worldToScreenX(camera, layerCamera, width, height, center.x);
+        const float screenY =
+            worldToScreenY(camera, layerCamera, width, height, center.y);
+        const float drawWidth = tileWorldWidth * ppu;
+        const float drawHeight = tileWorldHeight * ppu;
+        if (screenX + drawWidth * 0.5F < 0.0F ||
+            screenX - drawWidth * 0.5F > static_cast<float>(width) ||
+            screenY + drawHeight * 0.5F < 0.0F ||
+            screenY - drawHeight * 0.5F > static_cast<float>(height))
+          continue;
+        const ::Rectangle destination{.x = screenX - drawWidth * 0.5F,
+                                      .y = screenY - drawHeight * 0.5F,
+                                      .width = drawWidth,
+                                      .height = drawHeight};
+        DrawTexturePro(texture, source, destination, {}, 0.0F,
+                       ::Color{255, 255, 255,
+                               static_cast<unsigned char>(
+                                   std::round(layer.opacity * 255.0F))});
+      }
+    }
+  }
+}
+
 void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
+                const std::unordered_map<std::string, TilemapAsset2D> &tilemaps,
                 const World &world, const Camera2DComponent &camera,
                 const Vec2 cameraPosition, const Entity &entity,
                 const Vec2 isoGridSize, const int width, const int height) {
+  if (entity.hasComponent<Tilemap2DComponent>()) {
+    drawTilemap(textures, tilemaps, world, camera, cameraPosition, entity,
+                width, height);
+    return;
+  }
   if (entity.hasComponent<IsoGridComponent>()) {
     for (int y = 0; y < entity.component<IsoGridComponent>()->height; ++y) {
       for (int x = 0; x < entity.component<IsoGridComponent>()->width; ++x) {
@@ -539,6 +617,14 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
     if (entity.hasComponent<Transform2DComponent>()) {
       position.x += entity.component<BoxCollider2DComponent>()->offset.x;
       position.y += entity.component<BoxCollider2DComponent>()->offset.y;
+    }
+  }
+  if (entity.hasComponent<CircleCollider2DComponent>()) {
+    const auto &circle = *entity.component<CircleCollider2DComponent>();
+    size = {circle.radius * 2.0F, circle.radius * 2.0F};
+    if (entity.hasComponent<Transform2DComponent>()) {
+      position.x += circle.offset.x;
+      position.y += circle.offset.y;
     }
   }
 
@@ -577,19 +663,46 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
 
   ::Color fillColor = {222, 166, 82, 255};
   if (entity.hasComponent<SpriteComponent>()) {
-    const auto texture =
-        textures.find(entity.component<SpriteComponent>()->texture);
+    const SpriteComponent &sprite = *entity.component<SpriteComponent>();
+    const auto texture = textures.find(sprite.texture);
     if (texture != textures.end()) {
-      ::Rectangle source{.x = 0,
-                         .y = 0,
-                         .width = static_cast<float>(texture->second.width),
-                         .height = static_cast<float>(texture->second.height)};
-      DrawTexturePro(texture->second, source, rect, {0, 0}, 0.0F,
-                     toRlColor(entity.component<SpriteComponent>()->color));
+      float sourceX = sprite.sourcePosition.x;
+      float sourceY = sprite.sourcePosition.y;
+      float sourceWidth = sprite.sourceSize.x > 0.0F
+                              ? sprite.sourceSize.x
+                              : static_cast<float>(texture->second.width);
+      float sourceHeight = sprite.sourceSize.y > 0.0F
+                               ? sprite.sourceSize.y
+                               : static_cast<float>(texture->second.height);
+      if (const auto *animator = entity.component<SpriteAnimator2DComponent>();
+          animator != nullptr && animator->frameSize.x > 0.0F &&
+          animator->frameSize.y > 0.0F) {
+        sourceWidth = animator->frameSize.x;
+        sourceHeight = animator->frameSize.y;
+        const int columns =
+            std::max(static_cast<int>(texture->second.width / sourceWidth), 1);
+        sourceX =
+            static_cast<float>(animator->currentFrame % columns) * sourceWidth;
+        sourceY =
+            static_cast<float>(animator->currentFrame / columns) * sourceHeight;
+      }
+      ::Rectangle source{.x = sourceX,
+                         .y = sourceY,
+                         .width = sprite.flipX ? -sourceWidth : sourceWidth,
+                         .height = sprite.flipY ? -sourceHeight : sourceHeight};
+      ::Rectangle destination{.x = screenX,
+                              .y = screenY,
+                              .width = rect.width,
+                              .height = rect.height};
+      const ::Vector2 origin{sprite.pivot.x * rect.width,
+                             sprite.pivot.y * rect.height};
+      const float rotation = worldRotation2D(world, entity) * RAD2DEG;
+      DrawTexturePro(texture->second, source, destination, origin, rotation,
+                     toRlColor(sprite.color));
       return;
     }
-    fillColor = toRlColor(entity.component<SpriteComponent>()->color);
-    if (entity.component<SpriteComponent>()->shape == "circle") {
+    fillColor = toRlColor(sprite.color);
+    if (sprite.shape == "circle") {
       DrawEllipse(static_cast<int>(screenX), static_cast<int>(screenY),
                   entityWidth * 0.5F, entityHeight * 0.5F, fillColor);
       DrawEllipseLines(static_cast<int>(screenX), static_cast<int>(screenY),
@@ -597,7 +710,7 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
                        {245, 245, 245, 255});
       return;
     }
-    if (entity.component<SpriteComponent>()->shape == "triangle") {
+    if (sprite.shape == "triangle") {
       const ::Vector2 top{screenX, rect.y};
       const ::Vector2 right{rect.x + rect.width, rect.y + rect.height};
       const ::Vector2 left{rect.x, rect.y + rect.height};
@@ -619,6 +732,13 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
       return;
     }
     fillColor = {186, 128, 55, 255};
+  } else if (entity.hasComponent<CircleCollider2DComponent>()) {
+    DrawEllipse(static_cast<int>(screenX), static_cast<int>(screenY),
+                entityWidth * 0.5F, entityHeight * 0.5F, {186, 128, 55, 255});
+    DrawEllipseLines(static_cast<int>(screenX), static_cast<int>(screenY),
+                     entityWidth * 0.5F, entityHeight * 0.5F,
+                     {244, 91, 105, 255});
+    return;
   } else if (entity.hasComponent<Rigidbody2DComponent>() &&
              entity.component<Rigidbody2DComponent>()->bodyType == "static") {
     fillColor = {96, 136, 96, 255};
@@ -642,6 +762,16 @@ Renderer2D::~Renderer2D() {
 
 void Renderer2D::loadTextureAssets(const AssetRegistry &registry) {
   for (const AssetManifest &asset : registry.assets) {
+    if (asset.type == "Tilemap2D") {
+      std::string error;
+      if (auto tilemap = loadTilemapAsset(asset, error)) {
+        tilemaps_[asset.id] = std::move(*tilemap);
+      } else {
+        std::cerr << "Tilemap load failed for " << asset.id << ": " << error
+                  << ".\n";
+      }
+      continue;
+    }
     if (asset.type == "GifAnimation2D") {
       int frameCount = 0;
       Image frames =
@@ -765,33 +895,47 @@ void Renderer2D::drawWorld(const World &world) {
   std::vector<const Entity *> renderables;
   for (const Entity &entity : world.entities) {
     if (entity.hasComponent<SpriteComponent>() ||
+        entity.hasComponent<Tilemap2DComponent>() ||
         entity.hasComponent<HitboxControllerComponent>() ||
         entity.hasComponent<IsoGridComponent>() ||
         entity.hasComponent<BuildableComponent>() ||
-        entity.hasComponent<BoxCollider2DComponent>()) {
+        (entity.hasComponent<BoxCollider2DComponent>() &&
+         entity.component<BoxCollider2DComponent>()->debugVisible) ||
+        (entity.hasComponent<CircleCollider2DComponent>() &&
+         entity.component<CircleCollider2DComponent>()->debugVisible)) {
       renderables.push_back(&entity);
     }
   }
 
   std::ranges::stable_sort(
       renderables, [](const Entity *left, const Entity *right) {
-        const auto depth = [](const Entity *entity) {
+        const auto sortKey = [](const Entity *entity) {
+          std::string_view layer;
+          int order = 0;
+          if (const auto *sprite = entity->component<SpriteComponent>()) {
+            layer = sprite->layer;
+            order = sprite->sortingOrder;
+          } else if (const auto *tilemap =
+                         entity->component<Tilemap2DComponent>()) {
+            layer = tilemap->layer;
+            order = tilemap->sortingOrder;
+          }
+          float depth = 0.0F;
           if (entity->hasComponent<IsoGridComponent>()) {
-            return -10000.0F;
+            depth = -10000.0F;
+          } else if (entity->hasComponent<IsoTransformComponent>()) {
+            depth = entity->component<IsoTransformComponent>()->tile.x +
+                    entity->component<IsoTransformComponent>()->tile.y +
+                    entity->component<IsoTransformComponent>()->height;
           }
-          if (entity->hasComponent<IsoTransformComponent>()) {
-            return entity->component<IsoTransformComponent>()->tile.x +
-                   entity->component<IsoTransformComponent>()->tile.y +
-                   entity->component<IsoTransformComponent>()->height;
-          }
-          return 0.0F;
+          return std::tuple{order, layer, depth};
         };
-        return depth(left) < depth(right);
+        return sortKey(left) < sortKey(right);
       });
 
   for (const Entity *entity : renderables) {
-    drawEntity(textures_, world, camera_, cameraPosition_, *entity, isoGridSize,
-               width_, height_);
+    drawEntity(textures_, tilemaps_, world, camera_, cameraPosition_, *entity,
+               isoGridSize, width_, height_);
   }
 
   for (const DebugLine &line : world.debugLines) {

@@ -52,11 +52,20 @@
     "BoxCollider2D": {
       "additionalProperties": false,
       "properties": {
+        "category_bits": {
+          "type": "integer"
+        },
+        "debug_visible": {
+          "type": "boolean"
+        },
         "is_trigger": {
           "type": "boolean"
         },
         "layer": {
           "type": "string"
+        },
+        "mask_bits": {
+          "type": "integer"
         },
         "offset": {
           "items": {
@@ -120,6 +129,22 @@
     "Camera2D": {
       "additionalProperties": false,
       "properties": {
+        "bounds_max": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "bounds_min": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
         "clear_color": {
           "items": {
             "type": "number"
@@ -128,8 +153,22 @@
           "minItems": 4,
           "type": "array"
         },
+        "follow_offset": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "follow_speed": {
+          "type": "number"
+        },
         "orthographic_size": {
           "type": "number"
+        },
+        "target": {
+          "type": "string"
         }
       },
       "type": "object"
@@ -171,6 +210,38 @@
       },
       "type": "object"
     },
+    "CircleCollider2D": {
+      "additionalProperties": false,
+      "properties": {
+        "category_bits": {
+          "type": "integer"
+        },
+        "debug_visible": {
+          "type": "boolean"
+        },
+        "is_trigger": {
+          "type": "boolean"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "mask_bits": {
+          "type": "integer"
+        },
+        "offset": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "radius": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
     "DirectionalLight": {
       "additionalProperties": false,
       "properties": {
@@ -191,6 +262,43 @@
           "type": "array"
         },
         "intensity": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "DistanceJoint2D": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "collide_connected": {
+          "type": "boolean"
+        },
+        "damping": {
+          "type": "number"
+        },
+        "length": {
+          "type": "number"
+        },
+        "other_anchor": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "other_entity": {
+          "type": "string"
+        },
+        "stiffness": {
           "type": "number"
         }
       },
@@ -446,8 +554,22 @@
           "minItems": 4,
           "type": "array"
         },
+        "flip_x": {
+          "type": "boolean"
+        },
+        "flip_y": {
+          "type": "boolean"
+        },
         "layer": {
           "type": "string"
+        },
+        "pivot": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
         },
         "shape": {
           "enum": [
@@ -457,8 +579,71 @@
           ],
           "type": "string"
         },
+        "sorting_order": {
+          "type": "integer"
+        },
+        "source_position": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "source_size": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
         "texture": {
           "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "SpriteAnimator2D": {
+      "additionalProperties": false,
+      "properties": {
+        "clip": {
+          "type": "string"
+        },
+        "clips": {
+          "type": "object"
+        },
+        "frame_size": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "playing": {
+          "type": "boolean"
+        },
+        "speed": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "Tilemap2D": {
+      "additionalProperties": false,
+      "properties": {
+        "asset": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "pixels_per_unit": {
+          "type": "number"
+        },
+        "sorting_order": {
+          "type": "integer"
         }
       },
       "type": "object"

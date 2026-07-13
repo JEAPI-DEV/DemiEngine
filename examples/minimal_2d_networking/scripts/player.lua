@@ -4,6 +4,7 @@ local platformer = require("player_platformer")
 local slingshot = require("player_slingshot")
 local replication = require("network_replication")
 local player_colors = require("player_colors")
+local CharacterController2D = require("demi.character_controller_2d")
 
 local Player = {}
 
@@ -18,6 +19,11 @@ function Player:on_create()
   self.aiming_freezes_motion = false
   self.spawn_x = config.spawn_x
   self.spawn_y = config.spawn_y
+  self.controller = CharacterController2D.new({
+    move_speed = self.speed,
+    jump_speed = self.jump_speed,
+    ground_layer = "platform",
+  })
 end
 
 function Player:on_start()
@@ -60,7 +66,7 @@ function Player:on_update(dt)
   replication.update_local_transform(self.entity_id, dt)
 
   local mouse_down = Input.mouse_down("left")
-  local grounded = platformer.is_grounded(self.entity_id)
+  local grounded = self.controller:is_grounded(self.entity_id)
   local touching_platform = platformer.is_touching_platform(self.entity_id)
 
   slingshot.update_recharge(self, touching_platform)
@@ -73,16 +79,14 @@ function Player:on_update(dt)
   slingshot.update_active(self, touching_platform)
 
   if grounded and not self.slingshot_active then
-    Rigidbody2D.set_velocity_x(self.entity_id, platformer.horizontal_axis() * self.speed)
+    self.controller:update_horizontal(self.entity_id)
   end
 
-  local jump_down = platformer.wants_jump()
-  if jump_down and not self.jump_was_down and grounded then
-    Rigidbody2D.set_velocity_y(self.entity_id, self.jump_speed)
+  if self.controller:try_jump(self.entity_id, grounded) then
     self.can_slingshot = false
   end
 
-  self.jump_was_down = jump_down
+  self.jump_was_down = Input.action_down("jump")
   self.mouse_was_down = mouse_down
 end
 

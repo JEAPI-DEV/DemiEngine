@@ -100,6 +100,22 @@ std::optional<World> loadScene(const ProjectData &project,
   }
 
   World world = scene_loading::parseSceneWorld(scenePath, *expansion.document);
+  const std::size_t layerCount =
+      std::min<std::size_t>(project.physicsLayers2D.size(), 16);
+  for (std::size_t index = 0; index < layerCount; ++index) {
+    world.physicsCategoryBits[project.physicsLayers2D[index].name] =
+        static_cast<std::uint16_t>(1U << index);
+  }
+  for (std::size_t index = 0; index < layerCount; ++index) {
+    std::uint16_t mask = 0;
+    for (const std::string &target :
+         project.physicsLayers2D[index].collidesWith) {
+      if (const auto found = world.physicsCategoryBits.find(target);
+          found != world.physicsCategoryBits.end())
+        mask = static_cast<std::uint16_t>(mask | found->second);
+    }
+    world.physicsMaskBits[project.physicsLayers2D[index].name] = mask;
+  }
   if (const std::optional<std::string> hud =
           scene_loading::stringField(*sceneJson, "hud")) {
     const std::filesystem::path hudPath = scenePath.parent_path() / *hud;

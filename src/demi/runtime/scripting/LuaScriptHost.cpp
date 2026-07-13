@@ -99,6 +99,14 @@ void LuaScriptHost::update(const float dt) {
     reloadChangedScripts();
   }
   {
+    ProfileScope scope("Lua.dispatch_animation_events");
+    dispatchAnimationEvents();
+  }
+  {
+    ProfileScope scope("Lua.dispatch_physics_events");
+    dispatchPhysicsEvents();
+  }
+  {
     ProfileScope scope("Lua.dispatch_hud_events");
     dispatchHudEvents();
   }

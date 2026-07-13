@@ -22,6 +22,11 @@ struct SceneEntry {
   std::filesystem::path path;
 };
 
+struct PhysicsLayer2D {
+  std::string name;
+  std::vector<std::string> collidesWith;
+};
+
 struct ProjectData {
   std::filesystem::path projectPath;
   std::filesystem::path projectDirectory;
@@ -31,6 +36,7 @@ struct ProjectData {
   std::vector<std::string> scriptModules;
   std::vector<SceneEntry> scenes;
   input::InputActionMap inputActions;
+  std::vector<PhysicsLayer2D> physicsLayers2D;
 };
 
 } // namespace demi::runtime
