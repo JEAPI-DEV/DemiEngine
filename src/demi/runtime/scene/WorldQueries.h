@@ -169,7 +169,6 @@ activeCamera3D(const World &world) {
   for (const Entity &entity : world.entities)
     if (entity.component<SpriteComponent>() ||
         entity.component<Tilemap2DComponent>() ||
-        entity.component<HitboxControllerComponent>() ||
         entity.component<IsoGridComponent>() ||
         entity.component<BuildableComponent>() ||
         entity.component<BoxCollider2DComponent>() ||

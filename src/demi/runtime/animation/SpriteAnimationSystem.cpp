@@ -33,17 +33,15 @@ void SpriteAnimationSystem::update(World &world, const float deltaTime) const {
     animator->currentFrame = clip.startFrame + std::max(localFrame, 0);
 
     const int clipEndTick = clip.loop ? currentTick : clip.frameCount - 1;
-    const int lastTick =
-        std::min(clipEndTick, previousTick + clip.frameCount);
+    const int lastTick = std::min(clipEndTick, previousTick + clip.frameCount);
     for (int tick = previousTick + 1; tick <= lastTick; ++tick) {
       const int eventFrame = tick % clip.frameCount;
       for (const SpriteAnimationEvent2D &event : clip.events)
         if (event.frame == eventFrame)
-          world.animationEvents.push_back(
-              {.entityId = entity.id,
-               .clip = animator->clip,
-               .name = event.name,
-               .frame = eventFrame});
+          world.animationEvents.push_back({.entityId = entity.id,
+                                           .clip = animator->clip,
+                                           .name = event.name,
+                                           .frame = eventFrame});
     }
   }
 }

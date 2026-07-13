@@ -28,6 +28,13 @@ struct AnimationEvent2D {
   int frame = 0;
 };
 
+struct AnimationCollisionOverlap2D {
+  std::string sourceId;
+  std::string targetId;
+  std::string window;
+  std::string receiver;
+};
+
 struct GridPlacementPreview {
   bool visible = false;
   bool valid = false;
@@ -51,6 +58,8 @@ struct World {
   std::vector<DebugLine> debugLines;
   std::vector<PhysicsContact2D> physicsContacts;
   std::vector<AnimationEvent2D> animationEvents;
+  std::vector<AnimationEvent2D> stateAnimationEvents;
+  std::vector<AnimationCollisionOverlap2D> animationCollisionOverlaps;
   std::unordered_map<std::string, std::uint16_t> physicsCategoryBits;
   std::unordered_map<std::string, std::uint16_t> physicsMaskBits;
   DebugOverlayConfig debug;

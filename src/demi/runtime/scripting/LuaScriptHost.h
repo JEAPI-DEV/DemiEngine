@@ -1,8 +1,8 @@
 #pragma once
 
 #include "demi/diagnostics/Diagnostic.h"
-#include "demi/runtime/network/NetworkSystem.h"
 #include "demi/runtime/isometric/IsoGridApi.h"
+#include "demi/runtime/network/NetworkSystem.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/scene/SceneData.h"
 #include "demi/runtime/simulation/DeterministicRandom.h"
@@ -107,6 +107,15 @@ public:
                                    bool flipY);
   [[nodiscard]] bool setSpriteSize(const std::string &entityId, float width,
                                    float height);
+  [[nodiscard]] std::optional<std::string>
+  animationState(const std::string &entityId) const;
+  [[nodiscard]] bool playAnimationState(const std::string &entityId,
+                                        const std::string &state);
+  [[nodiscard]] bool setAnimationParameter(const std::string &entityId,
+                                           const std::string &parameter,
+                                           float value);
+  [[nodiscard]] bool triggerAnimation(const std::string &entityId,
+                                      const std::string &trigger);
   [[nodiscard]] std::optional<Vec2>
   getRigidbodyVelocity(const std::string &entityId) const;
   [[nodiscard]] bool setRigidbodyVelocity(const std::string &entityId, float x,
@@ -309,6 +318,7 @@ private:
 
   void dispatchHudEvents();
   void dispatchAnimationEvents();
+  void dispatchAnimationCollisionEvents();
   void dispatchPhysicsEvents();
   void updateTimers(float dt);
   void reloadChangedScripts();

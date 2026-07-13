@@ -24,9 +24,11 @@ Status meanings:
 | Prefabs | Stable | Versioned entity/UI files, nesting, overrides, cycle diagnostics, CLI expansion/diff |
 | Tree/layout runtime UI | Stable | Layout containers, controls, focus, themes, and localization |
 | Tilemaps and sprite animation system | Stable | Layered/parallax tilemaps, generated collision, clips, playback, and events |
-| Deterministic replay/debug tooling | Planned | Milestone 5 |
-| Isometric placement/pathfinding | Planned | Milestone 6 |
-| Combat animation primitives | Planned | Milestone 7 |
+| Deterministic replay/debug tooling | Stable | Versioned input replay, deterministic random state, profiling, and headless probes |
+| Isometric placement/pathfinding | Stable | Grid conversion, occupancy, placement diagnostics, pathfinding, and rendering |
+| Animation state machines | Stable | Shared named states, transitions, parameters, timed events, and Lua control for 2D/3D players |
+| Animation-timed 2D collision | Stable | Named receiver volumes and state-time windows with neutral overlap events; gameplay policy stays in scripts |
+| Lightweight 3D animation adapter | Experimental | Shared state-machine control over model clip indexes; the wider 3D pipeline remains limited |
 | Deterministic asset cooking | Planned | Milestone 8 |
 | Functional editor | Planned | Begins after the authored data model stabilizes |
 | High-end Unity-style 3D | Deferred | Not a product target |

@@ -2,6 +2,8 @@
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/core/Version.h"
+#include "demi/runtime/animation/AnimationCollision2DSystem.h"
+#include "demi/runtime/animation/AnimationStateMachineSystem.h"
 #include "demi/runtime/animation/SpriteAnimationSystem.h"
 #include "demi/runtime/audio/AudioSystem.h"
 #include "demi/runtime/camera/Camera2DSystem.h"
@@ -253,8 +255,16 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
     networkSystem.update();
   }
   {
+    ProfileScope scope("AnimationStateMachine.update");
+    AnimationStateMachineSystem{}.update(loaded.world, dt);
+  }
+  {
     ProfileScope scope("SpriteAnimation2D.update");
     SpriteAnimationSystem{}.update(loaded.world, dt);
+  }
+  {
+    ProfileScope scope("AnimationCollision2D.update");
+    AnimationCollision2DSystem{}.update(loaded.world);
   }
   {
     ProfileScope scope("Lua.update");

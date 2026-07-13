@@ -203,14 +203,20 @@ small playable game using reusable grid and placement systems.
 
 ## Milestone 7 — Animation And Combat Primitives
 
+**Status: complete.** `AnimationStateMachine` provides renderer-neutral named
+states, transitions, parameters, triggers, timed events, and Lua control while
+adapting to both sprite and model animation players. `AnimationCollision2D`
+adds neutral, animation-timed receiver/window overlaps without embedding
+damage, teams, health, hitstun, or other fighting-game rules in the runtime.
+Reusable Lua input buffering and command recognition support the playable
+local two-player `fighting_game_2d` slice, which owns all combat policy.
+
 1. Create a common animation state-machine interface for 2D sprites and 3D
 models: named states, transitions, parameters, events, and Lua control.
 2. Implement hitbox/hurtbox windows as data/assets timed by animation events;
 do not keep combat collision as an example-only `HitboxController` convention.
 3. Add input buffering and command recognition as optional Lua-level helpers.
-4. Define a frame-stepped simulation mode and snapshot boundary suitable for
-future rollback experiments, without committing to full rollback netcode yet.
-5. Complete `examples/fighting_game_2d` as a local two-player combat slice.
+4. Complete `examples/fighting_game_2d` as a local two-player combat slice.
 
 **Done when:** combat games can author animation-timed attacks and test them
 without bespoke C++ components per fighter.

@@ -499,9 +499,8 @@ void drawIsoTileTexture(const Texture2D &texture,
   const float halfWidth = ppu * grid.cellWidth;
   const float halfHeight = ppu * grid.cellHeight;
   const float drawWidth = halfWidth * 2.0F;
-  const float drawHeight =
-      drawWidth * static_cast<float>(texture.height) /
-      std::max(static_cast<float>(texture.width), 1.0F);
+  const float drawHeight = drawWidth * static_cast<float>(texture.height) /
+                           std::max(static_cast<float>(texture.width), 1.0F);
   const ::Rectangle source{.x = 0.0F,
                            .y = 0.0F,
                            .width = static_cast<float>(texture.width),
@@ -662,9 +661,6 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
     position = isometric::tileToWorld(isoGrid, renderTile);
     position.y += transform.height;
   }
-  if (entity.hasComponent<HitboxControllerComponent>()) {
-    size = entity.component<HitboxControllerComponent>()->hurtbox;
-  }
   if (entity.hasComponent<BoxCollider2DComponent>()) {
     size = entity.component<BoxCollider2DComponent>()->size;
     if (entity.hasComponent<Transform2DComponent>()) {
@@ -687,18 +683,15 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
 
   const float ppu = pixelsPerUnit(camera, height);
   const auto *sizedSprite = entity.component<SpriteComponent>();
-  const bool hasExplicitSpriteSize =
-      sizedSprite != nullptr && sizedSprite->size.x > 0.0F &&
-      sizedSprite->size.y > 0.0F;
-  float entityWidth = hasExplicitSpriteSize
-                          ? size.x * ppu
-                          : std::max(size.x * ppu, 24.0F);
-  float entityHeight = hasExplicitSpriteSize
-                           ? size.y * ppu
-                           : std::max(size.y * ppu, 24.0F);
+  const bool hasExplicitSpriteSize = sizedSprite != nullptr &&
+                                     sizedSprite->size.x > 0.0F &&
+                                     sizedSprite->size.y > 0.0F;
+  float entityWidth =
+      hasExplicitSpriteSize ? size.x * ppu : std::max(size.x * ppu, 24.0F);
+  float entityHeight =
+      hasExplicitSpriteSize ? size.y * ppu : std::max(size.y * ppu, 24.0F);
   if (entity.hasComponent<BuildableComponent>() &&
-      entity.hasComponent<IsoTransformComponent>() &&
-      !hasExplicitSpriteSize) {
+      entity.hasComponent<IsoTransformComponent>() && !hasExplicitSpriteSize) {
     entityWidth = std::max((size.x + size.y) * ppu * 0.62F, 22.0F);
     entityHeight =
         std::max((size.x + size.y) * ppu * isoGrid.cellHeight * 0.95F, 22.0F);
@@ -809,11 +802,9 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
   }
   DrawRectangleRec(rect, fillColor);
 
-  const ::Color outlineColor =
-      (entity.hasComponent<HitboxControllerComponent>() ||
-       entity.hasComponent<BoxCollider2DComponent>())
-          ? ::Color{244, 91, 105, 255}
-          : ::Color{245, 245, 245, 255};
+  const ::Color outlineColor = entity.hasComponent<BoxCollider2DComponent>()
+                                   ? ::Color{244, 91, 105, 255}
+                                   : ::Color{245, 245, 245, 255};
   DrawRectangleLinesEx(rect, 1.0F, outlineColor);
 }
 
@@ -986,7 +977,6 @@ void Renderer2D::drawWorld(const World &world) {
   for (const Entity &entity : world.entities) {
     if (entity.hasComponent<SpriteComponent>() ||
         entity.hasComponent<Tilemap2DComponent>() ||
-        entity.hasComponent<HitboxControllerComponent>() ||
         entity.hasComponent<IsoGridComponent>() ||
         entity.hasComponent<BuildableComponent>() ||
         (entity.hasComponent<BoxCollider2DComponent>() &&

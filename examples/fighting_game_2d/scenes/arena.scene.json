@@ -1,61 +1,64 @@
 {
   "format_version": 1,
   "id": "scene://fighting_game_2d/arena",
-  "name": "Arena",
+  "name": "Local Versus Arena",
   "entities": [
     {
       "id": "ent_arena_camera",
       "name": "Arena Camera",
       "components": {
-        "Transform2D": {
-          "position": [0.0, 2.0],
-          "rotation": 0.0,
-          "scale": [1.0, 1.0]
-        },
-        "Camera2D": {
-          "clear_color": [0.06, 0.07, 0.10, 1.0],
-          "orthographic_size": 8.0
-        }
+        "Transform2D": { "position": [0.0, 1.5], "rotation": 0.0, "scale": [1.0, 1.0] },
+        "Camera2D": { "clear_color": [0.06, 0.07, 0.10, 1.0], "orthographic_size": 7.0 }
       }
     },
     {
       "id": "ent_arena_floor",
       "name": "Arena Floor",
       "components": {
-        "Transform2D": {
-          "position": [0.0, -1.35],
-          "rotation": 0.0,
-          "scale": [1.0, 1.0]
-        },
-        "Rigidbody2D": {
-          "body_type": "static",
-          "velocity": [0.0, 0.0],
-          "gravity_scale": 0.0,
-          "lock_rotation": true
-        },
-        "BoxCollider2D": {
-          "size": [9.5, 0.45],
-          "offset": [0.0, 0.0],
-          "is_trigger": false
-        }
+        "Transform2D": { "position": [0.0, -1.1], "rotation": 0.0, "scale": [1.0, 1.0] },
+        "Rigidbody2D": { "body_type": "static", "velocity": [0.0, 0.0], "gravity_scale": 0.0, "lock_rotation": true },
+        "BoxCollider2D": { "size": [9.5, 0.45], "offset": [0.0, 0.0], "is_trigger": false, "debug_visible": true }
       }
     },
     {
       "id": "ent_fighter_a",
       "name": "Fighter A",
       "components": {
-        "Transform2D": {
-          "position": [-2.0, 0.0],
-          "rotation": 0.0,
-          "scale": [1.0, 1.0]
+        "Transform2D": { "position": [-2.0, 0.0], "rotation": 0.0, "scale": [1.0, 1.0] },
+        "Sprite": { "texture": "asset://fighters/fighter_a", "size": [1.0, 2.0], "layer": "actors" },
+        "SpriteAnimator2D": {
+          "frame_size": [8, 16], "clip": "idle",
+          "clips": {
+            "idle": { "start_frame": 0, "frame_count": 1, "fps": 1, "loop": true },
+            "walk": { "start_frame": 0, "frame_count": 1, "fps": 1, "loop": true },
+            "light": { "start_frame": 0, "frame_count": 1, "fps": 1, "loop": false },
+            "special": { "start_frame": 0, "frame_count": 1, "fps": 1, "loop": false },
+            "hit": { "start_frame": 0, "frame_count": 1, "fps": 1, "loop": false }
+          }
         },
-        "HitboxController": {
-          "hurtbox": [0.8, 1.8],
-          "script": "script://fighters/basic_fighter.lua"
+        "AnimationStateMachine": {
+          "initial_state": "idle",
+          "states": {
+            "idle": { "sprite_clip": "idle", "loop": true },
+            "walk": { "sprite_clip": "walk", "loop": true },
+            "light": { "sprite_clip": "light", "duration": 0.32, "loop": false, "events": [{ "time": 0.10, "name": "swing" }] },
+            "special": { "sprite_clip": "special", "duration": 0.48, "loop": false, "events": [{ "time": 0.18, "name": "special" }] },
+            "hit": { "sprite_clip": "hit", "duration": 0.22, "loop": false }
+          },
+          "transitions": {
+            "light_done": { "from": "light", "to": "idle", "condition": "finished" },
+            "special_done": { "from": "special", "to": "idle", "condition": "finished" },
+            "hit_done": { "from": "hit", "to": "idle", "condition": "finished" }
+          }
         },
-        "Sprite": {
-          "texture": "asset://fighters/fighter_a",
-          "layer": "actors"
+        "AnimationCollision2D": {
+          "receivers": {
+            "body": { "layer": "fighter", "offset": [0.0, 0.0], "size": [0.8, 1.8] }
+          },
+          "windows": {
+            "light": { "start": 0.10, "end": 0.18, "offset": [0.72, 0.15], "size": [0.75, 0.55], "mask": "fighter" },
+            "special": { "start": 0.18, "end": 0.29, "offset": [0.9, 0.25], "size": [1.1, 0.8], "mask": "fighter" }
+          }
         }
       }
     },
@@ -63,19 +66,49 @@
       "id": "ent_fighter_b",
       "name": "Fighter B",
       "components": {
-        "Transform2D": {
-          "position": [2.0, 0.0],
-          "rotation": 0.0,
-          "scale": [1.0, 1.0]
+        "Transform2D": { "position": [2.0, 0.0], "rotation": 0.0, "scale": [1.0, 1.0] },
+        "Sprite": { "texture": "asset://fighters/fighter_b", "size": [1.0, 2.0], "layer": "actors", "flip_x": true },
+        "SpriteAnimator2D": {
+          "frame_size": [8, 16], "clip": "idle",
+          "clips": {
+            "idle": { "start_frame": 0, "frame_count": 1, "fps": 1, "loop": true },
+            "walk": { "start_frame": 0, "frame_count": 1, "fps": 1, "loop": true },
+            "light": { "start_frame": 0, "frame_count": 1, "fps": 1, "loop": false },
+            "special": { "start_frame": 0, "frame_count": 1, "fps": 1, "loop": false },
+            "hit": { "start_frame": 0, "frame_count": 1, "fps": 1, "loop": false }
+          }
         },
-        "HitboxController": {
-          "hurtbox": [0.8, 1.8],
-          "script": "script://fighters/basic_fighter.lua"
+        "AnimationStateMachine": {
+          "initial_state": "idle",
+          "states": {
+            "idle": { "sprite_clip": "idle", "loop": true },
+            "walk": { "sprite_clip": "walk", "loop": true },
+            "light": { "sprite_clip": "light", "duration": 0.32, "loop": false },
+            "special": { "sprite_clip": "special", "duration": 0.48, "loop": false },
+            "hit": { "sprite_clip": "hit", "duration": 0.22, "loop": false }
+          },
+          "transitions": {
+            "light_done": { "from": "light", "to": "idle", "condition": "finished" },
+            "special_done": { "from": "special", "to": "idle", "condition": "finished" },
+            "hit_done": { "from": "hit", "to": "idle", "condition": "finished" }
+          }
         },
-        "Sprite": {
-          "texture": "asset://fighters/fighter_b",
-          "layer": "actors"
+        "AnimationCollision2D": {
+          "receivers": {
+            "body": { "layer": "fighter", "offset": [0.0, 0.0], "size": [0.8, 1.8] }
+          },
+          "windows": {
+            "light": { "start": 0.10, "end": 0.18, "offset": [0.72, 0.15], "size": [0.75, 0.55], "mask": "fighter" },
+            "special": { "start": 0.18, "end": 0.29, "offset": [0.9, 0.25], "size": [1.1, 0.8], "mask": "fighter" }
+          }
         }
+      }
+    },
+    {
+      "id": "ent_fight_controller",
+      "name": "Fight Controller",
+      "components": {
+        "LuaScript": { "module": "script://scripts/fight.lua" }
       }
     }
   ]

@@ -104,6 +104,10 @@ void LuaScriptHost::update(const float dt) {
     dispatchAnimationEvents();
   }
   {
+    ProfileScope scope("Lua.dispatch_animation_collision_events");
+    dispatchAnimationCollisionEvents();
+  }
+  {
     ProfileScope scope("Lua.dispatch_physics_events");
     dispatchPhysicsEvents();
   }

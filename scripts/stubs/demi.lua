@@ -243,6 +243,37 @@ function Sprite2D.set_flip(entity_id, flip_x, flip_y) end
 ---@return boolean
 function Sprite2D.set_size(entity_id, width, height) end
 
+---@class AnimationService
+Animation = {}
+
+---Returns the active named state, or an empty string when unavailable.
+---@param entity_id string
+---@return string
+function Animation.state(entity_id) end
+
+---Immediately enters a named animation state.
+---@param entity_id string
+---@param state string
+---@return boolean
+function Animation.play(entity_id, state) end
+
+---@param entity_id string
+---@param parameter string
+---@param value number
+---@return boolean
+function Animation.set_number(entity_id, parameter, value) end
+
+---@param entity_id string
+---@param parameter string
+---@param value boolean
+---@return boolean
+function Animation.set_bool(entity_id, parameter, value) end
+
+---@param entity_id string
+---@param trigger string
+---@return boolean
+function Animation.trigger(entity_id, trigger) end
+
 ---@class TimeService
 ---@field delta_time number
 Time = {}

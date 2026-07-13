@@ -225,6 +225,8 @@ if(DEMI_ENABLE_MEDIA AND NOT TARGET PkgConfig::FFMPEG)
 endif()
 
 set(DEMI_RUNTIME_COMMON_SOURCES
+  src/demi/runtime/animation/AnimationStateMachineSystem.cpp
+  src/demi/runtime/animation/AnimationCollision2DSystem.cpp
   src/demi/runtime/animation/SpriteAnimationSystem.cpp
   src/demi/runtime/camera/Camera2DSystem.cpp
   src/demi/runtime/tilemap/TilemapAsset.cpp
@@ -278,6 +280,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/components/LuaSprite2DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaTransform2DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaTransform3DBindings.cpp
+  src/demi/runtime/scripting/bindings/animation/LuaAnimationBindings.cpp
   src/demi/runtime/scripting/bindings/hud/LuaHudBindings.cpp
   src/demi/runtime/scripting/bindings/media/LuaAudioBindings.cpp
   src/demi/runtime/scripting/bindings/media/LuaCutsceneBindings.cpp
@@ -429,6 +432,8 @@ else()
   target_link_libraries(demi-input-action-tests PRIVATE demi-core)
   add_executable(demi-sprite-animation-tests tests/sprite_animation_tests.cpp)
   target_link_libraries(demi-sprite-animation-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-animation-primitives-tests tests/animation_primitives_tests.cpp)
+  target_link_libraries(demi-animation-primitives-tests PRIVATE demi-runtime-lib)
   add_executable(demi-camera2d-tests tests/camera2d_tests.cpp)
   target_link_libraries(demi-camera2d-tests PRIVATE demi-runtime-lib)
   add_executable(demi-tilemap-tests tests/tilemap_tests.cpp)
@@ -465,6 +470,7 @@ add_test(NAME demi-ui-tests COMMAND demi-ui-tests)
 add_test(NAME demi-regex-matcher-tests COMMAND demi-regex-matcher-tests)
 add_test(NAME demi-input-action-tests COMMAND demi-input-action-tests)
 add_test(NAME demi-sprite-animation-tests COMMAND demi-sprite-animation-tests)
+add_test(NAME demi-animation-primitives-tests COMMAND demi-animation-primitives-tests)
 add_test(NAME demi-camera2d-tests COMMAND demi-camera2d-tests)
 add_test(NAME demi-tilemap-tests COMMAND demi-tilemap-tests)
 add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)
@@ -523,6 +529,10 @@ add_test(NAME demi-runtime-isometric-base-builder-replay
     --input-replay ${CMAKE_SOURCE_DIR}/examples/isometric_base_builder/replays/build_and_defend.replay.json
 )
 set_tests_properties(demi-runtime-isometric-base-builder-replay PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-fighting-game-2d-frame
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/demi.project.json --frames 3
+)
+set_tests_properties(demi-runtime-fighting-game-2d-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-runtime-minimal-3d-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json --frames 1
 )
@@ -547,6 +557,18 @@ add_test(NAME demi-validate-saves-simulation-debugging
 )
 add_test(NAME demi-validate-isometric-base-builder
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/isometric_base_builder/demi.project.json
+)
+add_test(NAME demi-validate-fighting-game-2d
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/demi.project.json
+)
+add_test(NAME demi-script-check-fighting-game-2d
+  COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/scripts/fight.lua
+)
+add_test(NAME demi-script-check-runtime-input-buffer
+  COMMAND demi script check ${CMAKE_SOURCE_DIR}/scripts/runtime/demi/input_buffer.lua
+)
+add_test(NAME demi-script-check-runtime-command-recognizer
+  COMMAND demi script check ${CMAKE_SOURCE_DIR}/scripts/runtime/demi/command_recognizer.lua
 )
 set(DEMI_ISOMETRIC_BASE_BUILDER_SCRIPTS
   game

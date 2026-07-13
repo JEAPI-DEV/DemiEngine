@@ -6,18 +6,19 @@
 #include "demi/runtime/scripting/bindings/LuaNetworkSessionBindings.h"
 #include "demi/runtime/scripting/bindings/LuaRandomBindings.h"
 #include "demi/runtime/scripting/bindings/LuaTlsBindings.h"
+#include "demi/runtime/scripting/bindings/animation/LuaAnimationBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaRigidbody2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaSprite2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaTransform2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaTransform3DBindings.h"
 #include "demi/runtime/scripting/bindings/hud/LuaHudBindings.h"
+#include "demi/runtime/scripting/bindings/isometric/LuaIsoGridBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaAudioBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaCutsceneBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaVideoBindings.h"
 #include "demi/runtime/scripting/bindings/persistence/LuaSaveBindings.h"
 #include "demi/runtime/scripting/bindings/text/LuaRegexBindings.h"
-#include "demi/runtime/scripting/bindings/isometric/LuaIsoGridBindings.h"
 
 #include <sol/sol.hpp>
 
@@ -58,12 +59,12 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaRegexBindingModule regex;
   const LuaRandomBindingModule random;
   const LuaIsoGridBindingModule isoGrid;
+  const LuaAnimationBindingModule animation;
   const LuaBindingModule *modules[] = {
-      &core,        &entity,         &transform2D, &transform3D,
-      &rigidbody2D, &sprite2D,       &physics2D,   &hud,
-      &save,        &audio,          &video,       &cutscene,
-      &network,     &networkSession, &tls,         &regex,
-      &random,      &isoGrid};
+      &core,     &entity,    &transform2D, &transform3D,    &rigidbody2D,
+      &sprite2D, &physics2D, &hud,         &save,           &audio,
+      &video,    &cutscene,  &network,     &networkSession, &tls,
+      &regex,    &random,    &isoGrid,     &animation};
   for (const LuaBindingModule *module : modules) {
     module->install(host, state);
   }
