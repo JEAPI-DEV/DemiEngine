@@ -10,9 +10,9 @@ function Actions.build_arrow()
   context.building.select("arrow")
 end
 
--- @HandleAction("build_cannon")
-function Actions.build_cannon()
-  context.building.select("cannon")
+-- @HandleAction("build_wizard")
+function Actions.build_wizard()
+  context.building.select("wizard")
 end
 
 -- @HandleAction("start_wave")

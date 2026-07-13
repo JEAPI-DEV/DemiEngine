@@ -28,6 +28,11 @@ void LuaSprite2DBindingModule::install(LuaScriptHost &host,
                                           const bool flipX, const bool flipY) {
     return host.setSpriteFlip(entityId, flipX, flipY);
   });
+  sprite.set_function("set_size", [&host](const std::string &entityId,
+                                           const float width,
+                                           const float height) {
+    return host.setSpriteSize(entityId, width, height);
+  });
 }
 
 } // namespace demi::runtime

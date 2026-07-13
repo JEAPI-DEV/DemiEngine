@@ -21,7 +21,7 @@ int main() {
                                    entity);
   SpriteComponent::parse(nlohmann::json::parse(R"({
     "sorting_order": 4, "source_position": [2, 3],
-    "source_size": [8, 9], "pivot": [0.25, 0.75],
+    "source_size": [8, 9], "size": [2.5, 3.5], "pivot": [0.25, 0.75],
     "flip_x": true
   })"),
                          entity);
@@ -31,7 +31,8 @@ int main() {
   if (animator == nullptr || animator->clip != "idle" ||
       animator->currentFrame != 0 || sprite == nullptr ||
       sprite->sortingOrder != 4 || sprite->sourcePosition.x != 2.0F ||
-      sprite->sourceSize.y != 9.0F || sprite->pivot.x != 0.25F ||
+      sprite->sourceSize.y != 9.0F || sprite->size.x != 2.5F ||
+      sprite->size.y != 3.5F || sprite->pivot.x != 0.25F ||
       !sprite->flipX) {
     std::cerr << "Sprite animation or presentation parsing failed.\n";
     return 1;

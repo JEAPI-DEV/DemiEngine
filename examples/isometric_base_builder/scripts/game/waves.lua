@@ -12,12 +12,17 @@ function Waves.new(state, config)
       name = "Raider",
       components = {
         IsoTransform = { tile = { path[1][1], path[1][2] }, height = 0.18, footprint = { 1, 1 } },
-        Sprite = { shape = "circle", color = config.enemy.color },
+        Sprite = {
+          texture = config.enemy.texture,
+          size = config.enemy.size,
+          pivot = { 0.5, 1.0 },
+        },
       },
     }) then return end
     state.enemies[id] = {
       id = id,
       health = health,
+      max_health = health,
       path = path,
       segment = 1,
       progress = 0,

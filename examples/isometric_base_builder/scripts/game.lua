@@ -3,6 +3,9 @@ local State = require("game.state")
 local Building = require("game.building")
 local Waves = require("game.waves")
 local Combat = require("game.combat")
+local Projectiles = require("game.projectiles")
+local HealthBars = require("game.health_bars")
+local Selection = require("game.selection")
 local Persistence = require("game.persistence")
 local Ui = require("game.ui")
 local Actions = require("game.actions")
@@ -13,13 +16,16 @@ function Game:on_create()
   self.state = State.new(Config)
   self.building = Building.new(self.state, Config)
   self.waves = Waves.new(self.state, Config)
-  self.persistence = Persistence.new(self.state, Config, self.building, self.waves)
+  self.projectiles = Projectiles.new(self.state)
+  self.persistence = Persistence.new(
+    self.state, Config, self.building, self.waves,
+    self.projectiles, HealthBars)
   Actions.bind({ building = self.building, waves = self.waves })
 end
 
 function Game:on_start()
   self.state.status = "Defend the keep. Build towers without blocking the route."
-  Ui.update(self.state)
+  Ui.update(self.state, Config)
 end
 
 local function mouse_tile()
@@ -31,7 +37,7 @@ end
 
 function Game:handle_input()
   if Input.action_pressed("build_arrow") then self.building.select("arrow") end
-  if Input.action_pressed("build_cannon") then self.building.select("cannon") end
+  if Input.action_pressed("build_wizard") then self.building.select("wizard") end
   if Input.action_pressed("start_wave") then self.waves.start() end
   if Input.action_pressed("cancel") then self.building.cancel() end
   if Input.action_pressed("save") then self.persistence.save() end
@@ -58,11 +64,16 @@ end
 function Game:on_update(dt)
   self:handle_input()
   self.waves.update(dt)
-  Combat.update(self.state, Config, dt)
-  Ui.update(self.state)
+  Combat.update(self.state, Config, self.projectiles, dt)
+  HealthBars.update(self.state)
+  Selection.update(self.state, Config)
+  Ui.update(self.state, Config)
 end
 
 function Game:on_destroy()
+  self.projectiles.clear()
+  HealthBars.clear(self.state)
+  Debug.clear_lines()
   Grid.clear_preview()
 end
 

@@ -3,6 +3,8 @@
 #include "demi/runtime/scene/components/ComponentDefinition.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
+#include <string>
+
 namespace demi::runtime {
 
 struct IsoTransformComponent {
@@ -10,12 +12,14 @@ struct IsoTransformComponent {
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::TwoDimensional;
   static constexpr std::array fields{
+      ComponentFieldDescriptor{"parent", ComponentFieldType::String},
       ComponentFieldDescriptor{"tile", ComponentFieldType::Vec2},
       ComponentFieldDescriptor{"height", ComponentFieldType::Number},
       ComponentFieldDescriptor{"footprint", ComponentFieldType::Vec2}};
   static constexpr ComponentEditorMetadata editor{"Isometric", "Iso Transform"};
   static void parse(const nlohmann::json &json, Entity &entity);
 
+  std::string parent;
   Vec2 tile;
   float height = 0.0F;
   Vec2 footprint = {1.0F, 1.0F};

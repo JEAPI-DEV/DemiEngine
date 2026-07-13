@@ -5,7 +5,7 @@ queries, and a reusable Lua character controller.
 
 ## Sprite animation
 
-`Sprite` supports `source_position`, `source_size`, `pivot`, `flip_x`,
+`Sprite` supports `source_position`, `source_size`, world-space `size`, `pivot`, `flip_x`,
 `flip_y`, `layer`, and `sorting_order`. Add `SpriteAnimator2D` beside it to
 divide the texture into frames:
 
@@ -26,7 +26,8 @@ divide the texture into frames:
 ```
 
 Lua controls playback with `Sprite2D.play_animation`, `pause_animation`,
-`resume_animation`, `current_animation`, and `set_flip`. Authored frame events
+`resume_animation`, `current_animation`, and `set_flip`. Runtime presentation
+can update the world-space sprite dimensions with `Sprite2D.set_size`. Authored frame events
 are emitted through `Events` as `sprite_animation`; its payload contains
 `entity_id`, `clip`, `name`, and the clip-local `frame`.
 

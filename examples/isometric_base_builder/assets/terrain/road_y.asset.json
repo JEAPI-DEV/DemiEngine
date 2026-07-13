@@ -1,0 +1,6 @@
+{
+  "format_version": 1,
+  "id": "asset://terrain/road_y",
+  "type": "Texture2D",
+  "source": "../Pack/Sprites/Road tiles/Spring biome/road_spring(2).png"
+}

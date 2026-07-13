@@ -1,9 +1,5 @@
 local Building = {}
 
-local function copy_color(color)
-  return { color[1], color[2], color[3], color[4] }
-end
-
 function Building.new(state, config)
   local self = {}
 
@@ -66,9 +62,13 @@ function Building.new(state, config)
     local created = Entity.create(id, {
       name = definition.label,
       components = {
-        IsoTransform = { tile = { x, y }, height = 0.25, footprint = { 1, 1 } },
+        IsoTransform = { tile = { x, y }, height = 0.0, footprint = { 1, 1 } },
         Buildable = { asset = "", blocks_movement = true },
-        Sprite = { shape = definition.shape, color = copy_color(definition.color) },
+        Sprite = {
+          texture = definition.texture,
+          size = definition.size,
+          pivot = { 0.5, 1.0 },
+        },
       },
     })
     if not created then
@@ -85,13 +85,19 @@ function Building.new(state, config)
   end
 
   function self.select_at(x, y)
-    local id = Grid.entity_at(x, y)
-    if id and state.towers[id] then
+    local id = nil
+    for tower_id, tower in pairs(state.towers) do
+      if tower.x == x and tower.y == y then
+        id = tower_id
+        break
+      end
+    end
+    if id then
       state.selected_id = id
       state.status = config.towers[state.towers[id].kind].label .. " selected."
     else
       state.selected_id = nil
-      state.status = id and ("Selected " .. id) or "No entity on that tile."
+      state.status = "No tower on that tile."
     end
   end
 
@@ -105,9 +111,13 @@ function Building.new(state, config)
     end
     if not Entity.create(id, {
       components = {
-        IsoTransform = { tile = { x, y }, height = 0.25, footprint = { 1, 1 } },
+        IsoTransform = { tile = { x, y }, height = 0.0, footprint = { 1, 1 } },
         Buildable = { asset = "", blocks_movement = true },
-        Sprite = { shape = definition.shape, color = copy_color(definition.color) },
+        Sprite = {
+          texture = definition.texture,
+          size = definition.size,
+          pivot = { 0.5, 1.0 },
+        },
       },
     }) then return false end
     state.towers[id] = { id = id, kind = kind, x = x, y = y, cooldown = 0 }

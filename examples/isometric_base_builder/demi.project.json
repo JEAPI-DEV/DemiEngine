@@ -24,7 +24,7 @@
   "input": {
     "actions": {
       "build_arrow": ["1"],
-      "build_cannon": ["2"],
+      "build_wizard": ["2"],
       "start_wave": ["space"],
       "cancel": ["escape"],
       "save": ["s"],

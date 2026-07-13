@@ -198,6 +198,8 @@ Entity luaParseEntitySpec(const std::string &entityId, const sol::table spec) {
         .texture = sprite.get_or("texture", std::string{}),
         .shape = sprite.get_or("shape", std::string("rectangle")),
         .layer = sprite.get_or("layer", std::string{}),
+        .size = luaVec2Field(sprite, "size"),
+        .pivot = luaVec2Field(sprite, "pivot", {0.5F, 0.5F}),
         .color = luaColorField(sprite, "color"),
     });
   }

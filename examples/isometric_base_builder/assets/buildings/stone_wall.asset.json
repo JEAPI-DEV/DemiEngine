@@ -2,8 +2,8 @@
   "format_version": 1,
   "id": "asset://buildings/stone_wall",
   "type": "Texture2D",
-  "source": "stone_wall.ppm",
-  "importer": "ppm-texture",
+  "source": "../Pack/Sprites/Towers/Barrack/barrack_level_1 (1).png",
+  "importer": "image-texture",
   "settings": {
     "filter": "nearest"
   }

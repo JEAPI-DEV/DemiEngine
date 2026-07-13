@@ -13,6 +13,8 @@ void SpriteComponent::parse(const nlohmann::json &json, Entity &entity) {
     component.sourcePosition = *value;
   if (auto value = scene_loading::vec2Field(json, "source_size"))
     component.sourceSize = *value;
+  if (auto value = scene_loading::vec2Field(json, "size"))
+    component.size = *value;
   if (auto value = scene_loading::vec2Field(json, "pivot"))
     component.pivot = *value;
   component.flipX = scene_loading::boolField(json, "flip_x").value_or(false);

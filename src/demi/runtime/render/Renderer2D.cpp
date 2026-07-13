@@ -498,14 +498,21 @@ void drawIsoTileTexture(const Texture2D &texture,
   const float ppu = pixelsPerUnit(camera, height);
   const float halfWidth = ppu * grid.cellWidth;
   const float halfHeight = ppu * grid.cellHeight;
+  const float drawWidth = halfWidth * 2.0F;
+  const float drawHeight =
+      drawWidth * static_cast<float>(texture.height) /
+      std::max(static_cast<float>(texture.width), 1.0F);
   const ::Rectangle source{.x = 0.0F,
                            .y = 0.0F,
                            .width = static_cast<float>(texture.width),
                            .height = static_cast<float>(texture.height)};
+  // Isometric tile art commonly includes visible sides below its top diamond.
+  // Keep the top point aligned with the grid and let the authored aspect ratio
+  // extend below it instead of flattening the image into the top face.
   const ::Rectangle destination{.x = centerX - halfWidth,
                                 .y = centerY - halfHeight,
-                                .width = halfWidth * 2.0F,
-                                .height = halfHeight * 2.0F};
+                                .width = drawWidth,
+                                .height = drawHeight};
   DrawTexturePro(texture, source, destination, {}, 0.0F, WhiteTint);
 }
 
@@ -610,8 +617,12 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
   }
   if (entity.hasComponent<IsoGridComponent>()) {
     const auto &component = *entity.component<IsoGridComponent>();
-    for (int y = 0; y < component.height; ++y) {
-      for (int x = 0; x < component.width; ++x) {
+    for (int depth = 0; depth < component.width + component.height - 1;
+         ++depth) {
+      const int firstX = std::max(0, depth - component.height + 1);
+      const int lastX = std::min(component.width - 1, depth);
+      for (int x = firstX; x <= lastX; ++x) {
+        const int y = depth - x;
         const Vec2 world =
             isometric::tileToWorld(isoGrid, Vec2{.x = static_cast<float>(x),
                                                  .y = static_cast<float>(y)});
@@ -635,12 +646,14 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
 
   Vec2 position;
   Vec2 size = {1.0F, 1.0F};
+  Vec2 isoFootprint = {1.0F, 1.0F};
   if (entity.hasComponent<Transform2DComponent>()) {
     position = worldPosition2D(world, entity);
   }
   if (entity.hasComponent<IsoTransformComponent>()) {
-    const auto &transform = *entity.component<IsoTransformComponent>();
+    const IsoTransformComponent transform = worldIsoTransform(world, entity);
     size = transform.footprint;
+    isoFootprint = transform.footprint;
     Vec2 renderTile = transform.tile;
     if (entity.hasComponent<BuildableComponent>()) {
       renderTile.x += (size.x - 1.0F) * 0.5F;
@@ -667,12 +680,25 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
       position.y += circle.offset.y;
     }
   }
+  if (const auto *sprite = entity.component<SpriteComponent>();
+      sprite != nullptr && sprite->size.x > 0.0F && sprite->size.y > 0.0F) {
+    size = sprite->size;
+  }
 
   const float ppu = pixelsPerUnit(camera, height);
-  float entityWidth = std::max(size.x * ppu, 24.0F);
-  float entityHeight = std::max(size.y * ppu, 24.0F);
+  const auto *sizedSprite = entity.component<SpriteComponent>();
+  const bool hasExplicitSpriteSize =
+      sizedSprite != nullptr && sizedSprite->size.x > 0.0F &&
+      sizedSprite->size.y > 0.0F;
+  float entityWidth = hasExplicitSpriteSize
+                          ? size.x * ppu
+                          : std::max(size.x * ppu, 24.0F);
+  float entityHeight = hasExplicitSpriteSize
+                           ? size.y * ppu
+                           : std::max(size.y * ppu, 24.0F);
   if (entity.hasComponent<BuildableComponent>() &&
-      entity.hasComponent<IsoTransformComponent>()) {
+      entity.hasComponent<IsoTransformComponent>() &&
+      !hasExplicitSpriteSize) {
     entityWidth = std::max((size.x + size.y) * ppu * 0.62F, 22.0F);
     entityHeight =
         std::max((size.x + size.y) * ppu * isoGrid.cellHeight * 0.95F, 22.0F);
@@ -725,7 +751,11 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
                          .width = sprite.flipX ? -sourceWidth : sourceWidth,
                          .height = sprite.flipY ? -sourceHeight : sourceHeight};
       ::Rectangle destination{.x = screenX,
-                              .y = screenY,
+                              .y = screenY +
+                                   (entity.hasComponent<IsoTransformComponent>()
+                                        ? (isoFootprint.x + isoFootprint.y) *
+                                              isoGrid.cellHeight * ppu * 0.5F
+                                        : 0.0F),
                               .width = rect.width,
                               .height = rect.height};
       const ::Vector2 origin{sprite.pivot.x * rect.width,
@@ -887,25 +917,26 @@ void Renderer2D::loadTextureAssets(const AssetRegistry &registry) {
       continue;
     }
 
-    const std::optional<ImageData> image = loadPpm(asset.sourcePath);
-    if (!image.has_value()) {
+    Texture2D texture{};
+    if (asset.sourcePath.extension() == ".ppm") {
+      const std::optional<ImageData> image = loadPpm(asset.sourcePath);
+      if (image.has_value()) {
+        ::Image rlImage{
+            .data = const_cast<void *>(
+                static_cast<const void *>(image->pixels.data())),
+            .width = image->width,
+            .height = image->height,
+            .mipmaps = 1,
+            .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
+        };
+        texture = LoadTextureFromImage(rlImage);
+      }
+    } else {
+      texture = LoadTexture(asset.sourcePath.string().c_str());
+    }
+    if (texture.id == 0) {
       std::cerr << "Texture load failed for " << asset.id << " from "
                 << asset.sourcePath.string() << ". Using fallback rectangle.\n";
-      continue;
-    }
-
-    ::Image rlImage{
-        .data =
-            const_cast<void *>(static_cast<const void *>(image->pixels.data())),
-        .width = image->width,
-        .height = image->height,
-        .mipmaps = 1,
-        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
-    };
-    Texture2D texture = LoadTextureFromImage(rlImage);
-    if (texture.id == 0) {
-      std::cerr << "LoadTextureFromImage failed for " << asset.id
-                << ". Using fallback rectangle.\n";
       continue;
     }
 
@@ -967,8 +998,8 @@ void Renderer2D::drawWorld(const World &world) {
   }
 
   std::ranges::stable_sort(
-      renderables, [](const Entity *left, const Entity *right) {
-        const auto sortKey = [](const Entity *entity) {
+      renderables, [&world](const Entity *left, const Entity *right) {
+        const auto sortKey = [&world](const Entity *entity) {
           std::string_view layer;
           int order = 0;
           if (const auto *sprite = entity->component<SpriteComponent>()) {
@@ -983,9 +1014,9 @@ void Renderer2D::drawWorld(const World &world) {
           if (entity->hasComponent<IsoGridComponent>()) {
             depth = -10000.0F;
           } else if (entity->hasComponent<IsoTransformComponent>()) {
-            depth = entity->component<IsoTransformComponent>()->tile.x +
-                    entity->component<IsoTransformComponent>()->tile.y +
-                    entity->component<IsoTransformComponent>()->height;
+            const IsoTransformComponent transform =
+                worldIsoTransform(world, *entity);
+            depth = transform.tile.x + transform.tile.y + transform.height;
           }
           return std::tuple{order, layer, depth, entity->id};
         };

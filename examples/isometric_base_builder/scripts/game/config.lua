@@ -22,19 +22,29 @@ Config.towers = {
     label = "Arrow tower",
     cost = 50,
     damage = 16,
-    range = 3.4,
+    range = 4.0,
     cooldown = 0.55,
-    shape = "triangle",
-    color = { 0.30, 0.88, 0.70, 1.0 },
+    texture = "asset://units/archer_tower",
+    size = { 1.55, 2.0 },
+    projectile = {
+      texture = "asset://projectiles/arrow",
+      size = { 0.30, 0.50 },
+      speed = 9.0,
+    },
   },
-  cannon = {
-    label = "Cannon tower",
+  wizard = {
+    label = "Wizard tower",
     cost = 90,
     damage = 38,
     range = 2.7,
     cooldown = 1.15,
-    shape = "circle",
-    color = { 0.72, 0.42, 0.88, 1.0 },
+    texture = "asset://units/wizard_tower",
+    size = { 1.7, 1.45 },
+    projectile = {
+      texture = "asset://projectiles/fireball",
+      size = { 0.38, 0.38 },
+      speed = 6.5,
+    },
   },
 }
 
@@ -43,7 +53,8 @@ Config.enemy = {
   health_per_wave = 12,
   base_speed = 2.0,
   reward = 14,
-  color = { 0.92, 0.30, 0.34, 1.0 },
+  texture = "asset://units/raider",
+  size = { 0.6, 0.85 },
 }
 
 return Config

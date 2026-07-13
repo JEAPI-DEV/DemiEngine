@@ -1,0 +1,6 @@
+{
+  "format_version": 1,
+  "id": "asset://units/goal",
+  "type": "Texture2D",
+  "source": "../Pack/Sprites/Towers/Barrack/shield.png"
+}

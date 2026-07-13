@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "id": "asset://terrain/road",
-  "type": "SvgTexture2D",
-  "source": "road.svg"
+  "id": "asset://terrain/road_x",
+  "type": "Texture2D",
+  "source": "../Pack/Sprites/Road tiles/Spring biome/road_spring(1).png"
 }

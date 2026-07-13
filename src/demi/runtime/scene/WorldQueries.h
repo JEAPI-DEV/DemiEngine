@@ -62,6 +62,24 @@ namespace demi::runtime {
     }
   return position;
 }
+[[nodiscard]] inline IsoTransformComponent
+worldIsoTransform(const World &world, const Entity &entity) {
+  const auto *transform = entity.component<IsoTransformComponent>();
+  if (transform == nullptr)
+    return {};
+  IsoTransformComponent resolved = *transform;
+  if (!transform->parent.empty()) {
+    const Entity *parent = findEntity(world, transform->parent);
+    if (parent != nullptr && parent->hasComponent<IsoTransformComponent>()) {
+      const IsoTransformComponent parentTransform =
+          worldIsoTransform(world, *parent);
+      resolved.tile.x += parentTransform.tile.x;
+      resolved.tile.y += parentTransform.tile.y;
+      resolved.height += parentTransform.height;
+    }
+  }
+  return resolved;
+}
 [[nodiscard]] inline float worldRotation2D(const World &world,
                                            const Entity &entity) {
   if (!entity.component<Transform2DComponent>())

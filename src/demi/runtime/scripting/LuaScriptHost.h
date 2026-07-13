@@ -105,6 +105,8 @@ public:
   spriteAnimationClip(const std::string &entityId) const;
   [[nodiscard]] bool setSpriteFlip(const std::string &entityId, bool flipX,
                                    bool flipY);
+  [[nodiscard]] bool setSpriteSize(const std::string &entityId, float width,
+                                   float height);
   [[nodiscard]] std::optional<Vec2>
   getRigidbodyVelocity(const std::string &entityId) const;
   [[nodiscard]] bool setRigidbodyVelocity(const std::string &entityId, float x,

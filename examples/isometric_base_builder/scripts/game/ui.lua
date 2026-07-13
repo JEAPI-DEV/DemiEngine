@@ -1,6 +1,6 @@
 local Ui = {}
 
-function Ui.update(state)
+function Ui.update(state, config)
   local enemy_count = 0
   for _ in pairs(state.enemies) do enemy_count = enemy_count + 1 end
   Hud.set_text("gold_value", "GOLD " .. tostring(state.gold))
@@ -8,9 +8,14 @@ function Ui.update(state)
   Hud.set_text("wave_value", "WAVE " .. tostring(state.wave))
   Hud.set_text("enemy_value", "ENEMIES " .. tostring(enemy_count + state.spawn_remaining))
   Hud.set_text("status_value", state.status)
-  Hud.set_text("selection_value", "SELECTED: " .. (state.selected_id or "NONE"))
+  local tower = state.selected_id and state.towers[state.selected_id]
+  local definition = tower and config.towers[tower.kind]
+  local selection = definition and
+    (string.upper(definition.label) .. " | RANGE " .. tostring(definition.range)) or
+    "NONE"
+  Hud.set_text("selection_value", "SELECTED: " .. selection)
   Hud.set_disabled("build_arrow", state.wave_active or state.gold < 50)
-  Hud.set_disabled("build_cannon", state.wave_active or state.gold < 90)
+  Hud.set_disabled("build_wizard", state.wave_active or state.gold < 90)
   Hud.set_disabled("start_wave", state.wave_active or state.base_health <= 0)
 end
 

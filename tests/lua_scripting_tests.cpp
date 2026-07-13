@@ -1,4 +1,5 @@
 #include "demi/runtime/scene/components/EngineComponents.h"
+#include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include <filesystem>
@@ -100,12 +101,19 @@ function Probe:on_start()
       },
     },
   })
-  if Entity.set_sprite_color("ent_tinted_sprite", 0.45, 0.55, 0.65, 0.75) then
+  if Entity.set_sprite_color("ent_tinted_sprite", 0.45, 0.55, 0.65, 0.75) and
+      Sprite2D.set_size("ent_tinted_sprite", 2.5, 0.5) then
     Save.set_string("test", "sprite_color", "updated")
   end
+  Entity.create("ent_iso_parent", {
+    components = {
+      IsoTransform = { tile = { 1.0, 2.0 }, height = 0.5 },
+    },
+  })
   Entity.create("ent_iso_created", {
     components = {
       IsoTransform = {
+        parent = "ent_iso_parent",
         tile = { 4.0, 7.0 },
         height = 0.25,
         footprint = { 2.0, 1.0 },
@@ -372,18 +380,27 @@ return PropProbe
       tintedSprite->component<SpriteComponent>()->color.r != 0.45F ||
       tintedSprite->component<SpriteComponent>()->color.g != 0.55F ||
       tintedSprite->component<SpriteComponent>()->color.b != 0.65F ||
-      tintedSprite->component<SpriteComponent>()->color.a != 0.75F) {
+      tintedSprite->component<SpriteComponent>()->color.a != 0.75F ||
+      tintedSprite->component<SpriteComponent>()->size.x != 2.5F ||
+      tintedSprite->component<SpriteComponent>()->size.y != 0.5F) {
     std::cerr
         << "Sprite color Lua API did not create and update a tinted sprite.\n";
     return 1;
   }
   const runtime::Entity *isoCreated =
       runtime::findEntity(world, "ent_iso_created");
+  const runtime::IsoTransformComponent resolvedIso =
+      isoCreated == nullptr ? runtime::IsoTransformComponent{}
+                            : runtime::worldIsoTransform(world, *isoCreated);
   if (isoCreated == nullptr ||
       !isoCreated->hasComponent<IsoTransformComponent>() ||
       !isoCreated->hasComponent<BuildableComponent>() ||
       isoCreated->component<IsoTransformComponent>()->tile.x != 4.0F ||
       isoCreated->component<IsoTransformComponent>()->tile.y != 7.0F ||
+      isoCreated->component<IsoTransformComponent>()->parent !=
+          "ent_iso_parent" ||
+      resolvedIso.tile.x != 5.0F || resolvedIso.tile.y != 9.0F ||
+      resolvedIso.height != 0.75F ||
       isoCreated->component<IsoTransformComponent>()->footprint.x != 2.0F ||
       !isoCreated->component<BuildableComponent>()->blocksMovement) {
     std::cerr << "Entity.create did not delegate authored isometric "

@@ -4,6 +4,7 @@
 namespace demi::runtime {
 void IsoTransformComponent::parse(const nlohmann::json &json, Entity &entity) {
   IsoTransformComponent component;
+  component.parent = scene_loading::stringOr(json, "parent");
   if (auto value = scene_loading::vec2Field(json, "tile"))
     component.tile = *value;
   if (auto value = scene_loading::numberField(json, "height"))

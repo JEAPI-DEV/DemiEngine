@@ -21,6 +21,7 @@ struct SpriteComponent {
       ComponentFieldDescriptor{"sorting_order", ComponentFieldType::Integer},
       ComponentFieldDescriptor{"source_position", ComponentFieldType::Vec2},
       ComponentFieldDescriptor{"source_size", ComponentFieldType::Vec2},
+      ComponentFieldDescriptor{"size", ComponentFieldType::Vec2},
       ComponentFieldDescriptor{"pivot", ComponentFieldType::Vec2},
       ComponentFieldDescriptor{"flip_x", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"flip_y", ComponentFieldType::Boolean},
@@ -34,6 +35,7 @@ struct SpriteComponent {
   int sortingOrder = 0;
   Vec2 sourcePosition{};
   Vec2 sourceSize{};
+  Vec2 size{};
   Vec2 pivot{0.5F, 0.5F};
   bool flipX = false;
   bool flipY = false;

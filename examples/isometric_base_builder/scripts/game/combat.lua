@@ -5,8 +5,7 @@ local function distance_squared(a, b)
   return dx * dx + dy * dy
 end
 
-function Combat.update(state, config, dt)
-  local defeated = {}
+function Combat.update(state, config, projectiles, dt)
   for _, tower in pairs(state.towers) do
     tower.cooldown = math.max(0, tower.cooldown - dt)
     if tower.cooldown <= 0 then
@@ -19,14 +18,13 @@ function Combat.update(state, config, dt)
         end
       end
       if target then
-        target.health = target.health - definition.damage
+        projectiles.spawn(tower, target, definition)
         tower.cooldown = definition.cooldown
-        Entity.set_sprite_color(target.id, 1.0, 0.82, 0.32, 1.0)
-        if target.health <= 0 then defeated[#defeated + 1] = target.id end
       end
     end
   end
-  for _, id in ipairs(defeated) do
+
+  for id in pairs(projectiles.update(dt)) do
     if state.enemies[id] then
       Entity.destroy(id)
       state.enemies[id] = nil

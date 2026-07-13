@@ -1,6 +1,6 @@
 local Persistence = {}
 
-function Persistence.new(state, config, building, waves)
+function Persistence.new(state, config, building, waves, projectiles, health_bars)
   local self = {}
 
   function self.save()
@@ -41,6 +41,8 @@ function Persistence.new(state, config, building, waves)
       return false
     end
     waves.clear()
+    projectiles.clear()
+    health_bars.clear(state)
     for id in pairs(state.towers) do Entity.destroy(id) end
     state.towers = {}
     state.next_tower_id = 1

@@ -1,6 +1,6 @@
 {
   "format_version": 1,
   "id": "asset://terrain/grass",
-  "type": "SvgTexture2D",
-  "source": "grass.svg"
+  "type": "Texture2D",
+  "source": "../Pack/Sprites/Landscape tiles/grass.png"
 }

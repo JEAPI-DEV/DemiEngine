@@ -554,7 +554,10 @@ set(DEMI_ISOMETRIC_BASE_BUILDER_SCRIPTS
   game/building
   game/combat
   game/config
+  game/health_bars
   game/persistence
+  game/projectiles
+  game/selection
   game/state
   game/ui
   game/waves

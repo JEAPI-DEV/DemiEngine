@@ -63,6 +63,17 @@ bool LuaScriptHost::setSpriteFlip(const std::string &entityId, const bool flipX,
   return true;
 }
 
+bool LuaScriptHost::setSpriteSize(const std::string &entityId,
+                                  const float width, const float height) {
+  Entity *entity = world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  auto *sprite =
+      entity == nullptr ? nullptr : entity->component<SpriteComponent>();
+  if (sprite == nullptr || width < 0.0F || height < 0.0F)
+    return false;
+  sprite->size = {.x = width, .y = height};
+  return true;
+}
+
 void LuaScriptHost::dispatchAnimationEvents() {
   auto *state = static_cast<lua_State *>(state_);
   if (state == nullptr || world_ == nullptr)

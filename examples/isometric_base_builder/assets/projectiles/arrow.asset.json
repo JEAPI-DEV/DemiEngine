@@ -1,0 +1,6 @@
+{
+  "format_version": 1,
+  "id": "asset://projectiles/arrow",
+  "type": "Texture2D",
+  "source": "../Pack/Sprites/Towers/Archer/arrow.png"
+}

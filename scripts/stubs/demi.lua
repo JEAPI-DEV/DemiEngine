@@ -237,6 +237,11 @@ function Sprite2D.current_animation(entity_id) end
 ---@param flip_y boolean
 ---@return boolean
 function Sprite2D.set_flip(entity_id, flip_x, flip_y) end
+---@param entity_id string
+---@param width number
+---@param height number
+---@return boolean
+function Sprite2D.set_size(entity_id, width, height) end
 
 ---@class TimeService
 ---@field delta_time number
