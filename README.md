@@ -21,6 +21,23 @@ These screenshots are from the checked-in examples. They are small probes, but t
 
 `examples/minimal_3d` exercises the 3D renderer, scene loader, and Lua-controlled movement.
 
+![Isometric base builder](images/isometric_base_builder.png)
+
+`examples/isometric_base_builder` is a simpel demonstration of a game made with isometric graphics.
+It features a grid-based building system with pathfinding and resource management, it is a playable (minimal) tower defense demo.
+
+![Main menu animated](images/main_menu_animated.png)
+
+`examples/main_menu_animated` is a polished block-adventure menu probe that loops a walking sprite behind the menu with `GuiAnimation`.
+
+![Minimal voxel](images/minimal_voxel.png)
+
+`examples/minimal_voxel` is a minimal voxel-based scene probe demonstrating basic 3D rendering and physics integration.
+
+![Ui showcase](images/ui_showcase_1.png)
+
+`examples/main_menu_animated` is a polished block-adventure menu probe that loops a walking sprite behind the menu with `GuiAnimation`.
+
 ## Docs
 
 - [Generated docs PDF](https://github.com/JEAPI-DEV/DemiEngine/blob/main/docs/latex/main.pdf)
