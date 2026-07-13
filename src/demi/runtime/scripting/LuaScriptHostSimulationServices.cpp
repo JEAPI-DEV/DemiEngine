@@ -20,4 +20,6 @@ int LuaScriptHost::randomInteger(const int minimum, const int maximum) {
   return random_.integer(minimum, maximum);
 }
 
+isometric::IsoGridApi &LuaScriptHost::isoGridApi() { return isoGridApi_; }
+
 } // namespace demi::runtime

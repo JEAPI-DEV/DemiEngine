@@ -179,6 +179,13 @@ test input sequence, and produce actionable performance/debug information.
 
 ## Milestone 6 — Isometric, Strategy, And Builder Systems
 
+**Status: complete.** Reusable runtime support now covers isometric coordinate
+conversion, deterministic occupancy/path queries, depth sorting, structural
+placement diagnostics, previews, and grid visualization. The playable
+`isometric_base_builder` vertical slice owns its tower catalog, build costs,
+route-preservation policy, selection, waves, combat, rewards, health, UI, and
+save data in focused Lua modules so genre policy does not leak into the engine.
+
 1. Turn `IsoGrid` and `IsoTransform` into real runtime/rendering systems with
 grid-to-world conversion, depth sorting, selection, and debug visualization.
 2. Add grid occupancy, placement previews, placement rules, build costs, and
@@ -192,6 +199,7 @@ vertical slice.
 
 **Done when:** the base-builder is no longer declarative-only scene data but a
 small playable game using reusable grid and placement systems.
+(For example a tower defense demo)
 
 ## Milestone 7 — Animation And Combat Primitives
 

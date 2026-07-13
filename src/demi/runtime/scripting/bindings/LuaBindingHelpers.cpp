@@ -1,6 +1,7 @@
 #include "demi/runtime/scripting/bindings/LuaBindingHelpers.h"
-#include "demi/runtime/scene/components/EngineComponents.h"
 
+#include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scripting/bindings/LuaJsonBridge.h"
 
 #include <algorithm>
@@ -275,6 +276,15 @@ Entity luaParseEntitySpec(const std::string &entityId, const sol::table spec) {
         .playOnStart = videoPlayer.get_or("play_on_start", false),
         .loop = videoPlayer.get_or("loop", false),
     });
+  }
+
+  const nlohmann::json authoredComponents = luaObjectToJson(components);
+  if (authoredComponents.is_object()) {
+    for (const auto &[name, value] : authoredComponents.items()) {
+      const auto *descriptor = scene_loading::findComponentDescriptor(name);
+      if (descriptor != nullptr && value.is_object())
+        descriptor->parse(value, entity);
+    }
   }
 
   return entity;

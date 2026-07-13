@@ -2,6 +2,7 @@
   "format_version": 1,
   "id": "scene://isometric_base_builder/village",
   "name": "Village",
+  "hud": "village.hud.json",
   "entities": [
     {
       "id": "ent_iso_camera",
@@ -25,45 +26,54 @@
         "IsoGrid": {
           "cell_size": [1.0, 0.5],
           "width": 18,
-          "height": 18
-        }
-      }
-    },
-    {
-      "id": "ent_town_hall",
-      "name": "Town Hall",
-      "components": {
-        "IsoTransform": {
-          "tile": [9, 9],
-          "height": 0.0,
-          "footprint": [3, 3]
-        },
-        "Buildable": {
-          "asset": "asset://buildings/town_hall",
-          "blocks_movement": true
-        },
-        "GameplayData": {
-          "values": {
-            "health": {
-              "max": 1500,
-              "current": 1500
-            }
+          "height": 18,
+          "default_texture": "asset://terrain/grass",
+          "cell_textures": {
+            "1,9": "asset://terrain/road", "2,9": "asset://terrain/road", "3,9": "asset://terrain/road", "4,9": "asset://terrain/road", "5,9": "asset://terrain/road",
+            "5,8": "asset://terrain/road", "5,7": "asset://terrain/road", "5,6": "asset://terrain/road", "5,5": "asset://terrain/road",
+            "6,5": "asset://terrain/road", "7,5": "asset://terrain/road", "8,5": "asset://terrain/road", "9,5": "asset://terrain/road", "10,5": "asset://terrain/road", "11,5": "asset://terrain/road", "12,5": "asset://terrain/road",
+            "12,6": "asset://terrain/road", "12,7": "asset://terrain/road", "12,8": "asset://terrain/road", "12,9": "asset://terrain/road",
+            "13,9": "asset://terrain/road", "14,9": "asset://terrain/road", "15,9": "asset://terrain/road", "16,9": "asset://terrain/road"
           }
         }
       }
     },
     {
-      "id": "ent_gold_storage",
-      "name": "Gold Storage",
+      "id": "ent_game_controller",
+      "name": "Tower Defense Controller",
+      "components": {
+        "LuaScript": {
+          "module": "script://scripts/game.lua"
+        }
+      }
+    },
+    {
+      "id": "ent_enemy_spawn",
+      "name": "Enemy Spawn",
       "components": {
         "IsoTransform": {
-          "tile": [6, 11],
+          "tile": [1, 9],
           "height": 0.0,
-          "footprint": [2, 2]
+          "footprint": [1, 1]
         },
-        "Buildable": {
-          "asset": "asset://buildings/gold_storage",
-          "blocks_movement": true
+        "Sprite": {
+          "shape": "triangle",
+          "color": [0.92, 0.32, 0.35, 1.0]
+        }
+      }
+    },
+    {
+      "id": "ent_enemy_goal",
+      "name": "Enemy Goal",
+      "components": {
+        "IsoTransform": {
+          "tile": [16, 9],
+          "height": 0.0,
+          "footprint": [1, 1]
+        },
+        "Sprite": {
+          "shape": "circle",
+          "color": [0.30, 0.85, 0.62, 1.0]
         }
       }
     },

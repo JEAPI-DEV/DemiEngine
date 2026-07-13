@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "canvas_size": [960.0, 540.0],
+  "elements": [
+    { "type": "panel", "id": "top_bar", "position": [16.0, 16.0], "size": [928.0, 58.0], "color": [0.04, 0.06, 0.10, 0.92] },
+    { "type": "text", "id": "game_title", "text": "LAST KEEP", "position": [34.0, 32.0], "scale": 3.5, "color": [0.45, 0.94, 0.78, 1.0] },
+    { "type": "text", "id": "gold_value", "text": "GOLD 240", "position": [238.0, 34.0], "scale": 2.7, "color": [1.0, 0.78, 0.30, 1.0] },
+    { "type": "text", "id": "base_value", "text": "KEEP 20", "position": [420.0, 34.0], "scale": 2.7, "color": [0.96, 0.48, 0.48, 1.0] },
+    { "type": "text", "id": "wave_value", "text": "WAVE 0", "position": [610.0, 34.0], "scale": 2.7 },
+    { "type": "text", "id": "enemy_value", "text": "ENEMIES 0", "position": [760.0, 34.0], "scale": 2.7 },
+
+    { "type": "panel", "id": "build_panel", "position": [742.0, 92.0], "size": [202.0, 284.0], "color": [0.05, 0.08, 0.13, 0.94] },
+    { "type": "text", "id": "build_title", "text": "BUILD", "position": [768.0, 112.0], "scale": 3.2, "color": [0.45, 0.94, 0.78, 1.0] },
+    { "type": "button", "id": "build_arrow", "label": "[1] ARROW 50", "position": [760.0, 154.0], "size": [166.0, 48.0], "scale": 2.2, "color": [0.16, 0.28, 0.32, 1.0], "hover_color": [0.24, 0.45, 0.45, 1.0], "action": "build_arrow" },
+    { "type": "button", "id": "build_cannon", "label": "[2] CANNON 90", "position": [760.0, 214.0], "size": [166.0, 48.0], "scale": 2.2, "color": [0.28, 0.20, 0.34, 1.0], "hover_color": [0.45, 0.30, 0.50, 1.0], "action": "build_cannon" },
+    { "type": "button", "id": "start_wave", "label": "[SPACE] WAVE", "position": [760.0, 286.0], "size": [166.0, 48.0], "scale": 2.1, "color": [0.36, 0.20, 0.20, 1.0], "hover_color": [0.58, 0.28, 0.28, 1.0], "action": "start_wave" },
+    { "type": "text", "id": "selection_value", "text": "SELECTED: NONE", "position": [760.0, 350.0], "scale": 1.7, "color": [0.72, 0.80, 0.88, 1.0] },
+
+    { "type": "panel", "id": "status_panel", "position": [16.0, 454.0], "size": [928.0, 70.0], "color": [0.04, 0.06, 0.10, 0.92] },
+    { "type": "text", "id": "status_value", "text": "Choose a tower, then click a free tile.", "position": [34.0, 470.0], "scale": 2.3, "color": [0.88, 0.92, 0.96, 1.0] },
+    { "type": "text", "id": "help_value", "text": "LMB place/select | RMB/ESC cancel | S save | L load", "position": [34.0, 498.0], "scale": 1.8, "color": [0.48, 0.70, 0.82, 1.0] }
+  ]
+}

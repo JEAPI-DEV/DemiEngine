@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "fixed_timestep": 0.016666667,
+  "frames": [
+    {},
+    { "keys_down": ["1"], "keys_pressed": ["1"] },
+    { "mouse_position": [480.0, 187.0], "mouse_buttons_down": ["left"] },
+    { "mouse_position": [480.0, 187.0] },
+    { "keys_down": ["space"], "keys_pressed": ["space"] },
+    {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+    {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+    {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}
+  ]
+}

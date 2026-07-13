@@ -1,4 +1,6 @@
 #include "demi/runtime/render/Renderer2D.h"
+#include "demi/runtime/isometric/IsoGridMath.h"
+#include "demi/runtime/isometric/IsoWorldQueries.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/ProfilerHudRenderer.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
@@ -40,7 +42,8 @@ namespace {
 
 const ::Color WhiteTint = {255, 255, 255, 255};
 
-std::optional<Texture2D> loadSvgIcon(const std::filesystem::path &path) {
+std::optional<Texture2D> loadSvgTexture(const std::filesystem::path &path,
+                                        const bool monochrome) {
 #if DEMI_HAS_RSVG
   constexpr int IconRasterSize = 256;
   GError *error = nullptr;
@@ -55,6 +58,10 @@ std::optional<Texture2D> loadSvgIcon(const std::filesystem::path &path) {
   cairo_surface_t *surface = cairo_image_surface_create(
       CAIRO_FORMAT_ARGB32, IconRasterSize, IconRasterSize);
   cairo_t *context = cairo_create(surface);
+  cairo_set_operator(context, CAIRO_OPERATOR_SOURCE);
+  cairo_set_source_rgba(context, 0.0, 0.0, 0.0, 0.0);
+  cairo_paint(context);
+  cairo_set_operator(context, CAIRO_OPERATOR_OVER);
   const RsvgRectangle viewport{.x = 0.0,
                                .y = 0.0,
                                .width = static_cast<double>(IconRasterSize),
@@ -73,9 +80,15 @@ std::optional<Texture2D> loadSvgIcon(const std::filesystem::path &path) {
         const unsigned char *bgra = source + y * stride + x * 4;
         unsigned char *rgba = pixels.data() + (y * IconRasterSize + x) * 4;
         const unsigned char alpha = bgra[3];
-        rgba[0] = 255;
-        rgba[1] = 255;
-        rgba[2] = 255;
+        const auto colorChannel = [alpha](const unsigned char value) {
+          if (alpha == 0)
+            return static_cast<unsigned char>(0);
+          return static_cast<unsigned char>(std::min(
+              255, (static_cast<int>(value) * 255 + alpha / 2) / alpha));
+        };
+        rgba[0] = monochrome ? 255 : colorChannel(bgra[2]);
+        rgba[1] = monochrome ? 255 : colorChannel(bgra[1]);
+        rgba[2] = monochrome ? 255 : colorChannel(bgra[0]);
         rgba[3] = alpha;
       }
     }
@@ -100,6 +113,7 @@ std::optional<Texture2D> loadSvgIcon(const std::filesystem::path &path) {
   return texture.id == 0 ? std::nullopt : std::make_optional(texture);
 #else
   (void)path;
+  (void)monochrome;
   return std::nullopt;
 #endif
 }
@@ -455,55 +469,62 @@ float worldToScreenY(const Camera2DComponent &camera, const Vec2 cameraPosition,
          (y - cameraPosition.y) * pixelsPerUnit(camera, height);
 }
 
-Vec2 isoTileToWorld(const Vec2 tile, const float gridWidth = 32.0F,
-                    const float gridHeight = 32.0F) {
-  return Vec2{
-      .x = (tile.x - tile.y) * 0.65F,
-      .y = -((tile.x + tile.y) - ((gridWidth + gridHeight) * 0.5F)) * 0.32F,
-  };
-}
-
 void drawIsoDiamond(const Camera2DComponent &camera, const Vec2 cameraPosition,
                     const int width, const int height, const float x,
-                    const float y, const float cells) {
+                    const float y, const isometric::GridDefinition &grid,
+                    const ::Color color = {55, 88, 78, 255}) {
   const float centerX =
       worldToScreenX(camera, cameraPosition, width, height, x);
   const float centerY =
       worldToScreenY(camera, cameraPosition, width, height, y);
   const float ppu = pixelsPerUnit(camera, height);
-  const float halfW = cells * ppu * 0.65F;
-  const float halfH = cells * ppu * 0.32F;
-  DrawLineV({centerX, centerY - halfH}, {centerX + halfW, centerY},
-            {55, 88, 78, 255});
-  DrawLineV({centerX + halfW, centerY}, {centerX, centerY + halfH},
-            {55, 88, 78, 255});
-  DrawLineV({centerX, centerY + halfH}, {centerX - halfW, centerY},
-            {55, 88, 78, 255});
-  DrawLineV({centerX - halfW, centerY}, {centerX, centerY - halfH},
-            {55, 88, 78, 255});
+  const float halfW = ppu * grid.cellWidth;
+  const float halfH = ppu * grid.cellHeight;
+  DrawLineV({centerX, centerY - halfH}, {centerX + halfW, centerY}, color);
+  DrawLineV({centerX + halfW, centerY}, {centerX, centerY + halfH}, color);
+  DrawLineV({centerX, centerY + halfH}, {centerX - halfW, centerY}, color);
+  DrawLineV({centerX - halfW, centerY}, {centerX, centerY - halfH}, color);
+}
+
+void drawIsoTileTexture(const Texture2D &texture,
+                        const Camera2DComponent &camera,
+                        const Vec2 cameraPosition, const int width,
+                        const int height, const Vec2 world,
+                        const isometric::GridDefinition &grid) {
+  const float centerX =
+      worldToScreenX(camera, cameraPosition, width, height, world.x);
+  const float centerY =
+      worldToScreenY(camera, cameraPosition, width, height, world.y);
+  const float ppu = pixelsPerUnit(camera, height);
+  const float halfWidth = ppu * grid.cellWidth;
+  const float halfHeight = ppu * grid.cellHeight;
+  const ::Rectangle source{.x = 0.0F,
+                           .y = 0.0F,
+                           .width = static_cast<float>(texture.width),
+                           .height = static_cast<float>(texture.height)};
+  const ::Rectangle destination{.x = centerX - halfWidth,
+                                .y = centerY - halfHeight,
+                                .width = halfWidth * 2.0F,
+                                .height = halfHeight * 2.0F};
+  DrawTexturePro(texture, source, destination, {}, 0.0F, WhiteTint);
 }
 
 void drawIsoFootprint(const Camera2DComponent &camera,
                       const Vec2 cameraPosition, const int width,
                       const int height, const Vec2 tile, const Vec2 footprint,
-                      const Vec2 gridSize) {
-  const Vec2 centerTile{.x = tile.x + (footprint.x - 1.0F) * 0.5F,
-                        .y = tile.y + (footprint.y - 1.0F) * 0.5F};
-  const Vec2 center = isoTileToWorld(centerTile, gridSize.x, gridSize.y);
-  const float centerX =
-      worldToScreenX(camera, cameraPosition, width, height, center.x);
-  const float centerY =
-      worldToScreenY(camera, cameraPosition, width, height, center.y);
-  const float ppu = pixelsPerUnit(camera, height);
-  const float halfW =
-      std::max((footprint.x + footprint.y) * ppu * 0.33F, 12.0F);
-  const float halfH = std::max((footprint.x + footprint.y) * ppu * 0.16F, 6.0F);
-
-  const ::Color color = {42, 88, 78, 180};
-  DrawLineV({centerX, centerY - halfH}, {centerX + halfW, centerY}, color);
-  DrawLineV({centerX + halfW, centerY}, {centerX, centerY + halfH}, color);
-  DrawLineV({centerX, centerY + halfH}, {centerX - halfW, centerY}, color);
-  DrawLineV({centerX - halfW, centerY}, {centerX, centerY - halfH}, color);
+                      const isometric::GridDefinition &grid,
+                      const ::Color color = {42, 88, 78, 180}) {
+  const int footprintWidth = std::max(static_cast<int>(footprint.x), 1);
+  const int footprintHeight = std::max(static_cast<int>(footprint.y), 1);
+  for (int y = 0; y < footprintHeight; ++y) {
+    for (int x = 0; x < footprintWidth; ++x) {
+      const Vec2 cell{.x = tile.x + static_cast<float>(x),
+                      .y = tile.y + static_cast<float>(y)};
+      const Vec2 world = isometric::tileToWorld(grid, cell);
+      drawIsoDiamond(camera, cameraPosition, width, height, world.x, world.y,
+                     grid, color);
+    }
+  }
 }
 
 void drawTilemap(
@@ -580,21 +601,33 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
                 const std::unordered_map<std::string, TilemapAsset2D> &tilemaps,
                 const World &world, const Camera2DComponent &camera,
                 const Vec2 cameraPosition, const Entity &entity,
-                const Vec2 isoGridSize, const int width, const int height) {
+                const isometric::GridDefinition &isoGrid, const int width,
+                const int height) {
   if (entity.hasComponent<Tilemap2DComponent>()) {
     drawTilemap(textures, tilemaps, world, camera, cameraPosition, entity,
                 width, height);
     return;
   }
   if (entity.hasComponent<IsoGridComponent>()) {
-    for (int y = 0; y < entity.component<IsoGridComponent>()->height; ++y) {
-      for (int x = 0; x < entity.component<IsoGridComponent>()->width; ++x) {
-        const Vec2 world = isoTileToWorld(
-            Vec2{.x = static_cast<float>(x), .y = static_cast<float>(y)},
-            static_cast<float>(entity.component<IsoGridComponent>()->width),
-            static_cast<float>(entity.component<IsoGridComponent>()->height));
+    const auto &component = *entity.component<IsoGridComponent>();
+    for (int y = 0; y < component.height; ++y) {
+      for (int x = 0; x < component.width; ++x) {
+        const Vec2 world =
+            isometric::tileToWorld(isoGrid, Vec2{.x = static_cast<float>(x),
+                                                 .y = static_cast<float>(y)});
+        const std::string cellKey = std::to_string(x) + "," + std::to_string(y);
+        const auto authoredTexture = component.cellTextures.find(cellKey);
+        const std::string &textureId =
+            authoredTexture != component.cellTextures.end()
+                ? authoredTexture->second
+                : component.defaultTexture;
+        if (const auto texture = textures.find(textureId);
+            texture != textures.end()) {
+          drawIsoTileTexture(texture->second, camera, cameraPosition, width,
+                             height, world, isoGrid);
+        }
         drawIsoDiamond(camera, cameraPosition, width, height, world.x, world.y,
-                       0.5F);
+                       isoGrid, {70, 112, 92, 190});
       }
     }
     return;
@@ -606,10 +639,15 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
     position = worldPosition2D(world, entity);
   }
   if (entity.hasComponent<IsoTransformComponent>()) {
-    position = isoTileToWorld(entity.component<IsoTransformComponent>()->tile,
-                              isoGridSize.x, isoGridSize.y);
-    position.y += entity.component<IsoTransformComponent>()->height;
-    size = entity.component<IsoTransformComponent>()->footprint;
+    const auto &transform = *entity.component<IsoTransformComponent>();
+    size = transform.footprint;
+    Vec2 renderTile = transform.tile;
+    if (entity.hasComponent<BuildableComponent>()) {
+      renderTile.x += (size.x - 1.0F) * 0.5F;
+      renderTile.y += (size.y - 1.0F) * 0.5F;
+    }
+    position = isometric::tileToWorld(isoGrid, renderTile);
+    position.y += transform.height;
   }
   if (entity.hasComponent<HitboxControllerComponent>()) {
     size = entity.component<HitboxControllerComponent>()->hurtbox;
@@ -636,15 +674,8 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
   if (entity.hasComponent<BuildableComponent>() &&
       entity.hasComponent<IsoTransformComponent>()) {
     entityWidth = std::max((size.x + size.y) * ppu * 0.62F, 22.0F);
-    entityHeight = std::max((size.x + size.y) * ppu * 0.58F, 22.0F);
-  }
-
-  if (entity.hasComponent<BuildableComponent>() &&
-      entity.hasComponent<IsoTransformComponent>()) {
-    drawIsoFootprint(camera, cameraPosition, width, height,
-                     entity.component<IsoTransformComponent>()->tile,
-                     entity.component<IsoTransformComponent>()->footprint,
-                     isoGridSize);
+    entityHeight =
+        std::max((size.x + size.y) * ppu * isoGrid.cellHeight * 0.95F, 22.0F);
   }
 
   const float screenX =
@@ -659,8 +690,9 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
   };
   if (entity.hasComponent<BuildableComponent>() &&
       entity.hasComponent<IsoTransformComponent>()) {
-    rect.y = screenY - entityHeight +
-             std::max((size.x + size.y) * ppu * 0.10F, 4.0F);
+    const float footprintBottom =
+        (size.x + size.y) * isoGrid.cellHeight * ppu * 0.5F;
+    rect.y = screenY + footprintBottom - entityHeight;
   }
 
   ::Color fillColor = {222, 166, 82, 255};
@@ -808,9 +840,22 @@ void Renderer2D::loadTextureAssets(const AssetRegistry &registry) {
       continue;
     }
     if (asset.type == "Icon2D") {
-      const std::optional<Texture2D> texture = loadSvgIcon(asset.sourcePath);
+      const std::optional<Texture2D> texture =
+          loadSvgTexture(asset.sourcePath, true);
       if (!texture.has_value()) {
         std::cerr << "Icon load failed for " << asset.id << " from "
+                  << asset.sourcePath.string() << ".\n";
+        continue;
+      }
+      SetTextureFilter(*texture, TEXTURE_FILTER_BILINEAR);
+      textures_[asset.id] = *texture;
+      continue;
+    }
+    if (asset.type == "SvgTexture2D") {
+      const std::optional<Texture2D> texture =
+          loadSvgTexture(asset.sourcePath, false);
+      if (!texture.has_value()) {
+        std::cerr << "SVG texture load failed for " << asset.id << " from "
                   << asset.sourcePath.string() << ".\n";
         continue;
       }
@@ -902,16 +947,9 @@ void Renderer2D::drawWorld(const World &world) {
                {70, 90, 110, 90});
     }
   }
-  Vec2 isoGridSize{.x = 32.0F, .y = 32.0F};
-  for (const Entity &entity : world.entities) {
-    if (entity.hasComponent<IsoGridComponent>()) {
-      isoGridSize = Vec2{
-          .x = static_cast<float>(entity.component<IsoGridComponent>()->width),
-          .y =
-              static_cast<float>(entity.component<IsoGridComponent>()->height)};
-      break;
-    }
-  }
+  const isometric::GridDefinition isoGrid =
+      isometric::gridDefinition(world).value_or(
+          isometric::GridDefinition{.width = 32, .height = 32});
 
   std::vector<const Entity *> renderables;
   for (const Entity &entity : world.entities) {
@@ -949,14 +987,32 @@ void Renderer2D::drawWorld(const World &world) {
                     entity->component<IsoTransformComponent>()->tile.y +
                     entity->component<IsoTransformComponent>()->height;
           }
-          return std::tuple{order, layer, depth};
+          return std::tuple{order, layer, depth, entity->id};
         };
         return sortKey(left) < sortKey(right);
       });
 
   for (const Entity *entity : renderables) {
     drawEntity(textures_, tilemaps_, world, camera_, cameraPosition_, *entity,
-               isoGridSize, width_, height_);
+               isoGrid, width_, height_);
+  }
+
+  for (const Entity *entity : renderables) {
+    if (entity->hasComponent<BuildableComponent>() &&
+        entity->hasComponent<IsoTransformComponent>()) {
+      drawIsoFootprint(camera_, cameraPosition_, width_, height_,
+                       entity->component<IsoTransformComponent>()->tile,
+                       entity->component<IsoTransformComponent>()->footprint,
+                       isoGrid, {238, 190, 88, 220});
+    }
+  }
+
+  if (world.placementPreview.visible) {
+    drawIsoFootprint(camera_, cameraPosition_, width_, height_,
+                     world.placementPreview.tile,
+                     world.placementPreview.footprint, isoGrid,
+                     world.placementPreview.valid ? ::Color{72, 220, 145, 255}
+                                                  : ::Color{244, 91, 105, 255});
   }
 
   for (const DebugLine &line : world.debugLines) {

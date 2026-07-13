@@ -103,6 +103,19 @@ function Probe:on_start()
   if Entity.set_sprite_color("ent_tinted_sprite", 0.45, 0.55, 0.65, 0.75) then
     Save.set_string("test", "sprite_color", "updated")
   end
+  Entity.create("ent_iso_created", {
+    components = {
+      IsoTransform = {
+        tile = { 4.0, 7.0 },
+        height = 0.25,
+        footprint = { 2.0, 1.0 },
+      },
+      Buildable = {
+        asset = "asset://buildings/test",
+        blocks_movement = true,
+      },
+    },
+  })
   local roundtrip = Network.decode(Network.encode("color_probe", {
     color = { 0.45, 0.55, 0.65, 0.75 },
   }))
@@ -362,6 +375,19 @@ return PropProbe
       tintedSprite->component<SpriteComponent>()->color.a != 0.75F) {
     std::cerr
         << "Sprite color Lua API did not create and update a tinted sprite.\n";
+    return 1;
+  }
+  const runtime::Entity *isoCreated =
+      runtime::findEntity(world, "ent_iso_created");
+  if (isoCreated == nullptr ||
+      !isoCreated->hasComponent<IsoTransformComponent>() ||
+      !isoCreated->hasComponent<BuildableComponent>() ||
+      isoCreated->component<IsoTransformComponent>()->tile.x != 4.0F ||
+      isoCreated->component<IsoTransformComponent>()->tile.y != 7.0F ||
+      isoCreated->component<IsoTransformComponent>()->footprint.x != 2.0F ||
+      !isoCreated->component<BuildableComponent>()->blocksMovement) {
+    std::cerr << "Entity.create did not delegate authored isometric "
+                 "components to the component registry.\n";
     return 1;
   }
   if (host.saveString("test", "network_array_roundtrip") != "passed") {

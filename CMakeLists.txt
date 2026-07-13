@@ -189,6 +189,13 @@ add_library(demi-core STATIC
   src/demi/runtime/input/InputActionResolver.cpp
   src/demi/runtime/input/replay/InputReplay.cpp
   src/demi/runtime/input/InputActionParser.cpp
+  src/demi/runtime/isometric/GridTypes.cpp
+  src/demi/runtime/isometric/IsoGridMath.cpp
+  src/demi/runtime/isometric/GridOccupancy.cpp
+  src/demi/runtime/isometric/GridPathfinder.cpp
+  src/demi/runtime/isometric/PlacementRules.cpp
+  src/demi/runtime/isometric/IsoWorldQueries.cpp
+  src/demi/runtime/isometric/IsoGridApi.cpp
   ${DEMI_COMPONENT_MODEL_SOURCES}
 )
 
@@ -277,6 +284,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/media/LuaVideoBindings.cpp
   src/demi/runtime/scripting/bindings/persistence/LuaSaveBindings.cpp
   src/demi/runtime/scripting/bindings/text/LuaRegexBindings.cpp
+  src/demi/runtime/scripting/bindings/isometric/LuaIsoGridBindings.cpp
   src/demi/runtime/scripting/text/RegexMatcher.cpp
   src/demi/runtime/scripting/bindings/LuaJsonBridge.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkBindings.cpp
@@ -471,6 +479,9 @@ add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)
   add_executable(demi-profiler-hud-layout-tests tests/profiler_hud_layout_tests.cpp)
   target_link_libraries(demi-profiler-hud-layout-tests PRIVATE demi-runtime-lib)
   add_test(NAME demi-profiler-hud-layout-tests COMMAND demi-profiler-hud-layout-tests)
+  add_executable(demi-isometric-grid-tests tests/isometric_grid_tests.cpp)
+  target_link_libraries(demi-isometric-grid-tests PRIVATE demi-core)
+  add_test(NAME demi-isometric-grid-tests COMMAND demi-isometric-grid-tests)
 add_test(NAME demi-prefab-inspect-cli
   COMMAND demi prefab inspect ${CMAKE_SOURCE_DIR}/examples/minimal_3d/prefabs/player.prefab.json)
 add_test(NAME demi-scene-expand-cli
@@ -506,6 +517,12 @@ add_test(NAME demi-runtime-saves-simulation-debugging-replay
     --profile-report ${CMAKE_BINARY_DIR}/generated/saves_simulation_debugging_profile.csv
 )
 set_tests_properties(demi-runtime-saves-simulation-debugging-replay PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-isometric-base-builder-replay
+  COMMAND demi run
+    --project ${CMAKE_SOURCE_DIR}/examples/isometric_base_builder/demi.project.json
+    --input-replay ${CMAKE_SOURCE_DIR}/examples/isometric_base_builder/replays/build_and_defend.replay.json
+)
+set_tests_properties(demi-runtime-isometric-base-builder-replay PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-runtime-minimal-3d-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json --frames 1
 )
@@ -528,6 +545,25 @@ add_test(NAME demi-validate-minimal-2d-networking
 add_test(NAME demi-validate-saves-simulation-debugging
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/saves_simulation_debugging/demi.project.json
 )
+add_test(NAME demi-validate-isometric-base-builder
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/isometric_base_builder/demi.project.json
+)
+set(DEMI_ISOMETRIC_BASE_BUILDER_SCRIPTS
+  game
+  game/actions
+  game/building
+  game/combat
+  game/config
+  game/persistence
+  game/state
+  game/ui
+  game/waves
+)
+foreach(script_name IN LISTS DEMI_ISOMETRIC_BASE_BUILDER_SCRIPTS)
+  add_test(NAME demi-script-check-isometric-base-builder-${script_name}
+    COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/isometric_base_builder/scripts/${script_name}.lua
+  )
+endforeach()
 add_test(NAME demi-script-check-saves-simulation-debugging
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/saves_simulation_debugging/scripts/save_probe.lua
 )

@@ -22,6 +22,7 @@ LuaScriptHost::~LuaScriptHost() {
 bool LuaScriptHost::initialize(World &world, const InputState &input,
                                AudioSystem *audio, std::string &error) {
   world_ = &world;
+  isoGridApi_.attach(&world);
   input_ = &input;
   audio_ = audio;
   const char *hotReload = std::getenv("DEMI_LUA_HOT_RELOAD");

@@ -1,0 +1,6 @@
+{
+  "format_version": 1,
+  "id": "asset://terrain/road",
+  "type": "SvgTexture2D",
+  "source": "road.svg"
+}

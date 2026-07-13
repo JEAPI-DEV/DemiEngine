@@ -11,5 +11,28 @@
   "gameplay_model": {
     "projection": "isometric_2d",
     "physics": "box2d"
+  },
+  "simulation": {
+    "fixed_timestep": 0.016666667,
+    "random_seed": 6006
+  },
+  "debug": {
+    "grid": false,
+    "entity_ids": false,
+    "draw_order": false
+  },
+  "input": {
+    "actions": {
+      "build_arrow": ["1"],
+      "build_cannon": ["2"],
+      "start_wave": ["space"],
+      "cancel": ["escape"],
+      "save": ["s"],
+      "load": ["l"]
+    }
+  },
+  "scripting": {
+    "language": "lua54",
+    "modules": ["game.actions"]
   }
 }

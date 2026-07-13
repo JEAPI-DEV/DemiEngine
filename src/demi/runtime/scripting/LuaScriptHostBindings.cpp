@@ -17,6 +17,7 @@
 #include "demi/runtime/scripting/bindings/media/LuaVideoBindings.h"
 #include "demi/runtime/scripting/bindings/persistence/LuaSaveBindings.h"
 #include "demi/runtime/scripting/bindings/text/LuaRegexBindings.h"
+#include "demi/runtime/scripting/bindings/isometric/LuaIsoGridBindings.h"
 
 #include <sol/sol.hpp>
 
@@ -56,12 +57,13 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaTlsBindingModule tls;
   const LuaRegexBindingModule regex;
   const LuaRandomBindingModule random;
+  const LuaIsoGridBindingModule isoGrid;
   const LuaBindingModule *modules[] = {
       &core,        &entity,         &transform2D, &transform3D,
       &rigidbody2D, &sprite2D,       &physics2D,   &hud,
       &save,        &audio,          &video,       &cutscene,
       &network,     &networkSession, &tls,         &regex,
-      &random};
+      &random,      &isoGrid};
   for (const LuaBindingModule *module : modules) {
     module->install(host, state);
   }

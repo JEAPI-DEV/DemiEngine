@@ -28,6 +28,13 @@ struct AnimationEvent2D {
   int frame = 0;
 };
 
+struct GridPlacementPreview {
+  bool visible = false;
+  bool valid = false;
+  Vec2 tile;
+  Vec2 footprint = {1.0F, 1.0F};
+};
+
 struct World {
   std::filesystem::path scenePath;
   std::string id;
@@ -47,6 +54,7 @@ struct World {
   std::unordered_map<std::string, std::uint16_t> physicsCategoryBits;
   std::unordered_map<std::string, std::uint16_t> physicsMaskBits;
   DebugOverlayConfig debug;
+  GridPlacementPreview placementPreview;
 };
 
 } // namespace demi::runtime

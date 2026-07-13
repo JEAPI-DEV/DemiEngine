@@ -2,6 +2,7 @@
 
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/network/NetworkSystem.h"
+#include "demi/runtime/isometric/IsoGridApi.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/scene/SceneData.h"
 #include "demi/runtime/simulation/DeterministicRandom.h"
@@ -60,6 +61,7 @@ public:
   [[nodiscard]] float randomValue();
   [[nodiscard]] float randomRange(float minimum, float maximum);
   [[nodiscard]] int randomInteger(int minimum, int maximum);
+  [[nodiscard]] isometric::IsoGridApi &isoGridApi();
   [[nodiscard]] std::string textEntered() const;
   [[nodiscard]] bool addEntityPosition(const std::string &entityId, float dx,
                                        float dy);
@@ -320,6 +322,7 @@ private:
   const InputState *input_ = nullptr;
   input::InputActionMap inputActions_;
   simulation::DeterministicRandom random_;
+  isometric::IsoGridApi isoGridApi_;
   AudioSystem *audio_ = nullptr;
   MediaSystem *media_ = nullptr;
   NetworkSystem *network_ = nullptr;
