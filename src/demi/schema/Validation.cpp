@@ -286,6 +286,14 @@ ValidationSummary validatePath(const std::filesystem::path &path) {
                                fileDiagnostics.begin(), fileDiagnostics.end());
   }
 
+  if (const auto projectDirectory = findProjectDirectory(path)) {
+    const Diagnostics assetDiagnostics =
+        validateAssetRegistry(loadAssetRegistry(*projectDirectory));
+    summary.diagnostics.insert(summary.diagnostics.end(),
+                               assetDiagnostics.begin(),
+                               assetDiagnostics.end());
+  }
+
   return summary;
 }
 

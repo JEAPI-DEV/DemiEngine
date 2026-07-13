@@ -29,6 +29,9 @@ Status meanings:
 | Animation state machines | Stable | Shared named states, transitions, parameters, timed events, and Lua control for 2D/3D players |
 | Animation-timed 2D collision | Stable | Named receiver volumes and state-time windows with neutral overlap events; gameplay policy stays in scripts |
 | Lightweight 3D animation adapter | Experimental | Shared state-machine control over model clip indexes; the wider 3D pipeline remains limited |
-| Deterministic asset cooking | Planned | Milestone 8 |
+| Asset import and validation | Stable | Versioned importer metadata, source hashes, dependencies, stale-output and cycle diagnostics |
+| Portable asset packages | Stable | Deterministic dependency-complete export/import with checksums, path safety, licenses, and explicit conflicts |
+| Linux cooking and packaging | Stable | Runtime-only deterministic cook output, manifest, Linux runtime bundle, and headless smoke coverage |
+| Android cooking integration | Planned | Deferred until the Android runtime path has equivalent automated coverage |
 | Functional editor | Planned | Begins after the authored data model stabilizes |
 | High-end Unity-style 3D | Deferred | Not a product target |

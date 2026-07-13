@@ -163,6 +163,18 @@ Every project, scene, save, and asset manifest should include `format_version`. 
 
 Because the project state is text-based, the same workflow works well for manual development, source control, CI, and AI-assisted changes.
 
+Assets are imported under stable `asset://` IDs, validated with the project,
+and cooked before shipping. Selected assets can also be shared between
+projects as deterministic `.demipack` files with transitive dependencies and
+license metadata included:
+
+```bash
+demi asset import hero.png --project demi.project.json --id asset://characters/hero
+demi asset export --project demi.project.json --output hero.demipack --asset asset://characters/hero
+demi asset import-package hero.demipack --project ../other-game/demi.project.json
+demi cook --project demi.project.json --platform linux
+```
+
 ## CLI
 
 The CLI is the main interface for building, running, validating, inspecting, and automating DemiEngine projects.

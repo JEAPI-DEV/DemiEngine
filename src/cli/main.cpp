@@ -1,4 +1,6 @@
+#include "cli/AssetCommands.h"
 #include "cli/BuildCommands.h"
+#include "cli/CookCommands.h"
 #include "cli/SceneCompositionCommands.h"
 
 #include "demi/assets/AssetRegistry.h"
@@ -45,6 +47,12 @@ void printHelp() {
       << "  demi scene diff <old> <new>\n"
       << "  demi asset inspect <asset>\n"
       << "  demi asset deps <asset>\n"
+      << "  demi asset import <source> --project <project> --id asset://id\n"
+      << "  demi asset reimport <asset>\n"
+      << "  demi asset export --project <project> --output <file.demipack> "
+         "--asset asset://id\n"
+      << "  demi asset import-package <file.demipack> --project <project>\n"
+      << "  demi cook --project <project> [--platform linux] [--output path]\n"
       << "  demi save inspect <save>\n"
       << "  demi script check <script>\n"
       << "  demi lua-stubs generate [path]\n"
@@ -200,43 +208,6 @@ int runSave(const std::vector<std::string> &args) {
                                               : ExitSuccess;
 }
 
-int runAsset(const std::vector<std::string> &args) {
-  if (args.size() < 3) {
-    std::cerr << "asset requires a subcommand and asset manifest path.\n";
-    return ExitUsageError;
-  }
-
-  const std::filesystem::path manifestPath = args[2];
-  demi::Diagnostic diagnostic;
-  const std::optional<demi::AssetManifest> manifest =
-      demi::loadAssetManifest(manifestPath, &diagnostic);
-  if (!manifest.has_value()) {
-    demi::printDiagnosticsText(std::cerr, demi::Diagnostics{diagnostic});
-    return ExitValidationFailure;
-  }
-
-  if (args[1] == "inspect") {
-    std::cout << "id: " << manifest->id << '\n';
-    std::cout << "type: " << manifest->type << '\n';
-    std::cout << "source: " << manifest->sourcePath.string() << '\n';
-    std::cout << "source_exists: "
-              << (std::filesystem::exists(manifest->sourcePath) ? "true"
-                                                                : "false")
-              << '\n';
-    return std::filesystem::exists(manifest->sourcePath)
-               ? ExitSuccess
-               : ExitValidationFailure;
-  }
-
-  if (args[1] == "deps") {
-    std::cout << manifest->sourcePath.string() << '\n';
-    return ExitSuccess;
-  }
-
-  std::cerr << "Unknown asset subcommand: " << args[1] << '\n';
-  return ExitUsageError;
-}
-
 int runScript(const std::vector<std::string> &args) {
   if (args.size() < 3 || args[1] != "check") {
     std::cerr << "script requires: demi script check <script>.\n";
@@ -333,7 +304,11 @@ int main(int argc, char **argv) {
   }
 
   if (args[0] == "asset") {
-    return runAsset(args);
+    return demi::cli::runAssetCommand(args, std::cout, std::cerr);
+  }
+
+  if (args[0] == "cook") {
+    return demi::cli::runCookCommand(args, std::cout, std::cerr);
   }
 
   if (args[0] == "save") {

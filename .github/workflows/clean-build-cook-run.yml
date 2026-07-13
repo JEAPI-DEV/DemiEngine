@@ -1,0 +1,44 @@
+name: Clean Build Cook Run
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build pkg-config liblua5.4-dev \
+            libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
+            librsvg2-dev libgl1-mesa-dev libx11-dev libxcursor-dev \
+            libxinerama-dev libxrandr-dev libxi-dev libasound2-dev
+      - name: Configure
+        run: cmake --preset linux-debug
+      - name: Build
+        run: cmake --build --preset linux-debug
+      - name: Test
+        run: ctest --preset linux-debug
+      - name: Cook reference project
+        run: >-
+          ./build/linux-debug/demi cook
+          --project examples/fighting_game_2d/demi.project.json
+          --platform linux --output build/ci-cooked
+      - name: Run cooked reference project
+        env:
+          DEMI_HEADLESS: "1"
+        run: >-
+          ./build/linux-debug/demi run
+          --project build/ci-cooked/demi.project.json --frames 3
+      - name: Package Linux reference project
+        run: >-
+          ./build/linux-debug/demi build linux
+          --project examples/fighting_game_2d/demi.project.json
+          --output build/ci-linux-package
+      - name: Run packaged reference project
+        env:
+          DEMI_HEADLESS: "1"
+        run: ./build/ci-linux-package/fighting_game_2d --frames 3

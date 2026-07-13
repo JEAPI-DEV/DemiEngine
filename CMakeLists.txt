@@ -176,6 +176,11 @@ set(DEMI_COMPONENT_MODEL_SOURCES
 
 add_library(demi-core STATIC
   src/demi/assets/AssetRegistry.cpp
+  src/demi/assets/AssetHash.cpp
+  src/demi/assets/AssetSourceFiles.cpp
+  src/demi/assets/AssetImporter.cpp
+  src/demi/assets/AssetPackage.cpp
+  src/demi/assets/AssetCooker.cpp
   src/demi/diagnostics/Diagnostic.cpp
   src/demi/filesystem/ProjectPaths.cpp
   src/demi/schema/Validation.cpp
@@ -384,7 +389,9 @@ if(ANDROID)
   target_link_options(demi_android PRIVATE "LINKER:-u,ANativeActivity_onCreate")
 else()
   add_executable(demi
+    src/cli/AssetCommands.cpp
     src/cli/BuildCommands.cpp
+    src/cli/CookCommands.cpp
     src/cli/SceneCompositionCommands.cpp
     src/cli/main.cpp
   )
@@ -392,7 +399,9 @@ else()
   target_compile_definitions(demi PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
   add_executable(demi-server
+    src/cli/AssetCommands.cpp
     src/cli/BuildCommands.cpp
+    src/cli/CookCommands.cpp
     src/cli/SceneCompositionCommands.cpp
     src/cli/main.cpp
   )
@@ -434,6 +443,8 @@ else()
   target_link_libraries(demi-sprite-animation-tests PRIVATE demi-runtime-lib)
   add_executable(demi-animation-primitives-tests tests/animation_primitives_tests.cpp)
   target_link_libraries(demi-animation-primitives-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-asset-pipeline-tests tests/asset_pipeline_tests.cpp)
+  target_link_libraries(demi-asset-pipeline-tests PRIVATE demi-core)
   add_executable(demi-camera2d-tests tests/camera2d_tests.cpp)
   target_link_libraries(demi-camera2d-tests PRIVATE demi-runtime-lib)
   add_executable(demi-tilemap-tests tests/tilemap_tests.cpp)
@@ -471,6 +482,7 @@ add_test(NAME demi-regex-matcher-tests COMMAND demi-regex-matcher-tests)
 add_test(NAME demi-input-action-tests COMMAND demi-input-action-tests)
 add_test(NAME demi-sprite-animation-tests COMMAND demi-sprite-animation-tests)
 add_test(NAME demi-animation-primitives-tests COMMAND demi-animation-primitives-tests)
+add_test(NAME demi-asset-pipeline-tests COMMAND demi-asset-pipeline-tests)
 add_test(NAME demi-camera2d-tests COMMAND demi-camera2d-tests)
 add_test(NAME demi-tilemap-tests COMMAND demi-tilemap-tests)
 add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)
@@ -533,6 +545,34 @@ add_test(NAME demi-runtime-fighting-game-2d-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/demi.project.json --frames 3
 )
 set_tests_properties(demi-runtime-fighting-game-2d-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-cook-fighting-game-2d
+  COMMAND demi cook
+    --project ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/demi.project.json
+    --platform linux
+    --output ${CMAKE_BINARY_DIR}/generated/ctest-fighting-game-cooked
+)
+add_test(NAME demi-runtime-cooked-fighting-game-2d
+  COMMAND demi run
+    --project ${CMAKE_BINARY_DIR}/generated/ctest-fighting-game-cooked/demi.project.json
+    --frames 3
+)
+set_tests_properties(demi-runtime-cooked-fighting-game-2d PROPERTIES
+  DEPENDS demi-cook-fighting-game-2d
+  ENVIRONMENT "DEMI_HEADLESS=1"
+)
+add_test(NAME demi-package-linux-fighting-game-2d
+  COMMAND demi build linux
+    --project ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/demi.project.json
+    --output ${CMAKE_BINARY_DIR}/generated/ctest-fighting-game-linux
+)
+add_test(NAME demi-runtime-packaged-fighting-game-2d
+  COMMAND ${CMAKE_BINARY_DIR}/generated/ctest-fighting-game-linux/fighting_game_2d
+    --frames 3
+)
+set_tests_properties(demi-runtime-packaged-fighting-game-2d PROPERTIES
+  DEPENDS demi-package-linux-fighting-game-2d
+  ENVIRONMENT "DEMI_HEADLESS=1"
+)
 add_test(NAME demi-runtime-minimal-3d-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json --frames 1
 )

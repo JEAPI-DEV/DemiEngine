@@ -223,6 +223,14 @@ without bespoke C++ components per fighter.
 
 ## Milestone 8 — Asset Pipeline And Shipping Workflow
 
+**Status: complete.** Versioned manifests now track importer settings,
+versions, source hashes, generated outputs, and dependencies. The CLI imports,
+reimports, validates, cooks, and packages Linux projects; deterministic
+`.demipack` export/import preserves stable IDs, transitive dependencies,
+checksums, and license metadata with explicit conflict handling. Automated
+tests cover the asset graph, stale data, corruption, round trips, cooked and
+packaged launches, and the clean-checkout CI workflow.
+
 1. Expand asset manifests with importer settings, source hash, dependencies,
 generated output location, and importer version.
 2. Implement deterministic `demi asset import`, reimport, dependency, and
@@ -231,12 +239,21 @@ cooking commands. Never hand-edit cooked data.
 source manifest references stable as `asset://` IDs.
 4. Add asset validation for missing files, invalid references, cyclic
 dependencies, unsupported platform formats, and stale generated data.
-5. Add `demi cook` and packaging for Linux first, then improve the existing
-Android path only after its runtime capability is covered by tests.
-6. Add a clean-checkout build/cook/run CI job.
+5. Add a versioned, deterministic asset-package format for sharing selected
+assets between projects. `demi asset export` must include the selected stable
+asset IDs, their manifests, source files, transitive dependencies, checksums,
+and attribution/license metadata. `demi asset import-package` must preview ID
+and path conflicts, reject unsafe archive paths or corrupted content, and
+import without silently rewriting existing assets.
+6. Add `demi cook` and application packaging for Linux first, then improve the
+existing Android path only after its runtime capability is covered by tests.
+7. Add a clean-checkout build/cook/run CI job, plus an asset-package
+export/import round-trip test between two fixture projects.
 
 **Done when:** a project can be validated, cooked, and run from a clean
-checkout without manual asset preparation.
+checkout without manual asset preparation, and selected assets can be exported
+as one portable package, imported into another project with their dependencies,
+and validated without manual file copying or broken `asset://` references.
 
 ## Milestone 9 — Lightweight 3D Maturity
 
