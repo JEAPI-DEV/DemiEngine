@@ -1,5 +1,5 @@
 local Lobby = {
-  server_host = "91.218.66.127",
+  server_host = "127.0.0.1",
   tls_port = 39421,
   gameplay_port = 39420,
   trusted_certificate = "certs/server.crt",
