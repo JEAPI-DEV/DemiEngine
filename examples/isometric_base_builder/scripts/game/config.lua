@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.start_gold = 100
+Config.start_gold = 150
 Config.start_health = 20
 Config.spawn = { 1, 9 }
 Config.goal = { 16, 9 }
@@ -53,12 +53,12 @@ Config.enemy = {
   size = { 0.6, 0.85 },
   -- Every wave scales all enemies. Health grows faster than speed so late
   -- waves become harder without making movement unreadably fast.
-  health_growth_per_wave = 0.14,
-  speed_growth_per_wave = 0.018,
-  reward_growth_every = 2,
-  base_spawn_interval = 0.72,
-  minimum_spawn_interval = 0.36,
-  spawn_interval_reduction = 0.018,
+  health_growth_per_wave = 0.2,
+  speed_growth_per_wave = 0.02,
+  reward_growth_every = 1.15,
+  base_spawn_interval = 0.7,
+  minimum_spawn_interval = 0.2,
+  spawn_interval_reduction = 0.02,
   types = {
     raider = {
       label = "Raider",
