@@ -422,13 +422,13 @@ int runProject(const RuntimeOptions &options) {
   RuntimeProfiler::setEnabled(profileRun);
   RuntimeProfiler::resetSession();
   std::string error;
-  const std::optional<LoadedProject> loadedProject =
+  std::optional<LoadedProject> loadedProject =
       loadProject(options.projectPath, error);
   if (!loadedProject.has_value()) {
     std::cerr << "Runtime load failed: " << error << '\n';
     return 1;
   }
-  LoadedProject loaded = *loadedProject;
+  LoadedProject &loaded = *loadedProject;
   applyDebugOverlayFlags(loaded.project.debug, options.debugOverlays);
   loaded.world.debug = loaded.project.debug;
   if (loaded.project.debug.profilerHud && !profileRun) {
@@ -590,6 +590,12 @@ int runProject(const RuntimeOptions &options) {
     if (inputReplay) {
       if (!inputReplay->apply(static_cast<std::size_t>(frameCount), input))
         break;
+      // Deterministic RNG: re-seed per frame from initial seed + frame index
+      // so replays produce identical random sequences across runs.
+      const std::uint64_t frameSeed =
+          loaded.project.simulation.randomSeed ^
+          (static_cast<std::uint64_t>(frameCount) * 0x9E3779B97F4A7C15ULL);
+      luaHost.seedRandom(frameSeed);
     } else {
       pollKeys(input);
       pollMouse(input);

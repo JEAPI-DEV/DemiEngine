@@ -41,6 +41,10 @@ void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
     return;
   node.parent = scene_loading::stringOr(json, "parent", parent);
   node.type = scene_loading::stringOr(json, "type", "container");
+  if (node.type == "rect")
+    node.type = "panel";
+  else if (node.type == "text")
+    node.type = "label";
   node.style = scene_loading::stringOr(json, "style");
   node.text = scene_loading::stringOr(json, "text",
                                       scene_loading::stringOr(json, "label"));
@@ -48,9 +52,13 @@ void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
   node.localizationKey = scene_loading::stringOr(json, "localization_key");
   node.texture = scene_loading::stringOr(json, "texture");
   node.action = scene_loading::stringOr(json, "action");
+  node.script = scene_loading::stringOr(json, "script");
   node.accessibilityLabel =
       scene_loading::stringOr(json, "accessibility_label");
+  node.group = scene_loading::stringOr(json, "group");
   if (auto value = scene_loading::vec2Field(json, "position"))
+    node.layout.position = *value;
+  else if (auto value = scene_loading::vec2Field(json, "center"))
     node.layout.position = *value;
   if (auto value = scene_loading::vec2Field(json, "size"))
     node.layout.size = *value;
@@ -75,10 +83,36 @@ void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
     node.color = *value;
   if (auto value = scene_loading::colorField(json, "background_color"))
     node.backgroundColor = *value;
+  if (auto value = scene_loading::colorField(json, "border_color"))
+    node.borderColor = *value;
+  if (auto value = scene_loading::colorField(json, "hover_color"))
+    node.hoverColor = *value;
+  if (auto value = scene_loading::colorField(json, "text_color"))
+    node.textColor = *value;
   node.value = scene_loading::numberField(json, "value").value_or(0.0F);
   node.minimum = scene_loading::numberField(json, "minimum").value_or(0.0F);
   node.maximum = scene_loading::numberField(json, "maximum").value_or(1.0F);
-  node.fontSize = scene_loading::numberField(json, "font_size").value_or(20.0F);
+  if (auto value = scene_loading::numberField(json, "font_size"))
+    node.fontSize = *value;
+  else if (auto value = scene_loading::numberField(json, "scale"))
+    node.fontSize = *value * 8.0F;
+  node.cornerRadius =
+      scene_loading::numberField(json, "corner_radius").value_or(0.0F);
+  node.borderWidth =
+      scene_loading::numberField(json, "border_width").value_or(0.0F);
+  node.radius = scene_loading::numberField(json, "radius").value_or(0.0F);
+  node.layer = static_cast<int>(
+      scene_loading::numberField(json, "layer").value_or(0.0F));
+  if (auto value = scene_loading::vec2Field(json, "source_position"))
+    node.sourcePosition = *value;
+  if (auto value = scene_loading::vec2Field(json, "source_size"))
+    node.sourceSize = *value;
+  if (auto value = scene_loading::stringOr(json, "animation");
+      !value.empty()) {
+    node.animation = value;
+    node.animationFrame = static_cast<int>(
+        scene_loading::numberField(json, "animation_frame").value_or(0.0F));
+  }
   node.visible = scene_loading::boolField(json, "visible").value_or(true);
   node.disabled = scene_loading::boolField(json, "disabled").value_or(false);
   node.focusable =
@@ -146,7 +180,7 @@ UiDocument parseUiDocument(const nlohmann::json &document) {
       if (value.contains("padding"))
         style.padding = insets(value["padding"]);
       style.gap = scene_loading::numberField(value, "gap").value_or(0.0F);
-      result.styles[name] = style;
+      result.styles[name] = std::move(style);
     }
   }
   if (const Json *root = scene_loading::objectField(document, "root"))

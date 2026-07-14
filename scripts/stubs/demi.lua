@@ -13,7 +13,8 @@ function Debug.log(message) end
 ---@param g? number
 ---@param b? number
 ---@param a? number
-function Debug.line(x1, y1, x2, y2, r, g, b, a) end
+---@param width? number
+function Debug.line(x1, y1, x2, y2, r, g, b, a, width) end
 function Debug.clear_lines() end
 
 ---@class ProfileService

@@ -21,8 +21,8 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
 
   sol::table debug = lua.create_named_table("Debug");
   debug.set_function("log", [](const std::string& message) { std::cout << "[lua] " << message << '\n'; });
-  debug.set_function("line", [&host](float x1, float y1, float x2, float y2, sol::optional<float> r, sol::optional<float> g, sol::optional<float> b, sol::optional<float> a) {
-      host.addDebugLine(x1, y1, x2, y2, r.value_or(1.0F), g.value_or(1.0F), b.value_or(1.0F), a.value_or(1.0F));
+  debug.set_function("line", [&host](float x1, float y1, float x2, float y2, sol::optional<float> r, sol::optional<float> g, sol::optional<float> b, sol::optional<float> a, sol::optional<float> width) {
+      host.addDebugLine(x1, y1, x2, y2, r.value_or(1.0F), g.value_or(1.0F), b.value_or(1.0F), a.value_or(1.0F), width.value_or(1.0F));
     });
   debug.set_function("clear_lines", [&host] { host.clearDebugLines(); });
 

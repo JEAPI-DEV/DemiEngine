@@ -39,7 +39,7 @@ public:
 
 private:
   std::unordered_map<std::string, std::filesystem::path> videos_;
-  std::vector<Playback*> playing_;
+  std::vector<std::unique_ptr<Playback>> playing_;
   std::uint64_t nextHandle_ = 1;
 };
 

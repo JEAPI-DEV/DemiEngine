@@ -181,30 +181,29 @@ std::uint64_t MediaSystem::playVideo(const std::string& assetId, const bool loop
   if (!playback) {
     return 0;
   }
-  playing_.push_back(playback.release());
+  playing_.push_back(std::move(playback));
   return handle;
 #endif
 }
 
 bool MediaSystem::stopVideo(const std::uint64_t handle) {
-  const auto found = std::ranges::find_if(playing_, [&](const Playback* playback) { return playback != nullptr && playback->handle == handle; });
+  const auto found = std::ranges::find_if(playing_, [&](const std::unique_ptr<Playback>& playback) { return playback != nullptr && playback->handle == handle; });
   if (found == playing_.end()) {
     return false;
   }
 #if DEMI_HAS_FFMPEG
   closePlayback(**found);
 #endif
-  delete *found;
   playing_.erase(found);
   return true;
 }
 
 bool MediaSystem::isVideoPlaying(const std::uint64_t handle) const {
-  return std::ranges::any_of(playing_, [&](const Playback* playback) { return playback != nullptr && playback->handle == handle && playback->playing; });
+  return std::ranges::any_of(playing_, [&](const std::unique_ptr<Playback>& playback) { return playback != nullptr && playback->handle == handle && playback->playing; });
 }
 
 std::optional<VideoTexture> MediaSystem::videoTexture(const std::uint64_t handle) const {
-  const auto found = std::ranges::find_if(playing_, [&](const Playback* playback) { return playback != nullptr && playback->handle == handle; });
+  const auto found = std::ranges::find_if(playing_, [&](const std::unique_ptr<Playback>& playback) { return playback != nullptr && playback->handle == handle; });
   if (found == playing_.end()) {
     return std::nullopt;
   }
@@ -214,12 +213,12 @@ std::optional<VideoTexture> MediaSystem::videoTexture(const std::uint64_t handle
 void MediaSystem::update(const float dt) {
   (void)dt;
 #if DEMI_HAS_FFMPEG
-  for (Playback* playback : playing_) {
+  for (std::unique_ptr<Playback>& playback : playing_) {
     if (playback != nullptr && playback->playing) {
       decodeNextFrame(*playback);
     }
   }
-  std::erase_if(playing_, [](Playback* playback) {
+  std::erase_if(playing_, [](std::unique_ptr<Playback>& playback) {
     if (playback == nullptr) {
       return true;
     }
@@ -227,7 +226,6 @@ void MediaSystem::update(const float dt) {
       return false;
     }
     closePlayback(*playback);
-    delete playback;
     return true;
   });
 #endif
@@ -235,18 +233,12 @@ void MediaSystem::update(const float dt) {
 
 void MediaSystem::shutdown() {
 #if DEMI_HAS_FFMPEG
-  for (Playback* playback : playing_) {
+  for (std::unique_ptr<Playback>& playback : playing_) {
     if (playback != nullptr) {
-      closePlayback(*playback);
-      delete playback;
-    }
+closePlayback(*playback);
   }
-#else
-  for (Playback* playback : playing_) {
-    delete playback;
-  }
-#endif
   playing_.clear();
+#endif
 }
 
 } // namespace demi::runtime

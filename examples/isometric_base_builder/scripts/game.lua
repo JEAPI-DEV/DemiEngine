@@ -26,6 +26,7 @@ end
 function Game:on_start()
   Runtime.set_max_fps(60)
   self.state.status = "Defend the keep. Build towers without blocking the route."
+
   Ui.update(self.state, Config)
 end
 
@@ -43,6 +44,10 @@ function Game:handle_input()
   if Input.action_pressed("cancel") then self.building.cancel() end
   if Input.action_pressed("save") then self.persistence.save() end
   if Input.action_pressed("load") then self.persistence.load() end
+  if Input.action_pressed("tower_upgrade") then self.building.open_upgrade_menu() end
+  if Input.action_pressed("tower_destroy") then self.building.destroy_selected() end
+  if Input.action_pressed("upgrade_range") then self.building.upgrade("range") end
+  if Input.action_pressed("upgrade_power") then self.building.upgrade("power") end
 
   local x, y = mouse_tile()
   if x and self.state.build_kind then self.building.preview(x, y) end

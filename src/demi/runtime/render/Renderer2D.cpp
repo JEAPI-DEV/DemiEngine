@@ -211,100 +211,104 @@ int gifFrameAt(const GifAnimationTextureData &animation, const float elapsed) {
 }
 } // namespace
 
-void drawText(const HudTextElement &element, float scaleX, float scaleY) {
+void drawUiText(const ui::UiNode &node, float scaleX, float scaleY) {
   constexpr float HudFontBaseSize = 8.0F;
   constexpr float HudFontMinSize = 4.0F;
   constexpr float HudLetterSpacing = 5.0F;
-  if (!element.visible || element.text.empty())
+  if (!node.visible || node.text.empty())
     return;
-  const float authoredFontSize = element.fontSize > 0.0F
-                                     ? element.fontSize
-                                     : element.scale * HudFontBaseSize;
+  const float authoredFontSize = node.fontSize > 0.0F
+                                     ? node.fontSize
+                                     : node.scale * HudFontBaseSize;
   const float fontSize =
       std::max(authoredFontSize * std::min(scaleX, scaleY), HudFontMinSize);
-  Vector2 pos{element.position.x * scaleX, element.position.y * scaleY};
-  DrawTextEx(GetFontDefault(), element.text.c_str(), pos, fontSize,
-             HudLetterSpacing, toRlColor(element.color));
+  Vector2 pos{node.resolved.x * scaleX, node.resolved.y * scaleY};
+  DrawTextEx(GetFontDefault(), node.text.c_str(), pos, fontSize,
+             HudLetterSpacing, toRlColor(node.textColor.a > 0.0F
+                                              ? node.textColor
+                                              : node.color));
 }
-void drawHudRect(const HudRectElement &element, float scaleX, float scaleY) {
-  if (!element.visible) {
+
+void drawUiRect(const ui::UiNode &node, float scaleX, float scaleY) {
+  if (!node.visible || node.backgroundColor.a <= 0.0F)
     return;
-  }
-
   Rectangle rect{
-      .x = element.position.x * scaleX,
-      .y = element.position.y * scaleY,
-      .width = element.size.x * scaleX,
-      .height = element.size.y * scaleY,
+      .x = node.resolved.x * scaleX,
+      .y = node.resolved.y * scaleY,
+      .width = node.resolved.width * scaleX,
+      .height = node.resolved.height * scaleY,
   };
-
-  DrawRectangleRec(rect, toRlColor(element.color));
+  DrawRectangleRec(rect, toRlColor(node.backgroundColor));
 }
 
-void drawHudPanel(const HudPanelElement &element, float scaleX, float scaleY) {
-  if (!element.visible)
+void drawUiPanel(const ui::UiNode &node, float scaleX, float scaleY) {
+  if (!node.visible)
     return;
   const Rectangle rect{
-      .x = element.position.x * scaleX,
-      .y = element.position.y * scaleY,
-      .width = element.size.x * scaleX,
-      .height = element.size.y * scaleY,
+      .x = node.resolved.x * scaleX,
+      .y = node.resolved.y * scaleY,
+      .width = node.resolved.width * scaleX,
+      .height = node.resolved.height * scaleY,
   };
-  const float radius = element.cornerRadius * std::min(scaleX, scaleY);
+  const float radius = node.cornerRadius * std::min(scaleX, scaleY);
+  const Color fillColor = node.backgroundColor.a > 0.0F
+                              ? node.backgroundColor
+                              : node.color;
   if (radius <= 0.0F) {
-    DrawRectangleRec(rect, toRlColor(element.color));
-    if (element.borderWidth > 0.0F)
-      DrawRectangleLinesEx(rect, element.borderWidth * std::min(scaleX, scaleY),
-                           toRlColor(element.borderColor));
+    DrawRectangleRec(rect, toRlColor(fillColor));
+    if (node.borderWidth > 0.0F)
+      DrawRectangleLinesEx(rect,
+                           node.borderWidth * std::min(scaleX, scaleY),
+                           toRlColor(node.borderColor));
     return;
   }
   const float roundness = std::min(
       radius / std::max(std::min(rect.width, rect.height) * 0.5F, 1.0F), 1.0F);
-  DrawRectangleRounded(rect, roundness, 8, toRlColor(element.color));
-  if (element.borderWidth > 0.0F)
+  DrawRectangleRounded(rect, roundness, 8, toRlColor(fillColor));
+  if (node.borderWidth > 0.0F)
     DrawRectangleRoundedLinesEx(rect, roundness, 8,
-                                element.borderWidth * std::min(scaleX, scaleY),
-                                toRlColor(element.borderColor));
+                                node.borderWidth * std::min(scaleX, scaleY),
+                                toRlColor(node.borderColor));
 }
 
-void drawHudCircle(const HudCircleElement &element, float scaleX,
-                   float scaleY) {
-  if (!element.visible)
+void drawUiCircle(const ui::UiNode &node, float scaleX, float scaleY) {
+  if (!node.visible)
     return;
   const float scale = std::min(scaleX, scaleY);
-  DrawCircleV(Vector2{element.center.x * scaleX, element.center.y * scaleY},
-              element.radius * scale, toRlColor(element.color));
+  const float cx = (node.resolved.x + node.resolved.width * 0.5F) * scaleX;
+  const float cy = (node.resolved.y + node.resolved.height * 0.5F) * scaleY;
+  DrawCircleV(Vector2{cx, cy}, node.radius * scale, toRlColor(node.color));
 }
 
-void drawHudImage(
-    const HudImageElement &element,
+void drawUiImage(
+    const ui::UiNode &node,
     const std::unordered_map<std::string, Texture2D> &textures,
     const std::unordered_map<std::string, ImageAnimationTextureData>
         &imageAnimations,
     const std::unordered_map<std::string, GifAnimationTextureData>
         &gifAnimations,
     const float animationTime, float scaleX, float scaleY) {
-  if (!element.visible || element.texture.empty()) {
+  if (!node.visible || node.texture.empty()) {
     return;
   }
 
-  std::string textureId = element.texture;
-  if (!element.animation.empty()) {
-    const auto animation = imageAnimations.find(element.animation);
+  std::string textureId = node.texture;
+  if (!node.animation.empty()) {
+    const auto animation = imageAnimations.find(node.animation);
     if (animation == imageAnimations.end() ||
         animation->second.frameCount <= 0) {
       return;
     }
     textureId =
-        element.animation + "#" +
-        std::to_string(element.animationFrame % animation->second.frameCount);
-  } else if (const auto animation = gifAnimations.find(element.texture);
+        node.animation + "#" +
+        std::to_string(node.animationFrame % animation->second.frameCount);
+  } else if (const auto animation = gifAnimations.find(node.texture);
              animation != gifAnimations.end()) {
     if (animation->second.frameDurations.empty()) {
       return;
     }
     const int frame = gifFrameAt(animation->second, animationTime);
-    textureId = element.texture + "#" + std::to_string(frame);
+    textureId = node.texture + "#" + std::to_string(frame);
   }
 
   const auto texture = textures.find(textureId);
@@ -313,66 +317,91 @@ void drawHudImage(
   }
 
   Rectangle source{
-      .x = element.sourcePosition.x,
-      .y = element.sourcePosition.y,
-      .width = element.sourceSize.x != 0.0F
-                   ? element.sourceSize.x
+      .x = node.sourcePosition.x,
+      .y = node.sourcePosition.y,
+      .width = node.sourceSize.x != 0.0F
+                   ? node.sourceSize.x
                    : static_cast<float>(texture->second.width),
-      .height = element.sourceSize.y != 0.0F
-                    ? element.sourceSize.y
+      .height = node.sourceSize.y != 0.0F
+                    ? node.sourceSize.y
                     : static_cast<float>(texture->second.height),
   };
   Rectangle dest{
-      .x = element.position.x * scaleX,
-      .y = element.position.y * scaleY,
-      .width = element.size.x * scaleX,
-      .height = element.size.y * scaleY,
+      .x = node.resolved.x * scaleX,
+      .y = node.resolved.y * scaleY,
+      .width = node.resolved.width * scaleX,
+      .height = node.resolved.height * scaleY,
   };
 
   DrawTexturePro(texture->second, source, dest, Vector2{0.0F, 0.0F}, 0.0F,
-                 toRlColor(element.color));
+                 toRlColor(node.color));
 }
 
-void drawHudButton(const HudButtonElement &element, float scaleX,
-                   float scaleY) {
+void drawUiButton(const ui::UiNode &node, float scaleX, float scaleY) {
   constexpr float HudFontBaseSize = 8.0F;
   constexpr float HudFontMinSize = 4.0F;
   constexpr float HudLetterSpacing = 5.0F;
 
-  if (!element.visible) {
+  if (!node.visible || node.disabled)
     return;
-  }
 
   Rectangle rect{
-      .x = element.position.x * scaleX,
-      .y = element.position.y * scaleY,
-      .width = element.size.x * scaleX,
-      .height = element.size.y * scaleY,
+      .x = node.resolved.x * scaleX,
+      .y = node.resolved.y * scaleY,
+      .width = node.resolved.width * scaleX,
+      .height = node.resolved.height * scaleY,
   };
 
-  DrawRectangleRec(
-      rect, toRlColor(element.hovered ? element.hoverColor : element.color));
+  const Color fillColor = node.hovered
+                              ? (node.hoverColor.a > 0.0F ? node.hoverColor
+                                                          : node.backgroundColor)
+                              : (node.backgroundColor.a > 0.0F
+                                     ? node.backgroundColor
+                                     : node.color);
+  DrawRectangleRec(rect, toRlColor(fillColor));
 
-  if (!element.label.empty()) {
+  if (!node.text.empty()) {
     const float textScale = std::min(scaleX, scaleY);
-    const float authoredFontSize = element.fontSize > 0.0F
-                                       ? element.fontSize
-                                       : element.scale * HudFontBaseSize;
+    const float authoredFontSize = node.fontSize > 0.0F
+                                       ? node.fontSize
+                                       : node.scale * HudFontBaseSize;
     const float fontSize =
         std::max(authoredFontSize * textScale, HudFontMinSize);
 
     Font font = GetFontDefault();
     Vector2 textSize =
-        MeasureTextEx(font, element.label.c_str(), fontSize, HudLetterSpacing);
+        MeasureTextEx(font, node.text.c_str(), fontSize, HudLetterSpacing);
 
     Vector2 textPos{
         rect.x + (rect.width - textSize.x) * 0.5F,
         rect.y + (rect.height - textSize.y) * 0.5F,
     };
 
-    DrawTextEx(font, element.label.c_str(), textPos, fontSize, HudLetterSpacing,
-               toRlColor(element.textColor));
+    DrawTextEx(font, node.text.c_str(), textPos, fontSize, HudLetterSpacing,
+               toRlColor(node.textColor));
   }
+}
+
+void drawUiProgress(const ui::UiNode &node, float scaleX, float scaleY) {
+  if (!node.visible)
+    return;
+  Rectangle trackRect{
+      .x = node.resolved.x * scaleX,
+      .y = node.resolved.y * scaleY,
+      .width = node.resolved.width * scaleX,
+      .height = node.resolved.height * scaleY,
+  };
+  DrawRectangleRec(trackRect, toRlColor(node.backgroundColor));
+  const float range = std::max(node.maximum - node.minimum, 0.0001F);
+  const float fraction =
+      std::clamp((node.value - node.minimum) / range, 0.0F, 1.0F);
+  Rectangle fillRect{
+      .x = trackRect.x,
+      .y = trackRect.y,
+      .width = trackRect.width * fraction,
+      .height = trackRect.height,
+  };
+  DrawRectangleRec(fillRect, toRlColor(node.color));
 }
 struct ImageData {
   int width = 0;
@@ -1037,14 +1066,14 @@ void Renderer2D::drawWorld(const World &world) {
   }
 
   for (const DebugLine &line : world.debugLines) {
-    DrawLineV(
+    DrawLineEx(
         {worldToScreenX(camera_, cameraPosition_, width_, height_,
                         line.start.x),
          worldToScreenY(camera_, cameraPosition_, width_, height_,
                         line.start.y)},
         {worldToScreenX(camera_, cameraPosition_, width_, height_, line.end.x),
          worldToScreenY(camera_, cameraPosition_, width_, height_, line.end.y)},
-        toRlColor(line.color));
+        line.width, toRlColor(line.color));
   }
 
   const float ppu = pixelsPerUnit(camera_, height_);
@@ -1110,60 +1139,73 @@ void Renderer2D::drawHud(const World &world) {
   const float scaleY = static_cast<float>(height_) / canvasHeight;
 
   int maxLayer = 0;
-  const auto findMaxLayer = [&maxLayer](const auto &elements) {
-    for (const auto &element : elements)
-      maxLayer = std::max(maxLayer, element.layer);
-  };
-  findMaxLayer(world.hudRects);
-  findMaxLayer(world.hudPanels);
-  findMaxLayer(world.hudCircles);
-  findMaxLayer(world.hudImages);
-  findMaxLayer(world.hudButtons);
-  findMaxLayer(world.hudText);
+  for (const ui::UiNode &node : world.ui.nodes)
+    maxLayer = std::max(maxLayer, node.layer);
 
-  for (int layer = 0; layer <= maxLayer; ++layer) {
-    for (const HudRectElement &element : world.hudRects)
-      if (element.layer == layer)
-        drawHudRect(element, scaleX, scaleY);
-    for (const HudPanelElement &element : world.hudPanels)
-      if (element.layer == layer)
-        drawHudPanel(element, scaleX, scaleY);
-    for (const HudCircleElement &element : world.hudCircles)
-      if (element.layer == layer)
-        drawHudCircle(element, scaleX, scaleY);
-    for (const HudImageElement &element : world.hudImages)
-      if (element.layer == layer)
-        drawHudImage(element, textures_, imageAnimations_, gifAnimations_,
-                     animationTime_, scaleX, scaleY);
-    for (const HudButtonElement &element : world.hudButtons)
-      if (element.layer == layer)
-        drawHudButton(element, scaleX, scaleY);
-    for (const HudTextElement &element : world.hudText)
-      if (element.layer == layer)
-        drawText(element, scaleX, scaleY);
+  auto drawNode = [&](const ui::UiNode &node) {
+    if (!node.visible)
+      return;
+    if (node.type == "panel" || node.type == "container" ||
+        node.type == "scroll" || node.type == "list" || node.type == "modal") {
+      drawUiPanel(node, scaleX, scaleY);
+    } else if (node.type == "label" || node.type == "text") {
+      drawUiText(node, scaleX, scaleY);
+    } else if (node.type == "image") {
+      drawUiImage(node, textures_, imageAnimations_, gifAnimations_,
+                  animationTime_, scaleX, scaleY);
+    } else if (node.type == "button" || node.type == "toggle" ||
+               node.type == "text_input") {
+      drawUiButton(node, scaleX, scaleY);
+    } else if (node.type == "slider" || node.type == "progress") {
+      drawUiProgress(node, scaleX, scaleY);
+    } else if (node.type == "circle") {
+      drawUiCircle(node, scaleX, scaleY);
+    } else if (node.type == "rect") {
+      drawUiRect(node, scaleX, scaleY);
+    }
+  };
+
+  std::unordered_map<std::string, bool> visibleById;
+  std::unordered_map<std::string, int> layerById;
+  for (const ui::UiNode &node : world.ui.nodes) {
+    const int parentLayer = node.parent.empty() ? 0 : layerById[node.parent];
+    const int effectiveLayer = node.layer + parentLayer;
+    layerById[node.id] = effectiveLayer;
+    const bool parentVisible = node.parent.empty() || visibleById[node.parent];
+    visibleById[node.id] = node.visible && parentVisible;
+  }
+
+  for (int layer = 0; layer <= maxLayer + 10; ++layer) {
+    for (const ui::UiNode &node : world.ui.nodes) {
+      if (node.id == "tower_menu_bg")
+        std::cerr << "DBG draw tower_menu_bg visible=" << node.visible
+                  << " vid=" << visibleById[node.id] << " res=" << node.resolved.x
+                  << "," << node.resolved.y << "," << node.resolved.width << ","
+                  << node.resolved.height << "\n";
+      if (!visibleById[node.id])
+        continue;
+      if (layerById[node.id] == layer)
+        drawNode(node);
+    }
   }
 
   if (world.debug.uiBounds) {
-    const auto drawBounds = [scaleX, scaleY](const auto &elements) {
-      for (const auto &element : elements) {
-        if (!element.visible)
-          continue;
-        DrawRectangleLinesEx({element.position.x * scaleX,
-                              element.position.y * scaleY,
-                              element.size.x * scaleX, element.size.y * scaleY},
-                             1.0F, {255, 80, 210, 230});
+    for (const ui::UiNode &node : world.ui.nodes) {
+      if (!node.visible)
+        continue;
+      if (node.type == "circle") {
+        const float scale = std::min(scaleX, scaleY);
+        const float cx = (node.resolved.x + node.resolved.width * 0.5F) * scaleX;
+        const float cy = (node.resolved.y + node.resolved.height * 0.5F) * scaleY;
+        DrawCircleLines(static_cast<int>(cx), static_cast<int>(cy),
+                        node.radius * scale, {255, 80, 210, 230});
+      } else {
+        DrawRectangleLinesEx(
+            {node.resolved.x * scaleX, node.resolved.y * scaleY,
+             node.resolved.width * scaleX, node.resolved.height * scaleY},
+            1.0F, {255, 80, 210, 230});
       }
-    };
-    drawBounds(world.hudRects);
-    drawBounds(world.hudPanels);
-    drawBounds(world.hudImages);
-    drawBounds(world.hudButtons);
-    for (const HudCircleElement &circle : world.hudCircles)
-      if (circle.visible)
-        DrawCircleLines(static_cast<int>(circle.center.x * scaleX),
-                        static_cast<int>(circle.center.y * scaleY),
-                        circle.radius * std::min(scaleX, scaleY),
-                        {255, 80, 210, 230});
+    }
   }
   if (world.debug.profilerHud && RuntimeProfiler::enabled()) {
     drawProfilerHud(RuntimeProfiler::frameSummary(0.05), width_, height_);

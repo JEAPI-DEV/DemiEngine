@@ -219,7 +219,7 @@ public:
   [[nodiscard]] Vec2 mouseWorldPosition() const;
   [[nodiscard]] Vec2 viewportSize() const;
   void addDebugLine(float x1, float y1, float x2, float y2, float r, float g,
-                    float b, float a);
+                     float b, float a, float width = 1.0F);
   void clearDebugLines();
   [[nodiscard]] std::uint64_t playAudio(const std::string &assetId);
   [[nodiscard]] std::uint64_t playAudioSource(const std::string &entityId);
@@ -332,6 +332,7 @@ private:
   void reloadChangedScripts();
   void unloadScripts();
   void clearTimersAndEvents();
+  void clearSaveMigrationHooks();
   [[nodiscard]] std::unordered_map<std::string, SaveValue> &
   loadSaveSlot(const std::string &slot);
   [[nodiscard]] bool writeSaveSlot(const std::string &slot);

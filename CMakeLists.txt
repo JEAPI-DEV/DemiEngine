@@ -189,7 +189,6 @@ add_library(demi-core STATIC
   src/demi/runtime/ui/UiLayoutEngine.cpp
   src/demi/runtime/ui/UiInteractionController.cpp
   src/demi/runtime/ui/UiDocumentParser.cpp
-  src/demi/runtime/ui/UiLegacyProjection.cpp
   src/demi/runtime/ui/UiStateController.cpp
   src/demi/runtime/ui/UiActionController.cpp
   src/demi/runtime/input/InputActionResolver.cpp
@@ -202,6 +201,7 @@ add_library(demi-core STATIC
   src/demi/runtime/isometric/PlacementRules.cpp
   src/demi/runtime/isometric/IsoWorldQueries.cpp
   src/demi/runtime/isometric/IsoGridApi.cpp
+  src/demi/runtime/physics/Box2DWorldState.cpp
   src/demi/runtime/physics/SpatialQuery3D.cpp
   ${DEMI_COMPONENT_MODEL_SOURCES}
 )
@@ -209,7 +209,7 @@ add_library(demi-core STATIC
 target_include_directories(demi-core PUBLIC src "${DEMI_GENERATED_INCLUDE_DIR}")
 
 target_compile_features(demi-core PUBLIC cxx_std_20)
-target_link_libraries(demi-core PUBLIC nlohmann_json::nlohmann_json)
+target_link_libraries(demi-core PUBLIC nlohmann_json::nlohmann_json box2d)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(demi-core PRIVATE -Wall -Wextra -Wpedantic)
@@ -247,19 +247,13 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/network/HttpClient.cpp
   src/demi/runtime/network/NetworkSystem.cpp
   src/demi/runtime/network/TlsMessaging.cpp
+  src/demi/runtime/physics/Box2DWorldState.cpp
   src/demi/runtime/physics/Physics2D.cpp
   src/demi/runtime/physics/Physics3D.cpp
   src/demi/runtime/profiling/RuntimeProfiler.cpp
   src/demi/runtime/profiling/ProfilerHudLayout.cpp
   src/demi/runtime/simulation/DeterministicRandom.cpp
   src/demi/runtime/scene/HudParser.cpp
-  src/demi/runtime/scene/hud/HudElementRegistry.cpp
-  src/demi/runtime/scene/hud/elements/HudButtonElement.cpp
-  src/demi/runtime/scene/hud/elements/HudCircleElement.cpp
-  src/demi/runtime/scene/hud/elements/HudImageElement.cpp
-  src/demi/runtime/scene/hud/elements/HudPanelElement.cpp
-  src/demi/runtime/scene/hud/elements/HudRectElement.cpp
-  src/demi/runtime/scene/hud/elements/HudTextElement.cpp
   src/demi/runtime/scene/ProjectParser.cpp
   src/demi/runtime/scene/SceneEntityParser.cpp
   src/demi/runtime/scene/SceneLoader.cpp

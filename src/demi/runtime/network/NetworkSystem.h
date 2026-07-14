@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -61,15 +62,28 @@ public:
   void shutdown();
 
 private:
+  struct EnetHostHandle {
+    struct Impl;
+    Impl *impl = nullptr;
+  };
+  struct EnetPeerHandle {
+    struct Impl;
+    Impl *impl = nullptr;
+  };
+  static void destroyEnetHost(EnetHostHandle *handle);
+  static void destroyEnetPeer(EnetPeerHandle *handle);
+  static std::string frameMessage(const std::string& message);
+  static std::optional<std::string> unframeMessage(const char* data, std::size_t size);
+
   [[nodiscard]] bool createHost(std::uint16_t port, std::uint32_t maxPeers, std::uint8_t channels);
   [[nodiscard]] bool createClient(const std::string& address, std::uint16_t port, std::uint8_t channels);
   void sendDtlsDatagrams(std::uint32_t peerId);
-  [[nodiscard]] bool sendRaw(const std::string& message, bool reliable, std::uint8_t channel, std::uint32_t peerId);
+  [[nodiscard]] bool sendRaw(const std::string& message, bool reliable, std::uint8_t channel, std::uint32_t peerId, bool frameMessage = true);
 
   std::unique_ptr<DtlsTransport> dtls_;
-  void* host_ = nullptr;
-  void* serverPeer_ = nullptr;
-  std::unordered_map<std::uint32_t, void*> peers_;
+  std::unique_ptr<EnetHostHandle, void(*)(EnetHostHandle*)> host_{nullptr, &destroyEnetHost};
+  std::unique_ptr<EnetPeerHandle, void(*)(EnetPeerHandle*)> serverPeer_{nullptr, &destroyEnetPeer};
+  std::unordered_map<std::uint32_t, EnetPeerHandle *> peers_;
   std::vector<NetworkEvent> events_;
   NetworkMode mode_ = NetworkMode::Offline;
   std::uint32_t nextPeerId_ = 1;

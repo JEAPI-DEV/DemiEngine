@@ -89,18 +89,20 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData &project, World &world,
         entity.component<LuaScriptComponent>()->propertiesJson);
   }
 
-  for (const HudButtonElement &button : world.hudButtons) {
-    if (button.script.empty()) {
+  for (const ui::UiNode &node : world.ui.nodes) {
+    if ((node.type != "button" && node.type != "toggle" &&
+         node.type != "text_input") ||
+        node.script.empty()) {
       continue;
     }
 
     const std::size_t scriptIndex = scripts_.size();
-    if (!loadScript(button.id, button.script, "HUD button Lua script")) {
+    if (!loadScript(node.id, node.script, "HUD button Lua script")) {
       return false;
     }
 
     lua_rawgeti(state, LUA_REGISTRYINDEX, scripts_[scriptIndex].tableRef);
-    lua_pushstring(state, button.id.c_str());
+    lua_pushstring(state, node.id.c_str());
     lua_setfield(state, -2, "ui_id");
     lua_pop(state, 1);
   }

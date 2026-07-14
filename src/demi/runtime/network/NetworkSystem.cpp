@@ -4,7 +4,9 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <iostream>
 #include <mutex>
+#include <optional>
 
 #if DEMI_HAS_ENET
 #include <enet/enet.h>
@@ -12,31 +14,85 @@
 
 namespace demi::runtime {
 
-namespace {
-
 #if DEMI_HAS_ENET
+
+struct NetworkSystem::EnetHostHandle::Impl {
+  ENetHost *host = nullptr;
+};
+
+struct NetworkSystem::EnetPeerHandle::Impl {
+  ENetPeer *peer = nullptr;
+};
+
+void NetworkSystem::destroyEnetHost(EnetHostHandle *handle) {
+  if (handle == nullptr)
+    return;
+  if (handle->impl != nullptr && handle->impl->host != nullptr)
+    enet_host_destroy(handle->impl->host);
+  delete handle->impl;
+  delete handle;
+}
+
+void NetworkSystem::destroyEnetPeer(EnetPeerHandle *handle) {
+  if (handle == nullptr)
+    return;
+  // Peers are owned by their ENetHost; only free our wrapper.
+  delete handle->impl;
+  delete handle;
+}
 
 std::mutex enetMutex;
 int enetRefCount = 0;
 
-[[nodiscard]] std::uint32_t peerId(const ENetPeer* peer) {
-  return static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(peer != nullptr ? peer->data : nullptr));
+constexpr std::size_t MaxMessageSize = 64 * 1024;
+constexpr std::size_t LengthPrefixSize = 4;
+
+[[nodiscard]] std::uint32_t peerId(const ENetPeer *peer) {
+  return static_cast<std::uint32_t>(
+      reinterpret_cast<std::uintptr_t>(peer != nullptr ? peer->data : nullptr));
 }
 
-void setPeerId(ENetPeer* peer, const std::uint32_t id) {
+void setPeerId(ENetPeer *peer, const std::uint32_t id) {
   if (peer != nullptr) {
-    peer->data = reinterpret_cast<void*>(static_cast<std::uintptr_t>(id));
+    peer->data = reinterpret_cast<void *>(static_cast<std::uintptr_t>(id));
   }
 }
 
-[[nodiscard]] ENetPacket* makePacket(const std::string& message, const bool reliable) {
+std::string NetworkSystem::frameMessage(const std::string &message) {
+  std::string framed;
+  framed.reserve(LengthPrefixSize + message.size());
+  const std::uint32_t length = static_cast<std::uint32_t>(message.size());
+  framed.push_back(static_cast<char>(length & 0xFF));
+  framed.push_back(static_cast<char>((length >> 8) & 0xFF));
+  framed.push_back(static_cast<char>((length >> 16) & 0xFF));
+  framed.push_back(static_cast<char>((length >> 24) & 0xFF));
+  framed.append(message);
+  return framed;
+}
+
+std::optional<std::string>
+NetworkSystem::unframeMessage(const char *data, const std::size_t size) {
+  if (data == nullptr || size < LengthPrefixSize) {
+    return std::nullopt;
+  }
+  const std::uint32_t length =
+      static_cast<std::uint8_t>(data[0]) |
+      (static_cast<std::uint32_t>(static_cast<std::uint8_t>(data[1])) << 8) |
+      (static_cast<std::uint32_t>(static_cast<std::uint8_t>(data[2])) << 16) |
+      (static_cast<std::uint32_t>(static_cast<std::uint8_t>(data[3])) << 24);
+  if (length > MaxMessageSize || LengthPrefixSize + length != size) {
+    return std::nullopt;
+  }
+  return std::string(data + LengthPrefixSize, length);
+}
+
+[[nodiscard]] ENetPacket *
+makePacket(const std::string &framedMessage, const bool reliable) {
   const enet_uint32 flags = reliable ? ENET_PACKET_FLAG_RELIABLE : 0;
-  return enet_packet_create(message.data(), message.size(), flags);
+  return enet_packet_create(framedMessage.data(), framedMessage.size(), flags);
 }
 
 #endif
-
-} // namespace
 
 NetworkSystem::NetworkSystem() : dtls_(std::make_unique<DtlsTransport>()) {}
 
@@ -70,7 +126,9 @@ bool NetworkSystem::available() const {
 #endif
 }
 
-bool NetworkSystem::host(const std::uint16_t port, const std::uint32_t maxPeers, const std::uint8_t channels) {
+bool NetworkSystem::host(const std::uint16_t port,
+                         const std::uint32_t maxPeers,
+                         const std::uint8_t channels) {
 #if !DEMI_HAS_ENET
   (void)port;
   (void)maxPeers;
@@ -85,8 +143,11 @@ bool NetworkSystem::host(const std::uint16_t port, const std::uint32_t maxPeers,
 #endif
 }
 
-bool NetworkSystem::hostSecure(const std::uint16_t port, const std::filesystem::path& certificate, const std::filesystem::path& privateKey,
-                               const std::uint32_t maxPeers, const std::uint8_t channels) {
+bool NetworkSystem::hostSecure(const std::uint16_t port,
+                               const std::filesystem::path &certificate,
+                               const std::filesystem::path &privateKey,
+                               const std::uint32_t maxPeers,
+                               const std::uint8_t channels) {
 #if !DEMI_HAS_ENET
   (void)port;
   (void)certificate;
@@ -99,34 +160,21 @@ bool NetworkSystem::hostSecure(const std::uint16_t port, const std::filesystem::
     return false;
   }
   disconnect();
+  if (!createHost(port, maxPeers, channels)) {
+    return false;
+  }
   if (!dtls_->configureServer(certificate, privateKey)) {
+    std::cerr << "DTLS server init failed: " << dtls_->lastError() << '\n';
+    disconnect();
     return false;
   }
-  return createHost(port, maxPeers, channels);
-#endif
-}
-
-bool NetworkSystem::createHost(const std::uint16_t port, const std::uint32_t maxPeers, const std::uint8_t channels) {
-#if !DEMI_HAS_ENET
-  (void)port;
-  (void)maxPeers;
-  (void)channels;
-  return false;
-#else
-  ENetAddress address{};
-  address.host = ENET_HOST_ANY;
-  address.port = port;
-  host_ = enet_host_create(&address, static_cast<std::size_t>(std::max<std::uint32_t>(maxPeers, 1)), std::max<std::uint8_t>(channels, 1), 0, 0);
-  if (host_ == nullptr) {
-    return false;
-  }
-  mode_ = NetworkMode::Host;
-  connected_ = true;
   return true;
 #endif
 }
 
-bool NetworkSystem::connect(const std::string& addressText, const std::uint16_t port, const std::uint8_t channels) {
+bool NetworkSystem::connect(const std::string &addressText,
+                            const std::uint16_t port,
+                            const std::uint8_t channels) {
 #if !DEMI_HAS_ENET
   (void)addressText;
   (void)port;
@@ -141,8 +189,11 @@ bool NetworkSystem::connect(const std::string& addressText, const std::uint16_t 
 #endif
 }
 
-bool NetworkSystem::connectSecure(const std::string& addressText, const std::uint16_t port, const std::filesystem::path& trustedCertificate,
-                                  const std::string& serverName, const std::uint8_t channels) {
+bool NetworkSystem::connectSecure(const std::string &addressText,
+                                  const std::uint16_t port,
+                                  const std::filesystem::path &trustedCertificate,
+                                  const std::string &serverName,
+                                  const std::uint8_t channels) {
 #if !DEMI_HAS_ENET
   (void)addressText;
   (void)port;
@@ -155,39 +206,79 @@ bool NetworkSystem::connectSecure(const std::string& addressText, const std::uin
     return false;
   }
   disconnect();
-  if (!dtls_->configureClient(trustedCertificate, serverName)) {
+  if (!createClient(addressText, port, channels)) {
     return false;
   }
-  return createClient(addressText, port, channels);
+  if (!dtls_->configureClient(trustedCertificate, serverName)) {
+    std::cerr << "DTLS client init failed: " << dtls_->lastError() << '\n';
+    disconnect();
+    return false;
+  }
+  return true;
 #endif
 }
 
-bool NetworkSystem::createClient(const std::string& addressText, const std::uint16_t port, const std::uint8_t channels) {
+bool NetworkSystem::createHost(const std::uint16_t port,
+                               const std::uint32_t maxPeers,
+                               const std::uint8_t channels) {
+#if !DEMI_HAS_ENET
+  (void)port;
+  (void)maxPeers;
+  (void)channels;
+  return false;
+#else
+  ENetAddress address{};
+  address.host = ENET_HOST_ANY;
+  address.port = port;
+  auto *rawHost = enet_host_create(
+      &address,
+      static_cast<std::size_t>(std::max<std::uint32_t>(maxPeers, 1)),
+      std::max<std::uint8_t>(channels, 1), 0, 0);
+  if (rawHost == nullptr) {
+    return false;
+  }
+  host_ = std::unique_ptr<EnetHostHandle, void(*)(EnetHostHandle*)>{
+      new EnetHostHandle{new EnetHostHandle::Impl{rawHost}},
+      &NetworkSystem::destroyEnetHost};
+  mode_ = NetworkMode::Host;
+  connected_ = true;
+  return true;
+#endif
+}
+
+bool NetworkSystem::createClient(const std::string &addressText,
+                                 const std::uint16_t port,
+                                 const std::uint8_t channels) {
 #if !DEMI_HAS_ENET
   (void)addressText;
   (void)port;
   (void)channels;
   return false;
 #else
-  host_ = enet_host_create(nullptr, 1, std::max<std::uint8_t>(channels, 1), 0, 0);
-  if (host_ == nullptr) {
-    return false;
-  }
-
   ENetAddress address{};
   if (enet_address_set_host(&address, addressText.c_str()) != 0) {
-    disconnect();
     return false;
   }
   address.port = port;
-  serverPeer_ = enet_host_connect(static_cast<ENetHost*>(host_), &address, std::max<std::uint8_t>(channels, 1), 0);
-  if (serverPeer_ == nullptr) {
-    disconnect();
+  auto *rawHost = enet_host_create(nullptr, 1,
+                                   std::max<std::uint8_t>(channels, 1), 0, 0);
+  if (rawHost == nullptr) {
     return false;
   }
-  enet_peer_timeout(static_cast<ENetPeer*>(serverPeer_), 0, 1000, 3000);
+  host_ = std::unique_ptr<EnetHostHandle, void(*)(EnetHostHandle*)>{
+      new EnetHostHandle{new EnetHostHandle::Impl{rawHost}},
+      &NetworkSystem::destroyEnetHost};
+  ENetPeer *rawPeer =
+      enet_host_connect(rawHost, &address, std::max<std::uint8_t>(channels, 1), 0);
+  if (rawPeer == nullptr) {
+    host_.reset();
+    return false;
+  }
+  serverPeer_ = std::unique_ptr<EnetPeerHandle, void(*)(EnetPeerHandle*)>{
+      new EnetPeerHandle{new EnetPeerHandle::Impl{rawPeer}},
+      &NetworkSystem::destroyEnetPeer};
+  enet_peer_timeout(rawPeer, 0, 1000, 3000);
   mode_ = NetworkMode::Client;
-  connected_ = false;
   return true;
 #endif
 }
@@ -195,43 +286,39 @@ bool NetworkSystem::createClient(const std::string& addressText, const std::uint
 void NetworkSystem::disconnect() {
 #if DEMI_HAS_ENET
   if (host_ != nullptr) {
-    auto* enetHost = static_cast<ENetHost*>(host_);
     if (mode_ == NetworkMode::Client && serverPeer_ != nullptr) {
-      enet_peer_disconnect_now(static_cast<ENetPeer*>(serverPeer_), 0);
-    } else if (mode_ == NetworkMode::Host) {
-      for (auto& [_, peer] : peers_) {
-        if (peer != nullptr) {
-          enet_peer_disconnect_now(static_cast<ENetPeer*>(peer), 0);
-        }
-      }
+      enet_peer_disconnect_now(serverPeer_->impl->peer, 0);
     }
-    enet_host_destroy(enetHost);
+    host_.reset();
   }
-#endif
-  host_ = nullptr;
-  serverPeer_ = nullptr;
+  serverPeer_.reset();
   peers_.clear();
-  events_.clear();
-  mode_ = NetworkMode::Offline;
   connected_ = false;
-  nextPeerId_ = 1;
-  dtls_->reset();
+#else
+  connected_ = false;
+#endif
 }
 
 void NetworkSystem::disconnectPeer(const std::uint32_t peerIdValue) {
 #if DEMI_HAS_ENET
-  const auto found = peers_.find(peerIdValue);
-  if (found != peers_.end() && found->second != nullptr) {
-    enet_peer_disconnect_now(static_cast<ENetPeer*>(found->second), 0);
-    peers_.erase(found);
-    dtls_->removePeer(peerIdValue);
+  if (mode_ != NetworkMode::Host) {
+    return;
   }
+  const auto found = peers_.find(peerIdValue);
+  if (found == peers_.end() || found->second == nullptr) {
+    return;
+  }
+  enet_peer_disconnect_now(found->second->impl->peer, 0);
+  peers_.erase(found);
 #else
   (void)peerIdValue;
 #endif
 }
 
-bool NetworkSystem::send(const std::string& message, const bool reliable, const std::uint8_t channel, const std::uint32_t peerIdValue) {
+bool NetworkSystem::send(const std::string &message,
+                         const bool reliable,
+                         const std::uint8_t channel,
+                         const std::uint32_t peerIdValue) {
 #if !DEMI_HAS_ENET
   (void)message;
   (void)reliable;
@@ -242,14 +329,19 @@ bool NetworkSystem::send(const std::string& message, const bool reliable, const 
   if (host_ == nullptr || message.empty()) {
     return false;
   }
+  if (message.size() > MaxMessageSize) {
+    std::cerr << "NetworkSystem::send rejected message of " << message.size()
+              << " bytes (max " << MaxMessageSize << ").\n";
+    return false;
+  }
 
   if (dtls_->isEnabled()) {
     if (mode_ == NetworkMode::Client) {
       if (!dtls_->encrypt(0, message)) {
         return false;
       }
-      for (const std::string& datagram : dtls_->takeDatagrams(0)) {
-        if (!sendRaw(datagram, reliable, channel, 0)) {
+      for (const std::string &datagram : dtls_->takeDatagrams(0)) {
+        if (!sendRaw(datagram, reliable, channel, 0, false)) {
           return false;
         }
       }
@@ -257,10 +349,10 @@ bool NetworkSystem::send(const std::string& message, const bool reliable, const 
     }
     if (mode_ == NetworkMode::Host && peerIdValue == 0) {
       bool sent = true;
-      for (const auto& [peerId, _] : peers_) {
+      for (const auto &[peerId, _] : peers_) {
         sent = dtls_->encrypt(peerId, message) && sent;
-        for (const std::string& datagram : dtls_->takeDatagrams(peerId)) {
-          sent = sendRaw(datagram, reliable, channel, peerId) && sent;
+        for (const std::string &datagram : dtls_->takeDatagrams(peerId)) {
+          sent = sendRaw(datagram, reliable, channel, peerId, false) && sent;
         }
       }
       return sent;
@@ -268,56 +360,65 @@ bool NetworkSystem::send(const std::string& message, const bool reliable, const 
     if (!dtls_->encrypt(peerIdValue, message)) {
       return false;
     }
-    for (const std::string& datagram : dtls_->takeDatagrams(peerIdValue)) {
-      if (!sendRaw(datagram, reliable, channel, peerIdValue)) {
+    for (const std::string &datagram : dtls_->takeDatagrams(peerIdValue)) {
+      if (!sendRaw(datagram, reliable, channel, peerIdValue, false)) {
         return false;
       }
     }
     return true;
   }
-  return sendRaw(message, reliable, channel, peerIdValue);
+  return sendRaw(message, reliable, channel, peerIdValue, true);
 #endif
 }
 
-bool NetworkSystem::sendRaw(const std::string& message, const bool reliable, const std::uint8_t channel, const std::uint32_t peerIdValue) {
+bool NetworkSystem::sendRaw(const std::string &message,
+                            const bool reliable,
+                            const std::uint8_t channel,
+                            const std::uint32_t peerIdValue,
+                            const bool frameMessage) {
 #if !DEMI_HAS_ENET
   (void)message;
   (void)reliable;
   (void)channel;
   (void)peerIdValue;
+  (void)frameMessage;
   return false;
 #else
+  const std::string &payload = frameMessage ? NetworkSystem::frameMessage(message) : message;
   if (mode_ == NetworkMode::Client) {
     if (serverPeer_ == nullptr) {
       return false;
     }
-    ENetPacket* packet = makePacket(message, reliable);
-    if (packet == nullptr || enet_peer_send(static_cast<ENetPeer*>(serverPeer_), channel, packet) != 0) {
+    ENetPacket *packet = makePacket(payload, reliable);
+    if (packet == nullptr ||
+        enet_peer_send(serverPeer_->impl->peer, channel, packet) != 0) {
       if (packet != nullptr) {
         enet_packet_destroy(packet);
       }
       return false;
     }
-    enet_host_flush(static_cast<ENetHost*>(host_));
+    enet_host_flush(host_->impl->host);
     return true;
   }
 
   if (mode_ == NetworkMode::Host) {
-    ENetPacket* packet = makePacket(message, reliable);
+    ENetPacket *packet = makePacket(payload, reliable);
     if (packet == nullptr) {
       return false;
     }
     if (peerIdValue == 0) {
-      enet_host_broadcast(static_cast<ENetHost*>(host_), channel, packet);
-      enet_host_flush(static_cast<ENetHost*>(host_));
+      enet_host_broadcast(host_->impl->host, channel, packet);
+      enet_host_flush(host_->impl->host);
       return true;
     }
     const auto found = peers_.find(peerIdValue);
-    if (found == peers_.end() || found->second == nullptr || enet_peer_send(static_cast<ENetPeer*>(found->second), channel, packet) != 0) {
+    if (found == peers_.end() || found->second == nullptr ||
+        enet_peer_send(found->second->impl->peer, channel, packet) !=
+            0) {
       enet_packet_destroy(packet);
       return false;
     }
-    enet_host_flush(static_cast<ENetHost*>(host_));
+    enet_host_flush(host_->impl->host);
     return true;
   }
   return false;
@@ -325,9 +426,13 @@ bool NetworkSystem::sendRaw(const std::string& message, const bool reliable, con
 }
 
 void NetworkSystem::sendDtlsDatagrams(const std::uint32_t peerIdValue) {
-  for (const std::string& datagram : dtls_->takeDatagrams(peerIdValue)) {
-    (void)sendRaw(datagram, true, 0, peerIdValue);
+#if DEMI_HAS_ENET
+  for (const std::string &datagram : dtls_->takeDatagrams(peerIdValue)) {
+    (void)sendRaw(datagram, true, 0, peerIdValue, false);
   }
+#else
+  (void)peerIdValue;
+#endif
 }
 
 void NetworkSystem::update(const std::uint32_t maxEvents) {
@@ -336,7 +441,7 @@ void NetworkSystem::update(const std::uint32_t maxEvents) {
     return;
   }
 
-  auto* enetHost = static_cast<ENetHost*>(host_);
+  auto *enetHost = host_->impl->host;
   for (std::uint32_t i = 0; i < maxEvents; ++i) {
     ENetEvent event{};
     const int result = enet_host_service(enetHost, &event, 0);
@@ -349,10 +454,12 @@ void NetworkSystem::update(const std::uint32_t maxEvents) {
       if (mode_ == NetworkMode::Host) {
         id = nextPeerId_++;
         setPeerId(event.peer, id);
-        peers_[id] = event.peer;
+        peers_[id] = new EnetPeerHandle{new EnetPeerHandle::Impl{event.peer}};
       } else {
         id = 0;
-        serverPeer_ = event.peer;
+        serverPeer_ = std::unique_ptr<EnetPeerHandle, void(*)(EnetPeerHandle*)>{
+            new EnetPeerHandle{new EnetPeerHandle::Impl{event.peer}},
+            &NetworkSystem::destroyEnetPeer};
         connected_ = !dtls_->isEnabled();
       }
       if (dtls_->isEnabled()) {
@@ -361,20 +468,49 @@ void NetworkSystem::update(const std::uint32_t maxEvents) {
         }
         sendDtlsDatagrams(id);
       } else {
-        events_.push_back(NetworkEvent{.type = NetworkEventType::Connected, .peerId = id, .channel = 0, .message = {}, .latencyMs = event.peer != nullptr ? event.peer->roundTripTime : 0});
+        events_.push_back(NetworkEvent{.type = NetworkEventType::Connected,
+                                       .peerId = id,
+                                       .channel = 0,
+                                       .message = {},
+                                       .latencyMs = event.peer != nullptr
+                                                    ? event.peer->roundTripTime
+                                                    : 0});
       }
     } else if (event.type == ENET_EVENT_TYPE_RECEIVE) {
-      const std::uint32_t id = mode_ == NetworkMode::Host ? peerId(event.peer) : 0;
-      const auto* bytes = static_cast<const char*>(static_cast<const void*>(event.packet->data));
-      const std::string message(bytes, bytes + event.packet->dataLength);
+      const std::uint32_t id =
+          mode_ == NetworkMode::Host ? peerId(event.peer) : 0;
+      const auto *bytes =
+          static_cast<const char *>(static_cast<const void *>(event.packet->data));
+      const std::size_t byteCount = event.packet->dataLength;
       if (dtls_->isEnabled()) {
-        (void)dtls_->receiveDatagram(id, message);
+        const std::string datagram(bytes, byteCount);
+        (void)dtls_->receiveDatagram(id, datagram);
         sendDtlsDatagrams(id);
-        for (std::string& plaintext : dtls_->takePlaintext(id)) {
-          events_.push_back(NetworkEvent{.type = NetworkEventType::Message, .peerId = id, .channel = event.channelID, .message = std::move(plaintext), .latencyMs = event.peer != nullptr ? event.peer->roundTripTime : 0});
+        for (std::string &plaintext : dtls_->takePlaintext(id)) {
+          events_.push_back(NetworkEvent{.type = NetworkEventType::Message,
+                                         .peerId = id,
+                                         .channel = event.channelID,
+                                         .message = std::move(plaintext),
+                                         .latencyMs =
+                                             event.peer != nullptr
+                                                 ? event.peer->roundTripTime
+                                                 : 0});
         }
       } else {
-        events_.push_back(NetworkEvent{.type = NetworkEventType::Message, .peerId = id, .channel = event.channelID, .message = message, .latencyMs = event.peer != nullptr ? event.peer->roundTripTime : 0});
+        if (const auto unframed = NetworkSystem::unframeMessage(bytes, byteCount);
+            unframed.has_value()) {
+          events_.push_back(NetworkEvent{.type = NetworkEventType::Message,
+                                         .peerId = id,
+                                         .channel = event.channelID,
+                                         .message = *unframed,
+                                         .latencyMs =
+                                             event.peer != nullptr
+                                                 ? event.peer->roundTripTime
+                                                 : 0});
+        } else {
+          std::cerr << "NetworkSystem dropped malformed non-DTLS packet of "
+                    << byteCount << " bytes from peer " << id << ".\n";
+        }
       }
       enet_packet_destroy(event.packet);
     } else if (event.type == ENET_EVENT_TYPE_DISCONNECT) {
@@ -383,13 +519,17 @@ void NetworkSystem::update(const std::uint32_t maxEvents) {
         peers_.erase(id);
       } else {
         connected_ = false;
-        serverPeer_ = nullptr;
+        serverPeer_.reset();
       }
       dtls_->removePeer(id);
       if (event.peer != nullptr) {
         event.peer->data = nullptr;
       }
-      events_.push_back(NetworkEvent{.type = NetworkEventType::Disconnected, .peerId = id, .channel = 0, .message = {}, .latencyMs = 0});
+      events_.push_back(NetworkEvent{.type = NetworkEventType::Disconnected,
+                                     .peerId = id,
+                                     .channel = 0,
+                                     .message = {},
+                                     .latencyMs = 0});
     }
   }
   if (dtls_->isEnabled()) {
@@ -405,21 +545,31 @@ void NetworkSystem::update(const std::uint32_t maxEvents) {
       if (mode_ == NetworkMode::Client) {
         connected_ = true;
       }
-      events_.push_back(NetworkEvent{.type = NetworkEventType::Connected, .peerId = id, .channel = 0, .message = {}, .latencyMs = latencyMs()});
+      events_.push_back(NetworkEvent{
+          .type = NetworkEventType::Connected,
+          .peerId = id,
+          .channel = 0,
+          .message = {},
+          .latencyMs = latencyMs()});
     }
     for (const std::uint32_t id : dtls_->takeFailedPeers()) {
       if (mode_ == NetworkMode::Client && serverPeer_ != nullptr) {
-        enet_peer_disconnect_now(static_cast<ENetPeer*>(serverPeer_), 0);
+        enet_peer_disconnect_now(serverPeer_->impl->peer, 0);
         connected_ = false;
       } else {
         const auto found = peers_.find(id);
         if (found != peers_.end() && found->second != nullptr) {
-          enet_peer_disconnect_now(static_cast<ENetPeer*>(found->second), 0);
+          enet_peer_disconnect_now(found->second->impl->peer, 0);
           peers_.erase(found);
         }
       }
       dtls_->removePeer(id);
-      events_.push_back(NetworkEvent{.type = NetworkEventType::Disconnected, .peerId = id, .channel = 0, .message = {}, .latencyMs = 0});
+      events_.push_back(NetworkEvent{
+          .type = NetworkEventType::Disconnected,
+          .peerId = id,
+          .channel = 0,
+          .message = {},
+          .latencyMs = 0});
     }
   }
 #else
@@ -428,9 +578,9 @@ void NetworkSystem::update(const std::uint32_t maxEvents) {
 }
 
 std::vector<NetworkEvent> NetworkSystem::drainEvents() {
-  std::vector<NetworkEvent> events = std::move(events_);
+  std::vector<NetworkEvent> result = std::move(events_);
   events_.clear();
-  return events;
+  return result;
 }
 
 NetworkMode NetworkSystem::mode() const {
@@ -448,10 +598,11 @@ bool NetworkSystem::isConnected() const {
 std::uint32_t NetworkSystem::latencyMs() const {
 #if DEMI_HAS_ENET
   if (mode_ == NetworkMode::Client && serverPeer_ != nullptr) {
-    return static_cast<ENetPeer*>(serverPeer_)->roundTripTime;
+    return serverPeer_->impl->peer->roundTripTime;
   }
-  if (mode_ == NetworkMode::Host && !peers_.empty() && peers_.begin()->second != nullptr) {
-    return static_cast<ENetPeer*>(peers_.begin()->second)->roundTripTime;
+  if (mode_ == NetworkMode::Host && !peers_.empty() &&
+      peers_.begin()->second) {
+    return peers_.begin()->second->impl->peer->roundTripTime;
   }
 #endif
   return 0;
@@ -461,7 +612,7 @@ bool NetworkSystem::isSecure() const {
   return dtls_->isEnabled();
 }
 
-const std::string& NetworkSystem::securityError() const {
+const std::string &NetworkSystem::securityError() const {
   return dtls_->lastError();
 }
 

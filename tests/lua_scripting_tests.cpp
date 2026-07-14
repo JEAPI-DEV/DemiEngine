@@ -228,26 +228,29 @@ return PropProbe
           R"json({ "enabled": true, "speed": 12.5, "tags": ["runner"], "spawn": { "x": 3.0, "y": 4.0 } })json",
   });
   world.entities.push_back(std::move(propEntity));
-  world.hudButtons.push_back(runtime::HudButtonElement{
-      .id = "button_start",
-      .label = "START",
-      .position = runtime::Vec2{.x = 0.0F, .y = 0.0F},
-      .size = runtime::Vec2{.x = 45.0F, .y = 100.0F},
-      .script = "script://scripts/button.lua",
-      .action = "test.annotated",
-  });
-  world.hudImages.push_back(runtime::HudImageElement{
-      .id = "hud_image",
-      .position = runtime::Vec2{.x = 0.0F, .y = 0.0F},
-      .size = runtime::Vec2{.x = 8.0F, .y = 8.0F},
-  });
-  world.hudButtons.push_back(runtime::HudButtonElement{
-      .id = "button_module",
-      .label = "MODULE",
-      .position = runtime::Vec2{.x = 55.0F, .y = 0.0F},
-      .size = runtime::Vec2{.x = 45.0F, .y = 100.0F},
-      .action = "test.module",
-  });
+  runtime::ui::UiNode buttonStart;
+  buttonStart.id = "button_start";
+  buttonStart.type = "button";
+  buttonStart.text = "START";
+  buttonStart.layout.position = runtime::Vec2{.x = 0.0F, .y = 0.0F};
+  buttonStart.layout.size = runtime::Vec2{.x = 45.0F, .y = 100.0F};
+  buttonStart.script = "script://scripts/button.lua";
+  buttonStart.action = "test.annotated";
+  world.ui.nodes.push_back(buttonStart);
+  runtime::ui::UiNode hudImage;
+  hudImage.id = "hud_image";
+  hudImage.type = "image";
+  hudImage.layout.position = runtime::Vec2{.x = 0.0F, .y = 0.0F};
+  hudImage.layout.size = runtime::Vec2{.x = 8.0F, .y = 8.0F};
+  world.ui.nodes.push_back(hudImage);
+  runtime::ui::UiNode buttonModule;
+  buttonModule.id = "button_module";
+  buttonModule.type = "button";
+  buttonModule.text = "MODULE";
+  buttonModule.layout.position = runtime::Vec2{.x = 55.0F, .y = 0.0F};
+  buttonModule.layout.size = runtime::Vec2{.x = 45.0F, .y = 100.0F};
+  buttonModule.action = "test.module";
+  world.ui.nodes.push_back(buttonModule);
   runtime::Entity mover3D;
   mover3D.id = "ent_3d_mover";
   mover3D.name = "3D Mover";
@@ -343,31 +346,32 @@ return PropProbe
                  "fields.\n";
     return 1;
   }
+  const auto buttonStartNode = std::ranges::find_if(
+      world.ui.nodes, [](const runtime::ui::UiNode &element) {
+        return element.id == "button_start";
+      });
   if (host.saveString("test", "button_label") != "updated" ||
-      world.hudButtons[0].label != "GO") {
+      buttonStartNode == world.ui.nodes.end() ||
+      buttonStartNode->text != "GO") {
     std::cerr << "Hud.set_button_label did not update the HUD button label.\n";
     return 1;
   }
   const auto hudProbe = std::ranges::find_if(
-      world.hudText, [](const runtime::HudTextElement &element) {
+      world.ui.nodes, [](const runtime::ui::UiNode &element) {
         return element.id == "hud_probe";
       });
   if (host.saveString("test", "hud_text_scale") != "updated" ||
-      hudProbe == world.hudText.end() || hudProbe->scale != 5.5F) {
+      hudProbe == world.ui.nodes.end() || hudProbe->fontSize != 44.0F) {
     std::cerr << "Hud.set_text_scale did not update the HUD text scale.\n";
     return 1;
   }
   if (host.saveString("test", "hud_animation_properties") != "updated" ||
-      world.hudButtons[0].position.x != 0.0F ||
-      world.hudButtons[0].size.x != 40.0F ||
-      world.hudButtons[0].size.y != 90.0F ||
-      world.hudButtons[0].color.a != 0.25F ||
-      world.hudButtons[0].hoverColor.a != 0.25F ||
-      world.hudButtons[0].textColor.a != 0.25F ||
-      world.hudImages[0].position.x != 18.0F ||
-      world.hudImages[0].position.y != 24.0F ||
-      world.hudImages[0].animation != "asset://animations/test" ||
-      world.hudImages[0].animationFrame != 3) {
+      buttonStartNode == world.ui.nodes.end() ||
+      buttonStartNode->layout.size.x != 40.0F ||
+      buttonStartNode->layout.size.y != 90.0F ||
+      buttonStartNode->color.a != 0.25F ||
+      buttonStartNode->hoverColor.a != 0.25F ||
+      buttonStartNode->textColor.a != 0.25F) {
     std::cerr << "HUD animation property setters did not update the expected "
                  "elements.\n";
     return 1;

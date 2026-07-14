@@ -2,7 +2,7 @@
 #include "demi/runtime/scene/HudParser.h"
 #include "demi/runtime/scene/SceneData.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
-#include "demi/runtime/scene/hud/HudElementRegistry.h"
+#include "demi/runtime/ui/UiModel.h"
 #include "demi/schema/Validation.h"
 
 #include <filesystem>
@@ -89,15 +89,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  const runtime::scene_loading::HudElementDescriptor *buttonDescriptor =
-      runtime::scene_loading::findHudElementDescriptor("button");
-  if (buttonDescriptor == nullptr || buttonDescriptor->parse == nullptr ||
-      runtime::scene_loading::findHudElementDescriptor("not-an-element") !=
-          nullptr) {
-    std::cerr << "HUD registry does not provide canonical element lookup.\n";
-    return 1;
-  }
-
   std::string error;
   const std::optional<runtime::LoadedProject> loaded = runtime::loadProject(
       root / "examples" / "minimal_2d_networking" / "demi.project.json", error);
@@ -126,9 +117,9 @@ int main(int argc, char **argv) {
   }
 
   bool foundNetworkButton = false;
-  for (const runtime::HudButtonElement &button : loaded->world.hudButtons) {
-    if (button.id == "menu_button_network") {
-      foundNetworkButton = button.action == "menu_button_network";
+  for (const runtime::ui::UiNode &node : loaded->world.ui.nodes) {
+    if (node.id == "menu_button_network") {
+      foundNetworkButton = node.action == "menu_button_network";
       break;
     }
   }
@@ -182,18 +173,29 @@ int main(int argc, char **argv) {
   }
   runtime::World hudWorld;
   runtime::scene_loading::loadHudFile(hudWorld, hudFixture, error);
-  if (hudWorld.hudText.empty() || hudWorld.hudText[0].fontSize != 32.0F ||
-      hudWorld.hudButtons.empty() || hudWorld.hudButtons[0].fontSize != 24.0F ||
-      hudWorld.hudPanels.empty() ||
-      hudWorld.hudPanels[0].cornerRadius != 12.0F ||
-      hudWorld.hudPanels[0].borderWidth != 2.0F ||
-      hudWorld.hudCircles.empty() || hudWorld.hudCircles[0].radius != 28.0F) {
+  bool foundFontSizeText = false;
+  bool foundFontSizeButton = false;
+  bool foundPanel = false;
+  bool foundCircle = false;
+  for (const runtime::ui::UiNode &node : hudWorld.ui.nodes) {
+    if (node.id == "hud_text_font_size") {
+      foundFontSizeText = node.fontSize == 32.0F;
+    } else if (node.id == "hud_button_font_size") {
+      foundFontSizeButton = node.fontSize == 24.0F;
+    } else if (node.id == "hud_panel") {
+      foundPanel = node.cornerRadius == 12.0F && node.borderWidth == 2.0F;
+    } else if (node.id == "hud_circle") {
+      foundCircle = node.radius == 28.0F;
+    }
+  }
+  if (!foundFontSizeText || !foundFontSizeButton || !foundPanel ||
+      !foundCircle) {
     std::cerr
         << "HUD loader did not read panel, circle, or font_size fields.\n";
     return 1;
   }
-  if (!hudWorld.ui.nodes.empty()) {
-    std::cerr << "Flat HUD was also loaded into the tree UI representation.\n";
+  if (hudWorld.ui.nodes.empty()) {
+    std::cerr << "HUD loader did not populate the tree UI representation.\n";
     return 1;
   }
 

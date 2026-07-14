@@ -1,3 +1,4 @@
+#include "demi/runtime/physics/Box2DWorldState.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 
@@ -6,6 +7,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <new>
+#include <unordered_set>
 #include <vector>
 
 #if DEMI_HAS_BOX2D
@@ -406,55 +409,67 @@ void stepPhysics2D(World &world, const float fixedDt,
                    const PhysicsSettings2D &settings) {
   world.physicsContacts.clear();
 #if DEMI_HAS_BOX2D
-  b2World physicsWorld({settings.gravity.x, settings.gravity.y});
+  if (world.box2dState == nullptr) {
+    world.box2dState = std::make_unique<Box2DWorldState>();
+  }
+  Box2DWorldState &state = *world.box2dState;
 
-  struct BodyBinding {
-    Entity *entity = nullptr;
-    b2Body *body = nullptr;
+  if (!state.initialised) {
+    state.world =
+        new b2World({settings.gravity.x, settings.gravity.y});
+    state.gravityX = settings.gravity.x;
+    state.gravityY = settings.gravity.y;
+    state.initialised = true;
+  } else if (state.gravityX != settings.gravity.x ||
+             state.gravityY != settings.gravity.y) {
+    static_cast<b2World *>(state.world)->SetGravity(
+        {settings.gravity.x, settings.gravity.y});
+    state.gravityX = settings.gravity.x;
+    state.gravityY = settings.gravity.y;
+  }
+  b2World &physicsWorld = *static_cast<b2World *>(state.world);
+
+  auto computeShapeSignature = [](const Entity &entity) -> std::uint64_t {
+    std::uint64_t signature = 0x9E3779B97F4A7C15ULL;
+    auto mix = [&signature](std::uint64_t value) {
+      signature ^= value + 0x9E3779B97F4A7C15ULL + (signature << 6) +
+                   (signature >> 2);
+    };
+    if (const auto *box = entity.component<BoxCollider2DComponent>()) {
+      mix(0x01);
+      mix(static_cast<std::uint64_t>(box->isTrigger));
+      mix(static_cast<std::uint64_t>(box->offset.x * 1000.0F));
+      mix(static_cast<std::uint64_t>(box->offset.y * 1000.0F));
+      mix(static_cast<std::uint64_t>(box->size.x * 1000.0F));
+      mix(static_cast<std::uint64_t>(box->size.y * 1000.0F));
+      mix(static_cast<std::uint64_t>(box->categoryBits));
+      mix(static_cast<std::uint64_t>(box->maskBits));
+      const std::hash<std::string> hasher;
+      mix(hasher(box->layer));
+    }
+    if (const auto *circle = entity.component<CircleCollider2DComponent>()) {
+      mix(0x02);
+      mix(static_cast<std::uint64_t>(circle->isTrigger));
+      mix(static_cast<std::uint64_t>(circle->offset.x * 1000.0F));
+      mix(static_cast<std::uint64_t>(circle->offset.y * 1000.0F));
+      mix(static_cast<std::uint64_t>(circle->radius * 1000.0F));
+      mix(static_cast<std::uint64_t>(circle->categoryBits));
+      mix(static_cast<std::uint64_t>(circle->maskBits));
+      const std::hash<std::string> hasher;
+      mix(circle->layer.size());
+    }
+    return signature;
   };
-  std::vector<BodyBinding> bindings;
 
-  for (Entity &entity : world.entities) {
-    if (!entity.hasComponent<Transform2DComponent>()) {
-      continue;
-    }
-    if (!entity.hasComponent<Rigidbody2DComponent>() && !hasCollider(entity)) {
-      continue;
-    }
+  std::unordered_set<std::string> liveEntityIds;
+  liveEntityIds.reserve(world.entities.size());
 
-    b2BodyDef bodyDef;
-    bodyDef.position.Set(entity.component<Transform2DComponent>()->position.x,
-                         entity.component<Transform2DComponent>()->position.y);
-    bodyDef.angle = entity.component<Transform2DComponent>()->rotation;
-    if (entity.hasComponent<Rigidbody2DComponent>()) {
-      if (entity.component<Rigidbody2DComponent>()->bodyType == "dynamic") {
-        bodyDef.type = b2_dynamicBody;
-      } else if (entity.component<Rigidbody2DComponent>()->bodyType ==
-                 "kinematic") {
-        bodyDef.type = b2_kinematicBody;
-      } else {
-        bodyDef.type = b2_staticBody;
-      }
-      bodyDef.linearVelocity.Set(
-          entity.component<Rigidbody2DComponent>()->velocity.x,
-          entity.component<Rigidbody2DComponent>()->velocity.y);
-      bodyDef.fixedRotation =
-          entity.component<Rigidbody2DComponent>()->lockRotation;
-      bodyDef.gravityScale =
-          entity.component<Rigidbody2DComponent>()->gravityScale;
-    } else {
-      bodyDef.type = b2_staticBody;
-    }
-
-    b2Body *body = physicsWorld.CreateBody(&bodyDef);
-    body->GetUserData().pointer = reinterpret_cast<std::uintptr_t>(&entity);
+  auto createFixtures = [&](Entity &entity, b2Body *body) {
     if (entity.hasComponent<BoxCollider2DComponent>()) {
+      const BoxCollider2DComponent &box = *entity.component<BoxCollider2DComponent>();
       b2PolygonShape shape;
-      shape.SetAsBox(entity.component<BoxCollider2DComponent>()->size.x * 0.5F,
-                     entity.component<BoxCollider2DComponent>()->size.y * 0.5F,
-                     {entity.component<BoxCollider2DComponent>()->offset.x,
-                      entity.component<BoxCollider2DComponent>()->offset.y},
-                     0.0F);
+      shape.SetAsBox(box.size.x * 0.5F, box.size.y * 0.5F,
+                     {box.offset.x, box.offset.y}, 0.0F);
       b2FixtureDef fixtureDef;
       fixtureDef.shape = &shape;
       fixtureDef.density = 1.0F;
@@ -463,18 +478,13 @@ void stepPhysics2D(World &world, const float fixedDt,
               ? std::clamp(entity.component<Rigidbody2DComponent>()->bounciness,
                            0.0F, 1.0F)
               : 0.0F;
-      fixtureDef.isSensor =
-          entity.component<BoxCollider2DComponent>()->isTrigger;
-      fixtureDef.filter.categoryBits =
-          entity.component<BoxCollider2DComponent>()->categoryBits;
-      fixtureDef.filter.maskBits =
-          entity.component<BoxCollider2DComponent>()->maskBits;
-      if (const auto category = world.physicsCategoryBits.find(
-              entity.component<BoxCollider2DComponent>()->layer);
+      fixtureDef.isSensor = box.isTrigger;
+      fixtureDef.filter.categoryBits = box.categoryBits;
+      fixtureDef.filter.maskBits = box.maskBits;
+      if (const auto category = world.physicsCategoryBits.find(box.layer);
           category != world.physicsCategoryBits.end()) {
         fixtureDef.filter.categoryBits = category->second;
-        fixtureDef.filter.maskBits = world.physicsMaskBits.at(
-            entity.component<BoxCollider2DComponent>()->layer);
+        fixtureDef.filter.maskBits = world.physicsMaskBits.at(box.layer);
       }
       body->CreateFixture(&fixtureDef);
     }
@@ -502,28 +512,109 @@ void stepPhysics2D(World &world, const float fixedDt,
       }
       body->CreateFixture(&fixtureDef);
     }
-    bindings.push_back(BodyBinding{.entity = &entity, .body = body});
+  };
+
+  auto bodyTypeFor = [](const Entity &entity) {
+    if (!entity.hasComponent<Rigidbody2DComponent>())
+      return b2_staticBody;
+    const std::string &type = entity.component<Rigidbody2DComponent>()->bodyType;
+    if (type == "dynamic")
+      return b2_dynamicBody;
+    if (type == "kinematic")
+      return b2_kinematicBody;
+    return b2_staticBody;
+  };
+
+  for (Entity &entity : world.entities) {
+    if (!entity.hasComponent<Transform2DComponent>())
+      continue;
+    if (!entity.hasComponent<Rigidbody2DComponent>() && !hasCollider(entity))
+      continue;
+
+    const std::string &entityId = entity.id;
+    liveEntityIds.insert(entityId);
+
+    const Transform2DComponent &transform =
+        *entity.component<Transform2DComponent>();
+    const int currentType = static_cast<int>(bodyTypeFor(entity));
+    const std::uint64_t currentSignature = computeShapeSignature(entity);
+
+    b2Body *body = nullptr;
+    if (const auto found = state.bodies.find(entityId);
+        found != state.bodies.end()) {
+      const int previousType = state.bodyTypes[entityId];
+      const std::uint64_t previousSignature = state.shapeSignatures[entityId];
+      if (previousType == currentType && previousSignature == currentSignature) {
+        body = reinterpret_cast<b2Body *>(found->second);
+      } else {
+        physicsWorld.DestroyBody(reinterpret_cast<b2Body *>(found->second));
+        state.bodies.erase(found);
+        state.bodyTypes.erase(entityId);
+        state.shapeSignatures.erase(entityId);
+      }
+    }
+
+    if (body == nullptr) {
+      b2BodyDef bodyDef;
+      bodyDef.position.Set(transform.position.x, transform.position.y);
+      bodyDef.angle = transform.rotation;
+      bodyDef.type = static_cast<b2BodyType>(currentType);
+      if (entity.hasComponent<Rigidbody2DComponent>()) {
+        const Rigidbody2DComponent &rb =
+            *entity.component<Rigidbody2DComponent>();
+        bodyDef.linearVelocity.Set(rb.velocity.x, rb.velocity.y);
+        bodyDef.fixedRotation = rb.lockRotation;
+        bodyDef.gravityScale = rb.gravityScale;
+      }
+      body = physicsWorld.CreateBody(&bodyDef);
+      createFixtures(entity, body);
+      state.bodies.emplace(entityId, body);
+      state.bodyTypes.emplace(entityId, currentType);
+      state.shapeSignatures.emplace(entityId, currentSignature);
+    } else {
+      body->SetTransform({transform.position.x, transform.position.y},
+                         transform.rotation);
+      if (entity.hasComponent<Rigidbody2DComponent>()) {
+        const Rigidbody2DComponent &rb =
+            *entity.component<Rigidbody2DComponent>();
+        body->SetLinearVelocity({rb.velocity.x, rb.velocity.y});
+        body->SetGravityScale(rb.gravityScale);
+      }
+    }
+  }
+
+  for (auto iterator = state.bodies.begin(); iterator != state.bodies.end();) {
+    if (liveEntityIds.contains(iterator->first)) {
+      ++iterator;
+      continue;
+    }
+    physicsWorld.DestroyBody(reinterpret_cast<b2Body *>(iterator->second));
+    state.bodyTypes.erase(iterator->first);
+    state.shapeSignatures.erase(iterator->first);
+    iterator = state.bodies.erase(iterator);
   }
 
   const auto bodyForEntity = [&](const std::string &id) -> b2Body * {
-    const auto found = std::ranges::find_if(bindings, [&](const auto &binding) {
-      return binding.entity != nullptr && binding.entity->id == id;
-    });
-    return found == bindings.end() ? nullptr : found->body;
+    const auto found = state.bodies.find(id);
+    return found == state.bodies.end()
+               ? nullptr
+               : reinterpret_cast<b2Body *>(found->second);
   };
-  for (const BodyBinding &binding : bindings) {
-    if (binding.entity == nullptr || binding.body == nullptr)
+
+  std::vector<b2DistanceJointDef> jointDefs;
+  for (const Entity &entity : world.entities) {
+    const auto *joint = entity.component<DistanceJoint2DComponent>();
+    if (joint == nullptr)
       continue;
-    const auto *joint = binding.entity->component<DistanceJoint2DComponent>();
-    b2Body *other =
-        joint == nullptr ? nullptr : bodyForEntity(joint->otherEntity);
-    if (joint == nullptr || other == nullptr || other == binding.body)
+    b2Body *bodyA = bodyForEntity(entity.id);
+    b2Body *bodyB = bodyForEntity(joint->otherEntity);
+    if (bodyA == nullptr || bodyB == nullptr || bodyA == bodyB)
       continue;
-    const b2Vec2 positionA = binding.body->GetPosition();
-    const b2Vec2 positionB = other->GetPosition();
+    const b2Vec2 positionA = bodyA->GetPosition();
+    const b2Vec2 positionB = bodyB->GetPosition();
     b2DistanceJointDef definition;
     definition.Initialize(
-        binding.body, other,
+        bodyA, bodyB,
         {positionA.x + joint->anchor.x, positionA.y + joint->anchor.y},
         {positionB.x + joint->otherAnchor.x,
          positionB.y + joint->otherAnchor.y});
@@ -533,6 +624,9 @@ void stepPhysics2D(World &world, const float fixedDt,
     definition.stiffness = joint->stiffness;
     definition.damping = joint->damping;
     definition.collideConnected = joint->collideConnected;
+    jointDefs.push_back(definition);
+  }
+  for (b2DistanceJointDef &definition : jointDefs) {
     physicsWorld.CreateJoint(&definition);
   }
 
@@ -546,10 +640,20 @@ void stepPhysics2D(World &world, const float fixedDt,
 
     b2Fixture *fixtureA = contact->GetFixtureA();
     b2Fixture *fixtureB = contact->GetFixtureB();
-    Entity *entityA =
-        reinterpret_cast<Entity *>(fixtureA->GetBody()->GetUserData().pointer);
-    Entity *entityB =
-        reinterpret_cast<Entity *>(fixtureB->GetBody()->GetUserData().pointer);
+    b2Body *bodyA = fixtureA->GetBody();
+    b2Body *bodyB = fixtureB->GetBody();
+
+    auto findEntityForBody = [&](const b2Body *body) -> Entity * {
+      for (Entity &candidate : world.entities) {
+        const auto found = state.bodies.find(candidate.id);
+        if (found != state.bodies.end() && found->second == body) {
+          return &candidate;
+        }
+      }
+      return nullptr;
+    };
+    Entity *entityA = findEntityForBody(bodyA);
+    Entity *entityB = findEntityForBody(bodyB);
     if (entityA == nullptr || entityB == nullptr) {
       continue;
     }
@@ -575,19 +679,20 @@ void stepPhysics2D(World &world, const float fixedDt,
     });
   }
 
-  for (const BodyBinding &binding : bindings) {
-    if (binding.entity == nullptr || binding.body == nullptr ||
-        !binding.entity->hasComponent<Transform2DComponent>()) {
+  for (Entity &entity : world.entities) {
+    if (!entity.hasComponent<Transform2DComponent>())
       continue;
-    }
-    const b2Vec2 position = binding.body->GetPosition();
-    binding.entity->component<Transform2DComponent>()->position =
+    const auto found = state.bodies.find(entity.id);
+    if (found == state.bodies.end())
+      continue;
+    b2Body *body = reinterpret_cast<b2Body *>(found->second);
+    const b2Vec2 position = body->GetPosition();
+    entity.component<Transform2DComponent>()->position =
         Vec2{.x = position.x, .y = position.y};
-    binding.entity->component<Transform2DComponent>()->rotation =
-        binding.body->GetAngle();
-    if (binding.entity->hasComponent<Rigidbody2DComponent>()) {
-      const b2Vec2 velocity = binding.body->GetLinearVelocity();
-      binding.entity->component<Rigidbody2DComponent>()->velocity =
+    entity.component<Transform2DComponent>()->rotation = body->GetAngle();
+    if (entity.hasComponent<Rigidbody2DComponent>()) {
+      const b2Vec2 velocity = body->GetLinearVelocity();
+      entity.component<Rigidbody2DComponent>()->velocity =
           Vec2{.x = velocity.x, .y = velocity.y};
     }
   }

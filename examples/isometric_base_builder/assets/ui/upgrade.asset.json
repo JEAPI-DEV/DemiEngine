@@ -1,0 +1,11 @@
+{
+    "format_version": 1,
+    "id": "asset://ui/upgrade",
+    "type": "SvgTexture2D",
+    "source": "upgrade.svg",
+    "settings": {
+        "filter": "bilinear",
+        "wrap": "clamp",
+        "mipmaps": false
+    }
+}

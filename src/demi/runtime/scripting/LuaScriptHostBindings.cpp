@@ -13,6 +13,7 @@
 #include "demi/runtime/scripting/bindings/components/LuaSprite2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaTransform2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaTransform3DBindings.h"
+#include "demi/runtime/ui/UiModel.h"
 #include "demi/runtime/scripting/bindings/hud/LuaHudBindings.h"
 #include "demi/runtime/scripting/bindings/isometric/LuaIsoGridBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaAudioBindings.h"
@@ -193,7 +194,7 @@ void luaCallLifecycle(lua_State *state, const int tableRef,
 }
 
 void luaCallUiEvent(lua_State *state, const int tableRef,
-                    const char *functionName, const HudButtonElement &button,
+                    const char *functionName, const ui::UiNode &node,
                     const Vec2 mousePosition,
                     const std::filesystem::path &path) {
   lua_rawgeti(state, LUA_REGISTRYINDEX, tableRef);
@@ -204,11 +205,11 @@ void luaCallUiEvent(lua_State *state, const int tableRef,
   }
   lua_pushvalue(state, -2);
   lua_newtable(state);
-  lua_pushstring(state, button.id.c_str());
+  lua_pushstring(state, node.id.c_str());
   lua_setfield(state, -2, "id");
-  lua_pushstring(state, button.label.c_str());
+  lua_pushstring(state, node.text.c_str());
   lua_setfield(state, -2, "label");
-  lua_pushstring(state, button.action.c_str());
+  lua_pushstring(state, node.action.c_str());
   lua_setfield(state, -2, "action");
   lua_pushnumber(state, mousePosition.x);
   lua_setfield(state, -2, "mouse_x");
@@ -216,14 +217,14 @@ void luaCallUiEvent(lua_State *state, const int tableRef,
   lua_setfield(state, -2, "mouse_y");
   std::string error;
   if (!luaCall(state, 2, 0, error)) {
-    luaReportCallbackError(functionName, path, button.id, error);
+    luaReportCallbackError(functionName, path, node.id, error);
   }
   lua_pop(state, 1);
 }
 
 void luaCallActionEvent(lua_State *state, const int tableRef,
                         const std::string &functionName,
-                        const HudButtonElement &button,
+                        const ui::UiNode &node,
                         const Vec2 mousePosition,
                         const std::filesystem::path &path) {
   lua_rawgeti(state, LUA_REGISTRYINDEX, tableRef);
@@ -234,11 +235,11 @@ void luaCallActionEvent(lua_State *state, const int tableRef,
   }
   lua_pushvalue(state, -2);
   lua_newtable(state);
-  lua_pushstring(state, button.id.c_str());
+  lua_pushstring(state, node.id.c_str());
   lua_setfield(state, -2, "id");
-  lua_pushstring(state, button.label.c_str());
+  lua_pushstring(state, node.text.c_str());
   lua_setfield(state, -2, "label");
-  lua_pushstring(state, button.action.c_str());
+  lua_pushstring(state, node.action.c_str());
   lua_setfield(state, -2, "action");
   lua_pushnumber(state, mousePosition.x);
   lua_setfield(state, -2, "mouse_x");
@@ -246,14 +247,14 @@ void luaCallActionEvent(lua_State *state, const int tableRef,
   lua_setfield(state, -2, "mouse_y");
   std::string error;
   if (!luaCall(state, 2, 0, error)) {
-    luaReportCallbackError(functionName.c_str(), path, button.action, error);
+    luaReportCallbackError(functionName.c_str(), path, node.action, error);
   }
   lua_pop(state, 1);
 }
 
 void luaCallModuleActionEvent(lua_State *state, const std::string &moduleName,
                               const std::string &functionName,
-                              const HudButtonElement &button,
+                              const ui::UiNode &node,
                               const Vec2 mousePosition,
                               const std::filesystem::path &path) {
   lua_getglobal(state, "package");
@@ -279,11 +280,11 @@ void luaCallModuleActionEvent(lua_State *state, const std::string &moduleName,
     return;
   }
   lua_newtable(state);
-  lua_pushstring(state, button.id.c_str());
+  lua_pushstring(state, node.id.c_str());
   lua_setfield(state, -2, "id");
-  lua_pushstring(state, button.label.c_str());
+  lua_pushstring(state, node.text.c_str());
   lua_setfield(state, -2, "label");
-  lua_pushstring(state, button.action.c_str());
+  lua_pushstring(state, node.action.c_str());
   lua_setfield(state, -2, "action");
   lua_pushnumber(state, mousePosition.x);
   lua_setfield(state, -2, "mouse_x");
@@ -291,7 +292,7 @@ void luaCallModuleActionEvent(lua_State *state, const std::string &moduleName,
   lua_setfield(state, -2, "mouse_y");
   std::string error;
   if (!luaCall(state, 1, 0, error)) {
-    luaReportCallbackError(functionName.c_str(), path, button.action, error);
+    luaReportCallbackError(functionName.c_str(), path, node.action, error);
   }
   lua_pop(state, 1);
 }
