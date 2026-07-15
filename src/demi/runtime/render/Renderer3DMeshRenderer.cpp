@@ -1,3 +1,4 @@
+#include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/Renderer3DInternal.h"
 
@@ -340,20 +341,33 @@ void drawMeshEntity(
     rlPopMatrix();
   }
 
-  if (drawDebugColliders && entity.hasComponent<BoxCollider3DComponent>()) {
-    const auto &collider = *entity.component<BoxCollider3DComponent>();
-    const ::Vector3 colliderCenter =
-        toRlVec3(transformPoint3D(*worldTransform, collider.offset));
-    const ::Vector3 colliderSize =
-        toRlVec3(multiply(collider.size, worldTransform->scale));
-    rlPushMatrix();
-    rlTranslatef(colliderCenter.x, colliderCenter.y, colliderCenter.z);
-    rlRotatef(rotationX, 1.0F, 0.0F, 0.0F);
-    rlRotatef(rotationY, 0.0F, 1.0F, 0.0F);
-    rlRotatef(rotationZ, 0.0F, 0.0F, 1.0F);
-    rlTranslatef(-colliderCenter.x, -colliderCenter.y, -colliderCenter.z);
-    DrawCubeWiresV(colliderCenter, colliderSize, {244, 91, 105, 255});
-    rlPopMatrix();
+  if (drawDebugColliders) {
+    if (const auto triangles = resolvedTriangleCollider3D(world, entity)) {
+      for (const TriangleCollider3D &triangle : *triangles) {
+        const ::Vector3 first =
+            toRlVec3(transformPoint3D(*worldTransform, triangle.a));
+        const ::Vector3 second =
+            toRlVec3(transformPoint3D(*worldTransform, triangle.b));
+        const ::Vector3 third =
+            toRlVec3(transformPoint3D(*worldTransform, triangle.c));
+        DrawLine3D(first, second, {244, 91, 105, 255});
+        DrawLine3D(second, third, {244, 91, 105, 255});
+        DrawLine3D(third, first, {244, 91, 105, 255});
+      }
+    } else if (const auto collider = resolvedBoxCollider3D(world, entity)) {
+      const ::Vector3 colliderCenter =
+          toRlVec3(transformPoint3D(*worldTransform, collider->offset));
+      const ::Vector3 colliderSize =
+          toRlVec3(multiply(collider->size, worldTransform->scale));
+      rlPushMatrix();
+      rlTranslatef(colliderCenter.x, colliderCenter.y, colliderCenter.z);
+      rlRotatef(rotationX, 1.0F, 0.0F, 0.0F);
+      rlRotatef(rotationY, 0.0F, 1.0F, 0.0F);
+      rlRotatef(rotationZ, 0.0F, 0.0F, 1.0F);
+      rlTranslatef(-colliderCenter.x, -colliderCenter.y, -colliderCenter.z);
+      DrawCubeWiresV(colliderCenter, colliderSize, {244, 91, 105, 255});
+      rlPopMatrix();
+    }
   }
   if (drawDebugColliders && entity.hasComponent<SphereCollider3DComponent>()) {
     const auto &collider = *entity.component<SphereCollider3DComponent>();

@@ -6,11 +6,13 @@ Config.spawn = { 1, 9 }
 Config.goal = { 16, 9 }
 Config.save_slot = "isometric_base_builder"
 Config.road = {
-  { 1, 9 }, { 2, 9 }, { 3, 9 }, { 4, 9 }, { 5, 9 },
-  { 5, 8 }, { 5, 7 }, { 5, 6 }, { 5, 5 },
-  { 6, 5 }, { 7, 5 }, { 8, 5 }, { 9, 5 }, { 10, 5 }, { 11, 5 }, { 12, 5 },
-  { 12, 6 }, { 12, 7 }, { 12, 8 }, { 12, 9 },
-  { 13, 9 }, { 14, 9 }, { 15, 9 }, { 16, 9 },
+  { 1, 9 }, { 2, 9 }, { 3, 9 }, { 4, 9 },
+  { 4, 8 }, { 4, 7 }, { 4, 6 }, { 4, 5 }, { 4, 4 }, { 4, 3 },
+  { 5, 3 }, { 6, 3 },
+  { 6, 4 }, { 6, 5 }, { 6, 6 }, { 6, 7 }, { 6, 8 }, { 6, 9 }, { 6, 10 }, { 6, 11 }, { 6, 12 }, { 6, 13 },
+  { 7, 13 }, { 8, 13 }, { 9, 13 }, { 10, 13 }, { 11, 13 }, { 12, 13 }, { 13, 13 }, { 14, 13 },
+  { 14, 12 }, { 14, 11 }, { 14, 10 }, { 14, 9 }, { 14, 8 }, { 14, 7 },
+  { 15, 7 }, { 16, 7 }, { 16, 8 }, { 16, 9 },
 }
 Config.road_cells = {}
 for _, cell in ipairs(Config.road) do
@@ -31,12 +33,13 @@ Config.towers = {
       size = { 0.30, 0.50 },
       speed = 6.0,
     },
+    upgrades = { max_level = 5, base_cost = 42, cost_growth = 1.45, power_multiplier = 0.34, range_bonus = 0.55, cooldown_reduction = 0.045, minimum_cooldown = 0.30, destroy_refund = 0.55 },
   },
   wizard = {
     label = "Wizard tower",
     cost = 90,
     damage = 38,
-    range = 2,
+    range = 2.0,
     cooldown = 1.15,
     texture = "asset://units/wizard_tower",
     size = { 1.7, 1.45 },
@@ -45,6 +48,7 @@ Config.towers = {
       size = { 0.38, 0.38 },
       speed = 3.5,
     },
+    upgrades = { max_level = 5, base_cost = 70, cost_growth = 1.50, power_multiplier = 0.40, range_bonus = 0.42, cooldown_reduction = 0.035, minimum_cooldown = 0.62, destroy_refund = 0.55 },
   },
 }
 
@@ -53,12 +57,12 @@ Config.enemy = {
   size = { 0.6, 0.85 },
   -- Every wave scales all enemies. Health grows faster than speed so late
   -- waves become harder without making movement unreadably fast.
-  health_growth_per_wave = 0.2,
-  speed_growth_per_wave = 0.02,
-  reward_growth_every = 1.15,
-  base_spawn_interval = 0.7,
-  minimum_spawn_interval = 0.2,
-  spawn_interval_reduction = 0.02,
+  health_growth_per_wave = 0.26,
+  speed_growth_per_wave = 0.025,
+  reward_growth_every = 5,
+  base_spawn_interval = 0.58,
+  minimum_spawn_interval = 0.22,
+  spawn_interval_reduction = 0.025,
   types = {
     raider = {
       label = "Raider",
@@ -68,7 +72,7 @@ Config.enemy = {
       reward = 3,
       base_damage = 1,
       unlock_wave = 1,
-      weight = 55,
+      weight = 42,
     },
     scout = {
       label = "Scout",
@@ -77,8 +81,8 @@ Config.enemy = {
       speed = 3.05,
       reward = 5,
       base_damage = 1,
-      unlock_wave = 2,
-      weight = 32,
+      unlock_wave = 1,
+      weight = 36,
     },
     brute = {
       label = "Brute",
@@ -87,8 +91,8 @@ Config.enemy = {
       speed = 1.28,
       reward = 9,
       base_damage = 2,
-      unlock_wave = 4,
-      weight = 22,
+      unlock_wave = 3,
+      weight = 30,
     },
     champion = {
       label = "Champion",
@@ -97,8 +101,8 @@ Config.enemy = {
       speed = 1.05,
       reward = 14,
       base_damage = 3,
-      unlock_wave = 8,
-      weight = 10,
+      unlock_wave = 6,
+      weight = 18,
     },
   },
 }

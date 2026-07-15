@@ -2,12 +2,13 @@
 
 #include "demi/runtime/scene/SceneJson.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
-#include "demi/runtime/scene/hud/HudElementRegistry.h"
 #include "demi/runtime/ui/UiDocumentParser.h"
-#include "demi/runtime/ui/UiLegacyProjection.h"
+#include "demi/runtime/ui/UiLayoutEngine.h"
 
 namespace demi::runtime::scene_loading {
 namespace {
+
+using Json = nlohmann::json;
 
 void mergeObject(Json &target, const Json &source, const char *field) {
   if (!source.contains(field) || !source[field].is_object())
@@ -46,17 +47,6 @@ bool mergeUiResources(Json &document, const std::filesystem::path &hudPath,
   return true;
 }
 
-void parseHudElement(const Json &elementJson, World &world) {
-  const std::string id = stringOr(elementJson, "id");
-  if (id.empty())
-    return;
-
-  const HudElementDescriptor *descriptor =
-      findHudElementDescriptor(stringOr(elementJson, "type"));
-  if (descriptor != nullptr)
-    descriptor->parse(elementJson, id, world);
-}
-
 } // namespace
 
 void loadHudFile(World &world, const std::filesystem::path &hudPath,
@@ -76,27 +66,15 @@ void loadHudFile(World &world, const std::filesystem::path &hudPath,
   Json expanded = *expansion.document;
   if (!mergeUiResources(expanded, hudPath, error))
     return;
+
   if (const std::optional<Vec2> canvasSize = vec2Field(expanded, "canvas_size");
       canvasSize.has_value() && canvasSize->x > 0.0F && canvasSize->y > 0.0F) {
     world.hudCanvasSize = *canvasSize;
+    world.ui.canvasSize = *canvasSize;
   }
 
-  if (expanded.contains("root")) {
-    world.ui = ui::parseUiDocument(expanded);
-    ui::projectUiDocument(world);
-    return;
-  }
-
-  world.ui = {};
-
-  const Json *elements = arrayField(expanded, "elements");
-  if (elements == nullptr)
-    return;
-
-  for (const Json &elementJson : *elements) {
-    if (elementJson.is_object())
-      parseHudElement(elementJson, world);
-  }
+  world.ui = ui::parseUiDocument(expanded);
+  ui::UiLayoutEngine{}.layout(world.ui, world.ui.canvasSize);
 }
 
 } // namespace demi::runtime::scene_loading

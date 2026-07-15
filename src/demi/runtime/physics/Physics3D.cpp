@@ -1,4 +1,5 @@
 #include "demi/runtime/physics/Physics3D.h"
+#include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/physics/SpatialQuery3D.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 
@@ -10,7 +11,9 @@ bool hasSolidCollider3D(const Entity &entity) {
   return (entity.hasComponent<BoxCollider3DComponent>() &&
           !entity.component<BoxCollider3DComponent>()->isTrigger) ||
          (entity.hasComponent<SphereCollider3DComponent>() &&
-          !entity.component<SphereCollider3DComponent>()->isTrigger);
+          !entity.component<SphereCollider3DComponent>()->isTrigger) ||
+         (entity.hasComponent<ModelCollider3DComponent>() &&
+          !entity.component<ModelCollider3DComponent>()->isTrigger);
 }
 
 bool collidesAt3D(const World &world, const Entity &moving,

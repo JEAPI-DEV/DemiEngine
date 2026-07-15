@@ -1,5 +1,6 @@
 #include "demi/runtime/scripting/bindings/hud/LuaHudBindings.h"
 #include <sol/sol.hpp>
+#include <tuple>
 namespace demi::runtime {
 void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
   sol::table hud = sol::state_view(state).create_named_table("Hud");
@@ -80,6 +81,10 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
     return host.focusNextHudControl(reverse.value_or(false));
   });
   hud.set_function("focused", [&host]() { return host.focusedHudControl(); });
+  hud.set_function("canvas_size", [&host]() {
+    const Vec2 size = host.hudCanvasSize();
+    return std::tuple{size.x, size.y};
+  });
   hud.set_function("set_group_visible",
                    [&host](const std::string &group, bool visible) {
                      return host.setHudGroupVisible(group, visible);

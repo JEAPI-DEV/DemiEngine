@@ -8,7 +8,7 @@ end
 function Projectiles.new(state)
   local self = {}
 
-  function self.spawn(tower, target, definition)
+  function self.spawn(tower, target, definition, stats)
     local id = "ent_projectile_" .. tostring(state.next_projectile_id)
     state.next_projectile_id = state.next_projectile_id + 1
     local presentation = definition.projectile
@@ -33,7 +33,7 @@ function Projectiles.new(state)
       target_id = target.id,
       x = tower.x,
       y = tower.y,
-      damage = definition.damage,
+      damage = stats.damage,
       speed = presentation.speed,
     }
     return true

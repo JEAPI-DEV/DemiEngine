@@ -34,6 +34,7 @@ struct DebugLine {
   Vec2 start;
   Vec2 end;
   Color color = {1.0F, 1.0F, 1.0F, 1.0F};
+  float width = 1.0F;
 };
 
 } // namespace demi::runtime

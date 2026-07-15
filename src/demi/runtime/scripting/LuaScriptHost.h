@@ -183,6 +183,7 @@ public:
   [[nodiscard]] bool setHudDisabled(const std::string &id, bool disabled);
   [[nodiscard]] bool focusNextHudControl(bool reverse);
   [[nodiscard]] std::string focusedHudControl() const;
+  [[nodiscard]] Vec2 hudCanvasSize() const;
   [[nodiscard]] bool setHudGroupVisible(const std::string &group, bool visible);
   [[nodiscard]] std::optional<std::string> hudText(const std::string &id) const;
   [[nodiscard]] std::optional<float> saveNumber(const std::string &slot,
@@ -218,8 +219,9 @@ public:
   [[nodiscard]] Vec2 mouseDelta() const;
   [[nodiscard]] Vec2 mouseWorldPosition() const;
   [[nodiscard]] Vec2 viewportSize() const;
+  [[nodiscard]] bool uiPointerCaptured() const;
   void addDebugLine(float x1, float y1, float x2, float y2, float r, float g,
-                    float b, float a);
+                     float b, float a, float width = 1.0F);
   void clearDebugLines();
   [[nodiscard]] std::uint64_t playAudio(const std::string &assetId);
   [[nodiscard]] std::uint64_t playAudioSource(const std::string &entityId);
@@ -332,6 +334,7 @@ private:
   void reloadChangedScripts();
   void unloadScripts();
   void clearTimersAndEvents();
+  void clearSaveMigrationHooks();
   [[nodiscard]] std::unordered_map<std::string, SaveValue> &
   loadSaveSlot(const std::string &slot);
   [[nodiscard]] bool writeSaveSlot(const std::string &slot);

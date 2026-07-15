@@ -87,6 +87,11 @@ int main() {
   triggerWall.component<Transform3DComponent>()->position.z = 1.25F;
   triggerWall.component<BoxCollider3DComponent>()->isTrigger = true;
   world.entities.push_back(triggerWall);
+  mover = runtime::findEntity(world, "mover");
+  if (mover == nullptr) {
+    std::cerr << "3D mover was not available after adding a trigger.\n";
+    return 1;
+  }
 
   const runtime::Vec3 throughTrigger = runtime::resolveDynamicMove3D(
       world, *mover, mover->component<Transform3DComponent>()->position,
@@ -94,6 +99,40 @@ int main() {
   if (throughTrigger.z != 1.0F) {
     std::cerr << "3D trigger collider should not block movement; resolved to z="
               << throughTrigger.z << ".\n";
+    return 1;
+  }
+
+  runtime::Entity generatedCollider;
+  generatedCollider.id = "generated_model_wall";
+  generatedCollider.setComponent<runtime::Transform3DComponent>(
+      runtime::Transform3DComponent{.position = {0.0F, 0.5F, 1.25F}});
+  generatedCollider.setComponent<runtime::ModelCollider3DComponent>(
+      runtime::ModelCollider3DComponent{.asset = "asset://colliders/test"});
+  generatedCollider.setComponent<runtime::Rigidbody3DComponent>(
+      runtime::Rigidbody3DComponent{.bodyType = "static", .useGravity = false});
+  world.colliderAssets3D["asset://colliders/test"] =
+      runtime::ColliderAsset3D{.size = {1.0F, 1.0F, 1.0F},
+                               .detail = 1.0F,
+                               .triangles = {{{.a = {-0.5F, -0.5F, 0.0F},
+                                               .b = {0.5F, -0.5F, 0.0F},
+                                               .c = {-0.5F, 0.5F, 0.0F}},
+                                              {.a = {0.5F, -0.5F, 0.0F},
+                                               .b = {0.5F, 0.5F, 0.0F},
+                                               .c = {-0.5F, 0.5F, 0.0F}}}}};
+  world.entities.push_back(generatedCollider);
+  mover = runtime::findEntity(world, "mover");
+  if (mover == nullptr) {
+    std::cerr << "3D mover was not available after adding a collider asset.\n";
+    return 1;
+  }
+  const runtime::Vec3 blockedByGeneratedCollider =
+      runtime::resolveDynamicMove3D(
+          world, *mover, mover->component<Transform3DComponent>()->position,
+          runtime::Vec3{.x = 0.0F, .y = 0.0F, .z = 1.0F});
+  if (blockedByGeneratedCollider.z != 0.0F) {
+    std::cerr << "Generated Collider3D asset should block dynamic movement; "
+                 "resolved to z="
+              << blockedByGeneratedCollider.z << ".\n";
     return 1;
   }
 

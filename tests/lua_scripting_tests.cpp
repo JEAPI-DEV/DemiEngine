@@ -90,6 +90,10 @@ function Probe:on_start()
   if Hud.set_position("hud_image", 18.0, 24.0) and Hud.set_image_animation_frame("hud_image", "asset://animations/test", 3) and Hud.set_size("button_start", 40.0, 90.0) and Hud.set_opacity("button_start", 0.25) then
     Save.set_string("test", "hud_animation_properties", "updated")
   end
+  local canvas_width, canvas_height = Hud.canvas_size()
+  if canvas_width == 100 and canvas_height == 100 then
+    Save.set_string("test", "hud_canvas_size", "updated")
+  end
   Entity.create("ent_tinted_sprite", {
     components = {
       Transform2D = {
@@ -155,6 +159,9 @@ function Probe:handle_script_event(event)
   Save.set_string("test", "script_event", event.value)
 end
 function Probe:on_update(dt)
+  if Input.ui_pointer_captured() then
+    Save.set_string("test", "ui_pointer_capture", "captured")
+  end
   if Input.is_down("space") then
     Save.set_string("test", "space", "down")
   else
@@ -219,6 +226,7 @@ return PropProbe
 
   runtime::World world;
   world.hudCanvasSize = runtime::Vec2{.x = 100.0F, .y = 100.0F};
+  world.ui.canvasSize = runtime::Vec2{.x = 100.0F, .y = 100.0F};
   runtime::Entity propEntity;
   propEntity.id = "ent_prop";
   propEntity.name = "Property Probe";
@@ -228,26 +236,31 @@ return PropProbe
           R"json({ "enabled": true, "speed": 12.5, "tags": ["runner"], "spawn": { "x": 3.0, "y": 4.0 } })json",
   });
   world.entities.push_back(std::move(propEntity));
-  world.hudButtons.push_back(runtime::HudButtonElement{
-      .id = "button_start",
-      .label = "START",
-      .position = runtime::Vec2{.x = 0.0F, .y = 0.0F},
-      .size = runtime::Vec2{.x = 45.0F, .y = 100.0F},
-      .script = "script://scripts/button.lua",
-      .action = "test.annotated",
-  });
-  world.hudImages.push_back(runtime::HudImageElement{
-      .id = "hud_image",
-      .position = runtime::Vec2{.x = 0.0F, .y = 0.0F},
-      .size = runtime::Vec2{.x = 8.0F, .y = 8.0F},
-  });
-  world.hudButtons.push_back(runtime::HudButtonElement{
-      .id = "button_module",
-      .label = "MODULE",
-      .position = runtime::Vec2{.x = 55.0F, .y = 0.0F},
-      .size = runtime::Vec2{.x = 45.0F, .y = 100.0F},
-      .action = "test.module",
-  });
+  runtime::ui::UiNode buttonStart;
+  buttonStart.id = "button_start";
+  buttonStart.type = "button";
+  buttonStart.text = "START";
+  buttonStart.layout.position = runtime::Vec2{.x = 0.0F, .y = 0.0F};
+  buttonStart.layout.size = runtime::Vec2{.x = 45.0F, .y = 100.0F};
+  buttonStart.script = "script://scripts/button.lua";
+  buttonStart.action = "test.annotated";
+  buttonStart.focusable = true;
+  world.ui.nodes.push_back(buttonStart);
+  runtime::ui::UiNode hudImage;
+  hudImage.id = "hud_image";
+  hudImage.type = "image";
+  hudImage.layout.position = runtime::Vec2{.x = 0.0F, .y = 0.0F};
+  hudImage.layout.size = runtime::Vec2{.x = 8.0F, .y = 8.0F};
+  world.ui.nodes.push_back(hudImage);
+  runtime::ui::UiNode buttonModule;
+  buttonModule.id = "button_module";
+  buttonModule.type = "button";
+  buttonModule.text = "MODULE";
+  buttonModule.layout.position = runtime::Vec2{.x = 55.0F, .y = 0.0F};
+  buttonModule.layout.size = runtime::Vec2{.x = 45.0F, .y = 100.0F};
+  buttonModule.action = "test.module";
+  buttonModule.focusable = true;
+  world.ui.nodes.push_back(buttonModule);
   runtime::Entity mover3D;
   mover3D.id = "ent_3d_mover";
   mover3D.name = "3D Mover";
@@ -343,33 +356,52 @@ return PropProbe
                  "fields.\n";
     return 1;
   }
+  const auto buttonStartNode = std::ranges::find_if(
+      world.ui.nodes, [](const runtime::ui::UiNode &element) {
+        return element.id == "button_start";
+      });
   if (host.saveString("test", "button_label") != "updated" ||
-      world.hudButtons[0].label != "GO") {
+      buttonStartNode == world.ui.nodes.end() ||
+      buttonStartNode->text != "GO") {
     std::cerr << "Hud.set_button_label did not update the HUD button label.\n";
     return 1;
   }
   const auto hudProbe = std::ranges::find_if(
-      world.hudText, [](const runtime::HudTextElement &element) {
+      world.ui.nodes, [](const runtime::ui::UiNode &element) {
         return element.id == "hud_probe";
       });
   if (host.saveString("test", "hud_text_scale") != "updated" ||
-      hudProbe == world.hudText.end() || hudProbe->scale != 5.5F) {
+      hudProbe == world.ui.nodes.end() || hudProbe->fontSize != 44.0F) {
     std::cerr << "Hud.set_text_scale did not update the HUD text scale.\n";
     return 1;
   }
   if (host.saveString("test", "hud_animation_properties") != "updated" ||
-      world.hudButtons[0].position.x != 0.0F ||
-      world.hudButtons[0].size.x != 40.0F ||
-      world.hudButtons[0].size.y != 90.0F ||
-      world.hudButtons[0].color.a != 0.25F ||
-      world.hudButtons[0].hoverColor.a != 0.25F ||
-      world.hudButtons[0].textColor.a != 0.25F ||
-      world.hudImages[0].position.x != 18.0F ||
-      world.hudImages[0].position.y != 24.0F ||
-      world.hudImages[0].animation != "asset://animations/test" ||
-      world.hudImages[0].animationFrame != 3) {
+      buttonStartNode == world.ui.nodes.end() ||
+      buttonStartNode->layout.size.x != 40.0F ||
+      buttonStartNode->layout.size.y != 90.0F ||
+      buttonStartNode->resolved.width != 40.0F ||
+      buttonStartNode->resolved.height != 90.0F ||
+      buttonStartNode->color.a != 0.25F ||
+      buttonStartNode->hoverColor.a != 0.25F ||
+      buttonStartNode->textColor.a != 0.25F) {
     std::cerr << "HUD animation property setters did not update the expected "
                  "elements.\n";
+    return 1;
+  }
+  if (host.saveString("test", "hud_canvas_size") != "updated") {
+    std::cerr << "Hud.canvas_size did not expose authored canvas dimensions.\n";
+    return 1;
+  }
+  const auto hudImageNode = std::ranges::find_if(
+      world.ui.nodes, [](const runtime::ui::UiNode &element) {
+        return element.id == "hud_image";
+      });
+  if (hudImageNode == world.ui.nodes.end() ||
+      hudImageNode->resolved.x != 18.0F ||
+      hudImageNode->resolved.y != 24.0F ||
+      hudImageNode->animation != "asset://animations/test" ||
+      hudImageNode->animationFrame != 3) {
+    std::cerr << "HUD geometry mutation did not refresh resolved layout.\n";
     return 1;
   }
   const runtime::Entity *tintedSprite =
@@ -492,6 +524,10 @@ return PropProbe
   }
   if (host.saveString("test", "hud_action") != "test.annotated:button_start") {
     std::cerr << "HUD button action annotation did not emit hud_action.\n";
+    return 1;
+  }
+  if (host.saveString("test", "ui_pointer_capture") != "captured") {
+    std::cerr << "Input.ui_pointer_captured did not expose HUD click ownership.\n";
     return 1;
   }
   if (host.saveString("test", "annotated_action") !=

@@ -24,6 +24,8 @@ function Waves.new(state, config)
     local total_weight = 0
     for _, entry in ipairs(available) do
       local weight = entry.definition.weight
+      if entry.kind == "brute" then weight = weight * (1 + math.max(0, state.wave - 2) * 0.10) end
+      if entry.kind == "champion" then weight = weight * (1 + math.max(0, state.wave - 5) * 0.14) end
       -- Newly unlocked enemies get a temporary introduction boost.
       if state.wave == entry.definition.unlock_wave then weight = weight * 2 end
       entry.current_weight = weight
@@ -90,7 +92,7 @@ function Waves.new(state, config)
     end
     state.wave = state.wave + 1
     state.wave_active = true
-    state.spawn_remaining = 5 + state.wave * 2
+    state.spawn_remaining = 7 + state.wave * 3
     state.spawn_timer = 0
     state.build_kind = nil
     Grid.clear_preview()

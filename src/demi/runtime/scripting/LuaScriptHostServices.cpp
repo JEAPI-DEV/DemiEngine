@@ -3,7 +3,7 @@
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
 #include "demi/runtime/ui/UiActionController.h"
 #include "demi/runtime/ui/UiInteractionController.h"
-#include "demi/runtime/ui/UiLegacyProjection.h"
+#include "demi/runtime/ui/UiLayoutEngine.h"
 
 #include <algorithm>
 #include <cctype>
@@ -200,12 +200,12 @@ void LuaScriptHost::dispatchHudEvents() {
       clickedButtonId = world_->ui.pointerCaptureId;
       if (const auto action = interaction.activateFocused(world_->ui))
         (void)ui::UiActionController{}.apply(world_->ui, *action);
-      ui::projectUiDocument(*world_);
+      ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
     } else if (!mouseDown && previousUiMouseDown_) {
       interaction.releasePointer(world_->ui);
     }
     if (mouseDown && interaction.updatePointer(world_->ui, mouse))
-      ui::projectUiDocument(*world_);
+      ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
 
     const auto focused = std::ranges::find(
         world_->ui.nodes, world_->ui.focusedId, &ui::UiNode::id);
@@ -221,73 +221,85 @@ void LuaScriptHost::dispatchHudEvents() {
         changed = true;
       }
       if (changed)
-        ui::projectUiDocument(*world_);
+        ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
     }
     if (input_->keysPressed.contains("return") ||
         input_->keysPressed.contains(submitAction)) {
       if (const auto action = interaction.activateFocused(world_->ui)) {
         clickedButtonId = world_->ui.focusedId;
         (void)ui::UiActionController{}.apply(world_->ui, *action);
-        ui::projectUiDocument(*world_);
+        ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
       }
     }
   }
-  for (HudButtonElement &button : world_->hudButtons) {
-    if (!button.visible) {
-      button.hovered = false;
+  for (ui::UiNode &node : world_->ui.nodes) {
+    if (node.type != "button" && node.type != "toggle" &&
+        node.type != "text_input")
+      continue;
+    if (!node.visible) {
+      node.hovered = false;
       continue;
     }
-    button.hovered = mouse.x >= button.position.x &&
-                     mouse.x <= button.position.x + button.size.x &&
-                     mouse.y >= button.position.y &&
-                     mouse.y <= button.position.y + button.size.y;
-    if (!clickedButtonId.has_value() && button.hovered && mouseDown &&
+    const float hitX = node.resolved.width > 0.0F ? node.resolved.x
+                                                  : node.layout.position.x;
+    const float hitY = node.resolved.height > 0.0F ? node.resolved.y
+                                                   : node.layout.position.y;
+    const float hitW = node.resolved.width > 0.0F ? node.resolved.width
+                                                  : node.layout.size.x;
+    const float hitH = node.resolved.height > 0.0F ? node.resolved.height
+                                                   : node.layout.size.y;
+    node.hovered = mouse.x >= hitX && mouse.x <= hitX + hitW &&
+                    mouse.y >= hitY && mouse.y <= hitY + hitH;
+    if (!clickedButtonId.has_value() && node.hovered && mouseDown &&
         !previousUiMouseDown_) {
-      clickedButtonId = button.id;
+      clickedButtonId = node.id;
     }
   }
 
-  for (const HudButtonElement &button : world_->hudButtons) {
+  for (ui::UiNode &node : world_->ui.nodes) {
+    if (node.type != "button" && node.type != "toggle" &&
+        node.type != "text_input")
+      continue;
     const bool clicked =
-        clickedButtonId.has_value() && *clickedButtonId == button.id;
-    if (!button.visible || (!button.hovered && !clicked)) {
+        clickedButtonId.has_value() && *clickedButtonId == node.id;
+    if (!node.visible || (!node.hovered && !clicked)) {
       continue;
     }
     for (const ScriptInstance &script : scripts_) {
-      if (script.entityId != button.id) {
+      if (script.entityId != node.id) {
         continue;
       }
-      if (button.hovered)
-        luaCallUiEvent(state, script.tableRef, "on_ui_hover", button, mouse,
+      if (node.hovered)
+        luaCallUiEvent(state, script.tableRef, "on_ui_hover", node, mouse,
                        script.path);
       if (clicked) {
-        luaCallUiEvent(state, script.tableRef, "on_ui_click", button, mouse,
+        luaCallUiEvent(state, script.tableRef, "on_ui_click", node, mouse,
                        script.path);
       }
     }
-    if (clicked && !button.action.empty()) {
+    if (clicked && !node.action.empty()) {
       for (const ScriptInstance &script : scripts_) {
         for (const LuaActionHandler &handler : script.actionHandlers) {
-          if (handler.action == button.action) {
+          if (handler.action == node.action) {
             luaCallActionEvent(state, script.tableRef, handler.functionName,
-                               button, mouse, script.path);
+                               node, mouse, script.path);
           }
         }
       }
       for (const ModuleActionHandler &module : moduleActionHandlers_) {
         for (const LuaActionHandler &handler : module.actionHandlers) {
-          if (handler.action == button.action) {
+          if (handler.action == node.action) {
             luaCallModuleActionEvent(state, module.module, handler.functionName,
-                                     button, mouse, module.path);
+                                     node, mouse, module.path);
           }
         }
       }
       lua_newtable(state);
-      lua_pushstring(state, button.id.c_str());
+      lua_pushstring(state, node.id.c_str());
       lua_setfield(state, -2, "id");
-      lua_pushstring(state, button.label.c_str());
+      lua_pushstring(state, node.text.c_str());
       lua_setfield(state, -2, "label");
-      lua_pushstring(state, button.action.c_str());
+      lua_pushstring(state, node.action.c_str());
       lua_setfield(state, -2, "action");
       lua_pushnumber(state, mouse.x);
       lua_setfield(state, -2, "mouse_x");
@@ -344,12 +356,18 @@ void LuaScriptHost::clearTimersAndEvents() {
     for (const EventSubscription &subscription : eventSubscriptions_) {
       luaL_unref(state, LUA_REGISTRYINDEX, subscription.callbackRef);
     }
+  }
+  timers_.clear();
+  eventSubscriptions_.clear();
+}
+
+void LuaScriptHost::clearSaveMigrationHooks() {
+  auto *state = static_cast<lua_State *>(state_);
+  if (state != nullptr) {
     for (const SaveMigrationHook &hook : saveMigrationHooks_) {
       luaL_unref(state, LUA_REGISTRYINDEX, hook.callbackRef);
     }
   }
-  timers_.clear();
-  eventSubscriptions_.clear();
   saveMigrationHooks_.clear();
 }
 

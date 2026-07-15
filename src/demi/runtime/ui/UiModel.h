@@ -49,20 +49,35 @@ struct UiNode {
   std::string placeholder;
   std::string localizationKey;
   std::string texture;
+  std::string animation;
   std::string action;
   std::string accessibilityLabel;
+  std::string script;
+  std::string group;
   LayoutSpec layout;
   Rect resolved;
   Color color{1.0F, 1.0F, 1.0F, 1.0F};
-  Color backgroundColor{};
+  Color backgroundColor{0.0F, 0.0F, 0.0F, 0.0F};
+  Color borderColor{1.0F, 1.0F, 1.0F, 0.20F};
+  Color hoverColor{};
+  Color textColor{1.0F, 1.0F, 1.0F, 1.0F};
+  Vec2 sourcePosition{};
+  Vec2 sourceSize{};
+  int layer = 0;
+  int animationFrame = 0;
   float value = 0.0F;
   float minimum = 0.0F;
   float maximum = 1.0F;
   float fontSize = 20.0F;
+  float scale = 1.0F;
+  float cornerRadius = 0.0F;
+  float borderWidth = 0.0F;
+  float radius = 0.0F;
   bool visible = true;
   bool disabled = false;
   bool focusable = false;
   bool checked = false;
+  bool hovered = false;
 };
 
 struct UiStyle {

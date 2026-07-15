@@ -494,6 +494,24 @@
       },
       "type": "object"
     },
+    "ModelCollider3D": {
+      "additionalProperties": false,
+      "properties": {
+        "asset": {
+          "type": "string"
+        },
+        "is_trigger": {
+          "type": "boolean"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "asset"
+      ],
+      "type": "object"
+    },
     "Rigidbody2D": {
       "additionalProperties": false,
       "properties": {

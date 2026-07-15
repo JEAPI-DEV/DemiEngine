@@ -92,15 +92,26 @@ public:
   void shutdown() override;
 
 private:
+  struct MaSoundDeleter {
+    void operator()(ma_sound *sound) const {
+      if (sound == nullptr)
+        return;
+      ma_sound_stop(sound);
+      ma_sound_uninit(sound);
+      delete sound;
+    }
+  };
+  using MaSoundPtr = std::unique_ptr<ma_sound, MaSoundDeleter>;
+
   struct CachedSound {
     std::filesystem::path path;
     std::uint64_t trimFrames = 0;
-    ma_sound* sound = nullptr;
+    MaSoundPtr sound;
   };
 
   struct PlayingSound {
     std::uint64_t handle = 0;
-    ma_sound* sound = nullptr;
+    MaSoundPtr sound;
   };
 
   void unloadCachedSounds();
@@ -195,14 +206,15 @@ void MiniaudioAudioBackend::loadAudioAssets(const AssetRegistry& registry) {
       std::cerr << "Audio debug: preloaded " << asset.id << " from " << asset.sourcePath.string()
                 << " in " << elapsedMs(started) << " ms.\n";
     }
-    sounds_[asset.id].trimFrames = detectLeadingSilenceFrames(cachedSound.get());
+    MaSoundPtr ownedSound(cachedSound.release());
+    sounds_[asset.id].trimFrames = detectLeadingSilenceFrames(ownedSound.get());
     if (audioDebugEnabled() && sounds_[asset.id].trimFrames > 0) {
       ma_uint32 sampleRate = 0;
-      (void)ma_sound_get_data_format(cachedSound.get(), nullptr, nullptr, &sampleRate, nullptr, 0);
+      (void)ma_sound_get_data_format(ownedSound.get(), nullptr, nullptr, &sampleRate, nullptr, 0);
       const double trimMs = sampleRate > 0 ? (static_cast<double>(sounds_[asset.id].trimFrames) * 1000.0 / static_cast<double>(sampleRate)) : 0.0;
       std::cerr << "Audio debug: will trim " << trimMs << " ms of leading silence from " << asset.id << ".\n";
     }
-    sounds_[asset.id].sound = cachedSound.release();
+    sounds_[asset.id].sound = std::move(ownedSound);
   }
 }
 
@@ -224,7 +236,7 @@ std::uint64_t MiniaudioAudioBackend::play(const std::string& assetId, const bool
 
   auto sound = std::make_unique<ma_sound>();
   const auto cloneStarted = std::chrono::steady_clock::now();
-  if (ma_sound_init_copy(engine_, cached->second.sound, MA_SOUND_FLAG_NO_SPATIALIZATION | MA_SOUND_FLAG_NO_PITCH, nullptr, sound.get()) != MA_SUCCESS) {
+  if (ma_sound_init_copy(engine_, cached->second.sound.get(), MA_SOUND_FLAG_NO_SPATIALIZATION | MA_SOUND_FLAG_NO_PITCH, nullptr, sound.get()) != MA_SUCCESS) {
     std::cerr << "miniaudio failed to create playable copy for " << assetId << " from " << cached->second.path.string() << '\n';
     return 0;
   }
@@ -241,7 +253,7 @@ std::uint64_t MiniaudioAudioBackend::play(const std::string& assetId, const bool
   }
   if (ma_sound_start(sound.get()) != MA_SUCCESS) {
     pendingDebugStartNs_.store(0, std::memory_order_release);
-    ma_sound_uninit(sound.get());
+    MaSoundDeleter{}(sound.release());
     std::cerr << "miniaudio failed to start " << assetId << '\n';
     return 0;
   }
@@ -252,7 +264,7 @@ std::uint64_t MiniaudioAudioBackend::play(const std::string& assetId, const bool
 
   std::scoped_lock lock(mutex_);
   const std::uint64_t handle = nextHandle_++;
-  playing_.push_back(PlayingSound{.handle = handle, .sound = sound.release()});
+  playing_.push_back(PlayingSound{.handle = handle, .sound = MaSoundPtr(sound.release())});
   return handle;
 }
 
@@ -267,11 +279,6 @@ bool MiniaudioAudioBackend::stop(const std::uint64_t handle) {
     return false;
   }
 
-  if (found->sound != nullptr) {
-    ma_sound_stop(found->sound);
-    ma_sound_uninit(found->sound);
-    delete found->sound;
-  }
   playing_.erase(found);
   return true;
 }
@@ -294,11 +301,9 @@ void MiniaudioAudioBackend::update() {
     if (playing.sound == nullptr) {
       return true;
     }
-    if (ma_sound_is_playing(playing.sound)) {
+    if (ma_sound_is_playing(playing.sound.get())) {
       return false;
     }
-    ma_sound_uninit(playing.sound);
-    delete playing.sound;
     return true;
   });
 }
@@ -306,15 +311,6 @@ void MiniaudioAudioBackend::update() {
 void MiniaudioAudioBackend::shutdown() {
   {
     std::scoped_lock lock(mutex_);
-    for (PlayingSound& playing : playing_) {
-      if (playing.sound == nullptr) {
-        continue;
-      }
-      ma_sound_stop(playing.sound);
-      ma_sound_uninit(playing.sound);
-      delete playing.sound;
-      playing.sound = nullptr;
-    }
     playing_.clear();
   }
 
@@ -333,15 +329,7 @@ void MiniaudioAudioBackend::shutdown() {
 }
 
 void MiniaudioAudioBackend::unloadCachedSounds() {
-  for (auto& [id, cached] : sounds_) {
-    (void)id;
-    if (cached.sound == nullptr) {
-      continue;
-    }
-    ma_sound_uninit(cached.sound);
-    delete cached.sound;
-    cached.sound = nullptr;
-  }
+  sounds_.clear();
 }
 
 void MiniaudioAudioBackend::audioProcessDebug(void* userData, float* framesOut, const unsigned long long frameCount) {

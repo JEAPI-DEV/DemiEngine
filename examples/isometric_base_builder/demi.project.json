@@ -23,16 +23,42 @@
   },
   "input": {
     "actions": {
-      "build_arrow": ["1"],
-      "build_wizard": ["2"],
-      "start_wave": ["space"],
-      "cancel": ["escape"],
-      "save": ["s"],
-      "load": ["l"]
+      "build_arrow": [
+        "1"
+      ],
+      "build_wizard": [
+        "2"
+      ],
+      "start_wave": [
+        "space"
+      ],
+      "cancel": [
+        "escape"
+      ],
+      "save": [
+        "s"
+      ],
+      "load": [
+        "l"
+      ],
+      "tower_upgrade": [
+        "u"
+      ],
+      "tower_destroy": [
+        "delete"
+      ],
+      "upgrade_range": [
+        "r"
+      ],
+      "upgrade_power": [
+        "p"
+      ]
     }
   },
   "scripting": {
     "language": "lua54",
-    "modules": ["game.actions"]
+    "modules": [
+      "game.actions"
+    ]
   }
 }

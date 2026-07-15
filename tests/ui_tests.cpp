@@ -2,6 +2,7 @@
 #include "demi/runtime/ui/UiDocumentParser.h"
 #include "demi/runtime/ui/UiInteractionController.h"
 #include "demi/runtime/ui/UiLayoutEngine.h"
+#include "demi/runtime/ui/UiPresentation.h"
 
 #include <cmath>
 #include <iostream>
@@ -100,6 +101,24 @@ int main() {
   if (!demi::runtime::ui::UiActionController{}.apply(document, "open_music") ||
       document.nodes[1].visible || document.focusedId != "music") {
     std::cerr << "UI declarative action effects failed.\n";
+    return 1;
+  }
+
+  demi::runtime::ui::UiDocument layered;
+  layered.nodes = {
+      {.id = "child", .parent = "root", .type = "label", .layer = 7},
+      {.id = "front", .type = "label", .layer = 100},
+      {.id = "root", .type = "panel", .layer = -20, .visible = false},
+      {.id = "orphan", .parent = "missing", .type = "label", .layer = -100},
+  };
+  auto presentation = demi::runtime::ui::buildUiPresentation(layered);
+  if (presentation.size() != 4 || presentation[0].node->id != "orphan" ||
+      presentation[1].node->id != "root" ||
+      presentation[2].node->id != "child" || presentation[2].visible ||
+      presentation[2].effectiveLayer != -13 ||
+      presentation[3].node->id != "front" || !presentation[3].visible) {
+    std::cerr << "UI presentation did not resolve inherited visibility and "
+                 "effective layers deterministically.\n";
     return 1;
   }
   return 0;

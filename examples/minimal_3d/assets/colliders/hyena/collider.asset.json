@@ -1,0 +1,23 @@
+{
+  "dependencies": [
+    "asset://models/hyena"
+  ],
+  "detail": 1.0,
+  "format_version": 1,
+  "id": "asset://colliders/hyena",
+  "offset": [
+    5.736947059631348e-07,
+    0.23513376712799072,
+    -0.5547544956207275
+  ],
+  "shape": "triangle_mesh",
+  "size": [
+    0.43656885623931885,
+    1.7604289054870605,
+    1.1094427108764648
+  ],
+  "source": "../../models/hyena/scene.gltf",
+  "source_asset": "asset://models/hyena",
+  "source_hash": "fnv1a64:0bb5a8e096d9aa45",
+  "type": "Collider3D"
+}

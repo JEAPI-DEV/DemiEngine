@@ -1,0 +1,11 @@
+{
+    "format_version": 1,
+    "id": "asset://ui/destroy",
+    "type": "SvgTexture2D",
+    "source": "destroy.svg",
+    "settings": {
+        "filter": "bilinear",
+        "wrap": "clamp",
+        "mipmaps": false
+    }
+}
