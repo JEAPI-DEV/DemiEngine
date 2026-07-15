@@ -5,22 +5,34 @@
 #include <algorithm>
 
 namespace demi::runtime::renderer3d_detail {
+namespace {
+
+Color disabledColor(const Color color) {
+  return {
+      .r = color.r * 0.4F,
+      .g = color.g * 0.4F,
+      .b = color.b * 0.4F,
+      .a = color.a,
+  };
+}
+
+} // namespace
 
 bool tryDrawHud3DButton(const ui::UiNode &node,
                         const Hud3DRenderContext &context) {
   if (node.type != "button" && node.type != "toggle" &&
       node.type != "text_input")
     return false;
-  if (node.disabled)
-    return true;
 
   constexpr float FontBaseSize = 8.0F;
   constexpr float FontMinSize = 4.0F;
   constexpr float LetterSpacing = 5.0F;
-  const Color fillColor =
+  const Color activeFillColor =
       node.hovered
           ? (node.hoverColor.a > 0.0F ? node.hoverColor : node.backgroundColor)
           : (node.backgroundColor.a > 0.0F ? node.backgroundColor : node.color);
+  const Color fillColor =
+      node.disabled ? disabledColor(activeFillColor) : activeFillColor;
   const ::Rectangle rect{
       .x = node.resolved.x * context.scaleX,
       .y = node.resolved.y * context.scaleY,
@@ -37,7 +49,9 @@ bool tryDrawHud3DButton(const ui::UiNode &node,
   DrawTextEx(GetFontDefault(), node.text.c_str(),
              {rect.x + (rect.width - measured.x) * 0.5F,
               rect.y + (rect.height - measured.y) * 0.5F},
-             fontSize, LetterSpacing, toRlColor(node.textColor));
+             fontSize, LetterSpacing,
+             toRlColor(node.disabled ? disabledColor(node.textColor)
+                                     : node.textColor));
   return true;
 }
 

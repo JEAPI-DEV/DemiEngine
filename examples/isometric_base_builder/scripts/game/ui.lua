@@ -75,9 +75,11 @@ function Ui.update(state, config)
     local refund = math.floor(TowerStats.invested_gold(tower, definition) * definition.upgrades.destroy_refund + 0.5)
     Hud.set_text("tower_destroy", "DESTROY +" .. refund)
 
-    Hud.set_disabled("tower_upgrade", stats.level >= definition.upgrades.max_level or state.gold < cost)
-    Hud.set_disabled("upgrade_range", stats.level >= definition.upgrades.max_level or state.gold < cost)
-    Hud.set_disabled("upgrade_power", stats.level >= definition.upgrades.max_level or state.gold < cost)
+    local upgrade_disabled = stats.level >= definition.upgrades.max_level or state.gold < cost
+    Hud.set_disabled("tower_upgrade", upgrade_disabled)
+    Hud.set_opacity("upgrade_icon", upgrade_disabled and 0.4 or 1.0)
+    Hud.set_disabled("upgrade_range", upgrade_disabled)
+    Hud.set_disabled("upgrade_power", upgrade_disabled)
 
     position_context_menu(tower)
   else

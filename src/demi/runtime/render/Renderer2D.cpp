@@ -218,16 +218,14 @@ void drawUiText(const ui::UiNode &node, float scaleX, float scaleY) {
   constexpr float HudLetterSpacing = 5.0F;
   if (!node.visible || node.text.empty())
     return;
-  const float authoredFontSize = node.fontSize > 0.0F
-                                     ? node.fontSize
-                                     : node.scale * HudFontBaseSize;
+  const float authoredFontSize =
+      node.fontSize > 0.0F ? node.fontSize : node.scale * HudFontBaseSize;
   const float fontSize =
       std::max(authoredFontSize * std::min(scaleX, scaleY), HudFontMinSize);
   Vector2 pos{node.resolved.x * scaleX, node.resolved.y * scaleY};
   DrawTextEx(GetFontDefault(), node.text.c_str(), pos, fontSize,
-             HudLetterSpacing, toRlColor(node.textColor.a > 0.0F
-                                              ? node.textColor
-                                              : node.color));
+             HudLetterSpacing,
+             toRlColor(node.textColor.a > 0.0F ? node.textColor : node.color));
 }
 
 void drawUiRect(const ui::UiNode &node, float scaleX, float scaleY) {
@@ -252,14 +250,12 @@ void drawUiPanel(const ui::UiNode &node, float scaleX, float scaleY) {
       .height = node.resolved.height * scaleY,
   };
   const float radius = node.cornerRadius * std::min(scaleX, scaleY);
-  const Color fillColor = node.backgroundColor.a > 0.0F
-                              ? node.backgroundColor
-                              : node.color;
+  const Color fillColor =
+      node.backgroundColor.a > 0.0F ? node.backgroundColor : node.color;
   if (radius <= 0.0F) {
     DrawRectangleRec(rect, toRlColor(fillColor));
     if (node.borderWidth > 0.0F)
-      DrawRectangleLinesEx(rect,
-                           node.borderWidth * std::min(scaleX, scaleY),
+      DrawRectangleLinesEx(rect, node.borderWidth * std::min(scaleX, scaleY),
                            toRlColor(node.borderColor));
     return;
   }
@@ -343,7 +339,7 @@ void drawUiButton(const ui::UiNode &node, float scaleX, float scaleY) {
   constexpr float HudFontMinSize = 4.0F;
   constexpr float HudLetterSpacing = 5.0F;
 
-  if (!node.visible || node.disabled)
+  if (!node.visible)
     return;
 
   Rectangle rect{
@@ -353,19 +349,21 @@ void drawUiButton(const ui::UiNode &node, float scaleX, float scaleY) {
       .height = node.resolved.height * scaleY,
   };
 
-  const Color fillColor = node.hovered
-                              ? (node.hoverColor.a > 0.0F ? node.hoverColor
-                                                          : node.backgroundColor)
-                              : (node.backgroundColor.a > 0.0F
-                                     ? node.backgroundColor
-                                     : node.color);
+  const Color activeFillColor =
+      node.hovered
+          ? (node.hoverColor.a > 0.0F ? node.hoverColor : node.backgroundColor)
+          : (node.backgroundColor.a > 0.0F ? node.backgroundColor : node.color);
+  const Color fillColor = node.disabled ? Color{.r = activeFillColor.r * 0.4F,
+                                                .g = activeFillColor.g * 0.4F,
+                                                .b = activeFillColor.b * 0.4F,
+                                                .a = activeFillColor.a}
+                                        : activeFillColor;
   DrawRectangleRec(rect, toRlColor(fillColor));
 
   if (!node.text.empty()) {
     const float textScale = std::min(scaleX, scaleY);
-    const float authoredFontSize = node.fontSize > 0.0F
-                                       ? node.fontSize
-                                       : node.scale * HudFontBaseSize;
+    const float authoredFontSize =
+        node.fontSize > 0.0F ? node.fontSize : node.scale * HudFontBaseSize;
     const float fontSize =
         std::max(authoredFontSize * textScale, HudFontMinSize);
 
@@ -379,7 +377,11 @@ void drawUiButton(const ui::UiNode &node, float scaleX, float scaleY) {
     };
 
     DrawTextEx(font, node.text.c_str(), textPos, fontSize, HudLetterSpacing,
-               toRlColor(node.textColor));
+               toRlColor(node.disabled ? Color{.r = node.textColor.r * 0.4F,
+                                               .g = node.textColor.g * 0.4F,
+                                               .b = node.textColor.b * 0.4F,
+                                               .a = node.textColor.a}
+                                       : node.textColor));
   }
 }
 
@@ -1175,8 +1177,10 @@ void Renderer2D::drawHud(const World &world) {
       const ui::UiNode &node = *presented.node;
       if (node.type == "circle") {
         const float scale = std::min(scaleX, scaleY);
-        const float cx = (node.resolved.x + node.resolved.width * 0.5F) * scaleX;
-        const float cy = (node.resolved.y + node.resolved.height * 0.5F) * scaleY;
+        const float cx =
+            (node.resolved.x + node.resolved.width * 0.5F) * scaleX;
+        const float cy =
+            (node.resolved.y + node.resolved.height * 0.5F) * scaleY;
         DrawCircleLines(static_cast<int>(cx), static_cast<int>(cy),
                         node.radius * scale, {255, 80, 210, 230});
       } else {
