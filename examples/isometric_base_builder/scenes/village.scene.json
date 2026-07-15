@@ -29,11 +29,14 @@
           "height": 18,
           "default_texture": "asset://terrain/grass",
           "cell_textures": {
-            "1,9": "asset://terrain/road_x", "2,9": "asset://terrain/road_x", "3,9": "asset://terrain/road_x", "4,9": "asset://terrain/road_x", "5,9": "asset://terrain/road_nw_ne",
-            "5,8": "asset://terrain/road_y", "5,7": "asset://terrain/road_y", "5,6": "asset://terrain/road_y", "5,5": "asset://terrain/road_se_sw",
-            "6,5": "asset://terrain/road_x", "7,5": "asset://terrain/road_x", "8,5": "asset://terrain/road_x", "9,5": "asset://terrain/road_x", "10,5": "asset://terrain/road_x", "11,5": "asset://terrain/road_x", "12,5": "asset://terrain/road_nw_sw",
-            "12,6": "asset://terrain/road_y", "12,7": "asset://terrain/road_y", "12,8": "asset://terrain/road_y", "12,9": "asset://terrain/road_ne_se",
-            "13,9": "asset://terrain/road_x", "14,9": "asset://terrain/road_x", "15,9": "asset://terrain/road_x", "16,9": "asset://terrain/road_x"
+            "1,9": "asset://terrain/road_x", "2,9": "asset://terrain/road_x", "3,9": "asset://terrain/road_x", "4,9": "asset://terrain/road_nw_ne",
+            "4,8": "asset://terrain/road_y", "4,7": "asset://terrain/road_y", "4,6": "asset://terrain/road_y", "4,5": "asset://terrain/road_y", "4,4": "asset://terrain/road_y", "4,3": "asset://terrain/road_se_sw",
+            "5,3": "asset://terrain/road_x", "6,3": "asset://terrain/road_nw_sw",
+            "6,4": "asset://terrain/road_y", "6,5": "asset://terrain/road_y", "6,6": "asset://terrain/road_y", "6,7": "asset://terrain/road_y", "6,8": "asset://terrain/road_y", "6,9": "asset://terrain/road_y", "6,10": "asset://terrain/road_y", "6,11": "asset://terrain/road_y", "6,12": "asset://terrain/road_y", "6,13": "asset://terrain/road_ne_se",
+            "7,13": "asset://terrain/road_x", "8,13": "asset://terrain/road_x", "9,13": "asset://terrain/road_x", "10,13": "asset://terrain/road_x", "11,13": "asset://terrain/road_x", "12,13": "asset://terrain/road_x", "13,13": "asset://terrain/road_x", "14,13": "asset://terrain/road_nw_ne",
+            "14,12": "asset://terrain/road_y", "14,11": "asset://terrain/road_y", "14,10": "asset://terrain/road_y", "14,9": "asset://terrain/road_y", "14,8": "asset://terrain/road_y", "14,7": "asset://terrain/road_se_sw",
+            "15,7": "asset://terrain/road_x", "16,7": "asset://terrain/road_nw_sw",
+            "16,8": "asset://terrain/road_y", "16,9": "asset://terrain/road_y"
           }
         }
       }
