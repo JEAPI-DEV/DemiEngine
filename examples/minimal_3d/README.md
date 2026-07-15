@@ -1,4 +1,4 @@
-# Minimal 3D Example
+#Minimal 3D Example
 
 This reference scene exercises hierarchical transforms, glTF materials,
 texture importer settings, collision-aware movement, CLI-generated glTF
@@ -17,5 +17,8 @@ The hyena's collider was generated without hand-authored dimensions:
 
 ```sh
 demi asset collider assets/models/hyena/hyena.asset.json \
-  --project . --id asset://colliders/hyena
+  --project . --id asset://colliders/hyena --detail 1
 ```
+
+Use `--detail 0` for a fast bounding box; values between `0` and `1` retain a
+deterministic subset of the hyena mesh triangles.

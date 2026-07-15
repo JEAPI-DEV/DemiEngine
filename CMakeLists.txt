@@ -179,6 +179,7 @@ add_library(demi-core STATIC
   src/demi/assets/AssetRegistry.cpp
   src/demi/assets/AssetHash.cpp
   src/demi/assets/ColliderAssetGenerator.cpp
+  src/demi/assets/GltfGeometry.cpp
   src/demi/assets/AssetSourceFiles.cpp
   src/demi/assets/AssetImporter.cpp
   src/demi/assets/AssetPackage.cpp

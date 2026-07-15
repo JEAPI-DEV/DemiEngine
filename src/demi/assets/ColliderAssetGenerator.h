@@ -11,6 +11,7 @@ struct ColliderAssetGenerationRequest {
   std::filesystem::path projectDirectory;
   std::filesystem::path modelManifestPath;
   std::string id;
+  float detail = 0.0F;
 };
 
 struct ColliderAssetGenerationResult {

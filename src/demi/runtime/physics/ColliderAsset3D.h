@@ -5,15 +5,24 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace demi::runtime {
 
 struct World;
 struct Entity;
 
+struct TriangleCollider3D {
+  Vec3 a;
+  Vec3 b;
+  Vec3 c;
+};
+
 struct ColliderAsset3D {
   Vec3 size = {1.0F, 1.0F, 1.0F};
   Vec3 offset;
+  float detail = 0.0F;
+  std::vector<TriangleCollider3D> triangles;
 };
 
 struct BoxColliderShape3D {
@@ -29,5 +38,7 @@ struct BoxColliderShape3D {
                                            std::string &error);
 [[nodiscard]] std::optional<BoxColliderShape3D>
 resolvedBoxCollider3D(const World &world, const Entity &entity);
+[[nodiscard]] const std::vector<TriangleCollider3D> *
+resolvedTriangleCollider3D(const World &world, const Entity &entity);
 
 } // namespace demi::runtime

@@ -2,6 +2,7 @@
   "dependencies": [
     "asset://models/hyena"
   ],
+  "detail": 1.0,
   "format_version": 1,
   "id": "asset://colliders/hyena",
   "offset": [
@@ -9,7 +10,7 @@
     0.23513376712799072,
     -0.5547544956207275
   ],
-  "shape": "box",
+  "shape": "triangle_mesh",
   "size": [
     0.43656885623931885,
     1.7604289054870605,

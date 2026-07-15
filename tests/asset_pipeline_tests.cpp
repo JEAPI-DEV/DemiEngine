@@ -9,9 +9,12 @@
 #include <nlohmann/json.hpp>
 
 #include <chrono>
+#include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <vector>
 
 using namespace demi;
 
@@ -21,6 +24,14 @@ void writeText(const std::filesystem::path &path, const std::string &text) {
   std::filesystem::create_directories(path.parent_path());
   std::ofstream output(path, std::ios::binary);
   output << text;
+}
+
+void writeBytes(const std::filesystem::path &path,
+                const std::vector<unsigned char> &bytes) {
+  std::filesystem::create_directories(path.parent_path());
+  std::ofstream output(path, std::ios::binary);
+  output.write(reinterpret_cast<const char *>(bytes.data()),
+               static_cast<std::streamsize>(bytes.size()));
 }
 
 nlohmann::json readJson(const std::filesystem::path &path) {
@@ -103,6 +114,42 @@ int main() {
       colliderData["size"] != nlohmann::json::array({4.0, 4.0, 6.0}) ||
       colliderData["offset"] != nlohmann::json::array({10.0, 0.0, 0.0})) {
     std::cerr << "glTF collider asset generation failed.\n";
+    return 1;
+  }
+  std::vector<unsigned char> geometryBytes(42U);
+  const float positions[]{-1.0F, -1.0F, 0.0F, 1.0F, -1.0F,
+                          0.0F,  0.0F,  1.0F, 0.0F};
+  const std::uint16_t indices[]{0, 1, 2};
+  std::memcpy(geometryBytes.data(), positions, sizeof(positions));
+  std::memcpy(geometryBytes.data() + sizeof(positions), indices,
+              sizeof(indices));
+  writeBytes(modelDirectory / "geometry.bin", geometryBytes);
+  writeText(modelDirectory / "scene.gltf", R"({
+    "asset": {"version": "2.0"},
+    "scene": 0,
+    "scenes": [{"nodes": [0]}],
+    "nodes": [{"mesh": 0}],
+    "buffers": [{"uri": "geometry.bin", "byteLength": 42}],
+    "bufferViews": [
+      {"buffer": 0, "byteOffset": 0, "byteLength": 36},
+      {"buffer": 0, "byteOffset": 36, "byteLength": 6}
+    ],
+    "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "indices": 1}]}],
+    "accessors": [
+      {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3", "min": [-1, -1, 0], "max": [1, 1, 0]},
+      {"bufferView": 1, "componentType": 5123, "count": 3, "type": "SCALAR"}
+    ]
+  })");
+  const auto detailedCollider = assets::generateColliderAsset(
+      {.projectDirectory = sourceProject,
+       .modelManifestPath = modelDirectory / "model.asset.json",
+       .id = "asset://colliders/fixture",
+       .detail = 1.0F});
+  const auto detailedData = readJson(detailedCollider.manifestPath);
+  if (hasErrors(detailedCollider.diagnostics) ||
+      detailedData["shape"] != "triangle_mesh" ||
+      detailedData["detail"] != 1.0) {
+    std::cerr << "Detailed glTF collider asset generation failed.\n";
     return 1;
   }
 

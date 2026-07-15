@@ -111,7 +111,14 @@ int main() {
   generatedCollider.setComponent<runtime::Rigidbody3DComponent>(
       runtime::Rigidbody3DComponent{.bodyType = "static", .useGravity = false});
   world.colliderAssets3D["asset://colliders/test"] =
-      runtime::ColliderAsset3D{.size = {1.0F, 1.0F, 1.0F}};
+      runtime::ColliderAsset3D{.size = {1.0F, 1.0F, 1.0F},
+                               .detail = 1.0F,
+                               .triangles = {{{.a = {-0.5F, -0.5F, 0.0F},
+                                               .b = {0.5F, -0.5F, 0.0F},
+                                               .c = {-0.5F, 0.5F, 0.0F}},
+                                              {.a = {0.5F, -0.5F, 0.0F},
+                                               .b = {0.5F, 0.5F, 0.0F},
+                                               .c = {-0.5F, 0.5F, 0.0F}}}}};
   world.entities.push_back(generatedCollider);
   mover = runtime::findEntity(world, "mover");
   if (mover == nullptr) {

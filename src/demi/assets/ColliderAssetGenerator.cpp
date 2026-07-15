@@ -2,11 +2,13 @@
 
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/GltfGeometry.h"
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <fstream>
 #include <limits>
 #include <optional>
@@ -256,6 +258,13 @@ bool writeJson(const std::filesystem::path &path, const Json &document) {
 ColliderAssetGenerationResult
 generateColliderAsset(const ColliderAssetGenerationRequest &request) {
   ColliderAssetGenerationResult result;
+  if (!std::isfinite(request.detail) || request.detail < 0.0F ||
+      request.detail > 1.0F) {
+    addDiagnostic(result.diagnostics, "COLLIDER_DETAIL_INVALID",
+                  "Collider detail must be between 0 and 1.",
+                  request.modelManifestPath);
+    return result;
+  }
   if (!request.id.starts_with("asset://") || request.id.size() <= 8) {
     addDiagnostic(result.diagnostics, "COLLIDER_ASSET_ID_INVALID",
                   "Collider assets require a non-empty asset:// ID.",
@@ -287,6 +296,14 @@ generateColliderAsset(const ColliderAssetGenerationRequest &request) {
   const auto bounds = gltfBounds(model->sourcePath, result.diagnostics);
   if (!bounds)
     return result;
+  if (request.detail > 0.0F) {
+    std::string geometryError;
+    if (!loadGltfGeometry(model->sourcePath, geometryError)) {
+      addDiagnostic(result.diagnostics, "COLLIDER_GLTF_GEOMETRY_INVALID",
+                    geometryError, model->sourcePath);
+      return result;
+    }
+  }
 
   const std::filesystem::path relativeId(idPath(request.id));
   const std::filesystem::path assetDirectory =
@@ -313,9 +330,10 @@ generateColliderAsset(const ColliderAssetGenerationRequest &request) {
       {"source_hash", *hash},
       {"dependencies", Json::array({model->id})},
       {"source_asset", model->id},
-      {"shape", "box"},
+      {"shape", request.detail == 0.0F ? "box" : "triangle_mesh"},
       {"size", size},
       {"offset", offset},
+      {"detail", request.detail},
   };
   if (!writeJson(result.manifestPath, manifest)) {
     addDiagnostic(result.diagnostics, "COLLIDER_ASSET_WRITE_FAILED",

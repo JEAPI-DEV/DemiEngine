@@ -26,6 +26,18 @@ std::string valueAfter(const std::vector<std::string> &args,
   return {};
 }
 
+std::optional<float> floatAfter(const std::vector<std::string> &args,
+                                const std::string &key) {
+  const std::string value = valueAfter(args, key);
+  if (value.empty())
+    return std::nullopt;
+  try {
+    return std::stof(value);
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+
 bool hasArg(const std::vector<std::string> &args, const std::string &key) {
   return std::ranges::find(args, key) != args.end();
 }
@@ -110,13 +122,21 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
   if (command == "collider") {
     if (args.size() < 3 || valueAfter(args, "--id").empty()) {
       error << "Usage: demi asset collider <model.asset.json> --project "
-               "<project> --id asset://colliders/id\n";
+               "<project> --id asset://colliders/id [--detail 0..1]\n";
+      return ExitUsageError;
+    }
+    const std::string requestedDetail = valueAfter(args, "--detail");
+    const auto detail = requestedDetail.empty() ? std::make_optional(0.0F)
+                                                : floatAfter(args, "--detail");
+    if (!detail) {
+      error << "asset collider --detail must be a number between 0 and 1.\n";
       return ExitUsageError;
     }
     const auto result = assets::generateColliderAsset(
         {.projectDirectory = projectDirectory(args),
          .modelManifestPath = args[2],
-         .id = valueAfter(args, "--id")});
+         .id = valueAfter(args, "--id"),
+         .detail = *detail});
     const int status = printDiagnostics(result.diagnostics, error);
     if (status == ExitSuccess)
       output << "Generated collider asset: " << result.manifestPath.string()
