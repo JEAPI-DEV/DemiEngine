@@ -175,6 +175,21 @@
             1.0
           ],
           "wireframe": false
+        },
+        "ModelCollider3D": {
+          "asset": "asset://colliders/hyena",
+          "is_trigger": false,
+          "layer": ""
+        },
+        "Rigidbody3D": {
+          "body_type": "static",
+          "velocity": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "use_gravity": false,
+          "gravity_scale": 0.0
         }
       }
     },

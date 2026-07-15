@@ -49,6 +49,8 @@ void printHelp() {
       << "  demi asset deps <asset>\n"
       << "  demi asset import <source> --project <project> --id asset://id\n"
       << "  demi asset reimport <asset>\n"
+      << "  demi asset collider <model.asset.json> --project <project> --id "
+         "asset://colliders/id\n"
       << "  demi asset export --project <project> --output <file.demipack> "
          "--asset asset://id\n"
       << "  demi asset import-package <file.demipack> --project <project>\n"

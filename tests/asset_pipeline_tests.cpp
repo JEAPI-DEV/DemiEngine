@@ -3,6 +3,7 @@
 #include "demi/assets/AssetImporter.h"
 #include "demi/assets/AssetPackage.h"
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/ColliderAssetGenerator.h"
 #include "demi/schema/Validation.h"
 
 #include <nlohmann/json.hpp>
@@ -68,6 +69,40 @@ int main() {
                                               .id = "asset://fixture/main"});
   if (hasErrors(dependency.diagnostics) || hasErrors(mainAsset.diagnostics)) {
     std::cerr << "Asset import failed.\n";
+    return 1;
+  }
+
+  const auto modelDirectory = sourceProject / "assets/models/fixture";
+  writeText(modelDirectory / "scene.gltf", R"({
+    "asset": {"version": "2.0"},
+    "scene": 0,
+    "scenes": [{"nodes": [0]}],
+    "nodes": [
+      {"translation": [10, 0, 0], "children": [1]},
+      {"mesh": 0, "scale": [2, 1, 1]}
+    ],
+    "meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}],
+    "accessors": [{"type": "VEC3", "min": [-1, -2, -3], "max": [1, 2, 3]}]
+  })");
+  writeJson(modelDirectory / "model.asset.json",
+            {{"format_version", 1},
+             {"id", "asset://models/fixture"},
+             {"type", "Model3D"},
+             {"source", "scene.gltf"}});
+  const auto collider = assets::generateColliderAsset(
+      {.projectDirectory = sourceProject,
+       .modelManifestPath = modelDirectory / "model.asset.json",
+       .id = "asset://colliders/fixture"});
+  const auto colliderData = readJson(collider.manifestPath);
+  const auto colliderManifest = loadAssetManifest(collider.manifestPath);
+  if (hasErrors(collider.diagnostics) || !colliderManifest ||
+      colliderManifest->type != "Collider3D" ||
+      colliderManifest->dependencies !=
+          std::vector<std::string>{"asset://models/fixture"} ||
+      colliderData["shape"] != "box" ||
+      colliderData["size"] != nlohmann::json::array({4.0, 4.0, 6.0}) ||
+      colliderData["offset"] != nlohmann::json::array({10.0, 0.0, 0.0})) {
+    std::cerr << "glTF collider asset generation failed.\n";
     return 1;
   }
 

@@ -1,5 +1,6 @@
 #include "demi/runtime/physics/SpatialQuery3D.h"
 
+#include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scene/model/World.h"
@@ -50,9 +51,9 @@ entityTransform(const World &world, const Entity &entity,
 std::optional<Aabb3D>
 boxBounds(const World &world, const Entity &entity,
           const Transform3DComponent *overrideTransform = nullptr) {
-  const auto *collider = entity.component<BoxCollider3DComponent>();
+  const auto collider = resolvedBoxCollider3D(world, entity);
   const auto transform = entityTransform(world, entity, overrideTransform);
-  if (collider == nullptr || !transform)
+  if (!collider || !transform)
     return std::nullopt;
 
   const Vec3 half{collider->size.x * 0.5F, collider->size.y * 0.5F,

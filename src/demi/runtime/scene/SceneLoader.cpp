@@ -1,6 +1,8 @@
 #include "demi/runtime/scene/SceneData.h"
 
+#include "demi/assets/AssetRegistry.h"
 #include "demi/diagnostics/Diagnostic.h"
+#include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/scene/HudParser.h"
 #include "demi/runtime/scene/ProjectParser.h"
 #include "demi/runtime/scene/SceneEntityParser.h"
@@ -65,6 +67,12 @@ loadProject(const std::filesystem::path &projectPath, std::string &error) {
 
   std::optional<World> world = loadScene(*project, project->mainScene, error);
   if (!world.has_value()) {
+    return std::nullopt;
+  }
+
+  const AssetRegistry assetRegistry =
+      loadAssetRegistry(project->projectDirectory);
+  if (!resolveColliderAssets3D(*world, assetRegistry, error)) {
     return std::nullopt;
   }
 

@@ -282,6 +282,11 @@ the supported platform.
 
 ## Milestone 9.5 - Dynamic Collider for 3D Physics
 
+**Status: complete.** `demi asset collider` generates a deterministic
+`Collider3D` asset from transformed glTF POSITION bounds. `ModelCollider3D`
+resolves that asset at scene load for 3D collision, spatial queries, and debug
+rendering; `minimal_3d` uses the generated hyena collider.
+
 Add support for dynamic, (cli generated) collider asset for a
 gltf file 
 

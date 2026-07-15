@@ -2,6 +2,7 @@
 
 #include "demi/runtime/debug/DebugOverlayConfig.h"
 #include "demi/runtime/physics/Box2DWorldState.h"
+#include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/scene/model/Entity.h"
 #include "demi/runtime/ui/UiModel.h"
 
@@ -57,6 +58,7 @@ struct World {
   std::vector<AnimationCollisionOverlap2D> animationCollisionOverlaps;
   std::unordered_map<std::string, std::uint16_t> physicsCategoryBits;
   std::unordered_map<std::string, std::uint16_t> physicsMaskBits;
+  std::unordered_map<std::string, ColliderAsset3D> colliderAssets3D;
   DebugOverlayConfig debug;
   GridPlacementPreview placementPreview;
   std::unique_ptr<Box2DWorldState> box2dState;

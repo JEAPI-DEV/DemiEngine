@@ -178,10 +178,12 @@ set(DEMI_COMPONENT_MODEL_SOURCES
 add_library(demi-core STATIC
   src/demi/assets/AssetRegistry.cpp
   src/demi/assets/AssetHash.cpp
+  src/demi/assets/ColliderAssetGenerator.cpp
   src/demi/assets/AssetSourceFiles.cpp
   src/demi/assets/AssetImporter.cpp
   src/demi/assets/AssetPackage.cpp
   src/demi/assets/AssetCooker.cpp
+  src/demi/runtime/physics/ColliderAsset3D.cpp
   src/demi/diagnostics/Diagnostic.cpp
   src/demi/filesystem/ProjectPaths.cpp
   src/demi/schema/Validation.cpp

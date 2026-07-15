@@ -4,6 +4,7 @@
 #include "demi/assets/AssetPackage.h"
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/AssetSourceFiles.h"
+#include "demi/assets/ColliderAssetGenerator.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -104,6 +105,22 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
     const int status = printDiagnostics(diagnostics, error);
     if (status == ExitSuccess)
       output << "Reimported asset: " << args[2] << '\n';
+    return status;
+  }
+  if (command == "collider") {
+    if (args.size() < 3 || valueAfter(args, "--id").empty()) {
+      error << "Usage: demi asset collider <model.asset.json> --project "
+               "<project> --id asset://colliders/id\n";
+      return ExitUsageError;
+    }
+    const auto result = assets::generateColliderAsset(
+        {.projectDirectory = projectDirectory(args),
+         .modelManifestPath = args[2],
+         .id = valueAfter(args, "--id")});
+    const int status = printDiagnostics(result.diagnostics, error);
+    if (status == ExitSuccess)
+      output << "Generated collider asset: " << result.manifestPath.string()
+             << '\n';
     return status;
   }
   if (command == "export") {
