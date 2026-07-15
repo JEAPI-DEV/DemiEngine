@@ -5,6 +5,7 @@
 #include "demi/runtime/render/ProfilerHudRenderer.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/tilemap/TilemapAsset.h"
+#include "demi/runtime/ui/UiPresentation.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1138,10 +1139,6 @@ void Renderer2D::drawHud(const World &world) {
   const float scaleX = static_cast<float>(width_) / canvasWidth;
   const float scaleY = static_cast<float>(height_) / canvasHeight;
 
-  int maxLayer = 0;
-  for (const ui::UiNode &node : world.ui.nodes)
-    maxLayer = std::max(maxLayer, node.layer);
-
   auto drawNode = [&](const ui::UiNode &node) {
     if (!node.visible)
       return;
@@ -1165,34 +1162,17 @@ void Renderer2D::drawHud(const World &world) {
     }
   };
 
-  std::unordered_map<std::string, bool> visibleById;
-  std::unordered_map<std::string, int> layerById;
-  for (const ui::UiNode &node : world.ui.nodes) {
-    const int parentLayer = node.parent.empty() ? 0 : layerById[node.parent];
-    const int effectiveLayer = node.layer + parentLayer;
-    layerById[node.id] = effectiveLayer;
-    const bool parentVisible = node.parent.empty() || visibleById[node.parent];
-    visibleById[node.id] = node.visible && parentVisible;
-  }
-
-  for (int layer = 0; layer <= maxLayer + 10; ++layer) {
-    for (const ui::UiNode &node : world.ui.nodes) {
-      if (node.id == "tower_menu_bg")
-        std::cerr << "DBG draw tower_menu_bg visible=" << node.visible
-                  << " vid=" << visibleById[node.id] << " res=" << node.resolved.x
-                  << "," << node.resolved.y << "," << node.resolved.width << ","
-                  << node.resolved.height << "\n";
-      if (!visibleById[node.id])
-        continue;
-      if (layerById[node.id] == layer)
-        drawNode(node);
-    }
-  }
+  for (const ui::UiPresentationNode &presented :
+       ui::buildUiPresentation(world.ui))
+    if (presented.visible)
+      drawNode(*presented.node);
 
   if (world.debug.uiBounds) {
-    for (const ui::UiNode &node : world.ui.nodes) {
-      if (!node.visible)
+    for (const ui::UiPresentationNode &presented :
+         ui::buildUiPresentation(world.ui)) {
+      if (!presented.visible)
         continue;
+      const ui::UiNode &node = *presented.node;
       if (node.type == "circle") {
         const float scale = std::min(scaleX, scaleY);
         const float cx = (node.resolved.x + node.resolved.width * 0.5F) * scaleX;

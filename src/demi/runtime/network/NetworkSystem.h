@@ -72,6 +72,8 @@ private:
   };
   static void destroyEnetHost(EnetHostHandle *handle);
   static void destroyEnetPeer(EnetPeerHandle *handle);
+  using EnetPeerPtr =
+      std::unique_ptr<EnetPeerHandle, void (*)(EnetPeerHandle *)>;
   static std::string frameMessage(const std::string& message);
   static std::optional<std::string> unframeMessage(const char* data, std::size_t size);
 
@@ -83,7 +85,7 @@ private:
   std::unique_ptr<DtlsTransport> dtls_;
   std::unique_ptr<EnetHostHandle, void(*)(EnetHostHandle*)> host_{nullptr, &destroyEnetHost};
   std::unique_ptr<EnetPeerHandle, void(*)(EnetPeerHandle*)> serverPeer_{nullptr, &destroyEnetPeer};
-  std::unordered_map<std::uint32_t, EnetPeerHandle *> peers_;
+  std::unordered_map<std::uint32_t, EnetPeerPtr> peers_;
   std::vector<NetworkEvent> events_;
   NetworkMode mode_ = NetworkMode::Offline;
   std::uint32_t nextPeerId_ = 1;

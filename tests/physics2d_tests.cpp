@@ -1,9 +1,14 @@
 #include "demi/runtime/physics/Physics2D.h"
+#include "demi/runtime/physics/Box2DWorldState.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 
 #include <cmath>
 #include <iostream>
+
+#if DEMI_HAS_BOX2D
+#include <box2d/box2d.h>
+#endif
 
 namespace {
 
@@ -127,6 +132,36 @@ int main() {
     return 1;
   }
 
+  World layerWorld;
+  layerWorld.physicsCategoryBits = {{"blocked", 0x0001},
+                                    {"enabled", 0x0001},
+                                    {"targetx", 0x0002}};
+  layerWorld.physicsMaskBits = {{"blocked", 0x0000},
+                                {"enabled", 0x0002},
+                                {"targetx", 0x0001}};
+  for (int index = 0; index < 2; ++index) {
+    Entity entity;
+    entity.id = "layer_" + std::to_string(index);
+    entity.setComponent(Transform2DComponent{});
+    if (index == 0)
+      entity.setComponent(
+          Rigidbody2DComponent{.bodyType = "dynamic", .gravityScale = 0.0F});
+    entity.setComponent(CircleCollider2DComponent{
+        .radius = 1.0F, .layer = index == 0 ? "blocked" : "targetx"});
+    layerWorld.entities.push_back(std::move(entity));
+  }
+  stepPhysics2D(layerWorld, 1.0F / 60.0F,
+                PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
+  layerWorld.entities.front().component<CircleCollider2DComponent>()->layer =
+      "enabled";
+  stepPhysics2D(layerWorld, 1.0F / 60.0F,
+                PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
+  if (layerWorld.physicsContacts.size() != 2) {
+    std::cerr << "Changing between equal-length collider layers did not "
+                 "refresh Box2D filters.\n";
+    return 1;
+  }
+
   World triggerWorld;
   for (int index = 0; index < 2; ++index) {
     Entity entity;
@@ -167,6 +202,14 @@ int main() {
   for (int step = 0; step < 30; ++step)
     stepPhysics2D(jointWorld, 1.0F / 60.0F,
                   PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
+#if DEMI_HAS_BOX2D
+  if (jointWorld.box2dState == nullptr ||
+      static_cast<b2World *>(jointWorld.box2dState->world)->GetJointCount() !=
+          1) {
+    std::cerr << "Persistent Box2D world accumulated distance joints.\n";
+    return 1;
+  }
+#endif
   const float jointDistance =
       jointWorld.entities.back().component<Transform2DComponent>()->position.x;
   if (std::abs(jointDistance - 1.0F) > 0.05F) {

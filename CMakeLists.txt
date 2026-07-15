@@ -189,6 +189,7 @@ add_library(demi-core STATIC
   src/demi/runtime/ui/UiLayoutEngine.cpp
   src/demi/runtime/ui/UiInteractionController.cpp
   src/demi/runtime/ui/UiDocumentParser.cpp
+  src/demi/runtime/ui/UiPresentation.cpp
   src/demi/runtime/ui/UiStateController.cpp
   src/demi/runtime/ui/UiActionController.cpp
   src/demi/runtime/input/InputActionResolver.cpp
@@ -371,6 +372,13 @@ configure_demi_runtime(demi-runtime-lib TRUE
   src/demi/runtime/render/Renderer3DBatcher.cpp
   src/demi/runtime/render/Renderer3DAssets.cpp
   src/demi/runtime/render/Renderer3DHudRenderer.cpp
+  src/demi/runtime/render/hud3d/Hud3DNodeRenderer.cpp
+  src/demi/runtime/render/hud3d/Hud3DPanelNodeRenderer.cpp
+  src/demi/runtime/render/hud3d/Hud3DImageNodeRenderer.cpp
+  src/demi/runtime/render/hud3d/Hud3DCircleNodeRenderer.cpp
+  src/demi/runtime/render/hud3d/Hud3DProgressNodeRenderer.cpp
+  src/demi/runtime/render/hud3d/Hud3DTextNodeRenderer.cpp
+  src/demi/runtime/render/hud3d/Hud3DButtonNodeRenderer.cpp
   src/demi/runtime/render/Renderer3DMeshRenderer.cpp
   src/demi/runtime/render/Renderer3DModelResources.cpp
   src/demi/runtime/render/Renderer3DTextureSettings.cpp

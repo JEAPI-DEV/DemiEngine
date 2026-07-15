@@ -73,6 +73,7 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
   input.set_function("mouse_delta", [&host] { const Vec2 value = host.mouseDelta(); return std::tuple{value.x, value.y}; });
   input.set_function("mouse_world_position", [&host] { const Vec2 value = host.mouseWorldPosition(); return std::tuple{value.x, value.y}; });
   input.set_function("viewport_size", [&host] { const Vec2 value = host.viewportSize(); return std::tuple{value.x, value.y}; });
+  input.set_function("ui_pointer_captured", [&host] { return host.uiPointerCaptured(); });
 
   sol::table time = lua.create_named_table("Time");
   time["delta_time"] = 0.0F;

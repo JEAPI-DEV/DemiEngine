@@ -18,8 +18,9 @@ void releaseBox2DWorldState(Box2DWorldState *state) {
 Box2DWorldState::Box2DWorldState(Box2DWorldState &&other) noexcept
     : world(other.world), bodies(std::move(other.bodies)),
       shapeSignatures(std::move(other.shapeSignatures)),
-      bodyTypes(std::move(other.bodyTypes)), gravityX(other.gravityX),
-      gravityY(other.gravityY), initialised(other.initialised) {
+      bodyTypes(std::move(other.bodyTypes)), joints(std::move(other.joints)),
+      gravityX(other.gravityX), gravityY(other.gravityY),
+      initialised(other.initialised) {
   other.world = nullptr;
   other.initialised = false;
 }
@@ -31,6 +32,7 @@ Box2DWorldState &Box2DWorldState::operator=(Box2DWorldState &&other) noexcept {
     bodies = std::move(other.bodies);
     shapeSignatures = std::move(other.shapeSignatures);
     bodyTypes = std::move(other.bodyTypes);
+    joints = std::move(other.joints);
     gravityX = other.gravityX;
     gravityY = other.gravityY;
     initialised = other.initialised;

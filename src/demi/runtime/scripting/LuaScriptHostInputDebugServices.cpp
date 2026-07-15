@@ -42,6 +42,10 @@ Vec2 LuaScriptHost::viewportSize() const {
           static_cast<float>(viewportHeight_)};
 }
 
+bool LuaScriptHost::uiPointerCaptured() const {
+  return world_ != nullptr && !world_->ui.pointerCaptureId.empty();
+}
+
 void LuaScriptHost::addDebugLine(float x1, float y1, float x2, float y2,
                                   float r, float g, float b, float a,
                                   float width) {

@@ -34,14 +34,17 @@ local function position_context_menu(tower)
   local viewport_width, viewport_height = Input.viewport_size()
   viewport_width = viewport_width or 960
   viewport_height = viewport_height or 540
+  local canvas_width, canvas_height = Hud.canvas_size()
+  canvas_width = canvas_width or 960
+  canvas_height = canvas_height or 540
 
   local half_height = 13.0
   local half_width = half_height * viewport_width / viewport_height
-  local screen_x = (world_x / (half_width * 2) + 0.5) * viewport_width
-  local screen_y = (0.5 - world_y / (half_height * 2)) * viewport_height
+  local screen_x = (world_x / (half_width * 2) + 0.5) * canvas_width
+  local screen_y = (0.5 - world_y / (half_height * 2)) * canvas_height
 
-  local menu_x = math.max(12, math.min(viewport_width - 196, screen_x - 88))
-  local menu_y = math.max(82, math.min(viewport_height - 178, screen_y - 142))
+  local menu_x = math.max(12, math.min(canvas_width - 196, screen_x - 88))
+  local menu_y = math.max(82, math.min(canvas_height - 178, screen_y - 142))
   local choice_x = math.max(12, menu_x - 190)
 
   position_group(tower_menu_offsets, menu_x, menu_y)
@@ -83,8 +86,6 @@ function Ui.update(state, config)
 
   set_group_visible("tower_menu", tower ~= nil)
   set_group_visible("upgrade_choice_menu", tower ~= nil and state.upgrade_menu_open)
-
-  if tower ~= nil then Debug.log("DBG ui tower_menu visible selected_id=" .. tostring(state.selected_id)) end
 
   Hud.set_disabled("tower_destroy", tower == nil)
   Hud.set_disabled("build_arrow", state.wave_active or state.gold < config.towers.arrow.cost)

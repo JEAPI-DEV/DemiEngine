@@ -53,7 +53,8 @@ function Game:handle_input()
   if x and self.state.build_kind then self.building.preview(x, y) end
 
   local left_down = Input.mouse_down("left")
-  if left_down and not self.state.left_mouse_was_down and x then
+  if left_down and not self.state.left_mouse_was_down and x and
+      not Input.ui_pointer_captured() then
     local mouse_x = Input.mouse_position()
     local viewport_width = Input.viewport_size()
     if mouse_x < viewport_width * 0.72 then

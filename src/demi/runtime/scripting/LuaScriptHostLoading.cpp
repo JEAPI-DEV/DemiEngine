@@ -171,6 +171,7 @@ void LuaScriptHost::unloadScripts() {
     scripts_.clear();
     timers_.clear();
     eventSubscriptions_.clear();
+    saveMigrationHooks_.clear();
     return;
   }
   for (const ScriptInstance &script : scripts_) {
@@ -180,6 +181,7 @@ void LuaScriptHost::unloadScripts() {
   }
   scripts_.clear();
   clearTimersAndEvents();
+  clearSaveMigrationHooks();
 }
 
 void LuaScriptHost::requestSceneLoad(const std::string &sceneId) {

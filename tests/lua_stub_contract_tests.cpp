@@ -132,6 +132,7 @@ int main(int argc, char **argv) {
            "Physics3D.overlap_sphere",
            "Physics3D.raycast",
            "Hud.set_button_label",
+           "Hud.canvas_size",
            "Hud.set_position",
            "Hud.set_size",
            "Hud.set_opacity",
@@ -142,6 +143,7 @@ int main(int argc, char **argv) {
            "Runtime.set_mouse_captured",
            "Input.is_pressed",
            "Input.mouse_delta",
+           "Input.ui_pointer_captured",
        }) {
     passed = requireStub(stubApis, api) && passed;
   }

@@ -454,7 +454,10 @@ void NetworkSystem::update(const std::uint32_t maxEvents) {
       if (mode_ == NetworkMode::Host) {
         id = nextPeerId_++;
         setPeerId(event.peer, id);
-        peers_[id] = new EnetPeerHandle{new EnetPeerHandle::Impl{event.peer}};
+        peers_.emplace(
+            id, EnetPeerPtr{new EnetPeerHandle{
+                                new EnetPeerHandle::Impl{event.peer}},
+                            &NetworkSystem::destroyEnetPeer});
       } else {
         id = 0;
         serverPeer_ = std::unique_ptr<EnetPeerHandle, void(*)(EnetPeerHandle*)>{

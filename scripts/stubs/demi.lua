@@ -73,6 +73,8 @@ function Input.mouse_world_position() end
 ---@return number width
 ---@return number height
 function Input.viewport_size() end
+---@return boolean
+function Input.ui_pointer_captured() end
 
 ---@class ProceduralMeshBuilder
 ---@field clear fun(self: ProceduralMeshBuilder)
@@ -458,6 +460,9 @@ function Physics2D.contacts(entity_id) end
 
 ---@class HudService
 Hud = {}
+---@return number width
+---@return number height
+function Hud.canvas_size() end
 ---@param id string
 ---@param text string
 ---@param x number

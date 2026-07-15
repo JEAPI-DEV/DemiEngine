@@ -5,6 +5,7 @@
 #include "demi/runtime/scene/WorldQueries.h"
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <new>
@@ -429,34 +430,52 @@ void stepPhysics2D(World &world, const float fixedDt,
   }
   b2World &physicsWorld = *static_cast<b2World *>(state.world);
 
-  auto computeShapeSignature = [](const Entity &entity) -> std::uint64_t {
+  for (void *joint : state.joints)
+    physicsWorld.DestroyJoint(static_cast<b2Joint *>(joint));
+  state.joints.clear();
+
+  auto computeShapeSignature = [&](const Entity &entity) -> std::uint64_t {
     std::uint64_t signature = 0x9E3779B97F4A7C15ULL;
     auto mix = [&signature](std::uint64_t value) {
       signature ^= value + 0x9E3779B97F4A7C15ULL + (signature << 6) +
                    (signature >> 2);
     };
+    const auto mixFloat = [&mix](const float value) {
+      mix(std::bit_cast<std::uint32_t>(value));
+    };
+    const auto mixFilter = [&](const std::string &layer,
+                               const std::uint16_t categoryBits,
+                               const std::uint16_t maskBits) {
+      const auto category = world.physicsCategoryBits.find(layer);
+      if (category == world.physicsCategoryBits.end()) {
+        mix(categoryBits);
+        mix(maskBits);
+        return;
+      }
+      mix(category->second);
+      const auto mask = world.physicsMaskBits.find(layer);
+      mix(mask == world.physicsMaskBits.end() ? maskBits : mask->second);
+    };
+    if (const auto *rigidbody = entity.component<Rigidbody2DComponent>()) {
+      mix(static_cast<std::uint64_t>(rigidbody->lockRotation));
+      mixFloat(rigidbody->bounciness);
+    }
     if (const auto *box = entity.component<BoxCollider2DComponent>()) {
       mix(0x01);
       mix(static_cast<std::uint64_t>(box->isTrigger));
-      mix(static_cast<std::uint64_t>(box->offset.x * 1000.0F));
-      mix(static_cast<std::uint64_t>(box->offset.y * 1000.0F));
-      mix(static_cast<std::uint64_t>(box->size.x * 1000.0F));
-      mix(static_cast<std::uint64_t>(box->size.y * 1000.0F));
-      mix(static_cast<std::uint64_t>(box->categoryBits));
-      mix(static_cast<std::uint64_t>(box->maskBits));
-      const std::hash<std::string> hasher;
-      mix(hasher(box->layer));
+      mixFloat(box->offset.x);
+      mixFloat(box->offset.y);
+      mixFloat(box->size.x);
+      mixFloat(box->size.y);
+      mixFilter(box->layer, box->categoryBits, box->maskBits);
     }
     if (const auto *circle = entity.component<CircleCollider2DComponent>()) {
       mix(0x02);
       mix(static_cast<std::uint64_t>(circle->isTrigger));
-      mix(static_cast<std::uint64_t>(circle->offset.x * 1000.0F));
-      mix(static_cast<std::uint64_t>(circle->offset.y * 1000.0F));
-      mix(static_cast<std::uint64_t>(circle->radius * 1000.0F));
-      mix(static_cast<std::uint64_t>(circle->categoryBits));
-      mix(static_cast<std::uint64_t>(circle->maskBits));
-      const std::hash<std::string> hasher;
-      mix(circle->layer.size());
+      mixFloat(circle->offset.x);
+      mixFloat(circle->offset.y);
+      mixFloat(circle->radius);
+      mixFilter(circle->layer, circle->categoryBits, circle->maskBits);
     }
     return signature;
   };
@@ -627,7 +646,7 @@ void stepPhysics2D(World &world, const float fixedDt,
     jointDefs.push_back(definition);
   }
   for (b2DistanceJointDef &definition : jointDefs) {
-    physicsWorld.CreateJoint(&definition);
+    state.joints.push_back(physicsWorld.CreateJoint(&definition));
   }
 
   physicsWorld.Step(fixedDt, 8, 3);
