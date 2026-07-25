@@ -1,5 +1,6 @@
 #include "demi/runtime/render/hud3d/Hud3DNodeRenderers.h"
 
+#include "demi/runtime/render/HudTextMetrics.h"
 #include "demi/runtime/render/Renderer3DInternal.h"
 
 #include <algorithm>
@@ -25,8 +26,6 @@ bool tryDrawHud3DButton(const ui::UiNode &node,
     return false;
 
   constexpr float FontBaseSize = 8.0F;
-  constexpr float FontMinSize = 4.0F;
-  constexpr float LetterSpacing = 5.0F;
   const Color activeFillColor =
       node.hovered
           ? (node.hoverColor.a > 0.0F ? node.hoverColor : node.backgroundColor)
@@ -42,14 +41,13 @@ bool tryDrawHud3DButton(const ui::UiNode &node,
   DrawRectangleRec(rect, toRlColor(fillColor));
   const float authoredSize =
       node.fontSize > 0.0F ? node.fontSize : node.scale * FontBaseSize;
-  const float fontSize =
-      std::max(authoredSize * context.textScale, FontMinSize);
+  const HudTextMetrics metrics = hudTextMetrics(authoredSize, context.textScale);
   const ::Vector2 measured = MeasureTextEx(GetFontDefault(), node.text.c_str(),
-                                           fontSize, LetterSpacing);
+                                           metrics.fontSize, metrics.letterSpacing);
   DrawTextEx(GetFontDefault(), node.text.c_str(),
              {rect.x + (rect.width - measured.x) * 0.5F,
               rect.y + (rect.height - measured.y) * 0.5F},
-             fontSize, LetterSpacing,
+             metrics.fontSize, metrics.letterSpacing,
              toRlColor(node.disabled ? disabledColor(node.textColor)
                                      : node.textColor));
   return true;

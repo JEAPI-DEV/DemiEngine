@@ -170,7 +170,7 @@ loadAssetManifest(const std::filesystem::path &manifestPath,
     if (const auto settings = document.find("settings");
         settings != document.end() && settings->is_object()) {
       manifest.textureSettings.filter = settings->value("filter", "");
-      manifest.textureSettings.wrap = settings->value("wrap", "repeat");
+      manifest.textureSettings.wrap = settings->value("wrap", "clamp");
       manifest.textureSettings.mipmaps = settings->value("mipmaps", false);
     }
     manifest.attribution = document.value("attribution", "");

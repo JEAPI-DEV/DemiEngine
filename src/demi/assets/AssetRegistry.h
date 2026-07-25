@@ -11,7 +11,7 @@ namespace demi {
 
 struct TextureImporterSettings {
   std::string filter;
-  std::string wrap = "repeat";
+  std::string wrap = "clamp";
   bool mipmaps = false;
 };
 

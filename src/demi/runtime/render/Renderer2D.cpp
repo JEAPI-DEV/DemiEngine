@@ -2,7 +2,9 @@
 #include "demi/runtime/isometric/IsoGridMath.h"
 #include "demi/runtime/isometric/IsoWorldQueries.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/render/HudTextMetrics.h"
 #include "demi/runtime/render/ProfilerHudRenderer.h"
+#include "demi/runtime/render/TextureSamplerSettings.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/tilemap/TilemapAsset.h"
 #include "demi/runtime/ui/UiPresentation.h"
@@ -214,17 +216,15 @@ int gifFrameAt(const GifAnimationTextureData &animation, const float elapsed) {
 
 void drawUiText(const ui::UiNode &node, float scaleX, float scaleY) {
   constexpr float HudFontBaseSize = 8.0F;
-  constexpr float HudFontMinSize = 4.0F;
-  constexpr float HudLetterSpacing = 5.0F;
   if (!node.visible || node.text.empty())
     return;
   const float authoredFontSize =
       node.fontSize > 0.0F ? node.fontSize : node.scale * HudFontBaseSize;
-  const float fontSize =
-      std::max(authoredFontSize * std::min(scaleX, scaleY), HudFontMinSize);
+  const HudTextMetrics metrics =
+      hudTextMetrics(authoredFontSize, std::min(scaleX, scaleY));
   Vector2 pos{node.resolved.x * scaleX, node.resolved.y * scaleY};
-  DrawTextEx(GetFontDefault(), node.text.c_str(), pos, fontSize,
-             HudLetterSpacing,
+  DrawTextEx(GetFontDefault(), node.text.c_str(), pos, metrics.fontSize,
+             metrics.letterSpacing,
              toRlColor(node.textColor.a > 0.0F ? node.textColor : node.color));
 }
 
@@ -336,8 +336,6 @@ void drawUiImage(
 
 void drawUiButton(const ui::UiNode &node, float scaleX, float scaleY) {
   constexpr float HudFontBaseSize = 8.0F;
-  constexpr float HudFontMinSize = 4.0F;
-  constexpr float HudLetterSpacing = 5.0F;
 
   if (!node.visible)
     return;
@@ -361,22 +359,23 @@ void drawUiButton(const ui::UiNode &node, float scaleX, float scaleY) {
   DrawRectangleRec(rect, toRlColor(fillColor));
 
   if (!node.text.empty()) {
-    const float textScale = std::min(scaleX, scaleY);
     const float authoredFontSize =
         node.fontSize > 0.0F ? node.fontSize : node.scale * HudFontBaseSize;
-    const float fontSize =
-        std::max(authoredFontSize * textScale, HudFontMinSize);
+    const HudTextMetrics metrics =
+        hudTextMetrics(authoredFontSize, std::min(scaleX, scaleY));
 
     Font font = GetFontDefault();
     Vector2 textSize =
-        MeasureTextEx(font, node.text.c_str(), fontSize, HudLetterSpacing);
+        MeasureTextEx(font, node.text.c_str(), metrics.fontSize,
+                      metrics.letterSpacing);
 
     Vector2 textPos{
         rect.x + (rect.width - textSize.x) * 0.5F,
         rect.y + (rect.height - textSize.y) * 0.5F,
     };
 
-    DrawTextEx(font, node.text.c_str(), textPos, fontSize, HudLetterSpacing,
+    DrawTextEx(font, node.text.c_str(), textPos, metrics.fontSize,
+               metrics.letterSpacing,
                toRlColor(node.disabled ? Color{.r = node.textColor.r * 0.4F,
                                                .g = node.textColor.g * 0.4F,
                                                .b = node.textColor.b * 0.4F,
@@ -879,6 +878,8 @@ void Renderer2D::loadTextureAssets(const AssetRegistry &registry) {
                     .format = frames.format};
         Texture2D texture = LoadTextureFromImage(image);
         if (texture.id != 0) {
+          render_detail::applyTextureSamplerSettings(
+              texture, asset.textureSettings, TEXTURE_FILTER_BILINEAR);
           textures_[asset.id + "#" + std::to_string(frame)] = texture;
         }
       }
@@ -893,26 +894,28 @@ void Renderer2D::loadTextureAssets(const AssetRegistry &registry) {
       continue;
     }
     if (asset.type == "Icon2D") {
-      const std::optional<Texture2D> texture =
+      std::optional<Texture2D> texture =
           loadSvgTexture(asset.sourcePath, true);
       if (!texture.has_value()) {
         std::cerr << "Icon load failed for " << asset.id << " from "
                   << asset.sourcePath.string() << ".\n";
         continue;
       }
-      SetTextureFilter(*texture, TEXTURE_FILTER_BILINEAR);
+      render_detail::applyTextureSamplerSettings(
+          *texture, asset.textureSettings, TEXTURE_FILTER_BILINEAR);
       textures_[asset.id] = *texture;
       continue;
     }
     if (asset.type == "SvgTexture2D") {
-      const std::optional<Texture2D> texture =
+      std::optional<Texture2D> texture =
           loadSvgTexture(asset.sourcePath, false);
       if (!texture.has_value()) {
         std::cerr << "SVG texture load failed for " << asset.id << " from "
                   << asset.sourcePath.string() << ".\n";
         continue;
       }
-      SetTextureFilter(*texture, TEXTURE_FILTER_BILINEAR);
+      render_detail::applyTextureSamplerSettings(
+          *texture, asset.textureSettings, TEXTURE_FILTER_BILINEAR);
       textures_[asset.id] = *texture;
       continue;
     }
@@ -927,7 +930,8 @@ void Renderer2D::loadTextureAssets(const AssetRegistry &registry) {
           loaded = false;
           break;
         }
-        SetTextureFilter(texture, TEXTURE_FILTER_POINT);
+        render_detail::applyTextureSamplerSettings(
+            texture, asset.textureSettings, TEXTURE_FILTER_POINT);
         textures_[asset.id + "#" + std::to_string(frame)] = texture;
       }
       if (loaded) {
@@ -963,7 +967,8 @@ void Renderer2D::loadTextureAssets(const AssetRegistry &registry) {
       continue;
     }
 
-    SetTextureFilter(texture, TEXTURE_FILTER_POINT);
+    render_detail::applyTextureSamplerSettings(
+        texture, asset.textureSettings, TEXTURE_FILTER_POINT);
     textures_[asset.id] = texture;
   }
 }

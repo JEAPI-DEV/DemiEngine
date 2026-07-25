@@ -8,6 +8,10 @@ local tower_menu_offsets = {
   upgrade_icon = { 10, 43 },
   tower_destroy = { 8, 82 },
   destroy_icon = { 10, 87 },
+  tower_target_random = { 8, 128 },
+  tower_target_strongest = { 96, 128 },
+  tower_target_weakest = { 8, 184 },
+  tower_target_first = { 96, 184 },
 }
 
 local upgrade_menu_offsets = {
@@ -44,7 +48,7 @@ local function position_context_menu(tower)
   local screen_y = (0.5 - world_y / (half_height * 2)) * canvas_height
 
   local menu_x = math.max(12, math.min(canvas_width - 196, screen_x - 88))
-  local menu_y = math.max(82, math.min(canvas_height - 178, screen_y - 142))
+  local menu_y = math.max(82, math.min(canvas_height - 274, screen_y - 142))
   local choice_x = math.max(12, menu_x - 190)
 
   position_group(tower_menu_offsets, menu_x, menu_y)
@@ -75,6 +79,16 @@ function Ui.update(state, config)
     local refund = math.floor(TowerStats.invested_gold(tower, definition) * definition.upgrades.destroy_refund + 0.5)
     Hud.set_text("tower_destroy", "DESTROY +" .. refund)
 
+    local targeting = tower.targeting or "first"
+    Hud.set_color("tower_target_random", targeting == "random" and 0.22 or 0.10,
+      targeting == "random" and 0.50 or 0.22, targeting == "random" and 0.42 or 0.30, 1.0)
+    Hud.set_color("tower_target_strongest", targeting == "strongest" and 0.42 or 0.22,
+      targeting == "strongest" and 0.28 or 0.16, targeting == "strongest" and 0.62 or 0.30, 1.0)
+    Hud.set_color("tower_target_weakest", targeting == "weakest" and 0.48 or 0.28,
+      targeting == "weakest" and 0.32 or 0.20, targeting == "weakest" and 0.22 or 0.14, 1.0)
+    Hud.set_color("tower_target_first", targeting == "first" and 0.22 or 0.12,
+      targeting == "first" and 0.42 or 0.28, targeting == "first" and 0.62 or 0.36, 1.0)
+
     local upgrade_disabled = stats.level >= definition.upgrades.max_level or state.gold < cost
     Hud.set_disabled("tower_upgrade", upgrade_disabled)
     Hud.set_opacity("upgrade_icon", upgrade_disabled and 0.4 or 1.0)
@@ -90,6 +104,10 @@ function Ui.update(state, config)
   set_group_visible("upgrade_choice_menu", tower ~= nil and state.upgrade_menu_open)
 
   Hud.set_disabled("tower_destroy", tower == nil)
+  Hud.set_disabled("tower_target_random", tower == nil)
+  Hud.set_disabled("tower_target_strongest", tower == nil)
+  Hud.set_disabled("tower_target_weakest", tower == nil)
+  Hud.set_disabled("tower_target_first", tower == nil)
   Hud.set_disabled("build_arrow", state.wave_active or state.gold < config.towers.arrow.cost)
   Hud.set_disabled("build_wizard", state.wave_active or state.gold < config.towers.wizard.cost)
   Hud.set_disabled("start_wave", state.wave_active or state.base_health <= 0)

@@ -13,6 +13,7 @@ function Persistence.new(state, config, building, waves, projectiles, health_bar
         y = tower.y,
         power_level = tower.power_level or 0,
         range_level = tower.range_level or 0,
+        targeting = tower.targeting or "first",
       }
     end
     table.sort(towers, function(a, b)
@@ -53,7 +54,7 @@ function Persistence.new(state, config, building, waves, projectiles, health_bar
     state.wave = saved.wave or 0
     local prefab_instances = document.prefab_instances or {}
     for _, tower in ipairs(prefab_instances.towers or saved.towers or {}) do
-      building.restore(tower.kind, tower.x, tower.y, tower.id, tower.power_level, tower.range_level)
+      building.restore(tower.kind, tower.x, tower.y, tower.id, tower.power_level, tower.range_level, tower.targeting)
     end
     state.build_kind = nil
     state.upgrade_menu_open = false

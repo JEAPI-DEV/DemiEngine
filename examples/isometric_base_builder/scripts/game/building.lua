@@ -52,7 +52,10 @@ function Building.new(state, config)
     }})
     if not created then state.status = "Could not create tower entity." return false end
     state.gold = state.gold - definition.cost
-    state.towers[id] = { id = id, kind = kind, x = x, y = y, cooldown = 0, power_level = 0, range_level = 0 }
+    state.towers[id] = {
+      id = id, kind = kind, x = x, y = y, cooldown = 0,
+      power_level = 0, range_level = 0, targeting = "first",
+    }
     state.status = definition.label .. " built."
     state.build_kind = nil
     Grid.clear_preview()
@@ -112,7 +115,16 @@ function Building.new(state, config)
     return true
   end
 
-  function self.restore(kind, x, y, saved_id, power_level, range_level)
+  function self.set_targeting(mode)
+    local tower = selected_tower()
+    if not tower then return false end
+    if mode ~= "random" and mode ~= "strongest" and mode ~= "weakest" and mode ~= "first" then return false end
+    tower.targeting = mode
+    state.status = config.towers[tower.kind].label .. " targeting " .. string.upper(mode) .. "."
+    return true
+  end
+
+  function self.restore(kind, x, y, saved_id, power_level, range_level, targeting)
     local definition = config.towers[kind]
     if not definition then return false end
     local id = saved_id or ("ent_player_tower_" .. tostring(state.next_tower_id))
@@ -122,7 +134,12 @@ function Building.new(state, config)
       Buildable = { asset = "", blocks_movement = true },
       Sprite = { texture = definition.texture, size = definition.size, pivot = { 0.5, 1.0 } },
     }}) then return false end
-    state.towers[id] = { id = id, kind = kind, x = x, y = y, cooldown = 0, power_level = power_level or 0, range_level = range_level or 0 }
+    local valid_targeting = targeting == "random" or targeting == "strongest" or targeting == "weakest" or targeting == "first"
+    state.towers[id] = {
+      id = id, kind = kind, x = x, y = y, cooldown = 0,
+      power_level = power_level or 0, range_level = range_level or 0,
+      targeting = valid_targeting and targeting or "first",
+    }
     return true
   end
 

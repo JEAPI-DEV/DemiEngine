@@ -12,6 +12,7 @@
 #include "demi/runtime/network/NetworkSystem.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/render/RaylibFileSystemBridge.h"
 #include "demi/runtime/scene/SceneData.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/runtime/tilemap/TilemapCollisionGenerator.h"
@@ -570,6 +571,7 @@ int runProject(const RuntimeOptions &options) {
                             loaded.project.name + " - " + loaded.world.name;
   InitWindow(windowWidth, windowHeight, title.c_str());
   SetExitKey(KEY_NULL);
+  installRaylibFileSystemBridge();
 
   Renderer2D renderer2D;
   Renderer3D renderer3D;

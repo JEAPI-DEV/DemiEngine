@@ -34,7 +34,7 @@ files. New imports record all pipeline metadata:
   "generated_output": "../../../generated/assets/characters/hero/hero.png",
   "settings": {
     "filter": "nearest",
-    "wrap": "repeat",
+    "wrap": "clamp",
     "mipmaps": false
   },
   "license": "License.txt",

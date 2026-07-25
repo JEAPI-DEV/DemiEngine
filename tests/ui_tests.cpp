@@ -1,4 +1,5 @@
 #include "demi/runtime/ui/UiActionController.h"
+#include "demi/runtime/render/HudTextMetrics.h"
 #include "demi/runtime/ui/UiDocumentParser.h"
 #include "demi/runtime/ui/UiInteractionController.h"
 #include "demi/runtime/ui/UiLayoutEngine.h"
@@ -27,6 +28,17 @@ bool verifyAspect(demi::runtime::ui::UiDocument document,
 } // namespace
 
 int main() {
+  const demi::runtime::HudTextMetrics nativeMetrics =
+      demi::runtime::hudTextMetrics(28.0F, 1.0F);
+  const demi::runtime::HudTextMetrics compactMetrics =
+      demi::runtime::hudTextMetrics(28.0F, 0.2F);
+  if (!near(nativeMetrics.fontSize, 28.0F) || !near(nativeMetrics.letterSpacing, 5.0F) ||
+      !near(compactMetrics.fontSize, 10.0F) ||
+      compactMetrics.letterSpacing < 1.0F || compactMetrics.letterSpacing >= nativeMetrics.letterSpacing) {
+    std::cerr << "HUD text metrics did not preserve readable compact text.\n";
+    return 1;
+  }
+
   using nlohmann::json;
   auto document = demi::runtime::ui::parseUiDocument(json::parse(R"({
     "format_version": 1,

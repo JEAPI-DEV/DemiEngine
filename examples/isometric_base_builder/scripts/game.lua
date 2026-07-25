@@ -46,6 +46,10 @@ function Game:handle_input()
   if Input.action_pressed("load") then self.persistence.load() end
   if Input.action_pressed("tower_upgrade") then self.building.open_upgrade_menu() end
   if Input.action_pressed("tower_destroy") then self.building.destroy_selected() end
+  if Input.action_pressed("tower_target_random") then self.building.set_targeting("random") end
+  if Input.action_pressed("tower_target_strongest") then self.building.set_targeting("strongest") end
+  if Input.action_pressed("tower_target_weakest") then self.building.set_targeting("weakest") end
+  if Input.action_pressed("tower_target_first") then self.building.set_targeting("first") end
   if Input.action_pressed("upgrade_range") then self.building.upgrade("range") end
   if Input.action_pressed("upgrade_power") then self.building.upgrade("power") end
 

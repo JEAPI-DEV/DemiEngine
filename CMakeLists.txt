@@ -370,6 +370,7 @@ endfunction()
 
 configure_demi_runtime(demi-runtime-lib TRUE
   src/demi/runtime/render/ProfilerHudRenderer.cpp
+  src/demi/runtime/render/RaylibFileSystemBridge.cpp
   src/demi/runtime/render/Renderer2D.cpp
   src/demi/runtime/render/Renderer3D.cpp
   src/demi/runtime/render/Renderer3DBatcher.cpp
@@ -385,6 +386,7 @@ configure_demi_runtime(demi-runtime-lib TRUE
   src/demi/runtime/render/Renderer3DMeshRenderer.cpp
   src/demi/runtime/render/Renderer3DModelResources.cpp
   src/demi/runtime/render/Renderer3DTextureSettings.cpp
+  src/demi/runtime/render/TextureSamplerSettings.cpp
 )
 
 if(NOT ANDROID)

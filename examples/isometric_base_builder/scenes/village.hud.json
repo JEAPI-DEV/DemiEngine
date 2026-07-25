@@ -281,7 +281,7 @@
       ],
       "size": [
         184.0,
-        132.0
+        244.0
       ],
       "color": [
         0.04,
@@ -397,6 +397,122 @@
         1.0
       ],
       "action": "tower_destroy",
+      "group": "tower_menu",
+      "visible": false
+    },
+    {
+      "type": "button",
+      "id": "tower_target_random",
+      "label": "RANDOM",
+      "position": [
+        368.0,
+        378.0
+      ],
+      "size": [
+        80.0,
+        52.0
+      ],
+      "scale": 1.0,
+      "color": [
+        0.1,
+        0.22,
+        0.3,
+        1.0
+      ],
+      "hover_color": [
+        0.22,
+        0.5,
+        0.42,
+        1.0
+      ],
+      "action": "tower_target_random",
+      "group": "tower_menu",
+      "visible": false
+    },
+    {
+      "type": "button",
+      "id": "tower_target_strongest",
+      "label": "STRONGEST",
+      "position": [
+        456.0,
+        378.0
+      ],
+      "size": [
+        80.0,
+        52.0
+      ],
+      "scale": 0.82,
+      "color": [
+        0.22,
+        0.16,
+        0.3,
+        1.0
+      ],
+      "hover_color": [
+        0.42,
+        0.28,
+        0.62,
+        1.0
+      ],
+      "action": "tower_target_strongest",
+      "group": "tower_menu",
+      "visible": false
+    },
+    {
+      "type": "button",
+      "id": "tower_target_weakest",
+      "label": "WEAKEST",
+      "position": [
+        368.0,
+        434.0
+      ],
+      "size": [
+        80.0,
+        52.0
+      ],
+      "scale": 0.82,
+      "color": [
+        0.28,
+        0.2,
+        0.14,
+        1.0
+      ],
+      "hover_color": [
+        0.48,
+        0.32,
+        0.22,
+        1.0
+      ],
+      "action": "tower_target_weakest",
+      "group": "tower_menu",
+      "visible": false
+    },
+    {
+      "type": "button",
+      "id": "tower_target_first",
+      "label": "FIRST",
+      "position": [
+        456.0,
+        434.0
+      ],
+      "size": [
+        80.0,
+        52.0
+      ],
+      "scale": 1.0,
+      "color": [
+        0.12,
+        0.28,
+        0.36,
+        1.0
+      ],
+      "hover_color": [
+        0.22,
+        0.42,
+        0.62,
+        1.0
+      ],
+      "action": "tower_target_first",
       "group": "tower_menu",
       "visible": false
     },

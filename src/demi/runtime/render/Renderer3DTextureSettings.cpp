@@ -1,5 +1,7 @@
 #include "demi/runtime/render/Renderer3DInternal.h"
 
+#include "demi/runtime/render/TextureSamplerSettings.h"
+
 #include <rlgl.h>
 
 #include <unordered_set>
@@ -9,20 +11,7 @@ namespace demi::runtime::renderer3d_detail {
 void applyTextureSettings(Texture2D &texture,
                           const TextureImporterSettings &settings,
                           const int defaultFilter) {
-  if (settings.mipmaps && texture.mipmaps <= 1)
-    GenTextureMipmaps(&texture);
-  int filter = defaultFilter;
-  if (settings.filter == "nearest")
-    filter = TEXTURE_FILTER_POINT;
-  else if (settings.filter == "bilinear")
-    filter = TEXTURE_FILTER_BILINEAR;
-  else if (settings.filter == "trilinear")
-    filter = TEXTURE_FILTER_TRILINEAR;
-  SetTextureFilter(texture, filter);
-  const int wrap = settings.wrap == "clamp"    ? TEXTURE_WRAP_CLAMP
-                   : settings.wrap == "mirror" ? TEXTURE_WRAP_MIRROR_REPEAT
-                                               : TEXTURE_WRAP_REPEAT;
-  SetTextureWrap(texture, wrap);
+  render_detail::applyTextureSamplerSettings(texture, settings, defaultFilter);
 }
 
 void applyModelTextureSettings(Model &model,

@@ -171,6 +171,17 @@ int main() {
     return 1;
   }
 
+  mainDocument.erase("settings");
+  writeJson(mainAsset.manifestPath, mainDocument);
+  const auto defaultSamplerManifest = loadAssetManifest(mainAsset.manifestPath);
+  if (!defaultSamplerManifest ||
+      defaultSamplerManifest->textureSettings.wrap != "clamp") {
+    std::cerr << "Texture assets did not default to GLES-safe clamp wrapping.\n";
+    return 1;
+  }
+  mainDocument["settings"] = {
+      {"filter", "nearest"}, {"wrap", "clamp"}, {"mipmaps", true}};
+
   mainDocument["settings"]["filter"] = "invalid";
   writeJson(mainAsset.manifestPath, mainDocument);
   if (!containsCode(validateAssetRegistry(loadAssetRegistry(sourceProject)),

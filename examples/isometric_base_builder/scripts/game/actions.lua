@@ -11,6 +11,14 @@ function Actions.start_wave() context.waves.start() end
 function Actions.tower_upgrade() context.building.open_upgrade_menu() end
 -- @HandleAction("tower_destroy")
 function Actions.tower_destroy() context.building.destroy_selected() end
+-- @HandleAction("tower_target_random")
+function Actions.tower_target_random() context.building.set_targeting("random") end
+-- @HandleAction("tower_target_strongest")
+function Actions.tower_target_strongest() context.building.set_targeting("strongest") end
+-- @HandleAction("tower_target_weakest")
+function Actions.tower_target_weakest() context.building.set_targeting("weakest") end
+-- @HandleAction("tower_target_first")
+function Actions.tower_target_first() context.building.set_targeting("first") end
 -- @HandleAction("upgrade_range")
 function Actions.upgrade_range() context.building.upgrade("range") end
 -- @HandleAction("upgrade_power")
