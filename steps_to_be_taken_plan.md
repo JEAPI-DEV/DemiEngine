@@ -296,6 +296,12 @@ and tested, without manualy making the collider ourselfs.
 
 ## Milestone 10 — Networking As A Game-Facing Layer
 
+**Status: complete.** `NetworkSession` now exposes game events, replicated
+entity spawn/despawn, explicit authority, metadata-filtered component
+snapshots, interpolation, and diagnostics without exposing transport details.
+The platformer uses the API, and focused plus repeatable two-client headless
+tests cover serialization safety and ownership.
+
 1. Keep transport/security code isolated. Define high-level session, message,
 RPC/event, and replicated-state APIs that Lua games actually consume.
 2. Integrate replication with component metadata and explicit serialization;
@@ -307,6 +313,13 @@ network diagnostics.
 
 **Done when:** a Lua game can host, connect, replicate selected game state, and
 report useful connection/authority errors without knowing transport details.
+
+# Milestone 10.5 - Remove Legacy code, that has stuck around.
+
+1. Remove code that is considered deprecated and has already a fitting replacement
+2. Use new features of the game engine that can replace code we have in the examples that are not needed / need to be replaced
+   
+**Done when:** All examples are updated.
 
 ## Milestone 11 — Editor, After The Data Model Is Stable
 

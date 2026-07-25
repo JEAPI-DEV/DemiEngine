@@ -23,9 +23,12 @@ struct SpriteComponent {
       ComponentFieldDescriptor{"source_size", ComponentFieldType::Vec2},
       ComponentFieldDescriptor{"size", ComponentFieldType::Vec2},
       ComponentFieldDescriptor{"pivot", ComponentFieldType::Vec2},
-      ComponentFieldDescriptor{"flip_x", ComponentFieldType::Boolean},
-      ComponentFieldDescriptor{"flip_y", ComponentFieldType::Boolean},
-      ComponentFieldDescriptor{"color", ComponentFieldType::Color}};
+      ComponentFieldDescriptor{"flip_x", ComponentFieldType::Boolean, false,
+                               true, {}, 0.0, false, true},
+      ComponentFieldDescriptor{"flip_y", ComponentFieldType::Boolean, false,
+                               true, {}, 0.0, false, true},
+      ComponentFieldDescriptor{"color", ComponentFieldType::Color, false, true,
+                               {}, 0.0, false, true}};
   static constexpr ComponentEditorMetadata editor{"2D", "Sprite"};
   static void parse(const nlohmann::json &json, Entity &entity);
 

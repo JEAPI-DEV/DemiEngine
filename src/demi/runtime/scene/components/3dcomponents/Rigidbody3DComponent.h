@@ -16,7 +16,8 @@ struct Rigidbody3DComponent {
   static constexpr std::array fields{
       ComponentFieldDescriptor{"body_type", ComponentFieldType::String, false,
                                true, bodyTypes},
-      ComponentFieldDescriptor{"velocity", ComponentFieldType::Vec3},
+      ComponentFieldDescriptor{"velocity", ComponentFieldType::Vec3, false,
+                               true, {}, 0.0, false, true},
       ComponentFieldDescriptor{"use_gravity", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"gravity_scale", ComponentFieldType::Number}};
   static constexpr ComponentEditorMetadata editor{"Physics 3D", "Rigidbody 3D"};

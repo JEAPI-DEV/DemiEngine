@@ -243,7 +243,8 @@ The runtime is split by responsibility:
 - `src/demi/runtime/app`: runtime loop, input polling, window setup, and subsystem orchestration.
 - `src/demi/runtime/audio`: audio playback through miniaudio.
 - `src/demi/runtime/media`: video and cutscene media plumbing.
-- `src/demi/runtime/network`: optional network transport and session helpers.
+- `src/demi/runtime/network`: optional transport/security plus game-facing
+  sessions, authority, safe replicated state, and diagnostics.
 - `src/demi/runtime/physics`: 2D and 3D movement and collision helpers.
 - `src/demi/runtime/render`: 2D and 3D renderers and font support.
 - `src/demi/runtime/scene`: project loading, scene parsing, HUD parsing, JSON helpers, and runtime scene data.

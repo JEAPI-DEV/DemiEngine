@@ -248,8 +248,10 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/audio/MiniaudioAudioBackend.cpp
   src/demi/runtime/media/MediaSystem.cpp
   src/demi/runtime/network/DtlsTransport.cpp
+  src/demi/runtime/network/GameNetworkSession.cpp
   src/demi/runtime/network/HttpClient.cpp
   src/demi/runtime/network/NetworkSystem.cpp
+  src/demi/runtime/network/ReplicatedState.cpp
   src/demi/runtime/network/TlsMessaging.cpp
   src/demi/runtime/physics/Box2DWorldState.cpp
   src/demi/runtime/physics/Physics2D.cpp
@@ -476,6 +478,8 @@ else()
 
   add_executable(demi-snapshot-replication-tests tests/snapshot_replication_tests.cpp)
   target_link_libraries(demi-snapshot-replication-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-game-network-session-tests tests/game_network_session_tests.cpp)
+  target_link_libraries(demi-game-network-session-tests PRIVATE demi-runtime-lib)
 
   if(DEMI_ENABLE_NETWORK)
     add_executable(demi-network-tests tests/network_tests.cpp)
@@ -485,6 +489,8 @@ else()
       DEMI_DTLS_TEST_KEY="${mbedtls_SOURCE_DIR}/framework/data_files/server5.key"
       DEMI_DTLS_TEST_CA="${mbedtls_SOURCE_DIR}/framework/data_files/test-ca2.crt"
     )
+    add_executable(demi-network-two-client-tests tests/network_two_client_tests.cpp)
+    target_link_libraries(demi-network-two-client-tests PRIVATE demi-runtime-lib)
     add_executable(demi-lua-server-tests tests/lua_server_tests.cpp)
     target_link_libraries(demi-lua-server-tests PRIVATE demi-runtime-lib)
   endif()
@@ -532,8 +538,10 @@ add_test(NAME demi-scene-expand-cli
 add_test(NAME demi-scene-diff-cli
   COMMAND demi scene diff ${CMAKE_SOURCE_DIR}/examples/minimal_3d/scenes/main.scene.json ${CMAKE_SOURCE_DIR}/examples/minimal_3d/scenes/main.scene.json)
 add_test(NAME demi-snapshot-replication-tests COMMAND demi-snapshot-replication-tests)
+add_test(NAME demi-game-network-session-tests COMMAND demi-game-network-session-tests)
 if(DEMI_ENABLE_NETWORK)
   add_test(NAME demi-network-tests COMMAND demi-network-tests)
+  add_test(NAME demi-network-two-client-tests COMMAND demi-network-two-client-tests)
   add_test(
     NAME demi-lua-server-tests
     COMMAND demi-lua-server-tests

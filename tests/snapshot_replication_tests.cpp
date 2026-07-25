@@ -196,6 +196,16 @@ function Probe:on_start()
   NetworkSession.reset_claims()
   assert_true(NetworkSession.register_claim_once("coin_4"), "claim reset should allow scene-reloaded objects to register as unclaimed")
 
+  assert_true(NetworkSession.register_entity("replicated_player", {
+    network_id = "player_client",
+  }), "game-facing session failed to register a replicated entity")
+  assert_true(NetworkSession.owner("player_client") == "client", "registered entity owner was not recorded")
+  assert_true(NetworkSession.has_authority("player_client"), "local entity did not grant local authority")
+  assert_true(NetworkSession.update_entity("player_client", 1.0), "offline replicated entity update should be a no-op success")
+  local diagnostics = NetworkSession.diagnostics()
+  assert_true(diagnostics.mode == "offline", "offline session diagnostics reported the wrong mode")
+  assert_true(diagnostics.local_peer_id == "client", "session diagnostics omitted the local peer identity")
+
   Save.set_string("test", "snapshot_replication", "passed")
 end
 
@@ -210,6 +220,12 @@ return Probe
   project.scriptEntry = "script://scripts/probe.lua";
 
   runtime::World world;
+  runtime::Entity replicatedPlayer;
+  replicatedPlayer.id = "replicated_player";
+  replicatedPlayer.setComponent(runtime::Transform2DComponent{
+      .position = {.x = 1.0F, .y = 2.0F},
+  });
+  world.entities.push_back(std::move(replicatedPlayer));
   runtime::InputState input;
   runtime::LuaScriptHost host;
   std::string luaError;

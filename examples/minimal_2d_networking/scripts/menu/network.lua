@@ -31,7 +31,8 @@ function NetworkMenu.host_game()
     NetworkMenu.update_hud("HOSTING LEVEL " .. tostring(menu.network_level) .. " ON PORT " .. tostring(menu.network_port))
     callbacks.select_level(scene_id, menu.network_level)
   else
-    NetworkMenu.update_hud("HOST FAILED - ENABLE NETWORK BUILD")
+    local diagnostics = replication.diagnostics()
+    NetworkMenu.update_hud("HOST FAILED - " .. tostring(diagnostics.last_error))
   end
 end
 
@@ -47,7 +48,8 @@ function NetworkMenu.join_game()
     NetworkMenu.update_hud("CONNECTING TO " .. menu.network_ip)
   else
     menu.network_join_pending = false
-    NetworkMenu.update_hud("JOIN FAILED - CHECK IP OR BUILD")
+    local diagnostics = replication.diagnostics()
+    NetworkMenu.update_hud("JOIN FAILED - " .. tostring(diagnostics.last_error))
   end
 end
 

@@ -40,6 +40,9 @@ The current source layout reflects those boundaries:
 - `src/demi/runtime/scripting`: Lua lifecycle, services, annotations, and
   installable bindings.
 - `src/demi/runtime/audio`, `media`, and `network`: isolated integrations.
+  Networking keeps `NetworkSystem` at the transport/security boundary;
+  `GameNetworkSession` owns game-facing identity, authority, and diagnostics,
+  while `ReplicatedState` gates snapshots through component metadata.
 
 ## Current Technology
 

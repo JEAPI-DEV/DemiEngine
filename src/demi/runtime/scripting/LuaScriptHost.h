@@ -150,6 +150,11 @@ public:
   [[nodiscard]] std::vector<PhysicsContact2D>
   physicsContacts(const std::string &entityId) const;
   [[nodiscard]] bool createEntity(Entity entity);
+  [[nodiscard]] std::optional<std::string>
+  captureEntityReplicatedState(const std::string &entityId) const;
+  [[nodiscard]] std::string
+  applyEntityReplicatedState(const std::string &entityId,
+                             const std::string &stateJson);
   [[nodiscard]] bool setEntityMeshRenderer(const std::string &entityId,
                                            std::string texture,
                                            std::vector<Vec3> vertices,

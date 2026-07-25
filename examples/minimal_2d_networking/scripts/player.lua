@@ -36,6 +36,13 @@ function Player:on_start()
     state.respawn_x = x
     state.respawn_y = y
   end
+  self.network_id = "player_" .. replication.sender_id()
+  if not replication.register_entity(self.entity_id, {
+    network_id = self.network_id,
+  }) then
+    local diagnostics = replication.diagnostics()
+    Debug.log("Player replication registration failed: " .. tostring(diagnostics.last_error))
+  end
 end
 
 function Player:on_update(dt)
@@ -63,7 +70,7 @@ function Player:on_update(dt)
     return
   end
 
-  replication.update_local_transform(self.entity_id, dt)
+  replication.update_entity(self.network_id, dt)
 
   local mouse_down = Input.mouse_down("left")
   local grounded = self.controller:is_grounded(self.entity_id)

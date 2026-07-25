@@ -16,7 +16,8 @@ struct Rigidbody2DComponent {
   static constexpr std::array fields{
       ComponentFieldDescriptor{"body_type", ComponentFieldType::String, false,
                                true, bodyTypes},
-      ComponentFieldDescriptor{"velocity", ComponentFieldType::Vec2},
+      ComponentFieldDescriptor{"velocity", ComponentFieldType::Vec2, false,
+                               true, {}, 0.0, false, true},
       ComponentFieldDescriptor{"gravity_scale", ComponentFieldType::Number},
       ComponentFieldDescriptor{"bounciness", ComponentFieldType::Number},
       ComponentFieldDescriptor{"lock_rotation", ComponentFieldType::Boolean}};

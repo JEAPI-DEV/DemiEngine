@@ -294,8 +294,10 @@ void NetworkSystem::disconnect() {
   serverPeer_.reset();
   peers_.clear();
   connected_ = false;
+  mode_ = NetworkMode::Offline;
 #else
   connected_ = false;
+  mode_ = NetworkMode::Offline;
 #endif
 }
 

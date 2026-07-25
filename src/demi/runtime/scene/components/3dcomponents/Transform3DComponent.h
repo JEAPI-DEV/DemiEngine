@@ -13,9 +13,12 @@ struct Transform3DComponent {
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
   static constexpr std::array fields{
       ComponentFieldDescriptor{"parent", ComponentFieldType::String},
-      ComponentFieldDescriptor{"position", ComponentFieldType::Vec3},
-      ComponentFieldDescriptor{"rotation", ComponentFieldType::Vec3},
-      ComponentFieldDescriptor{"scale", ComponentFieldType::Vec3}};
+      ComponentFieldDescriptor{"position", ComponentFieldType::Vec3, false,
+                               true, {}, 0.0, false, true},
+      ComponentFieldDescriptor{"rotation", ComponentFieldType::Vec3, false,
+                               true, {}, 0.0, false, true},
+      ComponentFieldDescriptor{"scale", ComponentFieldType::Vec3, false, true,
+                               {}, 0.0, false, true}};
   static constexpr ComponentEditorMetadata editor{"3D", "Transform 3D"};
   static void parse(const nlohmann::json &json, Entity &entity);
 

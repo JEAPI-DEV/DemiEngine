@@ -949,10 +949,58 @@ function Crypto.secure_equals(left, right) end
 
 ---@class NetworkSessionService
 NetworkSession = {}
+---@class NetworkSessionDiagnostics
+---@field mode "offline"|"host"|"client"
+---@field local_peer_id string
+---@field connected boolean
+---@field secure boolean
+---@field latency_ms integer
+---@field connected_peers integer
+---@field sent_messages integer
+---@field received_messages integer
+---@field rejected_messages integer
+---@field last_error string
+---@class NetworkSessionGameEvent
+---@field name string
+---@field sender_id string
+---@field data any
+---@class NetworkSessionUpdate
+---@field connected boolean
+---@field disconnected boolean
+---@field session_started boolean
+---@field session table|nil
+---@field messages integer
+---@field events NetworkSessionGameEvent[]
 ---@param options {send_interval?: number, extrapolation_limit?: number, initial_prediction?: number, channel?: integer, port?: integer, max_peers?: integer, remote_prefab?: table, certificate?: string, private_key?: string, trusted_certificate?: string, server_name?: string}
 function NetworkSession.configure(options) end
 ---@return string
 function NetworkSession.sender_id() end
+---@return boolean
+function NetworkSession.is_host() end
+---@return NetworkSessionDiagnostics
+function NetworkSession.diagnostics() end
+---@param network_id string
+---@return string|nil
+function NetworkSession.owner(network_id) end
+---@param network_id string
+---@return boolean
+function NetworkSession.has_authority(network_id) end
+---@param network_id string
+---@param owner string
+---@return boolean
+function NetworkSession.set_authority(network_id, owner) end
+---@param name string
+---@param data? any
+---@param reliable? boolean
+---@return boolean
+function NetworkSession.emit(name, data, reliable) end
+---@param entity_id string
+---@param options? {network_id?: string, owner?: string}
+---@return boolean
+function NetworkSession.register_entity(entity_id, options) end
+---@param network_id string
+---@return boolean
+function NetworkSession.despawn(network_id) end
 ---@param r number
 ---@param g number
 ---@param b number
@@ -994,8 +1042,12 @@ function NetworkSession.request_claim_once_sync(peer_id) end
 ---@param claim? table
 ---@return boolean
 function NetworkSession.try_claim_once(id, claim) end
----@return table
+---@return NetworkSessionUpdate
 function NetworkSession.process_events() end
+---@param network_id string
+---@param dt number
+---@return boolean
+function NetworkSession.update_entity(network_id, dt) end
 ---@param entity_id string
 ---@param dt number
 function NetworkSession.update_local_transform(entity_id, dt) end

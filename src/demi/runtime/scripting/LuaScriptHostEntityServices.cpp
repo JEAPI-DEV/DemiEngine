@@ -1,10 +1,13 @@
 #include "demi/runtime/scene/components/EngineComponents.h"
+#include "demi/runtime/network/ReplicatedState.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include "demi/runtime/input/InputActionResolver.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/Physics3D.h"
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
+
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <optional>
@@ -390,6 +393,32 @@ bool LuaScriptHost::createEntity(Entity entity) {
   }
   world_->entities.push_back(std::move(entity));
   return true;
+}
+
+std::optional<std::string> LuaScriptHost::captureEntityReplicatedState(
+    const std::string &entityId) const {
+  if (world_ == nullptr)
+    return std::nullopt;
+  const Entity *entity = findEntity(*world_, entityId);
+  if (entity == nullptr)
+    return std::nullopt;
+  return captureReplicatedState(*entity).dump();
+}
+
+std::string LuaScriptHost::applyEntityReplicatedState(
+    const std::string &entityId, const std::string &stateJson) {
+  if (world_ == nullptr)
+    return "world is not loaded";
+  Entity *entity = findEntity(*world_, entityId);
+  if (entity == nullptr)
+    return "entity not found: " + entityId;
+  try {
+    const ReplicatedStateResult result =
+        applyReplicatedState(*entity, nlohmann::json::parse(stateJson));
+    return result.ok ? std::string{} : result.error;
+  } catch (const std::exception &error) {
+    return std::string("invalid replicated state: ") + error.what();
+  }
 }
 
 bool LuaScriptHost::setEntityMeshRenderer(const std::string &entityId,

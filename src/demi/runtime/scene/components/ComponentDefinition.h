@@ -33,6 +33,7 @@ struct ComponentFieldDescriptor {
   std::span<const std::string_view> allowedValues{};
   double minimum = 0.0;
   bool hasMinimum = false;
+  bool replicated = false;
 };
 
 struct ComponentEditorMetadata {

@@ -188,6 +188,8 @@ nlohmann::json componentSchema(const ComponentDescriptor &descriptor) {
       property["minimum"] = field.minimum;
     if (!field.allowedValues.empty())
       property["enum"] = field.allowedValues;
+    if (field.replicated)
+      property["x-demi-replicated"] = true;
     schema["properties"][field.name] = std::move(property);
     if (field.required) {
       schema["required"].push_back(field.name);

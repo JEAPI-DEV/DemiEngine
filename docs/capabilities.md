@@ -18,7 +18,7 @@ Status meanings:
 | CLI validation and smoke tests | Stable | Project/example validation and headless runtime probes |
 | Lightweight 3D | Experimental | Cycle-safe transform hierarchies, CLI-generated glTF colliders with 0..1 mesh detail, spatial queries, glTF materials and skeletal clips, deterministic batching, frustum culling, resource ownership, debug rendering, and profiled reference budgets |
 | Video/cutscenes | Experimental | FFmpeg-backed playback when enabled |
-| Networking | Experimental | Optional ENet, TLS/DTLS, Lua session helpers |
+| Networking | Experimental | Game-facing Lua sessions, authority, safe component snapshots, interpolation, spawn/despawn, diagnostics; optional ENet and TLS/DTLS transport |
 | Android | Experimental | Minimal client/server-oriented build support |
 | Component metadata as sole source | Stable | Generated registry drives parsing, validation, schema export, Lua policy, and editor placeholders |
 | Prefabs | Stable | Versioned entity/UI files, nesting, overrides, cycle diagnostics, CLI expansion/diff |
