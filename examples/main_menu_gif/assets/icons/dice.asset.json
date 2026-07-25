@@ -1,6 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://icons/dice",
-  "type": "Icon2D",
-  "source": "dice.svg"
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "dice.svg",
+  "source_hash": "fnv1a64:48028be01e22d202",
+  "type": "Icon2D"
 }

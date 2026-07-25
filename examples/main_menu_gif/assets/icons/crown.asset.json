@@ -1,6 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://icons/crown",
-  "type": "Icon2D",
-  "source": "crown.svg"
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "crown.svg",
+  "source_hash": "fnv1a64:1e238d74e0dbc7c4",
+  "type": "Icon2D"
 }

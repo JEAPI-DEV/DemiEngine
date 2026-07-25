@@ -28,147 +28,6 @@ std::string escapeJsonString(const std::string& text) {
   return escaped;
 }
 
-std::optional<std::size_t> matchingClose(const std::string& text, const std::size_t open, const char openChar, const char closeChar) {
-  int depth = 0;
-  bool inString = false;
-  bool escaped = false;
-  for (std::size_t i = open; i < text.size(); ++i) {
-    const char c = text[i];
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (c == '\\' && inString) {
-      escaped = true;
-      continue;
-    }
-    if (c == '"') {
-      inString = !inString;
-      continue;
-    }
-    if (inString) {
-      continue;
-    }
-    if (c == openChar) {
-      ++depth;
-    } else if (c == closeChar) {
-      --depth;
-      if (depth == 0) {
-        return i;
-      }
-    }
-  }
-  return std::nullopt;
-}
-
-std::string unescapeJsonString(const std::string& text) {
-  std::string unescaped;
-  unescaped.reserve(text.size());
-  bool escaped = false;
-  for (const char c : text) {
-    if (escaped) {
-      unescaped.push_back(c);
-      escaped = false;
-      continue;
-    }
-    if (c == '\\') {
-      escaped = true;
-      continue;
-    }
-    unescaped.push_back(c);
-  }
-  return unescaped;
-}
-
-class SaveStateParser {
-public:
-  virtual ~SaveStateParser() = default;
-  [[nodiscard]] virtual bool canParse(const std::string& text) const = 0;
-  [[nodiscard]] virtual std::unordered_map<std::string, LuaScriptHost::SaveValue> parse(const std::string& text) const = 0;
-};
-
-class JsonSaveStateParser final : public SaveStateParser {
-public:
-  [[nodiscard]] bool canParse(const std::string& text) const override {
-    return parseSaveDocument(text).has_value();
-  }
-
-  [[nodiscard]] std::unordered_map<std::string, LuaScriptHost::SaveValue> parse(const std::string& text) const override {
-    std::unordered_map<std::string, LuaScriptHost::SaveValue> values;
-    const std::optional<nlohmann::json> document = parseSaveDocument(text);
-    if (!document.has_value()) {
-      return values;
-    }
-    for (const auto& [key, value] : (*document)["state"].items()) {
-      if (value.is_number()) {
-        values[key] = LuaScriptHost::SaveValue{.value = value.dump(), .number = true};
-      } else if (value.is_string()) {
-        values[key] = LuaScriptHost::SaveValue{.value = value.get<std::string>(), .number = false};
-      }
-    }
-    return values;
-  }
-};
-
-class LegacySaveStateParser final : public SaveStateParser {
-public:
-  [[nodiscard]] bool canParse(const std::string& text) const override {
-    const std::size_t stateKey = text.find("\"state\"");
-    return stateKey != std::string::npos && text.find('{', stateKey) != std::string::npos;
-  }
-
-  [[nodiscard]] std::unordered_map<std::string, LuaScriptHost::SaveValue> parse(const std::string& text) const override {
-    std::unordered_map<std::string, LuaScriptHost::SaveValue> values;
-    const std::size_t stateKey = text.find("\"state\"");
-    const std::size_t open = stateKey == std::string::npos ? std::string::npos : text.find('{', stateKey);
-    if (open == std::string::npos) {
-      return values;
-    }
-    const std::optional<std::size_t> close = matchingClose(text, open, '{', '}');
-    if (!close.has_value()) {
-      return values;
-    }
-
-    std::size_t cursor = open + 1;
-    while (cursor < *close) {
-      const std::size_t keyStart = text.find('"', cursor);
-      if (keyStart == std::string::npos || keyStart >= *close) {
-        break;
-      }
-      const std::size_t keyEnd = text.find('"', keyStart + 1);
-      const std::size_t colon = keyEnd == std::string::npos ? std::string::npos : text.find(':', keyEnd + 1);
-      if (keyEnd == std::string::npos || colon == std::string::npos || colon >= *close) {
-        break;
-      }
-
-      std::size_t valueStart = text.find_first_not_of(" \t\r\n", colon + 1);
-      if (valueStart == std::string::npos || valueStart >= *close) {
-        break;
-      }
-
-      const std::string key = unescapeJsonString(text.substr(keyStart + 1, keyEnd - keyStart - 1));
-      if (text[valueStart] == '"') {
-        const std::size_t valueEnd = text.find('"', valueStart + 1);
-        if (valueEnd == std::string::npos || valueEnd >= *close) {
-          break;
-        }
-        values[key] = LuaScriptHost::SaveValue{.value = unescapeJsonString(text.substr(valueStart + 1, valueEnd - valueStart - 1)), .number = false};
-        cursor = valueEnd + 1;
-      } else {
-        const std::size_t valueEnd = text.find_first_of(",}\r\n", valueStart);
-        const std::size_t end = valueEnd == std::string::npos ? *close : std::min(valueEnd, *close);
-        std::string value = text.substr(valueStart, end - valueStart);
-        while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) {
-          value.pop_back();
-        }
-        values[key] = LuaScriptHost::SaveValue{.value = value, .number = true};
-        cursor = end + 1;
-      }
-    }
-    return values;
-  }
-};
-
 } // namespace
 
 std::string sanitizedSaveSlot(std::string slot) {
@@ -226,15 +85,20 @@ std::optional<nlohmann::json> parseSaveDocument(const std::string& text) {
 }
 
 std::unordered_map<std::string, LuaScriptHost::SaveValue> parseSaveState(const std::string& text) {
-  const JsonSaveStateParser jsonParser;
-  const LegacySaveStateParser legacyParser;
-  const SaveStateParser* parsers[] = {&jsonParser, &legacyParser};
-  for (const SaveStateParser* parser : parsers) {
-    if (parser->canParse(text)) {
-      return parser->parse(text);
+  std::unordered_map<std::string, LuaScriptHost::SaveValue> values;
+  const std::optional<nlohmann::json> document = parseSaveDocument(text);
+  if (!document.has_value())
+    return values;
+  for (const auto &[key, value] : (*document)["state"].items()) {
+    if (value.is_number()) {
+      values[key] =
+          LuaScriptHost::SaveValue{.value = value.dump(), .number = true};
+    } else if (value.is_string()) {
+      values[key] = LuaScriptHost::SaveValue{
+          .value = value.get<std::string>(), .number = false};
     }
   }
-  return {};
+  return values;
 }
 
 std::string serializeSaveSlotDocument(const std::string& safeSlot, const std::unordered_map<std::string, LuaScriptHost::SaveValue>& values) {

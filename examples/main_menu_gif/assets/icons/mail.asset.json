@@ -1,6 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://icons/mail",
-  "type": "Icon2D",
-  "source": "mail.svg"
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "mail.svg",
+  "source_hash": "fnv1a64:57c5a9cb57fc0718",
+  "type": "Icon2D"
 }

@@ -476,8 +476,8 @@ else()
   add_executable(demi-input-replay-tests tests/input_replay_tests.cpp)
   target_link_libraries(demi-input-replay-tests PRIVATE demi-runtime-lib)
 
-  add_executable(demi-snapshot-replication-tests tests/snapshot_replication_tests.cpp)
-  target_link_libraries(demi-snapshot-replication-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-network-session-lua-tests tests/network_session_lua_tests.cpp)
+  target_link_libraries(demi-network-session-lua-tests PRIVATE demi-runtime-lib)
   add_executable(demi-game-network-session-tests tests/game_network_session_tests.cpp)
   target_link_libraries(demi-game-network-session-tests PRIVATE demi-runtime-lib)
 
@@ -537,7 +537,7 @@ add_test(NAME demi-scene-expand-cli
   COMMAND demi scene expand ${CMAKE_SOURCE_DIR}/examples/minimal_3d/scenes/main.scene.json)
 add_test(NAME demi-scene-diff-cli
   COMMAND demi scene diff ${CMAKE_SOURCE_DIR}/examples/minimal_3d/scenes/main.scene.json ${CMAKE_SOURCE_DIR}/examples/minimal_3d/scenes/main.scene.json)
-add_test(NAME demi-snapshot-replication-tests COMMAND demi-snapshot-replication-tests)
+add_test(NAME demi-network-session-lua-tests COMMAND demi-network-session-lua-tests)
 add_test(NAME demi-game-network-session-tests COMMAND demi-game-network-session-tests)
 if(DEMI_ENABLE_NETWORK)
   add_test(NAME demi-network-tests COMMAND demi-network-tests)
@@ -717,9 +717,6 @@ foreach(script_name
 endforeach()
 add_test(NAME demi-script-check-minimal-voxel-import-pack
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/tools/import_pack.lua
-)
-add_test(NAME demi-script-check-runtime-net-snapshot-replication
-  COMMAND demi script check ${CMAKE_SOURCE_DIR}/scripts/runtime/demi/net/snapshot_replication.lua
 )
 set(DEMI_NETWORKING_EXAMPLE_SCRIPTS
   game

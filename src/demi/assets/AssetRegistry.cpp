@@ -92,8 +92,9 @@ void graphVisit(const AssetRegistry &registry, const AssetManifest &asset,
 } // namespace
 
 std::optional<AssetManifest>
-loadAssetManifest(const std::filesystem::path &manifestPath,
-                  Diagnostic *diagnostic) {
+loadAssetManifestImpl(const std::filesystem::path &manifestPath,
+                      Diagnostic *diagnostic,
+                      const bool allowMissingPipelineMetadata) {
   if (!std::filesystem::exists(manifestPath)) {
     if (diagnostic != nullptr)
       *diagnostic = {.severity = Severity::Error,
@@ -116,6 +117,29 @@ loadAssetManifest(const std::filesystem::path &manifestPath,
     return std::nullopt;
   }
   try {
+    const bool hasPipelineMetadata =
+        document.contains("format_version") &&
+        document["format_version"].is_number_integer() &&
+        document.contains("importer") && document["importer"].is_string() &&
+        !document["importer"].get<std::string>().empty() &&
+        document.contains("importer_version") &&
+        document["importer_version"].is_number_integer() &&
+        document["importer_version"].get<int>() > 0 &&
+        document.contains("source_hash") &&
+        document["source_hash"].is_string() &&
+        !document["source_hash"].get<std::string>().empty() &&
+        document.contains("dependencies") &&
+        document["dependencies"].is_array();
+    if (!allowMissingPipelineMetadata && !hasPipelineMetadata) {
+      if (diagnostic != nullptr)
+        *diagnostic = {
+            .severity = Severity::Error,
+            .code = "ASSET_MANIFEST_OUTDATED",
+            .message = "Asset manifest is missing current pipeline metadata.",
+            .path = manifestPath.string(),
+            .suggestion = "Run demi asset reimport on this manifest."};
+      return std::nullopt;
+    }
     const std::string id = document.value("id", "");
     const std::string type = document.value("type", "");
     const bool animation = type == "ImageAnimation2D";
@@ -192,6 +216,18 @@ loadAssetManifest(const std::filesystem::path &manifestPath,
                      .suggestion = "Fix the asset manifest field types."};
     return std::nullopt;
   }
+}
+
+std::optional<AssetManifest>
+loadAssetManifest(const std::filesystem::path &manifestPath,
+                  Diagnostic *diagnostic) {
+  return loadAssetManifestImpl(manifestPath, diagnostic, false);
+}
+
+std::optional<AssetManifest>
+loadAssetManifestForMigration(const std::filesystem::path &manifestPath,
+                              Diagnostic *diagnostic) {
+  return loadAssetManifestImpl(manifestPath, diagnostic, true);
 }
 
 AssetRegistry loadAssetRegistry(const std::filesystem::path &projectDirectory) {

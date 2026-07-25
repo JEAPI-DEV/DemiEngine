@@ -8,13 +8,13 @@ src/demi/assets/AssetRegistry.* & Asset manifests and reference extraction. \\
 src/demi/diagnostics/Diagnostic.* & Diagnostic data and helpers. \\
 src/demi/filesystem/ProjectPaths.* & Known source file classification and collection. \\
 src/demi/schema/Validation.* & Source data validation. \\
-src/demi/runtime/SceneData.h & Runtime data model and components. \\
-src/demi/runtime/SceneLoader.cpp & Project, scene, and HUD loading. \\
-src/demi/runtime/RuntimeApp.cpp & Main runtime loop. \\
-src/demi/runtime/Renderer2D.* & SDL renderer and HUD drawing. \\
-src/demi/runtime/Physics2D.* & Physics stepping and queries. \\
-src/demi/runtime/AudioSystem.* & Audio asset loading and playback. \\
-src/demi/runtime/LuaScriptHost.* & Lua services, lifecycle, UI events, and saves. \\
+src/demi/runtime/scene/model/World.h & Runtime world data model. \\
+src/demi/runtime/scene/SceneLoader.* & Project, scene, and HUD loading. \\
+src/demi/runtime/app/RuntimeApp.* & Main runtime loop. \\
+src/demi/runtime/render/Renderer2D.* & 2D renderer and HUD drawing. \\
+src/demi/runtime/physics/Physics2D.* & Physics stepping and queries. \\
+src/demi/runtime/audio/AudioSystem.* & Audio asset loading and playback. \\
+src/demi/runtime/scripting/LuaScriptHost.* & Lua services, lifecycle, UI events, and saves. \\
 \end{longtable}
 
 \section{Example Files}

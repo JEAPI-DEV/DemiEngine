@@ -1,7 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://audio/collect_coin",
-  "type": "AudioClip",
+  "importer": "audio",
+  "importer_version": 1,
+  "settings": {},
   "source": "collect_coin.mp3",
-  "importer": "mp3-audio"
+  "source_hash": "fnv1a64:633ca3134a6c3874",
+  "type": "AudioClip"
 }

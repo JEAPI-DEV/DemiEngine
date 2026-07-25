@@ -85,6 +85,7 @@ importerFor(const std::filesystem::path &source, const std::string &type) {
       {".mp4", {"video", 1, "VideoClip"}},
       {".webm", {"video", 1, "VideoClip"}},
       {".mov", {"video", 1, "VideoClip"}},
+      {".json", {"json-data", 1, "Data"}},
   };
   const auto found = importers.find(lower(source.extension().string()));
   if (found == importers.end())
@@ -222,10 +223,128 @@ AssetImportResult importAsset(const AssetImportRequest &request) {
   return result;
 }
 
+AssetImportResult
+registerGeneratedAsset(const GeneratedAssetRegistrationRequest &request) {
+  AssetImportResult result;
+  if (!request.id.starts_with("asset://") || request.id.size() <= 8) {
+    result.diagnostics.push_back(
+        {.severity = Severity::Error,
+         .code = "ASSET_IMPORT_INVALID_ID",
+         .message = "Generated assets require a non-empty asset:// ID.",
+         .path = request.id});
+    return result;
+  }
+  if (!std::filesystem::is_regular_file(request.source)) {
+    result.diagnostics.push_back(
+        {.severity = Severity::Error,
+         .code = "ASSET_IMPORT_SOURCE_NOT_FOUND",
+         .message = "Generated asset source does not exist.",
+         .path = request.source.string()});
+    return result;
+  }
+
+  const auto assetsDirectory = request.projectDirectory / "assets";
+  if (!pathIsInside(assetsDirectory, request.source)) {
+    result.diagnostics.push_back(
+        {.severity = Severity::Error,
+         .code = "ASSET_GENERATED_SOURCE_OUTSIDE_ASSETS",
+         .message = "Generated asset sources must be inside the project's "
+                    "assets directory.",
+         .path = request.source.string(),
+         .suggestion = "Generate the source under assets/generated."});
+    return result;
+  }
+
+  const auto descriptor = importerFor(request.source, request.type);
+  if (!descriptor) {
+    result.diagnostics.push_back(
+        {.severity = Severity::Error,
+         .code = "ASSET_IMPORTER_NOT_FOUND",
+         .message = "No importer supports this generated source format.",
+         .path = request.source.string()});
+    return result;
+  }
+
+  result.manifestPath = request.source.parent_path() /
+                        (request.source.stem().string() + ".asset.json");
+  nlohmann::json manifest = nlohmann::json::object();
+  try {
+    if (std::filesystem::exists(result.manifestPath)) {
+      manifest = readJson(result.manifestPath);
+      const std::string existingId = manifest.value("id", "");
+      if (!existingId.empty() && existingId != request.id) {
+        result.diagnostics.push_back(
+            {.severity = Severity::Error,
+             .code = "ASSET_IMPORT_CONFLICT",
+             .message = "Generated asset manifest already belongs to another "
+                        "asset ID.",
+             .path = result.manifestPath.string()});
+        return result;
+      }
+    } else if (findAsset(loadAssetRegistry(request.projectDirectory),
+                         request.id) != nullptr) {
+      result.diagnostics.push_back({.severity = Severity::Error,
+                                    .code = "ASSET_IMPORT_CONFLICT",
+                                    .message = "Asset ID already exists.",
+                                    .path = request.id});
+      return result;
+    }
+  } catch (const nlohmann::json::exception &error) {
+    result.diagnostics.push_back({.severity = Severity::Error,
+                                  .code = "ASSET_MANIFEST_INVALID",
+                                  .message = error.what(),
+                                  .path = result.manifestPath.string()});
+    return result;
+  }
+
+  const auto sourceFiles = collectReferencedSourceFiles(request.source);
+  for (const auto &sourceFile : sourceFiles) {
+    if (!pathIsInside(request.source.parent_path(), sourceFile) &&
+        sourceFile != request.source) {
+      result.diagnostics.push_back(
+          {.severity = Severity::Error,
+           .code = "ASSET_IMPORT_UNSAFE_DEPENDENCY",
+           .message =
+               "Generated source references a file outside its directory.",
+           .path = sourceFile.string()});
+      return result;
+    }
+    if (!std::filesystem::is_regular_file(sourceFile)) {
+      result.diagnostics.push_back(
+          {.severity = Severity::Error,
+           .code = "ASSET_SOURCE_NOT_FOUND",
+           .message = "Could not read generated asset sources.",
+           .path = sourceFile.string()});
+      return result;
+    }
+  }
+
+  manifest["format_version"] = 1;
+  manifest["id"] = request.id;
+  manifest["type"] = descriptor->assetType;
+  manifest["source"] = request.source.filename().generic_string();
+  if (!manifest.contains("dependencies"))
+    manifest["dependencies"] = nlohmann::json::array();
+  if (!manifest.contains("settings"))
+    manifest["settings"] = nlohmann::json::object();
+
+  if (!writeJson(result.manifestPath, manifest)) {
+    result.diagnostics.push_back(
+        {.severity = Severity::Error,
+         .code = "ASSET_IMPORT_WRITE_FAILED",
+         .message = "Could not write generated asset manifest.",
+         .path = result.manifestPath.string()});
+    return result;
+  }
+  result.diagnostics = reimportAsset(result.manifestPath);
+  return result;
+}
+
 Diagnostics reimportAsset(const std::filesystem::path &manifestPath) {
   Diagnostics diagnostics;
   Diagnostic diagnostic;
-  const auto manifest = loadAssetManifest(manifestPath, &diagnostic);
+  const auto manifest =
+      loadAssetManifestForMigration(manifestPath, &diagnostic);
   if (!manifest) {
     diagnostics.push_back(std::move(diagnostic));
     return diagnostics;

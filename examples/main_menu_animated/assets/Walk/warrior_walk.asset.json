@@ -1,7 +1,13 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://walk/warrior",
-  "type": "ImageAnimation2D",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source_hash": "fnv1a64:0918ad1f8e1cd0d2",
   "sources": [
     "Warrior_1_Axe_Walk_000.png",
     "Warrior_1_Axe_Walk_001.png",
@@ -12,7 +18,5 @@
     "Warrior_1_Axe_Walk_006.png",
     "Warrior_1_Axe_Walk_007.png"
   ],
-  "settings": {
-    "filter": "nearest"
-  }
+  "type": "ImageAnimation2D"
 }

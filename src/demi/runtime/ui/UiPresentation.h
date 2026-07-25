@@ -12,6 +12,10 @@ struct UiPresentationNode {
   bool visible = false;
 };
 
+// Layout-oriented nodes are transparent unless they declare a background.
+// Visual panels retain `color` as the convenient fill fallback.
+[[nodiscard]] Color uiPanelFillColor(const UiNode &node);
+
 // Resolves hierarchy-dependent presentation state and returns nodes in stable
 // back-to-front order. Invalid or cyclic parent chains are kept but hidden.
 [[nodiscard]] std::vector<UiPresentationNode>

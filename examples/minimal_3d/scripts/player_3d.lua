@@ -16,17 +16,17 @@ function Player3D:on_update(dt)
   Debug.clear_lines()
 
   local x, z = 0.0, 0.0
-  local right = Input.axis("a", "d")
-  local forward = Input.axis("s", "w")
+  local right = Input.action_value("move_right")
+  local forward = Input.action_value("move_forward")
   if right ~= 0.0 and forward ~= 0.0 then
     right = right * 0.70710678
     forward = forward * 0.70710678
   end
 
-  if Input.is_down("q") then
+  if Input.action_down("rotate_left") then
     self.yaw = self.yaw + self.rotation_speed * dt
   end
-  if Input.is_down("e") then
+  if Input.action_down("rotate_right") then
     self.yaw = self.yaw - self.rotation_speed * dt
   end
   Transform3D.set_rotation(self.entity_id, 0.0, self.yaw, 0.0)
@@ -44,7 +44,7 @@ function Player3D:on_update(dt)
   local px2, py2, pz2 = Transform3D.get_position(self.entity_id)
   Hud.set_text("position/label", string.format("pos: (%.1f, %.1f, %.1f)", px2, py2, pz2), 20.0, 100.0, 2.5)
 
-  if Input.is_pressed("f") then
+  if Input.action_pressed("inspect") then
     local hit = Physics3D.raycast(px2, py2 + 0.5, pz2, -sin_y, 0.0, -cos_y, 8.0, self.entity_id)
     if hit then
       Hud.set_text("hud_label", "Inspecting " .. hit.entity_id, 20.0, 60.0, 4.0)

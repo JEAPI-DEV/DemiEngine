@@ -1,6 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://icons/fullscreen",
-  "type": "Icon2D",
-  "source": "fullscreen.svg"
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "fullscreen.svg",
+  "source_hash": "fnv1a64:d960b8b6269be990",
+  "type": "Icon2D"
 }

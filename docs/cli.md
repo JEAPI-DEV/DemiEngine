@@ -18,6 +18,10 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
   output, and write a complete manifest.
 - `demi asset reimport <asset>`: refresh generated output, source hash, and
   importer version after a source change.
+- `demi asset register-generated <source> --project <project> --id asset://id`:
+  create or refresh a manifest beside a generated source under the project's
+  `assets/` directory. Importer selection, source hashing, and manifest metadata
+  remain owned by the engine instead of build scripts.
 - `demi asset collider <model.asset.json> --project <project> --id
   asset://colliders/id [--detail 0..1]`: generate a glTF collider asset.
   `0` (the default) is a bounding box; higher values retain a deterministic

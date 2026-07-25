@@ -1,6 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://tilemaps/platform",
-  "type": "Tilemap2D",
-  "source": "platform_map.tilemap.json"
+  "importer": "json-data",
+  "importer_version": 1,
+  "settings": {},
+  "source": "platform_map.tilemap.json",
+  "source_hash": "fnv1a64:0c7de8183320ea9d",
+  "type": "Tilemap2D"
 }

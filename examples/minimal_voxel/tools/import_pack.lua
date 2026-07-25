@@ -1,4 +1,5 @@
 local project_root = arg[1] or "."
+local demi_cli = arg[2] or os.getenv("DEMI_CLI") or "./build/linux-debug/demi"
 
 local function path(...)
   local parts = { ... }
@@ -27,7 +28,6 @@ local pack_blocks = path(project_root, "assets", "pack", "blocks")
 local generated_assets = path(project_root, "assets", "generated")
 local generated_scripts = path(project_root, "generated")
 local atlas_path = path(generated_assets, "terrain_atlas.png")
-local manifest_path = path(generated_assets, "terrain_atlas.asset.json")
 local lua_data_path = path(generated_scripts, "pack_import.lua")
 
 local tiles = {
@@ -83,14 +83,15 @@ command[#command + 1] = "-depth"
 command[#command + 1] = "8"
 command[#command + 1] = shell_quote("PNG32:" .. atlas_path)
 run(table.concat(command, " "))
-
-write_file(manifest_path, [[{
-  "format_version": 1,
-  "id": "asset://textures/terrain_atlas",
-  "type": "Texture2D",
-  "source": "terrain_atlas.png"
-}
-]])
+run(table.concat({
+  shell_quote(demi_cli),
+  "asset register-generated",
+  shell_quote(atlas_path),
+  "--project",
+  shell_quote(project_root),
+  "--id",
+  "asset://textures/terrain_atlas",
+}, " "))
 
 write_file(lua_data_path, [[return {
   texture = "asset://textures/terrain_atlas",
@@ -114,5 +115,5 @@ write_file(lua_data_path, [[return {
 
 print("Imported minimal voxel pack:")
 print("  " .. atlas_path)
-print("  " .. manifest_path)
+print("  " .. path(generated_assets, "terrain_atlas.asset.json"))
 print("  " .. lua_data_path)

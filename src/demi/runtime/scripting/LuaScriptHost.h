@@ -5,7 +5,8 @@
 #include "demi/runtime/network/NetworkSystem.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/SpatialQuery3D.h"
-#include "demi/runtime/scene/SceneData.h"
+#include "demi/runtime/scene/model/ProjectData.h"
+#include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/simulation/DeterministicRandom.h"
 
 #include <cstdint>

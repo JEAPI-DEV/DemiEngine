@@ -83,6 +83,50 @@ int main() {
     return 1;
   }
 
+  const auto generatedSource =
+      sourceProject / "assets/generated/fixture_atlas.png";
+  writeText(generatedSource, "generated-atlas-v1");
+  const auto generatedAsset =
+      assets::registerGeneratedAsset({.projectDirectory = sourceProject,
+                                      .source = generatedSource,
+                                      .id = "asset://fixture/generated_atlas"});
+  const auto generatedManifest = loadAssetManifest(generatedAsset.manifestPath);
+  if (hasErrors(generatedAsset.diagnostics) || !generatedManifest ||
+      generatedManifest->sourcePath != generatedSource ||
+      generatedManifest->generatedOutputPath) {
+    std::cerr << "Generated asset registration failed.\n";
+    return 1;
+  }
+  const std::string initialGeneratedHash = generatedManifest->sourceHash;
+  auto generatedDocument = readJson(generatedAsset.manifestPath);
+  generatedDocument["settings"] = {{"filter", "nearest"}};
+  writeJson(generatedAsset.manifestPath, generatedDocument);
+  writeText(generatedSource, "generated-atlas-v2");
+  const auto refreshedGeneratedAsset =
+      assets::registerGeneratedAsset({.projectDirectory = sourceProject,
+                                      .source = generatedSource,
+                                      .id = "asset://fixture/generated_atlas"});
+  const auto refreshedGeneratedManifest =
+      loadAssetManifest(refreshedGeneratedAsset.manifestPath);
+  if (hasErrors(refreshedGeneratedAsset.diagnostics) ||
+      !refreshedGeneratedManifest ||
+      refreshedGeneratedManifest->sourceHash == initialGeneratedHash ||
+      refreshedGeneratedManifest->textureSettings.filter != "nearest" ||
+      hasErrors(validateAssetRegistry(loadAssetRegistry(sourceProject)))) {
+    std::cerr
+        << "Generated asset refresh did not preserve authored metadata.\n";
+    return 1;
+  }
+  const auto outsideGeneratedAsset = assets::registerGeneratedAsset(
+      {.projectDirectory = sourceProject,
+       .source = external / "dependency.png",
+       .id = "asset://fixture/outside_generated"});
+  if (!containsCode(outsideGeneratedAsset.diagnostics,
+                    "ASSET_GENERATED_SOURCE_OUTSIDE_ASSETS")) {
+    std::cerr << "Generated assets outside the project were not rejected.\n";
+    return 1;
+  }
+
   const auto modelDirectory = sourceProject / "assets/models/fixture";
   writeText(modelDirectory / "scene.gltf", R"({
     "asset": {"version": "2.0"},
@@ -100,6 +144,10 @@ int main() {
              {"id", "asset://models/fixture"},
              {"type", "Model3D"},
              {"source", "scene.gltf"}});
+  if (hasErrors(assets::reimportAsset(modelDirectory / "model.asset.json"))) {
+    std::cerr << "Model fixture manifest migration failed.\n";
+    return 1;
+  }
   const auto collider = assets::generateColliderAsset(
       {.projectDirectory = sourceProject,
        .modelManifestPath = modelDirectory / "model.asset.json",
@@ -140,6 +188,10 @@ int main() {
       {"bufferView": 1, "componentType": 5123, "count": 3, "type": "SCALAR"}
     ]
   })");
+  if (hasErrors(assets::reimportAsset(modelDirectory / "model.asset.json"))) {
+    std::cerr << "Detailed model fixture reimport failed.\n";
+    return 1;
+  }
   const auto detailedCollider = assets::generateColliderAsset(
       {.projectDirectory = sourceProject,
        .modelManifestPath = modelDirectory / "model.asset.json",
@@ -299,8 +351,26 @@ int main() {
     return 1;
   }
 
+  const auto legacySource = root / "legacy" / "map.tilemap.json";
+  const auto legacyManifest = root / "legacy" / "map.asset.json";
+  writeText(legacySource, R"({"format_version":1,"layers":[]})");
+  writeJson(legacyManifest, {{"format_version", 1},
+                             {"id", "asset://legacy/map"},
+                             {"type", "Tilemap2D"},
+                             {"source", "map.tilemap.json"}});
+  Diagnostic outdatedDiagnostic;
+  if (loadAssetManifest(legacyManifest, &outdatedDiagnostic) ||
+      outdatedDiagnostic.code != "ASSET_MANIFEST_OUTDATED" ||
+      hasErrors(assets::reimportAsset(legacyManifest)) ||
+      !loadAssetManifest(legacyManifest)) {
+    std::cerr << "Legacy manifest migration was not isolated to reimport.\n";
+    return 1;
+  }
+
   if (!assets::importerFor("image.png") || !assets::importerFor("sound.ogg") ||
-      !assets::importerFor("model.glb") || assets::importerFor("unknown.xyz")) {
+      !assets::importerFor("model.glb") ||
+      !assets::importerFor("map.tilemap.json") ||
+      assets::importerFor("unknown.xyz")) {
     std::cerr << "Production importer catalog is incomplete.\n";
     return 1;
   }

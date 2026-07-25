@@ -1,7 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://audio/death",
-  "type": "AudioClip",
+  "importer": "audio",
+  "importer_version": 1,
+  "settings": {},
   "source": "death.mp3",
-  "importer": "mp3-audio"
+  "source_hash": "fnv1a64:d31e14d86881909b",
+  "type": "AudioClip"
 }

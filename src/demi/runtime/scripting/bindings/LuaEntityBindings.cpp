@@ -344,18 +344,6 @@ void LuaEntityBindingModule::install(LuaScriptHost &host,
     return host.setEntitySpriteColor(entityId,
                                      Color{r, g, b, a.value_or(1.0F)});
   });
-  entity.set_function("add_position",
-                      [&host](const std::string &entityId, float dx, float dy) {
-                        (void)host.addEntityPosition(entityId, dx, dy);
-                      });
-  entity.set_function("set_position",
-                      [&host](const std::string &entityId, float x, float y) {
-                        return host.setEntityPosition(entityId, x, y);
-                      });
-  entity.set_function(
-      "get_position", [state, &host](const std::string &entityId) {
-        return luaVec2Result(state, host.entityPosition(entityId));
-      });
 }
 
 } // namespace demi::runtime

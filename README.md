@@ -254,7 +254,7 @@ The runtime is split by responsibility:
 
 `SceneLoader.cpp` acts as a facade, while `ProjectParser`, `SceneEntityParser`, `HudParser`, and `SceneJson` own the parsing details. Component parsing uses a strategy table keyed by component name, so adding a component does not require extending one large loader function.
 
-Lua bindings follow the same pattern. `LuaScriptHostBindings.cpp` installs binding modules, and each module owns its API surface. Save persistence is split behind `LuaSaveCodec`, with separate parsers for current JSON saves and legacy save data.
+Lua bindings follow the same pattern. `LuaScriptHostBindings.cpp` installs binding modules, and each module owns its API surface. Save persistence is split behind `LuaSaveCodec`, which reads and writes the current versioned JSON save format.
 
 ## Dependencies
 

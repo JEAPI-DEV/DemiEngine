@@ -414,16 +414,13 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
     validateReferences(diagnostics, path, text);
     break;
   case SourceFileKind::Hud:
-    if (text.find("\"elements\"") == std::string::npos &&
-        text.find("\"root\"") == std::string::npos) {
+    if (text.find("\"root\"") == std::string::npos) {
       diagnostics.push_back(Diagnostic{
           .severity = Severity::Error,
           .code = "HUD_MISSING_CONTENT",
-          .message = "HUD file is missing elements or a root UI node.",
+          .message = "HUD file is missing a root UI node.",
           .path = path.string(),
-          .suggestion =
-              "Add a root object for tree UI or an elements array for legacy "
-              "HUD data."});
+          .suggestion = "Add a root object for tree UI."});
     }
     validateReferences(diagnostics, path, text);
     break;

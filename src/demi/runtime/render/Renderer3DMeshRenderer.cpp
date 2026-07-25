@@ -1,6 +1,7 @@
 #include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/Renderer3DInternal.h"
+#include "demi/runtime/scene/WorldQueries.h"
 
 #include <rlgl.h>
 

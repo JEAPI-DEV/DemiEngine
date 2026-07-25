@@ -1,5 +1,7 @@
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/scene/SceneLoader.h"
+#include "demi/runtime/scene/WorldQueries.h"
 
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
 #include "demi/runtime/scripting/annotations/HandleActionAnnotation.h"

@@ -1,10 +1,13 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://buildings/stone_wall",
-  "type": "Texture2D",
-  "source": "../Pack/Sprites/Towers/Barrack/barrack_level_1 (1).png",
-  "importer": "image-texture",
+  "importer": "image",
+  "importer_version": 1,
   "settings": {
     "filter": "nearest"
-  }
+  },
+  "source": "../Pack/Sprites/Towers/Barrack/barrack_level_1 (1).png",
+  "source_hash": "fnv1a64:f71e85924213377e",
+  "type": "Texture2D"
 }

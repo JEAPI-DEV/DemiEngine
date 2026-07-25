@@ -1,5 +1,5 @@
-#include "demi/runtime/ui/UiActionController.h"
 #include "demi/runtime/render/HudTextMetrics.h"
+#include "demi/runtime/ui/UiActionController.h"
 #include "demi/runtime/ui/UiDocumentParser.h"
 #include "demi/runtime/ui/UiInteractionController.h"
 #include "demi/runtime/ui/UiLayoutEngine.h"
@@ -32,14 +32,30 @@ int main() {
       demi::runtime::hudTextMetrics(28.0F, 1.0F);
   const demi::runtime::HudTextMetrics compactMetrics =
       demi::runtime::hudTextMetrics(28.0F, 0.2F);
-  if (!near(nativeMetrics.fontSize, 28.0F) || !near(nativeMetrics.letterSpacing, 5.0F) ||
+  if (!near(nativeMetrics.fontSize, 28.0F) ||
+      !near(nativeMetrics.letterSpacing, 5.0F) ||
       !near(compactMetrics.fontSize, 10.0F) ||
-      compactMetrics.letterSpacing < 1.0F || compactMetrics.letterSpacing >= nativeMetrics.letterSpacing) {
+      compactMetrics.letterSpacing < 1.0F ||
+      compactMetrics.letterSpacing >= nativeMetrics.letterSpacing) {
     std::cerr << "HUD text metrics did not preserve readable compact text.\n";
     return 1;
   }
 
   using nlohmann::json;
+  const demi::runtime::ui::UiNode defaultContainer{.type = "container"};
+  const demi::runtime::ui::UiNode defaultPanel{.type = "panel"};
+  const demi::runtime::ui::UiNode coloredContainer{
+      .type = "container",
+      .backgroundColor = {0.1F, 0.2F, 0.3F, 0.75F},
+  };
+  if (!near(demi::runtime::ui::uiPanelFillColor(defaultContainer).a, 0.0F) ||
+      !near(demi::runtime::ui::uiPanelFillColor(defaultPanel).a, 1.0F) ||
+      !near(demi::runtime::ui::uiPanelFillColor(coloredContainer).a, 0.75F)) {
+    std::cerr
+        << "Layout containers did not preserve transparent backgrounds.\n";
+    return 1;
+  }
+
   auto document = demi::runtime::ui::parseUiDocument(json::parse(R"({
     "format_version": 1,
     "canvas_size": [960, 540],
@@ -72,6 +88,38 @@ int main() {
       !verifyAspect(document, {1024.0F, 768.0F}) ||
       !verifyAspect(document, {720.0F, 1280.0F})) {
     std::cerr << "UI parsing or responsive layout failed.\n";
+    return 1;
+  }
+
+  auto panelDocument = demi::runtime::ui::parseUiDocument(json::parse(R"({
+    "format_version": 1,
+    "canvas_size": [400, 300],
+    "root": {
+      "id": "root", "type": "container",
+      "anchor_min": [0, 0], "anchor_max": [1, 1],
+      "children": [{
+        "id": "panel", "type": "panel",
+        "anchor_min": [0.25, 0.25], "anchor_max": [0.75, 0.75],
+        "padding": [10, 20, 30, 40],
+        "children": [{
+          "id": "anchored_button", "type": "button",
+          "anchor_min": [1, 1], "anchor_max": [1, 1],
+          "position": [-60, -30], "size": [50, 20]
+        }]
+      }]
+    }
+  })"));
+  demi::runtime::ui::UiLayoutEngine{}.layout(panelDocument, {400.0F, 300.0F});
+  if (panelDocument.nodes.size() != 3 ||
+      panelDocument.nodes[2].parent != "panel" ||
+      !near(panelDocument.nodes[1].resolved.x, 100.0F) ||
+      !near(panelDocument.nodes[1].resolved.y, 75.0F) ||
+      !near(panelDocument.nodes[1].resolved.width, 200.0F) ||
+      !near(panelDocument.nodes[1].resolved.height, 150.0F) ||
+      !near(panelDocument.nodes[2].resolved.x, 210.0F) ||
+      !near(panelDocument.nodes[2].resolved.y, 155.0F)) {
+    std::cerr << "Panel children did not resolve anchors against the panel's "
+                 "padded content rectangle.\n";
     return 1;
   }
 

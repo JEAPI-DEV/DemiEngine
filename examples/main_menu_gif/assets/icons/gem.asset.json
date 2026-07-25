@@ -1,6 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://icons/gem",
-  "type": "Icon2D",
-  "source": "gem.svg"
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "gem.svg",
+  "source_hash": "fnv1a64:41aa81de6d571761",
+  "type": "Icon2D"
 }

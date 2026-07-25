@@ -1,6 +1,7 @@
 #include "demi/runtime/scene/ComponentRegistry.h"
 #include "demi/runtime/scene/HudParser.h"
-#include "demi/runtime/scene/SceneData.h"
+#include "demi/runtime/scene/SceneLoader.h"
+#include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/ui/UiModel.h"
 #include "demi/schema/Validation.h"
@@ -132,10 +133,15 @@ int main(int argc, char **argv) {
       std::filesystem::temp_directory_path() /
       "demi_scene_loader_hud_fixture.json";
   if (!writeFile(hudFixture, R"json({
+    "format_version": 1,
     "canvas_size": [960.0, 540.0],
-    "elements": [
-      {
-        "type": "text",
+    "root": {
+      "id": "ui_root",
+      "type": "container",
+      "anchor_min": [0.0, 0.0],
+      "anchor_max": [1.0, 1.0],
+      "children": [{
+        "type": "label",
         "id": "hud_text_font_size",
         "text": "Readable",
         "position": [12.0, 16.0],
@@ -144,7 +150,7 @@ int main(int argc, char **argv) {
       {
         "type": "button",
         "id": "hud_button_font_size",
-        "label": "OK",
+        "text": "OK",
         "position": [12.0, 64.0],
         "size": [120.0, 40.0],
         "font_size": 24.0
@@ -165,8 +171,8 @@ int main(int argc, char **argv) {
         "center": [64.0, 220.0],
         "radius": 28.0,
         "color": [0.06, 0.07, 0.18, 0.50]
-      }
-    ]
+      }]
+    }
   })json")) {
     std::cerr << "Failed to write HUD parser fixture.\n";
     return 1;

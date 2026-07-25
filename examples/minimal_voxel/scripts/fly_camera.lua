@@ -202,13 +202,13 @@ function PlayerCamera:move_horizontal(world, dx, dz)
 end
 
 function PlayerCamera:update_walk(world, dt)
-  local right = Input.axis("a", "d")
-  local forward = Input.axis("s", "w")
-  local speed = Input.is_down("left ctrl") and self.sprint_speed or self.walk_speed
+  local right = Input.action_value("move_right")
+  local forward = Input.action_value("move_forward")
+  local speed = Input.action_down("sprint") and self.sprint_speed or self.walk_speed
   local move_x, move_z = move_vector(self.yaw, right, forward)
   self:move_horizontal(world, move_x * speed * dt, move_z * speed * dt)
 
-  if Input.is_pressed("space") and self.grounded then
+  if Input.action_pressed("jump") and self.grounded then
     self.vertical_velocity = self.jump_speed
     self.grounded = false
   end
@@ -229,10 +229,10 @@ function PlayerCamera:update_walk(world, dt)
 end
 
 function PlayerCamera:update_fly(dt)
-  local right = Input.axis("a", "d")
-  local forward = Input.axis("s", "w")
-  local vertical = Input.axis("left shift", "space")
-  local speed = Input.is_down("left ctrl") and self.fly_fast_speed or self.fly_speed
+  local right = Input.action_value("move_right")
+  local forward = Input.action_value("move_forward")
+  local vertical = Input.action_value("move_vertical")
+  local speed = Input.action_down("sprint") and self.fly_fast_speed or self.fly_speed
   local move_x, move_z = move_vector(self.yaw, right, forward)
 
   if right ~= 0.0 or forward ~= 0.0 or vertical ~= 0.0 then
@@ -241,7 +241,7 @@ function PlayerCamera:update_fly(dt)
 end
 
 function PlayerCamera:on_update(dt)
-  if Input.is_pressed("escape") then
+  if Input.action_pressed("pause") then
     self:set_paused(not self.paused)
   end
 
@@ -268,7 +268,7 @@ function PlayerCamera:on_update(dt)
     return
   end
 
-  if Input.is_pressed("f") then
+  if Input.action_pressed("toggle_fly") then
     self.fly_mode = not self.fly_mode
     self.vertical_velocity = 0.0
     Hud.set_text(
@@ -284,9 +284,9 @@ function PlayerCamera:on_update(dt)
   self.pitch = clamp(self.pitch - dy * self.sensitivity, -1.45, 1.45)
   Transform3D.set_rotation(self.entity_id, self.pitch, self.yaw, 0.0)
 
-  local right = Input.axis("a", "d")
-  local forward = Input.axis("s", "w")
-  local vertical = self.fly_mode and Input.axis("left shift", "space") or 0.0
+  local right = Input.action_value("move_right")
+  local forward = Input.action_value("move_forward")
+  local vertical = self.fly_mode and Input.action_value("move_vertical") or 0.0
   local moving = right ~= 0.0 or forward ~= 0.0 or vertical ~= 0.0
 
   if self.fly_mode then

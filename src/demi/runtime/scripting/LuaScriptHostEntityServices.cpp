@@ -1,6 +1,7 @@
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/network/ReplicatedState.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/scene/WorldQueries.h"
 
 #include "demi/runtime/input/InputActionResolver.h"
 #include "demi/runtime/physics/Physics2D.h"

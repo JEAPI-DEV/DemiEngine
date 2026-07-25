@@ -57,7 +57,7 @@ function Level.update_camera(game, player_x, player_y)
     Level.camera_y = state.respawn_y - 1.5
     state.camera_x = Level.camera_x
     state.camera_reset_requested = false
-    Entity.set_position(CAMERA_ID, Level.camera_x, Level.camera_y)
+    Transform.set_position(CAMERA_ID, Level.camera_x, Level.camera_y)
     return
   end
 
@@ -67,7 +67,7 @@ function Level.update_camera(game, player_x, player_y)
   Level.camera_y = Level.camera_y + (target_y - Level.camera_y) * 0.08
 
   state.camera_x = Level.camera_x
-  Entity.set_position(CAMERA_ID, Level.camera_x, Level.camera_y)
+  Transform.set_position(CAMERA_ID, Level.camera_x, Level.camera_y)
 end
 
 function Level.on_update_track(game, player_x, player_y)

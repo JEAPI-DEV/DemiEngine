@@ -4,7 +4,7 @@
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/render/RendererAssetData.h"
-#include "demi/runtime/scene/SceneData.h"
+#include "demi/runtime/scene/model/World.h"
 
 #include <raylib.h>
 

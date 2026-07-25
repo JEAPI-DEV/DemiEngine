@@ -119,6 +119,23 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
       output << "Reimported asset: " << args[2] << '\n';
     return status;
   }
+  if (command == "register-generated") {
+    if (args.size() < 3 || valueAfter(args, "--id").empty()) {
+      error << "Usage: demi asset register-generated <source> --project "
+               "<project> --id asset://id [--type type]\n";
+      return ExitUsageError;
+    }
+    const auto result = assets::registerGeneratedAsset(
+        {.projectDirectory = projectDirectory(args),
+         .source = args[2],
+         .id = valueAfter(args, "--id"),
+         .type = valueAfter(args, "--type")});
+    const int status = printDiagnostics(result.diagnostics, error);
+    if (status == ExitSuccess)
+      output << "Registered generated asset: " << result.manifestPath.string()
+             << '\n';
+    return status;
+  }
   if (command == "collider") {
     if (args.size() < 3 || valueAfter(args, "--id").empty()) {
       error << "Usage: demi asset collider <model.asset.json> --project "

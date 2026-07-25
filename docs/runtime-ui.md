@@ -1,15 +1,44 @@
 # Runtime UI
 
 Tree UI uses the existing `*.hud.json` format with a top-level `root` node.
-Legacy `elements` HUDs remain supported. A tree node owns its content, layout,
-state, and children; renderers only receive resolved rectangles through the
-temporary legacy projection adapter.
+A tree node owns its content, layout, state, and children. Renderers consume
+the resulting resolved rectangles.
 
-Containers support `row`, `column`, and `grid` layout, `anchor_min` /
-`anchor_max`, `margin`, `padding`, `min_size`, `max_size`, `alignment`, `gap`,
-and `columns`. Sizes are authored in `canvas_size` units and the renderer scales
-the resolved canvas to the viewport. The layout engine itself can also resolve
-directly at arbitrary viewport sizes for headless tests.
+Every node type can own `children`. A `panel` can therefore provide a visible
+background, padding, and layout for a complete UI section. Child positions and
+anchors are resolved against the parent's padded content rectangle, so moving,
+hiding, disabling, or anchoring a panel applies naturally to its subtree.
+
+All nodes support `anchor_min` / `anchor_max`, `margin`, `padding`, `min_size`,
+and `max_size`. Nodes with children can additionally use `row`, `column`, or
+`grid` layout with `alignment`, `gap`, and `columns`. Sizes are authored in
+`canvas_size` units and the renderer scales the resolved canvas to the viewport.
+The layout engine itself can also resolve directly at arbitrary viewport sizes
+for headless tests.
+
+For example, this panel fills its parent while respecting a 16-unit inset, and
+its button stays at the bottom-right of the panel's padded content:
+
+```json
+{
+  "id": "menu_panel",
+  "type": "panel",
+  "anchor_min": [0, 0],
+  "anchor_max": [1, 1],
+  "margin": 16,
+  "padding": 24,
+  "children": [
+    {
+      "id": "confirm",
+      "type": "button",
+      "anchor_min": [1, 1],
+      "anchor_max": [1, 1],
+      "position": [-180, -48],
+      "size": [180, 48]
+    }
+  ]
+}
+```
 
 Supported node types are `container`, `panel`, `label`, `text`, `image`,
 `button`, `toggle`, `slider`, `text_input`, `scroll`, `list`, `progress`, and

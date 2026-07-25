@@ -29,7 +29,7 @@ end
 function Player:on_start()
   Debug.log("Drag with left mouse after touching a platform to slingshot. Coins stack up to three extra airborne slingshots.")
   Debug.log("Networking demo active. Use the main menu Network Play screen to host or join by IP.")
-  local x, y = Entity.get_position(self.entity_id)
+  local x, y = Transform.get_position(self.entity_id)
   if x ~= nil and y ~= nil then
     self.spawn_x = x
     self.spawn_y = y
@@ -65,7 +65,7 @@ function Player:on_update(dt)
     return
   end
 
-  local player_x, player_y = Entity.get_position(self.entity_id)
+  local player_x, player_y = Transform.get_position(self.entity_id)
   if player_x == nil or player_y == nil then
     return
   end

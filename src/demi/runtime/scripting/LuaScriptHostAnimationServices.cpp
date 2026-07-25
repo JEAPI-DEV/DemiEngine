@@ -1,4 +1,5 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/scene/WorldQueries.h"
 
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/SpriteAnimator2DComponent.h"

@@ -5,11 +5,14 @@
   "detail": 1.0,
   "format_version": 1,
   "id": "asset://colliders/hyena",
+  "importer": "gltf-model",
+  "importer_version": 1,
   "offset": [
     5.736947059631348e-07,
     0.23513376712799072,
     -0.5547544956207275
   ],
+  "settings": {},
   "shape": "triangle_mesh",
   "size": [
     0.43656885623931885,

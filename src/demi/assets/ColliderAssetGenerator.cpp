@@ -325,10 +325,13 @@ generateColliderAsset(const ColliderAssetGenerationRequest &request) {
       {"format_version", 1},
       {"id", request.id},
       {"type", "Collider3D"},
+      {"importer", "collider-generator"},
+      {"importer_version", 1},
       {"source", std::filesystem::relative(model->sourcePath, assetDirectory)
                      .generic_string()},
       {"source_hash", *hash},
       {"dependencies", Json::array({model->id})},
+      {"settings", Json::object()},
       {"source_asset", model->id},
       {"shape", request.detail == 0.0F ? "box" : "triangle_mesh"},
       {"size", size},

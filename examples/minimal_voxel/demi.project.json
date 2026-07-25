@@ -2,6 +2,27 @@
   "format_version": 1,
   "name": "Minimal Voxel",
   "main_scene": "scene://minimal_voxel/main",
+  "input": {
+    "actions": {
+      "move_right": [
+        { "input": "a", "scale": -1.0 },
+        { "input": "d", "scale": 1.0 }
+      ],
+      "move_forward": [
+        { "input": "s", "scale": -1.0 },
+        { "input": "w", "scale": 1.0 }
+      ],
+      "move_vertical": [
+        { "input": "left shift", "scale": -1.0 },
+        { "input": "space", "scale": 1.0 }
+      ],
+      "sprint": ["left ctrl"],
+      "jump": ["space"],
+      "pause": ["escape"],
+      "toggle_fly": ["f"],
+      "inventory": ["e"]
+    }
+  },
   "scenes": [
     {
       "id": "scene://minimal_voxel/main",

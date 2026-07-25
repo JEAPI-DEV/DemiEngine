@@ -5,6 +5,7 @@
 #include "demi/runtime/render/HudTextMetrics.h"
 #include "demi/runtime/render/ProfilerHudRenderer.h"
 #include "demi/runtime/render/TextureSamplerSettings.h"
+#include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/tilemap/TilemapAsset.h"
 #include "demi/runtime/ui/UiPresentation.h"
@@ -19,11 +20,8 @@
 #include <vector>
 
 #if DEMI_HAS_RSVG
-// clang-format off: librsvg requires its primary header before rsvg-cairo.h.
 #include <cairo.h>
 #include <librsvg/rsvg.h>
-#include <librsvg/rsvg-cairo.h>
-// clang-format on
 #endif
 
 namespace demi::runtime {
@@ -250,8 +248,9 @@ void drawUiPanel(const ui::UiNode &node, float scaleX, float scaleY) {
       .height = node.resolved.height * scaleY,
   };
   const float radius = node.cornerRadius * std::min(scaleX, scaleY);
-  const Color fillColor =
-      node.backgroundColor.a > 0.0F ? node.backgroundColor : node.color;
+  const Color fillColor = ui::uiPanelFillColor(node);
+  if (fillColor.a <= 0.0F)
+    return;
   if (radius <= 0.0F) {
     DrawRectangleRec(rect, toRlColor(fillColor));
     if (node.borderWidth > 0.0F)
@@ -365,9 +364,8 @@ void drawUiButton(const ui::UiNode &node, float scaleX, float scaleY) {
         hudTextMetrics(authoredFontSize, std::min(scaleX, scaleY));
 
     Font font = GetFontDefault();
-    Vector2 textSize =
-        MeasureTextEx(font, node.text.c_str(), metrics.fontSize,
-                      metrics.letterSpacing);
+    Vector2 textSize = MeasureTextEx(font, node.text.c_str(), metrics.fontSize,
+                                     metrics.letterSpacing);
 
     Vector2 textPos{
         rect.x + (rect.width - textSize.x) * 0.5F,
@@ -894,8 +892,7 @@ void Renderer2D::loadTextureAssets(const AssetRegistry &registry) {
       continue;
     }
     if (asset.type == "Icon2D") {
-      std::optional<Texture2D> texture =
-          loadSvgTexture(asset.sourcePath, true);
+      std::optional<Texture2D> texture = loadSvgTexture(asset.sourcePath, true);
       if (!texture.has_value()) {
         std::cerr << "Icon load failed for " << asset.id << " from "
                   << asset.sourcePath.string() << ".\n";
@@ -967,8 +964,8 @@ void Renderer2D::loadTextureAssets(const AssetRegistry &registry) {
       continue;
     }
 
-    render_detail::applyTextureSamplerSettings(
-        texture, asset.textureSettings, TEXTURE_FILTER_POINT);
+    render_detail::applyTextureSamplerSettings(texture, asset.textureSettings,
+                                               TEXTURE_FILTER_POINT);
     textures_[asset.id] = texture;
   }
 }

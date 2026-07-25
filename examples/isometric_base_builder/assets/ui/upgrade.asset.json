@@ -1,11 +1,15 @@
 {
-    "format_version": 1,
-    "id": "asset://ui/upgrade",
-    "type": "SvgTexture2D",
-    "source": "upgrade.svg",
-    "settings": {
-        "filter": "bilinear",
-        "wrap": "clamp",
-        "mipmaps": false
-    }
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://ui/upgrade",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "bilinear",
+    "mipmaps": false,
+    "wrap": "clamp"
+  },
+  "source": "upgrade.svg",
+  "source_hash": "fnv1a64:50d79e9fca6c8365",
+  "type": "SvgTexture2D"
 }

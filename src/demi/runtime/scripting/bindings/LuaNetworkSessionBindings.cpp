@@ -898,50 +898,6 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
             state, host, *session, "state_snapshot",
             sol::make_object(state, payload), false, 0, session->channel);
       });
-  networkSession.set_function(
-      "update_local_transform",
-      [state, &host, session](const std::string &entityId, const float dt) {
-        if (!host.networkAvailable()) {
-          return;
-        }
-        for (auto &[ghostId, remote] : session->remotes) {
-          remote.age = std::min(remote.age + dt, session->extrapolationLimit);
-          (void)host.setEntityPosition(ghostId,
-                                       remote.x + remote.vx * remote.age,
-                                       remote.y + remote.vy * remote.age);
-        }
-        if (!host.networkIsHost() && !host.networkIsConnected()) {
-          return;
-        }
-        session->accumulator += dt;
-        if (session->accumulator < session->sendInterval) {
-          return;
-        }
-        session->accumulator = 0.0F;
-        const std::optional<Vec2> position = host.entityPosition(entityId);
-        if (!position.has_value()) {
-          return;
-        }
-        const std::optional<Vec2> velocity =
-            host.getRigidbodyVelocity(entityId);
-        sol::state_view lua(state);
-        sol::table payload = lua.create_table();
-        payload["sender_id"] = networkSessionSenderId(host, *session);
-        payload["entity_id"] = entityId;
-        payload["x"] = position->x;
-        payload["y"] = position->y;
-        payload["vx"] = velocity.has_value() ? velocity->x : 0.0F;
-        payload["vy"] = velocity.has_value() ? velocity->y : 0.0F;
-        sol::table color = lua.create_table();
-        color[1] = session->localColor.r;
-        color[2] = session->localColor.g;
-        color[3] = session->localColor.b;
-        color[4] = session->localColor.a;
-        payload["color"] = color;
-        networkSessionSendMessage(state, host, "transform_snapshot",
-                                  sol::make_object(state, payload), false, 0,
-                                  session->channel);
-      });
 }
 
 } // namespace demi::runtime

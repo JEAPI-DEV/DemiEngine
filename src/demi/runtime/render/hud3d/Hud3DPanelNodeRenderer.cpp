@@ -1,6 +1,7 @@
 #include "demi/runtime/render/hud3d/Hud3DNodeRenderers.h"
 
 #include "demi/runtime/render/Renderer3DInternal.h"
+#include "demi/runtime/ui/UiPresentation.h"
 
 #include <algorithm>
 
@@ -12,8 +13,7 @@ bool tryDrawHud3DPanel(const ui::UiNode &node,
       node.type != "scroll" && node.type != "list" && node.type != "modal")
     return false;
 
-  const Color fillColor =
-      node.backgroundColor.a > 0.0F ? node.backgroundColor : node.color;
+  const Color fillColor = ui::uiPanelFillColor(node);
   if (fillColor.a <= 0.0F)
     return true;
   const ::Rectangle rect{

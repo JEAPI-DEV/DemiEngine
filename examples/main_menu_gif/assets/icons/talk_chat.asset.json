@@ -1,6 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://icons/talk_chat",
-  "type": "Icon2D",
-  "source": "talk-chat.svg"
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "talk-chat.svg",
+  "source_hash": "fnv1a64:decfb8c6a3bf9379",
+  "type": "Icon2D"
 }

@@ -1,10 +1,13 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://sprites/player",
-  "type": "Texture2D",
-  "source": "player.ppm",
-  "importer": "ppm-texture",
+  "importer": "image",
+  "importer_version": 1,
   "settings": {
     "filter": "nearest"
-  }
+  },
+  "source": "player.ppm",
+  "source_hash": "fnv1a64:c82bfa08ab8e2900",
+  "type": "Texture2D"
 }

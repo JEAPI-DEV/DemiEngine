@@ -68,11 +68,10 @@ is kept outside authored source directories.
 
 Scene component classes own their stable JSON name, defaults, parser, Lua
 exposure metadata, and dimensional domain. `ComponentRegistry` is the runtime
-lookup path. The current `Entity` typed optional storage is transitional;
-Milestone 1 replaces it with type-keyed storage.
+lookup path. `Entity` stores components in type-keyed `ComponentStorage`.
 
-HUD element classes similarly own their type name and parsing behavior.
-`HudParser` only reads the document and dispatches through the HUD registry.
+UI nodes are parsed into one tree-oriented model and resolved by the layout
+engine before either renderer consumes them.
 
 ## Lua Boundary
 

@@ -28,16 +28,14 @@
     "type": "container",
     "anchor_min": [0, 0],
     "anchor_max": [1, 1],
-    "layout": "column",
-    "alignment": "center",
     "children": [
       {
         "id": "main_screen",
         "type": "panel",
         "style": "screen",
-        "size": [900, 500],
-        "min_size": [320, 460],
-        "max_size": [900, 500],
+        "anchor_min": [0, 0],
+        "anchor_max": [1, 1],
+        "margin": 20,
         "layout": "row",
         "alignment": "stretch",
         "children": [

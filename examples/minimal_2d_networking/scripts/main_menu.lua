@@ -109,12 +109,12 @@ function Menu.begin_active_level()
   state.game_over_pending = false
   Runtime.set_physics_enabled(true)
   view.set_game_hud_visible(true)
-  local px, py = Entity.get_position(PLAYER_ID)
+  local px, py = Transform.get_position(PLAYER_ID)
   if px ~= nil and py ~= nil then
     state.respawn_x = px
     state.respawn_y = py
   end
-  Entity.set_position(PLAYER_ID, state.respawn_x, state.respawn_y)
+  Transform.set_position(PLAYER_ID, state.respawn_x, state.respawn_y)
   Rigidbody2D.set_velocity(PLAYER_ID, 0.0, 0.0)
 end
 
@@ -148,7 +148,7 @@ function Menu.retry_game()
     Runtime.set_physics_enabled(true)
     view.set_game_hud_visible(true)
     view.hide_menu()
-    Entity.set_position(PLAYER_ID, state.respawn_x, state.respawn_y)
+    Transform.set_position(PLAYER_ID, state.respawn_x, state.respawn_y)
     Rigidbody2D.set_velocity(PLAYER_ID, 0.0, 0.0)
     return
   end

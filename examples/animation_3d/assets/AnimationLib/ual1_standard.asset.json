@@ -1,12 +1,15 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://animation_lib/ual1_standard",
-  "type": "Model3D",
-  "source": "UAL1_Standard.glb",
   "importer": "gltf-model",
+  "importer_version": 1,
   "settings": {
     "filter": "bilinear",
-    "wrap": "repeat",
-    "mipmaps": true
-  }
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "UAL1_Standard.glb",
+  "source_hash": "fnv1a64:adc7bdac2114a4fd",
+  "type": "Model3D"
 }

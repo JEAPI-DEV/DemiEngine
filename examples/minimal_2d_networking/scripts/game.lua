@@ -88,7 +88,7 @@ function Game:on_update(dt)
     return
   end
 
-  local player_x, player_y = Entity.get_position(PLAYER_ID)
+  local player_x, player_y = Transform.get_position(PLAYER_ID)
   if player_x == nil or player_y == nil then
     return
   end

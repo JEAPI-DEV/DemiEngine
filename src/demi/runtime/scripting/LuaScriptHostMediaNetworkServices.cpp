@@ -1,5 +1,6 @@
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/scene/WorldQueries.h"
 
 #include "demi/runtime/audio/AudioSystem.h"
 #include "demi/runtime/media/MediaSystem.h"

@@ -1,6 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://units/raider",
-  "type": "Texture2D",
-  "source": "../Pack/Sprites/Towers/Barrack/knight_level_1.png"
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {},
+  "source": "../Pack/Sprites/Towers/Barrack/knight_level_1.png",
+  "source_hash": "fnv1a64:dcc81cc1b05d6e57",
+  "type": "Texture2D"
 }

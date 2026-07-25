@@ -37,23 +37,28 @@ Scene files use \filepath{*.scene.json}. They declare a scene ID, scene name, op
 
 \section{HUD Files}
 
-HUD files use \filepath{*.hud.json}. They declare a virtual canvas and HUD elements.
+HUD files use \filepath{*.hud.json}. They declare a virtual canvas and a UI
+node tree.
 
 \begin{lstlisting}[language=json]
 {
   "format_version": 1,
   "canvas_size": [960.0, 540.0],
-  "elements": [
-    {
+  "root": {
+    "id": "ui_root",
+    "type": "container",
+    "anchor_min": [0.0, 0.0],
+    "anchor_max": [1.0, 1.0],
+    "children": [{
       "type": "button",
       "id": "menu_button_start",
       "group": "menu_main",
-      "label": "START GAME",
+      "text": "START GAME",
       "position": [270.0, 226.0],
       "size": [420.0, 52.0],
       "action": "menu_button_start"
-    }
-  ]
+    }]
+  }
 }
 \end{lstlisting}
 

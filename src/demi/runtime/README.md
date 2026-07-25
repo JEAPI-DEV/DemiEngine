@@ -1,8 +1,7 @@
 # Runtime Modules
 
-The runtime is split by engine responsibility. Public compatibility headers live
-directly in `src/demi/runtime/` and forward to the implementation submodules, so
-existing includes such as `demi/runtime/scripting/LuaScriptHost.h` remain stable.
+The runtime is split by engine responsibility. Public headers live with their
+owning submodules, such as `demi/runtime/scripting/LuaScriptHost.h`.
 
 - `app/`: runtime orchestration and frame loop entry points.
 - `audio/`: audio device and source playback.

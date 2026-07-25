@@ -12,7 +12,7 @@ local function update_status(self, prefix)
 end
 
 local function save(self, reason)
-  local x, y = Entity.get_position(PLAYER)
+  local x, y = Transform.get_position(PLAYER)
   self.sequence = self.sequence + 1
   local ok = Save.write_state(SLOT, {
     game = { score = self.score, random_state = Random.state() },
@@ -41,7 +41,7 @@ function Probe:on_start()
   self.roll = state.lua.save_probe.roll or 0
   local position = state.lua.save_probe.position
   if position then
-    Entity.set_position(PLAYER, position[1], position[2])
+    Transform.set_position(PLAYER, position[1], position[2])
   end
   if state.game.random_state then
     Random.restore(state.game.random_state)
@@ -54,7 +54,7 @@ end
 function Probe:on_update(dt)
   local movement = Input.action_value("move")
   if movement ~= 0 then
-    Entity.add_position(PLAYER, movement * dt * 3.0, 0.0)
+    Transform.add_position(PLAYER, movement * dt * 3.0, 0.0)
     self.score = self.score + 1
   end
   if Input.action_pressed("randomize") then

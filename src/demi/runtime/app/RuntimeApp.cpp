@@ -13,7 +13,8 @@
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/RaylibFileSystemBridge.h"
-#include "demi/runtime/scene/SceneData.h"
+#include "demi/runtime/scene/SceneLoader.h"
+#include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/runtime/tilemap/TilemapCollisionGenerator.h"
 

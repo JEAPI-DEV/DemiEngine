@@ -44,6 +44,9 @@ struct AssetRegistry {
 [[nodiscard]] std::optional<AssetManifest>
 loadAssetManifest(const std::filesystem::path &manifestPath,
                   Diagnostic *diagnostic = nullptr);
+[[nodiscard]] std::optional<AssetManifest>
+loadAssetManifestForMigration(const std::filesystem::path &manifestPath,
+                              Diagnostic *diagnostic = nullptr);
 [[nodiscard]] AssetRegistry
 loadAssetRegistry(const std::filesystem::path &projectDirectory);
 [[nodiscard]] const AssetManifest *findAsset(const AssetRegistry &registry,

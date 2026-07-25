@@ -66,21 +66,6 @@ int main() {
     return 1;
   }
 
-  write(root / "prefabs/label.prefab.json", R"({
-    "format_version":1,"id":"prefab://label","elements":[
-      {"id":"text","type":"text","text":"Prefab UI","position":[4,8]}
-    ]
-  })");
-  const auto hud = expandScene(
-      root / "scenes/main.hud.json",
-      nlohmann::json::parse(
-          R"({"format_version":1,"elements":[],"instances":[{"id":"hud","prefab":"prefab://label"}]})"));
-  if (!hud.document || (*hud.document)["elements"].size() != 1 ||
-      (*hud.document)["elements"][0]["id"] != "hud/text") {
-    std::cerr << "HUD element prefab expansion failed.\n";
-    return 1;
-  }
-
   write(
       root / "prefabs/cycle_a.prefab.json",
       R"({"format_version":1,"id":"prefab://cycle_a","entities":[],"instances":[{"id":"b","prefab":"prefab://cycle_b"}]})");

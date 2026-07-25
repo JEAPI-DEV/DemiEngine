@@ -68,7 +68,7 @@ function Collectibles.create_coin(game, x, y)
         collector_x = claim.x
         collector_y = claim.y
       elseif collector_id == replication.sender_id() then
-        collector_x, collector_y = Entity.get_position(PLAYER_ID)
+        collector_x, collector_y = Transform.get_position(PLAYER_ID)
       else
         collector_x, collector_y = replication.remote_position(collector_id)
       end

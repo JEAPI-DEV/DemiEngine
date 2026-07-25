@@ -1,12 +1,15 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://textures/checker",
-  "type": "Texture2D",
-  "source": "checker.ppm",
-  "importer": "ppm-texture",
+  "importer": "image",
+  "importer_version": 1,
   "settings": {
     "filter": "nearest",
-    "wrap": "repeat",
-    "mipmaps": false
-  }
+    "mipmaps": false,
+    "wrap": "repeat"
+  },
+  "source": "checker.ppm",
+  "source_hash": "fnv1a64:0425096073761e6c",
+  "type": "Texture2D"
 }

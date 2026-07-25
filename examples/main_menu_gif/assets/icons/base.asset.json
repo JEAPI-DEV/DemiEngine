@@ -1,6 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://icons/base",
-  "type": "Icon2D",
-  "source": "base.svg"
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "base.svg",
+  "source_hash": "fnv1a64:1e92392acde75db6",
+  "type": "Icon2D"
 }

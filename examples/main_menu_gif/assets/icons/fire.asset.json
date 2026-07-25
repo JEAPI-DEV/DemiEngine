@@ -1,6 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://icons/fire",
-  "type": "Icon2D",
-  "source": "fire.svg"
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "fire.svg",
+  "source_hash": "fnv1a64:306faedebe3c6f2a",
+  "type": "Icon2D"
 }

@@ -41,13 +41,8 @@ void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
     return;
   node.parent = scene_loading::stringOr(json, "parent", parent);
   node.type = scene_loading::stringOr(json, "type", "container");
-  if (node.type == "rect")
-    node.type = "panel";
-  else if (node.type == "text")
-    node.type = "label";
   node.style = scene_loading::stringOr(json, "style");
-  node.text = scene_loading::stringOr(json, "text",
-                                      scene_loading::stringOr(json, "label"));
+  node.text = scene_loading::stringOr(json, "text");
   node.placeholder = scene_loading::stringOr(json, "placeholder");
   node.localizationKey = scene_loading::stringOr(json, "localization_key");
   node.texture = scene_loading::stringOr(json, "texture");
@@ -94,8 +89,6 @@ void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
   node.maximum = scene_loading::numberField(json, "maximum").value_or(1.0F);
   if (auto value = scene_loading::numberField(json, "font_size"))
     node.fontSize = *value;
-  else if (auto value = scene_loading::numberField(json, "scale"))
-    node.fontSize = *value * 8.0F;
   node.cornerRadius =
       scene_loading::numberField(json, "corner_radius").value_or(0.0F);
   node.borderWidth =
@@ -185,10 +178,6 @@ UiDocument parseUiDocument(const nlohmann::json &document) {
   }
   if (const Json *root = scene_loading::objectField(document, "root"))
     parseNode(*root, {}, result);
-  else if (const Json *elements =
-               scene_loading::arrayField(document, "elements"))
-    for (const Json &element : *elements)
-      parseNode(element, {}, result);
   for (UiNode &node : result.nodes)
     if (const auto style = result.styles.find(node.style);
         style != result.styles.end()) {

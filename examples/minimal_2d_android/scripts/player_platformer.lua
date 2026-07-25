@@ -11,7 +11,7 @@ local function has_platform_contact(entity_id)
 end
 
 local function has_platform_overlap(entity_id, probe_y, probe_height)
-  local x, y = Entity.get_position(entity_id)
+  local x, y = Transform.get_position(entity_id)
   if x == nil or y == nil then
     return false
   end
@@ -36,7 +36,7 @@ function Platformer.is_touching_platform(entity_id)
 end
 
 function Platformer.check_game_over_if_fallen(player)
-  local x, y = Entity.get_position(player.entity_id)
+  local x, y = Transform.get_position(player.entity_id)
   if y == nil or y > config.fall_reset_y then
     return false
   end

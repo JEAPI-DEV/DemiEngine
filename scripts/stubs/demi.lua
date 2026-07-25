@@ -130,19 +130,6 @@ function Entity.destroy_many(entity_ids) end
 ---@param a? number
 ---@return boolean
 function Entity.set_sprite_color(entity_id, r, g, b, a) end
----@param entity_id string
----@param dx number
----@param dy number
-function Entity.add_position(entity_id, dx, dy) end
----@param entity_id string
----@param x number
----@param y number
----@return boolean
-function Entity.set_position(entity_id, x, y) end
----@param entity_id string
----@return number|nil x
----@return number|nil y
-function Entity.get_position(entity_id) end
 
 ---@class TransformService
 Transform = {}
@@ -1048,9 +1035,6 @@ function NetworkSession.process_events() end
 ---@param dt number
 ---@return boolean
 function NetworkSession.update_entity(network_id, dt) end
----@param entity_id string
----@param dt number
-function NetworkSession.update_local_transform(entity_id, dt) end
 
 ---@class DemiScript
 ---@field entity_id? string

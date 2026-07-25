@@ -109,8 +109,8 @@ override properties per instance, and get deterministic expanded scene output.
 **Status: complete.** HUD trees, renderer-independent responsive layout,
 practical controls, focus/pointer/controller interaction, modal focus layers,
 themes, localization, action maps, Lua state APIs, schema/docs, and the
-multi-aspect `ui_showcase` probe are implemented. Legacy flat HUD documents
-remain supported through their existing parser path.
+multi-aspect `ui_showcase` probe are implemented. All example HUDs use the
+tree format.
 
 1. Preserve `*.hud.json`, but evolve it from a flat list of positioned drawing
    primitives into a tree of elements with parent/child relationships.
@@ -315,6 +315,12 @@ network diagnostics.
 report useful connection/authority errors without knowing transport details.
 
 # Milestone 10.5 - Remove Legacy code, that has stuck around.
+
+**Status: complete.** Examples now use tree HUD documents, component-specific
+Lua transform APIs, and the game-facing `NetworkSession`. Superseded flat HUD,
+snapshot replication, save-parser, Lua alias, umbrella-header, and runtime asset
+manifest adapters were removed. All example asset manifests carry current
+pipeline metadata.
 
 1. Remove code that is considered deprecated and has already a fitting replacement
 2. Use new features of the game engine that can replace code we have in the examples that are not needed / need to be replaced

@@ -4,13 +4,13 @@ Prefab source files end in `.prefab.json`, include `format_version`, and use a
 stable `prefab://` ID. A reference such as `prefab://characters/player`
 resolves to `prefabs/characters/player.prefab.json` beneath the owning project.
 
-Prefabs may contain `entities`, HUD `elements`, and nested `instances`. IDs in
-those collections are local to the prefab. Expansion prefixes them with the
+Prefabs contain `entities` and may contain nested `instances`. IDs in the
+entity collection are local to the prefab. Expansion prefixes them with the
 instance chain, so local entity `body` instantiated as `player` becomes
 `player/body`. Transform parent references to another local entity are remapped
 to the expanded stable ID.
 
-Scene and HUD documents instantiate prefabs with:
+Scene documents instantiate prefabs with:
 
 ```json
 {
@@ -36,7 +36,7 @@ Override semantics are deterministic:
 - `null` removes the inherited field. Setting a component to `null` therefore
   removes that component; setting an entity override to `null` removes the
   entity from that instance.
-- An override cannot replace the expanded entity or element ID.
+- An override cannot replace the expanded entity ID.
 
 Nested prefab cycles are errors and diagnostics include the active file chain.
 

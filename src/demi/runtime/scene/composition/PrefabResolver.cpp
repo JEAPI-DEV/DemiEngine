@@ -79,8 +79,7 @@ public:
       : diagnostics_(diagnostics) {}
 
   Json expandInstance(const std::filesystem::path &ownerPath,
-                      const Json &instance, const std::string &parentPrefix,
-                      const std::string_view collection) {
+                      const Json &instance, const std::string &parentPrefix) {
     Json items = Json::array();
     if (!instance.is_object() || !instance.contains("id") ||
         !instance["id"].is_string() || !instance.contains("prefab") ||
@@ -130,23 +129,21 @@ public:
             : parentPrefix + "/" + instance["id"].get<std::string>();
 
     std::unordered_map<std::string, std::string> ids;
-    if (prefab->contains(collection) && (*prefab)[collection].is_array()) {
-      for (const Json &item : (*prefab)[collection]) {
+    if (prefab->contains("entities") && (*prefab)["entities"].is_array()) {
+      for (const Json &item : (*prefab)["entities"]) {
         if (item.is_object() && item.contains("id") && item["id"].is_string()) {
           const std::string local = item["id"].get<std::string>();
           ids.emplace(local, prefix + "/" + local);
         }
       }
-      for (Json item : (*prefab)[collection]) {
+      for (Json item : (*prefab)["entities"]) {
         if (!item.is_object() || !item.contains("id") ||
             !item["id"].is_string()) {
           continue;
         }
         const std::string local = item["id"].get<std::string>();
         item["id"] = ids.at(local);
-        if (collection == "entities") {
-          remapEntityReferences(item, ids);
-        }
+        remapEntityReferences(item, ids);
         items.push_back(std::move(item));
       }
     }
@@ -154,7 +151,7 @@ public:
     if (prefab->contains("instances") && (*prefab)["instances"].is_array()) {
       for (const Json &nested : (*prefab)["instances"]) {
         for (Json &item :
-             expandInstance(canonical, nested, prefix, collection)) {
+             expandInstance(canonical, nested, prefix)) {
           items.push_back(std::move(item));
         }
       }
@@ -265,15 +262,11 @@ ExpansionResult expandScene(const std::filesystem::path &scenePath,
   Json &expanded = *result.document;
   ExpansionContext context(result.diagnostics);
   if (expanded.contains("instances") && expanded["instances"].is_array()) {
-    for (const std::string_view collection : {"entities", "elements"}) {
-      if (!expanded.contains(collection) || !expanded[collection].is_array()) {
-        expanded[collection] = Json::array();
-      }
-      for (const Json &instance : expanded["instances"]) {
-        for (Json &item :
-             context.expandInstance(scenePath, instance, {}, collection)) {
-          expanded[collection].push_back(std::move(item));
-        }
+    if (!expanded.contains("entities") || !expanded["entities"].is_array())
+      expanded["entities"] = Json::array();
+    for (const Json &instance : expanded["instances"]) {
+      for (Json &item : context.expandInstance(scenePath, instance, {})) {
+        expanded["entities"].push_back(std::move(item));
       }
     }
   }

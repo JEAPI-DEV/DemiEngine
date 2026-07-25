@@ -1,5 +1,6 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
+#include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
 
 #include <algorithm>

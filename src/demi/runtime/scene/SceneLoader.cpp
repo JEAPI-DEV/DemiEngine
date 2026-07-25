@@ -1,4 +1,4 @@
-#include "demi/runtime/scene/SceneData.h"
+#include "demi/runtime/scene/SceneLoader.h"
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/diagnostics/Diagnostic.h"

@@ -1,10 +1,13 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://items/gold_coin",
-  "type": "Texture2D",
-  "source": "gold_coin.ppm",
-  "importer": "ppm-texture",
+  "importer": "image",
+  "importer_version": 1,
   "settings": {
     "filter": "nearest"
-  }
+  },
+  "source": "gold_coin.ppm",
+  "source_hash": "fnv1a64:2317e642d443ad8d",
+  "type": "Texture2D"
 }

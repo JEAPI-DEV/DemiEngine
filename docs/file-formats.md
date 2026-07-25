@@ -42,10 +42,13 @@ files. New imports record all pipeline metadata:
 }
 ```
 
-Legacy manifests remain readable. `demi asset reimport` upgrades their pipeline
-metadata when the source format has a registered importer. Current pass-through
+Use `demi asset reimport` to upgrade an older manifest before loading it.
+Tools that produce sources under a project's `assets/` directory should use
+`demi asset register-generated` instead of calculating `source_hash` or writing
+manifest metadata themselves.
+Current pass-through
 importers support PNG, JPEG, BMP, TGA, QOI, PPM, SVG, GIF, WAV, OGG, MP3,
-FLAC, glTF, GLB, OBJ, IQM, M3D, MP4, WebM, and MOV. glTF URI sidecars are
+FLAC, glTF, GLB, OBJ, IQM, M3D, MP4, WebM, MOV, and JSON data. glTF URI sidecars are
 discovered and carried through import, export, and cooking.
 
 Texture-bearing assets accept `nearest`, `bilinear`, or `trilinear` filtering;

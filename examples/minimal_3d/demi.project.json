@@ -11,6 +11,21 @@
     "colliders": true,
     "grid": true
   },
+  "input": {
+    "actions": {
+      "move_right": [
+        { "input": "a", "scale": -1.0 },
+        { "input": "d", "scale": 1.0 }
+      ],
+      "move_forward": [
+        { "input": "s", "scale": -1.0 },
+        { "input": "w", "scale": 1.0 }
+      ],
+      "rotate_left": ["q"],
+      "rotate_right": ["e"],
+      "inspect": ["f"]
+    }
+  },
   "scenes": [
     {
       "id": "scene://minimal_3d/main",

@@ -1,13 +1,16 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://models/hyena",
-  "type": "Model3D",
-  "source": "scene.gltf",
-  "texture": "textures/M_Hyena_diffuse.png",
   "importer": "gltf-model",
+  "importer_version": 1,
   "settings": {
     "filter": "bilinear",
-    "wrap": "repeat",
-    "mipmaps": true
-  }
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "scene.gltf",
+  "source_hash": "fnv1a64:0bb5a8e096d9aa45",
+  "texture": "textures/M_Hyena_diffuse.png",
+  "type": "Model3D"
 }

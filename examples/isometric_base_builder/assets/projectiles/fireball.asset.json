@@ -1,6 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://projectiles/fireball",
-  "type": "Texture2D",
-  "source": "../Pack/Sprites/Towers/Wizard/wizard_bullet.png"
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {},
+  "source": "../Pack/Sprites/Towers/Wizard/wizard_bullet.png",
+  "source_hash": "fnv1a64:076088ca65e2f62d",
+  "type": "Texture2D"
 }

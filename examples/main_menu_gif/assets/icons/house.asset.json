@@ -1,6 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://icons/house",
-  "type": "Icon2D",
-  "source": "house.svg"
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "house.svg",
+  "source_hash": "fnv1a64:f0a163dd7c18169a",
+  "type": "Icon2D"
 }

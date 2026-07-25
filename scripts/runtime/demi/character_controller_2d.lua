@@ -17,7 +17,7 @@ function CharacterController2D.new(options)
 end
 
 function CharacterController2D:is_grounded(entity_id)
-  local x, y = Entity.get_position(entity_id)
+  local x, y = Transform.get_position(entity_id)
   if x == nil or y == nil then
     return false
   end

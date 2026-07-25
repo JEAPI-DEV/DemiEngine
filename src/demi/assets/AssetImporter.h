@@ -22,6 +22,13 @@ struct AssetImportRequest {
   std::optional<std::filesystem::path> license;
 };
 
+struct GeneratedAssetRegistrationRequest {
+  std::filesystem::path projectDirectory;
+  std::filesystem::path source;
+  std::string id;
+  std::string type;
+};
+
 struct AssetImportResult {
   std::filesystem::path manifestPath;
   Diagnostics diagnostics;
@@ -30,6 +37,8 @@ struct AssetImportResult {
 [[nodiscard]] std::optional<ImporterDescriptor>
 importerFor(const std::filesystem::path &source, const std::string &type = {});
 [[nodiscard]] AssetImportResult importAsset(const AssetImportRequest &request);
+[[nodiscard]] AssetImportResult
+registerGeneratedAsset(const GeneratedAssetRegistrationRequest &request);
 [[nodiscard]] Diagnostics
 reimportAsset(const std::filesystem::path &manifestPath);
 

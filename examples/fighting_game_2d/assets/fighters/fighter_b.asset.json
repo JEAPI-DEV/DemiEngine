@@ -1,10 +1,13 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://fighters/fighter_b",
-  "type": "Texture2D",
-  "source": "fighter_b.ppm",
-  "importer": "ppm-texture",
+  "importer": "image",
+  "importer_version": 1,
   "settings": {
     "filter": "nearest"
-  }
+  },
+  "source": "fighter_b.ppm",
+  "source_hash": "fnv1a64:4788f0907249d8bc",
+  "type": "Texture2D"
 }

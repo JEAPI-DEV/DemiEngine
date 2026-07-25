@@ -1,10 +1,13 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://tiles/platform",
-  "type": "Texture2D",
-  "source": "platform.ppm",
-  "importer": "ppm-texture",
+  "importer": "image",
+  "importer_version": 1,
   "settings": {
     "filter": "nearest"
-  }
+  },
+  "source": "platform.ppm",
+  "source_hash": "fnv1a64:742a018e18aa0e24",
+  "type": "Texture2D"
 }

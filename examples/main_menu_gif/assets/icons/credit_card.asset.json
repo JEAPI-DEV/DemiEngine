@@ -1,6 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://icons/credit_card",
-  "type": "Icon2D",
-  "source": "credit-card.svg"
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "credit-card.svg",
+  "source_hash": "fnv1a64:33e8acf8612cba6f",
+  "type": "Icon2D"
 }

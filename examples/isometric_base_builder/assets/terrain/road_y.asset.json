@@ -1,6 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://terrain/road_y",
-  "type": "Texture2D",
-  "source": "../Pack/Sprites/Road tiles/Spring biome/road_spring(2).png"
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {},
+  "source": "../Pack/Sprites/Road tiles/Spring biome/road_spring(2).png",
+  "source_hash": "fnv1a64:14c8c98c7ee0de05",
+  "type": "Texture2D"
 }

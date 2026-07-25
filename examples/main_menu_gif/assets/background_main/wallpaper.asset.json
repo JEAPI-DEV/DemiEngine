@@ -1,6 +1,11 @@
 {
+  "dependencies": [],
   "format_version": 1,
   "id": "asset://background/main",
-  "type": "GifAnimation2D",
-  "source": "wallpaper.gif"
+  "importer": "gif",
+  "importer_version": 1,
+  "settings": {},
+  "source": "wallpaper.gif",
+  "source_hash": "fnv1a64:13fdf8dee9b114b7",
+  "type": "GifAnimation2D"
 }
