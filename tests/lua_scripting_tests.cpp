@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <ranges>
+#include <cmath>
 #include <utility>
 
 namespace {
@@ -351,6 +352,33 @@ return PropProbe
 
   host.setViewport(100, 100);
   host.start();
+  host.setTimeScale(0.5F);
+  host.beginFrame(0.2F);
+  host.advanceFixedTime(1.0F / 60.0F);
+  if (std::abs(host.deltaTime() - 0.1F) > 0.0001F ||
+      std::abs(host.unscaledDeltaTime() - 0.2F) > 0.0001F ||
+      std::abs(host.gameTime() - 0.1) > 0.0001 ||
+      host.fixedTime() <= 0.0 ||
+      host.frameCount() != 1) {
+    std::cerr << "Scaled and unscaled runtime clocks diverged.\n";
+    return 1;
+  }
+  host.setPaused(true);
+  host.beginFrame(0.25F);
+  if (host.deltaTime() != 0.0F || host.unscaledDeltaTime() != 0.25F ||
+      host.frameCount() != 2) {
+    std::cerr << "Paused runtime clock did not preserve unscaled time.\n";
+    return 1;
+  }
+  host.setPaused(false);
+  host.setApplicationFocused(false);
+  host.setApplicationSuspended(true);
+  if (host.applicationFocused() || !host.applicationSuspended()) {
+    std::cerr << "Application focus/suspend state was not retained.\n";
+    return 1;
+  }
+  host.setApplicationFocused(true);
+  host.setApplicationSuspended(false);
   if (host.saveString("test", "dynamic_create").has_value() ||
       !host.setEntityEnabled("ent_dynamic_script", true)) {
     std::cerr << "Disabled dynamic LuaScript started before being enabled.\n";

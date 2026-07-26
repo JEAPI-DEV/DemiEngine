@@ -76,6 +76,69 @@ void LuaScriptHost::setPhysicsEnabled(const bool enabled) {
 
 bool LuaScriptHost::physicsEnabled() const { return physicsEnabled_; }
 
+void LuaScriptHost::beginFrame(const float unscaledDeltaTime) {
+  unscaledDeltaTime_ = std::max(unscaledDeltaTime, 0.0F);
+  deltaTime_ = paused_ ? 0.0F : unscaledDeltaTime_ * timeScale_;
+  gameTime_ += deltaTime_;
+  ++frameCount_;
+  auto *state = static_cast<lua_State *>(state_);
+  if (state == nullptr)
+    return;
+  lua_getglobal(state, "Time");
+  if (lua_istable(state, -1)) {
+    lua_pushnumber(state, deltaTime_);
+    lua_setfield(state, -2, "delta_time");
+    lua_pushnumber(state, unscaledDeltaTime_);
+    lua_setfield(state, -2, "unscaled_delta_time");
+    lua_pushnumber(state, gameTime_);
+    lua_setfield(state, -2, "time");
+    lua_pushnumber(state, fixedTime_);
+    lua_setfield(state, -2, "fixed_time");
+    lua_pushinteger(state, static_cast<lua_Integer>(frameCount_));
+    lua_setfield(state, -2, "frame_count");
+    lua_pushnumber(state, timeScale_);
+    lua_setfield(state, -2, "time_scale");
+    lua_pushboolean(state, paused_);
+    lua_setfield(state, -2, "paused");
+  }
+  lua_pop(state, 1);
+}
+
+void LuaScriptHost::advanceFixedTime(const float fixedDeltaTime) {
+  fixedTime_ += std::max(fixedDeltaTime, 0.0F);
+}
+
+void LuaScriptHost::setPaused(const bool paused) { paused_ = paused; }
+bool LuaScriptHost::paused() const { return paused_; }
+
+void LuaScriptHost::setTimeScale(const float scale) {
+  timeScale_ = std::clamp(scale, 0.0F, 100.0F);
+}
+float LuaScriptHost::timeScale() const { return timeScale_; }
+float LuaScriptHost::deltaTime() const { return deltaTime_; }
+float LuaScriptHost::unscaledDeltaTime() const { return unscaledDeltaTime_; }
+double LuaScriptHost::gameTime() const { return gameTime_; }
+double LuaScriptHost::fixedTime() const { return fixedTime_; }
+std::uint64_t LuaScriptHost::frameCount() const { return frameCount_; }
+
+void LuaScriptHost::setApplicationFocused(const bool focused) {
+  if (applicationFocused_ == focused)
+    return;
+  applicationFocused_ = focused;
+  (void)emitEvent(focused ? "application_focus" : "application_blur", 0);
+}
+bool LuaScriptHost::applicationFocused() const { return applicationFocused_; }
+
+void LuaScriptHost::setApplicationSuspended(const bool suspended) {
+  if (applicationSuspended_ == suspended)
+    return;
+  applicationSuspended_ = suspended;
+  (void)emitEvent(suspended ? "application_suspend" : "application_resume", 0);
+}
+bool LuaScriptHost::applicationSuspended() const {
+  return applicationSuspended_;
+}
+
 std::uint64_t LuaScriptHost::addTimer(const float seconds, const bool repeating,
                                       const int callbackRef) {
   if (state_ == nullptr || seconds < 0.0F || callbackRef == LUA_NOREF) {

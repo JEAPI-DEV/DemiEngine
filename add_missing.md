@@ -185,6 +185,16 @@ and mutation ordering are covered by regression tests.
 Unity-like productivity depends more on reusable composition and predictable
 lifetimes than on a large component list.
 
+**Status: complete.** `RuntimePrefabService` reuses authored prefab expansion
+and registry-driven entity construction, including nested stable IDs,
+overrides, placement, and optional reset-on-reuse pooling. `SceneFlow` owns
+asynchronous preparation, additive/full activation, unload/reload, deterministic
+ID diagnostics, persistence, and scene-owned entity/UI/resource groups. Lua
+exposes these services together with scaled/unscaled clocks, pause, fixed time,
+frame count, and application focus/suspend state and events. Headless tests
+cover prefab pooling, scene preparation/activation/unload, persistent entities,
+duplicate rejection, script lifecycles, and runtime clocks.
+
 ### Deliverables
 
 - Add game-facing prefab APIs:

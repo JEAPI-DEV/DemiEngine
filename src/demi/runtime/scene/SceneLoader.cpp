@@ -109,6 +109,10 @@ std::optional<World> loadScene(const ProjectData &project,
   }
 
   World world = scene_loading::parseSceneWorld(scenePath, *expansion.document);
+  world.activeSceneId = sceneId;
+  world.loadedSceneIds.insert(sceneId);
+  for (Entity &entity : world.entities)
+    entity.sceneOwner = sceneId;
   if (const auto issues = validateTransform3DHierarchy(world);
       !issues.empty()) {
     const auto &issue = issues.front();
@@ -147,6 +151,8 @@ std::optional<World> loadScene(const ProjectData &project,
       return std::nullopt;
     }
   }
+  for (ui::UiNode &node : world.ui.nodes)
+    node.sceneOwner = sceneId;
 
   return world;
 }

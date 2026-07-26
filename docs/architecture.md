@@ -70,6 +70,11 @@ Scene component classes own their stable JSON name, defaults, parser, Lua
 exposure metadata, and dimensional domain. `ComponentRegistry` is the runtime
 lookup path. `Entity` stores components in type-keyed `ComponentStorage`.
 
+Runtime composition keeps three narrow owners: `RuntimePrefabService` expands
+and pools authored prefabs, `SceneFlow` prepares and applies scene transitions,
+and `ResourceLifetimeRegistry` records scene/persistent asset ownership. Lua
+bindings adapt these services but do not duplicate prefab or scene parsing.
+
 UI nodes are parsed into one tree-oriented model and resolved by the layout
 engine before either renderer consumes them.
 

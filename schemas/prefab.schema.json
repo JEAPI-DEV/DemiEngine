@@ -22,6 +22,14 @@
         "properties": {
           "id": { "type": "string" },
           "name": { "type": "string" },
+          "enabled": { "type": "boolean", "default": true },
+          "persistent": { "type": "boolean", "default": false },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" },
+            "uniqueItems": true
+          },
+          "layer": { "type": "string" },
           "components": { "$ref": "components.schema.json" }
         }
       }

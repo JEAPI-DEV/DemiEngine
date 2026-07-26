@@ -79,6 +79,7 @@ std::optional<Entity> RuntimeObjectModel::buildEntity(const Json &spec,
   }
   entity.name = spec.value("name", entity.id);
   entity.enabled = spec.value("enabled", true);
+  entity.persistent = spec.value("persistent", false);
   entity.layer = spec.value("layer", std::string{});
   if (const auto tags = spec.find("tags"); tags != spec.end()) {
     if (!tags->is_array() ||

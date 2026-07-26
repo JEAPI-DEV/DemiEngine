@@ -239,7 +239,9 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
                     const float fixedStep, double &fixedAccumulator,
                     bool &running) {
   ProfileScope stepScope("Runtime.step_simulation");
-  fixedAccumulator += dt;
+  luaHost.beginFrame(dt);
+  const float scaledDt = luaHost.deltaTime();
+  fixedAccumulator += scaledDt;
   while (fixedAccumulator >= fixedStep) {
     {
       ProfileScope scope("Lua.fixed_update");
@@ -249,6 +251,7 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
       ProfileScope scope("Physics2D.step");
       stepPhysics2D(loaded.world, static_cast<float>(fixedStep));
     }
+    luaHost.advanceFixedTime(fixedStep);
     fixedAccumulator -= fixedStep;
   }
 
@@ -258,11 +261,11 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
   }
   {
     ProfileScope scope("AnimationStateMachine.update");
-    AnimationStateMachineSystem{}.update(loaded.world, dt);
+    AnimationStateMachineSystem{}.update(loaded.world, scaledDt);
   }
   {
     ProfileScope scope("SpriteAnimation2D.update");
-    SpriteAnimationSystem{}.update(loaded.world, dt);
+    SpriteAnimationSystem{}.update(loaded.world, scaledDt);
   }
   {
     ProfileScope scope("AnimationCollision2D.update");
@@ -270,11 +273,11 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
   }
   {
     ProfileScope scope("Lua.update");
-    luaHost.update(dt);
+    luaHost.update(scaledDt);
   }
   {
     ProfileScope scope("Camera2D.update");
-    Camera2DSystem{}.update(loaded.world, dt);
+    Camera2DSystem{}.update(loaded.world, scaledDt);
   }
   if (luaHost.quitRequested()) {
     running = false;
@@ -588,6 +591,7 @@ int runProject(const RuntimeOptions &options) {
   int frameCount = 0;
   int appliedMaxFps = -1;
   while (running && !WindowShouldClose()) {
+    luaHost.setApplicationFocused(IsWindowFocused());
     RuntimeProfiler::beginFrame();
     const auto frameStart = std::chrono::steady_clock::now();
     if (inputReplay) {

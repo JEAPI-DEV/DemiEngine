@@ -77,6 +77,16 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
 
   sol::table time = lua.create_named_table("Time");
   time["delta_time"] = 0.0F;
+  time["unscaled_delta_time"] = 0.0F;
+  time["time"] = 0.0;
+  time["fixed_time"] = 0.0;
+  time["frame_count"] = 0;
+  time["time_scale"] = 1.0F;
+  time["paused"] = false;
+  time.set_function("set_paused", [&host](bool paused) { host.setPaused(paused); });
+  time.set_function("is_paused", [&host] { return host.paused(); });
+  time.set_function("set_scale", [&host](float scale) { host.setTimeScale(scale); });
+  time.set_function("get_scale", [&host] { return host.timeScale(); });
 
   sol::table timer = lua.create_named_table("Timer");
   timer.set_function("delay", [state, &host](float seconds, const sol::function callback) { return luaAddTimer(state, host, seconds, false, callback); });
@@ -89,7 +99,16 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
   events.set_function("emit", [state, &host](const std::string& eventName, sol::optional<sol::object> payload) { return luaEmitEvent(state, host, eventName, payload.value_or(sol::nil)); });
 
   sol::table scene = lua.create_named_table("Scene");
-  scene.set_function("load", [&host](const std::string& sceneId) { host.requestSceneLoad(sceneId); return true; });
+  scene.set_function("load", [&host](const std::string& sceneId) { return host.requestSceneLoad(sceneId); });
+  scene.set_function("reload", [&host] { return host.requestSceneReload(); });
+  scene.set_function("prepare", [&host](const std::string& sceneId, sol::optional<bool> additive) { return host.prepareScene(sceneId, additive.value_or(false)); });
+  scene.set_function("progress", [&host] { return host.scenePreparationProgress(); });
+  scene.set_function("is_prepared", [&host] { return host.scenePrepared(); });
+  scene.set_function("activate", [&host] { return host.requestPreparedSceneActivation(); });
+  scene.set_function("unload", [&host](const std::string& sceneId) { return host.requestSceneUnload(sceneId); });
+  scene.set_function("set_persistent", [&host](const std::string& entityId, bool persistent) { return host.setEntityPersistent(entityId, persistent); });
+  scene.set_function("active", [&host] { return host.activeSceneId(); });
+  scene.set_function("error", [&host] { return host.sceneFlowError(); });
 
   sol::table runtime = lua.create_named_table("Runtime");
   runtime.set_function("quit", [&host] { host.requestQuit(); });
@@ -111,6 +130,8 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
   runtime.set_function("get_max_fps", [&host] { return host.maxFps(); });
   runtime.set_function("set_mouse_captured", [&host](bool captured) { host.setMouseCaptured(captured); });
   runtime.set_function("get_mouse_captured", [&host] { return host.mouseCaptured(); });
+  runtime.set_function("is_focused", [&host] { return host.applicationFocused(); });
+  runtime.set_function("is_suspended", [&host] { return host.applicationSuspended(); });
 }
 
 } // namespace demi::runtime

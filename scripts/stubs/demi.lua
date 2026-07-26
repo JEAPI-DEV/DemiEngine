@@ -332,7 +332,21 @@ function Animation.trigger(entity_id, trigger) end
 
 ---@class TimeService
 ---@field delta_time number
+---@field unscaled_delta_time number
+---@field time number
+---@field fixed_time number
+---@field frame_count integer
+---@field time_scale number
+---@field paused boolean
 Time = {}
+---@param paused boolean
+function Time.set_paused(paused) end
+---@return boolean
+function Time.is_paused() end
+---@param scale number
+function Time.set_scale(scale) end
+---@return number
+function Time.get_scale() end
 
 ---@class RandomService
 Random = {}
@@ -387,6 +401,48 @@ Scene = {}
 ---@param scene_id string
 ---@return boolean
 function Scene.load(scene_id) end
+---@return boolean
+function Scene.reload() end
+---@param scene_id string
+---@param additive? boolean
+---@return boolean
+function Scene.prepare(scene_id, additive) end
+---@return number
+function Scene.progress() end
+---@return boolean
+function Scene.is_prepared() end
+---@return boolean
+function Scene.activate() end
+---@param scene_id string
+---@return boolean
+function Scene.unload(scene_id) end
+---@param entity_id string
+---@param persistent boolean
+---@return boolean
+function Scene.set_persistent(entity_id, persistent) end
+---@return string
+function Scene.active() end
+---@return string
+function Scene.error() end
+
+---@class PrefabInstantiateOptions
+---@field id string
+---@field position? number[]
+---@field overrides? table<string, table>
+---@field pooled? boolean
+
+---@class PrefabService
+Prefab = {}
+---@param prefab_id string
+---@param options PrefabInstantiateOptions
+---@return string|nil instance_id
+function Prefab.instantiate(prefab_id, options) end
+---@param instance_or_entity_id string
+---@return boolean
+function Prefab.release(instance_or_entity_id) end
+---@param prefab_id string
+---@return integer
+function Prefab.pooled_count(prefab_id) end
 
 ---@class RuntimeService
 Runtime = {}
@@ -407,6 +463,10 @@ function Runtime.get_max_fps() end
 function Runtime.set_mouse_captured(captured) end
 ---@return boolean captured
 function Runtime.get_mouse_captured() end
+---@return boolean
+function Runtime.is_focused() end
+---@return boolean
+function Runtime.is_suspended() end
 
 ---@class Rigidbody2DService
 Rigidbody2D = {}

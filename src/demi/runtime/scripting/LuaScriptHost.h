@@ -8,6 +8,8 @@
 #include "demi/runtime/scene/model/ProjectData.h"
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/scene/RuntimeObjectModel.h"
+#include "demi/runtime/scene/RuntimePrefabService.h"
+#include "demi/runtime/scene/SceneFlow.h"
 #include "demi/runtime/scene/WorldCommandBuffer.h"
 #include "demi/runtime/simulation/DeterministicRandom.h"
 
@@ -51,9 +53,24 @@ public:
   resolveProjectPath(const std::string &path) const;
   [[nodiscard]] bool loadWorldScripts(const ProjectData &project, World &world,
                                       std::string &error);
-  void requestSceneLoad(const std::string &sceneId);
-  [[nodiscard]] bool hasPendingSceneLoad() const;
+  [[nodiscard]] bool requestSceneLoad(const std::string &sceneId);
+  [[nodiscard]] bool hasPendingSceneLoad();
   [[nodiscard]] bool applyPendingSceneLoad(std::string &error);
+  [[nodiscard]] bool prepareScene(const std::string &sceneId, bool additive);
+  [[nodiscard]] float scenePreparationProgress();
+  [[nodiscard]] bool scenePrepared();
+  [[nodiscard]] bool requestPreparedSceneActivation();
+  [[nodiscard]] bool requestSceneUnload(const std::string &sceneId);
+  [[nodiscard]] bool requestSceneReload();
+  [[nodiscard]] bool setEntityPersistent(const std::string &entityId,
+                                         bool persistent);
+  [[nodiscard]] std::string activeSceneId() const;
+  [[nodiscard]] std::string sceneFlowError() const;
+  [[nodiscard]] std::optional<std::string>
+  instantiatePrefab(const std::string &prefab,
+                    const PrefabInstantiateOptions &options);
+  [[nodiscard]] bool releasePrefab(const std::string &instanceId);
+  [[nodiscard]] std::size_t pooledPrefabCount(const std::string &prefab) const;
   [[nodiscard]] bool isKeyDown(const std::string &key) const;
   [[nodiscard]] bool isKeyPressed(const std::string &key) const;
   [[nodiscard]] bool isActionDown(const std::string &action) const;
@@ -319,6 +336,21 @@ public:
   void clearMouseCapturedDirty();
   void setPhysicsEnabled(bool enabled);
   [[nodiscard]] bool physicsEnabled() const;
+  void beginFrame(float unscaledDeltaTime);
+  void advanceFixedTime(float fixedDeltaTime);
+  void setPaused(bool paused);
+  [[nodiscard]] bool paused() const;
+  void setTimeScale(float scale);
+  [[nodiscard]] float timeScale() const;
+  [[nodiscard]] float deltaTime() const;
+  [[nodiscard]] float unscaledDeltaTime() const;
+  [[nodiscard]] double gameTime() const;
+  [[nodiscard]] double fixedTime() const;
+  [[nodiscard]] std::uint64_t frameCount() const;
+  void setApplicationFocused(bool focused);
+  [[nodiscard]] bool applicationFocused() const;
+  void setApplicationSuspended(bool suspended);
+  [[nodiscard]] bool applicationSuspended() const;
   [[nodiscard]] std::uint64_t addTimer(float seconds, bool repeating,
                                        int callbackRef);
   [[nodiscard]] bool cancelTimer(std::uint64_t timerId);
@@ -384,6 +416,8 @@ private:
                                         std::string &error);
   [[nodiscard]] bool loadDynamicEntityScript(const std::string &entityId,
                                              std::string &error);
+  [[nodiscard]] bool loadDynamicUiScript(const std::string &uiId,
+                                         std::string &error);
   void startScriptInstance(ScriptInstance &script);
   void unloadEntityScript(const std::string &entityId);
   void clearTimersAndEvents();
@@ -413,10 +447,21 @@ private:
   bool mouseCaptured_ = false;
   bool mouseCapturedDirty_ = false;
   bool physicsEnabled_ = true;
+  bool paused_ = false;
+  float timeScale_ = 1.0F;
+  float deltaTime_ = 0.0F;
+  float unscaledDeltaTime_ = 0.0F;
+  double gameTime_ = 0.0;
+  double fixedTime_ = 0.0;
+  std::uint64_t frameCount_ = 0;
+  bool applicationFocused_ = true;
+  bool applicationSuspended_ = false;
   bool hotReloadEnabled_ = false;
   bool cutscenePaused_ = false;
   bool previousUiMouseDown_ = false;
-  std::optional<std::string> pendingSceneLoad_;
+  std::optional<std::string> pendingSceneUnload_;
+  bool pendingPreparedActivation_ = false;
+  bool autoActivatePrepared_ = false;
   std::string activeCutscene_;
   std::unordered_map<std::string, std::unordered_map<std::string, SaveValue>>
       saves_;
@@ -426,6 +471,9 @@ private:
   std::vector<EventSubscription> eventSubscriptions_;
   std::vector<SaveMigrationHook> saveMigrationHooks_;
   WorldCommandBuffer worldCommands_;
+  RuntimePrefabService prefabService_;
+  SceneFlow sceneFlow_;
+  ResourceLifetimeRegistry resourceLifetimes_;
   std::string lastSaveError_;
   std::uint64_t nextTimerId_ = 1;
   std::uint64_t nextMeshRevision_ = 1;

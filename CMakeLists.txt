@@ -171,6 +171,8 @@ file(WRITE "${DEMI_GENERATED_INCLUDE_DIR}/demi/generated/ComponentDescriptors.in
 set(DEMI_COMPONENT_MODEL_SOURCES
   src/demi/runtime/scene/ComponentRegistry.cpp
   src/demi/runtime/scene/RuntimeObjectModel.cpp
+  src/demi/runtime/scene/RuntimePrefabService.cpp
+  src/demi/runtime/scene/ResourceLifetimeRegistry.cpp
   src/demi/runtime/scene/SceneJson.cpp
   src/demi/runtime/scene/Transform3DHierarchy.cpp
   src/demi/runtime/scene/WorldCommandBuffer.cpp
@@ -265,6 +267,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scene/HudParser.cpp
   src/demi/runtime/scene/ProjectParser.cpp
   src/demi/runtime/scene/SceneEntityParser.cpp
+  src/demi/runtime/scene/SceneFlow.cpp
   src/demi/runtime/scene/SceneLoader.cpp
   src/demi/runtime/scripting/LuaScriptHostBindings.cpp
   src/demi/runtime/scripting/LuaScriptHost.cpp
@@ -443,6 +446,11 @@ else()
   add_executable(demi-runtime-object-model-tests
     tests/runtime_object_model_tests.cpp)
   target_link_libraries(demi-runtime-object-model-tests PRIVATE demi-core)
+  add_executable(demi-runtime-scene-prefab-tests
+    tests/runtime_scene_prefab_tests.cpp)
+  target_link_libraries(demi-runtime-scene-prefab-tests PRIVATE demi-runtime-lib)
+  target_compile_definitions(demi-runtime-scene-prefab-tests
+    PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
   add_executable(demi-physics2d-tests tests/physics2d_tests.cpp)
   target_link_libraries(demi-physics2d-tests PRIVATE demi-runtime-lib)
@@ -514,6 +522,8 @@ add_test(NAME demi-capability-manifest-tests
   COMMAND demi-capability-manifest-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-runtime-object-model-tests
   COMMAND demi-runtime-object-model-tests)
+add_test(NAME demi-runtime-scene-prefab-tests
+  COMMAND demi-runtime-scene-prefab-tests)
 add_test(NAME demi-capabilities-export
   COMMAND demi capabilities export
     --output ${CMAKE_BINARY_DIR}/generated/capabilities.json)

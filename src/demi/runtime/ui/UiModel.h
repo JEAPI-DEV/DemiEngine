@@ -42,6 +42,7 @@ struct LayoutSpec {
 
 struct UiNode {
   std::string id;
+  std::string sceneOwner;
   std::string parent;
   std::string type;
   std::string style;

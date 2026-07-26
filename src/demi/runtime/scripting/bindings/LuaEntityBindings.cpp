@@ -280,6 +280,32 @@ void LuaEntityBindingModule::install(LuaScriptHost &host,
                                      lua_State *state) const {
   sol::state_view lua(state);
 
+  sol::table prefab = lua.create_named_table("Prefab");
+  prefab.set_function(
+      "instantiate",
+      [&host](const std::string &prefabId, const sol::table optionsTable) {
+        PrefabInstantiateOptions options;
+        options.id = optionsTable.get_or("id", std::string{});
+        options.pooled = optionsTable.get_or("pooled", false);
+        const sol::object position = optionsTable["position"];
+        if (position.is<sol::table>()) {
+          const sol::table value = position.as<sol::table>();
+          options.position = Vec3{.x = value.get_or(1, 0.0F),
+                                  .y = value.get_or(2, 0.0F),
+                                  .z = value.get_or(3, 0.0F)};
+        }
+        const sol::object overrides = optionsTable["overrides"];
+        if (overrides.is<sol::table>())
+          options.overrides = luaObjectToJson(overrides);
+        return host.instantiatePrefab(prefabId, options);
+      });
+  prefab.set_function("release", [&host](const std::string &instanceId) {
+    return host.releasePrefab(instanceId);
+  });
+  prefab.set_function("pooled_count", [&host](const std::string &prefabId) {
+    return host.pooledPrefabCount(prefabId);
+  });
+
   lua.new_usertype<LuaProceduralMeshBuilder>(
       "ProceduralMeshBuilder", "clear", &LuaProceduralMeshBuilder::clear,
       "reserve", &LuaProceduralMeshBuilder::reserve, "vertex_count",

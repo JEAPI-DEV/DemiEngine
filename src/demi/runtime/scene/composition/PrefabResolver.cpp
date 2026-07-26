@@ -277,6 +277,16 @@ ExpansionResult expandScene(const std::filesystem::path &scenePath,
   return result;
 }
 
+ExpansionResult expandPrefabInstance(const std::filesystem::path &ownerPath,
+                                     const Json &instance) {
+  ExpansionResult result{.document = Json::array(), .diagnostics = {}};
+  ExpansionContext context(result.diagnostics);
+  *result.document = context.expandInstance(ownerPath, instance, {});
+  if (hasErrors(result.diagnostics))
+    result.document.reset();
+  return result;
+}
+
 ExpansionResult inspectPrefab(const std::filesystem::path &prefabPath) {
   ExpansionResult result;
   const auto prefab = readJson(prefabPath, result.diagnostics);

@@ -58,6 +58,11 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData &project, World &world,
   }
 
   projectDirectory_ = project.projectDirectory;
+  if (project_ != &project) {
+    prefabService_.configure(project.projectDirectory);
+    sceneFlow_.configure(project);
+    resourceLifetimes_.capture(world.activeSceneId, world.entities);
+  }
   inputActions_ = project.inputActions;
   project_ = &project;
   luaConfigurePackagePath(state, project);
@@ -145,6 +150,36 @@ bool LuaScriptHost::loadDynamicEntityScript(const std::string &entityId,
   applyScriptProperties(
       state, scripts_[index].tableRef,
       entity->component<LuaScriptComponent>()->propertiesJson);
+  startScriptInstance(scripts_[index]);
+  return true;
+}
+
+bool LuaScriptHost::loadDynamicUiScript(const std::string &uiId,
+                                        std::string &error) {
+  auto *state = static_cast<lua_State *>(state_);
+  if (state == nullptr || world_ == nullptr) {
+    error = "Dynamic scripted UI node was not found: " + uiId;
+    return false;
+  }
+  const auto found =
+      std::ranges::find(world_->ui.nodes, uiId, &ui::UiNode::id);
+  if (found == world_->ui.nodes.end() || found->script.empty()) {
+    error = "Dynamic scripted UI node was not found: " + uiId;
+    return false;
+  }
+  if (std::ranges::find(scripts_, uiId, &ScriptInstance::entityId) !=
+      scripts_.end()) {
+    error = "UI node already has a loaded Lua script: " + uiId;
+    return false;
+  }
+  const std::size_t index = scripts_.size();
+  if (!loadScriptInstance(uiId, found->script, "dynamic HUD Lua script",
+                          error))
+    return false;
+  lua_rawgeti(state, LUA_REGISTRYINDEX, scripts_[index].tableRef);
+  lua_pushstring(state, uiId.c_str());
+  lua_setfield(state, -2, "ui_id");
+  lua_pop(state, 1);
   startScriptInstance(scripts_[index]);
   return true;
 }
@@ -252,41 +287,162 @@ void LuaScriptHost::unloadScripts() {
   clearSaveMigrationHooks();
 }
 
-void LuaScriptHost::requestSceneLoad(const std::string &sceneId) {
-  pendingSceneLoad_ = sceneId;
+bool LuaScriptHost::requestSceneLoad(const std::string &sceneId) {
+  const bool accepted = sceneFlow_.prepare(sceneId, false);
+  if (accepted)
+    autoActivatePrepared_ = true;
+  return accepted;
 }
 
-bool LuaScriptHost::hasPendingSceneLoad() const {
-  return pendingSceneLoad_.has_value();
+bool LuaScriptHost::prepareScene(const std::string &sceneId,
+                                 const bool additive) {
+  autoActivatePrepared_ = false;
+  return sceneFlow_.prepare(sceneId, additive);
+}
+
+float LuaScriptHost::scenePreparationProgress() {
+  sceneFlow_.poll();
+  return sceneFlow_.progress();
+}
+
+bool LuaScriptHost::scenePrepared() {
+  sceneFlow_.poll();
+  return sceneFlow_.state() == ScenePreparationState::Ready;
+}
+
+bool LuaScriptHost::requestPreparedSceneActivation() {
+  if (!scenePrepared())
+    return false;
+  pendingPreparedActivation_ = true;
+  return true;
+}
+
+bool LuaScriptHost::requestSceneUnload(const std::string &sceneId) {
+  if (world_ == nullptr || sceneId.empty() ||
+      !world_->loadedSceneIds.contains(sceneId))
+    return false;
+  pendingSceneUnload_ = sceneId;
+  return true;
+}
+
+bool LuaScriptHost::requestSceneReload() {
+  if (world_ == nullptr || world_->activeSceneId.empty())
+    return false;
+  if (!sceneFlow_.prepare(world_->activeSceneId, false))
+    return false;
+  autoActivatePrepared_ = true;
+  return true;
+}
+
+bool LuaScriptHost::setEntityPersistent(const std::string &entityId,
+                                        const bool persistent) {
+  return world_ != nullptr &&
+         sceneFlow_.setPersistent(*world_, entityId, persistent);
+}
+
+std::string LuaScriptHost::activeSceneId() const {
+  return world_ == nullptr ? std::string{} : world_->activeSceneId;
+}
+
+std::string LuaScriptHost::sceneFlowError() const {
+  return sceneFlow_.error();
+}
+
+bool LuaScriptHost::hasPendingSceneLoad() {
+  sceneFlow_.poll();
+  if (autoActivatePrepared_ &&
+      sceneFlow_.state() == ScenePreparationState::Ready)
+    pendingPreparedActivation_ = true;
+  return pendingPreparedActivation_ || pendingSceneUnload_.has_value() ||
+         (autoActivatePrepared_ &&
+          sceneFlow_.state() == ScenePreparationState::Failed);
 }
 
 bool LuaScriptHost::applyPendingSceneLoad(std::string &error) {
-  if (!pendingSceneLoad_.has_value()) {
-    return false;
-  }
-  const std::string sceneId = std::move(*pendingSceneLoad_);
-  pendingSceneLoad_.reset();
-
   if (project_ == nullptr || world_ == nullptr) {
     error = "Scene load requested before runtime was initialized.";
     return false;
   }
 
-  std::optional<World> newWorld = loadScene(*project_, sceneId, error);
-  if (!newWorld.has_value()) {
+  if (sceneFlow_.state() == ScenePreparationState::Failed) {
+    error = sceneFlow_.error();
+    autoActivatePrepared_ = false;
     return false;
   }
 
-  unloadScripts();
-  *world_ = std::move(*newWorld);
-
-  std::string scriptError;
-  if (!loadWorldScripts(*project_, *world_, scriptError)) {
-    error = "Scene loaded but scripts failed: " + scriptError;
-    return false;
+  if (pendingSceneUnload_) {
+    (void)emitEvent("scene_unloading", 0);
+    const auto transition = sceneFlow_.unload(
+        *world_, *pendingSceneUnload_, resourceLifetimes_);
+    pendingSceneUnload_.reset();
+    if (!transition) {
+      error = "Scene unload failed.";
+      return false;
+    }
+    for (const std::string &entityId : transition->unloadingEntities)
+      unloadEntityScript(entityId);
+    for (const std::string &uiId : transition->unloadingUiNodes)
+      unloadEntityScript(uiId);
+    (void)emitEvent("scene_unloaded", 0);
+    (void)emitEvent("active_scene_changed", 0);
+    return true;
   }
 
-  start();
+  if (!pendingPreparedActivation_)
+    return false;
+  pendingPreparedActivation_ = false;
+  autoActivatePrepared_ = false;
+  if (const std::string activationFailure =
+          sceneFlow_.activationError(*world_);
+      !activationFailure.empty()) {
+    error = activationFailure;
+    return false;
+  }
+  const bool additive = sceneFlow_.preparedAdditive();
+  if (!additive) {
+    (void)emitEvent("scene_unloading", 0);
+    // Destroy callbacks still see the outgoing world and its entities.
+    unloadScripts();
+  }
+  const auto transition =
+      sceneFlow_.activate(*world_, resourceLifetimes_);
+  if (!transition) {
+    error = "Prepared scene activation failed.";
+    return false;
+  }
+  if (transition->additive) {
+    for (const std::string &entityId : transition->loadedEntities) {
+      const Entity *entity = findEntity(*world_, entityId);
+      if (entity == nullptr || !entity->enabled ||
+          !entity->hasComponent<LuaScriptComponent>())
+        continue;
+      std::string scriptError;
+      if (!loadDynamicEntityScript(entityId, scriptError)) {
+        error = scriptError;
+        return false;
+      }
+    }
+    for (const std::string &uiId : transition->loadedUiNodes) {
+      const auto node =
+          std::ranges::find(world_->ui.nodes, uiId, &ui::UiNode::id);
+      if (node == world_->ui.nodes.end() || node->script.empty())
+        continue;
+      std::string scriptError;
+      if (!loadDynamicUiScript(uiId, scriptError)) {
+        error = scriptError;
+        return false;
+      }
+    }
+  } else {
+    std::string scriptError;
+    if (!loadWorldScripts(*project_, *world_, scriptError)) {
+      error = "Scene loaded but scripts failed: " + scriptError;
+      return false;
+    }
+    start();
+  }
+  (void)emitEvent("scene_loaded", 0);
+  (void)emitEvent("active_scene_changed", 0);
   return true;
 }
 

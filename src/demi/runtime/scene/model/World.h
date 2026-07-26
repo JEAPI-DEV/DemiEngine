@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace demi::runtime {
@@ -48,6 +49,8 @@ struct World {
   std::filesystem::path scenePath;
   std::string id;
   std::string name;
+  std::string activeSceneId;
+  std::unordered_set<std::string> loadedSceneIds;
   Vec2 hudCanvasSize = {960.0F, 540.0F};
   ui::UiDocument ui;
   std::vector<Entity> entities;

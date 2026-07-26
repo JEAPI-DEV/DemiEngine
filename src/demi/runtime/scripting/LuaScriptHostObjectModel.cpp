@@ -8,6 +8,31 @@
 
 namespace demi::runtime {
 
+std::optional<std::string> LuaScriptHost::instantiatePrefab(
+    const std::string &prefab, const PrefabInstantiateOptions &options) {
+  if (world_ == nullptr)
+    return std::nullopt;
+  PrefabInstanceResult result =
+      prefabService_.instantiate(*world_, worldCommands_, prefab, options);
+  if (!result) {
+    if (!result.diagnostics.empty())
+      std::cerr << "Prefab instantiate failed: "
+                << result.diagnostics.front().message << '\n';
+    return std::nullopt;
+  }
+  return result.instanceId;
+}
+
+bool LuaScriptHost::releasePrefab(const std::string &instanceId) {
+  return world_ != nullptr &&
+         prefabService_.release(*world_, worldCommands_, instanceId);
+}
+
+std::size_t
+LuaScriptHost::pooledPrefabCount(const std::string &prefab) const {
+  return prefabService_.pooledCount(prefab);
+}
+
 bool LuaScriptHost::entityExists(const std::string &entityId) const {
   return world_ != nullptr &&
          (findEntity(*world_, entityId) != nullptr ||
