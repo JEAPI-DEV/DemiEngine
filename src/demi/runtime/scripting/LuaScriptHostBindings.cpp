@@ -24,9 +24,13 @@
 
 #include <sol/sol.hpp>
 
+#include <algorithm>
+#include <cctype>
 #include <iostream>
+#include <string>
 #include <string_view>
 #include <system_error>
+#include <vector>
 
 namespace demi::runtime {
 
@@ -93,6 +97,46 @@ bool luaCall(lua_State *state, const int argCount, const int resultCount,
     return false;
   }
   return true;
+}
+
+std::vector<std::string> LuaScriptHost::publicLuaApi() const {
+  auto *state = static_cast<lua_State *>(state_);
+  std::vector<std::string> result;
+  if (state == nullptr) {
+    return result;
+  }
+
+  lua_pushglobaltable(state);
+  const int globalsIndex = lua_gettop(state);
+  lua_pushnil(state);
+  while (lua_next(state, globalsIndex) != 0) {
+    const char *serviceName = lua_type(state, -2) == LUA_TSTRING
+                                  ? lua_tostring(state, -2)
+                                  : nullptr;
+    const bool publicService =
+        serviceName != nullptr && serviceName[0] != '\0' &&
+        std::isupper(static_cast<unsigned char>(serviceName[0])) != 0 &&
+        lua_istable(state, -1);
+    if (publicService) {
+      const int serviceIndex = lua_gettop(state);
+      lua_pushnil(state);
+      while (lua_next(state, serviceIndex) != 0) {
+        const char *functionName = lua_type(state, -2) == LUA_TSTRING
+                                       ? lua_tostring(state, -2)
+                                       : nullptr;
+        if (functionName != nullptr && lua_isfunction(state, -1)) {
+          result.emplace_back(std::string(serviceName) + "." + functionName);
+        }
+        lua_pop(state, 1);
+      }
+    }
+    lua_pop(state, 1);
+  }
+  lua_pop(state, 1);
+
+  std::ranges::sort(result);
+  result.erase(std::unique(result.begin(), result.end()), result.end());
+  return result;
 }
 
 void luaReportCallbackError(const char *functionName,

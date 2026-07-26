@@ -76,6 +76,11 @@ Every phase follows these rules:
 
 This phase makes progress measurable before more implementation begins.
 
+**Status: complete.** The live Lua VM and component registry generate the
+capability manifest; a checked compatibility baseline and seven reference-game
+gates are enforced through CTest. Known missing behavior is tracked in
+`capabilities/reference_gates.json`.
+
 ### Deliverables
 
 - Add an automated capability manifest generated from component and binding

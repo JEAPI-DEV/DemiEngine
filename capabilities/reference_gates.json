@@ -1,0 +1,128 @@
+{
+  "format_version": 1,
+  "gaps": [
+    {
+      "id": "runtime-object-model",
+      "phase": 1,
+      "status": "open",
+      "summary": "Runtime component creation and mutation are not fully reflection-driven."
+    },
+    {
+      "id": "runtime-prefab-scene-flow",
+      "phase": 2,
+      "status": "open",
+      "summary": "Runtime prefabs, additive scenes, and explicit resource lifetimes are incomplete."
+    },
+    {
+      "id": "cross-platform-input",
+      "phase": 3,
+      "status": "open",
+      "summary": "Gamepad, multi-touch, gestures, rebinding, and safe-area services are incomplete."
+    },
+    {
+      "id": "production-2d",
+      "phase": 4,
+      "status": "open",
+      "summary": "Common 2D triggers, joints, particles, and presentation primitives are incomplete."
+    },
+    {
+      "id": "lightweight-3d",
+      "phase": 5,
+      "status": "open",
+      "summary": "Character controllers, dynamic rigidbodies, triggers, and common 3D lights are incomplete."
+    },
+    {
+      "id": "dynamic-ui",
+      "phase": 8,
+      "status": "open",
+      "summary": "Runtime-created UI trees, dynamic lists, safe areas, and world-space UI are incomplete."
+    },
+    {
+      "id": "network-session-completion",
+      "phase": 9,
+      "status": "open",
+      "summary": "Replicated gameplay state, RPC conventions, late join, and disconnect repair need a higher-level contract."
+    },
+    {
+      "id": "android-shipping",
+      "phase": 12,
+      "status": "open",
+      "summary": "Release signing, lifecycle, metadata, permissions, and device validation are not yet a finished path."
+    }
+  ],
+  "gates": [
+    {
+      "id": "2d-platformer",
+      "project": "examples/minimal_2d_networking/demi.project.json",
+      "platforms": ["linux"],
+      "required_tests": [
+        "demi-validate-minimal-2d-networking",
+        "demi-runtime-networking-minimal-frame"
+      ],
+      "gap_ids": ["runtime-object-model", "production-2d"]
+    },
+    {
+      "id": "top-down-action",
+      "project": "examples/multiplayer_ffa_shooter/demi.project.json",
+      "platforms": ["linux"],
+      "required_tests": [
+        "demi-validate-multiplayer-ffa-shooter",
+        "demi-runtime-multiplayer-ffa-shooter-replay"
+      ],
+      "gap_ids": ["runtime-object-model", "cross-platform-input"]
+    },
+    {
+      "id": "isometric-strategy",
+      "project": "examples/isometric_base_builder/demi.project.json",
+      "platforms": ["linux"],
+      "required_tests": [
+        "demi-validate-isometric-base-builder",
+        "demi-runtime-isometric-base-builder-replay"
+      ],
+      "gap_ids": ["runtime-object-model", "runtime-prefab-scene-flow", "dynamic-ui"]
+    },
+    {
+      "id": "ui-save-load",
+      "project": "examples/saves_simulation_debugging/demi.project.json",
+      "platforms": ["linux"],
+      "required_tests": [
+        "demi-validate-saves-simulation-debugging",
+        "demi-runtime-saves-simulation-debugging-replay",
+        "demi-game-save-document-tests"
+      ],
+      "gap_ids": ["runtime-prefab-scene-flow", "dynamic-ui"]
+    },
+    {
+      "id": "lightweight-3d-character",
+      "project": "examples/minimal_3d/demi.project.json",
+      "platforms": ["linux"],
+      "required_tests": [
+        "demi-validate-minimal-3d",
+        "demi-runtime-minimal-3d-frame",
+        "demi-physics3d-tests"
+      ],
+      "gap_ids": ["runtime-object-model", "lightweight-3d"]
+    },
+    {
+      "id": "two-client-network",
+      "project": "examples/multiplayer_ffa_shooter/demi.project.json",
+      "platforms": ["linux"],
+      "required_tests": [
+        "demi-validate-multiplayer-ffa-shooter",
+        "demi-network-two-client-tests",
+        "demi-game-network-session-tests"
+      ],
+      "gap_ids": ["network-session-completion"]
+    },
+    {
+      "id": "android-touch-action",
+      "project": "examples/multiplayer_ffa_shooter/demi.project.json",
+      "platforms": ["android"],
+      "required_tests": [
+        "demi-validate-multiplayer-ffa-shooter",
+        "demi-package-android-multiplayer-ffa-shooter"
+      ],
+      "gap_ids": ["cross-platform-input", "android-shipping"]
+    }
+  ]
+}

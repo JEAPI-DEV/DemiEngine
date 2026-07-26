@@ -36,6 +36,14 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
   and produce deterministic runtime-ready project data plus a cook manifest.
 - `demi build linux --project <project> [--output path]`: cook the project and
   package it with the Linux runtime and launcher.
+- `demi build apk --project <project> [--gradle gradle]`: validate and package
+  the same project as an Android debug APK.
+- `demi capabilities export [--output path]`: generate the current component
+  and Lua binding capability manifest.
+- `demi capabilities check [--baseline path] [--format text|json]`: report
+  compatible additions and fail on breaking public API changes.
+- `demi capabilities verify-gates [--manifest path]`: validate the reference
+  games, their declared capability gaps, and their public-only dependencies.
 - `demi save inspect <save>`: validate and summarize a save file.
 - `demi script check <script>`: parse a Lua script with the embedded Lua 5.4 compiler and report diagnostics.
 - `demi lua-stubs generate [path]`: copy the checked-in LuaLS/EmmyLua annotations for the exposed runtime Lua API. The default output is `scripts/stubs/demi.lua`.
@@ -45,6 +53,9 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
 - `demi run ... --profile-report <report.csv>`: aggregate runtime scopes and write a developer profile report.
 - `demi run ... --debug-overlays <names>`: override project overlays with a comma-separated list of `colliders`, `contacts`, `grid`, `entity_ids`, `draw_order`, `ui_bounds`, and `profiler`.
 - `demi editor --project <project>`: launch the editor target once implemented.
+
+See [Capability Manifest and Reference Gates](capability-gates.md) for the
+checked baseline and reference-game workflow.
 
 ## Exit Codes
 

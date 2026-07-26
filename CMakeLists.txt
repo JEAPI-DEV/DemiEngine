@@ -176,6 +176,7 @@ set(DEMI_COMPONENT_MODEL_SOURCES
 )
 
 add_library(demi-core STATIC
+  src/demi/capabilities/CapabilityManifest.cpp
   src/demi/assets/AssetRegistry.cpp
   src/demi/assets/AssetHash.cpp
   src/demi/assets/ColliderAssetGenerator.cpp
@@ -405,6 +406,7 @@ else()
   add_executable(demi
     src/cli/AssetCommands.cpp
     src/cli/BuildCommands.cpp
+    src/cli/CapabilityCommands.cpp
     src/cli/CookCommands.cpp
     src/cli/SceneCompositionCommands.cpp
     src/cli/main.cpp
@@ -415,6 +417,7 @@ else()
   add_executable(demi-server
     src/cli/AssetCommands.cpp
     src/cli/BuildCommands.cpp
+    src/cli/CapabilityCommands.cpp
     src/cli/CookCommands.cpp
     src/cli/SceneCompositionCommands.cpp
     src/cli/main.cpp
@@ -430,6 +433,10 @@ else()
 
   add_executable(demi-smoke-tests tests/smoke_tests.cpp)
   target_link_libraries(demi-smoke-tests PRIVATE demi-core)
+
+  add_executable(demi-capability-manifest-tests
+    tests/capability_manifest_tests.cpp)
+  target_link_libraries(demi-capability-manifest-tests PRIVATE demi-core)
 
   add_executable(demi-physics2d-tests tests/physics2d_tests.cpp)
   target_link_libraries(demi-physics2d-tests PRIVATE demi-runtime-lib)
@@ -497,6 +504,15 @@ else()
 
   enable_testing()
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
+add_test(NAME demi-capability-manifest-tests
+  COMMAND demi-capability-manifest-tests ${CMAKE_SOURCE_DIR})
+add_test(NAME demi-capabilities-export
+  COMMAND demi capabilities export
+    --output ${CMAKE_BINARY_DIR}/generated/capabilities.json)
+add_test(NAME demi-capabilities-check
+  COMMAND demi capabilities check)
+add_test(NAME demi-capabilities-reference-gates
+  COMMAND demi capabilities verify-gates)
 add_test(NAME demi-physics2d-tests COMMAND demi-physics2d-tests)
 add_test(NAME demi-physics3d-tests COMMAND demi-physics3d-tests)
 add_test(NAME demi-transform3d-hierarchy-tests
@@ -642,6 +658,13 @@ add_test(NAME demi-validate-minimal-2d-networking
 add_test(NAME demi-validate-multiplayer-ffa-shooter
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/multiplayer_ffa_shooter/demi.project.json
 )
+add_test(NAME demi-package-android-multiplayer-ffa-shooter
+  COMMAND demi build apk
+    --project ${CMAKE_SOURCE_DIR}/examples/multiplayer_ffa_shooter/demi.project.json
+)
+set_tests_properties(demi-package-android-multiplayer-ffa-shooter PROPERTIES
+  RUN_SERIAL TRUE
+  LABELS "packaging;android;capability-gate")
 add_test(NAME demi-validate-saves-simulation-debugging
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/saves_simulation_debugging/demi.project.json
 )

@@ -1,5 +1,6 @@
 #include "cli/AssetCommands.h"
 #include "cli/BuildCommands.h"
+#include "cli/CapabilityCommands.h"
 #include "cli/CookCommands.h"
 #include "cli/SceneCompositionCommands.h"
 
@@ -40,6 +41,9 @@ void printHelp() {
       << "  demi version\n"
       << "  demi validate [path] [--format text|json]\n"
       << "  demi schema export\n"
+      << "  demi capabilities export [--output path]\n"
+      << "  demi capabilities check [--baseline path] [--format text|json]\n"
+      << "  demi capabilities verify-gates [--manifest path]\n"
       << "  demi prefab inspect <prefab>\n"
       << "  demi scene list <project>\n"
       << "  demi scene inspect <scene>\n"
@@ -297,6 +301,12 @@ int main(int argc, char **argv) {
            << '\n';
     std::cout << "Wrote component schema: " << outputPath << '\n';
     return ExitSuccess;
+  }
+
+  if (args[0] == "capabilities") {
+    return demi::cli::runCapabilityCommand(
+        args, demi::cli::CapabilityCommandContext{.sourceRoot = sourceRoot()},
+        std::cout, std::cerr);
   }
 
   if (args[0] == "scene") {

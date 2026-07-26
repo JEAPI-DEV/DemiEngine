@@ -1,0 +1,1205 @@
+{
+  "components": [
+    {
+      "domain": "2d",
+      "fields": [
+        {
+          "name": "receivers",
+          "replicated": false,
+          "required": false,
+          "type": "object"
+        },
+        {
+          "name": "windows",
+          "replicated": false,
+          "required": false,
+          "type": "object"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "AnimationCollision2D"
+    },
+    {
+      "domain": "3d",
+      "fields": [
+        {
+          "name": "clip",
+          "replicated": false,
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "name": "clip_name",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "speed",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "time",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "loop",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "playing",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "AnimationPlayer3D"
+    },
+    {
+      "domain": "generic",
+      "fields": [
+        {
+          "name": "states",
+          "replicated": false,
+          "required": true,
+          "type": "object"
+        },
+        {
+          "name": "transitions",
+          "replicated": false,
+          "required": false,
+          "type": "object"
+        },
+        {
+          "name": "parameters",
+          "replicated": false,
+          "required": false,
+          "type": "object"
+        },
+        {
+          "name": "initial_state",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "lua_exposed": true,
+      "name": "AnimationStateMachine"
+    },
+    {
+      "domain": "generic",
+      "fields": [
+        {
+          "name": "primary",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "AudioListener"
+    },
+    {
+      "domain": "generic",
+      "fields": [
+        {
+          "name": "clip",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "play_on_start",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "loop",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "volume",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "AudioSource"
+    },
+    {
+      "domain": "2d",
+      "fields": [
+        {
+          "name": "size",
+          "replicated": false,
+          "required": false,
+          "type": "vec2"
+        },
+        {
+          "name": "offset",
+          "replicated": false,
+          "required": false,
+          "type": "vec2"
+        },
+        {
+          "name": "is_trigger",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "layer",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "category_bits",
+          "replicated": false,
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "name": "mask_bits",
+          "replicated": false,
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "name": "debug_visible",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "BoxCollider2D"
+    },
+    {
+      "domain": "3d",
+      "fields": [
+        {
+          "name": "size",
+          "replicated": false,
+          "required": false,
+          "type": "vec3"
+        },
+        {
+          "name": "offset",
+          "replicated": false,
+          "required": false,
+          "type": "vec3"
+        },
+        {
+          "name": "is_trigger",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "layer",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "BoxCollider3D"
+    },
+    {
+      "domain": "generic",
+      "fields": [
+        {
+          "name": "asset",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "blocks_movement",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "Buildable"
+    },
+    {
+      "domain": "2d",
+      "fields": [
+        {
+          "name": "clear_color",
+          "replicated": false,
+          "required": false,
+          "type": "color"
+        },
+        {
+          "name": "orthographic_size",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "target",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "follow_speed",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "follow_offset",
+          "replicated": false,
+          "required": false,
+          "type": "vec2"
+        },
+        {
+          "name": "bounds_min",
+          "replicated": false,
+          "required": false,
+          "type": "vec2"
+        },
+        {
+          "name": "bounds_max",
+          "replicated": false,
+          "required": false,
+          "type": "vec2"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "Camera2D"
+    },
+    {
+      "domain": "3d",
+      "fields": [
+        {
+          "name": "clear_color",
+          "replicated": false,
+          "required": false,
+          "type": "color"
+        },
+        {
+          "name": "fov",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "near_clip",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "far_clip",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "orthographic_size",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "target_offset",
+          "replicated": false,
+          "required": false,
+          "type": "vec3"
+        },
+        {
+          "name": "perspective",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "position_x",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "up_axis",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "Camera3D"
+    },
+    {
+      "domain": "2d",
+      "fields": [
+        {
+          "name": "radius",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "offset",
+          "replicated": false,
+          "required": false,
+          "type": "vec2"
+        },
+        {
+          "name": "is_trigger",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "layer",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "category_bits",
+          "replicated": false,
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "name": "mask_bits",
+          "replicated": false,
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "name": "debug_visible",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "CircleCollider2D"
+    },
+    {
+      "domain": "3d",
+      "fields": [
+        {
+          "name": "direction",
+          "replicated": false,
+          "required": false,
+          "type": "vec3"
+        },
+        {
+          "name": "color",
+          "replicated": false,
+          "required": false,
+          "type": "color"
+        },
+        {
+          "name": "intensity",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "DirectionalLight"
+    },
+    {
+      "domain": "2d",
+      "fields": [
+        {
+          "name": "other_entity",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "anchor",
+          "replicated": false,
+          "required": false,
+          "type": "vec2"
+        },
+        {
+          "name": "other_anchor",
+          "replicated": false,
+          "required": false,
+          "type": "vec2"
+        },
+        {
+          "name": "length",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "stiffness",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "damping",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "collide_connected",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "DistanceJoint2D"
+    },
+    {
+      "domain": "generic",
+      "fields": [
+        {
+          "name": "values",
+          "replicated": false,
+          "required": true,
+          "type": "object"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "GameplayData"
+    },
+    {
+      "domain": "2d",
+      "fields": [
+        {
+          "name": "cell_size",
+          "replicated": false,
+          "required": false,
+          "type": "vec2"
+        },
+        {
+          "name": "width",
+          "replicated": false,
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "name": "height",
+          "replicated": false,
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "name": "default_texture",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "cell_textures",
+          "replicated": false,
+          "required": false,
+          "type": "object"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "IsoGrid"
+    },
+    {
+      "domain": "2d",
+      "fields": [
+        {
+          "name": "parent",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "tile",
+          "replicated": false,
+          "required": false,
+          "type": "vec2"
+        },
+        {
+          "name": "height",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "footprint",
+          "replicated": false,
+          "required": false,
+          "type": "vec2"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "IsoTransform"
+    },
+    {
+      "domain": "generic",
+      "fields": [
+        {
+          "name": "module",
+          "replicated": false,
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "properties",
+          "replicated": false,
+          "required": false,
+          "type": "object"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "LuaScript"
+    },
+    {
+      "domain": "3d",
+      "fields": [
+        {
+          "name": "model",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "shape",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "size",
+          "replicated": false,
+          "required": false,
+          "type": "vec3"
+        },
+        {
+          "name": "color",
+          "replicated": false,
+          "required": false,
+          "type": "color"
+        },
+        {
+          "name": "texture",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "vertices",
+          "replicated": false,
+          "required": false,
+          "type": "vec3_array"
+        },
+        {
+          "name": "normals",
+          "replicated": false,
+          "required": false,
+          "type": "vec3_array"
+        },
+        {
+          "name": "uvs",
+          "replicated": false,
+          "required": false,
+          "type": "vec2_array"
+        },
+        {
+          "name": "wireframe",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "MeshRenderer"
+    },
+    {
+      "domain": "3d",
+      "fields": [
+        {
+          "name": "asset",
+          "replicated": false,
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "is_trigger",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "layer",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "ModelCollider3D"
+    },
+    {
+      "domain": "2d",
+      "fields": [
+        {
+          "name": "body_type",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "velocity",
+          "replicated": true,
+          "required": false,
+          "type": "vec2"
+        },
+        {
+          "name": "gravity_scale",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "bounciness",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "lock_rotation",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "lua_exposed": true,
+      "name": "Rigidbody2D"
+    },
+    {
+      "domain": "3d",
+      "fields": [
+        {
+          "name": "body_type",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "velocity",
+          "replicated": true,
+          "required": false,
+          "type": "vec3"
+        },
+        {
+          "name": "use_gravity",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "gravity_scale",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "Rigidbody3D"
+    },
+    {
+      "domain": "3d",
+      "fields": [
+        {
+          "name": "radius",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "offset",
+          "replicated": false,
+          "required": false,
+          "type": "vec3"
+        },
+        {
+          "name": "is_trigger",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "layer",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "SphereCollider3D"
+    },
+    {
+      "domain": "2d",
+      "fields": [
+        {
+          "name": "texture",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "shape",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "layer",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "sorting_order",
+          "replicated": false,
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "name": "source_position",
+          "replicated": false,
+          "required": false,
+          "type": "vec2"
+        },
+        {
+          "name": "source_size",
+          "replicated": false,
+          "required": false,
+          "type": "vec2"
+        },
+        {
+          "name": "size",
+          "replicated": false,
+          "required": false,
+          "type": "vec2"
+        },
+        {
+          "name": "pivot",
+          "replicated": false,
+          "required": false,
+          "type": "vec2"
+        },
+        {
+          "name": "flip_x",
+          "replicated": true,
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "flip_y",
+          "replicated": true,
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "color",
+          "replicated": true,
+          "required": false,
+          "type": "color"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "Sprite"
+    },
+    {
+      "domain": "2d",
+      "fields": [
+        {
+          "name": "frame_size",
+          "replicated": false,
+          "required": false,
+          "type": "vec2"
+        },
+        {
+          "name": "clips",
+          "replicated": false,
+          "required": false,
+          "type": "object"
+        },
+        {
+          "name": "clip",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "speed",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "playing",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "lua_exposed": true,
+      "name": "SpriteAnimator2D"
+    },
+    {
+      "domain": "2d",
+      "fields": [
+        {
+          "name": "asset",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "pixels_per_unit",
+          "replicated": false,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "layer",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "sorting_order",
+          "replicated": false,
+          "required": false,
+          "type": "integer"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "Tilemap2D"
+    },
+    {
+      "domain": "2d",
+      "fields": [
+        {
+          "name": "parent",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "position",
+          "replicated": true,
+          "required": false,
+          "type": "vec2"
+        },
+        {
+          "name": "rotation",
+          "replicated": true,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "scale",
+          "replicated": true,
+          "required": false,
+          "type": "vec2"
+        }
+      ],
+      "lua_exposed": true,
+      "name": "Transform2D"
+    },
+    {
+      "domain": "3d",
+      "fields": [
+        {
+          "name": "parent",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "position",
+          "replicated": true,
+          "required": false,
+          "type": "vec3"
+        },
+        {
+          "name": "rotation",
+          "replicated": true,
+          "required": false,
+          "type": "vec3"
+        },
+        {
+          "name": "scale",
+          "replicated": true,
+          "required": false,
+          "type": "vec3"
+        }
+      ],
+      "lua_exposed": true,
+      "name": "Transform3D"
+    },
+    {
+      "domain": "generic",
+      "fields": [
+        {
+          "name": "clip",
+          "replicated": false,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "play_on_start",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "loop",
+          "replicated": false,
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "lua_exposed": false,
+      "name": "VideoPlayer"
+    }
+  ],
+  "engine_version": "0.1.0",
+  "format_version": 1,
+  "lua_api": [
+    "Animation.play",
+    "Animation.set_bool",
+    "Animation.set_number",
+    "Animation.state",
+    "Animation.trigger",
+    "Audio.get_master_volume",
+    "Audio.play",
+    "Audio.set_master_volume",
+    "Audio.stop",
+    "AudioSource.play",
+    "AudioSource.stop",
+    "Crypto.password_hash",
+    "Crypto.random_token",
+    "Crypto.secure_equals",
+    "Cutscene.active",
+    "Cutscene.is_playing",
+    "Cutscene.pause",
+    "Cutscene.play",
+    "Cutscene.resume",
+    "Cutscene.skip",
+    "Cutscene.stop",
+    "Debug.clear_lines",
+    "Debug.line",
+    "Debug.log",
+    "Entity.create",
+    "Entity.destroy",
+    "Entity.destroy_many",
+    "Entity.find",
+    "Entity.set_sprite_color",
+    "Events.emit",
+    "Events.subscribe",
+    "Events.unsubscribe",
+    "Grid.available",
+    "Grid.can_place",
+    "Grid.clear_preview",
+    "Grid.entity_at",
+    "Grid.get_tile",
+    "Grid.path",
+    "Grid.path_with_blocker",
+    "Grid.set_preview",
+    "Grid.set_tile",
+    "Grid.tile_to_world",
+    "Grid.world_to_tile",
+    "Hud.canvas_size",
+    "Hud.focus_next",
+    "Hud.focused",
+    "Hud.get_text",
+    "Hud.rect",
+    "Hud.set_button_label",
+    "Hud.set_checked",
+    "Hud.set_color",
+    "Hud.set_disabled",
+    "Hud.set_group_visible",
+    "Hud.set_image",
+    "Hud.set_image_animation_frame",
+    "Hud.set_opacity",
+    "Hud.set_position",
+    "Hud.set_rect",
+    "Hud.set_size",
+    "Hud.set_text",
+    "Hud.set_text_scale",
+    "Hud.set_value",
+    "Hud.set_visible",
+    "Hud.text",
+    "Input.action_down",
+    "Input.action_pressed",
+    "Input.action_value",
+    "Input.axis",
+    "Input.is_down",
+    "Input.is_pressed",
+    "Input.mouse_delta",
+    "Input.mouse_down",
+    "Input.mouse_position",
+    "Input.mouse_world_position",
+    "Input.set_text_input_active",
+    "Input.text_entered",
+    "Input.ui_pointer_captured",
+    "Input.vector",
+    "Input.viewport_size",
+    "Network.available",
+    "Network.connect",
+    "Network.connect_dtls",
+    "Network.decode",
+    "Network.disconnect",
+    "Network.disconnect_peer",
+    "Network.encode",
+    "Network.events",
+    "Network.host",
+    "Network.host_dtls",
+    "Network.http_get",
+    "Network.http_post_form",
+    "Network.is_connected",
+    "Network.is_host",
+    "Network.is_secure",
+    "Network.latency_ms",
+    "Network.lobby_create",
+    "Network.lobby_heartbeat",
+    "Network.lobby_join",
+    "Network.lobby_leave",
+    "Network.lobby_list",
+    "Network.security_error",
+    "Network.send",
+    "Network.sender_id",
+    "NetworkSession.apply_claim_once",
+    "NetworkSession.configure",
+    "NetworkSession.connect",
+    "NetworkSession.current_session",
+    "NetworkSession.despawn",
+    "NetworkSession.diagnostics",
+    "NetworkSession.disconnect",
+    "NetworkSession.emit",
+    "NetworkSession.has_authority",
+    "NetworkSession.host",
+    "NetworkSession.is_connected",
+    "NetworkSession.is_host",
+    "NetworkSession.owner",
+    "NetworkSession.process_events",
+    "NetworkSession.register_claim_once",
+    "NetworkSession.register_entity",
+    "NetworkSession.remote_position",
+    "NetworkSession.request_claim_once_sync",
+    "NetworkSession.reset_claims",
+    "NetworkSession.sender_id",
+    "NetworkSession.set_authority",
+    "NetworkSession.set_local_color",
+    "NetworkSession.start_session",
+    "NetworkSession.try_claim_once",
+    "NetworkSession.update_entity",
+    "Physics2D.contacts",
+    "Physics2D.has_contact",
+    "Physics2D.overlap_box",
+    "Physics2D.overlap_circle",
+    "Physics2D.raycast",
+    "Physics3D.overlap_sphere",
+    "Physics3D.raycast",
+    "ProceduralMesh.apply",
+    "ProceduralMesh.create",
+    "Profile.enabled",
+    "Profile.scope",
+    "Random.integer",
+    "Random.range",
+    "Random.restore",
+    "Random.seed",
+    "Random.state",
+    "Random.value",
+    "Regex.is_valid",
+    "Regex.matches",
+    "Rigidbody2D.add_impulse",
+    "Rigidbody2D.get_velocity",
+    "Rigidbody2D.set_velocity",
+    "Rigidbody2D.set_velocity_x",
+    "Rigidbody2D.set_velocity_y",
+    "Runtime.get_max_fps",
+    "Runtime.get_mouse_captured",
+    "Runtime.get_window_mode",
+    "Runtime.platform",
+    "Runtime.quit",
+    "Runtime.set_max_fps",
+    "Runtime.set_mouse_captured",
+    "Runtime.set_physics_enabled",
+    "Runtime.set_window_mode",
+    "Save.delete",
+    "Save.exists",
+    "Save.get_number",
+    "Save.get_string",
+    "Save.last_error",
+    "Save.metadata",
+    "Save.read",
+    "Save.read_state",
+    "Save.register_migration",
+    "Save.set_number",
+    "Save.set_string",
+    "Save.version",
+    "Save.write",
+    "Save.write_state",
+    "Scene.load",
+    "Sprite2D.current_animation",
+    "Sprite2D.pause_animation",
+    "Sprite2D.play_animation",
+    "Sprite2D.resume_animation",
+    "Sprite2D.set_flip",
+    "Sprite2D.set_size",
+    "Timer.cancel",
+    "Timer.delay",
+    "Timer.every",
+    "TlsClient.connect",
+    "TlsClient.disconnect",
+    "TlsClient.error",
+    "TlsClient.events",
+    "TlsClient.is_connected",
+    "TlsClient.send",
+    "TlsServer.disconnect",
+    "TlsServer.error",
+    "TlsServer.events",
+    "TlsServer.listen",
+    "TlsServer.send",
+    "Transform.add_position",
+    "Transform.get_position",
+    "Transform.get_rotation",
+    "Transform.get_scale",
+    "Transform.set_position",
+    "Transform.set_rotation",
+    "Transform.set_scale",
+    "Transform3D.add_position",
+    "Transform3D.get_position",
+    "Transform3D.get_rotation",
+    "Transform3D.get_scale",
+    "Transform3D.set_position",
+    "Transform3D.set_rotation",
+    "Transform3D.set_scale",
+    "Video.is_playing",
+    "Video.play",
+    "Video.play_component",
+    "Video.stop",
+    "VoxelWorld.create"
+  ]
+}

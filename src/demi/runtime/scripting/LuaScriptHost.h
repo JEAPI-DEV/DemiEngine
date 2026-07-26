@@ -296,6 +296,7 @@ public:
 
   [[nodiscard]] static Diagnostics
   checkScriptSyntax(const std::filesystem::path &path);
+  [[nodiscard]] std::vector<std::string> publicLuaApi() const;
 
 private:
   struct ScriptInstance {

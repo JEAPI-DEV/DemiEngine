@@ -8,6 +8,7 @@ Status meanings:
 
 | Area | Status | Current scope |
 |---|---|---|
+| Capability/API gates | Stable | Generated component and installed-Lua manifest, compatibility baseline, and seven validated reference-game gates |
 | JSON projects/scenes | Stable | Versioned loading, stable IDs, CLI validation |
 | Lua lifecycle and services | Stable | Lua 5.4, sol2, lifecycle, annotations, hot reload |
 | 2D rendering | Stable | Sprite sheets/clips/events, sorting, camera follow, tilemaps, shapes, HUD, debug drawing |
@@ -35,3 +36,8 @@ Status meanings:
 | Android cooking integration | Planned | Deferred until the Android runtime path has equivalent automated coverage |
 | Functional editor | Planned | Begins after the authored data model stabilizes |
 | High-end Unity-style 3D | Deferred | Not a product target |
+
+The machine-readable status and compatibility workflow is documented in
+[Capability Manifest and Reference Gates](capability-gates.md). The matrix
+above remains a human summary; CI derives its contract from runtime binding
+metadata, component descriptors, and the checked reference-gate document.
