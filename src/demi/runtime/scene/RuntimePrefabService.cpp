@@ -117,6 +117,7 @@ PrefabInstanceResult RuntimePrefabService::instantiate(
         for (Entity &entity : entities) {
           const std::string entityId = entity.id;
           entity.prefabInstance = options.id;
+          entity.sceneOwner = world.activeSceneId;
           entity.prefabLocalId =
               entity.id.substr(std::min(entity.id.size(), options.id.size() + 1));
           if (options.position)
@@ -168,6 +169,7 @@ PrefabInstanceResult RuntimePrefabService::instantiate(
       return result;
     }
     entity->prefabInstance = options.id;
+    entity->sceneOwner = world.activeSceneId;
     entity->prefabLocalId =
         entity->id.substr(std::min(entity->id.size(), options.id.size() + 1));
     if (options.position)
@@ -213,6 +215,15 @@ bool RuntimePrefabService::release(World &world, WorldCommandBuffer &commands,
       return false;
   instances_.erase(found);
   return true;
+}
+
+void RuntimePrefabService::prune(const World &world) {
+  std::erase_if(instances_, [&](const auto &entry) {
+    return std::ranges::none_of(entry.second.entityIds,
+                                [&](const std::string &id) {
+                                  return findEntity(world, id) != nullptr;
+                                });
+  });
 }
 
 std::size_t

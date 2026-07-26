@@ -2756,6 +2756,7 @@
     "Save.write_state",
     "Scene.activate",
     "Scene.active",
+    "Scene.cancel",
     "Scene.error",
     "Scene.is_prepared",
     "Scene.load",

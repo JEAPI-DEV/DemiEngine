@@ -57,6 +57,7 @@ public:
   [[nodiscard]] bool hasPendingSceneLoad();
   [[nodiscard]] bool applyPendingSceneLoad(std::string &error);
   [[nodiscard]] bool prepareScene(const std::string &sceneId, bool additive);
+  [[nodiscard]] bool cancelScenePreparation();
   [[nodiscard]] float scenePreparationProgress();
   [[nodiscard]] bool scenePrepared();
   [[nodiscard]] bool requestPreparedSceneActivation();

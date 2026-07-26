@@ -40,13 +40,17 @@ bool LuaScriptHost::entityExists(const std::string &entityId) const {
 }
 
 bool LuaScriptHost::createEntity(Entity entity) {
-  return world_ != nullptr &&
-         worldCommands_.create(*world_, std::move(entity), false);
+  if (world_ == nullptr)
+    return false;
+  entity.sceneOwner = world_->activeSceneId;
+  return worldCommands_.create(*world_, std::move(entity), false);
 }
 
 bool LuaScriptHost::replaceEntity(Entity entity) {
-  return world_ != nullptr &&
-         worldCommands_.create(*world_, std::move(entity), true);
+  if (world_ == nullptr)
+    return false;
+  entity.sceneOwner = world_->activeSceneId;
+  return worldCommands_.create(*world_, std::move(entity), true);
 }
 
 bool LuaScriptHost::cloneEntity(const std::string &sourceId,

@@ -451,6 +451,12 @@ else()
   target_link_libraries(demi-runtime-scene-prefab-tests PRIVATE demi-runtime-lib)
   target_compile_definitions(demi-runtime-scene-prefab-tests
     PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-runtime-lifetime-failure-tests
+    tests/runtime_lifetime_failure_tests.cpp)
+  target_link_libraries(demi-runtime-lifetime-failure-tests
+    PRIVATE demi-runtime-lib)
+  target_compile_definitions(demi-runtime-lifetime-failure-tests
+    PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
   add_executable(demi-physics2d-tests tests/physics2d_tests.cpp)
   target_link_libraries(demi-physics2d-tests PRIVATE demi-runtime-lib)
@@ -524,6 +530,10 @@ add_test(NAME demi-runtime-object-model-tests
   COMMAND demi-runtime-object-model-tests)
 add_test(NAME demi-runtime-scene-prefab-tests
   COMMAND demi-runtime-scene-prefab-tests)
+add_test(NAME demi-runtime-lifetime-failure-tests
+  COMMAND demi-runtime-lifetime-failure-tests)
+set_tests_properties(demi-runtime-lifetime-failure-tests
+  PROPERTIES LABELS "lifetime")
 add_test(NAME demi-capabilities-export
   COMMAND demi capabilities export
     --output ${CMAKE_BINARY_DIR}/generated/capabilities.json)

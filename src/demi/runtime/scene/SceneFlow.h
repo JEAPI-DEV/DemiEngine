@@ -10,7 +10,7 @@
 
 namespace demi::runtime {
 
-enum class ScenePreparationState { Idle, Loading, Ready, Failed };
+enum class ScenePreparationState { Idle, Loading, Ready, Failed, Cancelled };
 
 struct SceneTransition {
   std::string previousActiveScene;
@@ -26,6 +26,7 @@ class SceneFlow {
 public:
   void configure(ProjectData project);
   [[nodiscard]] bool prepare(std::string sceneId, bool additive);
+  [[nodiscard]] bool cancel();
   void poll();
   [[nodiscard]] ScenePreparationState state() const;
   [[nodiscard]] float progress() const;

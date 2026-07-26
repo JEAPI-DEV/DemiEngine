@@ -102,6 +102,7 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
   scene.set_function("load", [&host](const std::string& sceneId) { return host.requestSceneLoad(sceneId); });
   scene.set_function("reload", [&host] { return host.requestSceneReload(); });
   scene.set_function("prepare", [&host](const std::string& sceneId, sol::optional<bool> additive) { return host.prepareScene(sceneId, additive.value_or(false)); });
+  scene.set_function("cancel", [&host] { return host.cancelScenePreparation(); });
   scene.set_function("progress", [&host] { return host.scenePreparationProgress(); });
   scene.set_function("is_prepared", [&host] { return host.scenePrepared(); });
   scene.set_function("activate", [&host] { return host.requestPreparedSceneActivation(); });

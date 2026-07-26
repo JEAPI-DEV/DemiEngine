@@ -36,6 +36,16 @@ bool SceneFlow::prepare(std::string sceneId, const bool additive) {
   return true;
 }
 
+bool SceneFlow::cancel() {
+  if (state_ != ScenePreparationState::Loading &&
+      state_ != ScenePreparationState::Ready)
+    return false;
+  prepared_.reset();
+  error_.clear();
+  state_ = ScenePreparationState::Cancelled;
+  return true;
+}
+
 void SceneFlow::poll() {
   if (state_ != ScenePreparationState::Loading || !future_.valid() ||
       future_.wait_for(std::chrono::seconds(0)) !=
@@ -149,7 +159,7 @@ SceneFlow::activate(World &world, ResourceLifetimeRegistry &resources) {
     world.loadedSceneIds = {sceneId};
     for (Entity &entity : persistent)
       world.entities.push_back(std::move(entity));
-    resources = {};
+    resources.clear();
     resources.capture(sceneId, world.entities);
     resources.capture("persistent", world.entities);
   }

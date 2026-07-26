@@ -194,6 +194,10 @@ exposes these services together with scaled/unscaled clocks, pause, fixed time,
 frame count, and application focus/suspend state and events. Headless tests
 cover prefab pooling, scene preparation/activation/unload, persistent entities,
 duplicate rejection, script lifecycles, and runtime clocks.
+The lifetime failure suite additionally injects partial resource failures,
+script exceptions, teardown-time commands, shared assets, cancelled
+preparations, pooled scene assets, and repeated transitions. The `linux-asan`
+preset runs the stress loop under ASan/LSan.
 
 ### Deliverables
 

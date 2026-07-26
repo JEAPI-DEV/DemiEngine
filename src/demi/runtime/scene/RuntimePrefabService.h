@@ -40,6 +40,7 @@ public:
       PrefabInstantiateOptions options);
   [[nodiscard]] bool release(World &world, WorldCommandBuffer &commands,
                              const std::string &instanceId);
+  void prune(const World &world);
   [[nodiscard]] std::size_t pooledCount(std::string_view prefab) const;
 
 private:

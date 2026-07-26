@@ -407,6 +407,8 @@ function Scene.reload() end
 ---@param additive? boolean
 ---@return boolean
 function Scene.prepare(scene_id, additive) end
+---@return boolean
+function Scene.cancel() end
 ---@return number
 function Scene.progress() end
 ---@return boolean

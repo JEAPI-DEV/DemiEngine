@@ -300,6 +300,12 @@ bool LuaScriptHost::prepareScene(const std::string &sceneId,
   return sceneFlow_.prepare(sceneId, additive);
 }
 
+bool LuaScriptHost::cancelScenePreparation() {
+  autoActivatePrepared_ = false;
+  pendingPreparedActivation_ = false;
+  return sceneFlow_.cancel();
+}
+
 float LuaScriptHost::scenePreparationProgress() {
   sceneFlow_.poll();
   return sceneFlow_.progress();
@@ -372,17 +378,27 @@ bool LuaScriptHost::applyPendingSceneLoad(std::string &error) {
 
   if (pendingSceneUnload_) {
     (void)emitEvent("scene_unloading", 0);
+    flushWorldCommands();
+    std::vector<std::string> unloadingScripts;
+    for (const Entity &entity : world_->entities)
+      if (entity.sceneOwner == *pendingSceneUnload_ && !entity.persistent)
+        unloadingScripts.push_back(entity.id);
+    for (const ui::UiNode &node : world_->ui.nodes)
+      if (node.sceneOwner == *pendingSceneUnload_)
+        unloadingScripts.push_back(node.id);
+    for (const std::string &ownerId : unloadingScripts)
+      unloadEntityScript(ownerId);
+    // Destruction callbacks cannot enqueue work into a scene whose lifetime
+    // has already ended.
+    worldCommands_.clear();
     const auto transition = sceneFlow_.unload(
         *world_, *pendingSceneUnload_, resourceLifetimes_);
+    prefabService_.prune(*world_);
     pendingSceneUnload_.reset();
     if (!transition) {
       error = "Scene unload failed.";
       return false;
     }
-    for (const std::string &entityId : transition->unloadingEntities)
-      unloadEntityScript(entityId);
-    for (const std::string &uiId : transition->unloadingUiNodes)
-      unloadEntityScript(uiId);
     (void)emitEvent("scene_unloaded", 0);
     (void)emitEvent("active_scene_changed", 0);
     return true;
@@ -401,11 +417,14 @@ bool LuaScriptHost::applyPendingSceneLoad(std::string &error) {
   const bool additive = sceneFlow_.preparedAdditive();
   if (!additive) {
     (void)emitEvent("scene_unloading", 0);
+    flushWorldCommands();
     // Destroy callbacks still see the outgoing world and its entities.
     unloadScripts();
+    worldCommands_.clear();
   }
   const auto transition =
       sceneFlow_.activate(*world_, resourceLifetimes_);
+  prefabService_.prune(*world_);
   if (!transition) {
     error = "Prepared scene activation failed.";
     return false;
