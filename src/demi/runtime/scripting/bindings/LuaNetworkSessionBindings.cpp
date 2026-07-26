@@ -148,12 +148,17 @@ sol::table networkSessionStatePayload(lua_State *state, LuaScriptHost &host,
                                       const std::string &entityId) {
   sol::state_view lua(state);
   sol::table payload = lua.create_table();
+  sol::table color = lua.create_table();
+  color[1] = session.localColor.r;
+  color[2] = session.localColor.g;
+  color[3] = session.localColor.b;
+  color[4] = session.localColor.a;
   payload["network_id"] = networkId;
   payload["entity_id"] = entityId;
   payload["owner"] = networkSessionSenderId(host, session);
+  payload["color"] = color;
   if (const auto json = host.captureEntityReplicatedState(entityId)) {
-    payload["state"] =
-        jsonToLuaObject(state, nlohmann::json::parse(*json));
+    payload["state"] = jsonToLuaObject(state, nlohmann::json::parse(*json));
   } else {
     payload["state"] = lua.create_table();
   }
@@ -164,8 +169,7 @@ bool networkSessionCreateOrApplyRemote(lua_State *state, LuaScriptHost &host,
                                        NetworkSessionState &session,
                                        const sol::table payload) {
   const std::string owner = payload.get_or("owner", std::string{});
-  const std::string networkId =
-      payload.get_or("network_id", std::string{});
+  const std::string networkId = payload.get_or("network_id", std::string{});
   const sol::object stateObject = payload["state"];
   if (owner.empty() || networkId.empty() || !stateObject.is<sol::table>())
     return false;
@@ -198,6 +202,8 @@ bool networkSessionCreateOrApplyRemote(lua_State *state, LuaScriptHost &host,
   }
   snapshot["vx"] = 0.0F;
   snapshot["vy"] = 0.0F;
+  if (payload["color"].is<sol::table>())
+    snapshot["color"] = payload["color"];
   const sol::object bodyObject = replicated["Rigidbody2D"];
   if (bodyObject.is<sol::table>()) {
     const sol::table body = bodyObject.as<sol::table>();
@@ -285,7 +291,12 @@ void networkSessionApplySnapshot(LuaScriptHost &host,
       });
       entity.setComponent<SpriteComponent>(SpriteComponent{
           .texture = session.remotePrefab.get_or("texture", std::string{}),
+          .shape =
+              session.remotePrefab.get_or("shape", std::string("rectangle")),
           .layer = session.remotePrefab.get_or("layer", std::string("network")),
+          .sortingOrder = session.remotePrefab.get_or("sorting_order", 0),
+          .size = luaVec2Field(session.remotePrefab, "size"),
+          .pivot = luaVec2Field(session.remotePrefab, "pivot", {0.5F, 0.5F}),
           .color = luaColorField(snapshot, "color",
                                  luaColorField(session.remotePrefab, "color")),
       });
@@ -405,14 +416,13 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
         const auto owner = session->game.owner(networkId);
         return owner.has_value() ? sol::make_object(state, *owner) : sol::nil;
       });
+  networkSession.set_function("has_authority",
+                              [session](const std::string &networkId) {
+                                return session->game.hasAuthority(networkId);
+                              });
   networkSession.set_function(
-      "has_authority", [session](const std::string &networkId) {
-        return session->game.hasAuthority(networkId);
-      });
-  networkSession.set_function(
-      "set_authority",
-      [state, &host, session](const std::string &networkId,
-                              const std::string &owner) {
+      "set_authority", [state, &host, session](const std::string &networkId,
+                                               const std::string &owner) {
         if (!host.networkIsHost()) {
           session->game.reject("only the host may assign authority");
           return false;
@@ -427,24 +437,23 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
             state, host, *session, "authority_changed",
             sol::make_object(state, payload), true);
       });
-  networkSession.set_function(
-      "emit",
-      [state, &host, session](const std::string &name,
-                              sol::optional<sol::object> data,
-                              sol::optional<bool> reliable) {
-        if (name.empty()) {
-          session->game.reject("game event name is required");
-          return false;
-        }
-        sol::state_view lua(state);
-        sol::table payload = lua.create_table();
-        payload["name"] = name;
-        payload["sender_id"] = networkSessionSenderId(host, *session);
-        payload["data"] = data.value_or(sol::make_object(state, sol::nil));
-        return networkSessionSendGameMessage(
-            state, host, *session, "game_event",
-            sol::make_object(state, payload), reliable.value_or(true));
-      });
+  networkSession.set_function("emit", [state, &host,
+                                       session](const std::string &name,
+                                                sol::optional<sol::object> data,
+                                                sol::optional<bool> reliable) {
+    if (name.empty()) {
+      session->game.reject("game event name is required");
+      return false;
+    }
+    sol::state_view lua(state);
+    sol::table payload = lua.create_table();
+    payload["name"] = name;
+    payload["sender_id"] = networkSessionSenderId(host, *session);
+    payload["data"] = data.value_or(sol::make_object(state, sol::nil));
+    return networkSessionSendGameMessage(state, host, *session, "game_event",
+                                         sol::make_object(state, payload),
+                                         reliable.value_or(true));
+  });
   networkSession.set_function(
       "register_entity",
       [state, &host, session](const std::string &entityId,
@@ -455,15 +464,14 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
         }
         const sol::table config =
             options.value_or(sol::state_view(state).create_table());
-        const std::string networkId =
-            config.get_or("network_id", entityId);
-        const std::string owner = config.get_or(
-            "owner", networkSessionSenderId(host, *session));
+        const std::string networkId = config.get_or("network_id", entityId);
+        const std::string owner =
+            config.get_or("owner", networkSessionSenderId(host, *session));
         if (!session->game.registerEntity(networkId, owner))
           return false;
         session->localNetworkEntities[networkId] = entityId;
-        sol::table payload = networkSessionStatePayload(
-            state, host, *session, networkId, entityId);
+        sol::table payload = networkSessionStatePayload(state, host, *session,
+                                                        networkId, entityId);
         payload["owner"] = owner;
         return !host.networkAvailable() ||
                (!host.networkIsHost() && !host.networkIsConnected()) ||
@@ -472,8 +480,7 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
                    sol::make_object(state, payload), true);
       });
   networkSession.set_function(
-      "despawn",
-      [state, &host, session](const std::string &networkId) {
+      "despawn", [state, &host, session](const std::string &networkId) {
         if (!session->game.hasAuthority(networkId)) {
           session->game.reject("local peer has no authority to despawn " +
                                networkId);
@@ -505,8 +512,7 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
         std::max(port.value_or(session->defaultPort), 0));
     bool hosted = false;
     if (!session->certificate.empty() || !session->privateKey.empty()) {
-      hosted = !session->certificate.empty() &&
-               !session->privateKey.empty() &&
+      hosted = !session->certificate.empty() && !session->privateKey.empty() &&
                host.networkHostSecure(selectedPort, session->certificate,
                                       session->privateKey, session->maxPeers);
     } else {
@@ -791,9 +797,9 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
         } else if (type == "game_event") {
           if (host.networkIsHost()) {
             payload["sender_id"] = session->game.peerName(event.peerId);
-            networkSessionSendGameMessage(
-                state, host, *session, "game_event",
-                sol::make_object(state, payload), true);
+            networkSessionSendGameMessage(state, host, *session, "game_event",
+                                          sol::make_object(state, payload),
+                                          true);
           }
           session->gameEvents.push_back(luaObjectToJson(payloadObject));
         } else if (type == "entity_spawn") {
@@ -808,12 +814,12 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
             continue;
           }
           if (!networkSessionCreateOrApplyRemote(state, host, *session,
-                                                  payload))
+                                                 payload))
             continue;
           if (host.networkIsHost()) {
-            networkSessionSendGameMessage(
-                state, host, *session, "entity_spawn",
-                sol::make_object(state, payload), true);
+            networkSessionSendGameMessage(state, host, *session, "entity_spawn",
+                                          sol::make_object(state, payload),
+                                          true);
           }
         } else if (type == "state_snapshot") {
           std::string owner = payload.get_or("owner", std::string{});
@@ -829,7 +835,7 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
             continue;
           }
           if (!networkSessionCreateOrApplyRemote(state, host, *session,
-                                                  payload))
+                                                 payload))
             continue;
           if (host.networkIsHost()) {
             networkSessionSendGameMessage(
@@ -847,8 +853,7 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
                                  networkId);
             continue;
           }
-          (void)host.destroyEntity(
-              networkSessionRemoteId(owner, networkId));
+          (void)host.destroyEntity(networkSessionRemoteId(owner, networkId));
           (void)session->game.removeEntity(networkId);
           if (host.networkIsHost()) {
             payload["owner"] = owner;
@@ -872,32 +877,30 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
     summary["events"] = gameEvents;
     return summary;
   });
-  networkSession.set_function(
-      "update_entity",
-      [state, &host, session](const std::string &networkId, const float dt) {
-        if (!host.networkAvailable())
-          return true;
-        for (auto &[ghostId, remote] : session->remotes) {
-          remote.age =
-              std::min(remote.age + dt, session->extrapolationLimit);
-          (void)host.setEntityPosition(ghostId,
-                                       remote.x + remote.vx * remote.age,
-                                       remote.y + remote.vy * remote.age);
-        }
-        const auto local = session->localNetworkEntities.find(networkId);
-        if (local == session->localNetworkEntities.end() ||
-            !session->game.hasAuthority(networkId))
-          return false;
-        session->accumulator += dt;
-        if (session->accumulator < session->sendInterval)
-          return true;
-        session->accumulator = 0.0F;
-        sol::table payload = networkSessionStatePayload(
-            state, host, *session, networkId, local->second);
-        return networkSessionSendGameMessage(
-            state, host, *session, "state_snapshot",
-            sol::make_object(state, payload), false, 0, session->channel);
-      });
+  networkSession.set_function("update_entity", [state, &host, session](
+                                                   const std::string &networkId,
+                                                   const float dt) {
+    if (!host.networkAvailable())
+      return true;
+    for (auto &[ghostId, remote] : session->remotes) {
+      remote.age = std::min(remote.age + dt, session->extrapolationLimit);
+      (void)host.setEntityPosition(ghostId, remote.x + remote.vx * remote.age,
+                                   remote.y + remote.vy * remote.age);
+    }
+    const auto local = session->localNetworkEntities.find(networkId);
+    if (local == session->localNetworkEntities.end() ||
+        !session->game.hasAuthority(networkId))
+      return false;
+    session->accumulator += dt;
+    if (session->accumulator < session->sendInterval)
+      return true;
+    session->accumulator = 0.0F;
+    sol::table payload = networkSessionStatePayload(state, host, *session,
+                                                    networkId, local->second);
+    return networkSessionSendGameMessage(
+        state, host, *session, "state_snapshot",
+        sol::make_object(state, payload), false, 0, session->channel);
+  });
 }
 
 } // namespace demi::runtime

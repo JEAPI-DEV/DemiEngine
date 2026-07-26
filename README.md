@@ -89,6 +89,7 @@ The examples are not throwaway snippets. They are reference projects used to exe
 
 - `examples/isometric_base_builder`: playable isometric tower-defense and base-building demo with construction, pathfinding, enemies, defenses, and resources.
 - `examples/minimal_2d_networking`: menu flow, saves, scene switching, platformer and slingshot gameplay, plus optional networking paths.
+- `examples/multiplayer_ffa_shooter`: shared Linux/Android top-down shooter with host-authoritative hits, replicated players, respawns, scoring, and touch controls.
 - `examples/fighting_game_2d`: 2D fighting-game systems, data, and Lua gameplay scripts.
 - `examples/minimal_voxel`: voxel-style 3D scene and physics integration.
 

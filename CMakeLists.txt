@@ -561,6 +561,12 @@ add_test(NAME demi-runtime-networking-minimal-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json --frames 1
 )
 set_tests_properties(demi-runtime-networking-minimal-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-multiplayer-ffa-shooter-replay
+  COMMAND demi run
+    --project ${CMAKE_SOURCE_DIR}/examples/multiplayer_ffa_shooter/demi.project.json
+    --input-replay ${CMAKE_SOURCE_DIR}/examples/multiplayer_ffa_shooter/replays/practice_match.replay.json
+)
+set_tests_properties(demi-runtime-multiplayer-ffa-shooter-replay PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-runtime-saves-simulation-debugging-replay
   COMMAND demi run
     --project ${CMAKE_SOURCE_DIR}/examples/saves_simulation_debugging/demi.project.json
@@ -632,6 +638,9 @@ add_test(NAME demi-runtime-gif-main-menu-frame
 set_tests_properties(demi-runtime-gif-main-menu-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-validate-minimal-2d-networking
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json
+)
+add_test(NAME demi-validate-multiplayer-ffa-shooter
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/multiplayer_ffa_shooter/demi.project.json
 )
 add_test(NAME demi-validate-saves-simulation-debugging
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/saves_simulation_debugging/demi.project.json
@@ -742,6 +751,20 @@ set(DEMI_NETWORKING_EXAMPLE_SCRIPTS
 foreach(script_name IN LISTS DEMI_NETWORKING_EXAMPLE_SCRIPTS)
   add_test(NAME demi-script-check-networking-${script_name}
     COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/scripts/${script_name}.lua
+  )
+endforeach()
+set(DEMI_MULTIPLAYER_FFA_SHOOTER_SCRIPTS
+  game
+  shooter/actions
+  shooter/combat
+  shooter/config
+  shooter/hud
+  shooter/movement
+  shooter/session
+)
+foreach(script_name IN LISTS DEMI_MULTIPLAYER_FFA_SHOOTER_SCRIPTS)
+  add_test(NAME demi-script-check-multiplayer-ffa-shooter-${script_name}
+    COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/multiplayer_ffa_shooter/scripts/${script_name}.lua
   )
 endforeach()
 set(DEMI_ANDROID_EXAMPLE_SCRIPTS

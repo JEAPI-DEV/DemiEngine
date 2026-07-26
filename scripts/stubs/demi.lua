@@ -958,7 +958,19 @@ NetworkSession = {}
 ---@field session table|nil
 ---@field messages integer
 ---@field events NetworkSessionGameEvent[]
----@param options {send_interval?: number, extrapolation_limit?: number, initial_prediction?: number, channel?: integer, port?: integer, max_peers?: integer, remote_prefab?: table, certificate?: string, private_key?: string, trusted_certificate?: string, server_name?: string}
+---@class NetworkRemotePrefab
+---@field name? string
+---@field texture? string
+---@field shape? "rectangle"|"circle"|"triangle"
+---@field layer? string
+---@field sorting_order? integer
+---@field size? number[]
+---@field pivot? number[]
+---@field parent? string
+---@field rotation? number
+---@field scale? number[]
+---@field color? number[]
+---@param options {send_interval?: number, extrapolation_limit?: number, initial_prediction?: number, channel?: integer, port?: integer, max_peers?: integer, remote_prefab?: NetworkRemotePrefab, certificate?: string, private_key?: string, trusted_certificate?: string, server_name?: string}
 function NetworkSession.configure(options) end
 ---@return string
 function NetworkSession.sender_id() end
