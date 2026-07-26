@@ -374,7 +374,7 @@ std::vector<std::string> overlapSphere3D(const World &world, const Vec3 center,
   std::vector<std::string> entities;
   const Sphere3D query{.center = center, .radius = std::max(radius, 0.0F)};
   for (const Entity &entity : world.entities) {
-    if (entity.id == ignoredEntityId)
+    if (!entity.enabled || entity.id == ignoredEntityId)
       continue;
     const auto sphere = sphereBounds(world, entity);
     const auto box = boxBounds(world, entity);
@@ -397,7 +397,7 @@ raycast3D(const World &world, const Vec3 origin, const Vec3 direction,
     return std::nullopt;
   std::optional<PhysicsRaycastHit3D> nearest;
   for (const Entity &entity : world.entities) {
-    if (entity.id == ignoredEntityId)
+    if (!entity.enabled || entity.id == ignoredEntityId)
       continue;
     std::optional<float> hitDistance;
     Vec3 normal;

@@ -8,7 +8,7 @@ struct AudioSourceComponent {
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::Generic;
   static constexpr std::array fields{
-      ComponentFieldDescriptor{"clip", ComponentFieldType::String},
+      ComponentFieldDescriptor::assetReference("clip"),
       ComponentFieldDescriptor{"play_on_start", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"loop", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"volume", ComponentFieldType::Number}};

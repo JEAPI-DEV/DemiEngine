@@ -37,6 +37,18 @@
           "name": {
             "type": "string"
           },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" },
+            "uniqueItems": true
+          },
+          "layer": {
+            "type": "string"
+          },
           "components": {
             "$ref": "components.schema.json"
           }

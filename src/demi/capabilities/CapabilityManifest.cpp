@@ -64,6 +64,22 @@ std::string domainName(const runtime::ComponentDomain domain) {
   return "unknown";
 }
 
+std::string referenceKindName(
+    const runtime::ComponentReferenceKind referenceKind) {
+  using Kind = runtime::ComponentReferenceKind;
+  switch (referenceKind) {
+  case Kind::None:
+    return "none";
+  case Kind::Asset:
+    return "asset";
+  case Kind::Entity:
+    return "entity";
+  case Kind::Prefab:
+    return "prefab";
+  }
+  return "none";
+}
+
 std::map<std::string, Json> objectsByName(const Json &array,
                                           const char *nameField) {
   std::map<std::string, Json> result;
@@ -194,7 +210,20 @@ Json buildManifest(const std::span<const std::string> luaApi) {
       fields.push_back({{"name", field.name},
                         {"type", fieldTypeName(field.type)},
                         {"required", field.required},
-                        {"replicated", field.replicated}});
+                        {"replicated", field.replicated},
+                        {"lua_readable", field.luaReadable},
+                        {"lua_writable",
+                         field.luaWritable && !field.runtimeReadOnly},
+                        {"nullable", field.nullable},
+                        {"has_minimum", field.hasMinimum},
+                        {"minimum", field.minimum},
+                        {"has_maximum", field.hasMaximum},
+                        {"maximum", field.maximum},
+                        {"reference", referenceKindName(field.referenceKind)},
+                        {"array_element_schema", field.arrayElementSchema},
+                        {"nested_object_schema", field.nestedObjectSchema},
+                        {"restart_required", field.restartRequired},
+                        {"runtime_read_only", field.runtimeReadOnly}});
     }
     components.push_back(
         {{"name", descriptor.name},

@@ -545,6 +545,8 @@ void stepPhysics2D(World &world, const float fixedDt,
   };
 
   for (Entity &entity : world.entities) {
+    if (!entity.enabled)
+      continue;
     if (!entity.hasComponent<Transform2DComponent>())
       continue;
     if (!entity.hasComponent<Rigidbody2DComponent>() && !hasCollider(entity))
@@ -699,6 +701,8 @@ void stepPhysics2D(World &world, const float fixedDt,
   }
 
   for (Entity &entity : world.entities) {
+    if (!entity.enabled)
+      continue;
     if (!entity.hasComponent<Transform2DComponent>())
       continue;
     const auto found = state.bodies.find(entity.id);
@@ -717,7 +721,8 @@ void stepPhysics2D(World &world, const float fixedDt,
   }
 #else
   for (Entity &entity : world.entities) {
-    if (!isDynamic(entity) || !entity.hasComponent<Transform2DComponent>()) {
+    if (!entity.enabled || !isDynamic(entity) ||
+        !entity.hasComponent<Transform2DComponent>()) {
       continue;
     }
 

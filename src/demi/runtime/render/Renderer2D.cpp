@@ -1009,6 +1009,8 @@ void Renderer2D::drawWorld(const World &world) {
 
   std::vector<const Entity *> renderables;
   for (const Entity &entity : world.entities) {
+    if (!entity.enabled)
+      continue;
     if (entity.hasComponent<SpriteComponent>() ||
         entity.hasComponent<Tilemap2DComponent>() ||
         entity.hasComponent<IsoGridComponent>() ||

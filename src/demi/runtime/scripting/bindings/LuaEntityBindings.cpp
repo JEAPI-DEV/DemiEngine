@@ -1,7 +1,9 @@
 #include "demi/runtime/scripting/bindings/LuaEntityBindings.h"
 
 #include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/scene/RuntimeObjectModel.h"
 #include "demi/runtime/scripting/bindings/LuaBindingHelpers.h"
+#include "demi/runtime/scripting/bindings/LuaJsonBridge.h"
 
 #include <algorithm>
 #include <sol/sol.hpp>
@@ -323,8 +325,30 @@ void LuaEntityBindingModule::install(LuaScriptHost &host,
   });
   entity.set_function(
       "create", [&host](const std::string &entityId, const sol::table spec) {
-        return host.createEntity(luaParseEntitySpec(entityId, spec));
+        nlohmann::json json = luaObjectToJson(spec);
+        json["id"] = entityId;
+        std::string error;
+        std::optional<Entity> created =
+            RuntimeObjectModel::buildEntity(json, error);
+        return created.has_value() && host.createEntity(std::move(*created));
       });
+  entity.set_function(
+      "replace", [&host](const std::string &entityId, const sol::table spec) {
+        nlohmann::json json = luaObjectToJson(spec);
+        json["id"] = entityId;
+        std::string error;
+        std::optional<Entity> replacement =
+            RuntimeObjectModel::buildEntity(json, error);
+        return replacement.has_value() &&
+               host.replaceEntity(std::move(*replacement));
+      });
+  entity.set_function("exists", [&host](const std::string &entityId) {
+    return host.entityExists(entityId);
+  });
+  entity.set_function("clone", [&host](const std::string &sourceId,
+                                       const std::string &newId) {
+    return host.cloneEntity(sourceId, newId);
+  });
   entity.set_function("destroy", [&host](const std::string &entityId) {
     return host.destroyEntity(entityId);
   });
@@ -338,6 +362,93 @@ void LuaEntityBindingModule::install(LuaScriptHost &host,
     }
     return host.destroyEntities(ids);
   });
+  entity.set_function("set_enabled", [&host](const std::string &entityId,
+                                             const bool enabled) {
+    return host.setEntityEnabled(entityId, enabled);
+  });
+  entity.set_function("is_enabled", [&host](const std::string &entityId) {
+    return host.isEntityEnabled(entityId);
+  });
+  entity.set_function("add_component", [&host](const std::string &entityId,
+                                               const std::string &component,
+                                               const sol::table values) {
+    return host.addEntityComponent(entityId, component,
+                                   luaObjectToJson(values));
+  });
+  entity.set_function("remove_component", [&host](
+                                                const std::string &entityId,
+                                                const std::string &component) {
+    return host.removeEntityComponent(entityId, component);
+  });
+  entity.set_function("has_component", [&host](const std::string &entityId,
+                                               const std::string &component) {
+    return host.hasEntityComponent(entityId, component);
+  });
+  entity.set_function("get", [state, &host](const std::string &entityId,
+                                            const std::string &component,
+                                            const std::string &field) {
+    const auto value =
+        host.entityComponentField(entityId, component, field);
+    return value.has_value() ? jsonToLuaObject(state, *value)
+                             : sol::make_object(state, sol::nil);
+  });
+  entity.set_function("set", [&host](const std::string &entityId,
+                                     const std::string &component,
+                                     const std::string &field,
+                                     const sol::object value) {
+    return host.setEntityComponentField(entityId, component, field,
+                                        luaObjectToJson(value));
+  });
+  entity.set_function("query", [&host](const sol::table queryTable) {
+    EntityQuery query;
+    const auto readStrings = [](const sol::object &object) {
+      std::vector<std::string> values;
+      if (!object.is<sol::table>())
+        return values;
+      for (const auto &entry : object.as<sol::table>()) {
+        if (entry.second.is<std::string>())
+          values.push_back(entry.second.as<std::string>());
+      }
+      return values;
+    };
+    query.allComponents = readStrings(queryTable["all"]);
+    query.tags = readStrings(queryTable["tags"]);
+    const sol::object layer = queryTable["layer"];
+    if (layer.is<std::string>())
+      query.layer = layer.as<std::string>();
+    query.includeDisabled = queryTable.get_or("include_disabled", false);
+    return host.queryEntities(query);
+  });
+  entity.set_function("set_parent", [&host](
+                                           const std::string &entityId,
+                                           const sol::object parent) {
+    std::optional<std::string> parentId;
+    if (parent.valid() && parent != sol::nil && parent.is<std::string>())
+      parentId = parent.as<std::string>();
+    return host.setEntityParent(entityId, parentId);
+  });
+  entity.set_function("parent", [&host](const std::string &entityId) {
+    return host.entityParent(entityId);
+  });
+  entity.set_function("children", [&host](const std::string &entityId) {
+    return host.entityChildren(entityId);
+  });
+  entity.set_function("local_position",
+                      [state, &host](const std::string &entityId) {
+                        const auto value =
+                            host.entityLocalPosition(entityId);
+                        return value.has_value()
+                                   ? jsonToLuaObject(state, *value)
+                                   : sol::make_object(state, sol::nil);
+                      });
+  entity.set_function("world_position",
+                      [state, &host](const std::string &entityId) {
+                        const auto value =
+                            host.entityWorldPosition(entityId);
+                        return value.has_value()
+                                   ? jsonToLuaObject(state, *value)
+                                   : sol::make_object(state, sol::nil);
+                      });
   entity.set_function("set_sprite_color", [&host](const std::string &entityId,
                                                   float r, float g, float b,
                                                   sol::optional<float> a) {

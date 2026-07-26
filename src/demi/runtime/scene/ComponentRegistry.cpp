@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <sstream>
 
 namespace demi::runtime::scene_loading {
 
@@ -107,6 +108,9 @@ validateComponent(const ComponentDescriptor &descriptor,
           {.field = iterator.key(), .message = "is not a recognized field"});
       continue;
     }
+    if (iterator.value().is_null() && field->nullable) {
+      continue;
+    }
     if (!matchesFieldType(iterator.value(), field->type)) {
       errors.push_back(
           {.field = iterator.key(), .message = "has the wrong JSON type"});
@@ -116,6 +120,11 @@ validateComponent(const ComponentDescriptor &descriptor,
         iterator.value().get<double>() < field->minimum) {
       errors.push_back(
           {.field = iterator.key(), .message = "is below the allowed minimum"});
+    }
+    if (field->hasMaximum && iterator.value().is_number() &&
+        iterator.value().get<double>() > field->maximum) {
+      errors.push_back(
+          {.field = iterator.key(), .message = "is above the allowed maximum"});
     }
     if (!field->allowedValues.empty() && iterator.value().is_string() &&
         std::ranges::find(field->allowedValues,
@@ -186,16 +195,86 @@ nlohmann::json componentSchema(const ComponentDescriptor &descriptor) {
     }
     if (field.hasMinimum)
       property["minimum"] = field.minimum;
+    if (field.hasMaximum)
+      property["maximum"] = field.maximum;
     if (!field.allowedValues.empty())
       property["enum"] = field.allowedValues;
     if (field.replicated)
       property["x-demi-replicated"] = true;
+    property["x-demi-lua-readable"] = field.luaReadable;
+    property["x-demi-lua-writable"] =
+        field.luaWritable && !field.runtimeReadOnly;
+    if (field.nullable)
+      property["x-demi-nullable"] = true;
+    if (field.restartRequired)
+      property["x-demi-restart-required"] = true;
+    if (field.runtimeReadOnly)
+      property["readOnly"] = true;
+    if (!field.arrayElementSchema.empty())
+      property["x-demi-array-element-schema"] = field.arrayElementSchema;
+    if (!field.nestedObjectSchema.empty())
+      property["x-demi-nested-object-schema"] = field.nestedObjectSchema;
+    switch (field.referenceKind) {
+    case ComponentReferenceKind::Asset:
+      property["x-demi-reference"] = "asset";
+      break;
+    case ComponentReferenceKind::Entity:
+      property["x-demi-reference"] = "entity";
+      break;
+    case ComponentReferenceKind::Prefab:
+      property["x-demi-reference"] = "prefab";
+      break;
+    case ComponentReferenceKind::None:
+      break;
+    }
     schema["properties"][field.name] = std::move(property);
     if (field.required) {
       schema["required"].push_back(field.name);
     }
   }
   return schema;
+}
+
+std::string generatedLuaComponentTypes() {
+  const auto luaType = [](const ComponentFieldType type) {
+    switch (type) {
+    case ComponentFieldType::Boolean:
+      return "boolean";
+    case ComponentFieldType::Integer:
+    case ComponentFieldType::Number:
+      return "number";
+    case ComponentFieldType::String:
+      return "string";
+    case ComponentFieldType::Object:
+      return "table";
+    case ComponentFieldType::Vec2:
+      return "number[]";
+    case ComponentFieldType::Vec3:
+      return "number[]";
+    case ComponentFieldType::Color:
+      return "number[]";
+    case ComponentFieldType::Vec2Array:
+    case ComponentFieldType::Vec3Array:
+      return "number[][]";
+    }
+    return "unknown";
+  };
+
+  std::ostringstream output;
+  output << "\n-- Generated from ComponentRegistry metadata.\n";
+  for (const ComponentDescriptor &descriptor : Descriptors) {
+    if (!descriptor.exposedToLua)
+      continue;
+    output << "---@class Demi" << descriptor.name << "Spec\n";
+    for (const ComponentFieldDescriptor &field : descriptor.fields) {
+      output << "---@field " << field.name;
+      if (!field.required || field.nullable)
+        output << '?';
+      output << ' ' << luaType(field.type) << '\n';
+    }
+    output << '\n';
+  }
+  return output.str();
 }
 
 nlohmann::json canonicalComponentSchema() {

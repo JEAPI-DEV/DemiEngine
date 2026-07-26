@@ -262,6 +262,7 @@ int runLuaStubs(const std::vector<std::string> &args) {
   }
 
   output << input.rdbuf();
+  output << demi::runtime::scene_loading::generatedLuaComponentTypes();
   std::cout << "Wrote LuaLS stubs: " << outputPath.string() << '\n';
   return ExitSuccess;
 }

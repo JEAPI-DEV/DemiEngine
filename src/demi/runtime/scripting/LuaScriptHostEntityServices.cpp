@@ -12,7 +12,6 @@
 
 #include <algorithm>
 #include <optional>
-#include <unordered_set>
 #include <utility>
 
 namespace demi::runtime {
@@ -249,42 +248,14 @@ LuaScriptHost::findEntityId(const std::string &idOrName) const {
   return std::nullopt;
 }
 
-bool LuaScriptHost::destroyEntity(const std::string &entityId) {
-  if (world_ == nullptr) {
-    return false;
-  }
-  const auto before = world_->entities.size();
-  std::erase_if(world_->entities,
-                [&](const Entity &entity) { return entity.id == entityId; });
-  return world_->entities.size() != before;
-}
-
-int LuaScriptHost::destroyEntities(const std::vector<std::string> &entityIds) {
-  if (world_ == nullptr || entityIds.empty()) {
-    return 0;
-  }
-  std::unordered_set<std::string> ids;
-  ids.reserve(entityIds.size());
-  for (const std::string &entityId : entityIds) {
-    if (!entityId.empty()) {
-      ids.insert(entityId);
-    }
-  }
-  if (ids.empty()) {
-    return 0;
-  }
-  const auto before = world_->entities.size();
-  std::erase_if(world_->entities,
-                [&](const Entity &entity) { return ids.contains(entity.id); });
-  return static_cast<int>(before - world_->entities.size());
-}
-
 bool LuaScriptHost::setEntitySpriteColor(const std::string &entityId,
                                          const Color color) {
   if (world_ == nullptr) {
     return false;
   }
   Entity *entity = findEntity(*world_, entityId);
+  if (entity == nullptr)
+    entity = worldCommands_.pendingEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<SpriteComponent>()) {
     return false;
   }
@@ -379,21 +350,6 @@ std::vector<PhysicsContact2D>
 LuaScriptHost::physicsContacts(const std::string &entityId) const {
   return world_ != nullptr ? contactsForEntity(*world_, entityId)
                            : std::vector<PhysicsContact2D>{};
-}
-
-bool LuaScriptHost::createEntity(Entity entity) {
-  if (world_ == nullptr || entity.id.empty()) {
-    return false;
-  }
-  if (entity.name.empty()) {
-    entity.name = entity.id;
-  }
-  if (Entity *existing = findEntity(*world_, entity.id)) {
-    *existing = std::move(entity);
-    return true;
-  }
-  world_->entities.push_back(std::move(entity));
-  return true;
 }
 
 std::optional<std::string> LuaScriptHost::captureEntityReplicatedState(

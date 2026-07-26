@@ -7,6 +7,8 @@
 #include "demi/runtime/physics/SpatialQuery3D.h"
 #include "demi/runtime/scene/model/ProjectData.h"
 #include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/scene/RuntimeObjectModel.h"
+#include "demi/runtime/scene/WorldCommandBuffer.h"
 #include "demi/runtime/simulation/DeterministicRandom.h"
 
 #include <cstdint>
@@ -95,6 +97,7 @@ public:
                                       float y, float z);
   [[nodiscard]] std::optional<std::string>
   findEntityId(const std::string &idOrName) const;
+  [[nodiscard]] bool entityExists(const std::string &entityId) const;
   [[nodiscard]] bool destroyEntity(const std::string &entityId);
   [[nodiscard]] int destroyEntities(const std::vector<std::string> &entityIds);
   [[nodiscard]] bool setEntitySpriteColor(const std::string &entityId,
@@ -151,6 +154,40 @@ public:
   [[nodiscard]] std::vector<PhysicsContact2D>
   physicsContacts(const std::string &entityId) const;
   [[nodiscard]] bool createEntity(Entity entity);
+  [[nodiscard]] bool replaceEntity(Entity entity);
+  [[nodiscard]] bool cloneEntity(const std::string &sourceId,
+                                 const std::string &newId);
+  [[nodiscard]] bool setEntityEnabled(const std::string &entityId,
+                                      bool enabled);
+  [[nodiscard]] bool isEntityEnabled(const std::string &entityId) const;
+  [[nodiscard]] bool addEntityComponent(const std::string &entityId,
+                                        const std::string &component,
+                                        const nlohmann::json &values);
+  [[nodiscard]] bool removeEntityComponent(const std::string &entityId,
+                                           const std::string &component);
+  [[nodiscard]] bool hasEntityComponent(const std::string &entityId,
+                                        const std::string &component) const;
+  [[nodiscard]] std::optional<nlohmann::json>
+  entityComponentField(const std::string &entityId,
+                       const std::string &component,
+                       const std::string &field) const;
+  [[nodiscard]] bool setEntityComponentField(const std::string &entityId,
+                                             const std::string &component,
+                                             const std::string &field,
+                                             const nlohmann::json &value);
+  [[nodiscard]] std::vector<std::string>
+  queryEntities(const EntityQuery &query) const;
+  [[nodiscard]] bool setEntityParent(
+      const std::string &entityId,
+      const std::optional<std::string> &parentId);
+  [[nodiscard]] std::optional<std::string>
+  entityParent(const std::string &entityId) const;
+  [[nodiscard]] std::vector<std::string>
+  entityChildren(const std::string &entityId) const;
+  [[nodiscard]] std::optional<nlohmann::json>
+  entityLocalPosition(const std::string &entityId) const;
+  [[nodiscard]] std::optional<nlohmann::json>
+  entityWorldPosition(const std::string &entityId) const;
   [[nodiscard]] std::optional<std::string>
   captureEntityReplicatedState(const std::string &entityId) const;
   [[nodiscard]] std::string
@@ -305,6 +342,7 @@ private:
     std::filesystem::path path;
     std::filesystem::file_time_type lastWriteTime{};
     int tableRef = 0;
+    bool lifecycleStarted = false;
     std::vector<LuaActionHandler> actionHandlers;
     std::vector<LuaEventHandler> eventHandlers;
   };
@@ -340,8 +378,17 @@ private:
   void updateTimers(float dt);
   void reloadChangedScripts();
   void unloadScripts();
+  [[nodiscard]] bool loadScriptInstance(std::string entityId,
+                                        const std::string &module,
+                                        const char *context,
+                                        std::string &error);
+  [[nodiscard]] bool loadDynamicEntityScript(const std::string &entityId,
+                                             std::string &error);
+  void startScriptInstance(ScriptInstance &script);
+  void unloadEntityScript(const std::string &entityId);
   void clearTimersAndEvents();
   void clearSaveMigrationHooks();
+  void flushWorldCommands();
   [[nodiscard]] std::unordered_map<std::string, SaveValue> &
   loadSaveSlot(const std::string &slot);
   [[nodiscard]] bool writeSaveSlot(const std::string &slot);
@@ -378,6 +425,7 @@ private:
   std::vector<TimerInstance> timers_;
   std::vector<EventSubscription> eventSubscriptions_;
   std::vector<SaveMigrationHook> saveMigrationHooks_;
+  WorldCommandBuffer worldCommands_;
   std::string lastSaveError_;
   std::uint64_t nextTimerId_ = 1;
   std::uint64_t nextMeshRevision_ = 1;

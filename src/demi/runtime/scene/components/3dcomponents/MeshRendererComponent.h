@@ -14,11 +14,11 @@ struct MeshRendererComponent {
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
   static constexpr std::array fields{
-      ComponentFieldDescriptor{"model", ComponentFieldType::String},
+      ComponentFieldDescriptor::assetReference("model"),
       ComponentFieldDescriptor{"shape", ComponentFieldType::String},
       ComponentFieldDescriptor{"size", ComponentFieldType::Vec3},
       ComponentFieldDescriptor{"color", ComponentFieldType::Color},
-      ComponentFieldDescriptor{"texture", ComponentFieldType::String},
+      ComponentFieldDescriptor::assetReference("texture"),
       ComponentFieldDescriptor{"vertices", ComponentFieldType::Vec3Array},
       ComponentFieldDescriptor{"normals", ComponentFieldType::Vec3Array},
       ComponentFieldDescriptor{"uvs", ComponentFieldType::Vec2Array},

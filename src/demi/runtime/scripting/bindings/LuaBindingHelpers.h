@@ -16,7 +16,6 @@ std::tuple<sol::object, sol::object, sol::object> luaVec3Result(lua_State* state
 Vec2 luaVec2Field(sol::table table, const char* fieldName, Vec2 fallback = {});
 Vec3 luaVec3Field(sol::table table, const char* fieldName, Vec3 fallback = {});
 Color luaColorField(sol::table table, const char* fieldName, Color fallback = {1.0F, 1.0F, 1.0F, 1.0F});
-Entity luaParseEntitySpec(const std::string& entityId, sol::table spec);
 std::uint64_t luaAddTimer(lua_State* state, LuaScriptHost& host, float seconds, bool repeating, sol::function callback);
 std::uint64_t luaAddEventSubscription(lua_State* state, LuaScriptHost& host, const std::string& eventName, sol::function callback);
 int luaEmitEvent(lua_State* state, LuaScriptHost& host, const std::string& eventName, sol::object payload);

@@ -66,6 +66,8 @@ void Renderer3D::drawWorld(World &world, const float deltaTime) {
 
   if (world.debug.drawOrder)
     for (const Entity &entity : world.entities) {
+      if (!entity.enabled)
+        continue;
       if (entity.hasComponent<DirectionalLightComponent>()) {
         const ::Vector3 direction = renderer3d_detail::toRlVec3(
             entity.component<DirectionalLightComponent>()->direction);
@@ -76,6 +78,8 @@ void Renderer3D::drawWorld(World &world, const float deltaTime) {
     }
 
   for (Entity &entity : world.entities) {
+    if (!entity.enabled)
+      continue;
     if (entity.hasComponent<AnimationPlayer3DComponent>() &&
         entity.component<AnimationPlayer3DComponent>()->playing) {
       entity.component<AnimationPlayer3DComponent>()->time +=
@@ -86,6 +90,8 @@ void Renderer3D::drawWorld(World &world, const float deltaTime) {
 
   std::vector<Entity *> visibleEntities;
   for (Entity &entity : world.entities) {
+    if (!entity.enabled)
+      continue;
     if (entity.hasComponent<MeshRendererComponent>() ||
         entity.hasComponent<BoxCollider3DComponent>() ||
         entity.hasComponent<SphereCollider3DComponent>() ||

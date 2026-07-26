@@ -70,6 +70,8 @@ void AnimationStateMachineSystem::update(World &world,
   world.stateAnimationEvents.clear();
   const float dt = std::max(deltaTime, 0.0F);
   for (Entity &entity : world.entities) {
+    if (!entity.enabled)
+      continue;
     auto *machine = entity.component<AnimationStateMachineComponent>();
     if (machine == nullptr)
       continue;

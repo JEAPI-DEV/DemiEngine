@@ -117,6 +117,8 @@ bool LuaScriptHost::setSpriteFlip(const std::string &entityId, const bool flipX,
 bool LuaScriptHost::setSpriteSize(const std::string &entityId,
                                   const float width, const float height) {
   Entity *entity = world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  if (entity == nullptr)
+    entity = worldCommands_.pendingEntity(entityId);
   auto *sprite =
       entity == nullptr ? nullptr : entity->component<SpriteComponent>();
   if (sprite == nullptr || width < 0.0F || height < 0.0F)

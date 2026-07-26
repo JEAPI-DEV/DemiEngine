@@ -11,7 +11,7 @@ struct Tilemap2DComponent {
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::TwoDimensional;
   static constexpr std::array fields{
-      ComponentFieldDescriptor{"asset", ComponentFieldType::String},
+      ComponentFieldDescriptor::assetReference("asset"),
       ComponentFieldDescriptor{"pixels_per_unit", ComponentFieldType::Number},
       ComponentFieldDescriptor{"layer", ComponentFieldType::String},
       ComponentFieldDescriptor{"sorting_order", ComponentFieldType::Integer}};

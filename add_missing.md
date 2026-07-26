@@ -112,6 +112,13 @@ gates are enforced through CTest. Known missing behavior is tracked in
 This is the highest-priority phase. It removes the most common reason games
 need engine edits.
 
+**Status: complete.** Runtime and authored entity construction now share the
+component registry, mutations are deferred through `WorldCommandBuffer`, and
+Lua exposes stable generic entity/component, query, enable, and hierarchy
+operations. Component metadata drives validation, schemas, capability
+contracts, and generated Lua component specs; dynamic `LuaScript` lifecycle
+and mutation ordering are covered by regression tests.
+
 ### Ownership
 
 - `ComponentRegistry` owns construction, field access, validation, and

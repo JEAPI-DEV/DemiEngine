@@ -27,6 +27,8 @@ bool overlaps(const Box &left, const Box &right) {
 void AnimationCollision2DSystem::update(World &world) const {
   world.animationCollisionOverlaps.clear();
   for (Entity &source : world.entities) {
+    if (!source.enabled)
+      continue;
     auto *collision = source.component<AnimationCollision2DComponent>();
     const auto *machine = source.component<AnimationStateMachineComponent>();
     if (collision == nullptr || machine == nullptr)
@@ -53,6 +55,8 @@ void AnimationCollision2DSystem::update(World &world) const {
                    sourcePosition.y + window->second.offset.y},
         .size = window->second.size};
     for (const Entity &target : world.entities) {
+      if (!target.enabled)
+        continue;
       const auto *targetCollision =
           target.component<AnimationCollision2DComponent>();
       if (&target == &source || targetCollision == nullptr)

@@ -25,7 +25,8 @@ bool collidesAt3D(const World &world, const Entity &moving,
   Transform3DComponent candidate = *moving.component<Transform3DComponent>();
   candidate.position = position;
   for (const Entity &other : world.entities) {
-    if (other.id == moving.id || !other.hasComponent<Transform3DComponent>() ||
+    if (!other.enabled || other.id == moving.id ||
+        !other.hasComponent<Transform3DComponent>() ||
         !hasSolidCollider3D(other)) {
       continue;
     }

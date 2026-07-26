@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace demi::runtime {
@@ -14,6 +15,9 @@ class Component;
 struct Entity {
   std::string id;
   std::string name;
+  bool enabled = true;
+  std::unordered_set<std::string> tags;
+  std::string layer;
   std::unordered_map<std::string, std::string> serializedComponents;
   std::vector<std::shared_ptr<const Component>> authoredComponents;
   ComponentStorage components;

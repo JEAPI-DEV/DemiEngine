@@ -128,6 +128,12 @@ function Probe:on_start()
       },
     },
   })
+  Entity.create("ent_dynamic_script", {
+    enabled = false,
+    components = {
+      LuaScript = { module = "script://scripts/dynamic_probe.lua" },
+    },
+  })
   local roundtrip = Network.decode(Network.encode("color_probe", {
     color = { 0.45, 0.55, 0.65, 0.75 },
   }))
@@ -176,6 +182,23 @@ end
 return Probe
 )lua")) {
     std::cerr << "Failed to write probe.lua.\n";
+    return 1;
+  }
+
+  if (!writeFile(projectDirectory / "scripts" / "dynamic_probe.lua", R"lua(
+local DynamicProbe = {}
+function DynamicProbe:on_create()
+  Save.set_string("test", "dynamic_create", "called")
+end
+function DynamicProbe:on_start()
+  Save.set_string("test", "dynamic_start", "called")
+end
+function DynamicProbe:on_destroy()
+  Save.set_string("test", "dynamic_destroy", "called")
+end
+return DynamicProbe
+)lua")) {
+    std::cerr << "Failed to write dynamic lifecycle Lua script.\n";
     return 1;
   }
 
@@ -328,6 +351,27 @@ return PropProbe
 
   host.setViewport(100, 100);
   host.start();
+  if (host.saveString("test", "dynamic_create").has_value() ||
+      !host.setEntityEnabled("ent_dynamic_script", true)) {
+    std::cerr << "Disabled dynamic LuaScript started before being enabled.\n";
+    return 1;
+  }
+  host.update(0.0F);
+  if (host.saveString("test", "dynamic_create") != "called" ||
+      host.saveString("test", "dynamic_start") != "called") {
+    std::cerr << "Dynamically created LuaScript missed create/start lifecycle.\n";
+    return 1;
+  }
+  if (!host.removeEntityComponent("ent_dynamic_script", "LuaScript")) {
+    std::cerr << "Dynamic LuaScript removal was not queued.\n";
+    return 1;
+  }
+  host.update(0.0F);
+  if (host.saveString("test", "dynamic_destroy") != "called" ||
+      host.hasEntityComponent("ent_dynamic_script", "LuaScript")) {
+    std::cerr << "Dynamically removed LuaScript missed destroy lifecycle.\n";
+    return 1;
+  }
   if (host.saveString("test", "profile") != "migrated") {
     std::cerr
         << "Save.read/write migration hook did not migrate profile data.\n";

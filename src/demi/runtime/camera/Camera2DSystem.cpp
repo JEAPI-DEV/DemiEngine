@@ -11,13 +11,15 @@ namespace demi::runtime {
 
 void Camera2DSystem::update(World &world, const float deltaTime) const {
   for (Entity &entity : world.entities) {
+    if (!entity.enabled)
+      continue;
     auto *camera = entity.component<Camera2DComponent>();
     auto *transform = entity.component<Transform2DComponent>();
     if (camera == nullptr || transform == nullptr || camera->target.empty())
       continue;
 
     const Entity *target = findEntity(world, camera->target);
-    if (target == nullptr)
+    if (target == nullptr || !target->enabled)
       continue;
     Vec2 desired = worldPosition2D(world, *target);
     desired.x += camera->followOffset.x;

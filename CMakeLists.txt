@@ -170,8 +170,10 @@ file(WRITE "${DEMI_GENERATED_INCLUDE_DIR}/demi/generated/ComponentDescriptors.in
 
 set(DEMI_COMPONENT_MODEL_SOURCES
   src/demi/runtime/scene/ComponentRegistry.cpp
+  src/demi/runtime/scene/RuntimeObjectModel.cpp
   src/demi/runtime/scene/SceneJson.cpp
   src/demi/runtime/scene/Transform3DHierarchy.cpp
+  src/demi/runtime/scene/WorldCommandBuffer.cpp
   ${DEMI_COMPONENT_SOURCES}
 )
 
@@ -273,6 +275,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/annotations/OnEventAnnotation.cpp
   src/demi/runtime/scripting/LuaScriptDiagnostics.cpp
   src/demi/runtime/scripting/LuaScriptHostEntityServices.cpp
+  src/demi/runtime/scripting/LuaScriptHostObjectModel.cpp
   src/demi/runtime/scripting/LuaScriptHostAnimationServices.cpp
   src/demi/runtime/scripting/LuaScriptHostPhysicsServices.cpp
   src/demi/runtime/scripting/LuaScriptHostHudServices.cpp
@@ -437,6 +440,9 @@ else()
   add_executable(demi-capability-manifest-tests
     tests/capability_manifest_tests.cpp)
   target_link_libraries(demi-capability-manifest-tests PRIVATE demi-core)
+  add_executable(demi-runtime-object-model-tests
+    tests/runtime_object_model_tests.cpp)
+  target_link_libraries(demi-runtime-object-model-tests PRIVATE demi-core)
 
   add_executable(demi-physics2d-tests tests/physics2d_tests.cpp)
   target_link_libraries(demi-physics2d-tests PRIVATE demi-runtime-lib)
@@ -506,6 +512,8 @@ else()
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-capability-manifest-tests
   COMMAND demi-capability-manifest-tests ${CMAKE_SOURCE_DIR})
+add_test(NAME demi-runtime-object-model-tests
+  COMMAND demi-runtime-object-model-tests)
 add_test(NAME demi-capabilities-export
   COMMAND demi capabilities export
     --output ${CMAKE_BINARY_DIR}/generated/capabilities.json)

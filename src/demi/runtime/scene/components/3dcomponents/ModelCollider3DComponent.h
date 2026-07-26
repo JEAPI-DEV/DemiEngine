@@ -11,7 +11,7 @@ struct ModelCollider3DComponent {
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
   static constexpr std::array fields{
-      ComponentFieldDescriptor{"asset", ComponentFieldType::String, true},
+      ComponentFieldDescriptor::assetReference("asset", true),
       ComponentFieldDescriptor{"is_trigger", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"layer", ComponentFieldType::String}};
   static constexpr ComponentEditorMetadata editor{"Physics 3D",

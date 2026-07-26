@@ -1,5 +1,6 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
+#include "demi/runtime/scene/WorldQueries.h"
 
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
@@ -56,16 +57,22 @@ void LuaScriptHost::start() {
   if (state == nullptr) {
     return;
   }
-  for (const ScriptInstance &script : scripts_) {
-    luaCallLifecycle(state, script.tableRef, "on_create", script.path,
-                     script.entityId);
-    luaCallLifecycle(state, script.tableRef, "on_start", script.path,
-                     script.entityId);
+  for (ScriptInstance &script : scripts_) {
+    if (!script.entityId.empty()) {
+      const Entity *entity = world_ == nullptr
+                                 ? nullptr
+                                 : findEntity(*world_, script.entityId);
+      if (entity != nullptr && !entity->enabled)
+        continue;
+    }
+    startScriptInstance(script);
   }
   if (world_ == nullptr) {
     return;
   }
   for (Entity &entity : world_->entities) {
+    if (!entity.enabled)
+      continue;
     if (entity.hasComponent<AudioSourceComponent>() &&
         entity.component<AudioSourceComponent>()->playOnStart &&
         entity.component<AudioSourceComponent>()->handle == 0) {
@@ -79,6 +86,7 @@ void LuaScriptHost::start() {
           playVideoPlayer(entity.id);
     }
   }
+  flushWorldCommands();
 }
 
 void LuaScriptHost::update(const float dt) {
@@ -121,10 +129,18 @@ void LuaScriptHost::update(const float dt) {
   }
 
   for (const ScriptInstance &script : scripts_) {
+    if (!script.entityId.empty()) {
+      const Entity *entity = world_ == nullptr
+                                 ? nullptr
+                                 : findEntity(*world_, script.entityId);
+      if (entity != nullptr && !entity->enabled)
+        continue;
+    }
     ProfileScope scope("Lua.on_update");
     luaCallLifecycle(state, script.tableRef, "on_update", script.path,
                      script.entityId, dt);
   }
+  flushWorldCommands();
 }
 
 void LuaScriptHost::fixedUpdate(const float dt) {
@@ -134,10 +150,18 @@ void LuaScriptHost::fixedUpdate(const float dt) {
     return;
   }
   for (const ScriptInstance &script : scripts_) {
+    if (!script.entityId.empty()) {
+      const Entity *entity = world_ == nullptr
+                                 ? nullptr
+                                 : findEntity(*world_, script.entityId);
+      if (entity != nullptr && !entity->enabled)
+        continue;
+    }
     ProfileScope scope("Lua.on_fixed_update");
     luaCallLifecycle(state, script.tableRef, "on_fixed_update", script.path,
                      script.entityId, dt);
   }
+  flushWorldCommands();
 }
 
 void LuaScriptHost::destroy() {

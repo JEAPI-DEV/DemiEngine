@@ -14,7 +14,7 @@ struct SpriteComponent {
   static constexpr std::array<std::string_view, 3> shapes{"rectangle", "circle",
                                                           "triangle"};
   static constexpr std::array fields{
-      ComponentFieldDescriptor{"texture", ComponentFieldType::String},
+      ComponentFieldDescriptor::assetReference("texture"),
       ComponentFieldDescriptor{"shape", ComponentFieldType::String, false, true,
                                shapes},
       ComponentFieldDescriptor{"layer", ComponentFieldType::String},
