@@ -58,6 +58,7 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData &project, World &world,
   }
 
   projectDirectory_ = project.projectDirectory;
+  applicationServices_.configureStorage(project.name, project.projectDirectory);
   if (project_ != &project) {
     prefabService_.configure(project.projectDirectory);
     sceneFlow_.configure(project);

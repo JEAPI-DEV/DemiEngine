@@ -42,7 +42,8 @@
       "name": "Top Border",
       "components": {
         "Transform2D": {"position": [0.0, 7.85]},
-        "Sprite": {"shape": "rectangle", "layer": "world", "sorting_order": -50, "size": [28.0, 0.3], "color": [0.12, 0.82, 0.9, 1.0]}
+        "Sprite": {"shape": "rectangle", "layer": "world", "sorting_order": -50, "size": [28.0, 0.3], "color": [0.12, 0.82, 0.9, 1.0]},
+        "BoxCollider2D": {"size": [28.0, 0.3], "layer": "arena_wall", "debug_visible": false}
       }
     },
     {
@@ -50,7 +51,8 @@
       "name": "Bottom Border",
       "components": {
         "Transform2D": {"position": [0.0, -7.85]},
-        "Sprite": {"shape": "rectangle", "layer": "world", "sorting_order": -50, "size": [28.0, 0.3], "color": [0.12, 0.82, 0.9, 1.0]}
+        "Sprite": {"shape": "rectangle", "layer": "world", "sorting_order": -50, "size": [28.0, 0.3], "color": [0.12, 0.82, 0.9, 1.0]},
+        "BoxCollider2D": {"size": [28.0, 0.3], "layer": "arena_wall", "debug_visible": false}
       }
     },
     {
@@ -58,7 +60,8 @@
       "name": "Left Border",
       "components": {
         "Transform2D": {"position": [-13.85, 0.0]},
-        "Sprite": {"shape": "rectangle", "layer": "world", "sorting_order": -50, "size": [0.3, 16.0], "color": [0.12, 0.82, 0.9, 1.0]}
+        "Sprite": {"shape": "rectangle", "layer": "world", "sorting_order": -50, "size": [0.3, 16.0], "color": [0.12, 0.82, 0.9, 1.0]},
+        "BoxCollider2D": {"size": [0.3, 16.0], "layer": "arena_wall", "debug_visible": false}
       }
     },
     {
@@ -66,7 +69,8 @@
       "name": "Right Border",
       "components": {
         "Transform2D": {"position": [13.85, 0.0]},
-        "Sprite": {"shape": "rectangle", "layer": "world", "sorting_order": -50, "size": [0.3, 16.0], "color": [0.12, 0.82, 0.9, 1.0]}
+        "Sprite": {"shape": "rectangle", "layer": "world", "sorting_order": -50, "size": [0.3, 16.0], "color": [0.12, 0.82, 0.9, 1.0]},
+        "BoxCollider2D": {"size": [0.3, 16.0], "layer": "arena_wall", "debug_visible": false}
       }
     },
     {
@@ -74,7 +78,8 @@
       "name": "Left Cover",
       "components": {
         "Transform2D": {"position": [-5.5, 2.25], "rotation": 0.25},
-        "Sprite": {"shape": "rectangle", "layer": "world", "sorting_order": -20, "size": [3.6, 0.65], "color": [0.15, 0.24, 0.36, 1.0]}
+        "Sprite": {"shape": "rectangle", "layer": "world", "sorting_order": -20, "size": [3.6, 0.65], "color": [0.15, 0.24, 0.36, 1.0]},
+        "BoxCollider2D": {"size": [3.6, 0.65], "layer": "arena_wall", "debug_visible": false}
       }
     },
     {
@@ -82,7 +87,8 @@
       "name": "Right Cover",
       "components": {
         "Transform2D": {"position": [5.5, -2.25], "rotation": 0.25},
-        "Sprite": {"shape": "rectangle", "layer": "world", "sorting_order": -20, "size": [3.6, 0.65], "color": [0.15, 0.24, 0.36, 1.0]}
+        "Sprite": {"shape": "rectangle", "layer": "world", "sorting_order": -20, "size": [3.6, 0.65], "color": [0.15, 0.24, 0.36, 1.0]},
+        "BoxCollider2D": {"size": [3.6, 0.65], "layer": "arena_wall", "debug_visible": false}
       }
     },
     {
@@ -90,7 +96,8 @@
       "name": "Top Cover",
       "components": {
         "Transform2D": {"position": [1.5, 4.5]},
-        "Sprite": {"shape": "rectangle", "layer": "world", "sorting_order": -20, "size": [0.65, 2.8], "color": [0.15, 0.24, 0.36, 1.0]}
+        "Sprite": {"shape": "rectangle", "layer": "world", "sorting_order": -20, "size": [0.65, 2.8], "color": [0.15, 0.24, 0.36, 1.0]},
+        "BoxCollider2D": {"size": [0.65, 2.8], "layer": "arena_wall", "debug_visible": false}
       }
     },
     {
@@ -98,7 +105,8 @@
       "name": "Bottom Cover",
       "components": {
         "Transform2D": {"position": [-1.5, -4.5]},
-        "Sprite": {"shape": "rectangle", "layer": "world", "sorting_order": -20, "size": [0.65, 2.8], "color": [0.15, 0.24, 0.36, 1.0]}
+        "Sprite": {"shape": "rectangle", "layer": "world", "sorting_order": -20, "size": [0.65, 2.8], "color": [0.15, 0.24, 0.36, 1.0]},
+        "BoxCollider2D": {"size": [0.65, 2.8], "layer": "arena_wall", "debug_visible": false}
       }
     },
     {
@@ -106,6 +114,16 @@
       "name": "Local Player",
       "components": {
         "Transform2D": {"position": [0.0, 0.0]},
+        "Rigidbody2D": {
+          "body_type": "dynamic",
+          "gravity_scale": 0.0,
+          "lock_rotation": true
+        },
+        "CircleCollider2D": {
+          "radius": 0.45,
+          "layer": "player",
+          "debug_visible": false
+        },
         "Sprite": {
           "shape": "circle",
           "layer": "actors",

@@ -10,11 +10,8 @@ local Game = {
   elapsed = 0,
   join_elapsed = 0,
   join_pending = false,
-  mobile_x = 0,
-  mobile_y = 0,
   facing_x = 1,
   facing_y = 0,
-  fire_requested = false,
 }
 
 function Game:on_create()
@@ -27,21 +24,16 @@ function Game:on_start()
   HudView.show_menu("PORT " .. tostring(Config.port))
 end
 
-function Game:set_mobile_direction(x, y)
-  self.mobile_x = x
-  self.mobile_y = y
-end
-
 function Game:activate(mode, sender_id)
   self.mode = mode
   self.local_id = sender_id
   self.join_pending = false
-  self.mobile_x, self.mobile_y = 0, 0
   self.combat:set_local_player(sender_id)
 
   local color = Config.color_for(sender_id)
   Entity.set_sprite_color(Config.player_entity, color[1], color[2], color[3], color[4])
   local x, y = Config.spawn_for(sender_id, 0)
+  Rigidbody2D.set_velocity(Config.player_entity, 0, 0)
   Transform.set_position(Config.player_entity, x, y)
 
   if mode ~= "practice" then
@@ -92,9 +84,9 @@ function Game:leave_match(message)
   self.mode = "menu"
   self.local_id = nil
   self.join_pending = false
-  self.mobile_x, self.mobile_y = 0, 0
   self.combat = Combat.new(self)
   Debug.clear_lines()
+  Rigidbody2D.set_velocity(Config.player_entity, 0, 0)
   Transform.set_position(Config.player_entity, 0, 0)
   Entity.set_sprite_color(Config.player_entity, 0.2, 0.9, 0.75, 0.2)
   HudView.show_menu(message or ("PORT " .. tostring(Config.port)))
@@ -151,8 +143,7 @@ function Game:on_update(dt)
   end
 
   local mouse_fire = Input.mouse_down("left") and not Input.ui_pointer_captured()
-  if Input.action_pressed("fire") or mouse_fire or self.fire_requested then
-    self.fire_requested = false
+  if Input.action_pressed("fire") or mouse_fire then
     self.combat:request_shot()
   end
   self.combat:update_tracer()

@@ -36,11 +36,7 @@
         "size": [178, 156],
         "color": [0.025, 0.04, 0.085, 0.68],
         "children": [
-          {"id": "move_up", "type": "button", "position": [62, 4], "size": [54, 46], "text": "^", "font_size": 28, "action": "move_up", "color": [0.12, 0.28, 0.42, 0.9], "hover_color": [0.18, 0.5, 0.62, 1]},
-          {"id": "move_left", "type": "button", "position": [6, 54], "size": [54, 46], "text": "<", "font_size": 28, "action": "move_left", "color": [0.12, 0.28, 0.42, 0.9], "hover_color": [0.18, 0.5, 0.62, 1]},
-          {"id": "move_stop", "type": "button", "position": [62, 54], "size": [54, 46], "text": "O", "font_size": 24, "action": "move_stop", "color": [0.18, 0.2, 0.3, 0.9], "hover_color": [0.35, 0.38, 0.48, 1]},
-          {"id": "move_right", "type": "button", "position": [118, 54], "size": [54, 46], "text": ">", "font_size": 28, "action": "move_right", "color": [0.12, 0.28, 0.42, 0.9], "hover_color": [0.18, 0.5, 0.62, 1]},
-          {"id": "move_down", "type": "button", "position": [62, 104], "size": [54, 46], "text": "v", "font_size": 28, "action": "move_down", "color": [0.12, 0.28, 0.42, 0.9], "hover_color": [0.18, 0.5, 0.62, 1]}
+          {"id": "move_stick", "type": "virtual_stick", "control": "move", "position": [11, 1], "size": [156, 150], "radius": 75, "deadzone": 0.12, "text": "MOVE", "font_size": 17, "color": [0.12, 0.28, 0.42, 0.9], "hover_color": [0.18, 0.5, 0.62, 1]}
         ]
       },
       {
@@ -54,7 +50,7 @@
         "size": [140, 128],
         "color": [0.025, 0.04, 0.085, 0.68],
         "children": [
-          {"id": "fire", "type": "button", "position": [10, 10], "size": [120, 108], "text": "FIRE", "font_size": 24, "action": "fire_weapon", "color": [0.65, 0.16, 0.28, 0.94], "hover_color": [0.95, 0.28, 0.38, 1]}
+          {"id": "fire", "type": "virtual_button", "control": "fire", "position": [10, 10], "size": [120, 108], "radius": 54, "text": "FIRE", "font_size": 24, "color": [0.65, 0.16, 0.28, 0.94], "hover_color": [0.95, 0.28, 0.38, 1]}
         ]
       },
       {

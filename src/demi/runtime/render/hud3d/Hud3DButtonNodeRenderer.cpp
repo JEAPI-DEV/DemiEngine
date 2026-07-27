@@ -22,7 +22,8 @@ Color disabledColor(const Color color) {
 bool tryDrawHud3DButton(const ui::UiNode &node,
                         const Hud3DRenderContext &context) {
   if (node.type != "button" && node.type != "toggle" &&
-      node.type != "text_input")
+      node.type != "text_input" && node.type != "virtual_button" &&
+      node.type != "virtual_stick")
     return false;
 
   constexpr float FontBaseSize = 8.0F;

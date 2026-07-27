@@ -321,7 +321,22 @@ raycast2D(const World &world, const Vec2 origin, Vec2 direction,
       }
       continue;
     }
-    const Aabb bounds = colliderAabb(entity);
+    const auto *box = entity.component<BoxCollider2DComponent>();
+    const auto *transform = entity.component<Transform2DComponent>();
+    const float cosine = std::cos(transform->rotation);
+    const float sine = std::sin(transform->rotation);
+    const Vec2 translatedOrigin{origin.x - transform->position.x,
+                                origin.y - transform->position.y};
+    const Vec2 localOrigin{
+        translatedOrigin.x * cosine + translatedOrigin.y * sine -
+            box->offset.x,
+        -translatedOrigin.x * sine + translatedOrigin.y * cosine -
+            box->offset.y};
+    const Vec2 localDirection{
+        direction.x * cosine + direction.y * sine,
+        -direction.x * sine + direction.y * cosine};
+    const Aabb bounds =
+        makeAabb({}, Vec2{.x = box->size.x, .y = box->size.y});
     float nearTime = 0.0F;
     float farTime = maxDistance;
     Vec2 normal;
@@ -344,19 +359,20 @@ raycast2D(const World &world, const Vec2 origin, Vec2 direction,
       farTime = std::min(farTime, second);
       return nearTime <= farTime;
     };
-    if (!clipAxis(origin.x, direction.x, bounds.minX, bounds.maxX,
+    if (!clipAxis(localOrigin.x, localDirection.x, bounds.minX, bounds.maxX,
                   {-1.0F, 0.0F}, {1.0F, 0.0F}) ||
-        !clipAxis(origin.y, direction.y, bounds.minY, bounds.maxY,
+        !clipAxis(localOrigin.y, localDirection.y, bounds.minY, bounds.maxY,
                   {0.0F, -1.0F}, {0.0F, 1.0F}) ||
         nearTime < 0.0F || nearTime > maxDistance)
       continue;
     if (!closest || nearTime < closest->distance) {
-      closest =
-          PhysicsRaycastHit2D{.entityId = entity.id,
-                              .point = {origin.x + direction.x * nearTime,
-                                        origin.y + direction.y * nearTime},
-                              .normal = normal,
-                              .distance = nearTime};
+      closest = PhysicsRaycastHit2D{
+          .entityId = entity.id,
+          .point = {origin.x + direction.x * nearTime,
+                    origin.y + direction.y * nearTime},
+          .normal = {normal.x * cosine - normal.y * sine,
+                     normal.x * sine + normal.y * cosine},
+          .distance = nearTime};
     }
   }
   return closest;

@@ -1157,7 +1157,9 @@ void Renderer2D::drawHud(const World &world) {
       drawUiImage(node, textures_, imageAnimations_, gifAnimations_,
                   animationTime_, scaleX, scaleY);
     } else if (node.type == "button" || node.type == "toggle" ||
-               node.type == "text_input") {
+               node.type == "text_input" ||
+               node.type == "virtual_button" ||
+               node.type == "virtual_stick") {
       drawUiButton(node, scaleX, scaleY);
     } else if (node.type == "slider" || node.type == "progress") {
       drawUiProgress(node, scaleX, scaleY);

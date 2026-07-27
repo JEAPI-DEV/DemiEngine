@@ -18,13 +18,27 @@
   ],
   "input": {
     "actions": {
-      "move": [
-        {"input": "a", "scale": -1},
-        {"input": "left", "scale": -1},
-        {"input": "d", "scale": 1},
-        {"input": "right", "scale": 1}
-      ],
-      "jump": ["space", "w", "up"]
+      "move": {
+        "type": "axis1d",
+        "bindings": [
+          {"input": "a", "scale": -1},
+          {"input": "left", "scale": -1},
+          {"input": "d", "scale": 1},
+          {"input": "right", "scale": 1},
+          {"input": "gamepad:axis:left_x", "deadzone": 0.18},
+          {"input": "virtual:move"}
+        ]
+      },
+      "jump": {
+        "type": "button",
+        "bindings": [
+          "space",
+          "w",
+          "up",
+          "gamepad:south",
+          "virtual:jump"
+        ]
+      }
     }
   },
   "scripting": {

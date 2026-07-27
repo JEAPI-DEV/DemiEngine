@@ -2,6 +2,7 @@
 
 #include "demi/runtime/scene/model/SceneTypes.h"
 
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -52,6 +53,7 @@ struct UiNode {
   std::string texture;
   std::string animation;
   std::string action;
+  std::string control;
   std::string accessibilityLabel;
   std::string script;
   std::string group;
@@ -74,6 +76,7 @@ struct UiNode {
   float cornerRadius = 0.0F;
   float borderWidth = 0.0F;
   float radius = 0.0F;
+  float deadzone = 0.15F;
   bool visible = true;
   bool disabled = false;
   bool focusable = false;
@@ -96,12 +99,15 @@ struct UiActionEffect {
 
 struct UiDocument {
   Vec2 canvasSize{960.0F, 540.0F};
+  Insets safeArea{};
   std::vector<UiNode> nodes;
   std::unordered_map<std::string, UiStyle> styles;
   std::unordered_map<std::string, std::string> localization;
   std::unordered_map<std::string, std::string> actionMap;
   std::unordered_map<std::string, UiActionEffect> actionEffects;
   std::string focusedId;
+  std::unordered_map<std::int64_t, std::string> pointerCaptures;
+  // Pointer zero mirrors the desktop mouse for source compatibility.
   std::string pointerCaptureId;
 };
 

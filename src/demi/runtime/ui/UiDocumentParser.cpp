@@ -47,6 +47,7 @@ void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
   node.localizationKey = scene_loading::stringOr(json, "localization_key");
   node.texture = scene_loading::stringOr(json, "texture");
   node.action = scene_loading::stringOr(json, "action");
+  node.control = scene_loading::stringOr(json, "control");
   node.script = scene_loading::stringOr(json, "script");
   node.accessibilityLabel =
       scene_loading::stringOr(json, "accessibility_label");
@@ -94,6 +95,8 @@ void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
   node.borderWidth =
       scene_loading::numberField(json, "border_width").value_or(0.0F);
   node.radius = scene_loading::numberField(json, "radius").value_or(0.0F);
+  node.deadzone =
+      scene_loading::numberField(json, "deadzone").value_or(0.15F);
   node.layer = static_cast<int>(
       scene_loading::numberField(json, "layer").value_or(0.0F));
   if (auto value = scene_loading::vec2Field(json, "source_position"))
@@ -111,7 +114,9 @@ void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
   node.focusable =
       scene_loading::boolField(json, "focusable")
           .value_or(node.type == "button" || node.type == "toggle" ||
-                    node.type == "slider" || node.type == "text_input");
+                    node.type == "slider" || node.type == "text_input" ||
+                    node.type == "virtual_button" ||
+                    node.type == "virtual_stick");
   node.checked = scene_loading::boolField(json, "checked").value_or(false);
   if (!node.localizationKey.empty()) {
     const auto localized = out.localization.find(node.localizationKey);

@@ -39,6 +39,11 @@
 #include <raylib.h>
 #endif
 
+#if defined(__ANDROID__)
+extern "C" bool DemiAndroidApplicationSuspended(void);
+extern "C" unsigned DemiAndroidConsumeLowMemorySignals(void);
+#endif
+
 namespace demi::runtime {
 
 namespace {
@@ -140,6 +145,7 @@ void pollKeys(InputState &input) {
   const std::unordered_set<std::string> previousKeysDown = input.keysDown;
   input.keysDown.clear();
   input.keysPressed.clear();
+  input.keysReleased.clear();
   input.textEntered.clear();
   for (const KeyMapping &mapping : KeyMap) {
     if (IsKeyDown(mapping.key)) {
@@ -149,21 +155,9 @@ void pollKeys(InputState &input) {
       }
     }
   }
-  if (IsGamepadAvailable(0)) {
-    const std::array<KeyMapping, 3> gamepadUiMap{{
-        {GAMEPAD_BUTTON_LEFT_FACE_DOWN, "ui_next"},
-        {GAMEPAD_BUTTON_LEFT_FACE_UP, "ui_previous"},
-        {GAMEPAD_BUTTON_RIGHT_FACE_DOWN, "ui_accept"},
-    }};
-    for (const KeyMapping &mapping : gamepadUiMap) {
-      if (IsGamepadButtonDown(0, mapping.key)) {
-        input.keysDown.emplace(mapping.name);
-        if (!previousKeysDown.contains(std::string(mapping.name))) {
-          input.keysPressed.emplace(mapping.name);
-        }
-      }
-    }
-  }
+  for (const std::string &key : previousKeysDown)
+    if (!input.keysDown.contains(key))
+      input.keysReleased.insert(key);
   for (int character = GetCharPressed(); character > 0;
        character = GetCharPressed()) {
     if (character >= 32 && character <= 126) {
@@ -173,21 +167,11 @@ void pollKeys(InputState &input) {
 }
 
 void pollMouse(InputState &input) {
+  const std::unordered_set<std::string> previous = input.mouseButtonsDown;
   input.mouseButtonsDown.clear();
-#if defined(__ANDROID__)
-  const int touchCount = GetTouchPointCount();
-  if (touchCount > 0) {
-    input.mouseButtonsDown.emplace("left");
-    const Vector2 touch = GetTouchPosition(0);
-    const Vec2 previous = input.mousePosition;
-    input.mousePosition = Vec2{.x = touch.x, .y = touch.y};
-    input.mouseDelta = Vec2{.x = input.mousePosition.x - previous.x,
-                            .y = input.mousePosition.y - previous.y};
-  } else {
-    input.mouseDelta = Vec2{};
-  }
-  return;
-#endif
+  input.mouseButtonsPressed.clear();
+  input.mouseButtonsReleased.clear();
+#if !defined(__ANDROID__)
   if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
     input.mouseButtonsDown.emplace("left");
   }
@@ -201,6 +185,141 @@ void pollMouse(InputState &input) {
                              .y = static_cast<float>(GetMouseY())};
   const Vector2 delta = GetMouseDelta();
   input.mouseDelta = Vec2{.x = delta.x, .y = delta.y};
+#endif
+  for (const std::string &button : input.mouseButtonsDown)
+    if (!previous.contains(button))
+      input.mouseButtonsPressed.insert(button);
+  for (const std::string &button : previous)
+    if (!input.mouseButtonsDown.contains(button))
+      input.mouseButtonsReleased.insert(button);
+}
+
+void pollGamepads(InputState &input) {
+  const std::vector<GamepadState> previous = input.gamepads;
+  input.gamepads.clear();
+  struct ButtonMapping {
+    int button;
+    std::string_view name;
+  };
+  constexpr std::array<ButtonMapping, 17> buttons{{
+      {GAMEPAD_BUTTON_LEFT_FACE_UP, "dpad_up"},
+      {GAMEPAD_BUTTON_LEFT_FACE_RIGHT, "dpad_right"},
+      {GAMEPAD_BUTTON_LEFT_FACE_DOWN, "dpad_down"},
+      {GAMEPAD_BUTTON_LEFT_FACE_LEFT, "dpad_left"},
+      {GAMEPAD_BUTTON_RIGHT_FACE_UP, "north"},
+      {GAMEPAD_BUTTON_RIGHT_FACE_RIGHT, "east"},
+      {GAMEPAD_BUTTON_RIGHT_FACE_DOWN, "south"},
+      {GAMEPAD_BUTTON_RIGHT_FACE_LEFT, "west"},
+      {GAMEPAD_BUTTON_LEFT_TRIGGER_1, "left_bumper"},
+      {GAMEPAD_BUTTON_LEFT_TRIGGER_2, "left_trigger"},
+      {GAMEPAD_BUTTON_RIGHT_TRIGGER_1, "right_bumper"},
+      {GAMEPAD_BUTTON_RIGHT_TRIGGER_2, "right_trigger"},
+      {GAMEPAD_BUTTON_MIDDLE_LEFT, "select"},
+      {GAMEPAD_BUTTON_MIDDLE, "guide"},
+      {GAMEPAD_BUTTON_MIDDLE_RIGHT, "start"},
+      {GAMEPAD_BUTTON_LEFT_THUMB, "left_stick"},
+      {GAMEPAD_BUTTON_RIGHT_THUMB, "right_stick"},
+  }};
+  for (int device = 0; device < 4; ++device) {
+    if (!IsGamepadAvailable(device))
+      continue;
+    GamepadState state;
+    state.deviceId = device;
+    state.player = input.gamepadAssignments.contains(device)
+                       ? input.gamepadAssignments.at(device)
+                       : device;
+    state.name =
+        GetGamepadName(device) != nullptr ? GetGamepadName(device) : "";
+    const auto old = std::ranges::find(previous, device,
+                                       &GamepadState::deviceId);
+    for (const ButtonMapping &mapping : buttons) {
+      const std::string name(mapping.name);
+      if (IsGamepadButtonDown(device, mapping.button)) {
+        state.buttonsDown.insert(name);
+        if (old == previous.end() || !old->buttonsDown.contains(name))
+          state.buttonsPressed.insert(name);
+      } else if (old != previous.end() && old->buttonsDown.contains(name)) {
+        state.buttonsReleased.insert(name);
+      }
+    }
+    state.axes = {
+        {"left_x", GetGamepadAxisMovement(device, GAMEPAD_AXIS_LEFT_X)},
+        {"left_y", GetGamepadAxisMovement(device, GAMEPAD_AXIS_LEFT_Y)},
+        {"right_x", GetGamepadAxisMovement(device, GAMEPAD_AXIS_RIGHT_X)},
+        {"right_y", GetGamepadAxisMovement(device, GAMEPAD_AXIS_RIGHT_Y)},
+        {"left_trigger",
+         (GetGamepadAxisMovement(device, GAMEPAD_AXIS_LEFT_TRIGGER) + 1.0F) *
+             0.5F},
+        {"right_trigger",
+         (GetGamepadAxisMovement(device, GAMEPAD_AXIS_RIGHT_TRIGGER) + 1.0F) *
+             0.5F},
+    };
+    const auto mirrorUiButton = [&](const std::string &button,
+                                    const std::string &key) {
+      if (state.buttonsDown.contains(button)) {
+        input.keysDown.insert(key);
+        input.keysReleased.erase(key);
+      }
+      if (state.buttonsPressed.contains(button))
+        input.keysPressed.insert(key);
+      if (state.buttonsReleased.contains(button))
+        input.keysReleased.insert(key);
+    };
+    mirrorUiButton("dpad_down", "ui_next");
+    mirrorUiButton("dpad_up", "ui_previous");
+    mirrorUiButton("south", "ui_accept");
+    input.gamepads.push_back(std::move(state));
+  }
+}
+
+void pollTouches(InputState &input) {
+  const std::vector<TouchPoint> previous = input.touches;
+  input.touches.clear();
+  const int count = GetTouchPointCount();
+  for (int index = 0; index < count; ++index) {
+    const std::int64_t id = GetTouchPointId(index);
+    const Vector2 raw = GetTouchPosition(index);
+    const Vec2 position{raw.x, raw.y};
+    const auto old =
+        std::ranges::find(previous, id, &TouchPoint::id);
+    input.touches.push_back(
+        {.id = id,
+         .phase = old == previous.end() ? TouchPhase::Began
+                                        : (old->position.x == position.x &&
+                                                   old->position.y == position.y
+                                               ? TouchPhase::Stationary
+                                               : TouchPhase::Moved),
+         .position = position,
+         .delta = old == previous.end()
+                      ? Vec2{}
+                      : Vec2{position.x - old->position.x,
+                             position.y - old->position.y}});
+  }
+  for (const TouchPoint &old : previous)
+    if (old.phase != TouchPhase::Ended &&
+        old.phase != TouchPhase::Cancelled &&
+        std::ranges::find(input.touches, old.id, &TouchPoint::id) ==
+            input.touches.end())
+      input.touches.push_back({.id = old.id,
+                               .phase = TouchPhase::Ended,
+                               .position = old.position,
+                               .delta = {},
+                               .pressure = old.pressure});
+#if defined(__ANDROID__)
+  const auto primary = std::ranges::find_if(
+      input.touches, [](const TouchPoint &touch) {
+        return touch.phase != TouchPhase::Ended &&
+               touch.phase != TouchPhase::Cancelled;
+      });
+  if (primary != input.touches.end()) {
+    input.mousePosition = primary->position;
+    input.mouseDelta = primary->delta;
+    input.mouseButtonsDown.insert("left");
+    input.mouseButtonsReleased.erase("left");
+    if (primary->phase == TouchPhase::Began)
+      input.mouseButtonsPressed.insert("left");
+  }
+#endif
 }
 
 void applyWindowMode(const std::string &mode) {
@@ -576,6 +695,12 @@ int runProject(const RuntimeOptions &options) {
   InitWindow(windowWidth, windowHeight, title.c_str());
   SetExitKey(KEY_NULL);
   installRaylibFileSystemBridge();
+  luaHost.applicationServices().setClipboardHandlers(
+      [] {
+        const char *text = GetClipboardText();
+        return text != nullptr ? std::string(text) : std::string{};
+      },
+      [](const std::string &text) { SetClipboardText(text.c_str()); });
 
   Renderer2D renderer2D;
   Renderer3D renderer3D;
@@ -592,6 +717,23 @@ int runProject(const RuntimeOptions &options) {
   int appliedMaxFps = -1;
   while (running && !WindowShouldClose()) {
     luaHost.setApplicationFocused(IsWindowFocused());
+    luaHost.setApplicationMinimized(IsWindowMinimized());
+#if defined(__ANDROID__)
+    luaHost.setApplicationSuspended(DemiAndroidApplicationSuspended());
+    const unsigned lowMemorySignals =
+        DemiAndroidConsumeLowMemorySignals();
+    for (unsigned signal = 0; signal < lowMemorySignals; ++signal)
+      luaHost.notifyApplicationLowMemory();
+#else
+    luaHost.setApplicationSuspended(IsWindowMinimized());
+#endif
+    const int displayWidth = GetRenderWidth();
+    const int displayHeight = GetRenderHeight();
+    const Vector2 displayScale = GetWindowScaleDPI();
+    luaHost.applicationServices().updateDisplay(
+        displayWidth, displayHeight,
+        96.0F * std::max(displayScale.x, displayScale.y));
+    luaHost.setViewport(displayWidth, displayHeight);
     RuntimeProfiler::beginFrame();
     const auto frameStart = std::chrono::steady_clock::now();
     if (inputReplay) {
@@ -606,6 +748,8 @@ int runProject(const RuntimeOptions &options) {
     } else {
       pollKeys(input);
       pollMouse(input);
+      pollGamepads(input);
+      pollTouches(input);
     }
 
     const float dt = std::min(GetFrameTime(), 0.1F);

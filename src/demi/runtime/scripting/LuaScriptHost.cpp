@@ -20,11 +20,12 @@ LuaScriptHost::~LuaScriptHost() {
   }
 }
 
-bool LuaScriptHost::initialize(World &world, const InputState &input,
+bool LuaScriptHost::initialize(World &world, InputState &input,
                                AudioSystem *audio, std::string &error) {
   world_ = &world;
   isoGridApi_.attach(&world);
   input_ = &input;
+  activeInputContexts_ = {"gameplay"};
   audio_ = audio;
   const char *hotReload = std::getenv("DEMI_LUA_HOT_RELOAD");
   hotReloadEnabled_ = hotReload != nullptr && std::string(hotReload) != "0";

@@ -93,13 +93,28 @@ function Combat:aim_direction(origin_x, origin_y)
 end
 
 function Combat:show_tracer(data)
+  local dx, dy = normalized(data.dx or 0, data.dy or 0)
+  local distance = self:wall_distance(data.x, data.y, dx, dy)
   self.tracer = {
     x1 = data.x,
     y1 = data.y,
-    x2 = data.x + data.dx * Config.shot_range,
-    y2 = data.y + data.dy * Config.shot_range,
+    x2 = data.x + dx * distance,
+    y2 = data.y + dy * distance,
     expires = self.game.elapsed + 0.08,
   }
+end
+
+function Combat:wall_distance(x, y, dx, dy)
+  local hit = Physics2D.raycast(
+    x,
+    y,
+    dx,
+    dy,
+    Config.shot_range,
+    Config.wall_layer,
+    Config.player_entity
+  )
+  return hit ~= nil and hit.distance or Config.shot_range
 end
 
 function Combat:update_tracer()
@@ -148,7 +163,8 @@ function Combat:request_shot()
 end
 
 function Combat:closest_hit(shooter_id, data)
-  local best_id, best_along = nil, Config.shot_range + 1
+  local shot_distance = data.distance or Config.shot_range
+  local best_id, best_along = nil, shot_distance + 1
   for id, player in pairs(self.players) do
     if id ~= shooter_id and self.game.elapsed >= (player.invulnerable_until or 0) then
       local x, y = self:position(id)
@@ -158,7 +174,7 @@ function Combat:closest_hit(shooter_id, data)
         local perpendicular_x = offset_x - data.dx * along
         local perpendicular_y = offset_y - data.dy * along
         local distance_squared = perpendicular_x * perpendicular_x + perpendicular_y * perpendicular_y
-        if along >= 0 and along <= Config.shot_range
+        if along >= 0 and along <= shot_distance
           and distance_squared <= Config.shot_radius * Config.shot_radius
           and along < best_along then
           best_id, best_along = id, along
@@ -199,6 +215,7 @@ function Combat:resolve_shot(shooter_id, data)
   else
     data.x, data.y = claimed_x, claimed_y
   end
+  data.distance = self:wall_distance(data.x, data.y, data.dx, data.dy)
 
   local target_id = self:closest_hit(shooter_id, data)
   if target_id == nil then

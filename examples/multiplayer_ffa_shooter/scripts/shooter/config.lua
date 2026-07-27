@@ -3,6 +3,7 @@ local Config = {
   player_entity = "ent_player",
   arena_half_width = 13.25,
   arena_half_height = 7.25,
+  wall_layer = "arena_wall",
   player_speed = 6.5,
   shot_range = 24.0,
   shot_radius = 0.65,

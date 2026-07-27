@@ -34,15 +34,84 @@ function Input.is_down(key) end
 ---@param key string
 ---@return boolean
 function Input.is_pressed(key) end
----@param action string
+---@param key string
 ---@return boolean
-function Input.action_down(action) end
+function Input.is_released(key) end
 ---@param action string
+---@param player? integer
 ---@return boolean
-function Input.action_pressed(action) end
+function Input.action_down(action, player) end
 ---@param action string
+---@param player? integer
+---@return boolean
+function Input.action_pressed(action, player) end
+---@param action string
+---@param player? integer
+---@return boolean
+function Input.action_released(action, player) end
+---@param action string
+---@param player? integer
 ---@return number
-function Input.action_value(action) end
+function Input.action_value(action, player) end
+---@param action string
+---@param player? integer
+---@return number x
+---@return number y
+function Input.action_vector(action, player) end
+---@param action string
+---@param player? integer
+---@return string
+function Input.action_source(action, player) end
+---@param context string
+function Input.enable_context(context) end
+---@param context string
+function Input.disable_context(context) end
+---@param context string
+---@return boolean
+function Input.context_enabled(context) end
+---@param action string
+---@param binding integer One-based binding index.
+---@param control string
+---@param player? integer
+---@return boolean success
+---@return string error
+function Input.rebind(action, binding, control, player) end
+---@param path string
+---@return boolean success
+---@return string error
+function Input.save_bindings(path) end
+---@param path string
+---@return boolean success
+---@return string error
+function Input.load_bindings(path) end
+---@param device integer
+---@param player integer
+---@return boolean
+function Input.assign_gamepad(device, player) end
+---@return integer
+function Input.gamepad_count() end
+---@return integer
+function Input.touch_count() end
+---@class TouchPoint
+---@field id integer
+---@field phase "began"|"moved"|"stationary"|"ended"|"cancelled"
+---@field x number
+---@field y number
+---@field dx number
+---@field dy number
+---@field pressure number
+---@return TouchPoint[]
+function Input.touches() end
+---@class GestureEvent
+---@field type "tap"|"double_tap"|"long_press"|"drag"|"pinch"|"rotate"
+---@field pointer_id integer
+---@field x number
+---@field y number
+---@field dx number
+---@field dy number
+---@field value number
+---@return GestureEvent[]
+function Input.gestures() end
 ---@return string
 function Input.text_entered() end
 ---@param active boolean
@@ -73,8 +142,44 @@ function Input.mouse_world_position() end
 ---@return number width
 ---@return number height
 function Input.viewport_size() end
+---@param pointer_id? integer
 ---@return boolean
-function Input.ui_pointer_captured() end
+function Input.ui_pointer_captured(pointer_id) end
+
+---@class ApplicationService
+Application = {}
+---@return number left
+---@return number top
+---@return number right
+---@return number bottom
+function Application.safe_area() end
+---@return number
+function Application.logical_dpi() end
+---@return number
+function Application.ui_scale() end
+---@return "portrait"|"landscape"|"unspecified"
+function Application.orientation() end
+---@param orientation "portrait"|"landscape"|"unspecified"
+---@return boolean
+function Application.request_orientation(orientation) end
+---@return boolean
+function Application.keyboard_visible() end
+---@return string
+function Application.clipboard() end
+---@param text string
+function Application.set_clipboard(text) end
+---@return boolean
+function Application.focused() end
+---@return boolean
+function Application.minimized() end
+---@return boolean
+function Application.suspended() end
+---@return integer
+function Application.low_memory_generation() end
+---@return string
+function Application.user_data_path() end
+---@return string
+function Application.cache_path() end
 
 ---@class ProceduralMeshBuilder
 ---@field clear fun(self: ProceduralMeshBuilder)

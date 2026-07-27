@@ -1,4 +1,5 @@
 local HudView = {}
+local touch_controls_enabled = Runtime.platform() == "android"
 
 function HudView.show_menu(status)
   Hud.set_group_visible("network_menu", true)
@@ -9,6 +10,9 @@ end
 function HudView.show_match()
   Hud.set_group_visible("network_menu", false)
   Hud.set_group_visible("match_ui", true)
+  Hud.set_visible("move_controls", touch_controls_enabled)
+  Hud.set_visible("fire_control", touch_controls_enabled)
+  Hud.set_visible("match_hint", not touch_controls_enabled)
 end
 
 function HudView.status(message)

@@ -24,7 +24,8 @@ devices. Linux controls are WASD/arrows to move and mouse/Space to fire.
 ```
 
 Install the generated APK, enter the Linux host's LAN address, and tap `JOIN`.
-The anchored direction pad and `FIRE` button are shared with the desktop build.
-Android and Linux must be on a network where UDP port `39420` is reachable.
+The safe-area-aware virtual stick and `FIRE` button feed the same `move_x`,
+`move_y`, and `fire` actions used by keyboard and gamepad controls. Android and
+Linux must be on a network where UDP port `39420` is reachable.
 
 `OFFLINE PRACTICE` starts the arena without a network connection.

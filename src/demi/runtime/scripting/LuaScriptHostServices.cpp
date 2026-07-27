@@ -22,6 +22,26 @@ std::string normalizedKey(std::string key) {
 void LuaScriptHost::setViewport(const int width, const int height) {
   viewportWidth_ = std::max(width, 1);
   viewportHeight_ = std::max(height, 1);
+  if (world_ != nullptr) {
+    const platform::SafeAreaInsets safe = applicationServices_.safeArea();
+    const float scaleX = std::max(world_->hudCanvasSize.x, 1.0F) /
+                         static_cast<float>(viewportWidth_);
+    const float scaleY = std::max(world_->hudCanvasSize.y, 1.0F) /
+                         static_cast<float>(viewportHeight_);
+    world_->ui.safeArea = {.left = safe.left * scaleX,
+                           .top = safe.top * scaleY,
+                           .right = safe.right * scaleX,
+                           .bottom = safe.bottom * scaleY};
+    ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
+  }
+}
+
+platform::ApplicationServices &LuaScriptHost::applicationServices() {
+  return applicationServices_;
+}
+const platform::ApplicationServices &
+LuaScriptHost::applicationServices() const {
+  return applicationServices_;
 }
 
 void LuaScriptHost::requestQuit() { quitRequested_ = true; }
@@ -81,6 +101,14 @@ void LuaScriptHost::beginFrame(const float unscaledDeltaTime) {
   deltaTime_ = paused_ ? 0.0F : unscaledDeltaTime_ * timeScale_;
   gameTime_ += deltaTime_;
   ++frameCount_;
+  gestureEvents_ =
+      input_ != nullptr
+          ? touchGestureRecognizer_.update(input_->touches, unscaledDeltaTime_)
+          : std::vector<input::GestureEvent>{};
+  if (input_ != nullptr) {
+    input_->virtualButtonsPressed.clear();
+    input_->virtualButtonsReleased.clear();
+  }
   auto *state = static_cast<lua_State *>(state_);
   if (state == nullptr)
     return;
@@ -122,6 +150,7 @@ double LuaScriptHost::fixedTime() const { return fixedTime_; }
 std::uint64_t LuaScriptHost::frameCount() const { return frameCount_; }
 
 void LuaScriptHost::setApplicationFocused(const bool focused) {
+  applicationServices_.setFocused(focused);
   if (applicationFocused_ == focused)
     return;
   applicationFocused_ = focused;
@@ -129,7 +158,18 @@ void LuaScriptHost::setApplicationFocused(const bool focused) {
 }
 bool LuaScriptHost::applicationFocused() const { return applicationFocused_; }
 
+void LuaScriptHost::setApplicationMinimized(const bool minimized) {
+  applicationServices_.setMinimized(minimized);
+  if (applicationMinimized_ == minimized)
+    return;
+  applicationMinimized_ = minimized;
+  (void)emitEvent(minimized ? "application_minimize"
+                            : "application_restore",
+                  0);
+}
+
 void LuaScriptHost::setApplicationSuspended(const bool suspended) {
+  applicationServices_.setSuspended(suspended);
   if (applicationSuspended_ == suspended)
     return;
   applicationSuspended_ = suspended;
@@ -137,6 +177,11 @@ void LuaScriptHost::setApplicationSuspended(const bool suspended) {
 }
 bool LuaScriptHost::applicationSuspended() const {
   return applicationSuspended_;
+}
+
+void LuaScriptHost::notifyApplicationLowMemory() {
+  applicationServices_.notifyLowMemory();
+  (void)emitEvent("application_low_memory", 0);
 }
 
 std::uint64_t LuaScriptHost::addTimer(const float seconds, const bool repeating,
@@ -258,17 +303,98 @@ void LuaScriptHost::dispatchHudEvents() {
              input_->keysPressed.contains(previousAction))
       interaction.focusNext(world_->ui, true);
 
-    if (mouseDown && !previousUiMouseDown_ &&
-        interaction.capturePointer(world_->ui, mouse)) {
-      clickedButtonId = world_->ui.pointerCaptureId;
-      if (const auto action = interaction.activateFocused(world_->ui))
-        (void)ui::UiActionController{}.apply(world_->ui, *action);
-      ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
-    } else if (!mouseDown && previousUiMouseDown_) {
-      interaction.releasePointer(world_->ui);
+    if (!input_->touches.empty()) {
+      for (const TouchPoint &touch : input_->touches) {
+        const Vec2 position{
+            .x = touch.position.x *
+                 std::max(world_->hudCanvasSize.x, 1.0F) /
+                 static_cast<float>(std::max(viewportWidth_, 1)),
+            .y = touch.position.y *
+                 std::max(world_->hudCanvasSize.y, 1.0F) /
+                 static_cast<float>(std::max(viewportHeight_, 1)),
+        };
+        if (touch.phase == TouchPhase::Began &&
+            interaction.capturePointer(world_->ui, touch.id, position)) {
+          clickedButtonId = world_->ui.pointerCaptures[touch.id];
+          const auto captured =
+              std::ranges::find(world_->ui.nodes, *clickedButtonId,
+                                &ui::UiNode::id);
+          if (captured != world_->ui.nodes.end() &&
+              captured->type == "virtual_button" &&
+              !captured->control.empty()) {
+            input_->virtualButtonsDown.insert(captured->control);
+            input_->virtualButtonsPressed.insert(captured->control);
+          }
+          if (const auto action = interaction.activateFocused(world_->ui))
+            (void)ui::UiActionController{}.apply(world_->ui, *action);
+          ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
+        } else if (touch.phase == TouchPhase::Ended ||
+                   touch.phase == TouchPhase::Cancelled) {
+          const auto capturedId = world_->ui.pointerCaptures.find(touch.id);
+          if (capturedId != world_->ui.pointerCaptures.end()) {
+            const auto captured =
+                std::ranges::find(world_->ui.nodes, capturedId->second,
+                                  &ui::UiNode::id);
+            if (captured != world_->ui.nodes.end() &&
+                !captured->control.empty()) {
+              if (captured->type == "virtual_button") {
+                input_->virtualButtonsDown.erase(captured->control);
+                input_->virtualButtonsReleased.insert(captured->control);
+              } else if (captured->type == "virtual_stick") {
+                input_->virtualAxes.erase(captured->control);
+              }
+            }
+          }
+          interaction.releasePointer(world_->ui, touch.id);
+        } else {
+          const auto capturedId = world_->ui.pointerCaptures.find(touch.id);
+          if (capturedId != world_->ui.pointerCaptures.end()) {
+            const auto captured =
+                std::ranges::find(world_->ui.nodes, capturedId->second,
+                                  &ui::UiNode::id);
+            if (captured != world_->ui.nodes.end() &&
+                captured->type == "virtual_stick" &&
+                !captured->control.empty()) {
+              const Vec2 center{
+                  captured->resolved.x + captured->resolved.width * 0.5F,
+                  captured->resolved.y + captured->resolved.height * 0.5F};
+              const float radius =
+                  captured->radius > 0.0F
+                      ? captured->radius
+                      : std::max(std::min(captured->resolved.width,
+                                          captured->resolved.height) *
+                                     0.5F,
+                                 1.0F);
+              Vec2 axis{(position.x - center.x) / radius,
+                        (position.y - center.y) / radius};
+              const float length =
+                  std::sqrt(axis.x * axis.x + axis.y * axis.y);
+              if (length <= captured->deadzone) {
+                axis = {};
+              } else if (length > 1.0F) {
+                axis.x /= length;
+                axis.y /= length;
+              }
+              input_->virtualAxes[captured->control] = axis;
+            }
+          }
+          if (interaction.updatePointer(world_->ui, touch.id, position))
+            ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
+        }
+      }
+    } else {
+      if (mouseDown && !previousUiMouseDown_ &&
+          interaction.capturePointer(world_->ui, mouse)) {
+        clickedButtonId = world_->ui.pointerCaptureId;
+        if (const auto action = interaction.activateFocused(world_->ui))
+          (void)ui::UiActionController{}.apply(world_->ui, *action);
+        ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
+      } else if (!mouseDown && previousUiMouseDown_) {
+        interaction.releasePointer(world_->ui);
+      }
+      if (mouseDown && interaction.updatePointer(world_->ui, mouse))
+        ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
     }
-    if (mouseDown && interaction.updatePointer(world_->ui, mouse))
-      ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
 
     const auto focused = std::ranges::find(
         world_->ui.nodes, world_->ui.focusedId, &ui::UiNode::id);

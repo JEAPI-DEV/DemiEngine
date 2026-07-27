@@ -244,6 +244,26 @@ preset runs the stress loop under ASan/LSan.
 Input should describe player intent and device state without pretending every
 device is a mouse.
 
+**Status: complete.** Typed actions now resolve keyboard, mouse, four
+independently assigned gamepads, and touch-backed virtual controls through
+contexts and per-player bindings. Runtime rebinding persists below the
+platform user-data path. Stable multi-touch snapshots, gesture recognition,
+per-pointer UI capture, safe-area layout, DPI/UI scale, orientation requests,
+keyboard, clipboard, lifecycle events, and writable paths are exposed through
+game-facing services. Replay format 2 records action, gamepad, touch, and
+virtual state while retaining format 1 compatibility. The shared Linux/Android
+shooter uses the same action script for all devices.
+
+### Ownership
+
+- `InputActionResolver` owns authored intent resolution and processors.
+- `InputRebinding` owns transactional binding override persistence.
+- `TouchGestureRecognizer` owns deterministic gesture state.
+- `UiInteractionController` owns pointer-ID capture; HUD virtual controls only
+  publish named input values.
+- `ApplicationServices` owns platform state and paths; runtime adapters feed
+  it Linux/raylib and Android lifecycle/display data.
+
 ### Deliverables
 
 - Extend input actions with:

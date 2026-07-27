@@ -11,6 +11,8 @@ Status meanings:
 | Capability/API gates | Stable | Generated component and installed-Lua manifest, compatibility baseline, and seven validated reference-game gates |
 | JSON projects/scenes | Stable | Versioned loading, stable IDs, CLI validation |
 | Lua lifecycle and services | Stable | Lua 5.4, sol2, lifecycle, annotations, hot reload |
+| Cross-platform input | Stable | Typed/contextual actions, four local gamepads, rebinding, multi-touch gestures, virtual controls, per-pointer UI capture, and replay v2 |
+| Application services | Stable | Safe areas, DPI/UI scale, orientation requests, keyboard, clipboard, focus/minimize/suspend/low-memory events, and writable paths |
 | 2D rendering | Stable | Sprite sheets/clips/events, sorting, camera follow, tilemaps, shapes, HUD, debug drawing |
 | 2D physics | Stable | Box2D rigid bodies, box/circle colliders, filtering, triggers, queries, raycasts, and distance joints |
 | HUD authoring | Stable | Flat versioned HUD elements and Lua mutation APIs |
@@ -20,10 +22,10 @@ Status meanings:
 | Lightweight 3D | Experimental | Cycle-safe transform hierarchies, CLI-generated glTF colliders with 0..1 mesh detail, spatial queries, glTF materials and skeletal clips, deterministic batching, frustum culling, resource ownership, debug rendering, and profiled reference budgets |
 | Video/cutscenes | Experimental | FFmpeg-backed playback when enabled |
 | Networking | Experimental | Game-facing Lua sessions, authority, safe component snapshots, interpolation, spawn/despawn, diagnostics; optional ENet and TLS/DTLS transport |
-| Android | Experimental | Minimal client/server-oriented build support |
+| Android | Experimental | Shared action/touch controls, lifecycle/display services, and debug APK packaging; release workflow remains incomplete |
 | Component metadata as sole source | Stable | Generated registry drives parsing, validation, schema export, Lua policy, and editor placeholders |
 | Prefabs | Stable | Versioned entity/UI files, nesting, overrides, cycle diagnostics, CLI expansion/diff |
-| Tree/layout runtime UI | Stable | Layout containers, controls, focus, themes, and localization |
+| Tree/layout runtime UI | Stable | Layout containers, controls, focus, themes, localization, safe-area roots, and virtual controls |
 | Tilemaps and sprite animation system | Stable | Layered/parallax tilemaps, generated collision, clips, playback, and events |
 | Deterministic replay/debug tooling | Stable | Versioned input replay, deterministic random state, profiling, and headless probes |
 | Isometric placement/pathfinding | Stable | Grid conversion, occupancy, placement diagnostics, pathfinding, and rendering |

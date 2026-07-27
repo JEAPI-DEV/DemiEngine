@@ -2,7 +2,9 @@
 
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/isometric/IsoGridApi.h"
+#include "demi/runtime/input/TouchGestureRecognizer.h"
 #include "demi/runtime/network/NetworkSystem.h"
+#include "demi/runtime/platform/ApplicationServices.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/SpatialQuery3D.h"
 #include "demi/runtime/scene/model/ProjectData.h"
@@ -18,6 +20,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace demi::runtime {
@@ -45,7 +48,7 @@ public:
   LuaScriptHost(const LuaScriptHost &) = delete;
   LuaScriptHost &operator=(const LuaScriptHost &) = delete;
 
-  [[nodiscard]] bool initialize(World &world, const InputState &input,
+  [[nodiscard]] bool initialize(World &world, InputState &input,
                                 AudioSystem *audio, std::string &error);
   void setMediaSystem(MediaSystem *media);
   void setNetworkSystem(NetworkSystem *network);
@@ -74,9 +77,33 @@ public:
   [[nodiscard]] std::size_t pooledPrefabCount(const std::string &prefab) const;
   [[nodiscard]] bool isKeyDown(const std::string &key) const;
   [[nodiscard]] bool isKeyPressed(const std::string &key) const;
-  [[nodiscard]] bool isActionDown(const std::string &action) const;
-  [[nodiscard]] bool isActionPressed(const std::string &action) const;
-  [[nodiscard]] float actionValue(const std::string &action) const;
+  [[nodiscard]] bool isKeyReleased(const std::string &key) const;
+  [[nodiscard]] bool isActionDown(const std::string &action,
+                                  int player = -1) const;
+  [[nodiscard]] bool isActionPressed(const std::string &action,
+                                     int player = -1) const;
+  [[nodiscard]] bool isActionReleased(const std::string &action,
+                                      int player = -1) const;
+  [[nodiscard]] float actionValue(const std::string &action,
+                                  int player = -1) const;
+  [[nodiscard]] Vec2 actionVector(const std::string &action,
+                                  int player = -1) const;
+  [[nodiscard]] std::string actionSource(const std::string &action,
+                                         int player = -1) const;
+  void enableInputContext(const std::string &context);
+  void disableInputContext(const std::string &context);
+  [[nodiscard]] bool inputContextEnabled(const std::string &context) const;
+  [[nodiscard]] bool rebindInput(const std::string &action,
+                                 std::size_t bindingIndex,
+                                 const std::string &input, int player,
+                                 std::string &error);
+  [[nodiscard]] bool saveInputBindings(const std::string &path,
+                                       std::string &error) const;
+  [[nodiscard]] bool loadInputBindings(const std::string &path,
+                                       std::string &error);
+  [[nodiscard]] bool assignGamepad(int deviceId, int player);
+  [[nodiscard]] const InputState *inputState() const;
+  [[nodiscard]] const std::vector<input::GestureEvent> &gestures() const;
   void seedRandom(std::uint64_t seed);
   [[nodiscard]] std::uint64_t randomState() const;
   void restoreRandomState(std::uint64_t state);
@@ -280,7 +307,7 @@ public:
   [[nodiscard]] Vec2 mouseDelta() const;
   [[nodiscard]] Vec2 mouseWorldPosition() const;
   [[nodiscard]] Vec2 viewportSize() const;
-  [[nodiscard]] bool uiPointerCaptured() const;
+  [[nodiscard]] bool uiPointerCaptured(std::int64_t pointerId = 0) const;
   void addDebugLine(float x1, float y1, float x2, float y2, float r, float g,
                      float b, float a, float width = 1.0F);
   void clearDebugLines();
@@ -323,6 +350,9 @@ public:
   [[nodiscard]] bool isCutscenePlaying() const;
   [[nodiscard]] const std::string &activeCutscene() const;
   void setViewport(int width, int height);
+  [[nodiscard]] platform::ApplicationServices &applicationServices();
+  [[nodiscard]] const platform::ApplicationServices &
+  applicationServices() const;
   void requestQuit();
   [[nodiscard]] bool quitRequested() const;
   void setWindowMode(std::string mode);
@@ -350,7 +380,9 @@ public:
   [[nodiscard]] std::uint64_t frameCount() const;
   void setApplicationFocused(bool focused);
   [[nodiscard]] bool applicationFocused() const;
+  void setApplicationMinimized(bool minimized);
   void setApplicationSuspended(bool suspended);
+  void notifyApplicationLowMemory();
   [[nodiscard]] bool applicationSuspended() const;
   [[nodiscard]] std::uint64_t addTimer(float seconds, bool repeating,
                                        int callbackRef);
@@ -431,8 +463,12 @@ private:
   void *state_ = nullptr;
   World *world_ = nullptr;
   const ProjectData *project_ = nullptr;
-  const InputState *input_ = nullptr;
+  InputState *input_ = nullptr;
   input::InputActionMap inputActions_;
+  std::unordered_set<std::string> activeInputContexts_;
+  input::TouchGestureRecognizer touchGestureRecognizer_;
+  std::vector<input::GestureEvent> gestureEvents_;
+  platform::ApplicationServices applicationServices_;
   simulation::DeterministicRandom random_;
   isometric::IsoGridApi isoGridApi_;
   AudioSystem *audio_ = nullptr;
@@ -456,6 +492,7 @@ private:
   double fixedTime_ = 0.0;
   std::uint64_t frameCount_ = 0;
   bool applicationFocused_ = true;
+  bool applicationMinimized_ = false;
   bool applicationSuspended_ = false;
   bool hotReloadEnabled_ = false;
   bool cutscenePaused_ = false;

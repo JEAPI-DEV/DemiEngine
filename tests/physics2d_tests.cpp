@@ -111,6 +111,53 @@ int main() {
     return 1;
   }
 
+  World rotatedWallWorld;
+  Entity rotatedWall;
+  rotatedWall.id = "rotated_wall";
+  rotatedWall.setComponent(Transform2DComponent{
+      .position = {.x = 4.0F, .y = 0.0F}, .rotation = 0.785398163F});
+  rotatedWall.setComponent(BoxCollider2DComponent{
+      .size = {4.0F, 0.5F}, .layer = "arena_wall"});
+  rotatedWallWorld.entities.push_back(std::move(rotatedWall));
+  const auto wallHit = raycast2D(rotatedWallWorld, {}, {1.0F, 0.0F}, 10.0F,
+                                 "arena_wall");
+  if (!wallHit || wallHit->entityId != "rotated_wall" ||
+      std::abs(wallHit->distance - 3.6464466F) > 0.001F ||
+      wallHit->normal.x > -0.70F || wallHit->normal.y < 0.70F) {
+    std::cerr << "Rotated box raycast did not match the collider shape.\n";
+    return 1;
+  }
+
+  World wallCollisionWorld;
+  Entity movingCircle;
+  movingCircle.id = "moving_circle";
+  movingCircle.setComponent(Transform2DComponent{});
+  movingCircle.setComponent(Rigidbody2DComponent{
+      .bodyType = "dynamic",
+      .velocity = {6.0F, 0.0F},
+      .gravityScale = 0.0F,
+  });
+  movingCircle.setComponent(CircleCollider2DComponent{.radius = 0.5F});
+  wallCollisionWorld.entities.push_back(std::move(movingCircle));
+  Entity blockingWall;
+  blockingWall.id = "blocking_wall";
+  blockingWall.setComponent(
+      Transform2DComponent{.position = {.x = 2.0F, .y = 0.0F}});
+  blockingWall.setComponent(
+      BoxCollider2DComponent{.size = {0.5F, 4.0F}, .layer = "arena_wall"});
+  wallCollisionWorld.entities.push_back(std::move(blockingWall));
+  for (int step = 0; step < 60; ++step)
+    stepPhysics2D(wallCollisionWorld, 1.0F / 60.0F,
+                  PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
+  const float blockedX = findEntity(wallCollisionWorld, "moving_circle")
+                             ->component<Transform2DComponent>()
+                             ->position.x;
+  if (blockedX > 1.26F) {
+    std::cerr << "Dynamic circle passed through a static arena wall: x="
+              << blockedX << ".\n";
+    return 1;
+  }
+
   World filtered;
   for (int index = 0; index < 2; ++index) {
     Entity entity;

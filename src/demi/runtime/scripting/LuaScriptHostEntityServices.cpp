@@ -4,6 +4,7 @@
 #include "demi/runtime/scene/WorldQueries.h"
 
 #include "demi/runtime/input/InputActionResolver.h"
+#include "demi/runtime/input/InputRebinding.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/Physics3D.h"
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
@@ -24,20 +25,117 @@ bool LuaScriptHost::isKeyPressed(const std::string &key) const {
   return input_ != nullptr && input_->keysPressed.contains(normalizedKey(key));
 }
 
-bool LuaScriptHost::isActionDown(const std::string &action) const {
+bool LuaScriptHost::isKeyReleased(const std::string &key) const {
   return input_ != nullptr &&
-         input::InputActionResolver{}.down(inputActions_, *input_, action);
+         input_->keysReleased.contains(normalizedKey(key));
 }
 
-bool LuaScriptHost::isActionPressed(const std::string &action) const {
+bool LuaScriptHost::isActionDown(const std::string &action,
+                                 const int player) const {
   return input_ != nullptr &&
-         input::InputActionResolver{}.pressed(inputActions_, *input_, action);
+         input::InputActionResolver{}.down(inputActions_, *input_, action,
+                                           player, &activeInputContexts_);
 }
 
-float LuaScriptHost::actionValue(const std::string &action) const {
+bool LuaScriptHost::isActionPressed(const std::string &action,
+                                    const int player) const {
+  return input_ != nullptr &&
+         input::InputActionResolver{}.pressed(inputActions_, *input_, action,
+                                              player, &activeInputContexts_);
+}
+
+bool LuaScriptHost::isActionReleased(const std::string &action,
+                                     const int player) const {
+  return input_ != nullptr &&
+         input::InputActionResolver{}.released(inputActions_, *input_, action,
+                                               player, &activeInputContexts_);
+}
+
+float LuaScriptHost::actionValue(const std::string &action,
+                                 const int player) const {
   return input_ == nullptr ? 0.0F
                            : input::InputActionResolver{}.value(
-                                 inputActions_, *input_, action);
+                                 inputActions_, *input_, action, player,
+                                 &activeInputContexts_);
+}
+
+Vec2 LuaScriptHost::actionVector(const std::string &action,
+                                 const int player) const {
+  return input_ == nullptr
+             ? Vec2{}
+             : input::InputActionResolver{}.vector(
+                   inputActions_, *input_, action, player,
+                   &activeInputContexts_);
+}
+
+std::string LuaScriptHost::actionSource(const std::string &action,
+                                        const int player) const {
+  return input_ == nullptr
+             ? std::string{}
+             : input::InputActionResolver{}
+                   .resolve(inputActions_, *input_, action, player,
+                            &activeInputContexts_)
+                   .source;
+}
+
+void LuaScriptHost::enableInputContext(const std::string &context) {
+  activeInputContexts_.insert(normalizedKey(context));
+}
+
+void LuaScriptHost::disableInputContext(const std::string &context) {
+  activeInputContexts_.erase(normalizedKey(context));
+}
+
+bool LuaScriptHost::inputContextEnabled(const std::string &context) const {
+  return activeInputContexts_.empty() ||
+         activeInputContexts_.contains(normalizedKey(context));
+}
+
+bool LuaScriptHost::rebindInput(const std::string &action,
+                                const std::size_t bindingIndex,
+                                const std::string &inputName, const int player,
+                                std::string &error) {
+  return input::InputRebinding::rebind(
+      inputActions_, action, bindingIndex,
+      {.input = inputName, .player = player}, error);
+}
+
+bool LuaScriptHost::saveInputBindings(const std::string &path,
+                                      std::string &error) const {
+  const std::filesystem::path value(path);
+  return input::InputRebinding::save(
+      inputActions_,
+      value.is_absolute() ? value
+                          : applicationServices_.userDataPath() / value,
+      error);
+}
+
+bool LuaScriptHost::loadInputBindings(const std::string &path,
+                                      std::string &error) {
+  const std::filesystem::path value(path);
+  return input::InputRebinding::load(
+      inputActions_,
+      value.is_absolute() ? value
+                          : applicationServices_.userDataPath() / value,
+      error);
+}
+
+bool LuaScriptHost::assignGamepad(const int deviceId, const int player) {
+  if (input_ == nullptr || player < 0)
+    return false;
+  const auto found =
+      std::ranges::find(input_->gamepads, deviceId, &GamepadState::deviceId);
+  if (found == input_->gamepads.end())
+    return false;
+  found->player = player;
+  input_->gamepadAssignments[deviceId] = player;
+  return true;
+}
+
+const InputState *LuaScriptHost::inputState() const { return input_; }
+
+const std::vector<input::GestureEvent> &LuaScriptHost::gestures() const {
+  return gestureEvents_;
 }
 
 std::string LuaScriptHost::textEntered() const {

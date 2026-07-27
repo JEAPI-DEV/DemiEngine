@@ -16,8 +16,8 @@
     {
       "id": "cross-platform-input",
       "phase": 3,
-      "status": "open",
-      "summary": "Gamepad, multi-touch, gestures, rebinding, and safe-area services are incomplete."
+      "status": "resolved",
+      "summary": "Typed actions, gamepads, multi-touch, gestures, rebinding, virtual controls, replay, and safe-area application services are test-backed."
     },
     {
       "id": "production-2d",
@@ -35,7 +35,7 @@
       "id": "dynamic-ui",
       "phase": 8,
       "status": "open",
-      "summary": "Runtime-created UI trees, dynamic lists, safe areas, and world-space UI are incomplete."
+      "summary": "Runtime-created UI trees, dynamic lists, and world-space UI are incomplete."
     },
     {
       "id": "network-session-completion",
