@@ -8,6 +8,38 @@ project(DemiEngine
 
 include(FetchContent)
 
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/alpha_cutout.vs"
+  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/alpha_cutout.fs"
+  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/alpha_cutout.gles.vs"
+  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/alpha_cutout.gles.fs"
+  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/post_process.vs"
+  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/post_process.fs"
+  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/post_process.gles.vs"
+  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/post_process.gles.fs")
+file(READ "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/alpha_cutout.vs"
+  DEMI_ALPHA_VERTEX)
+file(READ "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/alpha_cutout.fs"
+  DEMI_ALPHA_FRAGMENT)
+file(READ "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/alpha_cutout.gles.vs"
+  DEMI_ALPHA_GLES_VERTEX)
+file(READ "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/alpha_cutout.gles.fs"
+  DEMI_ALPHA_GLES_FRAGMENT)
+file(READ "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/post_process.vs"
+  DEMI_POST_VERTEX)
+file(READ "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/post_process.fs"
+  DEMI_POST_FRAGMENT)
+file(READ "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/post_process.gles.vs"
+  DEMI_POST_GLES_VERTEX)
+file(READ "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/post_process.gles.fs"
+  DEMI_POST_GLES_FRAGMENT)
+set(DEMI_RENDER_GENERATED_INCLUDE_DIR
+  "${CMAKE_BINARY_DIR}/generated/render/include")
+file(MAKE_DIRECTORY "${DEMI_RENDER_GENERATED_INCLUDE_DIR}")
+configure_file(cmake/BuiltinRenderShaders.h.in
+  "${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/BuiltinRenderShaders.h"
+  @ONLY)
+
 if(POLICY CMP0169)
   cmake_policy(SET CMP0169 OLD)
 endif()
@@ -217,6 +249,7 @@ add_library(demi-core STATIC
   src/demi/assets/AssetImporter.cpp
   src/demi/assets/AssetPackage.cpp
   src/demi/assets/AssetCooker.cpp
+  src/demi/assets/RenderAsset.cpp
   src/demi/runtime/physics/ColliderAsset3D.cpp
   src/demi/diagnostics/Diagnostic.cpp
   src/demi/filesystem/ProjectPaths.cpp
@@ -278,6 +311,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/animation/SpriteAnimationSystem.cpp
   src/demi/runtime/camera/Camera2DSystem.cpp
   src/demi/runtime/camera/Camera3DMath.cpp
+  src/demi/runtime/camera/CameraRenderScheduler3D.cpp
   src/demi/runtime/tilemap/TilemapAsset.cpp
   src/demi/runtime/tilemap/TilemapCollisionGenerator.cpp
   src/demi/runtime/tilemap/TilemapRuntime.cpp
@@ -359,7 +393,8 @@ set(DEMI_RUNTIME_COMMON_SOURCES
 function(configure_demi_runtime target with_renderer)
   add_library(${target} STATIC ${DEMI_RUNTIME_COMMON_SOURCES} ${ARGN})
   target_link_libraries(${target} PUBLIC demi-core)
-  target_include_directories(${target} PUBLIC src)
+  target_include_directories(${target} PUBLIC src
+    "${DEMI_RENDER_GENERATED_INCLUDE_DIR}")
   target_compile_features(${target} PUBLIC cxx_std_20)
   target_link_libraries(${target} PRIVATE box2d Jolt miniaudio nlohmann_json::nlohmann_json mbedtls mbedx509 mbedcrypto sol2::sol2)
   target_compile_definitions(${target} PRIVATE
@@ -422,7 +457,11 @@ configure_demi_runtime(demi-runtime-lib TRUE
   src/demi/runtime/render/ProfilerHudRenderer.cpp
   src/demi/runtime/render/RaylibFileSystemBridge.cpp
   src/demi/runtime/render/Renderer2D.cpp
+  src/demi/runtime/render/ParticleSystem2D.cpp
   src/demi/runtime/render/Renderer3D.cpp
+  src/demi/runtime/render/ParticleSystem3D.cpp
+  src/demi/runtime/render/Lighting3D.cpp
+  src/demi/runtime/render/WorldText3DRenderer.cpp
   src/demi/runtime/render/Renderer3DBatcher.cpp
   src/demi/runtime/render/Renderer3DAssets.cpp
   src/demi/runtime/render/Renderer3DHudRenderer.cpp
@@ -512,6 +551,8 @@ else()
   add_executable(demi-renderer3d-batcher-tests
     tests/renderer3d_batcher_tests.cpp)
   target_link_libraries(demi-renderer3d-batcher-tests PRIVATE demi-runtime-lib raylib)
+  add_executable(demi-render-phase6-tests tests/render_phase6_tests.cpp)
+  target_link_libraries(demi-render-phase6-tests PRIVATE demi-runtime-lib raylib)
 
   add_executable(demi-lua-stub-contract-tests tests/lua_stub_contract_tests.cpp)
   target_link_libraries(demi-lua-stub-contract-tests PRIVATE demi-runtime-lib)
@@ -589,6 +630,7 @@ add_test(NAME demi-transform3d-hierarchy-tests
 add_test(NAME demi-validation-3d-tests COMMAND demi-validation-3d-tests)
 add_test(NAME demi-renderer3d-batcher-tests
   COMMAND demi-renderer3d-batcher-tests)
+add_test(NAME demi-render-phase6-tests COMMAND demi-render-phase6-tests)
 add_test(NAME demi-lua-stub-contract-tests COMMAND demi-lua-stub-contract-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
 add_test(NAME demi-scene-loader-tests COMMAND demi-scene-loader-tests ${CMAKE_SOURCE_DIR})
@@ -842,6 +884,12 @@ add_test(NAME demi-script-check-minimal-player
 add_test(NAME demi-script-check-minimal-voxel-fly-camera
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/scripts/fly_camera.lua
 )
+foreach(script_name minimap_camera presentation)
+  add_test(NAME demi-script-check-minimal-voxel-${script_name}
+    COMMAND demi script check
+      ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/scripts/${script_name}.lua
+  )
+endforeach()
 add_test(NAME demi-script-check-minimal-voxel-worldgen
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/scripts/worldgen.lua
 )

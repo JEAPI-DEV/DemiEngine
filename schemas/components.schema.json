@@ -313,6 +313,16 @@
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
+        "clear_mode": {
+          "enum": [
+            "color",
+            "depth",
+            "none"
+          ],
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "far_clip": {
           "type": "number",
           "x-demi-lua-readable": true,
@@ -343,6 +353,44 @@
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
+        "primary": {
+          "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "priority": {
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "render_hud": {
+          "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "render_hud_to_target": {
+          "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "render_mask": {
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "render_scale": {
+          "maximum": 2.0,
+          "minimum": 0.25,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "render_target": {
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        },
         "target_offset": {
           "items": {
             "type": "number"
@@ -354,6 +402,40 @@
           "x-demi-lua-writable": true
         },
         "up_axis": {
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "update_interval": {
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "viewport_height": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "viewport_width": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "viewport_x": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "viewport_y": {
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": "number",
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
@@ -628,6 +710,11 @@
     "DirectionalLight": {
       "additionalProperties": false,
       "properties": {
+        "casts_shadows": {
+          "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "color": {
           "items": {
             "type": "number"
@@ -649,7 +736,13 @@
           "x-demi-lua-writable": true
         },
         "intensity": {
+          "minimum": 0.0,
           "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "render_mask": {
+          "type": "string",
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -772,6 +865,70 @@
       "required": [
         "points"
       ],
+      "type": "object"
+    },
+    "Environment3D": {
+      "additionalProperties": false,
+      "properties": {
+        "ambient_color": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "ambient_intensity": {
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "fog_color": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "fog_end": {
+          "minimum": 0.001,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "fog_start": {
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "max_shadow_lights": {
+          "maximum": 4.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "shadow_distance": {
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "shadow_resolution": {
+          "maximum": 4096.0,
+          "minimum": 128.0,
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        }
+      },
       "type": "object"
     },
     "GameplayData": {
@@ -1003,6 +1160,17 @@
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
+        "material": {
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        },
+        "material_properties": {
+          "type": "object",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "model": {
           "type": "string",
           "x-demi-lua-readable": true,
@@ -1019,6 +1187,11 @@
             "type": "array"
           },
           "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "render_layer": {
+          "type": "string",
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
@@ -1102,6 +1275,369 @@
       ],
       "type": "object"
     },
+    "ParticleEmitter2D": {
+      "additionalProperties": false,
+      "properties": {
+        "burst": {
+          "minimum": 0.0,
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "color_end": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "color_start": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "emission_shape": {
+          "enum": [
+            "point",
+            "box",
+            "circle"
+          ],
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "emission_size": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "gravity": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "lifetime": {
+          "minimum": 0.001,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "loop": {
+          "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "material": {
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        },
+        "max_particles": {
+          "minimum": 1.0,
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "mobile_max_particles": {
+          "minimum": 1.0,
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "playing": {
+          "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "rate": {
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "rotation_speed": {
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "seed": {
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "size_end": {
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "size_start": {
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "sorting_order": {
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "texture": {
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        },
+        "velocity_max": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "velocity_min": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        }
+      },
+      "type": "object"
+    },
+    "ParticleEmitter3D": {
+      "additionalProperties": false,
+      "properties": {
+        "burst": {
+          "minimum": 0.0,
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "color_end": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "color_start": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "emission_shape": {
+          "enum": [
+            "point",
+            "box",
+            "sphere",
+            "cone"
+          ],
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "emission_size": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "gravity": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "lifetime": {
+          "minimum": 0.001,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "loop": {
+          "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "material": {
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        },
+        "max_particles": {
+          "minimum": 1.0,
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "mobile_max_particles": {
+          "minimum": 1.0,
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "playing": {
+          "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "rate": {
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "render_mask": {
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "rotation_speed": {
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "seed": {
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "simulation_space": {
+          "enum": [
+            "world",
+            "local"
+          ],
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "size_end": {
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "size_start": {
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "sorting_order": {
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "texture": {
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        },
+        "velocity_max": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "velocity_min": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        }
+      },
+      "type": "object"
+    },
+    "PointLight": {
+      "additionalProperties": false,
+      "properties": {
+        "casts_shadows": {
+          "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "color": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "intensity": {
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "range": {
+          "minimum": 0.001,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "render_mask": {
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        }
+      },
+      "type": "object"
+    },
     "PolygonCollider2D": {
       "additionalProperties": false,
       "properties": {
@@ -1172,6 +1708,76 @@
       "required": [
         "points"
       ],
+      "type": "object"
+    },
+    "PostProcessStack": {
+      "additionalProperties": false,
+      "properties": {
+        "bloom": {
+          "maximum": 2.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "bloom_threshold": {
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "contrast": {
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "exposure": {
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "fade": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "fade_color": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "saturation": {
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "tint": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "vignette": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        }
+      },
       "type": "object"
     },
     "Rigidbody2D": {
@@ -1410,6 +2016,68 @@
         "radius": {
           "minimum": 0.0,
           "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        }
+      },
+      "type": "object"
+    },
+    "SpotLight": {
+      "additionalProperties": false,
+      "properties": {
+        "casts_shadows": {
+          "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "color": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "direction": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "inner_angle": {
+          "maximum": 179.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "intensity": {
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "outer_angle": {
+          "maximum": 179.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "range": {
+          "minimum": 0.001,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "render_mask": {
+          "type": "string",
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -1721,6 +2389,55 @@
         },
         "play_on_start": {
           "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        }
+      },
+      "type": "object"
+    },
+    "WorldText3D": {
+      "additionalProperties": false,
+      "properties": {
+        "billboard": {
+          "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "color": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "font": {
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        },
+        "font_size": {
+          "minimum": 0.01,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "max_distance": {
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "render_mask": {
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "text": {
+          "type": "string",
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }

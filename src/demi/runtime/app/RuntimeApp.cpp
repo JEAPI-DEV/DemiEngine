@@ -7,6 +7,7 @@
 #include "demi/runtime/animation/SpriteAnimationSystem.h"
 #include "demi/runtime/audio/AudioSystem.h"
 #include "demi/runtime/camera/Camera2DSystem.h"
+#include "demi/runtime/camera/CameraRenderScheduler3D.h"
 #include "demi/runtime/input/replay/InputReplay.h"
 #include "demi/runtime/media/MediaSystem.h"
 #include "demi/runtime/network/NetworkSystem.h"
@@ -716,6 +717,7 @@ int runProject(const RuntimeOptions &options) {
 
   Renderer2D renderer2D;
   Renderer3D renderer3D;
+  CameraRenderScheduler3D cameraRenderScheduler3D;
   if (use3D) {
     ProfileScope scope("Asset.renderer_load");
     renderer3D.loadTextureAssets(assetRegistry);
@@ -799,13 +801,56 @@ int runProject(const RuntimeOptions &options) {
     {
       ProfileScope renderScope("Render.frame");
       if (use3D) {
-        const Camera3DComponent *camera = activeCamera3D(loaded.world);
-        renderer3D.beginFrame(camera != nullptr ? *camera : fallbackCamera3D,
-                              activeCamera3DPosition(loaded.world),
-                              activeCamera3DForward(loaded.world),
-                              activeCamera3DUp(loaded.world), width, height);
-        renderer3D.drawWorld(loaded.world, dt);
-        renderer3D.drawHud(loaded.world);
+        const auto cameras = renderCameras3D(loaded.world);
+        const Camera3DComponent *active = activeCamera3D(loaded.world);
+        renderer3D.beginFrame(width, height,
+                              active != nullptr ? active->clearColor
+                                                : fallbackCamera3D.clearColor);
+        cameraRenderScheduler3D.beginFrame();
+        bool renderHud = cameras.empty();
+        if (cameras.empty()) {
+          renderer3D.beginCamera("fallback", fallbackCamera3D, {},
+                                 {0.0F, 0.0F, 1.0F},
+                                 {0.0F, 1.0F, 0.0F});
+          renderer3D.drawWorld(loaded.world, dt);
+          renderer3D.endCamera();
+        } else {
+          for (const Entity *cameraEntity : cameras) {
+            const auto &camera =
+                *cameraEntity->component<Camera3DComponent>();
+            const auto *postProcess =
+                cameraEntity->component<PostProcessStackComponent>();
+            if (!cameraRenderScheduler3D.shouldRender(
+                    cameraEntity->id, camera.updateInterval, dt) &&
+                renderer3D.canPresentCamera(cameraEntity->id, camera)) {
+              renderer3D.presentCamera(cameraEntity->id, camera, postProcess);
+              renderHud |= camera.renderHud;
+              continue;
+            }
+            const auto transform =
+                resolveWorldTransform3D(loaded.world, *cameraEntity);
+            const Vec3 position =
+                transform ? transform->position : Vec3{};
+            const Vec3 forward =
+                transform ? transformDirection3D(*transform,
+                                                 camera.targetOffset)
+                          : camera.targetOffset;
+            const Vec3 localUp{0.0F, camera.upAxis, 0.0F};
+            const Vec3 up =
+                transform ? transformDirection3D(*transform, localUp)
+                          : localUp;
+            renderer3D.beginCamera(cameraEntity->id, camera, position,
+                                   forward, up);
+            renderer3D.drawWorld(loaded.world, dt);
+            renderer3D.endCamera(
+                postProcess,
+                camera.renderHudToTarget ? &loaded.world : nullptr);
+            renderHud |= camera.renderHud;
+          }
+        }
+        cameraRenderScheduler3D.endFrame();
+        if (renderHud)
+          renderer3D.drawHud(loaded.world);
         renderer3D.endFrame();
       } else {
         const Camera2DComponent *camera = activeCamera(loaded.world);

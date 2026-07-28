@@ -9,12 +9,10 @@
 namespace demi::runtime {
 void Renderer3D::drawHud(const World &world) {
   ProfileScope scope("Renderer3D.draw_hud");
-  EndMode3D();
-
   const float canvasWidth = std::max(world.hudCanvasSize.x, 1.0F);
   const float canvasHeight = std::max(world.hudCanvasSize.y, 1.0F);
-  const float scaleX = static_cast<float>(width_) / canvasWidth;
-  const float scaleY = static_cast<float>(height_) / canvasHeight;
+  const float scaleX = static_cast<float>(frameWidth_) / canvasWidth;
+  const float scaleY = static_cast<float>(frameHeight_) / canvasHeight;
   const renderer3d_detail::Hud3DRenderContext context{
       .scaleX = scaleX,
       .scaleY = scaleY,
@@ -30,7 +28,8 @@ void Renderer3D::drawHud(const World &world) {
     renderer3d_detail::drawHud3DNode(*presented.node, context);
   }
   if (world.debug.profilerHud && RuntimeProfiler::enabled()) {
-    drawProfilerHud(RuntimeProfiler::frameSummary(0.05), width_, height_);
+    drawProfilerHud(RuntimeProfiler::frameSummary(0.05), frameWidth_,
+                    frameHeight_);
   }
 }
 } // namespace demi::runtime

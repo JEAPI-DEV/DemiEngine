@@ -50,6 +50,8 @@ local function create_arm_part(entity_id, parent_id, position, rotation, size, c
         shape = "cube",
         size = size,
         color = color,
+        material = "asset://materials/first_person",
+        render_layer = "first_person",
       },
     },
   })

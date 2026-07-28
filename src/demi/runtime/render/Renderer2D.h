@@ -3,7 +3,9 @@
 #include "demi/runtime/scene/components/2dcomponents/Camera2DComponent.h"
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/RenderAsset.h"
 #include "demi/runtime/navigation/NavigationGrid2D.h"
+#include "demi/runtime/render/ParticleSystem2D.h"
 #include "demi/runtime/render/RendererAssetData.h"
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/tilemap/TilemapAsset.h"
@@ -37,10 +39,12 @@ private:
   int width_ = 1;
   int height_ = 1;
   std::unordered_map<std::string, Texture2D> textures_;
+  std::unordered_map<std::string, assets::MaterialAsset> materials_;
   std::unordered_map<std::string, ImageAnimationTextureData> imageAnimations_;
   std::unordered_map<std::string, GifAnimationTextureData> gifAnimations_;
   std::unordered_map<std::string, TilemapAsset2D> tilemaps_;
   float animationTime_ = 0.0F;
+  ParticleSystem2D particleSystem_;
 };
 
 } // namespace demi::runtime

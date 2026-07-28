@@ -329,6 +329,8 @@ public:
                              const std::string &stateJson);
   [[nodiscard]] bool setEntityMeshRenderer(const std::string &entityId,
                                            std::string texture,
+                                           std::string material,
+                                           std::string renderLayer,
                                            std::vector<Vec3> vertices,
                                            std::vector<Vec3> normals,
                                            std::vector<Vec2> uvs);

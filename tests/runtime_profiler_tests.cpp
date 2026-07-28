@@ -11,6 +11,7 @@ int main() {
   RuntimeProfiler::record("Physics2D.step", 0.5);
   RuntimeProfiler::record("Network.update", 0.1);
   RuntimeProfiler::addBytes("Asset.upload", 4096);
+  RuntimeProfiler::setGauge("Renderer3D.stats.batches", 12.0);
   RuntimeProfiler::beginFrame();
   RuntimeProfiler::record("Lua.update", 2.0);
 
@@ -20,7 +21,9 @@ int main() {
       report.find("Lua.update,3.250,2.000,2") == std::string::npos ||
       report.find("Physics2D.step") == std::string::npos ||
       report.find("Network.update") == std::string::npos ||
-      report.find("Asset.upload") == std::string::npos) {
+      report.find("Asset.upload") == std::string::npos ||
+      report.find("Renderer3D.stats.batches,0.000,0.000,0,0,12.000") ==
+          std::string::npos) {
     std::cerr << "session profiler report lost cross-frame category data\n";
     return 1;
   }

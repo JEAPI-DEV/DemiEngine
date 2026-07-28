@@ -93,8 +93,7 @@ Model *dynamicModelForEntity(
       alphaCutoutShader != nullptr && !mesh.texture.empty();
   if (mesh.revision > 0 && cached != dynamicModels.end() &&
       cached->second.revision == mesh.revision &&
-      cached->second.texture == mesh.texture && cached->second.hasModel &&
-      cached->second.signature == dynamicMeshSignature(mesh, useAlphaCutout)) {
+      cached->second.texture == mesh.texture && cached->second.hasModel) {
     return &cached->second.model;
   }
   const std::string signature = dynamicMeshSignature(mesh, useAlphaCutout);

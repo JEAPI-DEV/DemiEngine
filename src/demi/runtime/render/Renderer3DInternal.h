@@ -49,7 +49,7 @@ void updateModelAnimation(Model &model, AnimationPlayer3DComponent &player,
 void drawMeshEntity(
     const World &world, Entity &entity,
     const std::unordered_map<std::string, Texture2D> &textures,
-    const std::unordered_map<std::string, Model> &models,
+    std::unordered_map<std::string, Model> &models,
     const std::unordered_map<std::string, std::filesystem::path> &modelPaths,
     const std::unordered_map<std::string, Texture2D> &modelTextures,
     const std::unordered_map<std::string, TextureImporterSettings>
@@ -57,6 +57,8 @@ void drawMeshEntity(
     const std::unordered_map<std::string, ModelAnimationAsset> &modelAnimations,
     std::unordered_map<std::string, AnimatedModelCacheEntry> &animatedModels,
     std::unordered_map<std::string, DynamicModelCacheEntry> &dynamicModels,
+    const std::unordered_map<std::string, assets::MaterialAsset> &materials,
+    const std::unordered_map<std::string, Shader> &materialShaders,
     bool drawDebugColliders, const Shader *alphaCutoutShader);
 
 } // namespace demi::runtime::renderer3d_detail

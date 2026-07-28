@@ -3,6 +3,7 @@
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetImporter.h"
 #include "demi/assets/AssetSourceFiles.h"
+#include "demi/assets/RenderAsset.h"
 
 #include <nlohmann/json.hpp>
 
@@ -382,6 +383,12 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
                              .message = "Unsupported texture wrap setting.",
                              .path = asset.manifestPath.string(),
                              .suggestion = "Use repeat, clamp, or mirror."});
+    if (asset.type == "Material")
+      (void)assets::loadMaterialAsset(asset.sourcePath, &diagnostics);
+    else if (asset.type == "Shader")
+      (void)assets::loadShaderAsset(asset.sourcePath, &diagnostics);
+    else if (asset.type == "RenderTarget")
+      (void)assets::loadRenderTargetAsset(asset.sourcePath, &diagnostics);
   }
   std::set<std::string> visiting;
   std::set<std::string> visited;

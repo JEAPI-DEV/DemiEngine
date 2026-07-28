@@ -196,7 +196,7 @@ bool meshEntityVisible(const World &world, const Entity &entity,
 void drawMeshEntity(
     const World &world, Entity &entity,
     const std::unordered_map<std::string, Texture2D> &textures,
-    const std::unordered_map<std::string, Model> &models,
+    std::unordered_map<std::string, Model> &models,
     const std::unordered_map<std::string, std::filesystem::path> &modelPaths,
     const std::unordered_map<std::string, Texture2D> &modelTextures,
     const std::unordered_map<std::string, TextureImporterSettings>
@@ -204,6 +204,8 @@ void drawMeshEntity(
     const std::unordered_map<std::string, ModelAnimationAsset> &modelAnimations,
     std::unordered_map<std::string, AnimatedModelCacheEntry> &animatedModels,
     std::unordered_map<std::string, DynamicModelCacheEntry> &dynamicModels,
+    const std::unordered_map<std::string, assets::MaterialAsset> &materials,
+    const std::unordered_map<std::string, Shader> &materialShaders,
     const bool drawDebugColliders, const Shader *alphaCutoutShader) {
   if (!entity.hasComponent<MeshRendererComponent>() ||
       !entity.hasComponent<Transform3DComponent>()) {
@@ -218,7 +220,24 @@ void drawMeshEntity(
   const ::Vector3 position = toRlVec3(worldTransform->position);
   const Vec3 scaledSize = multiply(mesh.size, worldTransform->scale);
   const ::Vector3 size = toRlVec3(scaledSize);
-  const ::Color color = toRlColor(mesh.color);
+  const assets::MaterialAsset *material = nullptr;
+  if (const auto found = materials.find(mesh.material);
+      found != materials.end())
+    material = &found->second;
+  Color resolvedColor = mesh.color;
+  const auto applyTint = [&](const Color &tint) {
+    resolvedColor = {resolvedColor.r * tint.r, resolvedColor.g * tint.g,
+                     resolvedColor.b * tint.b, resolvedColor.a * tint.a};
+  };
+  if (material != nullptr) {
+    if (const auto found = material->colors.find("base_color");
+        found != material->colors.end())
+      applyTint(found->second);
+  }
+  if (const auto found = mesh.materialColors.find("base_color");
+      found != mesh.materialColors.end())
+    applyTint(found->second);
+  const ::Color color = toRlColor(resolvedColor);
   const bool drawSolid = color.a > 0 && !mesh.wireframe;
 
   const ::Vector3 rotation = toRlVec3(worldTransform->rotation);
@@ -229,19 +248,27 @@ void drawMeshEntity(
 
   Texture2D texture{};
   bool hasTexture = false;
-  if (!mesh.texture.empty()) {
-    const auto found = textures.find(mesh.texture);
+  std::string textureId = mesh.texture;
+  if (textureId.empty() && material != nullptr) {
+    if (const auto found = material->textures.find("albedo");
+        found != material->textures.end())
+      textureId = found->second;
+  }
+  if (!textureId.empty()) {
+    const auto found = textures.find(textureId);
     if (found != textures.end()) {
       texture = found->second;
       hasTexture = true;
     }
   }
   Model *dynamicModel = nullptr;
-  const Model *staticModel = nullptr;
+  Model *staticModel = nullptr;
   if (!mesh.vertices.empty()) {
     ProfileScope scope("Renderer3D.dynamic_model_lookup");
-    dynamicModel = dynamicModelForEntity(entity, mesh, textures, dynamicModels,
-                                         alphaCutoutShader);
+    MeshRendererComponent resolvedMesh = mesh;
+    resolvedMesh.texture = textureId;
+    dynamicModel = dynamicModelForEntity(entity, resolvedMesh, textures,
+                                         dynamicModels, alphaCutoutShader);
   } else if (!mesh.model.empty()) {
     if (entity.hasComponent<AnimationPlayer3DComponent>()) {
       const auto animations = modelAnimations.find(mesh.model);
@@ -282,6 +309,62 @@ void drawMeshEntity(
     }
   };
 
+  const Shader *resolvedShader = nullptr;
+  if (material != nullptr && material->shader.starts_with("asset://")) {
+    if (const auto found = materialShaders.find(material->shader);
+        found != materialShaders.end())
+      resolvedShader = &found->second;
+  }
+  const bool useBuiltinLit =
+      material == nullptr || material->shader == "builtin://lit" ||
+      (material->shader.starts_with("asset://") &&
+       material->fallback == "builtin://lit");
+  if (resolvedShader == nullptr && hasTexture && useBuiltinLit)
+    resolvedShader = alphaCutoutShader;
+
+  if (material != nullptr) {
+    if (!material->renderState.depthTest)
+      rlDisableDepthTest();
+    if (!material->renderState.depthWrite)
+      rlDisableDepthMask();
+    if (material->renderState.cull == "none")
+      rlDisableBackfaceCulling();
+    else if (material->renderState.cull == "front")
+      rlSetCullFace(RL_CULL_FACE_FRONT);
+    if (material->renderState.blend == "additive")
+      BeginBlendMode(BLEND_ADDITIVE);
+  }
+  if (resolvedShader != nullptr) {
+    if (material != nullptr) {
+      for (const auto &[name, value] : material->numbers) {
+        const int location = GetShaderLocation(*resolvedShader, name.c_str());
+        if (location >= 0)
+          SetShaderValue(*resolvedShader, location, &value,
+                         SHADER_UNIFORM_FLOAT);
+      }
+      for (const auto &[name, value] : material->colors) {
+        const float channels[]{value.r, value.g, value.b, value.a};
+        const int location = GetShaderLocation(*resolvedShader, name.c_str());
+        if (location >= 0)
+          SetShaderValue(*resolvedShader, location, channels,
+                         SHADER_UNIFORM_VEC4);
+      }
+    }
+    for (const auto &[name, value] : mesh.materialNumbers) {
+      const int location = GetShaderLocation(*resolvedShader, name.c_str());
+      if (location >= 0)
+        SetShaderValue(*resolvedShader, location, &value,
+                       SHADER_UNIFORM_FLOAT);
+    }
+    for (const auto &[name, value] : mesh.materialColors) {
+      const float channels[]{value.r, value.g, value.b, value.a};
+      const int location = GetShaderLocation(*resolvedShader, name.c_str());
+      if (location >= 0)
+        SetShaderValue(*resolvedShader, location, channels,
+                       SHADER_UNIFORM_VEC4);
+    }
+  }
+
   rlPushMatrix();
   rlTranslatef(position.x, position.y, position.z);
   rlRotatef(rotationX, 1.0F, 0.0F, 0.0F);
@@ -296,22 +379,41 @@ void drawMeshEntity(
     {
       ProfileScope scope("Renderer3D.draw_model");
       if (dynamicModel != nullptr) {
-        if (alphaCutoutShader != nullptr && !mesh.texture.empty() &&
+        if (resolvedShader != nullptr &&
             dynamicModel->materialCount > 0) {
-          dynamicModel->materials[0].shader = *alphaCutoutShader;
+          dynamicModel->materials[0].shader = *resolvedShader;
         }
         DrawModel(*dynamicModel, {0.0F, 0.0F, 0.0F}, 1.0F, color);
       } else {
+        if (resolvedShader != nullptr)
+          for (int index = 0; index < staticModel->materialCount; ++index)
+            staticModel->materials[index].shader = *resolvedShader;
         DrawModel(*staticModel, {0.0F, 0.0F, 0.0F}, 1.0F, color);
       }
     }
     rlPopMatrix();
   } else if (drawSolid) {
     ProfileScope scope("Renderer3D.draw_shape");
+    if (resolvedShader != nullptr)
+      BeginShaderMode(*resolvedShader);
     drawShape(texture, hasTexture);
+    if (resolvedShader != nullptr)
+      EndShaderMode();
   }
 
   rlPopMatrix();
+  if (material != nullptr) {
+    if (material->renderState.blend == "additive")
+      EndBlendMode();
+    if (material->renderState.cull == "none")
+      rlEnableBackfaceCulling();
+    else if (material->renderState.cull == "front")
+      rlSetCullFace(RL_CULL_FACE_BACK);
+    if (!material->renderState.depthWrite)
+      rlEnableDepthMask();
+    if (!material->renderState.depthTest)
+      rlEnableDepthTest();
+  }
 
   if (mesh.wireframe) {
     rlPushMatrix();

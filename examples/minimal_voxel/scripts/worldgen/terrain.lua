@@ -3,6 +3,23 @@ local config = require("worldgen.config")
 
 local Terrain = {}
 
+local function column_cache_get(cache, world_x, world_z)
+  local column = cache and cache[world_x]
+  return column and column[world_z]
+end
+
+local function column_cache_set(cache, world_x, world_z, value)
+  if cache == nil then
+    return
+  end
+  local column = cache[world_x]
+  if column == nil then
+    column = {}
+    cache[world_x] = column
+  end
+  column[world_z] = value
+end
+
 function Terrain.chunk_id(cx, cz)
   return string.format("ent_chunk_%d_%d", cx, cz)
 end
@@ -75,16 +92,13 @@ function Terrain.table_count(values)
 end
 
 function Terrain.biome_at(world, world_x, world_z)
-  local key = Terrain.column_key(world_x, world_z)
   local generated = world and world.generated_biomes
-  local cached = generated and generated[key]
+  local cached = column_cache_get(generated, world_x, world_z)
   if cached ~= nil then
     return cached
   end
   local biome = biomes.at(world_x, world_z)
-  if generated ~= nil then
-    generated[key] = biome
-  end
+  column_cache_set(generated, world_x, world_z, biome)
   return biome
 end
 
@@ -185,14 +199,12 @@ function Terrain.column_height(world, world_x, world_z)
     return edited
   end
   local generated = world and world.generated_heights
-  local cached = generated and generated[key]
+  local cached = column_cache_get(generated, world_x, world_z)
   if cached ~= nil then
     return cached
   end
   local height = Terrain.generated_height(world_x, world_z)
-  if generated ~= nil then
-    generated[key] = height
-  end
+  column_cache_set(generated, world_x, world_z, height)
   return height
 end
 
@@ -213,15 +225,12 @@ local function rocky_surface(world, world_x, world_z, height, biome)
     return false
   end
   local cache = world and world.generated_rocky_surfaces
-  local key = cache and Terrain.column_key(world_x, world_z)
-  local cached = key and cache[key]
+  local cached = column_cache_get(cache, world_x, world_z)
   if cached ~= nil then
     return cached
   end
   local rocky = surface_slope(world, world_x, world_z, height) >= config.terrain.rock_slope
-  if key then
-    cache[key] = rocky
-  end
+  column_cache_set(cache, world_x, world_z, rocky)
   return rocky
 end
 

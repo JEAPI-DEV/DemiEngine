@@ -1,4 +1,5 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/render/BuiltinRenderShaders.h"
 #include "demi/runtime/render/Renderer3D.h"
 #include "demi/runtime/render/Renderer3DInternal.h"
 
@@ -88,35 +89,15 @@ std::optional<ImageData> loadPpm(const std::filesystem::path &path) {
   return image;
 }
 
-std::optional<std::filesystem::path>
-findShaderPath(const std::filesystem::path &relativePath) {
-  std::filesystem::path cursor = std::filesystem::current_path();
-  while (true) {
-    const std::filesystem::path candidate = cursor / relativePath;
-    if (std::filesystem::exists(candidate)) {
-      return candidate;
-    }
-    if (!cursor.has_parent_path() || cursor == cursor.parent_path()) {
-      break;
-    }
-    cursor = cursor.parent_path();
-  }
-  return std::nullopt;
-}
-
 Shader loadAlphaCutoutShader() {
-  const std::optional<std::filesystem::path> vertexShader =
-      findShaderPath("src/demi/runtime/render/shaders/alpha_cutout.vs");
-  const std::optional<std::filesystem::path> fragmentShader =
-      findShaderPath("src/demi/runtime/render/shaders/alpha_cutout.fs");
-  if (!vertexShader.has_value() || !fragmentShader.has_value()) {
-    std::cerr << "Alpha cutout shader files were not found. Textured cutout "
-                 "meshes will use the default material.\n";
-    return {};
-  }
-
-  Shader shader = LoadShader(vertexShader->string().c_str(),
-                             fragmentShader->string().c_str());
+#if defined(__ANDROID__)
+  const char *vertex = builtin_shaders::AlphaCutoutGlesVertex;
+  const char *fragment = builtin_shaders::AlphaCutoutGlesFragment;
+#else
+  const char *vertex = builtin_shaders::AlphaCutoutVertex;
+  const char *fragment = builtin_shaders::AlphaCutoutFragment;
+#endif
+  Shader shader = LoadShaderFromMemory(vertex, fragment);
   shader.locs[SHADER_LOC_MATRIX_MVP] = GetShaderLocation(shader, "mvp");
   shader.locs[SHADER_LOC_MATRIX_MODEL] = GetShaderLocation(shader, "matModel");
   shader.locs[SHADER_LOC_MAP_DIFFUSE] = GetShaderLocation(shader, "texture0");
@@ -125,8 +106,20 @@ Shader loadAlphaCutoutShader() {
   return shader;
 }
 
+Shader loadPostProcessShader() {
+#if defined(__ANDROID__)
+  const char *vertex = builtin_shaders::PostProcessGlesVertex;
+  const char *fragment = builtin_shaders::PostProcessGlesFragment;
+#else
+  const char *vertex = builtin_shaders::PostProcessVertex;
+  const char *fragment = builtin_shaders::PostProcessFragment;
+#endif
+  return LoadShaderFromMemory(vertex, fragment);
+}
+
 } // namespace
 void Renderer3D::unloadAssets() {
+  particleSystem_.clear();
   for (auto &[id, model] : dynamicModels_) {
     (void)id;
     if (model.hasModel) {
@@ -135,7 +128,12 @@ void Renderer3D::unloadAssets() {
   }
   for (auto &[id, texture] : textures_) {
     (void)id;
-    UnloadTexture(texture);
+    const bool ownedByRenderTarget = std::ranges::any_of(
+        cameraSurfaces_, [&](const auto &entry) {
+          return entry.second.texture.id == texture.id;
+        });
+    if (!ownedByRenderTarget)
+      UnloadTexture(texture);
   }
   for (auto &[id, model] : models_) {
     (void)id;
@@ -162,8 +160,18 @@ void Renderer3D::unloadAssets() {
     (void)id;
     UnloadTexture(texture);
   }
+  for (auto &[id, shader] : materialShaders_) {
+    (void)id;
+    UnloadShader(shader);
+  }
   if (hasAlphaCutoutShader_) {
     UnloadShader(alphaCutoutShader_);
+  }
+  if (hasPostProcessShader_)
+    UnloadShader(postProcessShader_);
+  for (auto &[id, target] : cameraSurfaces_) {
+    (void)id;
+    UnloadRenderTexture(target);
   }
   dynamicModels_.clear();
   textures_.clear();
@@ -174,10 +182,18 @@ void Renderer3D::unloadAssets() {
   modelTextures_.clear();
   modelPaths_.clear();
   modelTextureSettings_.clear();
+  materials_.clear();
+  renderTargets_.clear();
+  materialShaders_.clear();
   imageAnimations_.clear();
   gifAnimations_.clear();
   alphaCutoutShader_ = {};
   hasAlphaCutoutShader_ = false;
+  postProcessShader_ = {};
+  hasPostProcessShader_ = false;
+  cameraSurfaces_.clear();
+  cameraSurfaceTextureIds_.clear();
+  usedCameraSurfaces_.clear();
 }
 
 Renderer3D::~Renderer3D() { unloadAssets(); }
@@ -189,7 +205,31 @@ void Renderer3D::loadTextureAssets(const AssetRegistry &registry) {
     alphaCutoutShader_ = loadAlphaCutoutShader();
     hasAlphaCutoutShader_ = alphaCutoutShader_.id != 0;
   }
+  if (!hasPostProcessShader_) {
+    postProcessShader_ = loadPostProcessShader();
+    hasPostProcessShader_ = postProcessShader_.id != 0;
+  }
   for (const AssetManifest &asset : registry.assets) {
+    if (asset.type == "Material") {
+      if (auto material = assets::loadMaterialAsset(asset.sourcePath))
+        materials_.emplace(asset.id, std::move(*material));
+      continue;
+    }
+    if (asset.type == "RenderTarget") {
+      if (auto target = assets::loadRenderTargetAsset(asset.sourcePath))
+        renderTargets_.emplace(asset.id, std::move(*target));
+      continue;
+    }
+    if (asset.type == "Shader") {
+      if (auto shaderAsset = assets::loadShaderAsset(asset.sourcePath)) {
+        Shader shader =
+            LoadShader(shaderAsset->vertex.string().c_str(),
+                       shaderAsset->fragment.string().c_str());
+        if (shader.id != 0)
+          materialShaders_.emplace(asset.id, shader);
+      }
+      continue;
+    }
     if (asset.type == "ImageAnimation2D") {
       bool loaded = true;
       for (std::size_t frame = 0; frame < asset.sourcePaths.size(); ++frame) {

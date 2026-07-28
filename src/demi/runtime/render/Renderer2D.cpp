@@ -1014,7 +1014,13 @@ Renderer2D::~Renderer2D() {
 }
 
 void Renderer2D::loadTextureAssets(const AssetRegistry &registry) {
+  materials_.clear();
   for (const AssetManifest &asset : registry.assets) {
+    if (asset.type == "Material") {
+      if (auto material = assets::loadMaterialAsset(asset.sourcePath))
+        materials_.emplace(asset.id, std::move(*material));
+      continue;
+    }
     if (asset.type == "Tilemap2D") {
       std::string error;
       if (auto tilemap = loadTilemapAsset(asset, error)) {
@@ -1230,6 +1236,9 @@ void Renderer2D::drawWorld(const World &world) {
     drawDetailedCollider(world, camera_, cameraPosition_, *entity, width_,
                          height_);
   }
+  particleSystem_.update(world, GetFrameTime());
+  particleSystem_.draw(textures_, materials_, cameraPosition_,
+                       pixelsPerUnit(camera_, height_), width_, height_);
 
   for (const Entity *entity : renderables) {
     if (entity->hasComponent<BuildableComponent>() &&

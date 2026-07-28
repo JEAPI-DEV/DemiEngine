@@ -394,6 +394,12 @@ regressions. See `docs/3d-gameplay.md`.
 
 ## Phase 6 — Materials, Cameras, Lighting, Particles, and Render Effects
 
+**Status: complete.** Versioned material/shader assets, per-renderer property
+blocks, bounded lighting, camera passes and targets, deterministic 2D/3D
+particles, post effects, world text/UI targets, and profiler-visible render
+statistics now share one data-driven runtime path. `minimal_voxel` is the
+end-to-end probe for the system on Linux and Android.
+
 Presentation features should be data-driven assets/components rather than
 branches added to renderer files for each example.
 

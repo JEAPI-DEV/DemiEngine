@@ -196,9 +196,9 @@ ProceduralMesh = {}
 function ProceduralMesh.create(capacity) end
 ---@param entity_id string
 ---@param builder ProceduralMeshBuilder
----@param texture? string
+---@param options? {texture?: string, material?: string, render_layer?: string}
 ---@return boolean
-function ProceduralMesh.apply(entity_id, builder, texture) end
+function ProceduralMesh.apply(entity_id, builder, options) end
 
 ---@class VoxelWorldHandle
 ---@field clear fun(self: VoxelWorldHandle)

@@ -1,12 +1,12 @@
-#include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <ranges>
-#include <cmath>
 #include <utility>
 
 namespace {
@@ -109,6 +109,59 @@ function Probe:on_start()
   if Entity.set_sprite_color("ent_tinted_sprite", 0.45, 0.55, 0.65, 0.75) and
       Sprite2D.set_size("ent_tinted_sprite", 2.5, 0.5) then
     Save.set_string("test", "sprite_color", "updated")
+  end
+  Entity.create("ent_pending_mesh", {
+    components = {
+      Transform3D = {
+        position = { 2.0, 3.0, 4.0 },
+      },
+    },
+  })
+  local pending_mesh = ProceduralMesh.create(3)
+  pending_mesh:add_vertex(0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)
+  pending_mesh:add_vertex(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0)
+  pending_mesh:add_vertex(0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0)
+  if ProceduralMesh.apply("ent_pending_mesh", pending_mesh, {
+      material = "asset://materials/test",
+      render_layer = "world",
+    }) then
+    Save.set_string("test", "pending_mesh", "attached")
+  end
+  local voxel_tiles = {
+    [1] = { side = 0, top = 1, bottom = 1 },
+  }
+  local isolated_voxel = ProceduralMesh.create(0)
+  isolated_voxel:add_voxel_blocks(
+    { { x = 0, y = 0, z = 0, block = 1 } },
+    { [5] = true },
+    voxel_tiles,
+    2,
+    4
+  )
+  local adjacent_voxels = ProceduralMesh.create(0)
+  adjacent_voxels:add_voxel_blocks(
+    {
+      { x = 0, y = 0, z = 0, block = 1 },
+      { x = 1, y = 0, z = 0, block = 1 },
+      "malformed",
+    },
+    { [5] = true, [6] = true, [7] = false },
+    voxel_tiles,
+    2,
+    4
+  )
+  local invalid_voxels = ProceduralMesh.create(0)
+  invalid_voxels:add_voxel_blocks(
+    { { x = 0, y = 0, z = 0, block = 1 } },
+    { [5] = true },
+    voxel_tiles,
+    0,
+    -1
+  )
+  if isolated_voxel:vertex_count() == 36
+      and adjacent_voxels:vertex_count() == 60
+      and invalid_voxels:vertex_count() == 0 then
+    Save.set_string("test", "voxel_mesh_visibility", "passed")
   end
   Entity.create("ent_iso_parent", {
     components = {
@@ -357,8 +410,7 @@ return PropProbe
   host.advanceFixedTime(1.0F / 60.0F);
   if (std::abs(host.deltaTime() - 0.1F) > 0.0001F ||
       std::abs(host.unscaledDeltaTime() - 0.2F) > 0.0001F ||
-      std::abs(host.gameTime() - 0.1) > 0.0001 ||
-      host.fixedTime() <= 0.0 ||
+      std::abs(host.gameTime() - 0.1) > 0.0001 || host.fixedTime() <= 0.0 ||
       host.frameCount() != 1) {
     std::cerr << "Scaled and unscaled runtime clocks diverged.\n";
     return 1;
@@ -387,7 +439,8 @@ return PropProbe
   host.update(0.0F);
   if (host.saveString("test", "dynamic_create") != "called" ||
       host.saveString("test", "dynamic_start") != "called") {
-    std::cerr << "Dynamically created LuaScript missed create/start lifecycle.\n";
+    std::cerr
+        << "Dynamically created LuaScript missed create/start lifecycle.\n";
     return 1;
   }
   if (!host.removeEntityComponent("ent_dynamic_script", "LuaScript")) {
@@ -469,8 +522,7 @@ return PropProbe
         return element.id == "hud_image";
       });
   if (hudImageNode == world.ui.nodes.end() ||
-      hudImageNode->resolved.x != 18.0F ||
-      hudImageNode->resolved.y != 24.0F ||
+      hudImageNode->resolved.x != 18.0F || hudImageNode->resolved.y != 24.0F ||
       hudImageNode->animation != "asset://animations/test" ||
       hudImageNode->animationFrame != 3) {
     std::cerr << "HUD geometry mutation did not refresh resolved layout.\n";
@@ -489,6 +541,31 @@ return PropProbe
       tintedSprite->component<SpriteComponent>()->size.y != 0.5F) {
     std::cerr
         << "Sprite color Lua API did not create and update a tinted sprite.\n";
+    return 1;
+  }
+  const runtime::Entity *pendingMesh =
+      runtime::findEntity(world, "ent_pending_mesh");
+  const auto *pendingMeshRenderer =
+      pendingMesh == nullptr
+          ? nullptr
+          : pendingMesh->component<runtime::MeshRendererComponent>();
+  if (host.saveString("test", "pending_mesh") != "attached" ||
+      pendingMeshRenderer == nullptr ||
+      pendingMeshRenderer->vertices.size() != 3 ||
+      pendingMeshRenderer->normals.size() != 3 ||
+      pendingMeshRenderer->uvs.size() != 3 ||
+      pendingMeshRenderer->material != "asset://materials/test" ||
+      pendingMeshRenderer->renderLayer != "world" ||
+      !pendingMeshRenderer->hasBounds ||
+      pendingMeshRenderer->boundsMax.x != 1.0F ||
+      pendingMeshRenderer->boundsMax.z != 1.0F) {
+    std::cerr << "ProceduralMesh.apply did not configure a same-frame pending "
+                 "entity.\n";
+    return 1;
+  }
+  if (host.saveString("test", "voxel_mesh_visibility") != "passed") {
+    std::cerr << "Procedural voxel meshing did not preserve exposed-face, "
+                 "adjacency, or malformed-input behavior.\n";
     return 1;
   }
   const runtime::Entity *isoCreated =
@@ -607,7 +684,8 @@ return PropProbe
     return 1;
   }
   if (host.saveString("test", "ui_pointer_capture") != "captured") {
-    std::cerr << "Input.ui_pointer_captured did not expose HUD click ownership.\n";
+    std::cerr
+        << "Input.ui_pointer_captured did not expose HUD click ownership.\n";
     return 1;
   }
   if (host.saveString("test", "annotated_action") !=

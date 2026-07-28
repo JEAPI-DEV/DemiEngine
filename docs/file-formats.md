@@ -56,6 +56,16 @@ Texture-bearing assets accept `nearest`, `bilinear`, or `trilinear` filtering;
 same settings apply to standalone textures, explicit model textures, and
 textures embedded in glTF materials.
 
+### Render assets
+
+`Material` manifests point at versioned `*.material.json` sources. The source
+owns its shader ID, platform-independent fallback, named `asset://` texture
+slots, number/color parameters, and blend/cull/depth state. `Shader` manifests
+point at versioned `*.shader.json` sources containing vertex and fragment
+paths plus validated Linux/Android fallback IDs. Shader stage files are
+discovered as asset sidecars and therefore travel through cooking and package
+export. See [Rendering And Effects](rendering-and-effects.md).
+
 ## Performance Budgets
 
 Projects may document reference limits that profiling and CI can evaluate:

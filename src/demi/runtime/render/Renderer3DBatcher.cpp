@@ -15,8 +15,8 @@ std::string batchKey(const Entity &entity) {
     return "transparent";
   const std::string animation =
       entity.hasComponent<AnimationPlayer3DComponent>() ? entity.id : "static";
-  return "opaque:" + mesh->model + ':' + mesh->texture + ':' + mesh->shape +
-         ':' + animation;
+  return "opaque:" + mesh->material + ':' + mesh->model + ':' + mesh->texture +
+         ':' + mesh->shape + ':' + animation;
 }
 
 } // namespace

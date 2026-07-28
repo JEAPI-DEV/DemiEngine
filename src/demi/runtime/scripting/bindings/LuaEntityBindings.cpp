@@ -6,9 +6,11 @@
 #include "demi/runtime/scripting/bindings/LuaJsonBridge.h"
 
 #include <algorithm>
+#include <array>
 #include <sol/sol.hpp>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace demi::runtime {
@@ -65,48 +67,61 @@ struct LuaProceduralMeshBuilder {
       return;
     }
     const float tileWidth = 1.0F / static_cast<float>(atlasColumns);
+    std::unordered_set<int> occupiedCells;
+    occupiedCells.reserve(occupancy.size());
+    for (const auto &pair : occupancy) {
+      if (pair.first.is<int>() && pair.second.is<bool>() &&
+          pair.second.as<bool>())
+        occupiedCells.insert(pair.first.as<int>());
+    }
+
+    struct VoxelTiles {
+      int side = 0;
+      int top = 0;
+      int bottom = 0;
+    };
+    std::unordered_map<int, VoxelTiles> tilesByBlock;
+    tilesByBlock.reserve(blockTiles.size());
+    for (const auto &pair : blockTiles) {
+      if (!pair.first.is<int>() || !pair.second.is<sol::table>())
+        continue;
+      const sol::table tiles = pair.second.as<sol::table>();
+      const int side = tiles.get_or("side", 0);
+      tilesByBlock.emplace(
+          pair.first.as<int>(),
+          VoxelTiles{.side = side,
+                     .top = tiles.get_or("top", side),
+                     .bottom = tiles.get_or("bottom", side)});
+    }
+
+    constexpr std::array<std::array<int, 3>, 6> directions{{
+        {1, 0, 0}, {-1, 0, 0}, {0, 1, 0},
+        {0, -1, 0}, {0, 0, 1}, {0, 0, -1},
+    }};
     for (const auto &pair : blocks) {
+      if (!pair.second.is<sol::table>())
+        continue;
       const sol::table block = pair.second.as<sol::table>();
       const int x = block.get_or("x", 0);
       const int y = block.get_or("y", 0);
       const int z = block.get_or("z", 0);
       const int blockId = block.get_or("block", 0);
-      const sol::object tileObject = blockTiles[blockId];
-      if (!tileObject.valid() || tileObject.get_type() != sol::type::table) {
+      const auto tiles = tilesByBlock.find(blockId);
+      if (tiles == tilesByBlock.end())
         continue;
+      for (std::size_t face = 0; face < directions.size(); ++face) {
+        const auto &[nx, ny, nz] = directions[face];
+        const int neighborKey =
+            voxelOccupancyKey(x + nx, y + ny, z + nz, occupancyStride);
+        if (occupiedCells.contains(neighborKey))
+          continue;
+        const int tile = face == 2   ? tiles->second.top
+                         : face == 3 ? tiles->second.bottom
+                                     : tiles->second.side;
+        const float u0 = static_cast<float>(tile) * tileWidth;
+        addVoxelFace(x, y, z, nx, ny, nz, u0, u0 + tileWidth);
       }
-      const sol::table tiles = tileObject.as<sol::table>();
-      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y,
-                            z, 1, 0, 0, "side");
-      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y,
-                            z, -1, 0, 0, "side");
-      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y,
-                            z, 0, 1, 0, "top");
-      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y,
-                            z, 0, -1, 0, "bottom");
-      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y,
-                            z, 0, 0, 1, "side");
-      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y,
-                            z, 0, 0, -1, "side");
     }
-  }
-
-  void addVoxelFaceIfVisible(const sol::table &occupancy,
-                             const sol::table &tiles, const float tileWidth,
-                             const int occupancyStride, const int x,
-                             const int y, const int z, const int nx,
-                             const int ny, const int nz,
-                             const std::string &tileName) {
-    const int neighborKey =
-        voxelOccupancyKey(x + nx, y + ny, z + nz, occupancyStride);
-    const sol::object occupied = occupancy[neighborKey];
-    if (occupied.valid() && occupied != sol::nil && occupied.as<bool>()) {
-      return;
-    }
-    int tile = tiles.get_or(tileName, tiles.get_or("side", 0));
-    const float u0 = static_cast<float>(tile) * tileWidth;
-    const float u1 = u0 + tileWidth;
-    addVoxelFace(x, y, z, nx, ny, nz, u0, u1);
   }
 
   static int voxelOccupancyKey(const int x, const int y, const int z,
@@ -334,13 +349,26 @@ void LuaEntityBindingModule::install(LuaScriptHost &host,
   proceduralMesh.set_function("apply", [&host](
                                            const std::string &entityId,
                                            LuaProceduralMeshBuilder &builder,
-                                           sol::optional<std::string> texture) {
+                                           sol::optional<sol::object> options) {
     ProfileScope scope("ProceduralMesh.apply");
     RuntimeProfiler::addBytes("ProceduralMesh.apply.copy_to_component",
                               (builder.vertices.size() * sizeof(Vec3)) +
                                   (builder.normals.size() * sizeof(Vec3)) +
                                   (builder.uvs.size() * sizeof(Vec2)));
-    return host.setEntityMeshRenderer(entityId, texture.value_or(std::string{}),
+    std::string texture;
+    std::string material;
+    std::string renderLayer;
+    if (options && options->is<sol::table>()) {
+      const sol::table table = options->as<sol::table>();
+      texture = table.get_or("texture", std::string{});
+      material = table.get_or("material", std::string{});
+      renderLayer = table.get_or("render_layer", std::string{});
+    } else if (options && options->is<std::string>()) {
+      texture = options->as<std::string>();
+    }
+    return host.setEntityMeshRenderer(entityId, std::move(texture),
+                                      std::move(material),
+                                      std::move(renderLayer),
                                       builder.vertices, builder.normals,
                                       builder.uvs);
   });

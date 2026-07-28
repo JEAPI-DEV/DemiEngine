@@ -13,7 +13,8 @@ void collectUris(const nlohmann::json &value, const std::filesystem::path &base,
                  std::set<std::filesystem::path> &files) {
   if (value.is_object()) {
     for (const auto &[key, child] : value.items()) {
-      if (key == "uri" && child.is_string() &&
+      if ((key == "uri" || key == "vertex" || key == "fragment") &&
+          child.is_string() &&
           !child.get<std::string>().starts_with("data:"))
         files.insert(base / child.get<std::string>());
       else

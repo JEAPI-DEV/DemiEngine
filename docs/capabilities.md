@@ -20,7 +20,7 @@ Status meanings:
 | Saves | Stable | JSON slots, versions, migration hooks |
 | Audio | Stable | miniaudio playback and entity audio sources |
 | CLI validation and smoke tests | Stable | Project/example validation and headless runtime probes |
-| Lightweight 3D | Experimental | Cycle-safe transform hierarchies, CLI-generated glTF colliders with 0..1 mesh detail, spatial queries, glTF materials and skeletal clips, deterministic batching, frustum culling, resource ownership, debug rendering, and profiled reference budgets |
+| Lightweight 3D | Experimental | Cycle-safe transform hierarchies, CLI-generated glTF colliders, spatial queries, versioned materials/shaders, directional/point/spot lighting, bounded shadow passes, multi-camera targets/viewports/masks, post effects, deterministic particles, world text/UI targets, batching, culling, resource ownership, and profiler-visible render budgets |
 | Video/cutscenes | Experimental | FFmpeg-backed playback when enabled |
 | Networking | Experimental | Game-facing Lua sessions, authority, safe component snapshots, interpolation, spawn/despawn, diagnostics; optional ENet and TLS/DTLS transport |
 | Android | Experimental | Shared action/touch controls, lifecycle/display services, and debug APK packaging; release workflow remains incomplete |
