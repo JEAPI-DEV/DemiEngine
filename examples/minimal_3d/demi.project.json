@@ -23,7 +23,7 @@
       ],
       "rotate_left": ["q"],
       "rotate_right": ["e"],
-      "inspect": ["f"],
+      "fire": ["f", "mouse:left", "gamepad:south"],
       "jump": ["space"]
     }
   },

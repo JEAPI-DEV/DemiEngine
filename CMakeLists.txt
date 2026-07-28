@@ -721,6 +721,17 @@ set_tests_properties(demi-runtime-minimal-3d-profiler PROPERTIES
   ENVIRONMENT "DEMI_HEADLESS=1"
   PASS_REGULAR_EXPRESSION "DemiEngine runtime profile"
 )
+add_test(NAME demi-runtime-minimal-3d-gameplay-replay
+  COMMAND demi run linux
+    --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json
+    --input-replay
+      ${CMAKE_SOURCE_DIR}/examples/minimal_3d/replays/jump_and_fire.replay.json
+    --profiler
+)
+set_tests_properties(demi-runtime-minimal-3d-gameplay-replay PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1"
+  PASS_REGULAR_EXPRESSION "Physics3D.create_shape,[^\n]*,7,0"
+)
 add_test(NAME demi-runtime-animation-3d-frame
   COMMAND demi run
     --project ${CMAKE_SOURCE_DIR}/examples/animation_3d/demi.project.json

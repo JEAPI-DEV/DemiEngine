@@ -176,10 +176,11 @@
           ],
           "wireframe": false
         },
-        "ModelCollider3D": {
-          "asset": "asset://colliders/hyena",
+        "BoxCollider3D": {
+          "size": [0.5, 1.5, 2.3],
+          "offset": [0.0, 0, -0.1],
           "is_trigger": false,
-          "layer": ""
+          "layer": "obstacle"
         },
         "Rigidbody3D": {
           "body_type": "static",

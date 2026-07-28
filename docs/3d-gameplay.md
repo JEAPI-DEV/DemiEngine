@@ -57,16 +57,38 @@ local hit = Physics3D.sphere_cast(
 
 `CharacterController3D` is a reusable virtual capsule with slope limit, step
 height, skin width, gravity, grounding, wall slide, and moving-platform ground
-velocity. Set horizontal velocity in `on_fixed_update`, request a jump only
-when desired, and query state for grounding:
+velocity. It intentionally does not define coyote time or jump buffering:
+those are game-feel policies and belong in gameplay code. Capture the pressed
+edge in `on_update`, retain it for the desired buffer duration, and issue the
+jump from `on_fixed_update` while the example's grounded grace period is
+active:
 
 ```lua
+function Player:on_create()
+  self.jump_buffer_remaining = 0
+  self.coyote_remaining = 0
+end
+
+function Player:on_update(dt)
+  if Input.action_pressed("jump") then
+    self.jump_buffer_remaining = 0.12
+  end
+end
+
 function Player:on_fixed_update(dt)
   CharacterController3D.set_velocity(self.entity_id, vx, 0, vz)
-  if Input.action_pressed("jump") then
-    CharacterController3D.jump(self.entity_id, 7)
-  end
   local state = CharacterController3D.state(self.entity_id)
+  if state and state.grounded then
+    self.coyote_remaining = 0.12
+  else
+    self.coyote_remaining = math.max(0, self.coyote_remaining - dt)
+  end
+  self.jump_buffer_remaining = math.max(0, self.jump_buffer_remaining - dt)
+  if self.jump_buffer_remaining > 0 and self.coyote_remaining > 0 then
+    CharacterController3D.jump(self.entity_id, 7)
+    self.jump_buffer_remaining = 0
+    self.coyote_remaining = 0
+  end
 end
 ```
 
@@ -83,7 +105,7 @@ deterministic and usable in headless tests.
 
 The `minimal_3d` example is the reference probe. It uses public APIs for
 capsule movement and grounding, jumping, trigger pickups, a kinematic moving
-platform, and projectile-style sphere casts.
+platform, and continuous rigidbody projectiles.
 
 ## Determinism and testing
 

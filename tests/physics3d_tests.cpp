@@ -289,6 +289,33 @@ bool testCharacterAndCameraMath() {
   return true;
 }
 
+bool testAirborneJumpRequestIsNotBufferedByPhysics() {
+  World world;
+  Entity player;
+  player.id = "airborne_character";
+  player.setComponent<Transform3DComponent>(
+      Transform3DComponent{.position = {0.0F, 4.0F, 0.0F}});
+  player.setComponent<CharacterController3DComponent>(
+      CharacterController3DComponent{.radius = 0.4F, .height = 1.8F});
+  world.entities.push_back(std::move(player));
+
+  if (!requestCharacterJump3D(world, "airborne_character", 6.0F))
+    return false;
+  stepPhysics3D(world, 1.0F / 60.0F);
+
+  const auto state = characterState3D(world, "airborne_character");
+  const auto *controller =
+      findEntity(world, "airborne_character")
+          ->component<CharacterController3DComponent>();
+  if (!state || state->appliedMotion.y >= 0.0F ||
+      controller->requestedJumpSpeed != 0.0F) {
+    std::cerr << "Physics retained or applied an airborne jump request; "
+                 "jump buffering belongs in gameplay code.\n";
+    return false;
+  }
+  return true;
+}
+
 bool testShapeQueriesAndColliderKinds() {
   World world;
   Entity capsule;
@@ -634,6 +661,7 @@ int main() {
   if (!testFixedStepSimulation() || !testCollisionFromEverySide() ||
       !testContinuousCollisionAndCommands() || !testTriggersAndFiltering() ||
       !testCharacterAndCameraMath() ||
+      !testAirborneJumpRequestIsNotBufferedByPhysics() ||
       !testShapeQueriesAndColliderKinds() ||
       !testCharacterStepAndMovingPlatform() ||
       !testRepeatedLifetimeAndInterpolation() || !testDeterministicReplay() ||
