@@ -111,6 +111,23 @@ std::optional<Vec3> vec3Field(const Json& object, const char* key) {
   return Vec3{.x = (*values)[0], .y = (*values)[1], .z = (*values)[2]};
 }
 
+std::vector<Vec3> vec3ArrayField(const Json &object, const char *key) {
+  const Json *array = arrayField(object, key);
+  if (array == nullptr)
+    return {};
+  std::vector<Vec3> result;
+  result.reserve(array->size());
+  for (const Json &entry : *array) {
+    if (!entry.is_array() || entry.size() < 3 || !entry[0].is_number() ||
+        !entry[1].is_number() || !entry[2].is_number())
+      return {};
+    result.push_back({static_cast<float>(entry[0].get<double>()),
+                      static_cast<float>(entry[1].get<double>()),
+                      static_cast<float>(entry[2].get<double>())});
+  }
+  return result;
+}
+
 std::optional<Color> colorField(const Json& object, const char* key) {
   const std::optional<std::array<float, 4>> values = numberArrayField<4>(object, key);
   if (!values.has_value()) {

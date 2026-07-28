@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace demi::runtime::scene_loading {
 
@@ -27,6 +28,8 @@ readJsonFile(const std::filesystem::path &path, std::string &error);
                                             const char *key);
 [[nodiscard]] std::optional<Vec3> vec3Field(const Json &object,
                                             const char *key);
+[[nodiscard]] std::vector<Vec3> vec3ArrayField(const Json &object,
+                                               const char *key);
 [[nodiscard]] std::optional<Color> colorField(const Json &object,
                                               const char *key);
 [[nodiscard]] const Json *objectField(const Json &object, const char *key);

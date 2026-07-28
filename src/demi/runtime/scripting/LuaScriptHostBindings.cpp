@@ -9,6 +9,9 @@
 #include "demi/runtime/scripting/bindings/animation/LuaAnimationBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics3DBindings.h"
+#include "demi/runtime/scripting/bindings/components/LuaRigidbody3DBindings.h"
+#include "demi/runtime/scripting/bindings/components/LuaCharacterController3DBindings.h"
+#include "demi/runtime/scripting/bindings/components/LuaCamera3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaRigidbody2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaSprite2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaTilemap2DBindings.h"
@@ -54,6 +57,9 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaTransform2DBindingModule transform2D;
   const LuaTransform3DBindingModule transform3D;
   const LuaRigidbody2DBindingModule rigidbody2D;
+  const LuaRigidbody3DBindingModule rigidbody3D;
+  const LuaCharacterController3DBindingModule characterController3D;
+  const LuaCamera3DBindingModule camera3D;
   const LuaSprite2DBindingModule sprite2D;
   const LuaPhysics2DBindingModule physics2D;
   const LuaPhysics3DBindingModule physics3D;
@@ -73,6 +79,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaTilemap2DBindingModule tilemap2D;
   const LuaBindingModule *modules[] = {
       &core,         &entity,    &transform2D, &transform3D, &rigidbody2D,
+      &rigidbody3D,  &characterController3D, &camera3D,
       &sprite2D,     &physics2D, &physics3D,   &hud,         &save,
       &audio,        &video,     &cutscene,    &network,     &networkSession,
       &tls,          &regex,     &random,      &isoGrid,     &animation,

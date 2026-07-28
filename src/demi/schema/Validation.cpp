@@ -275,6 +275,92 @@ void validateTransform3DHierarchy(Diagnostics &diagnostics,
   }
 }
 
+void validatePhysics3D(Diagnostics &diagnostics,
+                       const std::filesystem::path &path,
+                       const nlohmann::json &document) {
+  if (!document.contains("entities") || !document["entities"].is_array())
+    return;
+  constexpr std::array colliderNames{
+      "BoxCollider3D", "SphereCollider3D", "CapsuleCollider3D",
+      "ConvexCollider3D", "ModelCollider3D"};
+  for (const auto &entity : document["entities"]) {
+    if (!entity.is_object() || !entity.contains("components") ||
+        !entity["components"].is_object())
+      continue;
+    const std::string id = entity.value("id", "ent_unknown");
+    const auto &components = entity["components"];
+    const auto body = components.find("Rigidbody3D");
+    const std::string bodyType =
+        body != components.end() && body->is_object()
+            ? body->value("body_type", "static")
+            : "static";
+    const int colliderCount = static_cast<int>(std::ranges::count_if(
+        colliderNames, [&](const char *name) { return components.contains(name); }));
+    if (colliderCount > 1)
+      diagnostics.push_back(
+          {.severity = Severity::Error,
+           .code = "PHYSICS3D_MULTIPLE_COLLIDERS",
+           .message = "Entity " + id +
+                      " has multiple 3D collider components.",
+           .path = path.string(),
+           .suggestion = "Use one explicit collider per entity; compose a "
+                         "compound from child entities."});
+    if (body != components.end() && bodyType != "static" &&
+        colliderCount == 0)
+      diagnostics.push_back(
+          {.severity = Severity::Error,
+           .code = "PHYSICS3D_BODY_REQUIRES_COLLIDER",
+           .message = "Moving Rigidbody3D " + id + " has no collider.",
+           .path = path.string(),
+           .suggestion = "Add a box, sphere, capsule, or convex collider."});
+    if (components.contains("ModelCollider3D") && bodyType != "static")
+      diagnostics.push_back(
+          {.severity = Severity::Error,
+           .code = "PHYSICS3D_MESH_REQUIRES_STATIC_BODY",
+           .message = "Triangle-mesh collider " + id +
+                      " must use a static body.",
+           .path = path.string(),
+           .suggestion = "Use ConvexCollider3D for moving bodies."});
+    if (body != components.end() && bodyType != "static") {
+      const auto transform = components.find("Transform3D");
+      if (transform != components.end() && transform->is_object() &&
+          !transform->value("parent", "").empty())
+        diagnostics.push_back(
+            {.severity = Severity::Error,
+             .code = "PHYSICS3D_MOVING_BODY_REQUIRES_ROOT_TRANSFORM",
+             .message = "Moving Rigidbody3D " + id +
+                        " cannot have a parent Transform3D.",
+             .path = path.string(),
+             .suggestion = "Keep the physics body at the scene root and "
+                           "parent visual children to it."});
+    }
+    const auto capsule = components.find("CapsuleCollider3D");
+    if (capsule != components.end() && capsule->is_object() &&
+        capsule->value("height", 1.8F) <
+            2.0F * capsule->value("radius", 0.4F))
+      diagnostics.push_back(
+          {.severity = Severity::Error,
+           .code = "PHYSICS3D_CAPSULE_HEIGHT_TOO_SMALL",
+           .message = "Capsule collider " + id +
+                      " height must be at least twice its radius.",
+           .path = path.string(),
+           .suggestion = "Increase height or reduce radius."});
+    const auto convex = components.find("ConvexCollider3D");
+    if (convex != components.end() && convex->is_object()) {
+      const auto points = convex->find("points");
+      if (points == convex->end() || !points->is_array() ||
+          points->size() < 4)
+        diagnostics.push_back(
+            {.severity = Severity::Error,
+             .code = "PHYSICS3D_CONVEX_REQUIRES_FOUR_POINTS",
+             .message = "Convex collider " + id +
+                        " needs at least four points.",
+             .path = path.string(),
+             .suggestion = "Provide a non-coplanar convex point set."});
+    }
+  }
+}
+
 } // namespace
 
 SourceFileKind classifySourceFile(const std::filesystem::path &path) {
@@ -408,6 +494,8 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
                          expansion.diagnostics.end());
       if (expansion.document)
         validateTransform3DHierarchy(diagnostics, path, *expansion.document);
+      if (expansion.document)
+        validatePhysics3D(diagnostics, path, *expansion.document);
     } catch (const nlohmann::json::parse_error &) {
       // validateSceneComponents already reports malformed JSON.
     }

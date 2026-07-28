@@ -16,6 +16,15 @@ std::string valueAfter(const std::vector<std::string>& args, const std::string& 
   return {};
 }
 
+bool hasArg(const std::vector<std::string> &args,
+            const std::string &needle) {
+  for (const std::string &arg : args) {
+    if (arg == needle)
+      return true;
+  }
+  return false;
+}
+
 int numericValueAfter(const std::vector<std::string>& args, const std::string& key) {
   const std::string value = valueAfter(args, key);
   if (value.empty()) {
@@ -44,12 +53,14 @@ int main(int argc, char** argv) {
   const std::string project = valueAfter(args, "--project");
   if (project.empty()) {
     std::cerr << demi::EngineName << " runtime " << demi::EngineVersion << '\n';
-    std::cerr << "Usage: demi-runtime --project <project> [--frames count|--max-frames count]\n";
+    std::cerr << "Usage: demi-runtime --project <project> "
+                 "[--frames count|--max-frames count] [--profiler]\n";
     return 2;
   }
 
   return demi::runtime::runProject(demi::runtime::RuntimeOptions{
     .projectPath = project,
     .maxFrames = frameLimitFrom(args),
+    .profiler = hasArg(args, "--profiler"),
   });
 }

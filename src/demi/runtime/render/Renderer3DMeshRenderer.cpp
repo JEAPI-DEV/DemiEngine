@@ -380,6 +380,39 @@ void drawMeshEntity(
     DrawSphereWires(colliderCenter, collider.radius * maximumScale, 16, 16,
                     {244, 91, 105, 255});
   }
+  if (drawDebugColliders && entity.hasComponent<CapsuleCollider3DComponent>()) {
+    const auto &collider = *entity.component<CapsuleCollider3DComponent>();
+    const float radius =
+        collider.radius *
+        std::max(std::abs(worldTransform->scale.x),
+                 std::abs(worldTransform->scale.z));
+    const float halfSegment =
+        std::max(collider.height * std::abs(worldTransform->scale.y) * 0.5F -
+                     radius,
+                 0.0F);
+    const Vec3 center =
+        transformPoint3D(*worldTransform, collider.offset);
+    const Vec3 axis =
+        normalize(transformDirection3D(*worldTransform, {0.0F, 1.0F, 0.0F}));
+    const Vec3 lower = subtract(center, scale(axis, halfSegment));
+    const Vec3 upper = add(center, scale(axis, halfSegment));
+    DrawCapsuleWires(toRlVec3(lower), toRlVec3(upper), radius, 16, 8,
+                     {244, 91, 105, 255});
+  }
+  if (drawDebugColliders && entity.hasComponent<ConvexCollider3DComponent>()) {
+    const auto &collider = *entity.component<ConvexCollider3DComponent>();
+    for (std::size_t first = 0; first < collider.points.size(); ++first)
+      for (std::size_t second = first + 1; second < collider.points.size();
+           ++second)
+        DrawLine3D(
+            toRlVec3(transformPoint3D(
+                *worldTransform,
+                add(collider.points[first], collider.offset))),
+            toRlVec3(transformPoint3D(
+                *worldTransform,
+                add(collider.points[second], collider.offset))),
+            {244, 91, 105, 255});
+  }
 }
 
 } // namespace demi::runtime::renderer3d_detail

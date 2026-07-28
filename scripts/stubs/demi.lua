@@ -376,6 +376,27 @@ function Transform3D.get_scale(entity_id) end
 ---@param z number
 ---@return boolean
 function Transform3D.set_scale(entity_id, x, y, z) end
+---@param entity_id string
+---@return number|nil x
+---@return number|nil y
+---@return number|nil z
+function Transform3D.forward(entity_id) end
+---@param entity_id string
+---@return number|nil x
+---@return number|nil y
+---@return number|nil z
+function Transform3D.right(entity_id) end
+---@param entity_id string
+---@return number|nil x
+---@return number|nil y
+---@return number|nil z
+function Transform3D.up(entity_id) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@return boolean
+function Transform3D.look_at(entity_id, x, y, z) end
 
 ---@class Sprite2DService
 Sprite2D = {}
@@ -644,6 +665,107 @@ function Rigidbody2D.move_kinematic(entity_id, x, y, fixed_dt) end
 ---@return number?, number?
 function Rigidbody2D.move_and_slide(entity_id, motion_x, motion_y) end
 
+---@class Rigidbody3DService
+Rigidbody3D = {}
+---@param entity_id string
+---@return number|nil x
+---@return number|nil y
+---@return number|nil z
+function Rigidbody3D.get_velocity(entity_id) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@return boolean
+function Rigidbody3D.set_velocity(entity_id, x, y, z) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@return boolean
+function Rigidbody3D.add_force(entity_id, x, y, z) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@return boolean
+function Rigidbody3D.add_impulse(entity_id, x, y, z) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@return boolean
+function Rigidbody3D.add_torque(entity_id, x, y, z) end
+---@param entity_id string
+---@param awake boolean
+---@return boolean
+function Rigidbody3D.set_awake(entity_id, awake) end
+---@param entity_id string
+---@param enabled boolean
+---@return boolean
+function Rigidbody3D.set_enabled(entity_id, enabled) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@param rotation_x number
+---@param rotation_y number
+---@param rotation_z number
+---@param fixed_dt number
+---@return boolean
+function Rigidbody3D.move_kinematic(entity_id, x, y, z, rotation_x, rotation_y, rotation_z, fixed_dt) end
+
+---@class CharacterController3DState
+---@field velocity number[]
+---@field grounded boolean
+---@field ground_entity string
+---@class CharacterController3DService
+CharacterController3D = {}
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@return boolean
+function CharacterController3D.set_velocity(entity_id, x, y, z) end
+---@param entity_id string
+---@param speed number
+---@return boolean
+function CharacterController3D.jump(entity_id, speed) end
+---@param entity_id string
+---@return CharacterController3DState|nil
+function CharacterController3D.state(entity_id) end
+
+---@class CameraRay3D
+---@field origin number[]
+---@field direction number[]
+---@class Camera3DService
+Camera3D = {}
+---@param entity_id string
+---@param screen_x number
+---@param screen_y number
+---@param viewport_width number
+---@param viewport_height number
+---@return CameraRay3D|nil
+function Camera3D.screen_ray(entity_id, screen_x, screen_y, viewport_width, viewport_height) end
+---@param entity_id string
+---@param world_x number
+---@param world_y number
+---@param world_z number
+---@param viewport_width number
+---@param viewport_height number
+---@return number[]|nil
+function Camera3D.world_to_screen(entity_id, world_x, world_y, world_z, viewport_width, viewport_height) end
+---@param entity_id string
+---@param screen_x number
+---@param screen_y number
+---@param viewport_width number
+---@param viewport_height number
+---@param distance number
+---@return number|nil x
+---@return number|nil y
+---@return number|nil z
+function Camera3D.screen_to_world(entity_id, screen_x, screen_y, viewport_width, viewport_height, distance) end
+
 ---@class Physics2DService
 Physics2D = {}
 ---@param x number
@@ -696,9 +818,12 @@ function Physics2D.raycast(origin_x, origin_y, direction_x, direction_y, distanc
 Physics3D = {}
 ---@class PhysicsRaycastHit3D
 ---@field entity_id string
+---@field layer string
 ---@field point number[]
 ---@field normal number[]
 ---@field distance number
+---@field fraction number
+---@field is_trigger boolean
 ---@param x number
 ---@param y number
 ---@param z number
@@ -706,6 +831,24 @@ Physics3D = {}
 ---@param ignored_entity_id? string
 ---@return string[]
 function Physics3D.overlap_sphere(x, y, z, radius, ignored_entity_id) end
+---@param x number
+---@param y number
+---@param z number
+---@param radius number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return PhysicsRaycastHit3D[]
+function Physics3D.overlap_sphere_all(x, y, z, radius, layer, ignored_entity_id) end
+---@param x number
+---@param y number
+---@param z number
+---@param width number
+---@param height number
+---@param depth number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return PhysicsRaycastHit3D[]
+function Physics3D.overlap_box_all(x, y, z, width, height, depth, layer, ignored_entity_id) end
 ---@param origin_x number
 ---@param origin_y number
 ---@param origin_z number
@@ -716,6 +859,18 @@ function Physics3D.overlap_sphere(x, y, z, radius, ignored_entity_id) end
 ---@param ignored_entity_id? string
 ---@return PhysicsRaycastHit3D|nil
 function Physics3D.raycast(origin_x, origin_y, origin_z, direction_x, direction_y, direction_z, distance, ignored_entity_id) end
+---@param origin_x number
+---@param origin_y number
+---@param origin_z number
+---@param radius number
+---@param direction_x number
+---@param direction_y number
+---@param direction_z number
+---@param distance number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return PhysicsRaycastHit3D|nil
+function Physics3D.sphere_cast(origin_x, origin_y, origin_z, radius, direction_x, direction_y, direction_z, distance, layer, ignored_entity_id) end
 
 ---@class PhysicsContactFilter2D
 ---@field layer? string

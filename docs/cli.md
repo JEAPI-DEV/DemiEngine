@@ -49,8 +49,12 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
 - `demi lua-stubs generate [path]`: copy the checked-in LuaLS/EmmyLua annotations for the exposed runtime Lua API. The default output is `scripts/stubs/demi.lua`.
 - `demi test`: run built-in scaffold checks.
 - `demi run --project <project> [--frames count]`: launch the runtime preview. Use `--frames 1` for automation.
+- `demi run linux --project <project> --profiler`: print slow-frame details,
+  frame-time percentiles, and a sorted runtime scope report when the run ends.
 - `demi run ... --input-replay <fixture.replay.json>`: replay deterministic input frames; the project fixed timestep must match the fixture.
-- `demi run ... --profile-report <report.csv>`: aggregate runtime scopes and write a developer profile report.
+- `demi run ... --profile-report <report.csv>`: write the same aggregate
+  runtime scopes to a report file. It also enables collection when
+  `--profiler` is omitted.
 - `demi run ... --debug-overlays <names>`: override project overlays with a comma-separated list of `colliders`, `contacts`, `grid`, `entity_ids`, `draw_order`, `ui_bounds`, and `profiler`.
 - `demi editor --project <project>`: launch the editor target once implemented.
 

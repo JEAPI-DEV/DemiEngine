@@ -95,6 +95,8 @@ void Renderer3D::drawWorld(World &world, const float deltaTime) {
     if (entity.hasComponent<MeshRendererComponent>() ||
         entity.hasComponent<BoxCollider3DComponent>() ||
         entity.hasComponent<SphereCollider3DComponent>() ||
+        entity.hasComponent<CapsuleCollider3DComponent>() ||
+        entity.hasComponent<ConvexCollider3DComponent>() ||
         entity.hasComponent<ModelCollider3DComponent>()) {
       if (entity.hasComponent<MeshRendererComponent>() && ![&]() {
             ProfileScope scope("Renderer3D.frustum_cull");

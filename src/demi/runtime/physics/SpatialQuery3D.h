@@ -1,6 +1,6 @@
 #pragma once
 
-#include "demi/runtime/scene/model/SceneTypes.h"
+#include "demi/runtime/physics/Physics3DTypes.h"
 
 #include <optional>
 #include <string>
@@ -12,13 +12,6 @@ struct Entity;
 struct Transform3DComponent;
 struct World;
 
-struct PhysicsRaycastHit3D {
-  std::string entityId;
-  Vec3 point;
-  Vec3 normal;
-  float distance = 0.0F;
-};
-
 [[nodiscard]] bool
 collidersOverlap3D(const World &world, const Entity &left,
                    const Transform3DComponent *leftLocalOverride,
@@ -27,9 +20,29 @@ collidersOverlap3D(const World &world, const Entity &left,
 [[nodiscard]] std::vector<std::string>
 overlapSphere3D(const World &world, Vec3 center, float radius,
                 const std::string &ignoredEntityId = {});
+[[nodiscard]] std::vector<PhysicsQueryHit3D>
+overlapSphereAll3D(const World &world, Vec3 center, float radius,
+                   const std::string &layer = {},
+                   const std::string &ignoredEntityId = {});
+[[nodiscard]] std::vector<PhysicsQueryHit3D>
+overlapBoxAll3D(const World &world, Vec3 center, Vec3 size,
+                const std::string &layer = {},
+                const std::string &ignoredEntityId = {});
+[[nodiscard]] std::vector<PhysicsQueryHit3D>
+overlapCapsuleAll3D(const World &world, Vec3 center, float radius,
+                    float height, const std::string &layer = {},
+                    const std::string &ignoredEntityId = {});
 
 [[nodiscard]] std::optional<PhysicsRaycastHit3D>
 raycast3D(const World &world, Vec3 origin, Vec3 direction, float distance,
           const std::string &ignoredEntityId = {});
+[[nodiscard]] std::optional<PhysicsQueryHit3D>
+sphereCast3D(const World &world, Vec3 origin, float radius, Vec3 direction,
+             float distance, const std::string &layer = {},
+             const std::string &ignoredEntityId = {});
+[[nodiscard]] std::optional<PhysicsQueryHit3D>
+capsuleCast3D(const World &world, Vec3 origin, float radius, float height,
+              Vec3 direction, float distance, const std::string &layer = {},
+              const std::string &ignoredEntityId = {});
 
 } // namespace demi::runtime

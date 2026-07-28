@@ -31,5 +31,19 @@ void LuaTransform3DBindingModule::install(LuaScriptHost &host,
       "set_scale", [&host](const std::string &id, float x, float y, float z) {
         return host.setEntityScale3D(id, x, y, z);
       });
+  transform.set_function("forward", [state, &host](const std::string &id) {
+    return luaVec3Result(state, host.entityForward3D(id));
+  });
+  transform.set_function("right", [state, &host](const std::string &id) {
+    return luaVec3Result(state, host.entityRight3D(id));
+  });
+  transform.set_function("up", [state, &host](const std::string &id) {
+    return luaVec3Result(state, host.entityUp3D(id));
+  });
+  transform.set_function(
+      "look_at",
+      [&host](const std::string &id, float x, float y, float z) {
+        return host.lookAtEntity3D(id, x, y, z);
+      });
 }
 } // namespace demi::runtime

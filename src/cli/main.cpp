@@ -66,12 +66,13 @@ void printHelp() {
       << "  demi lua-stubs generate [path]\n"
       << "  demi test\n"
       << "  demi run --project <project> [--frames count|--max-frames count]\n"
+      << "           [--profiler]\n"
       << "           [--input-replay <fixture.replay.json>]\n"
       << "           [--profile-report <report.csv>]\n"
       << "           [--debug-overlays <colliders,contacts,grid,entity_ids,"
          "draw_order,ui_bounds,profiler>]\n"
       << "  demi run linux [--project <project>] [--frames count|--max-frames "
-         "count]\n"
+         "count] [--profiler]\n"
       << "  demi serve --project <project>\n"
       << "  demi build apk [--project <project>] [--gradle gradle]\n"
       << "  demi build linux [--project <project>] [--output path]\n"
@@ -155,6 +156,7 @@ int runProjectCommand(const std::vector<std::string> &args,
       .projectPath = project,
       .maxFrames = frameLimitFrom(args),
       .serve = serve,
+      .profiler = hasArg(args, "--profiler"),
       .inputReplayPath = valueAfter(args, "--input-replay"),
       .profileReportPath = valueAfter(args, "--profile-report"),
       .debugOverlays = valueAfter(args, "--debug-overlays"),

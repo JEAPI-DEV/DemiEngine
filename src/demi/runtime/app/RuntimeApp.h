@@ -9,6 +9,7 @@ struct RuntimeOptions {
   std::filesystem::path projectPath;
   int maxFrames = 0;
   bool serve = false;
+  bool profiler = false;
   std::filesystem::path inputReplayPath;
   std::filesystem::path profileReportPath;
   std::string debugOverlays;

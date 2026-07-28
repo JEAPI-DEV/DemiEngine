@@ -1,8 +1,10 @@
 #Minimal 3D Example
 
 This reference scene exercises hierarchical transforms, glTF materials,
-texture importer settings, collision-aware movement, CLI-generated glTF
-collider assets, debug colliders, and the `Physics3D` spatial-query API. Its
+texture importer settings, the public capsule character controller, a
+kinematic moving platform, trigger pickups, projectile-style sphere casts,
+CLI-generated glTF collider assets, debug colliders, and the `Physics3D`
+spatial-query API. Its
 project file sets explicit budgets of 16.67 ms per frame, 128 draw calls, and
 64 resident assets.
 

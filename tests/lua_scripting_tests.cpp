@@ -541,8 +541,9 @@ return PropProbe
   }
   const std::optional<runtime::Vec3> moved3D =
       host.entityPosition3D("ent_3d_mover");
-  if (!moved3D.has_value() || moved3D->x != 0.0F) {
-    std::cerr << "3D dynamic mover passed through a static BoxCollider3D.\n";
+  if (!moved3D.has_value() || moved3D->x != 1.0F) {
+    std::cerr << "Transform3D.set_position did not directly author the "
+                 "requested transform.\n";
     return 1;
   }
   if (!host.setEntityPosition3D("ent_3d_mover", -1.0F, 0.5F, 0.0F)) {
@@ -551,8 +552,15 @@ return PropProbe
   }
   const std::optional<runtime::Vec3> sphereBlocked3D =
       host.entityPosition3D("ent_3d_mover");
-  if (!sphereBlocked3D.has_value() || sphereBlocked3D->x != 0.0F) {
-    std::cerr << "3D dynamic mover passed through a static SphereCollider3D.\n";
+  if (!sphereBlocked3D.has_value() || sphereBlocked3D->x != -1.0F) {
+    std::cerr << "Transform3D.set_position retained legacy collision "
+                 "resolution.\n";
+    return 1;
+  }
+  if (!host.setRigidbodyVelocity3D("ent_3d_mover", 2.0F, 0.0F, 0.0F) ||
+      !host.getRigidbodyVelocity3D("ent_3d_mover") ||
+      host.getRigidbodyVelocity3D("ent_3d_mover")->x != 2.0F) {
+    std::cerr << "Public Rigidbody3D velocity service failed.\n";
     return 1;
   }
   const runtime::Entity *child = runtime::findEntity(world, "ent_3d_child");

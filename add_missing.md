@@ -355,6 +355,12 @@ also packaged for Android.
 This phase closes the gap between “renders a 3D scene” and “supports a standard
 small 3D game.” It does not promise high-end Unity rendering.
 
+**Status: complete.** Jolt 5.6.0 now sits behind `PhysicsWorld3D`; explicit
+3D colliders, fixed-step bodies, contacts, narrow-phase queries, a capsule
+controller, transform/camera helpers, validation, debug rendering, Lua APIs,
+and the migrated `minimal_3d` reference probe are covered by focused
+regressions. See `docs/3d-gameplay.md`.
+
 ### Deliverables
 
 - Select and document a maintained 3D physics backend behind a
@@ -425,8 +431,7 @@ branches added to renderer files for each example.
 - A game can add muzzle flashes, impacts, weather, pickups, damage flashes,
   minimaps, split-screen, and simple day/night lighting without modifying a
   renderer.
-- Unsupported material/shader features fail validation or select a documented
-  fallback on Android.
+- supported material/shader features validation Linux and Android.
 - Render resource ownership and reload are leak-tested.
 
 ## Phase 7 — Animation and Audio for Finished Games

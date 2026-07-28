@@ -145,6 +145,25 @@ public:
   entityScale3D(const std::string &entityId) const;
   [[nodiscard]] bool setEntityScale3D(const std::string &entityId, float x,
                                       float y, float z);
+  [[nodiscard]] std::optional<Vec3>
+  entityForward3D(const std::string &entityId) const;
+  [[nodiscard]] std::optional<Vec3>
+  entityRight3D(const std::string &entityId) const;
+  [[nodiscard]] std::optional<Vec3>
+  entityUp3D(const std::string &entityId) const;
+  [[nodiscard]] bool lookAtEntity3D(const std::string &entityId, float x,
+                                    float y, float z);
+  [[nodiscard]] std::optional<CameraRay3D>
+  cameraRay3D(const std::string &entityId, float screenX, float screenY,
+              float viewportWidth, float viewportHeight) const;
+  [[nodiscard]] std::optional<Vec2>
+  cameraWorldToScreen3D(const std::string &entityId, float worldX,
+                        float worldY, float worldZ, float viewportWidth,
+                        float viewportHeight) const;
+  [[nodiscard]] std::optional<Vec3>
+  cameraScreenToWorld3D(const std::string &entityId, float screenX,
+                        float screenY, float viewportWidth,
+                        float viewportHeight, float distance) const;
   [[nodiscard]] std::optional<std::string>
   findEntityId(const std::string &idOrName) const;
   [[nodiscard]] bool entityExists(const std::string &entityId) const;
@@ -198,6 +217,30 @@ public:
                                          bool enabled);
   [[nodiscard]] bool moveKinematicBody(const std::string &entityId, float x,
                                        float y, float fixedDt);
+  [[nodiscard]] std::optional<Vec3>
+  getRigidbodyVelocity3D(const std::string &entityId) const;
+  [[nodiscard]] bool setRigidbodyVelocity3D(const std::string &entityId,
+                                            float x, float y, float z);
+  [[nodiscard]] bool addRigidbodyImpulse3D(const std::string &entityId,
+                                           float x, float y, float z);
+  [[nodiscard]] bool addRigidbodyForce3D(const std::string &entityId, float x,
+                                         float y, float z);
+  [[nodiscard]] bool addRigidbodyTorque3D(const std::string &entityId, float x,
+                                          float y, float z);
+  [[nodiscard]] bool setRigidbodyAwake3D(const std::string &entityId,
+                                         bool awake);
+  [[nodiscard]] bool setRigidbodyEnabled3D(const std::string &entityId,
+                                           bool enabled);
+  [[nodiscard]] bool moveKinematicBody3D(const std::string &entityId, float x,
+                                         float y, float z, float rotationX,
+                                         float rotationY, float rotationZ,
+                                         float fixedDt);
+  [[nodiscard]] bool setCharacterVelocity3D(const std::string &entityId,
+                                            float x, float y, float z);
+  [[nodiscard]] bool requestCharacterJump3D(const std::string &entityId,
+                                            float speed);
+  [[nodiscard]] std::optional<CharacterMoveResult3D>
+  characterState3D(const std::string &entityId) const;
   [[nodiscard]] std::optional<Vec2>
   moveAndSlideKinematic(const std::string &entityId, float x, float y);
   [[nodiscard]] bool
@@ -221,10 +264,24 @@ public:
   [[nodiscard]] std::vector<std::string>
   physicsOverlapSphere3D(float x, float y, float z, float radius,
                          const std::string &ignoredEntityId) const;
+  [[nodiscard]] std::vector<PhysicsQueryHit3D>
+  physicsOverlapSphereAll3D(float x, float y, float z, float radius,
+                            const std::string &layer,
+                            const std::string &ignoredEntityId) const;
+  [[nodiscard]] std::vector<PhysicsQueryHit3D>
+  physicsOverlapBoxAll3D(float x, float y, float z, float width, float height,
+                         float depth, const std::string &layer,
+                         const std::string &ignoredEntityId) const;
   [[nodiscard]] std::optional<PhysicsRaycastHit3D>
   physicsRaycast3D(float originX, float originY, float originZ,
                    float directionX, float directionY, float directionZ,
                    float distance, const std::string &ignoredEntityId) const;
+  [[nodiscard]] std::optional<PhysicsQueryHit3D>
+  physicsSphereCast3D(float originX, float originY, float originZ,
+                      float radius, float directionX, float directionY,
+                      float directionZ, float distance,
+                      const std::string &layer,
+                      const std::string &ignoredEntityId) const;
   [[nodiscard]] bool
   physicsHasContact(const std::string &entityId,
                     const PhysicsContactFilter2D &filter) const;

@@ -157,6 +157,35 @@ Vec3 transformDirection3D(const WorldTransform3D &transform,
   return rotate(quaternionFromEuler(transform.rotation), localDirection);
 }
 
+Vec3 forwardDirection3D(const WorldTransform3D &transform) {
+  return transformDirection3D(transform, {0.0F, 0.0F, 1.0F});
+}
+
+Vec3 rightDirection3D(const WorldTransform3D &transform) {
+  return transformDirection3D(transform, {1.0F, 0.0F, 0.0F});
+}
+
+Vec3 upDirection3D(const WorldTransform3D &transform) {
+  return transformDirection3D(transform, {0.0F, 1.0F, 0.0F});
+}
+
+Vec3 lookAtRotation3D(const Vec3 origin, const Vec3 target) {
+  const Vec3 offset{target.x - origin.x, target.y - origin.y,
+                    target.z - origin.z};
+  const float length =
+      std::sqrt(offset.x * offset.x + offset.y * offset.y +
+                offset.z * offset.z);
+  if (length <= 0.000001F)
+    return {};
+  const Vec3 direction{offset.x / length, offset.y / length,
+                       offset.z / length};
+  return {
+      .x = -std::asin(std::clamp(direction.y, -1.0F, 1.0F)),
+      .y = std::atan2(direction.x, direction.z),
+      .z = 0.0F,
+  };
+}
+
 std::vector<Transform3DHierarchyIssue>
 validateTransform3DHierarchy(const World &world) {
   std::vector<Transform3DHierarchyIssue> issues;

@@ -25,10 +25,12 @@ For headless regression tests, pass a versioned `*.replay.json` fixture with
 `--input-replay`. Each frame replaces the full input state, so playback does
 not depend on input left over from an earlier frame.
 
-Profiling can be enabled with `DEMI_PROFILE=1` or by passing
-`--profile-report report.csv`. The report aggregates frame/update, Lua,
-rendering, physics, asset, and network scopes across the run. Project debug
-overlays are configured under `debug`; a runtime invocation can override them:
+Profiling can be enabled with `--profiler`, `DEMI_PROFILE=1`, or by passing
+`--profile-report report.csv`. `--profiler` prints slow-frame details,
+percentiles, and sorted scope totals to the terminal. The report aggregates
+frame/update, Lua, rendering, physics, asset, and network scopes across the
+run. Project debug overlays are configured under `debug`; a runtime invocation
+can override them:
 
 ```sh
 demi run --project game/demi.project.json \

@@ -43,6 +43,34 @@ FetchContent_Declare(box2d
 )
 FetchContent_MakeAvailable(box2d)
 
+# Jolt is the maintained 3D simulation backend. Keep the public engine API
+# isolated from Jolt types through PhysicsWorld3D.
+set(TARGET_HELLO_WORLD OFF CACHE BOOL "" FORCE)
+set(TARGET_PERFORMANCE_TEST OFF CACHE BOOL "" FORCE)
+set(TARGET_SAMPLES OFF CACHE BOOL "" FORCE)
+set(TARGET_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(TARGET_VIEWER OFF CACHE BOOL "" FORCE)
+set(OVERRIDE_CXX_FLAGS OFF CACHE BOOL "" FORCE)
+set(INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "" FORCE)
+set(CROSS_PLATFORM_DETERMINISTIC ON CACHE BOOL "" FORCE)
+set(GENERATE_DEBUG_SYMBOLS OFF CACHE BOOL "" FORCE)
+set(DEBUG_RENDERER_IN_DEBUG_AND_RELEASE OFF CACHE BOOL "" FORCE)
+set(PROFILER_IN_DEBUG_AND_RELEASE OFF CACHE BOOL "" FORCE)
+set(ENABLE_OBJECT_STREAM OFF CACHE BOOL "" FORCE)
+set(ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(JPH_USE_DX12 OFF CACHE BOOL "" FORCE)
+set(JPH_USE_VK OFF CACHE BOOL "" FORCE)
+set(JPH_USE_MTL OFF CACHE BOOL "" FORCE)
+set(USE_AVX OFF CACHE BOOL "" FORCE)
+set(USE_AVX2 OFF CACHE BOOL "" FORCE)
+set(USE_AVX512 OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(JoltPhysics
+  GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git
+  GIT_TAG v5.6.0
+  SOURCE_SUBDIR Build
+)
+FetchContent_MakeAvailable(JoltPhysics)
+
 FetchContent_Declare(miniaudio
   GIT_REPOSITORY https://github.com/mackron/miniaudio.git
   GIT_TAG 0.11.22
@@ -249,6 +277,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/animation/AnimationCollision2DSystem.cpp
   src/demi/runtime/animation/SpriteAnimationSystem.cpp
   src/demi/runtime/camera/Camera2DSystem.cpp
+  src/demi/runtime/camera/Camera3DMath.cpp
   src/demi/runtime/tilemap/TilemapAsset.cpp
   src/demi/runtime/tilemap/TilemapCollisionGenerator.cpp
   src/demi/runtime/tilemap/TilemapRuntime.cpp
@@ -266,6 +295,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/physics/Box2DWorldState.cpp
   src/demi/runtime/physics/Physics2D.cpp
   src/demi/runtime/physics/Physics3D.cpp
+  src/demi/runtime/physics/PhysicsWorld3D.cpp
   src/demi/runtime/profiling/RuntimeProfiler.cpp
   src/demi/runtime/profiling/ProfilerHudLayout.cpp
   src/demi/runtime/simulation/DeterministicRandom.cpp
@@ -296,6 +326,9 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/LuaEntityBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaPhysics2DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaPhysics3DBindings.cpp
+  src/demi/runtime/scripting/bindings/components/LuaRigidbody3DBindings.cpp
+  src/demi/runtime/scripting/bindings/components/LuaCharacterController3DBindings.cpp
+  src/demi/runtime/scripting/bindings/components/LuaCamera3DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaRigidbody2DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaSprite2DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaTransform2DBindings.cpp
@@ -328,9 +361,10 @@ function(configure_demi_runtime target with_renderer)
   target_link_libraries(${target} PUBLIC demi-core)
   target_include_directories(${target} PUBLIC src)
   target_compile_features(${target} PUBLIC cxx_std_20)
-  target_link_libraries(${target} PRIVATE box2d miniaudio nlohmann_json::nlohmann_json mbedtls mbedx509 mbedcrypto sol2::sol2)
+  target_link_libraries(${target} PRIVATE box2d Jolt miniaudio nlohmann_json::nlohmann_json mbedtls mbedx509 mbedcrypto sol2::sol2)
   target_compile_definitions(${target} PRIVATE
     DEMI_HAS_BOX2D=1
+    DEMI_HAS_JOLT=1
     DEMI_HAS_MINIAUDIO=1
     DEMI_HAS_MBEDTLS=1
     DEMI_HAS_SOL2=1
@@ -677,6 +711,16 @@ add_test(NAME demi-runtime-minimal-3d-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json --frames 1
 )
 set_tests_properties(demi-runtime-minimal-3d-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-minimal-3d-profiler
+  COMMAND demi run linux
+    --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json
+    --frames 3
+    --profiler
+)
+set_tests_properties(demi-runtime-minimal-3d-profiler PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1"
+  PASS_REGULAR_EXPRESSION "DemiEngine runtime profile"
+)
 add_test(NAME demi-runtime-animation-3d-frame
   COMMAND demi run
     --project ${CMAKE_SOURCE_DIR}/examples/animation_3d/demi.project.json

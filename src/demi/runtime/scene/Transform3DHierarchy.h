@@ -41,6 +41,10 @@ resolveWorldTransform3D(const World &world, const Entity &entity,
 
 [[nodiscard]] Vec3 transformDirection3D(const WorldTransform3D &transform,
                                         Vec3 localDirection);
+[[nodiscard]] Vec3 forwardDirection3D(const WorldTransform3D &transform);
+[[nodiscard]] Vec3 rightDirection3D(const WorldTransform3D &transform);
+[[nodiscard]] Vec3 upDirection3D(const WorldTransform3D &transform);
+[[nodiscard]] Vec3 lookAtRotation3D(Vec3 origin, Vec3 target);
 
 [[nodiscard]] std::vector<Transform3DHierarchyIssue>
 validateTransform3DHierarchy(const World &world);

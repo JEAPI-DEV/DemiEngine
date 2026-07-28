@@ -11,6 +11,7 @@
 #include "demi/runtime/media/MediaSystem.h"
 #include "demi/runtime/network/NetworkSystem.h"
 #include "demi/runtime/physics/Physics2D.h"
+#include "demi/runtime/physics/Physics3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/RaylibFileSystemBridge.h"
 #include "demi/runtime/scene/SceneLoader.h"
@@ -364,8 +365,14 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
       luaHost.fixedUpdate(static_cast<float>(fixedStep));
     }
     if (luaHost.physicsEnabled()) {
-      ProfileScope scope("Physics2D.step");
-      stepPhysics2D(loaded.world, static_cast<float>(fixedStep));
+      {
+        ProfileScope scope("Physics2D.step");
+        stepPhysics2D(loaded.world, static_cast<float>(fixedStep));
+      }
+      {
+        ProfileScope scope("Physics3D.step");
+        stepPhysics3D(loaded.world, static_cast<float>(fixedStep));
+      }
     }
     luaHost.advanceFixedTime(fixedStep);
     fixedAccumulator -= fixedStep;
@@ -543,7 +550,8 @@ void logSlowProfileFrame(const int frame, const double updateMs,
 } // namespace
 
 int runProject(const RuntimeOptions &options) {
-  bool profileRun = profilingEnabled() || !options.profileReportPath.empty();
+  bool profileRun = options.profiler || profilingEnabled() ||
+                    !options.profileReportPath.empty();
   RuntimeProfiler::setEnabled(profileRun);
   RuntimeProfiler::resetSession();
   std::string error;
@@ -667,6 +675,8 @@ int runProject(const RuntimeOptions &options) {
     if (profileRun) {
       printProfile(profile);
     }
+    if (options.profiler)
+      std::cout << RuntimeProfiler::sessionReport();
     writeProfileReport(options.profileReportPath);
     luaHost.destroy();
     networkSystem.shutdown();
@@ -852,6 +862,8 @@ int runProject(const RuntimeOptions &options) {
   if (profileRun) {
     printProfile(profile);
   }
+  if (options.profiler)
+    std::cout << RuntimeProfiler::sessionReport();
   writeProfileReport(options.profileReportPath);
   return 0;
 #endif

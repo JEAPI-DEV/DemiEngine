@@ -33,11 +33,86 @@ int main() {
   }
   const auto diagnostics =
       demi::validateTextFile(scene, demi::SourceFileKind::Scene);
-  std::filesystem::remove_all(root);
   if (!hasCode(diagnostics, "TRANSFORM3D_HIERARCHY_CYCLE") ||
       !hasCode(diagnostics, "TRANSFORM3D_PARENT_NOT_FOUND")) {
     std::cerr << "3D hierarchy validation diagnostics were not emitted.\n";
     return 1;
   }
+
+  const auto physicsScene = root / "invalid_physics.scene.json";
+  {
+    std::ofstream output(physicsScene);
+    output << R"({"format_version":1,"id":"scene://physics","entities":[
+      {"id":"dynamic_mesh","components":{
+        "Transform3D":{},
+        "ModelCollider3D":{"asset":"asset://colliders/level"},
+        "Rigidbody3D":{"body_type":"dynamic"}
+      }},
+      {"id":"parented","components":{
+        "Transform3D":{"parent":"root"},
+        "BoxCollider3D":{},
+        "Rigidbody3D":{"body_type":"kinematic"}
+      }},
+      {"id":"root","components":{"Transform3D":{}}},
+      {"id":"bad_capsule","components":{
+        "Transform3D":{},
+        "CapsuleCollider3D":{"radius":1.0,"height":1.0}
+      }},
+      {"id":"bad_convex","components":{
+        "Transform3D":{},
+        "ConvexCollider3D":{"points":[[0,0,0],[1,0,0],[0,1,0]]}
+      }},
+      {"id":"two_shapes","components":{
+        "Transform3D":{},
+        "BoxCollider3D":{},
+        "SphereCollider3D":{}
+      }},
+      {"id":"no_shape","components":{
+        "Transform3D":{},
+        "Rigidbody3D":{"body_type":"dynamic"}
+      }}
+    ]})";
+  }
+  const auto physicsDiagnostics =
+      demi::validateTextFile(physicsScene, demi::SourceFileKind::Scene);
+  for (const std::string code :
+       {"PHYSICS3D_MESH_REQUIRES_STATIC_BODY",
+        "PHYSICS3D_MOVING_BODY_REQUIRES_ROOT_TRANSFORM",
+        "PHYSICS3D_CAPSULE_HEIGHT_TOO_SMALL",
+        "PHYSICS3D_CONVEX_REQUIRES_FOUR_POINTS",
+        "PHYSICS3D_MULTIPLE_COLLIDERS",
+        "PHYSICS3D_BODY_REQUIRES_COLLIDER"}) {
+    if (!hasCode(physicsDiagnostics, code)) {
+      std::cerr << "Missing expected 3D physics diagnostic: " << code << '\n';
+      std::filesystem::remove_all(root);
+      return 1;
+    }
+  }
+
+  const auto validScene = root / "valid_physics.scene.json";
+  {
+    std::ofstream output(validScene);
+    output << R"({"format_version":1,"id":"scene://valid","entities":[
+      {"id":"floor","components":{
+        "Transform3D":{},
+        "ModelCollider3D":{"asset":"asset://colliders/level"},
+        "Rigidbody3D":{"body_type":"static"}
+      }},
+      {"id":"crate","components":{
+        "Transform3D":{},
+        "ConvexCollider3D":{"points":[[0,0,0],[1,0,0],[0,1,0],[0,0,1]]},
+        "Rigidbody3D":{"body_type":"dynamic"}
+      }}
+    ]})";
+  }
+  const auto validDiagnostics =
+      demi::validateTextFile(validScene, demi::SourceFileKind::Scene);
+  if (hasCode(validDiagnostics, "PHYSICS3D_MESH_REQUIRES_STATIC_BODY") ||
+      hasCode(validDiagnostics, "PHYSICS3D_CONVEX_REQUIRES_FOUR_POINTS")) {
+    std::cerr << "Valid 3D collider combinations were rejected.\n";
+    std::filesystem::remove_all(root);
+    return 1;
+  }
+  std::filesystem::remove_all(root);
   return 0;
 }
