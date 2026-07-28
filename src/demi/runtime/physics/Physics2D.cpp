@@ -1,5 +1,5 @@
-#include "demi/runtime/physics/Box2DWorldState.h"
 #include "demi/runtime/physics/Physics2D.h"
+#include "demi/runtime/physics/Box2DWorldState.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 
 #include "demi/runtime/scene/WorldQueries.h"
@@ -21,6 +21,7 @@ namespace demi::runtime {
 namespace {
 
 constexpr float QueryContactSlop = 0.06F;
+constexpr float KinematicContactSlop = 0.0001F;
 
 struct Aabb {
   float minX = 0.0F;
@@ -36,28 +37,66 @@ struct Aabb {
     return !box->isTrigger;
   if (const auto *circle = entity.component<CircleCollider2DComponent>())
     return !circle->isTrigger;
+  if (const auto *capsule = entity.component<CapsuleCollider2DComponent>())
+    return !capsule->isTrigger;
+  if (const auto *polygon = entity.component<PolygonCollider2DComponent>())
+    return !polygon->isTrigger;
+  if (const auto *edge = entity.component<EdgeCollider2DComponent>())
+    return !edge->isTrigger;
   return false;
 }
 
 [[nodiscard]] Aabb colliderAabb(const Entity &entity) {
-  const Vec2 position = entity.component<Transform2DComponent>()->position;
-  Vec2 offset;
-  Vec2 size;
-  if (const auto *box = entity.component<BoxCollider2DComponent>()) {
-    offset = box->offset;
-    size = box->size;
-  } else if (const auto *circle =
-                 entity.component<CircleCollider2DComponent>()) {
-    offset = circle->offset;
-    size = {circle->radius * 2.0F, circle->radius * 2.0F};
-  }
-  const Vec2 center{.x = position.x + offset.x, .y = position.y + offset.y};
-  return Aabb{
-      .minX = center.x - size.x * 0.5F,
-      .minY = center.y - size.y * 0.5F,
-      .maxX = center.x + size.x * 0.5F,
-      .maxY = center.y + size.y * 0.5F,
+  const Transform2DComponent &transform =
+      *entity.component<Transform2DComponent>();
+  const float cosine = std::cos(transform.rotation);
+  const float sine = std::sin(transform.rotation);
+  const auto worldPoint = [&](const Vec2 point) {
+    return Vec2{transform.position.x + point.x * cosine - point.y * sine,
+                transform.position.y + point.x * sine + point.y * cosine};
   };
+  if (const auto *circle = entity.component<CircleCollider2DComponent>()) {
+    const Vec2 center = worldPoint(circle->offset);
+    return {center.x - circle->radius, center.y - circle->radius,
+            center.x + circle->radius, center.y + circle->radius};
+  }
+
+  std::vector<Vec2> points;
+  if (const auto *box = entity.component<BoxCollider2DComponent>()) {
+    const Vec2 half{box->size.x * 0.5F, box->size.y * 0.5F};
+    points = {{box->offset.x - half.x, box->offset.y - half.y},
+              {box->offset.x + half.x, box->offset.y - half.y},
+              {box->offset.x + half.x, box->offset.y + half.y},
+              {box->offset.x - half.x, box->offset.y + half.y}};
+  } else if (const auto *capsule =
+                 entity.component<CapsuleCollider2DComponent>()) {
+    const Vec2 half{capsule->size.x * 0.5F, capsule->size.y * 0.5F};
+    points = {{capsule->offset.x - half.x, capsule->offset.y - half.y},
+              {capsule->offset.x + half.x, capsule->offset.y - half.y},
+              {capsule->offset.x + half.x, capsule->offset.y + half.y},
+              {capsule->offset.x - half.x, capsule->offset.y + half.y}};
+  } else if (const auto *polygon =
+                 entity.component<PolygonCollider2DComponent>()) {
+    points.reserve(polygon->points.size());
+    for (const Vec2 point : polygon->points)
+      points.push_back(
+          {point.x + polygon->offset.x, point.y + polygon->offset.y});
+  } else if (const auto *edge = entity.component<EdgeCollider2DComponent>()) {
+    points = edge->points;
+  }
+  if (points.empty())
+    return {transform.position.x, transform.position.y, transform.position.x,
+            transform.position.y};
+  const Vec2 first = worldPoint(points.front());
+  Aabb result{first.x, first.y, first.x, first.y};
+  for (const Vec2 point : points) {
+    const Vec2 world = worldPoint(point);
+    result.minX = std::min(result.minX, world.x);
+    result.minY = std::min(result.minY, world.y);
+    result.maxX = std::max(result.maxX, world.x);
+    result.maxY = std::max(result.maxY, world.y);
+  }
+  return result;
 }
 
 [[nodiscard]] std::string colliderLayer(const Entity &entity) {
@@ -65,12 +104,21 @@ struct Aabb {
     return box->layer;
   if (const auto *circle = entity.component<CircleCollider2DComponent>())
     return circle->layer;
+  if (const auto *capsule = entity.component<CapsuleCollider2DComponent>())
+    return capsule->layer;
+  if (const auto *polygon = entity.component<PolygonCollider2DComponent>())
+    return polygon->layer;
+  if (const auto *edge = entity.component<EdgeCollider2DComponent>())
+    return edge->layer;
   return {};
 }
 
 [[nodiscard]] bool hasCollider(const Entity &entity) {
   return entity.hasComponent<BoxCollider2DComponent>() ||
-         entity.hasComponent<CircleCollider2DComponent>();
+         entity.hasComponent<CircleCollider2DComponent>() ||
+         entity.hasComponent<CapsuleCollider2DComponent>() ||
+         entity.hasComponent<PolygonCollider2DComponent>() ||
+         entity.hasComponent<EdgeCollider2DComponent>();
 }
 
 [[nodiscard]] bool queryIntersects(const Aabb &a, const Aabb &b) {
@@ -229,6 +277,147 @@ bool addRigidbodyImpulse(World &world, const std::string &entityId,
   return true;
 }
 
+bool addRigidbodyForce(World &world, const std::string &entityId,
+                       const Vec2 force) {
+  Entity *entity = findEntity(world, entityId);
+  if (entity == nullptr || !entity->hasComponent<Rigidbody2DComponent>())
+    return false;
+#if DEMI_HAS_BOX2D
+  if (world.box2dState != nullptr) {
+    if (const auto found = world.box2dState->bodies.find(entityId);
+        found != world.box2dState->bodies.end()) {
+      auto *body = static_cast<b2Body *>(found->second);
+      body->ApplyForceToCenter({force.x, force.y}, true);
+      return true;
+    }
+  }
+#endif
+  entity->component<Rigidbody2DComponent>()->velocity.x += force.x / 60.0F;
+  entity->component<Rigidbody2DComponent>()->velocity.y += force.y / 60.0F;
+  return true;
+}
+
+bool addRigidbodyTorque(World &world, const std::string &entityId,
+                        const float torque) {
+  Entity *entity = findEntity(world, entityId);
+  if (entity == nullptr || !entity->hasComponent<Rigidbody2DComponent>())
+    return false;
+#if DEMI_HAS_BOX2D
+  if (world.box2dState != nullptr) {
+    if (const auto found = world.box2dState->bodies.find(entityId);
+        found != world.box2dState->bodies.end()) {
+      static_cast<b2Body *>(found->second)->ApplyTorque(torque, true);
+      return true;
+    }
+  }
+#endif
+  entity->component<Rigidbody2DComponent>()->angularVelocity += torque / 60.0F;
+  return true;
+}
+
+bool setRigidbodyAngularVelocity(World &world, const std::string &entityId,
+                                 const float angularVelocity) {
+  Entity *entity = findEntity(world, entityId);
+  if (entity == nullptr || !entity->hasComponent<Rigidbody2DComponent>())
+    return false;
+  entity->component<Rigidbody2DComponent>()->angularVelocity = angularVelocity;
+  return true;
+}
+
+bool setRigidbodyAwake(World &world, const std::string &entityId,
+                       const bool awake) {
+  Entity *entity = findEntity(world, entityId);
+  if (entity == nullptr || !entity->hasComponent<Rigidbody2DComponent>())
+    return false;
+  entity->component<Rigidbody2DComponent>()->awake = awake;
+  return true;
+}
+
+bool setRigidbodyEnabled(World &world, const std::string &entityId,
+                         const bool enabled) {
+  Entity *entity = findEntity(world, entityId);
+  if (entity == nullptr || !entity->hasComponent<Rigidbody2DComponent>())
+    return false;
+  entity->component<Rigidbody2DComponent>()->bodyEnabled = enabled;
+  return true;
+}
+
+bool moveKinematicBody(World &world, const std::string &entityId,
+                       const Vec2 target, const float fixedDt) {
+  Entity *entity = findEntity(world, entityId);
+  if (entity == nullptr || !entity->hasComponent<Transform2DComponent>() ||
+      !entity->hasComponent<Rigidbody2DComponent>() || fixedDt <= 0.0F)
+    return false;
+  Rigidbody2DComponent &body = *entity->component<Rigidbody2DComponent>();
+  if (body.bodyType != "kinematic")
+    return false;
+  const Vec2 current = entity->component<Transform2DComponent>()->position;
+  body.velocity = {(target.x - current.x) / fixedDt,
+                   (target.y - current.y) / fixedDt};
+  return true;
+}
+
+std::optional<Vec2> moveAndSlideKinematic(World &world,
+                                          const std::string &entityId,
+                                          const Vec2 motion) {
+  Entity *entity = findEntity(world, entityId);
+  if (entity == nullptr || !entity->hasComponent<Transform2DComponent>() ||
+      !entity->hasComponent<Rigidbody2DComponent>() ||
+      entity->component<Rigidbody2DComponent>()->bodyType != "kinematic" ||
+      !participatesInCollision(*entity))
+    return std::nullopt;
+
+  Aabb bounds = colliderAabb(*entity);
+  Vec2 applied = motion;
+  const auto isStaticObstacle = [&entity](const Entity &candidate) {
+    if (&candidate == entity || !candidate.enabled ||
+        !participatesInCollision(candidate))
+      return false;
+    const auto *body = candidate.component<Rigidbody2DComponent>();
+    return body == nullptr || body->bodyType == "static";
+  };
+  for (const Entity &candidate : world.entities) {
+    if (!isStaticObstacle(candidate))
+      continue;
+    const Aabb obstacle = colliderAabb(candidate);
+    if (bounds.maxY <= obstacle.minY || bounds.minY >= obstacle.maxY)
+      continue;
+    const float rightSeparation = obstacle.minX - bounds.maxX;
+    const float leftSeparation = obstacle.maxX - bounds.minX;
+    if (applied.x > 0.0F && rightSeparation >= -KinematicContactSlop &&
+        applied.x > rightSeparation)
+      applied.x = std::min(applied.x, rightSeparation);
+    else if (applied.x < 0.0F &&
+             leftSeparation <= KinematicContactSlop &&
+             applied.x < leftSeparation)
+      applied.x = std::max(applied.x, leftSeparation);
+  }
+  bounds.minX += applied.x;
+  bounds.maxX += applied.x;
+  for (const Entity &candidate : world.entities) {
+    if (!isStaticObstacle(candidate))
+      continue;
+    const Aabb obstacle = colliderAabb(candidate);
+    if (bounds.maxX <= obstacle.minX || bounds.minX >= obstacle.maxX)
+      continue;
+    const float topSeparation = obstacle.minY - bounds.maxY;
+    const float bottomSeparation = obstacle.maxY - bounds.minY;
+    if (applied.y > 0.0F && topSeparation >= -KinematicContactSlop &&
+        applied.y > topSeparation)
+      applied.y = std::min(applied.y, topSeparation);
+    else if (applied.y < 0.0F &&
+             bottomSeparation <= KinematicContactSlop &&
+             applied.y < bottomSeparation)
+      applied.y = std::max(applied.y, bottomSeparation);
+  }
+
+  Transform2DComponent &transform = *entity->component<Transform2DComponent>();
+  transform.position.x += applied.x;
+  transform.position.y += applied.y;
+  entity->component<Rigidbody2DComponent>()->velocity = {};
+  return applied;
+}
+
 bool overlapBox(const World &world, const Vec2 center, const Vec2 size,
                 const std::string &ignoredEntityId) {
   const Aabb query = makeAabb(center, size);
@@ -275,6 +464,66 @@ std::vector<std::string> overlapCircle(const World &world, const Vec2 center,
   return hits;
 }
 
+std::vector<PhysicsQueryHit2D>
+overlapBoxAll(const World &world, const Vec2 center, const Vec2 size,
+              const std::string &layer, const std::string &ignoredEntityId) {
+  std::vector<PhysicsQueryHit2D> hits;
+  const Aabb query = makeAabb(center, size);
+  for (const Entity &entity : world.entities) {
+    if (entity.id == ignoredEntityId ||
+        !entity.hasComponent<Transform2DComponent>() || !hasCollider(entity) ||
+        (!layer.empty() && colliderLayer(entity) != layer))
+      continue;
+    const Aabb bounds = colliderAabb(entity);
+    if (!queryIntersects(query, bounds))
+      continue;
+    const Vec2 point{std::clamp(center.x, bounds.minX, bounds.maxX),
+                     std::clamp(center.y, bounds.minY, bounds.maxY)};
+    const Vec2 delta{center.x - point.x, center.y - point.y};
+    const float distance = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+    hits.push_back({.entityId = entity.id,
+                    .layer = colliderLayer(entity),
+                    .point = point,
+                    .normal = distance > 0.000001F
+                                  ? Vec2{delta.x / distance, delta.y / distance}
+                                  : Vec2{},
+                    .distance = distance});
+  }
+  std::ranges::sort(hits, {}, &PhysicsQueryHit2D::entityId);
+  return hits;
+}
+
+std::vector<PhysicsQueryHit2D>
+overlapCircleAll(const World &world, const Vec2 center, const float radius,
+                 const std::string &layer, const std::string &ignoredEntityId) {
+  std::vector<PhysicsQueryHit2D> hits;
+  const float queryRadius = std::max(radius, 0.0F);
+  for (const Entity &entity : world.entities) {
+    if (entity.id == ignoredEntityId ||
+        !entity.hasComponent<Transform2DComponent>() || !hasCollider(entity) ||
+        (!layer.empty() && colliderLayer(entity) != layer))
+      continue;
+    const Aabb bounds = colliderAabb(entity);
+    const Vec2 point{std::clamp(center.x, bounds.minX, bounds.maxX),
+                     std::clamp(center.y, bounds.minY, bounds.maxY)};
+    const Vec2 delta{center.x - point.x, center.y - point.y};
+    const float distance = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+    if (distance > queryRadius)
+      continue;
+    hits.push_back(
+        {.entityId = entity.id,
+         .layer = colliderLayer(entity),
+         .point = point,
+         .normal = distance > 0.000001F
+                       ? Vec2{delta.x / distance, delta.y / distance}
+                       : Vec2{},
+         .distance = distance,
+         .fraction = queryRadius > 0.0F ? distance / queryRadius : 0.0F});
+  }
+  std::ranges::sort(hits, {}, &PhysicsQueryHit2D::entityId);
+  return hits;
+}
+
 std::optional<PhysicsRaycastHit2D>
 raycast2D(const World &world, const Vec2 origin, Vec2 direction,
           const float distance, const std::string &layer,
@@ -314,29 +563,70 @@ raycast2D(const World &world, const Vec2 origin, Vec2 direction,
                          origin.y + direction.y * hitDistance};
         closest = PhysicsRaycastHit2D{
             .entityId = entity.id,
+            .layer = colliderLayer(entity),
             .point = point,
             .normal = {(point.x - circleCenter.x) / circle->radius,
                        (point.y - circleCenter.y) / circle->radius},
-            .distance = hitDistance};
+            .distance = hitDistance,
+            .fraction = hitDistance / maxDistance};
       }
       continue;
     }
     const auto *box = entity.component<BoxCollider2DComponent>();
+    if (box == nullptr) {
+      const Aabb genericBounds = colliderAabb(entity);
+      float nearTime = 0.0F;
+      float farTime = maxDistance;
+      Vec2 normal;
+      const auto clip = [&](const float start, const float rayDirection,
+                            const float minimum, const float maximum,
+                            const Vec2 minimumNormal,
+                            const Vec2 maximumNormal) {
+        if (std::abs(rayDirection) <= 0.000001F)
+          return start >= minimum && start <= maximum;
+        float first = (minimum - start) / rayDirection;
+        float second = (maximum - start) / rayDirection;
+        Vec2 firstNormal = minimumNormal;
+        if (first > second) {
+          std::swap(first, second);
+          firstNormal = maximumNormal;
+        }
+        if (first > nearTime) {
+          nearTime = first;
+          normal = firstNormal;
+        }
+        farTime = std::min(farTime, second);
+        return nearTime <= farTime;
+      };
+      if (clip(origin.x, direction.x, genericBounds.minX, genericBounds.maxX,
+               {-1.0F, 0.0F}, {1.0F, 0.0F}) &&
+          clip(origin.y, direction.y, genericBounds.minY, genericBounds.maxY,
+               {0.0F, -1.0F}, {0.0F, 1.0F}) &&
+          nearTime >= 0.0F && nearTime <= maxDistance &&
+          (!closest || nearTime < closest->distance)) {
+        closest =
+            PhysicsRaycastHit2D{.entityId = entity.id,
+                                .layer = colliderLayer(entity),
+                                .point = {origin.x + direction.x * nearTime,
+                                          origin.y + direction.y * nearTime},
+                                .normal = normal,
+                                .distance = nearTime,
+                                .fraction = nearTime / maxDistance};
+      }
+      continue;
+    }
     const auto *transform = entity.component<Transform2DComponent>();
     const float cosine = std::cos(transform->rotation);
     const float sine = std::sin(transform->rotation);
     const Vec2 translatedOrigin{origin.x - transform->position.x,
                                 origin.y - transform->position.y};
-    const Vec2 localOrigin{
-        translatedOrigin.x * cosine + translatedOrigin.y * sine -
-            box->offset.x,
-        -translatedOrigin.x * sine + translatedOrigin.y * cosine -
-            box->offset.y};
-    const Vec2 localDirection{
-        direction.x * cosine + direction.y * sine,
-        -direction.x * sine + direction.y * cosine};
-    const Aabb bounds =
-        makeAabb({}, Vec2{.x = box->size.x, .y = box->size.y});
+    const Vec2 localOrigin{translatedOrigin.x * cosine +
+                               translatedOrigin.y * sine - box->offset.x,
+                           -translatedOrigin.x * sine +
+                               translatedOrigin.y * cosine - box->offset.y};
+    const Vec2 localDirection{direction.x * cosine + direction.y * sine,
+                              -direction.x * sine + direction.y * cosine};
+    const Aabb bounds = makeAabb({}, Vec2{.x = box->size.x, .y = box->size.y});
     float nearTime = 0.0F;
     float farTime = maxDistance;
     Vec2 normal;
@@ -366,13 +656,15 @@ raycast2D(const World &world, const Vec2 origin, Vec2 direction,
         nearTime < 0.0F || nearTime > maxDistance)
       continue;
     if (!closest || nearTime < closest->distance) {
-      closest = PhysicsRaycastHit2D{
-          .entityId = entity.id,
-          .point = {origin.x + direction.x * nearTime,
-                    origin.y + direction.y * nearTime},
-          .normal = {normal.x * cosine - normal.y * sine,
-                     normal.x * sine + normal.y * cosine},
-          .distance = nearTime};
+      closest =
+          PhysicsRaycastHit2D{.entityId = entity.id,
+                              .layer = colliderLayer(entity),
+                              .point = {origin.x + direction.x * nearTime,
+                                        origin.y + direction.y * nearTime},
+                              .normal = {normal.x * cosine - normal.y * sine,
+                                         normal.x * sine + normal.y * cosine},
+                              .distance = nearTime,
+                              .fraction = nearTime / maxDistance};
     }
   }
   return closest;
@@ -393,6 +685,9 @@ bool hasContact(const World &world, const std::string &entityId,
                 const PhysicsContactFilter2D &filter) {
   for (const PhysicsContact2D &contact : world.physicsContacts) {
     if (contact.entityId != entityId) {
+      continue;
+    }
+    if (contact.phase == "exit") {
       continue;
     }
     if (!filter.includeTriggers && contact.isTrigger) {
@@ -424,6 +719,7 @@ bool hasContact(const World &world, const std::string &entityId,
 
 void stepPhysics2D(World &world, const float fixedDt,
                    const PhysicsSettings2D &settings) {
+  world.previousPhysicsContacts = std::move(world.physicsContacts);
   world.physicsContacts.clear();
 #if DEMI_HAS_BOX2D
   if (world.box2dState == nullptr) {
@@ -432,15 +728,14 @@ void stepPhysics2D(World &world, const float fixedDt,
   Box2DWorldState &state = *world.box2dState;
 
   if (!state.initialised) {
-    state.world =
-        new b2World({settings.gravity.x, settings.gravity.y});
+    state.world = new b2World({settings.gravity.x, settings.gravity.y});
     state.gravityX = settings.gravity.x;
     state.gravityY = settings.gravity.y;
     state.initialised = true;
   } else if (state.gravityX != settings.gravity.x ||
              state.gravityY != settings.gravity.y) {
-    static_cast<b2World *>(state.world)->SetGravity(
-        {settings.gravity.x, settings.gravity.y});
+    static_cast<b2World *>(state.world)
+        ->SetGravity({settings.gravity.x, settings.gravity.y});
     state.gravityX = settings.gravity.x;
     state.gravityY = settings.gravity.y;
   }
@@ -453,8 +748,8 @@ void stepPhysics2D(World &world, const float fixedDt,
   auto computeShapeSignature = [&](const Entity &entity) -> std::uint64_t {
     std::uint64_t signature = 0x9E3779B97F4A7C15ULL;
     auto mix = [&signature](std::uint64_t value) {
-      signature ^= value + 0x9E3779B97F4A7C15ULL + (signature << 6) +
-                   (signature >> 2);
+      signature ^=
+          value + 0x9E3779B97F4A7C15ULL + (signature << 6) + (signature >> 2);
     };
     const auto mixFloat = [&mix](const float value) {
       mix(std::bit_cast<std::uint32_t>(value));
@@ -483,6 +778,9 @@ void stepPhysics2D(World &world, const float fixedDt,
       mixFloat(box->offset.y);
       mixFloat(box->size.x);
       mixFloat(box->size.y);
+      mixFloat(box->friction);
+      mixFloat(box->restitution);
+      mixFloat(box->density);
       mixFilter(box->layer, box->categoryBits, box->maskBits);
     }
     if (const auto *circle = entity.component<CircleCollider2DComponent>()) {
@@ -491,7 +789,49 @@ void stepPhysics2D(World &world, const float fixedDt,
       mixFloat(circle->offset.x);
       mixFloat(circle->offset.y);
       mixFloat(circle->radius);
+      mixFloat(circle->friction);
+      mixFloat(circle->restitution);
+      mixFloat(circle->density);
       mixFilter(circle->layer, circle->categoryBits, circle->maskBits);
+    }
+    if (const auto *capsule = entity.component<CapsuleCollider2DComponent>()) {
+      mix(0x03);
+      mix(static_cast<std::uint64_t>(capsule->isTrigger));
+      mixFloat(capsule->offset.x);
+      mixFloat(capsule->offset.y);
+      mixFloat(capsule->size.x);
+      mixFloat(capsule->size.y);
+      mixFloat(capsule->friction);
+      mixFloat(capsule->restitution);
+      mixFloat(capsule->density);
+      mixFilter(capsule->layer, capsule->categoryBits, capsule->maskBits);
+    }
+    if (const auto *polygon = entity.component<PolygonCollider2DComponent>()) {
+      mix(0x04);
+      mix(static_cast<std::uint64_t>(polygon->isTrigger));
+      mixFloat(polygon->offset.x);
+      mixFloat(polygon->offset.y);
+      mixFloat(polygon->friction);
+      mixFloat(polygon->restitution);
+      mixFloat(polygon->density);
+      for (const Vec2 point : polygon->points) {
+        mixFloat(point.x);
+        mixFloat(point.y);
+      }
+      mixFilter(polygon->layer, polygon->categoryBits, polygon->maskBits);
+    }
+    if (const auto *edge = entity.component<EdgeCollider2DComponent>()) {
+      mix(0x05);
+      mix(static_cast<std::uint64_t>(edge->loop));
+      mix(static_cast<std::uint64_t>(edge->isTrigger));
+      mixFloat(edge->friction);
+      mixFloat(edge->restitution);
+      mixFloat(edge->density);
+      for (const Vec2 point : edge->points) {
+        mixFloat(point.x);
+        mixFloat(point.y);
+      }
+      mixFilter(edge->layer, edge->categoryBits, edge->maskBits);
     }
     return signature;
   };
@@ -501,18 +841,23 @@ void stepPhysics2D(World &world, const float fixedDt,
 
   auto createFixtures = [&](Entity &entity, b2Body *body) {
     if (entity.hasComponent<BoxCollider2DComponent>()) {
-      const BoxCollider2DComponent &box = *entity.component<BoxCollider2DComponent>();
+      const BoxCollider2DComponent &box =
+          *entity.component<BoxCollider2DComponent>();
       b2PolygonShape shape;
       shape.SetAsBox(box.size.x * 0.5F, box.size.y * 0.5F,
                      {box.offset.x, box.offset.y}, 0.0F);
       b2FixtureDef fixtureDef;
       fixtureDef.shape = &shape;
-      fixtureDef.density = 1.0F;
+      fixtureDef.density = box.density;
+      fixtureDef.friction = box.friction;
       fixtureDef.restitution =
-          entity.hasComponent<Rigidbody2DComponent>()
-              ? std::clamp(entity.component<Rigidbody2DComponent>()->bounciness,
+          box.restitution > 0.0F
+              ? box.restitution
+              : (entity.hasComponent<Rigidbody2DComponent>()
+                     ? std::clamp(
+                           entity.component<Rigidbody2DComponent>()->bounciness,
                            0.0F, 1.0F)
-              : 0.0F;
+                     : 0.0F);
       fixtureDef.isSensor = box.isTrigger;
       fixtureDef.filter.categoryBits = box.categoryBits;
       fixtureDef.filter.maskBits = box.maskBits;
@@ -531,12 +876,16 @@ void stepPhysics2D(World &world, const float fixedDt,
       shape.m_radius = collider.radius;
       b2FixtureDef fixtureDef;
       fixtureDef.shape = &shape;
-      fixtureDef.density = 1.0F;
+      fixtureDef.density = collider.density;
+      fixtureDef.friction = collider.friction;
       fixtureDef.restitution =
-          entity.hasComponent<Rigidbody2DComponent>()
-              ? std::clamp(entity.component<Rigidbody2DComponent>()->bounciness,
+          collider.restitution > 0.0F
+              ? collider.restitution
+              : (entity.hasComponent<Rigidbody2DComponent>()
+                     ? std::clamp(
+                           entity.component<Rigidbody2DComponent>()->bounciness,
                            0.0F, 1.0F)
-              : 0.0F;
+                     : 0.0F);
       fixtureDef.isSensor = collider.isTrigger;
       fixtureDef.filter.categoryBits = collider.categoryBits;
       fixtureDef.filter.maskBits = collider.maskBits;
@@ -547,12 +896,102 @@ void stepPhysics2D(World &world, const float fixedDt,
       }
       body->CreateFixture(&fixtureDef);
     }
+    if (const auto *capsule = entity.component<CapsuleCollider2DComponent>()) {
+      const float radius =
+          std::max(std::min(capsule->size.x, capsule->size.y) * 0.5F, 0.001F);
+      const bool vertical = capsule->size.y >= capsule->size.x;
+      const float straight = std::max(
+          (vertical ? capsule->size.y : capsule->size.x) - radius * 2.0F, 0.0F);
+      b2FixtureDef definition;
+      definition.density = capsule->density;
+      definition.friction = capsule->friction;
+      definition.restitution = capsule->restitution;
+      definition.isSensor = capsule->isTrigger;
+      definition.filter.categoryBits = capsule->categoryBits;
+      definition.filter.maskBits = capsule->maskBits;
+      if (const auto category = world.physicsCategoryBits.find(capsule->layer);
+          category != world.physicsCategoryBits.end()) {
+        definition.filter.categoryBits = category->second;
+        definition.filter.maskBits = world.physicsMaskBits.at(capsule->layer);
+      }
+      if (straight > 0.0F) {
+        b2PolygonShape middle;
+        middle.SetAsBox(vertical ? radius : straight * 0.5F,
+                        vertical ? straight * 0.5F : radius,
+                        {capsule->offset.x, capsule->offset.y}, 0.0F);
+        definition.shape = &middle;
+        body->CreateFixture(&definition);
+      }
+      for (const float side : {-1.0F, 1.0F}) {
+        b2CircleShape cap;
+        cap.m_radius = radius;
+        cap.m_p = {
+            capsule->offset.x + (vertical ? 0.0F : side * straight * 0.5F),
+            capsule->offset.y + (vertical ? side * straight * 0.5F : 0.0F)};
+        definition.shape = &cap;
+        body->CreateFixture(&definition);
+      }
+    }
+    if (const auto *polygon = entity.component<PolygonCollider2DComponent>();
+        polygon != nullptr && polygon->points.size() >= 3) {
+      std::vector<b2Vec2> vertices;
+      const std::size_t count =
+          std::min<std::size_t>(polygon->points.size(), b2_maxPolygonVertices);
+      vertices.reserve(count);
+      for (std::size_t index = 0; index < count; ++index)
+        vertices.push_back({polygon->points[index].x + polygon->offset.x,
+                            polygon->points[index].y + polygon->offset.y});
+      b2PolygonShape shape;
+      shape.Set(vertices.data(), static_cast<int32>(vertices.size()));
+      b2FixtureDef definition;
+      definition.shape = &shape;
+      definition.density = polygon->density;
+      definition.friction = polygon->friction;
+      definition.restitution = polygon->restitution;
+      definition.isSensor = polygon->isTrigger;
+      definition.filter.categoryBits = polygon->categoryBits;
+      definition.filter.maskBits = polygon->maskBits;
+      if (const auto category = world.physicsCategoryBits.find(polygon->layer);
+          category != world.physicsCategoryBits.end()) {
+        definition.filter.categoryBits = category->second;
+        definition.filter.maskBits = world.physicsMaskBits.at(polygon->layer);
+      }
+      body->CreateFixture(&definition);
+    }
+    if (const auto *edge = entity.component<EdgeCollider2DComponent>();
+        edge != nullptr && edge->points.size() >= 2) {
+      std::vector<b2Vec2> vertices;
+      vertices.reserve(edge->points.size());
+      for (const Vec2 point : edge->points)
+        vertices.push_back({point.x, point.y});
+      b2ChainShape shape;
+      if (edge->loop && vertices.size() >= 3)
+        shape.CreateLoop(vertices.data(), static_cast<int32>(vertices.size()));
+      else
+        shape.CreateChain(vertices.data(), static_cast<int32>(vertices.size()),
+                          vertices.front(), vertices.back());
+      b2FixtureDef definition;
+      definition.shape = &shape;
+      definition.density = edge->density;
+      definition.friction = edge->friction;
+      definition.restitution = edge->restitution;
+      definition.isSensor = edge->isTrigger;
+      definition.filter.categoryBits = edge->categoryBits;
+      definition.filter.maskBits = edge->maskBits;
+      if (const auto category = world.physicsCategoryBits.find(edge->layer);
+          category != world.physicsCategoryBits.end()) {
+        definition.filter.categoryBits = category->second;
+        definition.filter.maskBits = world.physicsMaskBits.at(edge->layer);
+      }
+      body->CreateFixture(&definition);
+    }
   };
 
   auto bodyTypeFor = [](const Entity &entity) {
     if (!entity.hasComponent<Rigidbody2DComponent>())
       return b2_staticBody;
-    const std::string &type = entity.component<Rigidbody2DComponent>()->bodyType;
+    const std::string &type =
+        entity.component<Rigidbody2DComponent>()->bodyType;
     if (type == "dynamic")
       return b2_dynamicBody;
     if (type == "kinematic")
@@ -581,7 +1020,8 @@ void stepPhysics2D(World &world, const float fixedDt,
         found != state.bodies.end()) {
       const int previousType = state.bodyTypes[entityId];
       const std::uint64_t previousSignature = state.shapeSignatures[entityId];
-      if (previousType == currentType && previousSignature == currentSignature) {
+      if (previousType == currentType &&
+          previousSignature == currentSignature) {
         body = reinterpret_cast<b2Body *>(found->second);
       } else {
         physicsWorld.DestroyBody(reinterpret_cast<b2Body *>(found->second));
@@ -600,8 +1040,15 @@ void stepPhysics2D(World &world, const float fixedDt,
         const Rigidbody2DComponent &rb =
             *entity.component<Rigidbody2DComponent>();
         bodyDef.linearVelocity.Set(rb.velocity.x, rb.velocity.y);
+        bodyDef.angularVelocity = rb.angularVelocity;
+        bodyDef.linearDamping = rb.linearDamping;
+        bodyDef.angularDamping = rb.angularDamping;
         bodyDef.fixedRotation = rb.lockRotation;
         bodyDef.gravityScale = rb.gravityScale;
+        bodyDef.bullet = rb.continuous;
+        bodyDef.allowSleep = rb.allowSleep;
+        bodyDef.awake = rb.awake;
+        bodyDef.enabled = rb.bodyEnabled;
       }
       body = physicsWorld.CreateBody(&bodyDef);
       createFixtures(entity, body);
@@ -615,7 +1062,14 @@ void stepPhysics2D(World &world, const float fixedDt,
         const Rigidbody2DComponent &rb =
             *entity.component<Rigidbody2DComponent>();
         body->SetLinearVelocity({rb.velocity.x, rb.velocity.y});
+        body->SetAngularVelocity(rb.angularVelocity);
+        body->SetLinearDamping(rb.linearDamping);
+        body->SetAngularDamping(rb.angularDamping);
         body->SetGravityScale(rb.gravityScale);
+        body->SetBullet(rb.continuous);
+        body->SetSleepingAllowed(rb.allowSleep);
+        body->SetAwake(rb.awake);
+        body->SetEnabled(rb.bodyEnabled);
       }
     }
   }
@@ -666,6 +1120,76 @@ void stepPhysics2D(World &world, const float fixedDt,
   for (b2DistanceJointDef &definition : jointDefs) {
     state.joints.push_back(physicsWorld.CreateJoint(&definition));
   }
+  for (const Entity &entity : world.entities) {
+    const auto *joint = entity.component<Joint2DComponent>();
+    if (joint == nullptr)
+      continue;
+    b2Body *bodyA = bodyForEntity(entity.id);
+    b2Body *bodyB = bodyForEntity(joint->otherEntity);
+    if (bodyA == nullptr || bodyB == nullptr || bodyA == bodyB)
+      continue;
+    if (joint->type == "revolute") {
+      b2RevoluteJointDef definition;
+      definition.bodyA = bodyA;
+      definition.bodyB = bodyB;
+      definition.localAnchorA = {joint->anchor.x, joint->anchor.y};
+      definition.localAnchorB = {joint->otherAnchor.x, joint->otherAnchor.y};
+      definition.enableLimit = joint->enableLimit;
+      definition.lowerAngle = joint->lowerLimit;
+      definition.upperAngle = joint->upperLimit;
+      definition.enableMotor = joint->enableMotor;
+      definition.motorSpeed = joint->motorSpeed;
+      definition.maxMotorTorque = joint->maxMotorTorque;
+      definition.collideConnected = joint->collideConnected;
+      state.joints.push_back(physicsWorld.CreateJoint(&definition));
+    } else if (joint->type == "prismatic") {
+      b2PrismaticJointDef definition;
+      definition.bodyA = bodyA;
+      definition.bodyB = bodyB;
+      definition.localAnchorA = {joint->anchor.x, joint->anchor.y};
+      definition.localAnchorB = {joint->otherAnchor.x, joint->otherAnchor.y};
+      definition.localAxisA = {joint->axis.x, joint->axis.y};
+      definition.enableLimit = joint->enableLimit;
+      definition.lowerTranslation = joint->lowerLimit;
+      definition.upperTranslation = joint->upperLimit;
+      definition.enableMotor = joint->enableMotor;
+      definition.motorSpeed = joint->motorSpeed;
+      definition.maxMotorForce = joint->maxMotorForce;
+      definition.collideConnected = joint->collideConnected;
+      state.joints.push_back(physicsWorld.CreateJoint(&definition));
+    } else if (joint->type == "weld") {
+      b2WeldJointDef definition;
+      definition.bodyA = bodyA;
+      definition.bodyB = bodyB;
+      definition.localAnchorA = {joint->anchor.x, joint->anchor.y};
+      definition.localAnchorB = {joint->otherAnchor.x, joint->otherAnchor.y};
+      definition.referenceAngle = bodyB->GetAngle() - bodyA->GetAngle();
+      definition.collideConnected = joint->collideConnected;
+      state.joints.push_back(physicsWorld.CreateJoint(&definition));
+    } else if (joint->type == "rope") {
+      b2DistanceJointDef definition;
+      definition.bodyA = bodyA;
+      definition.bodyB = bodyB;
+      definition.localAnchorA = {joint->anchor.x, joint->anchor.y};
+      definition.localAnchorB = {joint->otherAnchor.x, joint->otherAnchor.y};
+      definition.length = joint->maxLength;
+      definition.minLength = 0.0F;
+      definition.maxLength = joint->maxLength;
+      definition.collideConnected = joint->collideConnected;
+      state.joints.push_back(physicsWorld.CreateJoint(&definition));
+    } else if (joint->type == "motor") {
+      b2MotorJointDef definition;
+      definition.Initialize(bodyA, bodyB);
+      definition.linearOffset = {joint->otherAnchor.x - joint->anchor.x,
+                                 joint->otherAnchor.y - joint->anchor.y};
+      definition.angularOffset = joint->upperLimit;
+      definition.maxForce = joint->maxMotorForce;
+      definition.maxTorque = joint->maxMotorTorque;
+      definition.correctionFactor = joint->correctionFactor;
+      definition.collideConnected = joint->collideConnected;
+      state.joints.push_back(physicsWorld.CreateJoint(&definition));
+    }
+  }
 
   physicsWorld.Step(fixedDt, 8, 3);
 
@@ -697,21 +1221,48 @@ void stepPhysics2D(World &world, const float fixedDt,
 
     b2WorldManifold manifold;
     contact->GetWorldManifold(&manifold);
+    const b2Manifold *localManifold = contact->GetManifold();
+    const Vec2 point =
+        localManifold->pointCount > 0
+            ? Vec2{.x = manifold.points[0].x, .y = manifold.points[0].y}
+            : Vec2{};
+    const float normalImpulse = localManifold->pointCount > 0
+                                    ? localManifold->points[0].normalImpulse
+                                    : 0.0F;
     const bool trigger = fixtureA->IsSensor() || fixtureB->IsSensor();
     const std::string layerA = colliderLayer(*entityA);
     const std::string layerB = colliderLayer(*entityB);
-    world.physicsContacts.push_back(PhysicsContact2D{
+    const auto recordContact = [&world](PhysicsContact2D value) {
+      const auto duplicate = std::ranges::find_if(
+          world.physicsContacts, [&value](const PhysicsContact2D &existing) {
+            return existing.entityId == value.entityId &&
+                   existing.otherEntityId == value.otherEntityId &&
+                   existing.isTrigger == value.isTrigger;
+          });
+      if (duplicate == world.physicsContacts.end()) {
+        world.physicsContacts.push_back(std::move(value));
+      } else if (value.normalImpulse > duplicate->normalImpulse) {
+        duplicate->point = value.point;
+        duplicate->normal = value.normal;
+        duplicate->normalImpulse = value.normalImpulse;
+      }
+    };
+    recordContact({
         .entityId = entityA->id,
         .otherEntityId = entityB->id,
         .otherLayer = layerB,
+        .point = point,
         .normal = Vec2{.x = -manifold.normal.x, .y = -manifold.normal.y},
+        .normalImpulse = normalImpulse,
         .isTrigger = trigger,
     });
-    world.physicsContacts.push_back(PhysicsContact2D{
+    recordContact({
         .entityId = entityB->id,
         .otherEntityId = entityA->id,
         .otherLayer = layerA,
+        .point = point,
         .normal = Vec2{.x = manifold.normal.x, .y = manifold.normal.y},
+        .normalImpulse = normalImpulse,
         .isTrigger = trigger,
     });
   }
@@ -733,6 +1284,9 @@ void stepPhysics2D(World &world, const float fixedDt,
       const b2Vec2 velocity = body->GetLinearVelocity();
       entity.component<Rigidbody2DComponent>()->velocity =
           Vec2{.x = velocity.x, .y = velocity.y};
+      entity.component<Rigidbody2DComponent>()->angularVelocity =
+          body->GetAngularVelocity();
+      entity.component<Rigidbody2DComponent>()->awake = body->IsAwake();
     }
   }
 #else
@@ -762,6 +1316,35 @@ void stepPhysics2D(World &world, const float fixedDt,
                 false);
   }
 #endif
+
+  const auto sameContact = [](const PhysicsContact2D &left,
+                              const PhysicsContact2D &right) {
+    return left.entityId == right.entityId &&
+           left.otherEntityId == right.otherEntityId &&
+           left.isTrigger == right.isTrigger;
+  };
+  for (PhysicsContact2D &contact : world.physicsContacts) {
+    contact.phase =
+        std::ranges::any_of(world.previousPhysicsContacts,
+                            [&](const PhysicsContact2D &previous) {
+                              return sameContact(contact, previous) &&
+                                     previous.phase != "exit";
+                            })
+            ? "stay"
+            : "enter";
+  }
+  for (const PhysicsContact2D &previous : world.previousPhysicsContacts) {
+    if (previous.phase == "exit" ||
+        std::ranges::any_of(world.physicsContacts,
+                            [&](const PhysicsContact2D &current) {
+                              return sameContact(previous, current);
+                            }))
+      continue;
+    PhysicsContact2D exited = previous;
+    exited.phase = "exit";
+    exited.normalImpulse = 0.0F;
+    world.physicsContacts.push_back(std::move(exited));
+  }
 }
 
 } // namespace demi::runtime

@@ -1,0 +1,14 @@
+{
+  "dependencies": [
+    "asset://phase4/effects",
+    "asset://phase4/terrain"
+  ],
+  "format_version": 1,
+  "id": "asset://phase4/map",
+  "importer": "json-data",
+  "importer_version": 1,
+  "settings": {},
+  "source": "phase4.tilemap.json",
+  "source_hash": "fnv1a64:f96c74e29c206648",
+  "type": "Tilemap2D"
+}

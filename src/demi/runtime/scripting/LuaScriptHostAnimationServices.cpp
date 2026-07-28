@@ -1,5 +1,5 @@
-#include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/SpriteAnimator2DComponent.h"
@@ -124,6 +124,39 @@ bool LuaScriptHost::setSpriteSize(const std::string &entityId,
   if (sprite == nullptr || width < 0.0F || height < 0.0F)
     return false;
   sprite->size = {.x = width, .y = height};
+  return true;
+}
+
+bool LuaScriptHost::setSpriteLayer(const std::string &entityId,
+                                   const std::string &layer) {
+  Entity *entity = world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  auto *sprite =
+      entity == nullptr ? nullptr : entity->component<SpriteComponent>();
+  if (sprite == nullptr)
+    return false;
+  sprite->layer = layer;
+  return true;
+}
+
+bool LuaScriptHost::setSpriteSortingOrder(const std::string &entityId,
+                                          const int sortingOrder) {
+  Entity *entity = world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  auto *sprite =
+      entity == nullptr ? nullptr : entity->component<SpriteComponent>();
+  if (sprite == nullptr)
+    return false;
+  sprite->sortingOrder = sortingOrder;
+  return true;
+}
+
+bool LuaScriptHost::setSpriteMaterial(const std::string &entityId,
+                                      const std::string &material) {
+  Entity *entity = world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  auto *sprite =
+      entity == nullptr ? nullptr : entity->component<SpriteComponent>();
+  if (sprite == nullptr)
+    return false;
+  sprite->material = material;
   return true;
 }
 

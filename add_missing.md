@@ -306,6 +306,16 @@ shooter uses the same action script for all devices.
 The objective is to make common 2D genres possible without another physics or
 render binding for each game.
 
+**Status: complete.** The Box2D-backed runtime now provides contact lifecycle
+events, rich queries, production body controls, common collider/material/joint
+shapes, and CCD regression coverage. Shared Lua controllers cover platform,
+top-down, and navigation-driven movement. Sprites support source modes,
+nine-slice, masking, materials, and runtime ordering. Mutable multi-tileset
+tilemaps carry animation, object, collision, and navigation metadata; tile
+edits refresh collision and navigation. The platformer, shooter, fighting, and
+isometric probes use the shared game-facing layer on Linux, with the shooter
+also packaged for Android.
+
 ### Deliverables
 
 - Complete 2D physics gameplay APIs:

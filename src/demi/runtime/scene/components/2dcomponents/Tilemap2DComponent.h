@@ -3,6 +3,8 @@
 #include "demi/runtime/scene/components/ComponentDefinition.h"
 
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace demi::runtime {
 
@@ -22,6 +24,8 @@ struct Tilemap2DComponent {
   float pixelsPerUnit = 16.0F;
   std::string layer;
   int sortingOrder = 0;
+  std::unordered_map<std::string, int> tileOverrides;
+  std::unordered_set<std::string> dirtyChunks;
 };
 
 } // namespace demi::runtime

@@ -11,16 +11,18 @@
 #include "demi/runtime/scripting/bindings/components/LuaPhysics3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaRigidbody2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaSprite2DBindings.h"
+#include "demi/runtime/scripting/bindings/components/LuaTilemap2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaTransform2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaTransform3DBindings.h"
-#include "demi/runtime/ui/UiModel.h"
 #include "demi/runtime/scripting/bindings/hud/LuaHudBindings.h"
 #include "demi/runtime/scripting/bindings/isometric/LuaIsoGridBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaAudioBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaCutsceneBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaVideoBindings.h"
+#include "demi/runtime/scripting/bindings/navigation/LuaNavigation2DBindings.h"
 #include "demi/runtime/scripting/bindings/persistence/LuaSaveBindings.h"
 #include "demi/runtime/scripting/bindings/text/LuaRegexBindings.h"
+#include "demi/runtime/ui/UiModel.h"
 
 #include <sol/sol.hpp>
 
@@ -67,11 +69,14 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaRandomBindingModule random;
   const LuaIsoGridBindingModule isoGrid;
   const LuaAnimationBindingModule animation;
+  const LuaNavigation2DBindingModule navigation2D;
+  const LuaTilemap2DBindingModule tilemap2D;
   const LuaBindingModule *modules[] = {
-      &core,     &entity,    &transform2D, &transform3D, &rigidbody2D,
-      &sprite2D, &physics2D, &physics3D,   &hud,         &save,
-      &audio,    &video,     &cutscene,    &network,     &networkSession,
-      &tls,      &regex,     &random,      &isoGrid,     &animation};
+      &core,         &entity,    &transform2D, &transform3D, &rigidbody2D,
+      &sprite2D,     &physics2D, &physics3D,   &hud,         &save,
+      &audio,        &video,     &cutscene,    &network,     &networkSession,
+      &tls,          &regex,     &random,      &isoGrid,     &animation,
+      &navigation2D, &tilemap2D};
   for (const LuaBindingModule *module : modules) {
     module->install(host, state);
   }
@@ -110,9 +115,8 @@ std::vector<std::string> LuaScriptHost::publicLuaApi() const {
   const int globalsIndex = lua_gettop(state);
   lua_pushnil(state);
   while (lua_next(state, globalsIndex) != 0) {
-    const char *serviceName = lua_type(state, -2) == LUA_TSTRING
-                                  ? lua_tostring(state, -2)
-                                  : nullptr;
+    const char *serviceName =
+        lua_type(state, -2) == LUA_TSTRING ? lua_tostring(state, -2) : nullptr;
     const bool publicService =
         serviceName != nullptr && serviceName[0] != '\0' &&
         std::isupper(static_cast<unsigned char>(serviceName[0])) != 0 &&
@@ -267,8 +271,7 @@ void luaCallUiEvent(lua_State *state, const int tableRef,
 }
 
 void luaCallActionEvent(lua_State *state, const int tableRef,
-                        const std::string &functionName,
-                        const ui::UiNode &node,
+                        const std::string &functionName, const ui::UiNode &node,
                         const Vec2 mousePosition,
                         const std::filesystem::path &path) {
   lua_rawgeti(state, LUA_REGISTRYINDEX, tableRef);
@@ -298,8 +301,7 @@ void luaCallActionEvent(lua_State *state, const int tableRef,
 
 void luaCallModuleActionEvent(lua_State *state, const std::string &moduleName,
                               const std::string &functionName,
-                              const ui::UiNode &node,
-                              const Vec2 mousePosition,
+                              const ui::UiNode &node, const Vec2 mousePosition,
                               const std::filesystem::path &path) {
   lua_getglobal(state, "package");
   if (!lua_istable(state, -1)) {

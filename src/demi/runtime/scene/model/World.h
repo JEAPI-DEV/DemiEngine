@@ -20,7 +20,10 @@ struct PhysicsContact2D {
   std::string entityId;
   std::string otherEntityId;
   std::string otherLayer;
+  std::string phase = "stay";
+  Vec2 point;
   Vec2 normal;
+  float normalImpulse = 0.0F;
   bool isTrigger = false;
 };
 
@@ -56,6 +59,7 @@ struct World {
   std::vector<Entity> entities;
   std::vector<DebugLine> debugLines;
   std::vector<PhysicsContact2D> physicsContacts;
+  std::vector<PhysicsContact2D> previousPhysicsContacts;
   std::vector<AnimationEvent2D> animationEvents;
   std::vector<AnimationEvent2D> stateAnimationEvents;
   std::vector<AnimationCollisionOverlap2D> animationCollisionOverlaps;
@@ -64,6 +68,7 @@ struct World {
   std::unordered_map<std::string, ColliderAsset3D> colliderAssets3D;
   DebugOverlayConfig debug;
   GridPlacementPreview placementPreview;
+  bool tilemapCollisionDirty = false;
   std::unique_ptr<Box2DWorldState> box2dState;
 };
 

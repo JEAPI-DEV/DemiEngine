@@ -2,6 +2,27 @@
 #include "demi/runtime/scripting/bindings/LuaBindingHelpers.h"
 #include <sol/sol.hpp>
 namespace demi::runtime {
+namespace {
+sol::table queryHitsTable(lua_State *state,
+                          const std::vector<PhysicsQueryHit2D> &hits) {
+  sol::state_view lua(state);
+  sol::table result = lua.create_table();
+  int index = 1;
+  for (const PhysicsQueryHit2D &hit : hits) {
+    sol::table item = lua.create_table();
+    item["entity_id"] = hit.entityId;
+    item["layer"] = hit.layer;
+    item["point"] = sol::as_table(std::vector<float>{hit.point.x, hit.point.y});
+    item["normal"] =
+        sol::as_table(std::vector<float>{hit.normal.x, hit.normal.y});
+    item["distance"] = hit.distance;
+    item["fraction"] = hit.fraction;
+    result[index++] = item;
+  }
+  return result;
+}
+} // namespace
+
 void LuaPhysics2DBindingModule::install(LuaScriptHost &host,
                                         lua_State *state) const {
   sol::table physics = sol::state_view(state).create_named_table("Physics2D");
@@ -19,6 +40,24 @@ void LuaPhysics2DBindingModule::install(LuaScriptHost &host,
             x, y, radius, layer.value_or(""), ignored.value_or("")));
       });
   physics.set_function(
+      "overlap_box_all",
+      [state, &host](float x, float y, float width, float height,
+                     sol::optional<std::string> layer,
+                     sol::optional<std::string> ignored) {
+        return queryHitsTable(state,
+                              host.physicsOverlapBoxAll(x, y, width, height,
+                                                        layer.value_or(""),
+                                                        ignored.value_or("")));
+      });
+  physics.set_function(
+      "overlap_circle_all", [state, &host](float x, float y, float radius,
+                                           sol::optional<std::string> layer,
+                                           sol::optional<std::string> ignored) {
+        return queryHitsTable(
+            state, host.physicsOverlapCircleAll(
+                       x, y, radius, layer.value_or(""), ignored.value_or("")));
+      });
+  physics.set_function(
       "raycast",
       [state, &host](float originX, float originY, float directionX,
                      float directionY, float distance,
@@ -31,11 +70,13 @@ void LuaPhysics2DBindingModule::install(LuaScriptHost &host,
           return sol::make_object(state, sol::nil);
         sol::table result = sol::state_view(state).create_table();
         result["entity_id"] = hit->entityId;
+        result["layer"] = hit->layer;
         result["point"] =
             sol::as_table(std::vector<float>{hit->point.x, hit->point.y});
         result["normal"] =
             sol::as_table(std::vector<float>{hit->normal.x, hit->normal.y});
         result["distance"] = hit->distance;
+        result["fraction"] = hit->fraction;
         return sol::make_object(state, result);
       });
   physics.set_function(

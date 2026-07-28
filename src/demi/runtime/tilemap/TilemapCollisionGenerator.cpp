@@ -20,8 +20,8 @@ void generateTilemapColliders(World &world, const AssetRegistry &registry) {
   });
 
   std::vector<Entity> colliders;
-  for (const Entity &entity : world.entities) {
-    const auto *tilemap = entity.component<Tilemap2DComponent>();
+  for (Entity &entity : world.entities) {
+    auto *tilemap = entity.component<Tilemap2DComponent>();
     if (tilemap == nullptr)
       continue;
     const AssetManifest *manifest = findAsset(registry, tilemap->asset);
@@ -44,8 +44,14 @@ void generateTilemapColliders(World &world, const AssetRegistry &registry) {
         int column = 0;
         while (column < asset->columns) {
           const auto tileAt = [&](const int x) {
-            return layer.tiles[static_cast<std::size_t>(
-                       row * asset->columns + x)] > 0;
+            const std::string overrideKey = layer.name + "/" +
+                                            std::to_string(x) + "/" +
+                                            std::to_string(row);
+            const auto overridden = tilemap->tileOverrides.find(overrideKey);
+            return (overridden != tilemap->tileOverrides.end()
+                        ? overridden->second
+                        : layer.tiles[static_cast<std::size_t>(
+                              row * asset->columns + x)]) > 0;
           };
           if (!tileAt(column)) {
             ++column;
@@ -62,10 +68,9 @@ void generateTilemapColliders(World &world, const AssetRegistry &registry) {
           collider.name = "Generated tilemap collider";
           Transform2DComponent transform;
           transform.position = {
-              origin.x +
-                  (static_cast<float>(start) + count * 0.5F) * cellWidth,
-              origin.y + (static_cast<float>(asset->rows - row) - 0.5F) *
-                             cellHeight};
+              origin.x + (static_cast<float>(start) + count * 0.5F) * cellWidth,
+              origin.y +
+                  (static_cast<float>(asset->rows - row) - 0.5F) * cellHeight};
           collider.setComponent(std::move(transform));
           BoxCollider2DComponent box;
           box.size = {count * cellWidth, cellHeight};
@@ -76,10 +81,12 @@ void generateTilemapColliders(World &world, const AssetRegistry &registry) {
         }
       }
     }
+    tilemap->dirtyChunks.clear();
   }
   world.entities.insert(world.entities.end(),
                         std::make_move_iterator(colliders.begin()),
                         std::make_move_iterator(colliders.end()));
+  world.tilemapCollisionDirty = false;
 }
 
 } // namespace demi::runtime

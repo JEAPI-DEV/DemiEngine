@@ -230,8 +230,8 @@ void pollGamepads(InputState &input) {
                        : device;
     state.name =
         GetGamepadName(device) != nullptr ? GetGamepadName(device) : "";
-    const auto old = std::ranges::find(previous, device,
-                                       &GamepadState::deviceId);
+    const auto old =
+        std::ranges::find(previous, device, &GamepadState::deviceId);
     for (const ButtonMapping &mapping : buttons) {
       const std::string name(mapping.name);
       if (IsGamepadButtonDown(device, mapping.button)) {
@@ -280,8 +280,7 @@ void pollTouches(InputState &input) {
     const std::int64_t id = GetTouchPointId(index);
     const Vector2 raw = GetTouchPosition(index);
     const Vec2 position{raw.x, raw.y};
-    const auto old =
-        std::ranges::find(previous, id, &TouchPoint::id);
+    const auto old = std::ranges::find(previous, id, &TouchPoint::id);
     input.touches.push_back(
         {.id = id,
          .phase = old == previous.end() ? TouchPhase::Began
@@ -290,14 +289,12 @@ void pollTouches(InputState &input) {
                                                ? TouchPhase::Stationary
                                                : TouchPhase::Moved),
          .position = position,
-         .delta = old == previous.end()
-                      ? Vec2{}
-                      : Vec2{position.x - old->position.x,
-                             position.y - old->position.y}});
+         .delta = old == previous.end() ? Vec2{}
+                                        : Vec2{position.x - old->position.x,
+                                               position.y - old->position.y}});
   }
   for (const TouchPoint &old : previous)
-    if (old.phase != TouchPhase::Ended &&
-        old.phase != TouchPhase::Cancelled &&
+    if (old.phase != TouchPhase::Ended && old.phase != TouchPhase::Cancelled &&
         std::ranges::find(input.touches, old.id, &TouchPoint::id) ==
             input.touches.end())
       input.touches.push_back({.id = old.id,
@@ -306,8 +303,8 @@ void pollTouches(InputState &input) {
                                .delta = {},
                                .pressure = old.pressure});
 #if defined(__ANDROID__)
-  const auto primary = std::ranges::find_if(
-      input.touches, [](const TouchPoint &touch) {
+  const auto primary =
+      std::ranges::find_if(input.touches, [](const TouchPoint &touch) {
         return touch.phase != TouchPhase::Ended &&
                touch.phase != TouchPhase::Cancelled;
       });
@@ -397,6 +394,10 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
   {
     ProfileScope scope("Camera2D.update");
     Camera2DSystem{}.update(loaded.world, scaledDt);
+  }
+  if (loaded.world.tilemapCollisionDirty) {
+    ProfileScope scope("Tilemap2D.rebuild_collision");
+    generateTilemapColliders(loaded.world, assetRegistry);
   }
   if (luaHost.quitRequested()) {
     running = false;
@@ -601,6 +602,7 @@ int runProject(const RuntimeOptions &options) {
   luaHost.setNetworkSystem(&networkSystem);
   std::string luaError;
   if (luaHost.initialize(loaded.world, input, &audioSystem, luaError)) {
+    luaHost.setAssetRegistry(&assetRegistry);
     luaHost.seedRandom(loaded.project.simulation.randomSeed);
     if (!luaHost.loadWorldScripts(loaded.project, loaded.world, luaError)) {
       std::cerr << "Lua scripts skipped: " << luaError << '\n';
@@ -720,8 +722,7 @@ int runProject(const RuntimeOptions &options) {
     luaHost.setApplicationMinimized(IsWindowMinimized());
 #if defined(__ANDROID__)
     luaHost.setApplicationSuspended(DemiAndroidApplicationSuspended());
-    const unsigned lowMemorySignals =
-        DemiAndroidConsumeLowMemorySignals();
+    const unsigned lowMemorySignals = DemiAndroidConsumeLowMemorySignals();
     for (unsigned signal = 0; signal < lowMemorySignals; ++signal)
       luaHost.notifyApplicationLowMemory();
 #else
@@ -802,6 +803,8 @@ int runProject(const RuntimeOptions &options) {
                               activeCameraPosition(loaded.world), width,
                               height);
         renderer2D.drawWorld(loaded.world);
+        if (loaded.world.debug.grid)
+          renderer2D.drawNavigation(luaHost.navigationGrid2D());
         renderer2D.drawHud(loaded.world);
         renderer2D.endFrame();
       }

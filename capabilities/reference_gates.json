@@ -22,8 +22,8 @@
     {
       "id": "production-2d",
       "phase": 4,
-      "status": "open",
-      "summary": "Common 2D triggers, joints, particles, and presentation primitives are incomplete."
+      "status": "resolved",
+      "summary": "Contact lifecycle, rich queries, CCD, common colliders and joints, controllers, sprite presentation, mutable tilemaps, and shared navigation are test-backed."
     },
     {
       "id": "lightweight-3d",

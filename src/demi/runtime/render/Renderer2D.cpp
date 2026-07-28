@@ -11,6 +11,7 @@
 #include "demi/runtime/ui/UiPresentation.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <fstream>
 #include <iostream>
@@ -567,7 +568,7 @@ void drawTilemap(
     const std::unordered_map<std::string, TilemapAsset2D> &tilemaps,
     const World &world, const Camera2DComponent &camera,
     const Vec2 cameraPosition, const Entity &entity, const int width,
-    const int height) {
+    const int height, const float animationTime) {
   const auto *component = entity.component<Tilemap2DComponent>();
   if (component == nullptr)
     return;
@@ -575,16 +576,11 @@ void drawTilemap(
   if (foundAsset == tilemaps.end())
     return;
   const TilemapAsset2D &asset = foundAsset->second;
-  const auto foundTexture = textures.find(asset.texture);
-  if (foundTexture == textures.end())
-    return;
-  const Texture2D &texture = foundTexture->second;
   const Vec2 origin = worldPosition2D(world, entity);
   const float tileWorldWidth =
       static_cast<float>(asset.tileWidth) / component->pixelsPerUnit;
   const float tileWorldHeight =
       static_cast<float>(asset.tileHeight) / component->pixelsPerUnit;
-  const int atlasColumns = std::max(texture.width / asset.tileWidth, 1);
   const float ppu = pixelsPerUnit(camera, height);
 
   for (const TilemapLayer2D &layer : asset.layers) {
@@ -592,18 +588,52 @@ void drawTilemap(
                            cameraPosition.y * layer.parallax};
     for (int row = 0; row < asset.rows; ++row) {
       for (int column = 0; column < asset.columns; ++column) {
-        const int tile =
-            layer.tiles[static_cast<std::size_t>(row * asset.columns + column)];
+        const std::string overrideKey = layer.name + "/" +
+                                        std::to_string(column) + "/" +
+                                        std::to_string(row);
+        const auto overridden = component->tileOverrides.find(overrideKey);
+        int tile = overridden != component->tileOverrides.end()
+                       ? overridden->second
+                       : layer.tiles[static_cast<std::size_t>(
+                             row * asset.columns + column)];
         if (tile <= 0)
           continue;
-        const int atlasIndex = tile - 1;
+        if (const auto animation = asset.animations.find(tile);
+            animation != asset.animations.end() && !animation->second.empty()) {
+          float cycleDuration = 0.0F;
+          for (const AnimatedTileFrame2D &frame : animation->second)
+            cycleDuration += frame.duration;
+          float cycleTime =
+              std::fmod(animationTime, std::max(cycleDuration, 0.001F));
+          for (const AnimatedTileFrame2D &frame : animation->second) {
+            tile = frame.tile;
+            cycleTime -= frame.duration;
+            if (cycleTime <= 0.0F)
+              break;
+          }
+        }
+        const TilemapTileset2D *tileset = nullptr;
+        for (const TilemapTileset2D &candidate : asset.tilesets) {
+          if (candidate.firstTile > tile)
+            break;
+          tileset = &candidate;
+        }
+        if (tileset == nullptr)
+          continue;
+        const auto foundTexture = textures.find(tileset->texture);
+        if (foundTexture == textures.end())
+          continue;
+        const Texture2D &texture = foundTexture->second;
+        const int atlasColumns =
+            std::max(texture.width / tileset->tileWidth, 1);
+        const int atlasIndex = tile - tileset->firstTile;
         const ::Rectangle source{
-            .x =
-                static_cast<float>(atlasIndex % atlasColumns * asset.tileWidth),
+            .x = static_cast<float>(atlasIndex % atlasColumns *
+                                    tileset->tileWidth),
             .y = static_cast<float>(atlasIndex / atlasColumns *
-                                    asset.tileHeight),
-            .width = static_cast<float>(asset.tileWidth),
-            .height = static_cast<float>(asset.tileHeight)};
+                                    tileset->tileHeight),
+            .width = static_cast<float>(tileset->tileWidth),
+            .height = static_cast<float>(tileset->tileHeight)};
         const Vec2 center{
             origin.x + (static_cast<float>(column) + 0.5F) * tileWorldWidth,
             origin.y + (static_cast<float>(asset.rows - row) - 0.5F) *
@@ -632,15 +662,114 @@ void drawTilemap(
   }
 }
 
+void drawDetailedCollider(const World &world, const Camera2DComponent &camera,
+                          const Vec2 cameraPosition, const Entity &entity,
+                          const int width, const int height) {
+  const auto *box = entity.component<BoxCollider2DComponent>();
+  const auto *circle = entity.component<CircleCollider2DComponent>();
+  const auto *capsule = entity.component<CapsuleCollider2DComponent>();
+  const auto *polygon = entity.component<PolygonCollider2DComponent>();
+  const auto *edge = entity.component<EdgeCollider2DComponent>();
+  if ((box == nullptr || !box->debugVisible) &&
+      (circle == nullptr || !circle->debugVisible) &&
+      (capsule == nullptr || !capsule->debugVisible) &&
+      (polygon == nullptr || !polygon->debugVisible) &&
+      (edge == nullptr || !edge->debugVisible))
+    return;
+
+  const Vec2 position = worldPosition2D(world, entity);
+  const float rotation = worldRotation2D(world, entity);
+  const float cosine = std::cos(rotation);
+  const float sine = std::sin(rotation);
+  const float ppu = pixelsPerUnit(camera, height);
+  const auto screenPoint = [&](const Vec2 local) {
+    const Vec2 rotated{local.x * cosine - local.y * sine,
+                       local.x * sine + local.y * cosine};
+    return ::Vector2{worldToScreenX(camera, cameraPosition, width, height,
+                                    position.x + rotated.x),
+                     worldToScreenY(camera, cameraPosition, width, height,
+                                    position.y + rotated.y)};
+  };
+  constexpr ::Color ColliderColor{244, 91, 105, 255};
+  if (box != nullptr && box->debugVisible) {
+    const Vec2 half{box->size.x * 0.5F, box->size.y * 0.5F};
+    const std::array<::Vector2, 4> corners{
+        screenPoint({box->offset.x - half.x, box->offset.y - half.y}),
+        screenPoint({box->offset.x + half.x, box->offset.y - half.y}),
+        screenPoint({box->offset.x + half.x, box->offset.y + half.y}),
+        screenPoint({box->offset.x - half.x, box->offset.y + half.y})};
+    for (std::size_t index = 0; index < corners.size(); ++index)
+      DrawLineV(corners[index], corners[(index + 1) % corners.size()],
+                ColliderColor);
+    return;
+  }
+  if (circle != nullptr && circle->debugVisible) {
+    const ::Vector2 center = screenPoint(circle->offset);
+    DrawCircleLines(static_cast<int>(center.x), static_cast<int>(center.y),
+                    circle->radius * ppu, ColliderColor);
+    return;
+  }
+  if (capsule != nullptr && capsule->debugVisible) {
+    const bool vertical = capsule->size.y >= capsule->size.x;
+    const float radius =
+        std::max(std::min(capsule->size.x, capsule->size.y) * 0.5F, 0.0F);
+    const float halfSegment = std::max(
+        (vertical ? capsule->size.y : capsule->size.x) * 0.5F - radius, 0.0F);
+    const Vec2 startLocal{capsule->offset.x - (vertical ? 0.0F : halfSegment),
+                          capsule->offset.y - (vertical ? halfSegment : 0.0F)};
+    const Vec2 endLocal{capsule->offset.x + (vertical ? 0.0F : halfSegment),
+                        capsule->offset.y + (vertical ? halfSegment : 0.0F)};
+    const ::Vector2 start = screenPoint(startLocal);
+    const ::Vector2 end = screenPoint(endLocal);
+    DrawLineEx(start, end, radius * 2.0F * ppu, {244, 91, 105, 80});
+    DrawCircleLines(static_cast<int>(start.x), static_cast<int>(start.y),
+                    radius * ppu, ColliderColor);
+    DrawCircleLines(static_cast<int>(end.x), static_cast<int>(end.y),
+                    radius * ppu, ColliderColor);
+    const Vec2 normalLocal{capsule->offset.x + (vertical ? radius : 0.0F),
+                           capsule->offset.y + (vertical ? 0.0F : radius)};
+    const ::Vector2 normalPoint = screenPoint(normalLocal);
+    const ::Vector2 centerPoint = screenPoint(capsule->offset);
+    const ::Vector2 perpendicular{normalPoint.x - centerPoint.x,
+                                  normalPoint.y - centerPoint.y};
+    DrawLineV({start.x - perpendicular.x, start.y - perpendicular.y},
+              {end.x - perpendicular.x, end.y - perpendicular.y},
+              ColliderColor);
+    DrawLineV({start.x + perpendicular.x, start.y + perpendicular.y},
+              {end.x + perpendicular.x, end.y + perpendicular.y},
+              ColliderColor);
+    return;
+  }
+
+  const std::vector<Vec2> *points = polygon != nullptr ? &polygon->points
+                                    : edge != nullptr  ? &edge->points
+                                                       : nullptr;
+  if (points == nullptr || points->size() < 2)
+    return;
+  const Vec2 offset = polygon != nullptr ? polygon->offset : Vec2{};
+  for (std::size_t index = 1; index < points->size(); ++index)
+    DrawLineV(screenPoint({(*points)[index - 1].x + offset.x,
+                           (*points)[index - 1].y + offset.y}),
+              screenPoint({(*points)[index].x + offset.x,
+                           (*points)[index].y + offset.y}),
+              ColliderColor);
+  if (polygon != nullptr || edge->loop)
+    DrawLineV(
+        screenPoint({points->back().x + offset.x, points->back().y + offset.y}),
+        screenPoint(
+            {points->front().x + offset.x, points->front().y + offset.y}),
+        ColliderColor);
+}
+
 void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
                 const std::unordered_map<std::string, TilemapAsset2D> &tilemaps,
                 const World &world, const Camera2DComponent &camera,
                 const Vec2 cameraPosition, const Entity &entity,
                 const isometric::GridDefinition &isoGrid, const int width,
-                const int height) {
+                const int height, const float animationTime) {
   if (entity.hasComponent<Tilemap2DComponent>()) {
     drawTilemap(textures, tilemaps, world, camera, cameraPosition, entity,
-                width, height);
+                width, height, animationTime);
     return;
   }
   if (entity.hasComponent<IsoGridComponent>()) {
@@ -756,6 +885,18 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
       float sourceHeight = sprite.sourceSize.y > 0.0F
                                ? sprite.sourceSize.y
                                : static_cast<float>(texture->second.height);
+      if (sprite.sourceNormalized) {
+        sourceX *= static_cast<float>(texture->second.width);
+        sourceY *= static_cast<float>(texture->second.height);
+        sourceWidth = sprite.sourceSize.x > 0.0F
+                          ? sprite.sourceSize.x *
+                                static_cast<float>(texture->second.width)
+                          : static_cast<float>(texture->second.width);
+        sourceHeight = sprite.sourceSize.y > 0.0F
+                           ? sprite.sourceSize.y *
+                                 static_cast<float>(texture->second.height)
+                           : static_cast<float>(texture->second.height);
+      }
       if (const auto *animator = entity.component<SpriteAnimator2DComponent>();
           animator != nullptr && animator->frameSize.x > 0.0F &&
           animator->frameSize.y > 0.0F) {
@@ -783,8 +924,36 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
       const ::Vector2 origin{sprite.pivot.x * rect.width,
                              sprite.pivot.y * rect.height};
       const float rotation = worldRotation2D(world, entity) * RAD2DEG;
-      DrawTexturePro(texture->second, source, destination, origin, rotation,
-                     toRlColor(sprite.color));
+      const bool masked = sprite.maskSize.x > 0.0F && sprite.maskSize.y > 0.0F;
+      if (masked) {
+        const int maskX = static_cast<int>(
+            worldToScreenX(camera, cameraPosition, width, height,
+                           position.x + sprite.maskOffset.x) -
+            sprite.maskSize.x * ppu * 0.5F);
+        const int maskY = static_cast<int>(
+            worldToScreenY(camera, cameraPosition, width, height,
+                           position.y + sprite.maskOffset.y) -
+            sprite.maskSize.y * ppu * 0.5F);
+        BeginScissorMode(maskX, maskY,
+                         static_cast<int>(sprite.maskSize.x * ppu),
+                         static_cast<int>(sprite.maskSize.y * ppu));
+      }
+      if (sprite.sliceStart.x > 0.0F || sprite.sliceStart.y > 0.0F ||
+          sprite.sliceEnd.x > 0.0F || sprite.sliceEnd.y > 0.0F) {
+        const NPatchInfo patch{.source = source,
+                               .left = static_cast<int>(sprite.sliceStart.x),
+                               .top = static_cast<int>(sprite.sliceStart.y),
+                               .right = static_cast<int>(sprite.sliceEnd.x),
+                               .bottom = static_cast<int>(sprite.sliceEnd.y),
+                               .layout = NPATCH_NINE_PATCH};
+        DrawTextureNPatch(texture->second, patch, destination, origin, rotation,
+                          toRlColor(sprite.color));
+      } else {
+        DrawTexturePro(texture->second, source, destination, origin, rotation,
+                       toRlColor(sprite.color));
+      }
+      if (masked)
+        EndScissorMode();
       return;
     }
     fillColor = toRlColor(sprite.color);
@@ -1018,7 +1187,13 @@ void Renderer2D::drawWorld(const World &world) {
         (entity.hasComponent<BoxCollider2DComponent>() &&
          entity.component<BoxCollider2DComponent>()->debugVisible) ||
         (entity.hasComponent<CircleCollider2DComponent>() &&
-         entity.component<CircleCollider2DComponent>()->debugVisible)) {
+         entity.component<CircleCollider2DComponent>()->debugVisible) ||
+        (entity.hasComponent<CapsuleCollider2DComponent>() &&
+         entity.component<CapsuleCollider2DComponent>()->debugVisible) ||
+        (entity.hasComponent<PolygonCollider2DComponent>() &&
+         entity.component<PolygonCollider2DComponent>()->debugVisible) ||
+        (entity.hasComponent<EdgeCollider2DComponent>() &&
+         entity.component<EdgeCollider2DComponent>()->debugVisible)) {
       renderables.push_back(&entity);
     }
   }
@@ -1051,7 +1226,9 @@ void Renderer2D::drawWorld(const World &world) {
 
   for (const Entity *entity : renderables) {
     drawEntity(textures_, tilemaps_, world, camera_, cameraPosition_, *entity,
-               isoGrid, width_, height_);
+               isoGrid, width_, height_, animationTime_);
+    drawDetailedCollider(world, camera_, cameraPosition_, *entity, width_,
+                         height_);
   }
 
   for (const Entity *entity : renderables) {
@@ -1138,6 +1315,31 @@ void Renderer2D::drawWorld(const World &world) {
   }
 }
 
+void Renderer2D::drawNavigation(const navigation::NavigationGrid2D &grid) {
+  if (!grid.available())
+    return;
+  const float ppu = pixelsPerUnit(camera_, height_);
+  for (int y = 0; y < grid.height(); ++y) {
+    for (int x = 0; x < grid.width(); ++x) {
+      const auto center = grid.cellToWorld({x, y});
+      if (!center)
+        continue;
+      const float screenX =
+          worldToScreenX(camera_, cameraPosition_, width_, height_, center->x);
+      const float screenY =
+          worldToScreenY(camera_, cameraPosition_, width_, height_, center->y);
+      const float size = grid.cellSize() * ppu;
+      const ::Rectangle rectangle{screenX - size * 0.5F, screenY - size * 0.5F,
+                                  size, size};
+      if (grid.blocked({x, y}))
+        DrawRectangleRec(rectangle, {244, 91, 105, 70});
+      else if (grid.cost({x, y}) > 1.0F)
+        DrawRectangleRec(rectangle, {238, 190, 88, 60});
+      DrawRectangleLinesEx(rectangle, 1.0F, {72, 220, 205, 130});
+    }
+  }
+}
+
 void Renderer2D::drawHud(const World &world) {
   const float canvasWidth = std::max(world.hudCanvasSize.x, 1.0F);
   const float canvasHeight = std::max(world.hudCanvasSize.y, 1.0F);
@@ -1157,8 +1359,7 @@ void Renderer2D::drawHud(const World &world) {
       drawUiImage(node, textures_, imageAnimations_, gifAnimations_,
                   animationTime_, scaleX, scaleY);
     } else if (node.type == "button" || node.type == "toggle" ||
-               node.type == "text_input" ||
-               node.type == "virtual_button" ||
+               node.type == "text_input" || node.type == "virtual_button" ||
                node.type == "virtual_stick") {
       drawUiButton(node, scaleX, scaleY);
     } else if (node.type == "slider" || node.type == "progress") {

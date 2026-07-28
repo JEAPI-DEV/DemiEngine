@@ -1,7 +1,7 @@
-#include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/network/ReplicatedState.h"
-#include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/components/EngineComponents.h"
+#include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include "demi/runtime/input/InputActionResolver.h"
 #include "demi/runtime/input/InputRebinding.h"
@@ -26,8 +26,7 @@ bool LuaScriptHost::isKeyPressed(const std::string &key) const {
 }
 
 bool LuaScriptHost::isKeyReleased(const std::string &key) const {
-  return input_ != nullptr &&
-         input_->keysReleased.contains(normalizedKey(key));
+  return input_ != nullptr && input_->keysReleased.contains(normalizedKey(key));
 }
 
 bool LuaScriptHost::isActionDown(const std::string &action,
@@ -53,29 +52,29 @@ bool LuaScriptHost::isActionReleased(const std::string &action,
 
 float LuaScriptHost::actionValue(const std::string &action,
                                  const int player) const {
-  return input_ == nullptr ? 0.0F
-                           : input::InputActionResolver{}.value(
-                                 inputActions_, *input_, action, player,
-                                 &activeInputContexts_);
+  return input_ == nullptr
+             ? 0.0F
+             : input::InputActionResolver{}.value(inputActions_, *input_,
+                                                  action, player,
+                                                  &activeInputContexts_);
 }
 
 Vec2 LuaScriptHost::actionVector(const std::string &action,
                                  const int player) const {
   return input_ == nullptr
              ? Vec2{}
-             : input::InputActionResolver{}.vector(
-                   inputActions_, *input_, action, player,
-                   &activeInputContexts_);
+             : input::InputActionResolver{}.vector(inputActions_, *input_,
+                                                   action, player,
+                                                   &activeInputContexts_);
 }
 
 std::string LuaScriptHost::actionSource(const std::string &action,
                                         const int player) const {
-  return input_ == nullptr
-             ? std::string{}
-             : input::InputActionResolver{}
-                   .resolve(inputActions_, *input_, action, player,
-                            &activeInputContexts_)
-                   .source;
+  return input_ == nullptr ? std::string{}
+                           : input::InputActionResolver{}
+                                 .resolve(inputActions_, *input_, action,
+                                          player, &activeInputContexts_)
+                                 .source;
 }
 
 void LuaScriptHost::enableInputContext(const std::string &context) {
@@ -95,9 +94,9 @@ bool LuaScriptHost::rebindInput(const std::string &action,
                                 const std::size_t bindingIndex,
                                 const std::string &inputName, const int player,
                                 std::string &error) {
-  return input::InputRebinding::rebind(
-      inputActions_, action, bindingIndex,
-      {.input = inputName, .player = player}, error);
+  return input::InputRebinding::rebind(inputActions_, action, bindingIndex,
+                                       {.input = inputName, .player = player},
+                                       error);
 }
 
 bool LuaScriptHost::saveInputBindings(const std::string &path,
@@ -105,8 +104,7 @@ bool LuaScriptHost::saveInputBindings(const std::string &path,
   const std::filesystem::path value(path);
   return input::InputRebinding::save(
       inputActions_,
-      value.is_absolute() ? value
-                          : applicationServices_.userDataPath() / value,
+      value.is_absolute() ? value : applicationServices_.userDataPath() / value,
       error);
 }
 
@@ -115,8 +113,7 @@ bool LuaScriptHost::loadInputBindings(const std::string &path,
   const std::filesystem::path value(path);
   return input::InputRebinding::load(
       inputActions_,
-      value.is_absolute() ? value
-                          : applicationServices_.userDataPath() / value,
+      value.is_absolute() ? value : applicationServices_.userDataPath() / value,
       error);
 }
 
@@ -393,6 +390,51 @@ bool LuaScriptHost::addRigidbodyImpulse(const std::string &entityId,
                                   *world_, entityId, Vec2{.x = x, .y = y});
 }
 
+bool LuaScriptHost::addRigidbodyForce(const std::string &entityId,
+                                      const float x, const float y) {
+  return world_ != nullptr && demi::runtime::addRigidbodyForce(
+                                  *world_, entityId, Vec2{.x = x, .y = y});
+}
+
+bool LuaScriptHost::addRigidbodyTorque(const std::string &entityId,
+                                       const float torque) {
+  return world_ != nullptr &&
+         demi::runtime::addRigidbodyTorque(*world_, entityId, torque);
+}
+
+bool LuaScriptHost::setRigidbodyAngularVelocity(const std::string &entityId,
+                                                const float angularVelocity) {
+  return world_ != nullptr && demi::runtime::setRigidbodyAngularVelocity(
+                                  *world_, entityId, angularVelocity);
+}
+
+bool LuaScriptHost::setRigidbodyAwake(const std::string &entityId,
+                                      const bool awake) {
+  return world_ != nullptr &&
+         demi::runtime::setRigidbodyAwake(*world_, entityId, awake);
+}
+
+bool LuaScriptHost::setRigidbodyEnabled(const std::string &entityId,
+                                        const bool enabled) {
+  return world_ != nullptr &&
+         demi::runtime::setRigidbodyEnabled(*world_, entityId, enabled);
+}
+
+bool LuaScriptHost::moveKinematicBody(const std::string &entityId,
+                                      const float x, const float y,
+                                      const float fixedDt) {
+  return world_ != nullptr &&
+         demi::runtime::moveKinematicBody(*world_, entityId, {x, y}, fixedDt);
+}
+
+std::optional<Vec2>
+LuaScriptHost::moveAndSlideKinematic(const std::string &entityId, const float x,
+                                     const float y) {
+  if (world_ == nullptr)
+    return std::nullopt;
+  return demi::runtime::moveAndSlideKinematic(*world_, entityId, {x, y});
+}
+
 bool LuaScriptHost::physicsOverlapBox(
     const float x, const float y, const float width, const float height,
     const std::string &ignoredEntityId) const {
@@ -407,6 +449,22 @@ std::vector<std::string> LuaScriptHost::physicsOverlapCircle(
   return world_ != nullptr ? overlapCircle(*world_, Vec2{.x = x, .y = y},
                                            radius, layer, ignoredEntityId)
                            : std::vector<std::string>{};
+}
+
+std::vector<PhysicsQueryHit2D> LuaScriptHost::physicsOverlapBoxAll(
+    const float x, const float y, const float width, const float height,
+    const std::string &layer, const std::string &ignoredEntityId) const {
+  return world_ != nullptr ? overlapBoxAll(*world_, {x, y}, {width, height},
+                                           layer, ignoredEntityId)
+                           : std::vector<PhysicsQueryHit2D>{};
+}
+
+std::vector<PhysicsQueryHit2D> LuaScriptHost::physicsOverlapCircleAll(
+    const float x, const float y, const float radius, const std::string &layer,
+    const std::string &ignoredEntityId) const {
+  return world_ != nullptr
+             ? overlapCircleAll(*world_, {x, y}, radius, layer, ignoredEntityId)
+             : std::vector<PhysicsQueryHit2D>{};
 }
 
 std::optional<PhysicsRaycastHit2D>
@@ -450,8 +508,8 @@ LuaScriptHost::physicsContacts(const std::string &entityId) const {
                            : std::vector<PhysicsContact2D>{};
 }
 
-std::optional<std::string> LuaScriptHost::captureEntityReplicatedState(
-    const std::string &entityId) const {
+std::optional<std::string>
+LuaScriptHost::captureEntityReplicatedState(const std::string &entityId) const {
   if (world_ == nullptr)
     return std::nullopt;
   const Entity *entity = findEntity(*world_, entityId);
@@ -460,8 +518,9 @@ std::optional<std::string> LuaScriptHost::captureEntityReplicatedState(
   return captureReplicatedState(*entity).dump();
 }
 
-std::string LuaScriptHost::applyEntityReplicatedState(
-    const std::string &entityId, const std::string &stateJson) {
+std::string
+LuaScriptHost::applyEntityReplicatedState(const std::string &entityId,
+                                          const std::string &stateJson) {
   if (world_ == nullptr)
     return "world is not loaded";
   Entity *entity = findEntity(*world_, entityId);

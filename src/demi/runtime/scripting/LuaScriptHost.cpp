@@ -1,6 +1,6 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
-#include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/components/EngineComponents.h"
 
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
@@ -24,6 +24,7 @@ bool LuaScriptHost::initialize(World &world, InputState &input,
                                AudioSystem *audio, std::string &error) {
   world_ = &world;
   isoGridApi_.attach(&world);
+  tilemapRuntime_.attach(&world, nullptr, &navigationGrid2D_);
   input_ = &input;
   activeInputContexts_ = {"gameplay"};
   audio_ = audio;
@@ -47,6 +48,16 @@ void LuaScriptHost::setNetworkSystem(NetworkSystem *network) {
   network_ = network;
 }
 
+void LuaScriptHost::setAssetRegistry(const demi::AssetRegistry *assets) {
+  tilemapRuntime_.attach(world_, assets, &navigationGrid2D_);
+}
+
+navigation::NavigationGrid2D &LuaScriptHost::navigationGrid2D() {
+  return navigationGrid2D_;
+}
+
+TilemapRuntime &LuaScriptHost::tilemapRuntime() { return tilemapRuntime_; }
+
 std::filesystem::path
 LuaScriptHost::resolveProjectPath(const std::string &path) const {
   const std::filesystem::path value(path);
@@ -60,9 +71,8 @@ void LuaScriptHost::start() {
   }
   for (ScriptInstance &script : scripts_) {
     if (!script.entityId.empty()) {
-      const Entity *entity = world_ == nullptr
-                                 ? nullptr
-                                 : findEntity(*world_, script.entityId);
+      const Entity *entity =
+          world_ == nullptr ? nullptr : findEntity(*world_, script.entityId);
       if (entity != nullptr && !entity->enabled)
         continue;
     }
@@ -131,9 +141,8 @@ void LuaScriptHost::update(const float dt) {
 
   for (const ScriptInstance &script : scripts_) {
     if (!script.entityId.empty()) {
-      const Entity *entity = world_ == nullptr
-                                 ? nullptr
-                                 : findEntity(*world_, script.entityId);
+      const Entity *entity =
+          world_ == nullptr ? nullptr : findEntity(*world_, script.entityId);
       if (entity != nullptr && !entity->enabled)
         continue;
     }
@@ -152,9 +161,8 @@ void LuaScriptHost::fixedUpdate(const float dt) {
   }
   for (const ScriptInstance &script : scripts_) {
     if (!script.entityId.empty()) {
-      const Entity *entity = world_ == nullptr
-                                 ? nullptr
-                                 : findEntity(*world_, script.entityId);
+      const Entity *entity =
+          world_ == nullptr ? nullptr : findEntity(*world_, script.entityId);
       if (entity != nullptr && !entity->enabled)
         continue;
     }

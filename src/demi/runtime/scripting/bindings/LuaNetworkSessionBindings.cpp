@@ -297,6 +297,7 @@ void networkSessionApplySnapshot(LuaScriptHost &host,
           .sortingOrder = session.remotePrefab.get_or("sorting_order", 0),
           .size = luaVec2Field(session.remotePrefab, "size"),
           .pivot = luaVec2Field(session.remotePrefab, "pivot", {0.5F, 0.5F}),
+          .material = session.remotePrefab.get_or("material", std::string{}),
           .color = luaColorField(snapshot, "color",
                                  luaColorField(session.remotePrefab, "color")),
       });

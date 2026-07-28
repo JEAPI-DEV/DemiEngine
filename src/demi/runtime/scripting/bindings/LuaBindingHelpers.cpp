@@ -78,7 +78,6 @@ Color luaColorField(const sol::table table, const char *fieldName,
   };
 }
 
-
 std::uint64_t luaAddTimer(lua_State *state, LuaScriptHost &host,
                           const float seconds, const bool repeating,
                           const sol::function callback) {
@@ -236,8 +235,12 @@ sol::table luaContactsTable(lua_State *state,
     item["entity_id"] = contact.entityId;
     item["other_entity_id"] = contact.otherEntityId;
     item["other_layer"] = contact.otherLayer;
+    item["phase"] = contact.phase;
+    item["point"] =
+        sol::as_table(std::vector<float>{contact.point.x, contact.point.y});
     item["normal_x"] = contact.normal.x;
     item["normal_y"] = contact.normal.y;
+    item["normal_impulse"] = contact.normalImpulse;
     item["is_trigger"] = contact.isTrigger;
     result[index++] = item;
   }

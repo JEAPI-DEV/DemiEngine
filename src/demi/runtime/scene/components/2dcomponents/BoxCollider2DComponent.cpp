@@ -20,6 +20,13 @@ void BoxCollider2DComponent::parse(const nlohmann::json &json, Entity &entity) {
       static_cast<int>(
           scene_loading::numberField(json, "mask_bits").value_or(65535.0F)),
       0, 0xFFFF));
+  component.friction = std::max(
+      scene_loading::numberField(json, "friction").value_or(0.2F), 0.0F);
+  component.restitution =
+      std::clamp(scene_loading::numberField(json, "restitution").value_or(0.0F),
+                 0.0F, 1.0F);
+  component.density = std::max(
+      scene_loading::numberField(json, "density").value_or(1.0F), 0.0F);
   component.debugVisible =
       scene_loading::boolField(json, "debug_visible").value_or(true);
   entity.setComponent(std::move(component));

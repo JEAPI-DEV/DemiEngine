@@ -13,8 +13,9 @@ Status meanings:
 | Lua lifecycle and services | Stable | Lua 5.4, sol2, lifecycle, annotations, hot reload |
 | Cross-platform input | Stable | Typed/contextual actions, four local gamepads, rebinding, multi-touch gestures, virtual controls, per-pointer UI capture, and replay v2 |
 | Application services | Stable | Safe areas, DPI/UI scale, orientation requests, keyboard, clipboard, focus/minimize/suspend/low-memory events, and writable paths |
-| 2D rendering | Stable | Sprite sheets/clips/events, sorting, camera follow, tilemaps, shapes, HUD, debug drawing |
-| 2D physics | Stable | Box2D rigid bodies, box/circle colliders, filtering, triggers, queries, raycasts, and distance joints |
+| 2D rendering | Stable | Pixel/normalized sprites, nine-slice, masks, runtime sorting/material references, animation, multi-tileset animated tilemaps, object layers, cameras, HUD, and matching collider debug drawing |
+| 2D physics | Stable | Box2D bodies, enter/stay/exit contacts, rich queries, box/circle/capsule/polygon/edge-chain colliders, materials, CCD, kinematic move/slide, forces/sleeping, and common joints |
+| 2D navigation/controllers | Stable | Costed A* grid, dynamic blockers, tilemap navigation metadata, world/cell conversion, and reusable platform, top-down, and click-to-move Lua controllers |
 | HUD authoring | Stable | Flat versioned HUD elements and Lua mutation APIs |
 | Saves | Stable | JSON slots, versions, migration hooks |
 | Audio | Stable | miniaudio playback and entity audio sources |
@@ -26,7 +27,7 @@ Status meanings:
 | Component metadata as sole source | Stable | Generated registry drives parsing, validation, schema export, Lua policy, and editor placeholders |
 | Prefabs | Stable | Versioned entity/UI files, nesting, overrides, cycle diagnostics, CLI expansion/diff |
 | Tree/layout runtime UI | Stable | Layout containers, controls, focus, themes, localization, safe-area roots, and virtual controls |
-| Tilemaps and sprite animation system | Stable | Layered/parallax tilemaps, generated collision, clips, playback, and events |
+| Tilemaps and sprite animation system | Stable | Runtime tile mutation, collision/navigation refresh, multiple tilesets, animations, object layers, clips, playback, and events |
 | Deterministic replay/debug tooling | Stable | Versioned input replay, deterministic random state, profiling, and headless probes |
 | Isometric placement/pathfinding | Stable | Grid conversion, occupancy, placement diagnostics, pathfinding, and rendering |
 | Animation state machines | Stable | Shared named states, transitions, parameters, timed events, and Lua control for 2D/3D players |

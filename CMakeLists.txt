@@ -213,6 +213,7 @@ add_library(demi-core STATIC
   src/demi/runtime/isometric/PlacementRules.cpp
   src/demi/runtime/isometric/IsoWorldQueries.cpp
   src/demi/runtime/isometric/IsoGridApi.cpp
+  src/demi/runtime/navigation/NavigationGrid2D.cpp
   src/demi/runtime/physics/Box2DWorldState.cpp
   src/demi/runtime/physics/SpatialQuery3D.cpp
   ${DEMI_COMPONENT_MODEL_SOURCES}
@@ -250,6 +251,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/camera/Camera2DSystem.cpp
   src/demi/runtime/tilemap/TilemapAsset.cpp
   src/demi/runtime/tilemap/TilemapCollisionGenerator.cpp
+  src/demi/runtime/tilemap/TilemapRuntime.cpp
   src/demi/runtime/app/RuntimeApp.cpp
   src/demi/runtime/audio/AudioClipPreprocess.cpp
   src/demi/runtime/audio/AudioSystem.cpp
@@ -298,6 +300,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/components/LuaSprite2DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaTransform2DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaTransform3DBindings.cpp
+  src/demi/runtime/scripting/bindings/components/LuaTilemap2DBindings.cpp
   src/demi/runtime/scripting/bindings/animation/LuaAnimationBindings.cpp
   src/demi/runtime/scripting/bindings/hud/LuaHudBindings.cpp
   src/demi/runtime/scripting/bindings/media/LuaAudioBindings.cpp
@@ -306,6 +309,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/persistence/LuaSaveBindings.cpp
   src/demi/runtime/scripting/bindings/text/LuaRegexBindings.cpp
   src/demi/runtime/scripting/bindings/isometric/LuaIsoGridBindings.cpp
+  src/demi/runtime/scripting/bindings/navigation/LuaNavigation2DBindings.cpp
   src/demi/runtime/scripting/text/RegexMatcher.cpp
   src/demi/runtime/scripting/bindings/LuaJsonBridge.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkBindings.cpp
@@ -578,6 +582,9 @@ add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)
   add_executable(demi-isometric-grid-tests tests/isometric_grid_tests.cpp)
   target_link_libraries(demi-isometric-grid-tests PRIVATE demi-core)
   add_test(NAME demi-isometric-grid-tests COMMAND demi-isometric-grid-tests)
+  add_executable(demi-navigation2d-tests tests/navigation2d_tests.cpp)
+  target_link_libraries(demi-navigation2d-tests PRIVATE demi-core)
+  add_test(NAME demi-navigation2d-tests COMMAND demi-navigation2d-tests)
 add_test(NAME demi-prefab-inspect-cli
   COMMAND demi prefab inspect ${CMAKE_SOURCE_DIR}/examples/minimal_3d/prefabs/player.prefab.json)
 add_test(NAME demi-scene-expand-cli
@@ -631,6 +638,13 @@ add_test(NAME demi-runtime-fighting-game-2d-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/demi.project.json --frames 3
 )
 set_tests_properties(demi-runtime-fighting-game-2d-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-production-2d-foundation-frame
+  COMMAND demi run
+    --project ${CMAKE_SOURCE_DIR}/examples/production_2d_foundation/demi.project.json
+    --frames 3
+)
+set_tests_properties(demi-runtime-production-2d-foundation-frame PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-cook-fighting-game-2d
   COMMAND demi cook
     --project ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/demi.project.json
@@ -705,6 +719,14 @@ add_test(NAME demi-validate-isometric-base-builder
 add_test(NAME demi-validate-fighting-game-2d
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/demi.project.json
 )
+add_test(NAME demi-validate-production-2d-foundation
+  COMMAND demi validate
+    ${CMAKE_SOURCE_DIR}/examples/production_2d_foundation/demi.project.json
+)
+add_test(NAME demi-script-check-production-2d-foundation
+  COMMAND demi script check
+    ${CMAKE_SOURCE_DIR}/examples/production_2d_foundation/scripts/demo.lua
+)
 add_test(NAME demi-script-check-fighting-game-2d
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/scripts/fight.lua
 )
@@ -714,6 +736,11 @@ add_test(NAME demi-script-check-runtime-input-buffer
 add_test(NAME demi-script-check-runtime-command-recognizer
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/scripts/runtime/demi/command_recognizer.lua
 )
+foreach(controller character_controller_2d top_down_controller_2d click_move_controller_2d)
+  add_test(NAME demi-script-check-runtime-${controller}
+    COMMAND demi script check
+      ${CMAKE_SOURCE_DIR}/scripts/runtime/demi/${controller}.lua)
+endforeach()
 set(DEMI_ISOMETRIC_BASE_BUILDER_SCRIPTS
   game
   game/actions

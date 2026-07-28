@@ -1,13 +1,18 @@
-# 2D Gameplay Foundation
+# Production 2D Gameplay Foundation
 
-Milestone 4 provides data-driven sprite animation, cameras, tilemaps, physics
-queries, and a reusable Lua character controller.
+The 2D runtime provides shared rendering, physics, tilemap, navigation, and
+controller APIs. Game scripts choose policy such as health, damage, teams, and
+movement tuning.
 
 ## Sprite animation
 
-`Sprite` supports `source_position`, `source_size`, world-space `size`, `pivot`, `flip_x`,
-`flip_y`, `layer`, and `sorting_order`. Add `SpriteAnimator2D` beside it to
-divide the texture into frames:
+`Sprite` supports pixel or normalized source rectangles, world-space `size`,
+`pivot`, flips, color, `layer`, `sorting_order`, and an optional `material`
+asset reference. `nine_slice` contains `[[left, top], [right, bottom]]` pixel
+borders. `mask_offset` and `mask_size` clip a sprite in world space. Generic
+runtime component mutation can change layer, order, and material without
+recreating the entity. Add `SpriteAnimator2D` beside it to divide the texture
+into frames:
 
 ```json
 "SpriteAnimator2D": {
@@ -67,28 +72,45 @@ A `Tilemap2D` asset manifest points to a versioned tilemap source:
  "type": "Tilemap2D", "source": "level.tilemap.json"}
 ```
 
-The source contains a texture ID, pixel tile size, map size, and flat,
-row-major layers. Tile ID `0` is empty; positive IDs are one-based atlas
-indices. Row zero is the top row. Layers may set `parallax`, `opacity`,
-`collision`, and `collision_layer`. Runtime rendering skips tiles outside the
-view, and adjacent solid cells are merged into static collision runs.
+The source contains one or more tilesets, a pixel tile size, map size, and
+flat, row-major layers. Tile ID `0` is empty; positive IDs are global,
+one-based tile IDs. Row zero is the top row. Layers may set `parallax`,
+`opacity`, `collision`, `collision_layer`, `navigation_blocked`, and
+`navigation_cost`. Runtime rendering skips off-screen cells, chooses the
+tileset with the nearest `first_tile`, advances authored tile animations, and
+merges adjacent collision cells into static runs.
 
 ```json
 {
   "format_version": 1,
-  "texture": "asset://tiles/world",
   "tile_size": [16, 16],
   "map_size": [3, 2],
+  "tilesets": [
+    {"texture": "asset://tiles/world", "first_tile": 1}
+  ],
+  "animations": {
+    "2": [{"tile": 2, "duration": 0.12}, {"tile": 3, "duration": 0.12}]
+  },
+  "object_layers": [
+    {"name": "spawns", "objects": [
+      {"id": "player", "type": "spawn", "position": [16, 16],
+       "size": [16, 16]}
+    ]}
+  ],
   "layers": [
     {"name": "ground", "collision": true,
-     "collision_layer": "platform", "tiles": [0, 0, 0, 1, 1, 1]}
+     "collision_layer": "platform", "navigation_blocked": true,
+     "tiles": [0, 0, 0, 1, 1, 1]}
   ]
 }
 ```
 
 Scene entities reference it with `Tilemap2D.asset` and set
 `pixels_per_unit`. Their `Transform2D.position` is the map's lower-left world
-origin.
+origin. Lua can call `Tilemap2D.get_tile`, `set_tile`, `clear_overrides`,
+`objects`, and `bake_navigation`. Once baked, edits refresh rendering,
+collision generation, and the shared navigation grid together. Navigation
+baking currently requires square world-space cells.
 
 ## Physics
 
@@ -105,19 +127,43 @@ in sorted order, with a maximum of 16 layers:
 }
 ```
 
-`BoxCollider2D` and `CircleCollider2D` support triggers, named layers, and
-lower-level `category_bits`/`mask_bits` overrides when no project layer is
-declared. `DistanceJoint2D` connects its entity to `other_entity` with local
-anchors, length, stiffness, and damping.
+`BoxCollider2D`, `CircleCollider2D`, `CapsuleCollider2D`,
+`PolygonCollider2D`, and `EdgeCollider2D` support triggers, named layers,
+friction, restitution, density, and lower-level
+`category_bits`/`mask_bits`. `EdgeCollider2D.points` represents an open chain;
+`loop: true` closes it. Polygon fixtures accept the Box2D convex-vertex limit.
 
-Lua queries include `Physics2D.overlap_box`, `overlap_circle`, `raycast`,
-`contacts`, and `has_contact`. Trigger contacts emit `physics_trigger` once per
-fixed step for each participant, with `entity_id`, `other_entity_id`,
-`other_layer`, and contact normal fields.
+`Rigidbody2D` supports dynamic, kinematic, and static bodies, continuous
+collision, linear/angular damping, angular velocity, rotation locking,
+sleeping, and runtime enable. Lua exposes velocity, impulse, force, torque,
+angular velocity, awake/enable state, and kinematic target movement.
+`Rigidbody2D.move_and_slide` applies a motion vector to a kinematic collider,
+stops on static colliders, preserves tangent motion, and returns the applied
+vector.
+`DistanceJoint2D` remains the focused spring-distance component. `Joint2D`
+adds revolute, prismatic, weld, rope, and motor configurations.
 
-## Character controller
+Lua queries include `Physics2D.overlap_box_all`, `overlap_circle_all`,
+`raycast`, `contacts`, and `has_contact`. Rich hits contain `entity_id`,
+`layer`, `point`, `normal`, `distance`, and `fraction`.
 
-`require("demi.character_controller_2d")` returns the reusable Lua controller.
-It composes named move/jump actions, a ground raycast, rigidbody velocity, and
-sprite animation/flip. Genre-specific rules remain in the game script. See
-`examples/minimal_2d_networking/scripts/player.lua` for the platformer probe.
+Each participant receives `physics_collision_enter`, `_stay`, and `_exit`, or
+the corresponding `physics_trigger_*` event. `physics_contact` receives both
+kinds. Payloads contain participant IDs/layers, phase, contact point, normal,
+normal impulse, and `is_trigger`. Exit events preserve the final known contact
+geometry.
+
+## Navigation and controllers
+
+`Navigation2D.configure` creates an axis-aligned grid. Scripts can update
+blockers and per-cell costs, request four- or eight-direction A* paths, and
+convert between cells and world centers. Isometric games project their input
+through the isometric adapter before using the same grid.
+
+Reusable Lua helpers cover ordinary movement without embedding game rules:
+
+- `demi.character_controller_2d`: platform movement, grounding, jump, flip,
+  and animation selection;
+- `demi.top_down_controller_2d`: normalized action movement with optional
+  facing/flip;
+- `demi.click_move_controller_2d`: navigation requests and waypoint following.

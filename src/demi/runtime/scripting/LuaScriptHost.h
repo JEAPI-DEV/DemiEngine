@@ -1,19 +1,21 @@
 #pragma once
 
 #include "demi/diagnostics/Diagnostic.h"
-#include "demi/runtime/isometric/IsoGridApi.h"
 #include "demi/runtime/input/TouchGestureRecognizer.h"
+#include "demi/runtime/isometric/IsoGridApi.h"
+#include "demi/runtime/navigation/NavigationGrid2D.h"
 #include "demi/runtime/network/NetworkSystem.h"
-#include "demi/runtime/platform/ApplicationServices.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/SpatialQuery3D.h"
-#include "demi/runtime/scene/model/ProjectData.h"
-#include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/platform/ApplicationServices.h"
 #include "demi/runtime/scene/RuntimeObjectModel.h"
 #include "demi/runtime/scene/RuntimePrefabService.h"
 #include "demi/runtime/scene/SceneFlow.h"
 #include "demi/runtime/scene/WorldCommandBuffer.h"
+#include "demi/runtime/scene/model/ProjectData.h"
+#include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/simulation/DeterministicRandom.h"
+#include "demi/runtime/tilemap/TilemapRuntime.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -52,6 +54,7 @@ public:
                                 AudioSystem *audio, std::string &error);
   void setMediaSystem(MediaSystem *media);
   void setNetworkSystem(NetworkSystem *network);
+  void setAssetRegistry(const demi::AssetRegistry *assets);
   [[nodiscard]] std::filesystem::path
   resolveProjectPath(const std::string &path) const;
   [[nodiscard]] bool loadWorldScripts(const ProjectData &project, World &world,
@@ -111,6 +114,8 @@ public:
   [[nodiscard]] float randomRange(float minimum, float maximum);
   [[nodiscard]] int randomInteger(int minimum, int maximum);
   [[nodiscard]] isometric::IsoGridApi &isoGridApi();
+  [[nodiscard]] navigation::NavigationGrid2D &navigationGrid2D();
+  [[nodiscard]] TilemapRuntime &tilemapRuntime();
   [[nodiscard]] std::string textEntered() const;
   [[nodiscard]] bool addEntityPosition(const std::string &entityId, float dx,
                                        float dy);
@@ -157,6 +162,12 @@ public:
                                    bool flipY);
   [[nodiscard]] bool setSpriteSize(const std::string &entityId, float width,
                                    float height);
+  [[nodiscard]] bool setSpriteLayer(const std::string &entityId,
+                                    const std::string &layer);
+  [[nodiscard]] bool setSpriteSortingOrder(const std::string &entityId,
+                                           int sortingOrder);
+  [[nodiscard]] bool setSpriteMaterial(const std::string &entityId,
+                                       const std::string &material);
   [[nodiscard]] std::optional<std::string>
   animationState(const std::string &entityId) const;
   [[nodiscard]] bool playAnimationState(const std::string &entityId,
@@ -176,12 +187,33 @@ public:
                                            float y);
   [[nodiscard]] bool addRigidbodyImpulse(const std::string &entityId, float x,
                                          float y);
+  [[nodiscard]] bool addRigidbodyForce(const std::string &entityId, float x,
+                                       float y);
+  [[nodiscard]] bool addRigidbodyTorque(const std::string &entityId,
+                                        float torque);
+  [[nodiscard]] bool setRigidbodyAngularVelocity(const std::string &entityId,
+                                                 float angularVelocity);
+  [[nodiscard]] bool setRigidbodyAwake(const std::string &entityId, bool awake);
+  [[nodiscard]] bool setRigidbodyEnabled(const std::string &entityId,
+                                         bool enabled);
+  [[nodiscard]] bool moveKinematicBody(const std::string &entityId, float x,
+                                       float y, float fixedDt);
+  [[nodiscard]] std::optional<Vec2>
+  moveAndSlideKinematic(const std::string &entityId, float x, float y);
   [[nodiscard]] bool
   physicsOverlapBox(float x, float y, float width, float height,
                     const std::string &ignoredEntityId) const;
   [[nodiscard]] std::vector<std::string>
   physicsOverlapCircle(float x, float y, float radius, const std::string &layer,
                        const std::string &ignoredEntityId) const;
+  [[nodiscard]] std::vector<PhysicsQueryHit2D>
+  physicsOverlapBoxAll(float x, float y, float width, float height,
+                       const std::string &layer,
+                       const std::string &ignoredEntityId) const;
+  [[nodiscard]] std::vector<PhysicsQueryHit2D>
+  physicsOverlapCircleAll(float x, float y, float radius,
+                          const std::string &layer,
+                          const std::string &ignoredEntityId) const;
   [[nodiscard]] std::optional<PhysicsRaycastHit2D>
   physicsRaycast(float originX, float originY, float directionX,
                  float directionY, float distance, const std::string &layer,
@@ -222,9 +254,9 @@ public:
                                              const nlohmann::json &value);
   [[nodiscard]] std::vector<std::string>
   queryEntities(const EntityQuery &query) const;
-  [[nodiscard]] bool setEntityParent(
-      const std::string &entityId,
-      const std::optional<std::string> &parentId);
+  [[nodiscard]] bool
+  setEntityParent(const std::string &entityId,
+                  const std::optional<std::string> &parentId);
   [[nodiscard]] std::optional<std::string>
   entityParent(const std::string &entityId) const;
   [[nodiscard]] std::vector<std::string>
@@ -309,7 +341,7 @@ public:
   [[nodiscard]] Vec2 viewportSize() const;
   [[nodiscard]] bool uiPointerCaptured(std::int64_t pointerId = 0) const;
   void addDebugLine(float x1, float y1, float x2, float y2, float r, float g,
-                     float b, float a, float width = 1.0F);
+                    float b, float a, float width = 1.0F);
   void clearDebugLines();
   [[nodiscard]] std::uint64_t playAudio(const std::string &assetId);
   [[nodiscard]] std::uint64_t playAudioSource(const std::string &entityId);
@@ -471,6 +503,8 @@ private:
   platform::ApplicationServices applicationServices_;
   simulation::DeterministicRandom random_;
   isometric::IsoGridApi isoGridApi_;
+  navigation::NavigationGrid2D navigationGrid2D_;
+  TilemapRuntime tilemapRuntime_;
   AudioSystem *audio_ = nullptr;
   MediaSystem *media_ = nullptr;
   NetworkSystem *network_ = nullptr;

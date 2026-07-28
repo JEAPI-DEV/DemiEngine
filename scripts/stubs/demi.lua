@@ -403,6 +403,18 @@ function Sprite2D.set_flip(entity_id, flip_x, flip_y) end
 ---@param height number
 ---@return boolean
 function Sprite2D.set_size(entity_id, width, height) end
+---@param entity_id string
+---@param layer string
+---@return boolean
+function Sprite2D.set_layer(entity_id, layer) end
+---@param entity_id string
+---@param sorting_order integer
+---@return boolean
+function Sprite2D.set_sorting_order(entity_id, sorting_order) end
+---@param entity_id string
+---@param material string
+---@return boolean
+function Sprite2D.set_material(entity_id, material) end
 
 ---@class AnimationService
 Animation = {}
@@ -599,6 +611,38 @@ function Rigidbody2D.set_velocity_y(entity_id, y) end
 ---@param y number
 ---@return boolean
 function Rigidbody2D.add_impulse(entity_id, x, y) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@return boolean
+function Rigidbody2D.add_force(entity_id, x, y) end
+---@param entity_id string
+---@param torque number
+---@return boolean
+function Rigidbody2D.add_torque(entity_id, torque) end
+---@param entity_id string
+---@param angular_velocity number
+---@return boolean
+function Rigidbody2D.set_angular_velocity(entity_id, angular_velocity) end
+---@param entity_id string
+---@param awake boolean
+---@return boolean
+function Rigidbody2D.set_awake(entity_id, awake) end
+---@param entity_id string
+---@param enabled boolean
+---@return boolean
+function Rigidbody2D.set_enabled(entity_id, enabled) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param fixed_dt? number
+---@return boolean
+function Rigidbody2D.move_kinematic(entity_id, x, y, fixed_dt) end
+---@param entity_id string
+---@param motion_x number
+---@param motion_y number
+---@return number?, number?
+function Rigidbody2D.move_and_slide(entity_id, motion_x, motion_y) end
 
 ---@class Physics2DService
 Physics2D = {}
@@ -611,9 +655,11 @@ Physics2D = {}
 function Physics2D.overlap_box(x, y, width, height, ignored_entity_id) end
 ---@class PhysicsRaycastHit2D
 ---@field entity_id string
+---@field layer string
 ---@field point number[]
 ---@field normal number[]
 ---@field distance number
+---@field fraction number
 ---@param x number
 ---@param y number
 ---@param radius number
@@ -621,6 +667,21 @@ function Physics2D.overlap_box(x, y, width, height, ignored_entity_id) end
 ---@param ignored_entity_id? string
 ---@return string[]
 function Physics2D.overlap_circle(x, y, radius, layer, ignored_entity_id) end
+---@param x number
+---@param y number
+---@param width number
+---@param height number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return PhysicsRaycastHit2D[]
+function Physics2D.overlap_box_all(x, y, width, height, layer, ignored_entity_id) end
+---@param x number
+---@param y number
+---@param radius number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return PhysicsRaycastHit2D[]
+function Physics2D.overlap_circle_all(x, y, radius, layer, ignored_entity_id) end
 ---@param origin_x number
 ---@param origin_y number
 ---@param direction_x number
@@ -671,12 +732,90 @@ function Physics2D.has_contact(entity_id, filter) end
 ---@field entity_id string
 ---@field other_entity_id string
 ---@field other_layer string
+---@field phase "enter"|"stay"|"exit"
+---@field point number[]
 ---@field normal_x number
 ---@field normal_y number
+---@field normal_impulse number
 ---@field is_trigger boolean
 ---@param entity_id string
 ---@return PhysicsContact2D[]
 function Physics2D.contacts(entity_id) end
+
+---@class Tilemap2DService
+Tilemap2D = {}
+---@param entity_id string
+---@param layer string
+---@param column integer
+---@param row integer
+---@return integer|nil
+function Tilemap2D.get_tile(entity_id, layer, column, row) end
+---@param entity_id string
+---@param layer string
+---@param column integer
+---@param row integer
+---@param tile integer
+---@return boolean
+function Tilemap2D.set_tile(entity_id, layer, column, row, tile) end
+---@param entity_id string
+---@return boolean
+function Tilemap2D.clear_overrides(entity_id) end
+---@param entity_id string
+---@return boolean
+function Tilemap2D.bake_navigation(entity_id) end
+---@class TilemapObject2D
+---@field id string
+---@field type string
+---@field x number
+---@field y number
+---@field width number
+---@field height number
+---@field properties table
+---@param entity_id string
+---@param layer string
+---@return TilemapObject2D[]
+function Tilemap2D.objects(entity_id, layer) end
+
+---@class Navigation2DService
+Navigation2D = {}
+---@param width integer
+---@param height integer
+---@param cell_size number
+---@param origin_x? number
+---@param origin_y? number
+---@return boolean
+function Navigation2D.configure(width, height, cell_size, origin_x, origin_y) end
+function Navigation2D.clear() end
+---@return boolean
+function Navigation2D.available() end
+---@param x integer
+---@param y integer
+---@param blocked boolean
+---@return boolean
+function Navigation2D.set_blocked(x, y, blocked) end
+---@param x integer
+---@param y integer
+---@param cost number
+---@return boolean
+function Navigation2D.set_cost(x, y, cost) end
+---@param start_x integer
+---@param start_y integer
+---@param goal_x integer
+---@param goal_y integer
+---@param diagonal? boolean
+---@return table path
+---@return string diagnostic
+function Navigation2D.path(start_x, start_y, goal_x, goal_y, diagonal) end
+---@param x number
+---@param y number
+---@return integer|nil column
+---@return integer|nil row
+function Navigation2D.world_to_cell(x, y) end
+---@param column integer
+---@param row integer
+---@return number|nil x
+---@return number|nil y
+function Navigation2D.cell_to_world(column, row) end
 
 ---@class HudService
 Hud = {}
@@ -1304,3 +1443,43 @@ function DemiScript:on_destroy() end
 function DemiScript:on_ui_hover(event) end
 ---@param event DemiUiEvent
 function DemiScript:on_ui_click(event) end
+
+-- Generated from ComponentRegistry metadata.
+---@class DemiRigidbody2DSpec
+---@field body_type? string
+---@field velocity? number[]
+---@field gravity_scale? number
+---@field bounciness? number
+---@field lock_rotation? boolean
+---@field angular_velocity? number
+---@field linear_damping? number
+---@field angular_damping? number
+---@field continuous? boolean
+---@field allow_sleep? boolean
+---@field awake? boolean
+---@field body_enabled? boolean
+
+---@class DemiSpriteAnimator2DSpec
+---@field frame_size? number[]
+---@field clips? table
+---@field clip? string
+---@field speed? number
+---@field playing? boolean
+
+---@class DemiTransform2DSpec
+---@field parent? string
+---@field position? number[]
+---@field rotation? number
+---@field scale? number[]
+
+---@class DemiTransform3DSpec
+---@field parent? string
+---@field position? number[]
+---@field rotation? number[]
+---@field scale? number[]
+
+---@class DemiAnimationStateMachineSpec
+---@field states table
+---@field transitions? table
+---@field parameters? table
+---@field initial_state? string

@@ -21,14 +21,38 @@ struct SpriteComponent {
       ComponentFieldDescriptor{"sorting_order", ComponentFieldType::Integer},
       ComponentFieldDescriptor{"source_position", ComponentFieldType::Vec2},
       ComponentFieldDescriptor{"source_size", ComponentFieldType::Vec2},
+      ComponentFieldDescriptor{"source_normalized",
+                               ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"size", ComponentFieldType::Vec2},
       ComponentFieldDescriptor{"pivot", ComponentFieldType::Vec2},
-      ComponentFieldDescriptor{"flip_x", ComponentFieldType::Boolean, false,
-                               true, {}, 0.0, false, true},
-      ComponentFieldDescriptor{"flip_y", ComponentFieldType::Boolean, false,
-                               true, {}, 0.0, false, true},
-      ComponentFieldDescriptor{"color", ComponentFieldType::Color, false, true,
-                               {}, 0.0, false, true}};
+      ComponentFieldDescriptor{"nine_slice", ComponentFieldType::Vec2Array},
+      ComponentFieldDescriptor{"mask_offset", ComponentFieldType::Vec2},
+      ComponentFieldDescriptor{"mask_size", ComponentFieldType::Vec2},
+      ComponentFieldDescriptor::assetReference("material"),
+      ComponentFieldDescriptor{"flip_x",
+                               ComponentFieldType::Boolean,
+                               false,
+                               true,
+                               {},
+                               0.0,
+                               false,
+                               true},
+      ComponentFieldDescriptor{"flip_y",
+                               ComponentFieldType::Boolean,
+                               false,
+                               true,
+                               {},
+                               0.0,
+                               false,
+                               true},
+      ComponentFieldDescriptor{"color",
+                               ComponentFieldType::Color,
+                               false,
+                               true,
+                               {},
+                               0.0,
+                               false,
+                               true}};
   static constexpr ComponentEditorMetadata editor{"2D", "Sprite"};
   static void parse(const nlohmann::json &json, Entity &entity);
 
@@ -38,8 +62,14 @@ struct SpriteComponent {
   int sortingOrder = 0;
   Vec2 sourcePosition{};
   Vec2 sourceSize{};
+  bool sourceNormalized = false;
   Vec2 size{};
   Vec2 pivot{0.5F, 0.5F};
+  Vec2 sliceStart{};
+  Vec2 sliceEnd{};
+  Vec2 maskOffset{};
+  Vec2 maskSize{};
+  std::string material;
   bool flipX = false;
   bool flipY = false;
   Color color = {1.0F, 1.0F, 1.0F, 1.0F};

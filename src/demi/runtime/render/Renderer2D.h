@@ -3,6 +3,7 @@
 #include "demi/runtime/scene/components/2dcomponents/Camera2DComponent.h"
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/runtime/navigation/NavigationGrid2D.h"
 #include "demi/runtime/render/RendererAssetData.h"
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/tilemap/TilemapAsset.h"
@@ -26,6 +27,7 @@ public:
   void beginFrame(const Camera2DComponent &camera, Vec2 cameraPosition,
                   int width, int height);
   void drawWorld(const World &world);
+  void drawNavigation(const navigation::NavigationGrid2D &grid);
   void drawHud(const World &world);
   void endFrame();
 
