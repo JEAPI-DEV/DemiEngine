@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://shaders/goal_glow",
+  "importer": "json-data",
+  "importer_version": 1,
+  "settings": {},
+  "source": "goal_glow.shader.json",
+  "source_hash": "fnv1a64:463894b1fd424130",
+  "type": "Shader"
+}

@@ -8,6 +8,11 @@ A small interactive probe for the Phase 4 gameplay APIs:
 - runtime navigation updates and path queries;
 - tilemap object layers, physics overlap queries, and sprite ordering.
 
+The goal trigger also exercises a game-authored shader. Its material references
+`asset://shaders/goal_glow`, which is preloaded when the renderer starts. The
+shader manifest selects GLSL 330 sources on Linux and GLSL ES 100 sources on
+Android, so gameplay code never depends on the rendering backend.
+
 Run it from the repository root:
 
 ```sh

@@ -4,6 +4,7 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/HudTextMetrics.h"
 #include "demi/runtime/render/ProfilerHudRenderer.h"
+#include "demi/runtime/render/RaylibMaterialBinding.h"
 #include "demi/runtime/render/TextureSamplerSettings.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
@@ -763,10 +764,22 @@ void drawDetailedCollider(const World &world, const Camera2DComponent &camera,
 
 void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
                 const std::unordered_map<std::string, TilemapAsset2D> &tilemaps,
+                const std::unordered_map<std::string, assets::MaterialAsset>
+                    &materials,
+                const ShaderResourceLibrary &shaders,
                 const World &world, const Camera2DComponent &camera,
                 const Vec2 cameraPosition, const Entity &entity,
                 const isometric::GridDefinition &isoGrid, const int width,
                 const int height, const float animationTime) {
+  const SpriteComponent *renderSprite = entity.component<SpriteComponent>();
+  const assets::MaterialAsset *renderMaterial = nullptr;
+  if (renderSprite != nullptr) {
+    if (const auto material = materials.find(renderSprite->material);
+        material != materials.end())
+      renderMaterial = &material->second;
+  }
+  const ScopedRaylibMaterial2D materialScope(shaders, renderMaterial);
+
   if (entity.hasComponent<Tilemap2DComponent>()) {
     drawTilemap(textures, tilemaps, world, camera, cameraPosition, entity,
                 width, height, animationTime);
@@ -1034,15 +1047,26 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
   DrawRectangleLinesEx(rect, 1.0F, outlineColor);
 }
 
-Renderer2D::~Renderer2D() {
+void Renderer2D::unloadAssets() {
+  particleSystem_.clear();
   for (auto &[id, texture] : textures_) {
     (void)id;
     UnloadTexture(texture);
   }
+  textures_.clear();
+  materials_.clear();
+  imageAnimations_.clear();
+  gifAnimations_.clear();
+  tilemaps_.clear();
+  shaders_.clear();
 }
 
-void Renderer2D::loadTextureAssets(const AssetRegistry &registry) {
-  materials_.clear();
+Renderer2D::~Renderer2D() { unloadAssets(); }
+
+void Renderer2D::loadAssets(const AssetRegistry &registry) {
+  ProfileScope scope("Renderer2D.load_assets");
+  unloadAssets();
+  shaders_.load(registry);
   for (const AssetManifest &asset : registry.assets) {
     if (asset.type == "Material") {
       if (auto material = assets::loadMaterialAsset(asset.sourcePath))
@@ -1259,13 +1283,14 @@ void Renderer2D::drawWorld(const World &world) {
       });
 
   for (const Entity *entity : renderables) {
-    drawEntity(textures_, tilemaps_, world, camera_, cameraPosition_, *entity,
-               isoGrid, width_, height_, animationTime_);
+    drawEntity(textures_, tilemaps_, materials_, shaders_, world, camera_,
+               cameraPosition_, *entity, isoGrid, width_, height_,
+               animationTime_);
     drawDetailedCollider(world, camera_, cameraPosition_, *entity, width_,
                          height_);
   }
   particleSystem_.update(world, GetFrameTime());
-  particleSystem_.draw(textures_, materials_, cameraPosition_,
+  particleSystem_.draw(textures_, materials_, shaders_, cameraPosition_,
                        pixelsPerUnit(camera_, height_), width_, height_);
 
   for (const Entity *entity : renderables) {

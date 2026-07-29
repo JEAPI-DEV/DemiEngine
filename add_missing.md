@@ -398,7 +398,8 @@ regressions. See `docs/3d-gameplay.md`.
 blocks, bounded lighting, camera passes and targets, deterministic 2D/3D
 particles, post effects, world text/UI targets, and profiler-visible render
 statistics now share one data-driven runtime path. `minimal_voxel` is the
-end-to-end probe for the system on Linux and Android.
+end-to-end 3D probe, while `production_2d_foundation` loads an authored shader
+at renderer startup with Linux and Android stage sources.
 
 Presentation features should be data-driven assets/components rather than
 branches added to renderer files for each example.

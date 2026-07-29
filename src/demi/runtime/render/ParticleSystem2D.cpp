@@ -3,6 +3,7 @@
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/ParticleEmitter2DComponent.h"
 #include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/render/RaylibMaterialBinding.h"
 
 #include <algorithm>
 #include <cmath>
@@ -136,6 +137,7 @@ void ParticleSystem2D::update(const World &world, const float deltaTime) {
 void ParticleSystem2D::draw(
     const std::unordered_map<std::string, Texture2D> &textures,
     const std::unordered_map<std::string, assets::MaterialAsset> &materials,
+    const ShaderResourceLibrary &shaders,
     const Vec2 cameraPosition, const float pixelsPerUnit, const int width,
     const int height) {
   std::vector<const EmitterState *> ordered;
@@ -158,8 +160,7 @@ void ParticleSystem2D::draw(
           found != material->textures.end())
         textureId = found->second;
     const auto texture = textures.find(textureId);
-    if (material != nullptr && material->renderState.blend == "additive")
-      BeginBlendMode(BLEND_ADDITIVE);
+    const ScopedRaylibMaterial2D materialScope(shaders, material);
     for (const Particle &particle : state->particles) {
       const float t = std::clamp(particle.age / particle.lifetime, 0.0F, 1.0F);
       const float size =
@@ -181,8 +182,6 @@ void ParticleSystem2D::draw(
       else
         DrawCircleV(center, size * 0.5F, color);
     }
-    if (material != nullptr && material->renderState.blend == "additive")
-      EndBlendMode();
   }
 }
 

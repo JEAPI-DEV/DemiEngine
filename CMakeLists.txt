@@ -479,6 +479,8 @@ configure_demi_runtime(demi-runtime-lib TRUE
   src/demi/runtime/render/Renderer3DModelResources.cpp
   src/demi/runtime/render/Renderer3DTextureSettings.cpp
   src/demi/runtime/render/TextureSamplerSettings.cpp
+  src/demi/runtime/render/ShaderResourceLibrary.cpp
+  src/demi/runtime/render/RaylibMaterialBinding.cpp
 )
 
 if(NOT ANDROID)

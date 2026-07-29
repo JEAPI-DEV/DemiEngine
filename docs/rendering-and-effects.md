@@ -30,6 +30,31 @@ Custom `Shader` assets name vertex and fragment sources and declare Linux and
 Android fallbacks. Built-in shaders are embedded in the executable, so Android
 does not depend on the desktop source-tree layout.
 
+```json
+{
+  "format_version": 1,
+  "vertex": "outline.vert",
+  "fragment": "outline.frag",
+  "platform_sources": {
+    "android": {
+      "vertex": "outline_android.vert",
+      "fragment": "outline_android.frag"
+    }
+  },
+  "platform_fallbacks": {
+    "linux": "builtin://unlit",
+    "android": "builtin://unlit"
+  }
+}
+```
+
+All `Shader` manifests are parsed and their platform-appropriate GPU programs
+are loaded when the active renderer starts. Materials reference them through
+stable `asset://` IDs. Linux defaults to the base stages; Android projects
+should provide GLSL ES stages under `platform_sources.android`. A failed
+program falls back to the authored asset or built-in fallback instead of
+leaving the material without a valid rendering path.
+
 ## Cameras and render targets
 
 Every enabled `Camera3D` is rendered in ascending `priority` order. `primary`

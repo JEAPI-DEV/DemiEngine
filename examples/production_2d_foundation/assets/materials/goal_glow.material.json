@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "shader": "asset://shaders/goal_glow",
+  "fallback": "builtin://unlit",
+  "parameters": {
+    "effect_color": [1.0, 0.2, 0.75, 1.0],
+    "strength": 0.65
+  },
+  "render_state": {
+    "blend": "alpha",
+    "cull": "none",
+    "depth_test": false,
+    "depth_write": false
+  }
+}

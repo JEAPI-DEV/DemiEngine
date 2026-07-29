@@ -58,7 +58,7 @@ void drawMeshEntity(
     std::unordered_map<std::string, AnimatedModelCacheEntry> &animatedModels,
     std::unordered_map<std::string, DynamicModelCacheEntry> &dynamicModels,
     const std::unordered_map<std::string, assets::MaterialAsset> &materials,
-    const std::unordered_map<std::string, Shader> &materialShaders,
+    const ShaderResourceLibrary &shaders,
     bool drawDebugColliders, const Shader *alphaCutoutShader);
 
 } // namespace demi::runtime::renderer3d_detail

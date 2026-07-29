@@ -160,10 +160,7 @@ void Renderer3D::unloadAssets() {
     (void)id;
     UnloadTexture(texture);
   }
-  for (auto &[id, shader] : materialShaders_) {
-    (void)id;
-    UnloadShader(shader);
-  }
+  shaders_.clear();
   if (hasAlphaCutoutShader_) {
     UnloadShader(alphaCutoutShader_);
   }
@@ -184,7 +181,6 @@ void Renderer3D::unloadAssets() {
   modelTextureSettings_.clear();
   materials_.clear();
   renderTargets_.clear();
-  materialShaders_.clear();
   imageAnimations_.clear();
   gifAnimations_.clear();
   alphaCutoutShader_ = {};
@@ -198,9 +194,10 @@ void Renderer3D::unloadAssets() {
 
 Renderer3D::~Renderer3D() { unloadAssets(); }
 
-void Renderer3D::loadTextureAssets(const AssetRegistry &registry) {
-  ProfileScope scope("Renderer3D.load_texture_assets");
+void Renderer3D::loadAssets(const AssetRegistry &registry) {
+  ProfileScope scope("Renderer3D.load_assets");
   unloadAssets();
+  shaders_.load(registry);
   if (!hasAlphaCutoutShader_) {
     alphaCutoutShader_ = loadAlphaCutoutShader();
     hasAlphaCutoutShader_ = alphaCutoutShader_.id != 0;
@@ -221,13 +218,6 @@ void Renderer3D::loadTextureAssets(const AssetRegistry &registry) {
       continue;
     }
     if (asset.type == "Shader") {
-      if (auto shaderAsset = assets::loadShaderAsset(asset.sourcePath)) {
-        Shader shader =
-            LoadShader(shaderAsset->vertex.string().c_str(),
-                       shaderAsset->fragment.string().c_str());
-        if (shader.id != 0)
-          materialShaders_.emplace(asset.id, shader);
-      }
       continue;
     }
     if (asset.type == "ImageAnimation2D") {

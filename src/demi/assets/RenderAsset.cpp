@@ -47,7 +47,50 @@ bool validColor(const nlohmann::json &value) {
              value, [](const auto &channel) { return channel.is_number(); });
 }
 
+std::optional<ShaderAsset::Stages>
+shaderStages(const nlohmann::json &document,
+             const std::filesystem::path &directory,
+             Diagnostics *diagnostics,
+             const std::filesystem::path &assetPath,
+             const std::string &label) {
+  if (!document.is_object()) {
+    invalid(diagnostics, assetPath, "SHADER_PLATFORM_SOURCE_INVALID",
+            label + " shader stages must be an object.");
+    return std::nullopt;
+  }
+  const std::string vertex = document.value("vertex", "");
+  const std::string fragment = document.value("fragment", "");
+  if (vertex.empty() || fragment.empty()) {
+    invalid(diagnostics, assetPath, "SHADER_STAGE_MISSING",
+            label + " shader stages require vertex and fragment paths.");
+    return std::nullopt;
+  }
+  ShaderAsset::Stages result{.vertex = directory / vertex,
+                             .fragment = directory / fragment};
+  if (!std::filesystem::is_regular_file(result.vertex) ||
+      !std::filesystem::is_regular_file(result.fragment)) {
+    invalid(diagnostics, assetPath, "SHADER_STAGE_NOT_FOUND",
+            label + " shader stage source file does not exist.");
+    return std::nullopt;
+  }
+  return result;
+}
+
 } // namespace
+
+const ShaderAsset::Stages &
+ShaderAsset::stagesFor(const std::string_view platform) const {
+  if (platform == "android" && androidStages)
+    return *androidStages;
+  if (platform == "linux" && linuxStages)
+    return *linuxStages;
+  return stages;
+}
+
+const std::string &
+ShaderAsset::fallbackFor(const std::string_view platform) const {
+  return platform == "android" ? androidFallback : linuxFallback;
+}
 
 std::optional<MaterialAsset>
 loadMaterialAsset(const std::filesystem::path &path, Diagnostics *diagnostics) {
@@ -167,20 +210,32 @@ std::optional<ShaderAsset> loadShaderAsset(const std::filesystem::path &path,
 
     ShaderAsset shader;
     shader.formatVersion = 1;
-    const std::string vertex = document->value("vertex", "");
-    const std::string fragment = document->value("fragment", "");
-    if (vertex.empty() || fragment.empty()) {
-      invalid(diagnostics, path, "SHADER_STAGE_MISSING",
-              "Shader assets require vertex and fragment source paths.");
+    const auto baseStages =
+        shaderStages(*document, path.parent_path(), diagnostics, path, "Base");
+    if (!baseStages)
       return std::nullopt;
-    }
-    shader.vertex = path.parent_path() / vertex;
-    shader.fragment = path.parent_path() / fragment;
-    if (!std::filesystem::is_regular_file(shader.vertex) ||
-        !std::filesystem::is_regular_file(shader.fragment)) {
-      invalid(diagnostics, path, "SHADER_STAGE_NOT_FOUND",
-              "A shader stage source file does not exist.");
-      return std::nullopt;
+    shader.stages = *baseStages;
+    if (const auto sources = document->find("platform_sources");
+        sources != document->end()) {
+      if (!sources->is_object()) {
+        invalid(diagnostics, path, "SHADER_PLATFORM_SOURCES_INVALID",
+                "Shader platform_sources must be an object.");
+        return std::nullopt;
+      }
+      if (const auto android = sources->find("android");
+          android != sources->end()) {
+        shader.androidStages = shaderStages(
+            *android, path.parent_path(), diagnostics, path, "Android");
+        if (!shader.androidStages)
+          return std::nullopt;
+      }
+      if (const auto linux = sources->find("linux");
+          linux != sources->end()) {
+        shader.linuxStages = shaderStages(
+            *linux, path.parent_path(), diagnostics, path, "Linux");
+        if (!shader.linuxStages)
+          return std::nullopt;
+      }
     }
     if (const auto fallback = document->find("platform_fallbacks");
         fallback != document->end() && fallback->is_object()) {

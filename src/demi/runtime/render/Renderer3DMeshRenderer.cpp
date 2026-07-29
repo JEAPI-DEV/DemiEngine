@@ -1,6 +1,7 @@
 #include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/Renderer3DInternal.h"
+#include "demi/runtime/render/RaylibMaterialBinding.h"
 #include "demi/runtime/scene/WorldQueries.h"
 
 #include <rlgl.h>
@@ -205,7 +206,7 @@ void drawMeshEntity(
     std::unordered_map<std::string, AnimatedModelCacheEntry> &animatedModels,
     std::unordered_map<std::string, DynamicModelCacheEntry> &dynamicModels,
     const std::unordered_map<std::string, assets::MaterialAsset> &materials,
-    const std::unordered_map<std::string, Shader> &materialShaders,
+    const ShaderResourceLibrary &shaders,
     const bool drawDebugColliders, const Shader *alphaCutoutShader) {
   if (!entity.hasComponent<MeshRendererComponent>() ||
       !entity.hasComponent<Transform3DComponent>()) {
@@ -310,15 +311,13 @@ void drawMeshEntity(
   };
 
   const Shader *resolvedShader = nullptr;
-  if (material != nullptr && material->shader.starts_with("asset://")) {
-    if (const auto found = materialShaders.find(material->shader);
-        found != materialShaders.end())
-      resolvedShader = &found->second;
-  }
+  if (material != nullptr && material->shader.starts_with("asset://"))
+    resolvedShader = shaders.find(material->shader);
   const bool useBuiltinLit =
       material == nullptr || material->shader == "builtin://lit" ||
       (material->shader.starts_with("asset://") &&
-       material->fallback == "builtin://lit");
+       (shaders.builtinFallbackFor(material->shader) == "builtin://lit" ||
+        material->fallback == "builtin://lit"));
   if (resolvedShader == nullptr && hasTexture && useBuiltinLit)
     resolvedShader = alphaCutoutShader;
 
@@ -335,21 +334,8 @@ void drawMeshEntity(
       BeginBlendMode(BLEND_ADDITIVE);
   }
   if (resolvedShader != nullptr) {
-    if (material != nullptr) {
-      for (const auto &[name, value] : material->numbers) {
-        const int location = GetShaderLocation(*resolvedShader, name.c_str());
-        if (location >= 0)
-          SetShaderValue(*resolvedShader, location, &value,
-                         SHADER_UNIFORM_FLOAT);
-      }
-      for (const auto &[name, value] : material->colors) {
-        const float channels[]{value.r, value.g, value.b, value.a};
-        const int location = GetShaderLocation(*resolvedShader, name.c_str());
-        if (location >= 0)
-          SetShaderValue(*resolvedShader, location, channels,
-                         SHADER_UNIFORM_VEC4);
-      }
-    }
+    if (material != nullptr)
+      applyMaterialShaderParameters(*resolvedShader, *material);
     for (const auto &[name, value] : mesh.materialNumbers) {
       const int location = GetShaderLocation(*resolvedShader, name.c_str());
       if (location >= 0)

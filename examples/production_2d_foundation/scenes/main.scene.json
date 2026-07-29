@@ -76,6 +76,7 @@
         "Sprite": {
           "shape": "circle",
           "size": [0.9, 0.9],
+          "material": "asset://materials/goal_glow",
           "layer": "actors",
           "sorting_order": 5,
           "color": [0.4, 1.0, 0.45, 0.8]

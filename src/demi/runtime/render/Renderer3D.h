@@ -7,6 +7,7 @@
 #include "demi/runtime/render/RendererAssetData.h"
 #include "demi/runtime/render/ParticleSystem3D.h"
 #include "demi/runtime/render/RenderStatistics.h"
+#include "demi/runtime/render/ShaderResourceLibrary.h"
 #include "demi/runtime/scene/model/World.h"
 
 #include <raylib.h>
@@ -50,7 +51,7 @@ public:
   Renderer3D(const Renderer3D &) = delete;
   Renderer3D &operator=(const Renderer3D &) = delete;
 
-  void loadTextureAssets(const AssetRegistry &registry);
+  void loadAssets(const AssetRegistry &registry);
   void beginFrame(int width, int height, Color clearColor);
   void beginCamera(const std::string &cameraId,
                    const Camera3DComponent &camera, Vec3 cameraPosition,
@@ -90,7 +91,7 @@ private:
   std::unordered_map<std::string, Texture2D> textures_;
   std::unordered_map<std::string, assets::MaterialAsset> materials_;
   std::unordered_map<std::string, assets::RenderTargetAsset> renderTargets_;
-  std::unordered_map<std::string, Shader> materialShaders_;
+  ShaderResourceLibrary shaders_;
   std::unordered_map<std::string, int> imageAnimations_;
   std::unordered_map<std::string, GifAnimationTextureData> gifAnimations_;
   float animationTime_ = 0.0F;

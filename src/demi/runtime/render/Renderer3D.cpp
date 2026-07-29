@@ -180,7 +180,7 @@ void Renderer3D::drawWorld(World &world, const float deltaTime) {
       renderer3d_detail::drawMeshEntity(
           world, *entity, textures_, models_, modelPaths_, modelTextures_,
           modelTextureSettings_, modelAnimations_, animatedModels_,
-          dynamicModels_, materials_, materialShaders_, world.debug.colliders,
+          dynamicModels_, materials_, shaders_, world.debug.colliders,
           hasAlphaCutoutShader_ ? &alphaCutoutShader_ : nullptr);
     }
   }

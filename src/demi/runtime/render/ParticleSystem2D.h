@@ -2,6 +2,7 @@
 
 #include "demi/assets/RenderAsset.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
+#include "demi/runtime/render/ShaderResourceLibrary.h"
 
 #include <raylib.h>
 
@@ -20,6 +21,7 @@ public:
   void draw(const std::unordered_map<std::string, Texture2D> &textures,
             const std::unordered_map<std::string, assets::MaterialAsset>
                 &materials,
+            const ShaderResourceLibrary &shaders,
             Vec2 cameraPosition, float pixelsPerUnit, int width, int height);
   void clear();
   [[nodiscard]] std::size_t particleCount() const;

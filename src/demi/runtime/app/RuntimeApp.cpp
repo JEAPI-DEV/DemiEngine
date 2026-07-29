@@ -731,10 +731,10 @@ int runProject(const RuntimeOptions &options) {
   CameraRenderScheduler3D cameraRenderScheduler3D;
   if (use3D) {
     ProfileScope scope("Asset.renderer_load");
-    renderer3D.loadTextureAssets(assetRegistry);
+    renderer3D.loadAssets(assetRegistry);
   } else {
     ProfileScope scope("Asset.renderer_load");
-    renderer2D.loadTextureAssets(assetRegistry);
+    renderer2D.loadAssets(assetRegistry);
   }
 
   bool running = true;

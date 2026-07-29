@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 namespace demi::assets {
@@ -28,11 +29,21 @@ struct MaterialAsset {
 };
 
 struct ShaderAsset {
+  struct Stages {
+    std::filesystem::path vertex;
+    std::filesystem::path fragment;
+  };
+
   int formatVersion = 1;
-  std::filesystem::path vertex;
-  std::filesystem::path fragment;
+  Stages stages;
+  std::optional<Stages> androidStages;
+  std::optional<Stages> linuxStages;
   std::string androidFallback = "builtin://unlit";
   std::string linuxFallback = "builtin://unlit";
+
+  [[nodiscard]] const Stages &stagesFor(std::string_view platform) const;
+  [[nodiscard]] const std::string &
+  fallbackFor(std::string_view platform) const;
 };
 
 struct RenderTargetAsset {

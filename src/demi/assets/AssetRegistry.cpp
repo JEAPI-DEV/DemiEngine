@@ -383,11 +383,47 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
                              .message = "Unsupported texture wrap setting.",
                              .path = asset.manifestPath.string(),
                              .suggestion = "Use repeat, clamp, or mirror."});
-    if (asset.type == "Material")
-      (void)assets::loadMaterialAsset(asset.sourcePath, &diagnostics);
-    else if (asset.type == "Shader")
-      (void)assets::loadShaderAsset(asset.sourcePath, &diagnostics);
-    else if (asset.type == "RenderTarget")
+    if (asset.type == "Material") {
+      if (const auto material =
+              assets::loadMaterialAsset(asset.sourcePath, &diagnostics)) {
+        for (const std::string *reference :
+             {&material->shader, &material->fallback}) {
+          if (!reference->starts_with("asset://"))
+            continue;
+          const AssetManifest *shader = findAsset(registry, *reference);
+          if (shader == nullptr || shader->type != "Shader")
+            diagnostics.push_back(
+                {.severity = Severity::Error,
+                 .code = "MATERIAL_SHADER_NOT_FOUND",
+                 .message = "Material shader reference does not resolve to a "
+                            "Shader asset: " +
+                            *reference,
+                 .path = asset.manifestPath.string(),
+                 .suggestion =
+                     "Import the shader and add it to dependencies."});
+        }
+      }
+    } else if (asset.type == "Shader") {
+      if (const auto shader =
+              assets::loadShaderAsset(asset.sourcePath, &diagnostics)) {
+        for (const std::string *fallback :
+             {&shader->androidFallback, &shader->linuxFallback}) {
+          if (!fallback->starts_with("asset://"))
+            continue;
+          const AssetManifest *fallbackAsset = findAsset(registry, *fallback);
+          if (fallbackAsset == nullptr || fallbackAsset->type != "Shader")
+            diagnostics.push_back(
+                {.severity = Severity::Error,
+                 .code = "SHADER_FALLBACK_NOT_FOUND",
+                 .message = "Shader fallback does not resolve to a Shader "
+                            "asset: " +
+                            *fallback,
+                 .path = asset.manifestPath.string(),
+                 .suggestion =
+                     "Import the fallback shader or use builtin://unlit."});
+        }
+      }
+    } else if (asset.type == "RenderTarget")
       (void)assets::loadRenderTargetAsset(asset.sourcePath, &diagnostics);
     if (asset.type == "Model3D") {
       const nlohmann::json settings =

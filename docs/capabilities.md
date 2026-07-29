@@ -13,7 +13,7 @@ Status meanings:
 | Lua lifecycle and services | Stable | Lua 5.4, sol2, lifecycle, annotations, hot reload |
 | Cross-platform input | Stable | Typed/contextual actions, four local gamepads, rebinding, multi-touch gestures, virtual controls, per-pointer UI capture, and replay v2 |
 | Application services | Stable | Safe areas, DPI/UI scale, orientation requests, keyboard, clipboard, focus/minimize/suspend/low-memory events, and writable paths |
-| 2D rendering | Stable | Pixel/normalized sprites, nine-slice, masks, runtime sorting/material references, animation, multi-tileset animated tilemaps, object layers, cameras, HUD, and matching collider debug drawing |
+| 2D rendering | Stable | Pixel/normalized sprites, nine-slice, masks, startup-loaded game shader/material assets with Linux/Android stages, runtime sorting/material references, animation, multi-tileset animated tilemaps, object layers, cameras, HUD, and matching collider debug drawing |
 | 2D physics | Stable | Box2D bodies, enter/stay/exit contacts, rich queries, box/circle/capsule/polygon/edge-chain colliders, materials, CCD, kinematic move/slide, forces/sleeping, and common joints |
 | 2D navigation/controllers | Stable | Costed A* grid, dynamic blockers, tilemap navigation metadata, world/cell conversion, and reusable platform, top-down, and click-to-move Lua controllers |
 | HUD authoring | Stable | Flat versioned HUD elements and Lua mutation APIs |

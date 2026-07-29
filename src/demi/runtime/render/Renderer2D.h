@@ -7,6 +7,7 @@
 #include "demi/runtime/navigation/NavigationGrid2D.h"
 #include "demi/runtime/render/ParticleSystem2D.h"
 #include "demi/runtime/render/RendererAssetData.h"
+#include "demi/runtime/render/ShaderResourceLibrary.h"
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/tilemap/TilemapAsset.h"
 
@@ -25,7 +26,7 @@ public:
   Renderer2D(const Renderer2D &) = delete;
   Renderer2D &operator=(const Renderer2D &) = delete;
 
-  void loadTextureAssets(const AssetRegistry &registry);
+  void loadAssets(const AssetRegistry &registry);
   void beginFrame(const Camera2DComponent &camera, Vec2 cameraPosition,
                   int width, int height);
   void drawWorld(const World &world);
@@ -34,6 +35,8 @@ public:
   void endFrame();
 
 private:
+  void unloadAssets();
+
   Camera2DComponent camera_;
   Vec2 cameraPosition_;
   int width_ = 1;
@@ -43,6 +46,7 @@ private:
   std::unordered_map<std::string, ImageAnimationTextureData> imageAnimations_;
   std::unordered_map<std::string, GifAnimationTextureData> gifAnimations_;
   std::unordered_map<std::string, TilemapAsset2D> tilemaps_;
+  ShaderResourceLibrary shaders_;
   float animationTime_ = 0.0F;
   ParticleSystem2D particleSystem_;
 };

@@ -1,4 +1,5 @@
 #include "demi/assets/RenderAsset.h"
+#include "demi/assets/AssetSourceFiles.h"
 #include "demi/runtime/camera/CameraRenderScheduler3D.h"
 #include "demi/runtime/render/Lighting3D.h"
 #include "demi/runtime/render/ParticleSystem2D.h"
@@ -82,9 +83,11 @@ bool assetContracts() {
         R"({"format_version":1,"render_state":{"blend":"magic"}})");
   write(root / "shader.vert", "void main(){}\n");
   write(root / "shader.frag", "void main(){}\n");
+  write(root / "shader_android.vert", "void main(){}\n");
+  write(root / "shader_android.frag", "void main(){}\n");
   write(
       root / "valid.shader.json",
-      R"({"format_version":1,"vertex":"shader.vert","fragment":"shader.frag","platform_fallbacks":{"android":"builtin://unlit","linux":"builtin://lit"}})");
+      R"({"format_version":1,"vertex":"shader.vert","fragment":"shader.frag","platform_sources":{"android":{"vertex":"shader_android.vert","fragment":"shader_android.frag"}},"platform_fallbacks":{"android":"builtin://unlit","linux":"builtin://lit"}})");
   write(
       root / "bad.shader.json",
       R"({"format_version":1,"vertex":"shader.vert","fragment":"shader.frag","platform_fallbacks":{"android":"not-an-asset"}})");
@@ -102,17 +105,27 @@ bool assetContracts() {
   write(
       root / "missing-stage.shader.json",
       R"({"format_version":1,"vertex":"missing.vert","fragment":"shader.frag"})");
+  write(
+      root / "bad-platform-stage.shader.json",
+      R"({"format_version":1,"vertex":"shader.vert","fragment":"shader.frag","platform_sources":{"android":{"vertex":"shader_android.vert"}}})");
   write(root / "typed-wrong.target.json",
         R"({"format_version":1,"width":"wide","height":180})");
   write(root / "no-depth.target.json",
         R"({"format_version":1,"width":16,"height":16,"depth":false})");
   write(root / "invalid.json", "{");
+  write(root / "missing-reference.material.json",
+        R"({"format_version":1,"shader":"asset://shaders/missing"})");
+  write(
+      root / "missing-fallback.shader.json",
+      R"({"format_version":1,"vertex":"shader.vert","fragment":"shader.frag","platform_fallbacks":{"linux":"asset://shaders/missing"}})");
 
   Diagnostics invalidDiagnostics;
   const auto material = assets::loadMaterialAsset(root / "valid.material.json");
   const auto invalid = assets::loadMaterialAsset(root / "bad.material.json",
                                                  &invalidDiagnostics);
   const auto shader = assets::loadShaderAsset(root / "valid.shader.json");
+  const auto shaderSourceFiles =
+      assets::collectReferencedSourceFiles(root / "valid.shader.json");
   Diagnostics shaderDiagnostics;
   const auto invalidShader =
       assets::loadShaderAsset(root / "bad.shader.json", &shaderDiagnostics);
@@ -128,6 +141,8 @@ bool assetContracts() {
                                  &malformedDiagnostics) &&
       !assets::loadShaderAsset(root / "missing-stage.shader.json",
                                &malformedDiagnostics) &&
+      !assets::loadShaderAsset(root / "bad-platform-stage.shader.json",
+                               &malformedDiagnostics) &&
       !assets::loadRenderTargetAsset(root / "typed-wrong.target.json",
                                      &malformedDiagnostics) &&
       !assets::loadRenderTargetAsset(root / "no-depth.target.json",
@@ -136,6 +151,28 @@ bool assetContracts() {
                                  &malformedDiagnostics) &&
       !assets::loadMaterialAsset(root / "absent.material.json",
                                  &malformedDiagnostics);
+  AssetRegistry referenceRegistry;
+  referenceRegistry.assets = {
+      {.id = "asset://materials/missing_shader",
+       .type = "Material",
+       .manifestPath = root / "missing-reference.material.asset.json",
+       .sourcePath = root / "missing-reference.material.json",
+       .sourcePaths = {root / "missing-reference.material.json"}},
+      {.id = "asset://shaders/missing_fallback",
+       .type = "Shader",
+       .manifestPath = root / "missing-fallback.shader.asset.json",
+       .sourcePath = root / "missing-fallback.shader.json",
+       .sourcePaths = {root / "missing-fallback.shader.json",
+                       root / "shader.vert", root / "shader.frag"}},
+  };
+  const Diagnostics referenceDiagnostics =
+      validateAssetRegistry(referenceRegistry);
+  const auto hasDiagnostic = [&](const std::string &code) {
+    return std::ranges::any_of(referenceDiagnostics,
+                               [&](const Diagnostic &diagnostic) {
+                                 return diagnostic.code == code;
+                               });
+  };
   std::filesystem::remove_all(root);
   return material && material->textures.contains("albedo") &&
          material->numbers.contains("roughness") &&
@@ -143,10 +180,18 @@ bool assetContracts() {
          material->renderState.blend == "alpha" &&
          !material->renderState.depthWrite && !invalid &&
          !invalidDiagnostics.empty() && shader && !invalidShader &&
-         !shaderDiagnostics.empty() && target && target->width == 320 &&
+         !shaderDiagnostics.empty() && shader &&
+         shader->stagesFor("linux").vertex.filename() == "shader.vert" &&
+         shader->stagesFor("android").vertex.filename() ==
+             "shader_android.vert" &&
+         shader->fallbackFor("linux") == "builtin://lit" &&
+         shaderSourceFiles.size() == 5 &&
+         target && target->width == 320 &&
          target->height == 180 && !invalidTarget &&
          !targetDiagnostics.empty() && malformedAssetsRejected &&
-         malformedDiagnostics.size() == 7;
+         malformedDiagnostics.size() == 8 &&
+         hasDiagnostic("MATERIAL_SHADER_NOT_FOUND") &&
+         hasDiagnostic("SHADER_FALLBACK_NOT_FOUND");
 }
 
 bool cameraContracts() {
