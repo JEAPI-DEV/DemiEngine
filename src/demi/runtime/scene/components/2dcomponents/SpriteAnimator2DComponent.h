@@ -28,6 +28,7 @@ struct SpriteAnimator2DComponent {
   static constexpr ComponentDomain domain = ComponentDomain::TwoDimensional;
   static constexpr std::array fields{
       ComponentFieldDescriptor{"frame_size", ComponentFieldType::Vec2},
+      ComponentFieldDescriptor{"atlas", ComponentFieldType::Object},
       ComponentFieldDescriptor{"clips", ComponentFieldType::Object},
       ComponentFieldDescriptor{"clip", ComponentFieldType::String},
       ComponentFieldDescriptor{"speed", ComponentFieldType::Number},
@@ -43,6 +44,9 @@ struct SpriteAnimator2DComponent {
   float speed = 1.0F;
   int currentFrame = 0;
   bool playing = true;
+  std::string previousClip;
+  int previousFrame = 0;
+  float blendWeight = 1.0F;
 };
 
 } // namespace demi::runtime

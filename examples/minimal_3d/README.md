@@ -8,7 +8,9 @@ project file sets explicit budgets of 16.67 ms per frame, 128 draw calls, and
 64 resident assets.
 
 The background track is a regular `AudioClip` asset played by a looping
-`AudioSource`, so music configuration remains in scene data.
+`AudioSource`, so music configuration remains in scene data. Firing transitions
+between authored `exploration` and `action` mixer snapshots, exercising music
+ducking without a per-frame Lua volume loop.
 
 Used assets:
 

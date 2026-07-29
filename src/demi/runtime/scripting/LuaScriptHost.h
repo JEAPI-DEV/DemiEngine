@@ -27,6 +27,7 @@
 
 namespace demi::runtime {
 
+struct AudioPlaybackRequest;
 class AudioSystem;
 class MediaSystem;
 class NetworkSystem;
@@ -196,6 +197,21 @@ public:
                                            float value);
   [[nodiscard]] bool triggerAnimation(const std::string &entityId,
                                       const std::string &trigger);
+  [[nodiscard]] bool setAnimationSpeed(const std::string &entityId,
+                                       float speed);
+  [[nodiscard]] float animationNormalizedTime(
+      const std::string &entityId) const;
+  [[nodiscard]] std::string
+  animationTransitionFrom(const std::string &entityId) const;
+  [[nodiscard]] std::string
+  animationTransitionTo(const std::string &entityId) const;
+  [[nodiscard]] float
+  animationTransitionProgress(const std::string &entityId) const;
+  [[nodiscard]] bool setAnimationLayerWeight(const std::string &entityId,
+                                             const std::string &layer,
+                                             float weight);
+  [[nodiscard]] bool setAnimationRootMotion(const std::string &entityId,
+                                            bool enabled);
   [[nodiscard]] std::optional<Vec2>
   getRigidbodyVelocity(const std::string &entityId) const;
   [[nodiscard]] bool setRigidbodyVelocity(const std::string &entityId, float x,
@@ -403,11 +419,27 @@ public:
                     float b, float a, float width = 1.0F);
   void clearDebugLines();
   [[nodiscard]] std::uint64_t playAudio(const std::string &assetId);
+  [[nodiscard]] std::uint64_t
+  playAudio(const AudioPlaybackRequest &request);
   [[nodiscard]] std::uint64_t playAudioSource(const std::string &entityId);
   [[nodiscard]] bool stopAudioSource(const std::string &entityId);
   [[nodiscard]] bool stopAudio(std::uint64_t handle);
   void setMasterVolume(float volume);
   [[nodiscard]] float masterVolume() const;
+  [[nodiscard]] bool setAudioBusVolume(const std::string &bus, float volume);
+  [[nodiscard]] float audioBusVolume(const std::string &bus) const;
+  [[nodiscard]] bool setAudioBusMuted(const std::string &bus, bool muted);
+  [[nodiscard]] bool setAudioBusPaused(const std::string &bus, bool paused);
+  void defineAudioSnapshot(
+      const std::string &name,
+      const std::unordered_map<std::string, float> &volumes);
+  [[nodiscard]] bool transitionAudioSnapshot(const std::string &name,
+                                             float duration);
+  [[nodiscard]] std::uint64_t crossfadeAudio(std::uint64_t fromHandle,
+                                             const std::string &assetId,
+                                             const std::string &bus,
+                                             float duration, bool loop,
+                                             bool streaming);
   [[nodiscard]] std::uint64_t playVideo(const std::string &assetId, bool loop);
   [[nodiscard]] std::uint64_t playVideoPlayer(const std::string &entityId);
   [[nodiscard]] bool stopVideo(std::uint64_t handle);

@@ -442,6 +442,13 @@ branches added to renderer files for each example.
 
 ## Phase 7 — Animation and Audio for Finished Games
 
+**Status: complete.** Animation evaluation, blend state, root-motion policy,
+and preview data now live outside the render adapters. Audio mixing,
+scheduling, spatial/concurrency policy, streaming selection, and lifecycle
+state live above the miniaudio backend. Focused regression tests cover
+degenerate blend spaces, missing references, pause policy, scheduled voices,
+bus propagation, snapshots, fades, voice stealing, and suspend/resume.
+
 The current state machine is a useful base. This phase adds the transitions,
 mixing, and runtime control needed for production presentation.
 

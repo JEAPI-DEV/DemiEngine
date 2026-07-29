@@ -5,6 +5,30 @@
   "importer": "gltf-model",
   "importer_version": 1,
   "settings": {
+    "animations": {
+      "clips": [
+        {
+          "name": "Idle_Loop",
+          "skeleton": "ual1"
+        },
+        {
+          "name": "Walk_Loop",
+          "skeleton": "ual1"
+        },
+        {
+          "name": "Sprint_Loop",
+          "skeleton": "ual1"
+        },
+        {
+          "name": "Jump_Loop",
+          "skeleton": "ual1"
+        },
+        {
+          "name": "Dance_Loop",
+          "skeleton": "ual1"
+        }
+      ]
+    },
     "filter": "bilinear",
     "mipmaps": true,
     "wrap": "repeat"

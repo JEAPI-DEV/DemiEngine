@@ -24,6 +24,11 @@ void AnimationStateMachineComponent::parse(const nlohmann::json &json,
       state.speed = std::max(
           scene_loading::numberField(value, "speed").value_or(1.0F), 0.0F);
       state.loop = scene_loading::boolField(value, "loop").value_or(true);
+      state.rootMotionTrack =
+          scene_loading::vec3ArrayField(value, "root_motion_track");
+      if (const auto rootMotion =
+              scene_loading::vec3Field(value, "root_motion_per_second"))
+        state.rootMotionPerSecond = *rootMotion;
       if (const auto *events = scene_loading::arrayField(value, "events")) {
         for (const auto &event : *events) {
           const auto eventName = scene_loading::stringOr(event, "name");
@@ -57,9 +62,54 @@ void AnimationStateMachineComponent::parse(const nlohmann::json &json,
         transition.condition = "always";
       transition.threshold =
           scene_loading::numberField(value, "threshold").value_or(0.0F);
+      transition.blendDuration = std::max(
+          scene_loading::numberField(value, "blend_duration").value_or(0.0F),
+          0.0F);
       if (!transition.to.empty())
         component.transitions.push_back(std::move(transition));
     }
+  }
+  if (const auto *spaces =
+          scene_loading::objectField(json, "blend_spaces")) {
+    for (const auto &[name, value] : spaces->items()) {
+      if (!value.is_object())
+        continue;
+      AnimationBlendSpace space;
+      space.parameterX = scene_loading::stringOr(value, "parameter_x");
+      space.parameterY = scene_loading::stringOr(value, "parameter_y");
+      if (const auto *points = scene_loading::arrayField(value, "points")) {
+        for (const auto &point : *points) {
+          const std::string stateName =
+              scene_loading::stringOr(point, "state");
+          if (!stateName.empty())
+            space.points.push_back(
+                {.state = stateName,
+                 .x = scene_loading::numberField(point, "x").value_or(0.0F),
+                 .y = scene_loading::numberField(point, "y").value_or(0.0F)});
+        }
+      }
+      component.blendSpaces[name] = std::move(space);
+    }
+  }
+  if (const auto *layers = scene_loading::objectField(json, "layers")) {
+    for (const auto &[name, value] : layers->items()) {
+      if (!value.is_object())
+        continue;
+      AnimationLayer layer;
+      layer.name = name;
+      layer.state = scene_loading::stringOr(value, "state");
+      layer.weight = std::clamp(
+          scene_loading::numberField(value, "weight").value_or(1.0F), 0.0F,
+          1.0F);
+      layer.additive =
+          scene_loading::boolField(value, "additive").value_or(false);
+      if (const auto *mask = scene_loading::arrayField(value, "mask"))
+        for (const auto &bone : *mask)
+          if (bone.is_string())
+            layer.mask.push_back(bone.get<std::string>());
+      component.layers.push_back(std::move(layer));
+    }
+    std::ranges::sort(component.layers, {}, &AnimationLayer::name);
   }
   if (const auto *parameters = scene_loading::objectField(json, "parameters")) {
     for (const auto &[name, value] : parameters->items()) {
@@ -70,6 +120,12 @@ void AnimationStateMachineComponent::parse(const nlohmann::json &json,
     }
   }
   component.state = scene_loading::stringOr(json, "initial_state");
+  component.speed = std::max(
+      scene_loading::numberField(json, "speed").value_or(1.0F), 0.0F);
+  component.rootMotion =
+      scene_loading::boolField(json, "root_motion").value_or(false);
+  component.updateWhenPaused =
+      scene_loading::stringOr(json, "pause_policy", "pause") == "continue";
   if (!component.states.contains(component.state) &&
       !component.states.empty()) {
     component.state =

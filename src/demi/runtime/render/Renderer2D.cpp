@@ -913,6 +913,25 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
                          .y = sourceY,
                          .width = sprite.flipX ? -sourceWidth : sourceWidth,
                          .height = sprite.flipY ? -sourceHeight : sourceHeight};
+      std::optional<::Rectangle> previousSource;
+      float blendWeight = 1.0F;
+      if (const auto *animator = entity.component<SpriteAnimator2DComponent>();
+          animator != nullptr && !animator->previousClip.empty() &&
+          animator->blendWeight < 1.0F && animator->frameSize.x > 0.0F &&
+          animator->frameSize.y > 0.0F) {
+        const int columns = std::max(
+            static_cast<int>(texture->second.width / animator->frameSize.x), 1);
+        previousSource = ::Rectangle{
+            .x = static_cast<float>(animator->previousFrame % columns) *
+                 animator->frameSize.x,
+            .y = static_cast<float>(animator->previousFrame / columns) *
+                 animator->frameSize.y,
+            .width = sprite.flipX ? -animator->frameSize.x
+                                  : animator->frameSize.x,
+            .height = sprite.flipY ? -animator->frameSize.y
+                                   : animator->frameSize.y};
+        blendWeight = std::clamp(animator->blendWeight, 0.0F, 1.0F);
+      }
       ::Rectangle destination{.x = screenX,
                               .y = screenY +
                                    (entity.hasComponent<IsoTransformComponent>()
@@ -924,6 +943,12 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
       const ::Vector2 origin{sprite.pivot.x * rect.width,
                              sprite.pivot.y * rect.height};
       const float rotation = worldRotation2D(world, entity) * RAD2DEG;
+      const auto blendedColor = [&](const float alpha) {
+        ::Color color = toRlColor(sprite.color);
+        color.a = static_cast<unsigned char>(
+            static_cast<float>(color.a) * std::clamp(alpha, 0.0F, 1.0F));
+        return color;
+      };
       const bool masked = sprite.maskSize.x > 0.0F && sprite.maskSize.y > 0.0F;
       if (masked) {
         const int maskX = static_cast<int>(
@@ -947,10 +972,13 @@ void drawEntity(const std::unordered_map<std::string, Texture2D> &textures,
                                .bottom = static_cast<int>(sprite.sliceEnd.y),
                                .layout = NPATCH_NINE_PATCH};
         DrawTextureNPatch(texture->second, patch, destination, origin, rotation,
-                          toRlColor(sprite.color));
+                          blendedColor(blendWeight));
       } else {
+        if (previousSource)
+          DrawTexturePro(texture->second, *previousSource, destination, origin,
+                         rotation, blendedColor(1.0F - blendWeight));
         DrawTexturePro(texture->second, source, destination, origin, rotation,
-                       toRlColor(sprite.color));
+                       blendedColor(blendWeight));
       }
       if (masked)
         EndScissorMode();

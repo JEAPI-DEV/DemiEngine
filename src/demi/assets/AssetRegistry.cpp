@@ -389,6 +389,61 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
       (void)assets::loadShaderAsset(asset.sourcePath, &diagnostics);
     else if (asset.type == "RenderTarget")
       (void)assets::loadRenderTargetAsset(asset.sourcePath, &diagnostics);
+    if (asset.type == "Model3D") {
+      const nlohmann::json settings =
+          nlohmann::json::parse(asset.settingsJson, nullptr, false);
+      const auto animations =
+          settings.is_object() ? settings.find("animations") : settings.end();
+      if (animations != settings.end() && animations->is_object()) {
+        const auto clips = animations->find("clips");
+        if (clips != animations->end() && clips->is_array()) {
+          std::set<std::string> names;
+          std::string skeleton;
+          for (const auto &clip : *clips) {
+            const std::string name =
+                clip.is_object() ? clip.value("name", "") : "";
+            const std::string clipSkeleton =
+                clip.is_object() ? clip.value("skeleton", "") : "";
+            if (name.empty())
+              diagnostics.push_back(
+                  {.severity = Severity::Error,
+                   .code = "ANIMATION_CLIP_NAME_MISSING",
+                   .message = "A model animation clip has no stable name.",
+                   .path = asset.manifestPath.string(),
+                   .suggestion =
+                       "Name every imported clip in settings.animations.clips."});
+            else if (!names.insert(name).second)
+              diagnostics.push_back(
+                  {.severity = Severity::Error,
+                   .code = "ANIMATION_CLIP_NAME_DUPLICATE",
+                   .message = "Duplicate model animation clip name: " + name,
+                   .path = asset.manifestPath.string()});
+            if (!clipSkeleton.empty() && skeleton.empty())
+              skeleton = clipSkeleton;
+            else if (!clipSkeleton.empty() && clipSkeleton != skeleton)
+              diagnostics.push_back(
+                  {.severity = Severity::Error,
+                   .code = "ANIMATION_SKELETON_INCOMPATIBLE",
+                   .message =
+                       "Model animation clips reference different skeletons.",
+                   .path = asset.manifestPath.string(),
+                   .suggestion =
+                       "Retarget clips to one skeleton before importing."});
+          }
+        }
+      }
+    }
+    if (asset.type == "AudioClip") {
+      const nlohmann::json settings =
+          nlohmann::json::parse(asset.settingsJson, nullptr, false);
+      if (settings.is_object() && settings.contains("streaming") &&
+          !settings["streaming"].is_boolean())
+        diagnostics.push_back(
+            {.severity = Severity::Error,
+             .code = "AUDIO_STREAMING_SETTING_INVALID",
+             .message = "Audio streaming setting must be boolean.",
+             .path = asset.manifestPath.string()});
+    }
   }
   std::set<std::string> visiting;
   std::set<std::string> visited;

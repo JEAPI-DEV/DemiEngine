@@ -18,7 +18,7 @@ Status meanings:
 | 2D navigation/controllers | Stable | Costed A* grid, dynamic blockers, tilemap navigation metadata, world/cell conversion, and reusable platform, top-down, and click-to-move Lua controllers |
 | HUD authoring | Stable | Flat versioned HUD elements and Lua mutation APIs |
 | Saves | Stable | JSON slots, versions, migration hooks |
-| Audio | Stable | miniaudio playback and entity audio sources |
+| Audio | Stable | Backend-independent mixer buses, snapshots, fades/cross-fades, scheduling, streaming, 2D/3D spatial voices, concurrency limits, entity sources, and suspend/resume |
 | CLI validation and smoke tests | Stable | Project/example validation and headless runtime probes |
 | Lightweight 3D | Experimental | Cycle-safe transform hierarchies, CLI-generated glTF colliders, spatial queries, versioned materials/shaders, directional/point/spot lighting, bounded shadow passes, multi-camera targets/viewports/masks, post effects, deterministic particles, world text/UI targets, batching, culling, resource ownership, and profiler-visible render budgets |
 | Video/cutscenes | Experimental | FFmpeg-backed playback when enabled |
@@ -30,7 +30,7 @@ Status meanings:
 | Tilemaps and sprite animation system | Stable | Runtime tile mutation, collision/navigation refresh, multiple tilesets, animations, object layers, clips, playback, and events |
 | Deterministic replay/debug tooling | Stable | Versioned input replay, deterministic random state, profiling, and headless probes |
 | Isometric placement/pathfinding | Stable | Grid conversion, occupancy, placement diagnostics, pathfinding, and rendering |
-| Animation state machines | Stable | Shared named states, transitions, parameters, timed events, and Lua control for 2D/3D players |
+| Animation state machines | Stable | Cross-fades, 1D/2D blend spaces, layers/masks/additive metadata, explicit root motion, normalized time, events, preview state, and Lua control for 2D/3D players |
 | Animation-timed 2D collision | Stable | Named receiver volumes and state-time windows with neutral overlap events; gameplay policy stays in scripts |
 | Lightweight 3D animation adapter | Experimental | Shared state-machine control over embedded glTF clip names and deterministic `clip_N` aliases |
 | Asset import and validation | Stable | Versioned importer metadata, source hashes, dependencies, stale-output and cycle diagnostics |

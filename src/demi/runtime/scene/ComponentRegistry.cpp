@@ -262,9 +262,13 @@ std::string generatedLuaComponentTypes() {
 
   std::ostringstream output;
   output << "\n-- Generated from ComponentRegistry metadata.\n";
+  bool first = true;
   for (const ComponentDescriptor &descriptor : Descriptors) {
     if (!descriptor.exposedToLua)
       continue;
+    if (!first)
+      output << '\n';
+    first = false;
     output << "---@class Demi" << descriptor.name << "Spec\n";
     for (const ComponentFieldDescriptor &field : descriptor.fields) {
       output << "---@field " << field.name;
@@ -272,7 +276,6 @@ std::string generatedLuaComponentTypes() {
         output << '?';
       output << ' ' << luaType(field.type) << '\n';
     }
-    output << '\n';
   }
   return output.str();
 }

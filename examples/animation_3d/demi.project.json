@@ -10,6 +10,15 @@
   "debug": {
     "grid": true
   },
+  "input": {
+    "actions": {
+      "animation_idle": ["1"],
+      "animation_walk": ["2"],
+      "animation_run": ["3"],
+      "animation_jump": ["4"],
+      "animation_dance": ["5"]
+    }
+  },
   "scenes": [
     {
       "id": "scene://animation_3d/main",

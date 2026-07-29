@@ -6,6 +6,8 @@
 #include "demi/runtime/scene/components/2dcomponents/SpriteComponent.h"
 #include "demi/runtime/scene/components/animation/AnimationStateMachineComponent.h"
 
+#include <algorithm>
+
 extern "C" {
 #include <lua.h>
 }
@@ -30,6 +32,9 @@ bool LuaScriptHost::playAnimationState(const std::string &entityId,
                       : entity->component<AnimationStateMachineComponent>();
   if (machine == nullptr || !machine->states.contains(state))
     return false;
+  if (machine->state == state)
+    return true;
+  machine->activeTransition = {};
   machine->state = state;
   machine->time = 0.0F;
   machine->entered = true;
@@ -58,6 +63,100 @@ bool LuaScriptHost::triggerAnimation(const std::string &entityId,
   if (machine == nullptr)
     return false;
   machine->triggers.insert(trigger);
+  return true;
+}
+
+bool LuaScriptHost::setAnimationSpeed(const std::string &entityId,
+                                      const float speed) {
+  Entity *entity = world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  auto *machine = entity == nullptr
+                      ? nullptr
+                      : entity->component<AnimationStateMachineComponent>();
+  if (machine == nullptr || speed < 0.0F)
+    return false;
+  machine->speed = speed;
+  return true;
+}
+
+float LuaScriptHost::animationNormalizedTime(
+    const std::string &entityId) const {
+  const Entity *entity =
+      world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  const auto *machine =
+      entity == nullptr
+          ? nullptr
+          : entity->component<AnimationStateMachineComponent>();
+  return machine == nullptr ? 0.0F : machine->normalizedTime;
+}
+
+std::string LuaScriptHost::animationTransitionFrom(
+    const std::string &entityId) const {
+  const Entity *entity =
+      world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  const auto *machine =
+      entity == nullptr
+          ? nullptr
+          : entity->component<AnimationStateMachineComponent>();
+  return machine == nullptr || !machine->activeTransition.active
+             ? std::string{}
+             : machine->activeTransition.from;
+}
+
+std::string LuaScriptHost::animationTransitionTo(
+    const std::string &entityId) const {
+  const Entity *entity =
+      world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  const auto *machine =
+      entity == nullptr
+          ? nullptr
+          : entity->component<AnimationStateMachineComponent>();
+  return machine == nullptr || !machine->activeTransition.active
+             ? std::string{}
+             : machine->activeTransition.to;
+}
+
+float LuaScriptHost::animationTransitionProgress(
+    const std::string &entityId) const {
+  const Entity *entity =
+      world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  const auto *machine =
+      entity == nullptr
+          ? nullptr
+          : entity->component<AnimationStateMachineComponent>();
+  if (machine == nullptr || !machine->activeTransition.active ||
+      machine->activeTransition.duration <= 0.0F)
+    return 1.0F;
+  return std::clamp(machine->activeTransition.elapsed /
+                        machine->activeTransition.duration,
+                    0.0F, 1.0F);
+}
+
+bool LuaScriptHost::setAnimationLayerWeight(const std::string &entityId,
+                                            const std::string &layer,
+                                            const float weight) {
+  Entity *entity = world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  auto *machine = entity == nullptr
+                      ? nullptr
+                      : entity->component<AnimationStateMachineComponent>();
+  if (machine == nullptr)
+    return false;
+  const auto found = std::ranges::find(machine->layers, layer,
+                                       &AnimationLayer::name);
+  if (found == machine->layers.end())
+    return false;
+  found->weight = std::clamp(weight, 0.0F, 1.0F);
+  return true;
+}
+
+bool LuaScriptHost::setAnimationRootMotion(const std::string &entityId,
+                                           const bool enabled) {
+  Entity *entity = world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  auto *machine = entity == nullptr
+                      ? nullptr
+                      : entity->component<AnimationStateMachineComponent>();
+  if (machine == nullptr)
+    return false;
+  machine->rootMotion = enabled;
   return true;
 }
 

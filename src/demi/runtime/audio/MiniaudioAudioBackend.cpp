@@ -10,6 +10,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -84,10 +85,15 @@ public:
 
   [[nodiscard]] bool initialize() override;
   void loadAudioAssets(const AssetRegistry& registry) override;
-  [[nodiscard]] std::uint64_t play(const std::string& assetId, bool loop, float volume) override;
+  [[nodiscard]] std::uint64_t play(const std::string &assetId, bool loop,
+                                   bool streaming) override;
   [[nodiscard]] bool stop(std::uint64_t handle) override;
-  void setMasterVolume(float volume) override;
-  [[nodiscard]] float masterVolume() const override;
+  [[nodiscard]] bool
+  configure(std::uint64_t handle,
+            const AudioBackendVoiceParameters &parameters) override;
+  [[nodiscard]] bool isPlaying(std::uint64_t handle) const override;
+  void setListener(const AudioListenerState &listener) override;
+  void setDeviceSuspended(bool suspended) override;
   void update() override;
   void shutdown() override;
 
@@ -112,6 +118,7 @@ private:
   struct PlayingSound {
     std::uint64_t handle = 0;
     MaSoundPtr sound;
+    bool paused = false;
   };
 
   void unloadCachedSounds();
@@ -122,10 +129,9 @@ private:
   ma_engine* engine_ = nullptr;
   std::unordered_map<std::string, CachedSound> sounds_;
   std::vector<PlayingSound> playing_;
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::atomic<std::int64_t> pendingDebugStartNs_ = 0;
   std::uint64_t nextHandle_ = 1;
-  float masterVolume_ = 1.0F;
 };
 
 bool MiniaudioAudioBackend::initialize() {
@@ -166,7 +172,6 @@ bool MiniaudioAudioBackend::initialize() {
 
   context_ = context.release();
   engine_ = engine.release();
-  ma_engine_set_volume(engine_, masterVolume_);
   initialized_ = true;
   if (audioDebugEnabled()) {
     std::cerr << "Audio debug: miniaudio initialized at " << ma_engine_get_sample_rate(engine_)
@@ -189,14 +194,19 @@ void MiniaudioAudioBackend::loadAudioAssets(const AssetRegistry& registry) {
       continue;
     }
 
-    sounds_[asset.id] = CachedSound{.path = asset.sourcePath};
+    sounds_[asset.id] =
+        CachedSound{.path = asset.sourcePath, .sound = nullptr};
     if (engine_ == nullptr || !initialized_) {
       continue;
     }
+    const nlohmann::json settings =
+        nlohmann::json::parse(asset.settingsJson, nullptr, false);
+    if (settings.is_object() && settings.value("streaming", false))
+      continue;
 
     auto cachedSound = std::make_unique<ma_sound>();
     const auto started = std::chrono::steady_clock::now();
-    constexpr ma_uint32 flags = MA_SOUND_FLAG_DECODE | MA_SOUND_FLAG_NO_SPATIALIZATION | MA_SOUND_FLAG_NO_PITCH;
+    constexpr ma_uint32 flags = MA_SOUND_FLAG_DECODE;
     if (ma_sound_init_from_file(engine_, asset.sourcePath.string().c_str(), flags, nullptr, nullptr, cachedSound.get()) != MA_SUCCESS) {
       std::cerr << "miniaudio failed to preload " << asset.id << " from " << asset.sourcePath.string() << '\n';
       continue;
@@ -218,7 +228,9 @@ void MiniaudioAudioBackend::loadAudioAssets(const AssetRegistry& registry) {
   }
 }
 
-std::uint64_t MiniaudioAudioBackend::play(const std::string& assetId, const bool loop, const float volume) {
+std::uint64_t MiniaudioAudioBackend::play(const std::string &assetId,
+                                          const bool loop,
+                                          const bool streaming) {
   if (engine_ == nullptr || !initialized_) {
     std::cerr << "Audio output is not initialized for " << assetId << '\n';
     return 0;
@@ -229,22 +241,29 @@ std::uint64_t MiniaudioAudioBackend::play(const std::string& assetId, const bool
     std::cerr << "Audio asset not loaded: " << assetId << '\n';
     return 0;
   }
-  if (cached->second.sound == nullptr) {
+  if (!streaming && cached->second.sound == nullptr) {
     std::cerr << "Audio asset was not preloaded: " << assetId << '\n';
     return 0;
   }
 
   auto sound = std::make_unique<ma_sound>();
   const auto cloneStarted = std::chrono::steady_clock::now();
-  if (ma_sound_init_copy(engine_, cached->second.sound.get(), MA_SOUND_FLAG_NO_SPATIALIZATION | MA_SOUND_FLAG_NO_PITCH, nullptr, sound.get()) != MA_SUCCESS) {
+  const ma_result initResult =
+      streaming
+          ? ma_sound_init_from_file(engine_,
+                                    cached->second.path.string().c_str(),
+                                    MA_SOUND_FLAG_STREAM, nullptr, nullptr,
+                                    sound.get())
+          : ma_sound_init_copy(engine_, cached->second.sound.get(), 0, nullptr,
+                               sound.get());
+  if (initResult != MA_SUCCESS) {
     std::cerr << "miniaudio failed to create playable copy for " << assetId << " from " << cached->second.path.string() << '\n';
     return 0;
   }
   const double cloneMs = elapsedMs(cloneStarted);
 
   ma_sound_set_looping(sound.get(), loop ? MA_TRUE : MA_FALSE);
-  ma_sound_set_volume(sound.get(), std::clamp(volume, 0.0F, 1.0F));
-  if (cached->second.trimFrames > 0) {
+  if (!streaming && cached->second.trimFrames > 0) {
     (void)ma_sound_seek_to_pcm_frame(sound.get(), cached->second.trimFrames);
   }
   const auto startStarted = std::chrono::steady_clock::now();
@@ -268,6 +287,85 @@ std::uint64_t MiniaudioAudioBackend::play(const std::string& assetId, const bool
   return handle;
 }
 
+bool MiniaudioAudioBackend::configure(
+    const std::uint64_t handle,
+    const AudioBackendVoiceParameters &parameters) {
+  std::scoped_lock lock(mutex_);
+  const auto found = std::ranges::find_if(
+      playing_, [&](const PlayingSound &playing) {
+        return playing.handle == handle;
+      });
+  if (found == playing_.end() || found->sound == nullptr)
+    return false;
+  ma_sound *sound = found->sound.get();
+  ma_sound_set_volume(sound, std::max(parameters.gain, 0.0F));
+  ma_sound_set_pitch(sound, std::max(parameters.pitch, 0.01F));
+  ma_sound_set_pan(sound, std::clamp(parameters.pan, -1.0F, 1.0F));
+  ma_sound_set_spatialization_enabled(
+      sound, parameters.spatialMode == AudioSpatialMode::ThreeDimensional
+                 ? MA_TRUE
+                 : MA_FALSE);
+  ma_sound_set_position(sound, parameters.position.x, parameters.position.y,
+                        parameters.position.z);
+  ma_sound_set_velocity(sound, parameters.velocity.x, parameters.velocity.y,
+                        parameters.velocity.z);
+  ma_sound_set_min_distance(sound, parameters.minDistance);
+  ma_sound_set_max_distance(sound, parameters.maxDistance);
+  ma_sound_set_rolloff(sound, parameters.rolloff);
+  ma_sound_set_doppler_factor(sound, parameters.doppler ? 1.0F : 0.0F);
+  const ma_attenuation_model attenuation =
+      parameters.attenuation == AudioAttenuation::None
+          ? ma_attenuation_model_none
+      : parameters.attenuation == AudioAttenuation::Linear
+          ? ma_attenuation_model_linear
+      : parameters.attenuation == AudioAttenuation::Exponential
+          ? ma_attenuation_model_exponential
+          : ma_attenuation_model_inverse;
+  ma_sound_set_attenuation_model(sound, attenuation);
+  if (parameters.paused) {
+    (void)ma_sound_stop(sound);
+  } else if (!ma_sound_is_playing(sound)) {
+    (void)ma_sound_start(sound);
+  }
+  found->paused = parameters.paused;
+  return true;
+}
+
+bool MiniaudioAudioBackend::isPlaying(const std::uint64_t handle) const {
+  std::scoped_lock lock(mutex_);
+  const auto found = std::ranges::find_if(
+      playing_, [&](const PlayingSound &playing) {
+        return playing.handle == handle;
+      });
+  return found != playing_.end() && found->sound != nullptr &&
+         (found->paused || ma_sound_is_playing(found->sound.get()));
+}
+
+void MiniaudioAudioBackend::setListener(
+    const AudioListenerState &listener) {
+  std::scoped_lock lock(mutex_);
+  if (engine_ == nullptr)
+    return;
+  ma_engine_listener_set_position(engine_, 0, listener.position.x,
+                                  listener.position.y, listener.position.z);
+  ma_engine_listener_set_direction(engine_, 0, listener.forward.x,
+                                   listener.forward.y, listener.forward.z);
+  ma_engine_listener_set_world_up(engine_, 0, listener.up.x, listener.up.y,
+                                  listener.up.z);
+  ma_engine_listener_set_velocity(engine_, 0, listener.velocity.x,
+                                  listener.velocity.y, listener.velocity.z);
+}
+
+void MiniaudioAudioBackend::setDeviceSuspended(const bool suspended) {
+  std::scoped_lock lock(mutex_);
+  if (engine_ == nullptr || engine_->pDevice == nullptr)
+    return;
+  if (suspended)
+    (void)ma_device_stop(engine_->pDevice);
+  else
+    (void)ma_device_start(engine_->pDevice);
+}
+
 bool MiniaudioAudioBackend::stop(const std::uint64_t handle) {
   if (handle == 0) {
     return false;
@@ -283,25 +381,13 @@ bool MiniaudioAudioBackend::stop(const std::uint64_t handle) {
   return true;
 }
 
-void MiniaudioAudioBackend::setMasterVolume(const float volume) {
-  std::scoped_lock lock(mutex_);
-  masterVolume_ = std::clamp(volume, 0.0F, 1.0F);
-  if (engine_ != nullptr) {
-    ma_engine_set_volume(engine_, masterVolume_);
-  }
-}
-
-float MiniaudioAudioBackend::masterVolume() const {
-  return masterVolume_;
-}
-
 void MiniaudioAudioBackend::update() {
   std::scoped_lock lock(mutex_);
   std::erase_if(playing_, [](const PlayingSound& playing) {
     if (playing.sound == nullptr) {
       return true;
     }
-    if (ma_sound_is_playing(playing.sound.get())) {
+    if (playing.paused || ma_sound_is_playing(playing.sound.get())) {
       return false;
     }
     return true;

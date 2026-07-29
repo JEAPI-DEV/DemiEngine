@@ -13,6 +13,10 @@ function Player3D:on_create()
   self.coyote_remaining = 0.0
   self.next_projectile_id = 1
   self.projectiles = {}
+  self.music_restore_at = nil
+  Audio.define_snapshot("exploration", { music = 1.0, sfx = 1.0 })
+  Audio.define_snapshot("action", { music = 0.35, sfx = 1.0 })
+  Audio.transition_snapshot("exploration", 0.0)
   self.subscriptions = {
     Events.subscribe("physics3d_trigger_enter", function(contact)
       if contact.entity_id == self.entity_id and contact.other_entity_id == "ent_pickup" then
@@ -75,6 +79,8 @@ function Player3D:on_update(dt)
   end
 
   if Input.action_pressed("fire") then
+    Audio.transition_snapshot("action", 0.08)
+    self.music_restore_at = Time.time + 0.35
     local projectile_id = "ent_projectile_" .. tostring(self.next_projectile_id)
     self.next_projectile_id = self.next_projectile_id + 1
     local direction_x = -sin_y
@@ -115,6 +121,11 @@ function Player3D:on_update(dt)
       self.projectiles[projectile_id] = Time.time + 3.0
       Hud.set_text("hud_label", "Projectile fired", 20.0, 60.0, 4.0)
     end
+  end
+
+  if self.music_restore_at and Time.time >= self.music_restore_at then
+    Audio.transition_snapshot("exploration", 0.25)
+    self.music_restore_at = nil
   end
 
   for projectile_id, expires_at in pairs(self.projectiles) do

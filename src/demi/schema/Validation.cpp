@@ -220,6 +220,56 @@ void validateSceneComponents(Diagnostics &diagnostics,
             .suggestion = "Use the component registry schema for valid fields "
                           "and types."});
       }
+      if (component.key() == "AnimationStateMachine" &&
+          component.value().is_object()) {
+        const auto &machine = component.value();
+        std::set<std::string> states;
+        if (machine.contains("states") && machine["states"].is_object())
+          for (const auto &[name, unused] : machine["states"].items()) {
+            (void)unused;
+            states.insert(name);
+          }
+        const auto reportMissing = [&](const std::string &kind,
+                                       const std::string &name) {
+          if (!name.empty() && name != "*" && !states.contains(name))
+            diagnostics.push_back(
+                {.severity = Severity::Error,
+                 .code = "ANIMATION_STATE_REFERENCE_NOT_FOUND",
+                 .message = "Entity " + entityId + " " + kind +
+                            " references missing animation state: " + name,
+                 .path = path.string(),
+                 .suggestion =
+                     "Add the state or correct the stable state name."});
+        };
+        reportMissing("initial_state", machine.value("initial_state", ""));
+        if (machine.contains("transitions") &&
+            machine["transitions"].is_object())
+          for (const auto &[unused, transition] :
+               machine["transitions"].items()) {
+            (void)unused;
+            if (!transition.is_object())
+              continue;
+            reportMissing("transition.from", transition.value("from", ""));
+            reportMissing("transition.to", transition.value("to", ""));
+          }
+        if (machine.contains("blend_spaces") &&
+            machine["blend_spaces"].is_object())
+          for (const auto &[spaceName, space] :
+               machine["blend_spaces"].items()) {
+            if (!space.is_object() || !space.contains("points") ||
+                !space["points"].is_array())
+              continue;
+            for (const auto &point : space["points"])
+              if (point.is_object())
+                reportMissing("blend space " + spaceName,
+                              point.value("state", ""));
+          }
+        if (machine.contains("layers") && machine["layers"].is_object())
+          for (const auto &[layerName, layer] : machine["layers"].items())
+            if (layer.is_object())
+              reportMissing("layer " + layerName,
+                            layer.value("state", ""));
+      }
     }
   }
 }

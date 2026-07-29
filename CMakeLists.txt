@@ -306,6 +306,7 @@ if(DEMI_ENABLE_MEDIA AND NOT TARGET PkgConfig::FFMPEG)
 endif()
 
 set(DEMI_RUNTIME_COMMON_SOURCES
+  src/demi/runtime/animation/AnimationRuntime.cpp
   src/demi/runtime/animation/AnimationStateMachineSystem.cpp
   src/demi/runtime/animation/AnimationCollision2DSystem.cpp
   src/demi/runtime/animation/SpriteAnimationSystem.cpp
@@ -317,6 +318,8 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/tilemap/TilemapRuntime.cpp
   src/demi/runtime/app/RuntimeApp.cpp
   src/demi/runtime/audio/AudioClipPreprocess.cpp
+  src/demi/runtime/audio/AudioMixer.cpp
+  src/demi/runtime/audio/AudioSceneSystem.cpp
   src/demi/runtime/audio/AudioSystem.cpp
   src/demi/runtime/audio/MiniaudioAudioBackend.cpp
   src/demi/runtime/media/MediaSystem.cpp
@@ -574,6 +577,10 @@ else()
   target_link_libraries(demi-sprite-animation-tests PRIVATE demi-runtime-lib)
   add_executable(demi-animation-primitives-tests tests/animation_primitives_tests.cpp)
   target_link_libraries(demi-animation-primitives-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-animation-phase7-tests tests/animation_phase7_tests.cpp)
+  target_link_libraries(demi-animation-phase7-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-audio-phase7-tests tests/audio_phase7_tests.cpp)
+  target_link_libraries(demi-audio-phase7-tests PRIVATE demi-runtime-lib)
   add_executable(demi-asset-pipeline-tests tests/asset_pipeline_tests.cpp)
   target_link_libraries(demi-asset-pipeline-tests PRIVATE demi-core)
   add_executable(demi-camera2d-tests tests/camera2d_tests.cpp)
@@ -640,6 +647,8 @@ add_test(NAME demi-regex-matcher-tests COMMAND demi-regex-matcher-tests)
 add_test(NAME demi-input-action-tests COMMAND demi-input-action-tests)
 add_test(NAME demi-sprite-animation-tests COMMAND demi-sprite-animation-tests)
 add_test(NAME demi-animation-primitives-tests COMMAND demi-animation-primitives-tests)
+add_test(NAME demi-animation-phase7-tests COMMAND demi-animation-phase7-tests)
+add_test(NAME demi-audio-phase7-tests COMMAND demi-audio-phase7-tests)
 add_test(NAME demi-asset-pipeline-tests COMMAND demi-asset-pipeline-tests)
 add_test(NAME demi-camera2d-tests COMMAND demi-camera2d-tests)
 add_test(NAME demi-tilemap-tests COMMAND demi-tilemap-tests)
@@ -782,6 +791,17 @@ add_test(NAME demi-runtime-animation-3d-frame
 )
 set_tests_properties(demi-runtime-animation-3d-frame PROPERTIES
   ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-animation-3d-selection-replay
+  COMMAND demi run
+    --project ${CMAKE_SOURCE_DIR}/examples/animation_3d/demi.project.json
+    --frames 10
+    --input-replay
+      ${CMAKE_SOURCE_DIR}/examples/animation_3d/replays/select_animations.replay.json
+)
+set_tests_properties(demi-runtime-animation-3d-selection-replay PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1"
+  PASS_REGULAR_EXPRESSION "Selected animation: Jump_Loop"
+)
 add_test(NAME demi-runtime-minimal-voxel-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/demi.project.json --frames 1
 )

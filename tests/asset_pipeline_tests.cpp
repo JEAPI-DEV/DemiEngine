@@ -148,6 +148,46 @@ int main() {
     std::cerr << "Model fixture manifest migration failed.\n";
     return 1;
   }
+  auto modelDocument = readJson(modelDirectory / "model.asset.json");
+  modelDocument["settings"]["animations"]["clips"] = {
+      {{"name", ""}, {"skeleton", "humanoid"}},
+      {{"name", "Run"}, {"skeleton", "humanoid"}},
+      {{"name", "Run"}, {"skeleton", "creature"}}};
+  writeJson(modelDirectory / "model.asset.json", modelDocument);
+  const Diagnostics invalidAnimationAssets =
+      validateAssetRegistry(loadAssetRegistry(sourceProject));
+  if (!containsCode(invalidAnimationAssets, "ANIMATION_CLIP_NAME_MISSING") ||
+      !containsCode(invalidAnimationAssets, "ANIMATION_CLIP_NAME_DUPLICATE") ||
+      !containsCode(invalidAnimationAssets,
+                    "ANIMATION_SKELETON_INCOMPATIBLE")) {
+    std::cerr << "Animation import metadata failures were not diagnosed.\n";
+    return 1;
+  }
+  modelDocument["settings"]["animations"]["clips"] = {
+      {{"name", "Idle"}, {"skeleton", "humanoid"}},
+      {{"name", "Run"}, {"skeleton", "humanoid"}}};
+  writeJson(modelDirectory / "model.asset.json", modelDocument);
+
+  writeText(external / "music.wav", "deterministic-audio-fixture");
+  const auto audioAsset =
+      assets::importAsset({.projectDirectory = sourceProject,
+                           .source = external / "music.wav",
+                           .id = "asset://audio/music"});
+  if (hasErrors(audioAsset.diagnostics)) {
+    std::cerr << "Audio fixture import failed.\n";
+    return 1;
+  }
+  auto audioDocument = readJson(audioAsset.manifestPath);
+  audioDocument["settings"]["streaming"] = "yes";
+  writeJson(audioAsset.manifestPath, audioDocument);
+  if (!containsCode(validateAssetRegistry(loadAssetRegistry(sourceProject)),
+                    "AUDIO_STREAMING_SETTING_INVALID")) {
+    std::cerr << "Invalid audio streaming metadata was not diagnosed.\n";
+    return 1;
+  }
+  audioDocument["settings"]["streaming"] = true;
+  writeJson(audioAsset.manifestPath, audioDocument);
+
   const auto collider = assets::generateColliderAsset(
       {.projectDirectory = sourceProject,
        .modelManifestPath = modelDirectory / "model.asset.json",

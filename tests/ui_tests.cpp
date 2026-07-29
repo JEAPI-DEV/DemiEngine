@@ -103,6 +103,7 @@ int main() {
         "padding": [10, 20, 30, 40],
         "children": [{
           "id": "anchored_button", "type": "button",
+          "action": "nested_action",
           "anchor_min": [1, 1], "anchor_max": [1, 1],
           "position": [-60, -30], "size": [50, 20]
         }]
@@ -122,6 +123,18 @@ int main() {
                  "padded content rectangle.\n";
     return 1;
   }
+  demi::runtime::ui::UiInteractionController panelInteraction;
+  const auto &nestedButton = panelDocument.nodes[2].resolved;
+  if (!panelInteraction.capturePointer(
+          panelDocument,
+          {nestedButton.x + nestedButton.width * 0.5F,
+           nestedButton.y + nestedButton.height * 0.5F}) ||
+      panelDocument.pointerCaptureId != "anchored_button" ||
+      panelInteraction.activateFocused(panelDocument) != "nested_action") {
+    std::cerr << "Nested panel button did not receive pointer focus.\n";
+    return 1;
+  }
+  panelInteraction.releasePointer(panelDocument);
 
   demi::runtime::ui::UiLayoutEngine{}.layout(document, {960.0F, 540.0F});
   demi::runtime::ui::UiDocument safeAreaDocument;

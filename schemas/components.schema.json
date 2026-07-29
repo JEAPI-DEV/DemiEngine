@@ -56,13 +56,38 @@
     "AnimationStateMachine": {
       "additionalProperties": false,
       "properties": {
+        "blend_spaces": {
+          "type": "object",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "initial_state": {
           "type": "string",
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
+        "layers": {
+          "type": "object",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "parameters": {
           "type": "object",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "pause_policy": {
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "root_motion": {
+          "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "speed": {
+          "type": "number",
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
@@ -96,19 +121,94 @@
     "AudioSource": {
       "additionalProperties": false,
       "properties": {
+        "attenuation": {
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "bus": {
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "clip": {
           "type": "string",
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
         },
+        "concurrency_group": {
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "doppler": {
+          "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "fade_in": {
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "loop": {
           "type": "boolean",
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
+        "max_distance": {
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "max_voices": {
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "min_distance": {
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "pan": {
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "pause_with_game": {
+          "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "pitch": {
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "play_on_start": {
           "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "rolloff": {
+          "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "spatial": {
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "streaming": {
+          "type": "boolean",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "voice_stealing": {
+          "type": "string",
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
@@ -2226,6 +2326,11 @@
     "SpriteAnimator2D": {
       "additionalProperties": false,
       "properties": {
+        "atlas": {
+          "type": "object",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "clip": {
           "type": "string",
           "x-demi-lua-readable": true,

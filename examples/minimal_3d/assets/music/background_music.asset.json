@@ -4,7 +4,9 @@
   "id": "asset://music/background_music",
   "importer": "audio",
   "importer_version": 1,
-  "settings": {},
+  "settings": {
+    "streaming": true
+  },
   "source": "background_music.wav",
   "source_hash": "fnv1a64:764683ce5fb5356d",
   "type": "AudioClip"

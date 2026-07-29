@@ -200,27 +200,164 @@ void updateModelAnimation(Model &model, AnimationPlayer3DComponent &player,
   if (animations.clips == nullptr || animations.clipCount <= 0) {
     return;
   }
-  int requestedClip = player.clip;
-  if (!player.clipName.empty()) {
-    if (const auto named = animations.clipsByName.find(player.clipName);
-        named != animations.clipsByName.end())
-      requestedClip = named->second;
-  }
-  const int clip = std::clamp(requestedClip, 0, animations.clipCount - 1);
+  const auto resolveClip = [&](const int requested,
+                               const std::string &name) {
+    int result = requested;
+    if (!name.empty())
+      if (const auto named = animations.clipsByName.find(name);
+          named != animations.clipsByName.end())
+        result = named->second;
+    return std::clamp(result, 0, animations.clipCount - 1);
+  };
+  const auto frameFor = [](const ModelAnimation &animation, const float time,
+                           const bool loop) {
+    constexpr float GlTfAnimationFramesPerSecond = 60.0F;
+    int frame = static_cast<int>(
+        std::floor(time * GlTfAnimationFramesPerSecond));
+    if (loop)
+      frame %= animation.frameCount;
+    else
+      frame = std::min(frame, animation.frameCount - 1);
+    return std::max(frame, 0);
+  };
+  const auto blendVector = [](const Vector3 left, const Vector3 right,
+                              const float weight) {
+    return Vector3{left.x + (right.x - left.x) * weight,
+                   left.y + (right.y - left.y) * weight,
+                   left.z + (right.z - left.z) * weight};
+  };
+  const auto normalizeQuaternion = [](Quaternion value) {
+    const float length = std::sqrt(value.x * value.x + value.y * value.y +
+                                   value.z * value.z + value.w * value.w);
+    if (length <= 0.000001F)
+      return Quaternion{0.0F, 0.0F, 0.0F, 1.0F};
+    return Quaternion{value.x / length, value.y / length, value.z / length,
+                      value.w / length};
+  };
+  const auto blendQuaternion = [&](Quaternion left, Quaternion right,
+                                   const float weight) {
+    const float dot = left.x * right.x + left.y * right.y +
+                      left.z * right.z + left.w * right.w;
+    if (dot < 0.0F)
+      right = {-right.x, -right.y, -right.z, -right.w};
+    return normalizeQuaternion(
+        {left.x + (right.x - left.x) * weight,
+         left.y + (right.y - left.y) * weight,
+         left.z + (right.z - left.z) * weight,
+         left.w + (right.w - left.w) * weight});
+  };
+  const auto multiplyQuaternion = [&](const Quaternion left,
+                                      const Quaternion right) {
+    return normalizeQuaternion(
+        {left.w * right.x + left.x * right.w + left.y * right.z -
+             left.z * right.y,
+         left.w * right.y - left.x * right.z + left.y * right.w +
+             left.z * right.x,
+         left.w * right.z + left.x * right.y - left.y * right.x +
+             left.z * right.w,
+         left.w * right.w - left.x * right.x - left.y * right.y -
+             left.z * right.z});
+  };
+  const auto inverseQuaternion = [](const Quaternion value) {
+    return Quaternion{-value.x, -value.y, -value.z, value.w};
+  };
+
+  const int clip = resolveClip(player.clip, player.clipName);
   const ModelAnimation &animation = animations.clips[clip];
   if (animation.frameCount <= 0) {
     return;
   }
 
-  constexpr float GlTfAnimationFramesPerSecond = 60.0F;
-  const float framePosition = player.time * GlTfAnimationFramesPerSecond;
-  int frame = static_cast<int>(std::floor(framePosition));
-  if (player.loop) {
-    frame %= animation.frameCount;
-  } else {
-    frame = std::min(frame, animation.frameCount - 1);
+  const int frame = frameFor(animation, player.time, player.loop);
+  if (animation.boneCount <= 0 || animation.framePoses == nullptr ||
+      animation.framePoses[frame] == nullptr) {
+    UpdateModelAnimation(model, animation, frame);
+    return;
   }
-  UpdateModelAnimation(model, animation, std::max(frame, 0));
+
+  std::vector<Transform> pose(
+      animation.framePoses[frame],
+      animation.framePoses[frame] + animation.boneCount);
+  if (player.blendWeight < 1.0F &&
+      (player.previousClip >= 0 || !player.previousClipName.empty())) {
+    const ModelAnimation &previous =
+        animations.clips[resolveClip(player.previousClip,
+                                     player.previousClipName)];
+    if (previous.frameCount > 0 && previous.boneCount == animation.boneCount &&
+        previous.framePoses != nullptr) {
+      const int previousFrame =
+          frameFor(previous, player.previousTime + player.time, true);
+      for (int bone = 0; bone < animation.boneCount; ++bone) {
+        const Transform &source = previous.framePoses[previousFrame][bone];
+        pose[bone].translation =
+            blendVector(source.translation, pose[bone].translation,
+                        player.blendWeight);
+        pose[bone].rotation =
+            blendQuaternion(source.rotation, pose[bone].rotation,
+                            player.blendWeight);
+        pose[bone].scale =
+            blendVector(source.scale, pose[bone].scale, player.blendWeight);
+      }
+    }
+  }
+
+  for (const AnimationLayerPlayback3D &layer : player.layers) {
+    const ModelAnimation &layerAnimation =
+        animations.clips[resolveClip(layer.clip, layer.clipName)];
+    if (layerAnimation.frameCount <= 0 ||
+        layerAnimation.boneCount != animation.boneCount ||
+        layerAnimation.framePoses == nullptr)
+      continue;
+    const int layerFrame = frameFor(layerAnimation, player.time, true);
+    for (int bone = 0; bone < animation.boneCount; ++bone) {
+      const std::string boneName = animation.bones != nullptr
+                                       ? animation.bones[bone].name
+                                       : std::string{};
+      if (!layer.mask.empty() &&
+          std::ranges::find(layer.mask, boneName) == layer.mask.end())
+        continue;
+      const Transform &sample = layerAnimation.framePoses[layerFrame][bone];
+      if (!layer.additive) {
+        pose[bone].translation =
+            blendVector(pose[bone].translation, sample.translation,
+                        layer.weight);
+        pose[bone].rotation =
+            blendQuaternion(pose[bone].rotation, sample.rotation,
+                            layer.weight);
+        pose[bone].scale =
+            blendVector(pose[bone].scale, sample.scale, layer.weight);
+        continue;
+      }
+      const Transform bind = model.bindPose != nullptr
+                                 ? model.bindPose[bone]
+                                 : Transform{.translation = {},
+                                             .rotation = {0, 0, 0, 1},
+                                             .scale = {1, 1, 1}};
+      pose[bone].translation.x +=
+          (sample.translation.x - bind.translation.x) * layer.weight;
+      pose[bone].translation.y +=
+          (sample.translation.y - bind.translation.y) * layer.weight;
+      pose[bone].translation.z +=
+          (sample.translation.z - bind.translation.z) * layer.weight;
+      pose[bone].scale.x += (sample.scale.x - bind.scale.x) * layer.weight;
+      pose[bone].scale.y += (sample.scale.y - bind.scale.y) * layer.weight;
+      pose[bone].scale.z += (sample.scale.z - bind.scale.z) * layer.weight;
+      const Quaternion delta =
+          multiplyQuaternion(sample.rotation,
+                             inverseQuaternion(bind.rotation));
+      pose[bone].rotation = multiplyQuaternion(
+          pose[bone].rotation,
+          blendQuaternion({0, 0, 0, 1}, delta, layer.weight));
+    }
+  }
+
+  Transform *framePose = pose.data();
+  ModelAnimation blended{.boneCount = animation.boneCount,
+                         .frameCount = 1,
+                         .bones = animation.bones,
+                         .framePoses = &framePose,
+                         .name = {}};
+  UpdateModelAnimation(model, blended, 0);
 }
 
 } // namespace demi::runtime::renderer3d_detail

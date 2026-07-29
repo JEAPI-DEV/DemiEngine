@@ -56,6 +56,33 @@ Texture-bearing assets accept `nearest`, `bilinear`, or `trilinear` filtering;
 same settings apply to standalone textures, explicit model textures, and
 textures embedded in glTF materials.
 
+### Animation and audio assets
+
+Model animation import metadata uses stable clip names and a common skeleton
+identifier:
+
+```json
+"settings": {
+  "animations": {
+    "clips": [
+      {"name": "Idle", "skeleton": "humanoid"},
+      {"name": "Run", "skeleton": "humanoid"}
+    ]
+  }
+}
+```
+
+Validation rejects unnamed or duplicate clips and clips that declare
+incompatible skeletons. Animation state machines reference these stable names;
+root motion is represented by evenly spaced `root_motion_track` position
+samples in scene data and remains disabled unless explicitly enabled.
+
+Audio manifests accept a boolean `settings.streaming`. Use it for music and
+ambience so platform backends stream the source instead of preloading the
+whole clip. Mixing buses, fades, concurrency, spatial settings, and pause
+policy belong to scene/runtime data rather than backend-specific manifests.
+See [Animation and Audio](animation-and-audio.md).
+
 ### Render assets
 
 `Material` manifests point at versioned `*.material.json` sources. The source

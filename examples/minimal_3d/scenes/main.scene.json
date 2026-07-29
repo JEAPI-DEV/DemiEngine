@@ -71,9 +71,13 @@
       "name": "Background Music",
       "components": {
         "AudioSource": {
+          "bus": "music",
           "clip": "asset://music/background_music",
+          "fade_in": 1.0,
           "play_on_start": true,
           "loop": true,
+          "pause_with_game": false,
+          "streaming": true,
           "volume": 0.6
         }
       }

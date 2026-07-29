@@ -256,6 +256,14 @@ int runLuaStubs(const std::vector<std::string> &args) {
     std::cerr << "Failed to read Lua stubs: " << sourcePath.string() << '\n';
     return ExitValidationFailure;
   }
+  std::ostringstream sourceBuffer;
+  sourceBuffer << input.rdbuf();
+  std::string source = sourceBuffer.str();
+  constexpr std::string_view generatedMarker =
+      "\n-- Generated from ComponentRegistry metadata.\n";
+  if (const std::size_t generated = source.find(generatedMarker);
+      generated != std::string::npos)
+    source.resize(generated);
 
   std::ofstream output(outputPath);
   if (!output) {
@@ -263,7 +271,7 @@ int runLuaStubs(const std::vector<std::string> &args) {
     return ExitValidationFailure;
   }
 
-  output << input.rdbuf();
+  output << source;
   output << demi::runtime::scene_loading::generatedLuaComponentTypes();
   std::cout << "Wrote LuaLS stubs: " << outputPath.string() << '\n';
   return ExitSuccess;

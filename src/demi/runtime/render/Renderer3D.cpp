@@ -124,16 +124,7 @@ void Renderer3D::drawWorld(World &world, const float deltaTime) {
       }
     }
 
-  for (Entity &entity : world.entities) {
-    if (!entity.enabled)
-      continue;
-    if (entity.hasComponent<AnimationPlayer3DComponent>() &&
-        entity.component<AnimationPlayer3DComponent>()->playing) {
-      entity.component<AnimationPlayer3DComponent>()->time +=
-          std::max(deltaTime, 0.0F) *
-          entity.component<AnimationPlayer3DComponent>()->speed;
-    }
-  }
+  (void)deltaTime;
 
   std::vector<Entity *> visibleEntities;
   for (Entity &entity : world.entities) {

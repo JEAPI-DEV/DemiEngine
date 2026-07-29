@@ -4,6 +4,7 @@
 #include "demi/core/Version.h"
 #include "demi/runtime/animation/AnimationCollision2DSystem.h"
 #include "demi/runtime/animation/AnimationStateMachineSystem.h"
+#include "demi/runtime/audio/AudioSceneSystem.h"
 #include "demi/runtime/animation/SpriteAnimationSystem.h"
 #include "demi/runtime/audio/AudioSystem.h"
 #include "demi/runtime/camera/Camera2DSystem.h"
@@ -385,7 +386,7 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
   }
   {
     ProfileScope scope("AnimationStateMachine.update");
-    AnimationStateMachineSystem{}.update(loaded.world, scaledDt);
+    AnimationStateMachineSystem{}.update(loaded.world, scaledDt, dt);
   }
   {
     ProfileScope scope("SpriteAnimation2D.update");
@@ -423,7 +424,9 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
 
   {
     ProfileScope scope("Audio.update");
-    audioSystem.update();
+    audioSystem.setGamePaused(luaHost.paused());
+    AudioSceneSystem{}.update(loaded.world, audioSystem);
+    audioSystem.update(dt);
   }
   {
     ProfileScope scope("Media.update");
@@ -634,6 +637,14 @@ int runProject(const RuntimeOptions &options) {
   const double slowProfileThresholdMs = profileSlowThresholdMs();
 
   if (isHeadless() || options.serve) {
+    // A headless run has no native window to supply pointer coordinates.
+    // Treat replay positions as logical HUD-canvas coordinates, matching the
+    // 960x540 coordinates authored by examples and used by windowed playback.
+    luaHost.setViewport(
+        std::max(static_cast<int>(std::lround(loaded.world.hudCanvasSize.x)),
+                 1),
+        std::max(static_cast<int>(std::lround(loaded.world.hudCanvasSize.y)),
+                 1));
     int frameCount = 0;
     const int targetFrames =
         options.maxFrames > 0
@@ -733,12 +744,16 @@ int runProject(const RuntimeOptions &options) {
     luaHost.setApplicationFocused(IsWindowFocused());
     luaHost.setApplicationMinimized(IsWindowMinimized());
 #if defined(__ANDROID__)
-    luaHost.setApplicationSuspended(DemiAndroidApplicationSuspended());
+    const bool applicationSuspended = DemiAndroidApplicationSuspended();
+    luaHost.setApplicationSuspended(applicationSuspended);
+    audioSystem.setSuspended(applicationSuspended);
     const unsigned lowMemorySignals = DemiAndroidConsumeLowMemorySignals();
     for (unsigned signal = 0; signal < lowMemorySignals; ++signal)
       luaHost.notifyApplicationLowMemory();
 #else
-    luaHost.setApplicationSuspended(IsWindowMinimized());
+    const bool applicationSuspended = IsWindowMinimized();
+    luaHost.setApplicationSuspended(applicationSuspended);
+    audioSystem.setSuspended(applicationSuspended);
 #endif
     const int displayWidth = GetRenderWidth();
     const int displayHeight = GetRenderHeight();
