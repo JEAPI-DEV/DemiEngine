@@ -4,8 +4,9 @@
 #include "demi/core/Version.h"
 #include "demi/runtime/animation/AnimationCollision2DSystem.h"
 #include "demi/runtime/animation/AnimationStateMachineSystem.h"
-#include "demi/runtime/audio/AudioSceneSystem.h"
 #include "demi/runtime/animation/SpriteAnimationSystem.h"
+#include "demi/runtime/app/Bgfx2DAppHost.h"
+#include "demi/runtime/audio/AudioSceneSystem.h"
 #include "demi/runtime/audio/AudioSystem.h"
 #include "demi/runtime/camera/Camera2DSystem.h"
 #include "demi/runtime/camera/CameraRenderScheduler3D.h"
@@ -40,11 +41,6 @@
 #include "demi/runtime/render/Renderer2D.h"
 #include "demi/runtime/render/Renderer3D.h"
 #include <raylib.h>
-#endif
-
-#if defined(__ANDROID__)
-extern "C" bool DemiAndroidApplicationSuspended(void);
-extern "C" unsigned DemiAndroidConsumeLowMemorySignals(void);
 #endif
 
 namespace demi::runtime {
@@ -697,6 +693,10 @@ int runProject(const RuntimeOptions &options) {
     return 0;
   }
 
+  const bool use3D = sceneIs3D(loaded.world);
+  const Camera2DComponent fallbackCamera2D;
+  const Camera3DComponent fallbackCamera3D;
+
 #if !DEMI_HAS_RAYLIB
   std::cerr << "Runtime windowing is unavailable because raylib was not found "
                "at configure time.\n";
@@ -706,9 +706,152 @@ int runProject(const RuntimeOptions &options) {
   audioSystem.shutdown();
   return RuntimeFailure;
 #else
-  const bool use3D = sceneIs3D(loaded.world);
-  const Camera2DComponent fallbackCamera2D;
-  const Camera3DComponent fallbackCamera3D;
+  if (!use3D) {
+    Bgfx2DAppHost appHost;
+    std::vector<std::string> renderDiagnostics;
+    const std::string title = std::string(EngineName) + " - " +
+                              loaded.project.name + " - " + loaded.world.name;
+    if (!appHost.initialize(
+            Bgfx2DAppHostConfig{
+                .title = title,
+                .width = 960,
+                .height = 540,
+                .graphicsApi = configuredGraphicsApi(),
+                .vsync = true,
+                .debugGraphics = false,
+            },
+            assetRegistry, renderDiagnostics, error)) {
+      std::cerr << "2D renderer initialization failed: " << error << '\n';
+      luaHost.destroy();
+      networkSystem.shutdown();
+      mediaSystem.shutdown();
+      audioSystem.shutdown();
+      return RuntimeFailure;
+    }
+    for (const std::string &diagnostic : renderDiagnostics)
+      std::cerr << "2D asset load failed: " << diagnostic << '\n';
+
+    luaHost.applicationServices().setClipboardHandlers(
+        [&appHost] { return appHost.clipboard(); },
+        [&appHost](const std::string &text) {
+          std::string clipboardError;
+          if (!appHost.setClipboard(text, clipboardError))
+            std::cerr << "Clipboard update failed: " << clipboardError << '\n';
+        });
+
+    std::cout << "Using bgfx " << appHost.rendererName()
+              << " through the SDL3 platform host.\n";
+    bool running = true;
+    bool renderFailed = false;
+    int frameCount = 0;
+    while (running) {
+      appHost.poll(input);
+      const platform::PlatformFrameState &frameState = appHost.frameState();
+      if (frameState.quitRequested)
+        break;
+      if (inputReplay) {
+        if (!inputReplay->apply(static_cast<std::size_t>(frameCount), input))
+          break;
+        const std::uint64_t frameSeed =
+            loaded.project.simulation.randomSeed ^
+            (static_cast<std::uint64_t>(frameCount) * 0x9E3779B97F4A7C15ULL);
+        luaHost.seedRandom(frameSeed);
+      }
+
+      luaHost.setApplicationFocused(frameState.focused);
+      luaHost.setApplicationMinimized(frameState.minimized);
+      luaHost.setApplicationSuspended(frameState.suspended);
+      audioSystem.setSuspended(frameState.suspended);
+      for (unsigned signal = 0; signal < frameState.lowMemorySignals; ++signal)
+        luaHost.notifyApplicationLowMemory();
+      luaHost.applicationServices().updateDisplay(
+          frameState.width, frameState.height, frameState.logicalDpi);
+      luaHost.setViewport(frameState.width, frameState.height);
+
+      RuntimeProfiler::beginFrame();
+      const auto frameStart = std::chrono::steady_clock::now();
+      const float dt = frameState.deltaSeconds;
+      double updateMs = 0.0;
+      const auto updateStart = std::chrono::steady_clock::now();
+      stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem,
+                     networkSystem, assetRegistry, dt,
+                     static_cast<float>(fixedStep), fixedAccumulator, running);
+      if (profileRun) {
+        updateMs = millisecondsSince(updateStart);
+        profile.updateMs += updateMs;
+        profile.maxUpdateMs = std::max(profile.maxUpdateMs, updateMs);
+        profile.updateSamples.push_back(updateMs);
+      }
+
+      if (luaHost.windowModeDirty()) {
+        std::string modeError;
+        if (!appHost.setWindowMode(luaHost.windowMode(), modeError))
+          std::cerr << "Window mode update failed: " << modeError << '\n';
+        luaHost.clearWindowModeDirty();
+      }
+      if (luaHost.mouseCapturedDirty()) {
+        std::string captureError;
+        if (!appHost.setMouseCaptured(luaHost.mouseCaptured(), captureError))
+          std::cerr << "Mouse capture update failed: " << captureError << '\n';
+        luaHost.clearMouseCapturedDirty();
+      }
+
+      const auto renderStart = std::chrono::steady_clock::now();
+      const Camera2DComponent *camera = activeCamera(loaded.world);
+      const navigation::NavigationGrid2D *navigation =
+          loaded.world.debug.grid ? &luaHost.navigationGrid2D() : nullptr;
+      std::string renderError;
+      {
+        ProfileScope renderScope("Render.frame");
+        if (!appHost.renderFrame(loaded.world,
+                                 camera != nullptr ? *camera : fallbackCamera2D,
+                                 activeCameraPosition(loaded.world), dt,
+                                 navigation, renderError)) {
+          std::cerr << "2D rendering failed: " << renderError << '\n';
+          renderFailed = true;
+          running = false;
+        }
+      }
+
+      if (profileRun) {
+        const double renderMs = millisecondsSince(renderStart);
+        const double frameMs = millisecondsSince(frameStart);
+        RuntimeProfiler::record("Frame.update", updateMs);
+        RuntimeProfiler::record("Render.total", renderMs);
+        RuntimeProfiler::record("Frame.total", frameMs);
+        profile.renderMs += renderMs;
+        profile.frameMs += frameMs;
+        profile.maxRenderMs = std::max(profile.maxRenderMs, renderMs);
+        profile.maxFrameMs = std::max(profile.maxFrameMs, frameMs);
+        profile.renderSamples.push_back(renderMs);
+        profile.frameSamples.push_back(frameMs);
+        logSlowProfileFrame(frameCount, updateMs, renderMs, frameMs,
+                            slowProfileThresholdMs);
+        ++profile.frames;
+      }
+
+      ++frameCount;
+      if (options.maxFrames > 0 && frameCount >= options.maxFrames)
+        running = false;
+      const int maxFps = luaHost.maxFps();
+      if (running && maxFps > 0) {
+        std::this_thread::sleep_until(
+            frameStart + std::chrono::duration<double>(1.0 / maxFps));
+      }
+    }
+
+    luaHost.destroy();
+    networkSystem.shutdown();
+    mediaSystem.shutdown();
+    audioSystem.shutdown();
+    appHost.shutdown();
+    if (profileRun)
+      printProfile(profile);
+    if (options.profiler)
+      std::cout << RuntimeProfiler::sessionReport();
+    writeProfileReport(options.profileReportPath);
+    return renderFailed ? RuntimeFailure : 0;
+  }
 
   configureRaylibLogging();
   SetConfigFlags(FLAG_WINDOW_RESIZABLE);
@@ -743,18 +886,9 @@ int runProject(const RuntimeOptions &options) {
   while (running && !WindowShouldClose()) {
     luaHost.setApplicationFocused(IsWindowFocused());
     luaHost.setApplicationMinimized(IsWindowMinimized());
-#if defined(__ANDROID__)
-    const bool applicationSuspended = DemiAndroidApplicationSuspended();
-    luaHost.setApplicationSuspended(applicationSuspended);
-    audioSystem.setSuspended(applicationSuspended);
-    const unsigned lowMemorySignals = DemiAndroidConsumeLowMemorySignals();
-    for (unsigned signal = 0; signal < lowMemorySignals; ++signal)
-      luaHost.notifyApplicationLowMemory();
-#else
     const bool applicationSuspended = IsWindowMinimized();
     luaHost.setApplicationSuspended(applicationSuspended);
     audioSystem.setSuspended(applicationSuspended);
-#endif
     const int displayWidth = GetRenderWidth();
     const int displayHeight = GetRenderHeight();
     const Vector2 displayScale = GetWindowScaleDPI();
@@ -825,14 +959,12 @@ int runProject(const RuntimeOptions &options) {
         bool renderHud = cameras.empty();
         if (cameras.empty()) {
           renderer3D.beginCamera("fallback", fallbackCamera3D, {},
-                                 {0.0F, 0.0F, 1.0F},
-                                 {0.0F, 1.0F, 0.0F});
+                                 {0.0F, 0.0F, 1.0F}, {0.0F, 1.0F, 0.0F});
           renderer3D.drawWorld(loaded.world, dt);
           renderer3D.endCamera();
         } else {
           for (const Entity *cameraEntity : cameras) {
-            const auto &camera =
-                *cameraEntity->component<Camera3DComponent>();
+            const auto &camera = *cameraEntity->component<Camera3DComponent>();
             const auto *postProcess =
                 cameraEntity->component<PostProcessStackComponent>();
             if (!cameraRenderScheduler3D.shouldRender(
@@ -844,22 +976,20 @@ int runProject(const RuntimeOptions &options) {
             }
             const auto transform =
                 resolveWorldTransform3D(loaded.world, *cameraEntity);
-            const Vec3 position =
-                transform ? transform->position : Vec3{};
+            const Vec3 position = transform ? transform->position : Vec3{};
             const Vec3 forward =
-                transform ? transformDirection3D(*transform,
-                                                 camera.targetOffset)
-                          : camera.targetOffset;
+                transform
+                    ? transformDirection3D(*transform, camera.targetOffset)
+                    : camera.targetOffset;
             const Vec3 localUp{0.0F, camera.upAxis, 0.0F};
             const Vec3 up =
-                transform ? transformDirection3D(*transform, localUp)
-                          : localUp;
-            renderer3D.beginCamera(cameraEntity->id, camera, position,
-                                   forward, up);
+                transform ? transformDirection3D(*transform, localUp) : localUp;
+            renderer3D.beginCamera(cameraEntity->id, camera, position, forward,
+                                   up);
             renderer3D.drawWorld(loaded.world, dt);
-            renderer3D.endCamera(
-                postProcess,
-                camera.renderHudToTarget ? &loaded.world : nullptr);
+            renderer3D.endCamera(postProcess, camera.renderHudToTarget
+                                                  ? &loaded.world
+                                                  : nullptr);
             renderHud |= camera.renderHud;
           }
         }

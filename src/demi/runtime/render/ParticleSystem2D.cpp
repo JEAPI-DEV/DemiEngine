@@ -194,6 +194,39 @@ std::size_t ParticleSystem2D::particleCount() const {
   return count;
 }
 
+std::vector<render::ParticleRenderData2D> ParticleSystem2D::renderData() const {
+  std::vector<render::ParticleRenderData2D> result;
+  result.reserve(particleCount());
+  for (const auto &[id, state] : emitters_) {
+    (void)id;
+    for (const Particle &particle : state.particles) {
+      const float progress =
+          std::clamp(particle.age / std::max(particle.lifetime, 0.0001F),
+                     0.0F, 1.0F);
+      const auto interpolate = [progress](const float start,
+                                          const float end) {
+        return start + (end - start) * progress;
+      };
+      result.push_back({
+          .position = particle.position,
+          .size = interpolate(particle.sizeStart, particle.sizeEnd),
+          .rotationRadians = particle.rotation * 0.017453292519943295F,
+          .color =
+              {
+                  interpolate(particle.colorStart.r, particle.colorEnd.r),
+                  interpolate(particle.colorStart.g, particle.colorEnd.g),
+                  interpolate(particle.colorStart.b, particle.colorEnd.b),
+                  interpolate(particle.colorStart.a, particle.colorEnd.a),
+              },
+          .texture = state.texture,
+          .material = state.material,
+          .sortingOrder = state.sortingOrder,
+      });
+    }
+  }
+  return result;
+}
+
 void ParticleSystem2D::clear() { emitters_.clear(); }
 
 } // namespace demi::runtime

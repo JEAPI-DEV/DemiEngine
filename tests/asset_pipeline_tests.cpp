@@ -414,12 +414,14 @@ int main() {
     std::cerr << "Production importer catalog is incomplete.\n";
     return 1;
   }
-  if (!containsCode(assets::cookProject(
-                        {.projectFile = sourceProject / "demi.project.json",
-                         .outputDirectory = root / "android-cooked",
-                         .platform = "android"}),
-                    "COOK_PLATFORM_UNSUPPORTED")) {
-    std::cerr << "Unsupported cook platform was not diagnosed.\n";
+  const auto androidCooked = root / "android-cooked";
+  if (hasErrors(assets::cookProject(
+          {.projectFile = sourceProject / "demi.project.json",
+           .outputDirectory = androidCooked,
+           .platform = "android"})) ||
+      readJson(androidCooked / "cook.manifest.json")["platform"] !=
+          "android") {
+    std::cerr << "Android project cooking failed.\n";
     return 1;
   }
   std::filesystem::remove_all(root);

@@ -354,6 +354,10 @@ bool particleContracts() {
   particles2D.update(world2D, 0.0F);
   if (particles2D.particleCount() != 3)
     return false;
+  const auto particleRenderData = particles2D.renderData();
+  if (particleRenderData.size() != 3 ||
+      particleRenderData.front().size <= 0.0F)
+    return false;
   particles2D.update(world2D, 0.3F);
   if (particles2D.particleCount() != 0)
     return false;

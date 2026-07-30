@@ -43,6 +43,9 @@ configure_file(cmake/BuiltinRenderShaders.h.in
 if(POLICY CMP0169)
   cmake_policy(SET CMP0169 OLD)
 endif()
+if(POLICY CMP0135)
+  cmake_policy(SET CMP0135 NEW)
+endif()
 
 if(ANDROID)
   set(DEMI_ENABLE_MEDIA OFF CACHE BOOL "Disable FFmpeg media on Android v1" FORCE)
@@ -189,6 +192,56 @@ FetchContent_Declare(raylib
 )
 FetchContent_MakeAvailable(raylib)
 
+# SDL owns platform windows, lifecycle, and input for the bgfx runtime. Keep it
+# static so packaged Linux and Android games do not gain a second runtime
+# deployment dependency.
+set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+set(SDL_STATIC ON CACHE BOOL "" FORCE)
+set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
+set(SDL_AUDIO OFF CACHE BOOL "" FORCE)
+set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
+set(SDL_GPU OFF CACHE BOOL "" FORCE)
+set(SDL_RENDER OFF CACHE BOOL "" FORCE)
+set(SDL_HAPTIC OFF CACHE BOOL "" FORCE)
+set(SDL_SENSOR OFF CACHE BOOL "" FORCE)
+set(SDL_DIALOG OFF CACHE BOOL "" FORCE)
+set(SDL_TRAY OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(SDL3
+  URL https://github.com/libsdl-org/SDL/releases/download/release-3.4.10/SDL3-3.4.10.tar.gz
+  URL_HASH SHA256=12b34280415ec8418c864408b93d008a20a6530687ee613d60bfbd20411f2785
+)
+FetchContent_MakeAvailable(SDL3)
+
+# bgfx is introduced behind DemiEngine's graphics-device boundary while the
+# existing 2D/3D renderers are ported incrementally. Build only the shader
+# compiler on hosts; all other bgfx tools and examples stay disabled.
+if(ANDROID)
+  set(BGFX_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+else()
+  set(BGFX_BUILD_TOOLS ON CACHE BOOL "" FORCE)
+endif()
+set(BGFX_BUILD_TOOLS_SHADER ON CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TOOLS_BIN2C OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TOOLS_GEOMETRY OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TOOLS_TEXTURE OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(BGFX_INSTALL OFF CACHE BOOL "" FORCE)
+set(BGFX_CUSTOM_TARGETS OFF CACHE BOOL "" FORCE)
+set(BGFX_CONFIG_MULTITHREADED ON CACHE BOOL "" FORCE)
+FetchContent_Declare(bgfx
+  GIT_REPOSITORY https://github.com/bkaradzic/bgfx.cmake.git
+  GIT_TAG cc51d430dff56872f61df760e2d6dfa6ace095c1
+  GIT_SUBMODULES_RECURSE TRUE
+)
+FetchContent_MakeAvailable(bgfx)
+# bgfx itself needs bimg, but its optional offline image encoder/decoder
+# libraries are not runtime dependencies and otherwise inflate every build.
+set_target_properties(bimg_decode bimg_encode PROPERTIES EXCLUDE_FROM_ALL TRUE)
+
 option(DEMI_ENABLE_NETWORK "Enable optional ENet networking module" OFF)
 option(DEMI_ENABLE_MEDIA "Enable FFmpeg-backed media module" ON)
 
@@ -284,6 +337,65 @@ target_include_directories(demi-core PUBLIC src "${DEMI_GENERATED_INCLUDE_DIR}")
 
 target_compile_features(demi-core PUBLIC cxx_std_20)
 target_link_libraries(demi-core PUBLIC nlohmann_json::nlohmann_json box2d)
+if(NOT ANDROID)
+  target_compile_definitions(demi-core PRIVATE
+    DEMI_SHADERC_PATH="$<TARGET_FILE:shaderc>"
+    DEMI_BGFX_SHADER_INCLUDE_DIR="${bgfx_SOURCE_DIR}/bgfx/src")
+endif()
+
+add_library(demi-graphics-bgfx STATIC
+  "${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/DefaultPixelFont.h"
+  src/demi/runtime/render/backend/GraphicsDevice.cpp
+  src/demi/runtime/render/backend/BgfxGraphicsDevice.cpp
+  src/demi/runtime/render/backend/BgfxGpuResources.cpp
+  src/demi/runtime/render/backend/BgfxRenderCommands.cpp
+  src/demi/runtime/render/backend/BgfxVertexLayout.cpp
+  src/demi/runtime/render/backend/Canvas2D.cpp
+  src/demi/runtime/render/backend/FontAtlas2D.cpp
+  src/demi/runtime/render/backend/GifDecoder2D.cpp
+  src/demi/runtime/render/backend/ImageDecoder2D.cpp
+  src/demi/runtime/render/backend/QuadBatch.cpp
+  src/demi/runtime/render/backend/TextureLibrary2D.cpp
+)
+add_custom_command(
+  OUTPUT
+    "${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/DefaultPixelFont.h"
+  COMMAND "${CMAKE_COMMAND}"
+    -DINPUT=${CMAKE_SOURCE_DIR}/fonts/Pixelify_Sans/static/PixelifySans-Regular.ttf
+    -DOUTPUT=${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/DefaultPixelFont.h
+    -DSYMBOL=DefaultPixelFontData
+    -P "${CMAKE_SOURCE_DIR}/cmake/EmbedBinary.cmake"
+  DEPENDS
+    "${CMAKE_SOURCE_DIR}/fonts/Pixelify_Sans/static/PixelifySans-Regular.ttf"
+    "${CMAKE_SOURCE_DIR}/cmake/EmbedBinary.cmake"
+  VERBATIM)
+target_include_directories(demi-graphics-bgfx PUBLIC src)
+target_include_directories(demi-graphics-bgfx PRIVATE
+  "${DEMI_RENDER_GENERATED_INCLUDE_DIR}"
+  "${bgfx_SOURCE_DIR}/bgfx/examples/common/imgui"
+  "${bgfx_SOURCE_DIR}/bgfx/3rdparty/stb"
+  "${bgfx_SOURCE_DIR}/bimg/3rdparty/stb"
+  "${bgfx_SOURCE_DIR}/bx/include")
+target_compile_features(demi-graphics-bgfx PUBLIC cxx_std_20)
+target_link_libraries(demi-graphics-bgfx PRIVATE bgfx bimg_decode)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+  target_compile_options(demi-graphics-bgfx PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+add_library(demi-render2d-bgfx STATIC
+  src/demi/runtime/render/bgfx2d/ColliderCanvasRenderer.cpp
+  src/demi/runtime/render/bgfx2d/DebugCanvasRenderer.cpp
+  src/demi/runtime/render/bgfx2d/IsoCanvasRenderer.cpp
+  src/demi/runtime/render/bgfx2d/ParticleCanvasRenderer.cpp
+  src/demi/runtime/render/bgfx2d/SpriteCanvasRenderer.cpp
+  src/demi/runtime/render/bgfx2d/TilemapCanvasRenderer.cpp
+  src/demi/runtime/render/bgfx2d/UiCanvasRenderer.cpp)
+target_include_directories(demi-render2d-bgfx PUBLIC src)
+target_compile_features(demi-render2d-bgfx PUBLIC cxx_std_20)
+target_link_libraries(demi-render2d-bgfx PUBLIC demi-core demi-graphics-bgfx)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+  target_compile_options(demi-render2d-bgfx PRIVATE -Wall -Wextra -Wpedantic)
+endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(demi-core PRIVATE -Wall -Wextra -Wpedantic)
@@ -414,7 +526,7 @@ function(configure_demi_runtime target with_renderer)
   endif()
 
   if(${with_renderer})
-    target_link_libraries(${target} PRIVATE raylib)
+    target_link_libraries(${target} PRIVATE raylib SDL3::SDL3-static demi-render2d-bgfx)
     target_compile_definitions(${target} PRIVATE DEMI_HAS_RAYLIB=1)
     if(TARGET PkgConfig::RSVG)
       target_link_libraries(${target} PRIVATE PkgConfig::RSVG)
@@ -457,7 +569,13 @@ function(configure_demi_runtime target with_renderer)
 endfunction()
 
 configure_demi_runtime(demi-runtime-lib TRUE
+  src/demi/runtime/app/Bgfx2DAppHost.cpp
+  src/demi/runtime/platform/PlatformInput.cpp
+  src/demi/runtime/platform/SdlNativeWindow.cpp
+  src/demi/runtime/platform/SdlPlatformHost.cpp
   src/demi/runtime/render/ProfilerHudRenderer.cpp
+  src/demi/runtime/render/BgfxRenderer2D.cpp
+  src/demi/runtime/render/backend/SvgDecoder2D.cpp
   src/demi/runtime/render/RaylibFileSystemBridge.cpp
   src/demi/runtime/render/Renderer2D.cpp
   src/demi/runtime/render/ParticleSystem2D.cpp
@@ -489,10 +607,8 @@ endif()
 
 if(ANDROID)
   add_library(demi_android SHARED src/android/main.cpp)
-  target_link_libraries(demi_android PRIVATE demi-runtime-lib)
-  target_include_directories(demi_android PRIVATE ${ANDROID_NDK}/sources/android/native_app_glue)
+  target_link_libraries(demi_android PRIVATE demi-runtime-lib SDL3::SDL3-static)
   target_link_libraries(demi_android PRIVATE android log OpenSLES EGL GLESv2)
-  target_link_options(demi_android PRIVATE "LINKER:-u,ANativeActivity_onCreate")
 else()
   add_executable(demi
     src/cli/AssetCommands.cpp
@@ -504,6 +620,7 @@ else()
   )
   target_link_libraries(demi PRIVATE demi-core demi-runtime-lib)
   target_compile_definitions(demi PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_dependencies(demi shaderc)
 
   add_executable(demi-server
     src/cli/AssetCommands.cpp
@@ -515,6 +632,7 @@ else()
   )
   target_link_libraries(demi-server PRIVATE demi-core demi-server-runtime-lib)
   target_compile_definitions(demi-server PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_dependencies(demi-server shaderc)
 
   add_executable(demi-runtime src/runtime/main.cpp)
   target_link_libraries(demi-runtime PRIVATE demi-core demi-runtime-lib)
@@ -558,6 +676,68 @@ else()
   target_link_libraries(demi-renderer3d-batcher-tests PRIVATE demi-runtime-lib raylib)
   add_executable(demi-render-phase6-tests tests/render_phase6_tests.cpp)
   target_link_libraries(demi-render-phase6-tests PRIVATE demi-runtime-lib raylib)
+  add_executable(demi-bgfx-graphics-device-tests
+    tests/bgfx_graphics_device_tests.cpp)
+  target_link_libraries(demi-bgfx-graphics-device-tests
+    PRIVATE demi-graphics-bgfx)
+  add_executable(demi-platform-input-tests tests/platform_input_tests.cpp)
+  target_link_libraries(demi-platform-input-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-sdl-platform-host-tests
+    tests/sdl_platform_host_tests.cpp)
+  target_link_libraries(demi-sdl-platform-host-tests
+    PRIVATE demi-runtime-lib SDL3::SDL3-static)
+  add_executable(demi-resource-handle-tests tests/resource_handle_tests.cpp)
+  target_link_libraries(demi-resource-handle-tests PRIVATE demi-graphics-bgfx)
+  add_executable(demi-bgfx-gpu-resources-tests
+    tests/bgfx_gpu_resources_tests.cpp)
+  target_link_libraries(demi-bgfx-gpu-resources-tests
+    PRIVATE demi-graphics-bgfx)
+  add_executable(demi-quad-batch-tests tests/quad_batch_tests.cpp)
+  target_link_libraries(demi-quad-batch-tests PRIVATE demi-graphics-bgfx)
+  add_executable(demi-render-commands-tests tests/render_commands_tests.cpp)
+  target_link_libraries(demi-render-commands-tests PRIVATE demi-graphics-bgfx)
+  add_executable(demi-canvas2d-tests tests/canvas2d_tests.cpp)
+  target_link_libraries(demi-canvas2d-tests PRIVATE demi-graphics-bgfx)
+  add_executable(demi-font-atlas2d-tests tests/font_atlas2d_tests.cpp)
+  target_link_libraries(demi-font-atlas2d-tests PRIVATE demi-graphics-bgfx)
+  add_executable(demi-image-decoder2d-tests tests/image_decoder2d_tests.cpp)
+  target_link_libraries(demi-image-decoder2d-tests PRIVATE demi-graphics-bgfx)
+  add_executable(demi-ui-canvas-renderer-tests
+    tests/ui_canvas_renderer_tests.cpp)
+  target_link_libraries(demi-ui-canvas-renderer-tests PRIVATE demi-render2d-bgfx)
+  add_executable(demi-color-packing2d-tests
+    tests/color_packing2d_tests.cpp)
+  target_link_libraries(demi-color-packing2d-tests PRIVATE demi-render2d-bgfx)
+  add_executable(demi-collider-canvas-renderer-tests
+    tests/collider_canvas_renderer_tests.cpp)
+  target_link_libraries(demi-collider-canvas-renderer-tests
+    PRIVATE demi-render2d-bgfx)
+  add_executable(demi-texture-library2d-tests
+    tests/texture_library2d_tests.cpp)
+  target_link_libraries(demi-texture-library2d-tests PRIVATE demi-graphics-bgfx)
+  add_executable(demi-sprite-canvas-renderer-tests
+    tests/sprite_canvas_renderer_tests.cpp)
+  target_link_libraries(demi-sprite-canvas-renderer-tests
+    PRIVATE demi-render2d-bgfx)
+  add_executable(demi-tilemap-canvas-renderer-tests
+    tests/tilemap_canvas_renderer_tests.cpp)
+  target_link_libraries(demi-tilemap-canvas-renderer-tests
+    PRIVATE demi-render2d-bgfx)
+  add_executable(demi-bgfx2d-effect-renderers-tests
+    tests/bgfx2d_effect_renderers_tests.cpp)
+  target_link_libraries(demi-bgfx2d-effect-renderers-tests
+    PRIVATE demi-render2d-bgfx)
+  add_executable(demi-bgfx-renderer2d-tests tests/bgfx_renderer2d_tests.cpp)
+  target_link_libraries(demi-bgfx-renderer2d-tests PRIVATE demi-runtime-lib)
+  target_compile_definitions(demi-bgfx-renderer2d-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-bgfx-2d-app-host-tests
+    tests/bgfx_2d_app_host_tests.cpp)
+  target_link_libraries(demi-bgfx-2d-app-host-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-iso-canvas-renderer-tests
+    tests/iso_canvas_renderer_tests.cpp)
+  target_link_libraries(demi-iso-canvas-renderer-tests
+    PRIVATE demi-render2d-bgfx)
 
   add_executable(demi-lua-stub-contract-tests tests/lua_stub_contract_tests.cpp)
   target_link_libraries(demi-lua-stub-contract-tests PRIVATE demi-runtime-lib)
@@ -585,6 +765,12 @@ else()
   target_link_libraries(demi-audio-phase7-tests PRIVATE demi-runtime-lib)
   add_executable(demi-asset-pipeline-tests tests/asset_pipeline_tests.cpp)
   target_link_libraries(demi-asset-pipeline-tests PRIVATE demi-core)
+  add_executable(demi-shader-cooker-tests tests/shader_cooker_tests.cpp)
+  target_link_libraries(demi-shader-cooker-tests PRIVATE demi-core)
+  target_compile_definitions(demi-shader-cooker-tests PRIVATE
+    DEMI_SHADERC_PATH="$<TARGET_FILE:shaderc>"
+    DEMI_BGFX_SHADER_INCLUDE_DIR="${bgfx_SOURCE_DIR}/bgfx/src")
+  add_dependencies(demi-shader-cooker-tests shaderc)
   add_executable(demi-camera2d-tests tests/camera2d_tests.cpp)
   target_link_libraries(demi-camera2d-tests PRIVATE demi-runtime-lib)
   add_executable(demi-tilemap-tests tests/tilemap_tests.cpp)
@@ -640,6 +826,35 @@ add_test(NAME demi-validation-3d-tests COMMAND demi-validation-3d-tests)
 add_test(NAME demi-renderer3d-batcher-tests
   COMMAND demi-renderer3d-batcher-tests)
 add_test(NAME demi-render-phase6-tests COMMAND demi-render-phase6-tests)
+add_test(NAME demi-bgfx-graphics-device-tests
+  COMMAND demi-bgfx-graphics-device-tests)
+add_test(NAME demi-platform-input-tests COMMAND demi-platform-input-tests)
+add_test(NAME demi-sdl-platform-host-tests COMMAND demi-sdl-platform-host-tests)
+add_test(NAME demi-resource-handle-tests COMMAND demi-resource-handle-tests)
+add_test(NAME demi-bgfx-gpu-resources-tests COMMAND demi-bgfx-gpu-resources-tests)
+add_test(NAME demi-quad-batch-tests COMMAND demi-quad-batch-tests)
+add_test(NAME demi-render-commands-tests COMMAND demi-render-commands-tests)
+add_test(NAME demi-canvas2d-tests COMMAND demi-canvas2d-tests)
+add_test(NAME demi-font-atlas2d-tests COMMAND demi-font-atlas2d-tests)
+add_test(NAME demi-image-decoder2d-tests COMMAND demi-image-decoder2d-tests)
+add_test(NAME demi-ui-canvas-renderer-tests
+  COMMAND demi-ui-canvas-renderer-tests)
+add_test(NAME demi-color-packing2d-tests COMMAND demi-color-packing2d-tests)
+add_test(NAME demi-collider-canvas-renderer-tests
+  COMMAND demi-collider-canvas-renderer-tests)
+add_test(NAME demi-texture-library2d-tests
+  COMMAND demi-texture-library2d-tests)
+add_test(NAME demi-sprite-canvas-renderer-tests
+  COMMAND demi-sprite-canvas-renderer-tests)
+add_test(NAME demi-tilemap-canvas-renderer-tests
+  COMMAND demi-tilemap-canvas-renderer-tests)
+add_test(NAME demi-bgfx2d-effect-renderers-tests
+  COMMAND demi-bgfx2d-effect-renderers-tests)
+add_test(NAME demi-bgfx-renderer2d-tests COMMAND demi-bgfx-renderer2d-tests)
+add_test(NAME demi-bgfx-2d-app-host-tests
+  COMMAND demi-bgfx-2d-app-host-tests)
+add_test(NAME demi-iso-canvas-renderer-tests
+  COMMAND demi-iso-canvas-renderer-tests)
 add_test(NAME demi-lua-stub-contract-tests COMMAND demi-lua-stub-contract-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
 add_test(NAME demi-scene-loader-tests COMMAND demi-scene-loader-tests ${CMAKE_SOURCE_DIR})
@@ -652,6 +867,7 @@ add_test(NAME demi-animation-primitives-tests COMMAND demi-animation-primitives-
 add_test(NAME demi-animation-phase7-tests COMMAND demi-animation-phase7-tests)
 add_test(NAME demi-audio-phase7-tests COMMAND demi-audio-phase7-tests)
 add_test(NAME demi-asset-pipeline-tests COMMAND demi-asset-pipeline-tests)
+add_test(NAME demi-shader-cooker-tests COMMAND demi-shader-cooker-tests)
 add_test(NAME demi-camera2d-tests COMMAND demi-camera2d-tests)
 add_test(NAME demi-tilemap-tests COMMAND demi-tilemap-tests)
 add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)

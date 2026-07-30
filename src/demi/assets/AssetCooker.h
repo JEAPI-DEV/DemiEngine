@@ -11,6 +11,8 @@ struct CookRequest {
   std::filesystem::path projectFile;
   std::filesystem::path outputDirectory;
   std::string platform = "linux";
+  std::filesystem::path shaderCompiler;
+  std::filesystem::path shaderIncludeDirectory;
 };
 
 [[nodiscard]] Diagnostics cookProject(const CookRequest &request);

@@ -215,6 +215,21 @@ std::optional<ShaderAsset> loadShaderAsset(const std::filesystem::path &path,
     if (!baseStages)
       return std::nullopt;
     shader.stages = *baseStages;
+    if (const auto varying = document->find("varying");
+        varying != document->end()) {
+      if (!varying->is_string() || varying->get<std::string>().empty()) {
+        invalid(diagnostics, path, "SHADER_VARYING_INVALID",
+                "Shader varying must be a non-empty file path.");
+        return std::nullopt;
+      }
+      shader.varyingDefinition =
+          path.parent_path() / varying->get<std::string>();
+      if (!std::filesystem::is_regular_file(*shader.varyingDefinition)) {
+        invalid(diagnostics, path, "SHADER_VARYING_NOT_FOUND",
+                "Shader varying definition file does not exist.");
+        return std::nullopt;
+      }
+    }
     if (const auto sources = document->find("platform_sources");
         sources != document->end()) {
       if (!sources->is_object()) {

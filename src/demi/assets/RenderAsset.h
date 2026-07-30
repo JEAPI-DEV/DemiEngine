@@ -36,6 +36,7 @@ struct ShaderAsset {
 
   int formatVersion = 1;
   Stages stages;
+  std::optional<std::filesystem::path> varyingDefinition;
   std::optional<Stages> androidStages;
   std::optional<Stages> linuxStages;
   std::string androidFallback = "builtin://unlit";

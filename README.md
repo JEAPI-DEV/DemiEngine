@@ -10,7 +10,12 @@ demi build apk
 demi run linux
 ```
 
-The runtime can load JSON projects and scenes, run Lua 5.4 scripts, render 2D and lightweight 3D scenes through raylib, step 2D and 3D physics helpers, play audio and media, save versioned JSON state, run data-driven HUDs, and package projects for Linux and Android.
+The runtime can load JSON projects and scenes, run Lua 5.4 scripts, render 2D
+and lightweight 3D scenes, step 2D and 3D physics helpers, play audio and
+media, save versioned JSON state, run data-driven HUDs, and package projects
+for Linux and Android. 2D scenes use SDL3 and a Vulkan-first bgfx renderer;
+the lightweight 3D renderer remains on raylib during the staged migration.
+See `docs/bgfx-migration.md`.
 
 The editor executable currently exists as a command boundary rather than a finished graphical editor. The CLI is the primary development, validation, build, and automation interface.
 
@@ -270,7 +275,9 @@ Required for the default Linux debug build:
 
 Fetched or linked by CMake:
 
-- raylib 5.5: rendering, windowing, input, models, and platform layer
+- SDL3: Linux and Android windowing, lifecycle, input, and clipboard
+- bgfx: backend-neutral 2D GPU rendering with Vulkan, OpenGL, and OpenGL ES
+- raylib 5.5: temporary 3D rendering compatibility during migration
 - Lua 5.4.7 and sol2: gameplay VM and C++/Lua bindings
 - Box2D 2.4.1: 2D physics
 - miniaudio 0.11.22: audio playback

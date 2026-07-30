@@ -32,9 +32,14 @@ The current source layout reflects those boundaries:
 - `src/demi/diagnostics`: shared structured diagnostics.
 - `src/demi/filesystem`: deterministic project path resolution.
 - `src/demi/schema`: source validation.
-- `src/demi/runtime/app`: window, input, loop, and subsystem orchestration.
+- `src/demi/runtime/app`: loop and subsystem orchestration plus the narrow 2D
+  platform/render composition root.
+- `src/demi/runtime/platform`: SDL3 window, lifecycle, clipboard, display, and
+  input translation.
 - `src/demi/runtime/scene`: project/scene/HUD models, registries, and loading.
-- `src/demi/runtime/render`: raylib-backed 2D and lightweight 3D rendering.
+- `src/demi/runtime/render`: backend-neutral renderer-facing systems. Visible
+  2D rendering uses bgfx; the 3D compatibility renderer remains on raylib
+  until Phase 5. See `docs/bgfx-migration.md`.
 - `src/demi/runtime/physics`: Box2D integration plus lightweight 3D collision,
   overlap, and raycast queries.
 - `src/demi/runtime/scripting`: Lua lifecycle, services, annotations, and
@@ -46,7 +51,11 @@ The current source layout reflects those boundaries:
 
 ## Current Technology
 
-- **raylib 5.5:** windows, input, 2D/3D drawing, textures, and models.
+- **SDL3:** Linux and Android windows, lifecycle, input, clipboard, and native
+  window handles for 2D scenes.
+- **bgfx:** active Vulkan-first Linux and Android 2D renderer. Its lifecycle is
+  isolated behind `GraphicsDevice`.
+- **raylib 5.5:** temporary 3D renderer compatibility during Phase 5.
 - **Lua 5.4 + sol2:** gameplay VM and C++ bindings.
 - **Box2D 2.4.1:** 2D rigid bodies and collision.
 - **miniaudio 0.11.22:** audio playback.
@@ -57,7 +66,7 @@ The current source layout reflects those boundaries:
 - **ENet 1.3.18:** optional reliable UDP transport.
 - **librsvg:** optional SVG rasterization when available.
 
-There is no SDL3, bgfx, EnTT, Dear ImGui, or ImGuizmo dependency in the current
+There is no EnTT, Dear ImGui, or ImGuizmo dependency in the current
 implementation.
 
 ## Data And Composition

@@ -7,7 +7,7 @@
   "settings": {
     "filter": "nearest"
   },
-  "source": "fighter_a.ppm",
-  "source_hash": "fnv1a64:4f2757058745792b",
+  "source": "fighter_a.png",
+  "source_hash": "fnv1a64:240fec6d31ab2cc7",
   "type": "Texture2D"
 }

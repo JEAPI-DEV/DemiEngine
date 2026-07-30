@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/assets/RenderAsset.h"
+#include "demi/runtime/render/bgfx2d/ParticleRenderData2D.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 #include "demi/runtime/render/ShaderResourceLibrary.h"
 
@@ -25,6 +26,7 @@ public:
             Vec2 cameraPosition, float pixelsPerUnit, int width, int height);
   void clear();
   [[nodiscard]] std::size_t particleCount() const;
+  [[nodiscard]] std::vector<render::ParticleRenderData2D> renderData() const;
 
 private:
   struct Particle {
