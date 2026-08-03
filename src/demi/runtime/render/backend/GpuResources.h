@@ -17,18 +17,28 @@ struct SamplerTag;
 struct BufferTag;
 struct ProgramTag;
 struct FrameBufferTag;
+struct UniformTag;
 
 using TextureHandle = ResourceHandle<TextureTag>;
 using SamplerHandle = ResourceHandle<SamplerTag>;
 using BufferHandle = ResourceHandle<BufferTag>;
 using ProgramHandle = ResourceHandle<ProgramTag>;
 using FrameBufferHandle = ResourceHandle<FrameBufferTag>;
+using UniformHandle = ResourceHandle<UniformTag>;
 
 enum class TextureFormat { R8, RGBA8, BGRA8 };
 enum class TextureFilter { Linear, Nearest };
 enum class TextureWrap { Clamp, Repeat, Mirror };
 enum class BufferKind { Vertex, Index16, Index32 };
-enum class BuiltinProgram { Textured2D };
+enum class BuiltinProgram {
+  Textured2D,
+  VertexColor3D,
+  Textured3D,
+  Lit3D,
+  Lit3DInstanced,
+  PostProcess2D
+};
+enum class UniformType { Vec4, Matrix3, Matrix4 };
 enum class VertexSemantic {
   Position,
   Normal,
@@ -96,6 +106,12 @@ struct RenderTargetHandles {
   TextureHandle depth;
 };
 
+struct BufferSlice {
+  BufferHandle handle;
+  std::uint32_t first = 0;
+  std::uint32_t count = UINT32_MAX;
+};
+
 class GpuResources {
 public:
   virtual ~GpuResources() = default;
@@ -106,18 +122,27 @@ public:
   createTexture(const TextureCreateInfo &info, std::string &error) = 0;
   [[nodiscard]] virtual SamplerHandle createSampler(std::string_view name,
                                                     std::string &error) = 0;
+  [[nodiscard]] virtual UniformHandle createUniform(std::string_view name,
+                                                    UniformType type,
+                                                    std::uint16_t count,
+                                                    std::string &error) = 0;
   [[nodiscard]] virtual BufferHandle createBuffer(const BufferCreateInfo &info,
                                                   std::string &error) = 0;
   [[nodiscard]] virtual ProgramHandle
   createProgram(const ProgramCreateInfo &info, std::string &error) = 0;
   [[nodiscard]] virtual ProgramHandle
   createBuiltinProgram(BuiltinProgram program, std::string &error) = 0;
+  // Stable name used by cooked shader manifests (vulkan, opengl, opengles,
+  // or noop). Keeping this query here prevents material code from depending
+  // on bgfx renderer enums.
+  [[nodiscard]] virtual std::string_view shaderBackend() const = 0;
   [[nodiscard]] virtual RenderTargetHandles
   createRenderTarget(const RenderTargetCreateInfo &info,
                      std::string &error) = 0;
 
   virtual bool destroy(TextureHandle handle) = 0;
   virtual bool destroy(SamplerHandle handle) = 0;
+  virtual bool destroy(UniformHandle handle) = 0;
   virtual bool destroy(BufferHandle handle) = 0;
   virtual bool destroy(ProgramHandle handle) = 0;
   virtual bool destroy(FrameBufferHandle handle) = 0;

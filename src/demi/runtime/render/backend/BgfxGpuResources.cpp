@@ -5,7 +5,26 @@
 #include <bgfx/bgfx.h>
 #include <bgfx/embedded_shader.h>
 
+#include <fs_demi_lit_essl.h>
+#include <fs_demi_lit_glsl.h>
+#include <fs_demi_lit_spv.h>
+#include <fs_demi_post_process_essl.h>
+#include <fs_demi_post_process_glsl.h>
+#include <fs_demi_post_process_spv.h>
+#include <fs_drawstress.bin.h>
+#include <fs_drawstress_tex.bin.h>
 #include <fs_ocornut_imgui.bin.h>
+#include <vs_demi_lit_essl.h>
+#include <vs_demi_lit_glsl.h>
+#include <vs_demi_lit_instanced_essl.h>
+#include <vs_demi_lit_instanced_glsl.h>
+#include <vs_demi_lit_instanced_spv.h>
+#include <vs_demi_lit_spv.h>
+#include <vs_demi_post_process_essl.h>
+#include <vs_demi_post_process_glsl.h>
+#include <vs_demi_post_process_spv.h>
+#include <vs_drawstress.bin.h>
+#include <vs_drawstress_tex.bin.h>
 #include <vs_ocornut_imgui.bin.h>
 
 #include <array>
@@ -19,6 +38,56 @@ constexpr std::uint16_t Invalid = std::numeric_limits<std::uint16_t>::max();
 const bgfx::EmbeddedShader EmbeddedShaders[] = {
     BGFX_EMBEDDED_SHADER(vs_ocornut_imgui),
     BGFX_EMBEDDED_SHADER(fs_ocornut_imgui),
+    BGFX_EMBEDDED_SHADER(vs_drawstress),
+    BGFX_EMBEDDED_SHADER(fs_drawstress),
+    BGFX_EMBEDDED_SHADER(vs_drawstress_tex),
+    BGFX_EMBEDDED_SHADER(fs_drawstress_tex),
+    {"vs_demi_lit",
+     {{bgfx::RendererType::OpenGLES, vs_demi_lit_essl,
+       sizeof(vs_demi_lit_essl)},
+      {bgfx::RendererType::OpenGL, vs_demi_lit_glsl, sizeof(vs_demi_lit_glsl)},
+      {bgfx::RendererType::Vulkan, vs_demi_lit_spv, sizeof(vs_demi_lit_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("VSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
+    {"fs_demi_lit",
+     {{bgfx::RendererType::OpenGLES, fs_demi_lit_essl,
+       sizeof(fs_demi_lit_essl)},
+      {bgfx::RendererType::OpenGL, fs_demi_lit_glsl, sizeof(fs_demi_lit_glsl)},
+      {bgfx::RendererType::Vulkan, fs_demi_lit_spv, sizeof(fs_demi_lit_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
+    {"vs_demi_lit_instanced",
+     {{bgfx::RendererType::OpenGLES, vs_demi_lit_instanced_essl,
+       sizeof(vs_demi_lit_instanced_essl)},
+      {bgfx::RendererType::OpenGL, vs_demi_lit_instanced_glsl,
+       sizeof(vs_demi_lit_instanced_glsl)},
+      {bgfx::RendererType::Vulkan, vs_demi_lit_instanced_spv,
+       sizeof(vs_demi_lit_instanced_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("VSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
+    {"vs_demi_post_process",
+     {{bgfx::RendererType::OpenGLES, vs_demi_post_process_essl,
+       sizeof(vs_demi_post_process_essl)},
+      {bgfx::RendererType::OpenGL, vs_demi_post_process_glsl,
+       sizeof(vs_demi_post_process_glsl)},
+      {bgfx::RendererType::Vulkan, vs_demi_post_process_spv,
+       sizeof(vs_demi_post_process_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("VSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
+    {"fs_demi_post_process",
+     {{bgfx::RendererType::OpenGLES, fs_demi_post_process_essl,
+       sizeof(fs_demi_post_process_essl)},
+      {bgfx::RendererType::OpenGL, fs_demi_post_process_glsl,
+       sizeof(fs_demi_post_process_glsl)},
+      {bgfx::RendererType::Vulkan, fs_demi_post_process_spv,
+       sizeof(fs_demi_post_process_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
     BGFX_EMBEDDED_SHADER_END(),
 };
 
@@ -68,6 +137,21 @@ class BgfxGpuResources final : public GpuResources, public BgfxResourceLookup {
 public:
   ~BgfxGpuResources() override { clear(); }
 
+  std::string_view shaderBackend() const override {
+    switch (bgfx::getRendererType()) {
+    case bgfx::RendererType::Vulkan:
+      return "vulkan";
+    case bgfx::RendererType::OpenGLES:
+      return "opengles";
+    case bgfx::RendererType::OpenGL:
+      return "opengl";
+    case bgfx::RendererType::Noop:
+      return "noop";
+    default:
+      return {};
+    }
+  }
+
   TextureHandle createTexture(const TextureCreateInfo &info,
                               std::string &error) override {
     if (info.width == 0 || info.height == 0) {
@@ -99,6 +183,27 @@ public:
       return {};
     }
     return samplers_.insert(sampler.idx);
+  }
+
+  UniformHandle createUniform(const std::string_view name,
+                              const UniformType type, const std::uint16_t count,
+                              std::string &error) override {
+    if (name.empty() || count == 0) {
+      error = "Uniform names and element counts must be valid.";
+      return {};
+    }
+    bgfx::UniformType::Enum nativeType = bgfx::UniformType::Vec4;
+    if (type == UniformType::Matrix3)
+      nativeType = bgfx::UniformType::Mat3;
+    else if (type == UniformType::Matrix4)
+      nativeType = bgfx::UniformType::Mat4;
+    const bgfx::UniformHandle uniform =
+        bgfx::createUniform(std::string(name).c_str(), nativeType, count);
+    if (!bgfx::isValid(uniform)) {
+      error = "bgfx could not create uniform " + std::string(name) + ".";
+      return {};
+    }
+    return uniforms_.insert(uniform.idx);
   }
 
   BufferHandle createBuffer(const BufferCreateInfo &info,
@@ -171,6 +276,26 @@ public:
     case BuiltinProgram::Textured2D:
       vertexName = "vs_ocornut_imgui";
       fragmentName = "fs_ocornut_imgui";
+      break;
+    case BuiltinProgram::VertexColor3D:
+      vertexName = "vs_drawstress";
+      fragmentName = "fs_drawstress";
+      break;
+    case BuiltinProgram::Textured3D:
+      vertexName = "vs_drawstress_tex";
+      fragmentName = "fs_drawstress_tex";
+      break;
+    case BuiltinProgram::Lit3D:
+      vertexName = "vs_demi_lit";
+      fragmentName = "fs_demi_lit";
+      break;
+    case BuiltinProgram::Lit3DInstanced:
+      vertexName = "vs_demi_lit_instanced";
+      fragmentName = "fs_demi_lit";
+      break;
+    case BuiltinProgram::PostProcess2D:
+      vertexName = "vs_demi_post_process";
+      fragmentName = "fs_demi_post_process";
       break;
     }
     const bgfx::RendererType::Enum renderer = bgfx::getRendererType();
@@ -255,6 +380,13 @@ public:
     bgfx::destroy(bgfx::UniformHandle{value});
     return true;
   }
+  bool destroy(const UniformHandle handle) override {
+    std::uint16_t value = Invalid;
+    if (!uniforms_.remove(handle, &value))
+      return false;
+    bgfx::destroy(bgfx::UniformHandle{value});
+    return true;
+  }
   bool destroy(const BufferHandle handle) override {
     BufferValue value;
     if (!buffers_.remove(handle, &value))
@@ -294,6 +426,8 @@ public:
     });
     samplers_.clear(
         [](std::uint16_t value) { bgfx::destroy(bgfx::UniformHandle{value}); });
+    uniforms_.clear(
+        [](std::uint16_t value) { bgfx::destroy(bgfx::UniformHandle{value}); });
     textures_.clear(
         [](std::uint16_t value) { bgfx::destroy(bgfx::TextureHandle{value}); });
   }
@@ -310,10 +444,23 @@ public:
                             : bgfx::UniformHandle{Invalid};
   }
 
+  bgfx::UniformHandle bgfxUniform(const UniformHandle handle) const override {
+    const std::uint16_t *value = uniforms_.find(handle);
+    return value != nullptr ? bgfx::UniformHandle{*value}
+                            : bgfx::UniformHandle{Invalid};
+  }
+
   bgfx::ProgramHandle bgfxProgram(const ProgramHandle handle) const override {
     const std::uint16_t *value = programs_.find(handle);
     return value != nullptr ? bgfx::ProgramHandle{*value}
                             : bgfx::ProgramHandle{Invalid};
+  }
+
+  BgfxBufferReference bgfxBuffer(const BufferHandle handle) const override {
+    const BufferValue *value = buffers_.find(handle);
+    return value != nullptr
+               ? BgfxBufferReference{.index = value->index, .kind = value->kind}
+               : BgfxBufferReference{};
   }
 
   bgfx::FrameBufferHandle
@@ -326,6 +473,7 @@ public:
 private:
   ResourceHandlePool<TextureTag, std::uint16_t> textures_;
   ResourceHandlePool<SamplerTag, std::uint16_t> samplers_;
+  ResourceHandlePool<UniformTag, std::uint16_t> uniforms_;
   ResourceHandlePool<BufferTag, BufferValue> buffers_;
   ResourceHandlePool<ProgramTag, std::uint16_t> programs_;
   ResourceHandlePool<FrameBufferTag, std::uint16_t> frameBuffers_;

@@ -88,10 +88,10 @@ See [Animation and Audio](animation-and-audio.md).
 `Material` manifests point at versioned `*.material.json` sources. The source
 owns its shader ID, platform-independent fallback, named `asset://` texture
 slots, number/color parameters, and blend/cull/depth state. `Shader` manifests
-point at versioned `*.shader.json` sources containing base vertex/fragment
-paths, optional `platform_sources.linux` and `platform_sources.android` stage
-pairs, and validated platform fallback IDs. Shader stage files are discovered
-as asset sidecars and therefore travel through cooking and package export. See
+point at versioned `*.shader.json` sources containing one bgfx `.sc`
+vertex/fragment pair and a varying definition. Cooking produces the Vulkan and
+native fallback binaries for each target. Shader stage files are discovered as
+asset sidecars and therefore travel through cooking and package export. See
 [Rendering And Effects](rendering-and-effects.md).
 
 ## Performance Budgets

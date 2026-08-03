@@ -404,25 +404,8 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
         }
       }
     } else if (asset.type == "Shader") {
-      if (const auto shader =
-              assets::loadShaderAsset(asset.sourcePath, &diagnostics)) {
-        for (const std::string *fallback :
-             {&shader->androidFallback, &shader->linuxFallback}) {
-          if (!fallback->starts_with("asset://"))
-            continue;
-          const AssetManifest *fallbackAsset = findAsset(registry, *fallback);
-          if (fallbackAsset == nullptr || fallbackAsset->type != "Shader")
-            diagnostics.push_back(
-                {.severity = Severity::Error,
-                 .code = "SHADER_FALLBACK_NOT_FOUND",
-                 .message = "Shader fallback does not resolve to a Shader "
-                            "asset: " +
-                            *fallback,
-                 .path = asset.manifestPath.string(),
-                 .suggestion =
-                     "Import the fallback shader or use builtin://unlit."});
-        }
-      }
+      static_cast<void>(
+          assets::loadShaderAsset(asset.sourcePath, &diagnostics));
     } else if (asset.type == "RenderTarget")
       (void)assets::loadRenderTargetAsset(asset.sourcePath, &diagnostics);
     if (asset.type == "Model3D") {

@@ -13,10 +13,18 @@ struct GltfPoint3 {
   float z = 0.0F;
 };
 
+struct GltfPoint2 {
+  float x = 0.0F;
+  float y = 0.0F;
+};
+
 struct GltfTriangle {
   GltfPoint3 a;
   GltfPoint3 b;
   GltfPoint3 c;
+  GltfPoint2 uvA;
+  GltfPoint2 uvB;
+  GltfPoint2 uvC;
 };
 
 struct GltfGeometry {
@@ -26,7 +34,8 @@ struct GltfGeometry {
 };
 
 // Decodes the default glTF scene into transformed triangle geometry. Supports
-// external binary buffers and POSITION/index accessors used by static meshes.
+// external binary buffers and POSITION/TEXCOORD_0/index accessors used by
+// static meshes.
 [[nodiscard]] std::optional<GltfGeometry>
 loadGltfGeometry(const std::filesystem::path &path, std::string &error);
 

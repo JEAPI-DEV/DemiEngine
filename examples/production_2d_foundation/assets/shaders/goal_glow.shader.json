@@ -1,15 +1,6 @@
 {
   "format_version": 1,
-  "vertex": "goal_glow.vert",
-  "fragment": "goal_glow.frag",
-  "platform_sources": {
-    "android": {
-      "vertex": "goal_glow_android.vert",
-      "fragment": "goal_glow_android.frag"
-    }
-  },
-  "platform_fallbacks": {
-    "android": "builtin://unlit",
-    "linux": "builtin://unlit"
-  }
+  "vertex": "goal_glow.vs.sc",
+  "fragment": "goal_glow.fs.sc",
+  "varying": "goal_glow.varying.def.sc"
 }

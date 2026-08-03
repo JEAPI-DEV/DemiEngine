@@ -38,8 +38,7 @@ The current source layout reflects those boundaries:
   input translation.
 - `src/demi/runtime/scene`: project/scene/HUD models, registries, and loading.
 - `src/demi/runtime/render`: backend-neutral renderer-facing systems. Visible
-  2D rendering uses bgfx; the 3D compatibility renderer remains on raylib
-  until Phase 5. See `docs/bgfx-migration.md`.
+  2D and lightweight 3D rendering use bgfx. See `docs/bgfx-migration.md`.
 - `src/demi/runtime/physics`: Box2D integration plus lightweight 3D collision,
   overlap, and raycast queries.
 - `src/demi/runtime/scripting`: Lua lifecycle, services, annotations, and
@@ -53,9 +52,8 @@ The current source layout reflects those boundaries:
 
 - **SDL3:** Linux and Android windows, lifecycle, input, clipboard, and native
   window handles for 2D scenes.
-- **bgfx:** active Vulkan-first Linux and Android 2D renderer. Its lifecycle is
-  isolated behind `GraphicsDevice`.
-- **raylib 5.5:** temporary 3D renderer compatibility during Phase 5.
+- **bgfx:** active Vulkan-first Linux and Android 2D/3D renderer. Its lifecycle
+  is isolated behind `GraphicsDevice`.
 - **Lua 5.4 + sol2:** gameplay VM and C++ bindings.
 - **Box2D 2.4.1:** 2D rigid bodies and collision.
 - **miniaudio 0.11.22:** audio playback.

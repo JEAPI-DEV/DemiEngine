@@ -1,6 +1,8 @@
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/render/backend/TextureLibrary2D.h"
+#include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 #include "demi/runtime/render/bgfx2d/IsoCanvasRenderer.h"
+#include "demi/runtime/render/bgfx2d/IsoSpriteVisual2D.h"
 #include "demi/runtime/scene/components/2dcomponents/IsoGridComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/IsoTransformComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/SpriteComponent.h"
@@ -13,6 +15,35 @@ using namespace demi::runtime;
 using namespace demi::runtime::render;
 
 int main() {
+  // Untextured isometric sprites are used by enemy health bars. Their authored
+  // color, live size, shape, and pivot must survive the fallback path.
+  const SpriteComponent fullHealth{
+      .shape = "rectangle",
+      .size = {0.78F, 0.075F},
+      .pivot = {0.0F, 0.5F},
+      .color = {0.22F, 0.88F, 0.40F, 1.0F}};
+  SpriteComponent halfHealth = fullHealth;
+  halfHealth.size.x *= 0.5F;
+  const auto fullVisual =
+      isoSpriteVisual2D(&fullHealth, {40.0F, 20.0F}, 78.0F, 7.5F);
+  const auto halfVisual =
+      isoSpriteVisual2D(&halfHealth, {40.0F, 20.0F}, 39.0F, 7.5F);
+  assert(fullVisual.bounds.x == halfVisual.bounds.x);
+  assert(halfVisual.bounds.width == fullVisual.bounds.width * 0.5F);
+  assert(fullVisual.color == packVertexColorRgba8(fullHealth.color));
+  assert(fullVisual.color != 0xff52a6deU);
+
+  SpriteComponent circle = fullHealth;
+  circle.shape = "circle";
+  SpriteComponent triangle = fullHealth;
+  triangle.shape = "triangle";
+  assert(isoSpriteVisual2D(&circle, {}, 10.0F, 10.0F).shape ==
+         IsoSpriteShape2D::Circle);
+  assert(isoSpriteVisual2D(&triangle, {}, 10.0F, 10.0F).shape ==
+         IsoSpriteShape2D::Triangle);
+  assert(isoSpriteVisual2D(nullptr, {10.0F, 20.0F}, 4.0F, 8.0F).bounds.y ==
+         12.0F);
+
   BgfxGraphicsDevice graphics;
   std::string error;
   assert(graphics.initialize(GraphicsDeviceConfig{.api = GraphicsApi::Noop,

@@ -1,9 +1,8 @@
 #pragma once
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/runtime/app/BgfxAppContext.h"
 #include "demi/runtime/navigation/NavigationGrid2D.h"
-#include "demi/runtime/platform/PlatformHost.h"
-#include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/scene/components/2dcomponents/Camera2DComponent.h"
 #include "demi/runtime/scene/model/World.h"
 
@@ -60,16 +59,9 @@ public:
   [[nodiscard]] std::string_view rendererName() const;
 
 private:
-  std::unique_ptr<platform::PlatformHost> platform_;
-  render::BgfxGraphicsDevice graphics_;
-  std::unique_ptr<render::GpuResources> resources_;
-  std::unique_ptr<render::RenderCommands> commands_;
+  BgfxAppContext context_;
   class RendererOwner;
   std::unique_ptr<RendererOwner> renderer_;
-  int renderWidth_ = 0;
-  int renderHeight_ = 0;
 };
-
-[[nodiscard]] render::GraphicsApi configuredGraphicsApi();
 
 } // namespace demi::runtime

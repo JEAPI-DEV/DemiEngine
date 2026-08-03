@@ -1,8 +1,8 @@
 # Rendering And Effects
 
-Phase 6 makes presentation scene- and asset-authored. Gameplay Lua does not
-call raylib and adding a light, minimap, particle effect, or color grade does
-not require a renderer branch.
+Presentation is scene- and asset-authored. Gameplay Lua does not call a
+graphics backend, and adding a light, minimap, particle effect, or color grade
+does not require a renderer branch.
 
 ## Materials and shaders
 
@@ -26,34 +26,29 @@ parameters for one entity without cloning the material asset.
 }
 ```
 
-Custom `Shader` assets name vertex and fragment sources and declare Linux and
-Android fallbacks. Built-in shaders are embedded in the executable, so Android
-does not depend on the desktop source-tree layout.
+Custom `Shader` assets name one bgfx shader-language source pair and a varying
+definition. Built-in shaders are embedded in the executable.
 
 ```json
 {
   "format_version": 1,
-  "vertex": "outline.vert",
-  "fragment": "outline.frag",
-  "platform_sources": {
-    "android": {
-      "vertex": "outline_android.vert",
-      "fragment": "outline_android.frag"
-    }
-  },
-  "platform_fallbacks": {
-    "linux": "builtin://unlit",
-    "android": "builtin://unlit"
-  }
+  "vertex": "outline.vs.sc",
+  "fragment": "outline.fs.sc",
+  "varying": "outline.varying.def.sc"
 }
 ```
 
-All `Shader` manifests are parsed and their platform-appropriate GPU programs
-are loaded when the active renderer starts. Materials reference them through
-stable `asset://` IDs. Linux defaults to the base stages; Android projects
-should provide GLSL ES stages under `platform_sources.android`. A failed
-program falls back to the authored asset or built-in fallback instead of
-leaving the material without a valid rendering path.
+`demi run` cooks shader-bearing source projects before the renderer starts;
+Linux and Android packages cook them during packaging. `shaderc` emits Vulkan
+plus OpenGL on Linux, or Vulkan plus OpenGL ES on Android, and the renderer
+selects the matching binary by stable `asset://` ID. Invalid or missing
+programs fail startup with diagnostics instead of silently changing a
+material's appearance.
+
+Builds normally compile bgfx's `shaderc` host tool automatically. Offline,
+cross, and sanitizer build trees can reuse an existing executable with
+`-DDEMI_HOST_SHADERC=/absolute/path/to/shaderc`; CMake validates the path and
+does not rebuild the shader toolchain.
 
 ## Cameras and render targets
 

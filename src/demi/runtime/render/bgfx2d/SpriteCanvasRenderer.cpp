@@ -17,8 +17,10 @@ namespace demi::runtime::render {
 
 SpriteCanvasRenderer::SpriteCanvasRenderer(
     Canvas2D &canvas, const TextureLibrary2D &textures,
-    const std::unordered_map<std::string, TextureAnimation2D> *animations)
-    : canvas_(canvas), textures_(textures), animations_(animations) {}
+    const std::unordered_map<std::string, TextureAnimation2D> *animations,
+    const MaterialLibrary *materials)
+    : canvas_(canvas), textures_(textures), animations_(animations),
+      materials_(materials) {}
 
 bool SpriteCanvasRenderer::draw(const World &world,
                                 const Camera2DComponent &camera,
@@ -51,6 +53,16 @@ bool SpriteCanvasRenderer::draw(const World &world,
     const float width = (sprite.size.x > 0.0F ? sprite.size.x : 1.0F) * ppu;
     const float height = (sprite.size.y > 0.0F ? sprite.size.y : 1.0F) * ppu;
     const std::uint32_t color = packVertexColorRgba8(sprite.color);
+    const MaterialBinding *material =
+        materials_ == nullptr ? nullptr : materials_->find(sprite.material);
+    const ProgramHandle program = material == nullptr ? ProgramHandle{}
+                                                       : material->program;
+    const std::uint32_t uniformSet =
+        material == nullptr ? 0U : material->uniformSet;
+    const BlendMode blend =
+        material == nullptr ? BlendMode::Alpha : material->state.blend;
+    if (material != nullptr)
+      canvas_.setUniformSet(material->uniformSet, material->uniforms);
     ScissorRect scissor;
     if (sprite.maskSize.x > 0.0F && sprite.maskSize.y > 0.0F) {
       const float maskWidth = sprite.maskSize.x * ppu;
@@ -65,35 +77,40 @@ bool SpriteCanvasRenderer::draw(const World &world,
       };
     }
 
+    const std::string &textureAsset =
+        sprite.texture.empty() && material != nullptr &&
+                !material->albedoTexture.empty()
+            ? material->albedoTexture
+            : sprite.texture;
     TextureView2D texture;
     if (const auto *animator = entity->component<SpriteAnimator2DComponent>()) {
-      texture = textures_.find(sprite.texture + "#" +
+      texture = textures_.find(textureAsset + "#" +
                                std::to_string(animator->currentFrame));
     }
     if (!texture.handle && animations_ != nullptr) {
-      if (const auto found = animations_->find(sprite.texture);
+      if (const auto found = animations_->find(textureAsset);
           found != animations_->end() && found->second.frameCount > 0) {
         const std::size_t frame =
             textureAnimationFrameAt(found->second, animationTime);
-        texture = textures_.find(sprite.texture + "#" + std::to_string(frame));
+        texture = textures_.find(textureAsset + "#" + std::to_string(frame));
       }
     }
     if (!texture.handle)
-      texture = textures_.find(sprite.texture);
+      texture = textures_.find(textureAsset);
     if (!texture.handle) {
       if (sprite.shape == "circle") {
         if (!canvas_.circle(screenX, screenY, std::min(width, height) * 0.5F,
-                            color, 32, BlendMode::Alpha, scissor))
+                            color, 32, blend, scissor, program, uniformSet))
           return false;
       } else if (sprite.shape == "triangle") {
         if (!canvas_.circle(screenX, screenY, std::min(width, height) * 0.5F,
-                            color, 3, BlendMode::Alpha, scissor))
+                            color, 3, blend, scissor, program, uniformSet))
           return false;
       } else if (!canvas_.solid({.x = screenX - sprite.pivot.x * width,
                                  .y = screenY - sprite.pivot.y * height,
                                  .width = width,
                                  .height = height},
-                                color, BlendMode::Alpha, scissor)) {
+                                color, blend, scissor, program, uniformSet)) {
         return false;
       }
       continue;
@@ -161,12 +178,13 @@ bool SpriteCanvasRenderer::draw(const World &world,
                        .v1 = (sourceY + sourceHeight - sprite.sliceEnd.y) /
                              texture.height},
               },
-              color, BlendMode::Alpha, scissor))
+              color, blend, scissor, program, uniformSet))
         return false;
     } else if (!canvas_.imageTransformed(texture.handle, screenX, screenY,
                                          width, height, sprite.pivot.x,
                                          sprite.pivot.y, rotation, source,
-                                         color, BlendMode::Alpha, scissor)) {
+                                         color, blend, scissor, program,
+                                         uniformSet)) {
       return false;
     }
   }

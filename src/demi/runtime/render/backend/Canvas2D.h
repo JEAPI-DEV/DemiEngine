@@ -5,7 +5,9 @@
 #include "demi/runtime/render/backend/RenderCommands.h"
 
 #include <cstdint>
+#include <span>
 #include <string>
+#include <unordered_map>
 
 namespace demi::runtime::render {
 
@@ -56,43 +58,57 @@ public:
   void shutdown();
   [[nodiscard]] bool begin(std::uint16_t viewId, std::uint16_t width,
                            std::uint16_t height, std::uint32_t clearRgba,
-                           std::string &error);
+                           std::string &error, bool clear = true,
+                           std::uint16_t x = 0, std::uint16_t y = 0,
+                           FrameBufferHandle frameBuffer = {});
 
   [[nodiscard]] bool solid(const Rect2D &destination, std::uint32_t rgba,
                            BlendMode blend = BlendMode::Alpha,
-                           ScissorRect scissor = {});
+                           ScissorRect scissor = {},
+                           ProgramHandle program = {},
+                           std::uint32_t uniformSet = 0);
   [[nodiscard]] bool image(TextureHandle texture, const Rect2D &destination,
                            const TextureRegion2D &source = {},
                            std::uint32_t rgba = 0xffffffffU,
                            BlendMode blend = BlendMode::Alpha,
-                           ScissorRect scissor = {});
+                           ScissorRect scissor = {},
+                           ProgramHandle program = {},
+                           std::uint32_t uniformSet = 0);
   [[nodiscard]] bool imageTransformed(
       TextureHandle texture, float positionX, float positionY, float width,
       float height, float pivotX, float pivotY, float rotationRadians,
-      const TextureRegion2D &source = {},
-      std::uint32_t rgba = 0xffffffffU,
-      BlendMode blend = BlendMode::Alpha, ScissorRect scissor = {});
-  [[nodiscard]] bool ninePatch(TextureHandle texture,
-                               const Rect2D &destination,
+      const TextureRegion2D &source = {}, std::uint32_t rgba = 0xffffffffU,
+      BlendMode blend = BlendMode::Alpha, ScissorRect scissor = {},
+      ProgramHandle program = {}, std::uint32_t uniformSet = 0);
+  [[nodiscard]] bool ninePatch(TextureHandle texture, const Rect2D &destination,
                                const TextureRegion2D &source,
                                const NinePatch2D &border,
                                std::uint32_t rgba = 0xffffffffU,
                                BlendMode blend = BlendMode::Alpha,
-                               ScissorRect scissor = {});
+                               ScissorRect scissor = {},
+                               ProgramHandle program = {},
+                               std::uint32_t uniformSet = 0);
   [[nodiscard]] bool circle(float centerX, float centerY, float radius,
                             std::uint32_t rgba, int segments = 32,
                             BlendMode blend = BlendMode::Alpha,
-                            ScissorRect scissor = {});
+                            ScissorRect scissor = {},
+                            ProgramHandle program = {},
+                            std::uint32_t uniformSet = 0);
   [[nodiscard]] bool line(float startX, float startY, float endX, float endY,
                           float width, std::uint32_t rgba,
                           BlendMode blend = BlendMode::Alpha,
                           ScissorRect scissor = {});
-  [[nodiscard]] bool circleOutline(
-      float centerX, float centerY, float radius, float width,
-      std::uint32_t rgba, int segments = 32,
-      BlendMode blend = BlendMode::Alpha, ScissorRect scissor = {});
+  [[nodiscard]] bool circleOutline(float centerX, float centerY, float radius,
+                                   float width, std::uint32_t rgba,
+                                   int segments = 32,
+                                   BlendMode blend = BlendMode::Alpha,
+                                   ScissorRect scissor = {});
 
   [[nodiscard]] bool flush(std::string &error);
+  // Uniform values must remain valid until flush(). Registering an existing
+  // non-zero id replaces that frame's values deterministically.
+  void setUniformSet(std::uint32_t id,
+                     std::span<const DrawUniformValue> uniforms);
   [[nodiscard]] const Canvas2DStatistics &statistics() const {
     return statistics_;
   }
@@ -102,7 +118,9 @@ public:
 private:
   [[nodiscard]] bool add(TextureHandle texture, const Rect2D &destination,
                          const TextureRegion2D &source, std::uint32_t rgba,
-                         BlendMode blend, ScissorRect scissor);
+                         BlendMode blend, ScissorRect scissor,
+                         ProgramHandle program = {},
+                         std::uint32_t uniformSet = 0);
 
   GpuResources &resources_;
   RenderCommands &commands_;
@@ -110,6 +128,8 @@ private:
   TextureHandle whiteTexture_;
   SamplerHandle sampler_;
   ProgramHandle program_;
+  std::unordered_map<std::uint32_t, std::span<const DrawUniformValue>>
+      uniformSets_;
   std::uint16_t viewId_ = 0;
   Canvas2DStatistics statistics_;
 };

@@ -1,14 +1,9 @@
 #pragma once
 
-#include "demi/assets/RenderAsset.h"
 #include "demi/runtime/render/bgfx2d/ParticleRenderData2D.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
-#include "demi/runtime/render/ShaderResourceLibrary.h"
-
-#include <raylib.h>
 
 #include <cstdint>
-#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -19,11 +14,6 @@ struct World;
 class ParticleSystem2D {
 public:
   void update(const World &world, float deltaTime);
-  void draw(const std::unordered_map<std::string, Texture2D> &textures,
-            const std::unordered_map<std::string, assets::MaterialAsset>
-                &materials,
-            const ShaderResourceLibrary &shaders,
-            Vec2 cameraPosition, float pixelsPerUnit, int width, int height);
   void clear();
   [[nodiscard]] std::size_t particleCount() const;
   [[nodiscard]] std::vector<render::ParticleRenderData2D> renderData() const;

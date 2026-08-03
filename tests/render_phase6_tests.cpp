@@ -1,9 +1,9 @@
-#include "demi/assets/RenderAsset.h"
 #include "demi/assets/AssetSourceFiles.h"
+#include "demi/assets/RenderAsset.h"
 #include "demi/runtime/camera/CameraRenderScheduler3D.h"
-#include "demi/runtime/render/Lighting3D.h"
+#include "demi/runtime/render/ParticleSimulation3D.h"
 #include "demi/runtime/render/ParticleSystem2D.h"
-#include "demi/runtime/render/ParticleSystem3D.h"
+#include "demi/runtime/render/bgfx3d/SceneLighting3D.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/ParticleEmitter2DComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/Transform2DComponent.h"
@@ -83,14 +83,13 @@ bool assetContracts() {
         R"({"format_version":1,"render_state":{"blend":"magic"}})");
   write(root / "shader.vert", "void main(){}\n");
   write(root / "shader.frag", "void main(){}\n");
-  write(root / "shader_android.vert", "void main(){}\n");
-  write(root / "shader_android.frag", "void main(){}\n");
+  write(root / "varying.def.sc", "vec3 a_position : POSITION;\n");
   write(
       root / "valid.shader.json",
-      R"({"format_version":1,"vertex":"shader.vert","fragment":"shader.frag","platform_sources":{"android":{"vertex":"shader_android.vert","fragment":"shader_android.frag"}},"platform_fallbacks":{"android":"builtin://unlit","linux":"builtin://lit"}})");
+      R"({"format_version":1,"vertex":"shader.vert","fragment":"shader.frag","varying":"varying.def.sc"})");
   write(
       root / "bad.shader.json",
-      R"({"format_version":1,"vertex":"shader.vert","fragment":"shader.frag","platform_fallbacks":{"android":"not-an-asset"}})");
+      R"({"format_version":1,"vertex":"shader.vert","fragment":"shader.frag","platform_fallbacks":{"android":"builtin://unlit"}})");
   write(
       root / "valid.target.json",
       R"({"format_version":1,"width":320,"height":180,"format":"rgba8","depth":true})");
@@ -115,9 +114,6 @@ bool assetContracts() {
   write(root / "invalid.json", "{");
   write(root / "missing-reference.material.json",
         R"({"format_version":1,"shader":"asset://shaders/missing"})");
-  write(
-      root / "missing-fallback.shader.json",
-      R"({"format_version":1,"vertex":"shader.vert","fragment":"shader.frag","platform_fallbacks":{"linux":"asset://shaders/missing"}})");
 
   Diagnostics invalidDiagnostics;
   const auto material = assets::loadMaterialAsset(root / "valid.material.json");
@@ -158,20 +154,13 @@ bool assetContracts() {
        .manifestPath = root / "missing-reference.material.asset.json",
        .sourcePath = root / "missing-reference.material.json",
        .sourcePaths = {root / "missing-reference.material.json"}},
-      {.id = "asset://shaders/missing_fallback",
-       .type = "Shader",
-       .manifestPath = root / "missing-fallback.shader.asset.json",
-       .sourcePath = root / "missing-fallback.shader.json",
-       .sourcePaths = {root / "missing-fallback.shader.json",
-                       root / "shader.vert", root / "shader.frag"}},
   };
   const Diagnostics referenceDiagnostics =
       validateAssetRegistry(referenceRegistry);
   const auto hasDiagnostic = [&](const std::string &code) {
-    return std::ranges::any_of(referenceDiagnostics,
-                               [&](const Diagnostic &diagnostic) {
-                                 return diagnostic.code == code;
-                               });
+    return std::ranges::any_of(
+        referenceDiagnostics,
+        [&](const Diagnostic &diagnostic) { return diagnostic.code == code; });
   };
   std::filesystem::remove_all(root);
   return material && material->textures.contains("albedo") &&
@@ -181,17 +170,13 @@ bool assetContracts() {
          !material->renderState.depthWrite && !invalid &&
          !invalidDiagnostics.empty() && shader && !invalidShader &&
          !shaderDiagnostics.empty() && shader &&
-         shader->stagesFor("linux").vertex.filename() == "shader.vert" &&
-         shader->stagesFor("android").vertex.filename() ==
-             "shader_android.vert" &&
-         shader->fallbackFor("linux") == "builtin://lit" &&
-         shaderSourceFiles.size() == 5 &&
-         target && target->width == 320 &&
+         shader->stages.vertex.filename() == "shader.vert" &&
+         shader->varyingDefinition && shaderSourceFiles.size() == 4 && target &&
+         target->width == 320 &&
          target->height == 180 && !invalidTarget &&
          !targetDiagnostics.empty() && malformedAssetsRejected &&
          malformedDiagnostics.size() == 8 &&
-         hasDiagnostic("MATERIAL_SHADER_NOT_FOUND") &&
-         hasDiagnostic("SHADER_FALLBACK_NOT_FOUND");
+         hasDiagnostic("MATERIAL_SHADER_NOT_FOUND");
 }
 
 bool cameraContracts() {
@@ -281,6 +266,7 @@ bool cameraRenderCadenceContracts() {
 }
 
 bool lightingContracts() {
+  using namespace demi::runtime::render;
   World world;
   Entity environment;
   environment.id = "environment";
@@ -296,35 +282,26 @@ bool lightingContracts() {
     });
     world.entities.push_back(std::move(light));
   }
-  RenderStatistics statistics;
-  const LightingFrame3D frame = collectLighting3D(world, "world", statistics);
-  if (frame.lightCount != 4 || frame.shadowLightCount != 1 ||
-      statistics.lights != 4 || statistics.shadowPasses != 1)
+  const SceneLighting3D frame = collectSceneLighting3D(world, "world");
+  if (frame.pointPositionRange[3] == 0.0F ||
+      frame.pointPositionRange[15] == 0.0F)
     return false;
-
-  auto *environmentConfig =
-      world.entities.front().component<Environment3DComponent>();
-  environmentConfig->maxShadowLights = 0;
-  RenderStatistics noShadowStatistics;
-  const LightingFrame3D noShadows =
-      collectLighting3D(world, "world", noShadowStatistics);
-  if (noShadows.lightCount != 4 || noShadows.shadowLightCount != 0 ||
-      noShadowStatistics.shadowPasses != 0)
+  const SceneLighting3D masked = collectSceneLighting3D(world, "ui");
+  if (masked.pointPositionRange[3] == 0.0F ||
+      masked.pointPositionRange[7] != 0.0F)
     return false;
 
   for (Entity &entity : world.entities)
     if (entity.id != "environment")
       entity.enabled = false;
-  RenderStatistics disabledStatistics;
-  const LightingFrame3D disabled =
-      collectLighting3D(world, "world", disabledStatistics);
-  return disabled.lightCount == 0 && disabledStatistics.lights == 0;
+  const SceneLighting3D disabled = collectSceneLighting3D(world, "world");
+  return disabled.pointPositionRange[3] == 0.0F;
 }
 
 bool particleContracts() {
   World world3D;
   world3D.entities.push_back(emitter3D("burst", 20, 4));
-  ParticleSystem3D particles3D;
+  ParticleSimulation3D particles3D;
   particles3D.update(world3D, 0.0F);
   if (particles3D.particleCount() != 4)
     return false;
@@ -355,8 +332,7 @@ bool particleContracts() {
   if (particles2D.particleCount() != 3)
     return false;
   const auto particleRenderData = particles2D.renderData();
-  if (particleRenderData.size() != 3 ||
-      particleRenderData.front().size <= 0.0F)
+  if (particleRenderData.size() != 3 || particleRenderData.front().size <= 0.0F)
     return false;
   particles2D.update(world2D, 0.3F);
   if (particles2D.particleCount() != 0)
@@ -368,7 +344,7 @@ bool particleContracts() {
   oneShotConfig->rate = 100.0F;
   oneShotConfig->loop = false;
   oneShot.entities.push_back(std::move(oneShotEmitter));
-  ParticleSystem3D oneShotParticles;
+  ParticleSimulation3D oneShotParticles;
   oneShotParticles.update(oneShot, 1.0F);
   if (oneShotParticles.particleCount() != 2)
     return false; // non-looping emitters emit their burst exactly once

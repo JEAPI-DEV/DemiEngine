@@ -68,6 +68,7 @@ TextureSampling2D textureSampling(const AssetManifest &asset,
 BgfxRenderer2D::BgfxRenderer2D(GpuResources &resources,
                                RenderCommands &commands)
     : canvas_(resources, commands), font_(resources), textures_(resources),
+      materials_(resources),
       particles_(std::make_unique<ParticleSimulation>()) {}
 
 BgfxRenderer2D::~BgfxRenderer2D() { shutdown(); }
@@ -91,6 +92,8 @@ void BgfxRenderer2D::shutdown() {
   tilemaps_.clear();
   textureAnimations_.clear();
   textures_.clear();
+  materials_.clear();
+  externalTextures_.clear();
   font_.shutdown();
   canvas_.shutdown();
   initialized_ = false;
@@ -99,9 +102,10 @@ void BgfxRenderer2D::shutdown() {
 bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
                                 std::vector<std::string> &diagnostics) {
   textures_.clear();
+  externalTextures_.clear();
   tilemaps_.clear();
   textureAnimations_.clear();
-  bool success = true;
+  bool success = materials_.load(registry, diagnostics);
   for (const AssetManifest &asset : registry.assets) {
     if (asset.type == "Tilemap2D") {
       std::string error;
@@ -215,13 +219,51 @@ bool BgfxRenderer2D::beginFrame(const Camera2DComponent &camera,
   return frameOpen_;
 }
 
+bool BgfxRenderer2D::beginOverlay(const std::uint16_t viewId,
+                                  const std::uint16_t viewportWidth,
+                                  const std::uint16_t viewportHeight,
+                                  const float deltaSeconds,
+                                  std::string &error) {
+  return beginOverlayRegion(viewId, 0, 0, viewportWidth, viewportHeight,
+                            deltaSeconds, error);
+}
+
+bool BgfxRenderer2D::beginOverlayRegion(
+    const std::uint16_t viewId, const std::uint16_t x, const std::uint16_t y,
+    const std::uint16_t viewportWidth, const std::uint16_t viewportHeight,
+    const float deltaSeconds, std::string &error,
+    const FrameBufferHandle frameBuffer) {
+  if (!initialized_) {
+    error = "BgfxRenderer2D must be initialized before beginning an overlay.";
+    return false;
+  }
+  if (frameOpen_) {
+    error = "BgfxRenderer2D cannot begin an overlay while a frame is open.";
+    return false;
+  }
+  viewportWidth_ = std::max<std::uint16_t>(viewportWidth, 1);
+  viewportHeight_ = std::max<std::uint16_t>(viewportHeight, 1);
+  deltaSeconds_ = std::max(deltaSeconds, 0.0F);
+  animationTime_ += deltaSeconds_;
+  frameOpen_ = canvas_.begin(viewId, viewportWidth_, viewportHeight_, 0, error,
+                             false, x, y, frameBuffer);
+  return frameOpen_;
+}
+
+void BgfxRenderer2D::setExternalTexture(std::string id,
+                                        const TextureView2D texture) {
+  if (texture.handle)
+    externalTextures_.insert_or_assign(std::move(id), texture);
+}
+
 bool BgfxRenderer2D::drawWorld(const World &world) {
   if (!frameOpen_)
     return false;
   TilemapCanvasRenderer tilemapRenderer(canvas_, textures_, tilemaps_);
   IsoCanvasRenderer isoRenderer(canvas_, textures_);
   ColliderCanvasRenderer colliderRenderer(canvas_);
-  SpriteCanvasRenderer spriteRenderer(canvas_, textures_, &textureAnimations_);
+  SpriteCanvasRenderer spriteRenderer(canvas_, textures_, &textureAnimations_,
+                                      &materials_);
   ParticleCanvasRenderer particleRenderer(canvas_, textures_);
   DebugCanvasRenderer debugRenderer(canvas_, &font_);
   if (!tilemapRenderer.draw(world, camera_, cameraPosition_, viewportWidth_,
@@ -249,14 +291,20 @@ bool BgfxRenderer2D::drawNavigation(const navigation::NavigationGrid2D &grid) {
                       viewportHeight_);
 }
 
-bool BgfxRenderer2D::drawHud(const World &world) {
+bool BgfxRenderer2D::drawHud(const World &world) { return drawUi(world.ui); }
+
+bool BgfxRenderer2D::drawUi(const ui::UiDocument &document) {
   if (!frameOpen_)
     return false;
   return UiCanvasRenderer(
              canvas_, font_,
-             [this](const std::string_view id) { return textures_.find(id); },
+             [this](const std::string_view id) {
+               const auto external = externalTextures_.find(std::string(id));
+               return external != externalTextures_.end() ? external->second
+                                                          : textures_.find(id);
+             },
              &textureAnimations_, animationTime_)
-      .draw(world.ui, viewportWidth_, viewportHeight_);
+      .draw(document, viewportWidth_, viewportHeight_);
 }
 
 bool BgfxRenderer2D::endFrame(std::string &error) {

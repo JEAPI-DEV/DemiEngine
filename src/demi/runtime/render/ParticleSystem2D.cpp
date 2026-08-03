@@ -3,7 +3,6 @@
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/ParticleEmitter2DComponent.h"
 #include "demi/runtime/scene/model/World.h"
-#include "demi/runtime/render/RaylibMaterialBinding.h"
 
 #include <algorithm>
 #include <cmath>
@@ -41,15 +40,6 @@ Vec2 emissionOffset(const ParticleEmitter2DComponent &emitter,
             std::sin(angle) * radius * emitter.emissionSize.y};
   }
   return {};
-}
-
-::Color toRlColor(const Color from, const Color to, const float t) {
-  const auto channel = [t](const float a, const float b) {
-    return static_cast<unsigned char>(
-        std::round(std::clamp(a + (b - a) * t, 0.0F, 1.0F) * 255.0F));
-  };
-  return {channel(from.r, to.r), channel(from.g, to.g), channel(from.b, to.b),
-          channel(from.a, to.a)};
 }
 
 } // namespace
@@ -134,57 +124,6 @@ void ParticleSystem2D::update(const World &world, const float deltaTime) {
   });
 }
 
-void ParticleSystem2D::draw(
-    const std::unordered_map<std::string, Texture2D> &textures,
-    const std::unordered_map<std::string, assets::MaterialAsset> &materials,
-    const ShaderResourceLibrary &shaders,
-    const Vec2 cameraPosition, const float pixelsPerUnit, const int width,
-    const int height) {
-  std::vector<const EmitterState *> ordered;
-  for (const auto &[id, state] : emitters_) {
-    (void)id;
-    ordered.push_back(&state);
-  }
-  std::ranges::stable_sort(
-      ordered, [](const EmitterState *left, const EmitterState *right) {
-        return left->sortingOrder < right->sortingOrder;
-      });
-  for (const EmitterState *state : ordered) {
-    const assets::MaterialAsset *material = nullptr;
-    if (const auto found = materials.find(state->material);
-        found != materials.end())
-      material = &found->second;
-    std::string textureId = state->texture;
-    if (textureId.empty() && material != nullptr)
-      if (const auto found = material->textures.find("albedo");
-          found != material->textures.end())
-        textureId = found->second;
-    const auto texture = textures.find(textureId);
-    const ScopedRaylibMaterial2D materialScope(shaders, material);
-    for (const Particle &particle : state->particles) {
-      const float t = std::clamp(particle.age / particle.lifetime, 0.0F, 1.0F);
-      const float size =
-          (particle.sizeStart + (particle.sizeEnd - particle.sizeStart) * t) *
-          pixelsPerUnit;
-      const ::Vector2 center{
-          static_cast<float>(width) * 0.5F +
-              (particle.position.x - cameraPosition.x) * pixelsPerUnit,
-          static_cast<float>(height) * 0.5F -
-              (particle.position.y - cameraPosition.y) * pixelsPerUnit};
-      const ::Color color =
-          toRlColor(particle.colorStart, particle.colorEnd, t);
-      if (texture != textures.end())
-        DrawTexturePro(texture->second,
-                       {0.0F, 0.0F, static_cast<float>(texture->second.width),
-                        static_cast<float>(texture->second.height)},
-                       {center.x, center.y, size, size},
-                       {size * 0.5F, size * 0.5F}, particle.rotation, color);
-      else
-        DrawCircleV(center, size * 0.5F, color);
-    }
-  }
-}
-
 std::size_t ParticleSystem2D::particleCount() const {
   std::size_t count = 0;
   for (const auto &[id, state] : emitters_) {
@@ -200,11 +139,9 @@ std::vector<render::ParticleRenderData2D> ParticleSystem2D::renderData() const {
   for (const auto &[id, state] : emitters_) {
     (void)id;
     for (const Particle &particle : state.particles) {
-      const float progress =
-          std::clamp(particle.age / std::max(particle.lifetime, 0.0001F),
-                     0.0F, 1.0F);
-      const auto interpolate = [progress](const float start,
-                                          const float end) {
+      const float progress = std::clamp(
+          particle.age / std::max(particle.lifetime, 0.0001F), 0.0F, 1.0F);
+      const auto interpolate = [progress](const float start, const float end) {
         return start + (end - start) * progress;
       };
       result.push_back({

@@ -8,37 +8,9 @@ project(DemiEngine
 
 include(FetchContent)
 
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/alpha_cutout.vs"
-  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/alpha_cutout.fs"
-  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/alpha_cutout.gles.vs"
-  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/alpha_cutout.gles.fs"
-  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/post_process.vs"
-  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/post_process.fs"
-  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/post_process.gles.vs"
-  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/post_process.gles.fs")
-file(READ "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/alpha_cutout.vs"
-  DEMI_ALPHA_VERTEX)
-file(READ "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/alpha_cutout.fs"
-  DEMI_ALPHA_FRAGMENT)
-file(READ "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/alpha_cutout.gles.vs"
-  DEMI_ALPHA_GLES_VERTEX)
-file(READ "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/alpha_cutout.gles.fs"
-  DEMI_ALPHA_GLES_FRAGMENT)
-file(READ "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/post_process.vs"
-  DEMI_POST_VERTEX)
-file(READ "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/post_process.fs"
-  DEMI_POST_FRAGMENT)
-file(READ "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/post_process.gles.vs"
-  DEMI_POST_GLES_VERTEX)
-file(READ "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/shaders/post_process.gles.fs"
-  DEMI_POST_GLES_FRAGMENT)
 set(DEMI_RENDER_GENERATED_INCLUDE_DIR
   "${CMAKE_BINARY_DIR}/generated/render/include")
 file(MAKE_DIRECTORY "${DEMI_RENDER_GENERATED_INCLUDE_DIR}")
-configure_file(cmake/BuiltinRenderShaders.h.in
-  "${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/BuiltinRenderShaders.h"
-  @ONLY)
 
 if(POLICY CMP0169)
   cmake_policy(SET CMP0169 OLD)
@@ -52,7 +24,6 @@ if(ANDROID)
   if(NOT DEFINED ANDROID_NDK AND DEFINED CMAKE_ANDROID_NDK)
     set(ANDROID_NDK "${CMAKE_ANDROID_NDK}")
   endif()
-  set(PLATFORM Android CACHE STRING "raylib target platform" FORCE)
   set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 endif()
 
@@ -181,17 +152,6 @@ else()
   add_demi_lua_static(demi-server-lua54)
 endif()
 
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(BUILD_GAMES OFF CACHE BOOL "" FORCE)
-set(CUSTOMIZE_BUILD ON CACHE BOOL "" FORCE)
-set(SUPPORT_MODULE_RPRAND ON CACHE BOOL "" FORCE)
-FetchContent_Declare(raylib
-  GIT_REPOSITORY https://github.com/raysan5/raylib.git
-  GIT_TAG 5.5
-)
-FetchContent_MakeAvailable(raylib)
-
 # SDL owns platform windows, lifecycle, and input for the bgfx runtime. Keep it
 # static so packaged Linux and Android games do not gain a second runtime
 # deployment dependency.
@@ -215,9 +175,8 @@ FetchContent_Declare(SDL3
 )
 FetchContent_MakeAvailable(SDL3)
 
-# bgfx is introduced behind DemiEngine's graphics-device boundary while the
-# existing 2D/3D renderers are ported incrementally. Build only the shader
-# compiler on hosts; all other bgfx tools and examples stay disabled.
+# bgfx is DemiEngine's graphics backend. Build only the shader compiler on
+# hosts; all other bgfx tools and examples stay disabled.
 if(ANDROID)
   set(BGFX_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
 else()
@@ -298,12 +257,14 @@ add_library(demi-core STATIC
   src/demi/assets/AssetHash.cpp
   src/demi/assets/ColliderAssetGenerator.cpp
   src/demi/assets/GltfGeometry.cpp
+  src/demi/assets/GltfSkinnedModel.cpp
   src/demi/assets/AssetSourceFiles.cpp
   src/demi/assets/AssetImporter.cpp
   src/demi/assets/AssetPackage.cpp
   src/demi/assets/AssetCooker.cpp
   src/demi/assets/RenderAsset.cpp
   src/demi/runtime/physics/ColliderAsset3D.cpp
+  src/demi/runtime/render/ParticleSimulation3D.cpp
   src/demi/diagnostics/Diagnostic.cpp
   src/demi/filesystem/ProjectPaths.cpp
   src/demi/schema/Validation.cpp
@@ -328,28 +289,176 @@ add_library(demi-core STATIC
   src/demi/runtime/isometric/IsoWorldQueries.cpp
   src/demi/runtime/isometric/IsoGridApi.cpp
   src/demi/runtime/navigation/NavigationGrid2D.cpp
+  src/demi/runtime/tilemap/TilemapAsset.cpp
   src/demi/runtime/physics/Box2DWorldState.cpp
   src/demi/runtime/physics/SpatialQuery3D.cpp
   ${DEMI_COMPONENT_MODEL_SOURCES}
 )
 
 target_include_directories(demi-core PUBLIC src "${DEMI_GENERATED_INCLUDE_DIR}")
+target_include_directories(demi-core PRIVATE
+  "${bgfx_SOURCE_DIR}/bgfx/3rdparty/cgltf")
 
 target_compile_features(demi-core PUBLIC cxx_std_20)
 target_link_libraries(demi-core PUBLIC nlohmann_json::nlohmann_json box2d)
+set(DEMI_HOST_SHADERC "" CACHE FILEPATH
+  "Existing host shaderc executable to reuse instead of building shaderc")
 if(NOT ANDROID)
+  if(DEMI_HOST_SHADERC)
+    target_compile_definitions(demi-core PRIVATE
+      DEMI_SHADERC_PATH="${DEMI_HOST_SHADERC}")
+  else()
+    target_compile_definitions(demi-core PRIVATE
+      DEMI_SHADERC_PATH="$<TARGET_FILE:shaderc>")
+  endif()
   target_compile_definitions(demi-core PRIVATE
-    DEMI_SHADERC_PATH="$<TARGET_FILE:shaderc>"
     DEMI_BGFX_SHADER_INCLUDE_DIR="${bgfx_SOURCE_DIR}/bgfx/src")
 endif()
 
+set(DEMI_BGFX_BUILTIN_SHADER_DIR
+  "${CMAKE_BINARY_DIR}/generated/demi/runtime/render/shaders")
+set(DEMI_BGFX_SHADER_SOURCE_DIR
+  "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/bgfx3d/shaders")
+set(DEMI_BGFX_SHADER_INCLUDE_DIR "${bgfx_SOURCE_DIR}/bgfx/src")
+if(DEMI_HOST_SHADERC)
+  if(NOT EXISTS "${DEMI_HOST_SHADERC}")
+    message(FATAL_ERROR
+      "DEMI_HOST_SHADERC does not name an existing executable: ${DEMI_HOST_SHADERC}")
+  endif()
+  set(DEMI_SHADERC_EXECUTABLE "${DEMI_HOST_SHADERC}")
+  set(DEMI_SHADERC_DEPENDENCY "${DEMI_HOST_SHADERC}")
+elseif(ANDROID)
+  if(NOT DEMI_HOST_SHADERC AND DEFINED ENV{DEMI_HOST_SHADERC})
+    set(DEMI_HOST_SHADERC "$ENV{DEMI_HOST_SHADERC}")
+  endif()
+  if(NOT DEMI_HOST_SHADERC)
+    set(DEMI_HOST_SHADERC
+      "${CMAKE_SOURCE_DIR}/build/linux-debug/_deps/bgfx-build/cmake/bgfx/shaderc")
+  endif()
+  if(NOT EXISTS "${DEMI_HOST_SHADERC}")
+    message(FATAL_ERROR
+      "Android shader cooking needs a host shaderc executable. Build the "
+      "linux-debug shaderc target or configure -DDEMI_HOST_SHADERC=/path/to/shaderc.")
+  endif()
+  set(DEMI_SHADERC_EXECUTABLE "${DEMI_HOST_SHADERC}")
+  set(DEMI_SHADERC_DEPENDENCY "${DEMI_HOST_SHADERC}")
+else()
+  set(DEMI_SHADERC_EXECUTABLE "$<TARGET_FILE:shaderc>")
+  set(DEMI_SHADERC_DEPENDENCY shaderc)
+endif()
+set(DEMI_BGFX_BUILTIN_SHADER_HEADERS
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_glsl.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_lit_glsl.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_essl.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_lit_essl.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_spv.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_lit_spv.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_instanced_glsl.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_instanced_essl.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_instanced_spv.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_post_process_glsl.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_post_process_glsl.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_post_process_essl.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_post_process_essl.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_post_process_spv.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_post_process_spv.h")
+add_custom_command(
+  OUTPUT ${DEMI_BGFX_BUILTIN_SHADER_HEADERS}
+  COMMAND "${CMAKE_COMMAND}" -E make_directory
+    "${DEMI_BGFX_BUILTIN_SHADER_DIR}"
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_glsl.h"
+    --type vertex --platform linux -p 140
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_lit_glsl
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_lit_glsl.h"
+    --type fragment --platform linux -p 140
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_lit_glsl
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_essl.h"
+    --type vertex --platform android -p 100_es
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_lit_essl
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_lit_essl.h"
+    --type fragment --platform android -p 100_es
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_lit_essl
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_spv.h"
+    --type vertex --platform linux -p spirv
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_lit_spv
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_lit_spv.h"
+    --type fragment --platform linux -p spirv
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_lit_spv
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit_instanced.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_instanced_glsl.h"
+    --type vertex --platform linux -p 140
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_lit_instanced_glsl
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit_instanced.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_instanced_essl.h"
+    --type vertex --platform android -p 100_es
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_lit_instanced_essl
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit_instanced.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_instanced_spv.h"
+    --type vertex --platform linux -p spirv
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_lit_instanced_spv
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_post_process.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_post_process_glsl.h"
+    --type vertex --platform linux -p 140
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_post_process_glsl
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_post_process.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_post_process_glsl.h"
+    --type fragment --platform linux -p 140
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_post_process_glsl
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_post_process.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_post_process_essl.h"
+    --type vertex --platform android -p 100_es
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_post_process_essl
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_post_process.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_post_process_essl.h"
+    --type fragment --platform android -p 100_es
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_post_process_essl
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_post_process.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_post_process_spv.h"
+    --type vertex --platform linux -p spirv
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_post_process_spv
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_post_process.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_post_process_spv.h"
+    --type fragment --platform linux -p spirv
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_post_process_spv
+  DEPENDS ${DEMI_SHADERC_DEPENDENCY}
+    "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit.sc"
+    "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
+    "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit_instanced.sc"
+    "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_post_process.sc"
+    "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_post_process.sc"
+    "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+  VERBATIM)
+
 add_library(demi-graphics-bgfx STATIC
+  ${DEMI_BGFX_BUILTIN_SHADER_HEADERS}
   "${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/DefaultPixelFont.h"
   src/demi/runtime/render/backend/GraphicsDevice.cpp
   src/demi/runtime/render/backend/BgfxGraphicsDevice.cpp
   src/demi/runtime/render/backend/BgfxGpuResources.cpp
   src/demi/runtime/render/backend/BgfxRenderCommands.cpp
   src/demi/runtime/render/backend/BgfxVertexLayout.cpp
+  src/demi/runtime/render/backend/CookedShaderLibrary.cpp
   src/demi/runtime/render/backend/Canvas2D.cpp
   src/demi/runtime/render/backend/FontAtlas2D.cpp
   src/demi/runtime/render/backend/GifDecoder2D.cpp
@@ -372,20 +481,30 @@ add_custom_command(
 target_include_directories(demi-graphics-bgfx PUBLIC src)
 target_include_directories(demi-graphics-bgfx PRIVATE
   "${DEMI_RENDER_GENERATED_INCLUDE_DIR}"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}"
   "${bgfx_SOURCE_DIR}/bgfx/examples/common/imgui"
+  "${bgfx_SOURCE_DIR}/bgfx/examples/17-drawstress"
   "${bgfx_SOURCE_DIR}/bgfx/3rdparty/stb"
   "${bgfx_SOURCE_DIR}/bimg/3rdparty/stb"
   "${bgfx_SOURCE_DIR}/bx/include")
 target_compile_features(demi-graphics-bgfx PUBLIC cxx_std_20)
-target_link_libraries(demi-graphics-bgfx PRIVATE bgfx bimg_decode)
+target_link_libraries(demi-graphics-bgfx PRIVATE
+  bgfx
+  bimg_decode
+  nlohmann_json::nlohmann_json)
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(demi-graphics-bgfx PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
 add_library(demi-render2d-bgfx STATIC
+  src/demi/runtime/render/BgfxRenderer2D.cpp
+  src/demi/runtime/render/MaterialLibrary.cpp
+  src/demi/runtime/render/ParticleSystem2D.cpp
+  src/demi/runtime/render/backend/SvgDecoder2D.cpp
   src/demi/runtime/render/bgfx2d/ColliderCanvasRenderer.cpp
   src/demi/runtime/render/bgfx2d/DebugCanvasRenderer.cpp
   src/demi/runtime/render/bgfx2d/IsoCanvasRenderer.cpp
+  src/demi/runtime/render/bgfx2d/IsoSpriteVisual2D.cpp
   src/demi/runtime/render/bgfx2d/ParticleCanvasRenderer.cpp
   src/demi/runtime/render/bgfx2d/SpriteCanvasRenderer.cpp
   src/demi/runtime/render/bgfx2d/TilemapCanvasRenderer.cpp
@@ -395,6 +514,25 @@ target_compile_features(demi-render2d-bgfx PUBLIC cxx_std_20)
 target_link_libraries(demi-render2d-bgfx PUBLIC demi-core demi-graphics-bgfx)
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(demi-render2d-bgfx PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+add_library(demi-render3d-bgfx STATIC
+  src/demi/runtime/render/BgfxRenderer3D.cpp
+  src/demi/runtime/render/bgfx3d/GpuMesh3D.cpp
+  src/demi/runtime/render/bgfx3d/MeshTransform3D.cpp
+  src/demi/runtime/render/bgfx3d/PrimitiveCanvas3D.cpp
+  src/demi/runtime/render/bgfx3d/PrimitiveMeshFactory3D.cpp
+  src/demi/runtime/render/bgfx3d/PostProcessRenderer3D.cpp
+  src/demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.cpp
+  src/demi/runtime/render/bgfx3d/SceneLighting3D.cpp
+  src/demi/runtime/render/bgfx3d/WorldTextProjection3D.cpp
+)
+target_include_directories(demi-render3d-bgfx PUBLIC src)
+target_compile_features(demi-render3d-bgfx PUBLIC cxx_std_20)
+target_link_libraries(demi-render3d-bgfx
+  PUBLIC demi-core demi-render2d-bgfx demi-graphics-bgfx)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+  target_compile_options(demi-render3d-bgfx PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
@@ -417,6 +555,13 @@ if(DEMI_ENABLE_MEDIA AND NOT TARGET PkgConfig::FFMPEG)
   message(FATAL_ERROR "DEMI_ENABLE_MEDIA requires FFmpeg development packages: libavformat, libavcodec, libavutil, and libswscale.")
 endif()
 
+if(TARGET PkgConfig::RSVG)
+  target_link_libraries(demi-render2d-bgfx PRIVATE PkgConfig::RSVG)
+  target_compile_definitions(demi-render2d-bgfx PRIVATE DEMI_HAS_RSVG=1)
+else()
+  target_compile_definitions(demi-render2d-bgfx PRIVATE DEMI_HAS_RSVG=0)
+endif()
+
 set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/animation/AnimationRuntime.cpp
   src/demi/runtime/animation/AnimationStateMachineSystem.cpp
@@ -425,7 +570,6 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/camera/Camera2DSystem.cpp
   src/demi/runtime/camera/Camera3DMath.cpp
   src/demi/runtime/camera/CameraRenderScheduler3D.cpp
-  src/demi/runtime/tilemap/TilemapAsset.cpp
   src/demi/runtime/tilemap/TilemapCollisionGenerator.cpp
   src/demi/runtime/tilemap/TilemapRuntime.cpp
   src/demi/runtime/app/RuntimeApp.cpp
@@ -526,8 +670,9 @@ function(configure_demi_runtime target with_renderer)
   endif()
 
   if(${with_renderer})
-    target_link_libraries(${target} PRIVATE raylib SDL3::SDL3-static demi-render2d-bgfx)
-    target_compile_definitions(${target} PRIVATE DEMI_HAS_RAYLIB=1)
+    target_link_libraries(${target} PRIVATE SDL3::SDL3-static
+      demi-render2d-bgfx demi-render3d-bgfx)
+    target_compile_definitions(${target} PRIVATE DEMI_ENABLE_GRAPHICS_RUNTIME=1)
     if(TARGET PkgConfig::RSVG)
       target_link_libraries(${target} PRIVATE PkgConfig::RSVG)
       target_compile_definitions(${target} PRIVATE DEMI_HAS_RSVG=1)
@@ -535,7 +680,8 @@ function(configure_demi_runtime target with_renderer)
       target_compile_definitions(${target} PRIVATE DEMI_HAS_RSVG=0)
     endif()
   else()
-    target_compile_definitions(${target} PRIVATE DEMI_HAS_RAYLIB=0 DEMI_HAS_RSVG=0)
+    target_compile_definitions(${target} PRIVATE
+      DEMI_ENABLE_GRAPHICS_RUNTIME=0 DEMI_HAS_RSVG=0)
   endif()
 
   if(ANDROID)
@@ -569,36 +715,12 @@ function(configure_demi_runtime target with_renderer)
 endfunction()
 
 configure_demi_runtime(demi-runtime-lib TRUE
+  src/demi/runtime/app/BgfxAppContext.cpp
   src/demi/runtime/app/Bgfx2DAppHost.cpp
+  src/demi/runtime/app/Bgfx3DAppHost.cpp
   src/demi/runtime/platform/PlatformInput.cpp
   src/demi/runtime/platform/SdlNativeWindow.cpp
   src/demi/runtime/platform/SdlPlatformHost.cpp
-  src/demi/runtime/render/ProfilerHudRenderer.cpp
-  src/demi/runtime/render/BgfxRenderer2D.cpp
-  src/demi/runtime/render/backend/SvgDecoder2D.cpp
-  src/demi/runtime/render/RaylibFileSystemBridge.cpp
-  src/demi/runtime/render/Renderer2D.cpp
-  src/demi/runtime/render/ParticleSystem2D.cpp
-  src/demi/runtime/render/Renderer3D.cpp
-  src/demi/runtime/render/ParticleSystem3D.cpp
-  src/demi/runtime/render/Lighting3D.cpp
-  src/demi/runtime/render/WorldText3DRenderer.cpp
-  src/demi/runtime/render/Renderer3DBatcher.cpp
-  src/demi/runtime/render/Renderer3DAssets.cpp
-  src/demi/runtime/render/Renderer3DHudRenderer.cpp
-  src/demi/runtime/render/hud3d/Hud3DNodeRenderer.cpp
-  src/demi/runtime/render/hud3d/Hud3DPanelNodeRenderer.cpp
-  src/demi/runtime/render/hud3d/Hud3DImageNodeRenderer.cpp
-  src/demi/runtime/render/hud3d/Hud3DCircleNodeRenderer.cpp
-  src/demi/runtime/render/hud3d/Hud3DProgressNodeRenderer.cpp
-  src/demi/runtime/render/hud3d/Hud3DTextNodeRenderer.cpp
-  src/demi/runtime/render/hud3d/Hud3DButtonNodeRenderer.cpp
-  src/demi/runtime/render/Renderer3DMeshRenderer.cpp
-  src/demi/runtime/render/Renderer3DModelResources.cpp
-  src/demi/runtime/render/Renderer3DTextureSettings.cpp
-  src/demi/runtime/render/TextureSamplerSettings.cpp
-  src/demi/runtime/render/ShaderResourceLibrary.cpp
-  src/demi/runtime/render/RaylibMaterialBinding.cpp
 )
 
 if(NOT ANDROID)
@@ -620,7 +742,9 @@ else()
   )
   target_link_libraries(demi PRIVATE demi-core demi-runtime-lib)
   target_compile_definitions(demi PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-  add_dependencies(demi shaderc)
+  if(NOT DEMI_HOST_SHADERC)
+    add_dependencies(demi shaderc)
+  endif()
 
   add_executable(demi-server
     src/cli/AssetCommands.cpp
@@ -632,7 +756,9 @@ else()
   )
   target_link_libraries(demi-server PRIVATE demi-core demi-server-runtime-lib)
   target_compile_definitions(demi-server PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-  add_dependencies(demi-server shaderc)
+  if(NOT DEMI_HOST_SHADERC)
+    add_dependencies(demi-server shaderc)
+  endif()
 
   add_executable(demi-runtime src/runtime/main.cpp)
   target_link_libraries(demi-runtime PRIVATE demi-core demi-runtime-lib)
@@ -671,11 +797,8 @@ else()
   target_link_libraries(demi-transform3d-hierarchy-tests PRIVATE demi-core)
   add_executable(demi-validation-3d-tests tests/validation_3d_tests.cpp)
   target_link_libraries(demi-validation-3d-tests PRIVATE demi-core)
-  add_executable(demi-renderer3d-batcher-tests
-    tests/renderer3d_batcher_tests.cpp)
-  target_link_libraries(demi-renderer3d-batcher-tests PRIVATE demi-runtime-lib raylib)
   add_executable(demi-render-phase6-tests tests/render_phase6_tests.cpp)
-  target_link_libraries(demi-render-phase6-tests PRIVATE demi-runtime-lib raylib)
+  target_link_libraries(demi-render-phase6-tests PRIVATE demi-runtime-lib)
   add_executable(demi-bgfx-graphics-device-tests
     tests/bgfx_graphics_device_tests.cpp)
   target_link_libraries(demi-bgfx-graphics-device-tests
@@ -731,9 +854,37 @@ else()
   target_link_libraries(demi-bgfx-renderer2d-tests PRIVATE demi-runtime-lib)
   target_compile_definitions(demi-bgfx-renderer2d-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-material-library-tests tests/material_library_tests.cpp)
+  target_link_libraries(demi-material-library-tests PRIVATE demi-render2d-bgfx)
+  add_executable(demi-primitive-canvas3d-tests
+    tests/primitive_canvas3d_tests.cpp)
+  target_link_libraries(demi-primitive-canvas3d-tests
+    PRIVATE demi-render3d-bgfx)
+  add_executable(demi-gpu-mesh3d-tests tests/gpu_mesh3d_tests.cpp)
+  target_link_libraries(demi-gpu-mesh3d-tests PRIVATE demi-render3d-bgfx)
+  add_executable(demi-mesh-geometry3d-tests tests/mesh_geometry3d_tests.cpp)
+  target_link_libraries(demi-mesh-geometry3d-tests PRIVATE demi-render3d-bgfx)
+  add_executable(demi-bgfx-renderer3d-tests tests/bgfx_renderer3d_tests.cpp)
+  target_link_libraries(demi-bgfx-renderer3d-tests PRIVATE demi-render3d-bgfx)
+  target_compile_definitions(demi-bgfx-renderer3d-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-bgfx-scene-extraction-tests
+    tests/bgfx_scene_extraction_tests.cpp)
+  target_link_libraries(demi-bgfx-scene-extraction-tests
+    PRIVATE demi-render3d-bgfx)
+  add_executable(demi-gltf-skinned-model-tests
+    tests/gltf_skinned_model_tests.cpp)
+  target_link_libraries(demi-gltf-skinned-model-tests PRIVATE demi-core)
+  target_compile_definitions(demi-gltf-skinned-model-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-bgfx-2d-app-host-tests
     tests/bgfx_2d_app_host_tests.cpp)
   target_link_libraries(demi-bgfx-2d-app-host-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-bgfx-3d-app-host-tests
+    tests/bgfx_3d_app_host_tests.cpp)
+  target_link_libraries(demi-bgfx-3d-app-host-tests PRIVATE demi-runtime-lib)
+  target_compile_definitions(demi-bgfx-3d-app-host-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-iso-canvas-renderer-tests
     tests/iso_canvas_renderer_tests.cpp)
   target_link_libraries(demi-iso-canvas-renderer-tests
@@ -768,9 +919,11 @@ else()
   add_executable(demi-shader-cooker-tests tests/shader_cooker_tests.cpp)
   target_link_libraries(demi-shader-cooker-tests PRIVATE demi-core)
   target_compile_definitions(demi-shader-cooker-tests PRIVATE
-    DEMI_SHADERC_PATH="$<TARGET_FILE:shaderc>"
+    DEMI_SHADERC_PATH="${DEMI_SHADERC_EXECUTABLE}"
     DEMI_BGFX_SHADER_INCLUDE_DIR="${bgfx_SOURCE_DIR}/bgfx/src")
-  add_dependencies(demi-shader-cooker-tests shaderc)
+  if(NOT DEMI_HOST_SHADERC)
+    add_dependencies(demi-shader-cooker-tests shaderc)
+  endif()
   add_executable(demi-camera2d-tests tests/camera2d_tests.cpp)
   target_link_libraries(demi-camera2d-tests PRIVATE demi-runtime-lib)
   add_executable(demi-tilemap-tests tests/tilemap_tests.cpp)
@@ -823,8 +976,6 @@ add_test(NAME demi-physics3d-tests COMMAND demi-physics3d-tests)
 add_test(NAME demi-transform3d-hierarchy-tests
   COMMAND demi-transform3d-hierarchy-tests)
 add_test(NAME demi-validation-3d-tests COMMAND demi-validation-3d-tests)
-add_test(NAME demi-renderer3d-batcher-tests
-  COMMAND demi-renderer3d-batcher-tests)
 add_test(NAME demi-render-phase6-tests COMMAND demi-render-phase6-tests)
 add_test(NAME demi-bgfx-graphics-device-tests
   COMMAND demi-bgfx-graphics-device-tests)
@@ -851,8 +1002,18 @@ add_test(NAME demi-tilemap-canvas-renderer-tests
 add_test(NAME demi-bgfx2d-effect-renderers-tests
   COMMAND demi-bgfx2d-effect-renderers-tests)
 add_test(NAME demi-bgfx-renderer2d-tests COMMAND demi-bgfx-renderer2d-tests)
+add_test(NAME demi-material-library-tests COMMAND demi-material-library-tests)
+add_test(NAME demi-primitive-canvas3d-tests COMMAND demi-primitive-canvas3d-tests)
+add_test(NAME demi-gpu-mesh3d-tests COMMAND demi-gpu-mesh3d-tests)
+add_test(NAME demi-mesh-geometry3d-tests COMMAND demi-mesh-geometry3d-tests)
+add_test(NAME demi-bgfx-renderer3d-tests COMMAND demi-bgfx-renderer3d-tests)
+add_test(NAME demi-bgfx-scene-extraction-tests
+  COMMAND demi-bgfx-scene-extraction-tests)
+add_test(NAME demi-gltf-skinned-model-tests COMMAND demi-gltf-skinned-model-tests)
 add_test(NAME demi-bgfx-2d-app-host-tests
   COMMAND demi-bgfx-2d-app-host-tests)
+add_test(NAME demi-bgfx-3d-app-host-tests
+  COMMAND demi-bgfx-3d-app-host-tests)
 add_test(NAME demi-iso-canvas-renderer-tests
   COMMAND demi-iso-canvas-renderer-tests)
 add_test(NAME demi-lua-stub-contract-tests COMMAND demi-lua-stub-contract-tests ${CMAKE_SOURCE_DIR})

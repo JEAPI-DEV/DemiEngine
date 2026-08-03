@@ -157,10 +157,3 @@ int main(int argc, char **argv) {
       .projectPath = projectPath,
   });
 }
-
-// The raylib 3D compatibility archive still contains its old NativeActivity
-// bootstrap object, which references a C `main` symbol even though SDL calls
-// `SDL_main`. Keep this forwarding symbol only until the Phase 5 renderer
-// removes the final raylib archive from Android.
-#undef main
-int main(int argc, char **argv) { return SDL_main(argc, argv); }

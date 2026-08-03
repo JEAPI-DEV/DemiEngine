@@ -11,7 +11,7 @@ This example now uses the game-facing rendering system end to end:
 - world-space text and a scripted day/night presentation cycle.
 
 The scripts generate voxel data and animate authored component values. They do
-not contain raylib calls or renderer-specific material logic.
+not contain graphics-backend calls or renderer-specific material logic.
 
 The terrain art originates from the
 [`oCd resource pack`](https://resourcepack.net/ocd-resource-pack/).

@@ -22,6 +22,7 @@ struct ScissorRect {
 struct QuadBatchKey {
   TextureHandle texture;
   ProgramHandle program;
+  std::uint32_t uniformSet = 0;
   BlendMode blend = BlendMode::Alpha;
   ScissorRect scissor;
 

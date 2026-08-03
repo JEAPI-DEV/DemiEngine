@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/runtime/render/MaterialLibrary.h"
 #include "demi/runtime/navigation/NavigationGrid2D.h"
 #include "demi/runtime/render/backend/Canvas2D.h"
 #include "demi/runtime/render/backend/FontAtlas2D.h"
@@ -38,9 +39,21 @@ public:
                                 std::uint16_t viewportWidth,
                                 std::uint16_t viewportHeight,
                                 float deltaSeconds, std::string &error);
+  [[nodiscard]] bool beginOverlay(std::uint16_t viewId,
+                                  std::uint16_t viewportWidth,
+                                  std::uint16_t viewportHeight,
+                                  float deltaSeconds, std::string &error);
+  [[nodiscard]] bool beginOverlayRegion(std::uint16_t viewId, std::uint16_t x,
+                                        std::uint16_t y,
+                                        std::uint16_t viewportWidth,
+                                        std::uint16_t viewportHeight,
+                                        float deltaSeconds, std::string &error,
+                                        FrameBufferHandle frameBuffer = {});
+  void setExternalTexture(std::string id, TextureView2D texture);
   [[nodiscard]] bool drawWorld(const World &world);
   [[nodiscard]] bool drawNavigation(const navigation::NavigationGrid2D &grid);
   [[nodiscard]] bool drawHud(const World &world);
+  [[nodiscard]] bool drawUi(const ui::UiDocument &document);
   [[nodiscard]] bool endFrame(std::string &error);
 
   [[nodiscard]] const Canvas2DStatistics &statistics() const {
@@ -54,6 +67,8 @@ private:
   Canvas2D canvas_;
   FontAtlas2D font_;
   TextureLibrary2D textures_;
+  MaterialLibrary materials_;
+  std::unordered_map<std::string, TextureView2D> externalTextures_;
   std::unordered_map<std::string, TilemapAsset2D> tilemaps_;
   std::unordered_map<std::string, TextureAnimation2D> textureAnimations_;
   class ParticleSimulation;

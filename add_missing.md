@@ -261,8 +261,8 @@ shooter uses the same action script for all devices.
 - `TouchGestureRecognizer` owns deterministic gesture state.
 - `UiInteractionController` owns pointer-ID capture; HUD virtual controls only
   publish named input values.
-- `ApplicationServices` owns platform state and paths; runtime adapters feed
-  it Linux/raylib and Android lifecycle/display data.
+- `ApplicationServices` owns platform state and paths; SDL runtime adapters
+  feed it Linux and Android lifecycle/display data.
 
 ### Deliverables
 
@@ -398,8 +398,8 @@ regressions. See `docs/3d-gameplay.md`.
 blocks, bounded lighting, camera passes and targets, deterministic 2D/3D
 particles, post effects, world text/UI targets, and profiler-visible render
 statistics now share one data-driven runtime path. `minimal_voxel` is the
-end-to-end 3D probe, while `production_2d_foundation` loads an authored shader
-at renderer startup with Linux and Android stage sources.
+end-to-end 3D probe, while `production_2d_foundation` loads one authored shader
+that is cooked for Linux and Android at build/startup time.
 
 Presentation features should be data-driven assets/components rather than
 branches added to renderer files for each example.
@@ -409,12 +409,12 @@ branches added to renderer files for each example.
 - Material assets own shader, texture slots, render state, and parameters.
 - Render pipelines own pass order and targets.
 - Renderer adapters consume component/material data; game scripts do not call
-  raylib.
+  bgfx or SDL.
 
 ### Deliverables
 
 - Add versioned `Material` and `Shader` assets with validated parameters,
-  texture slots, blend/cull/depth state, and platform fallbacks.
+  texture slots, blend/cull/depth state, and cross-platform cooked programs.
 - Add material instances/property blocks for per-entity values without
   duplicating assets.
 - Add point and spot lights, ambient/environment settings, and a bounded,

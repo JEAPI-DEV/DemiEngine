@@ -72,6 +72,31 @@ int main() {
   assert(canvas.statistics().triangles == 26);
   static_cast<void>(graphics.endFrame());
 
+  // Material uniform sets participate in the batch key so two sprites using
+  // the same texture/program cannot accidentally share parameter values.
+  const UniformHandle tint =
+      resources->createUniform("u_canvas_test", UniformType::Vec4, 1, error);
+  assert(tint);
+  const std::array<float, 4> red{1.0F, 0.0F, 0.0F, 1.0F};
+  const std::array<float, 4> blue{0.0F, 0.0F, 1.0F, 1.0F};
+  const std::array<DrawUniformValue, 1> redUniform{{
+      {.handle = tint, .values = red},
+  }};
+  const std::array<DrawUniformValue, 1> blueUniform{{
+      {.handle = tint, .values = blue},
+  }};
+  assert(canvas.begin(0, 100, 80, 0, error));
+  canvas.setUniformSet(1, redUniform);
+  canvas.setUniformSet(2, blueUniform);
+  assert(canvas.solid({.width = 10, .height = 10}, 0xffffffffU,
+                      BlendMode::Alpha, {}, canvas.program(), 1));
+  assert(canvas.solid({.x = 12, .width = 10, .height = 10}, 0xffffffffU,
+                      BlendMode::Alpha, {}, canvas.program(), 2));
+  assert(canvas.flush(error));
+  assert(canvas.statistics().drawCalls == 2);
+  static_cast<void>(graphics.endFrame());
+  assert(resources->destroy(tint));
+
   canvas.shutdown();
   canvas.shutdown();
   commands.reset();

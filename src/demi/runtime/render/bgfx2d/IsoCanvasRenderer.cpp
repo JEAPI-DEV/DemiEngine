@@ -3,6 +3,7 @@
 #include "demi/runtime/isometric/IsoGridMath.h"
 #include "demi/runtime/isometric/IsoWorldQueries.h"
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
+#include "demi/runtime/render/bgfx2d/IsoSpriteVisual2D.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/IsoGridComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/IsoTransformComponent.h"
@@ -155,12 +156,23 @@ bool IsoCanvasRenderer::draw(const World &world,
               sprite != nullptr ? packVertexColorRgba8(sprite->color)
                                 : 0xffffffffU))
         return false;
-    } else if (!canvas_.solid({.x = screen.x - width * 0.5F,
-                               .y = screen.y + bottomOffset - height,
-                               .width = width,
-                               .height = height},
-                              0xff52a6deU)) {
-      return false;
+    } else {
+      const IsoSpriteVisual2D visual = isoSpriteVisual2D(
+          sprite, {screen.x, screen.y + bottomOffset}, width, height);
+      bool drawn = false;
+      if (visual.shape == IsoSpriteShape2D::Rectangle) {
+        drawn = canvas_.solid(visual.bounds, visual.color);
+      } else {
+        const float centerX = visual.bounds.x + visual.bounds.width * 0.5F;
+        const float centerY = visual.bounds.y + visual.bounds.height * 0.5F;
+        const float radius =
+            std::min(visual.bounds.width, visual.bounds.height) * 0.5F;
+        drawn = canvas_.circle(
+            centerX, centerY, radius, visual.color,
+            visual.shape == IsoSpriteShape2D::Circle ? 32 : 3);
+      }
+      if (!drawn)
+        return false;
     }
   }
   return true;

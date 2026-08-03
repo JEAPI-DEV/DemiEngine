@@ -78,20 +78,6 @@ shaderStages(const nlohmann::json &document,
 
 } // namespace
 
-const ShaderAsset::Stages &
-ShaderAsset::stagesFor(const std::string_view platform) const {
-  if (platform == "android" && androidStages)
-    return *androidStages;
-  if (platform == "linux" && linuxStages)
-    return *linuxStages;
-  return stages;
-}
-
-const std::string &
-ShaderAsset::fallbackFor(const std::string_view platform) const {
-  return platform == "android" ? androidFallback : linuxFallback;
-}
-
 std::optional<MaterialAsset>
 loadMaterialAsset(const std::filesystem::path &path, Diagnostics *diagnostics) {
   const auto document = readDocument(path, diagnostics, "Material");
@@ -230,40 +216,11 @@ std::optional<ShaderAsset> loadShaderAsset(const std::filesystem::path &path,
         return std::nullopt;
       }
     }
-    if (const auto sources = document->find("platform_sources");
-        sources != document->end()) {
-      if (!sources->is_object()) {
-        invalid(diagnostics, path, "SHADER_PLATFORM_SOURCES_INVALID",
-                "Shader platform_sources must be an object.");
-        return std::nullopt;
-      }
-      if (const auto android = sources->find("android");
-          android != sources->end()) {
-        shader.androidStages = shaderStages(
-            *android, path.parent_path(), diagnostics, path, "Android");
-        if (!shader.androidStages)
-          return std::nullopt;
-      }
-      if (const auto linux = sources->find("linux");
-          linux != sources->end()) {
-        shader.linuxStages = shaderStages(
-            *linux, path.parent_path(), diagnostics, path, "Linux");
-        if (!shader.linuxStages)
-          return std::nullopt;
-      }
-    }
-    if (const auto fallback = document->find("platform_fallbacks");
-        fallback != document->end() && fallback->is_object()) {
-      shader.androidFallback = fallback->value("android", "builtin://unlit");
-      shader.linuxFallback = fallback->value("linux", "builtin://unlit");
-    }
-    const auto validFallback = [](const std::string &value) {
-      return value.starts_with("builtin://") || value.starts_with("asset://");
-    };
-    if (!validFallback(shader.androidFallback) ||
-        !validFallback(shader.linuxFallback)) {
-      invalid(diagnostics, path, "SHADER_PLATFORM_FALLBACK_INVALID",
-              "Shader platform fallbacks require builtin:// or asset:// IDs.");
+    if (document->contains("platform_sources") ||
+        document->contains("platform_fallbacks")) {
+      invalid(diagnostics, path, "SHADER_PLATFORM_SOURCES_REMOVED",
+              "Platform-specific shader sources were removed. Author one "
+              "bgfx .sc source pair and cook it for each target platform.");
       return std::nullopt;
     }
     return shader;

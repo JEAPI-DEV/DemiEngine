@@ -1,8 +1,6 @@
 # bgfx Renderer Migration
 
-DemiEngine is migrating from raylib rendering to bgfx. This is a staged
-migration because raylib currently provides both rendering and platform
-services, while bgfx provides rendering only. The completed runtime will use:
+DemiEngine's raylib-to-bgfx migration is complete. The runtime uses:
 
 - bgfx for GPU devices, resources, draw submission, render targets, and
   renderer selection;
@@ -20,10 +18,10 @@ Game code and serialized scenes must not contain bgfx or SDL types.
 | --- | --- | --- |
 | 1 | Complete | None |
 | 2 | Complete | None |
-| 3 | Cooking and ownership complete | Load cooked programs in the visible renderer |
+| 3 | Complete | None |
 | 4 | Complete | None |
-| 5 | Not started | Port the complete 3D and effects renderer |
-| 6 | Not started | Remove raylib only after every visible path and package gate uses bgfx |
+| 5 | Complete | None |
+| 6 | Complete | None |
 
 ## Ownership boundaries
 
@@ -39,8 +37,10 @@ graphics device. This prevents another renderer change from also rewriting
 gameplay input and application lifecycle code.
 
 Linux and Android 2D scenes now enter through `Bgfx2DAppHost`, which owns the
-SDL window, bgfx device, resources, command submission, and renderer in a
-strict shutdown order. `RuntimeApp` only coordinates simulation and forwards
+shared `BgfxAppContext`. The context owns the SDL window, bgfx device,
+resources, and command submission in a strict shutdown order. The 2D and 3D
+hosts compose their renderers above that common boundary instead of owning a
+second device lifecycle. `RuntimeApp` only coordinates simulation and forwards
 the resulting world. The `DEMI_GRAPHICS_API` environment variable can select
 `automatic`, `vulkan`, `opengl`, `opengles`, or `noop` for diagnostics.
 
@@ -54,8 +54,7 @@ the resulting world. The `DEMI_GRAPHICS_API` environment variable can select
 - Exercise initialization, resize, frame submission, invalid configuration,
   and repeated shutdown through the headless Noop backend.
 
-The existing raylib renderers remain the active visible renderer during this
-phase so examples continue to work.
+This was the temporary foundation stage; visible rendering now uses bgfx.
 
 ### 2. SDL3 platform host
 
@@ -89,9 +88,7 @@ Unified shader assets use bgfx's cross-backend shader language:
 `demi cook` compiles that one source pair to Vulkan SPIR-V plus the native
 fallback for the requested package: desktop OpenGL for `linux`, or OpenGL ES
 for `android`. The generated `cook.manifest.json` records each program by
-stable asset ID and backend. `platform_sources` remains readable only while
-the raylib compatibility renderer is being removed; new shaders should not
-use it.
+stable asset ID and backend. Legacy `platform_sources` is rejected.
 
 ### 4. 2D, UI, and text
 
@@ -109,7 +106,7 @@ animations, navigation and physics debug overlays, P3/P6 PPM compatibility,
 and per-frame draw statistics have Noop-backed regression coverage.
 `BgfxRenderer2D` now composes those specialized renderers behind one
 runtime-facing API and owns asset reload, frame sequencing, and shared
-resources without exposing bgfx or raylib types. SVG assets are rasterized
+resources without exposing bgfx types. SVG assets are rasterized
 through a backend-neutral RGBA decoder when librsvg is available. The visible
 2D runtime now uses SDL3 and bgfx on Linux and Android; native-window metadata
 distinguishes Wayland from X11 so Vulkan and OpenGL create the correct surface.
@@ -124,6 +121,13 @@ NativeActivity window bootstrap.
 - Cook model and texture data without raylib resource types.
 - Move all 3D and voxel examples to bgfx with performance budgets.
 
+The backend-neutral render-command layer now covers perspective and
+orthographic views, depth/cull/blend state, primitives, static/imported meshes,
+CPU-skinned animation, model material colors/textures, authored materials,
+lighting, billboard particles, world text, camera targets, post-processing,
+and static-mesh instancing. `Bgfx3DAppHost` owns the same SDL/bgfx lifecycle on
+Linux and Android, with Noop-backed ownership and failure tests.
+
 ### 6. Removal
 
 - Make bgfx the only runtime renderer.
@@ -135,6 +139,5 @@ NativeActivity window bootstrap.
 
 ## Completion rule
 
-The migration is complete only when both Linux and Android use bgfx for every
-example and no public/runtime source outside an intentionally isolated
-migration adapter includes raylib.
+Linux and Android now use bgfx for every visible example, and runtime/public
+source contains no raylib renderer adapter.
