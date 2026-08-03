@@ -61,6 +61,7 @@ bool MaterialLibrary::load(const AssetRegistry &registry,
                      .cull = cullMode(descriptor->renderState.cull),
                      .topology = PrimitiveTopology::Triangles,
                      .writeDepth = descriptor->renderState.depthWrite};
+    binding.alphaCutoff = descriptor->renderState.alphaCutoff;
     if (const auto albedo = descriptor->textures.find("albedo");
         albedo != descriptor->textures.end())
       binding.albedoTexture = albedo->second;

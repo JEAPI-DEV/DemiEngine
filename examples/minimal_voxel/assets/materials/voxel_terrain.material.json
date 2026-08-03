@@ -12,6 +12,7 @@
     "blend": "opaque",
     "cull": "back",
     "depth_test": true,
-    "depth_write": true
+    "depth_write": true,
+    "alpha_cutoff": 0.5
   }
 }

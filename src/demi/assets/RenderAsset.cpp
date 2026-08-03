@@ -159,6 +159,7 @@ loadMaterialAsset(const std::filesystem::path &path, Diagnostics *diagnostics) {
       material.renderState.cull = found->value("cull", "back");
       material.renderState.depthTest = found->value("depth_test", true);
       material.renderState.depthWrite = found->value("depth_write", true);
+      material.renderState.alphaCutoff = found->value("alpha_cutoff", 0.0F);
     }
     constexpr std::array<std::string_view, 3> blends{"opaque", "alpha",
                                                      "additive"};
@@ -171,6 +172,12 @@ loadMaterialAsset(const std::filesystem::path &path, Diagnostics *diagnostics) {
     if (std::ranges::find(culls, material.renderState.cull) == culls.end()) {
       invalid(diagnostics, path, "MATERIAL_CULL_INVALID",
               "Material cull must be back, front, or none.");
+      return std::nullopt;
+    }
+    if (material.renderState.alphaCutoff < 0.0F ||
+        material.renderState.alphaCutoff > 1.0F) {
+      invalid(diagnostics, path, "MATERIAL_ALPHA_CUTOFF_INVALID",
+              "Material alpha_cutoff must be between 0 and 1.");
       return std::nullopt;
     }
     return material;

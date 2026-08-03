@@ -137,7 +137,7 @@ int main() {
 
   write(root / "cook.manifest.json", manifest(entry));
   write(root / "test.material.json",
-        R"({"format_version":1,"shader":"asset://shader/test","textures":{"albedo":"asset://texture/test"},"parameters":{"strength":0.5,"effect_color":[1,0.25,0.5,1]},"render_state":{"blend":"alpha","cull":"none","depth_test":false,"depth_write":false}})");
+        R"({"format_version":1,"shader":"asset://shader/test","textures":{"albedo":"asset://texture/test"},"parameters":{"strength":0.5,"effect_color":[1,0.25,0.5,1]},"render_state":{"blend":"alpha","cull":"none","depth_test":false,"depth_write":false,"alpha_cutoff":0.25}})");
   registry.assets.push_back({.id = "asset://material/test",
                              .type = "Material",
                              .sourcePath = root / "test.material.json"});
@@ -150,6 +150,7 @@ int main() {
   assert(material->state.blend == BlendMode::Alpha);
   assert(material->state.depthTest == DepthTest::Disabled);
   assert(!material->state.writeDepth);
+  assert(material->alphaCutoff == 0.25F);
   assert(material->uniforms.size() == 2 && resources.uniforms.size() == 2);
   materials.clear();
   assert(resources.uniforms.empty() && resources.programs.empty());

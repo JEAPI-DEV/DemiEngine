@@ -7,6 +7,7 @@ uniform vec4 u_lightDirection;
 uniform vec4 u_lightColor;
 uniform vec4 u_ambientColor;
 uniform vec4 u_tint;
+uniform vec4 u_alphaCutoff;
 uniform vec4 u_pointPositionRange[4];
 uniform vec4 u_pointColorIntensity[4];
 uniform vec4 u_spotPositionRange[4];
@@ -16,6 +17,10 @@ uniform vec4 u_spotInner[4];
 
 void main()
 {
+    vec4 albedo = texture2D(s_texColor, v_texcoord0) * v_color0 * u_tint;
+    if (albedo.a < u_alphaCutoff.x)
+        discard;
+
     float normalLength = length(v_normal);
     vec3 normal = v_normal / max(normalLength, 0.0001);
     vec3 directionalVector = -u_lightDirection.xyz;
@@ -59,6 +64,5 @@ void main()
                         spotAttenuation * spotAttenuation;
         }
     }
-    vec4 albedo = texture2D(s_texColor, v_texcoord0) * v_color0 * u_tint;
     gl_FragColor = vec4(albedo.rgb * lighting, albedo.a);
 }

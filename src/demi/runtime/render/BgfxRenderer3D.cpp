@@ -59,25 +59,17 @@ void hashValue(std::uint64_t &hash, const std::uint32_t value) {
   }
 }
 
-std::uint64_t meshSignature(const MeshRendererComponent &mesh,
-                            const std::uint32_t rgba) {
+std::uint64_t meshCacheRevision(const MeshRendererComponent &mesh) {
+  // Geometry mutation APIs advance revision. Keep this key constant-size so
+  // resident procedural meshes do not rescan all vertex data every camera.
   std::uint64_t hash = 14695981039346656037ULL;
   hashValue(hash, static_cast<std::uint32_t>(mesh.revision));
   hashValue(hash, static_cast<std::uint32_t>(mesh.revision >> 32U));
-  hashValue(hash, rgba);
   hashValue(hash, static_cast<std::uint32_t>(mesh.vertices.size()));
+  hashValue(hash, static_cast<std::uint32_t>(mesh.normals.size()));
   hashValue(hash, static_cast<std::uint32_t>(mesh.uvs.size()));
   for (const char value : mesh.shape)
     hashValue(hash, static_cast<unsigned char>(value));
-  for (const Vec3 value : mesh.vertices) {
-    hashValue(hash, std::bit_cast<std::uint32_t>(value.x));
-    hashValue(hash, std::bit_cast<std::uint32_t>(value.y));
-    hashValue(hash, std::bit_cast<std::uint32_t>(value.z));
-  }
-  for (const Vec2 value : mesh.uvs) {
-    hashValue(hash, std::bit_cast<std::uint32_t>(value.x));
-    hashValue(hash, std::bit_cast<std::uint32_t>(value.y));
-  }
   return hash;
 }
 
@@ -118,6 +110,8 @@ bool BgfxRenderer3D::initialize(std::string &error) {
   meshSampler_ = resources_.createSampler("s_texColor", error);
   tintUniform_ =
       resources_.createUniform("u_tint", UniformType::Vec4, 1, error);
+  alphaCutoffUniform_ =
+      resources_.createUniform("u_alphaCutoff", UniformType::Vec4, 1, error);
   lightDirectionUniform_ =
       resources_.createUniform("u_lightDirection", UniformType::Vec4, 1, error);
   lightColorUniform_ =
@@ -147,7 +141,8 @@ bool BgfxRenderer3D::initialize(std::string &error) {
                                             .debugName = "3D white fallback"},
                                            error);
   if (!meshProgram_ || !instancedMeshProgram_ || !meshSampler_ ||
-      !tintUniform_ || !whiteTexture_ || !lightDirectionUniform_ ||
+      !tintUniform_ || !alphaCutoffUniform_ || !whiteTexture_ ||
+      !lightDirectionUniform_ ||
       !lightColorUniform_ || !ambientColorUniform_ ||
       !pointPositionRangeUniform_ || !pointColorIntensityUniform_ ||
       !spotPositionRangeUniform_ || !spotDirectionOuterUniform_ ||
@@ -182,7 +177,8 @@ void BgfxRenderer3D::shutdown() {
   if (meshSampler_)
     resources_.destroy(meshSampler_);
   for (const UniformHandle uniform :
-       {tintUniform_, lightDirectionUniform_, lightColorUniform_,
+       {tintUniform_, alphaCutoffUniform_, lightDirectionUniform_,
+        lightColorUniform_,
         ambientColorUniform_, pointPositionRangeUniform_,
         pointColorIntensityUniform_, spotPositionRangeUniform_,
         spotDirectionOuterUniform_, spotColorIntensityUniform_,
@@ -196,6 +192,7 @@ void BgfxRenderer3D::shutdown() {
   whiteTexture_ = {};
   meshSampler_ = {};
   tintUniform_ = {};
+  alphaCutoffUniform_ = {};
   lightDirectionUniform_ = {};
   lightColorUniform_ = {};
   ambientColorUniform_ = {};
@@ -415,8 +412,10 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   const SceneLighting3D lighting =
       collectSceneLighting3D(world, frame.camera.renderMask);
   const std::array<float, 4> whiteTint{1.0F, 1.0F, 1.0F, 1.0F};
-  const std::array<DrawUniformValue, 10> lightingUniforms{{
+  const std::array<float, 4> noAlphaCutoff{};
+  const std::array<DrawUniformValue, 11> lightingUniforms{{
       {.handle = tintUniform_, .values = whiteTint},
+      {.handle = alphaCutoffUniform_, .values = noAlphaCutoff},
       {.handle = lightDirectionUniform_, .values = lighting.direction},
       {.handle = lightColorUniform_, .values = lighting.directionalColor},
       {.handle = ambientColorUniform_, .values = lighting.ambient},
@@ -477,13 +476,17 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       std::vector<DrawUniformValue> drawUniforms(lightingUniforms.begin(),
                                                  lightingUniforms.end());
       drawUniforms.front().values = entityTint;
+      const std::array<float, 4> alphaCutoff{
+          material == nullptr ? 0.0F : material->alphaCutoff, 0.0F, 0.0F,
+          0.0F};
+      drawUniforms[1].values = alphaCutoff;
       if (material != nullptr)
         drawUniforms.insert(drawUniforms.end(), material->uniforms.begin(),
                             material->uniforms.end());
       bool queued = false;
       if (!mesh->vertices.empty()) {
         liveDynamicMeshes.insert(entity.id);
-        const std::uint64_t signature = meshSignature(*mesh, color);
+        const std::uint64_t signature = meshCacheRevision(*mesh);
         auto &cached = dynamicMeshes_[entity.id];
         if (!cached)
           cached = std::make_unique<CachedMesh>(resources_);
@@ -595,7 +598,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         }
       } else {
         liveDynamicMeshes.insert(entity.id);
-        const std::uint64_t signature = meshSignature(*mesh, color);
+        const std::uint64_t signature = meshCacheRevision(*mesh);
         auto &cached = dynamicMeshes_[entity.id];
         if (!cached)
           cached = std::make_unique<CachedMesh>(resources_);
@@ -642,7 +645,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
                           .writeDepth = true};
     for (const auto &[key, group] : instanceGroups) {
       static_cast<void>(key);
-      std::array<DrawUniformValue, 10> groupUniforms = lightingUniforms;
+      std::array<DrawUniformValue, 11> groupUniforms = lightingUniforms;
       groupUniforms.front().values = group.tint;
       const bool queued =
           group.transforms.size() == 1U

@@ -16,6 +16,7 @@ struct MaterialRenderState {
   std::string cull = "back";
   bool depthTest = true;
   bool depthWrite = true;
+  float alphaCutoff = 0.0F;
 };
 
 struct MaterialAsset {

@@ -87,7 +87,8 @@ See [Animation and Audio](animation-and-audio.md).
 
 `Material` manifests point at versioned `*.material.json` sources. The source
 owns its shader ID, platform-independent fallback, named `asset://` texture
-slots, number/color parameters, and blend/cull/depth state. `Shader` manifests
+slots, number/color parameters, and blend/cull/depth/alpha-cutoff state.
+`Shader` manifests
 point at versioned `*.shader.json` sources containing one bgfx `.sc`
 vertex/fragment pair and a varying definition. Cooking produces the Vulkan and
 native fallback binaries for each target. Shader stage files are discovered as

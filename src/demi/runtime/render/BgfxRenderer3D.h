@@ -70,6 +70,7 @@ private:
   ProgramHandle instancedMeshProgram_;
   SamplerHandle meshSampler_;
   UniformHandle tintUniform_;
+  UniformHandle alphaCutoffUniform_;
   UniformHandle lightDirectionUniform_;
   UniformHandle lightColorUniform_;
   UniformHandle ambientColorUniform_;

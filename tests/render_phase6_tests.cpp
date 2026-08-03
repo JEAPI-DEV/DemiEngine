@@ -78,9 +78,17 @@ bool assetContracts() {
   std::filesystem::create_directories(root);
   write(
       root / "valid.material.json",
-      R"({"format_version":1,"shader":"builtin://lit","textures":{"albedo":"asset://texture"},"parameters":{"roughness":0.3,"base_color":[1,0.5,0.25,1]},"render_state":{"blend":"alpha","cull":"none","depth_write":false}})");
+      R"({"format_version":1,"shader":"builtin://lit","textures":{"albedo":"asset://texture"},"parameters":{"roughness":0.3,"base_color":[1,0.5,0.25,1]},"render_state":{"blend":"alpha","cull":"none","depth_write":false,"alpha_cutoff":0.5}})");
   write(root / "bad.material.json",
         R"({"format_version":1,"render_state":{"blend":"magic"}})");
+  write(root / "bad-alpha-cutoff.material.json",
+        R"({"format_version":1,"render_state":{"alpha_cutoff":1.1}})");
+  write(root / "negative-alpha-cutoff.material.json",
+        R"({"format_version":1,"render_state":{"alpha_cutoff":-0.1}})");
+  write(root / "maximum-alpha-cutoff.material.json",
+        R"({"format_version":1,"render_state":{"alpha_cutoff":1.0}})");
+  write(root / "default-alpha-cutoff.material.json",
+        R"({"format_version":1})");
   write(root / "shader.vert", "void main(){}\n");
   write(root / "shader.frag", "void main(){}\n");
   write(root / "varying.def.sc", "vec3 a_position : POSITION;\n");
@@ -119,6 +127,15 @@ bool assetContracts() {
   const auto material = assets::loadMaterialAsset(root / "valid.material.json");
   const auto invalid = assets::loadMaterialAsset(root / "bad.material.json",
                                                  &invalidDiagnostics);
+  Diagnostics alphaCutoffDiagnostics;
+  const auto invalidAlphaCutoff = assets::loadMaterialAsset(
+      root / "bad-alpha-cutoff.material.json", &alphaCutoffDiagnostics);
+  const auto negativeAlphaCutoff = assets::loadMaterialAsset(
+      root / "negative-alpha-cutoff.material.json", &alphaCutoffDiagnostics);
+  const auto maximumAlphaCutoff =
+      assets::loadMaterialAsset(root / "maximum-alpha-cutoff.material.json");
+  const auto defaultAlphaCutoff =
+      assets::loadMaterialAsset(root / "default-alpha-cutoff.material.json");
   const auto shader = assets::loadShaderAsset(root / "valid.shader.json");
   const auto shaderSourceFiles =
       assets::collectReferencedSourceFiles(root / "valid.shader.json");
@@ -167,8 +184,15 @@ bool assetContracts() {
          material->numbers.contains("roughness") &&
          material->colors.contains("base_color") &&
          material->renderState.blend == "alpha" &&
+         material->renderState.alphaCutoff == 0.5F &&
          !material->renderState.depthWrite && !invalid &&
-         !invalidDiagnostics.empty() && shader && !invalidShader &&
+         !invalidDiagnostics.empty() && !invalidAlphaCutoff &&
+         !negativeAlphaCutoff && alphaCutoffDiagnostics.size() == 2 &&
+         maximumAlphaCutoff &&
+         maximumAlphaCutoff->renderState.alphaCutoff == 1.0F &&
+         defaultAlphaCutoff &&
+         defaultAlphaCutoff->renderState.alphaCutoff == 0.0F && shader &&
+         !invalidShader &&
          !shaderDiagnostics.empty() && shader &&
          shader->stages.vertex.filename() == "shader.vert" &&
          shader->varyingDefinition && shaderSourceFiles.size() == 4 && target &&

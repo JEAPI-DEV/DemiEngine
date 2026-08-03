@@ -22,6 +22,7 @@ struct MaterialBinding {
   ProgramHandle program;
   std::string albedoTexture;
   DrawState state;
+  float alphaCutoff = 0.0F;
   std::uint32_t uniformSet = 0;
   std::vector<MaterialParameter> parameters;
   std::vector<DrawUniformValue> uniforms;

@@ -21,10 +21,16 @@ parameters for one entity without cloning the material asset.
     "blend": "opaque",
     "cull": "back",
     "depth_test": true,
-    "depth_write": true
+    "depth_write": true,
+    "alpha_cutoff": 0.0
   }
 }
 ```
+
+`alpha_cutoff` discards texels whose alpha is below the configured value. It
+defaults to `0.0` and accepts values through `1.0`; pixel-art foliage and other
+opaque cutouts commonly use `0.5` so transparent atlas pixels do not write
+color or depth.
 
 Custom `Shader` assets name one bgfx shader-language source pair and a varying
 definition. Built-in shaders are embedded in the executable.
