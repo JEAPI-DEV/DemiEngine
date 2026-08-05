@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -26,5 +27,11 @@ struct AnimatedImageData2D {
 [[nodiscard]] bool decodeGif2D(std::span<const std::byte> encoded,
                                AnimatedImageData2D &animation,
                                std::string &error);
+
+// Converts exact RGB matches to transparent pixels after decoding. This lets
+// legacy RGB-only formats opt into transparency without affecting other
+// textures or relying on a renderer-specific shader rule.
+void applyColorKeyTransparency2D(ImageData2D &image,
+                                 const std::array<std::uint8_t, 3> &colorKey);
 
 } // namespace demi::runtime::render

@@ -9,29 +9,36 @@ TextureLibrary2D::TextureLibrary2D(GpuResources &resources)
 
 TextureLibrary2D::~TextureLibrary2D() { clear(); }
 
-bool TextureLibrary2D::load(std::string id,
-                            const std::span<const std::byte> encoded,
-                            std::string &error,
-                            const TextureSampling2D sampling) {
+bool TextureLibrary2D::load(
+    std::string id, const std::span<const std::byte> encoded,
+    std::string &error, const TextureSampling2D sampling,
+    const std::optional<std::array<std::uint8_t, 3>> colorKey) {
   ImageData2D image;
   return decodeImage2D(encoded, image, error) &&
-         upload(std::move(id), image, error, sampling);
+         upload(std::move(id), image, error, sampling, colorKey);
 }
 
-bool TextureLibrary2D::upload(std::string id, const ImageData2D &image,
-                              std::string &error,
-                              const TextureSampling2D sampling) {
+bool TextureLibrary2D::upload(
+    std::string id, const ImageData2D &image, std::string &error,
+    const TextureSampling2D sampling,
+    const std::optional<std::array<std::uint8_t, 3>> colorKey) {
   if (id.empty() || image.width == 0 || image.height == 0 ||
       image.rgba.size() !=
           static_cast<std::size_t>(image.width) * image.height * 4U) {
     error = "Texture upload requires an ID and complete RGBA image data.";
     return false;
   }
+  std::optional<ImageData2D> imported;
+  if (colorKey) {
+    imported = image;
+    applyColorKeyTransparency2D(*imported, *colorKey);
+  }
+  const ImageData2D &uploadImage = imported ? *imported : image;
   const TextureHandle replacement =
-      resources_.createTexture(TextureCreateInfo{.width = image.width,
-                                                 .height = image.height,
+      resources_.createTexture(TextureCreateInfo{.width = uploadImage.width,
+                                                 .height = uploadImage.height,
                                                  .format = TextureFormat::RGBA8,
-                                                 .data = image.rgba,
+                                                 .data = uploadImage.rgba,
                                                  .filter = sampling.filter,
                                                  .wrap = sampling.wrap,
                                                  .debugName = id},
@@ -42,12 +49,14 @@ bool TextureLibrary2D::upload(std::string id, const ImageData2D &image,
   const auto existing = textures_.find(id);
   if (existing != textures_.end()) {
     resources_.destroy(existing->second.handle);
-    existing->second = {
-        .handle = replacement, .width = image.width, .height = image.height};
+    existing->second = {.handle = replacement,
+                        .width = uploadImage.width,
+                        .height = uploadImage.height};
   } else {
-    textures_.emplace(std::move(id), TextureView2D{.handle = replacement,
-                                                   .width = image.width,
-                                                   .height = image.height});
+    textures_.emplace(std::move(id),
+                      TextureView2D{.handle = replacement,
+                                    .width = uploadImage.width,
+                                    .height = uploadImage.height});
   }
   return true;
 }

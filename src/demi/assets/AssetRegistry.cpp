@@ -8,6 +8,8 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <array>
+#include <charconv>
 #include <fstream>
 #include <set>
 #include <sstream>
@@ -21,6 +23,22 @@ std::string readFile(const std::filesystem::path &path) {
   std::ostringstream buffer;
   buffer << input.rdbuf();
   return buffer.str();
+}
+
+std::optional<std::array<std::uint8_t, 3>>
+parseColorKey(const std::string_view value) {
+  if (value.size() != 7 || value.front() != '#')
+    return std::nullopt;
+  std::array<std::uint8_t, 3> result{};
+  for (std::size_t channel = 0; channel < result.size(); ++channel) {
+    unsigned int byte = 0;
+    const char *begin = value.data() + 1 + channel * 2;
+    const auto parsed = std::from_chars(begin, begin + 2, byte, 16);
+    if (parsed.ec != std::errc{} || parsed.ptr != begin + 2)
+      return std::nullopt;
+    result[channel] = static_cast<std::uint8_t>(byte);
+  }
+  return result;
 }
 
 std::vector<std::string>
@@ -197,6 +215,21 @@ loadAssetManifestImpl(const std::filesystem::path &manifestPath,
       manifest.textureSettings.filter = settings->value("filter", "");
       manifest.textureSettings.wrap = settings->value("wrap", "clamp");
       manifest.textureSettings.mipmaps = settings->value("mipmaps", false);
+      if (const auto colorKey = settings->find("color_key");
+          colorKey != settings->end()) {
+        if (!colorKey->is_string() ||
+            !(manifest.textureSettings.colorKey =
+                  parseColorKey(colorKey->get<std::string>()))) {
+          if (diagnostic != nullptr)
+            *diagnostic = {.severity = Severity::Error,
+                           .code = "ASSET_TEXTURE_COLOR_KEY_INVALID",
+                           .message =
+                               "Texture color_key must use #RRGGBB syntax.",
+                           .path = manifestPath.string(),
+                           .suggestion = "Use an exact color such as #000000."};
+          return std::nullopt;
+        }
+      }
     }
     manifest.attribution = document.value("attribution", "");
     manifest.manifestPath = manifestPath;
@@ -429,8 +462,8 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
                    .code = "ANIMATION_CLIP_NAME_MISSING",
                    .message = "A model animation clip has no stable name.",
                    .path = asset.manifestPath.string(),
-                   .suggestion =
-                       "Name every imported clip in settings.animations.clips."});
+                   .suggestion = "Name every imported clip in "
+                                 "settings.animations.clips."});
             else if (!names.insert(name).second)
               diagnostics.push_back(
                   {.severity = Severity::Error,

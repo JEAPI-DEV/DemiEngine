@@ -125,7 +125,8 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
         if (bytes.empty() ||
             !textures_.load(asset.id + "#" + std::to_string(frame), bytes,
                             error,
-                            textureSampling(asset, TextureFilter::Nearest))) {
+                            textureSampling(asset, TextureFilter::Nearest),
+                            asset.textureSettings.colorKey)) {
           diagnostics.push_back(
               asset.id + " frame " + std::to_string(frame) + ": " +
               (error.empty() ? "could not read source" : error));
@@ -153,7 +154,8 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
       for (std::size_t frame = 0; frame < animation.frames.size(); ++frame) {
         if (!textures_.upload(asset.id + "#" + std::to_string(frame),
                               animation.frames[frame], error,
-                              textureSampling(asset, TextureFilter::Nearest))) {
+                              textureSampling(asset, TextureFilter::Nearest),
+                              asset.textureSettings.colorKey)) {
           diagnostics.push_back(asset.id + " frame " + std::to_string(frame) +
                                 ": " + error);
           uploaded = false;
@@ -174,7 +176,8 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
       if (!decodeSvg2D(asset.sourcePath, asset.type == "Icon2D", image,
                        error) ||
           !textures_.upload(asset.id, image, error,
-                            textureSampling(asset, TextureFilter::Linear))) {
+                            textureSampling(asset, TextureFilter::Linear),
+                            asset.textureSettings.colorKey)) {
         diagnostics.push_back(asset.id + ": " + error);
         success = false;
       }
@@ -186,7 +189,8 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
     std::string error;
     if (bytes.empty() ||
         !textures_.load(asset.id, bytes, error,
-                        textureSampling(asset, TextureFilter::Nearest))) {
+                        textureSampling(asset, TextureFilter::Nearest),
+                        asset.textureSettings.colorKey)) {
       diagnostics.push_back(asset.id + ": " +
                             (error.empty() ? "could not read source" : error));
       success = false;

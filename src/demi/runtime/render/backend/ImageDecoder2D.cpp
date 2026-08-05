@@ -5,8 +5,8 @@
 #include <bx/error.h>
 
 #include <algorithm>
-#include <charconv>
 #include <cctype>
+#include <charconv>
 #include <cstring>
 #include <limits>
 #include <string_view>
@@ -44,9 +44,8 @@ bool decodePpm(const std::span<const std::byte> encoded, ImageData2D &image,
     const std::string_view valueText = token();
     if (valueText.empty())
       return false;
-    const auto result =
-        std::from_chars(valueText.data(), valueText.data() + valueText.size(),
-                        value);
+    const auto result = std::from_chars(
+        valueText.data(), valueText.data() + valueText.size(), value);
     return result.ec == std::errc{} &&
            result.ptr == valueText.data() + valueText.size();
   };
@@ -66,8 +65,8 @@ bool decodePpm(const std::span<const std::byte> encoded, ImageData2D &image,
   image.height = static_cast<std::uint16_t>(height);
   image.rgba.resize(pixels * 4U);
   const auto scale = [maximum](const int value) {
-    return static_cast<std::byte>(
-        std::clamp(value, 0, maximum) * 255 / maximum);
+    return static_cast<std::byte>(std::clamp(value, 0, maximum) * 255 /
+                                  maximum);
   };
   if (binary) {
     if (cursor >= text.size() ||
@@ -112,18 +111,17 @@ bool decodePpm(const std::span<const std::byte> encoded, ImageData2D &image,
 
 } // namespace
 
-bool decodeImage2D(const std::span<const std::byte> encoded,
-                   ImageData2D &image, std::string &error) {
+bool decodeImage2D(const std::span<const std::byte> encoded, ImageData2D &image,
+                   std::string &error) {
   image = {};
   if (encoded.empty() ||
       encoded.size() > std::numeric_limits<std::uint32_t>::max()) {
     error = "Image data is empty or too large to decode.";
     return false;
   }
-  if (encoded.size() >= 2 &&
-      (encoded[0] == static_cast<std::byte>('P') &&
-       (encoded[1] == static_cast<std::byte>('3') ||
-        encoded[1] == static_cast<std::byte>('6'))))
+  if (encoded.size() >= 2 && (encoded[0] == static_cast<std::byte>('P') &&
+                              (encoded[1] == static_cast<std::byte>('3') ||
+                               encoded[1] == static_cast<std::byte>('6'))))
     return decodePpm(encoded, image, error);
 
   bx::DefaultAllocator allocator;
@@ -156,6 +154,16 @@ bool decodeImage2D(const std::span<const std::byte> encoded,
   std::memcpy(image.rgba.data(), decoded->m_data, image.rgba.size());
   bimg::imageFree(decoded);
   return true;
+}
+
+void applyColorKeyTransparency2D(ImageData2D &image,
+                                 const std::array<std::uint8_t, 3> &colorKey) {
+  for (std::size_t offset = 0; offset + 3 < image.rgba.size(); offset += 4) {
+    if (std::to_integer<std::uint8_t>(image.rgba[offset]) == colorKey[0] &&
+        std::to_integer<std::uint8_t>(image.rgba[offset + 1]) == colorKey[1] &&
+        std::to_integer<std::uint8_t>(image.rgba[offset + 2]) == colorKey[2])
+      image.rgba[offset + 3] = std::byte{0};
+  }
 }
 
 } // namespace demi::runtime::render

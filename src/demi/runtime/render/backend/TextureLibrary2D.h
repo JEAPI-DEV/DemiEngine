@@ -3,7 +3,9 @@
 #include "demi/runtime/render/backend/GpuResources.h"
 #include "demi/runtime/render/backend/ImageDecoder2D.h"
 
+#include <array>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -30,11 +32,14 @@ public:
   TextureLibrary2D(const TextureLibrary2D &) = delete;
   TextureLibrary2D &operator=(const TextureLibrary2D &) = delete;
 
-  [[nodiscard]] bool load(std::string id, std::span<const std::byte> encoded,
-                          std::string &error, TextureSampling2D sampling = {});
-  [[nodiscard]] bool upload(std::string id, const ImageData2D &image,
-                            std::string &error,
-                            TextureSampling2D sampling = {});
+  [[nodiscard]] bool
+  load(std::string id, std::span<const std::byte> encoded, std::string &error,
+       TextureSampling2D sampling = {},
+       std::optional<std::array<std::uint8_t, 3>> colorKey = std::nullopt);
+  [[nodiscard]] bool
+  upload(std::string id, const ImageData2D &image, std::string &error,
+         TextureSampling2D sampling = {},
+         std::optional<std::array<std::uint8_t, 3>> colorKey = std::nullopt);
   [[nodiscard]] TextureView2D find(std::string_view id) const;
   [[nodiscard]] bool remove(std::string_view id);
   void clear();

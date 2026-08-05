@@ -2,6 +2,8 @@
 
 #include "demi/diagnostics/Diagnostic.h"
 
+#include <array>
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -13,6 +15,7 @@ struct TextureImporterSettings {
   std::string filter;
   std::string wrap = "clamp";
   bool mipmaps = false;
+  std::optional<std::array<std::uint8_t, 3>> colorKey;
 };
 
 struct AssetManifest {

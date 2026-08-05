@@ -35,7 +35,8 @@ files. New imports record all pipeline metadata:
   "settings": {
     "filter": "nearest",
     "wrap": "clamp",
-    "mipmaps": false
+    "mipmaps": false,
+    "color_key": "#000000"
   },
   "license": "License.txt",
   "attribution": "Artist name"
@@ -54,7 +55,9 @@ discovered and carried through import, export, and cooking.
 Texture-bearing assets accept `nearest`, `bilinear`, or `trilinear` filtering;
 `repeat`, `clamp`, or `mirror` wrapping; and optional mipmap generation. The
 same settings apply to standalone textures, explicit model textures, and
-textures embedded in glTF materials.
+textures embedded in glTF materials. RGB-only legacy sprites can specify an
+exact `color_key` in `#RRGGBB` form; matching pixels become fully transparent
+during import. Omit it for formats such as PNG that already contain alpha.
 
 ### Animation and audio assets
 
