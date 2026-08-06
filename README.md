@@ -10,7 +10,11 @@ demi build apk
 demi run linux
 ```
 
-The runtime can load JSON projects and scenes, run Lua 5.4 scripts, render 2D and lightweight 3D scenes through raylib, step 2D and 3D physics helpers, play audio and media, save versioned JSON state, run data-driven HUDs, and package projects for Linux and Android.
+The runtime can load JSON projects and scenes, run Lua 5.4 scripts, render 2D
+and lightweight 3D scenes, step 2D and 3D physics helpers, play audio and
+media, save versioned JSON state, run data-driven HUDs, and package projects
+for Linux and Android. All visible 2D and 3D scenes use SDL3 and a Vulkan-first
+bgfx renderer. See `docs/bgfx-migration.md`.
 
 The editor executable currently exists as a command boundary rather than a finished graphical editor. The CLI is the primary development, validation, build, and automation interface.
 
@@ -89,6 +93,7 @@ The examples are not throwaway snippets. They are reference projects used to exe
 
 - `examples/isometric_base_builder`: playable isometric tower-defense and base-building demo with construction, pathfinding, enemies, defenses, and resources.
 - `examples/minimal_2d_networking`: menu flow, saves, scene switching, platformer and slingshot gameplay, plus optional networking paths.
+- `examples/multiplayer_ffa_shooter`: shared Linux/Android top-down shooter with host-authoritative hits, replicated players, respawns, scoring, and touch controls.
 - `examples/fighting_game_2d`: 2D fighting-game systems, data, and Lua gameplay scripts.
 - `examples/minimal_voxel`: voxel-style 3D scene and physics integration.
 
@@ -139,7 +144,7 @@ When an example needs behavior that belongs in the engine, the preferred approac
 - Lua 5.4 scripting through sol2.
 - Lua lifecycle functions: `on_create`, `on_start`, `on_update`, `on_fixed_update`, and `on_destroy`.
 - Lua action and event annotations: `@HandleAction("...")` and `@OnEvent("...")`.
-- Lua services for `Debug`, `Input`, `Timer`, `Events`, `Scene`, `Runtime`, `Entity`, `Transform2D`, `Transform3D`, `Physics2D`, `Physics3D`, `Rigidbody2D`, `HUD`, `Save`, `Audio`, `Video`, `Cutscene`, `Network`, and `NetworkSession`.
+- Lua services for `Data`, `Debug`, `Input`, `Timer`, `Events`, `Scene`, `Runtime`, `Entity`, `Transform2D`, `Transform3D`, `Physics2D`, `Physics3D`, `Rigidbody2D`, `HUD`, `Save`, `Audio`, `Video`, `Cutscene`, `Network`, and `NetworkSession`.
 - 2D rendering, HUD rendering, debug lines, and pixel-style text rendering.
 - Lightweight 3D rendering with hierarchical transforms, glTF materials and
   named skeletal clips, frustum culling, deterministic material batches,
@@ -159,6 +164,7 @@ A typical DemiEngine project uses deterministic files that can be inspected and 
 - HUD files: `*.hud.json`
 - Saves: `*.save.json`
 - Assets: `*.asset.json`
+- General game data: schema-backed `DataAsset` JSON loaded through Lua `Data`
 - Lua scripts: `*.lua`
 
 Every project, scene, save, and asset manifest should include `format_version`. Generated output belongs in `build/`, `generated/`, or `examples/**/generated/`.
@@ -269,7 +275,9 @@ Required for the default Linux debug build:
 
 Fetched or linked by CMake:
 
-- raylib 5.5: rendering, windowing, input, models, and platform layer
+- SDL3: Linux and Android windowing, lifecycle, input, and clipboard
+- bgfx: backend-neutral 2D and 3D GPU rendering with Vulkan, OpenGL, and
+  OpenGL ES
 - Lua 5.4.7 and sol2: gameplay VM and C++/Lua bindings
 - Box2D 2.4.1: 2D physics
 - miniaudio 0.11.22: audio playback
@@ -367,8 +375,10 @@ Useful focused checks:
 
 - [Generated documentation PDF](https://github.com/JEAPI-DEV/DemiEngine/blob/main/docs/latex/main.pdf)
 - [Architecture notes](docs/architecture.md)
+- [Getting started](docs/getting-started.md)
 - [CLI notes](docs/cli.md)
 - [File formats](docs/file-formats.md)
+- [Data assets](docs/data-assets.md)
 - [Capability matrix](docs/capabilities.md)
 - [Compatibility policy](docs/compatibility.md)
 

@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace demi::runtime {
@@ -14,11 +15,15 @@ struct MeshRendererComponent {
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
   static constexpr std::array fields{
-      ComponentFieldDescriptor{"model", ComponentFieldType::String},
+      ComponentFieldDescriptor::assetReference("model"),
       ComponentFieldDescriptor{"shape", ComponentFieldType::String},
       ComponentFieldDescriptor{"size", ComponentFieldType::Vec3},
       ComponentFieldDescriptor{"color", ComponentFieldType::Color},
-      ComponentFieldDescriptor{"texture", ComponentFieldType::String},
+      ComponentFieldDescriptor::assetReference("texture"),
+      ComponentFieldDescriptor::assetReference("material"),
+      ComponentFieldDescriptor{"material_properties",
+                               ComponentFieldType::Object},
+      ComponentFieldDescriptor{"render_layer", ComponentFieldType::String},
       ComponentFieldDescriptor{"vertices", ComponentFieldType::Vec3Array},
       ComponentFieldDescriptor{"normals", ComponentFieldType::Vec3Array},
       ComponentFieldDescriptor{"uvs", ComponentFieldType::Vec2Array},
@@ -31,6 +36,10 @@ struct MeshRendererComponent {
   Vec3 size = {1.0F, 1.0F, 1.0F};
   Color color = {0.8F, 0.8F, 0.8F, 1.0F};
   std::string texture;
+  std::string material;
+  std::unordered_map<std::string, float> materialNumbers;
+  std::unordered_map<std::string, Color> materialColors;
+  std::string renderLayer;
   std::vector<Vec3> vertices;
   std::vector<Vec3> normals;
   std::vector<Vec2> uvs;

@@ -1,9 +1,12 @@
-#include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/network/ReplicatedState.h"
-#include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/components/EngineComponents.h"
+#include "demi/runtime/scripting/LuaScriptHost.h"
 
+#include "demi/runtime/camera/Camera3DMath.h"
 #include "demi/runtime/input/InputActionResolver.h"
+#include "demi/runtime/input/InputRebinding.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/Physics3D.h"
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
@@ -12,7 +15,6 @@
 
 #include <algorithm>
 #include <optional>
-#include <unordered_set>
 #include <utility>
 
 namespace demi::runtime {
@@ -25,20 +27,114 @@ bool LuaScriptHost::isKeyPressed(const std::string &key) const {
   return input_ != nullptr && input_->keysPressed.contains(normalizedKey(key));
 }
 
-bool LuaScriptHost::isActionDown(const std::string &action) const {
-  return input_ != nullptr &&
-         input::InputActionResolver{}.down(inputActions_, *input_, action);
+bool LuaScriptHost::isKeyReleased(const std::string &key) const {
+  return input_ != nullptr && input_->keysReleased.contains(normalizedKey(key));
 }
 
-bool LuaScriptHost::isActionPressed(const std::string &action) const {
+bool LuaScriptHost::isActionDown(const std::string &action,
+                                 const int player) const {
   return input_ != nullptr &&
-         input::InputActionResolver{}.pressed(inputActions_, *input_, action);
+         input::InputActionResolver{}.down(inputActions_, *input_, action,
+                                           player, &activeInputContexts_);
 }
 
-float LuaScriptHost::actionValue(const std::string &action) const {
-  return input_ == nullptr ? 0.0F
-                           : input::InputActionResolver{}.value(
-                                 inputActions_, *input_, action);
+bool LuaScriptHost::isActionPressed(const std::string &action,
+                                    const int player) const {
+  return input_ != nullptr &&
+         input::InputActionResolver{}.pressed(inputActions_, *input_, action,
+                                              player, &activeInputContexts_);
+}
+
+bool LuaScriptHost::isActionReleased(const std::string &action,
+                                     const int player) const {
+  return input_ != nullptr &&
+         input::InputActionResolver{}.released(inputActions_, *input_, action,
+                                               player, &activeInputContexts_);
+}
+
+float LuaScriptHost::actionValue(const std::string &action,
+                                 const int player) const {
+  return input_ == nullptr
+             ? 0.0F
+             : input::InputActionResolver{}.value(inputActions_, *input_,
+                                                  action, player,
+                                                  &activeInputContexts_);
+}
+
+Vec2 LuaScriptHost::actionVector(const std::string &action,
+                                 const int player) const {
+  return input_ == nullptr
+             ? Vec2{}
+             : input::InputActionResolver{}.vector(inputActions_, *input_,
+                                                   action, player,
+                                                   &activeInputContexts_);
+}
+
+std::string LuaScriptHost::actionSource(const std::string &action,
+                                        const int player) const {
+  return input_ == nullptr ? std::string{}
+                           : input::InputActionResolver{}
+                                 .resolve(inputActions_, *input_, action,
+                                          player, &activeInputContexts_)
+                                 .source;
+}
+
+void LuaScriptHost::enableInputContext(const std::string &context) {
+  activeInputContexts_.insert(normalizedKey(context));
+}
+
+void LuaScriptHost::disableInputContext(const std::string &context) {
+  activeInputContexts_.erase(normalizedKey(context));
+}
+
+bool LuaScriptHost::inputContextEnabled(const std::string &context) const {
+  return activeInputContexts_.empty() ||
+         activeInputContexts_.contains(normalizedKey(context));
+}
+
+bool LuaScriptHost::rebindInput(const std::string &action,
+                                const std::size_t bindingIndex,
+                                const std::string &inputName, const int player,
+                                std::string &error) {
+  return input::InputRebinding::rebind(inputActions_, action, bindingIndex,
+                                       {.input = inputName, .player = player},
+                                       error);
+}
+
+bool LuaScriptHost::saveInputBindings(const std::string &path,
+                                      std::string &error) const {
+  const std::filesystem::path value(path);
+  return input::InputRebinding::save(
+      inputActions_,
+      value.is_absolute() ? value : applicationServices_.userDataPath() / value,
+      error);
+}
+
+bool LuaScriptHost::loadInputBindings(const std::string &path,
+                                      std::string &error) {
+  const std::filesystem::path value(path);
+  return input::InputRebinding::load(
+      inputActions_,
+      value.is_absolute() ? value : applicationServices_.userDataPath() / value,
+      error);
+}
+
+bool LuaScriptHost::assignGamepad(const int deviceId, const int player) {
+  if (input_ == nullptr || player < 0)
+    return false;
+  const auto found =
+      std::ranges::find(input_->gamepads, deviceId, &GamepadState::deviceId);
+  if (found == input_->gamepads.end())
+    return false;
+  found->player = player;
+  input_->gamepadAssignments[deviceId] = player;
+  return true;
+}
+
+const InputState *LuaScriptHost::inputState() const { return input_; }
+
+const std::vector<input::GestureEvent> &LuaScriptHost::gestures() const {
+  return gestureEvents_;
 }
 
 std::string LuaScriptHost::textEntered() const {
@@ -144,9 +240,8 @@ bool LuaScriptHost::addEntityPosition3D(const std::string &entityId,
   if (entity == nullptr || !entity->hasComponent<Transform3DComponent>()) {
     return false;
   }
-  entity->component<Transform3DComponent>()->position = resolveDynamicMove3D(
-      *world_, *entity, entity->component<Transform3DComponent>()->position,
-      Vec3{.x = dx, .y = dy, .z = dz});
+  auto &position = entity->component<Transform3DComponent>()->position;
+  position = {position.x + dx, position.y + dy, position.z + dz};
   return true;
 }
 
@@ -160,14 +255,7 @@ bool LuaScriptHost::setEntityPosition3D(const std::string &entityId,
   if (entity == nullptr || !entity->hasComponent<Transform3DComponent>()) {
     return false;
   }
-  const Vec3 target{.x = x, .y = y, .z = z};
-  const Vec3 delta{
-      .x = target.x - entity->component<Transform3DComponent>()->position.x,
-      .y = target.y - entity->component<Transform3DComponent>()->position.y,
-      .z = target.z - entity->component<Transform3DComponent>()->position.z};
-  entity->component<Transform3DComponent>()->position = resolveDynamicMove3D(
-      *world_, *entity, entity->component<Transform3DComponent>()->position,
-      delta);
+  entity->component<Transform3DComponent>()->position = {x, y, z};
   return true;
 }
 
@@ -236,6 +324,100 @@ bool LuaScriptHost::setEntityScale3D(const std::string &entityId, const float x,
   return true;
 }
 
+std::optional<Vec3>
+LuaScriptHost::entityForward3D(const std::string &entityId) const {
+  const Entity *entity =
+      world_ != nullptr ? findEntity(*world_, entityId) : nullptr;
+  const auto transform = entity != nullptr
+                             ? resolveWorldTransform3D(*world_, *entity)
+                             : std::nullopt;
+  return transform ? std::optional{forwardDirection3D(*transform)}
+                   : std::nullopt;
+}
+
+std::optional<Vec3>
+LuaScriptHost::entityRight3D(const std::string &entityId) const {
+  const Entity *entity =
+      world_ != nullptr ? findEntity(*world_, entityId) : nullptr;
+  const auto transform = entity != nullptr
+                             ? resolveWorldTransform3D(*world_, *entity)
+                             : std::nullopt;
+  return transform ? std::optional{rightDirection3D(*transform)} : std::nullopt;
+}
+
+std::optional<Vec3>
+LuaScriptHost::entityUp3D(const std::string &entityId) const {
+  const Entity *entity =
+      world_ != nullptr ? findEntity(*world_, entityId) : nullptr;
+  const auto transform = entity != nullptr
+                             ? resolveWorldTransform3D(*world_, *entity)
+                             : std::nullopt;
+  return transform ? std::optional{upDirection3D(*transform)} : std::nullopt;
+}
+
+bool LuaScriptHost::lookAtEntity3D(const std::string &entityId, const float x,
+                                   const float y, const float z) {
+  Entity *entity = world_ != nullptr ? findEntity(*world_, entityId) : nullptr;
+  auto *transform =
+      entity != nullptr ? entity->component<Transform3DComponent>() : nullptr;
+  if (transform == nullptr)
+    return false;
+  transform->rotation = lookAtRotation3D(transform->position, Vec3{x, y, z});
+  return true;
+}
+
+std::optional<CameraRay3D>
+LuaScriptHost::cameraRay3D(const std::string &entityId, const float screenX,
+                           const float screenY, const float viewportWidth,
+                           const float viewportHeight) const {
+  const Entity *entity =
+      world_ != nullptr ? findEntity(*world_, entityId) : nullptr;
+  const auto *camera =
+      entity != nullptr ? entity->component<Camera3DComponent>() : nullptr;
+  const auto transform = entity != nullptr
+                             ? resolveWorldTransform3D(*world_, *entity)
+                             : std::nullopt;
+  if (camera == nullptr || !transform)
+    return std::nullopt;
+  return cameraScreenRay3D(*transform, *camera, {screenX, screenY},
+                           {viewportWidth, viewportHeight});
+}
+
+std::optional<Vec2> LuaScriptHost::cameraWorldToScreen3D(
+    const std::string &entityId, const float worldX, const float worldY,
+    const float worldZ, const float viewportWidth,
+    const float viewportHeight) const {
+  const Entity *entity =
+      world_ != nullptr ? findEntity(*world_, entityId) : nullptr;
+  const auto *camera =
+      entity != nullptr ? entity->component<Camera3DComponent>() : nullptr;
+  const auto transform = entity != nullptr
+                             ? resolveWorldTransform3D(*world_, *entity)
+                             : std::nullopt;
+  return camera != nullptr && transform
+             ? worldToScreen3D(*transform, *camera, {worldX, worldY, worldZ},
+                               {viewportWidth, viewportHeight})
+             : std::nullopt;
+}
+
+std::optional<Vec3> LuaScriptHost::cameraScreenToWorld3D(
+    const std::string &entityId, const float screenX, const float screenY,
+    const float viewportWidth, const float viewportHeight,
+    const float distance) const {
+  const Entity *entity =
+      world_ != nullptr ? findEntity(*world_, entityId) : nullptr;
+  const auto *camera =
+      entity != nullptr ? entity->component<Camera3DComponent>() : nullptr;
+  const auto transform = entity != nullptr
+                             ? resolveWorldTransform3D(*world_, *entity)
+                             : std::nullopt;
+  return camera != nullptr && transform
+             ? std::optional{screenToWorld3D(
+                   *transform, *camera, {screenX, screenY},
+                   {viewportWidth, viewportHeight}, distance)}
+             : std::nullopt;
+}
+
 std::optional<std::string>
 LuaScriptHost::findEntityId(const std::string &idOrName) const {
   if (world_ == nullptr) {
@@ -249,42 +431,14 @@ LuaScriptHost::findEntityId(const std::string &idOrName) const {
   return std::nullopt;
 }
 
-bool LuaScriptHost::destroyEntity(const std::string &entityId) {
-  if (world_ == nullptr) {
-    return false;
-  }
-  const auto before = world_->entities.size();
-  std::erase_if(world_->entities,
-                [&](const Entity &entity) { return entity.id == entityId; });
-  return world_->entities.size() != before;
-}
-
-int LuaScriptHost::destroyEntities(const std::vector<std::string> &entityIds) {
-  if (world_ == nullptr || entityIds.empty()) {
-    return 0;
-  }
-  std::unordered_set<std::string> ids;
-  ids.reserve(entityIds.size());
-  for (const std::string &entityId : entityIds) {
-    if (!entityId.empty()) {
-      ids.insert(entityId);
-    }
-  }
-  if (ids.empty()) {
-    return 0;
-  }
-  const auto before = world_->entities.size();
-  std::erase_if(world_->entities,
-                [&](const Entity &entity) { return ids.contains(entity.id); });
-  return static_cast<int>(before - world_->entities.size());
-}
-
 bool LuaScriptHost::setEntitySpriteColor(const std::string &entityId,
                                          const Color color) {
   if (world_ == nullptr) {
     return false;
   }
   Entity *entity = findEntity(*world_, entityId);
+  if (entity == nullptr)
+    entity = worldCommands_.pendingEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<SpriteComponent>()) {
     return false;
   }
@@ -324,6 +478,128 @@ bool LuaScriptHost::addRigidbodyImpulse(const std::string &entityId,
                                   *world_, entityId, Vec2{.x = x, .y = y});
 }
 
+bool LuaScriptHost::addRigidbodyForce(const std::string &entityId,
+                                      const float x, const float y) {
+  return world_ != nullptr && demi::runtime::addRigidbodyForce(
+                                  *world_, entityId, Vec2{.x = x, .y = y});
+}
+
+bool LuaScriptHost::addRigidbodyTorque(const std::string &entityId,
+                                       const float torque) {
+  return world_ != nullptr &&
+         demi::runtime::addRigidbodyTorque(*world_, entityId, torque);
+}
+
+bool LuaScriptHost::setRigidbodyAngularVelocity(const std::string &entityId,
+                                                const float angularVelocity) {
+  return world_ != nullptr && demi::runtime::setRigidbodyAngularVelocity(
+                                  *world_, entityId, angularVelocity);
+}
+
+bool LuaScriptHost::setRigidbodyAwake(const std::string &entityId,
+                                      const bool awake) {
+  return world_ != nullptr &&
+         demi::runtime::setRigidbodyAwake(*world_, entityId, awake);
+}
+
+bool LuaScriptHost::setRigidbodyEnabled(const std::string &entityId,
+                                        const bool enabled) {
+  return world_ != nullptr &&
+         demi::runtime::setRigidbodyEnabled(*world_, entityId, enabled);
+}
+
+bool LuaScriptHost::moveKinematicBody(const std::string &entityId,
+                                      const float x, const float y,
+                                      const float fixedDt) {
+  return world_ != nullptr &&
+         demi::runtime::moveKinematicBody(*world_, entityId, {x, y}, fixedDt);
+}
+
+std::optional<Vec3>
+LuaScriptHost::getRigidbodyVelocity3D(const std::string &entityId) const {
+  return world_ != nullptr ? rigidbodyVelocity3D(*world_, entityId)
+                           : std::nullopt;
+}
+
+bool LuaScriptHost::setRigidbodyVelocity3D(const std::string &entityId,
+                                           const float x, const float y,
+                                           const float z) {
+  return world_ != nullptr && demi::runtime::setRigidbodyVelocity3D(
+                                  *world_, entityId, Vec3{x, y, z});
+}
+
+bool LuaScriptHost::addRigidbodyImpulse3D(const std::string &entityId,
+                                          const float x, const float y,
+                                          const float z) {
+  return world_ != nullptr &&
+         demi::runtime::addRigidbodyImpulse3D(*world_, entityId, Vec3{x, y, z});
+}
+
+bool LuaScriptHost::addRigidbodyForce3D(const std::string &entityId,
+                                        const float x, const float y,
+                                        const float z) {
+  return world_ != nullptr &&
+         demi::runtime::addRigidbodyForce3D(*world_, entityId, Vec3{x, y, z});
+}
+
+bool LuaScriptHost::addRigidbodyTorque3D(const std::string &entityId,
+                                         const float x, const float y,
+                                         const float z) {
+  return world_ != nullptr &&
+         demi::runtime::addRigidbodyTorque3D(*world_, entityId, Vec3{x, y, z});
+}
+
+bool LuaScriptHost::setRigidbodyAwake3D(const std::string &entityId,
+                                        const bool awake) {
+  return world_ != nullptr &&
+         demi::runtime::setRigidbodyAwake3D(*world_, entityId, awake);
+}
+
+bool LuaScriptHost::setRigidbodyEnabled3D(const std::string &entityId,
+                                          const bool enabled) {
+  return world_ != nullptr &&
+         demi::runtime::setRigidbodyEnabled3D(*world_, entityId, enabled);
+}
+
+bool LuaScriptHost::moveKinematicBody3D(const std::string &entityId,
+                                        const float x, const float y,
+                                        const float z, const float rotationX,
+                                        const float rotationY,
+                                        const float rotationZ,
+                                        const float fixedDt) {
+  return world_ != nullptr &&
+         demi::runtime::moveKinematicBody3D(
+             *world_, entityId, Vec3{x, y, z},
+             Vec3{rotationX, rotationY, rotationZ}, fixedDt);
+}
+
+bool LuaScriptHost::setCharacterVelocity3D(const std::string &entityId,
+                                           const float x, const float y,
+                                           const float z) {
+  return world_ != nullptr && demi::runtime::setCharacterVelocity3D(
+                                  *world_, entityId, Vec3{x, y, z});
+}
+
+bool LuaScriptHost::requestCharacterJump3D(const std::string &entityId,
+                                           const float speed) {
+  return world_ != nullptr &&
+         demi::runtime::requestCharacterJump3D(*world_, entityId, speed);
+}
+
+std::optional<CharacterMoveResult3D>
+LuaScriptHost::characterState3D(const std::string &entityId) const {
+  return world_ != nullptr ? demi::runtime::characterState3D(*world_, entityId)
+                           : std::nullopt;
+}
+
+std::optional<Vec2>
+LuaScriptHost::moveAndSlideKinematic(const std::string &entityId, const float x,
+                                     const float y) {
+  if (world_ == nullptr)
+    return std::nullopt;
+  return demi::runtime::moveAndSlideKinematic(*world_, entityId, {x, y});
+}
+
 bool LuaScriptHost::physicsOverlapBox(
     const float x, const float y, const float width, const float height,
     const std::string &ignoredEntityId) const {
@@ -338,6 +614,22 @@ std::vector<std::string> LuaScriptHost::physicsOverlapCircle(
   return world_ != nullptr ? overlapCircle(*world_, Vec2{.x = x, .y = y},
                                            radius, layer, ignoredEntityId)
                            : std::vector<std::string>{};
+}
+
+std::vector<PhysicsQueryHit2D> LuaScriptHost::physicsOverlapBoxAll(
+    const float x, const float y, const float width, const float height,
+    const std::string &layer, const std::string &ignoredEntityId) const {
+  return world_ != nullptr ? overlapBoxAll(*world_, {x, y}, {width, height},
+                                           layer, ignoredEntityId)
+                           : std::vector<PhysicsQueryHit2D>{};
+}
+
+std::vector<PhysicsQueryHit2D> LuaScriptHost::physicsOverlapCircleAll(
+    const float x, const float y, const float radius, const std::string &layer,
+    const std::string &ignoredEntityId) const {
+  return world_ != nullptr
+             ? overlapCircleAll(*world_, {x, y}, radius, layer, ignoredEntityId)
+             : std::vector<PhysicsQueryHit2D>{};
 }
 
 std::optional<PhysicsRaycastHit2D>
@@ -359,6 +651,24 @@ std::vector<std::string> LuaScriptHost::physicsOverlapSphere3D(
                            : std::vector<std::string>{};
 }
 
+std::vector<PhysicsQueryHit3D> LuaScriptHost::physicsOverlapSphereAll3D(
+    const float x, const float y, const float z, const float radius,
+    const std::string &layer, const std::string &ignoredEntityId) const {
+  return world_ != nullptr ? overlapSphereAll3D(*world_, {x, y, z}, radius,
+                                                layer, ignoredEntityId)
+                           : std::vector<PhysicsQueryHit3D>{};
+}
+
+std::vector<PhysicsQueryHit3D> LuaScriptHost::physicsOverlapBoxAll3D(
+    const float x, const float y, const float z, const float width,
+    const float height, const float depth, const std::string &layer,
+    const std::string &ignoredEntityId) const {
+  return world_ != nullptr
+             ? overlapBoxAll3D(*world_, {x, y, z}, {width, height, depth},
+                               layer, ignoredEntityId)
+             : std::vector<PhysicsQueryHit3D>{};
+}
+
 std::optional<PhysicsRaycastHit3D> LuaScriptHost::physicsRaycast3D(
     const float originX, const float originY, const float originZ,
     const float directionX, const float directionY, const float directionZ,
@@ -368,6 +678,18 @@ std::optional<PhysicsRaycastHit3D> LuaScriptHost::physicsRaycast3D(
              : raycast3D(*world_, {.x = originX, .y = originY, .z = originZ},
                          {.x = directionX, .y = directionY, .z = directionZ},
                          distance, ignoredEntityId);
+}
+
+std::optional<PhysicsQueryHit3D> LuaScriptHost::physicsSphereCast3D(
+    const float originX, const float originY, const float originZ,
+    const float radius, const float directionX, const float directionY,
+    const float directionZ, const float distance, const std::string &layer,
+    const std::string &ignoredEntityId) const {
+  return world_ == nullptr
+             ? std::nullopt
+             : sphereCast3D(*world_, {originX, originY, originZ}, radius,
+                            {directionX, directionY, directionZ}, distance,
+                            layer, ignoredEntityId);
 }
 
 bool LuaScriptHost::physicsHasContact(
@@ -381,23 +703,8 @@ LuaScriptHost::physicsContacts(const std::string &entityId) const {
                            : std::vector<PhysicsContact2D>{};
 }
 
-bool LuaScriptHost::createEntity(Entity entity) {
-  if (world_ == nullptr || entity.id.empty()) {
-    return false;
-  }
-  if (entity.name.empty()) {
-    entity.name = entity.id;
-  }
-  if (Entity *existing = findEntity(*world_, entity.id)) {
-    *existing = std::move(entity);
-    return true;
-  }
-  world_->entities.push_back(std::move(entity));
-  return true;
-}
-
-std::optional<std::string> LuaScriptHost::captureEntityReplicatedState(
-    const std::string &entityId) const {
+std::optional<std::string>
+LuaScriptHost::captureEntityReplicatedState(const std::string &entityId) const {
   if (world_ == nullptr)
     return std::nullopt;
   const Entity *entity = findEntity(*world_, entityId);
@@ -406,8 +713,9 @@ std::optional<std::string> LuaScriptHost::captureEntityReplicatedState(
   return captureReplicatedState(*entity).dump();
 }
 
-std::string LuaScriptHost::applyEntityReplicatedState(
-    const std::string &entityId, const std::string &stateJson) {
+std::string
+LuaScriptHost::applyEntityReplicatedState(const std::string &entityId,
+                                          const std::string &stateJson) {
   if (world_ == nullptr)
     return "world is not loaded";
   Entity *entity = findEntity(*world_, entityId);
@@ -422,15 +730,16 @@ std::string LuaScriptHost::applyEntityReplicatedState(
   }
 }
 
-bool LuaScriptHost::setEntityMeshRenderer(const std::string &entityId,
-                                          std::string texture,
-                                          std::vector<Vec3> vertices,
-                                          std::vector<Vec3> normals,
-                                          std::vector<Vec2> uvs) {
+bool LuaScriptHost::setEntityMeshRenderer(
+    const std::string &entityId, std::string texture, std::string material,
+    std::string renderLayer, std::vector<Vec3> vertices,
+    std::vector<Vec3> normals, std::vector<Vec2> uvs) {
   if (world_ == nullptr || entityId.empty()) {
     return false;
   }
   Entity *entity = findEntity(*world_, entityId);
+  if (entity == nullptr)
+    entity = worldCommands_.pendingEntity(entityId);
   if (entity == nullptr) {
     return false;
   }
@@ -440,6 +749,8 @@ bool LuaScriptHost::setEntityMeshRenderer(const std::string &entityId,
     mesh = *entity->component<MeshRendererComponent>();
   }
   mesh.texture = std::move(texture);
+  mesh.material = std::move(material);
+  mesh.renderLayer = std::move(renderLayer);
   mesh.vertices = std::move(vertices);
   mesh.normals = std::move(normals);
   mesh.uvs = std::move(uvs);

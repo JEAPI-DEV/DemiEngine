@@ -1,0 +1,13 @@
+{
+  "dependencies": [
+    "asset://textures/terrain_atlas"
+  ],
+  "format_version": 1,
+  "id": "asset://materials/voxel_terrain",
+  "importer": "json-data",
+  "importer_version": 1,
+  "settings": {},
+  "source": "voxel_terrain.material.json",
+  "source_hash": "fnv1a64:b5cf52f4844418d0",
+  "type": "Material"
+}

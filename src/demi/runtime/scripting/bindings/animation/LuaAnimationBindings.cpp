@@ -28,6 +28,38 @@ void LuaAnimationBindingModule::install(LuaScriptHost &host,
                                             const std::string &trigger) {
     return host.triggerAnimation(entityId, trigger);
   });
+  animation.set_function("set_speed", [&host](const std::string &entityId,
+                                               float speed) {
+    return host.setAnimationSpeed(entityId, speed);
+  });
+  animation.set_function("normalized_time",
+                         [&host](const std::string &entityId) {
+                           return host.animationNormalizedTime(entityId);
+                         });
+  animation.set_function("transition",
+                         [&host, lua = sol::state_view(state)](
+                             const std::string &entityId) mutable {
+                           sol::table result = lua.create_table();
+                           result["from"] =
+                               host.animationTransitionFrom(entityId);
+                           result["to"] = host.animationTransitionTo(entityId);
+                           result["progress"] =
+                               host.animationTransitionProgress(entityId);
+                           result["active"] =
+                               !host.animationTransitionTo(entityId).empty();
+                           return result;
+                         });
+  animation.set_function(
+      "set_layer_weight",
+      [&host](const std::string &entityId, const std::string &layer,
+              float weight) {
+        return host.setAnimationLayerWeight(entityId, layer, weight);
+      });
+  animation.set_function("set_root_motion",
+                         [&host](const std::string &entityId, bool enabled) {
+                           return host.setAnimationRootMotion(entityId,
+                                                              enabled);
+                         });
 }
 
 } // namespace demi::runtime

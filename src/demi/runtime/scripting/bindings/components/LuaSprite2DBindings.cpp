@@ -28,10 +28,22 @@ void LuaSprite2DBindingModule::install(LuaScriptHost &host,
                                           const bool flipX, const bool flipY) {
     return host.setSpriteFlip(entityId, flipX, flipY);
   });
-  sprite.set_function("set_size", [&host](const std::string &entityId,
-                                           const float width,
-                                           const float height) {
-    return host.setSpriteSize(entityId, width, height);
+  sprite.set_function("set_size",
+                      [&host](const std::string &entityId, const float width,
+                              const float height) {
+                        return host.setSpriteSize(entityId, width, height);
+                      });
+  sprite.set_function("set_layer", [&host](const std::string &entityId,
+                                           const std::string &layer) {
+    return host.setSpriteLayer(entityId, layer);
+  });
+  sprite.set_function("set_sorting_order",
+                      [&host](const std::string &entityId, const int order) {
+                        return host.setSpriteSortingOrder(entityId, order);
+                      });
+  sprite.set_function("set_material", [&host](const std::string &entityId,
+                                              const std::string &material) {
+    return host.setSpriteMaterial(entityId, material);
   });
 }
 

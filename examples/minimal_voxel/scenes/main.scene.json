@@ -14,11 +14,27 @@
           "scale": [1.0, 1.0, 1.0]
         },
         "Camera3D": {
-          "clear_color": [0.56, 0.74, 0.95, 1.0],
+          "clear_color": [0.38, 0.58, 0.82, 1.0],
           "fov": 70.0,
           "perspective": true,
           "target_offset": [0.0, 0.0, -1.0],
-          "up_axis": 1.0
+          "up_axis": 1.0,
+          "render_scale": 0.8,
+          "priority": 0,
+          "primary": true,
+          "clear_mode": "color",
+          "render_hud": true
+        },
+        "PostProcessStack": {
+          "exposure": 0.08,
+          "contrast": 1.08,
+          "saturation": 1.08,
+          "tint": [1.0, 0.98, 0.94, 1.0],
+          "vignette": 0.18,
+          "bloom": 0.12,
+          "bloom_threshold": 0.82,
+          "fade_color": [0.04, 0.08, 0.15, 1.0],
+          "fade": 0.0
         },
         "LuaScript": {
           "module": "script://scripts/fly_camera.lua"
@@ -32,7 +48,151 @@
         "DirectionalLight": {
           "direction": [-0.4, -1.0, -0.2],
           "color": [1.0, 0.96, 0.88, 1.0],
-          "intensity": 1.0
+          "intensity": 1.15,
+          "casts_shadows": true,
+          "render_mask": "world"
+        },
+        "LuaScript": {
+          "module": "script://scripts/presentation.lua"
+        }
+      }
+    },
+    {
+      "id": "ent_environment",
+      "name": "Voxel Environment",
+      "components": {
+        "Environment3D": {
+          "ambient_color": [0.48, 0.58, 0.74, 1.0],
+          "ambient_intensity": 0.58,
+          "fog_color": [0.38, 0.58, 0.82, 1.0],
+          "fog_start": 112.0,
+          "fog_end": 224.0,
+          "shadow_distance": 96.0,
+          "shadow_resolution": 1024,
+          "max_shadow_lights": 1
+        }
+      }
+    },
+    {
+      "id": "ent_minimap_camera",
+      "name": "Terrain Minimap Camera",
+      "components": {
+        "Transform3D": {
+          "position": [0.0, 150.0, 44.0],
+          "rotation": [-1.5707, 0.0, 0.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "Camera3D": {
+          "clear_color": [0.04, 0.08, 0.12, 1.0],
+          "perspective": false,
+          "orthographic_size": 52.0,
+          "target_offset": [0.0, 0.0, -1.0],
+          "up_axis": 1.0,
+          "viewport_x": 0.76,
+          "viewport_y": 0.035,
+          "viewport_width": 0.215,
+          "viewport_height": 0.29,
+          "priority": 20,
+          "render_mask": "world",
+          "clear_mode": "color",
+          "render_target": "asset://targets/voxel_minimap",
+          "update_interval": 0.2,
+          "render_hud": false
+        },
+        "PostProcessStack": {
+          "exposure": 0.12,
+          "contrast": 1.18,
+          "saturation": 0.82,
+          "tint": [0.84, 0.96, 1.0, 1.0],
+          "vignette": 0.42,
+          "bloom": 0.0,
+          "bloom_threshold": 1.0,
+          "fade_color": [0.0, 0.0, 0.0, 1.0],
+          "fade": 0.0
+        },
+        "LuaScript": {
+          "module": "script://scripts/minimap_camera.lua"
+        }
+      }
+    },
+    {
+      "id": "ent_weather",
+      "name": "Windborne Pollen",
+      "components": {
+        "Transform3D": {
+          "parent": "ent_camera",
+          "position": [0.0, 5.0, -5.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "ParticleEmitter3D": {
+          "emission_shape": "box",
+          "emission_size": [22.0, 9.0, 22.0],
+          "rate": 18.0,
+          "burst": 24,
+          "lifetime": 5.0,
+          "velocity_min": [-0.6, -0.12, -0.3],
+          "velocity_max": [0.25, 0.22, 0.5],
+          "gravity": [0.0, -0.025, 0.0],
+          "size_start": 0.08,
+          "size_end": 0.025,
+          "rotation_speed": 18.0,
+          "color_start": [1.0, 0.88, 0.42, 0.72],
+          "color_end": [0.64, 0.9, 0.56, 0.0],
+          "simulation_space": "world",
+          "sorting_order": 10,
+          "seed": 4242,
+          "max_particles": 160,
+          "mobile_max_particles": 54,
+          "playing": true,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "ent_spawn_beacon",
+      "name": "Spawn Beacon",
+      "components": {
+        "Transform3D": {
+          "position": [0.0, 72.0, 4.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "PointLight": {
+          "color": [1.0, 0.52, 0.18, 1.0],
+          "intensity": 4.2,
+          "range": 15.0,
+          "casts_shadows": false,
+          "render_mask": "world"
+        },
+        "ParticleEmitter3D": {
+          "emission_shape": "cone",
+          "emission_size": [0.8, 1.5, 0.8],
+          "rate": 22.0,
+          "burst": 18,
+          "lifetime": 1.25,
+          "velocity_min": [-0.3, 1.1, -0.3],
+          "velocity_max": [0.3, 2.4, 0.3],
+          "gravity": [0.0, -0.35, 0.0],
+          "size_start": 0.22,
+          "size_end": 0.02,
+          "rotation_speed": 45.0,
+          "color_start": [1.0, 0.78, 0.22, 1.0],
+          "color_end": [1.0, 0.12, 0.02, 0.0],
+          "sorting_order": 20,
+          "seed": 7331,
+          "max_particles": 96,
+          "mobile_max_particles": 36,
+          "playing": true,
+          "loop": true
+        },
+        "WorldText3D": {
+          "text": "SPAWN",
+          "color": [1.0, 0.78, 0.3, 1.0],
+          "font_size": 0.85,
+          "billboard": true,
+          "max_distance": 80.0,
+          "render_mask": "world"
         }
       }
     }

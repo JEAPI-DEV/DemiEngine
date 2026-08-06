@@ -12,7 +12,7 @@ struct Transform3DComponent {
   static constexpr bool exposedToLua = true;
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
   static constexpr std::array fields{
-      ComponentFieldDescriptor{"parent", ComponentFieldType::String},
+      ComponentFieldDescriptor::entityReference("parent"),
       ComponentFieldDescriptor{"position", ComponentFieldType::Vec3, false,
                                true, {}, 0.0, false, true},
       ComponentFieldDescriptor{"rotation", ComponentFieldType::Vec3, false,

@@ -62,20 +62,48 @@
           "color": [0.82, 0.9, 1.0, 1.0]
         },
         "AnimationPlayer3D": {
-          "clip_name": "clip_0",
+          "clip_name": "Idle_Loop",
           "speed": 1.0,
           "loop": true,
           "playing": true
         },
         "AnimationStateMachine": {
-          "initial_state": "showcase",
+          "initial_state": "idle",
           "states": {
-            "showcase": {
-              "model_clip_name": "clip_0",
+            "idle": {
+              "model_clip_name": "Idle_Loop",
+              "duration": 2.0,
+              "speed": 1.0,
+              "loop": true
+            },
+            "walk": {
+              "model_clip_name": "Walk_Loop",
+              "duration": 1.0,
+              "speed": 1.0,
+              "loop": true
+            },
+            "run": {
+              "model_clip_name": "Sprint_Loop",
+              "duration": 0.75,
+              "speed": 1.0,
+              "loop": true
+            },
+            "jump": {
+              "model_clip_name": "Jump_Loop",
+              "duration": 0.8,
+              "speed": 1.0,
+              "loop": true
+            },
+            "dance": {
+              "model_clip_name": "Dance_Loop",
+              "duration": 2.0,
               "speed": 1.0,
               "loop": true
             }
           }
+        },
+        "LuaScript": {
+          "module": "script://scripts/animation_selector.lua"
         }
       }
     }

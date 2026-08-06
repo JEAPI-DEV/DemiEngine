@@ -27,6 +27,10 @@ resolvePrefabReference(const std::filesystem::path &sourcePath,
 expandScene(const std::filesystem::path &scenePath,
             const nlohmann::json &sceneDocument);
 
+[[nodiscard]] ExpansionResult expandPrefabInstance(
+    const std::filesystem::path &ownerPath,
+    const nlohmann::json &instance);
+
 [[nodiscard]] ExpansionResult
 inspectPrefab(const std::filesystem::path &prefabPath);
 

@@ -139,6 +139,7 @@ accessorView(const Json &document,
       : componentType == 5125 || componentType == 5126 ? 4U
                                                        : 0U;
   const std::size_t components = type == "SCALAR" ? 1U
+                                 : type == "VEC2" ? 2U
                                  : type == "VEC3" ? 3U
                                                   : 0U;
   if (componentSize == 0 || components == 0) {
@@ -202,6 +203,18 @@ std::optional<std::uint32_t> indexAt(const AccessorView &view,
   }
 }
 
+std::optional<GltfPoint2> textureCoordinateAt(const AccessorView &view,
+                                              const std::size_t index) {
+  if (view.componentType != 5126 || view.type != "VEC2" || index >= view.count)
+    return std::nullopt;
+  const unsigned char *bytes =
+      view.buffer->data() + view.offset + index * view.stride;
+  GltfPoint2 point;
+  std::memcpy(&point.x, bytes, sizeof(float));
+  std::memcpy(&point.y, bytes + sizeof(float), sizeof(float));
+  return point;
+}
+
 bool appendPrimitive(const Json &document,
                      const std::vector<std::vector<unsigned char>> &buffers,
                      const Json &primitive, const Matrix &transform,
@@ -215,6 +228,13 @@ bool appendPrimitive(const Json &document,
       document, buffers, (*attributes)["POSITION"].get<int>(), error);
   if (!positions)
     return false;
+  std::optional<AccessorView> textureCoordinates;
+  if (attributes->contains("TEXCOORD_0")) {
+    textureCoordinates = accessorView(
+        document, buffers, (*attributes)["TEXCOORD_0"].get<int>(), error);
+    if (!textureCoordinates)
+      return false;
+  }
   std::optional<AccessorView> indices;
   if (const auto index = primitive.find("indices"); index != primitive.end()) {
     indices = accessorView(document, buffers, index->get<int>(), error);
@@ -223,8 +243,11 @@ bool appendPrimitive(const Json &document,
   }
   const std::size_t indexCount = indices ? indices->count : positions->count;
   for (std::size_t index = 0; index + 2 < indexCount; index += 3) {
-    const auto resolve =
-        [&](const std::size_t item) -> std::optional<GltfPoint3> {
+    struct Vertex {
+      GltfPoint3 position;
+      GltfPoint2 uv;
+    };
+    const auto resolve = [&](const std::size_t item) -> std::optional<Vertex> {
       const auto indexed =
           indices ? indexAt(*indices, item)
                   : std::make_optional(static_cast<std::uint32_t>(item));
@@ -232,8 +255,17 @@ bool appendPrimitive(const Json &document,
         return std::nullopt;
       const std::size_t positionIndex = *indexed;
       const auto position = positionAt(*positions, positionIndex);
-      return position ? std::make_optional(transformPoint(transform, *position))
-                      : std::nullopt;
+      if (!position)
+        return std::nullopt;
+      GltfPoint2 uv;
+      if (textureCoordinates) {
+        const auto coordinate =
+            textureCoordinateAt(*textureCoordinates, positionIndex);
+        if (!coordinate)
+          return std::nullopt;
+        uv = *coordinate;
+      }
+      return Vertex{.position = transformPoint(transform, *position), .uv = uv};
     };
     const auto a = resolve(index);
     const auto b = resolve(index + 1U);
@@ -242,10 +274,15 @@ bool appendPrimitive(const Json &document,
       error = "glTF triangle references a missing or unsupported vertex.";
       return false;
     }
-    geometry.triangles.push_back({.a = *a, .b = *b, .c = *c});
-    expand(geometry, *a);
-    expand(geometry, *b);
-    expand(geometry, *c);
+    geometry.triangles.push_back({.a = a->position,
+                                  .b = b->position,
+                                  .c = c->position,
+                                  .uvA = a->uv,
+                                  .uvB = b->uv,
+                                  .uvC = c->uv});
+    expand(geometry, a->position);
+    expand(geometry, b->position);
+    expand(geometry, c->position);
   }
   return true;
 }

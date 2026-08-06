@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "fallback": "builtin://unlit",
+  "parameters": {
+    "base_color": [1.0, 0.94, 0.82, 1.0]
+  },
+  "render_state": {
+    "blend": "opaque",
+    "cull": "back",
+    "depth_test": true,
+    "depth_write": true
+  }
+}

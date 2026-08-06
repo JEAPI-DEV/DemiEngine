@@ -1,3 +1,5 @@
+#include "demi/runtime/scripting/LuaScriptHost.h"
+
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -112,6 +114,35 @@ bool requireStub(const ApiSet &stubApis, const std::string_view api) {
   return false;
 }
 
+bool verifyInstalledApisMatchStubs(const ApiSet &stubApis) {
+  demi::runtime::World world;
+  demi::runtime::InputState input;
+  demi::runtime::LuaScriptHost host;
+  std::string error;
+  if (!host.initialize(world, input, nullptr, error)) {
+    std::cerr << "Could not inspect installed Lua bindings: " << error << '\n';
+    return false;
+  }
+
+  const std::vector<std::string> installed = host.publicLuaApi();
+  const ApiSet installedApis(installed.begin(), installed.end());
+  bool passed = true;
+  for (const std::string &api : stubApis) {
+    if (!installedApis.contains(api)) {
+      std::cerr << "Lua stub documents an API that is not installed: " << api
+                << '\n';
+      passed = false;
+    }
+  }
+  for (const std::string &api : installedApis) {
+    if (!stubApis.contains(api)) {
+      std::cerr << "Installed Lua API is missing from stubs: " << api << '\n';
+      passed = false;
+    }
+  }
+  return passed;
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -149,5 +180,6 @@ int main(int argc, char **argv) {
   }
 
   passed = verifyGameCallsAreStubbed(root, stubApis) && passed;
+  passed = verifyInstalledApisMatchStubs(stubApis) && passed;
   return passed ? 0 : 1;
 }

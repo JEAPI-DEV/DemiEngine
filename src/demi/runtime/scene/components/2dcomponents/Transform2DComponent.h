@@ -12,7 +12,7 @@ struct Transform2DComponent {
   static constexpr bool exposedToLua = true;
   static constexpr ComponentDomain domain = ComponentDomain::TwoDimensional;
   static constexpr std::array fields{
-      ComponentFieldDescriptor{"parent", ComponentFieldType::String},
+      ComponentFieldDescriptor::entityReference("parent"),
       ComponentFieldDescriptor{"position", ComponentFieldType::Vec2, false,
                                true, {}, 0.0, false, true},
       ComponentFieldDescriptor{"rotation", ComponentFieldType::Number, false,

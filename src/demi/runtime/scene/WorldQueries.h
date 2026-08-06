@@ -6,6 +6,8 @@
 #include "demi/runtime/scene/model/World.h"
 
 #include <cmath>
+#include <algorithm>
+#include <vector>
 
 namespace demi::runtime {
 
@@ -102,17 +104,57 @@ worldIsoTransform(const World &world, const Entity &entity) {
 }
 [[nodiscard]] inline const Camera3DComponent *
 activeCamera3D(const World &world) {
-  for (const Entity &entity : world.entities)
-    if (entity.component<Camera3DComponent>())
-      return &*entity.component<Camera3DComponent>();
-  return nullptr;
+  const Entity *best = nullptr;
+  for (const Entity &entity : world.entities) {
+    const auto *camera = entity.component<Camera3DComponent>();
+    if (!entity.enabled || camera == nullptr)
+      continue;
+    const auto *bestCamera =
+        best != nullptr ? best->component<Camera3DComponent>() : nullptr;
+    if (best == nullptr || (camera->primary && !bestCamera->primary) ||
+        (camera->primary == bestCamera->primary &&
+        camera->priority >
+            bestCamera->priority) ||
+        (camera->primary == bestCamera->primary &&
+         camera->priority == bestCamera->priority && entity.id < best->id))
+      best = &entity;
+  }
+  return best != nullptr ? best->component<Camera3DComponent>() : nullptr;
 }
 [[nodiscard]] inline const Entity *activeCamera3DEntity(const World &world) {
+  const Entity *best = nullptr;
+  for (const Entity &entity : world.entities) {
+    const auto *camera = entity.component<Camera3DComponent>();
+    if (!entity.enabled || camera == nullptr ||
+        !entity.hasComponent<Transform3DComponent>())
+      continue;
+    const auto *bestCamera =
+        best != nullptr ? best->component<Camera3DComponent>() : nullptr;
+    if (best == nullptr || (camera->primary && !bestCamera->primary) ||
+        (camera->primary == bestCamera->primary &&
+        camera->priority >
+            bestCamera->priority) ||
+        (camera->primary == bestCamera->primary &&
+         camera->priority == bestCamera->priority && entity.id < best->id))
+      best = &entity;
+  }
+  return best;
+}
+[[nodiscard]] inline std::vector<const Entity *>
+renderCameras3D(const World &world) {
+  std::vector<const Entity *> cameras;
   for (const Entity &entity : world.entities)
-    if (entity.component<Camera3DComponent>() &&
-        entity.component<Transform3DComponent>())
-      return &entity;
-  return nullptr;
+    if (entity.enabled && entity.hasComponent<Camera3DComponent>() &&
+        entity.hasComponent<Transform3DComponent>())
+      cameras.push_back(&entity);
+  std::ranges::stable_sort(cameras,
+                           [](const Entity *left, const Entity *right) {
+    const auto *a = left->component<Camera3DComponent>();
+    const auto *b = right->component<Camera3DComponent>();
+    return a->priority != b->priority ? a->priority < b->priority
+                                     : left->id < right->id;
+  });
+  return cameras;
 }
 [[nodiscard]] inline Vec3 worldPosition3D(const World &world,
                                           const Entity &entity) {

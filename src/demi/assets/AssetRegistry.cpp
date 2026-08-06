@@ -3,10 +3,14 @@
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetImporter.h"
 #include "demi/assets/AssetSourceFiles.h"
+#include "demi/assets/DataAsset.h"
+#include "demi/assets/RenderAsset.h"
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <array>
+#include <charconv>
 #include <fstream>
 #include <set>
 #include <sstream>
@@ -20,6 +24,22 @@ std::string readFile(const std::filesystem::path &path) {
   std::ostringstream buffer;
   buffer << input.rdbuf();
   return buffer.str();
+}
+
+std::optional<std::array<std::uint8_t, 3>>
+parseColorKey(const std::string_view value) {
+  if (value.size() != 7 || value.front() != '#')
+    return std::nullopt;
+  std::array<std::uint8_t, 3> result{};
+  for (std::size_t channel = 0; channel < result.size(); ++channel) {
+    unsigned int byte = 0;
+    const char *begin = value.data() + 1 + channel * 2;
+    const auto parsed = std::from_chars(begin, begin + 2, byte, 16);
+    if (parsed.ec != std::errc{} || parsed.ptr != begin + 2)
+      return std::nullopt;
+    result[channel] = static_cast<std::uint8_t>(byte);
+  }
+  return result;
 }
 
 std::vector<std::string>
@@ -196,6 +216,21 @@ loadAssetManifestImpl(const std::filesystem::path &manifestPath,
       manifest.textureSettings.filter = settings->value("filter", "");
       manifest.textureSettings.wrap = settings->value("wrap", "clamp");
       manifest.textureSettings.mipmaps = settings->value("mipmaps", false);
+      if (const auto colorKey = settings->find("color_key");
+          colorKey != settings->end()) {
+        if (!colorKey->is_string() ||
+            !(manifest.textureSettings.colorKey =
+                  parseColorKey(colorKey->get<std::string>()))) {
+          if (diagnostic != nullptr)
+            *diagnostic = {.severity = Severity::Error,
+                           .code = "ASSET_TEXTURE_COLOR_KEY_INVALID",
+                           .message =
+                               "Texture color_key must use #RRGGBB syntax.",
+                           .path = manifestPath.string(),
+                           .suggestion = "Use an exact color such as #000000."};
+          return std::nullopt;
+        }
+      }
     }
     manifest.attribution = document.value("attribution", "");
     manifest.manifestPath = manifestPath;
@@ -382,7 +417,90 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
                              .message = "Unsupported texture wrap setting.",
                              .path = asset.manifestPath.string(),
                              .suggestion = "Use repeat, clamp, or mirror."});
+    if (asset.type == "Material") {
+      if (const auto material =
+              assets::loadMaterialAsset(asset.sourcePath, &diagnostics)) {
+        for (const std::string *reference :
+             {&material->shader, &material->fallback}) {
+          if (!reference->starts_with("asset://"))
+            continue;
+          const AssetManifest *shader = findAsset(registry, *reference);
+          if (shader == nullptr || shader->type != "Shader")
+            diagnostics.push_back(
+                {.severity = Severity::Error,
+                 .code = "MATERIAL_SHADER_NOT_FOUND",
+                 .message = "Material shader reference does not resolve to a "
+                            "Shader asset: " +
+                            *reference,
+                 .path = asset.manifestPath.string(),
+                 .suggestion =
+                     "Import the shader and add it to dependencies."});
+        }
+      }
+    } else if (asset.type == "Shader") {
+      static_cast<void>(
+          assets::loadShaderAsset(asset.sourcePath, &diagnostics));
+    } else if (asset.type == "RenderTarget")
+      (void)assets::loadRenderTargetAsset(asset.sourcePath, &diagnostics);
+    if (asset.type == "Model3D") {
+      const nlohmann::json settings =
+          nlohmann::json::parse(asset.settingsJson, nullptr, false);
+      const auto animations =
+          settings.is_object() ? settings.find("animations") : settings.end();
+      if (animations != settings.end() && animations->is_object()) {
+        const auto clips = animations->find("clips");
+        if (clips != animations->end() && clips->is_array()) {
+          std::set<std::string> names;
+          std::string skeleton;
+          for (const auto &clip : *clips) {
+            const std::string name =
+                clip.is_object() ? clip.value("name", "") : "";
+            const std::string clipSkeleton =
+                clip.is_object() ? clip.value("skeleton", "") : "";
+            if (name.empty())
+              diagnostics.push_back(
+                  {.severity = Severity::Error,
+                   .code = "ANIMATION_CLIP_NAME_MISSING",
+                   .message = "A model animation clip has no stable name.",
+                   .path = asset.manifestPath.string(),
+                   .suggestion = "Name every imported clip in "
+                                 "settings.animations.clips."});
+            else if (!names.insert(name).second)
+              diagnostics.push_back(
+                  {.severity = Severity::Error,
+                   .code = "ANIMATION_CLIP_NAME_DUPLICATE",
+                   .message = "Duplicate model animation clip name: " + name,
+                   .path = asset.manifestPath.string()});
+            if (!clipSkeleton.empty() && skeleton.empty())
+              skeleton = clipSkeleton;
+            else if (!clipSkeleton.empty() && clipSkeleton != skeleton)
+              diagnostics.push_back(
+                  {.severity = Severity::Error,
+                   .code = "ANIMATION_SKELETON_INCOMPATIBLE",
+                   .message =
+                       "Model animation clips reference different skeletons.",
+                   .path = asset.manifestPath.string(),
+                   .suggestion =
+                       "Retarget clips to one skeleton before importing."});
+          }
+        }
+      }
+    }
+    if (asset.type == "AudioClip") {
+      const nlohmann::json settings =
+          nlohmann::json::parse(asset.settingsJson, nullptr, false);
+      if (settings.is_object() && settings.contains("streaming") &&
+          !settings["streaming"].is_boolean())
+        diagnostics.push_back(
+            {.severity = Severity::Error,
+             .code = "AUDIO_STREAMING_SETTING_INVALID",
+             .message = "Audio streaming setting must be boolean.",
+             .path = asset.manifestPath.string()});
+    }
   }
+  Diagnostics dataDiagnostics = assets::validateDataAssets(registry);
+  diagnostics.insert(diagnostics.end(), dataDiagnostics.begin(),
+                     dataDiagnostics.end());
   std::set<std::string> visiting;
   std::set<std::string> visited;
   for (const AssetManifest &asset : registry.assets)

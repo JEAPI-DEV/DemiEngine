@@ -1,5 +1,5 @@
-#include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/Box2DWorldState.h"
+#include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 
@@ -43,6 +43,55 @@ demi::runtime::Entity makePlayer() {
       demi::runtime::BoxCollider2DComponent{.size = {1.0F, 1.0F},
                                             .layer = "player"});
   return player;
+}
+
+bool capsuleStopsAtPolygonFromAllSides() {
+  struct Probe {
+    Vec2 start;
+    Vec2 step;
+    Vec2 expected;
+  };
+  const Probe probes[] = {
+      {{-2.0F, 0.0F}, {0.05F, 0.0F}, {-0.85F, 0.0F}},
+      {{2.0F, 0.0F}, {-0.05F, 0.0F}, {0.85F, 0.0F}},
+      {{0.0F, -2.0F}, {0.0F, 0.05F}, {0.0F, -0.95F}},
+      {{0.0F, 2.0F}, {0.0F, -0.05F}, {0.0F, 0.95F}},
+  };
+
+  for (const Probe &probe : probes) {
+    World world;
+    Entity mover;
+    mover.id = "mover";
+    mover.setComponent(Transform2DComponent{.position = probe.start});
+    mover.setComponent(Rigidbody2DComponent{.bodyType = "kinematic"});
+    mover.setComponent(CapsuleCollider2DComponent{.size = {0.7F, 0.9F}});
+    world.entities.push_back(std::move(mover));
+
+    Entity obstacle;
+    obstacle.id = "polygon";
+    obstacle.setComponent(Transform2DComponent{});
+    obstacle.setComponent(PolygonCollider2DComponent{
+        .points = {{-0.5F, -0.5F},
+                   {0.5F, -0.5F},
+                   {0.5F, 0.5F},
+                   {-0.5F, 0.5F}}});
+    world.entities.push_back(std::move(obstacle));
+
+    for (int step = 0; step < 80; ++step) {
+      if (!moveAndSlideKinematic(world, "mover", probe.step))
+        return false;
+    }
+    const Vec2 position =
+        findEntity(world, "mover")->component<Transform2DComponent>()->position;
+    if (std::abs(position.x - probe.expected.x) > 0.001F ||
+        std::abs(position.y - probe.expected.y) > 0.001F) {
+      std::cerr << "Capsule crossed polygon from direction (" << probe.step.x
+                << ", " << probe.step.y << "); stopped at (" << position.x
+                << ", " << position.y << ").\n";
+      return false;
+    }
+  }
+  return true;
 }
 
 } // namespace
@@ -111,6 +160,53 @@ int main() {
     return 1;
   }
 
+  World rotatedWallWorld;
+  Entity rotatedWall;
+  rotatedWall.id = "rotated_wall";
+  rotatedWall.setComponent(Transform2DComponent{
+      .position = {.x = 4.0F, .y = 0.0F}, .rotation = 0.785398163F});
+  rotatedWall.setComponent(
+      BoxCollider2DComponent{.size = {4.0F, 0.5F}, .layer = "arena_wall"});
+  rotatedWallWorld.entities.push_back(std::move(rotatedWall));
+  const auto wallHit =
+      raycast2D(rotatedWallWorld, {}, {1.0F, 0.0F}, 10.0F, "arena_wall");
+  if (!wallHit || wallHit->entityId != "rotated_wall" ||
+      std::abs(wallHit->distance - 3.6464466F) > 0.001F ||
+      wallHit->normal.x > -0.70F || wallHit->normal.y < 0.70F) {
+    std::cerr << "Rotated box raycast did not match the collider shape.\n";
+    return 1;
+  }
+
+  World wallCollisionWorld;
+  Entity movingCircle;
+  movingCircle.id = "moving_circle";
+  movingCircle.setComponent(Transform2DComponent{});
+  movingCircle.setComponent(Rigidbody2DComponent{
+      .bodyType = "dynamic",
+      .velocity = {6.0F, 0.0F},
+      .gravityScale = 0.0F,
+  });
+  movingCircle.setComponent(CircleCollider2DComponent{.radius = 0.5F});
+  wallCollisionWorld.entities.push_back(std::move(movingCircle));
+  Entity blockingWall;
+  blockingWall.id = "blocking_wall";
+  blockingWall.setComponent(
+      Transform2DComponent{.position = {.x = 2.0F, .y = 0.0F}});
+  blockingWall.setComponent(
+      BoxCollider2DComponent{.size = {0.5F, 4.0F}, .layer = "arena_wall"});
+  wallCollisionWorld.entities.push_back(std::move(blockingWall));
+  for (int step = 0; step < 60; ++step)
+    stepPhysics2D(wallCollisionWorld, 1.0F / 60.0F,
+                  PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
+  const float blockedX = findEntity(wallCollisionWorld, "moving_circle")
+                             ->component<Transform2DComponent>()
+                             ->position.x;
+  if (blockedX > 1.26F) {
+    std::cerr << "Dynamic circle passed through a static arena wall: x="
+              << blockedX << ".\n";
+    return 1;
+  }
+
   World filtered;
   for (int index = 0; index < 2; ++index) {
     Entity entity;
@@ -133,12 +229,10 @@ int main() {
   }
 
   World layerWorld;
-  layerWorld.physicsCategoryBits = {{"blocked", 0x0001},
-                                    {"enabled", 0x0001},
-                                    {"targetx", 0x0002}};
-  layerWorld.physicsMaskBits = {{"blocked", 0x0000},
-                                {"enabled", 0x0002},
-                                {"targetx", 0x0001}};
+  layerWorld.physicsCategoryBits = {
+      {"blocked", 0x0001}, {"enabled", 0x0001}, {"targetx", 0x0002}};
+  layerWorld.physicsMaskBits = {
+      {"blocked", 0x0000}, {"enabled", 0x0002}, {"targetx", 0x0001}};
   for (int index = 0; index < 2; ++index) {
     Entity entity;
     entity.id = "layer_" + std::to_string(index);
@@ -179,8 +273,25 @@ int main() {
   stepPhysics2D(triggerWorld, 1.0F / 60.0F,
                 PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
   if (triggerWorld.physicsContacts.size() != 2 ||
-      !triggerWorld.physicsContacts.front().isTrigger) {
+      !triggerWorld.physicsContacts.front().isTrigger ||
+      triggerWorld.physicsContacts.front().phase != "enter") {
     std::cerr << "Trigger contacts were not exposed.\n";
+    return 1;
+  }
+  stepPhysics2D(triggerWorld, 1.0F / 60.0F,
+                PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
+  if (triggerWorld.physicsContacts.size() != 2 ||
+      triggerWorld.physicsContacts.front().phase != "stay") {
+    std::cerr << "Trigger stay phase was not retained.\n";
+    return 1;
+  }
+  triggerWorld.entities.back().component<Transform2DComponent>()->position.x =
+      5.0F;
+  stepPhysics2D(triggerWorld, 1.0F / 60.0F,
+                PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
+  if (triggerWorld.physicsContacts.size() != 2 ||
+      triggerWorld.physicsContacts.front().phase != "exit") {
+    std::cerr << "Trigger exit phase was not synthesized.\n";
     return 1;
   }
 
@@ -242,6 +353,92 @@ int main() {
               << '\n';
     return 1;
   }
+
+  World projectileWorld;
+  Entity projectile;
+  projectile.id = "projectile";
+  projectile.setComponent(Transform2DComponent{});
+  projectile.setComponent(Rigidbody2DComponent{
+      .bodyType = "dynamic",
+      .velocity = {300.0F, 0.0F},
+      .gravityScale = 0.0F,
+      .continuous = true,
+  });
+  projectile.setComponent(CircleCollider2DComponent{.radius = 0.05F});
+  projectileWorld.entities.push_back(std::move(projectile));
+  Entity thinWall;
+  thinWall.id = "thin_wall";
+  thinWall.setComponent(
+      Transform2DComponent{.position = {.x = 2.0F, .y = 0.0F}});
+  thinWall.setComponent(BoxCollider2DComponent{.size = {0.1F, 4.0F}});
+  projectileWorld.entities.push_back(std::move(thinWall));
+  stepPhysics2D(projectileWorld, 1.0F / 60.0F,
+                PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
+  if (findEntity(projectileWorld, "projectile")
+          ->component<Transform2DComponent>()
+          ->position.x > 2.0F) {
+    std::cerr << "Continuous fast projectile tunneled through a thin wall.\n";
+    return 1;
+  }
+
+  World shapeWorld;
+  Entity capsule;
+  capsule.id = "capsule";
+  capsule.setComponent(Transform2DComponent{});
+  capsule.setComponent(CapsuleCollider2DComponent{.size = {1.0F, 2.0F}});
+  shapeWorld.entities.push_back(std::move(capsule));
+  Entity polygon;
+  polygon.id = "polygon";
+  polygon.setComponent(
+      Transform2DComponent{.position = {.x = 3.0F, .y = 0.0F}});
+  polygon.setComponent(PolygonCollider2DComponent{
+      .points = {{-1.0F, -0.5F}, {1.0F, -0.5F}, {0.0F, 1.0F}}});
+  shapeWorld.entities.push_back(std::move(polygon));
+  Entity chain;
+  chain.id = "chain";
+  chain.setComponent(Transform2DComponent{});
+  chain.setComponent(EdgeCollider2DComponent{
+      .points = {{-2.0F, -2.0F}, {0.0F, -1.0F}, {2.0F, -2.0F}}});
+  shapeWorld.entities.push_back(std::move(chain));
+  stepPhysics2D(shapeWorld, 1.0F / 60.0F,
+                PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
+#if DEMI_HAS_BOX2D
+  if (shapeWorld.box2dState == nullptr ||
+      static_cast<b2World *>(shapeWorld.box2dState->world)->GetBodyCount() !=
+          3) {
+    std::cerr << "Capsule, polygon, and edge/chain fixtures were not built.\n";
+    return 1;
+  }
+#endif
+
+  World kinematicWorld;
+  Entity mover;
+  mover.id = "mover";
+  mover.setComponent(Transform2DComponent{});
+  mover.setComponent(Rigidbody2DComponent{.bodyType = "kinematic"});
+  mover.setComponent(BoxCollider2DComponent{.size = {1.0F, 1.0F}});
+  kinematicWorld.entities.push_back(std::move(mover));
+  Entity slideWall;
+  slideWall.id = "slide_wall";
+  slideWall.setComponent(
+      Transform2DComponent{.position = {.x = 2.0F, .y = 0.0F}});
+  slideWall.setComponent(BoxCollider2DComponent{.size = {1.0F, 4.0F}});
+  kinematicWorld.entities.push_back(std::move(slideWall));
+  const auto applied =
+      moveAndSlideKinematic(kinematicWorld, "mover", {3.0F, 0.5F});
+  const Vec2 moved = findEntity(kinematicWorld, "mover")
+                         ->component<Transform2DComponent>()
+                         ->position;
+  if (!applied || std::abs(applied->x - 1.0F) > 0.001F ||
+      std::abs(applied->y - 0.5F) > 0.001F ||
+      std::abs(moved.x - 1.0F) > 0.001F || std::abs(moved.y - 0.5F) > 0.001F) {
+    std::cerr << "Kinematic move-and-slide did not stop and preserve tangent "
+                 "motion.\n";
+    return 1;
+  }
+
+  if (!capsuleStopsAtPolygonFromAllSides())
+    return 1;
 
   return 0;
 }

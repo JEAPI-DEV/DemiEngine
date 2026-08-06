@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://phase4/effects",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "effects.ppm",
+  "source_hash": "fnv1a64:cb62df338a781247",
+  "type": "Texture2D"
+}

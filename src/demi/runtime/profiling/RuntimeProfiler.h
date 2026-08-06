@@ -15,6 +15,8 @@ public:
     double maxMilliseconds = 0.0;
     int calls = 0;
     std::size_t bytes = 0;
+    double gauge = 0.0;
+    bool hasGauge = false;
   };
 
   static void setEnabled(bool enabled);
@@ -23,6 +25,7 @@ public:
   static void beginFrame();
   static void record(std::string name, double milliseconds);
   static void addBytes(std::string name, std::size_t bytes);
+  static void setGauge(std::string name, double value);
   [[nodiscard]] static std::string
   frameSummary(double minimumMilliseconds = 0.01);
   [[nodiscard]] static std::vector<Entry> sessionEntries();

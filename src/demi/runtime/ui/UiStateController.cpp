@@ -4,6 +4,33 @@
 #include <ranges>
 
 namespace demi::runtime::ui {
+namespace {
+bool belongsTo(const UiDocument &document, std::string id,
+               const std::string_view ancestor) {
+  while (!id.empty()) {
+    if (id == ancestor) return true;
+    const auto node = std::ranges::find(document.nodes, id, &UiNode::id);
+    if (node == document.nodes.end()) return false;
+    id = node->parent;
+  }
+  return false;
+}
+void cancelSubtreeInteraction(UiDocument &document,
+                              const std::string_view root) {
+  if (belongsTo(document, document.focusedId, root)) {
+    const auto focused =
+        std::ranges::find(document.nodes, document.focusedId, &UiNode::id);
+    if (focused != document.nodes.end())
+      TextEditingEngine::clearComposition(focused->textEdit);
+    document.focusedId.clear();
+  }
+  if (belongsTo(document, document.pointerCaptureId, root))
+    document.pointerCaptureId.clear();
+  std::erase_if(document.pointerCaptures, [&](const auto &capture) {
+    return belongsTo(document, capture.second, root);
+  });
+}
+} // namespace
 
 UiNode *UiStateController::find(UiDocument &document,
                                 const std::string_view id) const {
@@ -23,6 +50,8 @@ bool UiStateController::setText(UiDocument &document, const std::string_view id,
   if (node == nullptr)
     return false;
   node->text = std::move(text);
+  TextEditingEngine::clearComposition(node->textEdit);
+  TextEditingEngine::normalize(node->text, node->textEdit);
   return true;
 }
 
@@ -53,8 +82,7 @@ bool UiStateController::setDisabled(UiDocument &document,
   if (node == nullptr)
     return false;
   node->disabled = disabled;
-  if (disabled && document.focusedId == id)
-    document.focusedId.clear();
+  if (disabled) cancelSubtreeInteraction(document, id);
   return true;
 }
 
@@ -65,6 +93,7 @@ bool UiStateController::setVisible(UiDocument &document,
   if (node == nullptr)
     return false;
   node->visible = visible;
+  if (!visible) cancelSubtreeInteraction(document, id);
   return true;
 }
 

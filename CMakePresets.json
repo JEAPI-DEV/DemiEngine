@@ -22,6 +22,18 @@
       }
     },
     {
+      "name": "linux-asan",
+      "displayName": "Linux Debug with ASan/LSan",
+      "inherits": "linux-debug",
+      "binaryDir": "${sourceDir}/build/linux-asan",
+      "cacheVariables": {
+        "CMAKE_C_FLAGS_DEBUG": "-fsanitize=address,leak -fno-omit-frame-pointer",
+        "CMAKE_CXX_FLAGS_DEBUG": "-fsanitize=address,leak -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS_DEBUG": "-fsanitize=address,leak",
+        "CMAKE_SHARED_LINKER_FLAGS_DEBUG": "-fsanitize=address,leak"
+      }
+    },
+    {
       "name": "android-arm64-debug",
       "displayName": "Android ARM64 Debug",
       "generator": "Ninja",
@@ -47,6 +59,10 @@
       "configurePreset": "linux-release"
     },
     {
+      "name": "linux-asan",
+      "configurePreset": "linux-asan"
+    },
+    {
       "name": "android-arm64-debug",
       "configurePreset": "android-arm64-debug"
     }
@@ -55,6 +71,18 @@
     {
       "name": "linux-debug",
       "configurePreset": "linux-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-asan",
+      "configurePreset": "linux-asan",
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
+        "LSAN_OPTIONS": "exitcode=23",
+        "DEMI_LIFETIME_STRESS_ITERATIONS": "200"
+      },
       "output": {
         "outputOnFailure": true
       }

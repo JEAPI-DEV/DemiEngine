@@ -12,7 +12,7 @@ struct IsoTransformComponent {
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::TwoDimensional;
   static constexpr std::array fields{
-      ComponentFieldDescriptor{"parent", ComponentFieldType::String},
+      ComponentFieldDescriptor::entityReference("parent"),
       ComponentFieldDescriptor{"tile", ComponentFieldType::Vec2},
       ComponentFieldDescriptor{"height", ComponentFieldType::Number},
       ComponentFieldDescriptor{"footprint", ComponentFieldType::Vec2}};

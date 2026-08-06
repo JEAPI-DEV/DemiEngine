@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://targets/voxel_minimap",
+  "importer": "json-data",
+  "importer_version": 1,
+  "settings": {},
+  "source": "voxel_minimap.target.json",
+  "source_hash": "fnv1a64:6249419b4a7ea3e6",
+  "type": "RenderTarget"
+}

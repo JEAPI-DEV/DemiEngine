@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://phase4/terrain",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "terrain.ppm",
+  "source_hash": "fnv1a64:4123355a21d73758",
+  "type": "Texture2D"
+}

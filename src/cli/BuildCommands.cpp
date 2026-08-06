@@ -215,9 +215,23 @@ int runBuildCommand(const std::vector<std::string> &args,
                                    ? "gradle"
                                    : valueAfter(args, "--gradle");
     const std::filesystem::path androidRoot = context.engineRoot / "android";
+    const std::filesystem::path cookedProject =
+        androidRoot / "app/build/generated/demi/cooked-project";
+    const Diagnostics cookDiagnostics = assets::cookProject(
+        {.projectFile = absoluteProject,
+         .outputDirectory = cookedProject,
+         .platform = "android",
+         .shaderCompiler = {},
+         .shaderIncludeDirectory = {}});
+    if (hasErrors(cookDiagnostics)) {
+      printDiagnosticsText(std::cerr, cookDiagnostics);
+      return ExitValidationFailure;
+    }
+    const std::filesystem::path packagedProject =
+        cookedProject / absoluteProject.filename();
     const std::string command =
         shellQuote(gradle) + " -p " + shellQuote(androidRoot) +
-        " -PdemiProjectFile=" + shellQuote(absoluteProject) +
+        " -PdemiProjectFile=" + shellQuote(packagedProject) +
         " :app:assembleDebug";
     return std::system(command.c_str()) == 0 ? ExitSuccess
                                              : ExitValidationFailure;

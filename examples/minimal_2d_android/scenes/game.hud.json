@@ -15,6 +15,8 @@
       {"type":"panel","id":"extra_jump_coin_2","group":"game_hud","position":[36,148],"size":[18,18],"color":[1,0.78,0.2,1],"visible":false},
       {"type":"panel","id":"extra_jump_slot_3","group":"game_hud","position":[24,184],"size":[42,42],"color":[0.12,0.13,0.19,0.82],"visible":false},
       {"type":"panel","id":"extra_jump_coin_3","group":"game_hud","position":[36,196],"size":[18,18],"color":[1,0.78,0.2,1],"visible":false},
+      {"type":"virtual_stick","id":"touch_move","group":"game_hud","control":"move","anchor_min":[0,1],"position":[24,-150],"size":[126,126],"radius":63,"deadzone":0.16,"color":[0.2,0.42,0.64,0.58],"visible":false},
+      {"type":"virtual_button","id":"touch_jump","group":"game_hud","control":"jump","anchor_min":[1,1],"position":[-142,-134],"size":[110,110],"radius":55,"color":[0.72,0.24,0.42,0.64],"visible":false,"text":"JUMP","font_size":22},
       {"type":"panel","id":"game_over_shade","group":"game_over","position":[0,0],"size":[960,540],"color":[0.02,0.015,0.09,0.86],"visible":false},
       {"type":"panel","id":"game_over_panel","group":"game_over","position":[210,120],"size":[540,300],"color":[0.08,0.07,0.18,0.94],"visible":false},
       {"type":"panel","id":"game_over_panel_glow","group":"game_over","position":[226,132],"size":[508,5],"color":[0.98,0.56,0.74,0.74],"visible":false},

@@ -22,6 +22,7 @@ end
 
 return {
   pack = pack,
+  terrain_material = "asset://materials/voxel_terrain",
   chunk_size = 32,
   section_height = 32,
   load_radius = 6,
@@ -130,8 +131,8 @@ return {
   decorations = {
     enabled = true,
     seed = 1907,
-    grass_chance = 0.14,
-    flower_chance = 0.035,
+    grass_chance = 0.07,
+    flower_chance = 0.02,
     grass_block = 9,
     flower_blocks = { 10, 11, 12 },
   },

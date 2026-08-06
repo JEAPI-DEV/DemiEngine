@@ -1,34 +1,70 @@
 # Input Actions
 
-Gameplay code should depend on named project actions rather than physical key
-names. Define actions under `input.actions` in `demi.project.json`:
+Gameplay code should depend on player intent rather than physical devices.
+Actions are declared under `input.actions` and can combine keyboard, mouse,
+gamepad, touch-driven virtual controls, and multiple local players:
 
 ```json
 {
   "input": {
     "actions": {
-      "move": [
-        {"input": "a", "scale": -1},
-        {"input": "left", "scale": -1},
-        {"input": "d", "scale": 1},
-        {"input": "right", "scale": 1}
-      ],
-      "jump": ["space", "w", "up"],
-      "fire": ["mouse:left"]
+      "move": {
+        "type": "vector2",
+        "context": "gameplay",
+        "bindings": [
+          {"input": "key:a", "vector": [-1, 0]},
+          {"input": "key:d", "vector": [1, 0]},
+          {"input": "key:w", "vector": [0, -1]},
+          {"input": "key:s", "vector": [0, 1]},
+          {"input": "gamepad:stick:left", "deadzone": 0.18},
+          {"input": "virtual:move"}
+        ]
+      },
+      "fire": {
+        "type": "button",
+        "bindings": [
+          "mouse:left",
+          "gamepad:south",
+          "virtual:fire"
+        ]
+      }
     }
   }
 }
 ```
 
-Bindings may be strings or objects with `input` and `scale`. Action names and
-physical inputs are case-insensitive. Multiple active scaled bindings are
-summed and clamped to `[-1, 1]`.
+Legacy string arrays and scaled one-dimensional bindings remain valid. Inputs
+and action names are case-insensitive. Supported device names include
+`key:<key>`, `mouse:<button>`, `gamepad:<button>`,
+`gamepad:axis:<axis>`, `gamepad:stick:left`, `gamepad:stick:right`, and
+`virtual:<control>`. One-dimensional actions can select a virtual stick
+component with `virtual:<control>:x` or `virtual:<control>:y`.
 
-Lua exposes:
+Bindings can specify `scale`, `vector`, `deadzone`, `invert`, `normalize`, and
+`player`. Actions can specify `button`, `axis1d`, or `vector2`, an input
+`context`, and an optional local `player`.
 
-- `Input.action_down(name)` for held actions.
-- `Input.action_pressed(name)` for the current keyboard/controller press edge.
-- `Input.action_value(name)` for scaled axes.
+Lua exposes held, pressed, released, scalar, vector, and source state:
 
-Raw key APIs remain available for compatibility and text/editor-like controls,
-but reusable gameplay scripts should use actions.
+```lua
+local x, y = Input.action_vector("move", 1)
+if Input.action_pressed("fire", 1) then
+  shoot()
+end
+```
+
+Contexts can be enabled or disabled for gameplay, menu, vehicle, or chat
+screens. `Input.assign_gamepad(device, player)` assigns devices independently.
+`Input.rebind(...)`, `Input.save_bindings(...)`, and
+`Input.load_bindings(...)` support one-based runtime binding selection; relative
+files are stored below `Application.user_data_path()`, including on Android.
+
+`Input.touches()` returns stable IDs, phases, position, delta, and pressure.
+`Input.gestures()` recognizes tap, double-tap, long-press, drag, pinch, and
+rotate. HUD nodes of type `virtual_button` or `virtual_stick` publish the
+authored `control` as a `virtual:<control>` binding. UI capture is tracked per
+touch ID.
+
+`Application.safe_area()`, `Application.ui_scale()`, and the other Application
+APIs expose display, lifecycle, clipboard, keyboard, and writable storage
+services without platform-specific Lua branches.

@@ -1,6 +1,35 @@
 ---@meta
 -- Checked-in LuaLS/EmmyLua stubs copied by `demi lua-stubs generate`.
 
+---@class DataError
+---@field code string
+---@field message string
+---@field id string
+
+---@class DataQuery
+---@field content_type? string
+---@field tags? string[]
+
+---@class DataService
+---@field null table JSON null sentinel; distinguish it with `Data.is_null`.
+Data = {}
+---@param id string Stable `asset://` ID.
+---@return any? snapshot A detached Lua snapshot of the immutable document.
+---@return DataError? error
+function Data.load(id) end
+---@param query? DataQuery
+---@return table[] snapshots Ordered deterministically by stable asset ID.
+function Data.query(query) end
+---@param id string
+---@return integer
+function Data.revision(id) end
+---@param value any
+---@return "array"|"object"|"null"|nil
+function Data.kind(value) end
+---@param value any
+---@return boolean
+function Data.is_null(value) end
+
 ---@class DebugService
 Debug = {}
 ---@param message string
@@ -34,15 +63,84 @@ function Input.is_down(key) end
 ---@param key string
 ---@return boolean
 function Input.is_pressed(key) end
----@param action string
+---@param key string
 ---@return boolean
-function Input.action_down(action) end
+function Input.is_released(key) end
 ---@param action string
+---@param player? integer
 ---@return boolean
-function Input.action_pressed(action) end
+function Input.action_down(action, player) end
 ---@param action string
+---@param player? integer
+---@return boolean
+function Input.action_pressed(action, player) end
+---@param action string
+---@param player? integer
+---@return boolean
+function Input.action_released(action, player) end
+---@param action string
+---@param player? integer
 ---@return number
-function Input.action_value(action) end
+function Input.action_value(action, player) end
+---@param action string
+---@param player? integer
+---@return number x
+---@return number y
+function Input.action_vector(action, player) end
+---@param action string
+---@param player? integer
+---@return string
+function Input.action_source(action, player) end
+---@param context string
+function Input.enable_context(context) end
+---@param context string
+function Input.disable_context(context) end
+---@param context string
+---@return boolean
+function Input.context_enabled(context) end
+---@param action string
+---@param binding integer One-based binding index.
+---@param control string
+---@param player? integer
+---@return boolean success
+---@return string error
+function Input.rebind(action, binding, control, player) end
+---@param path string
+---@return boolean success
+---@return string error
+function Input.save_bindings(path) end
+---@param path string
+---@return boolean success
+---@return string error
+function Input.load_bindings(path) end
+---@param device integer
+---@param player integer
+---@return boolean
+function Input.assign_gamepad(device, player) end
+---@return integer
+function Input.gamepad_count() end
+---@return integer
+function Input.touch_count() end
+---@class TouchPoint
+---@field id integer
+---@field phase "began"|"moved"|"stationary"|"ended"|"cancelled"
+---@field x number
+---@field y number
+---@field dx number
+---@field dy number
+---@field pressure number
+---@return TouchPoint[]
+function Input.touches() end
+---@class GestureEvent
+---@field type "tap"|"double_tap"|"long_press"|"drag"|"pinch"|"rotate"
+---@field pointer_id integer
+---@field x number
+---@field y number
+---@field dx number
+---@field dy number
+---@field value number
+---@return GestureEvent[]
+function Input.gestures() end
 ---@return string
 function Input.text_entered() end
 ---@param active boolean
@@ -73,8 +171,44 @@ function Input.mouse_world_position() end
 ---@return number width
 ---@return number height
 function Input.viewport_size() end
+---@param pointer_id? integer
 ---@return boolean
-function Input.ui_pointer_captured() end
+function Input.ui_pointer_captured(pointer_id) end
+
+---@class ApplicationService
+Application = {}
+---@return number left
+---@return number top
+---@return number right
+---@return number bottom
+function Application.safe_area() end
+---@return number
+function Application.logical_dpi() end
+---@return number
+function Application.ui_scale() end
+---@return "portrait"|"landscape"|"unspecified"
+function Application.orientation() end
+---@param orientation "portrait"|"landscape"|"unspecified"
+---@return boolean
+function Application.request_orientation(orientation) end
+---@return boolean
+function Application.keyboard_visible() end
+---@return string
+function Application.clipboard() end
+---@param text string
+function Application.set_clipboard(text) end
+---@return boolean
+function Application.focused() end
+---@return boolean
+function Application.minimized() end
+---@return boolean
+function Application.suspended() end
+---@return integer
+function Application.low_memory_generation() end
+---@return string
+function Application.user_data_path() end
+---@return string
+function Application.cache_path() end
 
 ---@class ProceduralMeshBuilder
 ---@field clear fun(self: ProceduralMeshBuilder)
@@ -91,9 +225,9 @@ ProceduralMesh = {}
 function ProceduralMesh.create(capacity) end
 ---@param entity_id string
 ---@param builder ProceduralMeshBuilder
----@param texture? string
+---@param options? {texture?: string, material?: string, render_layer?: string}
 ---@return boolean
-function ProceduralMesh.apply(entity_id, builder, texture) end
+function ProceduralMesh.apply(entity_id, builder, options) end
 
 ---@class VoxelWorldHandle
 ---@field clear fun(self: VoxelWorldHandle)
@@ -110,19 +244,85 @@ function VoxelWorld.create(chunk_size, section_height) end
 
 ---@class EntityService
 Entity = {}
+---@class EntityQuery
+---@field all? string[]
+---@field tags? string[]
+---@field layer? string
+---@field include_disabled? boolean
 ---@param id_or_name string
 ---@return string|nil
 function Entity.find(id_or_name) end
 ---@param entity_id string
+---@return boolean
+function Entity.exists(entity_id) end
+---@param entity_id string
 ---@param spec table
 ---@return boolean
 function Entity.create(entity_id, spec) end
+---@param entity_id string
+---@param spec table
+---@return boolean
+function Entity.replace(entity_id, spec) end
+---@param source_id string
+---@param new_id string
+---@return boolean
+function Entity.clone(source_id, new_id) end
 ---@param entity_id string
 ---@return boolean
 function Entity.destroy(entity_id) end
 ---@param entity_ids string[]
 ---@return integer
 function Entity.destroy_many(entity_ids) end
+---@param entity_id string
+---@param enabled boolean
+---@return boolean
+function Entity.set_enabled(entity_id, enabled) end
+---@param entity_id string
+---@return boolean
+function Entity.is_enabled(entity_id) end
+---@param entity_id string
+---@param component string
+---@param values table
+---@return boolean
+function Entity.add_component(entity_id, component, values) end
+---@param entity_id string
+---@param component string
+---@return boolean
+function Entity.remove_component(entity_id, component) end
+---@param entity_id string
+---@param component string
+---@return boolean
+function Entity.has_component(entity_id, component) end
+---@param entity_id string
+---@param component string
+---@param field string
+---@return any
+function Entity.get(entity_id, component, field) end
+---@param entity_id string
+---@param component string
+---@param field string
+---@param value any
+---@return boolean
+function Entity.set(entity_id, component, field, value) end
+---@param query EntityQuery
+---@return string[]
+function Entity.query(query) end
+---@param entity_id string
+---@param parent_id? string
+---@return boolean
+function Entity.set_parent(entity_id, parent_id) end
+---@param entity_id string
+---@return string|nil
+function Entity.parent(entity_id) end
+---@param entity_id string
+---@return string[]
+function Entity.children(entity_id) end
+---@param entity_id string
+---@return number[]|nil
+function Entity.local_position(entity_id) end
+---@param entity_id string
+---@return number[]|nil
+function Entity.world_position(entity_id) end
 ---@param entity_id string
 ---@param r number
 ---@param g number
@@ -205,6 +405,27 @@ function Transform3D.get_scale(entity_id) end
 ---@param z number
 ---@return boolean
 function Transform3D.set_scale(entity_id, x, y, z) end
+---@param entity_id string
+---@return number|nil x
+---@return number|nil y
+---@return number|nil z
+function Transform3D.forward(entity_id) end
+---@param entity_id string
+---@return number|nil x
+---@return number|nil y
+---@return number|nil z
+function Transform3D.right(entity_id) end
+---@param entity_id string
+---@return number|nil x
+---@return number|nil y
+---@return number|nil z
+function Transform3D.up(entity_id) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@return boolean
+function Transform3D.look_at(entity_id, x, y, z) end
 
 ---@class Sprite2DService
 Sprite2D = {}
@@ -232,6 +453,18 @@ function Sprite2D.set_flip(entity_id, flip_x, flip_y) end
 ---@param height number
 ---@return boolean
 function Sprite2D.set_size(entity_id, width, height) end
+---@param entity_id string
+---@param layer string
+---@return boolean
+function Sprite2D.set_layer(entity_id, layer) end
+---@param entity_id string
+---@param sorting_order integer
+---@return boolean
+function Sprite2D.set_sorting_order(entity_id, sorting_order) end
+---@param entity_id string
+---@param material string
+---@return boolean
+function Sprite2D.set_material(entity_id, material) end
 
 ---@class AnimationService
 Animation = {}
@@ -264,9 +497,53 @@ function Animation.set_bool(entity_id, parameter, value) end
 ---@return boolean
 function Animation.trigger(entity_id, trigger) end
 
+---@param entity_id string
+---@param speed number
+---@return boolean
+function Animation.set_speed(entity_id, speed) end
+
+---@param entity_id string
+---@return number
+function Animation.normalized_time(entity_id) end
+
+---@class AnimationTransitionInfo
+---@field from string
+---@field to string
+---@field progress number
+---@field active boolean
+
+---@param entity_id string
+---@return AnimationTransitionInfo
+function Animation.transition(entity_id) end
+
+---@param entity_id string
+---@param layer string
+---@param weight number
+---@return boolean
+function Animation.set_layer_weight(entity_id, layer, weight) end
+
+---@param entity_id string
+---@param enabled boolean
+---@return boolean
+function Animation.set_root_motion(entity_id, enabled) end
+
 ---@class TimeService
 ---@field delta_time number
+---@field unscaled_delta_time number
+---@field time number
+---@field fixed_time number
+---@field frame_count integer
+---@field time_scale number
+---@field paused boolean
 Time = {}
+---@param paused boolean
+function Time.set_paused(paused) end
+---@return boolean
+function Time.is_paused() end
+---@param scale number
+function Time.set_scale(scale) end
+---@return number
+function Time.get_scale() end
 
 ---@class RandomService
 Random = {}
@@ -321,6 +598,50 @@ Scene = {}
 ---@param scene_id string
 ---@return boolean
 function Scene.load(scene_id) end
+---@return boolean
+function Scene.reload() end
+---@param scene_id string
+---@param additive? boolean
+---@return boolean
+function Scene.prepare(scene_id, additive) end
+---@return boolean
+function Scene.cancel() end
+---@return number
+function Scene.progress() end
+---@return boolean
+function Scene.is_prepared() end
+---@return boolean
+function Scene.activate() end
+---@param scene_id string
+---@return boolean
+function Scene.unload(scene_id) end
+---@param entity_id string
+---@param persistent boolean
+---@return boolean
+function Scene.set_persistent(entity_id, persistent) end
+---@return string
+function Scene.active() end
+---@return string
+function Scene.error() end
+
+---@class PrefabInstantiateOptions
+---@field id string
+---@field position? number[]
+---@field overrides? table<string, table>
+---@field pooled? boolean
+
+---@class PrefabService
+Prefab = {}
+---@param prefab_id string
+---@param options PrefabInstantiateOptions
+---@return string|nil instance_id
+function Prefab.instantiate(prefab_id, options) end
+---@param instance_or_entity_id string
+---@return boolean
+function Prefab.release(instance_or_entity_id) end
+---@param prefab_id string
+---@return integer
+function Prefab.pooled_count(prefab_id) end
 
 ---@class RuntimeService
 Runtime = {}
@@ -341,6 +662,10 @@ function Runtime.get_max_fps() end
 function Runtime.set_mouse_captured(captured) end
 ---@return boolean captured
 function Runtime.get_mouse_captured() end
+---@return boolean
+function Runtime.is_focused() end
+---@return boolean
+function Runtime.is_suspended() end
 
 ---@class Rigidbody2DService
 Rigidbody2D = {}
@@ -366,6 +691,139 @@ function Rigidbody2D.set_velocity_y(entity_id, y) end
 ---@param y number
 ---@return boolean
 function Rigidbody2D.add_impulse(entity_id, x, y) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@return boolean
+function Rigidbody2D.add_force(entity_id, x, y) end
+---@param entity_id string
+---@param torque number
+---@return boolean
+function Rigidbody2D.add_torque(entity_id, torque) end
+---@param entity_id string
+---@param angular_velocity number
+---@return boolean
+function Rigidbody2D.set_angular_velocity(entity_id, angular_velocity) end
+---@param entity_id string
+---@param awake boolean
+---@return boolean
+function Rigidbody2D.set_awake(entity_id, awake) end
+---@param entity_id string
+---@param enabled boolean
+---@return boolean
+function Rigidbody2D.set_enabled(entity_id, enabled) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param fixed_dt? number
+---@return boolean
+function Rigidbody2D.move_kinematic(entity_id, x, y, fixed_dt) end
+---@param entity_id string
+---@param motion_x number
+---@param motion_y number
+---@return number?, number?
+function Rigidbody2D.move_and_slide(entity_id, motion_x, motion_y) end
+
+---@class Rigidbody3DService
+Rigidbody3D = {}
+---@param entity_id string
+---@return number|nil x
+---@return number|nil y
+---@return number|nil z
+function Rigidbody3D.get_velocity(entity_id) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@return boolean
+function Rigidbody3D.set_velocity(entity_id, x, y, z) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@return boolean
+function Rigidbody3D.add_force(entity_id, x, y, z) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@return boolean
+function Rigidbody3D.add_impulse(entity_id, x, y, z) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@return boolean
+function Rigidbody3D.add_torque(entity_id, x, y, z) end
+---@param entity_id string
+---@param awake boolean
+---@return boolean
+function Rigidbody3D.set_awake(entity_id, awake) end
+---@param entity_id string
+---@param enabled boolean
+---@return boolean
+function Rigidbody3D.set_enabled(entity_id, enabled) end
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@param rotation_x number
+---@param rotation_y number
+---@param rotation_z number
+---@param fixed_dt number
+---@return boolean
+function Rigidbody3D.move_kinematic(entity_id, x, y, z, rotation_x, rotation_y, rotation_z, fixed_dt) end
+
+---@class CharacterController3DState
+---@field velocity number[]
+---@field grounded boolean
+---@field ground_entity string
+---@class CharacterController3DService
+CharacterController3D = {}
+---@param entity_id string
+---@param x number
+---@param y number
+---@param z number
+---@return boolean
+function CharacterController3D.set_velocity(entity_id, x, y, z) end
+---@param entity_id string
+---@param speed number
+---@return boolean
+function CharacterController3D.jump(entity_id, speed) end
+---@param entity_id string
+---@return CharacterController3DState|nil
+function CharacterController3D.state(entity_id) end
+
+---@class CameraRay3D
+---@field origin number[]
+---@field direction number[]
+---@class Camera3DService
+Camera3D = {}
+---@param entity_id string
+---@param screen_x number
+---@param screen_y number
+---@param viewport_width number
+---@param viewport_height number
+---@return CameraRay3D|nil
+function Camera3D.screen_ray(entity_id, screen_x, screen_y, viewport_width, viewport_height) end
+---@param entity_id string
+---@param world_x number
+---@param world_y number
+---@param world_z number
+---@param viewport_width number
+---@param viewport_height number
+---@return number[]|nil
+function Camera3D.world_to_screen(entity_id, world_x, world_y, world_z, viewport_width, viewport_height) end
+---@param entity_id string
+---@param screen_x number
+---@param screen_y number
+---@param viewport_width number
+---@param viewport_height number
+---@param distance number
+---@return number|nil x
+---@return number|nil y
+---@return number|nil z
+function Camera3D.screen_to_world(entity_id, screen_x, screen_y, viewport_width, viewport_height, distance) end
 
 ---@class Physics2DService
 Physics2D = {}
@@ -378,9 +836,11 @@ Physics2D = {}
 function Physics2D.overlap_box(x, y, width, height, ignored_entity_id) end
 ---@class PhysicsRaycastHit2D
 ---@field entity_id string
+---@field layer string
 ---@field point number[]
 ---@field normal number[]
 ---@field distance number
+---@field fraction number
 ---@param x number
 ---@param y number
 ---@param radius number
@@ -388,6 +848,21 @@ function Physics2D.overlap_box(x, y, width, height, ignored_entity_id) end
 ---@param ignored_entity_id? string
 ---@return string[]
 function Physics2D.overlap_circle(x, y, radius, layer, ignored_entity_id) end
+---@param x number
+---@param y number
+---@param width number
+---@param height number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return PhysicsRaycastHit2D[]
+function Physics2D.overlap_box_all(x, y, width, height, layer, ignored_entity_id) end
+---@param x number
+---@param y number
+---@param radius number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return PhysicsRaycastHit2D[]
+function Physics2D.overlap_circle_all(x, y, radius, layer, ignored_entity_id) end
 ---@param origin_x number
 ---@param origin_y number
 ---@param direction_x number
@@ -402,9 +877,12 @@ function Physics2D.raycast(origin_x, origin_y, direction_x, direction_y, distanc
 Physics3D = {}
 ---@class PhysicsRaycastHit3D
 ---@field entity_id string
+---@field layer string
 ---@field point number[]
 ---@field normal number[]
 ---@field distance number
+---@field fraction number
+---@field is_trigger boolean
 ---@param x number
 ---@param y number
 ---@param z number
@@ -412,6 +890,24 @@ Physics3D = {}
 ---@param ignored_entity_id? string
 ---@return string[]
 function Physics3D.overlap_sphere(x, y, z, radius, ignored_entity_id) end
+---@param x number
+---@param y number
+---@param z number
+---@param radius number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return PhysicsRaycastHit3D[]
+function Physics3D.overlap_sphere_all(x, y, z, radius, layer, ignored_entity_id) end
+---@param x number
+---@param y number
+---@param z number
+---@param width number
+---@param height number
+---@param depth number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return PhysicsRaycastHit3D[]
+function Physics3D.overlap_box_all(x, y, z, width, height, depth, layer, ignored_entity_id) end
 ---@param origin_x number
 ---@param origin_y number
 ---@param origin_z number
@@ -422,6 +918,18 @@ function Physics3D.overlap_sphere(x, y, z, radius, ignored_entity_id) end
 ---@param ignored_entity_id? string
 ---@return PhysicsRaycastHit3D|nil
 function Physics3D.raycast(origin_x, origin_y, origin_z, direction_x, direction_y, direction_z, distance, ignored_entity_id) end
+---@param origin_x number
+---@param origin_y number
+---@param origin_z number
+---@param radius number
+---@param direction_x number
+---@param direction_y number
+---@param direction_z number
+---@param distance number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return PhysicsRaycastHit3D|nil
+function Physics3D.sphere_cast(origin_x, origin_y, origin_z, radius, direction_x, direction_y, direction_z, distance, layer, ignored_entity_id) end
 
 ---@class PhysicsContactFilter2D
 ---@field layer? string
@@ -438,15 +946,168 @@ function Physics2D.has_contact(entity_id, filter) end
 ---@field entity_id string
 ---@field other_entity_id string
 ---@field other_layer string
+---@field phase "enter"|"stay"|"exit"
+---@field point number[]
 ---@field normal_x number
 ---@field normal_y number
+---@field normal_impulse number
 ---@field is_trigger boolean
 ---@param entity_id string
 ---@return PhysicsContact2D[]
 function Physics2D.contacts(entity_id) end
 
+---@class Tilemap2DService
+Tilemap2D = {}
+---@param entity_id string
+---@param layer string
+---@param column integer
+---@param row integer
+---@return integer|nil
+function Tilemap2D.get_tile(entity_id, layer, column, row) end
+---@param entity_id string
+---@param layer string
+---@param column integer
+---@param row integer
+---@param tile integer
+---@return boolean
+function Tilemap2D.set_tile(entity_id, layer, column, row, tile) end
+---@param entity_id string
+---@return boolean
+function Tilemap2D.clear_overrides(entity_id) end
+---@param entity_id string
+---@return boolean
+function Tilemap2D.bake_navigation(entity_id) end
+---@class TilemapObject2D
+---@field id string
+---@field type string
+---@field x number
+---@field y number
+---@field width number
+---@field height number
+---@field properties table
+---@param entity_id string
+---@param layer string
+---@return TilemapObject2D[]
+function Tilemap2D.objects(entity_id, layer) end
+
+---@class Navigation2DService
+Navigation2D = {}
+---@param width integer
+---@param height integer
+---@param cell_size number
+---@param origin_x? number
+---@param origin_y? number
+---@return boolean
+function Navigation2D.configure(width, height, cell_size, origin_x, origin_y) end
+function Navigation2D.clear() end
+---@return boolean
+function Navigation2D.available() end
+---@param x integer
+---@param y integer
+---@param blocked boolean
+---@return boolean
+function Navigation2D.set_blocked(x, y, blocked) end
+---@param x integer
+---@param y integer
+---@param cost number
+---@return boolean
+function Navigation2D.set_cost(x, y, cost) end
+---@param start_x integer
+---@param start_y integer
+---@param goal_x integer
+---@param goal_y integer
+---@param diagonal? boolean
+---@return table path
+---@return string diagnostic
+function Navigation2D.path(start_x, start_y, goal_x, goal_y, diagonal) end
+---@param x number
+---@param y number
+---@return integer|nil column
+---@return integer|nil row
+function Navigation2D.world_to_cell(x, y) end
+---@param column integer
+---@param row integer
+---@return number|nil x
+---@return number|nil y
+function Navigation2D.cell_to_world(column, row) end
+
 ---@class HudService
 Hud = {}
+---@class HudNodeHandle
+---@field id string
+---@field generation integer
+---@class HudNodeDefinition
+---@field id string
+---@field type? string
+---@field text? string
+---@field action? string
+---@field style? string
+---@field texture? string
+---@field accessibility_label? string
+---@field visible? boolean
+---@field disabled? boolean
+---@field focusable? boolean
+---@field font_size? number
+---@field x? number
+---@field y? number
+---@field width? number
+---@field height? number
+---@param id string
+---@return HudNodeHandle|nil
+function Hud.find(id) end
+---@param parent string
+---@param definition HudNodeDefinition
+---@return HudNodeHandle|nil handle
+---@return string error
+function Hud.create(parent, definition) end
+---@param source HudNodeHandle
+---@param new_root_id string
+---@param parent? string
+---@return HudNodeHandle|nil handle
+---@return string error
+function Hud.clone(source, new_root_id, parent) end
+---@param node HudNodeHandle
+---@return boolean ok
+---@return string error
+function Hud.remove(node) end
+---@param node HudNodeHandle
+---@param parent string
+---@return boolean ok
+---@return string error
+function Hud.reparent(node, parent) end
+---@param parent string
+---@return boolean ok
+---@return string error
+function Hud.clear_children(parent) end
+---@param parent string
+---@return string[]
+function Hud.children(parent) end
+---@param node HudNodeHandle
+---@param property "opacity"|"x"|"y"|"scale"
+---@param target number
+---@param duration number
+---@return integer handle
+---@return string error
+function Hud.tween(node, property, target, duration) end
+---@param handle integer
+---@return boolean
+function Hud.cancel_tween(handle) end
+---@param enabled boolean
+function Hud.set_reduced_motion(enabled) end
+---@param locale string
+---@return boolean changed
+---@return string error
+function Hud.set_locale(locale) end
+---@param enabled boolean
+function Hud.set_pseudo_locale(enabled) end
+---@param item_count integer
+---@param item_extent number
+---@param scroll_offset number
+---@param viewport_extent number
+---@param overscan? integer
+---@return integer first One-based logical item index.
+---@return integer count Number of live rows needed.
+function Hud.visible_range(item_count, item_extent, scroll_offset, viewport_extent, overscan) end
 ---@return number width
 ---@return number height
 function Hud.canvas_size() end
@@ -554,6 +1215,49 @@ function Hud.set_group_visible(group, visible) end
 ---@return string|nil
 function Hud.get_text(id) end
 
+---@class TextLayoutLine
+---@field text string
+---@field x number
+---@field y number
+---@field width number
+---@class TextLayoutResult
+---@field width number
+---@field height number
+---@field grapheme_count integer
+---@field truncated boolean
+---@field valid_utf8 boolean
+---@field shaping_complete boolean
+---@field lines TextLayoutLine[]
+---@class TextService
+Text = {}
+---@param value string
+---@return integer
+function Text.grapheme_count(value) end
+---@param value string
+---@param first integer One-based grapheme index.
+---@param count integer
+---@return string|nil
+function Text.grapheme_slice(value, first, count) end
+---@param value string
+---@param width number
+---@param font_size number
+---@param max_lines? integer
+---@return TextLayoutResult
+function Text.layout(value, width, font_size, max_lines) end
+---@class RichTextSpan
+---@field begin integer
+---@field length integer
+---@field style string
+---@field value string
+---@class RichTextResult
+---@field text string
+---@field spans RichTextSpan[]
+---@field diagnostics string[]
+---@param markup string
+---@param strict? boolean
+---@return RichTextResult
+function Text.parse_rich(markup, strict) end
+
 ---@class RegexService
 Regex = {}
 ---@param pattern string
@@ -646,9 +1350,32 @@ function Save.register_migration(from_version, to_version, callback) end
 
 ---@class AudioService
 Audio = {}
+---@class AudioPlayOptions
+---@field bus? '"music"'|'"sfx"'|'"voice"'|'"ui"'|string
+---@field loop? boolean
+---@field streaming? boolean
+---@field volume? number
+---@field pitch? number
+---@field pan? number
+---@field spatial? '"none"'|'"2d"'|'"3d"'
+---@field attenuation? '"none"'|'"inverse"'|'"linear"'|'"exponential"'
+---@field x? number
+---@field y? number
+---@field z? number
+---@field min_distance? number
+---@field max_distance? number
+---@field rolloff? number
+---@field doppler? boolean
+---@field delay? number
+---@field fade_in? number
+---@field concurrency_group? string
+---@field max_voices? integer
+---@field voice_stealing? '"reject"'|'"oldest"'|'"quietest"'
+---@field pause_with_game? boolean
 ---@param asset_id string
+---@param options? AudioPlayOptions
 ---@return integer handle
-function Audio.play(asset_id) end
+function Audio.play(asset_id, options) end
 ---@param handle integer
 ---@return boolean
 function Audio.stop(handle) end
@@ -656,6 +1383,36 @@ function Audio.stop(handle) end
 function Audio.set_master_volume(volume) end
 ---@return number
 function Audio.get_master_volume() end
+---@param bus string
+---@param volume number
+---@return boolean
+function Audio.set_bus_volume(bus, volume) end
+---@param bus string
+---@return number
+function Audio.get_bus_volume(bus) end
+---@param bus string
+---@param muted boolean
+---@return boolean
+function Audio.set_bus_muted(bus, muted) end
+---@param bus string
+---@param paused boolean
+---@return boolean
+function Audio.set_bus_paused(bus, paused) end
+---@param name string
+---@param volumes table<string, number>
+function Audio.define_snapshot(name, volumes) end
+---@param name string
+---@param duration number
+---@return boolean
+function Audio.transition_snapshot(name, duration) end
+---@param from_handle integer
+---@param asset_id string
+---@param duration number
+---@param bus? string
+---@param loop? boolean
+---@param streaming? boolean
+---@return integer handle
+function Audio.crossfade(from_handle, asset_id, duration, bus, loop, streaming) end
 
 ---@class AudioSourceService
 AudioSource = {}
@@ -958,7 +1715,19 @@ NetworkSession = {}
 ---@field session table|nil
 ---@field messages integer
 ---@field events NetworkSessionGameEvent[]
----@param options {send_interval?: number, extrapolation_limit?: number, initial_prediction?: number, channel?: integer, port?: integer, max_peers?: integer, remote_prefab?: table, certificate?: string, private_key?: string, trusted_certificate?: string, server_name?: string}
+---@class NetworkRemotePrefab
+---@field name? string
+---@field texture? string
+---@field shape? "rectangle"|"circle"|"triangle"
+---@field layer? string
+---@field sorting_order? integer
+---@field size? number[]
+---@field pivot? number[]
+---@field parent? string
+---@field rotation? number
+---@field scale? number[]
+---@field color? number[]
+---@param options {send_interval?: number, extrapolation_limit?: number, initial_prediction?: number, channel?: integer, port?: integer, max_peers?: integer, remote_prefab?: NetworkRemotePrefab, certificate?: string, private_key?: string, trusted_certificate?: string, server_name?: string}
 function NetworkSession.configure(options) end
 ---@return string
 function NetworkSession.sender_id() end
@@ -1059,3 +1828,49 @@ function DemiScript:on_destroy() end
 function DemiScript:on_ui_hover(event) end
 ---@param event DemiUiEvent
 function DemiScript:on_ui_click(event) end
+
+-- Generated from ComponentRegistry metadata.
+---@class DemiRigidbody2DSpec
+---@field body_type? string
+---@field velocity? number[]
+---@field gravity_scale? number
+---@field bounciness? number
+---@field lock_rotation? boolean
+---@field angular_velocity? number
+---@field linear_damping? number
+---@field angular_damping? number
+---@field continuous? boolean
+---@field allow_sleep? boolean
+---@field awake? boolean
+---@field body_enabled? boolean
+
+---@class DemiSpriteAnimator2DSpec
+---@field frame_size? number[]
+---@field atlas? table
+---@field clips? table
+---@field clip? string
+---@field speed? number
+---@field playing? boolean
+
+---@class DemiTransform2DSpec
+---@field parent? string
+---@field position? number[]
+---@field rotation? number
+---@field scale? number[]
+
+---@class DemiTransform3DSpec
+---@field parent? string
+---@field position? number[]
+---@field rotation? number[]
+---@field scale? number[]
+
+---@class DemiAnimationStateMachineSpec
+---@field states table
+---@field transitions? table
+---@field parameters? table
+---@field blend_spaces? table
+---@field layers? table
+---@field initial_state? string
+---@field speed? number
+---@field root_motion? boolean
+---@field pause_policy? string

@@ -238,18 +238,35 @@ function Mesh.build_section(world, cx, section_y, cz)
   local top_face = faces[3]
   local has_overrides = world.block_overrides ~= nil and next(world.block_overrides) ~= nil
   profile_scope("Voxel.mesh_terrain", function()
+    local border_stride = config.chunk_size + 2
+    local height_cache = {}
+    local top_block_cache = {}
+    local function column_index(x, z)
+      return ((z + 1) * border_stride) + x + 2
+    end
+    for z = -1, config.chunk_size do
+      for x = -1, config.chunk_size do
+        local world_x = (cx * config.chunk_size) + x
+        local world_z = (cz * config.chunk_size) + z
+        local index = column_index(x, z)
+        if has_overrides then
+          height_cache[index], top_block_cache[index] = terrain.surface_height(world, world_x, world_z)
+        else
+          height_cache[index] = terrain.column_height(world, world_x, world_z)
+        end
+      end
+    end
+
     for z = 0, config.chunk_size - 1 do
       for x = 0, config.chunk_size - 1 do
         local world_x = (cx * config.chunk_size) + x
         local world_z = (cz * config.chunk_size) + z
-        local height = nil
-        local top_block = nil
+        local index = column_index(x, z)
+        local height = height_cache[index]
+        local top_block = top_block_cache[index]
         local biome = nil
         local rocky = false
-        if has_overrides then
-          height, top_block = terrain.surface_height(world, world_x, world_z)
-        else
-          height = terrain.column_height(world, world_x, world_z)
+        if not has_overrides then
           biome = terrain.biome_at(world, world_x, world_z)
           rocky = terrain.rocky_surface_at(world, world_x, world_z, height, biome)
           top_block = terrain_block_for_column_y(height, height, biome, rocky)
@@ -260,12 +277,7 @@ function Mesh.build_section(world, cx, section_y, cz)
 
         for _, face in ipairs(side_faces) do
           local neighbor = face.neighbor
-          local neighbor_height = nil
-          if has_overrides then
-            neighbor_height = terrain.surface_height(world, world_x + neighbor[1], world_z + neighbor[3])
-          else
-            neighbor_height = terrain.column_height(world, world_x + neighbor[1], world_z + neighbor[3])
-          end
+          local neighbor_height = height_cache[column_index(x + neighbor[1], z + neighbor[3])]
           local min_y = math.max(neighbor_height + 1, section_min_y)
           local max_y = math.min(height, section_max_y)
           for y = min_y, max_y do

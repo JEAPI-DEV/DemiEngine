@@ -71,11 +71,18 @@ bool UiInteractionController::focusNext(UiDocument &document,
 }
 bool UiInteractionController::capturePointer(UiDocument &document,
                                              const Vec2 position) const {
+  return capturePointer(document, 0, position);
+}
+bool UiInteractionController::capturePointer(UiDocument &document,
+                                             const std::int64_t pointerId,
+                                             const Vec2 position) const {
   for (auto iterator = document.nodes.rbegin();
        iterator != document.nodes.rend(); ++iterator) {
     if (interactive(document, *iterator) &&
         contains(iterator->resolved, position)) {
-      document.pointerCaptureId = iterator->id;
+      document.pointerCaptures[pointerId] = iterator->id;
+      if (pointerId == 0)
+        document.pointerCaptureId = iterator->id;
       document.focusedId = iterator->id;
       return true;
     }
@@ -84,8 +91,18 @@ bool UiInteractionController::capturePointer(UiDocument &document,
 }
 bool UiInteractionController::updatePointer(UiDocument &document,
                                             const Vec2 position) const {
+  return updatePointer(document, 0, position);
+}
+bool UiInteractionController::updatePointer(UiDocument &document,
+                                            const std::int64_t pointerId,
+                                            const Vec2 position) const {
+  const auto capture = document.pointerCaptures.find(pointerId);
+  const std::string captured =
+      capture != document.pointerCaptures.end()
+          ? capture->second
+          : (pointerId == 0 ? document.pointerCaptureId : std::string{});
   const auto found =
-      std::ranges::find(document.nodes, document.pointerCaptureId, &UiNode::id);
+      std::ranges::find(document.nodes, captured, &UiNode::id);
   if (found == document.nodes.end() || found->type != "slider" ||
       found->resolved.width <= 0.0F)
     return false;
@@ -95,7 +112,18 @@ bool UiInteractionController::updatePointer(UiDocument &document,
   return true;
 }
 void UiInteractionController::releasePointer(UiDocument &document) const {
-  document.pointerCaptureId.clear();
+  releasePointer(document, 0);
+}
+void UiInteractionController::releasePointer(UiDocument &document,
+                                             const std::int64_t pointerId) const {
+  document.pointerCaptures.erase(pointerId);
+  if (pointerId == 0)
+    document.pointerCaptureId.clear();
+}
+bool UiInteractionController::pointerCaptured(
+    const UiDocument &document, const std::int64_t pointerId) const {
+  return document.pointerCaptures.contains(pointerId) ||
+         (pointerId == 0 && !document.pointerCaptureId.empty());
 }
 std::optional<std::string>
 UiInteractionController::activateFocused(UiDocument &document) const {

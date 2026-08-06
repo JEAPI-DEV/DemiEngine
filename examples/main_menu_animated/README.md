@@ -1,6 +1,9 @@
 # Animated Main Menu
 
-A data-driven HUD menu with an explorer walking from left to right behind the menu surface. It is the smallest reusable probe for `require("demi.gui_animation")`.
+A data-driven HUD menu with an explorer walking from left to right behind the
+menu surface. It is the smallest reusable probe for `Data.load`, schema-backed
+content, and `require("demi.gui_animation")`. Edit
+`assets/data/menu.json` to change the title without changing Lua or C++.
 
 ```bash
 ./build/linux-debug/demi validate examples/main_menu_animated/demi.project.json

@@ -140,10 +140,16 @@ local function create_section(world, cx, section_y, cz, mesh)
   })
   if profile_enabled then
     Profile.scope("Voxel.section_mesh_apply_create", function()
-      ProceduralMesh.apply(section_id, mesh, config.pack.texture)
+      ProceduralMesh.apply(section_id, mesh, {
+        material = config.terrain_material,
+        render_layer = "world",
+      })
     end)
   else
-    ProceduralMesh.apply(section_id, mesh, config.pack.texture)
+    ProceduralMesh.apply(section_id, mesh, {
+      material = config.terrain_material,
+      render_layer = "world",
+    })
   end
   world.loaded_section_count = (world.loaded_section_count or 0) + 1
 end
@@ -151,10 +157,16 @@ end
 local function update_section(cx, section_y, cz, mesh)
   if profile_enabled then
     Profile.scope("Voxel.section_mesh_apply_update", function()
-      ProceduralMesh.apply(terrain.section_id(cx, section_y, cz), mesh, config.pack.texture)
+      ProceduralMesh.apply(terrain.section_id(cx, section_y, cz), mesh, {
+        material = config.terrain_material,
+        render_layer = "world",
+      })
     end)
   else
-    ProceduralMesh.apply(terrain.section_id(cx, section_y, cz), mesh, config.pack.texture)
+    ProceduralMesh.apply(terrain.section_id(cx, section_y, cz), mesh, {
+      material = config.terrain_material,
+      render_layer = "world",
+    })
   end
 end
 

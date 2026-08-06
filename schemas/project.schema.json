@@ -30,6 +30,9 @@
                 "type": "object",
                 "required": ["bindings"],
                 "properties": {
+                  "type": {"enum": ["button", "axis", "axis1d", "vector", "vector2"]},
+                  "context": {"type": "string", "minLength": 1},
+                  "player": {"type": "integer", "minimum": 0},
                   "bindings": {"$ref": "#/$defs/input_bindings"}
                 }
               }
@@ -129,11 +132,22 @@
             "required": ["input"],
             "properties": {
               "input": {"type": "string"},
-              "scale": {"type": "number", "minimum": -1, "maximum": 1}
+              "scale": {"type": "number", "minimum": -1, "maximum": 1},
+              "vector": {"$ref": "#/$defs/vec2"},
+              "deadzone": {"type": "number", "minimum": 0, "maximum": 0.99},
+              "invert": {"type": "boolean"},
+              "normalize": {"type": "boolean"},
+              "player": {"type": "integer", "minimum": 0}
             }
           }
         ]
       }
+    },
+    "vec2": {
+      "type": "array",
+      "prefixItems": [{"type": "number"}, {"type": "number"}],
+      "minItems": 2,
+      "maxItems": 2
     }
   }
 }

@@ -1,5 +1,6 @@
 #include "demi/runtime/scene/components/2dcomponents/SpriteAnimator2DComponent.h"
 
+#include "demi/runtime/animation/SpriteSheetAnimation.h"
 #include "demi/runtime/scene/SceneJson.h"
 #include "demi/runtime/scene/model/Entity.h"
 
@@ -16,6 +17,22 @@ void SpriteAnimator2DComponent::parse(const nlohmann::json &json,
   component.speed =
       std::max(scene_loading::numberField(json, "speed").value_or(1.0F), 0.0F);
   component.playing = scene_loading::boolField(json, "playing").value_or(true);
+
+  if (const auto *atlas = scene_loading::objectField(json, "atlas")) {
+    std::vector<std::string> rowNames;
+    if (const auto *names = scene_loading::arrayField(*atlas, "row_names"))
+      for (const auto &name : *names)
+        if (name.is_string())
+          rowNames.push_back(name.get<std::string>());
+    component.clips = makeSpriteSheetRows(
+        static_cast<int>(
+            scene_loading::numberField(*atlas, "columns").value_or(1.0F)),
+        static_cast<int>(
+            scene_loading::numberField(*atlas, "rows").value_or(1.0F)),
+        rowNames,
+        scene_loading::numberField(*atlas, "fps").value_or(10.0F),
+        scene_loading::boolField(*atlas, "loop").value_or(true));
+  }
 
   if (const auto *clips = scene_loading::objectField(json, "clips")) {
     for (const auto &[name, value] : clips->items()) {

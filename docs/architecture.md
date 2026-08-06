@@ -32,9 +32,13 @@ The current source layout reflects those boundaries:
 - `src/demi/diagnostics`: shared structured diagnostics.
 - `src/demi/filesystem`: deterministic project path resolution.
 - `src/demi/schema`: source validation.
-- `src/demi/runtime/app`: window, input, loop, and subsystem orchestration.
+- `src/demi/runtime/app`: loop and subsystem orchestration plus the narrow 2D
+  platform/render composition root.
+- `src/demi/runtime/platform`: SDL3 window, lifecycle, clipboard, display, and
+  input translation.
 - `src/demi/runtime/scene`: project/scene/HUD models, registries, and loading.
-- `src/demi/runtime/render`: raylib-backed 2D and lightweight 3D rendering.
+- `src/demi/runtime/render`: backend-neutral renderer-facing systems. Visible
+  2D and lightweight 3D rendering use bgfx. See `docs/bgfx-migration.md`.
 - `src/demi/runtime/physics`: Box2D integration plus lightweight 3D collision,
   overlap, and raycast queries.
 - `src/demi/runtime/scripting`: Lua lifecycle, services, annotations, and
@@ -46,7 +50,10 @@ The current source layout reflects those boundaries:
 
 ## Current Technology
 
-- **raylib 5.5:** windows, input, 2D/3D drawing, textures, and models.
+- **SDL3:** Linux and Android windows, lifecycle, input, clipboard, and native
+  window handles for 2D scenes.
+- **bgfx:** active Vulkan-first Linux and Android 2D/3D renderer. Its lifecycle
+  is isolated behind `GraphicsDevice`.
 - **Lua 5.4 + sol2:** gameplay VM and C++ bindings.
 - **Box2D 2.4.1:** 2D rigid bodies and collision.
 - **miniaudio 0.11.22:** audio playback.
@@ -57,7 +64,7 @@ The current source layout reflects those boundaries:
 - **ENet 1.3.18:** optional reliable UDP transport.
 - **librsvg:** optional SVG rasterization when available.
 
-There is no SDL3, bgfx, EnTT, Dear ImGui, or ImGuizmo dependency in the current
+There is no EnTT, Dear ImGui, or ImGuizmo dependency in the current
 implementation.
 
 ## Data And Composition
@@ -69,6 +76,11 @@ is kept outside authored source directories.
 Scene component classes own their stable JSON name, defaults, parser, Lua
 exposure metadata, and dimensional domain. `ComponentRegistry` is the runtime
 lookup path. `Entity` stores components in type-keyed `ComponentStorage`.
+
+Runtime composition keeps three narrow owners: `RuntimePrefabService` expands
+and pools authored prefabs, `SceneFlow` prepares and applies scene transitions,
+and `ResourceLifetimeRegistry` records scene/persistent asset ownership. Lua
+bindings adapt these services but do not duplicate prefab or scene parsing.
 
 UI nodes are parsed into one tree-oriented model and resolved by the layout
 engine before either renderer consumes them.

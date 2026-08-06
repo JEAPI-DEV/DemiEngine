@@ -19,6 +19,8 @@ namespace demi::runtime::scene_loading {
 using ComponentParseFn = void (*)(const nlohmann::json &, Entity &);
 using ComponentSerializeFn = nlohmann::json (*)(const Entity &);
 using ComponentDefaultsFn = nlohmann::json (*)();
+using ComponentContainsFn = bool (*)(const Entity &);
+using ComponentRemoveFn = bool (*)(Entity &);
 
 struct ComponentValidationError {
   std::string field;
@@ -30,6 +32,8 @@ struct ComponentDescriptor {
   ComponentParseFn parse;
   ComponentSerializeFn serialize;
   ComponentDefaultsFn defaults;
+  ComponentContainsFn contains;
+  ComponentRemoveFn remove;
   std::span<const ComponentFieldDescriptor> fields;
   ComponentEditorMetadata editor;
   bool exposedToLua = false;
@@ -61,6 +65,16 @@ template <typename ComponentClass>
 }
 
 template <typename ComponentClass>
+[[nodiscard]] bool containsComponent(const Entity &entity) {
+  return entity.hasComponent<ComponentClass>();
+}
+
+template <typename ComponentClass>
+bool removeComponent(Entity &entity) {
+  return entity.removeComponent<ComponentClass>();
+}
+
+template <typename ComponentClass>
 [[nodiscard]] constexpr std::span<const ComponentFieldDescriptor>
 componentFields() {
   if constexpr (requires { ComponentClass::fields; }) {
@@ -85,6 +99,8 @@ template <typename ComponentClass>
       .parse = &parseComponent<ComponentClass>,
       .serialize = &serializeComponent<ComponentClass>,
       .defaults = &defaultComponentJson<ComponentClass>,
+      .contains = &containsComponent<ComponentClass>,
+      .remove = &removeComponent<ComponentClass>,
       .fields = componentFields<ComponentClass>(),
       .editor = componentEditorMetadata<ComponentClass>(),
       .exposedToLua = ComponentClass::exposedToLua,
@@ -100,6 +116,7 @@ componentDefaults(const ComponentDescriptor &descriptor);
 [[nodiscard]] nlohmann::json
 componentSchema(const ComponentDescriptor &descriptor);
 [[nodiscard]] nlohmann::json canonicalComponentSchema();
+[[nodiscard]] std::string generatedLuaComponentTypes();
 
 [[nodiscard]] std::span<const ComponentDescriptor> componentDescriptors();
 [[nodiscard]] const ComponentDescriptor *

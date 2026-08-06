@@ -1,6 +1,7 @@
 #include "demi/runtime/physics/SpatialQuery3D.h"
 
 #include "demi/runtime/physics/ColliderAsset3D.h"
+#include "demi/runtime/physics/PhysicsWorld3D.h"
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scene/model/World.h"
@@ -102,6 +103,93 @@ sphereBounds(const World &world, const Entity &entity,
                 std::abs(transform->scale.z)});
   return Sphere3D{.center = transformPoint3D(*transform, collider->offset),
                   .radius = collider->radius * scale};
+}
+
+std::optional<Aabb3D>
+convexBounds(const World &world, const Entity &entity,
+             const Transform3DComponent *overrideTransform = nullptr) {
+  const auto *collider = entity.component<ConvexCollider3DComponent>();
+  const auto transform = entityTransform(world, entity, overrideTransform);
+  if (collider == nullptr || collider->points.empty() || !transform)
+    return std::nullopt;
+  Aabb3D bounds{.min = {std::numeric_limits<float>::max(),
+                        std::numeric_limits<float>::max(),
+                        std::numeric_limits<float>::max()},
+                .max = {std::numeric_limits<float>::lowest(),
+                        std::numeric_limits<float>::lowest(),
+                        std::numeric_limits<float>::lowest()}};
+  for (const Vec3 local : collider->points) {
+    const Vec3 point = transformPoint3D(
+        *transform, add(local, collider->offset));
+    bounds.min.x = std::min(bounds.min.x, point.x);
+    bounds.min.y = std::min(bounds.min.y, point.y);
+    bounds.min.z = std::min(bounds.min.z, point.z);
+    bounds.max.x = std::max(bounds.max.x, point.x);
+    bounds.max.y = std::max(bounds.max.y, point.y);
+    bounds.max.z = std::max(bounds.max.z, point.z);
+  }
+  return bounds;
+}
+
+std::optional<Aabb3D>
+capsuleBounds(const World &world, const Entity &entity,
+              const Transform3DComponent *overrideTransform = nullptr) {
+  const auto *collider = entity.component<CapsuleCollider3DComponent>();
+  const auto transform = entityTransform(world, entity, overrideTransform);
+  if (collider == nullptr || !transform)
+    return std::nullopt;
+  const float radius = collider->radius *
+                       std::max({std::abs(transform->scale.x),
+                                 std::abs(transform->scale.z)});
+  const float halfSegment =
+      std::max(collider->height * std::abs(transform->scale.y) * 0.5F -
+                   radius,
+               0.0F);
+  const Vec3 center = transformPoint3D(*transform, collider->offset);
+  const Vec3 axis = normalize(transformDirection3D(*transform, {0, 1, 0}));
+  const Vec3 extent{std::abs(axis.x) * halfSegment + radius,
+                    std::abs(axis.y) * halfSegment + radius,
+                    std::abs(axis.z) * halfSegment + radius};
+  return Aabb3D{.min = subtract(center, extent),
+                .max = add(center, extent)};
+}
+
+std::optional<Aabb3D>
+simpleBounds(const World &world, const Entity &entity,
+             const Transform3DComponent *overrideTransform = nullptr) {
+  if (const auto box = boxBounds(world, entity, overrideTransform))
+    return box;
+  if (const auto capsule = capsuleBounds(world, entity, overrideTransform))
+    return capsule;
+  return convexBounds(world, entity, overrideTransform);
+}
+
+std::string colliderLayer(const Entity &entity) {
+  if (const auto *value = entity.component<BoxCollider3DComponent>())
+    return value->layer;
+  if (const auto *value = entity.component<SphereCollider3DComponent>())
+    return value->layer;
+  if (const auto *value = entity.component<CapsuleCollider3DComponent>())
+    return value->layer;
+  if (const auto *value = entity.component<ConvexCollider3DComponent>())
+    return value->layer;
+  if (const auto *value = entity.component<ModelCollider3DComponent>())
+    return value->layer;
+  return entity.layer;
+}
+
+bool colliderIsTrigger(const Entity &entity) {
+  if (const auto *value = entity.component<BoxCollider3DComponent>())
+    return value->isTrigger;
+  if (const auto *value = entity.component<SphereCollider3DComponent>())
+    return value->isTrigger;
+  if (const auto *value = entity.component<CapsuleCollider3DComponent>())
+    return value->isTrigger;
+  if (const auto *value = entity.component<ConvexCollider3DComponent>())
+    return value->isTrigger;
+  if (const auto *value = entity.component<ModelCollider3DComponent>())
+    return value->isTrigger;
+  return false;
 }
 
 bool intersects(const Aabb3D &left, const Aabb3D &right) {
@@ -347,8 +435,8 @@ Vec3 boxNormal(const Vec3 point, const Aabb3D &box) {
 bool collidersOverlap3D(const World &world, const Entity &left,
                         const Transform3DComponent *leftLocalOverride,
                         const Entity &right) {
-  const auto leftBox = boxBounds(world, left, leftLocalOverride);
-  const auto rightBox = boxBounds(world, right);
+  const auto leftBox = simpleBounds(world, left, leftLocalOverride);
+  const auto rightBox = simpleBounds(world, right);
   if (leftBox && resolvedTriangleCollider3D(world, right) != nullptr)
     return meshIntersectsBox(world, right, *leftBox);
   if (rightBox && resolvedTriangleCollider3D(world, left) != nullptr)
@@ -372,32 +460,115 @@ std::vector<std::string> overlapSphere3D(const World &world, const Vec3 center,
                                          const float radius,
                                          const std::string &ignoredEntityId) {
   std::vector<std::string> entities;
+  for (const PhysicsQueryHit3D &hit :
+       overlapSphereAll3D(world, center, radius, {}, ignoredEntityId))
+    entities.push_back(hit.entityId);
+  return entities;
+}
+
+std::vector<PhysicsQueryHit3D>
+overlapSphereAll3D(const World &world, const Vec3 center, const float radius,
+                   const std::string &layer,
+                   const std::string &ignoredEntityId) {
+  if (world.physicsWorld3D != nullptr)
+    return world.physicsWorld3D->overlapSphere(center, radius, layer,
+                                               ignoredEntityId);
+  std::vector<PhysicsQueryHit3D> entities;
   const Sphere3D query{.center = center, .radius = std::max(radius, 0.0F)};
   for (const Entity &entity : world.entities) {
-    if (entity.id == ignoredEntityId)
+    if (!entity.enabled || entity.id == ignoredEntityId ||
+        (!layer.empty() && colliderLayer(entity) != layer))
       continue;
     const auto sphere = sphereBounds(world, entity);
-    const auto box = boxBounds(world, entity);
+    const auto box = simpleBounds(world, entity);
     const bool triangleMesh =
         resolvedTriangleCollider3D(world, entity) != nullptr;
     if ((triangleMesh && meshIntersectsSphere(world, entity, query)) ||
         (!triangleMesh && sphere && intersects(query, *sphere)) ||
         (!triangleMesh && box && intersects(query, *box)))
-      entities.push_back(entity.id);
+      entities.push_back({.entityId = entity.id,
+                          .layer = colliderLayer(entity),
+                          .point = center,
+                          .normal = {},
+                          .isTrigger = colliderIsTrigger(entity)});
   }
-  std::ranges::sort(entities);
+  std::ranges::sort(entities, {}, &PhysicsQueryHit3D::entityId);
   return entities;
+}
+
+std::vector<PhysicsQueryHit3D>
+overlapBoxAll3D(const World &world, const Vec3 center, const Vec3 size,
+                const std::string &layer,
+                const std::string &ignoredEntityId) {
+  if (world.physicsWorld3D != nullptr)
+    return world.physicsWorld3D->overlapBox(center, size, layer,
+                                            ignoredEntityId);
+  std::vector<PhysicsQueryHit3D> result;
+  const Vec3 half{std::max(size.x, 0.0F) * 0.5F,
+                  std::max(size.y, 0.0F) * 0.5F,
+                  std::max(size.z, 0.0F) * 0.5F};
+  const Aabb3D query{.min = subtract(center, half),
+                     .max = add(center, half)};
+  for (const Entity &entity : world.entities) {
+    if (!entity.enabled || entity.id == ignoredEntityId ||
+        (!layer.empty() && colliderLayer(entity) != layer))
+      continue;
+    const auto sphere = sphereBounds(world, entity);
+    const auto bounds = simpleBounds(world, entity);
+    const bool hit =
+        resolvedTriangleCollider3D(world, entity) != nullptr
+            ? meshIntersectsBox(world, entity, query)
+            : (sphere ? intersects(*sphere, query)
+                      : bounds && intersects(*bounds, query));
+    if (hit)
+      result.push_back({.entityId = entity.id,
+                        .layer = colliderLayer(entity),
+                        .point = center,
+                        .normal = {},
+                        .isTrigger = colliderIsTrigger(entity)});
+  }
+  std::ranges::sort(result, {}, &PhysicsQueryHit3D::entityId);
+  return result;
+}
+
+std::vector<PhysicsQueryHit3D>
+overlapCapsuleAll3D(const World &world, const Vec3 center, const float radius,
+                    const float height, const std::string &layer,
+                    const std::string &ignoredEntityId) {
+  if (world.physicsWorld3D != nullptr)
+    return world.physicsWorld3D->overlapCapsule(center, radius, height, layer,
+                                                ignoredEntityId);
+  std::vector<PhysicsQueryHit3D> result;
+  const float safeRadius = std::max(radius, 0.0F);
+  const float halfSegment =
+      std::max(height * 0.5F - safeRadius, 0.0F);
+  for (const Vec3 sample :
+       {Vec3{center.x, center.y - halfSegment, center.z}, center,
+        Vec3{center.x, center.y + halfSegment, center.z}}) {
+    for (PhysicsQueryHit3D hit :
+         overlapSphereAll3D(world, sample, safeRadius, layer,
+                            ignoredEntityId))
+      if (std::ranges::none_of(result, [&](const PhysicsQueryHit3D &existing) {
+            return existing.entityId == hit.entityId;
+          }))
+        result.push_back(std::move(hit));
+  }
+  std::ranges::sort(result, {}, &PhysicsQueryHit3D::entityId);
+  return result;
 }
 
 std::optional<PhysicsRaycastHit3D>
 raycast3D(const World &world, const Vec3 origin, const Vec3 direction,
           const float distance, const std::string &ignoredEntityId) {
+  if (world.physicsWorld3D != nullptr)
+    return world.physicsWorld3D->raycast(origin, direction, distance, {},
+                                         ignoredEntityId);
   const Vec3 rayDirection = normalize(direction);
   if (lengthSquared(rayDirection) <= 0.0F || distance < 0.0F)
     return std::nullopt;
   std::optional<PhysicsRaycastHit3D> nearest;
   for (const Entity &entity : world.entities) {
-    if (entity.id == ignoredEntityId)
+    if (!entity.enabled || entity.id == ignoredEntityId)
       continue;
     std::optional<float> hitDistance;
     Vec3 normal;
@@ -422,7 +593,7 @@ raycast3D(const World &world, const Vec3 origin, const Vec3 direction,
                          origin.z + rayDirection.z * *hitDistance};
         normal = normalize(subtract(point, sphere->center));
       }
-    } else if (const auto box = boxBounds(world, entity)) {
+    } else if (const auto box = simpleBounds(world, entity)) {
       hitDistance = rayBox(origin, rayDirection, *box);
       if (hitDistance) {
         const Vec3 point{origin.x + rayDirection.x * *hitDistance,
@@ -436,13 +607,88 @@ raycast3D(const World &world, const Vec3 origin, const Vec3 direction,
       continue;
     nearest =
         PhysicsRaycastHit3D{.entityId = entity.id,
+                            .layer = colliderLayer(entity),
                             .point = {origin.x + rayDirection.x * *hitDistance,
                                       origin.y + rayDirection.y * *hitDistance,
                                       origin.z + rayDirection.z * *hitDistance},
                             .normal = normal,
-                            .distance = *hitDistance};
+                            .distance = *hitDistance,
+                            .fraction = distance > 0.0F
+                                            ? *hitDistance / distance
+                                            : 0.0F,
+                            .isTrigger = colliderIsTrigger(entity)};
   }
   return nearest;
+}
+
+std::optional<PhysicsQueryHit3D>
+sphereCast3D(const World &world, const Vec3 origin, const float radius,
+             const Vec3 direction, const float distance,
+             const std::string &layer,
+             const std::string &ignoredEntityId) {
+  if (world.physicsWorld3D != nullptr)
+    return world.physicsWorld3D->castSphere(
+        origin, radius, direction, distance, layer, ignoredEntityId);
+  if (radius < 0.0F || distance < 0.0F ||
+      lengthSquared(direction) <= 0.000001F)
+    return std::nullopt;
+  const Vec3 unit = normalize(direction);
+  const float stride = std::max(radius * 0.25F, 0.01F);
+  const int steps =
+      std::clamp(static_cast<int>(std::ceil(distance / stride)), 1, 4096);
+  for (int index = 0; index <= steps; ++index) {
+    const float travelled =
+        distance * static_cast<float>(index) / static_cast<float>(steps);
+    const Vec3 center =
+        add(origin, {unit.x * travelled, unit.y * travelled,
+                     unit.z * travelled});
+    auto hits = overlapSphereAll3D(world, center, radius, layer,
+                                   ignoredEntityId);
+    if (hits.empty())
+      continue;
+    PhysicsQueryHit3D hit = hits.front();
+    hit.point = center;
+    hit.distance = travelled;
+    hit.fraction = distance > 0.0F ? travelled / distance : 0.0F;
+    hit.normal = {-unit.x, -unit.y, -unit.z};
+    return hit;
+  }
+  return std::nullopt;
+}
+
+std::optional<PhysicsQueryHit3D>
+capsuleCast3D(const World &world, const Vec3 origin, const float radius,
+              const float height, const Vec3 direction, const float distance,
+              const std::string &layer,
+              const std::string &ignoredEntityId) {
+  if (world.physicsWorld3D != nullptr)
+    return world.physicsWorld3D->castCapsule(
+        origin, radius, height, direction, distance, layer, ignoredEntityId);
+  if (radius < 0.0F || height < 2.0F * radius || distance < 0.0F ||
+      lengthSquared(direction) <= 0.000001F)
+    return std::nullopt;
+  const Vec3 unit = normalize(direction);
+  const float stride = std::max(radius * 0.25F, 0.01F);
+  const int steps =
+      std::clamp(static_cast<int>(std::ceil(distance / stride)), 1, 4096);
+  for (int index = 0; index <= steps; ++index) {
+    const float travelled =
+        distance * static_cast<float>(index) / static_cast<float>(steps);
+    const Vec3 center =
+        add(origin, {unit.x * travelled, unit.y * travelled,
+                     unit.z * travelled});
+    auto hits = overlapCapsuleAll3D(world, center, radius, height, layer,
+                                    ignoredEntityId);
+    if (hits.empty())
+      continue;
+    PhysicsQueryHit3D hit = hits.front();
+    hit.point = center;
+    hit.distance = travelled;
+    hit.fraction = distance > 0.0F ? travelled / distance : 0.0F;
+    hit.normal = {-unit.x, -unit.y, -unit.z};
+    return hit;
+  }
+  return std::nullopt;
 }
 
 } // namespace demi::runtime

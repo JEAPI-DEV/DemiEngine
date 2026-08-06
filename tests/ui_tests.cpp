@@ -103,6 +103,7 @@ int main() {
         "padding": [10, 20, 30, 40],
         "children": [{
           "id": "anchored_button", "type": "button",
+          "action": "nested_action",
           "anchor_min": [1, 1], "anchor_max": [1, 1],
           "position": [-60, -30], "size": [50, 20]
         }]
@@ -122,8 +123,39 @@ int main() {
                  "padded content rectangle.\n";
     return 1;
   }
+  demi::runtime::ui::UiInteractionController panelInteraction;
+  const auto &nestedButton = panelDocument.nodes[2].resolved;
+  if (!panelInteraction.capturePointer(
+          panelDocument,
+          {nestedButton.x + nestedButton.width * 0.5F,
+           nestedButton.y + nestedButton.height * 0.5F}) ||
+      panelDocument.pointerCaptureId != "anchored_button" ||
+      panelInteraction.activateFocused(panelDocument) != "nested_action") {
+    std::cerr << "Nested panel button did not receive pointer focus.\n";
+    return 1;
+  }
+  panelInteraction.releasePointer(panelDocument);
 
   demi::runtime::ui::UiLayoutEngine{}.layout(document, {960.0F, 540.0F});
+  demi::runtime::ui::UiDocument safeAreaDocument;
+  safeAreaDocument.safeArea = {.left = 10.0F,
+                               .top = 20.0F,
+                               .right = 30.0F,
+                               .bottom = 40.0F};
+  safeAreaDocument.nodes.push_back(
+      {.id = "safe_root",
+       .type = "container",
+       .layout = {.anchorMin = {0.0F, 0.0F},
+                  .anchorMax = {1.0F, 1.0F}}});
+  demi::runtime::ui::UiLayoutEngine{}.layout(safeAreaDocument,
+                                             {200.0F, 150.0F});
+  if (!near(safeAreaDocument.nodes[0].resolved.x, 10.0F) ||
+      !near(safeAreaDocument.nodes[0].resolved.y, 20.0F) ||
+      !near(safeAreaDocument.nodes[0].resolved.width, 160.0F) ||
+      !near(safeAreaDocument.nodes[0].resolved.height, 90.0F)) {
+    std::cerr << "UI roots did not respect application safe-area insets.\n";
+    return 1;
+  }
   demi::runtime::ui::UiInteractionController interaction;
   if (!interaction.focusNext(document) || document.focusedId != "play" ||
       !interaction.activateFocused(document).has_value() ||
@@ -143,6 +175,27 @@ int main() {
     std::cerr << "UI pointer capture was not released.\n";
     return 1;
   }
+  const demi::runtime::Vec2 playPoint{
+      document.nodes[1].resolved.x + 1.0F,
+      document.nodes[1].resolved.y + 1.0F};
+  const demi::runtime::Vec2 musicPoint{
+      document.nodes[3].resolved.x + 1.0F,
+      document.nodes[3].resolved.y + 1.0F};
+  if (!interaction.capturePointer(document, 11, playPoint) ||
+      !interaction.capturePointer(document, 12, musicPoint) ||
+      !interaction.pointerCaptured(document, 11) ||
+      !interaction.pointerCaptured(document, 12)) {
+    std::cerr << "UI did not preserve capture independently per pointer.\n";
+    return 1;
+  }
+  interaction.releasePointer(document, 11);
+  if (interaction.pointerCaptured(document, 11) ||
+      !interaction.pointerCaptured(document, 12)) {
+    std::cerr << "Releasing one UI pointer disturbed another capture.\n";
+    return 1;
+  }
+  interaction.releasePointer(document, 12);
+  document.focusedId = "play";
   if (!interaction.focusNext(document) || document.focusedId != "music" ||
       interaction.activateFocused(document) != "toggle_music" ||
       !document.nodes[3].checked) {

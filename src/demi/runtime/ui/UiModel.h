@@ -1,7 +1,9 @@
 #pragma once
 
 #include "demi/runtime/scene/model/SceneTypes.h"
+#include "demi/runtime/ui/TextEditingEngine.h"
 
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -24,6 +26,8 @@ struct Rect {
 
 enum class LayoutDirection { None, Row, Column, Grid };
 enum class Alignment { Start, Center, End, Stretch };
+enum class TextWrapMode { None, Word, Grapheme };
+enum class TextOverflowMode { Visible, Clip, Ellipsis };
 
 struct LayoutSpec {
   Vec2 position{};
@@ -42,15 +46,18 @@ struct LayoutSpec {
 
 struct UiNode {
   std::string id;
+  std::string sceneOwner;
   std::string parent;
   std::string type;
   std::string style;
   std::string text;
   std::string placeholder;
+  std::string placeholderLocalizationKey;
   std::string localizationKey;
   std::string texture;
   std::string animation;
   std::string action;
+  std::string control;
   std::string accessibilityLabel;
   std::string script;
   std::string group;
@@ -69,15 +76,32 @@ struct UiNode {
   float minimum = 0.0F;
   float maximum = 1.0F;
   float fontSize = 20.0F;
+  float lineSpacing = 0.0F;
+  std::size_t maxLines = 0;
+  TextWrapMode textWrap = TextWrapMode::None;
+  TextOverflowMode textOverflow = TextOverflowMode::Clip;
+  Alignment textHorizontalAlignment = Alignment::Start;
+  Alignment textVerticalAlignment = Alignment::Start;
   float scale = 1.0F;
   float cornerRadius = 0.0F;
   float borderWidth = 0.0F;
   float radius = 0.0F;
+  float deadzone = 0.15F;
   bool visible = true;
   bool disabled = false;
   bool focusable = false;
   bool checked = false;
   bool hovered = false;
+  TextEditState textEdit;
+};
+
+struct UiNodeHandle {
+  std::string id;
+  std::uint64_t generation = 0;
+  [[nodiscard]] explicit operator bool() const {
+    return !id.empty() && generation != 0;
+  }
+  auto operator<=>(const UiNodeHandle &) const = default;
 };
 
 struct UiStyle {
@@ -95,13 +119,21 @@ struct UiActionEffect {
 
 struct UiDocument {
   Vec2 canvasSize{960.0F, 540.0F};
+  Insets safeArea{};
   std::vector<UiNode> nodes;
   std::unordered_map<std::string, UiStyle> styles;
   std::unordered_map<std::string, std::string> localization;
+  std::unordered_map<std::string,
+                     std::unordered_map<std::string, std::string>> locales;
+  std::string locale;
   std::unordered_map<std::string, std::string> actionMap;
   std::unordered_map<std::string, UiActionEffect> actionEffects;
   std::string focusedId;
+  std::unordered_map<std::int64_t, std::string> pointerCaptures;
+  // Pointer zero mirrors the desktop mouse for source compatibility.
   std::string pointerCaptureId;
+  std::unordered_map<std::string, std::uint64_t> generations;
+  std::uint64_t nextGeneration = 1;
 };
 
 } // namespace demi::runtime::ui

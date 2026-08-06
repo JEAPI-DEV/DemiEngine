@@ -6,7 +6,7 @@
   "required": ["format_version", "fixed_timestep", "frames"],
   "additionalProperties": false,
   "properties": {
-    "format_version": {"const": 1},
+    "format_version": {"enum": [1, 2]},
     "fixed_timestep": {"type": "number", "minimum": 0.001, "maximum": 1.0},
     "frames": {
       "type": "array",
@@ -14,17 +14,83 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "keys_down": {"type": "array", "items": {"type": "string"}},
-          "keys_pressed": {"type": "array", "items": {"type": "string"}},
-          "mouse_buttons_down": {"type": "array", "items": {"type": "string"}},
+          "keys_down": {"$ref": "#/$defs/strings"},
+          "keys_pressed": {"$ref": "#/$defs/strings"},
+          "keys_released": {"$ref": "#/$defs/strings"},
+          "mouse_buttons_down": {"$ref": "#/$defs/strings"},
+          "mouse_buttons_pressed": {"$ref": "#/$defs/strings"},
+          "mouse_buttons_released": {"$ref": "#/$defs/strings"},
           "mouse_position": {"$ref": "#/$defs/vec2"},
           "mouse_delta": {"$ref": "#/$defs/vec2"},
-          "text_entered": {"type": "string"}
+          "text_entered": {"type": "string"},
+          "gamepads": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["device_id", "player"],
+              "additionalProperties": false,
+              "properties": {
+                "device_id": {"type": "integer", "minimum": 0},
+                "player": {"type": "integer", "minimum": 0},
+                "name": {"type": "string"},
+                "buttons_down": {"$ref": "#/$defs/strings"},
+                "buttons_pressed": {"$ref": "#/$defs/strings"},
+                "buttons_released": {"$ref": "#/$defs/strings"},
+                "axes": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "number", "minimum": -1, "maximum": 1
+                  }
+                }
+              }
+            }
+          },
+          "touches": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "phase", "position"],
+              "additionalProperties": false,
+              "properties": {
+                "id": {"type": "integer"},
+                "phase": {
+                  "enum": ["began", "moved", "stationary", "ended", "cancelled"]
+                },
+                "position": {"$ref": "#/$defs/vec2"},
+                "delta": {"$ref": "#/$defs/vec2"},
+                "pressure": {"type": "number", "minimum": 0}
+              }
+            }
+          },
+          "virtual_buttons_down": {"$ref": "#/$defs/strings"},
+          "virtual_buttons_pressed": {"$ref": "#/$defs/strings"},
+          "virtual_buttons_released": {"$ref": "#/$defs/strings"},
+          "virtual_axes": {
+            "type": "object",
+            "additionalProperties": {"$ref": "#/$defs/vec2"}
+          },
+          "actions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "held": {"type": "boolean"},
+                "pressed": {"type": "boolean"},
+                "released": {"type": "boolean"},
+                "value": {"type": "number", "minimum": -1, "maximum": 1},
+                "vector": {"$ref": "#/$defs/vec2"},
+                "source": {"type": "string"},
+                "player": {"type": "integer", "minimum": 0}
+              }
+            }
+          }
         }
       }
     }
   },
   "$defs": {
+    "strings": {"type": "array", "items": {"type": "string"}},
     "vec2": {
       "type": "array",
       "prefixItems": [{"type": "number"}, {"type": "number"}],

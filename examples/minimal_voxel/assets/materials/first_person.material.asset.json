@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://materials/first_person",
+  "importer": "json-data",
+  "importer_version": 1,
+  "settings": {},
+  "source": "first_person.material.json",
+  "source_hash": "fnv1a64:f0e40bb4041ff985",
+  "type": "Material"
+}

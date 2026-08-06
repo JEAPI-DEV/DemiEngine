@@ -1,8 +1,11 @@
 #include "demi/runtime/app/RuntimeApp.h"
 
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
+#include <SDL3/SDL_system.h>
 #include <android/asset_manager.h>
 #include <android/log.h>
-#include <android_native_app_glue.h>
+#include <android/native_activity.h>
 
 #include <algorithm>
 #include <array>
@@ -13,30 +16,28 @@
 #include <string_view>
 #include <vector>
 
-extern "C" android_app* GetAndroidApp(void);
-
-extern "C" ANativeActivity* DemiGetNativeActivity(void) {
-  android_app* app = GetAndroidApp();
-  return app != nullptr ? app->activity : nullptr;
+extern "C" ANativeActivity *DemiGetNativeActivity(void) {
+  return static_cast<ANativeActivity *>(SDL_GetAndroidActivity());
 }
 
 namespace {
 
-constexpr const char* LogTag = "DemiEngine";
-constexpr const char* ProjectDirectory = "project";
-constexpr const char* ProjectFile = "project/demi.project.json";
-constexpr const char* AssetIndexFile = "demi_asset_index.txt";
-
-void logInfo(const std::string& message) {
+constexpr const char *LogTag = "DemiEngine";
+constexpr const char *ProjectDirectory = "project";
+constexpr const char *ProjectFile = "project/demi.project.json";
+constexpr const char *AssetIndexFile = "demi_asset_index.txt";
+void logInfo(const std::string &message) {
   __android_log_print(ANDROID_LOG_INFO, LogTag, "%s", message.c_str());
 }
 
-void logError(const std::string& message) {
+void logError(const std::string &message) {
   __android_log_print(ANDROID_LOG_ERROR, LogTag, "%s", message.c_str());
 }
 
-bool copyAssetFile(AAssetManager* manager, const std::string& assetPath, const std::filesystem::path& outputPath) {
-  AAsset* asset = AAssetManager_open(manager, assetPath.c_str(), AASSET_MODE_STREAMING);
+bool copyAssetFile(AAssetManager *manager, const std::string &assetPath,
+                   const std::filesystem::path &outputPath) {
+  AAsset *asset =
+      AAssetManager_open(manager, assetPath.c_str(), AASSET_MODE_STREAMING);
   if (asset == nullptr) {
     return false;
   }
@@ -71,8 +72,9 @@ bool copyAssetFile(AAssetManager* manager, const std::string& assetPath, const s
   return true;
 }
 
-std::vector<std::string> readAssetIndex(AAssetManager* manager) {
-  AAsset* asset = AAssetManager_open(manager, AssetIndexFile, AASSET_MODE_BUFFER);
+std::vector<std::string> readAssetIndex(AAssetManager *manager) {
+  AAsset *asset =
+      AAssetManager_open(manager, AssetIndexFile, AASSET_MODE_BUFFER);
   if (asset == nullptr) {
     return {};
   }
@@ -100,7 +102,7 @@ std::vector<std::string> readAssetIndex(AAssetManager* manager) {
   return paths;
 }
 
-void clearBundledProjectFiles(const std::filesystem::path& projectRoot) {
+void clearBundledProjectFiles(const std::filesystem::path &projectRoot) {
   std::error_code error;
   std::filesystem::remove(projectRoot / "demi.project.json", error);
   error.clear();
@@ -113,17 +115,17 @@ void clearBundledProjectFiles(const std::filesystem::path& projectRoot) {
   std::filesystem::remove_all(projectRoot / "certs", error);
 }
 
-std::filesystem::path prepareProject(android_app* app) {
-  const std::filesystem::path storageRoot = app->activity->internalDataPath;
+std::filesystem::path prepareProject(ANativeActivity *activity) {
+  const std::filesystem::path storageRoot = SDL_GetAndroidInternalStoragePath();
   const std::filesystem::path projectRoot = storageRoot / ProjectDirectory;
-  AAssetManager* manager = app->activity->assetManager;
+  AAssetManager *manager = activity->assetManager;
 
   const std::vector<std::string> assetPaths = readAssetIndex(manager);
   if (assetPaths.empty()) {
     logError("Android asset index is empty.");
   }
   clearBundledProjectFiles(projectRoot);
-  for (const std::string& assetPath : assetPaths) {
+  for (const std::string &assetPath : assetPaths) {
     if (!copyAssetFile(manager, assetPath, projectRoot / assetPath)) {
       logError("Failed to copy Android asset: " + assetPath);
     }
@@ -137,18 +139,19 @@ std::filesystem::path prepareProject(android_app* app) {
 
 } // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   (void)argc;
   (void)argv;
 
-  android_app* app = GetAndroidApp();
-  if (app == nullptr || app->activity == nullptr || app->activity->assetManager == nullptr ||
-      app->activity->internalDataPath == nullptr) {
+  ANativeActivity *activity = DemiGetNativeActivity();
+  const char *storagePath = SDL_GetAndroidInternalStoragePath();
+  if (activity == nullptr || activity->assetManager == nullptr ||
+      storagePath == nullptr) {
     logError("Android activity is unavailable.");
     return 1;
   }
 
-  const std::filesystem::path projectPath = prepareProject(app);
+  const std::filesystem::path projectPath = prepareProject(activity);
   logInfo("Launching " + std::string(ProjectFile));
   return demi::runtime::runProject(demi::runtime::RuntimeOptions{
       .projectPath = projectPath,

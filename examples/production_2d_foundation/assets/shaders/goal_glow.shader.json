@@ -1,0 +1,6 @@
+{
+  "format_version": 1,
+  "vertex": "goal_glow.vs.sc",
+  "fragment": "goal_glow.fs.sc",
+  "varying": "goal_glow.varying.def.sc"
+}

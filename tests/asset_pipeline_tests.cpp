@@ -8,12 +8,14 @@
 
 #include <nlohmann/json.hpp>
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <vector>
 
 using namespace demi;
@@ -148,6 +150,46 @@ int main() {
     std::cerr << "Model fixture manifest migration failed.\n";
     return 1;
   }
+  auto modelDocument = readJson(modelDirectory / "model.asset.json");
+  modelDocument["settings"]["animations"]["clips"] = {
+      {{"name", ""}, {"skeleton", "humanoid"}},
+      {{"name", "Run"}, {"skeleton", "humanoid"}},
+      {{"name", "Run"}, {"skeleton", "creature"}}};
+  writeJson(modelDirectory / "model.asset.json", modelDocument);
+  const Diagnostics invalidAnimationAssets =
+      validateAssetRegistry(loadAssetRegistry(sourceProject));
+  if (!containsCode(invalidAnimationAssets, "ANIMATION_CLIP_NAME_MISSING") ||
+      !containsCode(invalidAnimationAssets, "ANIMATION_CLIP_NAME_DUPLICATE") ||
+      !containsCode(invalidAnimationAssets,
+                    "ANIMATION_SKELETON_INCOMPATIBLE")) {
+    std::cerr << "Animation import metadata failures were not diagnosed.\n";
+    return 1;
+  }
+  modelDocument["settings"]["animations"]["clips"] = {
+      {{"name", "Idle"}, {"skeleton", "humanoid"}},
+      {{"name", "Run"}, {"skeleton", "humanoid"}}};
+  writeJson(modelDirectory / "model.asset.json", modelDocument);
+
+  writeText(external / "music.wav", "deterministic-audio-fixture");
+  const auto audioAsset =
+      assets::importAsset({.projectDirectory = sourceProject,
+                           .source = external / "music.wav",
+                           .id = "asset://audio/music"});
+  if (hasErrors(audioAsset.diagnostics)) {
+    std::cerr << "Audio fixture import failed.\n";
+    return 1;
+  }
+  auto audioDocument = readJson(audioAsset.manifestPath);
+  audioDocument["settings"]["streaming"] = "yes";
+  writeJson(audioAsset.manifestPath, audioDocument);
+  if (!containsCode(validateAssetRegistry(loadAssetRegistry(sourceProject)),
+                    "AUDIO_STREAMING_SETTING_INVALID")) {
+    std::cerr << "Invalid audio streaming metadata was not diagnosed.\n";
+    return 1;
+  }
+  audioDocument["settings"]["streaming"] = true;
+  writeJson(audioAsset.manifestPath, audioDocument);
+
   const auto collider = assets::generateColliderAsset(
       {.projectDirectory = sourceProject,
        .modelManifestPath = modelDirectory / "model.asset.json",
@@ -208,8 +250,10 @@ int main() {
   auto mainDocument = readJson(mainAsset.manifestPath);
   mainDocument["dependencies"] = {"asset://fixture/dependency"};
   mainDocument["attribution"] = "DemiEngine test fixture";
-  mainDocument["settings"] = {
-      {"filter", "nearest"}, {"wrap", "clamp"}, {"mipmaps", true}};
+  mainDocument["settings"] = {{"filter", "nearest"},
+                              {"wrap", "clamp"},
+                              {"mipmaps", true},
+                              {"color_key", "#0a10FF"}};
   writeJson(mainAsset.manifestPath, mainDocument);
   const auto manifest = loadAssetManifest(mainAsset.manifestPath);
   if (!manifest || manifest->importer != "image" ||
@@ -217,7 +261,10 @@ int main() {
       manifest->dependencies.size() != 1 ||
       manifest->textureSettings.filter != "nearest" ||
       manifest->textureSettings.wrap != "clamp" ||
-      !manifest->textureSettings.mipmaps || !manifest->generatedOutputPath ||
+      !manifest->textureSettings.mipmaps ||
+      manifest->textureSettings.colorKey !=
+          std::optional<std::array<std::uint8_t, 3>>{{10, 16, 255}} ||
+      !manifest->generatedOutputPath ||
       !std::filesystem::exists(*manifest->generatedOutputPath)) {
     std::cerr << "Expanded manifest metadata was not preserved.\n";
     return 1;
@@ -228,11 +275,14 @@ int main() {
   const auto defaultSamplerManifest = loadAssetManifest(mainAsset.manifestPath);
   if (!defaultSamplerManifest ||
       defaultSamplerManifest->textureSettings.wrap != "clamp") {
-    std::cerr << "Texture assets did not default to GLES-safe clamp wrapping.\n";
+    std::cerr
+        << "Texture assets did not default to GLES-safe clamp wrapping.\n";
     return 1;
   }
-  mainDocument["settings"] = {
-      {"filter", "nearest"}, {"wrap", "clamp"}, {"mipmaps", true}};
+  mainDocument["settings"] = {{"filter", "nearest"},
+                              {"wrap", "clamp"},
+                              {"mipmaps", true},
+                              {"color_key", "#0a10FF"}};
 
   mainDocument["settings"]["filter"] = "invalid";
   writeJson(mainAsset.manifestPath, mainDocument);
@@ -242,6 +292,21 @@ int main() {
     return 1;
   }
   mainDocument["settings"]["filter"] = "nearest";
+  writeJson(mainAsset.manifestPath, mainDocument);
+
+  for (const nlohmann::json invalidColorKey :
+       {nlohmann::json("000000"), nlohmann::json("#00000g"),
+        nlohmann::json::array({0, 0, 0})}) {
+    mainDocument["settings"]["color_key"] = invalidColorKey;
+    writeJson(mainAsset.manifestPath, mainDocument);
+    const AssetRegistry invalidRegistry = loadAssetRegistry(sourceProject);
+    if (!containsCode(invalidRegistry.diagnostics,
+                      "ASSET_TEXTURE_COLOR_KEY_INVALID")) {
+      std::cerr << "Invalid texture color key was not diagnosed.\n";
+      return 1;
+    }
+  }
+  mainDocument["settings"]["color_key"] = "#0a10FF";
   writeJson(mainAsset.manifestPath, mainDocument);
 
   writeText(external / "duplicate.png", "duplicate-id-fixture");
@@ -374,12 +439,13 @@ int main() {
     std::cerr << "Production importer catalog is incomplete.\n";
     return 1;
   }
-  if (!containsCode(assets::cookProject(
-                        {.projectFile = sourceProject / "demi.project.json",
-                         .outputDirectory = root / "android-cooked",
-                         .platform = "android"}),
-                    "COOK_PLATFORM_UNSUPPORTED")) {
-    std::cerr << "Unsupported cook platform was not diagnosed.\n";
+  const auto androidCooked = root / "android-cooked";
+  if (hasErrors(assets::cookProject(
+          {.projectFile = sourceProject / "demi.project.json",
+           .outputDirectory = androidCooked,
+           .platform = "android"})) ||
+      readJson(androidCooked / "cook.manifest.json")["platform"] != "android") {
+    std::cerr << "Android project cooking failed.\n";
     return 1;
   }
   std::filesystem::remove_all(root);

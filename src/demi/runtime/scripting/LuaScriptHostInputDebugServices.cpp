@@ -2,6 +2,7 @@
 
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
+#include "demi/runtime/ui/UiInteractionController.h"
 
 #include <algorithm>
 
@@ -43,8 +44,9 @@ Vec2 LuaScriptHost::viewportSize() const {
           static_cast<float>(viewportHeight_)};
 }
 
-bool LuaScriptHost::uiPointerCaptured() const {
-  return world_ != nullptr && !world_->ui.pointerCaptureId.empty();
+bool LuaScriptHost::uiPointerCaptured(const std::int64_t pointerId) const {
+  return world_ != nullptr &&
+         ui::UiInteractionController{}.pointerCaptured(world_->ui, pointerId);
 }
 
 void LuaScriptHost::addDebugLine(float x1, float y1, float x2, float y2,

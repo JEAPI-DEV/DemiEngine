@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "name": {{PROJECT_NAME_JSON}},
+  "main_scene": "scene://{{TEMPLATE_ID}}/main",
+  "scenes": [
+    { "id": "scene://{{TEMPLATE_ID}}/main", "path": "scenes/main.scene.json" }
+  ],
+  "input": {
+    "actions": {
+      "move_x": [{"input": "a", "scale": -1.0}, {"input": "d", "scale": 1.0}],
+      "move_z": [{"input": "s", "scale": -1.0}, {"input": "w", "scale": 1.0}]
+    }
+  },
+  "scripting": { "language": "lua54", "modules": [] }
+}

@@ -34,6 +34,16 @@ Entity parseEntity(const Json &entityJson) {
   Entity entity;
   entity.id = stringOr(entityJson, "id", "ent_unknown");
   entity.name = stringOr(entityJson, "name", entity.id);
+  entity.enabled = boolField(entityJson, "enabled").value_or(true);
+  entity.persistent = boolField(entityJson, "persistent").value_or(false);
+  entity.layer = stringOr(entityJson, "layer");
+  if (const Json *tags = arrayField(entityJson, "tags")) {
+    for (const Json &tag : *tags) {
+      if (tag.is_string()) {
+        entity.tags.insert(tag.get<std::string>());
+      }
+    }
+  }
   parseComponents(entityJson, entity);
   return entity;
 }

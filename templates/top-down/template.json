@@ -1,0 +1,8 @@
+{
+  "format_version": 1,
+  "id": "top-down",
+  "title": "Top-Down 2D",
+  "default_name": "New Top-Down Game",
+  "source": "../_shared/2d",
+  "files": [".luarc.json", "demi.project.json", "scenes/main.scene.json", "scripts/main.lua", "tests/smoke.replay.json"]
+}

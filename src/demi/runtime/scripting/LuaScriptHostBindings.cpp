@@ -9,24 +9,34 @@
 #include "demi/runtime/scripting/bindings/animation/LuaAnimationBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics3DBindings.h"
+#include "demi/runtime/scripting/bindings/components/LuaRigidbody3DBindings.h"
+#include "demi/runtime/scripting/bindings/components/LuaCharacterController3DBindings.h"
+#include "demi/runtime/scripting/bindings/components/LuaCamera3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaRigidbody2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaSprite2DBindings.h"
+#include "demi/runtime/scripting/bindings/components/LuaTilemap2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaTransform2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaTransform3DBindings.h"
-#include "demi/runtime/ui/UiModel.h"
+#include "demi/runtime/scripting/bindings/data/LuaDataBindings.h"
 #include "demi/runtime/scripting/bindings/hud/LuaHudBindings.h"
 #include "demi/runtime/scripting/bindings/isometric/LuaIsoGridBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaAudioBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaCutsceneBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaVideoBindings.h"
+#include "demi/runtime/scripting/bindings/navigation/LuaNavigation2DBindings.h"
 #include "demi/runtime/scripting/bindings/persistence/LuaSaveBindings.h"
 #include "demi/runtime/scripting/bindings/text/LuaRegexBindings.h"
+#include "demi/runtime/ui/UiModel.h"
 
 #include <sol/sol.hpp>
 
+#include <algorithm>
+#include <cctype>
 #include <iostream>
+#include <string>
 #include <string_view>
 #include <system_error>
+#include <vector>
 
 namespace demi::runtime {
 
@@ -48,6 +58,9 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaTransform2DBindingModule transform2D;
   const LuaTransform3DBindingModule transform3D;
   const LuaRigidbody2DBindingModule rigidbody2D;
+  const LuaRigidbody3DBindingModule rigidbody3D;
+  const LuaCharacterController3DBindingModule characterController3D;
+  const LuaCamera3DBindingModule camera3D;
   const LuaSprite2DBindingModule sprite2D;
   const LuaPhysics2DBindingModule physics2D;
   const LuaPhysics3DBindingModule physics3D;
@@ -63,11 +76,16 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaRandomBindingModule random;
   const LuaIsoGridBindingModule isoGrid;
   const LuaAnimationBindingModule animation;
+  const LuaNavigation2DBindingModule navigation2D;
+  const LuaTilemap2DBindingModule tilemap2D;
+  const LuaDataBindingModule data;
   const LuaBindingModule *modules[] = {
-      &core,     &entity,    &transform2D, &transform3D, &rigidbody2D,
-      &sprite2D, &physics2D, &physics3D,   &hud,         &save,
-      &audio,    &video,     &cutscene,    &network,     &networkSession,
-      &tls,      &regex,     &random,      &isoGrid,     &animation};
+      &core,         &entity,    &transform2D, &transform3D, &rigidbody2D,
+      &rigidbody3D,  &characterController3D, &camera3D,
+      &sprite2D,     &physics2D, &physics3D,   &hud,         &save,
+      &audio,        &video,     &cutscene,    &network,     &networkSession,
+      &tls,          &regex,     &random,      &isoGrid,     &animation,
+      &navigation2D, &tilemap2D, &data};
   for (const LuaBindingModule *module : modules) {
     module->install(host, state);
   }
@@ -93,6 +111,45 @@ bool luaCall(lua_State *state, const int argCount, const int resultCount,
     return false;
   }
   return true;
+}
+
+std::vector<std::string> LuaScriptHost::publicLuaApi() const {
+  auto *state = static_cast<lua_State *>(state_);
+  std::vector<std::string> result;
+  if (state == nullptr) {
+    return result;
+  }
+
+  lua_pushglobaltable(state);
+  const int globalsIndex = lua_gettop(state);
+  lua_pushnil(state);
+  while (lua_next(state, globalsIndex) != 0) {
+    const char *serviceName =
+        lua_type(state, -2) == LUA_TSTRING ? lua_tostring(state, -2) : nullptr;
+    const bool publicService =
+        serviceName != nullptr && serviceName[0] != '\0' &&
+        std::isupper(static_cast<unsigned char>(serviceName[0])) != 0 &&
+        lua_istable(state, -1);
+    if (publicService) {
+      const int serviceIndex = lua_gettop(state);
+      lua_pushnil(state);
+      while (lua_next(state, serviceIndex) != 0) {
+        const char *functionName = lua_type(state, -2) == LUA_TSTRING
+                                       ? lua_tostring(state, -2)
+                                       : nullptr;
+        if (functionName != nullptr && lua_isfunction(state, -1)) {
+          result.emplace_back(std::string(serviceName) + "." + functionName);
+        }
+        lua_pop(state, 1);
+      }
+    }
+    lua_pop(state, 1);
+  }
+  lua_pop(state, 1);
+
+  std::ranges::sort(result);
+  result.erase(std::unique(result.begin(), result.end()), result.end());
+  return result;
 }
 
 void luaReportCallbackError(const char *functionName,
@@ -223,8 +280,7 @@ void luaCallUiEvent(lua_State *state, const int tableRef,
 }
 
 void luaCallActionEvent(lua_State *state, const int tableRef,
-                        const std::string &functionName,
-                        const ui::UiNode &node,
+                        const std::string &functionName, const ui::UiNode &node,
                         const Vec2 mousePosition,
                         const std::filesystem::path &path) {
   lua_rawgeti(state, LUA_REGISTRYINDEX, tableRef);
@@ -254,8 +310,7 @@ void luaCallActionEvent(lua_State *state, const int tableRef,
 
 void luaCallModuleActionEvent(lua_State *state, const std::string &moduleName,
                               const std::string &functionName,
-                              const ui::UiNode &node,
-                              const Vec2 mousePosition,
+                              const ui::UiNode &node, const Vec2 mousePosition,
                               const std::filesystem::path &path) {
   lua_getglobal(state, "package");
   if (!lua_istable(state, -1)) {

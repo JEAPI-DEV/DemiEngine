@@ -8,12 +8,11 @@
         android:usesCleartextTraffic="true"
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
         <activity
-            android:name="android.app.NativeActivity"
+            android:name="dev.jeapi.demi.android.DemiActivity"
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="landscape">
-            <meta-data android:name="android.app.lib_name" android:value="demi_android" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

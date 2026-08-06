@@ -64,6 +64,46 @@ Lua changes state without controlling layout:
 - `Hud.set_disabled(id, disabled)` and `Hud.set_visible(id, visible)`
 - `Hud.focus_next(reverse)` and `Hud.focused()`
 
+Runtime-generated UI uses the same retained tree and layout path as authored
+nodes. `Hud.create(parent, definition)` returns a generation-checked handle;
+`Hud.clone`, `Hud.remove`, `Hud.reparent`, and `Hud.clear_children` reject stale
+handles and apply structural changes transactionally. Removing a subtree also
+clears focus and pointer captures that refer to it. This is intentionally
+generic: projects decide whether a generated button represents an inventory
+item, player, save slot, setting, dialogue choice, or debug command.
+
+For large collections, `Hud.visible_range(item_count, item_extent,
+scroll_offset, viewport_extent, overscan)` returns the bounded logical range a
+game should represent with live nodes. Ten thousand data rows therefore do not
+require ten thousand retained controls. `examples/ui_showcase` demonstrates
+runtime row creation without a genre-specific engine widget.
+
+Text nodes support `text_wrap` (`none`, `word`, or `grapheme`),
+`text_alignment`, `text_vertical_alignment`, `line_spacing`, `max_lines`, and
+`text_overflow` (`visible`, `clip`, or `ellipsis`). The backend-neutral
+`Text.layout` API exposes the same line decisions to game code and headless
+tests. `Text.grapheme_count` and `Text.grapheme_slice` use Unicode grapheme
+boundaries rather than bytes, while `Text.parse_rich` accepts only the
+documented non-executable `[color]`, `[em]`, `[strong]`, `[link]`, and `[icon]`
+tags.
+
+Focused `text_input` nodes use the same grapheme boundaries for caret motion,
+selection, Backspace, Delete, Home, End, and Ctrl+A. Backspace therefore
+removes one user-visible character instead of one UTF-8 byte. SDL text-editing
+events remain an IME composition range separate from the committed value; the
+renderer draws the selection, composition underline, and caret. Committing
+text replaces the active selection atomically. Losing focus, hiding or
+disabling the input, changing its value through `Hud.set_text`, or receiving a
+platform focus-loss event cancels composition without inserting an unfinished
+candidate.
+
+HUD files may provide a `locales` object keyed by locale. `Hud.set_locale`
+reapplies every node's localization key and preserves the last valid locale on
+failure; `Hud.set_pseudo_locale` helps expose expansion and clipping bugs.
+`Hud.tween` animates `opacity`, `x`, `y`, or `scale` using node handles. Tweens
+are cancelled when their target is removed, and `Hud.set_reduced_motion(true)`
+finishes presentation changes immediately.
+
 Control actions continue through `---@handle_action` and the `hud_action`
 event. No Lua code is required to position or resize widgets.
 

@@ -92,6 +92,12 @@ makePacket(const std::string &framedMessage, const bool reliable) {
   return enet_packet_create(framedMessage.data(), framedMessage.size(), flags);
 }
 
+#else
+
+void NetworkSystem::destroyEnetHost(EnetHostHandle *handle) { delete handle; }
+
+void NetworkSystem::destroyEnetPeer(EnetPeerHandle *handle) { delete handle; }
+
 #endif
 
 NetworkSystem::NetworkSystem() : dtls_(std::make_unique<DtlsTransport>()) {}

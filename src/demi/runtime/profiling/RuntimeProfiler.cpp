@@ -15,6 +15,8 @@ struct ProfileEntry {
   double maxMilliseconds = 0.0;
   int calls = 0;
   std::size_t bytes = 0;
+  double gauge = 0.0;
+  bool hasGauge = false;
 };
 
 bool profilerEnabled = false;
@@ -72,6 +74,17 @@ void RuntimeProfiler::addBytes(std::string name, const std::size_t bytes) {
   sessionData[std::move(name)].bytes += bytes;
 }
 
+void RuntimeProfiler::setGauge(std::string name, const double value) {
+  if (!profilerEnabled || name.empty())
+    return;
+  auto set = [value](ProfileEntry &entry) {
+    entry.gauge = value;
+    entry.hasGauge = true;
+  };
+  set(frameEntries[name]);
+  set(sessionData[std::move(name)]);
+}
+
 std::vector<RuntimeProfiler::Entry> RuntimeProfiler::sessionEntries() {
   std::vector<Entry> result;
   result.reserve(sessionData.size());
@@ -80,7 +93,9 @@ std::vector<RuntimeProfiler::Entry> RuntimeProfiler::sessionEntries() {
                       .totalMilliseconds = entry.totalMilliseconds,
                       .maxMilliseconds = entry.maxMilliseconds,
                       .calls = entry.calls,
-                      .bytes = entry.bytes});
+                      .bytes = entry.bytes,
+                      .gauge = entry.gauge,
+                      .hasGauge = entry.hasGauge});
   }
   std::ranges::sort(result, [](const Entry &left, const Entry &right) {
     return left.totalMilliseconds > right.totalMilliseconds;
@@ -91,12 +106,15 @@ std::vector<RuntimeProfiler::Entry> RuntimeProfiler::sessionEntries() {
 std::string RuntimeProfiler::sessionReport() {
   std::ostringstream output;
   output << "DemiEngine runtime profile\n"
-         << "scope,total_ms,max_ms,calls,bytes\n"
+         << "scope,total_ms,max_ms,calls,bytes,gauge\n"
          << std::fixed << std::setprecision(3);
   for (const Entry &entry : sessionEntries()) {
     output << entry.name << ',' << entry.totalMilliseconds << ','
            << entry.maxMilliseconds << ',' << entry.calls << ',' << entry.bytes
-           << '\n';
+           << ',';
+    if (entry.hasGauge)
+      output << entry.gauge;
+    output << '\n';
   }
   return output.str();
 }
@@ -109,7 +127,8 @@ std::string RuntimeProfiler::frameSummary(const double minimumMilliseconds) {
   std::vector<std::pair<std::string, ProfileEntry>> entries;
   entries.reserve(frameEntries.size());
   for (const auto &[name, entry] : frameEntries) {
-    if (entry.totalMilliseconds >= minimumMilliseconds || entry.bytes > 0) {
+    if (entry.totalMilliseconds >= minimumMilliseconds || entry.bytes > 0 ||
+        entry.hasGauge) {
       entries.emplace_back(name, entry);
     }
   }
@@ -124,10 +143,13 @@ std::string RuntimeProfiler::frameSummary(const double minimumMilliseconds) {
       output << ", ";
     }
     const auto &[name, entry] = entries[index];
-    output << name << '=' << entry.totalMilliseconds << "ms";
-    if (entry.calls > 1) {
+    output << name << '=';
+    if (entry.hasGauge)
+      output << entry.gauge;
+    else
+      output << entry.totalMilliseconds << "ms";
+    if (!entry.hasGauge && entry.calls > 1)
       output << '/' << entry.calls << "x max=" << entry.maxMilliseconds << "ms";
-    }
     if (entry.bytes > 0) {
       output << " bytes=" << entry.bytes;
     }

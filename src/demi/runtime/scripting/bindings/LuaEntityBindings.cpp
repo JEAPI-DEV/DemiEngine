@@ -1,12 +1,16 @@
 #include "demi/runtime/scripting/bindings/LuaEntityBindings.h"
 
 #include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/scene/RuntimeObjectModel.h"
 #include "demi/runtime/scripting/bindings/LuaBindingHelpers.h"
+#include "demi/runtime/scripting/bindings/LuaJsonBridge.h"
 
 #include <algorithm>
+#include <array>
 #include <sol/sol.hpp>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace demi::runtime {
@@ -63,48 +67,61 @@ struct LuaProceduralMeshBuilder {
       return;
     }
     const float tileWidth = 1.0F / static_cast<float>(atlasColumns);
+    std::unordered_set<int> occupiedCells;
+    occupiedCells.reserve(occupancy.size());
+    for (const auto &pair : occupancy) {
+      if (pair.first.is<int>() && pair.second.is<bool>() &&
+          pair.second.as<bool>())
+        occupiedCells.insert(pair.first.as<int>());
+    }
+
+    struct VoxelTiles {
+      int side = 0;
+      int top = 0;
+      int bottom = 0;
+    };
+    std::unordered_map<int, VoxelTiles> tilesByBlock;
+    tilesByBlock.reserve(blockTiles.size());
+    for (const auto &pair : blockTiles) {
+      if (!pair.first.is<int>() || !pair.second.is<sol::table>())
+        continue;
+      const sol::table tiles = pair.second.as<sol::table>();
+      const int side = tiles.get_or("side", 0);
+      tilesByBlock.emplace(
+          pair.first.as<int>(),
+          VoxelTiles{.side = side,
+                     .top = tiles.get_or("top", side),
+                     .bottom = tiles.get_or("bottom", side)});
+    }
+
+    constexpr std::array<std::array<int, 3>, 6> directions{{
+        {1, 0, 0}, {-1, 0, 0}, {0, 1, 0},
+        {0, -1, 0}, {0, 0, 1}, {0, 0, -1},
+    }};
     for (const auto &pair : blocks) {
+      if (!pair.second.is<sol::table>())
+        continue;
       const sol::table block = pair.second.as<sol::table>();
       const int x = block.get_or("x", 0);
       const int y = block.get_or("y", 0);
       const int z = block.get_or("z", 0);
       const int blockId = block.get_or("block", 0);
-      const sol::object tileObject = blockTiles[blockId];
-      if (!tileObject.valid() || tileObject.get_type() != sol::type::table) {
+      const auto tiles = tilesByBlock.find(blockId);
+      if (tiles == tilesByBlock.end())
         continue;
+      for (std::size_t face = 0; face < directions.size(); ++face) {
+        const auto &[nx, ny, nz] = directions[face];
+        const int neighborKey =
+            voxelOccupancyKey(x + nx, y + ny, z + nz, occupancyStride);
+        if (occupiedCells.contains(neighborKey))
+          continue;
+        const int tile = face == 2   ? tiles->second.top
+                         : face == 3 ? tiles->second.bottom
+                                     : tiles->second.side;
+        const float u0 = static_cast<float>(tile) * tileWidth;
+        addVoxelFace(x, y, z, nx, ny, nz, u0, u0 + tileWidth);
       }
-      const sol::table tiles = tileObject.as<sol::table>();
-      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y,
-                            z, 1, 0, 0, "side");
-      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y,
-                            z, -1, 0, 0, "side");
-      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y,
-                            z, 0, 1, 0, "top");
-      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y,
-                            z, 0, -1, 0, "bottom");
-      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y,
-                            z, 0, 0, 1, "side");
-      addVoxelFaceIfVisible(occupancy, tiles, tileWidth, occupancyStride, x, y,
-                            z, 0, 0, -1, "side");
     }
-  }
-
-  void addVoxelFaceIfVisible(const sol::table &occupancy,
-                             const sol::table &tiles, const float tileWidth,
-                             const int occupancyStride, const int x,
-                             const int y, const int z, const int nx,
-                             const int ny, const int nz,
-                             const std::string &tileName) {
-    const int neighborKey =
-        voxelOccupancyKey(x + nx, y + ny, z + nz, occupancyStride);
-    const sol::object occupied = occupancy[neighborKey];
-    if (occupied.valid() && occupied != sol::nil && occupied.as<bool>()) {
-      return;
-    }
-    int tile = tiles.get_or(tileName, tiles.get_or("side", 0));
-    const float u0 = static_cast<float>(tile) * tileWidth;
-    const float u1 = u0 + tileWidth;
-    addVoxelFace(x, y, z, nx, ny, nz, u0, u1);
   }
 
   static int voxelOccupancyKey(const int x, const int y, const int z,
@@ -278,6 +295,32 @@ void LuaEntityBindingModule::install(LuaScriptHost &host,
                                      lua_State *state) const {
   sol::state_view lua(state);
 
+  sol::table prefab = lua.create_named_table("Prefab");
+  prefab.set_function(
+      "instantiate",
+      [&host](const std::string &prefabId, const sol::table optionsTable) {
+        PrefabInstantiateOptions options;
+        options.id = optionsTable.get_or("id", std::string{});
+        options.pooled = optionsTable.get_or("pooled", false);
+        const sol::object position = optionsTable["position"];
+        if (position.is<sol::table>()) {
+          const sol::table value = position.as<sol::table>();
+          options.position = Vec3{.x = value.get_or(1, 0.0F),
+                                  .y = value.get_or(2, 0.0F),
+                                  .z = value.get_or(3, 0.0F)};
+        }
+        const sol::object overrides = optionsTable["overrides"];
+        if (overrides.is<sol::table>())
+          options.overrides = luaObjectToJson(overrides);
+        return host.instantiatePrefab(prefabId, options);
+      });
+  prefab.set_function("release", [&host](const std::string &instanceId) {
+    return host.releasePrefab(instanceId);
+  });
+  prefab.set_function("pooled_count", [&host](const std::string &prefabId) {
+    return host.pooledPrefabCount(prefabId);
+  });
+
   lua.new_usertype<LuaProceduralMeshBuilder>(
       "ProceduralMeshBuilder", "clear", &LuaProceduralMeshBuilder::clear,
       "reserve", &LuaProceduralMeshBuilder::reserve, "vertex_count",
@@ -306,13 +349,26 @@ void LuaEntityBindingModule::install(LuaScriptHost &host,
   proceduralMesh.set_function("apply", [&host](
                                            const std::string &entityId,
                                            LuaProceduralMeshBuilder &builder,
-                                           sol::optional<std::string> texture) {
+                                           sol::optional<sol::object> options) {
     ProfileScope scope("ProceduralMesh.apply");
     RuntimeProfiler::addBytes("ProceduralMesh.apply.copy_to_component",
                               (builder.vertices.size() * sizeof(Vec3)) +
                                   (builder.normals.size() * sizeof(Vec3)) +
                                   (builder.uvs.size() * sizeof(Vec2)));
-    return host.setEntityMeshRenderer(entityId, texture.value_or(std::string{}),
+    std::string texture;
+    std::string material;
+    std::string renderLayer;
+    if (options && options->is<sol::table>()) {
+      const sol::table table = options->as<sol::table>();
+      texture = table.get_or("texture", std::string{});
+      material = table.get_or("material", std::string{});
+      renderLayer = table.get_or("render_layer", std::string{});
+    } else if (options && options->is<std::string>()) {
+      texture = options->as<std::string>();
+    }
+    return host.setEntityMeshRenderer(entityId, std::move(texture),
+                                      std::move(material),
+                                      std::move(renderLayer),
                                       builder.vertices, builder.normals,
                                       builder.uvs);
   });
@@ -323,8 +379,30 @@ void LuaEntityBindingModule::install(LuaScriptHost &host,
   });
   entity.set_function(
       "create", [&host](const std::string &entityId, const sol::table spec) {
-        return host.createEntity(luaParseEntitySpec(entityId, spec));
+        nlohmann::json json = luaObjectToJson(spec);
+        json["id"] = entityId;
+        std::string error;
+        std::optional<Entity> created =
+            RuntimeObjectModel::buildEntity(json, error);
+        return created.has_value() && host.createEntity(std::move(*created));
       });
+  entity.set_function(
+      "replace", [&host](const std::string &entityId, const sol::table spec) {
+        nlohmann::json json = luaObjectToJson(spec);
+        json["id"] = entityId;
+        std::string error;
+        std::optional<Entity> replacement =
+            RuntimeObjectModel::buildEntity(json, error);
+        return replacement.has_value() &&
+               host.replaceEntity(std::move(*replacement));
+      });
+  entity.set_function("exists", [&host](const std::string &entityId) {
+    return host.entityExists(entityId);
+  });
+  entity.set_function("clone", [&host](const std::string &sourceId,
+                                       const std::string &newId) {
+    return host.cloneEntity(sourceId, newId);
+  });
   entity.set_function("destroy", [&host](const std::string &entityId) {
     return host.destroyEntity(entityId);
   });
@@ -338,6 +416,93 @@ void LuaEntityBindingModule::install(LuaScriptHost &host,
     }
     return host.destroyEntities(ids);
   });
+  entity.set_function("set_enabled", [&host](const std::string &entityId,
+                                             const bool enabled) {
+    return host.setEntityEnabled(entityId, enabled);
+  });
+  entity.set_function("is_enabled", [&host](const std::string &entityId) {
+    return host.isEntityEnabled(entityId);
+  });
+  entity.set_function("add_component", [&host](const std::string &entityId,
+                                               const std::string &component,
+                                               const sol::table values) {
+    return host.addEntityComponent(entityId, component,
+                                   luaObjectToJson(values));
+  });
+  entity.set_function("remove_component", [&host](
+                                                const std::string &entityId,
+                                                const std::string &component) {
+    return host.removeEntityComponent(entityId, component);
+  });
+  entity.set_function("has_component", [&host](const std::string &entityId,
+                                               const std::string &component) {
+    return host.hasEntityComponent(entityId, component);
+  });
+  entity.set_function("get", [state, &host](const std::string &entityId,
+                                            const std::string &component,
+                                            const std::string &field) {
+    const auto value =
+        host.entityComponentField(entityId, component, field);
+    return value.has_value() ? jsonToLuaObject(state, *value)
+                             : sol::make_object(state, sol::nil);
+  });
+  entity.set_function("set", [&host](const std::string &entityId,
+                                     const std::string &component,
+                                     const std::string &field,
+                                     const sol::object value) {
+    return host.setEntityComponentField(entityId, component, field,
+                                        luaObjectToJson(value));
+  });
+  entity.set_function("query", [&host](const sol::table queryTable) {
+    EntityQuery query;
+    const auto readStrings = [](const sol::object &object) {
+      std::vector<std::string> values;
+      if (!object.is<sol::table>())
+        return values;
+      for (const auto &entry : object.as<sol::table>()) {
+        if (entry.second.is<std::string>())
+          values.push_back(entry.second.as<std::string>());
+      }
+      return values;
+    };
+    query.allComponents = readStrings(queryTable["all"]);
+    query.tags = readStrings(queryTable["tags"]);
+    const sol::object layer = queryTable["layer"];
+    if (layer.is<std::string>())
+      query.layer = layer.as<std::string>();
+    query.includeDisabled = queryTable.get_or("include_disabled", false);
+    return host.queryEntities(query);
+  });
+  entity.set_function("set_parent", [&host](
+                                           const std::string &entityId,
+                                           const sol::object parent) {
+    std::optional<std::string> parentId;
+    if (parent.valid() && parent != sol::nil && parent.is<std::string>())
+      parentId = parent.as<std::string>();
+    return host.setEntityParent(entityId, parentId);
+  });
+  entity.set_function("parent", [&host](const std::string &entityId) {
+    return host.entityParent(entityId);
+  });
+  entity.set_function("children", [&host](const std::string &entityId) {
+    return host.entityChildren(entityId);
+  });
+  entity.set_function("local_position",
+                      [state, &host](const std::string &entityId) {
+                        const auto value =
+                            host.entityLocalPosition(entityId);
+                        return value.has_value()
+                                   ? jsonToLuaObject(state, *value)
+                                   : sol::make_object(state, sol::nil);
+                      });
+  entity.set_function("world_position",
+                      [state, &host](const std::string &entityId) {
+                        const auto value =
+                            host.entityWorldPosition(entityId);
+                        return value.has_value()
+                                   ? jsonToLuaObject(state, *value)
+                                   : sol::make_object(state, sol::nil);
+                      });
   entity.set_function("set_sprite_color", [&host](const std::string &entityId,
                                                   float r, float g, float b,
                                                   sol::optional<float> a) {

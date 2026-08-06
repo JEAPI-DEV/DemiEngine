@@ -1,0 +1,54 @@
+{
+  "format_version": 1,
+  "id": "scene://{{TEMPLATE_ID}}/main",
+  "name": "Main Scene",
+  "entities": [
+    {
+      "id": "ent_camera",
+      "name": "Main Camera",
+      "components": {
+        "Transform3D": {
+          "position": [0.0, 4.0, 7.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "Camera3D": {
+          "clear_color": [0.04, 0.05, 0.08, 1.0],
+          "fov": 60.0,
+          "near_clip": 0.05,
+          "far_clip": 200.0,
+          "target_offset": [0.0, -3.0, -7.0],
+          "primary": true
+        }
+      }
+    },
+    {
+      "id": "ent_light",
+      "name": "Sun",
+      "components": {
+        "DirectionalLight": {
+          "direction": [-0.4, -1.0, -0.3],
+          "color": [1.0, 0.95, 0.85, 1.0],
+          "intensity": 1.0
+        }
+      }
+    },
+    {
+      "id": "ent_marker",
+      "name": "Starter Marker",
+      "components": {
+        "Transform3D": {
+          "position": [0.0, 0.5, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "MeshRenderer": {
+          "shape": "cube",
+          "size": [1.0, 1.0, 1.0],
+          "color": [0.25, 0.9, 0.75, 1.0]
+        },
+        "LuaScript": { "module": "script://scripts/main.lua" }
+      }
+    }
+  ]
+}

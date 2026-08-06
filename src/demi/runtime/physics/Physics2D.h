@@ -23,10 +23,13 @@ struct PhysicsContactFilter2D {
 
 struct PhysicsRaycastHit2D {
   std::string entityId;
+  std::string layer;
   Vec2 point;
   Vec2 normal;
   float distance = 0.0F;
+  float fraction = 0.0F;
 };
+using PhysicsQueryHit2D = PhysicsRaycastHit2D;
 
 [[nodiscard]] std::optional<Vec2>
 rigidbodyVelocity(const World &world, const std::string &entityId);
@@ -38,12 +41,35 @@ setRigidbodyVelocity(World &world, const std::string &entityId, Vec2 velocity);
                                          const std::string &entityId, float y);
 [[nodiscard]] bool
 addRigidbodyImpulse(World &world, const std::string &entityId, Vec2 impulse);
+[[nodiscard]] bool addRigidbodyForce(World &world, const std::string &entityId,
+                                     Vec2 force);
+[[nodiscard]] bool addRigidbodyTorque(World &world, const std::string &entityId,
+                                      float torque);
+[[nodiscard]] bool setRigidbodyAngularVelocity(World &world,
+                                               const std::string &entityId,
+                                               float angularVelocity);
+[[nodiscard]] bool setRigidbodyAwake(World &world, const std::string &entityId,
+                                     bool awake);
+[[nodiscard]] bool
+setRigidbodyEnabled(World &world, const std::string &entityId, bool enabled);
+[[nodiscard]] bool moveKinematicBody(World &world, const std::string &entityId,
+                                     Vec2 target, float fixedDt);
+[[nodiscard]] std::optional<Vec2>
+moveAndSlideKinematic(World &world, const std::string &entityId, Vec2 motion);
 [[nodiscard]] bool overlapBox(const World &world, Vec2 center, Vec2 size,
                               const std::string &ignoredEntityId = {});
 [[nodiscard]] std::vector<std::string>
 overlapCircle(const World &world, Vec2 center, float radius,
               const std::string &layer = {},
               const std::string &ignoredEntityId = {});
+[[nodiscard]] std::vector<PhysicsQueryHit2D>
+overlapBoxAll(const World &world, Vec2 center, Vec2 size,
+              const std::string &layer = {},
+              const std::string &ignoredEntityId = {});
+[[nodiscard]] std::vector<PhysicsQueryHit2D>
+overlapCircleAll(const World &world, Vec2 center, float radius,
+                 const std::string &layer = {},
+                 const std::string &ignoredEntityId = {});
 [[nodiscard]] std::optional<PhysicsRaycastHit2D>
 raycast2D(const World &world, Vec2 origin, Vec2 direction, float distance,
           const std::string &layer = {},

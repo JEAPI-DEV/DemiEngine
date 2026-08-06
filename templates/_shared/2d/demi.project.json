@@ -1,0 +1,26 @@
+{
+  "format_version": 1,
+  "name": {{PROJECT_NAME_JSON}},
+  "main_scene": "scene://{{TEMPLATE_ID}}/main",
+  "scenes": [
+    { "id": "scene://{{TEMPLATE_ID}}/main", "path": "scenes/main.scene.json" }
+  ],
+  "input": {
+    "actions": {
+      "move_x": [
+        { "input": "a", "scale": -1.0 },
+        { "input": "left", "scale": -1.0 },
+        { "input": "d", "scale": 1.0 },
+        { "input": "right", "scale": 1.0 }
+      ],
+      "move_y": [
+        { "input": "s", "scale": -1.0 },
+        { "input": "down", "scale": -1.0 },
+        { "input": "w", "scale": 1.0 },
+        { "input": "up", "scale": 1.0 }
+      ],
+      "confirm": ["space", "enter", "gamepad:south"]
+    }
+  },
+  "scripting": { "language": "lua54", "modules": [] }
+}

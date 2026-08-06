@@ -15,6 +15,11 @@ std::uint64_t LuaScriptHost::playAudio(const std::string &assetId) {
   return audio_ != nullptr ? audio_->play(assetId) : 0;
 }
 
+std::uint64_t
+LuaScriptHost::playAudio(const AudioPlaybackRequest &request) {
+  return audio_ != nullptr ? audio_->play(request) : 0;
+}
+
 std::uint64_t LuaScriptHost::playAudioSource(const std::string &entityId) {
   if (world_ == nullptr || audio_ == nullptr) {
     return 0;
@@ -27,11 +32,37 @@ std::uint64_t LuaScriptHost::playAudioSource(const std::string &entityId) {
   if (entity->component<AudioSourceComponent>()->handle != 0) {
     (void)audio_->stop(entity->component<AudioSourceComponent>()->handle);
   }
-  entity->component<AudioSourceComponent>()->handle =
-      audio_->play(entity->component<AudioSourceComponent>()->clip,
-                   entity->component<AudioSourceComponent>()->loop,
-                   entity->component<AudioSourceComponent>()->volume);
-  return entity->component<AudioSourceComponent>()->handle;
+  auto *source = entity->component<AudioSourceComponent>();
+  AudioVector3 position;
+  if (entity->hasComponent<Transform3DComponent>()) {
+    const Vec3 value = worldPosition3D(*world_, *entity);
+    position = {value.x, value.y, value.z};
+  } else if (const auto *transform =
+                 entity->component<Transform2DComponent>()) {
+    position = {transform->position.x, transform->position.y, 0.0F};
+  }
+  source->handle = audio_->play(
+      {.assetId = source->clip,
+       .bus = source->bus,
+       .concurrencyGroup = source->concurrencyGroup,
+       .loop = source->loop,
+       .streaming = source->streaming,
+       .volume = source->volume,
+       .pitch = source->pitch,
+       .pan = source->pan,
+       .spatialMode = source->spatialMode,
+       .attenuation = source->attenuation,
+       .position = position,
+       .velocity = {},
+       .minDistance = source->minDistance,
+       .maxDistance = source->maxDistance,
+       .rolloff = source->rolloff,
+       .doppler = source->doppler,
+       .fadeInSeconds = source->fadeIn,
+       .maxVoices = source->maxVoices,
+       .voiceStealing = source->voiceStealing,
+       .pauseWithGame = source->pauseWithGame});
+  return source->handle;
 }
 
 bool LuaScriptHost::stopAudioSource(const std::string &entityId) {
@@ -61,6 +92,56 @@ void LuaScriptHost::setMasterVolume(const float volume) {
 
 float LuaScriptHost::masterVolume() const {
   return audio_ != nullptr ? audio_->masterVolume() : 1.0F;
+}
+
+bool LuaScriptHost::setAudioBusVolume(const std::string &bus,
+                                      const float volume) {
+  return audio_ != nullptr && audio_->mixer().setVolume(bus, volume);
+}
+
+float LuaScriptHost::audioBusVolume(const std::string &bus) const {
+  return audio_ != nullptr ? audio_->mixer().volume(bus) : 0.0F;
+}
+
+bool LuaScriptHost::setAudioBusMuted(const std::string &bus,
+                                     const bool muted) {
+  return audio_ != nullptr && audio_->mixer().setMuted(bus, muted);
+}
+
+bool LuaScriptHost::setAudioBusPaused(const std::string &bus,
+                                      const bool paused) {
+  return audio_ != nullptr && audio_->mixer().setPaused(bus, paused);
+}
+
+void LuaScriptHost::defineAudioSnapshot(
+    const std::string &name,
+    const std::unordered_map<std::string, float> &volumes) {
+  if (audio_ != nullptr)
+    audio_->mixer().defineSnapshot(name, {.volumes = volumes});
+}
+
+bool LuaScriptHost::transitionAudioSnapshot(const std::string &name,
+                                            const float duration) {
+  return audio_ != nullptr &&
+         audio_->mixer().transitionTo(name, duration);
+}
+
+std::uint64_t LuaScriptHost::crossfadeAudio(
+    const std::uint64_t fromHandle, const std::string &assetId,
+    const std::string &bus, const float duration, const bool loop,
+    const bool streaming) {
+  if (audio_ == nullptr)
+    return 0;
+  if (fromHandle != 0)
+    (void)audio_->stop(fromHandle, duration);
+  return audio_->play({.assetId = assetId,
+                       .bus = bus,
+                       .concurrencyGroup = {},
+                       .loop = loop,
+                       .streaming = streaming,
+                       .position = {},
+                       .velocity = {},
+                       .fadeInSeconds = duration});
 }
 
 std::uint64_t LuaScriptHost::playVideo(const std::string &assetId,

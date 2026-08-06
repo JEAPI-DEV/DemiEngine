@@ -7,6 +7,14 @@ function MainMenu:on_create()
 end
 
 function MainMenu:on_start()
+  local copy, error = Data.load("asset://menu/copy")
+  if copy == nil then
+    Debug.log(error.code .. ": " .. error.message)
+  else
+    Hud.set_text("title", copy.title)
+    Hud.set_text("subtitle", copy.subtitle)
+    Debug.log("Loaded data-driven menu copy revision " .. Data.revision("asset://menu/copy"))
+  end
   self.timeline:play("walker", 8.0, function(progress, elapsed)
     Hud.set_position("walker", -104.0 + 1064.0 * progress, 220.0)
     Hud.set_image_animation_frame("walker", "asset://walk/warrior", math.floor(elapsed * 10.0))

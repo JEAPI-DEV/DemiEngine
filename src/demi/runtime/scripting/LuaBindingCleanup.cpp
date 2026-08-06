@@ -5,7 +5,7 @@ namespace demi::runtime {
 
 void clearLuaBindingGlobals(lua_State* state) {
   constexpr const char* globals[] = {
-    "Debug", "Input", "Entity", "Transform", "Transform3D", "Time", "Timer", "Events", "Scene", "Runtime",
+    "Debug", "Input", "Application", "Entity", "Transform", "Transform3D", "Time", "Timer", "Events", "Scene", "Runtime",
     "Rigidbody2D", "Physics2D", "Hud", "Save", "Audio", "AudioSource", "Video", "Cutscene", "Network", "NetworkSession",
     "TlsServer", "TlsClient", "Crypto",
   };

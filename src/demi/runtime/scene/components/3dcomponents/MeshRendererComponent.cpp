@@ -11,6 +11,23 @@ void MeshRendererComponent::parse(const nlohmann::json &json, Entity &entity) {
   if (auto value = scene_loading::colorField(json, "color"))
     component.color = *value;
   component.texture = scene_loading::stringOr(json, "texture");
+  component.material = scene_loading::stringOr(json, "material");
+  component.renderLayer = scene_loading::stringOr(json, "render_layer");
+  if (const auto *properties =
+          scene_loading::objectField(json, "material_properties")) {
+    for (const auto &[name, value] : properties->items()) {
+      if (value.is_number()) {
+        component.materialNumbers.emplace(name, value.get<float>());
+      } else if (value.is_array() && value.size() == 4 &&
+                 std::ranges::all_of(value, [](const auto &channel) {
+                   return channel.is_number();
+                 })) {
+        component.materialColors.emplace(
+            name, Color{value[0].get<float>(), value[1].get<float>(),
+                        value[2].get<float>(), value[3].get<float>()});
+      }
+    }
+  }
   component.wireframe =
       scene_loading::boolField(json, "wireframe").value_or(false);
   if (const auto *values = scene_loading::arrayField(json, "vertices")) {

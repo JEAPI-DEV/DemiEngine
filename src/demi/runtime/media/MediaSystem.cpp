@@ -235,7 +235,8 @@ void MediaSystem::shutdown() {
 #if DEMI_HAS_FFMPEG
   for (std::unique_ptr<Playback>& playback : playing_) {
     if (playback != nullptr) {
-closePlayback(*playback);
+      closePlayback(*playback);
+    }
   }
   playing_.clear();
 #endif

@@ -5,6 +5,7 @@
   "importer": "image",
   "importer_version": 1,
   "settings": {
+    "color_key": "#000000",
     "filter": "nearest"
   },
   "source": "player_sheet.ppm",

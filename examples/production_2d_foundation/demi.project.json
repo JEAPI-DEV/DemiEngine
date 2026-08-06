@@ -1,0 +1,39 @@
+{
+  "format_version": 1,
+  "name": "Production 2D Foundation",
+  "main_scene": "scene://production_2d_foundation/main",
+  "scenes": [
+    {
+      "id": "scene://production_2d_foundation/main",
+      "path": "scenes/main.scene.json"
+    }
+  ],
+  "simulation": {
+    "fixed_timestep": 0.016666667,
+    "random_seed": 404
+  },
+  "physics": {
+    "layers": {
+      "goal": ["player"],
+      "player": ["goal", "wall"],
+      "wall": ["player"]
+    }
+  },
+  "input": {
+    "actions": {
+      "move_x": [
+        {"input": "a", "scale": -1},
+        {"input": "left", "scale": -1},
+        {"input": "d", "scale": 1},
+        {"input": "right", "scale": 1}
+      ],
+      "move_y": [
+        {"input": "s", "scale": -1},
+        {"input": "down", "scale": -1},
+        {"input": "w", "scale": 1},
+        {"input": "up", "scale": 1}
+      ],
+      "toggle_gate": ["space"]
+    }
+  }
+}

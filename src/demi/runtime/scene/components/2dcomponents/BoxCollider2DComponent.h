@@ -19,6 +19,9 @@ struct BoxCollider2DComponent {
       ComponentFieldDescriptor{"layer", ComponentFieldType::String},
       ComponentFieldDescriptor{"category_bits", ComponentFieldType::Integer},
       ComponentFieldDescriptor{"mask_bits", ComponentFieldType::Integer},
+      ComponentFieldDescriptor{"friction", ComponentFieldType::Number},
+      ComponentFieldDescriptor{"restitution", ComponentFieldType::Number},
+      ComponentFieldDescriptor{"density", ComponentFieldType::Number},
       ComponentFieldDescriptor{"debug_visible", ComponentFieldType::Boolean}};
   static constexpr ComponentEditorMetadata editor{"Physics 2D",
                                                   "Box Collider 2D"};
@@ -30,6 +33,9 @@ struct BoxCollider2DComponent {
   std::string layer;
   std::uint16_t categoryBits = 1;
   std::uint16_t maskBits = 0xFFFF;
+  float friction = 0.2F;
+  float restitution = 0.0F;
+  float density = 1.0F;
   bool debugVisible = true;
 };
 

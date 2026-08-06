@@ -1,0 +1,42 @@
+{
+  "format_version": 1,
+  "name": "Multiplayer FFA Shooter",
+  "main_scene": "scene://multiplayer_ffa_shooter/arena",
+  "scenes": [
+    {
+      "id": "scene://multiplayer_ffa_shooter/arena",
+      "path": "scenes/arena.scene.json"
+    }
+  ],
+  "input": {
+    "actions": {
+      "move_x": [
+        {"input": "a", "scale": -1},
+        {"input": "left", "scale": -1},
+        {"input": "d", "scale": 1},
+        {"input": "right", "scale": 1},
+        {"input": "gamepad:axis:left_x", "deadzone": 0.18},
+        {"input": "virtual:move:x", "deadzone": 0.12}
+      ],
+      "move_y": [
+        {"input": "s", "scale": -1},
+        {"input": "down", "scale": -1},
+        {"input": "w", "scale": 1},
+        {"input": "up", "scale": 1},
+        {"input": "gamepad:axis:left_y", "deadzone": 0.18, "invert": true},
+        {"input": "virtual:move:y", "deadzone": 0.12, "invert": true}
+      ],
+      "fire": ["space", "gamepad:south", "virtual:fire"],
+      "host_match": ["h"],
+      "join_match": ["j"],
+      "practice_match": ["p"],
+      "leave_match": ["escape"]
+    }
+  },
+  "scripting": {
+    "language": "lua54",
+    "modules": [
+      "shooter.actions"
+    ]
+  }
+}

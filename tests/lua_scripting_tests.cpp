@@ -1,7 +1,8 @@
-#include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -94,6 +95,23 @@ function Probe:on_start()
   if canvas_width == 100 and canvas_height == 100 then
     Save.set_string("test", "hud_canvas_size", "updated")
   end
+  local dynamic, dynamic_error = Hud.create("", {
+    id = "runtime_row", type = "button", text = "Runtime",
+    action = "inspect:runtime", width = 30, height = 12,
+  })
+  local clusters = Text.grapheme_count("Aé")
+  local prefix = Text.grapheme_slice("Aé", 2, 1)
+  local layout = Text.layout("one two three", 30, 10, 2)
+  if dynamic and dynamic_error == "" and clusters == 2 and prefix == "é"
+      and layout.valid_utf8 and layout.grapheme_count == 13 then
+    local clone, clone_error = Hud.clone(dynamic, "runtime_row_copy")
+    local moved, move_error = Hud.reparent(dynamic, "button_start")
+    local removed, remove_error = Hud.remove(clone)
+    if clone_error == "" and moved and move_error == "" and removed
+        and remove_error == "" and #Hud.children("button_start") == 1 then
+      Save.set_string("test", "dynamic_hud", "passed")
+    end
+  end
   Entity.create("ent_tinted_sprite", {
     components = {
       Transform2D = {
@@ -108,6 +126,59 @@ function Probe:on_start()
   if Entity.set_sprite_color("ent_tinted_sprite", 0.45, 0.55, 0.65, 0.75) and
       Sprite2D.set_size("ent_tinted_sprite", 2.5, 0.5) then
     Save.set_string("test", "sprite_color", "updated")
+  end
+  Entity.create("ent_pending_mesh", {
+    components = {
+      Transform3D = {
+        position = { 2.0, 3.0, 4.0 },
+      },
+    },
+  })
+  local pending_mesh = ProceduralMesh.create(3)
+  pending_mesh:add_vertex(0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)
+  pending_mesh:add_vertex(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0)
+  pending_mesh:add_vertex(0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0)
+  if ProceduralMesh.apply("ent_pending_mesh", pending_mesh, {
+      material = "asset://materials/test",
+      render_layer = "world",
+    }) then
+    Save.set_string("test", "pending_mesh", "attached")
+  end
+  local voxel_tiles = {
+    [1] = { side = 0, top = 1, bottom = 1 },
+  }
+  local isolated_voxel = ProceduralMesh.create(0)
+  isolated_voxel:add_voxel_blocks(
+    { { x = 0, y = 0, z = 0, block = 1 } },
+    { [5] = true },
+    voxel_tiles,
+    2,
+    4
+  )
+  local adjacent_voxels = ProceduralMesh.create(0)
+  adjacent_voxels:add_voxel_blocks(
+    {
+      { x = 0, y = 0, z = 0, block = 1 },
+      { x = 1, y = 0, z = 0, block = 1 },
+      "malformed",
+    },
+    { [5] = true, [6] = true, [7] = false },
+    voxel_tiles,
+    2,
+    4
+  )
+  local invalid_voxels = ProceduralMesh.create(0)
+  invalid_voxels:add_voxel_blocks(
+    { { x = 0, y = 0, z = 0, block = 1 } },
+    { [5] = true },
+    voxel_tiles,
+    0,
+    -1
+  )
+  if isolated_voxel:vertex_count() == 36
+      and adjacent_voxels:vertex_count() == 60
+      and invalid_voxels:vertex_count() == 0 then
+    Save.set_string("test", "voxel_mesh_visibility", "passed")
   end
   Entity.create("ent_iso_parent", {
     components = {
@@ -126,6 +197,12 @@ function Probe:on_start()
         asset = "asset://buildings/test",
         blocks_movement = true,
       },
+    },
+  })
+  Entity.create("ent_dynamic_script", {
+    enabled = false,
+    components = {
+      LuaScript = { module = "script://scripts/dynamic_probe.lua" },
     },
   })
   local roundtrip = Network.decode(Network.encode("color_probe", {
@@ -176,6 +253,23 @@ end
 return Probe
 )lua")) {
     std::cerr << "Failed to write probe.lua.\n";
+    return 1;
+  }
+
+  if (!writeFile(projectDirectory / "scripts" / "dynamic_probe.lua", R"lua(
+local DynamicProbe = {}
+function DynamicProbe:on_create()
+  Save.set_string("test", "dynamic_create", "called")
+end
+function DynamicProbe:on_start()
+  Save.set_string("test", "dynamic_start", "called")
+end
+function DynamicProbe:on_destroy()
+  Save.set_string("test", "dynamic_destroy", "called")
+end
+return DynamicProbe
+)lua")) {
+    std::cerr << "Failed to write dynamic lifecycle Lua script.\n";
     return 1;
   }
 
@@ -328,6 +422,54 @@ return PropProbe
 
   host.setViewport(100, 100);
   host.start();
+  host.setTimeScale(0.5F);
+  host.beginFrame(0.2F);
+  host.advanceFixedTime(1.0F / 60.0F);
+  if (std::abs(host.deltaTime() - 0.1F) > 0.0001F ||
+      std::abs(host.unscaledDeltaTime() - 0.2F) > 0.0001F ||
+      std::abs(host.gameTime() - 0.1) > 0.0001 || host.fixedTime() <= 0.0 ||
+      host.frameCount() != 1) {
+    std::cerr << "Scaled and unscaled runtime clocks diverged.\n";
+    return 1;
+  }
+  host.setPaused(true);
+  host.beginFrame(0.25F);
+  if (host.deltaTime() != 0.0F || host.unscaledDeltaTime() != 0.25F ||
+      host.frameCount() != 2) {
+    std::cerr << "Paused runtime clock did not preserve unscaled time.\n";
+    return 1;
+  }
+  host.setPaused(false);
+  host.setApplicationFocused(false);
+  host.setApplicationSuspended(true);
+  if (host.applicationFocused() || !host.applicationSuspended()) {
+    std::cerr << "Application focus/suspend state was not retained.\n";
+    return 1;
+  }
+  host.setApplicationFocused(true);
+  host.setApplicationSuspended(false);
+  if (host.saveString("test", "dynamic_create").has_value() ||
+      !host.setEntityEnabled("ent_dynamic_script", true)) {
+    std::cerr << "Disabled dynamic LuaScript started before being enabled.\n";
+    return 1;
+  }
+  host.update(0.0F);
+  if (host.saveString("test", "dynamic_create") != "called" ||
+      host.saveString("test", "dynamic_start") != "called") {
+    std::cerr
+        << "Dynamically created LuaScript missed create/start lifecycle.\n";
+    return 1;
+  }
+  if (!host.removeEntityComponent("ent_dynamic_script", "LuaScript")) {
+    std::cerr << "Dynamic LuaScript removal was not queued.\n";
+    return 1;
+  }
+  host.update(0.0F);
+  if (host.saveString("test", "dynamic_destroy") != "called" ||
+      host.hasEntityComponent("ent_dynamic_script", "LuaScript")) {
+    std::cerr << "Dynamically removed LuaScript missed destroy lifecycle.\n";
+    return 1;
+  }
   if (host.saveString("test", "profile") != "migrated") {
     std::cerr
         << "Save.read/write migration hook did not migrate profile data.\n";
@@ -392,13 +534,18 @@ return PropProbe
     std::cerr << "Hud.canvas_size did not expose authored canvas dimensions.\n";
     return 1;
   }
+  if (host.saveString("test", "dynamic_hud") != "passed" ||
+      !host.hudNodeHandle("runtime_row") ||
+      host.hudNodeHandle("runtime_row_copy")) {
+    std::cerr << "Dynamic HUD or Unicode Text Lua APIs failed.\n";
+    return 1;
+  }
   const auto hudImageNode = std::ranges::find_if(
       world.ui.nodes, [](const runtime::ui::UiNode &element) {
         return element.id == "hud_image";
       });
   if (hudImageNode == world.ui.nodes.end() ||
-      hudImageNode->resolved.x != 18.0F ||
-      hudImageNode->resolved.y != 24.0F ||
+      hudImageNode->resolved.x != 18.0F || hudImageNode->resolved.y != 24.0F ||
       hudImageNode->animation != "asset://animations/test" ||
       hudImageNode->animationFrame != 3) {
     std::cerr << "HUD geometry mutation did not refresh resolved layout.\n";
@@ -417,6 +564,31 @@ return PropProbe
       tintedSprite->component<SpriteComponent>()->size.y != 0.5F) {
     std::cerr
         << "Sprite color Lua API did not create and update a tinted sprite.\n";
+    return 1;
+  }
+  const runtime::Entity *pendingMesh =
+      runtime::findEntity(world, "ent_pending_mesh");
+  const auto *pendingMeshRenderer =
+      pendingMesh == nullptr
+          ? nullptr
+          : pendingMesh->component<runtime::MeshRendererComponent>();
+  if (host.saveString("test", "pending_mesh") != "attached" ||
+      pendingMeshRenderer == nullptr ||
+      pendingMeshRenderer->vertices.size() != 3 ||
+      pendingMeshRenderer->normals.size() != 3 ||
+      pendingMeshRenderer->uvs.size() != 3 ||
+      pendingMeshRenderer->material != "asset://materials/test" ||
+      pendingMeshRenderer->renderLayer != "world" ||
+      !pendingMeshRenderer->hasBounds ||
+      pendingMeshRenderer->boundsMax.x != 1.0F ||
+      pendingMeshRenderer->boundsMax.z != 1.0F) {
+    std::cerr << "ProceduralMesh.apply did not configure a same-frame pending "
+                 "entity.\n";
+    return 1;
+  }
+  if (host.saveString("test", "voxel_mesh_visibility") != "passed") {
+    std::cerr << "Procedural voxel meshing did not preserve exposed-face, "
+                 "adjacency, or malformed-input behavior.\n";
     return 1;
   }
   const runtime::Entity *isoCreated =
@@ -469,8 +641,9 @@ return PropProbe
   }
   const std::optional<runtime::Vec3> moved3D =
       host.entityPosition3D("ent_3d_mover");
-  if (!moved3D.has_value() || moved3D->x != 0.0F) {
-    std::cerr << "3D dynamic mover passed through a static BoxCollider3D.\n";
+  if (!moved3D.has_value() || moved3D->x != 1.0F) {
+    std::cerr << "Transform3D.set_position did not directly author the "
+                 "requested transform.\n";
     return 1;
   }
   if (!host.setEntityPosition3D("ent_3d_mover", -1.0F, 0.5F, 0.0F)) {
@@ -479,8 +652,15 @@ return PropProbe
   }
   const std::optional<runtime::Vec3> sphereBlocked3D =
       host.entityPosition3D("ent_3d_mover");
-  if (!sphereBlocked3D.has_value() || sphereBlocked3D->x != 0.0F) {
-    std::cerr << "3D dynamic mover passed through a static SphereCollider3D.\n";
+  if (!sphereBlocked3D.has_value() || sphereBlocked3D->x != -1.0F) {
+    std::cerr << "Transform3D.set_position retained legacy collision "
+                 "resolution.\n";
+    return 1;
+  }
+  if (!host.setRigidbodyVelocity3D("ent_3d_mover", 2.0F, 0.0F, 0.0F) ||
+      !host.getRigidbodyVelocity3D("ent_3d_mover") ||
+      host.getRigidbodyVelocity3D("ent_3d_mover")->x != 2.0F) {
+    std::cerr << "Public Rigidbody3D velocity service failed.\n";
     return 1;
   }
   const runtime::Entity *child = runtime::findEntity(world, "ent_3d_child");
@@ -527,7 +707,8 @@ return PropProbe
     return 1;
   }
   if (host.saveString("test", "ui_pointer_capture") != "captured") {
-    std::cerr << "Input.ui_pointer_captured did not expose HUD click ownership.\n";
+    std::cerr
+        << "Input.ui_pointer_captured did not expose HUD click ownership.\n";
     return 1;
   }
   if (host.saveString("test", "annotated_action") !=

@@ -10,6 +10,8 @@ namespace demi::runtime {
 void SpriteAnimationSystem::update(World &world, const float deltaTime) const {
   world.animationEvents.clear();
   for (Entity &entity : world.entities) {
+    if (!entity.enabled)
+      continue;
     auto *animator = entity.component<SpriteAnimator2DComponent>();
     if (animator == nullptr || !animator->playing)
       continue;

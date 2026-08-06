@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "fixed_timestep": 0.016666667,
+  "frames": [
+    {},
+    { "keys_down": ["2"], "keys_pressed": ["2"] },
+    {},
+    { "keys_down": ["3"], "keys_pressed": ["3"] },
+    {},
+    { "keys_down": ["5"], "keys_pressed": ["5"] },
+    {},
+    {
+      "mouse_position": [64.0, 328.0],
+      "mouse_buttons_down": ["left"],
+      "mouse_buttons_pressed": ["left"]
+    },
+    {
+      "mouse_position": [64.0, 328.0],
+      "mouse_buttons_released": ["left"]
+    },
+    {}
+  ]
+}

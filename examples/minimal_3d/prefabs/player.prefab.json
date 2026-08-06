@@ -8,8 +8,15 @@
     "components": {
       "Transform3D": {"position":[0.0,0.5,0.0],"rotation":[0.0,0.0,0.0],"scale":[1.0,1.0,1.0]},
       "MeshRenderer": {"shape":"cube","size":[1.0,1.0,1.0],"color":[0.36,0.67,0.93,1.0],"texture":"asset://textures/checker","wireframe":false},
-      "SphereCollider3D": {"radius":0.5,"offset":[0.0,0.0,0.0],"is_trigger":false,"layer":"player"},
-      "Rigidbody3D": {"body_type":"dynamic","velocity":[0.0,0.0,0.0],"use_gravity":false,"gravity_scale":0.0},
+      "CharacterController3D": {
+        "radius": 0.45,
+        "height": 1.8,
+        "step_height": 0.35,
+        "slope_limit": 50.0,
+        "skin_width": 0.02,
+        "gravity": -20.0,
+        "layer": "player"
+      },
       "LuaScript": {"module":"script://scripts/player_3d.lua"}
     }
   }]

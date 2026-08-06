@@ -46,9 +46,9 @@
             "hit": { "sprite_clip": "hit", "duration": 0.22, "loop": false }
           },
           "transitions": {
-            "light_done": { "from": "light", "to": "idle", "condition": "finished" },
-            "special_done": { "from": "special", "to": "idle", "condition": "finished" },
-            "hit_done": { "from": "hit", "to": "idle", "condition": "finished" }
+            "light_done": { "from": "light", "to": "idle", "condition": "finished", "blend_duration": 0.08 },
+            "special_done": { "from": "special", "to": "idle", "condition": "finished", "blend_duration": 0.12 },
+            "hit_done": { "from": "hit", "to": "idle", "condition": "finished", "blend_duration": 0.06 }
           }
         },
         "AnimationCollision2D": {
@@ -88,9 +88,9 @@
             "hit": { "sprite_clip": "hit", "duration": 0.22, "loop": false }
           },
           "transitions": {
-            "light_done": { "from": "light", "to": "idle", "condition": "finished" },
-            "special_done": { "from": "special", "to": "idle", "condition": "finished" },
-            "hit_done": { "from": "hit", "to": "idle", "condition": "finished" }
+            "light_done": { "from": "light", "to": "idle", "condition": "finished", "blend_duration": 0.08 },
+            "special_done": { "from": "special", "to": "idle", "condition": "finished", "blend_duration": 0.12 },
+            "hit_done": { "from": "hit", "to": "idle", "condition": "finished", "blend_duration": 0.06 }
           }
         },
         "AnimationCollision2D": {

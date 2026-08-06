@@ -35,7 +35,7 @@
       {
         "type": "label",
         "id": "subtitle",
-        "text": "AnimationPlayer3D: clip 0, looping at native speed",
+        "text": "PLAYING: IDLE_LOOP",
         "position": [
           28.0,
           52.0
@@ -46,6 +46,177 @@
           0.7,
           0.88,
           1.0
+        ]
+      },
+      {
+        "type": "panel",
+        "id": "animation_panel",
+        "position": [
+          20.0,
+          92.0
+        ],
+        "size": [
+          174.0,
+          336.0
+        ],
+        "color": [
+          0.025,
+          0.04,
+          0.075,
+          0.92
+        ],
+        "children": [
+          {
+            "type": "label",
+            "id": "animation_panel_title",
+            "text": "ANIMATIONS",
+            "position": [
+              12.0,
+              12.0
+            ],
+            "font_size": 16.0,
+            "color": [
+              0.35,
+              0.9,
+              1.0,
+              1.0
+            ]
+          },
+          {
+            "type": "button",
+            "id": "animation_idle",
+            "action": "animation_idle",
+            "text": "> [1] IDLE",
+            "position": [
+              12.0,
+              46.0
+            ],
+            "size": [
+              150.0,
+              44.0
+            ],
+            "font_size": 15.0,
+            "color": [
+              0.08,
+              0.3,
+              0.38,
+              1.0
+            ],
+            "hover_color": [
+              0.12,
+              0.55,
+              0.65,
+              1.0
+            ]
+          },
+          {
+            "type": "button",
+            "id": "animation_walk",
+            "action": "animation_walk",
+            "text": "[2] WALK",
+            "position": [
+              12.0,
+              102.0
+            ],
+            "size": [
+              150.0,
+              44.0
+            ],
+            "font_size": 15.0,
+            "color": [
+              0.08,
+              0.2,
+              0.32,
+              1.0
+            ],
+            "hover_color": [
+              0.12,
+              0.42,
+              0.58,
+              1.0
+            ]
+          },
+          {
+            "type": "button",
+            "id": "animation_run",
+            "action": "animation_run",
+            "text": "[3] RUN",
+            "position": [
+              12.0,
+              158.0
+            ],
+            "size": [
+              150.0,
+              44.0
+            ],
+            "font_size": 15.0,
+            "color": [
+              0.18,
+              0.16,
+              0.38,
+              1.0
+            ],
+            "hover_color": [
+              0.38,
+              0.28,
+              0.62,
+              1.0
+            ]
+          },
+          {
+            "type": "button",
+            "id": "animation_jump",
+            "action": "animation_jump",
+            "text": "[4] JUMP",
+            "position": [
+              12.0,
+              214.0
+            ],
+            "size": [
+              150.0,
+              44.0
+            ],
+            "font_size": 15.0,
+            "color": [
+              0.34,
+              0.2,
+              0.14,
+              1.0
+            ],
+            "hover_color": [
+              0.62,
+              0.38,
+              0.18,
+              1.0
+            ]
+          },
+          {
+            "type": "button",
+            "id": "animation_dance",
+            "action": "animation_dance",
+            "text": "[5] DANCE",
+            "position": [
+              12.0,
+              270.0
+            ],
+            "size": [
+              150.0,
+              44.0
+            ],
+            "font_size": 15.0,
+            "color": [
+              0.38,
+              0.14,
+              0.3,
+              1.0
+            ],
+            "hover_color": [
+              0.68,
+              0.24,
+              0.52,
+              1.0
+            ]
+          }
         ]
       }
     ]
