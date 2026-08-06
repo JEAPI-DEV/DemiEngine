@@ -1,4 +1,5 @@
 #include "demi/runtime/ui/RichTextParser.h"
+#include "demi/runtime/ui/TextEditingEngine.h"
 #include "demi/runtime/ui/TextLayoutEngine.h"
 #include "demi/runtime/ui/UiMutationQueue.h"
 #include "demi/runtime/ui/UiVirtualCollection.h"
@@ -47,6 +48,63 @@ int main() {
     std::cerr << "Complex text did not expose incomplete shaping honestly.\n";
     return 1;
   }
+  const auto emptyLayout = text.layout(
+      {.text = {}, .width = 100.0F, .height = 30.0F, .fontSize = 12.0F});
+  if (emptyLayout.carets.size() != 1 ||
+      emptyLayout.carets.front().grapheme != 0) {
+    std::cerr << "Empty editable text did not expose caret geometry.\n";
+    return 1;
+  }
+
+  TextEditState editing;
+  std::string edited = "Ae\xCC\x81"
+                       "\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x92\xBB";
+  TextEditingEngine::normalize(edited, editing);
+  if (editing.caret != 3 || !TextEditingEngine::backspace(edited, editing) ||
+      edited != "Ae\xCC\x81" || !TextEditingEngine::backspace(edited, editing) ||
+      edited != "A" || editing.caret != 1) {
+    std::cerr << "Backspace split a Unicode grapheme cluster.\n";
+    return 1;
+  }
+  TextEditingEngine::moveTo(editing, edited, 0);
+  if (!TextEditingEngine::deleteForward(edited, editing) || !edited.empty() ||
+      TextEditingEngine::deleteForward(edited, editing)) {
+    std::cerr << "Forward deletion did not respect text boundaries.\n";
+    return 1;
+  }
+  edited = "alpha";
+  editing = {};
+  TextEditingEngine::selectAll(editing, edited);
+  if (!TextEditingEngine::insert(edited, editing, "β") || edited != "β" ||
+      editing.caret != 1) {
+    std::cerr << "Selection replacement failed.\n";
+    return 1;
+  }
+  const std::string preserved = edited;
+  if (TextEditingEngine::insert(edited, editing, "\xFF") ||
+      edited != preserved) {
+    std::cerr << "Invalid UTF-8 mutated an editable value.\n";
+    return 1;
+  }
+  TextEditingEngine::selectAll(editing, edited);
+  if (!TextEditingEngine::setComposition(editing, "候補", 1, 99) ||
+      edited != "β" || TextEditingEngine::displayText(edited, editing) != "候補" ||
+      editing.compositionSelectionLength != 1 ||
+      TextEditingEngine::displayCaret(edited, editing) != 2) {
+    std::cerr << "IME composition did not remain separate from committed text.\n";
+    return 1;
+  }
+  if (!TextEditingEngine::insert(edited, editing, "確定") || edited != "確定" ||
+      !editing.composition.empty()) {
+    std::cerr << "IME commit did not replace the selected text.\n";
+    return 1;
+  }
+  TextEditingEngine::selectAll(editing, edited);
+  TextEditingEngine::move(editing, edited, -1);
+  if (editing.caret != 0 || editing.anchor != 0) {
+    std::cerr << "Arrow movement did not collapse selection to its edge.\n";
+    return 1;
+  }
   TextLayoutCache cache(2);
   (void)cache.layout({.text = "one", .width = 20.0F});
   (void)cache.layout({.text = "one", .width = 20.0F});
@@ -76,13 +134,17 @@ int main() {
                     {.id = "template", .parent = "root", .type = "button",
                      .focusable = true},
                     {.id = "label", .parent = "template", .type = "label"}};
+  document.nodes[1].hovered = true;
+  document.nodes[1].textEdit.composition = "transient";
   UiMutationQueue::initializeGenerations(document);
   const auto source = UiMutationQueue::handle(document, "template");
   if (!source) return 1;
   UiMutationQueue clone;
   clone.clone(*source, "row_1", "root");
   if (!clone.apply(document).applied || document.nodes.size() != 5 ||
-      !UiMutationQueue::handle(document, "row_1.label")) {
+      !UiMutationQueue::handle(document, "row_1.label") ||
+      document.nodes[3].hovered ||
+      !document.nodes[3].textEdit.composition.empty()) {
     std::cerr << "Transactional subtree cloning failed.\n";
     return 1;
   }
@@ -140,9 +202,15 @@ int main() {
   localized.locales["de"] = {{"title", "Starten"}};
   localized.nodes.push_back({.id = "title", .type = "label",
                              .localizationKey = "title"});
+  localized.nodes[0].textEdit = {.caret = 50,
+                                 .anchor = 40,
+                                 .composition = "unfinished",
+                                 .initialized = true};
   std::string localeError;
   if (!UiLocalization{}.setLocale(localized, "de", localeError) ||
       localized.nodes[0].text != "Starten" ||
+      !localized.nodes[0].textEdit.composition.empty() ||
+      localized.nodes[0].textEdit.caret != 7 ||
       UiLocalization{}.setLocale(localized, "missing", localeError) ||
       localized.nodes[0].text != "Starten") {
     std::cerr << "Locale switching did not preserve the last valid UI.\n";
@@ -157,10 +225,12 @@ int main() {
   hidden.nodes = {{.id = "panel", .type = "panel"},
                   {.id = "control", .parent = "panel", .type = "button",
                    .focusable = true}};
+  hidden.nodes[1].textEdit.composition = "unfinished";
   hidden.focusedId = "control";
   hidden.pointerCaptures[4] = "control";
   if (!UiStateController{}.setVisible(hidden, "panel", false) ||
-      !hidden.focusedId.empty() || !hidden.pointerCaptures.empty()) {
+      !hidden.focusedId.empty() || !hidden.pointerCaptures.empty() ||
+      !hidden.nodes[1].textEdit.composition.empty()) {
     std::cerr << "Hiding an ancestor retained descendant interaction state.\n";
     return 1;
   }

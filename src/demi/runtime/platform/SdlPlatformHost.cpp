@@ -62,6 +62,9 @@ std::string_view keyName(const SDL_Scancode key) {
   case SDL_SCANCODE_ESCAPE: return "escape";
   case SDL_SCANCODE_TAB: return "tab";
   case SDL_SCANCODE_BACKSPACE: return "backspace";
+  case SDL_SCANCODE_DELETE: return "delete";
+  case SDL_SCANCODE_HOME: return "home";
+  case SDL_SCANCODE_END: return "end";
   case SDL_SCANCODE_UP: return "up";
   case SDL_SCANCODE_DOWN: return "down";
   case SDL_SCANCODE_LEFT: return "left";
@@ -207,6 +210,14 @@ public:
       case SDL_EVENT_TEXT_INPUT:
         if (event.text.text != nullptr)
           input.text(event.text.text);
+        break;
+      case SDL_EVENT_TEXT_EDITING:
+        if (event.edit.text != nullptr)
+          input.composition(event.edit.text, event.edit.start,
+                            event.edit.length);
+        break;
+      case SDL_EVENT_WINDOW_FOCUS_LOST:
+        input.composition({}, 0, 0);
         break;
       case SDL_EVENT_MOUSE_MOTION:
         if (event.motion.which != SDL_TOUCH_MOUSEID) {

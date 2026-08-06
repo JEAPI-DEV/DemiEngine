@@ -106,6 +106,29 @@ int main() {
   assert(canvas.statistics().triangles >= 32);
   static_cast<void>(graphics.endFrame());
 
+  ui::UiDocument editingDocument;
+  editingDocument.canvasSize = {320, 180};
+  editingDocument.focusedId = "name";
+  editingDocument.nodes = {{.id = "name",
+                            .type = "text_input",
+                            .text = "abc",
+                            .resolved = {.x = 20,
+                                         .y = 20,
+                                         .width = 140,
+                                         .height = 32},
+                            .backgroundColor = {.r = 0.1F,
+                                                .g = 0.1F,
+                                                .b = 0.1F,
+                                                .a = 1.0F},
+                            .fontSize = 16}};
+  editingDocument.nodes.front().textEdit = {
+      .caret = 3, .anchor = 0, .initialized = true};
+  assert(canvas.begin(0, 320, 180, 0, error));
+  assert(renderer.draw(editingDocument, 320, 180));
+  assert(canvas.flush(error));
+  assert(canvas.statistics().quads >= 6);
+  static_cast<void>(graphics.endFrame());
+
   CapturingRenderCommands capturingCommands;
   Canvas2D capturedCanvas(*resources, capturingCommands);
   assert(capturedCanvas.initialize(error));

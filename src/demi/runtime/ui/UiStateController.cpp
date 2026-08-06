@@ -17,7 +17,13 @@ bool belongsTo(const UiDocument &document, std::string id,
 }
 void cancelSubtreeInteraction(UiDocument &document,
                               const std::string_view root) {
-  if (belongsTo(document, document.focusedId, root)) document.focusedId.clear();
+  if (belongsTo(document, document.focusedId, root)) {
+    const auto focused =
+        std::ranges::find(document.nodes, document.focusedId, &UiNode::id);
+    if (focused != document.nodes.end())
+      TextEditingEngine::clearComposition(focused->textEdit);
+    document.focusedId.clear();
+  }
   if (belongsTo(document, document.pointerCaptureId, root))
     document.pointerCaptureId.clear();
   std::erase_if(document.pointerCaptures, [&](const auto &capture) {
@@ -44,6 +50,8 @@ bool UiStateController::setText(UiDocument &document, const std::string_view id,
   if (node == nullptr)
     return false;
   node->text = std::move(text);
+  TextEditingEngine::clearComposition(node->textEdit);
+  TextEditingEngine::normalize(node->text, node->textEdit);
   return true;
 }
 

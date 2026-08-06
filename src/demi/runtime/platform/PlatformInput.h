@@ -29,6 +29,8 @@ public:
   void beginFrame();
   void key(std::string_view name, bool down, bool repeat = false);
   void text(std::string_view utf8);
+  void composition(std::string_view utf8, int selectionStart,
+                   int selectionLength);
   void pointerPosition(float x, float y, float deltaX, float deltaY);
   void pointerButton(std::string_view name, bool down);
   void touch(std::int64_t id, TouchPhase phase, Vec2 position, Vec2 delta,

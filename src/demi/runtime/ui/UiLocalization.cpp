@@ -31,8 +31,11 @@ void UiLocalization::apply(UiDocument &document, bool usePseudo) {
   for (auto &node : document.nodes) {
     if (!node.localizationKey.empty())
       if (const auto found = document.localization.find(node.localizationKey);
-          found != document.localization.end())
+          found != document.localization.end()) {
         node.text = usePseudo ? pseudo(found->second) : found->second;
+        TextEditingEngine::clearComposition(node.textEdit);
+        TextEditingEngine::normalize(node.text, node.textEdit);
+      }
     if (!node.placeholderLocalizationKey.empty())
       if (const auto found = document.localization.find(node.placeholderLocalizationKey);
           found != document.localization.end())

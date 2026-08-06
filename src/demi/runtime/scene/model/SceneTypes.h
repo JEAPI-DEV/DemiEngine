@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -64,6 +65,10 @@ struct InputState {
   Vec2 mousePosition;
   Vec2 mouseDelta;
   std::string textEntered;
+  std::string textComposition;
+  std::size_t textCompositionSelectionStart = 0;
+  std::size_t textCompositionSelectionLength = 0;
+  bool textCompositionChanged = false;
   std::vector<GamepadState> gamepads;
   std::unordered_map<int, int> gamepadAssignments;
   std::vector<TouchPoint> touches;

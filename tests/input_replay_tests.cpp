@@ -31,7 +31,10 @@ int main() {
              "vector": [1, 0], "source": "gamepad:south", "player": 1
            }
          }},
-        {"keys_down": ["a"], "text_entered": "x"}
+        {"keys_down": ["a"], "text_entered": "x",
+         "text_composition": "candidate",
+         "text_composition_selection_start": 2,
+         "text_composition_selection_length": 3}
       ]
     })";
   }
@@ -48,7 +51,10 @@ int main() {
       !state.recordedActions["jump"].pressed ||
       state.mousePosition.y != 20.0F || !replay->apply(1, state) ||
       !state.keysDown.contains("a") || state.keysDown.contains("d") ||
-      state.textEntered != "x" || replay->apply(2, state)) {
+      state.textEntered != "x" || state.textComposition != "candidate" ||
+      state.textCompositionSelectionStart != 2 ||
+      state.textCompositionSelectionLength != 3 ||
+      !state.textCompositionChanged || replay->apply(2, state)) {
     std::cerr << "Input replay parsing or frame application failed: " << error
               << '\n';
     return 1;

@@ -4,6 +4,8 @@
 #include "demi/runtime/ui/UiActionController.h"
 #include "demi/runtime/ui/UiInteractionController.h"
 #include "demi/runtime/ui/UiLayoutEngine.h"
+#include "demi/runtime/ui/TextEditingEngine.h"
+#include "demi/runtime/ui/TextLayoutEngine.h"
 
 #include <algorithm>
 #include <cctype>
@@ -401,16 +403,65 @@ void LuaScriptHost::dispatchHudEvents() {
     if (focused != world_->ui.nodes.end() && focused->type == "text_input" &&
         !focused->disabled) {
       bool changed = false;
+      bool presentationChanged = false;
+      ui::TextEditingEngine::normalize(focused->text, focused->textEdit);
+      if (input_->textCompositionChanged) {
+        presentationChanged = ui::TextEditingEngine::setComposition(
+            focused->textEdit, input_->textComposition,
+            input_->textCompositionSelectionStart,
+            input_->textCompositionSelectionLength);
+      }
       if (!input_->textEntered.empty()) {
-        focused->text += input_->textEntered;
-        changed = true;
+        changed = ui::TextEditingEngine::insert(
+                      focused->text, focused->textEdit,
+                      input_->textEntered) ||
+                  changed;
       }
-      if (input_->keysPressed.contains("backspace") && !focused->text.empty()) {
-        focused->text.pop_back();
-        changed = true;
+      const bool extendSelection =
+          input_->keysDown.contains("left shift") ||
+          input_->keysDown.contains("right shift");
+      const bool control = input_->keysDown.contains("left ctrl") ||
+                           input_->keysDown.contains("right ctrl");
+      if (control && input_->keysPressed.contains("a")) {
+        ui::TextEditingEngine::selectAll(focused->textEdit, focused->text);
+        presentationChanged = true;
       }
-      if (changed)
+      if (input_->keysPressed.contains("left")) {
+        ui::TextEditingEngine::move(focused->textEdit, focused->text, -1,
+                                    extendSelection);
+        presentationChanged = true;
+      }
+      if (input_->keysPressed.contains("right")) {
+        ui::TextEditingEngine::move(focused->textEdit, focused->text, 1,
+                                    extendSelection);
+        presentationChanged = true;
+      }
+      if (input_->keysPressed.contains("home")) {
+        ui::TextEditingEngine::moveTo(focused->textEdit, focused->text, 0,
+                                      extendSelection);
+        presentationChanged = true;
+      }
+      if (input_->keysPressed.contains("end")) {
+        ui::TextEditingEngine::moveTo(
+            focused->textEdit, focused->text,
+            ui::TextLayoutEngine::graphemeCount(focused->text),
+            extendSelection);
+        presentationChanged = true;
+      }
+      if (input_->keysPressed.contains("backspace"))
+        changed = ui::TextEditingEngine::backspace(
+                      focused->text, focused->textEdit) ||
+                  changed;
+      if (input_->keysPressed.contains("delete"))
+        changed = ui::TextEditingEngine::deleteForward(
+                      focused->text, focused->textEdit) ||
+                  changed;
+      if (changed || presentationChanged)
         ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
+    }
+    for (ui::UiNode &node : world_->ui.nodes) {
+      if (node.type == "text_input" && node.id != world_->ui.focusedId)
+        ui::TextEditingEngine::clearComposition(node.textEdit);
     }
     if (input_->keysPressed.contains("return") ||
         input_->keysPressed.contains(submitAction)) {

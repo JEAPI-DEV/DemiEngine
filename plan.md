@@ -432,11 +432,13 @@ segmentation, immutable wrapping/alignment/ellipsis results, selection/hit
 geometry, bounded caching, rich-text validation, renderer integration,
 generation-checked transactional mutations, runtime subtree cloning, bounded
 virtual ranges, locale reapplication, lifetime-bound tweens, Lua contracts,
-and the dynamic `ui_showcase` probe are covered. Complex-script shaping,
-font-fallback atlas pages, IME composition, variable-height recycling, and the
-remaining typed accessibility/input events are still required before this
-step meets its full done criteria; the text adapter reports incomplete shaping
-instead of silently claiming correctness meanwhile.
+the dynamic `ui_showcase` probe, grapheme-safe caret/selection editing, and SDL
+IME composition with explicit commit/cancel behavior are covered.
+Complex-script shaping, font-fallback atlas pages, variable-height recycling,
+project-authored UI prefabs, and the remaining typed accessibility/input
+events are still required before this step meets its full done criteria; the
+text adapter reports incomplete shaping instead of silently claiming
+correctness meanwhile.
 
 ### Scope boundary
 

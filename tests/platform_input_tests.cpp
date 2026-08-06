@@ -124,6 +124,29 @@ void textInputPreservesUtf8() {
   assert(state.textEntered.empty());
 }
 
+void compositionPersistsUntilChangedOrCommitted() {
+  InputState state;
+  PlatformInput input(state);
+  input.beginFrame();
+  input.composition("\xE3\x81\xAB", 1, 3);
+  assert(state.textComposition == "\xE3\x81\xAB");
+  assert(state.textCompositionSelectionStart == 1);
+  assert(state.textCompositionSelectionLength == 3);
+  assert(state.textCompositionChanged);
+
+  input.beginFrame();
+  assert(state.textComposition == "\xE3\x81\xAB");
+  assert(!state.textCompositionChanged);
+  input.composition("candidate", -4, -2);
+  assert(state.textCompositionSelectionStart == 0);
+  assert(state.textCompositionSelectionLength == 0);
+
+  input.text("accepted");
+  assert(state.textEntered == "accepted");
+  assert(state.textComposition.empty());
+  assert(state.textCompositionChanged);
+}
+
 } // namespace
 
 int main() {
@@ -133,5 +156,6 @@ int main() {
   touchTerminalStateSurvivesOneFrame();
   gamepadDisconnectAndUiMirroringAreStable();
   textInputPreservesUtf8();
+  compositionPersistsUntilChangedOrCommitted();
   return 0;
 }

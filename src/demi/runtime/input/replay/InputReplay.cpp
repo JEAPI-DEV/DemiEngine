@@ -140,6 +140,15 @@ std::optional<InputReplay> loadInputReplay(const std::filesystem::path &path,
       state.mousePosition = readVec2(frame, "mouse_position");
       state.mouseDelta = readVec2(frame, "mouse_delta");
       state.textEntered = frame.value("text_entered", std::string{});
+      state.textComposition =
+          frame.value("text_composition", std::string{});
+      state.textCompositionSelectionStart = frame.value(
+          "text_composition_selection_start", std::size_t{0});
+      state.textCompositionSelectionLength = frame.value(
+          "text_composition_selection_length", std::size_t{0});
+      state.textCompositionChanged =
+          frame.value("text_composition_changed",
+                      frame.contains("text_composition"));
       readGamepads(frame, state);
       readTouches(frame, state);
       readStrings(frame, "virtual_buttons_down", state.virtualButtonsDown);

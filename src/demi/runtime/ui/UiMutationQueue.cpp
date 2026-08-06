@@ -127,6 +127,8 @@ UiMutationResult UiMutationQueue::apply(UiDocument &document) {
         if (isDescendant(result, node.id, value->source.id)) copies.push_back(node);
       for (auto &node : copies) {
         const std::string oldId = node.id;
+        node.hovered = false;
+        node.textEdit = {};
         node.id = oldId == value->source.id ? value->root
                                             : value->root + "." + oldId;
         node.parent = oldId == value->source.id

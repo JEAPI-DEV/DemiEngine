@@ -71,8 +71,34 @@ TextLayoutResult TextLayoutEngine::layout(const TextLayoutRequest &request,
   const auto graphemes = clusters(request.text, result.validUtf8, needsShaping);
   result.graphemeCount = graphemes.size();
   result.shapingComplete = !needsShaping;
-  if (!result.validUtf8 || graphemes.empty() || request.fontSize <= 0.0F)
+  if (!result.validUtf8 || request.fontSize <= 0.0F)
     return result;
+
+  if (graphemes.empty()) {
+    const float verticalSpace =
+        std::max(request.height - request.fontSize, 0.0F);
+    const float y = request.vertical == TextVerticalAlignment::Center
+                        ? verticalSpace * 0.5F
+                    : request.vertical == TextVerticalAlignment::End
+                        ? verticalSpace
+                        : 0.0F;
+    const float x = request.horizontal == TextHorizontalAlignment::Center
+                        ? std::max(request.width, 0.0F) * 0.5F
+                    : request.horizontal == TextHorizontalAlignment::End
+                        ? std::max(request.width, 0.0F)
+                        : 0.0F;
+    result.lines.push_back({.text = {},
+                            .graphemeStart = 0,
+                            .graphemeCount = 0,
+                            .x = x,
+                            .y = y,
+                            .width = 0.0F});
+    result.height = request.fontSize;
+    result.carets.push_back(
+        {.grapheme = 0, .line = 0, .x = x, .y = y,
+         .height = request.fontSize});
+    return result;
+  }
 
   const auto widthOf = [&](const std::string_view value) {
     return measure ? measure(value) : defaultMeasure(value, request.fontSize);

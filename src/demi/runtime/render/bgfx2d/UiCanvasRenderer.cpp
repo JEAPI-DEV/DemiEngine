@@ -1,7 +1,8 @@
 #include "demi/runtime/render/bgfx2d/UiCanvasRenderer.h"
 
-#include "demi/runtime/ui/UiPresentation.h"
+#include "demi/runtime/ui/TextEditingEngine.h"
 #include "demi/runtime/ui/TextLayoutEngine.h"
+#include "demi/runtime/ui/UiPresentation.h"
 
 #include <algorithm>
 #include <cmath>
@@ -101,7 +102,8 @@ bool UiCanvasRenderer::draw(const ui::UiDocument &document,
        ui::buildUiPresentation(document)) {
     if (presented.visible &&
         !drawNode(*presented.node, scaleX, scaleY,
-                  clipFor(document, *presented.node, scaleX, scaleY)))
+                  clipFor(document, *presented.node, scaleX, scaleY),
+                  document.focusedId == presented.node->id))
       return false;
   }
   return true;
@@ -127,7 +129,8 @@ ScissorRect UiCanvasRenderer::clipFor(const ui::UiDocument &document,
 }
 
 bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
-                                const float scaleY, const ScissorRect scissor) {
+                                const float scaleY, const ScissorRect scissor,
+                                const bool focused) {
   const Rect2D rect = scaledRect(node, scaleX, scaleY);
   const float scale = std::min(scaleX, scaleY) * node.scale;
   const auto solid = [&](const Color &color) {
@@ -206,10 +209,15 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
   }
 
   const bool textNode = node.type == "label" || node.type == "text" || button;
-  if (textNode && !node.text.empty()) {
+  const bool textInput = node.type == "text_input";
+  const std::string displayedText =
+      textInput ? ui::TextEditingEngine::displayText(node.text, node.textEdit)
+                : node.text;
+  if (textNode && (!displayedText.empty() || (textInput && focused))) {
     const float authored = node.fontSize > 0.0F ? node.fontSize : 20.0F;
     const float fontScale = authored * scale / 48.0F;
-    ui::TextLayoutRequest request{.text = node.text,
+    const bool centeredControl = button && !textInput;
+    ui::TextLayoutRequest request{.text = displayedText,
                                   .width = rect.width,
                                   .height = rect.height,
                                   .fontSize = authored * scale,
@@ -219,12 +227,12 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
                                           : node.textWrap == ui::TextWrapMode::Grapheme
                                               ? ui::TextWrap::Grapheme
                                               : ui::TextWrap::None,
-                                  .horizontal = (button || node.textHorizontalAlignment == ui::Alignment::Center)
+                                  .horizontal = (centeredControl || node.textHorizontalAlignment == ui::Alignment::Center)
                                                     ? ui::TextHorizontalAlignment::Center
                                                 : node.textHorizontalAlignment == ui::Alignment::End
                                                     ? ui::TextHorizontalAlignment::End
                                                     : ui::TextHorizontalAlignment::Start,
-                                  .vertical = (button || node.textVerticalAlignment == ui::Alignment::Center)
+                                  .vertical = (centeredControl || node.textVerticalAlignment == ui::Alignment::Center)
                                                   ? ui::TextVerticalAlignment::Center
                                               : node.textVerticalAlignment == ui::Alignment::End
                                                   ? ui::TextVerticalAlignment::End
@@ -246,11 +254,68 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
         node.textOverflow == ui::TextOverflowMode::Visible
             ? scissor
             : intersect(scissor, toScissor(textBounds));
+
+    if (textInput && focused) {
+      ui::TextEditRange selected =
+          ui::TextEditingEngine::selection(node.textEdit);
+      std::size_t selectionFirst = selected.first;
+      std::size_t selectionCount = selected.count;
+      if (!node.textEdit.composition.empty()) {
+        selectionFirst += node.textEdit.compositionSelectionStart;
+        selectionCount = node.textEdit.compositionSelectionLength;
+      }
+      for (const ui::Rect &selectionRect :
+           ui::TextLayoutEngine::selectionRects(
+               layout, selectionFirst, selectionCount)) {
+        if (!canvas_.solid(
+                {.x = rect.x + selectionRect.x,
+                 .y = rect.y + selectionRect.y,
+                 .width = selectionRect.width,
+                 .height = selectionRect.height},
+                packVertexColorRgba8(
+                    {.r = 0.2F, .g = 0.45F, .b = 0.9F, .a = 0.4F}),
+                BlendMode::Alpha, textScissor))
+          return false;
+      }
+    }
     for (const auto &line : layout.lines)
       if (!font_.draw(canvas_, line.text, rect.x + line.x,
                       rect.y + line.y + authored * scale,
                       packVertexColorRgba8(color), fontScale, textScissor))
         return false;
+    if (textInput && focused) {
+      if (!node.textEdit.composition.empty()) {
+        const ui::TextEditRange selected =
+            ui::TextEditingEngine::selection(node.textEdit);
+        const std::size_t compositionCount =
+            ui::TextLayoutEngine::graphemeCount(node.textEdit.composition);
+        for (const ui::Rect &compositionRect :
+             ui::TextLayoutEngine::selectionRects(
+                 layout, selected.first, compositionCount)) {
+          if (!canvas_.solid(
+                  {.x = rect.x + compositionRect.x,
+                   .y = rect.y + compositionRect.y +
+                        compositionRect.height - std::max(scale, 1.0F),
+                   .width = std::max(compositionRect.width, 1.0F),
+                   .height = std::max(scale, 1.0F)},
+                  packVertexColorRgba8(color), BlendMode::Alpha,
+                  textScissor))
+            return false;
+        }
+      }
+      const std::size_t caret =
+          ui::TextEditingEngine::displayCaret(node.text, node.textEdit);
+      const auto caretGeometry = std::ranges::find(
+          layout.carets, caret, &ui::TextLayoutResult::Caret::grapheme);
+      if (caretGeometry != layout.carets.end() &&
+          !canvas_.solid(
+              {.x = rect.x + caretGeometry->x,
+               .y = rect.y + caretGeometry->y,
+               .width = std::max(scale, 1.0F),
+               .height = caretGeometry->height},
+              packVertexColorRgba8(color), BlendMode::Alpha, textScissor))
+        return false;
+    }
   }
   return true;
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/model/SceneTypes.h"
+#include "demi/runtime/ui/TextEditingEngine.h"
 
 #include <cstdint>
 #include <string>
@@ -91,6 +92,7 @@ struct UiNode {
   bool focusable = false;
   bool checked = false;
   bool hovered = false;
+  TextEditState textEdit;
 };
 
 struct UiNodeHandle {

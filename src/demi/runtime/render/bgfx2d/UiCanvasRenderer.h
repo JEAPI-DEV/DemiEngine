@@ -39,7 +39,7 @@ private:
                                     const ui::UiNode &node, float scaleX,
                                     float scaleY) const;
   [[nodiscard]] bool drawNode(const ui::UiNode &node, float scaleX,
-                              float scaleY, ScissorRect scissor);
+                              float scaleY, ScissorRect scissor, bool focused);
   [[nodiscard]] TextureView2D imageTexture(const ui::UiNode &node) const;
 
   Canvas2D &canvas_;

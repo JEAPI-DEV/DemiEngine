@@ -47,6 +47,7 @@ void PlatformInput::beginFrame() {
   state_.mouseButtonsReleased.clear();
   state_.mouseDelta = {};
   state_.textEntered.clear();
+  state_.textCompositionChanged = false;
   std::erase_if(state_.touches, [](const TouchPoint &touch) {
     return touch.phase == TouchPhase::Ended ||
            touch.phase == TouchPhase::Cancelled;
@@ -69,6 +70,23 @@ void PlatformInput::key(const std::string_view name, const bool down,
 
 void PlatformInput::text(const std::string_view utf8) {
   state_.textEntered.append(utf8);
+  if (!state_.textComposition.empty()) {
+    state_.textComposition.clear();
+    state_.textCompositionSelectionStart = 0;
+    state_.textCompositionSelectionLength = 0;
+    state_.textCompositionChanged = true;
+  }
+}
+
+void PlatformInput::composition(const std::string_view utf8,
+                                const int selectionStart,
+                                const int selectionLength) {
+  state_.textComposition = utf8;
+  state_.textCompositionSelectionStart =
+      static_cast<std::size_t>(std::max(selectionStart, 0));
+  state_.textCompositionSelectionLength =
+      static_cast<std::size_t>(std::max(selectionLength, 0));
+  state_.textCompositionChanged = true;
 }
 
 void PlatformInput::pointerPosition(const float x, const float y,

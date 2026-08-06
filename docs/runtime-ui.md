@@ -87,6 +87,16 @@ boundaries rather than bytes, while `Text.parse_rich` accepts only the
 documented non-executable `[color]`, `[em]`, `[strong]`, `[link]`, and `[icon]`
 tags.
 
+Focused `text_input` nodes use the same grapheme boundaries for caret motion,
+selection, Backspace, Delete, Home, End, and Ctrl+A. Backspace therefore
+removes one user-visible character instead of one UTF-8 byte. SDL text-editing
+events remain an IME composition range separate from the committed value; the
+renderer draws the selection, composition underline, and caret. Committing
+text replaces the active selection atomically. Losing focus, hiding or
+disabling the input, changing its value through `Hud.set_text`, or receiving a
+platform focus-loss event cancels composition without inserting an unfinished
+candidate.
+
 HUD files may provide a `locales` object keyed by locale. `Hud.set_locale`
 reapplies every node's localization key and preserves the last valid locale on
 failure; `Hud.set_pseudo_locale` helps expose expansion and clipping bugs.

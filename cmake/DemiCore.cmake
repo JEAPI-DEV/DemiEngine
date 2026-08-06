@@ -21,6 +21,7 @@ add_library(demi-core STATIC
   src/demi/runtime/scene/composition/PrefabResolver.cpp
   src/demi/runtime/ui/UiLayoutEngine.cpp
   src/demi/runtime/ui/TextLayoutEngine.cpp
+  src/demi/runtime/ui/TextEditingEngine.cpp
   src/demi/runtime/ui/RichTextParser.cpp
   src/demi/runtime/ui/UiMutationQueue.cpp
   src/demi/runtime/ui/UiVirtualCollection.cpp
