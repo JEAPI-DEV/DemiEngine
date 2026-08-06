@@ -420,127 +420,114 @@ mid-callback mutation and makes save/replay behavior explicit.
 - Malformed schemas, missing references, and incompatible reloads have focused
   regression tests.
 
-## Step 3 — Production Text, UI, and Visual-Novel Workflow
+## Step 3 — Production Text and Dynamic UI
 
-This step finishes the text-heavy and dynamic UI workflows shared by visual
-novels, RPGs, strategy games, settings screens, inventories, and lobbies.
+This step provides the general-purpose text and runtime UI capabilities needed
+by visual novels, RPGs, strategy games, settings screens, inventories, quest
+logs, editors, and lobbies. It does not add an engine-owned dialogue widget,
+inventory screen, quest screen, or other genre-specific presentation.
 
 **Status: planned.** Retained tree UI, anchors, layout containers, themes,
 localization, focus, controls, and basic Lua mutation are stable. Text handles
 explicit newlines but not full wrapping/shaping, and runtime UI structure is
 mostly authored rather than generated.
 
+### Scope boundary
+
+- The engine owns text measurement, layout, rendering inputs, node lifecycle,
+  focus, events, localization, animation, clipping, and accessibility.
+- Games own screen composition, visual hierarchy, content flow, and gameplay
+  meaning. A button remains a button; the engine does not decide that it is a
+  dialogue choice, inventory slot, quest objective, or lobby member.
+- Step 2's optional data modules may provide state reduction, but they do not
+  create UI or prescribe how content looks.
+- Reference examples prove that the primitives compose across different game
+  types. They are not runtime dependencies and do not become mandatory
+  templates or built-in presentation systems.
+
 ### Ownership and dependency boundaries
 
-- `TextLayoutEngine` owns paragraph layout results: grapheme boundaries,
-  shaping runs, line breaks, glyph positions, alignment, truncation, and hit
-  testing. Renderers consume positioned glyphs and do not implement wrapping.
+- `TextLayoutEngine` owns immutable paragraph layout results: grapheme
+  boundaries, shaping runs, line breaks, glyph positions, alignment,
+  truncation, selection geometry, and hit testing. Renderers consume
+  positioned glyphs and do not implement wrapping.
 - `FontResolver` owns primary/fallback font selection and missing-glyph
-  diagnostics. `FontAtlas2D` owns GPU atlas pages only.
-- `RichTextParser` is a pure validated parser producing styled spans. It does
-  not perform layout, execute callbacks, or load textures directly.
-- `UiMutationQueue` owns lifecycle-safe create/remove/reparent operations and
-  applies them between UI event dispatch and layout.
+  diagnostics. `FontAtlas2D` owns GPU atlas pages and rasterized glyph lifetime
+  only.
+- `RichTextParser` is a pure validated parser producing text and styled spans.
+  It does not perform layout, execute callbacks, or load textures directly.
+- `UiMutationQueue` owns lifecycle-safe create, clone, remove, and reparent
+  operations and applies them between event dispatch and layout.
 - `UiTweenSystem` owns time-based presentation values. It addresses nodes by
-  generation-checked handle and cancels on removal or scene unload.
-- The visual-novel runtime is a project Lua package. It consumes `Data`, `Hud`,
-  `Audio`, `Save`, `Input`, and `Scene`; none of those services imports novel
-  concepts.
+  generation-checked handles and cancels work on removal or scene unload.
+- Collection virtualization owns visible-range calculation and node recycling.
+  It consumes arbitrary rows supplied by game code and knows nothing about the
+  row's gameplay meaning.
+- Authored HUD files and runtime-created nodes pass through the same schema,
+  validation, style, layout, event, clipping, and accessibility paths.
 
 Before choosing text dependencies, write an architecture decision record that
 compares HarfBuzz plus a Unicode segmentation/line-break library against the
-required Linux/Android footprint. Do not hand-write Unicode shaping or
-grapheme algorithms. The selected implementation stays behind the engine-owned
+required Linux/Android footprint. Do not hand-write Unicode shaping, bidi, or
+grapheme algorithms. The selected implementation stays behind engine-owned
 text contracts.
 
 ### Proposed UI and text contracts
 
 ```lua
-local handle = Hud.create("dialogue_choices", {
-  id = "choice_" .. choice.id,
+local handle, error = Hud.create("item_rows", {
+  id = "row_" .. item.id,
   type = "button",
-  text = choice.text,
-  action = "choose:" .. choice.id,
-  style = "dialogue_choice"
+  text = item.name,
+  action = "inspect:" .. item.id,
+  style = "list_row"
 })
 
+Hud.reparent(handle, "filtered_rows")
 Hud.remove(handle)
-Hud.clear_children("dialogue_choices")
+Hud.clear_children("item_rows")
 Hud.set_locale("de-DE")
 
-local count = Text.grapheme_count(line)
-local prefix = Text.grapheme_slice(line, 1, visible_count)
+local count = Text.grapheme_count(label)
+local prefix = Text.grapheme_slice(label, 1, visible_count)
 ```
 
-Runtime-created nodes use the exact `UiNode` schema, style resolution, action
-dispatch, localization, layout, clipping, and accessibility path used by HUD
-documents. Handles contain an ID plus generation so a stale callback cannot
-mutate a newly created node reusing the same ID.
+The example uses an item row only to demonstrate arbitrary runtime content.
+The same API must work unchanged for save slots, players, dialogue choices,
+debug tools, settings, or any project-defined node.
+
+Handles contain an ID plus generation so a stale callback cannot mutate a new
+node that later reuses the same ID. Structural mutations requested during an
+event callback are queued and become visible at one documented lifecycle
+boundary.
 
 Rich text uses a small allowlist such as `[color]`, `[em]`, `[strong]`,
-`[icon]`, `[link]`, and `[pause]`. Unknown/malformed tags are diagnostics or
-literal text according to one documented strictness setting. Content cannot
-name arbitrary Lua functions.
-
-### Dialogue data contract
-
-```json
-{
-  "format_version": 1,
-  "chapter_id": "chapter_01",
-  "entry": "station_arrival",
-  "nodes": {
-    "station_arrival": {
-      "speaker": "character.mira",
-      "text": "dialogue.chapter_01.arrival",
-      "background": "asset://backgrounds/station_night",
-      "portraits": [
-        {"slot": "right", "character": "mira", "expression": "neutral"}
-      ],
-      "voice": "asset://voice/en/mira/arrival",
-      "next": "arrival_choice"
-    },
-    "arrival_choice": {
-      "choices": [
-        {"id": "promise", "text": "choice.promise", "next": "promise"},
-        {"id": "leave", "text": "choice.leave", "next": "leave"}
-      ]
-    }
-  }
-}
-```
-
-Conditions and effects are data interpreted by the optional dialogue package,
-not source code embedded in JSON. Unknown condition/effect operators fail
-validation against the package schema.
+`[icon]`, and `[link]`. Unknown or malformed tags are diagnostics or literal
+text according to one documented strictness setting. Content cannot name Lua
+functions or renderer resources outside validated asset references.
 
 ### Deliverables
 
 1. Add text wrapping, horizontal and vertical alignment, truncation, overflow,
-   line spacing, and scroll-to-reveal behavior to retained UI text.
-2. Add Unicode-safe text iteration, fallback fonts, shaping boundaries, and
-   IME composition without exposing the font backend to game code.
-3. Add validated rich spans for color, emphasis, links, inline icons, and
-   pauses while keeping arbitrary executable markup out of content files.
-4. Add runtime UI node create, clone, remove, reparent, and query through the
-   same schema and layout path used by HUD documents.
-5. Add reusable UI prefabs and data-driven list/grid population.
-6. Add typed UI events for value change, focus, submit, cancel, pointer
+   line spacing, selection geometry, and scroll-to-reveal behavior.
+2. Add Unicode-safe text iteration, bidi/shaping boundaries, fallback fonts,
+   and IME composition without exposing the font backend to game code.
+3. Add validated rich spans for color, emphasis, links, and inline icons while
+   keeping arbitrary executable markup out of content files.
+4. Add runtime UI node create, clone, remove, reparent, lookup, and traversal
+   through the same path used by HUD documents.
+5. Add project-authored reusable UI prefabs with validated parameters and
+   explicit instance ownership. Do not ship genre-specific engine prefabs.
+6. Add data-driven list and grid population with bounded node virtualization,
+   stable row keys, deterministic ordering, and focus retention.
+7. Add typed UI events for value change, focus, submit, cancel, pointer
    enter/exit, press/release, drag/drop, and scrolling.
-7. Add UI tweens for opacity, position, scale, and color with cancellation tied
+8. Add UI tweens for opacity, position, scale, and color with cancellation tied
    to node lifetime and a reduced-motion policy.
-8. Add runtime locale switching, localization expansion diagnostics, and
-   pseudo-localization layout tests.
-9. Ship a reusable Lua visual-novel package with:
-   - stable dialogue nodes and branching choices;
-   - backgrounds, layered portraits, expression changes, and transitions;
-   - Unicode-safe typewriter reveal;
-   - click/key/controller/touch advance;
-   - auto mode, skip-seen mode, backlog, and hide-UI mode;
-   - voice playback and music/snapshot transitions;
-   - save, quick-save, auto-save, and load state.
-10. Replace the `visual-novel` template with a small multi-scene reference
-    story covering choices, localization, save/load, and Android touch.
+9. Add runtime locale switching, localization expansion diagnostics,
+   pseudo-localization, and layout invalidation when language or font changes.
+10. Add reusable scrolling, clipping, keyboard/controller navigation, touch
+    interaction, and accessibility metadata without assuming a screen layout.
 
 ### Implementation slices
 
@@ -550,89 +537,111 @@ validation against the package schema.
 2. Introduce immutable `TextLayoutRequest` and `TextLayoutResult` values so
    headless tests do not require a GPU.
 3. Implement explicit newline, word/grapheme wrapping, unbreakable-token
-   fallback, alignment, max lines, ellipsis, and scroll extents.
-4. Cache by text, style, font revision, width, locale, and scale; bound the
-   cache and expose hit/miss/memory statistics.
-5. Feed both HUD text and world text through compatible shaping/measurement
-   rules where their dimensional output differs only after layout.
+   fallback, horizontal/vertical alignment, max lines, ellipsis, selection
+   ranges, and scroll extents.
+4. Cache by text, spans, style, font revision, width, locale, direction, and
+   scale; bound the cache and expose hit/miss/memory statistics.
+5. Feed HUD text and world text through compatible shaping and measurement
+   rules, with their rendering projections remaining separate.
 
-#### 3B. Unicode and rich spans
+#### 3B. Unicode, input, and rich spans
 
 1. Decode and validate UTF-8 once at the text boundary.
-2. Segment grapheme clusters for typewriter/caret behavior and shape script
-   runs using the selected backend adapter.
+2. Segment grapheme clusters, resolve bidi runs, and shape script runs through
+   the selected backend adapter.
 3. Resolve fallback fonts per run and preserve stable atlas ownership during
    reload.
-4. Parse rich spans into text plus style/link/icon metadata; layout icons as
-   glyph-like boxes with baseline rules.
-5. Expose link hit results as UI actions, not renderer callbacks.
+4. Parse rich spans into text plus style, link, and icon metadata; layout icons
+   as glyph-like boxes with documented baseline rules.
+5. Expose caret movement, selection, composition ranges, and link hit results
+   as backend-neutral values and typed UI actions.
 
-#### 3C. Dynamic retained UI
+#### 3C. Safe dynamic retained UI
 
-1. Extend `UiDocument` construction so authored and runtime nodes share one
-   validation function.
+1. Extract one node validator and constructor used by both `UiDocument` loading
+   and runtime creation.
 2. Queue structural mutations during action dispatch and apply them before the
    next layout pass.
 3. Define focus restoration when the focused node is hidden, disabled,
-   removed, or reparented.
-4. Define capture cancellation events when a captured pointer's node dies.
-5. Add virtualized list/grid population so thousands of data rows do not
-   become thousands of live nodes.
+   removed, reparented, or recycled.
+4. Emit capture-cancel and drag-cancel events when a captured node or one of its
+   ancestors is removed.
+5. Use generation-checked handles for mutation, tweening, focus, capture, and
+   asynchronous completion callbacks.
+6. Make failed multi-node creation or prefab instantiation transactional so it
+   leaves the previous UI tree intact.
 
-#### 3D. Visual-novel package and reference
+#### 3D. Reusable composition and collection virtualization
 
-1. Implement a pure dialogue-state reducer: `(state, command) -> state,
-   effects`. Test it without UI/audio.
-2. Implement adapters that project state onto a HUD and execute declared
-   audio/scene effects.
-3. Store chapter/node IDs, variables, seen-line IDs, selected history, active
-   voice position policy, and package format version in saves.
-4. Make save/load reject a missing node with a recoverable diagnostic and an
-   explicit fallback entry configured by content—not an arbitrary first node.
-5. Add Linux mouse/keyboard/controller and Android touch interaction through
-   the same input actions.
+1. Define project-authored UI prefab files as parameterized `UiNode` trees with
+   stable internal IDs and explicit instance roots.
+2. Separate collection data, stable row keys, visible-range calculation, and
+   row-node binding so game code may replace any one of them.
+3. Recycle only nodes outside the overscan range and reset focus, capture,
+   transient style, subscriptions, and tweens before rebinding them.
+4. Provide small reference probes for a localized settings form, a virtualized
+   data list, a changing lobby roster, and mixed-script text. These probes use
+   public APIs and share no hidden engine implementation.
+5. Exercise mouse, keyboard, controller, and Android touch through the same
+   actions and focus model.
 
 ### Failure and edge-case matrix
 
 - CJK text without spaces, right-to-left text, mixed-direction text, combining
-  marks, emoji sequences, and invalid UTF-8;
-- one word wider than the box, zero/negative available size, huge font scale,
-  missing glyphs, missing fallback font, and atlas exhaustion;
-- malformed/nested rich tags, unsupported icon, link overlap, and localization
-  values containing markup characters;
-- locale changes while text is revealing or a choice has focus;
-- a dynamic node removes itself, its parent, or a captured sibling during an
-  action callback;
-- repeated list recycling with focus and pointer capture;
-- reduced-motion mode during an active tween and scene unload during a tween
-  completion callback;
-- advancing on the same input event that completes a typewriter reveal;
-- voice shorter/longer than text, missing voice, auto-mode cancellation, and
-  skip mode restricted to previously seen stable line IDs;
-- saving on a choice node, during reveal, during transition, and immediately
-  after a content hot reload.
+  marks, emoji sequences, invalid UTF-8, and fonts changing during layout;
+- one token wider than its box, zero/negative available size, huge font scale,
+  missing glyphs, missing fallback fonts, and atlas exhaustion;
+- malformed or nested rich tags, missing inline icons, overlapping links, and
+  localization values containing markup characters;
+- locale, DPI, safe area, orientation, or window size changing while text is
+  selected, edited, scrolled, or being animated;
+- a node removes itself, its parent, or a captured sibling during an event;
+- create/remove/reparent requests targeting the same node in one dispatch;
+- duplicate runtime IDs, stale handles, failed prefab parameters, prefab ID
+  collisions, and partial multi-node construction failure;
+- a virtualized row disappearing, moving, or changing height while focused,
+  captured, dragged, or inside the overscan range;
+- repeated list recycling without leaking callbacks, tweens, subscriptions,
+  accessibility nodes, or atlas references;
+- reduced-motion mode enabled during an active tween and scene unload during a
+  tween completion callback;
+- IME composition interrupted by focus loss, node removal, locale change, or
+  application suspension;
+- an invalid watched HUD, theme, localization, font, icon, or prefab edit must
+  preserve the last valid live UI.
 
 ### Test and performance gates
 
-- golden headless layout positions for Latin, CJK, RTL, combining, emoji, and
-  pseudo-localized strings at 16:9, 4:3, ultrawide, and portrait sizes;
-- fuzz/property tests for markup parsing and UTF-8 boundaries;
-- mutation ordering tests with removal/reparent/capture during callbacks;
-- dialogue reducer tests covering every command and invalid node/reference;
-- save migrations across at least two dialogue package versions;
-- bounded layout-cache and virtual-list memory tests;
-- a reference budget for a backlog containing thousands of lines without
-  laying out all entries every frame.
+- golden headless layout positions for Latin, CJK, RTL, combining marks, emoji,
+  and pseudo-localized strings at 16:9, 4:3, ultrawide, and portrait sizes;
+- fuzz/property tests for markup parsing, UTF-8 boundaries, grapheme slicing,
+  bidi run construction, and hostile nesting depth;
+- mutation-ordering tests for removal, creation, reparenting, capture, focus,
+  and recursive callback requests;
+- prefab validation and transactional-instantiation tests for missing
+  parameters, duplicate IDs, nested instances, and failed child creation;
+- virtual-list tests for stable ordering, variable row heights, focus
+  restoration, recycling reset, and live collection mutation;
+- bounded layout-cache, atlas, tween, subscription, and recycled-node memory
+  tests across repeated scene and locale changes;
+- performance budgets for ten thousand logical collection rows with only the
+  visible range plus bounded overscan represented by live nodes;
+- Linux and Android reference probes must produce equivalent layout decisions
+  for the same logical canvas, locale, font set, and scale.
 
 ### Done when
 
-- A conventional visual novel is authored entirely through assets, HUD data,
-  localization, and Lua packages.
-- Long translated dialogue wraps without manual line breaks at desktop and
-  phone aspect ratios.
-- Inventory, quest log, lobby, and settings screens can generate their rows
-  without predeclaring every possible node.
-- UI teardown cannot leave active tweens, captures, focus, or callbacks.
+- A developer can construct and update arbitrary retained UI trees at runtime
+  without changing C++ or bypassing validation.
+- Long translated text wraps, shapes, selects, and scrolls correctly at desktop
+  and phone aspect ratios without manually inserted line breaks.
+- Inventory, quest log, lobby, settings, save browser, dialogue, and editor
+  screens can generate their content without predeclaring every possible node.
+- A visual novel can be authored from the general text, data, UI, audio, input,
+  and save APIs, but no dedicated visual-novel UI or presentation policy exists
+  in the engine.
+- UI teardown cannot leave active tweens, pointer captures, focus, callbacks,
+  subscriptions, accessibility nodes, or recycled content bindings.
 
 ## Step 4 — Reusable 2D and Isometric Game Kits
 
