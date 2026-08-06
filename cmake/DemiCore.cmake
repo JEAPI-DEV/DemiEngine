@@ -29,6 +29,7 @@ add_library(demi-core STATIC
   src/demi/runtime/ui/UiLocalization.cpp
   src/demi/runtime/ui/UiInteractionController.cpp
   src/demi/runtime/ui/UiDocumentParser.cpp
+  src/demi/runtime/ui/UiPrefabResolver.cpp
   src/demi/runtime/ui/UiPresentation.cpp
   src/demi/runtime/ui/UiStateController.cpp
   src/demi/runtime/ui/UiActionController.cpp

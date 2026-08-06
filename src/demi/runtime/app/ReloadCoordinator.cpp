@@ -47,6 +47,7 @@ ReloadCoordinator::process(const platform::ProjectFileChangeBatch &batch) {
   for (const auto &path : batch.changed) {
     const bool lua = path.extension() == ".lua";
     const bool scene = named(path, ".scene.json") || named(path, ".hud.json") ||
+                       named(path, ".ui.prefab.json") ||
                        named(path, ".project.json");
     result.luaChanged |= lua;
     sceneChanged |= scene;
@@ -64,6 +65,7 @@ ReloadCoordinator::process(const platform::ProjectFileChangeBatch &batch) {
   for (const auto &path : batch.removed) {
     const bool lua = path.extension() == ".lua";
     const bool scene = named(path, ".scene.json") || named(path, ".hud.json") ||
+                       named(path, ".ui.prefab.json") ||
                        named(path, ".project.json");
     result.luaChanged |= lua;
     sceneChanged |= scene;

@@ -4,6 +4,7 @@
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
+#include "demi/runtime/ui/UiPrefabResolver.h"
 
 #include <nlohmann/json.hpp>
 
@@ -417,6 +418,9 @@ SourceFileKind classifySourceFile(const std::filesystem::path &path) {
   if (isInputReplayFile(path)) {
     return SourceFileKind::InputReplay;
   }
+  if (isUiPrefabFile(path)) {
+    return SourceFileKind::UiPrefab;
+  }
   if (isPrefabFile(path)) {
     return SourceFileKind::Prefab;
   }
@@ -448,7 +452,8 @@ ValidationSummary validatePath(const std::filesystem::path &path) {
         .message = "Path does not exist.",
         .path = path.string(),
         .suggestion =
-            "Pass a project, scene, save, or directory path that exists.",
+            "Pass a project, scene, prefab, HUD, asset, save, or directory "
+            "path that exists.",
     });
     return summary;
   }
@@ -459,10 +464,13 @@ ValidationSummary validatePath(const std::filesystem::path &path) {
     summary.diagnostics.push_back(Diagnostic{
         .severity = Severity::Warning,
         .code = "NO_SOURCE_FILES",
-        .message = "No project, scene, or save files were found to validate.",
+        .message = "No recognized DemiEngine source files were found to "
+                   "validate.",
         .path = path.string(),
-        .suggestion = "Add files ending in .project.json, .scene.json, "
-                      ".hud.json, or .save.json.",
+        .suggestion = "Add a recognized DemiEngine source file such as "
+                      ".project.json, .scene.json, .prefab.json, "
+                      ".ui.prefab.json, .hud.json, .asset.json, or "
+                      ".save.json.",
     });
     return summary;
   }
@@ -495,8 +503,9 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
         .code = "UNKNOWN_SOURCE_KIND",
         .message = "File is not a known DemiEngine source data file.",
         .path = path.string(),
-        .suggestion = "Use a .project.json, .scene.json, .hud.json, or "
-                      ".save.json suffix.",
+        .suggestion = "Use a recognized source suffix such as .project.json, "
+                      ".scene.json, .prefab.json, .ui.prefab.json, "
+                      ".hud.json, .asset.json, or .save.json.",
     });
     return diagnostics;
   }
@@ -559,6 +568,14 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
           .message = "HUD file is missing a root UI node.",
           .path = path.string(),
           .suggestion = "Add a root object for tree UI."});
+    }
+    try {
+      const auto expansion = runtime::ui::expandUiDocument(
+          path, nlohmann::json::parse(text));
+      diagnostics.insert(diagnostics.end(), expansion.diagnostics.begin(),
+                         expansion.diagnostics.end());
+    } catch (const nlohmann::json::parse_error &) {
+      // The common JSON diagnostics already report malformed documents.
     }
     validateReferences(diagnostics, path, text);
     break;
@@ -680,6 +697,16 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
     diagnostics.insert(diagnostics.end(), expansion.diagnostics.begin(),
                        expansion.diagnostics.end());
     validateSceneComponents(diagnostics, path, text);
+    break;
+  }
+  case SourceFileKind::UiPrefab: {
+    requireToken(diagnostics, text, path, "\"id\"",
+                 "UI_PREFAB_MISSING_ID", "UI prefab is missing id.",
+                 "Add a ui-prefab:// id.");
+    const auto expansion = runtime::ui::inspectUiPrefab(path);
+    diagnostics.insert(diagnostics.end(), expansion.diagnostics.begin(),
+                       expansion.diagnostics.end());
+    validateReferences(diagnostics, path, text);
     break;
   }
   case SourceFileKind::InputReplay:

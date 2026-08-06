@@ -47,9 +47,9 @@
             "layout": "column",
             "children": [
               {"id": "title", "type": "label", "style": "accent", "localization_key": "title", "size": [200, 42], "font_size": 30},
-              {"id": "play", "type": "button", "style": "control", "localization_key": "play", "action": "play", "accessibility_label": "Start game", "size": [200, 48]},
-              {"id": "open_settings", "type": "button", "style": "control", "localization_key": "settings", "action": "open_settings", "size": [200, 48]},
-              {"id": "open_inventory", "type": "button", "style": "control", "localization_key": "inventory", "action": "open_inventory", "size": [200, 48]}
+              {"id": "play", "prefab": "ui-prefab://menu_button", "arguments": {"localization_key": "play", "action": "play", "accessibility_label": "Start game"}},
+              {"id": "open_settings", "prefab": "ui-prefab://menu_button", "arguments": {"localization_key": "settings", "action": "open_settings"}},
+              {"id": "open_inventory", "prefab": "ui-prefab://menu_button", "arguments": {"localization_key": "inventory", "action": "open_inventory"}}
             ]
           },
           {

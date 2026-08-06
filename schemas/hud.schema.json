@@ -29,9 +29,16 @@
     },
     "node": {
       "type": "object",
-      "required": ["id", "type"],
+      "required": ["id"],
+      "oneOf": [
+        {"required": ["type"]},
+        {"required": ["prefab"]}
+      ],
       "properties": {
         "id": {"type": "string", "minLength": 1},
+        "prefab": {"type": "string", "pattern": "^ui-prefab://"},
+        "arguments": {"type": "object"},
+        "overrides": {"type": "object"},
         "type": {"enum": ["container", "panel", "label", "text", "image", "button", "toggle", "slider", "text_input", "scroll", "list", "progress", "modal", "virtual_button", "virtual_stick"]},
         "children": {"type": "array", "items": {"$ref": "#/$defs/node"}},
         "layout": {"enum": ["row", "column", "grid"]},

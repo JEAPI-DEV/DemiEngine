@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://menu_button",
+  "parameters": {
+    "localization_key": {"type": "string"},
+    "action": {"type": "string"},
+    "accessibility_label": {"type": "string", "default": ""}
+  },
+  "root": {
+    "id": "button",
+    "type": "button",
+    "style": "control",
+    "localization_key": "${localization_key}",
+    "action": "${action}",
+    "accessibility_label": "${accessibility_label}",
+    "size": [200, 48]
+  }
+}

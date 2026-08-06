@@ -72,6 +72,59 @@ clears focus and pointer captures that refer to it. This is intentionally
 generic: projects decide whether a generated button represents an inventory
 item, player, save slot, setting, dialogue choice, or debug command.
 
+## Reusable UI prefabs
+
+Project-authored UI prefabs reuse arbitrary node trees without assigning them
+gameplay meaning. Files end in `.ui.prefab.json`, live under the project's
+`ui/` directory, and use stable `ui-prefab://` IDs. For example,
+`ui-prefab://controls/menu_button` resolves to
+`ui/controls/menu_button.ui.prefab.json`.
+
+```json
+{
+  "format_version": 1,
+  "id": "ui-prefab://menu_button",
+  "parameters": {
+    "label": {"type": "string"},
+    "font_size": {"type": "number", "default": 20}
+  },
+  "root": {
+    "id": "button",
+    "type": "button",
+    "text": "${label}",
+    "font_size": "${font_size}",
+    "children": [
+      {"id": "hint", "type": "label", "text": "Optional hint"}
+    ]
+  }
+}
+```
+
+Instantiate it anywhere a normal HUD node is accepted:
+
+```json
+{
+  "id": "confirm",
+  "prefab": "ui-prefab://menu_button",
+  "arguments": {"label": "Confirm", "font_size": 24},
+  "overrides": {"action": "confirm"}
+}
+```
+
+Supported parameter types are `string`, `number`, `integer`, `boolean`,
+`array`, and `object`. A value consisting only of `${name}` preserves the
+argument's JSON type; a marker embedded in text interpolates a scalar as text.
+Parameters without defaults are required. Unknown parameters, type mismatches,
+unresolved markers, missing files, path traversal, nested cycles, reserved
+overrides, or duplicate expanded IDs reject the whole HUD candidate.
+
+The instance ID replaces the prefab root ID. Descendant IDs are deterministic:
+the local `hint` node above becomes `confirm.hint`. Nested prefab instances use
+the same rule. This gives callbacks, focus, and runtime mutation stable IDs
+without leaking local IDs between instances. Prefabs go through the normal HUD
+layout, styling, localization, input, hot-reload, and transactional activation
+path; they are composition data rather than a separate widget runtime.
+
 For large collections, `Hud.visible_range(item_count, item_extent,
 scroll_offset, viewport_extent, overscan)` returns the bounded logical range a
 game should represent with live nodes. Ten thousand data rows therefore do not

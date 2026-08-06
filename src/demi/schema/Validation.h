@@ -16,6 +16,7 @@ enum class SourceFileKind {
   Save,
   Asset,
   Prefab,
+  UiPrefab,
   InputReplay,
 };
 

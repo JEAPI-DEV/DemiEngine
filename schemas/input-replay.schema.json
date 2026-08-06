@@ -23,6 +23,10 @@
           "mouse_position": {"$ref": "#/$defs/vec2"},
           "mouse_delta": {"$ref": "#/$defs/vec2"},
           "text_entered": {"type": "string"},
+          "text_composition": {"type": "string"},
+          "text_composition_selection_start": {"type": "integer", "minimum": 0},
+          "text_composition_selection_length": {"type": "integer", "minimum": 0},
+          "text_composition_changed": {"type": "boolean"},
           "gamepads": {
             "type": "array",
             "items": {

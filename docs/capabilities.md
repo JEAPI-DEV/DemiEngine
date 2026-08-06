@@ -16,7 +16,7 @@ Status meanings:
 | 2D rendering | Stable | Pixel/normalized sprites, nine-slice, masks, startup-loaded game shader/material assets with Linux/Android stages, runtime sorting/material references, animation, multi-tileset animated tilemaps, object layers, cameras, HUD, and matching collider debug drawing |
 | 2D physics | Stable | Box2D bodies, enter/stay/exit contacts, rich queries, box/circle/capsule/polygon/edge-chain colliders, materials, CCD, kinematic move/slide, forces/sleeping, and common joints |
 | 2D navigation/controllers | Stable | Costed A* grid, dynamic blockers, tilemap navigation metadata, world/cell conversion, and reusable platform, top-down, and click-to-move Lua controllers |
-| HUD authoring | Stable | Flat versioned HUD elements and Lua mutation APIs |
+| HUD authoring | Stable | Versioned retained trees, parameterized project-authored UI prefabs, themes, localization, and Lua mutation APIs |
 | Saves | Stable | JSON slots, versions, migration hooks |
 | Audio | Stable | Backend-independent mixer buses, snapshots, fades/cross-fades, scheduling, streaming, 2D/3D spatial voices, concurrency limits, entity sources, and suspend/resume |
 | CLI validation and smoke tests | Stable | Project/example validation and headless runtime probes |
@@ -27,7 +27,7 @@ Status meanings:
 | Component metadata as sole source | Stable | Generated registry drives parsing, validation, schema export, Lua policy, and editor placeholders |
 | Prefabs | Stable | Versioned entity/UI files, nesting, overrides, cycle diagnostics, CLI expansion/diff |
 | Tree/layout runtime UI | Stable | Layout containers, controls, focus, themes, localization, safe-area roots, and virtual controls |
-| Production text/dynamic UI | Experimental | Grapheme-safe editing, selection/caret geometry, SDL IME composition, wrapping, rich-text validation, runtime mutations, bounded virtualization ranges, localization, and tweens; complex shaping and fallback-font atlas pages remain incomplete |
+| Production text/dynamic UI | Experimental | Grapheme-safe editing, selection/caret geometry, SDL IME composition, wrapping, rich-text validation, runtime mutations, transactional parameterized UI prefabs, bounded virtualization ranges, localization, and tweens; complex shaping and fallback-font atlas pages remain incomplete |
 | Tilemaps and sprite animation system | Stable | Runtime tile mutation, collision/navigation refresh, multiple tilesets, animations, object layers, clips, playback, and events |
 | Deterministic replay/debug tooling | Stable | Versioned input replay, deterministic random state, profiling, and headless probes |
 | Isometric placement/pathfinding | Stable | Grid conversion, occupancy, placement diagnostics, pathfinding, and rendering |
