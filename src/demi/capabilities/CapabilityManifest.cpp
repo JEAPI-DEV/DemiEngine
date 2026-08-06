@@ -110,13 +110,44 @@ std::set<std::string> stringSet(const Json &array) {
 
 std::set<std::string>
 registeredCTestNames(const std::filesystem::path &sourceRoot) {
-  const std::string cmake = readFile(sourceRoot / "CMakeLists.txt");
   const std::regex namePattern(R"(\bNAME\s+([A-Za-z0-9_.+-]+))");
+  const std::regex includePattern(
+      R"(\binclude\s*\(\s*"?([A-Za-z0-9_./+-]+))");
   std::set<std::string> names;
-  for (std::sregex_iterator match(cmake.begin(), cmake.end(), namePattern),
-       end;
-       match != end; ++match) {
-    names.insert((*match)[1].str());
+  std::set<std::filesystem::path> visited;
+  std::vector<std::filesystem::path> pending{sourceRoot / "CMakeLists.txt"};
+
+  while (!pending.empty()) {
+    const std::filesystem::path path = pending.back().lexically_normal();
+    pending.pop_back();
+    if (!visited.insert(path).second ||
+        !std::filesystem::is_regular_file(path)) {
+      continue;
+    }
+
+    const std::string cmake = readFile(path);
+    for (std::sregex_iterator match(cmake.begin(), cmake.end(), namePattern),
+         end;
+         match != end; ++match) {
+      names.insert((*match)[1].str());
+    }
+
+    for (std::sregex_iterator match(cmake.begin(), cmake.end(), includePattern),
+         end;
+         match != end; ++match) {
+      std::filesystem::path module = (*match)[1].str();
+      if (!module.has_extension()) {
+        module += ".cmake";
+      }
+      const std::array candidates{path.parent_path() / module,
+                                  sourceRoot / "cmake" / module};
+      for (const std::filesystem::path &candidate : candidates) {
+        if (std::filesystem::is_regular_file(candidate)) {
+          pending.push_back(candidate);
+          break;
+        }
+      }
+    }
   }
   return names;
 }
