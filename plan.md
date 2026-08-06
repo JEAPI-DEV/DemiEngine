@@ -94,22 +94,25 @@ Every step follows these rules:
 The first five minutes should not require copying an existing example or
 knowing the repository layout.
 
-**Status: planned.** The individual run, validate, cook, build, and profiling
-commands exist. Project creation, environment diagnosis, and transactional
-watch-mode reload do not yet form one supported workflow.
+**Status: implemented.** Project scaffolding, environment diagnosis,
+project-local LuaLS support, project smoke testing, and guarded watch-mode
+reload now form one supported CLI workflow. Project-manifest edits deliberately
+request a restart; Lua, scene, HUD, material, shader, texture, and other asset
+source edits retain the last good runtime state when preparation fails.
 
-### Present friction
+### Delivered workflow
 
-- New projects are normally derived from examples, which also copies
-  example-specific assumptions and stale generated files.
-- Toolchain and optional-library failures can appear late in configuration or
-  packaging instead of before work starts.
-- CLI commands accept similar project arguments through slightly different
-  forms, which complicates documentation and automation.
-- Lua hot reload exists as a capability, but there is no project-wide reload
-  transaction covering scenes, UI, assets, and renderer resources.
-- A failed live edit can require a restart instead of preserving the last
-  valid running content.
+- New projects come from seven checked-in, validated templates without copied
+  generated output or example-specific state.
+- `demi doctor` reports project, toolchain, graphics selection, writable data
+  locations, Android SDK/NDK/Java, and stale cook-output problems with stable
+  diagnostic codes.
+- `demi new`, `doctor`, `run`, and `test` accept the documented project paths
+  and support automation-friendly diagnostics.
+- Watch mode assigns source generations at the filesystem boundary, validates
+  changes before activation, and uses prepared scenes and candidate renderers.
+- Failed Lua, scene, HUD, material, shader, texture, or other asset edits retain
+  the last valid live state and report why the edit was rejected.
 
 ### Ownership and dependency boundaries
 

@@ -2,6 +2,8 @@
 #include "cli/BuildCommands.h"
 #include "cli/CapabilityCommands.h"
 #include "cli/CookCommands.h"
+#include "cli/doctor/DoctorService.h"
+#include "cli/project/ProjectTemplates.h"
 #include "cli/SceneCompositionCommands.h"
 
 #include "demi/assets/AssetRegistry.h"
@@ -39,6 +41,10 @@ void printHelp() {
       << "Usage:\n"
       << "  demi --help\n"
       << "  demi version\n"
+      << "  demi new <directory> --template <id> [--name name] [--dry-run]\n"
+      << "  demi new --list\n"
+      << "  demi doctor --project <project> [--platform linux|android] "
+         "[--format text|json]\n"
       << "  demi validate [path] [--format text|json]\n"
       << "  demi schema export\n"
       << "  demi capabilities export [--output path]\n"
@@ -64,9 +70,10 @@ void printHelp() {
       << "  demi save inspect <save>\n"
       << "  demi script check <script>\n"
       << "  demi lua-stubs generate [path]\n"
-      << "  demi test\n"
+      << "  demi test [--project <project>]\n"
       << "  demi run --project <project> [--frames count|--max-frames count]\n"
       << "           [--profiler]\n"
+      << "           [--watch]\n"
       << "           [--input-replay <fixture.replay.json>]\n"
       << "           [--profile-report <report.csv>]\n"
       << "           [--debug-overlays <colliders,contacts,grid,entity_ids,"
@@ -157,6 +164,7 @@ int runProjectCommand(const std::vector<std::string> &args,
       .maxFrames = frameLimitFrom(args),
       .serve = serve,
       .profiler = hasArg(args, "--profiler"),
+      .watch = hasArg(args, "--watch"),
       .inputReplayPath = valueAfter(args, "--input-replay"),
       .profileReportPath = valueAfter(args, "--profile-report"),
       .debugOverlays = valueAfter(args, "--debug-overlays"),
@@ -295,6 +303,15 @@ int main(int argc, char **argv) {
     return ExitSuccess;
   }
 
+  if (args[0] == "new") {
+    return demi::cli::project::runNewCommand(
+        args, sourceRoot() / "templates", std::cout, std::cerr);
+  }
+
+  if (args[0] == "doctor") {
+    return demi::cli::doctor::runDoctorCommand(args, std::cout, std::cerr);
+  }
+
   if (args[0] == "validate") {
     return runValidate(args);
   }
@@ -349,6 +366,16 @@ int main(int argc, char **argv) {
   }
 
   if (args[0] == "test") {
+    const std::filesystem::path project = demi::cli::projectFileFromArgs(args);
+    if (!project.empty()) {
+      const demi::ValidationSummary validation =
+          demi::validatePath(project.parent_path());
+      demi::printDiagnosticsText(std::cout, validation.diagnostics);
+      if (demi::hasErrors(validation.diagnostics))
+        return ExitValidationFailure;
+      return demi::runtime::runProject(
+          {.projectPath = project, .maxFrames = 1});
+    }
     const demi::ValidationSummary summary = demi::validatePath("examples");
     demi::printDiagnosticsText(std::cout, summary.diagnostics);
     return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure

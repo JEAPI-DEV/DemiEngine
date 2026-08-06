@@ -374,6 +374,7 @@ Useful focused checks:
 
 - [Generated documentation PDF](https://github.com/JEAPI-DEV/DemiEngine/blob/main/docs/latex/main.pdf)
 - [Architecture notes](docs/architecture.md)
+- [Getting started](docs/getting-started.md)
 - [CLI notes](docs/cli.md)
 - [File formats](docs/file-formats.md)
 - [Capability matrix](docs/capabilities.md)

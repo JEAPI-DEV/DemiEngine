@@ -28,6 +28,9 @@ public:
                                 const AssetRegistry &assets,
                                 std::vector<std::string> &diagnostics,
                                 std::string &error);
+  [[nodiscard]] bool reloadAssets(const AssetRegistry &assets,
+                                  std::vector<std::string> &diagnostics,
+                                  std::string &error);
   void shutdown();
   void poll(InputState &input);
   [[nodiscard]] const platform::PlatformFrameState &frameState() const;

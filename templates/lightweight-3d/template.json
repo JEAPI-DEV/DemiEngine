@@ -1,0 +1,8 @@
+{
+  "format_version": 1,
+  "id": "lightweight-3d",
+  "title": "Lightweight 3D",
+  "default_name": "New 3D Game",
+  "source": "../_shared/3d",
+  "files": [".luarc.json", "demi.project.json", "scenes/main.scene.json", "scripts/main.lua", "tests/smoke.replay.json"]
+}

@@ -573,6 +573,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/tilemap/TilemapCollisionGenerator.cpp
   src/demi/runtime/tilemap/TilemapRuntime.cpp
   src/demi/runtime/app/RuntimeApp.cpp
+  src/demi/runtime/app/ReloadCoordinator.cpp
   src/demi/runtime/audio/AudioClipPreprocess.cpp
   src/demi/runtime/audio/AudioMixer.cpp
   src/demi/runtime/audio/AudioSceneSystem.cpp
@@ -591,6 +592,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/physics/PhysicsWorld3D.cpp
   src/demi/runtime/profiling/RuntimeProfiler.cpp
   src/demi/runtime/profiling/ProfilerHudLayout.cpp
+  src/demi/runtime/platform/ProjectFileWatcher.cpp
   src/demi/runtime/simulation/DeterministicRandom.cpp
   src/demi/runtime/scene/HudParser.cpp
   src/demi/runtime/scene/ProjectParser.cpp
@@ -732,6 +734,16 @@ if(ANDROID)
   target_link_libraries(demi_android PRIVATE demi-runtime-lib SDL3::SDL3-static)
   target_link_libraries(demi_android PRIVATE android log OpenSLES EGL GLESv2)
 else()
+  add_library(demi-cli-support STATIC
+    src/cli/doctor/DoctorService.cpp
+    src/cli/project/ProjectTemplates.cpp)
+  target_include_directories(demi-cli-support PUBLIC src)
+  target_compile_features(demi-cli-support PUBLIC cxx_std_20)
+  target_link_libraries(demi-cli-support PUBLIC demi-core)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(demi-cli-support PRIVATE -Wall -Wextra -Wpedantic)
+  endif()
+
   add_executable(demi
     src/cli/AssetCommands.cpp
     src/cli/BuildCommands.cpp
@@ -740,7 +752,7 @@ else()
     src/cli/SceneCompositionCommands.cpp
     src/cli/main.cpp
   )
-  target_link_libraries(demi PRIVATE demi-core demi-runtime-lib)
+  target_link_libraries(demi PRIVATE demi-core demi-runtime-lib demi-cli-support)
   target_compile_definitions(demi PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   if(NOT DEMI_HOST_SHADERC)
     add_dependencies(demi shaderc)
@@ -754,7 +766,7 @@ else()
     src/cli/SceneCompositionCommands.cpp
     src/cli/main.cpp
   )
-  target_link_libraries(demi-server PRIVATE demi-core demi-server-runtime-lib)
+  target_link_libraries(demi-server PRIVATE demi-core demi-server-runtime-lib demi-cli-support)
   target_compile_definitions(demi-server PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   if(NOT DEMI_HOST_SHADERC)
     add_dependencies(demi-server shaderc)
@@ -768,6 +780,18 @@ else()
 
   add_executable(demi-smoke-tests tests/smoke_tests.cpp)
   target_link_libraries(demi-smoke-tests PRIVATE demi-core)
+
+  add_executable(demi-project-templates-tests tests/project_templates_tests.cpp)
+  target_link_libraries(demi-project-templates-tests PRIVATE demi-cli-support)
+  target_compile_definitions(demi-project-templates-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-doctor-service-tests tests/doctor_service_tests.cpp)
+  target_link_libraries(demi-doctor-service-tests PRIVATE demi-cli-support)
+  target_compile_definitions(demi-doctor-service-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-project-watch-reload-tests
+    tests/project_watch_reload_tests.cpp)
+  target_link_libraries(demi-project-watch-reload-tests PRIVATE demi-runtime-lib)
 
   add_executable(demi-capability-manifest-tests
     tests/capability_manifest_tests.cpp)
@@ -954,6 +978,10 @@ else()
 
   enable_testing()
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
+add_test(NAME demi-project-templates-tests COMMAND demi-project-templates-tests)
+add_test(NAME demi-doctor-service-tests COMMAND demi-doctor-service-tests)
+add_test(NAME demi-project-watch-reload-tests
+  COMMAND demi-project-watch-reload-tests)
 add_test(NAME demi-capability-manifest-tests
   COMMAND demi-capability-manifest-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-runtime-object-model-tests

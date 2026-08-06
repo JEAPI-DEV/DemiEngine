@@ -490,6 +490,8 @@ public:
   void clearMouseCapturedDirty();
   void setPhysicsEnabled(bool enabled);
   [[nodiscard]] bool physicsEnabled() const;
+  void setHotReloadEnabled(bool enabled);
+  [[nodiscard]] bool hotReloadEnabled() const;
   void beginFrame(float unscaledDeltaTime);
   void advanceFixedTime(float fixedDeltaTime);
   void setPaused(bool paused);

@@ -1,0 +1,40 @@
+{
+  "format_version": 1,
+  "id": "scene://{{TEMPLATE_ID}}/main",
+  "name": "Main Scene",
+  "entities": [
+    {
+      "id": "ent_camera",
+      "name": "Main Camera",
+      "components": {
+        "Transform2D": {
+          "position": [0.0, 0.0],
+          "rotation": 0.0,
+          "scale": [1.0, 1.0]
+        },
+        "Camera2D": {
+          "clear_color": [0.04, 0.05, 0.08, 1.0],
+          "orthographic_size": 7.0
+        }
+      }
+    },
+    {
+      "id": "ent_marker",
+      "name": "Starter Marker",
+      "components": {
+        "Transform2D": {
+          "position": [0.0, 0.0],
+          "rotation": 0.0,
+          "scale": [1.0, 1.0]
+        },
+        "Sprite": {
+          "shape": "circle",
+          "size": [1.0, 1.0],
+          "color": [0.25, 0.9, 0.75, 1.0],
+          "layer": "actors"
+        },
+        "LuaScript": { "module": "script://scripts/main.lua" }
+      }
+    }
+  ]
+}

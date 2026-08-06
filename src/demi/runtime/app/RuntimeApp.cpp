@@ -9,6 +9,7 @@
 #include "demi/runtime/animation/SpriteAnimationSystem.h"
 #include "demi/runtime/app/Bgfx2DAppHost.h"
 #include "demi/runtime/app/Bgfx3DAppHost.h"
+#include "demi/runtime/app/ReloadCoordinator.h"
 #include "demi/runtime/audio/AudioSceneSystem.h"
 #include "demi/runtime/audio/AudioSystem.h"
 #include "demi/runtime/camera/Camera2DSystem.h"
@@ -17,6 +18,7 @@
 #include "demi/runtime/network/NetworkSystem.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/Physics3D.h"
+#include "demi/runtime/platform/ProjectFileWatcher.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/scene/WorldQueries.h"
@@ -256,6 +258,19 @@ void logSlowProfileFrame(const int frame, const double updateMs,
   std::cout << '\n';
 }
 
+void reportReload(const ReloadResult &result) {
+  if (result.generation == 0)
+    return;
+  if (!result.diagnostics.empty())
+    printDiagnosticsText(std::cerr, result.diagnostics);
+  if (result.applied)
+    std::cout << "Watch reload applied generation " << result.generation
+              << ".\n";
+  else if (hasErrors(result.diagnostics))
+    std::cerr << "Watch reload rejected generation " << result.generation
+              << "; retaining the last good state.\n";
+}
+
 } // namespace
 
 int runProject(const RuntimeOptions &options) {
@@ -353,6 +368,7 @@ int runProject(const RuntimeOptions &options) {
   } else {
     std::cerr << "Lua unavailable: " << luaError << '\n';
   }
+  luaHost.setHotReloadEnabled(options.watch || luaHost.hotReloadEnabled());
 
   std::cout << "Running " << loaded.project.name << " scene " << loaded.world.id
             << " with " << renderableEntityCount(loaded.world)
@@ -366,6 +382,28 @@ int runProject(const RuntimeOptions &options) {
   const double slowProfileThresholdMs = profileSlowThresholdMs();
 
   if (isHeadless() || options.serve) {
+    platform::ProjectFileWatcher watcher;
+    watcher.reset(loaded.project.projectDirectory);
+    ReloadCoordinator reloadCoordinator(
+        options.projectPath,
+        {.reloadScene = [&](std::string &reloadError) {
+           if (luaHost.requestSceneReload())
+             return true;
+           reloadError = "The active scene could not begin reloading.";
+           return false;
+         },
+         .cancelSceneReload = [&] { (void)luaHost.cancelScenePreparation(); },
+         .reloadAssets = [&](std::string &reloadError) {
+           AssetRegistry candidate =
+               loadAssetRegistry(loaded.project.projectDirectory);
+           if (hasErrors(candidate.diagnostics)) {
+             reloadError = "The changed asset registry is invalid.";
+             return false;
+           }
+           assetRegistry = std::move(candidate);
+           luaHost.setAssetRegistry(&assetRegistry);
+           return true;
+         }});
     // A headless run has no native window to supply pointer coordinates.
     // Treat replay positions as logical HUD-canvas coordinates, matching the
     // 960x540 coordinates authored by examples and used by windowed playback.
@@ -381,6 +419,8 @@ int runProject(const RuntimeOptions &options) {
             : (inputReplay ? static_cast<int>(inputReplay->frames.size()) : 1);
     bool running = true;
     while (running && (options.serve || frameCount < targetFrames)) {
+      if (options.watch)
+        reportReload(reloadCoordinator.process(watcher.poll()));
       if (inputReplay &&
           !inputReplay->apply(static_cast<std::size_t>(frameCount), input))
         break;
@@ -463,6 +503,35 @@ int runProject(const RuntimeOptions &options) {
     for (const std::string &diagnostic : renderDiagnostics)
       std::cerr << "2D asset load failed: " << diagnostic << '\n';
 
+    platform::ProjectFileWatcher watcher;
+    watcher.reset(loaded.project.projectDirectory);
+    ReloadCoordinator reloadCoordinator(
+        options.projectPath,
+        {.reloadScene = [&](std::string &reloadError) {
+           if (luaHost.requestSceneReload())
+             return true;
+           reloadError = "The active scene could not begin reloading.";
+           return false;
+         },
+         .cancelSceneReload = [&] { (void)luaHost.cancelScenePreparation(); },
+         .reloadAssets = [&](std::string &reloadError) {
+           AssetRegistry candidate =
+               loadAssetRegistry(loaded.project.projectDirectory);
+           if (hasErrors(candidate.diagnostics)) {
+             reloadError = "The changed asset registry is invalid.";
+             return false;
+           }
+           std::vector<std::string> diagnostics;
+           if (!appHost.reloadAssets(candidate, diagnostics, reloadError)) {
+             for (const auto &diagnostic : diagnostics)
+               std::cerr << "2D watch asset load failed: " << diagnostic << '\n';
+             return false;
+           }
+           assetRegistry = std::move(candidate);
+           luaHost.setAssetRegistry(&assetRegistry);
+           return true;
+         }});
+
     luaHost.applicationServices().setClipboardHandlers(
         [&appHost] { return appHost.clipboard(); },
         [&appHost](const std::string &text) {
@@ -489,6 +558,8 @@ int runProject(const RuntimeOptions &options) {
             (static_cast<std::uint64_t>(frameCount) * 0x9E3779B97F4A7C15ULL);
         luaHost.seedRandom(frameSeed);
       }
+      if (options.watch)
+        reportReload(reloadCoordinator.process(watcher.poll()));
 
       luaHost.setApplicationFocused(frameState.focused);
       luaHost.setApplicationMinimized(frameState.minimized);
@@ -608,6 +679,35 @@ int runProject(const RuntimeOptions &options) {
     for (const std::string &diagnostic : renderDiagnostics)
       std::cerr << "3D asset load failed: " << diagnostic << '\n';
 
+    platform::ProjectFileWatcher watcher;
+    watcher.reset(loaded.project.projectDirectory);
+    ReloadCoordinator reloadCoordinator(
+        options.projectPath,
+        {.reloadScene = [&](std::string &reloadError) {
+           if (luaHost.requestSceneReload())
+             return true;
+           reloadError = "The active scene could not begin reloading.";
+           return false;
+         },
+         .cancelSceneReload = [&] { (void)luaHost.cancelScenePreparation(); },
+         .reloadAssets = [&](std::string &reloadError) {
+           AssetRegistry candidate =
+               loadAssetRegistry(loaded.project.projectDirectory);
+           if (hasErrors(candidate.diagnostics)) {
+             reloadError = "The changed asset registry is invalid.";
+             return false;
+           }
+           std::vector<std::string> diagnostics;
+           if (!appHost.reloadAssets(candidate, diagnostics, reloadError)) {
+             for (const auto &diagnostic : diagnostics)
+               std::cerr << "3D watch asset load failed: " << diagnostic << '\n';
+             return false;
+           }
+           assetRegistry = std::move(candidate);
+           luaHost.setAssetRegistry(&assetRegistry);
+           return true;
+         }});
+
     luaHost.applicationServices().setClipboardHandlers(
         [&appHost] { return appHost.clipboard(); },
         [&appHost](const std::string &text) {
@@ -634,6 +734,8 @@ int runProject(const RuntimeOptions &options) {
             (static_cast<std::uint64_t>(frameCount) * 0x9E3779B97F4A7C15ULL);
         luaHost.seedRandom(frameSeed);
       }
+      if (options.watch)
+        reportReload(reloadCoordinator.process(watcher.poll()));
 
       luaHost.setApplicationFocused(frameState.focused);
       luaHost.setApplicationMinimized(frameState.minimized);

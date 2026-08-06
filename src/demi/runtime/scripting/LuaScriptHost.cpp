@@ -48,6 +48,12 @@ void LuaScriptHost::setNetworkSystem(NetworkSystem *network) {
   network_ = network;
 }
 
+void LuaScriptHost::setHotReloadEnabled(const bool enabled) {
+  hotReloadEnabled_ = enabled;
+}
+
+bool LuaScriptHost::hotReloadEnabled() const { return hotReloadEnabled_; }
+
 void LuaScriptHost::setAssetRegistry(const demi::AssetRegistry *assets) {
   tilemapRuntime_.attach(world_, assets, &navigationGrid2D_);
 }

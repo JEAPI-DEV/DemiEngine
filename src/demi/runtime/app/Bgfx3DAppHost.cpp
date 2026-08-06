@@ -35,6 +35,28 @@ bool Bgfx3DAppHost::initialize(const Bgfx3DAppHostConfig &config,
   return true;
 }
 
+bool Bgfx3DAppHost::reloadAssets(const AssetRegistry &assets,
+                                 std::vector<std::string> &diagnostics,
+                                 std::string &error) {
+  if (renderer_ == nullptr) {
+    error = "The bgfx 3D application host is not initialized.";
+    return false;
+  }
+  auto candidate = std::make_unique<RendererOwner>(*context_.resources(),
+                                                   *context_.commands());
+  if (!candidate->renderer.initialize(error))
+    return false;
+  if (!candidate->renderer.loadAssets(assets, diagnostics)) {
+    candidate->renderer.shutdown();
+    error = "One or more 3D assets failed to load.";
+    return false;
+  }
+  renderer_->renderer.shutdown();
+  renderer_ = std::move(candidate);
+  cameraScheduler_ = {};
+  return true;
+}
+
 void Bgfx3DAppHost::shutdown() {
   if (renderer_ != nullptr)
     renderer_->renderer.shutdown();
