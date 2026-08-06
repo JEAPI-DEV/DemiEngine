@@ -1,6 +1,35 @@
 ---@meta
 -- Checked-in LuaLS/EmmyLua stubs copied by `demi lua-stubs generate`.
 
+---@class DataError
+---@field code string
+---@field message string
+---@field id string
+
+---@class DataQuery
+---@field content_type? string
+---@field tags? string[]
+
+---@class DataService
+---@field null table JSON null sentinel; distinguish it with `Data.is_null`.
+Data = {}
+---@param id string Stable `asset://` ID.
+---@return any? snapshot A detached Lua snapshot of the immutable document.
+---@return DataError? error
+function Data.load(id) end
+---@param query? DataQuery
+---@return table[] snapshots Ordered deterministically by stable asset ID.
+function Data.query(query) end
+---@param id string
+---@return integer
+function Data.revision(id) end
+---@param value any
+---@return "array"|"object"|"null"|nil
+function Data.kind(value) end
+---@param value any
+---@return boolean
+function Data.is_null(value) end
+
 ---@class DebugService
 Debug = {}
 ---@param message string

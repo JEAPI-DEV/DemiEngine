@@ -78,6 +78,8 @@ add_test(NAME demi-animation-primitives-tests COMMAND demi-animation-primitives-
 add_test(NAME demi-animation-phase7-tests COMMAND demi-animation-phase7-tests)
 add_test(NAME demi-audio-phase7-tests COMMAND demi-audio-phase7-tests)
 add_test(NAME demi-asset-pipeline-tests COMMAND demi-asset-pipeline-tests)
+add_test(NAME demi-data-asset-tests COMMAND demi-data-asset-tests)
+add_test(NAME demi-lua-data-bindings-tests COMMAND demi-lua-data-bindings-tests)
 add_test(NAME demi-shader-cooker-tests COMMAND demi-shader-cooker-tests)
 add_test(NAME demi-camera2d-tests COMMAND demi-camera2d-tests)
 add_test(NAME demi-tilemap-tests COMMAND demi-tilemap-tests)

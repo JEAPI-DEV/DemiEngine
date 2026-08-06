@@ -85,14 +85,18 @@ importerFor(const std::filesystem::path &source, const std::string &type) {
       {".mp4", {"video", 1, "VideoClip"}},
       {".webm", {"video", 1, "VideoClip"}},
       {".mov", {"video", 1, "VideoClip"}},
-      {".json", {"json-data", 1, "Data"}},
+      {".json", {"json_data", 1, "DataAsset"}},
   };
   const auto found = importers.find(lower(source.extension().string()));
   if (found == importers.end())
     return std::nullopt;
   ImporterDescriptor descriptor = found->second;
-  if (!type.empty())
+  if (!type.empty()) {
     descriptor.assetType = type;
+    if (lower(source.extension().string()) == ".json" && type != "DataAsset" &&
+        type != "DataSchema")
+      descriptor.name = "json-data";
+  }
   return descriptor;
 }
 
@@ -203,6 +207,8 @@ AssetImportResult importAsset(const AssetImportRequest &request) {
            .generic_string()},
       {"settings", nlohmann::json::object()},
   };
+  if (descriptor->assetType == "DataAsset")
+    manifest["settings"]["content_type"] = "data";
   if (request.license) {
     const auto licenseTarget = assetDirectory / request.license->filename();
     if (!copyFile(*request.license, licenseTarget, copyError)) {
@@ -327,6 +333,9 @@ registerGeneratedAsset(const GeneratedAssetRegistrationRequest &request) {
     manifest["dependencies"] = nlohmann::json::array();
   if (!manifest.contains("settings"))
     manifest["settings"] = nlohmann::json::object();
+  if (descriptor->assetType == "DataAsset" &&
+      !manifest["settings"].contains("content_type"))
+    manifest["settings"]["content_type"] = "data";
 
   if (!writeJson(result.manifestPath, manifest)) {
     result.diagnostics.push_back(

@@ -1,0 +1,19 @@
+{
+  "dependencies": [
+    "asset://schemas/menu_copy"
+  ],
+  "format_version": 1,
+  "id": "asset://menu/copy",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {
+    "content_type": "menu_copy",
+    "schema": "asset://schemas/menu_copy",
+    "tags": [
+      "screen:main_menu"
+    ]
+  },
+  "source": "menu.json",
+  "source_hash": "fnv1a64:a6e44e2f49521d3d",
+  "type": "DataAsset"
+}

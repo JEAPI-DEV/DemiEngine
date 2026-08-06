@@ -56,6 +56,37 @@ bool LuaScriptHost::hotReloadEnabled() const { return hotReloadEnabled_; }
 
 void LuaScriptHost::setAssetRegistry(const demi::AssetRegistry *assets) {
   tilemapRuntime_.attach(world_, assets, &navigationGrid2D_);
+  if (assets == nullptr)
+    return;
+  const Diagnostics diagnostics = dataAssetStore_.replace(*assets);
+  if (hasErrors(diagnostics))
+    return;
+  auto *state = static_cast<lua_State *>(state_);
+  if (state == nullptr)
+    return;
+  for (const DataAssetReloadEvent &event : dataAssetStore_.reloadEvents()) {
+    lua_newtable(state);
+    lua_pushstring(state, event.id.c_str());
+    lua_setfield(state, -2, "id");
+    lua_pushinteger(state, static_cast<lua_Integer>(event.oldRevision));
+    lua_setfield(state, -2, "old_revision");
+    lua_pushinteger(state, static_cast<lua_Integer>(event.newRevision));
+    lua_setfield(state, -2, "new_revision");
+    lua_newtable(state);
+    for (std::size_t index = 0; index < event.affectedDependents.size();
+         ++index) {
+      lua_pushstring(state, event.affectedDependents[index].c_str());
+      lua_rawseti(state, -2, static_cast<lua_Integer>(index + 1));
+    }
+    lua_setfield(state, -2, "affected_dependents");
+    (void)emitEvent("data_asset_reloaded", lua_gettop(state));
+    lua_pop(state, 1);
+  }
+}
+
+DataAssetStore &LuaScriptHost::dataAssetStore() { return dataAssetStore_; }
+const DataAssetStore &LuaScriptHost::dataAssetStore() const {
+  return dataAssetStore_;
 }
 
 navigation::NavigationGrid2D &LuaScriptHost::navigationGrid2D() {

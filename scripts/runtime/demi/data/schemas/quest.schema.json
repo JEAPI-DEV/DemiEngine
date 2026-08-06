@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "type": "object",
+  "required": ["format_version", "id", "objectives"],
+  "properties": {
+    "format_version": { "type": "integer", "enum": [1] },
+    "id": { "type": "string" },
+    "objectives": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string" },
+          "target": { "type": "integer", "minimum": 1 }
+        }
+      }
+    }
+  }
+}

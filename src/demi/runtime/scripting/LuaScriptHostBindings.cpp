@@ -17,6 +17,7 @@
 #include "demi/runtime/scripting/bindings/components/LuaTilemap2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaTransform2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaTransform3DBindings.h"
+#include "demi/runtime/scripting/bindings/data/LuaDataBindings.h"
 #include "demi/runtime/scripting/bindings/hud/LuaHudBindings.h"
 #include "demi/runtime/scripting/bindings/isometric/LuaIsoGridBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaAudioBindings.h"
@@ -77,13 +78,14 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaAnimationBindingModule animation;
   const LuaNavigation2DBindingModule navigation2D;
   const LuaTilemap2DBindingModule tilemap2D;
+  const LuaDataBindingModule data;
   const LuaBindingModule *modules[] = {
       &core,         &entity,    &transform2D, &transform3D, &rigidbody2D,
       &rigidbody3D,  &characterController3D, &camera3D,
       &sprite2D,     &physics2D, &physics3D,   &hud,         &save,
       &audio,        &video,     &cutscene,    &network,     &networkSession,
       &tls,          &regex,     &random,      &isoGrid,     &animation,
-      &navigation2D, &tilemap2D};
+      &navigation2D, &tilemap2D, &data};
   for (const LuaBindingModule *module : modules) {
     module->install(host, state);
   }

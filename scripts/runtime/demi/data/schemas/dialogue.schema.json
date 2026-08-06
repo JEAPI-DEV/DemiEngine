@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "type": "object",
+  "required": ["format_version", "id", "start", "nodes"],
+  "properties": {
+    "format_version": { "type": "integer", "enum": [1] },
+    "id": { "type": "string" },
+    "start": { "type": "string" },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text"],
+        "properties": {
+          "id": { "type": "string" },
+          "text": { "type": "string" },
+          "speaker": { "type": "string" },
+          "choices": { "type": "array" }
+        }
+      }
+    }
+  }
+}

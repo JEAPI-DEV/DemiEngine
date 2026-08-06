@@ -86,6 +86,13 @@ whole clip. Mixing buses, fades, concurrency, spatial settings, and pause
 policy belong to scene/runtime data rather than backend-specific manifests.
 See [Animation and Audio](animation-and-audio.md).
 
+### Game data assets
+
+`DataAsset` manifests map stable IDs to versioned JSON documents for dialogue,
+items, quests, characters, and other game-specific content. Optional
+`DataSchema` dependencies validate their structure and references before the
+runtime sees them. See [Data Assets](data-assets.md).
+
 ### Render assets
 
 `Material` manifests point at versioned `*.material.json` sources. The source

@@ -116,7 +116,9 @@ set_tests_properties(demi-runtime-minimal-voxel-frame PROPERTIES ENVIRONMENT "DE
 add_test(NAME demi-runtime-animated-main-menu-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/main_menu_animated/demi.project.json --frames 3
 )
-set_tests_properties(demi-runtime-animated-main-menu-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+set_tests_properties(demi-runtime-animated-main-menu-frame PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1"
+  PASS_REGULAR_EXPRESSION "Loaded data-driven menu copy revision 1")
 add_test(NAME demi-runtime-gif-main-menu-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/main_menu_gif/demi.project.json --frames 3
 )
@@ -165,6 +167,11 @@ foreach(controller character_controller_2d top_down_controller_2d click_move_con
     COMMAND demi script check
       ${CMAKE_SOURCE_DIR}/scripts/runtime/demi/${controller}.lua)
 endforeach()
+foreach(data_module flags conditions inventory quests dialogue)
+  add_test(NAME demi-script-check-runtime-data-${data_module}
+    COMMAND demi script check
+      ${CMAKE_SOURCE_DIR}/scripts/runtime/demi/data/${data_module}.lua)
+endforeach()
 set(DEMI_ISOMETRIC_BASE_BUILDER_SCRIPTS
   game
   game/actions
@@ -202,6 +209,19 @@ add_test(NAME demi-validate-minimal-voxel
 add_test(NAME demi-validate-animated-main-menu
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/main_menu_animated/demi.project.json
 )
+add_test(NAME demi-cook-data-driven-main-menu
+  COMMAND demi cook
+    --project ${CMAKE_SOURCE_DIR}/examples/main_menu_animated/demi.project.json
+    --platform linux
+    --output ${CMAKE_BINARY_DIR}/generated/ctest-data-driven-main-menu)
+add_test(NAME demi-runtime-cooked-data-driven-main-menu
+  COMMAND demi run
+    --project ${CMAKE_BINARY_DIR}/generated/ctest-data-driven-main-menu/demi.project.json
+    --frames 3)
+set_tests_properties(demi-runtime-cooked-data-driven-main-menu PROPERTIES
+  DEPENDS demi-cook-data-driven-main-menu
+  ENVIRONMENT "DEMI_HEADLESS=1"
+  PASS_REGULAR_EXPRESSION "Loaded data-driven menu copy revision 1")
 add_test(NAME demi-validate-gif-main-menu
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/main_menu_gif/demi.project.json
 )

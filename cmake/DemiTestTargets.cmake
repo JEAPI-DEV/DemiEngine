@@ -161,6 +161,11 @@
   target_link_libraries(demi-audio-phase7-tests PRIVATE demi-runtime-lib)
   add_executable(demi-asset-pipeline-tests tests/asset_pipeline_tests.cpp)
   target_link_libraries(demi-asset-pipeline-tests PRIVATE demi-core)
+  add_executable(demi-data-asset-tests tests/data_asset_tests.cpp)
+  target_link_libraries(demi-data-asset-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-lua-data-bindings-tests
+    tests/lua_data_bindings_tests.cpp)
+  target_link_libraries(demi-lua-data-bindings-tests PRIVATE demi-runtime-lib)
   add_executable(demi-shader-cooker-tests tests/shader_cooker_tests.cpp)
   target_link_libraries(demi-shader-cooker-tests PRIVATE demi-core)
   target_compile_definitions(demi-shader-cooker-tests PRIVATE

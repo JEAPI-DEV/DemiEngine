@@ -252,9 +252,11 @@ not become the implementation backing templates.
 Games need dialogue, quests, items, characters, encounters, and balance data
 without inventing Lua file loaders or adding engine components.
 
-**Status: planned.** JSON is already the durable engine format, but arbitrary
-game data has no stable asset type or read-only Lua service. Games currently
-put content into Lua modules or overload component properties.
+**Status: implemented.** `DataAsset`, immutable `DataDocument` snapshots,
+schema validation, revisioned ownership, deterministic Lua `Data` queries,
+hot-reload events, and optional pure-Lua content packages now form the general
+game-data workflow. `examples/main_menu_animated` is the schema-backed runtime
+and cooked-content probe.
 
 ### Architectural model
 

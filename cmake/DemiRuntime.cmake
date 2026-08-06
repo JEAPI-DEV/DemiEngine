@@ -7,6 +7,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/camera/Camera2DSystem.cpp
   src/demi/runtime/camera/Camera3DMath.cpp
   src/demi/runtime/camera/CameraRenderScheduler3D.cpp
+  src/demi/runtime/data/DataAssetStore.cpp
   src/demi/runtime/tilemap/TilemapCollisionGenerator.cpp
   src/demi/runtime/tilemap/TilemapRuntime.cpp
   src/demi/runtime/app/RuntimeApp.cpp
@@ -66,6 +67,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/components/LuaTransform2DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaTransform3DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaTilemap2DBindings.cpp
+  src/demi/runtime/scripting/bindings/data/LuaDataBindings.cpp
   src/demi/runtime/scripting/bindings/animation/LuaAnimationBindings.cpp
   src/demi/runtime/scripting/bindings/hud/LuaHudBindings.cpp
   src/demi/runtime/scripting/bindings/media/LuaAudioBindings.cpp

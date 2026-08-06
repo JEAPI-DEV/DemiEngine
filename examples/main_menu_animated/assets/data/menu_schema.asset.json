@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://schemas/menu_copy",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {},
+  "source": "menu.schema.json",
+  "source_hash": "fnv1a64:118e4095e4b603d3",
+  "type": "DataSchema"
+}

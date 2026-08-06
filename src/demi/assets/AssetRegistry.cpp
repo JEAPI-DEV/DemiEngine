@@ -3,6 +3,7 @@
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetImporter.h"
 #include "demi/assets/AssetSourceFiles.h"
+#include "demi/assets/DataAsset.h"
 #include "demi/assets/RenderAsset.h"
 
 #include <nlohmann/json.hpp>
@@ -497,6 +498,9 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
              .path = asset.manifestPath.string()});
     }
   }
+  Diagnostics dataDiagnostics = assets::validateDataAssets(registry);
+  diagnostics.insert(diagnostics.end(), dataDiagnostics.begin(),
+                     dataDiagnostics.end());
   std::set<std::string> visiting;
   std::set<std::string> visited;
   for (const AssetManifest &asset : registry.assets)

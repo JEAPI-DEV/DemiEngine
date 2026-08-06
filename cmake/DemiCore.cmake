@@ -3,6 +3,8 @@ add_library(demi-core STATIC
   src/demi/capabilities/CapabilityManifest.cpp
   src/demi/assets/AssetRegistry.cpp
   src/demi/assets/AssetHash.cpp
+  src/demi/assets/DataAsset.cpp
+  src/demi/assets/DataDocument.cpp
   src/demi/assets/ColliderAssetGenerator.cpp
   src/demi/assets/GltfGeometry.cpp
   src/demi/assets/GltfSkinnedModel.cpp

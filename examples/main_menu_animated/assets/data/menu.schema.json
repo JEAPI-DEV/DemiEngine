@@ -1,0 +1,10 @@
+{
+  "format_version": 1,
+  "type": "object",
+  "required": ["format_version", "title", "subtitle"],
+  "properties": {
+    "format_version": { "type": "integer", "enum": [1] },
+    "title": { "type": "string" },
+    "subtitle": { "type": "string" }
+  }
+}

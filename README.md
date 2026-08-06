@@ -144,7 +144,7 @@ When an example needs behavior that belongs in the engine, the preferred approac
 - Lua 5.4 scripting through sol2.
 - Lua lifecycle functions: `on_create`, `on_start`, `on_update`, `on_fixed_update`, and `on_destroy`.
 - Lua action and event annotations: `@HandleAction("...")` and `@OnEvent("...")`.
-- Lua services for `Debug`, `Input`, `Timer`, `Events`, `Scene`, `Runtime`, `Entity`, `Transform2D`, `Transform3D`, `Physics2D`, `Physics3D`, `Rigidbody2D`, `HUD`, `Save`, `Audio`, `Video`, `Cutscene`, `Network`, and `NetworkSession`.
+- Lua services for `Data`, `Debug`, `Input`, `Timer`, `Events`, `Scene`, `Runtime`, `Entity`, `Transform2D`, `Transform3D`, `Physics2D`, `Physics3D`, `Rigidbody2D`, `HUD`, `Save`, `Audio`, `Video`, `Cutscene`, `Network`, and `NetworkSession`.
 - 2D rendering, HUD rendering, debug lines, and pixel-style text rendering.
 - Lightweight 3D rendering with hierarchical transforms, glTF materials and
   named skeletal clips, frustum culling, deterministic material batches,
@@ -164,6 +164,7 @@ A typical DemiEngine project uses deterministic files that can be inspected and 
 - HUD files: `*.hud.json`
 - Saves: `*.save.json`
 - Assets: `*.asset.json`
+- General game data: schema-backed `DataAsset` JSON loaded through Lua `Data`
 - Lua scripts: `*.lua`
 
 Every project, scene, save, and asset manifest should include `format_version`. Generated output belongs in `build/`, `generated/`, or `examples/**/generated/`.
@@ -377,6 +378,7 @@ Useful focused checks:
 - [Getting started](docs/getting-started.md)
 - [CLI notes](docs/cli.md)
 - [File formats](docs/file-formats.md)
+- [Data assets](docs/data-assets.md)
 - [Capability matrix](docs/capabilities.md)
 - [Compatibility policy](docs/compatibility.md)
 
