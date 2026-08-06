@@ -7,6 +7,8 @@ using demi::runtime::InputState;
 using demi::runtime::TouchPhase;
 using demi::runtime::Vec2;
 using demi::runtime::platform::PlatformInput;
+using demi::runtime::platform::PointerMotion;
+using demi::runtime::platform::pointerMotionInDrawablePixels;
 
 namespace {
 
@@ -47,6 +49,29 @@ void pointerDeltaAccumulatesWithinFrame() {
   input.beginFrame();
   assert(state.mouseDelta.x == 0.0F);
   assert(state.mouseDelta.y == 0.0F);
+}
+
+void windowPointerCoordinatesMatchDrawablePixels() {
+  const PointerMotion scaled = pointerMotionInDrawablePixels(
+      {.position = {160.0F, 90.0F}, .delta = {4.0F, -3.0F}}, {960.0F, 540.0F},
+      {1920.0F, 1080.0F});
+  assert(scaled.position.x == 320.0F);
+  assert(scaled.position.y == 180.0F);
+  assert(scaled.delta.x == 8.0F);
+  assert(scaled.delta.y == -6.0F);
+
+  const PointerMotion nonUniform = pointerMotionInDrawablePixels(
+      {.position = {200.0F, 150.0F}, .delta = {10.0F, 10.0F}},
+      {1000.0F, 600.0F}, {1500.0F, 1200.0F});
+  assert(nonUniform.position.x == 300.0F);
+  assert(nonUniform.position.y == 300.0F);
+  assert(nonUniform.delta.x == 15.0F);
+  assert(nonUniform.delta.y == 20.0F);
+
+  const PointerMotion safeFallback = pointerMotionInDrawablePixels(
+      {.position = {2.0F, 3.0F}, .delta = {}}, {0.0F, -1.0F}, {0.0F, -1.0F});
+  assert(safeFallback.position.x == 2.0F);
+  assert(safeFallback.position.y == 3.0F);
 }
 
 void touchTerminalStateSurvivesOneFrame() {
@@ -104,6 +129,7 @@ void textInputPreservesUtf8() {
 int main() {
   keyboardTransitionsIgnoreRepeats();
   pointerDeltaAccumulatesWithinFrame();
+  windowPointerCoordinatesMatchDrawablePixels();
   touchTerminalStateSurvivesOneFrame();
   gamepadDisconnectAndUiMirroringAreStable();
   textInputPreservesUtf8();

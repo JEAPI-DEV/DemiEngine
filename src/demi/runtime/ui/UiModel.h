@@ -25,6 +25,8 @@ struct Rect {
 
 enum class LayoutDirection { None, Row, Column, Grid };
 enum class Alignment { Start, Center, End, Stretch };
+enum class TextWrapMode { None, Word, Grapheme };
+enum class TextOverflowMode { Visible, Clip, Ellipsis };
 
 struct LayoutSpec {
   Vec2 position{};
@@ -49,6 +51,7 @@ struct UiNode {
   std::string style;
   std::string text;
   std::string placeholder;
+  std::string placeholderLocalizationKey;
   std::string localizationKey;
   std::string texture;
   std::string animation;
@@ -72,6 +75,12 @@ struct UiNode {
   float minimum = 0.0F;
   float maximum = 1.0F;
   float fontSize = 20.0F;
+  float lineSpacing = 0.0F;
+  std::size_t maxLines = 0;
+  TextWrapMode textWrap = TextWrapMode::None;
+  TextOverflowMode textOverflow = TextOverflowMode::Clip;
+  Alignment textHorizontalAlignment = Alignment::Start;
+  Alignment textVerticalAlignment = Alignment::Start;
   float scale = 1.0F;
   float cornerRadius = 0.0F;
   float borderWidth = 0.0F;
@@ -82,6 +91,15 @@ struct UiNode {
   bool focusable = false;
   bool checked = false;
   bool hovered = false;
+};
+
+struct UiNodeHandle {
+  std::string id;
+  std::uint64_t generation = 0;
+  [[nodiscard]] explicit operator bool() const {
+    return !id.empty() && generation != 0;
+  }
+  auto operator<=>(const UiNodeHandle &) const = default;
 };
 
 struct UiStyle {
@@ -103,12 +121,17 @@ struct UiDocument {
   std::vector<UiNode> nodes;
   std::unordered_map<std::string, UiStyle> styles;
   std::unordered_map<std::string, std::string> localization;
+  std::unordered_map<std::string,
+                     std::unordered_map<std::string, std::string>> locales;
+  std::string locale;
   std::unordered_map<std::string, std::string> actionMap;
   std::unordered_map<std::string, UiActionEffect> actionEffects;
   std::string focusedId;
   std::unordered_map<std::int64_t, std::string> pointerCaptures;
   // Pointer zero mirrors the desktop mouse for source compatibility.
   std::string pointerCaptureId;
+  std::unordered_map<std::string, std::uint64_t> generations;
+  std::uint64_t nextGeneration = 1;
 };
 
 } // namespace demi::runtime::ui

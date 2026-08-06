@@ -1,6 +1,7 @@
 #include "demi/runtime/render/bgfx2d/UiCanvasRenderer.h"
 
 #include "demi/runtime/ui/UiPresentation.h"
+#include "demi/runtime/ui/TextLayoutEngine.h"
 
 #include <algorithm>
 #include <cmath>
@@ -13,10 +14,14 @@ namespace {
 
 Rect2D scaledRect(const ui::UiNode &node, const float scaleX,
                   const float scaleY) {
-  return {.x = node.resolved.x * scaleX,
-          .y = node.resolved.y * scaleY,
-          .width = node.resolved.width * scaleX,
-          .height = node.resolved.height * scaleY};
+  const float width = node.resolved.width * scaleX * node.scale;
+  const float height = node.resolved.height * scaleY * node.scale;
+  const float centerX = (node.resolved.x + node.resolved.width * 0.5F) * scaleX;
+  const float centerY = (node.resolved.y + node.resolved.height * 0.5F) * scaleY;
+  return {.x = centerX - width * 0.5F,
+          .y = centerY - height * 0.5F,
+          .width = width,
+          .height = height};
 }
 
 ScissorRect intersect(const ScissorRect left, const ScissorRect right) {
@@ -71,6 +76,15 @@ Color buttonFill(const ui::UiNode &node) {
 
 } // namespace
 
+Rect2D uiTextBounds(Rect2D authored, const float measuredWidth,
+                    const float measuredHeight) {
+  if (authored.width <= 0.0F)
+    authored.width = std::max(measuredWidth, 1.0F);
+  if (authored.height <= 0.0F)
+    authored.height = std::max(measuredHeight, 1.0F);
+  return authored;
+}
+
 UiCanvasRenderer::UiCanvasRenderer(
     Canvas2D &canvas, FontAtlas2D &font, UiTextureLookup textureLookup,
     const std::unordered_map<std::string, TextureAnimation2D> *animations,
@@ -115,7 +129,7 @@ ScissorRect UiCanvasRenderer::clipFor(const ui::UiDocument &document,
 bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
                                 const float scaleY, const ScissorRect scissor) {
   const Rect2D rect = scaledRect(node, scaleX, scaleY);
-  const float scale = std::min(scaleX, scaleY);
+  const float scale = std::min(scaleX, scaleY) * node.scale;
   const auto solid = [&](const Color &color) {
     return color.a <= 0.0F || canvas_.solid(rect, packVertexColorRgba8(color),
                                             BlendMode::Alpha, scissor);
@@ -195,18 +209,48 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
   if (textNode && !node.text.empty()) {
     const float authored = node.fontSize > 0.0F ? node.fontSize : 20.0F;
     const float fontScale = authored * scale / 48.0F;
-    const TextMetrics2D metrics = font_.measure(node.text, fontScale);
-    float x = rect.x;
-    float baseline = rect.y + authored * scale;
-    if (button) {
-      x += (rect.width - metrics.width) * 0.5F;
-      baseline =
-          rect.y + (rect.height - metrics.height) * 0.5F + authored * scale;
-    }
+    ui::TextLayoutRequest request{.text = node.text,
+                                  .width = rect.width,
+                                  .height = rect.height,
+                                  .fontSize = authored * scale,
+                                  .lineSpacing = node.lineSpacing * scale,
+                                  .wrap = node.textWrap == ui::TextWrapMode::Word
+                                              ? ui::TextWrap::Word
+                                          : node.textWrap == ui::TextWrapMode::Grapheme
+                                              ? ui::TextWrap::Grapheme
+                                              : ui::TextWrap::None,
+                                  .horizontal = (button || node.textHorizontalAlignment == ui::Alignment::Center)
+                                                    ? ui::TextHorizontalAlignment::Center
+                                                : node.textHorizontalAlignment == ui::Alignment::End
+                                                    ? ui::TextHorizontalAlignment::End
+                                                    : ui::TextHorizontalAlignment::Start,
+                                  .vertical = (button || node.textVerticalAlignment == ui::Alignment::Center)
+                                                  ? ui::TextVerticalAlignment::Center
+                                              : node.textVerticalAlignment == ui::Alignment::End
+                                                  ? ui::TextVerticalAlignment::End
+                                                  : ui::TextVerticalAlignment::Start,
+                                  .overflow = node.textOverflow == ui::TextOverflowMode::Ellipsis
+                                                  ? ui::TextOverflow::Ellipsis
+                                              : node.textOverflow == ui::TextOverflowMode::Visible
+                                                  ? ui::TextOverflow::Visible
+                                                  : ui::TextOverflow::Clip,
+                                  .maxLines = node.maxLines};
+    const ui::TextLayoutResult layout = ui::TextLayoutEngine{}.layout(
+        request, [&](const std::string_view value) {
+          return font_.measure(value, fontScale).width;
+        });
+    const Rect2D textBounds =
+        uiTextBounds(rect, layout.width, layout.height);
     const Color color = node.textColor.a > 0.0F ? node.textColor : node.color;
-    if (!font_.draw(canvas_, node.text, x, baseline,
-                    packVertexColorRgba8(color), fontScale, scissor))
-      return false;
+    const ScissorRect textScissor =
+        node.textOverflow == ui::TextOverflowMode::Visible
+            ? scissor
+            : intersect(scissor, toScissor(textBounds));
+    for (const auto &line : layout.lines)
+      if (!font_.draw(canvas_, line.text, rect.x + line.x,
+                      rect.y + line.y + authored * scale,
+                      packVertexColorRgba8(color), fontScale, textScissor))
+        return false;
   }
   return true;
 }

@@ -17,6 +17,7 @@
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/simulation/DeterministicRandom.h"
 #include "demi/runtime/tilemap/TilemapRuntime.h"
+#include "demi/runtime/ui/UiModel.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -384,6 +385,31 @@ public:
   [[nodiscard]] Vec2 hudCanvasSize() const;
   [[nodiscard]] bool setHudGroupVisible(const std::string &group, bool visible);
   [[nodiscard]] std::optional<std::string> hudText(const std::string &id) const;
+  [[nodiscard]] std::optional<ui::UiNodeHandle>
+  createHudNode(const std::string &parent, ui::UiNode node,
+                std::string &error);
+  [[nodiscard]] std::optional<ui::UiNodeHandle>
+  hudNodeHandle(const std::string &id) const;
+  [[nodiscard]] std::optional<ui::UiNodeHandle>
+  cloneHudNode(const ui::UiNodeHandle &source, const std::string &newRootId,
+               const std::string &parent, std::string &error);
+  [[nodiscard]] bool removeHudNode(const ui::UiNodeHandle &node,
+                                   std::string &error);
+  [[nodiscard]] bool reparentHudNode(const ui::UiNodeHandle &node,
+                                     const std::string &parent,
+                                     std::string &error);
+  [[nodiscard]] bool clearHudChildren(const std::string &parent,
+                                      std::string &error);
+  [[nodiscard]] std::vector<std::string>
+  hudChildren(const std::string &parent) const;
+  [[nodiscard]] std::uint64_t startHudTween(
+      const ui::UiNodeHandle &node, const std::string &property, float target,
+      float duration, std::string &error);
+  [[nodiscard]] bool cancelHudTween(std::uint64_t handle);
+  void setHudReducedMotion(bool enabled);
+  [[nodiscard]] bool setHudLocale(const std::string &locale,
+                                  std::string &error);
+  void setHudPseudoLocale(bool enabled);
   [[nodiscard]] std::optional<float> saveNumber(const std::string &slot,
                                                 const std::string &key);
   [[nodiscard]] std::optional<std::string> saveString(const std::string &slot,

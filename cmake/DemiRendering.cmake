@@ -202,6 +202,7 @@ endif()
 
 add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/BgfxRenderer3D.cpp
+  src/demi/runtime/render/bgfx3d/DebugGeometry3D.cpp
   src/demi/runtime/render/bgfx3d/GpuMesh3D.cpp
   src/demi/runtime/render/bgfx3d/MeshTransform3D.cpp
   src/demi/runtime/render/bgfx3d/PrimitiveCanvas3D.cpp

@@ -20,6 +20,12 @@ add_library(demi-core STATIC
   src/demi/schema/Validation.cpp
   src/demi/runtime/scene/composition/PrefabResolver.cpp
   src/demi/runtime/ui/UiLayoutEngine.cpp
+  src/demi/runtime/ui/TextLayoutEngine.cpp
+  src/demi/runtime/ui/RichTextParser.cpp
+  src/demi/runtime/ui/UiMutationQueue.cpp
+  src/demi/runtime/ui/UiVirtualCollection.cpp
+  src/demi/runtime/ui/UiTweenSystem.cpp
+  src/demi/runtime/ui/UiLocalization.cpp
   src/demi/runtime/ui/UiInteractionController.cpp
   src/demi/runtime/ui/UiDocumentParser.cpp
   src/demi/runtime/ui/UiPresentation.cpp
@@ -50,7 +56,7 @@ target_include_directories(demi-core PRIVATE
   "${bgfx_SOURCE_DIR}/bgfx/3rdparty/cgltf")
 
 target_compile_features(demi-core PUBLIC cxx_std_20)
-target_link_libraries(demi-core PUBLIC nlohmann_json::nlohmann_json box2d)
+target_link_libraries(demi-core PUBLIC nlohmann_json::nlohmann_json box2d utf8proc)
 set(DEMI_HOST_SHADERC "" CACHE FILEPATH
   "Existing host shaderc executable to reuse instead of building shaderc")
 if(NOT ANDROID)
@@ -64,4 +70,3 @@ if(NOT ANDROID)
   target_compile_definitions(demi-core PRIVATE
     DEMI_BGFX_SHADER_INCLUDE_DIR="${bgfx_SOURCE_DIR}/bgfx/src")
 endif()
-

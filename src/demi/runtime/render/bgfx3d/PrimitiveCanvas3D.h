@@ -51,6 +51,7 @@ public:
   [[nodiscard]] bool triangles(const WorldTransform3D &transform,
                                std::span<const Vec3> vertices,
                                std::uint32_t rgba);
+  [[nodiscard]] bool line(Vec3 start, Vec3 end, std::uint32_t rgba);
 
   [[nodiscard]] bool flush(std::string &error);
   [[nodiscard]] const PrimitiveCanvas3DStatistics &statistics() const {
@@ -68,6 +69,8 @@ private:
   ProgramHandle program_;
   std::vector<PrimitiveVertex3D> vertices_;
   std::vector<std::uint16_t> indices_;
+  std::vector<PrimitiveVertex3D> lineVertices_;
+  std::vector<std::uint16_t> lineIndices_;
   std::uint16_t viewId_ = 0;
   bool frameOpen_ = false;
   PrimitiveCanvas3DStatistics statistics_;

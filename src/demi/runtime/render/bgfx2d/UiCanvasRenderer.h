@@ -17,6 +17,11 @@ namespace demi::runtime::render {
 
 using UiTextureLookup = std::function<TextureView2D(std::string_view)>;
 
+// Position-only labels use their measured text as the clipping rectangle.
+// Explicit dimensions remain authoritative for wrapping and alignment.
+[[nodiscard]] Rect2D uiTextBounds(Rect2D authored, float measuredWidth,
+                                  float measuredHeight);
+
 class UiCanvasRenderer {
 public:
   UiCanvasRenderer(Canvas2D &canvas, FontAtlas2D &font,

@@ -1033,6 +1033,81 @@ function Navigation2D.cell_to_world(column, row) end
 
 ---@class HudService
 Hud = {}
+---@class HudNodeHandle
+---@field id string
+---@field generation integer
+---@class HudNodeDefinition
+---@field id string
+---@field type? string
+---@field text? string
+---@field action? string
+---@field style? string
+---@field texture? string
+---@field accessibility_label? string
+---@field visible? boolean
+---@field disabled? boolean
+---@field focusable? boolean
+---@field font_size? number
+---@field x? number
+---@field y? number
+---@field width? number
+---@field height? number
+---@param id string
+---@return HudNodeHandle|nil
+function Hud.find(id) end
+---@param parent string
+---@param definition HudNodeDefinition
+---@return HudNodeHandle|nil handle
+---@return string error
+function Hud.create(parent, definition) end
+---@param source HudNodeHandle
+---@param new_root_id string
+---@param parent? string
+---@return HudNodeHandle|nil handle
+---@return string error
+function Hud.clone(source, new_root_id, parent) end
+---@param node HudNodeHandle
+---@return boolean ok
+---@return string error
+function Hud.remove(node) end
+---@param node HudNodeHandle
+---@param parent string
+---@return boolean ok
+---@return string error
+function Hud.reparent(node, parent) end
+---@param parent string
+---@return boolean ok
+---@return string error
+function Hud.clear_children(parent) end
+---@param parent string
+---@return string[]
+function Hud.children(parent) end
+---@param node HudNodeHandle
+---@param property "opacity"|"x"|"y"|"scale"
+---@param target number
+---@param duration number
+---@return integer handle
+---@return string error
+function Hud.tween(node, property, target, duration) end
+---@param handle integer
+---@return boolean
+function Hud.cancel_tween(handle) end
+---@param enabled boolean
+function Hud.set_reduced_motion(enabled) end
+---@param locale string
+---@return boolean changed
+---@return string error
+function Hud.set_locale(locale) end
+---@param enabled boolean
+function Hud.set_pseudo_locale(enabled) end
+---@param item_count integer
+---@param item_extent number
+---@param scroll_offset number
+---@param viewport_extent number
+---@param overscan? integer
+---@return integer first One-based logical item index.
+---@return integer count Number of live rows needed.
+function Hud.visible_range(item_count, item_extent, scroll_offset, viewport_extent, overscan) end
 ---@return number width
 ---@return number height
 function Hud.canvas_size() end
@@ -1139,6 +1214,49 @@ function Hud.set_group_visible(group, visible) end
 ---@param id string
 ---@return string|nil
 function Hud.get_text(id) end
+
+---@class TextLayoutLine
+---@field text string
+---@field x number
+---@field y number
+---@field width number
+---@class TextLayoutResult
+---@field width number
+---@field height number
+---@field grapheme_count integer
+---@field truncated boolean
+---@field valid_utf8 boolean
+---@field shaping_complete boolean
+---@field lines TextLayoutLine[]
+---@class TextService
+Text = {}
+---@param value string
+---@return integer
+function Text.grapheme_count(value) end
+---@param value string
+---@param first integer One-based grapheme index.
+---@param count integer
+---@return string|nil
+function Text.grapheme_slice(value, first, count) end
+---@param value string
+---@param width number
+---@param font_size number
+---@param max_lines? integer
+---@return TextLayoutResult
+function Text.layout(value, width, font_size, max_lines) end
+---@class RichTextSpan
+---@field begin integer
+---@field length integer
+---@field style string
+---@field value string
+---@class RichTextResult
+---@field text string
+---@field spans RichTextSpan[]
+---@field diagnostics string[]
+---@param markup string
+---@param strict? boolean
+---@return RichTextResult
+function Text.parse_rich(markup, strict) end
 
 ---@class RegexService
 Regex = {}

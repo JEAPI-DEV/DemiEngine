@@ -1,5 +1,7 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
 
+#include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
+
 #include "demi/assets/GltfGeometry.h"
 #include "demi/assets/GltfSkinnedModel.h"
 #include "demi/assets/RenderAsset.h"
@@ -702,6 +704,10 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     std::erase_if(dynamicMeshes_, [&liveDynamicMeshes](const auto &entry) {
       return !liveDynamicMeshes.contains(entry.first);
     });
+    if (!appendDebugGeometry3D(world, primitives_)) {
+      error = "3D debug geometry exceeded the transient line capacity.";
+      return false;
+    }
     if (!primitives_.flush(error))
       return false;
   }

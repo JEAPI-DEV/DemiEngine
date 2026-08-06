@@ -1,6 +1,7 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/BoxCollider3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/ParticleEmitter3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
@@ -88,11 +89,20 @@ int main() {
   assert(renderer.renderFrame(world, frame, 0.016F, error));
   assert(renderer.statistics().batches >= 1);
   assert(renderer.statistics().triangles > 12);
+  const std::uint32_t batchesWithoutDebugGeometry =
+      renderer.statistics().batches;
   static_cast<void>(graphics.endFrame());
   // The second frame reuses the resident procedural buffers. Changing the
   // revision replaces them, and removing the owner releases the cache entry.
   assert(renderer.renderFrame(world, frame, 0.016F, error));
   static_cast<void>(graphics.endFrame());
+
+  world.entities.front().setComponent(BoxCollider3DComponent{});
+  world.debug.colliders = true;
+  assert(renderer.renderFrame(world, frame, 0.016F, error));
+  assert(renderer.statistics().batches == batchesWithoutDebugGeometry + 1U);
+  static_cast<void>(graphics.endFrame());
+  world.debug.colliders = false;
 
   Entity emitter;
   emitter.id = "particles";

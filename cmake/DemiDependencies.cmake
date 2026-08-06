@@ -82,6 +82,17 @@ FetchContent_Declare(nlohmann_json
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
+# Unicode segmentation and validation live behind Demi's text contracts.  The
+# dependency is deliberately backend-neutral and builds on both Linux and
+# Android; renderers never call it directly.
+set(UTF8PROC_INSTALL OFF CACHE BOOL "" FORCE)
+set(UTF8PROC_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(utf8proc
+  GIT_REPOSITORY https://github.com/JuliaStrings/utf8proc.git
+  GIT_TAG v2.10.0
+)
+FetchContent_MakeAvailable(utf8proc)
+
 set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
 set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 set(MBEDTLS_FATAL_WARNINGS OFF CACHE BOOL "" FORCE)

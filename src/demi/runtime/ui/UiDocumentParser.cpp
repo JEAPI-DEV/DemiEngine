@@ -32,6 +32,16 @@ Alignment alignment(const std::string &value) {
     return Alignment::Stretch;
   return Alignment::Start;
 }
+TextWrapMode textWrap(const std::string &value) {
+  if (value == "word") return TextWrapMode::Word;
+  if (value == "grapheme") return TextWrapMode::Grapheme;
+  return TextWrapMode::None;
+}
+TextOverflowMode textOverflow(const std::string &value) {
+  if (value == "visible") return TextOverflowMode::Visible;
+  if (value == "ellipsis") return TextOverflowMode::Ellipsis;
+  return TextOverflowMode::Clip;
+}
 void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
   if (!json.is_object())
     return;
@@ -90,6 +100,17 @@ void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
   node.maximum = scene_loading::numberField(json, "maximum").value_or(1.0F);
   if (auto value = scene_loading::numberField(json, "font_size"))
     node.fontSize = *value;
+  node.lineSpacing =
+      scene_loading::numberField(json, "line_spacing").value_or(0.0F);
+  node.maxLines = static_cast<std::size_t>(std::max(
+      scene_loading::numberField(json, "max_lines").value_or(0.0F), 0.0F));
+  node.textWrap = textWrap(scene_loading::stringOr(json, "text_wrap"));
+  node.textOverflow =
+      textOverflow(scene_loading::stringOr(json, "text_overflow"));
+  node.textHorizontalAlignment =
+      alignment(scene_loading::stringOr(json, "text_alignment"));
+  node.textVerticalAlignment =
+      alignment(scene_loading::stringOr(json, "text_vertical_alignment"));
   node.cornerRadius =
       scene_loading::numberField(json, "corner_radius").value_or(0.0F);
   node.borderWidth =
@@ -123,10 +144,10 @@ void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
     if (localized != out.localization.end())
       node.text = localized->second;
   }
-  const std::string placeholderLocalizationKey =
+  node.placeholderLocalizationKey =
       scene_loading::stringOr(json, "placeholder_localization_key");
-  if (!placeholderLocalizationKey.empty()) {
-    const auto localized = out.localization.find(placeholderLocalizationKey);
+  if (!node.placeholderLocalizationKey.empty()) {
+    const auto localized = out.localization.find(node.placeholderLocalizationKey);
     if (localized != out.localization.end())
       node.placeholder = localized->second;
   }
@@ -146,6 +167,17 @@ UiDocument parseUiDocument(const nlohmann::json &document) {
     for (const auto &[key, value] : localization->items())
       if (value.is_string())
         result.localization[key] = value.get<std::string>();
+  if (const Json *locales = scene_loading::objectField(document, "locales"))
+    for (const auto &[locale, values] : locales->items())
+      if (values.is_object())
+        for (const auto &[key, value] : values.items())
+          if (value.is_string())
+            result.locales[locale][key] = value.get<std::string>();
+  result.locale = scene_loading::stringOr(document, "locale");
+  if (!result.locale.empty())
+    if (const auto found = result.locales.find(result.locale);
+        found != result.locales.end())
+      result.localization = found->second;
   if (const Json *actions = scene_loading::objectField(document, "action_map"))
     for (const auto &[key, value] : actions->items())
       if (value.is_string())
@@ -194,6 +226,8 @@ UiDocument parseUiDocument(const nlohmann::json &document) {
       if (node.layout.gap == 0)
         node.layout.gap = style->second.gap;
     }
+  for (const UiNode &node : result.nodes)
+    result.generations[node.id] = result.nextGeneration++;
   return result;
 }
 } // namespace demi::runtime::ui

@@ -95,6 +95,23 @@ function Probe:on_start()
   if canvas_width == 100 and canvas_height == 100 then
     Save.set_string("test", "hud_canvas_size", "updated")
   end
+  local dynamic, dynamic_error = Hud.create("", {
+    id = "runtime_row", type = "button", text = "Runtime",
+    action = "inspect:runtime", width = 30, height = 12,
+  })
+  local clusters = Text.grapheme_count("Aé")
+  local prefix = Text.grapheme_slice("Aé", 2, 1)
+  local layout = Text.layout("one two three", 30, 10, 2)
+  if dynamic and dynamic_error == "" and clusters == 2 and prefix == "é"
+      and layout.valid_utf8 and layout.grapheme_count == 13 then
+    local clone, clone_error = Hud.clone(dynamic, "runtime_row_copy")
+    local moved, move_error = Hud.reparent(dynamic, "button_start")
+    local removed, remove_error = Hud.remove(clone)
+    if clone_error == "" and moved and move_error == "" and removed
+        and remove_error == "" and #Hud.children("button_start") == 1 then
+      Save.set_string("test", "dynamic_hud", "passed")
+    end
+  end
   Entity.create("ent_tinted_sprite", {
     components = {
       Transform2D = {
@@ -515,6 +532,12 @@ return PropProbe
   }
   if (host.saveString("test", "hud_canvas_size") != "updated") {
     std::cerr << "Hud.canvas_size did not expose authored canvas dimensions.\n";
+    return 1;
+  }
+  if (host.saveString("test", "dynamic_hud") != "passed" ||
+      !host.hudNodeHandle("runtime_row") ||
+      host.hudNodeHandle("runtime_row_copy")) {
+    std::cerr << "Dynamic HUD or Unicode Text Lua APIs failed.\n";
     return 1;
   }
   const auto hudImageNode = std::ranges::find_if(

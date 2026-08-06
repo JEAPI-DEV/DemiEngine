@@ -45,6 +45,8 @@ bool PrimitiveCanvas3D::initialize(std::string &error) {
 void PrimitiveCanvas3D::shutdown() {
   vertices_.clear();
   indices_.clear();
+  lineVertices_.clear();
+  lineIndices_.clear();
   frameOpen_ = false;
   statistics_ = {};
   if (program_)
@@ -65,6 +67,8 @@ bool PrimitiveCanvas3D::begin(const View3DConfig &view, std::string &error) {
     return false;
   vertices_.clear();
   indices_.clear();
+  lineVertices_.clear();
+  lineIndices_.clear();
   statistics_ = {};
   viewId_ = view.id;
   frameOpen_ = true;
@@ -227,37 +231,79 @@ bool PrimitiveCanvas3D::triangles(const WorldTransform3D &transform,
   return append(vertices, indices, transform, rgba);
 }
 
+bool PrimitiveCanvas3D::line(const Vec3 start, const Vec3 end,
+                             const std::uint32_t rgba) {
+  if (!frameOpen_ ||
+      lineVertices_.size() + 2U > std::numeric_limits<std::uint16_t>::max())
+    return false;
+  const auto base = static_cast<std::uint16_t>(lineVertices_.size());
+  lineVertices_.push_back(
+      {.x = start.x, .y = start.y, .z = start.z, .rgba = rgba});
+  lineVertices_.push_back({.x = end.x, .y = end.y, .z = end.z, .rgba = rgba});
+  lineIndices_.push_back(base);
+  lineIndices_.push_back(static_cast<std::uint16_t>(base + 1U));
+  return true;
+}
+
 bool PrimitiveCanvas3D::flush(std::string &error) {
   if (!frameOpen_) {
     error = "PrimitiveCanvas3D has no open frame to flush.";
     return false;
   }
   frameOpen_ = false;
-  if (vertices_.empty())
+  if (vertices_.empty() && lineVertices_.empty())
     return true;
-  const TransientDraw draw{
-      .viewId = viewId_,
-      .vertices = std::as_bytes(std::span(vertices_)),
-      .vertexLayout = primitiveVertexLayout(),
-      .indices = indices_,
-      .program = program_,
-      .texture = {},
-      .sampler = {},
-      .blend = BlendMode::Opaque,
-      .state = {.blend = BlendMode::Opaque,
-                .depthTest = DepthTest::Less,
-                .cull = CullMode::None,
-                .topology = PrimitiveTopology::Triangles,
-                .writeDepth = true},
-      .scissor = {},
-      .uniforms = {},
-  };
-  if (!commands_.submit(draw, error))
-    return false;
+  std::uint32_t drawCalls = 0;
+  if (!vertices_.empty()) {
+    const TransientDraw draw{
+        .viewId = viewId_,
+        .vertices = std::as_bytes(std::span(vertices_)),
+        .vertexLayout = primitiveVertexLayout(),
+        .indices = indices_,
+        .program = program_,
+        .texture = {},
+        .sampler = {},
+        .blend = BlendMode::Opaque,
+        .state = {.blend = BlendMode::Opaque,
+                  .depthTest = DepthTest::Less,
+                  .cull = CullMode::None,
+                  .topology = PrimitiveTopology::Triangles,
+                  .writeDepth = true},
+        .scissor = {},
+        .uniforms = {},
+    };
+    if (!commands_.submit(draw, error))
+      return false;
+    ++drawCalls;
+  }
+  if (!lineVertices_.empty()) {
+    const TransientDraw draw{
+        .viewId = viewId_,
+        .vertices = std::as_bytes(std::span(lineVertices_)),
+        .vertexLayout = primitiveVertexLayout(),
+        .indices = lineIndices_,
+        .program = program_,
+        .texture = {},
+        .sampler = {},
+        .blend = BlendMode::Alpha,
+        .state = {.blend = BlendMode::Alpha,
+                  .depthTest = DepthTest::LessEqual,
+                  .cull = CullMode::None,
+                  .topology = PrimitiveTopology::Lines,
+                  .writeDepth = false},
+        .scissor = {},
+        .uniforms = {},
+    };
+    if (!commands_.submit(draw, error))
+      return false;
+    ++drawCalls;
+  }
   statistics_ = {
-      .drawCalls = 1,
-      .vertices = static_cast<std::uint32_t>(vertices_.size()),
-      .indices = static_cast<std::uint32_t>(indices_.size()),
+      .drawCalls = drawCalls,
+      .vertices =
+          static_cast<std::uint32_t>(vertices_.size() + lineVertices_.size()),
+      .indices =
+          static_cast<std::uint32_t>(indices_.size() + lineIndices_.size()),
       .triangles = static_cast<std::uint32_t>(indices_.size() / 3U),
   };
   return true;

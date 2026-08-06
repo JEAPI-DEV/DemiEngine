@@ -105,6 +105,10 @@
     tests/primitive_canvas3d_tests.cpp)
   target_link_libraries(demi-primitive-canvas3d-tests
     PRIVATE demi-render3d-bgfx)
+  add_executable(demi-debug-geometry3d-tests
+    tests/debug_geometry3d_tests.cpp)
+  target_link_libraries(demi-debug-geometry3d-tests
+    PRIVATE demi-render3d-bgfx)
   add_executable(demi-gpu-mesh3d-tests tests/gpu_mesh3d_tests.cpp)
   target_link_libraries(demi-gpu-mesh3d-tests PRIVATE demi-render3d-bgfx)
   add_executable(demi-mesh-geometry3d-tests tests/mesh_geometry3d_tests.cpp)
@@ -147,6 +151,8 @@
   target_link_libraries(demi-prefab-tests PRIVATE demi-core)
   add_executable(demi-ui-tests tests/ui_tests.cpp)
   target_link_libraries(demi-ui-tests PRIVATE demi-core)
+  add_executable(demi-ui-step3-tests tests/ui_step3_tests.cpp)
+  target_link_libraries(demi-ui-step3-tests PRIVATE demi-core)
   add_executable(demi-regex-matcher-tests tests/regex_matcher_tests.cpp)
   target_link_libraries(demi-regex-matcher-tests PRIVATE demi-runtime-lib)
   add_executable(demi-input-action-tests tests/input_action_tests.cpp)

@@ -427,10 +427,16 @@ by visual novels, RPGs, strategy games, settings screens, inventories, quest
 logs, editors, and lobbies. It does not add an engine-owned dialogue widget,
 inventory screen, quest screen, or other genre-specific presentation.
 
-**Status: planned.** Retained tree UI, anchors, layout containers, themes,
-localization, focus, controls, and basic Lua mutation are stable. Text handles
-explicit newlines but not full wrapping/shaping, and runtime UI structure is
-mostly authored rather than generated.
+**Status: in progress.** The 3A/3C foundation is implemented: Unicode grapheme
+segmentation, immutable wrapping/alignment/ellipsis results, selection/hit
+geometry, bounded caching, rich-text validation, renderer integration,
+generation-checked transactional mutations, runtime subtree cloning, bounded
+virtual ranges, locale reapplication, lifetime-bound tweens, Lua contracts,
+and the dynamic `ui_showcase` probe are covered. Complex-script shaping,
+font-fallback atlas pages, IME composition, variable-height recycling, and the
+remaining typed accessibility/input events are still required before this
+step meets its full done criteria; the text adapter reports incomplete shaping
+instead of silently claiming correctness meanwhile.
 
 ### Scope boundary
 

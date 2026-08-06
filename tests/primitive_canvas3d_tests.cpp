@@ -57,10 +57,11 @@ int main() {
   constexpr std::array<Vec3, 3> Triangle{
       {{0.0F, 0.0F, 0.0F}, {1.0F, 0.0F, 0.0F}, {0.0F, 1.0F, 0.0F}}};
   assert(canvas.triangles(transform, Triangle, 0xffffffffU));
+  assert(canvas.line({-1.0F, 0.0F, 0.0F}, {1.0F, 0.0F, 0.0F}, 0xff4040ffU));
   assert(canvas.flush(error));
-  assert(canvas.statistics().drawCalls == 1);
-  assert(canvas.statistics().vertices == 40);
-  assert(canvas.statistics().indices == 141);
+  assert(canvas.statistics().drawCalls == 2);
+  assert(canvas.statistics().vertices == 42);
+  assert(canvas.statistics().indices == 143);
   assert(canvas.statistics().triangles == 47);
   assert(!canvas.flush(error));
   static_cast<void>(graphics.endFrame());

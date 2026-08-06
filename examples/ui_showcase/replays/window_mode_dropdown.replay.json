@@ -1,0 +1,26 @@
+{
+  "format_version": 1,
+  "fixed_timestep": 0.016666667,
+  "frames": [
+    {},
+    {
+      "mouse_position": [400.0, 136.0],
+      "mouse_buttons_down": ["left"],
+      "mouse_buttons_pressed": ["left"]
+    },
+    {
+      "mouse_position": [400.0, 136.0],
+      "mouse_buttons_released": ["left"]
+    },
+    {
+      "mouse_position": [400.0, 230.0],
+      "mouse_buttons_down": ["left"],
+      "mouse_buttons_pressed": ["left"]
+    },
+    {
+      "mouse_position": [400.0, 230.0],
+      "mouse_buttons_released": ["left"]
+    },
+    {}
+  ]
+}

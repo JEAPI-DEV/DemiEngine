@@ -4,6 +4,17 @@
 
 namespace demi::runtime::platform {
 
+PointerMotion pointerMotionInDrawablePixels(const PointerMotion motion,
+                                            const Vec2 windowSize,
+                                            const Vec2 drawableSize) {
+  const float scaleX =
+      std::max(drawableSize.x, 1.0F) / std::max(windowSize.x, 1.0F);
+  const float scaleY =
+      std::max(drawableSize.y, 1.0F) / std::max(windowSize.y, 1.0F);
+  return {.position = {motion.position.x * scaleX, motion.position.y * scaleY},
+          .delta = {motion.delta.x * scaleX, motion.delta.y * scaleY}};
+}
+
 namespace {
 
 void setDigital(std::unordered_set<std::string> &down,

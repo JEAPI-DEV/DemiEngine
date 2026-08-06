@@ -6,6 +6,7 @@
 #include "demi/runtime/physics/Physics3DTypes.h"
 #include "demi/runtime/scene/model/Entity.h"
 #include "demi/runtime/ui/UiModel.h"
+#include "demi/runtime/ui/UiTweenSystem.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -59,6 +60,7 @@ struct World {
   std::unordered_set<std::string> loadedSceneIds;
   Vec2 hudCanvasSize = {960.0F, 540.0F};
   ui::UiDocument ui;
+  ui::UiTweenSystem uiTweens;
   std::vector<Entity> entities;
   std::vector<DebugLine> debugLines;
   std::vector<PhysicsContact2D> physicsContacts;

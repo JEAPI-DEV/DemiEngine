@@ -8,6 +8,18 @@
 
 namespace demi::runtime::platform {
 
+struct PointerMotion {
+  Vec2 position;
+  Vec2 delta;
+};
+
+// Window systems report pointer coordinates in window points, while render
+// backends consume drawable pixels on high-density displays. Normalize at the
+// platform boundary so game-facing input and rendering share one space.
+[[nodiscard]] PointerMotion pointerMotionInDrawablePixels(PointerMotion motion,
+                                                          Vec2 windowSize,
+                                                          Vec2 drawableSize);
+
 // Owns platform-independent input state transitions. Platform adapters only
 // translate native events into these operations; gameplay reads InputState.
 class PlatformInput {

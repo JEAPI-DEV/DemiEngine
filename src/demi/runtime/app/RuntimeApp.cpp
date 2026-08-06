@@ -24,6 +24,7 @@
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/runtime/tilemap/TilemapCollisionGenerator.h"
+#include "demi/runtime/ui/UiLayoutEngine.h"
 
 #include <algorithm>
 #include <cctype>
@@ -106,6 +107,10 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
   {
     ProfileScope scope("Lua.update");
     luaHost.update(scaledDt);
+    if (loaded.world.uiTweens.activeCount() > 0) {
+      loaded.world.uiTweens.update(loaded.world.ui, scaledDt);
+      ui::UiLayoutEngine{}.layout(loaded.world.ui, loaded.world.ui.canvasSize);
+    }
   }
   {
     ProfileScope scope("Camera2D.update");

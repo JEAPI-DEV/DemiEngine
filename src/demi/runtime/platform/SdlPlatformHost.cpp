@@ -187,6 +187,8 @@ public:
   void poll(InputState &inputState) override {
     PlatformInput input(inputState);
     input.beginFrame();
+    // SDL mouse events use window points; bgfx renders to drawable pixels.
+    updateWindowState();
     state_.lowMemorySignals = pendingLowMemorySignals_;
     pendingLowMemorySignals_ = 0;
 
@@ -207,13 +209,29 @@ public:
           input.text(event.text.text);
         break;
       case SDL_EVENT_MOUSE_MOTION:
-        if (event.motion.which != SDL_TOUCH_MOUSEID)
-          input.pointerPosition(event.motion.x, event.motion.y,
-                                event.motion.xrel, event.motion.yrel);
+        if (event.motion.which != SDL_TOUCH_MOUSEID) {
+          const PointerMotion motion = pointerMotionInDrawablePixels(
+              {.position = {event.motion.x, event.motion.y},
+               .delta = {event.motion.xrel, event.motion.yrel}},
+              {static_cast<float>(windowWidth_),
+               static_cast<float>(windowHeight_)},
+              {static_cast<float>(state_.width),
+               static_cast<float>(state_.height)});
+          input.pointerPosition(motion.position.x, motion.position.y,
+                                motion.delta.x, motion.delta.y);
+        }
         break;
       case SDL_EVENT_MOUSE_BUTTON_DOWN:
       case SDL_EVENT_MOUSE_BUTTON_UP:
         if (event.button.which != SDL_TOUCH_MOUSEID) {
+          const PointerMotion motion = pointerMotionInDrawablePixels(
+              {.position = {event.button.x, event.button.y}, .delta = {}},
+              {static_cast<float>(windowWidth_),
+               static_cast<float>(windowHeight_)},
+              {static_cast<float>(state_.width),
+               static_cast<float>(state_.height)});
+          input.pointerPosition(motion.position.x, motion.position.y, 0.0F,
+                                0.0F);
           const std::string_view name = mouseButtonName(event.button.button);
           if (!name.empty())
             input.pointerButton(name, event.button.down);
@@ -349,6 +367,7 @@ private:
   }
 
   void updateWindowState() {
+    SDL_GetWindowSize(window_, &windowWidth_, &windowHeight_);
     SDL_GetWindowSizeInPixels(window_, &state_.width, &state_.height);
     const float scale = SDL_GetWindowDisplayScale(window_);
     state_.logicalDpi = 96.0F * (scale > 0.0F ? scale : 1.0F);
@@ -383,6 +402,8 @@ private:
   SDL_Window *window_ = nullptr;
   std::unordered_map<SDL_JoystickID, SDL_Gamepad *> gamepads_;
   PlatformFrameState state_;
+  int windowWidth_ = 1;
+  int windowHeight_ = 1;
   Clock::time_point lastFrame_;
   unsigned pendingLowMemorySignals_ = 0;
 };
