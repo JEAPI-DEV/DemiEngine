@@ -46,6 +46,7 @@ void PlatformInput::beginFrame() {
   state_.mouseButtonsPressed.clear();
   state_.mouseButtonsReleased.clear();
   state_.mouseDelta = {};
+  state_.mouseScroll = {};
   state_.textEntered.clear();
   state_.textCompositionChanged = false;
   std::erase_if(state_.touches, [](const TouchPoint &touch) {
@@ -102,11 +103,15 @@ void PlatformInput::pointerButton(const std::string_view name,
              state_.mouseButtonsReleased, std::string(name), down);
 }
 
+void PlatformInput::pointerScroll(const float x, const float y) {
+  state_.mouseScroll.x += x;
+  state_.mouseScroll.y += y;
+}
+
 void PlatformInput::touch(const std::int64_t id, const TouchPhase phase,
                           const Vec2 position, const Vec2 delta,
                           const float pressure) {
-  const auto existing =
-      std::ranges::find(state_.touches, id, &TouchPoint::id);
+  const auto existing = std::ranges::find(state_.touches, id, &TouchPoint::id);
   const TouchPoint value{.id = id,
                          .phase = phase,
                          .position = position,
@@ -143,11 +148,9 @@ void PlatformInput::gamepadButton(const int deviceId,
     mirrorUiButton(state, name, "ui_accept", down);
 }
 
-void PlatformInput::gamepadAxis(const int deviceId,
-                                const std::string_view name,
+void PlatformInput::gamepadAxis(const int deviceId, const std::string_view name,
                                 const float value) {
-  gamepad(deviceId).axes[std::string(name)] =
-      std::clamp(value, -1.0F, 1.0F);
+  gamepad(deviceId).axes[std::string(name)] = std::clamp(value, -1.0F, 1.0F);
 }
 
 GamepadState &PlatformInput::gamepad(const int deviceId) {

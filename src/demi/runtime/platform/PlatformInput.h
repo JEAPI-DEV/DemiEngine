@@ -33,6 +33,7 @@ public:
                    int selectionLength);
   void pointerPosition(float x, float y, float deltaX, float deltaY);
   void pointerButton(std::string_view name, bool down);
+  void pointerScroll(float x, float y);
   void touch(std::int64_t id, TouchPhase phase, Vec2 position, Vec2 delta,
              float pressure);
   void connectGamepad(int deviceId, std::string name);

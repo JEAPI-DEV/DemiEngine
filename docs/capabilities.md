@@ -27,7 +27,7 @@ Status meanings:
 | Component metadata as sole source | Stable | Generated registry drives parsing, validation, schema export, Lua policy, and editor placeholders |
 | Prefabs | Stable | Versioned entity/UI files, nesting, overrides, cycle diagnostics, CLI expansion/diff |
 | Tree/layout runtime UI | Stable | Layout containers, controls, focus, themes, localization, safe-area roots, and virtual controls |
-| Production text/dynamic UI | Experimental | Grapheme-safe editing, selection/caret geometry, SDL IME composition, wrapping, rich-text validation, runtime mutations, transactional parameterized UI prefabs, bounded virtualization ranges, localization, and tweens; complex shaping and fallback-font atlas pages remain incomplete |
+| Production text/dynamic UI | Experimental | Grapheme-safe editing, selection/caret geometry, SDL IME composition, wrapping, rich-text validation, runtime mutations, transactional parameterized UI prefabs, bounded virtualization ranges, localization, tweens, and backend-neutral typed focus/value/pointer/drag/scroll events; complex shaping, fallback-font atlas pages, and accessibility output remain incomplete |
 | Tilemaps and sprite animation system | Stable | Runtime tile mutation, collision/navigation refresh, multiple tilesets, animations, object layers, clips, playback, and events |
 | Deterministic replay/debug tooling | Stable | Versioned input replay, deterministic random state, profiling, and headless probes |
 | Isometric placement/pathfinding | Stable | Grid conversion, occupancy, placement diagnostics, pathfinding, and rendering |

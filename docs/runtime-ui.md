@@ -157,8 +157,43 @@ failure; `Hud.set_pseudo_locale` helps expose expansion and clipping bugs.
 are cancelled when their target is removed, and `Hud.set_reduced_motion(true)`
 finishes presentation changes immediately.
 
-Control actions continue through `---@handle_action` and the `hud_action`
-event. No Lua code is required to position or resize widgets.
+## Typed UI events
+
+UI interaction is reported through one backend-neutral event vocabulary:
+`value_changed`, `focus_gained`, `focus_lost`, `submit`, `cancel`,
+`pointer_enter`, `pointer_exit`, `press`, `release`, `drag_start`, `drag`,
+`drag_end`, `drop`, and `scroll`. A script attached to a node may receive all
+of them through `on_ui_event`, or only one kind through a callback such as
+`on_ui_value_changed` or `on_ui_drop`:
+
+```lua
+function Script:on_ui_value_changed(event)
+  Settings.set_volume(event.value)
+end
+
+function Script:on_ui_drop(event)
+  Inventory.move(event.related_id, event.id)
+end
+```
+
+Games may instead subscribe with `Events.subscribe("ui_event", callback)` or
+to a specific channel such as `ui_submit`. Every payload contains `type`,
+`id`, `related_id`, `action`, `text`, `source`, `pointer_id`, `x`, `y`,
+`delta_x`, `delta_y`, `value`, `checked`, and `cancelled`. Positions and drag
+deltas use HUD canvas coordinates. `related_id` is the dragged source for a
+drop and the previous/next node for pointer transitions. Events without a
+pointer use `pointer_id = -1`.
+
+Focus and pointer capture are cancelled deterministically when a node or any
+ancestor is hidden, disabled, or removed. An active drag receives a cancelled
+`drag_end`; a focused node receives `focus_lost`. Multiple touch pointers keep
+independent capture and hover state. Events queued while an event callback is
+running are delivered on the next update rather than recursively.
+
+Control actions continue through `---@handle_action` and the legacy
+`hud_action`, `on_ui_hover`, and `on_ui_click` paths for compatibility. New
+code should use typed events when it needs lifecycle information. No Lua code
+is required to position or resize widgets.
 
 For searchable lists, `Hud.get_text` returns a tree text-input's current value.
 `Regex.matches(value, pattern, case_sensitive)` performs an ECMAScript regular

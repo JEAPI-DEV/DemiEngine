@@ -1824,10 +1824,57 @@ function DemiScript:on_destroy() end
 ---@field label string
 ---@field mouse_x number
 ---@field mouse_y number
+---@alias DemiUiEventType "value_changed"|"focus_gained"|"focus_lost"|"submit"|"cancel"|"pointer_enter"|"pointer_exit"|"press"|"release"|"drag_start"|"drag"|"drag_end"|"drop"|"scroll"
+---@alias DemiUiEventSource "mouse"|"touch"|"keyboard"|"controller"|"state_change"|"node_removed"
+---@class DemiTypedUiEvent
+---@field type DemiUiEventType
+---@field id string
+---@field related_id string Source for a drop, or the other node for pointer enter/exit.
+---@field action string
+---@field text string
+---@field source DemiUiEventSource|string
+---@field pointer_id integer -1 when the event has no pointer.
+---@field x number Position in HUD canvas coordinates.
+---@field y number Position in HUD canvas coordinates.
+---@field delta_x number
+---@field delta_y number
+---@field value number
+---@field checked boolean
+---@field cancelled boolean
 ---@param event DemiUiEvent
 function DemiScript:on_ui_hover(event) end
 ---@param event DemiUiEvent
 function DemiScript:on_ui_click(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_event(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_value_changed(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_focus_gained(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_focus_lost(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_submit(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_cancel(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_pointer_enter(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_pointer_exit(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_press(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_release(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_drag_start(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_drag(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_drag_end(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_drop(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_scroll(event) end
 
 -- Generated from ComponentRegistry metadata.
 ---@class DemiRigidbody2DSpec

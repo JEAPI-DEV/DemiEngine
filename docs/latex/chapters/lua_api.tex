@@ -21,9 +21,22 @@ HUD button scripts may additionally implement:
 \begin{lstlisting}[language={[5.2]Lua}]
 function Script:on_ui_hover(event) end
 function Script:on_ui_click(event) end
+function Script:on_ui_event(event) end
+function Script:on_ui_value_changed(event) end
+function Script:on_ui_submit(event) end
+function Script:on_ui_drag(event) end
+function Script:on_ui_drop(event) end
 \end{lstlisting}
 
-The UI event contains \code{id}, \code{label}, \code{mouse\_x}, and \code{mouse\_y}. Mouse coordinates are in the HUD file canvas coordinate system.
+The compatibility hover/click event contains \code{id}, \code{label},
+\code{mouse\_x}, and \code{mouse\_y}. Typed events cover value changes,
+focus, submit/cancel, pointer enter/exit, press/release, drag/drop, and scroll.
+Their common payload contains \code{type}, \code{id}, \code{related\_id},
+\code{action}, \code{text}, \code{source}, \code{pointer\_id}, position and
+delta coordinates, \code{value}, \code{checked}, and \code{cancelled}.
+Coordinates are in the HUD file canvas coordinate system. Scripts can also
+subscribe to \code{ui\_event} or a specific channel such as
+\code{ui\_submit} through \code{Events}.
 
 \section{Services}
 

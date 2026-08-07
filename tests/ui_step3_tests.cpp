@@ -1,15 +1,17 @@
 #include "demi/filesystem/ProjectPaths.h"
-#include "demi/schema/Validation.h"
 #include "demi/runtime/ui/RichTextParser.h"
 #include "demi/runtime/ui/TextEditingEngine.h"
 #include "demi/runtime/ui/TextLayoutEngine.h"
-#include "demi/runtime/ui/UiMutationQueue.h"
-#include "demi/runtime/ui/UiVirtualCollection.h"
-#include "demi/runtime/ui/UiTweenSystem.h"
-#include "demi/runtime/ui/UiLocalization.h"
 #include "demi/runtime/ui/UiDocumentParser.h"
-#include "demi/runtime/ui/UiStateController.h"
+#include "demi/runtime/ui/UiEventQueue.h"
+#include "demi/runtime/ui/UiInteractionController.h"
+#include "demi/runtime/ui/UiLocalization.h"
+#include "demi/runtime/ui/UiMutationQueue.h"
 #include "demi/runtime/ui/UiPrefabResolver.h"
+#include "demi/runtime/ui/UiStateController.h"
+#include "demi/runtime/ui/UiTweenSystem.h"
+#include "demi/runtime/ui/UiVirtualCollection.h"
+#include "demi/schema/Validation.h"
 
 #include <filesystem>
 #include <fstream>
@@ -21,13 +23,14 @@ using namespace demi::runtime::ui;
 
 int main() {
   TextLayoutEngine text;
-  const auto wrapped = text.layout({.text = "alpha beta gamma delta epsilon",
-                                    .width = 66.0F,
-                                    .fontSize = 10.0F,
-                                    .wrap = TextWrap::Word,
-                                    .horizontal = TextHorizontalAlignment::Center,
-                                    .overflow = TextOverflow::Ellipsis,
-                                    .maxLines = 2});
+  const auto wrapped =
+      text.layout({.text = "alpha beta gamma delta epsilon",
+                   .width = 66.0F,
+                   .fontSize = 10.0F,
+                   .wrap = TextWrap::Word,
+                   .horizontal = TextHorizontalAlignment::Center,
+                   .overflow = TextOverflow::Ellipsis,
+                   .maxLines = 2});
   if (wrapped.lines.size() != 2 || !wrapped.truncated ||
       wrapped.lines.back().text.find("...") == std::string::npos ||
       wrapped.lines.front().x <= 0.0F) {
@@ -47,11 +50,12 @@ int main() {
       TextLayoutEngine::graphemeSlice(emoji, 1, 1) !=
           "\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x92\xBB" ||
       TextLayoutEngine::graphemeSlice("\xFF", 0, 1).has_value()) {
-    std::cerr << "Unicode grapheme boundaries or invalid UTF-8 handling failed.\n";
+    std::cerr
+        << "Unicode grapheme boundaries or invalid UTF-8 handling failed.\n";
     return 1;
   }
-  const auto unicode = text.layout({.text = "مرحبا", .width = 100.0F,
-                                    .fontSize = 12.0F});
+  const auto unicode =
+      text.layout({.text = "مرحبا", .width = 100.0F, .fontSize = 12.0F});
   if (!unicode.validUtf8 || unicode.shapingComplete) {
     std::cerr << "Complex text did not expose incomplete shaping honestly.\n";
     return 1;
@@ -69,8 +73,9 @@ int main() {
                        "\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x92\xBB";
   TextEditingEngine::normalize(edited, editing);
   if (editing.caret != 3 || !TextEditingEngine::backspace(edited, editing) ||
-      edited != "Ae\xCC\x81" || !TextEditingEngine::backspace(edited, editing) ||
-      edited != "A" || editing.caret != 1) {
+      edited != "Ae\xCC\x81" ||
+      !TextEditingEngine::backspace(edited, editing) || edited != "A" ||
+      editing.caret != 1) {
     std::cerr << "Backspace split a Unicode grapheme cluster.\n";
     return 1;
   }
@@ -96,10 +101,12 @@ int main() {
   }
   TextEditingEngine::selectAll(editing, edited);
   if (!TextEditingEngine::setComposition(editing, "候補", 1, 99) ||
-      edited != "β" || TextEditingEngine::displayText(edited, editing) != "候補" ||
+      edited != "β" ||
+      TextEditingEngine::displayText(edited, editing) != "候補" ||
       editing.compositionSelectionLength != 1 ||
       TextEditingEngine::displayCaret(edited, editing) != 2) {
-    std::cerr << "IME composition did not remain separate from committed text.\n";
+    std::cerr
+        << "IME composition did not remain separate from committed text.\n";
     return 1;
   }
   if (!TextEditingEngine::insert(edited, editing, "確定") || edited != "確定" ||
@@ -138,15 +145,16 @@ int main() {
   }
 
   UiDocument document;
-  document.nodes = {{.id = "root", .type = "container"},
-                    {.id = "template", .parent = "root", .type = "button",
-                     .focusable = true},
-                    {.id = "label", .parent = "template", .type = "label"}};
+  document.nodes = {
+      {.id = "root", .type = "container"},
+      {.id = "template", .parent = "root", .type = "button", .focusable = true},
+      {.id = "label", .parent = "template", .type = "label"}};
   document.nodes[1].hovered = true;
   document.nodes[1].textEdit.composition = "transient";
   UiMutationQueue::initializeGenerations(document);
   const auto source = UiMutationQueue::handle(document, "template");
-  if (!source) return 1;
+  if (!source)
+    return 1;
   UiMutationQueue clone;
   clone.clone(*source, "row_1", "root");
   if (!clone.apply(document).applied || document.nodes.size() != 5 ||
@@ -166,7 +174,8 @@ int main() {
   if (!remove.apply(document).applied || !document.focusedId.empty() ||
       !document.pointerCaptureId.empty() || !document.pointerCaptures.empty() ||
       UiMutationQueue::alive(document, row)) {
-    std::cerr << "Removal did not cancel focus/capture or invalidate handles.\n";
+    std::cerr
+        << "Removal did not cancel focus/capture or invalidate handles.\n";
     return 1;
   }
 
@@ -189,8 +198,8 @@ int main() {
 
   UiTweenSystem tweens;
   const auto label = *UiMutationQueue::handle(document, "label");
-  const auto tween = tweens.start(document, label, UiTweenProperty::PositionX,
-                                  100.0F, 1.0F);
+  const auto tween =
+      tweens.start(document, label, UiTweenProperty::PositionX, 100.0F, 1.0F);
   tweens.update(document, 0.5F);
   if (!tween || document.nodes[2].layout.position.x != 50.0F ||
       tweens.activeCount() != 1) {
@@ -208,8 +217,8 @@ int main() {
   UiDocument localized;
   localized.locales["en"] = {{"title", "Start"}};
   localized.locales["de"] = {{"title", "Starten"}};
-  localized.nodes.push_back({.id = "title", .type = "label",
-                             .localizationKey = "title"});
+  localized.nodes.push_back(
+      {.id = "title", .type = "label", .localizationKey = "title"});
   localized.nodes[0].textEdit = {.caret = 50,
                                  .anchor = 40,
                                  .composition = "unfinished",
@@ -231,7 +240,9 @@ int main() {
   }
   UiDocument hidden;
   hidden.nodes = {{.id = "panel", .type = "panel"},
-                  {.id = "control", .parent = "panel", .type = "button",
+                  {.id = "control",
+                   .parent = "panel",
+                   .type = "button",
                    .focusable = true}};
   hidden.nodes[1].textEdit.composition = "unfinished";
   hidden.focusedId = "control";
@@ -243,11 +254,172 @@ int main() {
     return 1;
   }
 
-  const auto range = UiVirtualCollection::visibleRange(10000, 20.0F, 1000.0F,
-                                                        200.0F, 3);
+  const auto range =
+      UiVirtualCollection::visibleRange(10000, 20.0F, 1000.0F, 200.0F, 3);
   if (range.first != 47 || range.count != 16 || range.count >= 10000 ||
       UiVirtualCollection::visibleRange(10, 0.0F, 0.0F, 100.0F).count != 0) {
     std::cerr << "Bounded virtual collection range failed.\n";
+    return 1;
+  }
+
+  UiDocument eventsDocument;
+  eventsDocument.nodes = {
+      {.id = "drag_source",
+       .type = "slider",
+       .resolved = {.x = 0.0F, .y = 0.0F, .width = 100.0F, .height = 40.0F},
+       .maximum = 100.0F,
+       .focusable = true},
+      {.id = "drop_target",
+       .type = "button",
+       .resolved = {.x = 120.0F, .y = 0.0F, .width = 100.0F, .height = 40.0F},
+       .focusable = true},
+  };
+  UiInteractionController eventInteraction;
+  if (!eventInteraction.movePointer(eventsDocument, 0, {10.0F, 10.0F},
+                                    "mouse") ||
+      eventInteraction.movePointer(eventsDocument, 0, {11.0F, 10.0F},
+                                   "mouse") ||
+      !eventInteraction.capturePointer(eventsDocument, 0, {10.0F, 10.0F},
+                                       "mouse") ||
+      !eventInteraction.updatePointer(eventsDocument, 0, {40.0F, 10.0F},
+                                      "mouse") ||
+      !eventInteraction.updatePointer(eventsDocument, 0, {140.0F, 10.0F},
+                                      "mouse") ||
+      !eventInteraction.scrollPointer(eventsDocument, 0, {140.0F, 10.0F},
+                                      {0.0F, -2.0F}, "mouse")) {
+    std::cerr << "Typed pointer interaction setup failed.\n";
+    return 1;
+  }
+  eventInteraction.releasePointer(eventsDocument, 0, {140.0F, 10.0F}, false,
+                                  "mouse");
+  const auto pointerEvents = UiEventQueue::take(eventsDocument);
+  const auto hasEvent = [&](const UiEventType type, const std::string_view id) {
+    return std::ranges::any_of(pointerEvents, [&](const UiEvent &event) {
+      return event.type == type && event.id == id;
+    });
+  };
+  if (!hasEvent(UiEventType::PointerEnter, "drag_source") ||
+      !hasEvent(UiEventType::FocusGained, "drag_source") ||
+      !hasEvent(UiEventType::Press, "drag_source") ||
+      !hasEvent(UiEventType::DragStart, "drag_source") ||
+      !hasEvent(UiEventType::Drag, "drag_source") ||
+      !hasEvent(UiEventType::ValueChanged, "drag_source") ||
+      !hasEvent(UiEventType::PointerExit, "drag_source") ||
+      !hasEvent(UiEventType::PointerEnter, "drop_target") ||
+      !hasEvent(UiEventType::Scroll, "drop_target") ||
+      !hasEvent(UiEventType::Release, "drag_source") ||
+      !hasEvent(UiEventType::DragEnd, "drag_source") ||
+      !hasEvent(UiEventType::Drop, "drop_target") ||
+      !UiEventQueue::take(eventsDocument).empty()) {
+    std::cerr
+        << "Typed UI pointer event sequence was incomplete or repeated.\n";
+    return 1;
+  }
+  eventsDocument.events.clear();
+  if (!eventInteraction.capturePointer(eventsDocument, 3, {10.0F, 10.0F},
+                                       "touch") ||
+      !eventInteraction.updatePointer(eventsDocument, 3, {30.0F, 10.0F},
+                                      "touch")) {
+    return 1;
+  }
+  UiEventQueue::cancelSubtree(eventsDocument, "drag_source", "node_removed");
+  const auto cancelledEvents = UiEventQueue::take(eventsDocument);
+  const auto cancelledCount = static_cast<std::size_t>(
+      std::ranges::count_if(cancelledEvents, [](const UiEvent &event) {
+        return event.type == UiEventType::Cancel && event.id == "drag_source";
+      }));
+  if (eventInteraction.pointerCaptured(eventsDocument, 3) ||
+      cancelledCount != 1 ||
+      std::ranges::none_of(cancelledEvents,
+                           [](const UiEvent &event) {
+                             return event.type == UiEventType::Cancel &&
+                                    event.id == "drag_source" &&
+                                    event.cancelled;
+                           }) ||
+      std::ranges::none_of(cancelledEvents,
+                           [](const UiEvent &event) {
+                             return event.type == UiEventType::DragEnd &&
+                                    event.id == "drag_source" &&
+                                    event.cancelled;
+                           }) ||
+      std::ranges::none_of(cancelledEvents, [](const UiEvent &event) {
+        return event.type == UiEventType::PointerExit &&
+               event.id == "drag_source" && event.cancelled;
+      })) {
+    std::cerr << "Removing a captured UI subtree did not cancel interaction.\n";
+    return 1;
+  }
+
+  UiDocument multiPointer;
+  multiPointer.nodes = {
+      {.id = "touch_target",
+       .type = "button",
+       .resolved = {.x = 0.0F, .y = 0.0F, .width = 50.0F, .height = 50.0F},
+       .focusable = true}};
+  (void)eventInteraction.movePointer(multiPointer, 1, {10.0F, 10.0F}, "touch");
+  (void)eventInteraction.movePointer(multiPointer, 2, {20.0F, 20.0F}, "touch");
+  (void)eventInteraction.movePointer(multiPointer, 1, {80.0F, 80.0F}, "touch");
+  if (!multiPointer.nodes[0].hovered) {
+    std::cerr << "One touch exit cleared another touch's hover state.\n";
+    return 1;
+  }
+  (void)eventInteraction.movePointer(multiPointer, 2, {80.0F, 80.0F}, "touch");
+  if (multiPointer.nodes[0].hovered) {
+    std::cerr << "Final touch exit retained stale hover state.\n";
+    return 1;
+  }
+
+  UiDocument keyboardEvents;
+  keyboardEvents.nodes = {
+      {.id = "toggle",
+       .type = "toggle",
+       .action = "toggle_setting",
+       .focusable = true},
+      {.id = "editor", .type = "text_input", .focusable = true}};
+  if (!eventInteraction.focusNext(keyboardEvents) ||
+      !eventInteraction.activateFocused(keyboardEvents, "keyboard") ||
+      !eventInteraction.focusNext(keyboardEvents)) {
+    std::cerr << "Keyboard UI event setup failed.\n";
+    return 1;
+  }
+  (void)eventInteraction.activateFocused(keyboardEvents, "mouse");
+  const auto keyboardEventBatch = UiEventQueue::take(keyboardEvents);
+  const auto eventCount = [&](const UiEventType type,
+                              const std::string_view id) {
+    return std::ranges::count_if(keyboardEventBatch, [&](const UiEvent &event) {
+      return event.type == type && event.id == id;
+    });
+  };
+  if (!keyboardEvents.nodes[0].checked ||
+      eventCount(UiEventType::ValueChanged, "toggle") != 1 ||
+      eventCount(UiEventType::Submit, "toggle") != 1 ||
+      eventCount(UiEventType::FocusLost, "toggle") != 1 ||
+      eventCount(UiEventType::FocusGained, "editor") != 1 ||
+      eventCount(UiEventType::Submit, "editor") != 0) {
+    std::cerr << "Typed keyboard, toggle, or text-input events were wrong.\n";
+    return 1;
+  }
+
+  UiDocument scrollEvents;
+  scrollEvents.nodes = {
+      {.id = "scroll_view",
+       .type = "scroll",
+       .resolved = {.x = 0.0F, .y = 0.0F, .width = 100.0F, .height = 100.0F}},
+      {.id = "scroll_label",
+       .parent = "scroll_view",
+       .type = "label",
+       .resolved = {.x = 0.0F, .y = 0.0F, .width = 100.0F, .height = 30.0F}},
+  };
+  if (!eventInteraction.scrollPointer(scrollEvents, 0, {10.0F, 10.0F},
+                                      {0.0F, -1.0F}, "mouse")) {
+    std::cerr << "Non-focusable scroll container rejected wheel input.\n";
+    return 1;
+  }
+  const auto scrollEventBatch = UiEventQueue::take(scrollEvents);
+  if (scrollEventBatch.size() != 1 ||
+      scrollEventBatch[0].type != UiEventType::Scroll ||
+      scrollEventBatch[0].id != "scroll_view") {
+    std::cerr << "Wheel input did not route to the nearest scroll ancestor.\n";
     return 1;
   }
 
@@ -301,8 +473,8 @@ int main() {
     return 1;
   }
   const UiDocument prefabDocument = parseUiDocument(*expandedPrefab.document);
-  const auto confirm = std::ranges::find(prefabDocument.nodes, "confirm",
-                                         &UiNode::id);
+  const auto confirm =
+      std::ranges::find(prefabDocument.nodes, "confirm", &UiNode::id);
   const auto nested = std::ranges::find(prefabDocument.nodes,
                                         "confirm.status.caption", &UiNode::id);
   if (confirm == prefabDocument.nodes.end() ||
@@ -312,11 +484,12 @@ int main() {
     return 1;
   }
   nlohmann::json invalidArguments = prefabHud;
-  invalidArguments["root"]["children"][0]["arguments"] = {
-      {"label", 7}, {"unknown", true}};
+  invalidArguments["root"]["children"][0]["arguments"] = {{"label", 7},
+                                                          {"unknown", true}};
   const auto rejectedArguments = expandUiDocument(hudPath, invalidArguments);
   if (rejectedArguments.document || rejectedArguments.diagnostics.size() < 2) {
-    std::cerr << "Invalid UI prefab arguments were not rejected transactionally.\n";
+    std::cerr
+        << "Invalid UI prefab arguments were not rejected transactionally.\n";
     return 1;
   }
   nlohmann::json ambiguousNode = prefabHud;
@@ -356,14 +529,15 @@ int main() {
     return 1;
   }
   nlohmann::json cyclicHud = prefabHud;
-  cyclicHud["root"]["children"] = nlohmann::json::array(
-      {{{"id", "cycle"}, {"prefab", "ui-prefab://cycle_a"},
-        {"arguments", nlohmann::json::object()}}});
+  cyclicHud["root"]["children"] =
+      nlohmann::json::array({{{"id", "cycle"},
+                              {"prefab", "ui-prefab://cycle_a"},
+                              {"arguments", nlohmann::json::object()}}});
   const auto rejectedCycle = expandUiDocument(hudPath, cyclicHud);
   if (rejectedCycle.document ||
-      std::ranges::none_of(rejectedCycle.diagnostics, [](const auto &item) {
-        return item.code == "UI_PREFAB_CYCLE";
-      }) ||
+      std::ranges::none_of(
+          rejectedCycle.diagnostics,
+          [](const auto &item) { return item.code == "UI_PREFAB_CYCLE"; }) ||
       resolveUiPrefabReference(hudPath, "ui-prefab://../outside")) {
     std::cerr << "UI prefab cycle or traversal protection failed.\n";
     return 1;
@@ -376,8 +550,7 @@ int main() {
     return 1;
   }
   const auto validPrefabDiagnostics = demi::validateTextFile(
-      prefabRoot / "ui/button.ui.prefab.json",
-      demi::SourceFileKind::UiPrefab);
+      prefabRoot / "ui/button.ui.prefab.json", demi::SourceFileKind::UiPrefab);
   if (demi::hasErrors(validPrefabDiagnostics)) {
     std::cerr << "Valid UI prefab failed CLI-source validation.\n";
     return 1;
@@ -388,9 +561,10 @@ int main() {
   }
   const auto invalidHudDiagnostics =
       demi::validateTextFile(hudPath, demi::SourceFileKind::Hud);
-  if (std::ranges::none_of(invalidHudDiagnostics, [](const auto &item) {
-        return item.code == "UI_PREFAB_ARGUMENT_UNKNOWN";
-      }) ||
+  if (std::ranges::none_of(invalidHudDiagnostics,
+                           [](const auto &item) {
+                             return item.code == "UI_PREFAB_ARGUMENT_UNKNOWN";
+                           }) ||
       std::ranges::none_of(invalidHudDiagnostics, [](const auto &item) {
         return item.code == "UI_PREFAB_ARGUMENT_TYPE";
       })) {

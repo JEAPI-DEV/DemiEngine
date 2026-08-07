@@ -436,9 +436,13 @@ the dynamic `ui_showcase` probe, grapheme-safe caret/selection editing, and SDL
 IME composition with explicit commit/cancel behavior are covered. Project-
 authored UI prefabs now add validated typed parameters, defaults, nested
 instances, deterministic prefixed IDs, cycle/path-traversal protection, and
-transactional failure through the same retained-tree path.
+transactional failure through the same retained-tree path. Backend-neutral
+typed events now cover value changes, focus, submit/cancel, independent
+pointer enter/exit and capture, press/release, drag/drop, and scrolling, with
+Lua node callbacks and event-bus channels. Hidden, disabled, and removed
+subtrees deterministically cancel capture, focus, and active drags.
 Complex-script shaping, font-fallback atlas pages, variable-height recycling,
-and the remaining typed accessibility/input events are still required before
+and accessibility-tree output are still required before
 this step meets its full done criteria; the text adapter reports incomplete
 shaping instead of silently claiming correctness meanwhile.
 

@@ -248,6 +248,13 @@ public:
             input.pointerButton(name, event.button.down);
         }
         break;
+      case SDL_EVENT_MOUSE_WHEEL: {
+        const float direction =
+            event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1.0F : 1.0F;
+        input.pointerScroll(event.wheel.x * direction,
+                            event.wheel.y * direction);
+        break;
+      }
       case SDL_EVENT_FINGER_DOWN:
       case SDL_EVENT_FINGER_MOTION:
       case SDL_EVENT_FINGER_UP:

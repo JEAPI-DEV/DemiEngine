@@ -79,6 +79,9 @@ function Probe:on_start()
   Events.subscribe("hud_action", function(event)
     Save.set_string("test", "hud_action", event.action .. ":" .. event.id)
   end)
+  Events.subscribe("ui_submit", function(event)
+    Save.set_string("test", "ui_submit_event", event.type .. ":" .. event.id .. ":" .. event.source)
+  end)
   Events.emit("test.script_event", { value = "script" })
   Events.emit("test.module_event", { value = "module" })
   if Hud.set_button_label("button_start", "GO") then
@@ -293,6 +296,9 @@ return ActionModule
 local Button = {}
 function Button:on_ui_click(event)
   Save.set_string("test", "clicked", event.id)
+end
+function Button:on_ui_submit(event)
+  Save.set_string("test", "ui_submit_callback", event.type .. ":" .. event.id)
 end
 return Button
 )lua")) {
@@ -704,6 +710,12 @@ return PropProbe
   }
   if (host.saveString("test", "hud_action") != "test.annotated:button_start") {
     std::cerr << "HUD button action annotation did not emit hud_action.\n";
+    return 1;
+  }
+  if (host.saveString("test", "ui_submit_event") !=
+          "submit:button_start:mouse" ||
+      host.saveString("test", "ui_submit_callback") != "submit:button_start") {
+    std::cerr << "Typed UI submit event did not reach Lua callbacks.\n";
     return 1;
   }
   if (host.saveString("test", "ui_pointer_capture") != "captured") {

@@ -7,12 +7,12 @@
 #include "demi/runtime/scripting/bindings/LuaRandomBindings.h"
 #include "demi/runtime/scripting/bindings/LuaTlsBindings.h"
 #include "demi/runtime/scripting/bindings/animation/LuaAnimationBindings.h"
+#include "demi/runtime/scripting/bindings/components/LuaCamera3DBindings.h"
+#include "demi/runtime/scripting/bindings/components/LuaCharacterController3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics3DBindings.h"
-#include "demi/runtime/scripting/bindings/components/LuaRigidbody3DBindings.h"
-#include "demi/runtime/scripting/bindings/components/LuaCharacterController3DBindings.h"
-#include "demi/runtime/scripting/bindings/components/LuaCamera3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaRigidbody2DBindings.h"
+#include "demi/runtime/scripting/bindings/components/LuaRigidbody3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaSprite2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaTilemap2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaTransform2DBindings.h"
@@ -79,13 +79,32 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaNavigation2DBindingModule navigation2D;
   const LuaTilemap2DBindingModule tilemap2D;
   const LuaDataBindingModule data;
-  const LuaBindingModule *modules[] = {
-      &core,         &entity,    &transform2D, &transform3D, &rigidbody2D,
-      &rigidbody3D,  &characterController3D, &camera3D,
-      &sprite2D,     &physics2D, &physics3D,   &hud,         &save,
-      &audio,        &video,     &cutscene,    &network,     &networkSession,
-      &tls,          &regex,     &random,      &isoGrid,     &animation,
-      &navigation2D, &tilemap2D, &data};
+  const LuaBindingModule *modules[] = {&core,
+                                       &entity,
+                                       &transform2D,
+                                       &transform3D,
+                                       &rigidbody2D,
+                                       &rigidbody3D,
+                                       &characterController3D,
+                                       &camera3D,
+                                       &sprite2D,
+                                       &physics2D,
+                                       &physics3D,
+                                       &hud,
+                                       &save,
+                                       &audio,
+                                       &video,
+                                       &cutscene,
+                                       &network,
+                                       &networkSession,
+                                       &tls,
+                                       &regex,
+                                       &random,
+                                       &isoGrid,
+                                       &animation,
+                                       &navigation2D,
+                                       &tilemap2D,
+                                       &data};
   for (const LuaBindingModule *module : modules) {
     module->install(host, state);
   }
@@ -276,6 +295,56 @@ void luaCallUiEvent(lua_State *state, const int tableRef,
   if (!luaCall(state, 2, 0, error)) {
     luaReportCallbackError(functionName, path, node.id, error);
   }
+  lua_pop(state, 1);
+}
+
+void luaPushUiEvent(lua_State *state, const ui::UiEvent &event) {
+  lua_newtable(state);
+  const std::string_view type = ui::uiEventTypeName(event.type);
+  lua_pushlstring(state, type.data(), type.size());
+  lua_setfield(state, -2, "type");
+  lua_pushstring(state, event.id.c_str());
+  lua_setfield(state, -2, "id");
+  lua_pushstring(state, event.relatedId.c_str());
+  lua_setfield(state, -2, "related_id");
+  lua_pushstring(state, event.action.c_str());
+  lua_setfield(state, -2, "action");
+  lua_pushstring(state, event.text.c_str());
+  lua_setfield(state, -2, "text");
+  lua_pushstring(state, event.source.c_str());
+  lua_setfield(state, -2, "source");
+  lua_pushinteger(state, static_cast<lua_Integer>(event.pointerId));
+  lua_setfield(state, -2, "pointer_id");
+  lua_pushnumber(state, event.position.x);
+  lua_setfield(state, -2, "x");
+  lua_pushnumber(state, event.position.y);
+  lua_setfield(state, -2, "y");
+  lua_pushnumber(state, event.delta.x);
+  lua_setfield(state, -2, "delta_x");
+  lua_pushnumber(state, event.delta.y);
+  lua_setfield(state, -2, "delta_y");
+  lua_pushnumber(state, event.value);
+  lua_setfield(state, -2, "value");
+  lua_pushboolean(state, event.checked);
+  lua_setfield(state, -2, "checked");
+  lua_pushboolean(state, event.cancelled);
+  lua_setfield(state, -2, "cancelled");
+}
+
+void luaCallTypedUiEvent(lua_State *state, const int tableRef,
+                         const char *functionName, const ui::UiEvent &event,
+                         const std::filesystem::path &path) {
+  lua_rawgeti(state, LUA_REGISTRYINDEX, tableRef);
+  lua_getfield(state, -1, functionName);
+  if (!lua_isfunction(state, -1)) {
+    lua_pop(state, 2);
+    return;
+  }
+  lua_pushvalue(state, -2);
+  luaPushUiEvent(state, event);
+  std::string error;
+  if (!luaCall(state, 2, 0, error))
+    luaReportCallbackError(functionName, path, event.id, error);
   lua_pop(state, 1);
 }
 

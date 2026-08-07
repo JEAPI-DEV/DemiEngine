@@ -64,6 +64,7 @@ struct InputState {
   std::unordered_set<std::string> mouseButtonsReleased;
   Vec2 mousePosition;
   Vec2 mouseDelta;
+  Vec2 mouseScroll;
   std::string textEntered;
   std::string textComposition;
   std::size_t textCompositionSelectionStart = 0;

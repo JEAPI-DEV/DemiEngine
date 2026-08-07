@@ -22,6 +22,7 @@
           "mouse_buttons_released": {"$ref": "#/$defs/strings"},
           "mouse_position": {"$ref": "#/$defs/vec2"},
           "mouse_delta": {"$ref": "#/$defs/vec2"},
+          "mouse_scroll": {"$ref": "#/$defs/vec2"},
           "text_entered": {"type": "string"},
           "text_composition": {"type": "string"},
           "text_composition_selection_start": {"type": "integer", "minimum": 0},
