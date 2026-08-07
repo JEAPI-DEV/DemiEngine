@@ -1044,6 +1044,8 @@ Hud = {}
 ---@field style? string
 ---@field texture? string
 ---@field accessibility_label? string
+---@field accessibility_description? string
+---@field accessibility_hidden? boolean
 ---@field visible? boolean
 ---@field disabled? boolean
 ---@field focusable? boolean
@@ -1082,6 +1084,28 @@ function Hud.clear_children(parent) end
 ---@param parent string
 ---@return string[]
 function Hud.children(parent) end
+---@alias HudAccessibilityRole "generic"|"group"|"static_text"|"image"|"button"|"check_box"|"slider"|"text_field"|"scroll_area"|"list"|"progress_bar"|"dialog"|"joystick"
+---@class HudAccessibilityNode
+---@field id string
+---@field parent string
+---@field role HudAccessibilityRole
+---@field label string
+---@field description string
+---@field value_text string
+---@field x number
+---@field y number
+---@field width number
+---@field height number
+---@field value number
+---@field minimum number
+---@field maximum number
+---@field focused boolean
+---@field disabled boolean
+---@field checked boolean
+---@field focusable boolean
+---@field offscreen boolean
+---@return HudAccessibilityNode[]
+function Hud.accessibility_snapshot() end
 ---@param node HudNodeHandle
 ---@param property "opacity"|"x"|"y"|"scale"
 ---@param target number

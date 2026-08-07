@@ -61,6 +61,7 @@ struct UiNode {
   std::string action;
   std::string control;
   std::string accessibilityLabel;
+  std::string accessibilityDescription;
   std::string script;
   std::string group;
   LayoutSpec layout;
@@ -94,6 +95,7 @@ struct UiNode {
   bool focusable = false;
   bool checked = false;
   bool hovered = false;
+  bool accessibilityHidden = false;
   TextEditState textEdit;
 };
 

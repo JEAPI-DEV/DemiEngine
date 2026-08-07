@@ -27,6 +27,7 @@ add_library(demi-core STATIC
   src/demi/runtime/ui/UiVirtualCollection.cpp
   src/demi/runtime/ui/UiTweenSystem.cpp
   src/demi/runtime/ui/UiLocalization.cpp
+  src/demi/runtime/ui/UiAccessibilityTree.cpp
   src/demi/runtime/ui/UiEvent.cpp
   src/demi/runtime/ui/UiEventQueue.cpp
   src/demi/runtime/ui/UiInteractionController.cpp

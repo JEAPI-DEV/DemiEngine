@@ -84,6 +84,16 @@ Hud.set_visible("points", true)
 Hud.set_group_visible("menu_main", false)
 \end{lstlisting}
 
+\code{Hud.accessibility\_snapshot()} returns the live backend-neutral semantic
+tree as an array. Each entry includes its stable ID, semantic parent, inferred
+role, label, description, text value, canvas bounds, numeric range, and
+focused, disabled, checked, focusable, and offscreen states. Bounds respect
+scroll clipping. Authored nodes may provide
+\code{accessibility\_label}, \code{accessibility\_description}, or
+\code{accessibility\_hidden}. Unlabeled layout containers are flattened and
+hidden/decorative subtrees are omitted. Native operating-system screen-reader
+bridges remain separate platform adapters.
+
 \section{Scene Switching}
 
 \code{Scene.load} requests a runtime scene switch by scene id. The switch is deferred: it is applied between frames by the runtime loop, so it is safe to call from any Lua callback (menu buttons, update, fixed update).

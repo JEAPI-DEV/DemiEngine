@@ -195,6 +195,37 @@ Control actions continue through `---@handle_action` and the legacy
 code should use typed events when it needs lifecycle information. No Lua code
 is required to position or resize widgets.
 
+## Accessibility semantics
+
+Every retained UI document can produce a renderer- and platform-independent
+semantic snapshot through `Hud.accessibility_snapshot()`. The snapshot derives
+roles from normal node types and reports stable IDs, semantic parents, labels,
+descriptions, live values, checked/focused/disabled states, and bounds in HUD
+canvas coordinates. Bounds are clipped through scroll ancestors and fully
+clipped nodes remain represented with `offscreen = true`. Buttons and labels
+fall back to their visible text;
+text-input fields fall back to their placeholder. Use
+`accessibility_label` when the visible content is not a sufficient spoken
+label, and `accessibility_description` for optional supplementary context.
+
+Unlabeled layout-only panels are flattened instead of adding noise to the
+semantic tree. Decorative images are omitted unless they have an accessibility
+label. Invisible nodes and descendants of an invisible node are omitted.
+`accessibility_hidden: true` explicitly removes a decorative subtree, while a
+disabled node remains present and passes its disabled state to descendants.
+The tree remains cycle-safe and sanitizes invalid resolved bounds at this
+boundary.
+
+```lua
+for _, node in ipairs(Hud.accessibility_snapshot()) do
+  Debug.log(node.role .. ": " .. node.label)
+end
+```
+
+This is the stable semantic source for future Linux and Android accessibility
+adapters; game scripts do not need to maintain a second UI tree. Native screen
+reader bridges and accessibility-originated actions are not implemented yet.
+
 For searchable lists, `Hud.get_text` returns a tree text-input's current value.
 `Regex.matches(value, pattern, case_sensitive)` performs an ECMAScript regular
 expression search (`case_sensitive` defaults to `false`), and

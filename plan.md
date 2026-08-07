@@ -440,9 +440,13 @@ transactional failure through the same retained-tree path. Backend-neutral
 typed events now cover value changes, focus, submit/cancel, independent
 pointer enter/exit and capture, press/release, drag/drop, and scrolling, with
 Lua node callbacks and event-bus channels. Hidden, disabled, and removed
-subtrees deterministically cancel capture, focus, and active drags.
+subtrees deterministically cancel capture, focus, and active drags. A
+backend-neutral accessibility snapshot now derives semantic roles, hierarchy,
+labels, descriptions, values, states, and safe canvas bounds from the same
+retained tree, including hidden/decorative filtering and inherited disabled
+state.
 Complex-script shaping, font-fallback atlas pages, variable-height recycling,
-and accessibility-tree output are still required before
+native accessibility bridges/actions are still required before
 this step meets its full done criteria; the text adapter reports incomplete
 shaping instead of silently claiming correctness meanwhile.
 

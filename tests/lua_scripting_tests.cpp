@@ -87,6 +87,11 @@ function Probe:on_start()
   if Hud.set_button_label("button_start", "GO") then
     Save.set_string("test", "button_label", "updated")
   end
+  for _, node in ipairs(Hud.accessibility_snapshot()) do
+    if node.id == "button_start" and node.role == "button" and node.label == "GO" then
+      Save.set_string("test", "accessibility_snapshot", "passed")
+    end
+  end
   Hud.text("hud_probe", "probe", 8.0, 12.0, 2.0)
   if Hud.set_text_scale("hud_probe", 5.5) then
     Save.set_string("test", "hud_text_scale", "updated")
@@ -512,6 +517,11 @@ return PropProbe
       buttonStartNode == world.ui.nodes.end() ||
       buttonStartNode->text != "GO") {
     std::cerr << "Hud.set_button_label did not update the HUD button label.\n";
+    return 1;
+  }
+  if (host.saveString("test", "accessibility_snapshot") != "passed") {
+    std::cerr
+        << "Hud.accessibility_snapshot did not expose live UI semantics.\n";
     return 1;
   }
   const auto hudProbe = std::ranges::find_if(

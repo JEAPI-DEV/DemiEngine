@@ -2,6 +2,7 @@
 #include "demi/runtime/ui/RichTextParser.h"
 #include "demi/runtime/ui/TextEditingEngine.h"
 #include "demi/runtime/ui/TextLayoutEngine.h"
+#include "demi/runtime/ui/UiAccessibilityTree.h"
 #include "demi/runtime/ui/UiDocumentParser.h"
 #include "demi/runtime/ui/UiEventQueue.h"
 #include "demi/runtime/ui/UiInteractionController.h"
@@ -16,6 +17,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <nlohmann/json.hpp>
 #include <ranges>
 
@@ -251,6 +253,140 @@ int main() {
       !hidden.focusedId.empty() || !hidden.pointerCaptures.empty() ||
       !hidden.nodes[1].textEdit.composition.empty()) {
     std::cerr << "Hiding an ancestor retained descendant interaction state.\n";
+    return 1;
+  }
+
+  UiDocument accessibility;
+  accessibility.focusedId = "music";
+  accessibility.nodes = {
+      {.id = "root", .type = "panel"},
+      {.id = "heading",
+       .parent = "root",
+       .type = "label",
+       .text = "Audio settings",
+       .resolved = {.x = 10.0F, .y = 10.0F, .width = 200.0F, .height = 30.0F}},
+      {.id = "decorative", .parent = "root", .type = "image"},
+      {.id = "controls",
+       .parent = "root",
+       .type = "panel",
+       .accessibilityLabel = "Sound controls",
+       .disabled = true},
+      {.id = "music",
+       .parent = "controls",
+       .type = "toggle",
+       .text = "Music",
+       .accessibilityDescription = "Play background music",
+       .focusable = true,
+       .checked = true},
+      {.id = "hidden_group",
+       .parent = "root",
+       .type = "panel",
+       .visible = false},
+      {.id = "hidden_button",
+       .parent = "hidden_group",
+       .type = "button",
+       .text = "Hidden",
+       .focusable = true},
+      {.id = "ignored_group",
+       .parent = "root",
+       .type = "panel",
+       .accessibilityHidden = true},
+      {.id = "ignored_button",
+       .parent = "ignored_group",
+       .type = "button",
+       .text = "Ignored",
+       .focusable = true},
+      {.id = "editor",
+       .parent = "root",
+       .type = "text_input",
+       .text = "Ada",
+       .placeholder = "Player name",
+       .resolved = {.x = std::numeric_limits<float>::quiet_NaN(),
+                    .y = 70.0F,
+                    .width = -10.0F,
+                    .height = 24.0F},
+       .disabled = true,
+       .focusable = true},
+      {.id = "cycle_a",
+       .parent = "cycle_b",
+       .type = "button",
+       .text = "Cycle A",
+       .focusable = true},
+      {.id = "cycle_b",
+       .parent = "cycle_a",
+       .type = "button",
+       .text = "Cycle B",
+       .focusable = true},
+  };
+  const auto accessibilityTree = UiAccessibilityTree::snapshot(accessibility);
+  const auto accessibleNode =
+      [&](const std::string_view id) -> const UiAccessibilityNode * {
+    const auto found =
+        std::ranges::find(accessibilityTree, id, &UiAccessibilityNode::id);
+    return found == accessibilityTree.end() ? nullptr : &*found;
+  };
+  const UiAccessibilityNode *heading = accessibleNode("heading");
+  const UiAccessibilityNode *controls = accessibleNode("controls");
+  const UiAccessibilityNode *music = accessibleNode("music");
+  const UiAccessibilityNode *editor = accessibleNode("editor");
+  if (accessibilityTree.size() != 4 || heading == nullptr ||
+      controls == nullptr || music == nullptr || editor == nullptr ||
+      heading->role != UiAccessibilityRole::StaticText ||
+      heading->label != "Audio settings" || !heading->parent.empty() ||
+      controls->role != UiAccessibilityRole::Group ||
+      music->role != UiAccessibilityRole::CheckBox ||
+      music->parent != "controls" || !music->focused || !music->disabled ||
+      !music->checked || music->description != "Play background music" ||
+      editor->role != UiAccessibilityRole::TextField ||
+      editor->label != "Player name" || editor->valueText != "Ada" ||
+      !editor->disabled || editor->bounds.x != 0.0F ||
+      editor->bounds.width != 0.0F || accessibleNode("decorative") != nullptr ||
+      accessibleNode("hidden_button") != nullptr ||
+      accessibleNode("ignored_button") != nullptr ||
+      accessibleNode("cycle_a") != nullptr) {
+    std::cerr << "Accessibility snapshot semantics or filtering failed.\n";
+    return 1;
+  }
+
+  UiDocument clippedAccessibility;
+  clippedAccessibility.nodes = {
+      {.id = "scroll",
+       .type = "scroll",
+       .resolved = {.x = 0.0F, .y = 0.0F, .width = 100.0F, .height = 50.0F}},
+      {.id = "offscreen",
+       .parent = "scroll",
+       .type = "button",
+       .text = "Later item",
+       .resolved = {.x = 0.0F, .y = 80.0F, .width = 100.0F, .height = 20.0F},
+       .focusable = true},
+  };
+  const auto clippedTree = UiAccessibilityTree::snapshot(clippedAccessibility);
+  if (clippedTree.size() != 2 || clippedTree[1].id != "offscreen" ||
+      clippedTree[1].parent != "scroll" || !clippedTree[1].offscreen ||
+      clippedTree[1].bounds.height != 0.0F) {
+    std::cerr << "Accessibility scroll clipping state failed.\n";
+    return 1;
+  }
+
+  UiDocument duplicateAccessibility;
+  duplicateAccessibility.nodes = {
+      {.id = "duplicate", .type = "button", .text = "Hidden", .visible = false},
+      {.id = "duplicate", .type = "button", .text = "Visible"},
+  };
+  if (!UiAccessibilityTree::snapshot(duplicateAccessibility).empty()) {
+    std::cerr << "Accessibility duplicate IDs did not use the first node as "
+                 "canonical.\n";
+    return 1;
+  }
+
+  const UiDocument parsedAccessibility = parseUiDocument(nlohmann::json::parse(
+      R"({"root":{"id":"probe","type":"button","accessibility_label":"Run","accessibility_description":"Starts the probe","accessibility_hidden":true}})"));
+  if (parsedAccessibility.nodes.size() != 1 ||
+      parsedAccessibility.nodes[0].accessibilityLabel != "Run" ||
+      parsedAccessibility.nodes[0].accessibilityDescription !=
+          "Starts the probe" ||
+      !parsedAccessibility.nodes[0].accessibilityHidden) {
+    std::cerr << "Accessibility HUD metadata did not parse.\n";
     return 1;
   }
 
