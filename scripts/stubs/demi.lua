@@ -1159,6 +1159,26 @@ function Hud.visible_range(item_count, item_extent, scroll_offset, viewport_exte
 ---@return HudVirtualLayout|nil layout
 ---@return string error
 function Hud.virtual_layout(item_extents) end
+---@class HudRecycledRow
+---@field key string Stable game-owned data key.
+---@field index integer One-based logical row index.
+---@field node HudNodeHandle Generation-checked live row root.
+---@field offset number Logical offset in the collection.
+---@field extent number Logical row extent.
+---@field rebound boolean True when this pool slot was reset for a new key.
+---@param collection_id string Stable owner ID for this recycler.
+---@param row_template HudNodeHandle Hidden template node whose parent owns rows.
+---@param keys string[] Stable unique row keys in display order.
+---@param extents number[] Positive row extents matching keys.
+---@param scroll_offset number
+---@param viewport_extent number
+---@param overscan? integer
+---@return HudRecycledRow[] rows
+---@return string error
+function Hud.recycle_rows(collection_id, row_template, keys, extents, scroll_offset, viewport_extent, overscan) end
+---@param collection_id string
+---@return boolean cleared
+function Hud.clear_recycled_rows(collection_id) end
 ---@return number width
 ---@return number height
 function Hud.canvas_size() end

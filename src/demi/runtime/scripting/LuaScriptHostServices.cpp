@@ -379,8 +379,24 @@ void LuaScriptHost::dispatchHudEvents() {
               input_->virtualAxes[captured->control] = axis;
             }
           }
-          if (interaction.updatePointer(world_->ui, touch.id, position,
-                                        "touch"))
+          bool changed = interaction.updatePointer(world_->ui, touch.id,
+                                                   position, "touch");
+          if (touch.phase == TouchPhase::Moved &&
+              (touch.delta.x != 0.0F || touch.delta.y != 0.0F)) {
+            const Vec2 canvasDelta{
+                .x = -touch.delta.x *
+                     std::max(world_->hudCanvasSize.x, 1.0F) /
+                     static_cast<float>(std::max(viewportWidth_, 1)),
+                .y = -touch.delta.y *
+                     std::max(world_->hudCanvasSize.y, 1.0F) /
+                     static_cast<float>(std::max(viewportHeight_, 1)),
+            };
+            changed = interaction.scrollPointer(world_->ui, touch.id,
+                                                  position, canvasDelta,
+                                                  "touch") ||
+                      changed;
+          }
+          if (changed)
             ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
         }
       }

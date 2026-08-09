@@ -427,7 +427,7 @@ by visual novels, RPGs, strategy games, settings screens, inventories, quest
 logs, editors, and lobbies. It does not add an engine-owned dialogue widget,
 inventory screen, quest screen, or other genre-specific presentation.
 
-**Status: in progress.** The 3A/3C foundation is implemented: Unicode grapheme
+**Status: completed.** The 3A/3C foundation includes Unicode grapheme
 segmentation, immutable wrapping/alignment/ellipsis results, selection/hit
 geometry, bounded caching, rich-text validation, renderer integration,
 generation-checked transactional mutations, runtime subtree cloning, bounded
@@ -445,11 +445,17 @@ subtrees deterministically cancel capture, focus, and active drags. A
 backend-neutral accessibility snapshot now derives semantic roles, hierarchy,
 labels, descriptions, values, states, and safe canvas bounds from the same
 retained tree, including hidden/decorative filtering and inherited disabled
-state.
-Complex-script shaping, font-fallback atlas pages, row-node recycling with
-interaction-state reset, native accessibility bridges/actions are still required before
-this step meets its full done criteria; the text adapter reports incomplete
-shaping instead of silently claiming correctness meanwhile.
+state. HarfBuzz and SheenBidi now provide complex-script shaping and visual
+run ordering behind engine-owned contracts. Ordered project font fallbacks,
+demand-rasterized bounded atlas pages, missing-glyph diagnostics, and safe font
+reload invalidation share those shaping results with measurement and drawing.
+Stable-key row recycling keeps only the visible range plus overscan alive and
+resets focus, pointer capture, drag state, runtime descendants, text edits, and
+tweens before rebinding. Typed accessibility actions use the normal UI event
+and state paths; the thread-safe platform bridge publishes retained-tree
+snapshots to Linux/native hosts and an Android `AccessibilityNodeProvider`.
+The `ui_showcase` now exercises a searchable ten-thousand-row collection with
+mouse-wheel and touch scrolling through the public Lua API.
 
 ### Scope boundary
 

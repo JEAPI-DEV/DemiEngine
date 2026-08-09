@@ -87,8 +87,15 @@
             "layout": "column",
             "children": [
               {"id": "inventory_title", "type": "label", "localization_key": "inventory", "size": [250, 38], "font_size": 26},
-              {"id": "inventory_search", "type": "text_input", "style": "control", "placeholder_localization_key": "search", "size": [250, 42]},
-              {"id": "inventory_grid", "type": "list", "size": [250, 300], "layout": "grid", "columns": 3, "gap": 8}
+              {"id": "inventory_search", "type": "text_input", "style": "control", "placeholder_localization_key": "search", "size": [250, 42], "text_vertical_alignment": "center"},
+              {
+                "id": "inventory_grid",
+                "type": "container",
+                "size": [250, 300],
+                "children": [
+                  {"id": "inventory_row_template", "type": "button", "style": "control", "visible": false, "text": "Row", "size": [250, 36]}
+                ]
+              }
             ]
           }
         ]

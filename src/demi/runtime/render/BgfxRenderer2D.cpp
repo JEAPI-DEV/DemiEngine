@@ -106,7 +106,29 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
   tilemaps_.clear();
   textureAnimations_.clear();
   bool success = materials_.load(registry, diagnostics);
+  std::string fontError;
+  font_.shutdown();
+  if (!font_.initializeDefault(48.0F, fontError)) {
+    diagnostics.push_back("asset://fonts/default: " + fontError);
+    return false;
+  }
   for (const AssetManifest &asset : registry.assets) {
+    if (asset.type == "Font2D") {
+      const auto bytes = readBytes(asset.sourcePath);
+      std::uint64_t revision = 1469598103934665603ULL;
+      for (const unsigned char byte : asset.sourceHash) {
+        revision ^= byte;
+        revision *= 1099511628211ULL;
+      }
+      std::string error;
+      if (bytes.empty() ||
+          !font_.addFallback(asset.id, bytes, revision, error)) {
+        diagnostics.push_back(asset.id + ": " +
+                              (error.empty() ? "could not read source" : error));
+        success = false;
+      }
+      continue;
+    }
     if (asset.type == "Tilemap2D") {
       std::string error;
       auto tilemap = loadTilemapAsset(asset, error);

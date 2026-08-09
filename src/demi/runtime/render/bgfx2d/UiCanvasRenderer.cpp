@@ -86,6 +86,14 @@ Rect2D uiTextBounds(Rect2D authored, const float measuredWidth,
   return authored;
 }
 
+bool uiCaretVisible(const float animationTime) {
+  constexpr float BlinkPeriod = 1.0F;
+  constexpr float VisibleDuration = 0.55F;
+  if (!std::isfinite(animationTime) || animationTime < 0.0F)
+    return true;
+  return std::fmod(animationTime, BlinkPeriod) < VisibleDuration;
+}
+
 UiCanvasRenderer::UiCanvasRenderer(
     Canvas2D &canvas, FontAtlas2D &font, UiTextureLookup textureLookup,
     const std::unordered_map<std::string, TextureAnimation2D> *animations,
@@ -98,6 +106,7 @@ bool UiCanvasRenderer::draw(const ui::UiDocument &document,
                             const std::uint16_t viewportHeight) {
   const float scaleX = viewportWidth / std::max(document.canvasSize.x, 1.0F);
   const float scaleY = viewportHeight / std::max(document.canvasSize.y, 1.0F);
+  locale_ = document.locale;
   for (const ui::UiPresentationNode &presented :
        ui::buildUiPresentation(document)) {
     if (presented.visible &&
@@ -242,10 +251,15 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
                                               : node.textOverflow == ui::TextOverflowMode::Visible
                                                   ? ui::TextOverflow::Visible
                                                   : ui::TextOverflow::Clip,
-                                  .maxLines = node.maxLines};
+                                  .maxLines = node.maxLines,
+                                  .locale = std::string(locale_),
+                                  .fontRevision = font_.fonts().revision()};
     const ui::TextLayoutResult layout = ui::TextLayoutEngine{}.layout(
         request, [&](const std::string_view value) {
           return font_.measure(value, fontScale).width;
+        }, [&](const std::string_view value) {
+          return font_.shape(value, fontScale, request.direction,
+                             request.locale);
         });
     const Rect2D textBounds =
         uiTextBounds(rect, layout.width, layout.height);
@@ -279,9 +293,9 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
       }
     }
     for (const auto &line : layout.lines)
-      if (!font_.draw(canvas_, line.text, rect.x + line.x,
+      if (!font_.draw(canvas_, line.shaped, rect.x + line.x,
                       rect.y + line.y + authored * scale,
-                      packVertexColorRgba8(color), fontScale, textScissor))
+                      packVertexColorRgba8(color), 1.0F, textScissor))
         return false;
     if (textInput && focused) {
       if (!node.textEdit.composition.empty()) {
@@ -308,6 +322,7 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
       const auto caretGeometry = std::ranges::find(
           layout.carets, caret, &ui::TextLayoutResult::Caret::grapheme);
       if (caretGeometry != layout.carets.end() &&
+          uiCaretVisible(animationTime_) &&
           !canvas_.solid(
               {.x = rect.x + caretGeometry->x,
                .y = rect.y + caretGeometry->y,

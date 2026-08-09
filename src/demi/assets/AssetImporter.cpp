@@ -77,6 +77,8 @@ importerFor(const std::filesystem::path &source, const std::string &type) {
       {".ogg", {"audio", 1, "AudioClip"}},
       {".mp3", {"audio", 1, "AudioClip"}},
       {".flac", {"audio", 1, "AudioClip"}},
+      {".ttf", {"font", 1, "Font2D"}},
+      {".otf", {"font", 1, "Font2D"}},
       {".gltf", {"gltf-model", 1, "Model3D"}},
       {".glb", {"gltf-model", 1, "Model3D"}},
       {".obj", {"model", 1, "Model3D"}},
@@ -125,7 +127,7 @@ AssetImportResult importAsset(const AssetImportRequest &request) {
          .message = "No importer supports this source format.",
          .path = request.source.string(),
          .suggestion =
-             "Use PNG/JPEG/SVG/GIF, WAV/OGG/MP3/FLAC, "
+             "Use PNG/JPEG/SVG/GIF, WAV/OGG/MP3/FLAC, TTF/OTF, "
              "glTF/GLB/OBJ/IQM/M3D, MP4/WebM/MOV, or add an importer."});
     return result;
   }

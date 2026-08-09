@@ -37,6 +37,22 @@ int main() {
   assert(renderer.loadAssets(registry, diagnostics));
   assert(diagnostics.empty());
   assert(renderer.loadedTextureCount() >= 2);
+  AssetRegistry fontRegistry;
+  fontRegistry.assets.push_back(
+      {.id = "asset://fonts/project-fallback",
+       .type = "Font2D",
+       .sourceHash = "test-font-revision",
+       .sourcePath = std::filesystem::path(DEMI_SOURCE_DIR) /
+                     "fonts/Pixelify_Sans/static/PixelifySans-Bold.ttf"});
+  diagnostics.clear();
+  assert(renderer.loadAssets(fontRegistry, diagnostics));
+  assert(diagnostics.empty());
+  fontRegistry.assets.front().sourcePath = "missing-font.ttf";
+  diagnostics.clear();
+  assert(!renderer.loadAssets(fontRegistry, diagnostics));
+  assert(diagnostics.size() == 1);
+  diagnostics.clear();
+  assert(renderer.loadAssets(registry, diagnostics));
 
   ImageData2D svgImage;
   error.clear();

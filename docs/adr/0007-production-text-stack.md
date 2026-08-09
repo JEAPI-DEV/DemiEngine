@@ -1,6 +1,6 @@
 # ADR 0007: Production text stack
 
-Status: accepted for Step 3 foundation
+Status: accepted and implemented
 
 ## Decision
 
@@ -9,11 +9,18 @@ validation, code-point categories, and extended grapheme boundaries on Linux
 and Android. Font rasterization and GPU atlas lifetime remain behind
 `FontAtlas2D`.
 
-Complex-script shaping and bidi resolution will be supplied by a
-`TextShaper` backend using HarfBuzz plus FriBidi (or an equivalent Unicode bidi
-implementation). They are not embedded in renderers. Until that adapter is
-connected, the layout result explicitly reports `shapingComplete = false` for
-text that needs it. It must never silently claim byte-wise layout is correct.
+Complex-script shaping and bidi resolution are supplied by Demi's
+`TextShaper` adapter using HarfBuzz 14.2.1 and SheenBidi 3.0.0. HarfBuzz owns
+OpenType script shaping; SheenBidi owns Unicode paragraph and visual-run
+resolution. They are not embedded in renderers. Font data, direction, locale,
+and scale enter through engine-owned value contracts, so either dependency can
+be replaced without changing HUD documents or renderer APIs.
+
+HarfBuzz's optional subset, raster, vector, GPU, utility, FreeType, ICU, GLib,
+Graphite, and Cairo integrations are disabled. SheenBidi uses its unity build.
+Both libraries compile from the same pinned source revisions for Linux and
+Android, avoiding host-package variation and keeping the Android footprint to
+the required shaping and bidi code.
 
 ## Alternatives considered
 
@@ -23,6 +30,9 @@ text that needs it. It must never silently claim byte-wise layout is correct.
   edge cases and Unicode update burden are unsuitable for engine code.
 - HarfBuzz alone does not provide bidi paragraph resolution or line breaking,
   so it is not a complete dependency choice by itself.
+- FriBidi was considered, but SheenBidi provides the smaller C-only boundary
+  Demi needs, has first-class UTF-8 input, and uses the same permissive license
+  family as the rest of this stack.
 
 This boundary lets the shaping implementation change without changing HUD
 documents, Lua APIs, layout tests, or render backends.

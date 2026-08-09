@@ -433,6 +433,8 @@ int main() {
   }
 
   if (!assets::importerFor("image.png") || !assets::importerFor("sound.ogg") ||
+      !assets::importerFor("fallback.ttf") ||
+      assets::importerFor("fallback.otf")->assetType != "Font2D" ||
       !assets::importerFor("model.glb") ||
       !assets::importerFor("map.tilemap.json") ||
       assets::importerFor("unknown.xyz")) {

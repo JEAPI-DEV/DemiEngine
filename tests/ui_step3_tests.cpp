@@ -3,6 +3,8 @@
 #include "demi/runtime/ui/TextEditingEngine.h"
 #include "demi/runtime/ui/TextLayoutEngine.h"
 #include "demi/runtime/ui/UiAccessibilityTree.h"
+#include "demi/runtime/ui/UiAccessibilityActions.h"
+#include "demi/runtime/ui/UiAccessibilityBridge.h"
 #include "demi/runtime/ui/UiDocumentParser.h"
 #include "demi/runtime/ui/UiEventQueue.h"
 #include "demi/runtime/ui/UiInteractionController.h"
@@ -15,6 +17,7 @@
 #include "demi/schema/Validation.h"
 
 #include <array>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -63,11 +66,56 @@ int main() {
     std::cerr << "Complex text did not expose incomplete shaping honestly.\n";
     return 1;
   }
+  const auto cjk = text.layout(
+      {.text = "漢字仮名交じり文",
+       .width = 25.0F,
+       .fontSize = 10.0F,
+       .wrap = TextWrap::Word},
+      [](std::string_view value) {
+        return static_cast<float>(TextLayoutEngine::graphemeCount(value)) *
+               10.0F;
+      });
+  const auto hostileSize = text.layout(
+      {.text = "wide", .width = -10.0F, .fontSize = 100000.0F});
+  if (cjk.lines.size() < 3 || hostileSize.lines.empty() ||
+      !std::isfinite(hostileSize.width)) {
+    std::cerr << "CJK fallback wrapping or hostile text sizing failed.\n";
+    return 1;
+  }
   const auto emptyLayout = text.layout(
       {.text = {}, .width = 100.0F, .height = 30.0F, .fontSize = 12.0F});
   if (emptyLayout.carets.size() != 1 ||
       emptyLayout.carets.front().grapheme != 0) {
     std::cerr << "Empty editable text did not expose caret geometry.\n";
+    return 1;
+  }
+  const auto trailingSpaceLayout = TextLayoutEngine{}.layout(
+      {.text = "Search ", .width = 200.0F, .fontSize = 20.0F});
+  const auto trailingCaret = std::ranges::find(
+      trailingSpaceLayout.carets, std::size_t{7},
+      &TextLayoutResult::Caret::grapheme);
+  const auto previousCaret = std::ranges::find(
+      trailingSpaceLayout.carets, std::size_t{6},
+      &TextLayoutResult::Caret::grapheme);
+  if (trailingSpaceLayout.lines.size() != 1 ||
+      trailingSpaceLayout.lines.front().text != "Search " ||
+      trailingSpaceLayout.lines.front().graphemeCount != 7 ||
+      trailingCaret == trailingSpaceLayout.carets.end() ||
+      previousCaret == trailingSpaceLayout.carets.end() ||
+      trailingCaret->x <= previousCaret->x) {
+    std::cerr << "Trailing whitespace lost editable caret geometry.\n";
+    return 1;
+  }
+  const auto whitespaceOnlyLayout = TextLayoutEngine{}.layout(
+      {.text = "   ", .width = 200.0F, .fontSize = 20.0F});
+  if (whitespaceOnlyLayout.lines.size() != 1 ||
+      whitespaceOnlyLayout.lines.front().text != "   " ||
+      whitespaceOnlyLayout.lines.front().graphemeCount != 3 ||
+      whitespaceOnlyLayout.carets.size() != 4 ||
+      whitespaceOnlyLayout.carets.back().grapheme != 3 ||
+      whitespaceOnlyLayout.carets.back().x <=
+          whitespaceOnlyLayout.carets.front().x) {
+    std::cerr << "Whitespace-only editable text lost caret geometry.\n";
     return 1;
   }
 
@@ -131,6 +179,17 @@ int main() {
   if (cache.stats().hits != 1 || cache.stats().misses != 3 ||
       cache.stats().entries != 2) {
     std::cerr << "Text layout cache was not bounded or deterministic.\n";
+    return 1;
+  }
+  TextLayoutCache revisionCache(4);
+  (void)revisionCache.layout(
+      {.text = "localized", .width = 40.0F, .locale = "en", .fontRevision = 1});
+  (void)revisionCache.layout(
+      {.text = "localized", .width = 40.0F, .locale = "ar", .fontRevision = 1});
+  (void)revisionCache.layout(
+      {.text = "localized", .width = 40.0F, .locale = "ar", .fontRevision = 2});
+  if (revisionCache.stats().misses != 3 || revisionCache.stats().entries != 3) {
+    std::cerr << "Locale/font changes did not invalidate text layout.\n";
     return 1;
   }
 
@@ -760,6 +819,210 @@ int main() {
         return item.code == "UI_PREFAB_ARGUMENT_TYPE";
       })) {
     std::cerr << "HUD validation did not surface UI prefab argument errors.\n";
+    return 1;
+  }
+
+  // Stable-key row recycling keeps the live tree bounded and invalidates all
+  // transient state before a slot represents different game data.
+  UiDocument recycled;
+  recycled.nodes = {
+      {.id = "rows", .type = "panel"},
+      {.id = "row_template",
+       .parent = "rows",
+       .type = "button",
+       .text = "template",
+       .visible = false,
+       .focusable = true},
+      {.id = "row_label",
+       .parent = "row_template",
+       .type = "label",
+       .text = "template label"}};
+  UiMutationQueue::initializeGenerations(recycled);
+  const auto rowTemplate = UiMutationQueue::handle(recycled, "row_template");
+  UiTweenSystem recycleTweens;
+  UiVirtualRecycler recycler("probe_rows");
+  std::vector<std::string> stableKeys;
+  std::vector<float> extents(10000, 10.0F);
+  stableKeys.reserve(extents.size());
+  for (std::size_t index = 0; index < extents.size(); ++index)
+    stableKeys.push_back("key_" + std::to_string(index));
+  auto visibleRows = recycler.reconcile(recycled, recycleTweens, *rowTemplate,
+                                        stableKeys, extents, 0.0F, 30.0F, 1);
+  if (!visibleRows.applied || visibleRows.rows.size() != 4 ||
+      recycler.poolSize() != 4 || recycled.nodes.size() != 11) {
+    std::cerr << "Virtual row pool was not bounded by the visible range.\n";
+    return 1;
+  }
+  const UiNodeHandle staleRow = visibleRows.rows.front().node;
+  UiNode *dirty = UiStateController{}.find(recycled, staleRow.id);
+  UiNode *dirtyChild =
+      UiStateController{}.find(recycled, staleRow.id + ".row_label");
+  dirty->hovered = true;
+  dirty->textEdit = {.caret = 4, .anchor = 1, .composition = "pending"};
+  dirtyChild->text = "runtime binding";
+  UiMutationQueue runtimeChild;
+  runtimeChild.create(staleRow.id,
+                      {.id = staleRow.id + ".runtime_child", .type = "label"});
+  if (!runtimeChild.apply(recycled).applied) {
+    std::cerr << "Could not establish runtime recycler child probe.\n";
+    return 1;
+  }
+  recycled.focusedId = staleRow.id;
+  recycled.pointerCaptures[9] = staleRow.id;
+  recycled.pointerHoverIds[9] = staleRow.id;
+  recycled.draggingPointers.insert(9);
+  if (!recycleTweens.start(recycled, staleRow, UiTweenProperty::Scale, 2.0F,
+                           10.0F)) {
+    std::cerr << "Could not establish recycler transient-state probe.\n";
+    return 1;
+  }
+  visibleRows = recycler.reconcile(recycled, recycleTweens, *rowTemplate,
+                                   stableKeys, extents, 500.0F, 30.0F, 1);
+  dirty = UiStateController{}.find(recycled, staleRow.id);
+  dirtyChild = UiStateController{}.find(recycled, staleRow.id + ".row_label");
+  if (!visibleRows.applied || recycled.focusedId == staleRow.id ||
+      recycled.pointerCaptures.contains(9) ||
+      recycled.pointerHoverIds.contains(9) ||
+      recycled.draggingPointers.contains(9) ||
+      recycleTweens.activeCount() != 0 ||
+      UiMutationQueue::alive(recycled, staleRow) || dirty->hovered ||
+      !dirty->textEdit.composition.empty() ||
+      dirtyChild->text != "template label" ||
+      UiStateController{}.find(recycled, staleRow.id + ".runtime_child") !=
+          nullptr) {
+    std::cerr << "Recycled row retained focus, capture, tween, or binding state.\n";
+    return 1;
+  }
+  const std::string retainedKey = visibleRows.rows[1].key;
+  const std::string retainedNode = visibleRows.rows[1].node.id;
+  recycled.focusedId = retainedNode;
+  std::swap(stableKeys[visibleRows.rows[0].index],
+            stableKeys[visibleRows.rows[1].index]);
+  visibleRows = recycler.reconcile(recycled, recycleTweens, *rowTemplate,
+                                   stableKeys, extents, 500.0F, 30.0F, 1);
+  const auto retained = std::ranges::find(
+      visibleRows.rows, retainedKey, &UiVirtualRowBinding::key);
+  if (!visibleRows.applied || retained == visibleRows.rows.end() ||
+      retained->node.id != retainedNode || recycled.focusedId != retainedNode) {
+    std::cerr << "Stable row key did not retain its node and focus after reorder.\n";
+    return 1;
+  }
+  const std::size_t boundedNodeCount = recycled.nodes.size();
+  for (std::size_t cycle = 0; cycle < 250; ++cycle) {
+    const float offset = static_cast<float>((cycle * 37) % 9900) * 10.0F;
+    if (!recycler.reconcile(recycled, recycleTweens, *rowTemplate, stableKeys,
+                            extents, offset, 30.0F, 1)
+             .applied ||
+        recycled.nodes.size() != boundedNodeCount) {
+      std::cerr << "Repeated row recycling grew or corrupted the live tree.\n";
+      return 1;
+    }
+  }
+  std::vector<std::string> duplicateKeys = stableKeys;
+  duplicateKeys[1] = duplicateKeys[0];
+  const auto rejectedRows = recycler.reconcile(
+      recycled, recycleTweens, *rowTemplate, duplicateKeys, extents, 0.0F,
+      30.0F, 1);
+  if (rejectedRows.applied || recycled.nodes.size() != boundedNodeCount) {
+    std::cerr << "Duplicate virtual keys were not rejected transactionally.\n";
+    return 1;
+  }
+  UiMutationQueue externalRemoval;
+  externalRemoval.remove(
+      *UiMutationQueue::handle(recycled, visibleRows.rows.front().node.id));
+  if (!externalRemoval.apply(recycled).applied || recycler.valid(recycled)) {
+    std::cerr << "Externally removed virtual slots were not detected.\n";
+    return 1;
+  }
+  recycler.clear(recycled, recycleTweens);
+  if (recycler.poolSize() != 0 || recycled.nodes.size() != 3) {
+    std::cerr << "Virtual recycler teardown retained pooled nodes.\n";
+    return 1;
+  }
+
+  UiDocument actionable;
+  actionable.nodes = {
+      {.id = "play", .type = "button", .action = "play", .focusable = true},
+      {.id = "music",
+       .type = "toggle",
+       .action = "music",
+       .focusable = true},
+      {.id = "volume",
+       .type = "slider",
+       .value = 5.0F,
+       .minimum = 0.0F,
+       .maximum = 10.0F,
+       .focusable = true},
+      {.id = "name", .type = "text_input", .focusable = true},
+      {.id = "list",
+       .type = "scroll",
+       .resolved = {.width = 100.0F, .height = 80.0F}},
+      {.id = "hidden",
+       .type = "button",
+       .visible = false,
+       .focusable = true}};
+  UiAccessibilityActions accessibilityActions;
+  if (!accessibilityActions
+           .perform(actionable, {.type = UiAccessibilityActionType::Focus,
+                                 .nodeId = "play"})
+           .handled ||
+      actionable.focusedId != "play") {
+    std::cerr << "Accessibility focus action failed.\n";
+    return 1;
+  }
+  const auto activation = accessibilityActions.perform(
+      actionable,
+      {.type = UiAccessibilityActionType::Activate, .nodeId = "play"});
+  static_cast<void>(accessibilityActions.perform(
+      actionable,
+      {.type = UiAccessibilityActionType::Activate, .nodeId = "music"}));
+  static_cast<void>(accessibilityActions.perform(
+      actionable,
+      {.type = UiAccessibilityActionType::SetValue,
+       .nodeId = "volume",
+       .value = 50.0F}));
+  static_cast<void>(accessibilityActions.perform(
+      actionable,
+      {.type = UiAccessibilityActionType::SetText,
+       .nodeId = "name",
+       .text = "Zoë"}));
+  static_cast<void>(accessibilityActions.perform(
+      actionable,
+      {.type = UiAccessibilityActionType::ScrollForward, .nodeId = "list"}));
+  const auto hiddenAction = accessibilityActions.perform(
+      actionable,
+      {.type = UiAccessibilityActionType::Activate, .nodeId = "hidden"});
+  if (!activation.handled || activation.action != "play" ||
+      !actionable.nodes[1].checked || actionable.nodes[2].value != 10.0F ||
+      actionable.nodes[3].text != "Zoë" || hiddenAction.handled ||
+      actionable.events.size() < 7) {
+    std::cerr << "Accessibility actions did not use normal UI state/events.\n";
+    return 1;
+  }
+  BufferedUiAccessibilityBridge bridge;
+  UiAccessibilityBridgeController bridgeController(bridge);
+  bridge.pushAction(
+      {.type = UiAccessibilityActionType::Focus, .nodeId = "music"});
+  bridgeController.update(actionable);
+  if (actionable.focusedId != "music" || bridge.nodes().empty() ||
+      bridge.revision() != 1 || bridgeController.revision() != 1) {
+    std::cerr << "Accessibility bridge did not exchange snapshots/actions.\n";
+    return 1;
+  }
+  auto &platformBridge = platformUiAccessibilityBridge();
+  platformBridge.clear();
+  platformBridge.submitAction(
+      {.type = UiAccessibilityActionType::Focus, .nodeId = "play"});
+  UiAccessibilityBridgeController platformController(platformBridge);
+  platformController.update(actionable);
+  if (actionable.focusedId != "play" || platformBridge.snapshot().empty() ||
+      platformBridge.revision() != 1) {
+    std::cerr << "Thread-safe platform accessibility bridge failed.\n";
+    return 1;
+  }
+  platformBridge.clear();
+  if (!platformBridge.snapshot().empty()) {
+    std::cerr << "Platform accessibility teardown retained stale nodes.\n";
     return 1;
   }
   std::filesystem::remove_all(prefabRoot);

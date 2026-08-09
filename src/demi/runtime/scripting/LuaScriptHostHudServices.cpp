@@ -15,6 +15,15 @@ void relayoutHud(World &world) {
   ui::UiLayoutEngine{}.layout(world.ui, world.ui.canvasSize);
 }
 
+void discardInvalidRecyclers(World &world) {
+  std::erase_if(world.uiVirtualRecyclers, [&](auto &entry) {
+    if (entry.second->valid(world.ui))
+      return false;
+    entry.second->clear(world.ui, world.uiTweens);
+    return true;
+  });
+}
+
 } // namespace
 
 bool LuaScriptHost::setHudText(const std::string &id, const std::string &text) {
@@ -259,6 +268,7 @@ LuaScriptHost::createHudNode(const std::string &parent, ui::UiNode node,
     error = result.error;
     return std::nullopt;
   }
+  discardInvalidRecyclers(*world_);
   relayoutHud(*world_);
   return ui::UiMutationQueue::handle(world_->ui, id);
 }
@@ -283,6 +293,7 @@ LuaScriptHost::cloneHudNode(const ui::UiNodeHandle &source,
     error = result.error;
     return std::nullopt;
   }
+  discardInvalidRecyclers(*world_);
   relayoutHud(*world_);
   return ui::UiMutationQueue::handle(world_->ui, newRootId);
 }
@@ -300,6 +311,7 @@ bool LuaScriptHost::removeHudNode(const ui::UiNodeHandle &node,
     error = result.error;
     return false;
   }
+  discardInvalidRecyclers(*world_);
   relayoutHud(*world_);
   return true;
 }
@@ -335,6 +347,7 @@ bool LuaScriptHost::clearHudChildren(const std::string &parent,
     error = result.error;
     return false;
   }
+  discardInvalidRecyclers(*world_);
   relayoutHud(*world_);
   return true;
 }
@@ -347,6 +360,39 @@ LuaScriptHost::hudChildren(const std::string &parent) const {
       if (node.parent == parent)
         result.push_back(node.id);
   return result;
+}
+
+ui::UiVirtualReconcileResult LuaScriptHost::reconcileHudRows(
+    const std::string &collectionId, const ui::UiNodeHandle &rowTemplate,
+    const std::vector<std::string> &stableKeys,
+    const std::vector<float> &rowExtents, const float scrollOffset,
+    const float viewportExtent, const std::size_t overscan) {
+  if (world_ == nullptr)
+    return {.applied = false,
+            .error = "HUD is unavailable.",
+            .range = {},
+            .rows = {}};
+  auto &owner = world_->uiVirtualRecyclers[collectionId];
+  if (!owner)
+    owner = std::make_unique<ui::UiVirtualRecycler>(collectionId);
+  auto result = owner->reconcile(world_->ui, world_->uiTweens, rowTemplate,
+                                 stableKeys, rowExtents, scrollOffset,
+                                 viewportExtent, overscan);
+  if (result.applied)
+    relayoutHud(*world_);
+  return result;
+}
+
+bool LuaScriptHost::clearHudRows(const std::string &collectionId) {
+  if (world_ == nullptr)
+    return false;
+  const auto found = world_->uiVirtualRecyclers.find(collectionId);
+  if (found == world_->uiVirtualRecyclers.end())
+    return false;
+  found->second->clear(world_->ui, world_->uiTweens);
+  world_->uiVirtualRecyclers.erase(found);
+  relayoutHud(*world_);
+  return true;
 }
 
 std::vector<ui::UiAccessibilityNode>

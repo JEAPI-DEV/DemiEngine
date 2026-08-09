@@ -399,6 +399,13 @@ public:
                                       std::string &error);
   [[nodiscard]] std::vector<std::string>
   hudChildren(const std::string &parent) const;
+  [[nodiscard]] ui::UiVirtualReconcileResult
+  reconcileHudRows(const std::string &collectionId,
+                   const ui::UiNodeHandle &rowTemplate,
+                   const std::vector<std::string> &stableKeys,
+                   const std::vector<float> &rowExtents, float scrollOffset,
+                   float viewportExtent, std::size_t overscan);
+  [[nodiscard]] bool clearHudRows(const std::string &collectionId);
   [[nodiscard]] std::vector<ui::UiAccessibilityNode>
   hudAccessibilitySnapshot() const;
   [[nodiscard]] std::uint64_t startHudTween(const ui::UiNodeHandle &node,

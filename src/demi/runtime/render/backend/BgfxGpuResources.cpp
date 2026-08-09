@@ -170,6 +170,22 @@ public:
     return textures_.insert(texture.idx);
   }
 
+  bool updateTexture(const TextureHandle handle,
+                     const TextureUpdateInfo &info,
+                     std::string &error) override {
+    const std::uint16_t *texture = textures_.find(handle);
+    if (texture == nullptr || info.width == 0 || info.height == 0 ||
+        info.data.size() != static_cast<std::size_t>(info.width) *
+                                info.height * 4U) {
+      error = "Texture update handle, dimensions, or RGBA8 data are invalid.";
+      return false;
+    }
+    bgfx::updateTexture2D(bgfx::TextureHandle{*texture}, 0, 0, info.x, info.y,
+                          info.width, info.height, copy(info.data));
+    error.clear();
+    return true;
+  }
+
   SamplerHandle createSampler(const std::string_view name,
                               std::string &error) override {
     if (name.empty()) {

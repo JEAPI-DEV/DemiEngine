@@ -22,6 +22,10 @@ using UiTextureLookup = std::function<TextureView2D(std::string_view)>;
 [[nodiscard]] Rect2D uiTextBounds(Rect2D authored, float measuredWidth,
                                   float measuredHeight);
 
+// A shared presentation policy keeps caret behavior deterministic in renderer
+// tests and consistent for every text input.
+[[nodiscard]] bool uiCaretVisible(float animationTime);
+
 class UiCanvasRenderer {
 public:
   UiCanvasRenderer(Canvas2D &canvas, FontAtlas2D &font,
@@ -47,6 +51,7 @@ private:
   UiTextureLookup textureLookup_;
   const std::unordered_map<std::string, TextureAnimation2D> *animations_;
   float animationTime_;
+  std::string_view locale_;
 };
 
 } // namespace demi::runtime::render

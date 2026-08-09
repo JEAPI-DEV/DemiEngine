@@ -141,8 +141,17 @@ finite and positive. Failed construction or mutation is transactional and
 leaves the previous offsets intact.
 
 The virtual layout owns only measurement and range lookup. Stable data keys,
-row content, and gameplay meaning remain game-owned. Engine-managed row-node
-recycling and interaction-state reset are a later part of Step 3.
+row content, and gameplay meaning remain game-owned. `Hud.recycle_rows`
+combines that range with a hidden project-authored row template. It keeps only
+the visible range plus overscan alive and returns generation-checked bindings
+for game code to populate. A slot rebound resets focus, pointer capture,
+hover/drag state, text editing, runtime children, and active tweens before the
+new key is exposed. `Hud.clear_recycled_rows` releases the owned pool.
+
+Project fonts are ordinary `Font2D` assets imported from TTF or OTF files.
+They are loaded in stable asset-ID order after the default pixel font and are
+selected per shaping run. Missing glyphs remain explicit diagnostics, while
+the GPU atlas grows on demand within a bounded page budget.
 
 Text nodes support `text_wrap` (`none`, `word`, or `grapheme`),
 `text_alignment`, `text_vertical_alignment`, `line_spacing`, `max_lines`, and
@@ -152,6 +161,11 @@ tests. `Text.grapheme_count` and `Text.grapheme_slice` use Unicode grapheme
 boundaries rather than bytes, while `Text.parse_rich` accepts only the
 documented non-executable `[color]`, `[em]`, `[strong]`, `[link]`, and `[icon]`
 tags.
+
+`text_alignment` controls horizontal placement and
+`text_vertical_alignment` controls vertical placement. Both accept `start`,
+`center`, or `end`; text inputs default to `start` so projects can choose
+between conventional left-aligned fields and centered presentation.
 
 Focused `text_input` nodes use the same grapheme boundaries for caret motion,
 selection, Backspace, Delete, Home, End, and Ctrl+A. Backspace therefore

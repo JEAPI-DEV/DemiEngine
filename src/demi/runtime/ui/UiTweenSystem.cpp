@@ -50,6 +50,26 @@ bool UiTweenSystem::cancel(UiTweenHandle handle) {
   std::erase_if(tweens_, [&](const Tween &value) { return value.handle.value == handle.value; });
   return before != tweens_.size();
 }
+std::size_t UiTweenSystem::cancelSubtree(const UiDocument &document,
+                                        const std::string_view root) {
+  const auto inside = [&](std::string id) {
+    std::size_t guard = 0;
+    while (!id.empty() && guard++ <= document.nodes.size()) {
+      if (id == root)
+        return true;
+      const UiNode *node = UiStateController{}.find(document, id);
+      if (node == nullptr)
+        break;
+      id = node->parent;
+    }
+    return false;
+  };
+  const std::size_t before = tweens_.size();
+  std::erase_if(tweens_, [&](const Tween &tween) {
+    return inside(tween.node.id);
+  });
+  return before - tweens_.size();
+}
 void UiTweenSystem::update(UiDocument &document, float dt) {
   if (!std::isfinite(dt) || dt < 0.0F) return;
   for (auto &tween : tweens_) {

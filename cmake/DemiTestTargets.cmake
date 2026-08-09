@@ -68,6 +68,8 @@
   target_link_libraries(demi-canvas2d-tests PRIVATE demi-graphics-bgfx)
   add_executable(demi-font-atlas2d-tests tests/font_atlas2d_tests.cpp)
   target_link_libraries(demi-font-atlas2d-tests PRIVATE demi-graphics-bgfx)
+  target_compile_definitions(demi-font-atlas2d-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-image-decoder2d-tests tests/image_decoder2d_tests.cpp)
   target_link_libraries(demi-image-decoder2d-tests PRIVATE demi-graphics-bgfx)
   add_executable(demi-ui-canvas-renderer-tests

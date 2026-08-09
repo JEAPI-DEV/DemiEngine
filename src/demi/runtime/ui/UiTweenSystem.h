@@ -12,6 +12,8 @@ public:
                                     UiTweenProperty property, float target,
                                     float duration);
   bool cancel(UiTweenHandle handle);
+  std::size_t cancelSubtree(const UiDocument &document,
+                            std::string_view root);
   void update(UiDocument &document, float dt);
   void setReducedMotion(bool enabled) { reducedMotion_ = enabled; }
   [[nodiscard]] std::size_t activeCount() const { return tweens_.size(); }

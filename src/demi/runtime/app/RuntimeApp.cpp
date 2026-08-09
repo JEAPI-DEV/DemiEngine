@@ -25,6 +25,7 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/runtime/tilemap/TilemapCollisionGenerator.h"
 #include "demi/runtime/ui/UiLayoutEngine.h"
+#include "demi/runtime/ui/UiAccessibilityBridge.h"
 
 #include <algorithm>
 #include <cctype>
@@ -64,7 +65,8 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
                     MediaSystem &mediaSystem, NetworkSystem &networkSystem,
                     const AssetRegistry &assetRegistry, const float dt,
                     const float fixedStep, double &fixedAccumulator,
-                    bool &running) {
+                    bool &running,
+                    ui::UiAccessibilityBridgeController &accessibility) {
   ProfileScope stepScope("Runtime.step_simulation");
   luaHost.beginFrame(dt);
   const float scaledDt = luaHost.deltaTime();
@@ -144,6 +146,7 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
     ProfileScope scope("Media.update");
     mediaSystem.update(dt);
   }
+  accessibility.update(loaded.world.ui);
   (void)input;
 }
 
@@ -357,6 +360,13 @@ int runProject(const RuntimeOptions &options) {
   NetworkSystem networkSystem;
   (void)networkSystem.initialize();
   InputState input;
+  auto &platformAccessibility = ui::platformUiAccessibilityBridge();
+  platformAccessibility.clear();
+  struct AccessibilityLifetime {
+    ui::PlatformUiAccessibilityBridge &bridge;
+    ~AccessibilityLifetime() { bridge.clear(); }
+  } accessibilityLifetime{platformAccessibility};
+  ui::UiAccessibilityBridgeController accessibility(platformAccessibility);
 
   LuaScriptHost luaHost;
   luaHost.setMediaSystem(&mediaSystem);
@@ -437,7 +447,8 @@ int runProject(const RuntimeOptions &options) {
       stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem,
                      networkSystem, assetRegistry,
                      static_cast<float>(fixedStep),
-                     static_cast<float>(fixedStep), fixedAccumulator, running);
+                     static_cast<float>(fixedStep), fixedAccumulator, running,
+                     accessibility);
       if (profileRun) {
         const double updateMs = millisecondsSince(updateStart);
         const double frameMs = millisecondsSince(frameStart);
@@ -583,7 +594,8 @@ int runProject(const RuntimeOptions &options) {
       const auto updateStart = std::chrono::steady_clock::now();
       stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem,
                      networkSystem, assetRegistry, dt,
-                     static_cast<float>(fixedStep), fixedAccumulator, running);
+                     static_cast<float>(fixedStep), fixedAccumulator, running,
+                     accessibility);
       if (profileRun) {
         updateMs = millisecondsSince(updateStart);
         profile.updateMs += updateMs;
@@ -759,7 +771,8 @@ int runProject(const RuntimeOptions &options) {
       const auto updateStart = std::chrono::steady_clock::now();
       stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem,
                      networkSystem, assetRegistry, dt,
-                     static_cast<float>(fixedStep), fixedAccumulator, running);
+                     static_cast<float>(fixedStep), fixedAccumulator, running,
+                     accessibility);
       if (profileRun) {
         updateMs = millisecondsSince(updateStart);
         profile.updateMs += updateMs;

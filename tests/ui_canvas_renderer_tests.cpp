@@ -2,6 +2,7 @@
 #include "demi/runtime/render/bgfx2d/UiCanvasRenderer.h"
 
 #include <cassert>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -43,6 +44,14 @@ int main() {
          intrinsic.width == 214.0F && intrinsic.height == 18.0F);
   assert(widthOnly.width == 160.0F && widthOnly.height == 22.0F);
   assert(explicitBounds.width == 80.0F && explicitBounds.height == 30.0F);
+  assert(uiCaretVisible(0.0F));
+  assert(uiCaretVisible(0.54F));
+  assert(!uiCaretVisible(0.55F));
+  assert(!uiCaretVisible(0.99F));
+  assert(uiCaretVisible(1.0F));
+  assert(uiCaretVisible(-1.0F));
+  assert(uiCaretVisible(std::numeric_limits<float>::infinity()));
+  assert(uiCaretVisible(std::numeric_limits<float>::quiet_NaN()));
 
   BgfxGraphicsDevice graphics;
   std::string error;

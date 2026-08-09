@@ -93,6 +93,34 @@ FetchContent_Declare(utf8proc
 )
 FetchContent_MakeAvailable(utf8proc)
 
+# Production text shaping is backend-neutral. HarfBuzz handles OpenType
+# shaping while SheenBidi resolves Unicode visual runs. Keep optional
+# HarfBuzz subsystems disabled: Demi rasterizes atlas glyphs itself and both
+# dependencies must remain practical for Android packages.
+set(HB_BUILD_UTILS OFF CACHE BOOL "" FORCE)
+set(HB_BUILD_SUBSET OFF CACHE BOOL "" FORCE)
+set(HB_BUILD_RASTER OFF CACHE BOOL "" FORCE)
+set(HB_BUILD_VECTOR OFF CACHE BOOL "" FORCE)
+set(HB_BUILD_GPU OFF CACHE BOOL "" FORCE)
+set(HB_HAVE_CAIRO OFF CACHE BOOL "" FORCE)
+set(HB_HAVE_FREETYPE OFF CACHE BOOL "" FORCE)
+set(HB_HAVE_GLIB OFF CACHE BOOL "" FORCE)
+set(HB_HAVE_GRAPHITE2 OFF CACHE BOOL "" FORCE)
+set(HB_HAVE_ICU OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(harfbuzz
+  GIT_REPOSITORY https://github.com/harfbuzz/harfbuzz.git
+  GIT_TAG 14.2.1
+)
+FetchContent_MakeAvailable(harfbuzz)
+
+set(SB_CONFIG_UNITY ON CACHE BOOL "" FORCE)
+set(BUILD_GENERATOR OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(sheenbidi
+  GIT_REPOSITORY https://github.com/Tehreer/SheenBidi.git
+  GIT_TAG v3.0.0
+)
+FetchContent_MakeAvailable(sheenbidi)
+
 set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
 set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 set(MBEDTLS_FATAL_WARNINGS OFF CACHE BOOL "" FORCE)

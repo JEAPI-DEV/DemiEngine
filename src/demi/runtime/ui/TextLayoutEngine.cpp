@@ -65,12 +65,13 @@ float defaultMeasure(const std::string_view value, const float fontSize) {
 } // namespace
 
 TextLayoutResult TextLayoutEngine::layout(const TextLayoutRequest &request,
-                                          const TextMeasure &measure) const {
+                                          const TextMeasure &measure,
+                                          const TextShape &shape) const {
   TextLayoutResult result;
   bool needsShaping = false;
   const auto graphemes = clusters(request.text, result.validUtf8, needsShaping);
   result.graphemeCount = graphemes.size();
-  result.shapingComplete = !needsShaping;
+  result.shapingComplete = !needsShaping || static_cast<bool>(shape);
   if (!result.validUtf8 || request.fontSize <= 0.0F)
     return result;
 
@@ -108,8 +109,6 @@ TextLayoutResult TextLayoutEngine::layout(const TextLayoutRequest &request,
   std::size_t lineStart = 0;
   std::size_t index = 0;
   auto append = [&](std::size_t begin, std::size_t end) {
-    while (end > begin && graphemes[end - 1].whitespace)
-      --end;
     const std::size_t byteBegin = graphemes[begin].begin;
     const std::size_t byteEnd = end > begin ? graphemes[end - 1].end : byteBegin;
     std::string value(request.text.substr(byteBegin, byteEnd - byteBegin));
@@ -199,6 +198,12 @@ TextLayoutResult TextLayoutEngine::layout(const TextLayoutRequest &request,
                             : 0.0F;
   for (std::size_t line = 0; line < result.lines.size(); ++line) {
     auto &item = result.lines[line];
+    if (shape) {
+      item.shaped = shape(item.text);
+      item.width = item.shaped.advance;
+      result.validUtf8 = result.validUtf8 && item.shaped.validUtf8;
+      result.shapingComplete = result.shapingComplete && item.shaped.complete;
+    }
     const float horizontalSpace = std::max(request.width - item.width, 0.0F);
     item.x = request.horizontal == TextHorizontalAlignment::Center
                  ? horizontalSpace * 0.5F
@@ -207,13 +212,88 @@ TextLayoutResult TextLayoutEngine::layout(const TextLayoutRequest &request,
                  : 0.0F;
     item.y = yOffset + line * lineHeight;
     result.width = std::max(result.width, item.width);
-    for (std::size_t local = 0; local <= item.graphemeCount; ++local) {
-      const auto prefix = graphemeSlice(item.text, 0, local);
-      result.carets.push_back({.grapheme = item.graphemeStart + local,
-                               .line = line,
-                               .x = item.x + widthOf(prefix.value_or(std::string{})),
-                               .y = item.y,
-                               .height = request.fontSize});
+    if (shape && !item.shaped.runs.empty()) {
+      bool localValid = true;
+      bool localShaping = false;
+      const auto localClusters = clusters(item.text, localValid, localShaping);
+      std::vector<std::optional<float>> caretX(item.graphemeCount + 1);
+      float visualX = item.x;
+      for (const auto &run : item.shaped.runs) {
+        std::vector<std::size_t> clusterBytes;
+        for (const auto &glyph : run.glyphs)
+          clusterBytes.push_back(glyph.byteOffset);
+        std::ranges::sort(clusterBytes);
+        clusterBytes.erase(std::unique(clusterBytes.begin(), clusterBytes.end()),
+                           clusterBytes.end());
+        std::size_t glyph = 0;
+        while (glyph < run.glyphs.size()) {
+          const std::size_t clusterByte = run.glyphs[glyph].byteOffset;
+          const float segmentX = visualX;
+          while (glyph < run.glyphs.size() &&
+                 run.glyphs[glyph].byteOffset == clusterByte) {
+            visualX += run.glyphs[glyph].xAdvance;
+            ++glyph;
+          }
+          const auto nextByte = std::ranges::upper_bound(clusterBytes, clusterByte);
+          const std::size_t clusterEnd =
+              nextByte == clusterBytes.end() ? run.byteOffset + run.byteLength
+                                             : *nextByte;
+          const auto firstCluster = std::ranges::lower_bound(
+              localClusters, clusterByte, {}, &Cluster::begin);
+          const auto endCluster = std::ranges::lower_bound(
+              localClusters, clusterEnd, {}, &Cluster::begin);
+          const std::size_t first = static_cast<std::size_t>(
+              std::distance(localClusters.begin(), firstCluster));
+          const std::size_t end = std::max(
+              first + 1,
+              static_cast<std::size_t>(std::distance(localClusters.begin(),
+                                                      endCluster)));
+          if (first < caretX.size()) {
+            const float left = std::min(segmentX, visualX);
+            const float right = std::max(segmentX, visualX);
+            const bool rtl = run.direction == TextDirection::RightToLeft;
+            caretX[first] = rtl ? right : left;
+            if (std::min(end, caretX.size() - 1) < caretX.size())
+              caretX[std::min(end, caretX.size() - 1)] = rtl ? left : right;
+            result.visualSegments.push_back(
+                {.graphemeStart = item.graphemeStart + first,
+                 .graphemeCount = std::min(end, item.graphemeCount) - first,
+                 .line = line,
+                 .x = left,
+                 .width = right - left});
+          }
+        }
+      }
+      for (std::size_t local = 0; local < caretX.size(); ++local) {
+        if (!caretX[local]) {
+          const auto prefix = graphemeSlice(item.text, 0, local);
+          caretX[local] = item.x + widthOf(prefix.value_or(std::string{}));
+        }
+        result.carets.push_back({.grapheme = item.graphemeStart + local,
+                                 .line = line,
+                                 .x = *caretX[local],
+                                 .y = item.y,
+                                 .height = request.fontSize});
+      }
+    } else {
+      for (std::size_t local = 0; local <= item.graphemeCount; ++local) {
+        const auto prefix = graphemeSlice(item.text, 0, local);
+        const float x = item.x + widthOf(prefix.value_or(std::string{}));
+        result.carets.push_back({.grapheme = item.graphemeStart + local,
+                                 .line = line,
+                                 .x = x,
+                                 .y = item.y,
+                                 .height = request.fontSize});
+        if (local < item.graphemeCount) {
+          const auto next = graphemeSlice(item.text, 0, local + 1);
+          result.visualSegments.push_back(
+              {.graphemeStart = item.graphemeStart + local,
+               .graphemeCount = 1,
+               .line = line,
+               .x = x,
+               .width = widthOf(next.value_or(std::string{})) - (x - item.x)});
+        }
+      }
     }
   }
   return result;
@@ -236,20 +316,18 @@ std::vector<Rect> TextLayoutEngine::selectionRects(
     const std::size_t count) {
   std::vector<Rect> result;
   const std::size_t last = first + count;
-  for (std::size_t line = 0; line < layout.lines.size(); ++line) {
-    const auto &item = layout.lines[line];
-    const std::size_t begin = std::max(first, item.graphemeStart);
-    const std::size_t end = std::min(last, item.graphemeStart + item.graphemeCount);
-    if (end <= begin) continue;
-    const auto left = std::ranges::find_if(layout.carets, [&](const auto &caret) {
-      return caret.line == line && caret.grapheme == begin;
+  for (const auto &segment : layout.visualSegments) {
+    const std::size_t begin = std::max(first, segment.graphemeStart);
+    const std::size_t end = std::min(last, segment.graphemeStart +
+                                              segment.graphemeCount);
+    if (end <= begin)
+      continue;
+    const auto caret = std::ranges::find_if(layout.carets, [&](const auto &value) {
+      return value.line == segment.line && value.grapheme == begin;
     });
-    const auto right = std::ranges::find_if(layout.carets, [&](const auto &caret) {
-      return caret.line == line && caret.grapheme == end;
-    });
-    if (left != layout.carets.end() && right != layout.carets.end())
-      result.push_back({left->x, left->y, std::max(right->x - left->x, 0.0F),
-                        left->height});
+    result.push_back({segment.x, caret == layout.carets.end() ? 0.0F : caret->y,
+                      segment.width,
+                      caret == layout.carets.end() ? 0.0F : caret->height});
   }
   return result;
 }
@@ -286,7 +364,9 @@ std::string cacheKey(const TextLayoutRequest &request) {
          std::to_string(static_cast<int>(request.horizontal)) + ':' +
          std::to_string(static_cast<int>(request.vertical)) + ':' +
          std::to_string(static_cast<int>(request.overflow)) + ':' +
-         std::to_string(request.maxLines);
+         std::to_string(request.maxLines) + ':' +
+         std::to_string(static_cast<int>(request.direction)) + ':' +
+         request.locale + ':' + std::to_string(request.fontRevision);
 }
 } // namespace
 

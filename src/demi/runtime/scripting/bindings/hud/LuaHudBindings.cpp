@@ -174,6 +174,58 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
     return std::tuple{std::move(layout), error};
   });
   hud.set_function(
+      "recycle_rows",
+      [&host, lua](const std::string &collectionId,
+                   const ui::UiNodeHandle &rowTemplate,
+                   const sol::table &keys, const sol::table &extents,
+                   const float offset, const float viewport,
+                   const sol::optional<std::size_t> overscan) mutable {
+        std::vector<std::string> stableKeys;
+        std::vector<float> rowExtents;
+        stableKeys.reserve(keys.size());
+        rowExtents.reserve(extents.size());
+        for (std::size_t index = 1; index <= keys.size(); ++index) {
+          const auto key = keys.get<sol::optional<std::string>>(index);
+          if (!key) {
+            sol::table empty = lua.create_table();
+            return std::tuple{empty, std::string{
+                                         "Virtual row keys must be a dense "
+                                         "string array."}};
+          }
+          stableKeys.push_back(*key);
+        }
+        for (std::size_t index = 1; index <= extents.size(); ++index) {
+          const auto extent = extents.get<sol::optional<float>>(index);
+          if (!extent) {
+            sol::table empty = lua.create_table();
+            return std::tuple{empty, std::string{
+                                         "Virtual row extents must be a dense "
+                                         "number array."}};
+          }
+          rowExtents.push_back(*extent);
+        }
+        const auto result = host.reconcileHudRows(
+            collectionId, rowTemplate, stableKeys, rowExtents, offset,
+            viewport, overscan.value_or(2));
+        sol::table rows = lua.create_table(static_cast<int>(result.rows.size()), 0);
+        for (std::size_t index = 0; index < result.rows.size(); ++index) {
+          const auto &binding = result.rows[index];
+          sol::table row = lua.create_table();
+          row["key"] = binding.key;
+          row["index"] = binding.index + 1;
+          row["node"] = binding.node;
+          row["offset"] = binding.offset;
+          row["extent"] = binding.extent;
+          row["rebound"] = binding.rebound;
+          rows[index + 1] = std::move(row);
+        }
+        return std::tuple{rows, result.error};
+      });
+  hud.set_function("clear_recycled_rows",
+                   [&host](const std::string &collectionId) {
+                     return host.clearHudRows(collectionId);
+                   });
+  hud.set_function(
       "text", [&host](const std::string &id, const std::string &text, float x,
                       float y, sol::optional<float> scale,
                       sol::optional<float> r, sol::optional<float> g,
@@ -280,7 +332,8 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
             ui::TextLayoutEngine{}.layout({.text = text,
                                            .width = width,
                                            .fontSize = fontSize,
-                                           .maxLines = maxLines.value_or(0)});
+                                           .maxLines = maxLines.value_or(0),
+                                           .locale = {}});
         sol::table out = lua.create_table();
         out["width"] = result.width;
         out["height"] = result.height;
