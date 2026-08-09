@@ -14,6 +14,7 @@
 #include "demi/runtime/ui/UiVirtualCollection.h"
 #include "demi/schema/Validation.h"
 
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -393,8 +394,62 @@ int main() {
   const auto range =
       UiVirtualCollection::visibleRange(10000, 20.0F, 1000.0F, 200.0F, 3);
   if (range.first != 47 || range.count != 16 || range.count >= 10000 ||
-      UiVirtualCollection::visibleRange(10, 0.0F, 0.0F, 100.0F).count != 0) {
+      UiVirtualCollection::visibleRange(10, 0.0F, 0.0F, 100.0F).count != 0 ||
+      UiVirtualCollection::visibleRange(4, 10.0F, 0.0F, 10.0F,
+                                        std::numeric_limits<std::size_t>::max())
+              .count != 4) {
     std::cerr << "Bounded virtual collection range failed.\n";
+    return 1;
+  }
+
+  UiVirtualLayout variableLayout;
+  std::string virtualError;
+  const std::array variableExtents{10.0F, 30.0F, 20.0F, 40.0F};
+  if (!variableLayout.reset(variableExtents, virtualError) ||
+      variableLayout.itemCount() != 4 ||
+      variableLayout.totalExtent() != 100.0F ||
+      variableLayout.itemOffset(1) != 10.0F ||
+      variableLayout.itemExtent(1) != 30.0F ||
+      variableLayout.visibleRange(10.0F, 30.0F, 0).first != 1 ||
+      variableLayout.visibleRange(10.0F, 30.0F, 0).count != 1 ||
+      variableLayout.visibleRange(10.0F, 30.0F, 1).first != 0 ||
+      variableLayout.visibleRange(10.0F, 30.0F, 1).count != 3 ||
+      variableLayout.visibleRange(5.0F, 10.0F, 0).count != 2 ||
+      variableLayout
+              .visibleRange(5.0F, 10.0F,
+                            std::numeric_limits<std::size_t>::max())
+              .count != 4 ||
+      variableLayout.visibleRange(100.0F, 10.0F).first != 4 ||
+      variableLayout.visibleRange(100.0F, 10.0F).count != 0) {
+    std::cerr << "Variable-height virtual collection range failed.\n";
+    return 1;
+  }
+  UiVirtualLayout largeVariableLayout;
+  const std::array largeExtents{1.0e20F, 1.0e20F};
+  if (!largeVariableLayout.reset(largeExtents, virtualError) ||
+      largeVariableLayout.visibleRange(1.0e20F, 1.0F, 0).first != 1 ||
+      largeVariableLayout.visibleRange(1.0e20F, 1.0F, 0).count != 1) {
+    std::cerr << "Large variable-height range lost its visible boundary row.\n";
+    return 1;
+  }
+  const std::array invalidExtents{10.0F,
+                                  std::numeric_limits<float>::quiet_NaN()};
+  const std::array impreciseExtents{std::numeric_limits<float>::max() * 0.5F,
+                                    1.0F};
+  if (variableLayout.reset(invalidExtents, virtualError) ||
+      virtualError.empty() || variableLayout.totalExtent() != 100.0F ||
+      !variableLayout.setItemExtent(0, 25.0F, virtualError) ||
+      variableLayout.itemOffset(1) != 25.0F ||
+      variableLayout.totalExtent() != 115.0F ||
+      variableLayout.setItemExtent(4, 10.0F, virtualError) ||
+      variableLayout.setItemExtent(0, 0.0F, virtualError) ||
+      variableLayout.reset(impreciseExtents, virtualError) ||
+      variableLayout.totalExtent() != 115.0F ||
+      variableLayout
+              .visibleRange(std::numeric_limits<float>::quiet_NaN(), 25.0F, 0)
+              .first != 0 ||
+      variableLayout.visibleRange(0.0F, -1.0F).count != 0) {
+    std::cerr << "Variable-height virtual collection mutation safety failed.\n";
     return 1;
   }
 

@@ -3,14 +3,45 @@
 #include "demi/runtime/ui/TextLayoutEngine.h"
 #include "demi/runtime/ui/UiAccessibilityTree.h"
 #include "demi/runtime/ui/UiVirtualCollection.h"
+#include <memory>
 #include <sol/sol.hpp>
 #include <tuple>
+#include <vector>
 namespace demi::runtime {
 void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
   sol::state_view lua(state);
   lua.new_usertype<ui::UiNodeHandle>("HudNodeHandle", sol::no_constructor, "id",
                                      &ui::UiNodeHandle::id, "generation",
                                      &ui::UiNodeHandle::generation);
+  lua.new_usertype<ui::UiVirtualLayout>(
+      "HudVirtualLayout", sol::no_constructor, "item_count",
+      &ui::UiVirtualLayout::itemCount, "total_extent",
+      &ui::UiVirtualLayout::totalExtent, "visible_range",
+      [](const ui::UiVirtualLayout &layout, const float offset,
+         const float viewport, const sol::optional<std::size_t> overscan) {
+        const ui::UiVirtualRange range =
+            layout.visibleRange(offset, viewport, overscan.value_or(2));
+        return std::tuple{range.first + 1, range.count,
+                          layout.itemOffset(range.first), layout.totalExtent()};
+      },
+      "set_extent",
+      [](ui::UiVirtualLayout &layout, const std::size_t oneBasedIndex,
+         const float extent) {
+        std::string error;
+        const bool changed =
+            oneBasedIndex > 0 &&
+            layout.setItemExtent(oneBasedIndex - 1, extent, error);
+        if (oneBasedIndex == 0)
+          error = "Virtual item indices are one-based.";
+        return std::tuple{changed, error};
+      },
+      "item_offset",
+      [](const ui::UiVirtualLayout &layout, const std::size_t oneBasedIndex) {
+        if (oneBasedIndex == 0 || oneBasedIndex > layout.itemCount())
+          return std::tuple{0.0F,
+                            std::string{"Virtual item index is out of range."}};
+        return std::tuple{layout.itemOffset(oneBasedIndex - 1), std::string{}};
+      });
   sol::table hud = lua.create_named_table("Hud");
   hud.set_function("find", [&host](const std::string &id) {
     return host.hudNodeHandle(id);
@@ -123,6 +154,24 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
     const auto range = ui::UiVirtualCollection::visibleRange(
         count, itemExtent, offset, viewport, overscan.value_or(2));
     return std::tuple{range.first + 1, range.count};
+  });
+  hud.set_function("virtual_layout", [](const sol::table &extents) {
+    std::vector<float> values;
+    values.reserve(extents.size());
+    for (std::size_t index = 1; index <= extents.size(); ++index) {
+      const sol::optional<float> value =
+          extents.get<sol::optional<float>>(index);
+      if (!value)
+        return std::tuple{
+            std::shared_ptr<ui::UiVirtualLayout>{},
+            std::string{"Virtual item extents must be a dense numeric array."}};
+      values.push_back(*value);
+    }
+    auto layout = std::make_shared<ui::UiVirtualLayout>();
+    std::string error;
+    if (!layout->reset(values, error))
+      layout.reset();
+    return std::tuple{std::move(layout), error};
   });
   hud.set_function(
       "text", [&host](const std::string &id, const std::string &text, float x,

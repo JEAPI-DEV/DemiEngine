@@ -94,6 +94,15 @@ scroll clipping. Authored nodes may provide
 hidden/decorative subtrees are omitted. Native operating-system screen-reader
 bridges remain separate platform adapters.
 
+Uniform virtual lists use
+\code{Hud.visible\_range(item\_count, item\_extent, offset, viewport,
+overscan)}. Variable-height rows use a persistent
+\code{Hud.virtual\_layout(\{heights...\})} object. Its
+\code{visible\_range} method returns the one-based first item, live count,
+leading extent, and total scrollable extent; \code{set\_extent} updates a
+measured row and \code{item\_offset} returns placement. Invalid extents fail
+transactionally.
+
 \section{Scene Switching}
 
 \code{Scene.load} requests a runtime scene switch by scene id. The switch is deferred: it is applied between frames by the runtime loop, so it is safe to call from any Lua callback (menu buttons, update, fixed update).

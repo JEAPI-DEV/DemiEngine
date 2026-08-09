@@ -1036,6 +1036,29 @@ Hud = {}
 ---@class HudNodeHandle
 ---@field id string
 ---@field generation integer
+---@class HudVirtualLayout
+HudVirtualLayout = {}
+---@return integer
+function HudVirtualLayout:item_count() end
+---@return number
+function HudVirtualLayout:total_extent() end
+---@param scroll_offset number
+---@param viewport_extent number
+---@param overscan? integer
+---@return integer first One-based logical item index.
+---@return integer count Number of live rows needed.
+---@return number leading_extent Offset of the first returned item.
+---@return number total_extent Total scrollable extent.
+function HudVirtualLayout:visible_range(scroll_offset, viewport_extent, overscan) end
+---@param index integer One-based logical item index.
+---@param extent number
+---@return boolean changed
+---@return string error
+function HudVirtualLayout:set_extent(index, extent) end
+---@param index integer One-based logical item index.
+---@return number offset
+---@return string error
+function HudVirtualLayout:item_offset(index) end
 ---@class HudNodeDefinition
 ---@field id string
 ---@field type? string
@@ -1132,6 +1155,10 @@ function Hud.set_pseudo_locale(enabled) end
 ---@return integer first One-based logical item index.
 ---@return integer count Number of live rows needed.
 function Hud.visible_range(item_count, item_extent, scroll_offset, viewport_extent, overscan) end
+---@param item_extents number[]
+---@return HudVirtualLayout|nil layout
+---@return string error
+function Hud.virtual_layout(item_extents) end
 ---@return number width
 ---@return number height
 function Hud.canvas_size() end

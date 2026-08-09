@@ -92,6 +92,18 @@ function Probe:on_start()
       Save.set_string("test", "accessibility_snapshot", "passed")
     end
   end
+  local virtual, virtual_error = Hud.virtual_layout({10, 30, 20, 40})
+  if virtual and virtual_error == "" then
+    local first, count, leading, total = virtual:visible_range(10, 30, 0)
+    local changed, change_error = virtual:set_extent(1, 25)
+    local second_offset, offset_error = virtual:item_offset(2)
+    if first == 2 and count == 1 and leading == 10 and total == 100
+        and changed and change_error == "" and second_offset == 25
+        and offset_error == "" and virtual:item_count() == 4
+        and virtual:total_extent() == 115 then
+      Save.set_string("test", "variable_virtual_layout", "passed")
+    end
+  end
   Hud.text("hud_probe", "probe", 8.0, 12.0, 2.0)
   if Hud.set_text_scale("hud_probe", 5.5) then
     Save.set_string("test", "hud_text_scale", "updated")
@@ -522,6 +534,11 @@ return PropProbe
   if (host.saveString("test", "accessibility_snapshot") != "passed") {
     std::cerr
         << "Hud.accessibility_snapshot did not expose live UI semantics.\n";
+    return 1;
+  }
+  if (host.saveString("test", "variable_virtual_layout") != "passed") {
+    std::cerr << "Hud.virtual_layout did not expose persistent variable-height "
+                 "virtualization.\n";
     return 1;
   }
   const auto hudProbe = std::ranges::find_if(

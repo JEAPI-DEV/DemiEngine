@@ -131,6 +131,19 @@ game should represent with live nodes. Ten thousand data rows therefore do not
 require ten thousand retained controls. `examples/ui_showcase` demonstrates
 runtime row creation without a genre-specific engine widget.
 
+Rows whose content wraps or otherwise has different heights use a persistent
+`Hud.virtual_layout({height_a, height_b, ...})` object. Its
+`visible_range(scroll_offset, viewport_extent, overscan)` method returns the
+one-based first item, live count, leading extent, and total scrollable extent.
+`set_extent(index, height)` updates one measured row without rebuilding the
+whole layout; `item_offset(index)` supplies its placement. Extents must be
+finite and positive. Failed construction or mutation is transactional and
+leaves the previous offsets intact.
+
+The virtual layout owns only measurement and range lookup. Stable data keys,
+row content, and gameplay meaning remain game-owned. Engine-managed row-node
+recycling and interaction-state reset are a later part of Step 3.
+
 Text nodes support `text_wrap` (`none`, `word`, or `grapheme`),
 `text_alignment`, `text_vertical_alignment`, `line_spacing`, `max_lines`, and
 `text_overflow` (`visible`, `clip`, or `ellipsis`). The backend-neutral

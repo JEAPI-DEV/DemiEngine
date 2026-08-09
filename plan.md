@@ -431,7 +431,8 @@ inventory screen, quest screen, or other genre-specific presentation.
 segmentation, immutable wrapping/alignment/ellipsis results, selection/hit
 geometry, bounded caching, rich-text validation, renderer integration,
 generation-checked transactional mutations, runtime subtree cloning, bounded
-virtual ranges, locale reapplication, lifetime-bound tweens, Lua contracts,
+uniform and cached variable-height virtual ranges, locale reapplication,
+lifetime-bound tweens, Lua contracts,
 the dynamic `ui_showcase` probe, grapheme-safe caret/selection editing, and SDL
 IME composition with explicit commit/cancel behavior are covered. Project-
 authored UI prefabs now add validated typed parameters, defaults, nested
@@ -445,8 +446,8 @@ backend-neutral accessibility snapshot now derives semantic roles, hierarchy,
 labels, descriptions, values, states, and safe canvas bounds from the same
 retained tree, including hidden/decorative filtering and inherited disabled
 state.
-Complex-script shaping, font-fallback atlas pages, variable-height recycling,
-native accessibility bridges/actions are still required before
+Complex-script shaping, font-fallback atlas pages, row-node recycling with
+interaction-state reset, native accessibility bridges/actions are still required before
 this step meets its full done criteria; the text adapter reports incomplete
 shaping instead of silently claiming correctness meanwhile.
 
