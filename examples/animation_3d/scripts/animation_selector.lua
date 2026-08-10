@@ -27,7 +27,7 @@ function AnimationSelector:select(choice)
     return
   end
   for _, candidate in ipairs(choices) do
-    Hud.set_button_label(candidate.action, label_for(candidate, candidate == choice))
+    Hud.set_text(candidate.action, label_for(candidate, candidate == choice))
   end
   Hud.set_text("subtitle", "PLAYING: " .. string.upper(choice.clip))
   Debug.log("Selected animation: " .. choice.clip)

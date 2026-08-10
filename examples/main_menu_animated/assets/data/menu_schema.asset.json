@@ -2,7 +2,7 @@
   "dependencies": [],
   "format_version": 1,
   "id": "asset://schemas/menu_copy",
-  "importer": "json_data",
+  "importer": "json_schema",
   "importer_version": 1,
   "settings": {},
   "source": "menu.schema.json",

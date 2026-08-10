@@ -145,17 +145,6 @@ function Input.gestures() end
 function Input.text_entered() end
 ---@param active boolean
 function Input.set_text_input_active(active) end
----@param negative_key string
----@param positive_key string
----@return number
-function Input.axis(negative_key, positive_key) end
----@param left string
----@param right string
----@param down string
----@param up string
----@return number x
----@return number y
-function Input.vector(left, right, down, up) end
 ---@param button string
 ---@return boolean
 function Input.mouse_down(button) end
@@ -177,6 +166,21 @@ function Input.ui_pointer_captured(pointer_id) end
 
 ---@class ApplicationService
 Application = {}
+function Application.quit() end
+---@return "android"|"windows"|"macos"|"linux"|"unknown"
+function Application.platform() end
+---@param mode string
+function Application.set_window_mode(mode) end
+---@return string mode
+function Application.window_mode() end
+---@param max_fps number
+function Application.set_max_fps(max_fps) end
+---@return integer max_fps
+function Application.max_fps() end
+---@param captured boolean
+function Application.set_mouse_captured(captured) end
+---@return boolean captured
+function Application.mouse_captured() end
 ---@return number left
 ---@return number top
 ---@return number right
@@ -323,13 +327,6 @@ function Entity.local_position(entity_id) end
 ---@param entity_id string
 ---@return number[]|nil
 function Entity.world_position(entity_id) end
----@param entity_id string
----@param r number
----@param g number
----@param b number
----@param a? number
----@return boolean
-function Entity.set_sprite_color(entity_id, r, g, b, a) end
 
 ---@class TransformService
 Transform = {}
@@ -429,6 +426,13 @@ function Transform3D.look_at(entity_id, x, y, z) end
 
 ---@class Sprite2DService
 Sprite2D = {}
+---@param entity_id string
+---@param r number
+---@param g number
+---@param b number
+---@param a? number
+---@return boolean
+function Sprite2D.set_color(entity_id, r, g, b, a) end
 ---@param entity_id string
 ---@param clip string
 ---@param restart? boolean
@@ -643,29 +647,12 @@ function Prefab.release(instance_or_entity_id) end
 ---@return integer
 function Prefab.pooled_count(prefab_id) end
 
----@class RuntimeService
-Runtime = {}
-function Runtime.quit() end
----@return "android"|"windows"|"macos"|"linux"|"unknown"
-function Runtime.platform() end
+---@class PhysicsService
+Physics = {}
 ---@param enabled boolean
-function Runtime.set_physics_enabled(enabled) end
----@param mode string
-function Runtime.set_window_mode(mode) end
----@return string mode
-function Runtime.get_window_mode() end
----@param max_fps number
-function Runtime.set_max_fps(max_fps) end
----@return integer max_fps
-function Runtime.get_max_fps() end
----@param captured boolean
-function Runtime.set_mouse_captured(captured) end
----@return boolean captured
-function Runtime.get_mouse_captured() end
+function Physics.set_enabled(enabled) end
 ---@return boolean
-function Runtime.is_focused() end
----@return boolean
-function Runtime.is_suspended() end
+function Physics.enabled() end
 
 ---@class Rigidbody2DService
 Rigidbody2D = {}
@@ -1184,38 +1171,12 @@ function Hud.clear_recycled_rows(collection_id) end
 function Hud.canvas_size() end
 ---@param id string
 ---@param text string
----@param x number
----@param y number
----@param scale? number
----@param r? number
----@param g? number
----@param b? number
----@param a? number
----@return boolean
-function Hud.text(id, text, x, y, scale, r, g, b, a) end
----@param id string
----@param scale number
----@return boolean
-function Hud.set_text_scale(id, scale) end
----@param id string
----@param x number
----@param y number
----@param width number
----@param height number
----@param r? number
----@param g? number
----@param b? number
----@param a? number
----@return boolean
-function Hud.rect(id, x, y, width, height, r, g, b, a) end
----@param id string
----@param text string
 ---@return boolean
 function Hud.set_text(id, text) end
 ---@param id string
----@param label string
+---@param size number
 ---@return boolean
-function Hud.set_button_label(id, label) end
+function Hud.set_font_size(id, size) end
 ---@param id string
 ---@param x number
 ---@param y number
@@ -1254,6 +1215,13 @@ function Hud.set_size(id, width, height) end
 ---@return boolean
 function Hud.set_color(id, r, g, b, a) end
 ---@param id string
+---@param r number
+---@param g number
+---@param b number
+---@param a? number
+---@return boolean
+function Hud.set_background_color(id, r, g, b, a) end
+---@param id string
 ---@param opacity number
 ---@return boolean
 function Hud.set_opacity(id, opacity) end
@@ -1278,10 +1246,6 @@ function Hud.set_disabled(id, disabled) end
 function Hud.focus_next(reverse) end
 ---@return string
 function Hud.focused() end
----@param group string
----@param visible boolean
----@return boolean
-function Hud.set_group_visible(group, visible) end
 ---@param id string
 ---@return string|nil
 function Hud.get_text(id) end
@@ -1890,11 +1854,6 @@ function DemiScript:on_update(dt) end
 function DemiScript:on_fixed_update(dt) end
 function DemiScript:on_destroy() end
 
----@class DemiUiEvent
----@field id string
----@field label string
----@field mouse_x number
----@field mouse_y number
 ---@alias DemiUiEventType "value_changed"|"focus_gained"|"focus_lost"|"submit"|"cancel"|"pointer_enter"|"pointer_exit"|"press"|"release"|"drag_start"|"drag"|"drag_end"|"drop"|"scroll"
 ---@alias DemiUiEventSource "mouse"|"touch"|"keyboard"|"controller"|"state_change"|"node_removed"
 ---@class DemiTypedUiEvent
@@ -1912,10 +1871,6 @@ function DemiScript:on_destroy() end
 ---@field value number
 ---@field checked boolean
 ---@field cancelled boolean
----@param event DemiUiEvent
-function DemiScript:on_ui_hover(event) end
----@param event DemiUiEvent
-function DemiScript:on_ui_click(event) end
 ---@param event DemiTypedUiEvent
 function DemiScript:on_ui_event(event) end
 ---@param event DemiTypedUiEvent

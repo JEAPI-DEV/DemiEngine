@@ -58,7 +58,8 @@ public:
                                  const Camera2DComponent &camera,
                                  Vec2 cameraPosition, float deltaSeconds,
                                  const navigation::NavigationGrid2D *navigation,
-                                 std::string &error);
+                                 std::string &error,
+                                 float physicsInterpolationAlpha = 1.0F);
   [[nodiscard]] std::string_view rendererName() const;
 
 private:

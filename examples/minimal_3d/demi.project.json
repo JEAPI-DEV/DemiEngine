@@ -13,18 +13,76 @@
   },
   "input": {
     "actions": {
-      "move_right": [
-        { "input": "a", "scale": -1.0 },
-        { "input": "d", "scale": 1.0 }
-      ],
-      "move_forward": [
-        { "input": "s", "scale": -1.0 },
-        { "input": "w", "scale": 1.0 }
-      ],
-      "rotate_left": ["q"],
-      "rotate_right": ["e"],
-      "fire": ["f", "mouse:left", "gamepad:south"],
-      "jump": ["space"]
+      "move_right": {
+        "type": "axis1d",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:a",
+            "scale": -1.0
+          },
+          {
+            "input": "key:d",
+            "scale": 1.0
+          }
+        ]
+      },
+      "move_forward": {
+        "type": "axis1d",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:s",
+            "scale": -1.0
+          },
+          {
+            "input": "key:w",
+            "scale": 1.0
+          }
+        ]
+      },
+      "rotate_left": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:q"
+          }
+        ]
+      },
+      "rotate_right": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:e"
+          }
+        ]
+      },
+      "fire": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:f"
+          },
+          {
+            "input": "mouse:left"
+          },
+          {
+            "input": "gamepad:south"
+          }
+        ]
+      },
+      "jump": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:space"
+          }
+        ]
+      }
     }
   },
   "scenes": [

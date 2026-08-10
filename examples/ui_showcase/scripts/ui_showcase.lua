@@ -24,16 +24,16 @@ local window_modes = {
 }
 
 local function show_window_mode(mode, label)
-  Hud.set_button_label("window_mode_dropdown", "Window: " .. label .. "  v")
+  Hud.set_text("window_mode_dropdown", "Window: " .. label .. "  v")
   Hud.set_visible("window_mode_options", false)
   window_mode_dropdown_open = false
   if mode then
-    Runtime.set_window_mode(mode)
+    Application.set_window_mode(mode)
   end
 end
 
 local function current_window_mode()
-  local mode = Runtime.get_window_mode()
+  local mode = Application.window_mode()
   for _, choice in pairs(window_modes) do
     if choice.mode == mode then
       return choice
@@ -63,7 +63,7 @@ local function filter_inventory(pattern)
   assert(error == "", error)
   for _, row in ipairs(rows) do
     local item = inventory_by_id[row.key]
-    Hud.set_button_label(row.node.id, item and item.label or row.key)
+    Hud.set_text(row.node.id, item and item.label or row.key)
   end
 end
 
@@ -112,7 +112,7 @@ function UiShowcase:on_window_mode_action(event)
   if event.action == "window_mode_dropdown" then
     window_mode_dropdown_open = not window_mode_dropdown_open
     Hud.set_visible("window_mode_options", window_mode_dropdown_open)
-    Hud.set_button_label(
+    Hud.set_text(
       "window_mode_dropdown",
       "Window: " .. current_window_mode().label .. (window_mode_dropdown_open and "  ^" or "  v")
     )

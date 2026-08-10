@@ -69,7 +69,6 @@ void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
       scene_loading::stringOr(json, "accessibility_description");
   node.accessibilityHidden =
       scene_loading::boolField(json, "accessibility_hidden").value_or(false);
-  node.group = scene_loading::stringOr(json, "group");
   if (auto value = scene_loading::vec2Field(json, "position"))
     node.layout.position = *value;
   else if (auto value = scene_loading::vec2Field(json, "center"))

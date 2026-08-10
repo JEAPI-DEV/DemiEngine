@@ -2,7 +2,7 @@
   "dependencies": [],
   "format_version": 1,
   "id": "asset://tilemaps/platform",
-  "importer": "json-data",
+  "importer": "tilemap2d",
   "importer_version": 1,
   "settings": {},
   "source": "platform_map.tilemap.json",

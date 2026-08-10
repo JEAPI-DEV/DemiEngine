@@ -100,7 +100,7 @@ int main() {
   write(root / "scripts/main.lua", "local M = {}\nreturn M\n");
   result = coordinator.process(watcher.poll());
   assert(result.applied);
-  write(root / "assets/pixel.ppm", "P3\n1 1\n255\n255 0 255\n");
+  write(root / "assets/pixel.png", "png-v1");
   result = coordinator.process(watcher.poll());
   assert(result.applied);
   assert(assetReloads == 1);
@@ -109,7 +109,7 @@ int main() {
     "format_version":1,"id":"scene://watch/main","name":"Batch",
     "entities":[{"id":"script","components":{"LuaScript":{"module":"script://scripts/main.lua"}}}]
   })");
-  write(root / "assets/pixel.ppm", "P3\n1 1\n255\n0 255 0\n");
+  write(root / "assets/pixel.png", "png-v2");
   ReloadCoordinator failingCoordinator(
       root / "demi.project.json",
       {.reloadScene =

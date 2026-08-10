@@ -23,36 +23,96 @@
   },
   "input": {
     "actions": {
-      "build_arrow": [
-        "1"
-      ],
-      "build_wizard": [
-        "2"
-      ],
-      "start_wave": [
-        "space"
-      ],
-      "cancel": [
-        "escape"
-      ],
-      "save": [
-        "s"
-      ],
-      "load": [
-        "l"
-      ],
-      "tower_upgrade": [
-        "u"
-      ],
-      "tower_destroy": [
-        "delete"
-      ],
-      "upgrade_range": [
-        "r"
-      ],
-      "upgrade_power": [
-        "p"
-      ]
+      "build_arrow": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:1"
+          }
+        ]
+      },
+      "build_wizard": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:2"
+          }
+        ]
+      },
+      "start_wave": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:space"
+          }
+        ]
+      },
+      "cancel": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:escape"
+          }
+        ]
+      },
+      "save": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:s"
+          }
+        ]
+      },
+      "load": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:l"
+          }
+        ]
+      },
+      "tower_upgrade": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:u"
+          }
+        ]
+      },
+      "tower_destroy": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:delete"
+          }
+        ]
+      },
+      "upgrade_range": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:r"
+          }
+        ]
+      },
+      "upgrade_power": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:p"
+          }
+        ]
+      }
     }
   },
   "scripting": {

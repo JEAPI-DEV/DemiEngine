@@ -27,7 +27,7 @@
           928.0,
           58.0
         ],
-        "color": [
+        "background_color": [
           0.04,
           0.06,
           0.1,
@@ -113,7 +113,7 @@
           202.0,
           284.0
         ],
-        "color": [
+        "background_color": [
           0.05,
           0.08,
           0.13,
@@ -147,12 +147,6 @@
           166.0,
           48.0
         ],
-        "color": [
-          0.16,
-          0.28,
-          0.32,
-          1.0
-        ],
         "hover_color": [
           0.24,
           0.45,
@@ -161,7 +155,13 @@
         ],
         "action": "build_arrow",
         "text": "[1] ARROW 50",
-        "font_size": 17.6
+        "font_size": 17.6,
+        "background_color": [
+          0.16,
+          0.28,
+          0.32,
+          1.0
+        ]
       },
       {
         "type": "button",
@@ -174,12 +174,6 @@
           166.0,
           48.0
         ],
-        "color": [
-          0.28,
-          0.2,
-          0.34,
-          1.0
-        ],
         "hover_color": [
           0.45,
           0.3,
@@ -188,7 +182,13 @@
         ],
         "action": "build_wizard",
         "text": "[2] WIZARD 90",
-        "font_size": 17.6
+        "font_size": 17.6,
+        "background_color": [
+          0.28,
+          0.2,
+          0.34,
+          1.0
+        ]
       },
       {
         "type": "button",
@@ -201,12 +201,6 @@
           166.0,
           48.0
         ],
-        "color": [
-          0.36,
-          0.2,
-          0.2,
-          1.0
-        ],
         "hover_color": [
           0.58,
           0.28,
@@ -215,7 +209,13 @@
         ],
         "action": "start_wave",
         "text": "[SPACE] WAVE",
-        "font_size": 16.8
+        "font_size": 16.8,
+        "background_color": [
+          0.36,
+          0.2,
+          0.2,
+          1.0
+        ]
       },
       {
         "type": "label",
@@ -244,7 +244,7 @@
           928.0,
           70.0
         ],
-        "color": [
+        "background_color": [
           0.04,
           0.06,
           0.1,
@@ -284,344 +284,346 @@
         "font_size": 14.4
       },
       {
-        "type": "panel",
-        "id": "tower_menu_bg",
-        "position": [
-          360.0,
-          250.0
-        ],
-        "size": [
-          184.0,
-          244.0
-        ],
-        "color": [
-          0.04,
-          0.07,
-          0.11,
-          0.96
-        ],
-        "group": "tower_menu",
-        "visible": false
-      },
-      {
-        "type": "label",
-        "id": "tower_stats",
-        "text": "LV 1/5  POW 0  RNG 0",
-        "position": [
-          372.0,
-          260.0
-        ],
-        "color": [
-          0.82,
-          0.9,
-          0.96,
-          1.0
-        ],
-        "group": "tower_menu",
+        "id": "tower_menu",
+        "type": "container",
         "visible": false,
-        "font_size": 13.6
+        "children": [
+          {
+            "type": "panel",
+            "id": "tower_menu_bg",
+            "position": [
+              360.0,
+              250.0
+            ],
+            "size": [
+              184.0,
+              244.0
+            ],
+            "background_color": [
+              0.04,
+              0.07,
+              0.11,
+              0.96
+            ]
+          },
+          {
+            "type": "label",
+            "id": "tower_stats",
+            "text": "LV 1/5  POW 0  RNG 0",
+            "position": [
+              372.0,
+              260.0
+            ],
+            "color": [
+              0.82,
+              0.9,
+              0.96,
+              1.0
+            ],
+            "font_size": 13.6
+          },
+          {
+            "type": "image",
+            "id": "upgrade_icon",
+            "position": [
+              370.0,
+              293.0
+            ],
+            "size": [
+              28.0,
+              28.0
+            ],
+            "texture": "asset://ui/upgrade",
+            "layer": 3
+          },
+          {
+            "type": "button",
+            "id": "tower_upgrade",
+            "position": [
+              368.0,
+              288.0
+            ],
+            "size": [
+              168.0,
+              38.0
+            ],
+            "hover_color": [
+              0.2,
+              0.52,
+              0.4,
+              1.0
+            ],
+            "action": "tower_upgrade",
+            "text": "UPGRADE",
+            "font_size": 14.4,
+            "background_color": [
+              0.14,
+              0.34,
+              0.28,
+              1.0
+            ]
+          },
+          {
+            "type": "image",
+            "id": "destroy_icon",
+            "position": [
+              370.0,
+              337.0
+            ],
+            "size": [
+              28.0,
+              28.0
+            ],
+            "texture": "asset://ui/destroy",
+            "layer": 3
+          },
+          {
+            "type": "button",
+            "id": "tower_destroy",
+            "position": [
+              368.0,
+              332.0
+            ],
+            "size": [
+              168.0,
+              38.0
+            ],
+            "hover_color": [
+              0.6,
+              0.22,
+              0.24,
+              1.0
+            ],
+            "action": "tower_destroy",
+            "text": "DESTROY",
+            "font_size": 14.4,
+            "background_color": [
+              0.38,
+              0.16,
+              0.18,
+              1.0
+            ]
+          },
+          {
+            "type": "button",
+            "id": "tower_target_random",
+            "position": [
+              368.0,
+              378.0
+            ],
+            "size": [
+              80.0,
+              52.0
+            ],
+            "hover_color": [
+              0.22,
+              0.5,
+              0.42,
+              1.0
+            ],
+            "action": "tower_target_random",
+            "text": "RANDOM",
+            "font_size": 8,
+            "background_color": [
+              0.1,
+              0.22,
+              0.3,
+              1.0
+            ]
+          },
+          {
+            "type": "button",
+            "id": "tower_target_strongest",
+            "position": [
+              456.0,
+              378.0
+            ],
+            "size": [
+              80.0,
+              52.0
+            ],
+            "hover_color": [
+              0.42,
+              0.28,
+              0.62,
+              1.0
+            ],
+            "action": "tower_target_strongest",
+            "text": "STRONGEST",
+            "font_size": 6.56,
+            "background_color": [
+              0.22,
+              0.16,
+              0.3,
+              1.0
+            ]
+          },
+          {
+            "type": "button",
+            "id": "tower_target_weakest",
+            "position": [
+              368.0,
+              434.0
+            ],
+            "size": [
+              80.0,
+              52.0
+            ],
+            "hover_color": [
+              0.48,
+              0.32,
+              0.22,
+              1.0
+            ],
+            "action": "tower_target_weakest",
+            "text": "WEAKEST",
+            "font_size": 6.56,
+            "background_color": [
+              0.28,
+              0.2,
+              0.14,
+              1.0
+            ]
+          },
+          {
+            "type": "button",
+            "id": "tower_target_first",
+            "position": [
+              456.0,
+              434.0
+            ],
+            "size": [
+              80.0,
+              52.0
+            ],
+            "hover_color": [
+              0.22,
+              0.42,
+              0.62,
+              1.0
+            ],
+            "action": "tower_target_first",
+            "text": "FIRST",
+            "font_size": 8,
+            "background_color": [
+              0.12,
+              0.28,
+              0.36,
+              1.0
+            ]
+          }
+        ],
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
       },
       {
-        "type": "image",
-        "id": "upgrade_icon",
-        "position": [
-          370.0,
-          293.0
-        ],
-        "size": [
-          28.0,
-          28.0
-        ],
-        "texture": "asset://ui/upgrade",
-        "group": "tower_menu",
+        "id": "upgrade_choice_menu",
+        "type": "container",
         "visible": false,
-        "layer": 3
-      },
-      {
-        "type": "button",
-        "id": "tower_upgrade",
-        "position": [
-          368.0,
-          288.0
+        "children": [
+          {
+            "type": "panel",
+            "id": "upgrade_choice_bg",
+            "position": [
+              170.0,
+              250.0
+            ],
+            "size": [
+              180.0,
+              132.0
+            ],
+            "background_color": [
+              0.04,
+              0.07,
+              0.11,
+              0.96
+            ]
+          },
+          {
+            "type": "label",
+            "id": "upgrade_choice_title",
+            "text": "CHOOSE UPGRADE",
+            "position": [
+              182.0,
+              260.0
+            ],
+            "color": [
+              0.45,
+              0.94,
+              0.78,
+              1.0
+            ],
+            "font_size": 14.4
+          },
+          {
+            "type": "button",
+            "id": "upgrade_range",
+            "position": [
+              178.0,
+              292.0
+            ],
+            "size": [
+              164.0,
+              36.0
+            ],
+            "hover_color": [
+              0.24,
+              0.4,
+              0.6,
+              1.0
+            ],
+            "action": "upgrade_range",
+            "text": "RANGE",
+            "font_size": 15.2,
+            "background_color": [
+              0.16,
+              0.25,
+              0.38,
+              1.0
+            ]
+          },
+          {
+            "type": "button",
+            "id": "upgrade_power",
+            "position": [
+              178.0,
+              336.0
+            ],
+            "size": [
+              164.0,
+              36.0
+            ],
+            "hover_color": [
+              0.62,
+              0.38,
+              0.2,
+              1.0
+            ],
+            "action": "upgrade_power",
+            "text": "POWER",
+            "font_size": 15.2,
+            "background_color": [
+              0.4,
+              0.24,
+              0.14,
+              1.0
+            ]
+          }
         ],
-        "size": [
-          168.0,
-          38.0
+        "anchor_min": [
+          0,
+          0
         ],
-        "color": [
-          0.14,
-          0.34,
-          0.28,
-          1.0
-        ],
-        "hover_color": [
-          0.2,
-          0.52,
-          0.4,
-          1.0
-        ],
-        "action": "tower_upgrade",
-        "group": "tower_menu",
-        "visible": false,
-        "text": "UPGRADE",
-        "font_size": 14.4
-      },
-      {
-        "type": "image",
-        "id": "destroy_icon",
-        "position": [
-          370.0,
-          337.0
-        ],
-        "size": [
-          28.0,
-          28.0
-        ],
-        "texture": "asset://ui/destroy",
-        "group": "tower_menu",
-        "visible": false,
-        "layer": 3
-      },
-      {
-        "type": "button",
-        "id": "tower_destroy",
-        "position": [
-          368.0,
-          332.0
-        ],
-        "size": [
-          168.0,
-          38.0
-        ],
-        "color": [
-          0.38,
-          0.16,
-          0.18,
-          1.0
-        ],
-        "hover_color": [
-          0.6,
-          0.22,
-          0.24,
-          1.0
-        ],
-        "action": "tower_destroy",
-        "group": "tower_menu",
-        "visible": false,
-        "text": "DESTROY",
-        "font_size": 14.4
-      },
-      {
-        "type": "button",
-        "id": "tower_target_random",
-        "position": [
-          368.0,
-          378.0
-        ],
-        "size": [
-          80.0,
-          52.0
-        ],
-        "color": [
-          0.1,
-          0.22,
-          0.3,
-          1.0
-        ],
-        "hover_color": [
-          0.22,
-          0.5,
-          0.42,
-          1.0
-        ],
-        "action": "tower_target_random",
-        "group": "tower_menu",
-        "visible": false,
-        "text": "RANDOM",
-        "font_size": 8
-      },
-      {
-        "type": "button",
-        "id": "tower_target_strongest",
-        "position": [
-          456.0,
-          378.0
-        ],
-        "size": [
-          80.0,
-          52.0
-        ],
-        "color": [
-          0.22,
-          0.16,
-          0.3,
-          1.0
-        ],
-        "hover_color": [
-          0.42,
-          0.28,
-          0.62,
-          1.0
-        ],
-        "action": "tower_target_strongest",
-        "group": "tower_menu",
-        "visible": false,
-        "text": "STRONGEST",
-        "font_size": 6.56
-      },
-      {
-        "type": "button",
-        "id": "tower_target_weakest",
-        "position": [
-          368.0,
-          434.0
-        ],
-        "size": [
-          80.0,
-          52.0
-        ],
-        "color": [
-          0.28,
-          0.2,
-          0.14,
-          1.0
-        ],
-        "hover_color": [
-          0.48,
-          0.32,
-          0.22,
-          1.0
-        ],
-        "action": "tower_target_weakest",
-        "group": "tower_menu",
-        "visible": false,
-        "text": "WEAKEST",
-        "font_size": 6.56
-      },
-      {
-        "type": "button",
-        "id": "tower_target_first",
-        "position": [
-          456.0,
-          434.0
-        ],
-        "size": [
-          80.0,
-          52.0
-        ],
-        "color": [
-          0.12,
-          0.28,
-          0.36,
-          1.0
-        ],
-        "hover_color": [
-          0.22,
-          0.42,
-          0.62,
-          1.0
-        ],
-        "action": "tower_target_first",
-        "group": "tower_menu",
-        "visible": false,
-        "text": "FIRST",
-        "font_size": 8
-      },
-      {
-        "type": "panel",
-        "id": "upgrade_choice_bg",
-        "position": [
-          170.0,
-          250.0
-        ],
-        "size": [
-          180.0,
-          132.0
-        ],
-        "color": [
-          0.04,
-          0.07,
-          0.11,
-          0.96
-        ],
-        "group": "upgrade_choice_menu",
-        "visible": false
-      },
-      {
-        "type": "label",
-        "id": "upgrade_choice_title",
-        "text": "CHOOSE UPGRADE",
-        "position": [
-          182.0,
-          260.0
-        ],
-        "color": [
-          0.45,
-          0.94,
-          0.78,
-          1.0
-        ],
-        "group": "upgrade_choice_menu",
-        "visible": false,
-        "font_size": 14.4
-      },
-      {
-        "type": "button",
-        "id": "upgrade_range",
-        "position": [
-          178.0,
-          292.0
-        ],
-        "size": [
-          164.0,
-          36.0
-        ],
-        "color": [
-          0.16,
-          0.25,
-          0.38,
-          1.0
-        ],
-        "hover_color": [
-          0.24,
-          0.4,
-          0.6,
-          1.0
-        ],
-        "action": "upgrade_range",
-        "group": "upgrade_choice_menu",
-        "visible": false,
-        "text": "RANGE",
-        "font_size": 15.2
-      },
-      {
-        "type": "button",
-        "id": "upgrade_power",
-        "position": [
-          178.0,
-          336.0
-        ],
-        "size": [
-          164.0,
-          36.0
-        ],
-        "color": [
-          0.4,
-          0.24,
-          0.14,
-          1.0
-        ],
-        "hover_color": [
-          0.62,
-          0.38,
-          0.2,
-          1.0
-        ],
-        "action": "upgrade_power",
-        "group": "upgrade_choice_menu",
-        "visible": false,
-        "text": "POWER",
-        "font_size": 15.2
+        "anchor_max": [
+          1,
+          1
+        ]
       }
     ]
   }

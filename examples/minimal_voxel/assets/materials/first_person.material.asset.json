@@ -2,7 +2,7 @@
   "dependencies": [],
   "format_version": 1,
   "id": "asset://materials/first_person",
-  "importer": "json-data",
+  "importer": "material",
   "importer_version": 1,
   "settings": {},
   "source": "first_person.material.json",

@@ -16,8 +16,6 @@ void AnimationStateMachineComponent::parse(const nlohmann::json &json,
         continue;
       AnimationState state;
       state.spriteClip = scene_loading::stringOr(value, "sprite_clip");
-      state.modelClip = static_cast<int>(
-          scene_loading::numberField(value, "model_clip").value_or(-1.0F));
       state.modelClipName = scene_loading::stringOr(value, "model_clip_name");
       state.duration = std::max(
           scene_loading::numberField(value, "duration").value_or(0.0F), 0.0F);
@@ -26,9 +24,6 @@ void AnimationStateMachineComponent::parse(const nlohmann::json &json,
       state.loop = scene_loading::boolField(value, "loop").value_or(true);
       state.rootMotionTrack =
           scene_loading::vec3ArrayField(value, "root_motion_track");
-      if (const auto rootMotion =
-              scene_loading::vec3Field(value, "root_motion_per_second"))
-        state.rootMotionPerSecond = *rootMotion;
       if (const auto *events = scene_loading::arrayField(value, "events")) {
         for (const auto &event : *events) {
           const auto eventName = scene_loading::stringOr(event, "name");

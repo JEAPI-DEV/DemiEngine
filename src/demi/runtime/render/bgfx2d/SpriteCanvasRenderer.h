@@ -25,7 +25,8 @@ public:
                           const Camera2DComponent &camera,
                           Vec2 cameraPosition, std::uint16_t viewportWidth,
                           std::uint16_t viewportHeight,
-                          float animationTime = 0.0F);
+                          float animationTime = 0.0F,
+                          float physicsInterpolationAlpha = 1.0F);
 
 private:
   Canvas2D &canvas_;

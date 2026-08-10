@@ -34,63 +34,14 @@ bool LuaScriptHost::setHudText(const std::string &id, const std::string &text) {
   return false;
 }
 
-bool LuaScriptHost::setHudButtonLabel(const std::string &id,
-                                      const std::string &label) {
-  if (world_ == nullptr)
-    return false;
-  return ui::UiStateController{}.setText(world_->ui, id, label);
-}
-
-bool LuaScriptHost::createHudText(const std::string &id,
-                                  const std::string &text, float x, float y,
-                                  float scale, Color color) {
-  if (world_ == nullptr)
-    return false;
-  ui::UiNode node;
-  node.id = id;
-  node.type = "label";
-  node.text = text;
-  node.layout.position = {x, y};
-  node.fontSize = scale * 8.0F;
-  node.color = color;
-  if (auto *existing = ui::UiStateController{}.find(world_->ui, id)) {
-    *existing = node;
-    relayoutHud(*world_);
-    return true;
-  }
-  world_->ui.nodes.push_back(node);
-  relayoutHud(*world_);
-  return true;
-}
-
-bool LuaScriptHost::setHudTextScale(const std::string &id, float scale) {
+bool LuaScriptHost::setHudFontSize(const std::string &id, float fontSize) {
   if (world_ == nullptr)
     return false;
   if (auto *node = ui::UiStateController{}.find(world_->ui, id)) {
-    node->fontSize = scale * 8.0F;
+    node->fontSize = std::max(fontSize, 0.0F);
     return true;
   }
   return false;
-}
-
-bool LuaScriptHost::createHudRect(const std::string &id, float x, float y,
-                                  float width, float height, Color color) {
-  if (world_ == nullptr)
-    return false;
-  ui::UiNode node;
-  node.id = id;
-  node.type = "rect";
-  node.layout.position = {x, y};
-  node.layout.size = {width, height};
-  node.backgroundColor = color;
-  if (auto *existing = ui::UiStateController{}.find(world_->ui, id)) {
-    *existing = node;
-    relayoutHud(*world_);
-    return true;
-  }
-  world_->ui.nodes.push_back(node);
-  relayoutHud(*world_);
-  return true;
 }
 
 bool LuaScriptHost::setHudRect(const std::string &id, float x, float y,
@@ -171,6 +122,16 @@ bool LuaScriptHost::setHudColor(const std::string &id, Color color) {
   return false;
 }
 
+bool LuaScriptHost::setHudBackgroundColor(const std::string &id, Color color) {
+  if (world_ == nullptr)
+    return false;
+  if (auto *node = ui::UiStateController{}.find(world_->ui, id)) {
+    node->backgroundColor = color;
+    return true;
+  }
+  return false;
+}
+
 bool LuaScriptHost::setHudOpacity(const std::string &id, float opacity) {
   if (world_ == nullptr)
     return false;
@@ -227,22 +188,6 @@ std::string LuaScriptHost::focusedHudControl() const {
 
 Vec2 LuaScriptHost::hudCanvasSize() const {
   return world_ == nullptr ? Vec2{} : world_->ui.canvasSize;
-}
-
-bool LuaScriptHost::setHudGroupVisible(const std::string &group, bool visible) {
-  if (world_ == nullptr)
-    return false;
-  bool any = false;
-  for (ui::UiNode &node : world_->ui.nodes) {
-    if (node.parent == group || node.id == group || node.group == group ||
-        (node.style == group)) {
-      node.visible = visible;
-      any = true;
-    }
-  }
-  if (any)
-    relayoutHud(*world_);
-  return any;
 }
 
 std::optional<std::string> LuaScriptHost::hudText(const std::string &id) const {

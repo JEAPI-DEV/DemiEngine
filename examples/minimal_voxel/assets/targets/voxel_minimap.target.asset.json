@@ -2,7 +2,7 @@
   "dependencies": [],
   "format_version": 1,
   "id": "asset://targets/voxel_minimap",
-  "importer": "json-data",
+  "importer": "render_target",
   "importer_version": 1,
   "settings": {},
   "source": "voxel_minimap.target.json",

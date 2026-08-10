@@ -5,10 +5,9 @@
   "importer": "image",
   "importer_version": 1,
   "settings": {
-    "color_key": "#000000",
     "filter": "nearest"
   },
-  "source": "gold_coin.ppm",
-  "source_hash": "fnv1a64:2317e642d443ad8d",
+  "source": "gold_coin.png",
+  "source_hash": "fnv1a64:099411dd7db35167",
   "type": "Texture2D"
 }

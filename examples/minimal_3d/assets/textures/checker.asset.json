@@ -9,7 +9,7 @@
     "mipmaps": false,
     "wrap": "repeat"
   },
-  "source": "checker.ppm",
-  "source_hash": "fnv1a64:0425096073761e6c",
+  "source": "checker.png",
+  "source_hash": "fnv1a64:d03d8bb3773e352f",
   "type": "Texture2D"
 }

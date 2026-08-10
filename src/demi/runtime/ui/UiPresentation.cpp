@@ -9,11 +9,7 @@
 namespace demi::runtime::ui {
 
 Color uiPanelFillColor(const UiNode &node) {
-  if (node.backgroundColor.a > 0.0F)
-    return node.backgroundColor;
-  if (node.type == "container" || node.type == "list" || node.type == "scroll")
-    return {0.0F, 0.0F, 0.0F, 0.0F};
-  return node.color;
+  return node.backgroundColor;
 }
 
 std::vector<UiPresentationNode>

@@ -22,7 +22,7 @@ local upgrade_menu_offsets = {
 }
 
 local function set_group_visible(group, value)
-  Hud.set_group_visible(group, value)
+  Hud.set_visible(group, value)
 end
 
 local function position_group(offsets, x, y)
@@ -80,13 +80,13 @@ function Ui.update(state, config)
     Hud.set_text("tower_destroy", "DESTROY +" .. refund)
 
     local targeting = tower.targeting or "first"
-    Hud.set_color("tower_target_random", targeting == "random" and 0.22 or 0.10,
+    Hud.set_background_color("tower_target_random", targeting == "random" and 0.22 or 0.10,
       targeting == "random" and 0.50 or 0.22, targeting == "random" and 0.42 or 0.30, 1.0)
-    Hud.set_color("tower_target_strongest", targeting == "strongest" and 0.42 or 0.22,
+    Hud.set_background_color("tower_target_strongest", targeting == "strongest" and 0.42 or 0.22,
       targeting == "strongest" and 0.28 or 0.16, targeting == "strongest" and 0.62 or 0.30, 1.0)
-    Hud.set_color("tower_target_weakest", targeting == "weakest" and 0.48 or 0.28,
+    Hud.set_background_color("tower_target_weakest", targeting == "weakest" and 0.48 or 0.28,
       targeting == "weakest" and 0.32 or 0.20, targeting == "weakest" and 0.22 or 0.14, 1.0)
-    Hud.set_color("tower_target_first", targeting == "first" and 0.22 or 0.12,
+    Hud.set_background_color("tower_target_first", targeting == "first" and 0.22 or 0.12,
       targeting == "first" and 0.42 or 0.28, targeting == "first" and 0.62 or 0.36, 1.0)
 
     local upgrade_disabled = stats.level >= definition.upgrades.max_level or state.gold < cost

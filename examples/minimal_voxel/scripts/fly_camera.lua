@@ -80,7 +80,7 @@ end
 
 function PlayerCamera:set_paused(paused)
   self.paused = paused
-  Runtime.set_mouse_captured(not paused)
+  Application.set_mouse_captured(not paused)
   set_pause_hud_visible(paused)
 end
 
@@ -122,13 +122,6 @@ function PlayerCamera:on_create()
     { 0.16, 0.16, 0.16 },
     { 0.75, 0.54, 0.36, 1.0 }
   )
-  Hud.text("hud_hint", "WASD walk - Space jump - F fly - Mouse look - L/R click edit - ESC pause", 20.0, 20.0, hud_scale)
-  Hud.text("hud_pos", "pos: (0.0, 0.0, 0.0)", 20.0, 68.0, hud_scale)
-  Hud.rect("pause_dim", 0.0, 0.0, 960.0, 540.0, 0.02, 0.02, 0.03, 0.68)
-  Hud.rect("pause_panel", 300.0, 176.0, 360.0, 188.0, 0.08, 0.09, 0.11, 0.94)
-  Hud.text("pause_title", "PAUSED", 378.0, 214.0, 6.0, 0.94, 0.98, 1.0, 1.0)
-  Hud.text("pause_body", "MOUSE IS FREE", 360.0, 284.0, 3.0, 0.78, 0.86, 0.92, 1.0)
-  Hud.text("pause_resume", "ESC TO RESUME", 352.0, 322.0, 3.0, 1.0, 0.82, 0.44, 1.0)
   set_pause_hud_visible(false)
 end
 
@@ -161,7 +154,7 @@ function PlayerCamera:hide_arm()
 end
 
 function PlayerCamera:on_start()
-  Runtime.set_mouse_captured(true)
+  Application.set_mouse_captured(true)
   local world = state.get()
   local x, y, z = Transform3D.get_position(self.entity_id)
   if world ~= nil and x ~= nil and y ~= nil and z ~= nil then
@@ -312,7 +305,7 @@ function PlayerCamera:on_update(dt)
 end
 
 function PlayerCamera:on_destroy()
-  Runtime.set_mouse_captured(false)
+  Application.set_mouse_captured(false)
   Entity.destroy(self.arm_sleeve_id)
   Entity.destroy(self.arm_hand_id)
 end

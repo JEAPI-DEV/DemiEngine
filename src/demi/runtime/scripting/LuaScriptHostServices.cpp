@@ -404,7 +404,9 @@ void LuaScriptHost::dispatchHudEvents() {
       (void)interaction.movePointer(world_->ui, 0, mouse, "mouse");
       if (mouseDown && !previousUiMouseDown_ &&
           interaction.capturePointer(world_->ui, mouse)) {
-        clickedButtonId = world_->ui.pointerCaptureId;
+        if (const auto captured = world_->ui.pointerCaptures.find(0);
+            captured != world_->ui.pointerCaptures.end())
+          clickedButtonId = captured->second;
         if (const auto action =
                 interaction.activateFocused(world_->ui, "mouse"))
           (void)ui::UiActionController{}.apply(world_->ui, *action);
@@ -521,18 +523,6 @@ void LuaScriptHost::dispatchHudEvents() {
     if (!node.visible || (!node.hovered && !clicked)) {
       continue;
     }
-    for (const ScriptInstance &script : scripts_) {
-      if (script.entityId != node.id) {
-        continue;
-      }
-      if (node.hovered)
-        luaCallUiEvent(state, script.tableRef, "on_ui_hover", node, mouse,
-                       script.path);
-      if (clicked) {
-        luaCallUiEvent(state, script.tableRef, "on_ui_click", node, mouse,
-                       script.path);
-      }
-    }
     if (clicked && !node.action.empty()) {
       for (const ScriptInstance &script : scripts_) {
         for (const LuaActionHandler &handler : script.actionHandlers) {
@@ -550,20 +540,6 @@ void LuaScriptHost::dispatchHudEvents() {
           }
         }
       }
-      lua_newtable(state);
-      lua_pushstring(state, node.id.c_str());
-      lua_setfield(state, -2, "id");
-      lua_pushstring(state, node.text.c_str());
-      lua_setfield(state, -2, "label");
-      lua_pushstring(state, node.action.c_str());
-      lua_setfield(state, -2, "action");
-      lua_pushnumber(state, mouse.x);
-      lua_setfield(state, -2, "mouse_x");
-      lua_pushnumber(state, mouse.y);
-      lua_setfield(state, -2, "mouse_y");
-      const int payloadIndex = lua_gettop(state);
-      (void)emitEvent("hud_action", payloadIndex);
-      lua_pop(state, 1);
     }
   }
   for (const ui::UiEvent &event : ui::UiEventQueue::take(world_->ui)) {

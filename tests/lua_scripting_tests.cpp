@@ -76,15 +76,12 @@ function Probe:on_start()
   end
   Cutscene.resume()
   Cutscene.skip()
-  Events.subscribe("hud_action", function(event)
-    Save.set_string("test", "hud_action", event.action .. ":" .. event.id)
-  end)
   Events.subscribe("ui_submit", function(event)
     Save.set_string("test", "ui_submit_event", event.type .. ":" .. event.id .. ":" .. event.source)
   end)
   Events.emit("test.script_event", { value = "script" })
   Events.emit("test.module_event", { value = "module" })
-  if Hud.set_button_label("button_start", "GO") then
+  if Hud.set_text("button_start", "GO") then
     Save.set_string("test", "button_label", "updated")
   end
   for _, node in ipairs(Hud.accessibility_snapshot()) do
@@ -104,9 +101,8 @@ function Probe:on_start()
       Save.set_string("test", "variable_virtual_layout", "passed")
     end
   end
-  Hud.text("hud_probe", "probe", 8.0, 12.0, 2.0)
-  if Hud.set_text_scale("hud_probe", 5.5) then
-    Save.set_string("test", "hud_text_scale", "updated")
+  if Hud.set_font_size("hud_probe", 44.0) then
+    Save.set_string("test", "hud_font_size", "updated")
   end
   if Hud.set_position("hud_image", 18.0, 24.0) and Hud.set_image_animation_frame("hud_image", "asset://animations/test", 3) and Hud.set_size("button_start", 40.0, 90.0) and Hud.set_opacity("button_start", 0.25) then
     Save.set_string("test", "hud_animation_properties", "updated")
@@ -143,7 +139,7 @@ function Probe:on_start()
       },
     },
   })
-  if Entity.set_sprite_color("ent_tinted_sprite", 0.45, 0.55, 0.65, 0.75) and
+  if Sprite2D.set_color("ent_tinted_sprite", 0.45, 0.55, 0.65, 0.75) and
       Sprite2D.set_size("ent_tinted_sprite", 2.5, 0.5) then
     Save.set_string("test", "sprite_color", "updated")
   end
@@ -231,7 +227,7 @@ function Probe:on_start()
   if roundtrip ~= nil and roundtrip.payload.color[1] == 0.45 and roundtrip.payload.color[4] == 0.75 then
     Save.set_string("test", "network_array_roundtrip", "passed")
   end
-  if Runtime.platform() == "linux" then
+  if Application.platform() == "linux" then
     Save.set_string("test", "runtime_platform", "linux")
   end
   local http_probe = Network.http_get("ftp://simplehardware.net/lobby.php")
@@ -242,8 +238,8 @@ function Probe:on_start()
   if lobby_probe and lobby_probe.ok == false and lobby_probe.status == 0 and string.find(lobby_probe.error, "URL") then
     Save.set_string("test", "network_lobby_probe", "passed")
   end
-  Runtime.set_max_fps(144)
-  if Runtime.get_max_fps() == 144 then
+  Application.set_max_fps(144)
+  if Application.max_fps() == 144 then
     Save.set_number("test", "max_fps", 144)
   end
 end
@@ -311,8 +307,10 @@ return ActionModule
 
   if (!writeFile(projectDirectory / "scripts" / "button.lua", R"lua(
 local Button = {}
-function Button:on_ui_click(event)
-  Save.set_string("test", "clicked", event.id)
+function Button:on_ui_event(event)
+  if event.type == "submit" then
+    Save.set_string("test", "clicked", event.id)
+  end
 end
 function Button:on_ui_submit(event)
   Save.set_string("test", "ui_submit_callback", event.type .. ":" .. event.id)
@@ -369,6 +367,13 @@ return PropProbe
   hudImage.layout.position = runtime::Vec2{.x = 0.0F, .y = 0.0F};
   hudImage.layout.size = runtime::Vec2{.x = 8.0F, .y = 8.0F};
   world.ui.nodes.push_back(hudImage);
+  runtime::ui::UiNode hudProbeNode;
+  hudProbeNode.id = "hud_probe";
+  hudProbeNode.type = "label";
+  hudProbeNode.text = "probe";
+  hudProbeNode.layout.position = runtime::Vec2{.x = 8.0F, .y = 12.0F};
+  hudProbeNode.fontSize = 16.0F;
+  world.ui.nodes.push_back(hudProbeNode);
   runtime::ui::UiNode buttonModule;
   buttonModule.id = "button_module";
   buttonModule.type = "button";
@@ -528,7 +533,7 @@ return PropProbe
   if (host.saveString("test", "button_label") != "updated" ||
       buttonStartNode == world.ui.nodes.end() ||
       buttonStartNode->text != "GO") {
-    std::cerr << "Hud.set_button_label did not update the HUD button label.\n";
+    std::cerr << "Hud.set_text did not update the HUD button label.\n";
     return 1;
   }
   if (host.saveString("test", "accessibility_snapshot") != "passed") {
@@ -545,9 +550,9 @@ return PropProbe
       world.ui.nodes, [](const runtime::ui::UiNode &element) {
         return element.id == "hud_probe";
       });
-  if (host.saveString("test", "hud_text_scale") != "updated" ||
+  if (host.saveString("test", "hud_font_size") != "updated" ||
       hudProbe == world.ui.nodes.end() || hudProbe->fontSize != 44.0F) {
-    std::cerr << "Hud.set_text_scale did not update the HUD text scale.\n";
+    std::cerr << "Hud.set_font_size did not update the HUD font size.\n";
     return 1;
   }
   if (host.saveString("test", "hud_animation_properties") != "updated" ||
@@ -732,11 +737,7 @@ return PropProbe
   input.mouseButtonsDown.insert("left");
   host.update(1.0F / 60.0F);
   if (host.saveString("test", "clicked") != "button_start") {
-    std::cerr << "HUD button click did not reach Lua on_ui_click.\n";
-    return 1;
-  }
-  if (host.saveString("test", "hud_action") != "test.annotated:button_start") {
-    std::cerr << "HUD button action annotation did not emit hud_action.\n";
+    std::cerr << "HUD button click did not reach Lua on_ui_event.\n";
     return 1;
   }
   if (host.saveString("test", "ui_submit_event") !=

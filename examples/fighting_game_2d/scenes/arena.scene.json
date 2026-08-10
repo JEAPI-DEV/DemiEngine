@@ -2,6 +2,7 @@
   "format_version": 1,
   "id": "scene://fighting_game_2d/arena",
   "name": "Local Versus Arena",
+  "hud": "arena.hud.json",
   "entities": [
     {
       "id": "ent_arena_camera",

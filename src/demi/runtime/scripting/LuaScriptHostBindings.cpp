@@ -269,35 +269,6 @@ void luaCallLifecycle(lua_State *state, const int tableRef,
   lua_pop(state, 1);
 }
 
-void luaCallUiEvent(lua_State *state, const int tableRef,
-                    const char *functionName, const ui::UiNode &node,
-                    const Vec2 mousePosition,
-                    const std::filesystem::path &path) {
-  lua_rawgeti(state, LUA_REGISTRYINDEX, tableRef);
-  lua_getfield(state, -1, functionName);
-  if (!lua_isfunction(state, -1)) {
-    lua_pop(state, 2);
-    return;
-  }
-  lua_pushvalue(state, -2);
-  lua_newtable(state);
-  lua_pushstring(state, node.id.c_str());
-  lua_setfield(state, -2, "id");
-  lua_pushstring(state, node.text.c_str());
-  lua_setfield(state, -2, "label");
-  lua_pushstring(state, node.action.c_str());
-  lua_setfield(state, -2, "action");
-  lua_pushnumber(state, mousePosition.x);
-  lua_setfield(state, -2, "mouse_x");
-  lua_pushnumber(state, mousePosition.y);
-  lua_setfield(state, -2, "mouse_y");
-  std::string error;
-  if (!luaCall(state, 2, 0, error)) {
-    luaReportCallbackError(functionName, path, node.id, error);
-  }
-  lua_pop(state, 1);
-}
-
 void luaPushUiEvent(lua_State *state, const ui::UiEvent &event) {
   lua_newtable(state);
   const std::string_view type = ui::uiEventTypeName(event.type);

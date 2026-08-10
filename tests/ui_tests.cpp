@@ -49,7 +49,7 @@ int main() {
       .backgroundColor = {0.1F, 0.2F, 0.3F, 0.75F},
   };
   if (!near(demi::runtime::ui::uiPanelFillColor(defaultContainer).a, 0.0F) ||
-      !near(demi::runtime::ui::uiPanelFillColor(defaultPanel).a, 1.0F) ||
+      !near(demi::runtime::ui::uiPanelFillColor(defaultPanel).a, 0.0F) ||
       !near(demi::runtime::ui::uiPanelFillColor(coloredContainer).a, 0.75F)) {
     std::cerr
         << "Layout containers did not preserve transparent backgrounds.\n";
@@ -129,7 +129,7 @@ int main() {
           panelDocument,
           {nestedButton.x + nestedButton.width * 0.5F,
            nestedButton.y + nestedButton.height * 0.5F}) ||
-      panelDocument.pointerCaptureId != "anchored_button" ||
+      panelDocument.pointerCaptures[0] != "anchored_button" ||
       panelInteraction.activateFocused(panelDocument) != "nested_action") {
     std::cerr << "Nested panel button did not receive pointer focus.\n";
     return 1;
@@ -166,12 +166,12 @@ int main() {
   if (!interaction.capturePointer(document,
                                   {document.nodes[1].resolved.x + 1.0F,
                                    document.nodes[1].resolved.y + 1.0F}) ||
-      document.pointerCaptureId != "play") {
+      document.pointerCaptures[0] != "play") {
     std::cerr << "UI pointer capture failed.\n";
     return 1;
   }
   interaction.releasePointer(document);
-  if (!document.pointerCaptureId.empty()) {
+  if (document.pointerCaptures.contains(0)) {
     std::cerr << "UI pointer capture was not released.\n";
     return 1;
   }

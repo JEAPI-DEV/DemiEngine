@@ -8,7 +8,6 @@
 namespace demi::runtime {
 
 struct AnimationLayerPlayback3D {
-  int clip = -1;
   std::string clipName;
   std::vector<std::string> mask;
   float weight = 0.0F;
@@ -20,7 +19,6 @@ struct AnimationPlayer3DComponent {
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
   static constexpr std::array fields{
-      ComponentFieldDescriptor{"clip", ComponentFieldType::Integer},
       ComponentFieldDescriptor{"clip_name", ComponentFieldType::String},
       ComponentFieldDescriptor{"speed", ComponentFieldType::Number},
       ComponentFieldDescriptor{"time", ComponentFieldType::Number},
@@ -30,13 +28,11 @@ struct AnimationPlayer3DComponent {
                                                   "Animation Player 3D"};
   static void parse(const nlohmann::json &json, Entity &entity);
 
-  int clip = 0;
   std::string clipName;
   float speed = 1.0F;
   float time = 0.0F;
   bool loop = true;
   bool playing = true;
-  int previousClip = -1;
   std::string previousClipName;
   float previousTime = 0.0F;
   float blendWeight = 1.0F;

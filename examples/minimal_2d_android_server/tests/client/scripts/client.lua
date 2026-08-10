@@ -50,12 +50,12 @@ function Client:on_update(dt)
   if self.claim_confirmed then
     Debug.log("LUA_SERVER_HANDSHAKE_OK")
     Debug.log("LUA_SERVER_CLAIM_OK")
-    Runtime.quit()
+    Application.quit()
     return
   end
   if events.disconnected or self.elapsed >= 3.0 then
     Debug.log("LUA_SERVER_HANDSHAKE_FAILED")
-    Runtime.quit()
+    Application.quit()
   end
 end
 

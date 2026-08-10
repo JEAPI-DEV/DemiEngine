@@ -7,6 +7,12 @@ namespace demi::runtime {
 void LuaSprite2DBindingModule::install(LuaScriptHost &host,
                                        lua_State *state) const {
   sol::table sprite = sol::state_view(state).create_named_table("Sprite2D");
+  sprite.set_function("set_color", [&host](const std::string &entityId,
+                                            float r, float g, float b,
+                                            sol::optional<float> a) {
+    return host.setEntitySpriteColor(entityId,
+                                     Color{r, g, b, a.value_or(1.0F)});
+  });
   sprite.set_function("play_animation", [&host](
                                             const std::string &entityId,
                                             const std::string &clip,

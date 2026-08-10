@@ -99,7 +99,8 @@ bool Bgfx2DAppHost::renderFrame(const World &world,
                                 const Vec2 cameraPosition,
                                 const float deltaSeconds,
                                 const navigation::NavigationGrid2D *navigation,
-                                std::string &error) {
+                                std::string &error,
+                                const float physicsInterpolationAlpha) {
   if (renderer_ == nullptr) {
     error = "The bgfx 2D application host is not initialized.";
     return false;
@@ -108,7 +109,8 @@ bool Bgfx2DAppHost::renderFrame(const World &world,
     return false;
   const bool began = renderer_->renderer.beginFrame(
       camera, cameraPosition, context_.viewportWidth(),
-      context_.viewportHeight(), deltaSeconds, error);
+      context_.viewportHeight(), deltaSeconds, error,
+      physicsInterpolationAlpha);
   if (!began) {
     context_.endFrame();
     return false;

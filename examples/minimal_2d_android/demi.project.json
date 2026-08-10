@@ -21,23 +21,52 @@
       "move": {
         "type": "axis1d",
         "bindings": [
-          {"input": "a", "scale": -1},
-          {"input": "left", "scale": -1},
-          {"input": "d", "scale": 1},
-          {"input": "right", "scale": 1},
-          {"input": "gamepad:axis:left_x", "deadzone": 0.18},
-          {"input": "virtual:move"}
-        ]
+          {
+            "input": "key:a",
+            "scale": -1
+          },
+          {
+            "input": "key:left",
+            "scale": -1
+          },
+          {
+            "input": "key:d",
+            "scale": 1
+          },
+          {
+            "input": "key:right",
+            "scale": 1
+          },
+          {
+            "input": "gamepad:axis:left_x",
+            "deadzone": 0.18
+          },
+          {
+            "input": "virtual:move"
+          }
+        ],
+        "context": "gameplay"
       },
       "jump": {
         "type": "button",
         "bindings": [
-          "space",
-          "w",
-          "up",
-          "gamepad:south",
-          "virtual:jump"
-        ]
+          {
+            "input": "key:space"
+          },
+          {
+            "input": "key:w"
+          },
+          {
+            "input": "key:up"
+          },
+          {
+            "input": "gamepad:south"
+          },
+          {
+            "input": "virtual:jump"
+          }
+        ],
+        "context": "gameplay"
       }
     }
   },

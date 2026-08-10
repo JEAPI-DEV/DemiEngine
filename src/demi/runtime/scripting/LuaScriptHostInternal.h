@@ -36,9 +36,6 @@ void clearLuaBindingGlobals(lua_State *state);
 void luaCallLifecycle(lua_State *state, int tableRef, const char *functionName,
                       const std::filesystem::path &path,
                       const std::string &ownerId, float dt = 0.0F);
-void luaCallUiEvent(lua_State *state, int tableRef, const char *functionName,
-                    const ui::UiNode &node, Vec2 mousePosition,
-                    const std::filesystem::path &path);
 void luaPushUiEvent(lua_State *state, const ui::UiEvent &event);
 void luaCallTypedUiEvent(lua_State *state, int tableRef,
                          const char *functionName, const ui::UiEvent &event,

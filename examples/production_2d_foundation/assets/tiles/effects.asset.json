@@ -7,7 +7,7 @@
   "settings": {
     "filter": "nearest"
   },
-  "source": "effects.ppm",
-  "source_hash": "fnv1a64:cb62df338a781247",
+  "source": "effects.png",
+  "source_hash": "fnv1a64:6ec760f9baa94324",
   "type": "Texture2D"
 }

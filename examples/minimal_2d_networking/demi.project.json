@@ -18,21 +18,63 @@
   ],
   "input": {
     "actions": {
-      "move": [
-        {"input": "a", "scale": -1},
-        {"input": "left", "scale": -1},
-        {"input": "d", "scale": 1},
-        {"input": "right", "scale": 1}
-      ],
-      "jump": ["space", "w", "up"]
+      "move": {
+        "type": "axis1d",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:a",
+            "scale": -1
+          },
+          {
+            "input": "key:left",
+            "scale": -1
+          },
+          {
+            "input": "key:d",
+            "scale": 1
+          },
+          {
+            "input": "key:right",
+            "scale": 1
+          }
+        ]
+      },
+      "jump": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:space"
+          },
+          {
+            "input": "key:w"
+          },
+          {
+            "input": "key:up"
+          }
+        ]
+      }
     }
   },
   "physics": {
     "layers": {
-      "collectibles": ["player"],
-      "network": ["platform", "player"],
-      "platform": ["network", "player"],
-      "player": ["collectibles", "network", "platform"]
+      "collectibles": [
+        "player"
+      ],
+      "network": [
+        "platform",
+        "player"
+      ],
+      "platform": [
+        "network",
+        "player"
+      ],
+      "player": [
+        "collectibles",
+        "network",
+        "platform"
+      ]
     }
   },
   "scripting": {

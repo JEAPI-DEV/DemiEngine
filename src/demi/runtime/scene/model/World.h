@@ -32,6 +32,15 @@ struct PhysicsContact2D {
   bool isTrigger = false;
 };
 
+// Transient fixed-step state used only to present physics motion smoothly.
+// Simulation and gameplay always read Transform2DComponent's current pose.
+struct PhysicsPresentationPose2D {
+  Vec2 previousPosition;
+  Vec2 currentPosition;
+  float previousRotation = 0.0F;
+  float currentRotation = 0.0F;
+};
+
 struct AnimationEvent2D {
   std::string entityId;
   std::string clip;
@@ -68,6 +77,8 @@ struct World {
   std::vector<DebugLine> debugLines;
   std::vector<PhysicsContact2D> physicsContacts;
   std::vector<PhysicsContact2D> previousPhysicsContacts;
+  std::unordered_map<std::string, PhysicsPresentationPose2D>
+      physicsPresentationPoses2D;
   std::vector<PhysicsContact3D> physicsContacts3D;
   std::vector<PhysicsContact3D> previousPhysicsContacts3D;
   std::vector<AnimationEvent2D> animationEvents;

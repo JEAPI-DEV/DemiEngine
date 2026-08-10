@@ -58,7 +58,8 @@ logic. Actions are still emitted to Lua after the built-in state change.
 
 Lua changes state without controlling layout:
 
-- `Hud.set_text(id, text)` and `Hud.set_button_label(id, text)`
+- `Hud.set_text(id, text)` and `Hud.set_font_size(id, pixels)`
+- `Hud.set_color(id, ...)` and `Hud.set_background_color(id, ...)`
 - `Hud.set_value(id, value)`
 - `Hud.set_checked(id, checked)`
 - `Hud.set_disabled(id, disabled)` and `Hud.set_visible(id, visible)`
@@ -217,10 +218,10 @@ ancestor is hidden, disabled, or removed. An active drag receives a cancelled
 independent capture and hover state. Events queued while an event callback is
 running are delivered on the next update rather than recursively.
 
-Control actions continue through `---@handle_action` and the legacy
-`hud_action`, `on_ui_hover`, and `on_ui_click` paths for compatibility. New
-code should use typed events when it needs lifecycle information. No Lua code
-is required to position or resize widgets.
+Control actions continue through `---@handle_action`. Use `on_ui_event`, a
+typed callback such as `on_ui_submit`, or the matching typed event channel
+when lifecycle information is needed. No Lua code is required to position or
+resize authored widgets.
 
 ## Accessibility semantics
 

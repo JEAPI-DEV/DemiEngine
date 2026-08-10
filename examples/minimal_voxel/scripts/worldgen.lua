@@ -48,9 +48,6 @@ function Worldgen:on_start()
   state.set(self)
   interaction.create_selection()
   inventory.create_hud()
-  Hud.text("hud_chunks", "chunks: loading", 20.0, 116.0, 3.0)
-  Hud.text("hud_target", "target: none", 20.0, 164.0, 3.0)
-  Hud.text("hud_performance", "fps: -- avg: -- 1%: -- 0.1%: --", 20.0, 212.0, 3.0)
   self:on_update(0.0)
 end
 

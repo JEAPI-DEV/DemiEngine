@@ -20,6 +20,74 @@ namespace demi::runtime {
 
 namespace {
 
+constexpr float PresentationPoseEpsilon = 0.00001F;
+
+[[nodiscard]] bool hasCollider(const Entity &entity);
+
+bool samePresentationPosition(const Vec2 left, const Vec2 right) {
+  return std::abs(left.x - right.x) <= PresentationPoseEpsilon &&
+         std::abs(left.y - right.y) <= PresentationPoseEpsilon;
+}
+
+bool samePresentationRotation(const float left, const float right) {
+  return std::abs(left - right) <= PresentationPoseEpsilon;
+}
+
+void beginPhysicsPresentationStep2D(World &world) {
+  std::unordered_set<std::string> liveEntityIds;
+  liveEntityIds.reserve(world.entities.size());
+  for (const Entity &entity : world.entities) {
+    const auto *transform = entity.component<Transform2DComponent>();
+    if (!entity.enabled || transform == nullptr ||
+        (!entity.hasComponent<Rigidbody2DComponent>() &&
+         !hasCollider(entity))) {
+      continue;
+    }
+    liveEntityIds.insert(entity.id);
+    auto [iterator, inserted] = world.physicsPresentationPoses2D.try_emplace(
+        entity.id, PhysicsPresentationPose2D{
+                       .previousPosition = transform->position,
+                       .currentPosition = transform->position,
+                       .previousRotation = transform->rotation,
+                       .currentRotation = transform->rotation,
+                   });
+    PhysicsPresentationPose2D &pose = iterator->second;
+    const bool teleported =
+        !samePresentationPosition(transform->position, pose.currentPosition) ||
+        !samePresentationRotation(transform->rotation, pose.currentRotation);
+    if (inserted || teleported) {
+      pose.previousPosition = transform->position;
+      pose.currentPosition = transform->position;
+      pose.previousRotation = transform->rotation;
+      pose.currentRotation = transform->rotation;
+    } else {
+      pose.previousPosition = pose.currentPosition;
+      pose.previousRotation = pose.currentRotation;
+    }
+  }
+  std::erase_if(world.physicsPresentationPoses2D,
+                [&liveEntityIds](const auto &entry) {
+                  return !liveEntityIds.contains(entry.first);
+                });
+}
+
+void finishPhysicsPresentationStep2D(World &world) {
+  for (const Entity &entity : world.entities) {
+    const auto *transform = entity.component<Transform2DComponent>();
+    if (!entity.enabled || transform == nullptr)
+      continue;
+    const auto found = world.physicsPresentationPoses2D.find(entity.id);
+    if (found == world.physicsPresentationPoses2D.end())
+      continue;
+    found->second.currentPosition = transform->position;
+    found->second.currentRotation = transform->rotation;
+  }
+}
+
+} // namespace
+
+namespace {
+
 constexpr float QueryContactSlop = 0.06F;
 constexpr float KinematicContactSlop = 0.0001F;
 
@@ -719,6 +787,7 @@ bool hasContact(const World &world, const std::string &entityId,
 
 void stepPhysics2D(World &world, const float fixedDt,
                    const PhysicsSettings2D &settings) {
+  beginPhysicsPresentationStep2D(world);
   world.previousPhysicsContacts = std::move(world.physicsContacts);
   world.physicsContacts.clear();
 #if DEMI_HAS_BOX2D
@@ -1316,6 +1385,8 @@ void stepPhysics2D(World &world, const float fixedDt,
                 false);
   }
 #endif
+
+  finishPhysicsPresentationStep2D(world);
 
   const auto sameContact = [](const PhysicsContact2D &left,
                               const PhysicsContact2D &right) {

@@ -527,8 +527,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
             error = "No animation clips are loaded for " + mesh->model + ".";
             return false;
           }
-          const int clip =
-              source->second.clipIndex(player->clipName, player->clip);
+          const int clip = source->second.clipIndex(player->clipName, 0);
           std::uint64_t signature = 14695981039346656037ULL;
           hashValue(signature, static_cast<std::uint32_t>(clip));
           hashValue(signature, std::bit_cast<std::uint32_t>(player->time));

@@ -44,11 +44,9 @@ function Demo:on_start()
   Sprite2D.set_sorting_order(PLAYER, 20)
   Sprite2D.set_material(PLAYER, "")
 
-  Hud.text("title", "PHASE 4 - PRODUCTION 2D", 24, 24, 1.5, 0.4, 0.95, 1, 1)
-  Hud.text("status",
-    string.format("%d map marker, %d colliders found", #spawns, #hits),
-    24, 58, 1.0, 0.9, 0.9, 0.95, 1)
-  Hud.text("path", "", 24, 84, 0.9, 0.7, 0.85, 1, 1)
+  Hud.set_text("title", "PHASE 4 - PRODUCTION 2D")
+  Hud.set_text("status",
+    string.format("%d map marker, %d colliders found", #spawns, #hits))
 end
 
 function Demo:on_fixed_update(dt)

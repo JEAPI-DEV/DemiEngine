@@ -47,6 +47,13 @@ namespace {
 
 constexpr int RuntimeFailure = 3;
 
+float fixedStepInterpolationAlpha(const double accumulator,
+                                  const float fixedStep) {
+  if (fixedStep <= 0.0F)
+    return 1.0F;
+  return std::clamp(static_cast<float>(accumulator / fixedStep), 0.0F, 1.0F);
+}
+
 struct RuntimeProfile {
   int frames = 0;
   double updateMs = 0.0;
@@ -116,7 +123,9 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
   }
   {
     ProfileScope scope("Camera2D.update");
-    Camera2DSystem{}.update(loaded.world, scaledDt);
+    Camera2DSystem{}.update(
+        loaded.world, scaledDt,
+        fixedStepInterpolationAlpha(fixedAccumulator, fixedStep));
   }
   if (loaded.world.tilemapCollisionDirty) {
     ProfileScope scope("Tilemap2D.rebuild_collision");
@@ -626,7 +635,9 @@ int runProject(const RuntimeOptions &options) {
         if (!appHost.renderFrame(loaded.world,
                                  camera != nullptr ? *camera : fallbackCamera2D,
                                  activeCameraPosition(loaded.world), dt,
-                                 navigation, renderError)) {
+                                 navigation, renderError,
+                                 fixedStepInterpolationAlpha(fixedAccumulator,
+                                                             fixedStep))) {
           std::cerr << "2D rendering failed: " << renderError << '\n';
           renderFailed = true;
           running = false;

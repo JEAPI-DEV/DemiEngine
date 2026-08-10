@@ -37,40 +37,10 @@ int main() {
     return decodeImage2D(std::as_bytes(std::span(value.data(), value.size())),
                          image, error);
   };
-  assert(decodeText("P3\n# comment\n2 1\n15\n15 0 0 0 15 7\n"));
-  assert(image.width == 2 && image.height == 1);
-  assert(image.rgba[0] == std::byte{0xff});
-  assert(image.rgba[1] == std::byte{0});
-  assert(image.rgba[4] == std::byte{0});
-  assert(image.rgba[5] == std::byte{0xff});
-  assert(image.rgba[6] == std::byte{119});
-
-  applyColorKeyTransparency2D(image, {0, 255, 119});
-  assert(image.rgba[3] == std::byte{0xff});
-  assert(image.rgba[7] == std::byte{0});
-  // Color-key matching is exact: adjacent colors and their existing alpha are
-  // preserved rather than creating dark halos around keyed sprites.
-  image.rgba = {std::byte{0}, std::byte{0}, std::byte{0}, std::byte{0x80},
-                std::byte{0}, std::byte{0}, std::byte{1}, std::byte{0x40}};
-  applyColorKeyTransparency2D(image, {0, 0, 0});
-  assert(image.rgba[3] == std::byte{0});
-  assert(image.rgba[7] == std::byte{0x40});
-  ImageData2D empty;
-  applyColorKeyTransparency2D(empty, {0, 0, 0});
-  assert(empty.rgba.empty());
-
-  assert(!decodeText("P3\n2 1\n255\n0 0 0\n"));
+  assert(!decodeText("P3\n1 1\n255\n255 0 0\n"));
   assert(image.rgba.empty());
-  assert(!decodeText("P3\n0 1\n255\n"));
-
-  constexpr std::array<unsigned char, 17> PpmBinary = {
-      'P', '6',  '\n', '2', ' ', '1', '\n', '2', '5',
-      '5', '\n', 255,  128, 0,   0,   64,   255};
-  assert(decodeImage2D(std::as_bytes(std::span(PpmBinary)), image, error));
-  assert(image.width == 2 && image.height == 1);
-  assert(image.rgba[0] == std::byte{0xff});
-  assert(image.rgba[1] == std::byte{0x80});
-  assert(image.rgba[7] == std::byte{0xff});
+  assert(!decodeText("P6\n1 1\n255\n\xff\0\0"));
+  assert(image.rgba.empty());
 
   constexpr std::array<unsigned char, 43> Gif = {
       0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80,

@@ -229,12 +229,12 @@ int main() {
 
   const auto row = *UiMutationQueue::handle(document, "row_1");
   document.focusedId = row.id;
-  document.pointerCaptureId = row.id;
+  document.pointerCaptures[0] = row.id;
   document.pointerCaptures[9] = row.id;
   UiMutationQueue remove;
   remove.remove(row);
   if (!remove.apply(document).applied || !document.focusedId.empty() ||
-      !document.pointerCaptureId.empty() || !document.pointerCaptures.empty() ||
+      !document.pointerCaptures.empty() ||
       UiMutationQueue::alive(document, row)) {
     std::cerr
         << "Removal did not cancel focus/capture or invalidate handles.\n";

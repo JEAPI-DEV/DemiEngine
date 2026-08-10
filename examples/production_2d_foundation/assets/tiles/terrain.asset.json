@@ -7,7 +7,7 @@
   "settings": {
     "filter": "nearest"
   },
-  "source": "terrain.ppm",
-  "source_hash": "fnv1a64:4123355a21d73758",
+  "source": "terrain.png",
+  "source_hash": "fnv1a64:b399e6edeb912ab0",
   "type": "Texture2D"
 }

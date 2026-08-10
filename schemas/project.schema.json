@@ -24,19 +24,15 @@
         "actions": {
           "type": "object",
           "additionalProperties": {
-            "oneOf": [
-              {"$ref": "#/$defs/input_bindings"},
-              {
-                "type": "object",
-                "required": ["bindings"],
-                "properties": {
-                  "type": {"enum": ["button", "axis", "axis1d", "vector", "vector2"]},
-                  "context": {"type": "string", "minLength": 1},
-                  "player": {"type": "integer", "minimum": 0},
-                  "bindings": {"$ref": "#/$defs/input_bindings"}
-                }
-              }
-            ]
+            "type": "object",
+            "required": ["type", "context", "bindings"],
+            "additionalProperties": false,
+            "properties": {
+              "type": {"enum": ["button", "axis1d", "vector2"]},
+              "context": {"type": "string", "minLength": 1},
+              "player": {"type": "integer", "minimum": 0},
+              "bindings": {"$ref": "#/$defs/input_bindings"}
+            }
           }
         }
       }
@@ -125,22 +121,18 @@
     "input_bindings": {
       "type": "array",
       "items": {
-        "oneOf": [
-          {"type": "string"},
-          {
-            "type": "object",
-            "required": ["input"],
-            "properties": {
-              "input": {"type": "string"},
+        "type": "object",
+        "required": ["input"],
+        "additionalProperties": false,
+        "properties": {
+              "input": {"type": "string", "pattern": "^[a-z0-9_]+:.+"},
               "scale": {"type": "number", "minimum": -1, "maximum": 1},
               "vector": {"$ref": "#/$defs/vec2"},
               "deadzone": {"type": "number", "minimum": 0, "maximum": 0.99},
               "invert": {"type": "boolean"},
               "normalize": {"type": "boolean"},
               "player": {"type": "integer", "minimum": 0}
-            }
-          }
-        ]
+        }
       }
     },
     "vec2": {

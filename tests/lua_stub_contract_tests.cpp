@@ -61,6 +61,11 @@ bool shouldScanLuaFile(const std::filesystem::path &path) {
   if (path.extension() != ".lua") {
     return false;
   }
+  for (const std::filesystem::path &component : path) {
+    if (component == "generated") {
+      return false;
+    }
+  }
   const std::string generic = path.generic_string();
   return generic.find("/examples/") != std::string::npos ||
          generic.find("/scripts/runtime/") != std::string::npos;
@@ -162,16 +167,19 @@ int main(int argc, char **argv) {
            "Transform3D.set_scale",
            "Physics3D.overlap_sphere",
            "Physics3D.raycast",
-           "Hud.set_button_label",
+           "Hud.set_font_size",
+           "Hud.set_background_color",
            "Hud.canvas_size",
            "Hud.set_position",
            "Hud.set_size",
            "Hud.set_opacity",
            "Hud.set_image_animation_frame",
-           "Runtime.get_max_fps",
-           "Runtime.set_max_fps",
-           "Runtime.get_mouse_captured",
-           "Runtime.set_mouse_captured",
+           "Application.max_fps",
+           "Application.set_max_fps",
+           "Application.mouse_captured",
+           "Application.set_mouse_captured",
+           "Physics.set_enabled",
+           "Sprite2D.set_color",
            "Input.is_pressed",
            "Input.mouse_delta",
            "Input.ui_pointer_captured",

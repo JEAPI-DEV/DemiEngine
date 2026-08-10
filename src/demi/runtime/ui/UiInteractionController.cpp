@@ -202,8 +202,6 @@ bool UiInteractionController::capturePointer(
   document.pointerCaptures[pointerId] = target->id;
   document.pointerPressPositions[pointerId] = position;
   document.draggingPointers.erase(pointerId);
-  if (pointerId == 0)
-    document.pointerCaptureId = target->id;
   setFocus(document, target->id, source);
   UiEvent event = eventFor(*target, UiEventType::Press, source);
   event.pointerId = pointerId;
@@ -336,8 +334,6 @@ void UiInteractionController::releasePointer(
   document.pointerCaptures.erase(pointerId);
   document.pointerPressPositions.erase(pointerId);
   document.draggingPointers.erase(pointerId);
-  if (pointerId == 0)
-    document.pointerCaptureId.clear();
 }
 
 void UiInteractionController::cancel(UiDocument &document,
@@ -366,8 +362,7 @@ void UiInteractionController::cancel(UiDocument &document,
 
 bool UiInteractionController::pointerCaptured(
     const UiDocument &document, const std::int64_t pointerId) const {
-  return document.pointerCaptures.contains(pointerId) ||
-         (pointerId == 0 && !document.pointerCaptureId.empty());
+  return document.pointerCaptures.contains(pointerId);
 }
 
 std::optional<std::string>

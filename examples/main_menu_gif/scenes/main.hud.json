@@ -1,52 +1,771 @@
 {
   "format_version": 1,
-  "canvas_size": [678,960],
+  "canvas_size": [
+    678,
+    960
+  ],
   "root": {
     "id": "ui_root",
     "type": "container",
-    "anchor_min": [0,0],
-    "anchor_max": [1,1],
+    "anchor_min": [
+      0,
+      0
+    ],
+    "anchor_max": [
+      1,
+      1
+    ],
     "children": [
-      {"type":"image","id":"wallpaper","texture":"asset://background/main","position":[0,0],"size":[678,960],"color":[0.78,0.82,1,1]},
-      {"type":"panel","id":"screen_vignette","layer":2,"position":[0,0],"size":[678,960],"color":[0.02,0.02,0.1,0.18]},
-      {"type":"panel","id":"identity_panel","position":[92,36],"size":[530,76],"corner_radius":5,"border_width":1,"color":[0.063,0.067,0.18,0.7],"border_color":[0.78,0.8,1,0.4]},
-      {"type":"panel","id":"episode_panel","position":[248,132],"size":[212,36],"corner_radius":4,"border_width":1,"color":[0.94,0.2,0.29,0.94],"border_color":[1,0.7,0.75,0.72]},
-      {"type":"panel","id":"gem_panel","position":[496,132],"size":[128,36],"corner_radius":4,"border_width":1,"color":[0.063,0.067,0.18,0.7],"border_color":[0.78,0.8,1,0.4]},
-      {"type":"circle","id":"dice_well","center":[52,214],"radius":31,"color":[0.063,0.067,0.18,0.52]},
-      {"type":"circle","id":"mail_well","center":[52,290],"radius":31,"color":[0.063,0.067,0.18,0.52]},
-      {"type":"circle","id":"card_well","center":[52,366],"radius":31,"color":[0.063,0.067,0.18,0.52]},
-      {"type":"circle","id":"fullscreen_well","center":[626,242],"radius":31,"color":[0.063,0.067,0.18,0.52]},
-      {"type":"circle","id":"gem_well","center":[624,606],"radius":31,"color":[0.063,0.067,0.18,0.52]},
-      {"type":"panel","id":"carousel_panel","position":[22,624],"size":[634,54],"corner_radius":8,"color":[0.063,0.067,0.18,0.7]},
-      {"type":"panel","id":"summon_card","position":[20,692],"size":[302,154],"corner_radius":8,"border_width":2,"color":[0.063,0.067,0.18,0.7],"border_color":[0.86,0.88,1,0.46]},
-      {"type":"panel","id":"story_card","position":[356,692],"size":[302,154],"corner_radius":8,"border_width":2,"color":[0.063,0.067,0.18,0.7],"border_color":[0.86,0.88,1,0.46]},
-      {"type":"panel","id":"specials_chip","position":[162,864],"size":[164,46],"corner_radius":23,"color":[0.063,0.067,0.18,0.72]},
-      {"type":"panel","id":"shop_chip","position":[352,864],"size":[164,46],"corner_radius":23,"color":[0.063,0.067,0.18,0.72]},
-      {"type":"panel","id":"bottom_navigation","position":[0,912],"size":[678,48],"color":[0.01,0.01,0.06,0.88]},
-      {"type":"image","id":"fire_icon","layer":3,"texture":"asset://icons/fire","position":[112,56],"size":[26,26],"color":[1,0.25,0.34,1]},
-      {"type":"image","id":"gem_icon","layer":3,"texture":"asset://icons/gem","position":[510,140],"size":[20,20],"color":[1,1,1,1]},
-      {"type":"image","id":"dice_icon","layer":3,"texture":"asset://icons/dice","position":[36,198],"size":[32,32],"color":[1,1,1,1]},
-      {"type":"image","id":"mail_icon","layer":3,"texture":"asset://icons/mail","position":[36,274],"size":[32,32],"color":[1,1,1,1]},
-      {"type":"image","id":"card_icon","layer":3,"texture":"asset://icons/credit_card","position":[36,350],"size":[32,32],"color":[1,1,1,1]},
-      {"type":"image","id":"fullscreen_icon","layer":3,"texture":"asset://icons/fullscreen","position":[610,226],"size":[32,32],"color":[1,1,1,1]},
-      {"type":"image","id":"sale_icon","layer":3,"texture":"asset://icons/sale","position":[176,872],"size":[28,28],"color":[1,0.25,0.34,1]},
-      {"type":"image","id":"crown_icon","layer":3,"texture":"asset://icons/crown","position":[396,872],"size":[28,28],"color":[1,1,1,1]},
-      {"type":"image","id":"base_icon","layer":3,"texture":"asset://icons/base","position":[76,918],"size":[22,22],"color":[1,1,1,0.82]},
-      {"type":"image","id":"home_icon","layer":3,"texture":"asset://icons/house","position":[244,918],"size":[22,22],"color":[1,0.25,0.34,1]},
-      {"type":"image","id":"guild_icon","layer":3,"texture":"asset://icons/gem","position":[412,918],"size":[22,22],"color":[1,1,1,0.82]},
-      {"type":"image","id":"chat_icon","layer":3,"texture":"asset://icons/talk_chat","position":[580,918],"size":[22,22],"color":[1,1,1,0.82]},
-      {"type":"label","id":"player","text":"JEAPI","position":[154,52],"color":[1,1,1,1],"font_size":24},
-      {"type":"label","id":"currency","text":"1,815,872","position":[154,84],"color":[1,1,1,0.92],"font_size":16},
-      {"type":"label","id":"episode_text","text":"NEXT EPISODE: 21D","position":[270,142],"color":[1,1,1,1],"font_size":14.4},
-      {"type":"label","id":"gems","text":"581","position":[540,140],"color":[1,1,1,1],"font_size":16},
-      {"type":"label","id":"summon","text":"SUMMON","position":[88,766],"color":[1,1,1,1],"font_size":27.2},
-      {"type":"label","id":"story","text":"STORY","position":[436,766],"color":[1,1,1,1],"font_size":27.2},
-      {"type":"label","id":"specials","text":"SPECIALS","position":[214,878],"color":[1,1,1,0.92],"font_size":12},
-      {"type":"label","id":"shop","text":"SHOP","position":[444,878],"color":[1,1,1,0.92],"font_size":12},
-      {"type":"label","id":"base","text":"BASE","position":[62,942],"color":[1,1,1,0.82],"font_size":10},
-      {"type":"label","id":"home","text":"HOME","position":[224,942],"color":[1,0.25,0.34,1],"font_size":10},
-      {"type":"label","id":"guild","text":"GUILD","position":[390,942],"color":[1,1,1,0.82],"font_size":10},
-      {"type":"label","id":"chat","text":"CHAT","position":[562,942],"color":[1,1,1,0.82],"font_size":10}
+      {
+        "type": "image",
+        "id": "wallpaper",
+        "texture": "asset://background/main",
+        "position": [
+          0,
+          0
+        ],
+        "size": [
+          678,
+          960
+        ],
+        "color": [
+          0.78,
+          0.82,
+          1,
+          1
+        ]
+      },
+      {
+        "type": "panel",
+        "id": "screen_vignette",
+        "layer": 2,
+        "position": [
+          0,
+          0
+        ],
+        "size": [
+          678,
+          960
+        ],
+        "background_color": [
+          0.02,
+          0.02,
+          0.1,
+          0.18
+        ]
+      },
+      {
+        "type": "panel",
+        "id": "identity_panel",
+        "position": [
+          92,
+          36
+        ],
+        "size": [
+          530,
+          76
+        ],
+        "corner_radius": 5,
+        "border_width": 1,
+        "border_color": [
+          0.78,
+          0.8,
+          1,
+          0.4
+        ],
+        "background_color": [
+          0.063,
+          0.067,
+          0.18,
+          0.7
+        ]
+      },
+      {
+        "type": "panel",
+        "id": "episode_panel",
+        "position": [
+          248,
+          132
+        ],
+        "size": [
+          212,
+          36
+        ],
+        "corner_radius": 4,
+        "border_width": 1,
+        "border_color": [
+          1,
+          0.7,
+          0.75,
+          0.72
+        ],
+        "background_color": [
+          0.94,
+          0.2,
+          0.29,
+          0.94
+        ]
+      },
+      {
+        "type": "panel",
+        "id": "gem_panel",
+        "position": [
+          496,
+          132
+        ],
+        "size": [
+          128,
+          36
+        ],
+        "corner_radius": 4,
+        "border_width": 1,
+        "border_color": [
+          0.78,
+          0.8,
+          1,
+          0.4
+        ],
+        "background_color": [
+          0.063,
+          0.067,
+          0.18,
+          0.7
+        ]
+      },
+      {
+        "type": "circle",
+        "id": "dice_well",
+        "center": [
+          52,
+          214
+        ],
+        "radius": 31,
+        "color": [
+          0.063,
+          0.067,
+          0.18,
+          0.52
+        ]
+      },
+      {
+        "type": "circle",
+        "id": "mail_well",
+        "center": [
+          52,
+          290
+        ],
+        "radius": 31,
+        "color": [
+          0.063,
+          0.067,
+          0.18,
+          0.52
+        ]
+      },
+      {
+        "type": "circle",
+        "id": "card_well",
+        "center": [
+          52,
+          366
+        ],
+        "radius": 31,
+        "color": [
+          0.063,
+          0.067,
+          0.18,
+          0.52
+        ]
+      },
+      {
+        "type": "circle",
+        "id": "fullscreen_well",
+        "center": [
+          626,
+          242
+        ],
+        "radius": 31,
+        "color": [
+          0.063,
+          0.067,
+          0.18,
+          0.52
+        ]
+      },
+      {
+        "type": "circle",
+        "id": "gem_well",
+        "center": [
+          624,
+          606
+        ],
+        "radius": 31,
+        "color": [
+          0.063,
+          0.067,
+          0.18,
+          0.52
+        ]
+      },
+      {
+        "type": "panel",
+        "id": "carousel_panel",
+        "position": [
+          22,
+          624
+        ],
+        "size": [
+          634,
+          54
+        ],
+        "corner_radius": 8,
+        "background_color": [
+          0.063,
+          0.067,
+          0.18,
+          0.7
+        ]
+      },
+      {
+        "type": "panel",
+        "id": "summon_card",
+        "position": [
+          20,
+          692
+        ],
+        "size": [
+          302,
+          154
+        ],
+        "corner_radius": 8,
+        "border_width": 2,
+        "border_color": [
+          0.86,
+          0.88,
+          1,
+          0.46
+        ],
+        "background_color": [
+          0.063,
+          0.067,
+          0.18,
+          0.7
+        ]
+      },
+      {
+        "type": "panel",
+        "id": "story_card",
+        "position": [
+          356,
+          692
+        ],
+        "size": [
+          302,
+          154
+        ],
+        "corner_radius": 8,
+        "border_width": 2,
+        "border_color": [
+          0.86,
+          0.88,
+          1,
+          0.46
+        ],
+        "background_color": [
+          0.063,
+          0.067,
+          0.18,
+          0.7
+        ]
+      },
+      {
+        "type": "panel",
+        "id": "specials_chip",
+        "position": [
+          162,
+          864
+        ],
+        "size": [
+          164,
+          46
+        ],
+        "corner_radius": 23,
+        "background_color": [
+          0.063,
+          0.067,
+          0.18,
+          0.72
+        ]
+      },
+      {
+        "type": "panel",
+        "id": "shop_chip",
+        "position": [
+          352,
+          864
+        ],
+        "size": [
+          164,
+          46
+        ],
+        "corner_radius": 23,
+        "background_color": [
+          0.063,
+          0.067,
+          0.18,
+          0.72
+        ]
+      },
+      {
+        "type": "panel",
+        "id": "bottom_navigation",
+        "position": [
+          0,
+          912
+        ],
+        "size": [
+          678,
+          48
+        ],
+        "background_color": [
+          0.01,
+          0.01,
+          0.06,
+          0.88
+        ]
+      },
+      {
+        "type": "image",
+        "id": "fire_icon",
+        "layer": 3,
+        "texture": "asset://icons/fire",
+        "position": [
+          112,
+          56
+        ],
+        "size": [
+          26,
+          26
+        ],
+        "color": [
+          1,
+          0.25,
+          0.34,
+          1
+        ]
+      },
+      {
+        "type": "image",
+        "id": "gem_icon",
+        "layer": 3,
+        "texture": "asset://icons/gem",
+        "position": [
+          510,
+          140
+        ],
+        "size": [
+          20,
+          20
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "type": "image",
+        "id": "dice_icon",
+        "layer": 3,
+        "texture": "asset://icons/dice",
+        "position": [
+          36,
+          198
+        ],
+        "size": [
+          32,
+          32
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "type": "image",
+        "id": "mail_icon",
+        "layer": 3,
+        "texture": "asset://icons/mail",
+        "position": [
+          36,
+          274
+        ],
+        "size": [
+          32,
+          32
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "type": "image",
+        "id": "card_icon",
+        "layer": 3,
+        "texture": "asset://icons/credit_card",
+        "position": [
+          36,
+          350
+        ],
+        "size": [
+          32,
+          32
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "type": "image",
+        "id": "fullscreen_icon",
+        "layer": 3,
+        "texture": "asset://icons/fullscreen",
+        "position": [
+          610,
+          226
+        ],
+        "size": [
+          32,
+          32
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "type": "image",
+        "id": "sale_icon",
+        "layer": 3,
+        "texture": "asset://icons/sale",
+        "position": [
+          176,
+          872
+        ],
+        "size": [
+          28,
+          28
+        ],
+        "color": [
+          1,
+          0.25,
+          0.34,
+          1
+        ]
+      },
+      {
+        "type": "image",
+        "id": "crown_icon",
+        "layer": 3,
+        "texture": "asset://icons/crown",
+        "position": [
+          396,
+          872
+        ],
+        "size": [
+          28,
+          28
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "type": "image",
+        "id": "base_icon",
+        "layer": 3,
+        "texture": "asset://icons/base",
+        "position": [
+          76,
+          918
+        ],
+        "size": [
+          22,
+          22
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          0.82
+        ]
+      },
+      {
+        "type": "image",
+        "id": "home_icon",
+        "layer": 3,
+        "texture": "asset://icons/house",
+        "position": [
+          244,
+          918
+        ],
+        "size": [
+          22,
+          22
+        ],
+        "color": [
+          1,
+          0.25,
+          0.34,
+          1
+        ]
+      },
+      {
+        "type": "image",
+        "id": "guild_icon",
+        "layer": 3,
+        "texture": "asset://icons/gem",
+        "position": [
+          412,
+          918
+        ],
+        "size": [
+          22,
+          22
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          0.82
+        ]
+      },
+      {
+        "type": "image",
+        "id": "chat_icon",
+        "layer": 3,
+        "texture": "asset://icons/talk_chat",
+        "position": [
+          580,
+          918
+        ],
+        "size": [
+          22,
+          22
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          0.82
+        ]
+      },
+      {
+        "type": "label",
+        "id": "player",
+        "text": "JEAPI",
+        "position": [
+          154,
+          52
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "font_size": 24
+      },
+      {
+        "type": "label",
+        "id": "currency",
+        "text": "1,815,872",
+        "position": [
+          154,
+          84
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          0.92
+        ],
+        "font_size": 16
+      },
+      {
+        "type": "label",
+        "id": "episode_text",
+        "text": "NEXT EPISODE: 21D",
+        "position": [
+          270,
+          142
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "font_size": 14.4
+      },
+      {
+        "type": "label",
+        "id": "gems",
+        "text": "581",
+        "position": [
+          540,
+          140
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "font_size": 16
+      },
+      {
+        "type": "label",
+        "id": "summon",
+        "text": "SUMMON",
+        "position": [
+          88,
+          766
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "font_size": 27.2
+      },
+      {
+        "type": "label",
+        "id": "story",
+        "text": "STORY",
+        "position": [
+          436,
+          766
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "font_size": 27.2
+      },
+      {
+        "type": "label",
+        "id": "specials",
+        "text": "SPECIALS",
+        "position": [
+          214,
+          878
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          0.92
+        ],
+        "font_size": 12
+      },
+      {
+        "type": "label",
+        "id": "shop",
+        "text": "SHOP",
+        "position": [
+          444,
+          878
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          0.92
+        ],
+        "font_size": 12
+      },
+      {
+        "type": "label",
+        "id": "base",
+        "text": "BASE",
+        "position": [
+          62,
+          942
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          0.82
+        ],
+        "font_size": 10
+      },
+      {
+        "type": "label",
+        "id": "home",
+        "text": "HOME",
+        "position": [
+          224,
+          942
+        ],
+        "color": [
+          1,
+          0.25,
+          0.34,
+          1
+        ],
+        "font_size": 10
+      },
+      {
+        "type": "label",
+        "id": "guild",
+        "text": "GUILD",
+        "position": [
+          390,
+          942
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          0.82
+        ],
+        "font_size": 10
+      },
+      {
+        "type": "label",
+        "id": "chat",
+        "text": "CHAT",
+        "position": [
+          562,
+          942
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          0.82
+        ],
+        "font_size": 10
+      }
     ]
   }
 }

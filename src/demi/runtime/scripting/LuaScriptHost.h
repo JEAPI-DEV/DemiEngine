@@ -353,14 +353,7 @@ public:
                         std::vector<Vec3> vertices, std::vector<Vec3> normals,
                         std::vector<Vec2> uvs);
   [[nodiscard]] bool setHudText(const std::string &id, const std::string &text);
-  [[nodiscard]] bool setHudButtonLabel(const std::string &id,
-                                       const std::string &label);
-  [[nodiscard]] bool createHudText(const std::string &id,
-                                   const std::string &text, float x, float y,
-                                   float scale, Color color);
-  [[nodiscard]] bool setHudTextScale(const std::string &id, float scale);
-  [[nodiscard]] bool createHudRect(const std::string &id, float x, float y,
-                                   float width, float height, Color color);
+  [[nodiscard]] bool setHudFontSize(const std::string &id, float fontSize);
   [[nodiscard]] bool setHudRect(const std::string &id, float x, float y,
                                 float width, float height);
   [[nodiscard]] bool setHudImage(const std::string &id, std::string texture,
@@ -373,6 +366,7 @@ public:
   [[nodiscard]] bool setHudSize(const std::string &id, float width,
                                 float height);
   [[nodiscard]] bool setHudColor(const std::string &id, Color color);
+  [[nodiscard]] bool setHudBackgroundColor(const std::string &id, Color color);
   [[nodiscard]] bool setHudOpacity(const std::string &id, float opacity);
   [[nodiscard]] bool setHudVisible(const std::string &id, bool visible);
   [[nodiscard]] bool setHudValue(const std::string &id, float value);
@@ -381,7 +375,6 @@ public:
   [[nodiscard]] bool focusNextHudControl(bool reverse);
   [[nodiscard]] std::string focusedHudControl() const;
   [[nodiscard]] Vec2 hudCanvasSize() const;
-  [[nodiscard]] bool setHudGroupVisible(const std::string &group, bool visible);
   [[nodiscard]] std::optional<std::string> hudText(const std::string &id) const;
   [[nodiscard]] std::optional<ui::UiNodeHandle>
   createHudNode(const std::string &parent, ui::UiNode node, std::string &error);

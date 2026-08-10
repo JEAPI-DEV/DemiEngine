@@ -102,11 +102,7 @@ function Fight:on_create()
 end
 
 function Fight:on_start()
-  Hud.rect("p1_health_bg", 42, 36, 364, 26, 0.20, 0.05, 0.07, 1)
-  Hud.rect("p2_health_bg", 554, 36, 364, 26, 0.20, 0.05, 0.07, 1)
-  Hud.rect("p1_health", 44, 38, 360, 22, 0.25, 0.92, 0.55, 1)
-  Hud.rect("p2_health", 556, 38, 360, 22, 0.35, 0.65, 1.0, 1)
-  Hud.text("round_status", self.message, 250, 82, 2.0, 0.95, 0.95, 1, 1)
+  Hud.set_text("round_status", self.message)
 end
 
 function Fight:on_update(dt)

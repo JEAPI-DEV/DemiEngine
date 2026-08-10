@@ -18,16 +18,96 @@
   },
   "input": {
     "actions": {
-      "p1_left": ["a"],
-      "p1_right": ["d"],
-      "p1_attack": ["f"],
-      "p1_special": ["g"],
-      "p1_down": ["s"],
-      "p2_left": ["left"],
-      "p2_right": ["right"],
-      "p2_attack": ["k"],
-      "p2_special": ["l"],
-      "p2_down": ["down"]
+      "p1_left": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:a"
+          }
+        ]
+      },
+      "p1_right": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:d"
+          }
+        ]
+      },
+      "p1_attack": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:f"
+          }
+        ]
+      },
+      "p1_special": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:g"
+          }
+        ]
+      },
+      "p1_down": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:s"
+          }
+        ]
+      },
+      "p2_left": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:left"
+          }
+        ]
+      },
+      "p2_right": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:right"
+          }
+        ]
+      },
+      "p2_attack": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:k"
+          }
+        ]
+      },
+      "p2_special": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:l"
+          }
+        ]
+      },
+      "p2_down": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:down"
+          }
+        ]
+      }
     }
   }
 }

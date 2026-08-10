@@ -66,7 +66,7 @@ Color buttonFill(const ui::UiNode &node) {
   Color fill =
       node.hovered
           ? (node.hoverColor.a > 0.0F ? node.hoverColor : node.backgroundColor)
-          : (node.backgroundColor.a > 0.0F ? node.backgroundColor : node.color);
+          : node.backgroundColor;
   if (node.disabled) {
     fill.r *= 0.4F;
     fill.g *= 0.4F;

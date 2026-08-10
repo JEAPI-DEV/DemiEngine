@@ -5,10 +5,9 @@
   "importer": "image",
   "importer_version": 1,
   "settings": {
-    "color_key": "#000000",
     "filter": "nearest"
   },
-  "source": "player_sheet.ppm",
-  "source_hash": "fnv1a64:6ec6b2ba5bd50c09",
+  "source": "player_sheet.png",
+  "source_hash": "fnv1a64:2c31303d2a03e524",
   "type": "Texture2D"
 }

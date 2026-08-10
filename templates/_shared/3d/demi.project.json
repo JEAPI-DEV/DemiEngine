@@ -7,8 +7,20 @@
   ],
   "input": {
     "actions": {
-      "move_x": [{"input": "a", "scale": -1.0}, {"input": "d", "scale": 1.0}],
-      "move_z": [{"input": "s", "scale": -1.0}, {"input": "w", "scale": 1.0}]
+      "move_x": {
+        "type": "axis1d", "context": "gameplay",
+        "bindings": [
+          {"input": "key:a", "scale": -1.0},
+          {"input": "key:d", "scale": 1.0}
+        ]
+      },
+      "move_z": {
+        "type": "axis1d", "context": "gameplay",
+        "bindings": [
+          {"input": "key:s", "scale": -1.0},
+          {"input": "key:w", "scale": 1.0}
+        ]
+      }
     }
   },
   "scripting": { "language": "lua54", "modules": [] }

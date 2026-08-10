@@ -440,5 +440,113 @@ int main() {
   if (!capsuleStopsAtPolygonFromAllSides())
     return 1;
 
+  // A render loop and a fixed physics loop generally run at different rates.
+  // At 58 rendered frames against 60 physics ticks, presenting only the latest
+  // transform periodically advances two ticks at once. Interpolation must keep
+  // constant-velocity motion uniform without changing the simulation pose.
+  World presentationWorld;
+  Entity presentationMover;
+  presentationMover.id = "presentation_mover";
+  presentationMover.setComponent(Transform2DComponent{});
+  presentationMover.setComponent(Rigidbody2DComponent{
+      .bodyType = "dynamic",
+      .velocity = {6.0F, 0.0F},
+      .gravityScale = 0.0F,
+  });
+  presentationWorld.entities.push_back(std::move(presentationMover));
+  constexpr double fixedStep = 1.0 / 60.0;
+  constexpr double renderStep = 1.0 / 58.0;
+  double accumulator = 0.0;
+  float previousRaw = 0.0F;
+  float previousPresented = 0.0F;
+  float minimumRawDelta = 1000.0F;
+  float maximumRawDelta = -1000.0F;
+  float minimumPresentedDelta = 1000.0F;
+  float maximumPresentedDelta = -1000.0F;
+  for (int frame = 0; frame < 180; ++frame) {
+    accumulator += renderStep;
+    while (accumulator >= fixedStep) {
+      stepPhysics2D(presentationWorld, static_cast<float>(fixedStep),
+                    PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
+      accumulator -= fixedStep;
+    }
+    const Entity &renderedEntity = presentationWorld.entities.front();
+    const float raw =
+        renderedEntity.component<Transform2DComponent>()->position.x;
+    const float alpha = static_cast<float>(accumulator / fixedStep);
+    const auto presented =
+        physicsPresentationPosition2D(presentationWorld, renderedEntity, alpha);
+    if (!presented) {
+      std::cerr << "Moving physics body did not expose a presentation pose.\n";
+      return 1;
+    }
+    if (frame > 5) {
+      minimumRawDelta = std::min(minimumRawDelta, raw - previousRaw);
+      maximumRawDelta = std::max(maximumRawDelta, raw - previousRaw);
+      minimumPresentedDelta =
+          std::min(minimumPresentedDelta, presented->x - previousPresented);
+      maximumPresentedDelta =
+          std::max(maximumPresentedDelta, presented->x - previousPresented);
+    }
+    previousRaw = raw;
+    previousPresented = presented->x;
+  }
+  if (maximumRawDelta - minimumRawDelta < 0.05F) {
+    std::cerr << "Timing regression did not exercise the two-tick raw jump.\n";
+    return 1;
+  }
+  if (maximumPresentedDelta - minimumPresentedDelta > 0.001F) {
+    std::cerr << "Fixed-step presentation remained uneven: delta range "
+              << minimumPresentedDelta << " to " << maximumPresentedDelta
+              << ".\n";
+    return 1;
+  }
+
+  // Scripted repositioning is a teleport, not a motion segment to smear across
+  // several frames. It must be visible immediately and seed the next step.
+  auto *presentationTransform =
+      presentationWorld.entities.front().component<Transform2DComponent>();
+  presentationTransform->position = {42.0F, 7.0F};
+  const auto teleported = physicsPresentationPosition2D(
+      presentationWorld, presentationWorld.entities.front(), 0.25F);
+  if (!teleported || std::abs(teleported->x - 42.0F) > 0.0001F ||
+      std::abs(teleported->y - 7.0F) > 0.0001F) {
+    std::cerr << "A scripted teleport was incorrectly interpolated.\n";
+    return 1;
+  }
+  stepPhysics2D(presentationWorld, static_cast<float>(fixedStep),
+                PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
+  const auto afterTeleport = physicsPresentationPosition2D(
+      presentationWorld, presentationWorld.entities.front(), 0.0F);
+  if (!afterTeleport || std::abs(afterTeleport->x - 42.0F) > 0.0001F ||
+      std::abs(afterTeleport->y - 7.0F) > 0.0001F) {
+    std::cerr << "Physics did not reset interpolation at a teleport.\n";
+    return 1;
+  }
+
+  // Rotation interpolation takes the shortest path across the +/-pi seam.
+  presentationTransform->rotation = -3.12413936F;
+  presentationWorld.physicsPresentationPoses2D["presentation_mover"] = {
+      .previousPosition = presentationTransform->position,
+      .currentPosition = presentationTransform->position,
+      .previousRotation = 3.12413936F,
+      .currentRotation = -3.12413936F,
+  };
+  const auto seamRotation = physicsPresentationRotation2D(
+      presentationWorld, presentationWorld.entities.front(), 0.5F);
+  if (!seamRotation ||
+      std::abs(std::abs(*seamRotation) - 3.14159265F) > 0.001F) {
+    std::cerr << "Rotation interpolation took the long path across pi.\n";
+    return 1;
+  }
+
+  presentationWorld.entities.clear();
+  stepPhysics2D(presentationWorld, static_cast<float>(fixedStep),
+                PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
+  if (!presentationWorld.physicsPresentationPoses2D.empty()) {
+    std::cerr << "Destroyed bodies retained stale presentation poses.\n";
+    return 1;
+  }
+
   return 0;
 }

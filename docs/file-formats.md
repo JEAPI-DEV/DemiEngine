@@ -35,8 +35,7 @@ files. New imports record all pipeline metadata:
   "settings": {
     "filter": "nearest",
     "wrap": "clamp",
-    "mipmaps": false,
-    "color_key": "#000000"
+    "mipmaps": false
   },
   "license": "License.txt",
   "attribution": "Artist name"
@@ -48,16 +47,15 @@ Tools that produce sources under a project's `assets/` directory should use
 `demi asset register-generated` instead of calculating `source_hash` or writing
 manifest metadata themselves.
 Current pass-through
-importers support PNG, JPEG, BMP, TGA, QOI, PPM, SVG, GIF, WAV, OGG, MP3,
+importers support PNG, JPEG, BMP, TGA, QOI, SVG, GIF, WAV, OGG, MP3,
 FLAC, glTF, GLB, OBJ, IQM, M3D, MP4, WebM, MOV, and JSON data. glTF URI sidecars are
 discovered and carried through import, export, and cooking.
 
 Texture-bearing assets accept `nearest`, `bilinear`, or `trilinear` filtering;
 `repeat`, `clamp`, or `mirror` wrapping; and optional mipmap generation. The
 same settings apply to standalone textures, explicit model textures, and
-textures embedded in glTF materials. RGB-only legacy sprites can specify an
-exact `color_key` in `#RRGGBB` form; matching pixels become fully transparent
-during import. Omit it for formats such as PNG that already contain alpha.
+textures embedded in glTF materials. Transparent sprites must use an image
+format with an alpha channel, such as PNG.
 
 ### Animation and audio assets
 

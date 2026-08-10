@@ -46,18 +46,18 @@ function Settings.update_video_hud()
   Hud.set_text("menu_window_mode_label", mode_label(menu.window_mode))
   Hud.set_text("menu_dropdown_arrow", menu.dropdown_open and "-" or "+")
   Hud.set_text("menu_max_fps_value", max_fps_label(menu))
-  Hud.set_color("menu_max_fps_input", menu.max_fps_editing and 0.12 or 0.05, menu.max_fps_editing and 0.16 or 0.06, menu.max_fps_editing and 0.28 or 0.13, 0.94)
+  Hud.set_background_color("menu_max_fps_input", menu.max_fps_editing and 0.12 or 0.05, menu.max_fps_editing and 0.16 or 0.06, menu.max_fps_editing and 0.28 or 0.13, 0.94)
   Hud.set_visible("menu_back", not menu.dropdown_open)
 end
 
 function Settings.apply()
   local menu = Settings.menu
   menu.volume = Save.get_number(SETTINGS_SLOT, "master_volume", Audio.get_master_volume())
-  menu.window_mode = Save.get_string(SETTINGS_SLOT, "window_mode", Runtime.get_window_mode())
-  menu.max_fps = Save.get_number(SETTINGS_SLOT, "max_fps", Runtime.get_max_fps())
+  menu.window_mode = Save.get_string(SETTINGS_SLOT, "window_mode", Application.window_mode())
+  menu.max_fps = Save.get_number(SETTINGS_SLOT, "max_fps", Application.max_fps())
   Audio.set_master_volume(menu.volume)
-  Runtime.set_window_mode(menu.window_mode)
-  Runtime.set_max_fps(menu.max_fps)
+  Application.set_window_mode(menu.window_mode)
+  Application.set_max_fps(menu.max_fps)
 end
 
 function Settings.set_volume(volume)
@@ -71,7 +71,7 @@ end
 function Settings.set_window_mode(mode)
   local menu = Settings.menu
   menu.window_mode = mode
-  Runtime.set_window_mode(mode)
+  Application.set_window_mode(mode)
   Save.set_string(SETTINGS_SLOT, "window_mode", mode)
   menu.dropdown_open = false
   Settings.update_video_hud()
@@ -85,7 +85,7 @@ function Settings.set_max_fps(value)
   else
     menu.max_fps = math.max(15, math.min(1000, math.floor(value + 0.5)))
   end
-  Runtime.set_max_fps(menu.max_fps)
+  Application.set_max_fps(menu.max_fps)
   Save.set_number(SETTINGS_SLOT, "max_fps", menu.max_fps)
   Settings.update_video_hud()
 end

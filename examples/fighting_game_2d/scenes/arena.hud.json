@@ -1,0 +1,101 @@
+{
+  "format_version": 1,
+  "canvas_size": [
+    960,
+    540
+  ],
+  "root": {
+    "id": "root",
+    "type": "container",
+    "children": [
+      {
+        "id": "p1_health_bg",
+        "type": "rect",
+        "position": [
+          42,
+          36
+        ],
+        "size": [
+          364,
+          26
+        ],
+        "background_color": [
+          0.20,
+          0.05,
+          0.07,
+          1
+        ]
+      },
+      {
+        "id": "p2_health_bg",
+        "type": "rect",
+        "position": [
+          554,
+          36
+        ],
+        "size": [
+          364,
+          26
+        ],
+        "background_color": [
+          0.20,
+          0.05,
+          0.07,
+          1
+        ]
+      },
+      {
+        "id": "p1_health",
+        "type": "rect",
+        "position": [
+          44,
+          38
+        ],
+        "size": [
+          360,
+          22
+        ],
+        "background_color": [
+          0.25,
+          0.92,
+          0.55,
+          1
+        ]
+      },
+      {
+        "id": "p2_health",
+        "type": "rect",
+        "position": [
+          556,
+          38
+        ],
+        "size": [
+          360,
+          22
+        ],
+        "background_color": [
+          0.35,
+          0.65,
+          1,
+          1
+        ]
+      },
+      {
+        "id": "round_status",
+        "type": "label",
+        "text": "FIGHT! P1: A/D + F/G   P2: arrows + K/L",
+        "position": [
+          250,
+          82
+        ],
+        "font_size": 16,
+        "color": [
+          0.95,
+          0.95,
+          1,
+          1
+        ]
+      }
+    ]
+  }
+}

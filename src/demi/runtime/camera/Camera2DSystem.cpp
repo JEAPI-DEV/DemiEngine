@@ -1,5 +1,6 @@
 #include "demi/runtime/camera/Camera2DSystem.h"
 
+#include "demi/runtime/physics/PhysicsPresentation2D.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/Camera2DComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/Transform2DComponent.h"
@@ -9,7 +10,8 @@
 
 namespace demi::runtime {
 
-void Camera2DSystem::update(World &world, const float deltaTime) const {
+void Camera2DSystem::update(World &world, const float deltaTime,
+                            const float physicsInterpolationAlpha) const {
   for (Entity &entity : world.entities) {
     if (!entity.enabled)
       continue;
@@ -21,7 +23,8 @@ void Camera2DSystem::update(World &world, const float deltaTime) const {
     const Entity *target = findEntity(world, camera->target);
     if (target == nullptr || !target->enabled)
       continue;
-    Vec2 desired = worldPosition2D(world, *target);
+    Vec2 desired = physicsPresentationWorldPosition2D(
+        world, *target, physicsInterpolationAlpha);
     desired.x += camera->followOffset.x;
     desired.y += camera->followOffset.y;
     if (camera->hasBounds) {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "demi/runtime/physics/PhysicsPresentation2D.h"
 #include "demi/runtime/scene/model/World.h"
 
 #include <optional>

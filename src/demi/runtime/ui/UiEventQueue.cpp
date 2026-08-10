@@ -65,11 +65,6 @@ void UiEventQueue::valueChanged(UiDocument &document, const UiNode &node,
 void UiEventQueue::cancelSubtree(UiDocument &document,
                                  const std::string_view root,
                                  const std::string_view source) {
-  const auto mouseCapture = document.pointerCaptures.find(0);
-  const bool mouseCaptureInSubtree =
-      belongsTo(document, document.pointerCaptureId, root) ||
-      (mouseCapture != document.pointerCaptures.end() &&
-       belongsTo(document, mouseCapture->second, root));
   const bool focusedWasCaptured =
       std::ranges::any_of(document.pointerCaptures, [&](const auto &capture) {
         return capture.second == document.focusedId &&
@@ -133,8 +128,6 @@ void UiEventQueue::cancelSubtree(UiDocument &document,
   std::erase_if(document.draggingPointers, [&](const auto pointerId) {
     return !document.pointerCaptures.contains(pointerId);
   });
-  if (mouseCaptureInSubtree)
-    document.pointerCaptureId.clear();
 }
 
 } // namespace demi::runtime::ui

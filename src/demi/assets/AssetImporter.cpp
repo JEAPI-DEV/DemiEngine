@@ -70,7 +70,6 @@ importerFor(const std::filesystem::path &source, const std::string &type) {
       {".bmp", {"image", 1, "Texture2D"}},
       {".tga", {"image", 1, "Texture2D"}},
       {".qoi", {"image", 1, "Texture2D"}},
-      {".ppm", {"image", 1, "Texture2D"}},
       {".svg", {"svg", 1, "Icon2D"}},
       {".gif", {"gif", 1, "GifAnimation2D"}},
       {".wav", {"audio", 1, "AudioClip"}},
@@ -95,9 +94,20 @@ importerFor(const std::filesystem::path &source, const std::string &type) {
   ImporterDescriptor descriptor = found->second;
   if (!type.empty()) {
     descriptor.assetType = type;
-    if (lower(source.extension().string()) == ".json" && type != "DataAsset" &&
-        type != "DataSchema")
-      descriptor.name = "json-data";
+    if (lower(source.extension().string()) == ".json") {
+      static const std::unordered_map<std::string, std::string> typedJson{
+          {"DataAsset", "json_data"},
+          {"DataSchema", "json_schema"},
+          {"Material", "material"},
+          {"Shader", "shader"},
+          {"RenderTarget", "render_target"},
+          {"Tilemap2D", "tilemap2d"},
+      };
+      const auto typed = typedJson.find(type);
+      if (typed == typedJson.end())
+        return std::nullopt;
+      descriptor.name = typed->second;
+    }
   }
   return descriptor;
 }
@@ -331,6 +341,9 @@ registerGeneratedAsset(const GeneratedAssetRegistrationRequest &request) {
   manifest["id"] = request.id;
   manifest["type"] = descriptor->assetType;
   manifest["source"] = request.source.filename().generic_string();
+  manifest["importer"] = descriptor->name;
+  manifest["importer_version"] = descriptor->version;
+  manifest["source_hash"] = *hashFiles(sourceFiles);
   if (!manifest.contains("dependencies"))
     manifest["dependencies"] = nlohmann::json::array();
   if (!manifest.contains("settings"))
@@ -354,8 +367,7 @@ registerGeneratedAsset(const GeneratedAssetRegistrationRequest &request) {
 Diagnostics reimportAsset(const std::filesystem::path &manifestPath) {
   Diagnostics diagnostics;
   Diagnostic diagnostic;
-  const auto manifest =
-      loadAssetManifestForMigration(manifestPath, &diagnostic);
+  const auto manifest = loadAssetManifest(manifestPath, &diagnostic);
   if (!manifest) {
     diagnostics.push_back(std::move(diagnostic));
     return diagnostics;

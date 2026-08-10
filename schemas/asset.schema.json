@@ -41,10 +41,6 @@
         },
         "mipmaps": {
           "type": "boolean"
-        },
-        "color_key": {
-          "type": "string",
-          "pattern": "^#[0-9A-Fa-f]{6}$"
         }
       }
     }

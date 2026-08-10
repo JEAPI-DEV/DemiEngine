@@ -1,5 +1,6 @@
 #include "demi/runtime/render/bgfx2d/SpriteCanvasRenderer.h"
 
+#include "demi/runtime/physics/PhysicsPresentation2D.h"
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/IsoTransformComponent.h"
@@ -27,7 +28,8 @@ bool SpriteCanvasRenderer::draw(const World &world,
                                 const Vec2 cameraPosition,
                                 const std::uint16_t viewportWidth,
                                 const std::uint16_t viewportHeight,
-                                const float animationTime) {
+                                const float animationTime,
+                                const float physicsInterpolationAlpha) {
   const float ppu =
       viewportHeight / std::max(camera.orthographicSize * 2.0F, 1.0F);
   std::vector<const Entity *> sprites;
@@ -45,7 +47,8 @@ bool SpriteCanvasRenderer::draw(const World &world,
 
   for (const Entity *entity : sprites) {
     const SpriteComponent &sprite = *entity->component<SpriteComponent>();
-    const Vec2 position = worldPosition2D(world, *entity);
+    const Vec2 position = physicsPresentationWorldPosition2D(
+        world, *entity, physicsInterpolationAlpha);
     const float screenX =
         viewportWidth * 0.5F + (position.x - cameraPosition.x) * ppu;
     const float screenY =
@@ -152,7 +155,8 @@ bool SpriteCanvasRenderer::draw(const World &world,
       std::swap(source.u0, source.u1);
     if (sprite.flipY)
       std::swap(source.v0, source.v1);
-    const float rotation = -worldRotation2D(world, *entity);
+    const float rotation = -physicsPresentationWorldRotation2D(
+        world, *entity, physicsInterpolationAlpha);
     const bool sliced = sprite.sliceStart.x > 0.0F ||
                         sprite.sliceStart.y > 0.0F ||
                         sprite.sliceEnd.x > 0.0F || sprite.sliceEnd.y > 0.0F;

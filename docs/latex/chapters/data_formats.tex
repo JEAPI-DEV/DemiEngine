@@ -50,13 +50,18 @@ node tree.
     "anchor_min": [0.0, 0.0],
     "anchor_max": [1.0, 1.0],
     "children": [{
-      "type": "button",
-      "id": "menu_button_start",
-      "group": "menu_main",
-      "text": "START GAME",
-      "position": [270.0, 226.0],
-      "size": [420.0, 52.0],
-      "action": "menu_button_start"
+      "type": "container",
+      "id": "menu_main",
+      "anchor_min": [0.0, 0.0],
+      "anchor_max": [1.0, 1.0],
+      "children": [{
+        "type": "button",
+        "id": "menu_button_start",
+        "text": "START GAME",
+        "position": [270.0, 226.0],
+        "size": [420.0, 52.0],
+        "action": "menu_button_start"
+      }]
     }]
   }
 }
@@ -85,4 +90,6 @@ Lua can read and write simple string and number values in these files through th
 
 \section{Asset Manifests}
 
-Asset manifests use \filepath{*.asset.json}. They define stable \code{asset://} IDs and source paths. The current runtime loads PPM texture data for sprites and MP3 data for audio if libmpg123 is available.
+Asset manifests use \filepath{*.asset.json}. They define stable \code{asset://}
+IDs and source paths. Transparent textures use alpha-capable formats such as
+PNG. Audio formats are decoded by the configured audio backend.

@@ -1,24 +1,19 @@
 \chapter{HUD and Menu System}
 
-\section{Two HUD Workflows}
+\section{Retained HUD Workflow}
 
-DemiEngine currently supports two HUD workflows:
-
-\begin{itemize}
-  \item imperative HUD creation through Lua functions such as \code{Hud.text} and \code{Hud.rect};
-  \item declarative HUD layout through \filepath{*.hud.json} files.
-\end{itemize}
-
-The declarative path is preferred for authored menus. The imperative path remains useful for generated UI, temporary debug HUDs, and dynamic game-specific overlays.
+DemiEngine uses declarative \filepath{*.hud.json} files for authored UI. Lua
+may generate genuinely dynamic nodes through \code{Hud.create}; both paths use
+the same retained tree, layout, input, and accessibility systems.
 
 \section{Declarative HUD Elements}
 
-HUD files currently support three element types:
+HUD files support retained layout and control nodes, including:
 
 \begin{longtable}{>{\ttfamily}p{0.20\textwidth}p{0.68\textwidth}}
-rect & A colored rectangle with position, size, color, visibility, and group. \\
-text & Pixel font text with position, scale, color, visibility, and group. \\
-button & A clickable rectangle with label, colors, script callback, visibility, and group. \\
+panel & A colored container with position, size, anchors, and child nodes. \\
+label & Text with font size, color, alignment, and wrapping. \\
+button & A focusable control with label, style, and typed action. \\
 \end{longtable}
 
 \section{Canvas Size}
@@ -33,11 +28,12 @@ All positions and sizes in that HUD file are authored against this canvas. At ru
 
 \section{Groups}
 
-Groups are inspired by Unity-style parent UI objects. Instead of keeping Lua arrays of every element ID, elements declare a \code{group}. Lua then toggles a whole group:
+Groups are ordinary structural parent nodes. Toggling the parent controls its
+entire subtree:
 
 \begin{lstlisting}[language={[5.2]Lua}]
-Hud.set_group_visible("menu_main", true)
-Hud.set_group_visible("menu_options", false)
+Hud.set_visible("menu_main", true)
+Hud.set_visible("menu_options", false)
 \end{lstlisting}
 
 The \filepath{minimal\_2d} menu uses these groups:
@@ -60,7 +56,6 @@ Buttons can declare an action annotation:
 {
   "type": "button",
   "id": "menu_button_start",
-  "group": "menu_main",
   "label": "START GAME",
   "action": "menu_button_start"
 }
@@ -75,7 +70,8 @@ function Menu.start_game(event)
 end
 \end{lstlisting}
 
-The lower-level \code{hud\_action} event is also emitted for systems that prefer event-bus routing.
+Typed UI events are also available through \code{on\_ui\_event}, specialized
+callbacks such as \code{on\_ui\_submit}, and matching event-bus channels.
 
 \section{Event Annotations}
 

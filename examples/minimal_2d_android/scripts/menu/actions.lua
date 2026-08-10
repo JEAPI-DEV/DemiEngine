@@ -86,7 +86,7 @@ function Actions.network_join_submit() ctx.network.submit_join() end
 
 -- @HandleAction("menu_button_quit")
 function Actions.quit()
-  Runtime.quit()
+  Application.quit()
 end
 
 -- @HandleAction("menu_volume_minus")

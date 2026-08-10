@@ -1,90 +1,538 @@
 {
   "format_version": 1,
-  "canvas_size": [960, 540],
+  "canvas_size": [
+    960,
+    540
+  ],
   "root": {
     "id": "ui_root",
     "type": "container",
-    "anchor_min": [0, 0],
-    "anchor_max": [1, 1],
+    "anchor_min": [
+      0,
+      0
+    ],
+    "anchor_max": [
+      1,
+      1
+    ],
     "children": [
       {
-        "id": "match_bar",
-        "type": "panel",
-        "group": "match_ui",
+        "id": "match_ui",
+        "type": "container",
         "visible": false,
-        "anchor_min": [0, 0],
-        "anchor_max": [1, 0],
-        "margin": [16, 14, 16, 0],
-        "size": [0, 62],
-        "color": [0.025, 0.04, 0.085, 0.94],
         "children": [
-          {"id": "health_label", "type": "label", "text": "HEALTH", "position": [18, 10], "size": [90, 24], "font_size": 18, "color": [0.65, 0.9, 1, 1]},
-          {"id": "health_value", "type": "label", "text": "100", "position": [108, 8], "size": [70, 28], "font_size": 24, "color": [0.3, 1, 0.72, 1]},
-          {"id": "score_value", "type": "label", "text": "SCORE 0 / 0", "position": [220, 8], "size": [190, 28], "font_size": 24, "color": [1, 0.82, 0.3, 1]},
-          {"id": "network_value", "type": "label", "text": "OFFLINE", "position": [430, 10], "size": [160, 24], "font_size": 18, "color": [0.7, 0.82, 0.95, 1]},
-          {"id": "scoreboard", "type": "label", "text": "SOLO  0", "position": [610, 10], "size": [310, 38], "font_size": 16, "color": [0.86, 0.94, 1, 1]}
+          {
+            "id": "match_bar",
+            "type": "panel",
+            "anchor_min": [
+              0,
+              0
+            ],
+            "anchor_max": [
+              1,
+              0
+            ],
+            "margin": [
+              16,
+              14,
+              16,
+              0
+            ],
+            "size": [
+              0,
+              62
+            ],
+            "children": [
+              {
+                "id": "health_label",
+                "type": "label",
+                "text": "HEALTH",
+                "position": [
+                  18,
+                  10
+                ],
+                "size": [
+                  90,
+                  24
+                ],
+                "font_size": 18,
+                "color": [
+                  0.65,
+                  0.9,
+                  1,
+                  1
+                ]
+              },
+              {
+                "id": "health_value",
+                "type": "label",
+                "text": "100",
+                "position": [
+                  108,
+                  8
+                ],
+                "size": [
+                  70,
+                  28
+                ],
+                "font_size": 24,
+                "color": [
+                  0.3,
+                  1,
+                  0.72,
+                  1
+                ]
+              },
+              {
+                "id": "score_value",
+                "type": "label",
+                "text": "SCORE 0 / 0",
+                "position": [
+                  220,
+                  8
+                ],
+                "size": [
+                  190,
+                  28
+                ],
+                "font_size": 24,
+                "color": [
+                  1,
+                  0.82,
+                  0.3,
+                  1
+                ]
+              },
+              {
+                "id": "network_value",
+                "type": "label",
+                "text": "OFFLINE",
+                "position": [
+                  430,
+                  10
+                ],
+                "size": [
+                  160,
+                  24
+                ],
+                "font_size": 18,
+                "color": [
+                  0.7,
+                  0.82,
+                  0.95,
+                  1
+                ]
+              },
+              {
+                "id": "scoreboard",
+                "type": "label",
+                "text": "SOLO  0",
+                "position": [
+                  610,
+                  10
+                ],
+                "size": [
+                  310,
+                  38
+                ],
+                "font_size": 16,
+                "color": [
+                  0.86,
+                  0.94,
+                  1,
+                  1
+                ]
+              }
+            ],
+            "background_color": [
+              0.025,
+              0.04,
+              0.085,
+              0.94
+            ]
+          },
+          {
+            "id": "move_controls",
+            "type": "panel",
+            "anchor_min": [
+              0,
+              1
+            ],
+            "anchor_max": [
+              0,
+              1
+            ],
+            "position": [
+              18,
+              -174
+            ],
+            "size": [
+              178,
+              156
+            ],
+            "children": [
+              {
+                "id": "move_stick",
+                "type": "virtual_stick",
+                "control": "move",
+                "position": [
+                  11,
+                  1
+                ],
+                "size": [
+                  156,
+                  150
+                ],
+                "radius": 75,
+                "deadzone": 0.12,
+                "text": "MOVE",
+                "font_size": 17,
+                "hover_color": [
+                  0.18,
+                  0.5,
+                  0.62,
+                  1
+                ],
+                "background_color": [
+                  0.12,
+                  0.28,
+                  0.42,
+                  0.9
+                ]
+              }
+            ],
+            "background_color": [
+              0.025,
+              0.04,
+              0.085,
+              0.68
+            ]
+          },
+          {
+            "id": "fire_control",
+            "type": "panel",
+            "anchor_min": [
+              1,
+              1
+            ],
+            "anchor_max": [
+              1,
+              1
+            ],
+            "position": [
+              -158,
+              -146
+            ],
+            "size": [
+              140,
+              128
+            ],
+            "children": [
+              {
+                "id": "fire",
+                "type": "virtual_button",
+                "control": "fire",
+                "position": [
+                  10,
+                  10
+                ],
+                "size": [
+                  120,
+                  108
+                ],
+                "radius": 54,
+                "text": "FIRE",
+                "font_size": 24,
+                "hover_color": [
+                  0.95,
+                  0.28,
+                  0.38,
+                  1
+                ],
+                "background_color": [
+                  0.65,
+                  0.16,
+                  0.28,
+                  0.94
+                ]
+              }
+            ],
+            "background_color": [
+              0.025,
+              0.04,
+              0.085,
+              0.68
+            ]
+          },
+          {
+            "id": "match_hint",
+            "type": "label",
+            "anchor_min": [
+              0.5,
+              1
+            ],
+            "anchor_max": [
+              0.5,
+              1
+            ],
+            "position": [
+              -240,
+              -34
+            ],
+            "size": [
+              480,
+              24
+            ],
+            "text": "WASD / ARROWS MOVE  |  MOUSE / SPACE FIRE  |  ESC LEAVE",
+            "font_size": 15,
+            "color": [
+              0.72,
+              0.84,
+              0.95,
+              0.9
+            ]
+          }
+        ],
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
         ]
-      },
-      {
-        "id": "move_controls",
-        "type": "panel",
-        "group": "match_ui",
-        "visible": false,
-        "anchor_min": [0, 1],
-        "anchor_max": [0, 1],
-        "position": [18, -174],
-        "size": [178, 156],
-        "color": [0.025, 0.04, 0.085, 0.68],
-        "children": [
-          {"id": "move_stick", "type": "virtual_stick", "control": "move", "position": [11, 1], "size": [156, 150], "radius": 75, "deadzone": 0.12, "text": "MOVE", "font_size": 17, "color": [0.12, 0.28, 0.42, 0.9], "hover_color": [0.18, 0.5, 0.62, 1]}
-        ]
-      },
-      {
-        "id": "fire_control",
-        "type": "panel",
-        "group": "match_ui",
-        "visible": false,
-        "anchor_min": [1, 1],
-        "anchor_max": [1, 1],
-        "position": [-158, -146],
-        "size": [140, 128],
-        "color": [0.025, 0.04, 0.085, 0.68],
-        "children": [
-          {"id": "fire", "type": "virtual_button", "control": "fire", "position": [10, 10], "size": [120, 108], "radius": 54, "text": "FIRE", "font_size": 24, "color": [0.65, 0.16, 0.28, 0.94], "hover_color": [0.95, 0.28, 0.38, 1]}
-        ]
-      },
-      {
-        "id": "match_hint",
-        "type": "label",
-        "group": "match_ui",
-        "visible": false,
-        "anchor_min": [0.5, 1],
-        "anchor_max": [0.5, 1],
-        "position": [-240, -34],
-        "size": [480, 24],
-        "text": "WASD / ARROWS MOVE  |  MOUSE / SPACE FIRE  |  ESC LEAVE",
-        "font_size": 15,
-        "color": [0.72, 0.84, 0.95, 0.9]
       },
       {
         "id": "network_menu",
         "type": "panel",
-        "group": "network_menu",
-        "anchor_min": [0.5, 0.5],
-        "anchor_max": [0.5, 0.5],
-        "position": [-225, -190],
-        "size": [450, 380],
-        "color": [0.025, 0.04, 0.085, 0.97],
+        "anchor_min": [
+          0.5,
+          0.5
+        ],
+        "anchor_max": [
+          0.5,
+          0.5
+        ],
+        "position": [
+          -225,
+          -190
+        ],
+        "size": [
+          450,
+          380
+        ],
         "children": [
-          {"id": "menu_accent", "type": "panel", "position": [0, 0], "size": [450, 6], "color": [0.14, 0.85, 0.92, 1]},
-          {"id": "menu_title", "type": "label", "position": [46, 26], "size": [360, 46], "text": "NEON FFA", "font_size": 40, "color": [0.86, 0.98, 1, 1]},
-          {"id": "menu_subtitle", "type": "label", "position": [46, 74], "size": [360, 30], "text": "HOST-AUTHORITATIVE FREE FOR ALL", "font_size": 17, "color": [1, 0.72, 0.32, 1]},
-          {"id": "server_label", "type": "label", "position": [46, 118], "size": [150, 28], "text": "SERVER ADDRESS", "font_size": 18, "color": [0.68, 0.82, 0.94, 1]},
-          {"id": "server_address", "type": "text_input", "position": [46, 148], "size": [358, 42], "text": "127.0.0.1", "font_size": 20, "color": [0.08, 0.12, 0.2, 1], "text_color": [0.92, 0.98, 1, 1]},
-          {"id": "host_button", "type": "button", "position": [46, 208], "size": [170, 48], "text": "HOST  [H]", "font_size": 20, "action": "host_match", "color": [0.08, 0.38, 0.42, 1], "hover_color": [0.12, 0.62, 0.66, 1]},
-          {"id": "join_button", "type": "button", "position": [234, 208], "size": [170, 48], "text": "JOIN  [J]", "font_size": 20, "action": "join_match", "color": [0.24, 0.22, 0.48, 1], "hover_color": [0.38, 0.34, 0.7, 1]},
-          {"id": "practice_button", "type": "button", "position": [46, 270], "size": [358, 46], "text": "OFFLINE PRACTICE  [P]", "font_size": 19, "action": "practice_match", "color": [0.24, 0.16, 0.3, 1], "hover_color": [0.4, 0.24, 0.48, 1]},
-          {"id": "menu_status", "type": "label", "position": [46, 330], "size": [358, 28], "text": "PORT 39420", "font_size": 17, "color": [0.68, 0.82, 0.94, 1]}
+          {
+            "id": "menu_accent",
+            "type": "panel",
+            "position": [
+              0,
+              0
+            ],
+            "size": [
+              450,
+              6
+            ],
+            "background_color": [
+              0.14,
+              0.85,
+              0.92,
+              1
+            ]
+          },
+          {
+            "id": "menu_title",
+            "type": "label",
+            "position": [
+              46,
+              26
+            ],
+            "size": [
+              360,
+              46
+            ],
+            "text": "NEON FFA",
+            "font_size": 40,
+            "color": [
+              0.86,
+              0.98,
+              1,
+              1
+            ]
+          },
+          {
+            "id": "menu_subtitle",
+            "type": "label",
+            "position": [
+              46,
+              74
+            ],
+            "size": [
+              360,
+              30
+            ],
+            "text": "HOST-AUTHORITATIVE FREE FOR ALL",
+            "font_size": 17,
+            "color": [
+              1,
+              0.72,
+              0.32,
+              1
+            ]
+          },
+          {
+            "id": "server_label",
+            "type": "label",
+            "position": [
+              46,
+              118
+            ],
+            "size": [
+              150,
+              28
+            ],
+            "text": "SERVER ADDRESS",
+            "font_size": 18,
+            "color": [
+              0.68,
+              0.82,
+              0.94,
+              1
+            ]
+          },
+          {
+            "id": "server_address",
+            "type": "text_input",
+            "position": [
+              46,
+              148
+            ],
+            "size": [
+              358,
+              42
+            ],
+            "text": "127.0.0.1",
+            "font_size": 20,
+            "text_color": [
+              0.92,
+              0.98,
+              1,
+              1
+            ],
+            "background_color": [
+              0.08,
+              0.12,
+              0.2,
+              1
+            ]
+          },
+          {
+            "id": "host_button",
+            "type": "button",
+            "position": [
+              46,
+              208
+            ],
+            "size": [
+              170,
+              48
+            ],
+            "text": "HOST  [H]",
+            "font_size": 20,
+            "action": "host_match",
+            "hover_color": [
+              0.12,
+              0.62,
+              0.66,
+              1
+            ],
+            "background_color": [
+              0.08,
+              0.38,
+              0.42,
+              1
+            ]
+          },
+          {
+            "id": "join_button",
+            "type": "button",
+            "position": [
+              234,
+              208
+            ],
+            "size": [
+              170,
+              48
+            ],
+            "text": "JOIN  [J]",
+            "font_size": 20,
+            "action": "join_match",
+            "hover_color": [
+              0.38,
+              0.34,
+              0.7,
+              1
+            ],
+            "background_color": [
+              0.24,
+              0.22,
+              0.48,
+              1
+            ]
+          },
+          {
+            "id": "practice_button",
+            "type": "button",
+            "position": [
+              46,
+              270
+            ],
+            "size": [
+              358,
+              46
+            ],
+            "text": "OFFLINE PRACTICE  [P]",
+            "font_size": 19,
+            "action": "practice_match",
+            "hover_color": [
+              0.4,
+              0.24,
+              0.48,
+              1
+            ],
+            "background_color": [
+              0.24,
+              0.16,
+              0.3,
+              1
+            ]
+          },
+          {
+            "id": "menu_status",
+            "type": "label",
+            "position": [
+              46,
+              330
+            ],
+            "size": [
+              358,
+              28
+            ],
+            "text": "PORT 39420",
+            "font_size": 17,
+            "color": [
+              0.68,
+              0.82,
+              0.94,
+              1
+            ]
+          }
+        ],
+        "background_color": [
+          0.025,
+          0.04,
+          0.085,
+          0.97
         ]
       }
     ]

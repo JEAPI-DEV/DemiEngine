@@ -11,29 +11,22 @@ TextureLibrary2D::~TextureLibrary2D() { clear(); }
 
 bool TextureLibrary2D::load(
     std::string id, const std::span<const std::byte> encoded,
-    std::string &error, const TextureSampling2D sampling,
-    const std::optional<std::array<std::uint8_t, 3>> colorKey) {
+    std::string &error, const TextureSampling2D sampling) {
   ImageData2D image;
   return decodeImage2D(encoded, image, error) &&
-         upload(std::move(id), image, error, sampling, colorKey);
+         upload(std::move(id), image, error, sampling);
 }
 
 bool TextureLibrary2D::upload(
     std::string id, const ImageData2D &image, std::string &error,
-    const TextureSampling2D sampling,
-    const std::optional<std::array<std::uint8_t, 3>> colorKey) {
+    const TextureSampling2D sampling) {
   if (id.empty() || image.width == 0 || image.height == 0 ||
       image.rgba.size() !=
           static_cast<std::size_t>(image.width) * image.height * 4U) {
     error = "Texture upload requires an ID and complete RGBA image data.";
     return false;
   }
-  std::optional<ImageData2D> imported;
-  if (colorKey) {
-    imported = image;
-    applyColorKeyTransparency2D(*imported, *colorKey);
-  }
-  const ImageData2D &uploadImage = imported ? *imported : image;
+  const ImageData2D &uploadImage = image;
   const TextureHandle replacement =
       resources_.createTexture(TextureCreateInfo{.width = uploadImage.width,
                                                  .height = uploadImage.height,

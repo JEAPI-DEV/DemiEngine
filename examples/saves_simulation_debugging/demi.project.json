@@ -23,12 +23,38 @@
   },
   "input": {
     "actions": {
-      "move": [
-        { "input": "a", "scale": -1 },
-        { "input": "d", "scale": 1 }
-      ],
-      "save": ["s"],
-      "randomize": ["r"]
+      "move": {
+        "type": "axis1d",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:a",
+            "scale": -1
+          },
+          {
+            "input": "key:d",
+            "scale": 1
+          }
+        ]
+      },
+      "save": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:s"
+          }
+        ]
+      },
+      "randomize": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:r"
+          }
+        ]
+      }
     }
   },
   "scripting": {
