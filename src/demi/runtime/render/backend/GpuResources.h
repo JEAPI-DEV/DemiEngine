@@ -79,6 +79,14 @@ struct TextureCreateInfo {
   std::string debugName;
 };
 
+struct TextureUpdateInfo {
+  std::uint16_t x = 0;
+  std::uint16_t y = 0;
+  std::uint16_t width = 0;
+  std::uint16_t height = 0;
+  std::span<const std::byte> data;
+};
+
 struct BufferCreateInfo {
   BufferKind kind = BufferKind::Vertex;
   std::span<const std::byte> data;
@@ -120,6 +128,12 @@ public:
 
   [[nodiscard]] virtual TextureHandle
   createTexture(const TextureCreateInfo &info, std::string &error) = 0;
+  [[nodiscard]] virtual bool updateTexture(TextureHandle,
+                                           const TextureUpdateInfo &,
+                                           std::string &error) {
+    error = "This graphics resource backend cannot update textures.";
+    return false;
+  }
   [[nodiscard]] virtual SamplerHandle createSampler(std::string_view name,
                                                     std::string &error) = 0;
   [[nodiscard]] virtual UniformHandle createUniform(std::string_view name,

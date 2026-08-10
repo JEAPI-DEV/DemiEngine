@@ -45,7 +45,7 @@ end
 
 -- @HandleAction("menu_button_quit")
 function Actions.quit()
-  Runtime.quit()
+  Application.quit()
 end
 
 -- @HandleAction("menu_network_host")

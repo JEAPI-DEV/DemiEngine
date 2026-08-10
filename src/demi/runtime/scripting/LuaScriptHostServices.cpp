@@ -1,11 +1,12 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
-#include "demi/runtime/ui/UiActionController.h"
-#include "demi/runtime/ui/UiInteractionController.h"
-#include "demi/runtime/ui/UiLayoutEngine.h"
 #include "demi/runtime/ui/TextEditingEngine.h"
 #include "demi/runtime/ui/TextLayoutEngine.h"
+#include "demi/runtime/ui/UiActionController.h"
+#include "demi/runtime/ui/UiEventQueue.h"
+#include "demi/runtime/ui/UiInteractionController.h"
+#include "demi/runtime/ui/UiLayoutEngine.h"
 
 #include <algorithm>
 #include <cctype>
@@ -165,8 +166,7 @@ void LuaScriptHost::setApplicationMinimized(const bool minimized) {
   if (applicationMinimized_ == minimized)
     return;
   applicationMinimized_ = minimized;
-  (void)emitEvent(minimized ? "application_minimize"
-                            : "application_restore",
+  (void)emitEvent(minimized ? "application_minimize" : "application_restore",
                   0);
 }
 
@@ -295,6 +295,7 @@ void LuaScriptHost::dispatchHudEvents() {
     const std::string nextAction = mappedAction("next", "ui_next");
     const std::string previousAction = mappedAction("previous", "ui_previous");
     const std::string submitAction = mappedAction("submit", "ui_accept");
+    const std::string cancelAction = mappedAction("cancel", "ui_cancel");
     const bool reverse = input_->keysDown.contains("left shift") ||
                          input_->keysDown.contains("right shift");
     if (input_->keysPressed.contains("tab") ||
@@ -308,35 +309,33 @@ void LuaScriptHost::dispatchHudEvents() {
     if (!input_->touches.empty()) {
       for (const TouchPoint &touch : input_->touches) {
         const Vec2 position{
-            .x = touch.position.x *
-                 std::max(world_->hudCanvasSize.x, 1.0F) /
+            .x = touch.position.x * std::max(world_->hudCanvasSize.x, 1.0F) /
                  static_cast<float>(std::max(viewportWidth_, 1)),
-            .y = touch.position.y *
-                 std::max(world_->hudCanvasSize.y, 1.0F) /
+            .y = touch.position.y * std::max(world_->hudCanvasSize.y, 1.0F) /
                  static_cast<float>(std::max(viewportHeight_, 1)),
         };
         if (touch.phase == TouchPhase::Began &&
-            interaction.capturePointer(world_->ui, touch.id, position)) {
+            interaction.capturePointer(world_->ui, touch.id, position,
+                                       "touch")) {
           clickedButtonId = world_->ui.pointerCaptures[touch.id];
-          const auto captured =
-              std::ranges::find(world_->ui.nodes, *clickedButtonId,
-                                &ui::UiNode::id);
+          const auto captured = std::ranges::find(
+              world_->ui.nodes, *clickedButtonId, &ui::UiNode::id);
           if (captured != world_->ui.nodes.end() &&
               captured->type == "virtual_button" &&
               !captured->control.empty()) {
             input_->virtualButtonsDown.insert(captured->control);
             input_->virtualButtonsPressed.insert(captured->control);
           }
-          if (const auto action = interaction.activateFocused(world_->ui))
+          if (const auto action =
+                  interaction.activateFocused(world_->ui, "touch"))
             (void)ui::UiActionController{}.apply(world_->ui, *action);
           ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
         } else if (touch.phase == TouchPhase::Ended ||
                    touch.phase == TouchPhase::Cancelled) {
           const auto capturedId = world_->ui.pointerCaptures.find(touch.id);
           if (capturedId != world_->ui.pointerCaptures.end()) {
-            const auto captured =
-                std::ranges::find(world_->ui.nodes, capturedId->second,
-                                  &ui::UiNode::id);
+            const auto captured = std::ranges::find(
+                world_->ui.nodes, capturedId->second, &ui::UiNode::id);
             if (captured != world_->ui.nodes.end() &&
                 !captured->control.empty()) {
               if (captured->type == "virtual_button") {
@@ -347,13 +346,14 @@ void LuaScriptHost::dispatchHudEvents() {
               }
             }
           }
-          interaction.releasePointer(world_->ui, touch.id);
+          interaction.releasePointer(world_->ui, touch.id, position,
+                                     touch.phase == TouchPhase::Cancelled,
+                                     "touch");
         } else {
           const auto capturedId = world_->ui.pointerCaptures.find(touch.id);
           if (capturedId != world_->ui.pointerCaptures.end()) {
-            const auto captured =
-                std::ranges::find(world_->ui.nodes, capturedId->second,
-                                  &ui::UiNode::id);
+            const auto captured = std::ranges::find(
+                world_->ui.nodes, capturedId->second, &ui::UiNode::id);
             if (captured != world_->ui.nodes.end() &&
                 captured->type == "virtual_stick" &&
                 !captured->control.empty()) {
@@ -369,8 +369,7 @@ void LuaScriptHost::dispatchHudEvents() {
                                  1.0F);
               Vec2 axis{(position.x - center.x) / radius,
                         (position.y - center.y) / radius};
-              const float length =
-                  std::sqrt(axis.x * axis.x + axis.y * axis.y);
+              const float length = std::sqrt(axis.x * axis.x + axis.y * axis.y);
               if (length <= captured->deadzone) {
                 axis = {};
               } else if (length > 1.0F) {
@@ -380,21 +379,46 @@ void LuaScriptHost::dispatchHudEvents() {
               input_->virtualAxes[captured->control] = axis;
             }
           }
-          if (interaction.updatePointer(world_->ui, touch.id, position))
+          bool changed = interaction.updatePointer(world_->ui, touch.id,
+                                                   position, "touch");
+          if (touch.phase == TouchPhase::Moved &&
+              (touch.delta.x != 0.0F || touch.delta.y != 0.0F)) {
+            const Vec2 canvasDelta{
+                .x = -touch.delta.x *
+                     std::max(world_->hudCanvasSize.x, 1.0F) /
+                     static_cast<float>(std::max(viewportWidth_, 1)),
+                .y = -touch.delta.y *
+                     std::max(world_->hudCanvasSize.y, 1.0F) /
+                     static_cast<float>(std::max(viewportHeight_, 1)),
+            };
+            changed = interaction.scrollPointer(world_->ui, touch.id,
+                                                  position, canvasDelta,
+                                                  "touch") ||
+                      changed;
+          }
+          if (changed)
             ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
         }
       }
     } else {
+      (void)interaction.movePointer(world_->ui, 0, mouse, "mouse");
       if (mouseDown && !previousUiMouseDown_ &&
           interaction.capturePointer(world_->ui, mouse)) {
-        clickedButtonId = world_->ui.pointerCaptureId;
-        if (const auto action = interaction.activateFocused(world_->ui))
+        if (const auto captured = world_->ui.pointerCaptures.find(0);
+            captured != world_->ui.pointerCaptures.end())
+          clickedButtonId = captured->second;
+        if (const auto action =
+                interaction.activateFocused(world_->ui, "mouse"))
           (void)ui::UiActionController{}.apply(world_->ui, *action);
         ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
       } else if (!mouseDown && previousUiMouseDown_) {
-        interaction.releasePointer(world_->ui);
+        interaction.releasePointer(world_->ui, 0, mouse, false, "mouse");
       }
       if (mouseDown && interaction.updatePointer(world_->ui, mouse))
+        ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
+      if ((input_->mouseScroll.x != 0.0F || input_->mouseScroll.y != 0.0F) &&
+          interaction.scrollPointer(world_->ui, 0, mouse, input_->mouseScroll,
+                                    "mouse"))
         ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
     }
 
@@ -413,13 +437,11 @@ void LuaScriptHost::dispatchHudEvents() {
       }
       if (!input_->textEntered.empty()) {
         changed = ui::TextEditingEngine::insert(
-                      focused->text, focused->textEdit,
-                      input_->textEntered) ||
+                      focused->text, focused->textEdit, input_->textEntered) ||
                   changed;
       }
-      const bool extendSelection =
-          input_->keysDown.contains("left shift") ||
-          input_->keysDown.contains("right shift");
+      const bool extendSelection = input_->keysDown.contains("left shift") ||
+                                   input_->keysDown.contains("right shift");
       const bool control = input_->keysDown.contains("left ctrl") ||
                            input_->keysDown.contains("right ctrl");
       if (control && input_->keysPressed.contains("a")) {
@@ -449,15 +471,17 @@ void LuaScriptHost::dispatchHudEvents() {
         presentationChanged = true;
       }
       if (input_->keysPressed.contains("backspace"))
-        changed = ui::TextEditingEngine::backspace(
-                      focused->text, focused->textEdit) ||
+        changed = ui::TextEditingEngine::backspace(focused->text,
+                                                   focused->textEdit) ||
                   changed;
       if (input_->keysPressed.contains("delete"))
-        changed = ui::TextEditingEngine::deleteForward(
-                      focused->text, focused->textEdit) ||
+        changed = ui::TextEditingEngine::deleteForward(focused->text,
+                                                       focused->textEdit) ||
                   changed;
       if (changed || presentationChanged)
         ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
+      if (changed)
+        ui::UiEventQueue::valueChanged(world_->ui, *focused, "keyboard");
     }
     for (ui::UiNode &node : world_->ui.nodes) {
       if (node.type == "text_input" && node.id != world_->ui.focusedId)
@@ -465,12 +489,16 @@ void LuaScriptHost::dispatchHudEvents() {
     }
     if (input_->keysPressed.contains("return") ||
         input_->keysPressed.contains(submitAction)) {
-      if (const auto action = interaction.activateFocused(world_->ui)) {
+      if (const auto action =
+              interaction.activateFocused(world_->ui, "keyboard")) {
         clickedButtonId = world_->ui.focusedId;
         (void)ui::UiActionController{}.apply(world_->ui, *action);
         ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
       }
     }
+    if (input_->keysPressed.contains("escape") ||
+        input_->keysPressed.contains(cancelAction))
+      interaction.cancel(world_->ui, "keyboard");
   }
   for (ui::UiNode &node : world_->ui.nodes) {
     if (node.type != "button" && node.type != "toggle" &&
@@ -480,16 +508,6 @@ void LuaScriptHost::dispatchHudEvents() {
       node.hovered = false;
       continue;
     }
-    const float hitX = node.resolved.width > 0.0F ? node.resolved.x
-                                                  : node.layout.position.x;
-    const float hitY = node.resolved.height > 0.0F ? node.resolved.y
-                                                   : node.layout.position.y;
-    const float hitW = node.resolved.width > 0.0F ? node.resolved.width
-                                                  : node.layout.size.x;
-    const float hitH = node.resolved.height > 0.0F ? node.resolved.height
-                                                   : node.layout.size.y;
-    node.hovered = mouse.x >= hitX && mouse.x <= hitX + hitW &&
-                    mouse.y >= hitY && mouse.y <= hitY + hitH;
     if (!clickedButtonId.has_value() && node.hovered && mouseDown &&
         !previousUiMouseDown_) {
       clickedButtonId = node.id;
@@ -504,18 +522,6 @@ void LuaScriptHost::dispatchHudEvents() {
         clickedButtonId.has_value() && *clickedButtonId == node.id;
     if (!node.visible || (!node.hovered && !clicked)) {
       continue;
-    }
-    for (const ScriptInstance &script : scripts_) {
-      if (script.entityId != node.id) {
-        continue;
-      }
-      if (node.hovered)
-        luaCallUiEvent(state, script.tableRef, "on_ui_hover", node, mouse,
-                       script.path);
-      if (clicked) {
-        luaCallUiEvent(state, script.tableRef, "on_ui_click", node, mouse,
-                       script.path);
-      }
     }
     if (clicked && !node.action.empty()) {
       for (const ScriptInstance &script : scripts_) {
@@ -534,21 +540,25 @@ void LuaScriptHost::dispatchHudEvents() {
           }
         }
       }
-      lua_newtable(state);
-      lua_pushstring(state, node.id.c_str());
-      lua_setfield(state, -2, "id");
-      lua_pushstring(state, node.text.c_str());
-      lua_setfield(state, -2, "label");
-      lua_pushstring(state, node.action.c_str());
-      lua_setfield(state, -2, "action");
-      lua_pushnumber(state, mouse.x);
-      lua_setfield(state, -2, "mouse_x");
-      lua_pushnumber(state, mouse.y);
-      lua_setfield(state, -2, "mouse_y");
-      const int payloadIndex = lua_gettop(state);
-      (void)emitEvent("hud_action", payloadIndex);
-      lua_pop(state, 1);
     }
+  }
+  for (const ui::UiEvent &event : ui::UiEventQueue::take(world_->ui)) {
+    const std::string callback =
+        "on_ui_" + std::string(ui::uiEventTypeName(event.type));
+    for (const ScriptInstance &script : scripts_) {
+      if (script.entityId != event.id)
+        continue;
+      luaCallTypedUiEvent(state, script.tableRef, "on_ui_event", event,
+                          script.path);
+      luaCallTypedUiEvent(state, script.tableRef, callback.c_str(), event,
+                          script.path);
+    }
+    luaPushUiEvent(state, event);
+    const int payloadIndex = lua_gettop(state);
+    (void)emitEvent("ui_event", payloadIndex);
+    (void)emitEvent("ui_" + std::string(ui::uiEventTypeName(event.type)),
+                    payloadIndex);
+    lua_pop(state, 1);
   }
   previousUiMouseDown_ = mouseDown;
 }

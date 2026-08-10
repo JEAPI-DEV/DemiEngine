@@ -2,9 +2,9 @@
 
 #include "demi/runtime/ui/UiInteractionController.h"
 #include "demi/runtime/ui/UiLayoutEngine.h"
-#include "demi/runtime/ui/UiStateController.h"
-#include "demi/runtime/ui/UiMutationQueue.h"
 #include "demi/runtime/ui/UiLocalization.h"
+#include "demi/runtime/ui/UiMutationQueue.h"
+#include "demi/runtime/ui/UiStateController.h"
 
 #include <algorithm>
 
@@ -13,6 +13,15 @@ namespace {
 
 void relayoutHud(World &world) {
   ui::UiLayoutEngine{}.layout(world.ui, world.ui.canvasSize);
+}
+
+void discardInvalidRecyclers(World &world) {
+  std::erase_if(world.uiVirtualRecyclers, [&](auto &entry) {
+    if (entry.second->valid(world.ui))
+      return false;
+    entry.second->clear(world.ui, world.uiTweens);
+    return true;
+  });
 }
 
 } // namespace
@@ -25,63 +34,14 @@ bool LuaScriptHost::setHudText(const std::string &id, const std::string &text) {
   return false;
 }
 
-bool LuaScriptHost::setHudButtonLabel(const std::string &id,
-                                      const std::string &label) {
-  if (world_ == nullptr)
-    return false;
-  return ui::UiStateController{}.setText(world_->ui, id, label);
-}
-
-bool LuaScriptHost::createHudText(const std::string &id,
-                                  const std::string &text, float x, float y,
-                                  float scale, Color color) {
-  if (world_ == nullptr)
-    return false;
-  ui::UiNode node;
-  node.id = id;
-  node.type = "label";
-  node.text = text;
-  node.layout.position = {x, y};
-  node.fontSize = scale * 8.0F;
-  node.color = color;
-  if (auto *existing = ui::UiStateController{}.find(world_->ui, id)) {
-    *existing = node;
-    relayoutHud(*world_);
-    return true;
-  }
-  world_->ui.nodes.push_back(node);
-  relayoutHud(*world_);
-  return true;
-}
-
-bool LuaScriptHost::setHudTextScale(const std::string &id, float scale) {
+bool LuaScriptHost::setHudFontSize(const std::string &id, float fontSize) {
   if (world_ == nullptr)
     return false;
   if (auto *node = ui::UiStateController{}.find(world_->ui, id)) {
-    node->fontSize = scale * 8.0F;
+    node->fontSize = std::max(fontSize, 0.0F);
     return true;
   }
   return false;
-}
-
-bool LuaScriptHost::createHudRect(const std::string &id, float x, float y,
-                                  float width, float height, Color color) {
-  if (world_ == nullptr)
-    return false;
-  ui::UiNode node;
-  node.id = id;
-  node.type = "rect";
-  node.layout.position = {x, y};
-  node.layout.size = {width, height};
-  node.backgroundColor = color;
-  if (auto *existing = ui::UiStateController{}.find(world_->ui, id)) {
-    *existing = node;
-    relayoutHud(*world_);
-    return true;
-  }
-  world_->ui.nodes.push_back(node);
-  relayoutHud(*world_);
-  return true;
 }
 
 bool LuaScriptHost::setHudRect(const std::string &id, float x, float y,
@@ -162,6 +122,16 @@ bool LuaScriptHost::setHudColor(const std::string &id, Color color) {
   return false;
 }
 
+bool LuaScriptHost::setHudBackgroundColor(const std::string &id, Color color) {
+  if (world_ == nullptr)
+    return false;
+  if (auto *node = ui::UiStateController{}.find(world_->ui, id)) {
+    node->backgroundColor = color;
+    return true;
+  }
+  return false;
+}
+
 bool LuaScriptHost::setHudOpacity(const std::string &id, float opacity) {
   if (world_ == nullptr)
     return false;
@@ -220,27 +190,10 @@ Vec2 LuaScriptHost::hudCanvasSize() const {
   return world_ == nullptr ? Vec2{} : world_->ui.canvasSize;
 }
 
-bool LuaScriptHost::setHudGroupVisible(const std::string &group, bool visible) {
-  if (world_ == nullptr)
-    return false;
-  bool any = false;
-  for (ui::UiNode &node : world_->ui.nodes) {
-    if (node.parent == group || node.id == group || node.group == group ||
-        (node.style == group)) {
-      node.visible = visible;
-      any = true;
-    }
-  }
-  if (any)
-    relayoutHud(*world_);
-  return any;
-}
-
 std::optional<std::string> LuaScriptHost::hudText(const std::string &id) const {
   if (world_ == nullptr)
     return std::nullopt;
-  if (const ui::UiNode *node =
-          ui::UiStateController{}.find(world_->ui, id))
+  if (const ui::UiNode *node = ui::UiStateController{}.find(world_->ui, id))
     return node->text;
   return std::nullopt;
 }
@@ -248,12 +201,19 @@ std::optional<std::string> LuaScriptHost::hudText(const std::string &id) const {
 std::optional<ui::UiNodeHandle>
 LuaScriptHost::createHudNode(const std::string &parent, ui::UiNode node,
                              std::string &error) {
-  if (world_ == nullptr) { error = "HUD is unavailable."; return std::nullopt; }
+  if (world_ == nullptr) {
+    error = "HUD is unavailable.";
+    return std::nullopt;
+  }
   const std::string id = node.id;
   ui::UiMutationQueue queue;
   queue.create(parent, std::move(node));
   const auto result = queue.apply(world_->ui);
-  if (!result.applied) { error = result.error; return std::nullopt; }
+  if (!result.applied) {
+    error = result.error;
+    return std::nullopt;
+  }
+  discardInvalidRecyclers(*world_);
   relayoutHud(*world_);
   return ui::UiMutationQueue::handle(world_->ui, id);
 }
@@ -263,25 +223,40 @@ LuaScriptHost::hudNodeHandle(const std::string &id) const {
   return world_ ? ui::UiMutationQueue::handle(world_->ui, id) : std::nullopt;
 }
 
-std::optional<ui::UiNodeHandle> LuaScriptHost::cloneHudNode(
-    const ui::UiNodeHandle &source, const std::string &newRootId,
-    const std::string &parent, std::string &error) {
-  if (world_ == nullptr) { error = "HUD is unavailable."; return std::nullopt; }
+std::optional<ui::UiNodeHandle>
+LuaScriptHost::cloneHudNode(const ui::UiNodeHandle &source,
+                            const std::string &newRootId,
+                            const std::string &parent, std::string &error) {
+  if (world_ == nullptr) {
+    error = "HUD is unavailable.";
+    return std::nullopt;
+  }
   ui::UiMutationQueue queue;
   queue.clone(source, newRootId, parent);
   const auto result = queue.apply(world_->ui);
-  if (!result.applied) { error = result.error; return std::nullopt; }
+  if (!result.applied) {
+    error = result.error;
+    return std::nullopt;
+  }
+  discardInvalidRecyclers(*world_);
   relayoutHud(*world_);
   return ui::UiMutationQueue::handle(world_->ui, newRootId);
 }
 
 bool LuaScriptHost::removeHudNode(const ui::UiNodeHandle &node,
                                   std::string &error) {
-  if (world_ == nullptr) { error = "HUD is unavailable."; return false; }
+  if (world_ == nullptr) {
+    error = "HUD is unavailable.";
+    return false;
+  }
   ui::UiMutationQueue queue;
   queue.remove(node);
   const auto result = queue.apply(world_->ui);
-  if (!result.applied) { error = result.error; return false; }
+  if (!result.applied) {
+    error = result.error;
+    return false;
+  }
+  discardInvalidRecyclers(*world_);
   relayoutHud(*world_);
   return true;
 }
@@ -289,22 +264,35 @@ bool LuaScriptHost::removeHudNode(const ui::UiNodeHandle &node,
 bool LuaScriptHost::reparentHudNode(const ui::UiNodeHandle &node,
                                     const std::string &parent,
                                     std::string &error) {
-  if (world_ == nullptr) { error = "HUD is unavailable."; return false; }
+  if (world_ == nullptr) {
+    error = "HUD is unavailable.";
+    return false;
+  }
   ui::UiMutationQueue queue;
   queue.reparent(node, parent);
   const auto result = queue.apply(world_->ui);
-  if (!result.applied) { error = result.error; return false; }
+  if (!result.applied) {
+    error = result.error;
+    return false;
+  }
   relayoutHud(*world_);
   return true;
 }
 
 bool LuaScriptHost::clearHudChildren(const std::string &parent,
                                      std::string &error) {
-  if (world_ == nullptr) { error = "HUD is unavailable."; return false; }
+  if (world_ == nullptr) {
+    error = "HUD is unavailable.";
+    return false;
+  }
   ui::UiMutationQueue queue;
   queue.clearChildren(parent);
   const auto result = queue.apply(world_->ui);
-  if (!result.applied) { error = result.error; return false; }
+  if (!result.applied) {
+    error = result.error;
+    return false;
+  }
+  discardInvalidRecyclers(*world_);
   relayoutHud(*world_);
   return true;
 }
@@ -314,39 +302,98 @@ LuaScriptHost::hudChildren(const std::string &parent) const {
   std::vector<std::string> result;
   if (world_)
     for (const auto &node : world_->ui.nodes)
-      if (node.parent == parent) result.push_back(node.id);
+      if (node.parent == parent)
+        result.push_back(node.id);
   return result;
 }
 
-std::uint64_t LuaScriptHost::startHudTween(
-    const ui::UiNodeHandle &node, const std::string &property,
-    const float target, const float duration, std::string &error) {
-  if (world_ == nullptr) { error = "HUD is unavailable."; return 0; }
-  const auto parsed = property == "opacity" ? std::optional{ui::UiTweenProperty::Opacity}
-                    : property == "x" ? std::optional{ui::UiTweenProperty::PositionX}
-                    : property == "y" ? std::optional{ui::UiTweenProperty::PositionY}
-                    : property == "scale" ? std::optional{ui::UiTweenProperty::Scale}
-                    : std::nullopt;
-  if (!parsed) { error = "Unknown HUD tween property: " + property; return 0; }
-  const auto handle = world_->uiTweens.start(world_->ui, node, *parsed, target, duration);
-  if (!handle) error = "HUD tween target is stale or values are invalid.";
+ui::UiVirtualReconcileResult LuaScriptHost::reconcileHudRows(
+    const std::string &collectionId, const ui::UiNodeHandle &rowTemplate,
+    const std::vector<std::string> &stableKeys,
+    const std::vector<float> &rowExtents, const float scrollOffset,
+    const float viewportExtent, const std::size_t overscan) {
+  if (world_ == nullptr)
+    return {.applied = false,
+            .error = "HUD is unavailable.",
+            .range = {},
+            .rows = {}};
+  auto &owner = world_->uiVirtualRecyclers[collectionId];
+  if (!owner)
+    owner = std::make_unique<ui::UiVirtualRecycler>(collectionId);
+  auto result = owner->reconcile(world_->ui, world_->uiTweens, rowTemplate,
+                                 stableKeys, rowExtents, scrollOffset,
+                                 viewportExtent, overscan);
+  if (result.applied)
+    relayoutHud(*world_);
+  return result;
+}
+
+bool LuaScriptHost::clearHudRows(const std::string &collectionId) {
+  if (world_ == nullptr)
+    return false;
+  const auto found = world_->uiVirtualRecyclers.find(collectionId);
+  if (found == world_->uiVirtualRecyclers.end())
+    return false;
+  found->second->clear(world_->ui, world_->uiTweens);
+  world_->uiVirtualRecyclers.erase(found);
+  relayoutHud(*world_);
+  return true;
+}
+
+std::vector<ui::UiAccessibilityNode>
+LuaScriptHost::hudAccessibilitySnapshot() const {
+  return world_ ? ui::UiAccessibilityTree::snapshot(world_->ui)
+                : std::vector<ui::UiAccessibilityNode>{};
+}
+
+std::uint64_t LuaScriptHost::startHudTween(const ui::UiNodeHandle &node,
+                                           const std::string &property,
+                                           const float target,
+                                           const float duration,
+                                           std::string &error) {
+  if (world_ == nullptr) {
+    error = "HUD is unavailable.";
+    return 0;
+  }
+  const auto parsed =
+      property == "opacity" ? std::optional{ui::UiTweenProperty::Opacity}
+      : property == "x"     ? std::optional{ui::UiTweenProperty::PositionX}
+      : property == "y"     ? std::optional{ui::UiTweenProperty::PositionY}
+      : property == "scale" ? std::optional{ui::UiTweenProperty::Scale}
+                            : std::nullopt;
+  if (!parsed) {
+    error = "Unknown HUD tween property: " + property;
+    return 0;
+  }
+  const auto handle =
+      world_->uiTweens.start(world_->ui, node, *parsed, target, duration);
+  if (!handle)
+    error = "HUD tween target is stale or values are invalid.";
   return handle.value;
 }
 bool LuaScriptHost::cancelHudTween(const std::uint64_t handle) {
   return world_ && world_->uiTweens.cancel({handle});
 }
 void LuaScriptHost::setHudReducedMotion(const bool enabled) {
-  if (world_) world_->uiTweens.setReducedMotion(enabled);
+  if (world_)
+    world_->uiTweens.setReducedMotion(enabled);
 }
 bool LuaScriptHost::setHudLocale(const std::string &locale,
                                  std::string &error) {
-  if (!world_) { error = "HUD is unavailable."; return false; }
-  if (!ui::UiLocalization{}.setLocale(world_->ui, locale, error)) return false;
+  if (!world_) {
+    error = "HUD is unavailable.";
+    return false;
+  }
+  if (!ui::UiLocalization{}.setLocale(world_->ui, locale, error))
+    return false;
   relayoutHud(*world_);
   return true;
 }
 void LuaScriptHost::setHudPseudoLocale(const bool enabled) {
-  if (world_) { ui::UiLocalization{}.setPseudoLocale(world_->ui, enabled); relayoutHud(*world_); }
+  if (world_) {
+    ui::UiLocalization{}.setPseudoLocale(world_->ui, enabled);
+    relayoutHud(*world_);
+  }
 }
 
 } // namespace demi::runtime

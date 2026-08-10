@@ -70,6 +70,31 @@ int main() {
       {"id":"no_shape","components":{
         "Transform3D":{},
         "Rigidbody3D":{"body_type":"dynamic"}
+      }},
+      {"id":"character_no_shape","components":{
+        "Transform3D":{},
+        "CharacterController3D":{}
+      }},
+      {"id":"character_body","components":{
+        "Transform3D":{},
+        "BoxCollider3D":{},
+        "CharacterController3D":{},
+        "Rigidbody3D":{"body_type":"dynamic"}
+      }},
+      {"id":"character_mesh","components":{
+        "Transform3D":{},
+        "ModelCollider3D":{"asset":"asset://colliders/level"},
+        "CharacterController3D":{}
+      }},
+      {"id":"character_trigger","components":{
+        "Transform3D":{},
+        "BoxCollider3D":{"is_trigger":true},
+        "CharacterController3D":{}
+      }},
+      {"id":"character_child","components":{
+        "Transform3D":{"parent":"root"},
+        "BoxCollider3D":{},
+        "CharacterController3D":{}
       }}
     ]})";
   }
@@ -79,9 +104,13 @@ int main() {
        {"PHYSICS3D_MESH_REQUIRES_STATIC_BODY",
         "PHYSICS3D_MOVING_BODY_REQUIRES_ROOT_TRANSFORM",
         "PHYSICS3D_CAPSULE_HEIGHT_TOO_SMALL",
-        "PHYSICS3D_CONVEX_REQUIRES_FOUR_POINTS",
-        "PHYSICS3D_MULTIPLE_COLLIDERS",
-        "PHYSICS3D_BODY_REQUIRES_COLLIDER"}) {
+        "PHYSICS3D_CONVEX_REQUIRES_FOUR_POINTS", "PHYSICS3D_MULTIPLE_COLLIDERS",
+        "PHYSICS3D_BODY_REQUIRES_COLLIDER",
+        "PHYSICS3D_CHARACTER_REQUIRES_COLLIDER",
+        "PHYSICS3D_CHARACTER_CONFLICTS_WITH_BODY",
+        "PHYSICS3D_CHARACTER_REQUIRES_CONVEX_COLLIDER",
+        "PHYSICS3D_CHARACTER_COLLIDER_CANNOT_BE_TRIGGER",
+        "PHYSICS3D_CHARACTER_REQUIRES_ROOT_TRANSFORM"}) {
     if (!hasCode(physicsDiagnostics, code)) {
       std::cerr << "Missing expected 3D physics diagnostic: " << code << '\n';
       std::filesystem::remove_all(root);
@@ -102,6 +131,11 @@ int main() {
         "Transform3D":{},
         "ConvexCollider3D":{"points":[[0,0,0],[1,0,0],[0,1,0],[0,0,1]]},
         "Rigidbody3D":{"body_type":"dynamic"}
+      }},
+      {"id":"player","components":{
+        "Transform3D":{},
+        "BoxCollider3D":{"size":[1,1,1],"layer":"player"},
+        "CharacterController3D":{"step_height":0.3}
       }}
     ]})";
   }

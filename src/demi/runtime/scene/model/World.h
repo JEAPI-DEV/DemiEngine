@@ -7,6 +7,7 @@
 #include "demi/runtime/scene/model/Entity.h"
 #include "demi/runtime/ui/UiModel.h"
 #include "demi/runtime/ui/UiTweenSystem.h"
+#include "demi/runtime/ui/UiVirtualCollection.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -29,6 +30,15 @@ struct PhysicsContact2D {
   Vec2 normal;
   float normalImpulse = 0.0F;
   bool isTrigger = false;
+};
+
+// Transient fixed-step state used only to present physics motion smoothly.
+// Simulation and gameplay always read Transform2DComponent's current pose.
+struct PhysicsPresentationPose2D {
+  Vec2 previousPosition;
+  Vec2 currentPosition;
+  float previousRotation = 0.0F;
+  float currentRotation = 0.0F;
 };
 
 struct AnimationEvent2D {
@@ -61,10 +71,14 @@ struct World {
   Vec2 hudCanvasSize = {960.0F, 540.0F};
   ui::UiDocument ui;
   ui::UiTweenSystem uiTweens;
+  std::unordered_map<std::string, std::unique_ptr<ui::UiVirtualRecycler>>
+      uiVirtualRecyclers;
   std::vector<Entity> entities;
   std::vector<DebugLine> debugLines;
   std::vector<PhysicsContact2D> physicsContacts;
   std::vector<PhysicsContact2D> previousPhysicsContacts;
+  std::unordered_map<std::string, PhysicsPresentationPose2D>
+      physicsPresentationPoses2D;
   std::vector<PhysicsContact3D> physicsContacts3D;
   std::vector<PhysicsContact3D> previousPhysicsContacts3D;
   std::vector<AnimationEvent2D> animationEvents;

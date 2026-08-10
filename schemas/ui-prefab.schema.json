@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demiengine.local/schemas/ui-prefab.schema.json",
+  "title": "DemiEngine UI Prefab",
+  "type": "object",
+  "required": ["format_version", "id", "root"],
+  "properties": {
+    "format_version": {"const": 1},
+    "id": {"type": "string", "pattern": "^ui-prefab://"},
+    "parameters": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": {
+            "enum": ["string", "number", "integer", "boolean", "array", "object"]
+          },
+          "default": true
+        },
+        "additionalProperties": false
+      }
+    },
+    "root": {"$ref": "hud.schema.json#/$defs/node"}
+  },
+  "additionalProperties": false
+}

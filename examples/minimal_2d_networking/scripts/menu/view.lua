@@ -4,7 +4,7 @@ local EXTRA_JUMP_SLOT_IDS = { "extra_jump_slot_1", "extra_jump_slot_2", "extra_j
 local EXTRA_JUMP_COIN_IDS = { "extra_jump_coin_1", "extra_jump_coin_2", "extra_jump_coin_3" }
 
 local function show_group(group, visible)
-  Hud.set_group_visible(group, visible)
+  Hud.set_visible(group, visible)
 end
 
 function View.hide_menu()
@@ -20,6 +20,7 @@ function View.hide_menu()
 end
 
 function View.set_game_hud_visible(visible)
+  Hud.set_visible("game_hud", visible)
   Hud.set_visible("points", visible)
   Hud.set_visible("fps", visible)
   for i = 1, 3 do
@@ -80,11 +81,11 @@ function View.show_options(menu, update_volume_hud, update_video_hud)
   show_group("menu_network", false)
   show_group("menu_options", true)
   if menu.active_tab == "sound" then
-    Hud.set_color("menu_tab_sound", 0.24, 0.27, 0.46, 0.94)
-    Hud.set_color("menu_tab_video", 0.12, 0.14, 0.26, 0.62)
+    Hud.set_background_color("menu_tab_sound", 0.24, 0.27, 0.46, 0.94)
+    Hud.set_background_color("menu_tab_video", 0.12, 0.14, 0.26, 0.62)
   else
-    Hud.set_color("menu_tab_sound", 0.12, 0.14, 0.26, 0.62)
-    Hud.set_color("menu_tab_video", 0.24, 0.27, 0.46, 0.94)
+    Hud.set_background_color("menu_tab_sound", 0.12, 0.14, 0.26, 0.62)
+    Hud.set_background_color("menu_tab_video", 0.24, 0.27, 0.46, 0.94)
   end
   show_group("menu_sound", menu.active_tab == "sound")
   show_group("menu_video", menu.active_tab == "video")

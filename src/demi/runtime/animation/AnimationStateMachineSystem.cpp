@@ -53,17 +53,12 @@ void applyState(Entity &entity, AnimationStateMachineComponent &machine,
         state.loop || state.duration <= 0.0F || machine.time < state.duration;
   }
   if (auto *model = entity.component<AnimationPlayer3DComponent>();
-      model != nullptr &&
-      (state.modelClip >= 0 || !state.modelClipName.empty())) {
-    if (machine.entered || model->clip != state.modelClip ||
-        model->clipName != state.modelClipName) {
-      model->previousClip = model->clip;
+      model != nullptr && !state.modelClipName.empty()) {
+    if (machine.entered || model->clipName != state.modelClipName) {
       model->previousClipName = model->clipName;
       model->previousTime = model->time;
       model->time = 0.0F;
     }
-    if (state.modelClip >= 0)
-      model->clip = state.modelClip;
     model->clipName = state.modelClipName;
     model->speed = state.speed;
     model->loop = state.loop;
@@ -219,8 +214,7 @@ void AnimationStateMachineSystem::update(World &world,
         if (state == machine->states.end() || layer.weight <= 0.0F)
           continue;
         model->layers.push_back(
-            {.clip = state->second.modelClip,
-             .clipName = state->second.modelClipName,
+            {.clipName = state->second.modelClipName,
              .mask = layer.mask,
              .weight = layer.weight,
              .additive = layer.additive});
@@ -228,15 +222,13 @@ void AnimationStateMachineSystem::update(World &world,
     }
     if (machine->rootMotion && dt > 0.0F) {
       if (auto *transform = entity.component<Transform3DComponent>()) {
-        const Vec3 motion =
-            presentation->rootMotionTrack.size() >= 2
-                ? extractRootMotion(presentation->rootMotionTrack, previousTime,
-                                    machine->time, presentation->duration,
-                                    presentation->loop)
-                : Vec3{
-                      .x = presentation->rootMotionPerSecond.x * dt,
-                      .y = presentation->rootMotionPerSecond.y * dt,
-                      .z = presentation->rootMotionPerSecond.z * dt};
+        const Vec3 motion = presentation->rootMotionTrack.size() >= 2
+                                ? extractRootMotion(
+                                      presentation->rootMotionTrack,
+                                      previousTime, machine->time,
+                                      presentation->duration,
+                                      presentation->loop)
+                                : Vec3{};
         transform->position.x += motion.x;
         transform->position.y += motion.y;
         transform->position.z += motion.z;

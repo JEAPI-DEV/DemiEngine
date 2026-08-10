@@ -50,7 +50,7 @@ void lifecycleAndRenderingAreOrdered() {
       {.id = "panel",
        .type = "panel",
        .resolved = {.x = 10, .y = 10, .width = 40, .height = 30},
-       .color = {.r = 1.0F, .g = 0.0F, .b = 0.0F, .a = 1.0F}});
+       .backgroundColor = {.r = 1.0F, .g = 0.0F, .b = 0.0F, .a = 1.0F}});
   assert(
       host.renderFrame(world, Camera2DComponent{}, {}, 0.016F, nullptr, error));
   assert(!host.setWindowMode("invalid", error));

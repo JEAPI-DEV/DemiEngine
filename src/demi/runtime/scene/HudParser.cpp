@@ -1,9 +1,9 @@
 #include "demi/runtime/scene/HudParser.h"
 
 #include "demi/runtime/scene/SceneJson.h"
-#include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/runtime/ui/UiDocumentParser.h"
 #include "demi/runtime/ui/UiLayoutEngine.h"
+#include "demi/runtime/ui/UiPrefabResolver.h"
 
 namespace demi::runtime::scene_loading {
 namespace {
@@ -55,8 +55,8 @@ void loadHudFile(World &world, const std::filesystem::path &hudPath,
   if (!document.has_value())
     return;
 
-  const composition::ExpansionResult expansion =
-      composition::expandScene(hudPath, *document);
+  const ui::UiPrefabExpansionResult expansion =
+      ui::expandUiDocument(hudPath, *document);
   if (!expansion.document.has_value()) {
     error = expansion.diagnostics.empty()
                 ? "HUD prefab expansion failed: " + hudPath.string()

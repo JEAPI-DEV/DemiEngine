@@ -8,27 +8,29 @@
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scene/model/World.h"
 
+// Jolt.h defines platform/compiler macros required by every other Jolt header.
 #include <Jolt/Jolt.h>
+
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Core/JobSystemSingleThreaded.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Geometry/Triangle.h>
-#include <Jolt/RegisterTypes.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
-#include <Jolt/Physics/Collision/ContactListener.h>
-#include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
 #include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
+#include <Jolt/Physics/Collision/ContactListener.h>
 #include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
 #include <Jolt/Physics/Collision/RayCast.h>
-#include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
+#include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/Physics/PhysicsSystem.h>
+#include <Jolt/RegisterTypes.h>
 
 #include <algorithm>
 #include <atomic>
@@ -74,8 +76,9 @@ public:
 
 class ObjectLayerPairFilter final : public JPH::ObjectLayerPairFilter {
 public:
-  [[nodiscard]] bool ShouldCollide(const JPH::ObjectLayer first,
-                                   const JPH::ObjectLayer second) const override {
+  [[nodiscard]] bool
+  ShouldCollide(const JPH::ObjectLayer first,
+                const JPH::ObjectLayer second) const override {
     return first == MovingLayer || second == MovingLayer;
   }
 };
@@ -133,6 +136,13 @@ struct JoltLifetime {
          entity.hasComponent<ModelCollider3DComponent>();
 }
 
+[[nodiscard]] bool hasCharacterCollider(const Entity &entity) {
+  return entity.hasComponent<BoxCollider3DComponent>() ||
+         entity.hasComponent<SphereCollider3DComponent>() ||
+         entity.hasComponent<CapsuleCollider3DComponent>() ||
+         entity.hasComponent<ConvexCollider3DComponent>();
+}
+
 [[nodiscard]] std::string colliderLayer(const Entity &entity) {
   if (const auto *value = entity.component<BoxCollider3DComponent>())
     return value->layer;
@@ -143,8 +153,6 @@ struct JoltLifetime {
   if (const auto *value = entity.component<ConvexCollider3DComponent>())
     return value->layer;
   if (const auto *value = entity.component<ModelCollider3DComponent>())
-    return value->layer;
-  if (const auto *value = entity.component<CharacterController3DComponent>())
     return value->layer;
   return {};
 }
@@ -167,6 +175,28 @@ struct JoltLifetime {
   return (firstMask->second & secondCategory->second) != 0 &&
          (secondMask->second & firstCategory->second) != 0;
 }
+
+class CharacterBodyFilter final : public JPH::BodyFilter {
+public:
+  CharacterBodyFilter(
+      const World &world, const Entity &character,
+      const std::unordered_map<std::uint32_t, std::string> &bodyIds)
+      : world_(world), character_(character), bodyIds_(bodyIds) {}
+
+  bool ShouldCollide(const JPH::BodyID &body) const override {
+    const auto found = bodyIds_.find(body.GetIndexAndSequenceNumber());
+    if (found == bodyIds_.end())
+      return false;
+    const Entity *other = findEntity(world_, found->second);
+    return other != nullptr && !isTrigger(*other) &&
+           layersCollide(world_, character_, *other);
+  }
+
+private:
+  const World &world_;
+  const Entity &character_;
+  const std::unordered_map<std::uint32_t, std::string> &bodyIds_;
+};
 
 [[nodiscard]] JPH::EAllowedDOFs allowedDofs(const Rigidbody3DComponent &body) {
   JPH::EAllowedDOFs result = JPH::EAllowedDOFs::None;
@@ -197,8 +227,7 @@ void mix(std::uint64_t &hash, const std::uint64_t value) {
   hash ^= value + 0x9e3779b97f4a7c15ULL + (hash << 6U) + (hash >> 2U);
 }
 void mix(std::uint64_t &hash, const float value) {
-  mix(hash,
-      static_cast<std::uint64_t>(std::bit_cast<std::uint32_t>(value)));
+  mix(hash, static_cast<std::uint64_t>(std::bit_cast<std::uint32_t>(value)));
 }
 void mix(std::uint64_t &hash, const bool value) {
   mix(hash, static_cast<std::uint64_t>(value));
@@ -237,21 +266,19 @@ void mix(std::uint64_t &hash, const bool value) {
       for (float number : {point.x, point.y, point.z})
         mix(hash, number);
     mix(hash, value->isTrigger);
-  } else if (const auto *value =
-                 entity.component<ModelCollider3DComponent>()) {
+  } else if (const auto *value = entity.component<ModelCollider3DComponent>()) {
     mix(hash, std::uint64_t{5});
     mix(hash, std::hash<std::string>{}(value->asset));
     mix(hash, value->isTrigger);
   }
   if (const auto *body = entity.component<Rigidbody3DComponent>()) {
     mix(hash, std::hash<std::string>{}(body->bodyType));
-    for (bool value : {body->lockPositionX, body->lockPositionY,
-                       body->lockPositionZ, body->lockRotationX,
-                       body->lockRotationY, body->lockRotationZ})
+    for (bool value :
+         {body->lockPositionX, body->lockPositionY, body->lockPositionZ,
+          body->lockRotationX, body->lockRotationY, body->lockRotationZ})
       mix(hash, value);
     for (float value : {body->mass, body->linearDamping, body->angularDamping,
-                        body->friction, body->restitution,
-                        body->gravityScale})
+                        body->friction, body->restitution, body->gravityScale})
       mix(hash, value);
     mix(hash, body->continuous);
     mix(hash, body->allowSleep);
@@ -264,8 +291,7 @@ void mix(std::uint64_t &hash, const bool value) {
   const auto transform = resolveWorldTransform3D(world, entity);
   if (!transform)
     return {};
-  const Vec3 scale{std::abs(transform->scale.x),
-                   std::abs(transform->scale.y),
+  const Vec3 scale{std::abs(transform->scale.x), std::abs(transform->scale.y),
                    std::abs(transform->scale.z)};
   JPH::ShapeRefC shape;
   Vec3 offset;
@@ -278,23 +304,19 @@ void mix(std::uint64_t &hash, const bool value) {
               box->offset.z * scale.z};
   } else if (const auto *sphere =
                  entity.component<SphereCollider3DComponent>()) {
-    const float radius =
-        sphere->radius * std::max({scale.x, scale.y, scale.z});
+    const float radius = sphere->radius * std::max({scale.x, scale.y, scale.z});
     shape = new JPH::SphereShape(std::max(radius, 0.001F));
     offset = {sphere->offset.x * scale.x, sphere->offset.y * scale.y,
               sphere->offset.z * scale.z};
   } else if (const auto *capsule =
                  entity.component<CapsuleCollider3DComponent>()) {
-    const float radius =
-        capsule->radius * std::max(scale.x, scale.z);
+    const float radius = capsule->radius * std::max(scale.x, scale.z);
     const float totalHeight = capsule->height * scale.y;
-    shape = new JPH::CapsuleShape(
-        std::max(totalHeight * 0.5F - radius, 0.0F),
-        std::max(radius, 0.001F));
+    shape = new JPH::CapsuleShape(std::max(totalHeight * 0.5F - radius, 0.0F),
+                                  std::max(radius, 0.001F));
     offset = {capsule->offset.x * scale.x, capsule->offset.y * scale.y,
               capsule->offset.z * scale.z};
-  } else if (const auto *convex =
-                 entity.component<ConvexCollider3DComponent>();
+  } else if (const auto *convex = entity.component<ConvexCollider3DComponent>();
              convex != nullptr && convex->points.size() >= 4) {
     JPH::Array<JPH::Vec3> points;
     points.reserve(convex->points.size());
@@ -308,8 +330,7 @@ void mix(std::uint64_t &hash, const bool value) {
     shape = result.Get();
     offset = {convex->offset.x * scale.x, convex->offset.y * scale.y,
               convex->offset.z * scale.z};
-  } else if (const auto *model =
-                 entity.component<ModelCollider3DComponent>()) {
+  } else if (const auto *model = entity.component<ModelCollider3DComponent>()) {
     const auto triangles = resolvedTriangleCollider3D(world, entity);
     if (triangles == nullptr || triangles->empty())
       return {};
@@ -335,7 +356,7 @@ void mix(std::uint64_t &hash, const bool value) {
   if (std::abs(offset.x) > 0.000001F || std::abs(offset.y) > 0.000001F ||
       std::abs(offset.z) > 0.000001F) {
     JPH::RotatedTranslatedShapeSettings settings(jolt(offset),
-                                                  JPH::Quat::sIdentity(), shape);
+                                                 JPH::Quat::sIdentity(), shape);
     const auto result = settings.Create();
     if (result.HasError())
       return {};
@@ -372,8 +393,7 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
   };
   struct CharacterRecord {
     JPH::Ref<JPH::CharacterVirtual> character;
-    float radius = 0.0F;
-    float height = 0.0F;
+    std::uint64_t shapeSignature = 0;
     float padding = 0.0F;
     float slopeLimit = 0.0F;
   };
@@ -392,8 +412,8 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
   std::unordered_map<std::string, RawContact> contacts;
 
   Impl() {
-    physics.Init(65536, 0, 65536, 10240, broadPhaseLayers,
-                 objectVsBroadPhase, layerPairs);
+    physics.Init(65536, 0, 65536, 10240, broadPhaseLayers, objectVsBroadPhase,
+                 layerPairs);
     physics.SetContactListener(this);
   }
 
@@ -430,10 +450,9 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
     const std::string secondId = idFor(second.GetID());
     if (firstId.empty() || secondId.empty())
       return;
-    const JPH::RVec3 point =
-        manifold.mRelativeContactPointsOn1.empty()
-            ? manifold.mBaseOffset
-            : manifold.GetWorldSpaceContactPointOn1(0);
+    const JPH::RVec3 point = manifold.mRelativeContactPointsOn1.empty()
+                                 ? manifold.mBaseOffset
+                                 : manifold.GetWorldSpaceContactPointOn1(0);
     contacts[pairKey(firstId, secondId)] = {
         .first = firstId,
         .second = secondId,
@@ -483,7 +502,8 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
 
   for (Entity &entity : world.entities) {
     if (!entity.enabled || !entity.hasComponent<Transform3DComponent>() ||
-        !hasCollider(entity))
+        !hasCollider(entity) ||
+        entity.hasComponent<CharacterController3DComponent>())
       continue;
     live.insert(entity.id);
     auto *body = entity.component<Rigidbody3DComponent>();
@@ -511,8 +531,9 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
       if (shape == nullptr)
         continue;
       JPH::BodyCreationSettings settings(
-          shape, JPH::RVec3(resolved->position.x, resolved->position.y,
-                            resolved->position.z),
+          shape,
+          JPH::RVec3(resolved->position.x, resolved->position.y,
+                     resolved->position.z),
           joltRotation(resolved->rotation), motionType(body),
           motionType(body) == JPH::EMotionType::Static ? StaticLayer
                                                        : MovingLayer);
@@ -525,9 +546,9 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
         settings.mFriction = body->friction;
         settings.mRestitution = body->restitution;
         settings.mAllowSleeping = body->allowSleep;
-        settings.mMotionQuality =
-            body->continuous ? JPH::EMotionQuality::LinearCast
-                             : JPH::EMotionQuality::Discrete;
+        settings.mMotionQuality = body->continuous
+                                      ? JPH::EMotionQuality::LinearCast
+                                      : JPH::EMotionQuality::Discrete;
         settings.mAllowedDOFs = allowedDofs(*body);
         settings.mOverrideMassProperties =
             JPH::EOverrideMassProperties::CalculateInertia;
@@ -538,25 +559,23 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
       if (created == nullptr)
         continue;
       const JPH::BodyID bodyId = created->GetID();
-      interface.AddBody(bodyId,
-                        body != nullptr && body->awake
-                            ? JPH::EActivation::Activate
-                            : JPH::EActivation::DontActivate);
+      interface.AddBody(bodyId, body != nullptr && body->awake
+                                    ? JPH::EActivation::Activate
+                                    : JPH::EActivation::DontActivate);
       if (body != nullptr && !body->bodyEnabled)
         interface.RemoveBody(bodyId);
       impl_->ids[bodyId.GetIndexAndSequenceNumber()] = entity.id;
-      found =
-          impl_->bodies
-              .emplace(entity.id,
-                       Impl::BodyRecord{.body = bodyId,
-                                        .signature = signature,
-                                        .previousPosition = resolved->position,
-                                        .currentPosition = resolved->position,
-                                        .lastAuthoredPosition = local.position,
-                                        .lastAuthoredRotation = local.rotation,
-                                        .added = body == nullptr ||
-                                                 body->bodyEnabled})
-              .first;
+      found = impl_->bodies
+                  .emplace(entity.id,
+                           Impl::BodyRecord{
+                               .body = bodyId,
+                               .signature = signature,
+                               .previousPosition = resolved->position,
+                               .currentPosition = resolved->position,
+                               .lastAuthoredPosition = local.position,
+                               .lastAuthoredRotation = local.rotation,
+                               .added = body == nullptr || body->bodyEnabled})
+                  .first;
     } else {
       Impl::BodyRecord &record = found->second;
       const bool authoredTransformChanged =
@@ -598,17 +617,15 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
       Impl::BodyRecord &record = found->second;
       if (body->hasKinematicTarget && body->bodyType == "kinematic" &&
           body->kinematicTargetDt > 0.0F) {
-        interface.MoveKinematic(
-            record.body,
-            JPH::RVec3(body->kinematicTargetPosition.x,
-                       body->kinematicTargetPosition.y,
-                       body->kinematicTargetPosition.z),
-            joltRotation(body->kinematicTargetRotation),
-            body->kinematicTargetDt);
+        interface.MoveKinematic(record.body,
+                                JPH::RVec3(body->kinematicTargetPosition.x,
+                                           body->kinematicTargetPosition.y,
+                                           body->kinematicTargetPosition.z),
+                                joltRotation(body->kinematicTargetRotation),
+                                body->kinematicTargetDt);
       }
       if (body->accumulatedForce.x != 0.0F ||
-          body->accumulatedForce.y != 0.0F ||
-          body->accumulatedForce.z != 0.0F)
+          body->accumulatedForce.y != 0.0F || body->accumulatedForce.z != 0.0F)
         interface.AddForce(record.body, jolt(body->accumulatedForce));
       if (body->accumulatedImpulse.x != 0.0F ||
           body->accumulatedImpulse.y != 0.0F ||
@@ -651,11 +668,19 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
     if (!entity.enabled || transform == nullptr || controller == nullptr)
       continue;
     liveCharacters.insert(entity.id);
+    if (!hasCharacterCollider(entity)) {
+      impl_->characters.erase(entity.id);
+      controller->grounded = false;
+      controller->groundEntity.clear();
+      controller->desiredVelocity = {};
+      controller->requestedJumpSpeed = 0.0F;
+      continue;
+    }
     auto found = impl_->characters.find(entity.id);
+    const std::uint64_t signature = shapeSignature(world, entity);
     const bool settingsChanged =
         found != impl_->characters.end() &&
-        (found->second.radius != controller->radius ||
-         found->second.height != controller->height ||
+        (found->second.shapeSignature != signature ||
          found->second.padding != controller->skinWidth ||
          found->second.slopeLimit != controller->slopeLimit);
     if (settingsChanged) {
@@ -663,43 +688,39 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
       found = impl_->characters.end();
     }
     if (found == impl_->characters.end()) {
-      const float cylinderHalfHeight =
-          std::max((controller->height - 2.0F * controller->radius) * 0.5F,
-                   0.001F);
+      const JPH::ShapeRefC shape = shapeFor(world, entity);
+      if (shape == nullptr)
+        continue;
       JPH::Ref<JPH::CharacterVirtualSettings> settings =
           new JPH::CharacterVirtualSettings();
-      settings->mShape =
-          new JPH::CapsuleShape(cylinderHalfHeight, controller->radius);
-      settings->mMaxSlopeAngle =
-          JPH::DegreesToRadians(controller->slopeLimit);
+      settings->mShape = shape;
+      settings->mMaxSlopeAngle = JPH::DegreesToRadians(controller->slopeLimit);
       settings->mCharacterPadding = controller->skinWidth;
-      settings->mSupportingVolume =
-          JPH::Plane(JPH::Vec3::sAxisY(), -controller->radius);
-      JPH::Ref<JPH::CharacterVirtual> character =
-          new JPH::CharacterVirtual(
-              settings,
-              JPH::RVec3(transform->position.x, transform->position.y,
-                         transform->position.z),
-              JPH::Quat::sIdentity(), 0, &impl_->physics);
-      found =
-          impl_->characters
-              .emplace(entity.id,
-                       Impl::CharacterRecord{
-                           .character = std::move(character),
-                           .radius = controller->radius,
-                           .height = controller->height,
-                           .padding = controller->skinWidth,
-                           .slopeLimit = controller->slopeLimit})
-              .first;
+      // Controller transforms use their visual origin as the collider center.
+      // Contacts on the lower half of any supported shape may support it.
+      settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), 0.0F);
+      JPH::Ref<JPH::CharacterVirtual> character = new JPH::CharacterVirtual(
+          settings,
+          JPH::RVec3(transform->position.x, transform->position.y,
+                     transform->position.z),
+          joltRotation(transform->rotation), 0, &impl_->physics);
+      found = impl_->characters
+                  .emplace(entity.id,
+                           Impl::CharacterRecord{
+                               .character = std::move(character),
+                               .shapeSignature = signature,
+                               .padding = controller->skinWidth,
+                               .slopeLimit = controller->slopeLimit})
+                  .first;
     }
 
     JPH::CharacterVirtual &character = *found->second.character;
-    character.SetPosition(
-        JPH::RVec3(transform->position.x, transform->position.y,
-                   transform->position.z));
+    character.SetPosition(JPH::RVec3(
+        transform->position.x, transform->position.y, transform->position.z));
+    character.SetRotation(joltRotation(transform->rotation));
     character.UpdateGroundVelocity();
-    const bool grounded =
-        character.GetGroundState() == JPH::CharacterBase::EGroundState::OnGround;
+    const bool grounded = character.GetGroundState() ==
+                          JPH::CharacterBase::EGroundState::OnGround;
     JPH::Vec3 velocity = character.GetLinearVelocity();
     const JPH::Vec3 groundVelocity = character.GetGroundVelocity();
     velocity.SetX(controller->desiredVelocity.x +
@@ -715,46 +736,44 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
     character.SetLinearVelocity(velocity);
 
     JPH::CharacterVirtual::ExtendedUpdateSettings update;
-    update.mWalkStairsStepUp =
-        JPH::Vec3(0.0F, controller->stepHeight, 0.0F);
+    update.mWalkStairsStepUp = JPH::Vec3(0.0F, controller->stepHeight, 0.0F);
     update.mStickToFloorStepDown =
         JPH::Vec3(0.0F, -controller->stepHeight, 0.0F);
     {
       ProfileScope scope("Physics3D.character_update");
+      const CharacterBodyFilter bodyFilter(world, entity, impl_->ids);
       character.ExtendedUpdate(
           fixedDt, JPH::Vec3(0.0F, controller->gravity, 0.0F), update,
           impl_->physics.GetDefaultBroadPhaseLayerFilter(MovingLayer),
-          impl_->physics.GetDefaultLayerFilter(MovingLayer), {}, {},
+          impl_->physics.GetDefaultLayerFilter(MovingLayer), bodyFilter, {},
           impl_->allocator);
     }
 
     const JPH::RVec3 position = character.GetPosition();
     transform->position = demi(position);
     controller->velocity = demi(character.GetLinearVelocity());
-    controller->grounded =
-        character.GetGroundState() == JPH::CharacterBase::EGroundState::OnGround;
-    controller->groundEntity =
-        controller->grounded
-            ? impl_->idFor(character.GetGroundBodyID())
-            : std::string{};
-    for (const PhysicsQueryHit3D &hit : overlapCapsuleAll3D(
-             world, transform->position, controller->radius,
-             controller->height, {}, entity.id)) {
+    controller->grounded = character.GetGroundState() ==
+                           JPH::CharacterBase::EGroundState::OnGround;
+    controller->groundEntity = controller->grounded
+                                   ? impl_->idFor(character.GetGroundBodyID())
+                                   : std::string{};
+    const std::vector<PhysicsQueryHit3D> triggerHits = overlapCollider(
+        world, entity, transform->position, transform->rotation, entity.id);
+    for (const PhysicsQueryHit3D &hit : triggerHits) {
       const Entity *other = findEntity(world, hit.entityId);
       if (!hit.isTrigger || other == nullptr ||
           !layersCollide(world, entity, *other))
         continue;
-      characterContacts.push_back(
-          {.entityId = entity.id,
-           .otherEntityId = hit.entityId,
-           .otherLayer = hit.layer,
-           .point = hit.point,
-           .normal = hit.normal,
-           .isTrigger = true});
+      characterContacts.push_back({.entityId = entity.id,
+                                   .otherEntityId = hit.entityId,
+                                   .otherLayer = hit.layer,
+                                   .point = hit.point,
+                                   .normal = hit.normal,
+                                   .isTrigger = true});
       characterContacts.push_back(
           {.entityId = hit.entityId,
            .otherEntityId = entity.id,
-           .otherLayer = controller->layer,
+           .otherLayer = colliderLayer(entity),
            .point = hit.point,
            .normal = {-hit.normal.x, -hit.normal.y, -hit.normal.z},
            .isTrigger = true});
@@ -801,8 +820,8 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
                                     const std::string &other) {
     return std::ranges::any_of(
         world.previousPhysicsContacts3D, [&](const PhysicsContact3D &contact) {
-          return contact.entityId == entity &&
-                 contact.otherEntityId == other && contact.phase != "exit";
+          return contact.entityId == entity && contact.otherEntityId == other &&
+                 contact.phase != "exit";
         });
   };
   for (const auto &[key, raw] : impl_->contacts) {
@@ -811,8 +830,7 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
     const Entity *second = findEntity(world, raw.second);
     if (first == nullptr || second == nullptr)
       continue;
-    const auto append = [&](const std::string &entity,
-                            const std::string &other,
+    const auto append = [&](const std::string &entity, const std::string &other,
                             const std::string &otherLayer, const Vec3 normal) {
       world.physicsContacts3D.push_back(
           {.entityId = entity,
@@ -829,19 +847,18 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
     append(raw.second, raw.first, colliderLayer(*first), raw.normal);
   }
   for (PhysicsContact3D contact : characterContacts) {
-    contact.phase =
-        previousContains(contact.entityId, contact.otherEntityId) ? "stay"
-                                                                 : "enter";
+    contact.phase = previousContains(contact.entityId, contact.otherEntityId)
+                        ? "stay"
+                        : "enter";
     world.physicsContacts3D.push_back(std::move(contact));
   }
   for (const PhysicsContact3D &previous : world.previousPhysicsContacts3D) {
     if (previous.phase == "exit" ||
-        std::ranges::any_of(world.physicsContacts3D,
-                            [&](const PhysicsContact3D &current) {
-                              return current.entityId == previous.entityId &&
-                                     current.otherEntityId ==
-                                         previous.otherEntityId;
-                            }))
+        std::ranges::any_of(
+            world.physicsContacts3D, [&](const PhysicsContact3D &current) {
+              return current.entityId == previous.entityId &&
+                     current.otherEntityId == previous.otherEntityId;
+            }))
       continue;
     PhysicsContact3D exited = previous;
     exited.phase = "exit";
@@ -865,8 +882,9 @@ PhysicsWorld3D::velocity(const std::string &entityId) const {
   const auto found = impl_->bodies.find(entityId);
   return found == impl_->bodies.end()
              ? std::nullopt
-             : std::optional{demi(impl_->physics.GetBodyInterface()
-                                      .GetLinearVelocity(found->second.body))};
+             : std::optional{
+                   demi(impl_->physics.GetBodyInterface().GetLinearVelocity(
+                       found->second.body))};
 }
 
 bool PhysicsWorld3D::addForce(const std::string &entityId, const Vec3 force) {
@@ -887,8 +905,7 @@ bool PhysicsWorld3D::addImpulse(const std::string &entityId,
   return true;
 }
 
-bool PhysicsWorld3D::addTorque(const std::string &entityId,
-                               const Vec3 torque) {
+bool PhysicsWorld3D::addTorque(const std::string &entityId, const Vec3 torque) {
   const auto found = impl_->bodies.find(entityId);
   if (found == impl_->bodies.end())
     return false;
@@ -952,10 +969,9 @@ namespace {
 
 class DemiQueryBodyFilter final : public JPH::BodyFilter {
 public:
-  DemiQueryBodyFilter(
-      const World *world,
-      const std::unordered_map<std::uint32_t, std::string> *ids,
-      std::string layer, std::string ignored)
+  DemiQueryBodyFilter(const World *world,
+                      const std::unordered_map<std::uint32_t, std::string> *ids,
+                      std::string layer, std::string ignored)
       : world_(world), ids_(ids), layer_(std::move(layer)),
         ignored_(std::move(ignored)) {}
 
@@ -977,11 +993,11 @@ private:
   std::string ignored_;
 };
 
-PhysicsQueryHit3D queryHit(const World *world,
-                           const std::unordered_map<std::uint32_t, std::string> &ids,
-                           const JPH::BodyID body, const JPH::RVec3 point,
-                           const JPH::Vec3 normal, const float distance,
-                           const float fraction) {
+PhysicsQueryHit3D
+queryHit(const World *world,
+         const std::unordered_map<std::uint32_t, std::string> &ids,
+         const JPH::BodyID body, const JPH::RVec3 point, const JPH::Vec3 normal,
+         const float distance, const float fraction) {
   PhysicsQueryHit3D hit;
   const auto found = ids.find(body.GetIndexAndSequenceNumber());
   if (found == ids.end() || world == nullptr)
@@ -1000,6 +1016,41 @@ PhysicsQueryHit3D queryHit(const World *world,
 } // namespace
 
 std::vector<PhysicsQueryHit3D>
+PhysicsWorld3D::overlapCollider(const World &world, const Entity &entity,
+                                const Vec3 position, const Vec3 rotation,
+                                const std::string &ignoredEntityId) const {
+  if (impl_->world == nullptr)
+    return {};
+  const JPH::ShapeRefC shape = shapeFor(world, entity);
+  if (shape == nullptr)
+    return {};
+
+  JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
+  const DemiQueryBodyFilter filter(impl_->world, &impl_->ids, {},
+                                   ignoredEntityId);
+  impl_->physics.GetNarrowPhaseQuery().CollideShape(
+      shape, JPH::Vec3::sOne(),
+      JPH::RMat44::sRotationTranslation(
+          joltRotation(rotation),
+          JPH::RVec3(position.x, position.y, position.z)),
+      {}, JPH::RVec3::sZero(), collector, {}, {}, filter);
+
+  std::vector<PhysicsQueryHit3D> result;
+  for (const JPH::CollideShapeResult &hit : collector.mHits) {
+    PhysicsQueryHit3D value = queryHit(
+        impl_->world, impl_->ids, hit.mBodyID2, hit.mContactPointOn2,
+        -hit.mPenetrationAxis.NormalizedOr(JPH::Vec3::sAxisY()), 0.0F, 0.0F);
+    if (!value.entityId.empty() &&
+        std::ranges::none_of(result, [&](const PhysicsQueryHit3D &existing) {
+          return existing.entityId == value.entityId;
+        }))
+      result.push_back(std::move(value));
+  }
+  std::ranges::sort(result, {}, &PhysicsQueryHit3D::entityId);
+  return result;
+}
+
+std::vector<PhysicsQueryHit3D>
 PhysicsWorld3D::overlapSphere(const Vec3 center, const float radius,
                               const std::string &layer,
                               const std::string &ignoredEntityId) const {
@@ -1011,16 +1062,13 @@ PhysicsWorld3D::overlapSphere(const Vec3 center, const float radius,
                                    ignoredEntityId);
   impl_->physics.GetNarrowPhaseQuery().CollideShape(
       &shape, JPH::Vec3::sOne(),
-      JPH::RMat44::sTranslation(
-          JPH::RVec3(center.x, center.y, center.z)),
-      {}, JPH::RVec3::sZero(), collector, {}, {}, filter);
+      JPH::RMat44::sTranslation(JPH::RVec3(center.x, center.y, center.z)), {},
+      JPH::RVec3::sZero(), collector, {}, {}, filter);
   std::vector<PhysicsQueryHit3D> result;
   for (const JPH::CollideShapeResult &hit : collector.mHits) {
-    PhysicsQueryHit3D value =
-        queryHit(impl_->world, impl_->ids, hit.mBodyID2,
-                 hit.mContactPointOn2, -hit.mPenetrationAxis.NormalizedOr(
-                                           JPH::Vec3::sAxisY()),
-                 0.0F, 0.0F);
+    PhysicsQueryHit3D value = queryHit(
+        impl_->world, impl_->ids, hit.mBodyID2, hit.mContactPointOn2,
+        -hit.mPenetrationAxis.NormalizedOr(JPH::Vec3::sAxisY()), 0.0F, 0.0F);
     if (!value.entityId.empty() &&
         std::ranges::none_of(result, [&](const PhysicsQueryHit3D &existing) {
           return existing.entityId == value.entityId;
@@ -1038,25 +1086,21 @@ PhysicsWorld3D::overlapBox(const Vec3 center, const Vec3 size,
   if (size.x < 0.0F || size.y < 0.0F || size.z < 0.0F ||
       impl_->world == nullptr)
     return {};
-  const JPH::BoxShape shape(
-      JPH::Vec3(std::max(size.x * 0.5F, 0.001F),
-                std::max(size.y * 0.5F, 0.001F),
-                std::max(size.z * 0.5F, 0.001F)));
+  const JPH::BoxShape shape(JPH::Vec3(std::max(size.x * 0.5F, 0.001F),
+                                      std::max(size.y * 0.5F, 0.001F),
+                                      std::max(size.z * 0.5F, 0.001F)));
   JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
   const DemiQueryBodyFilter filter(impl_->world, &impl_->ids, layer,
                                    ignoredEntityId);
   impl_->physics.GetNarrowPhaseQuery().CollideShape(
       &shape, JPH::Vec3::sOne(),
-      JPH::RMat44::sTranslation(
-          JPH::RVec3(center.x, center.y, center.z)),
-      {}, JPH::RVec3::sZero(), collector, {}, {}, filter);
+      JPH::RMat44::sTranslation(JPH::RVec3(center.x, center.y, center.z)), {},
+      JPH::RVec3::sZero(), collector, {}, {}, filter);
   std::vector<PhysicsQueryHit3D> result;
   for (const JPH::CollideShapeResult &hit : collector.mHits) {
-    PhysicsQueryHit3D value =
-        queryHit(impl_->world, impl_->ids, hit.mBodyID2,
-                 hit.mContactPointOn2, -hit.mPenetrationAxis.NormalizedOr(
-                                           JPH::Vec3::sAxisY()),
-                 0.0F, 0.0F);
+    PhysicsQueryHit3D value = queryHit(
+        impl_->world, impl_->ids, hit.mBodyID2, hit.mContactPointOn2,
+        -hit.mPenetrationAxis.NormalizedOr(JPH::Vec3::sAxisY()), 0.0F, 0.0F);
     if (!value.entityId.empty() &&
         std::ranges::none_of(result, [&](const PhysicsQueryHit3D &existing) {
           return existing.entityId == value.entityId;
@@ -1073,24 +1117,20 @@ PhysicsWorld3D::overlapCapsule(const Vec3 center, const float radius,
                                const std::string &ignoredEntityId) const {
   if (radius < 0.0F || height < 2.0F * radius || impl_->world == nullptr)
     return {};
-  const JPH::CapsuleShape shape(
-      std::max(height * 0.5F - radius, 0.0F),
-      std::max(radius, 0.001F));
+  const JPH::CapsuleShape shape(std::max(height * 0.5F - radius, 0.0F),
+                                std::max(radius, 0.001F));
   JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
   const DemiQueryBodyFilter filter(impl_->world, &impl_->ids, layer,
                                    ignoredEntityId);
   impl_->physics.GetNarrowPhaseQuery().CollideShape(
       &shape, JPH::Vec3::sOne(),
-      JPH::RMat44::sTranslation(
-          JPH::RVec3(center.x, center.y, center.z)),
-      {}, JPH::RVec3::sZero(), collector, {}, {}, filter);
+      JPH::RMat44::sTranslation(JPH::RVec3(center.x, center.y, center.z)), {},
+      JPH::RVec3::sZero(), collector, {}, {}, filter);
   std::vector<PhysicsQueryHit3D> result;
   for (const JPH::CollideShapeResult &hit : collector.mHits) {
-    PhysicsQueryHit3D value =
-        queryHit(impl_->world, impl_->ids, hit.mBodyID2,
-                 hit.mContactPointOn2, -hit.mPenetrationAxis.NormalizedOr(
-                                           JPH::Vec3::sAxisY()),
-                 0.0F, 0.0F);
+    PhysicsQueryHit3D value = queryHit(
+        impl_->world, impl_->ids, hit.mBodyID2, hit.mContactPointOn2,
+        -hit.mPenetrationAxis.NormalizedOr(JPH::Vec3::sAxisY()), 0.0F, 0.0F);
     if (!value.entityId.empty() &&
         std::ranges::none_of(result, [&](const PhysicsQueryHit3D &existing) {
           return existing.entityId == value.entityId;
@@ -1108,8 +1148,8 @@ PhysicsWorld3D::raycast(const Vec3 origin, const Vec3 direction,
   const JPH::Vec3 unit = jolt(direction).NormalizedOr(JPH::Vec3::sZero());
   if (distance < 0.0F || unit.IsNearZero() || impl_->world == nullptr)
     return std::nullopt;
-  const JPH::RRayCast ray(
-      JPH::RVec3(origin.x, origin.y, origin.z), unit * distance);
+  const JPH::RRayCast ray(JPH::RVec3(origin.x, origin.y, origin.z),
+                          unit * distance);
   JPH::RayCastResult result;
   const DemiQueryBodyFilter filter(impl_->world, &impl_->ids, layer,
                                    ignoredEntityId);
@@ -1117,13 +1157,11 @@ PhysicsWorld3D::raycast(const Vec3 origin, const Vec3 direction,
                                                     filter))
     return std::nullopt;
   const JPH::RVec3 point = ray.GetPointOnRay(result.mFraction);
-  JPH::BodyLockRead lock(impl_->physics.GetBodyLockInterface(),
-                         result.mBodyID);
-  const JPH::Vec3 normal =
-      lock.Succeeded()
-          ? lock.GetBody().GetWorldSpaceSurfaceNormal(result.mSubShapeID2,
-                                                       point)
-          : -unit;
+  JPH::BodyLockRead lock(impl_->physics.GetBodyLockInterface(), result.mBodyID);
+  const JPH::Vec3 normal = lock.Succeeded()
+                               ? lock.GetBody().GetWorldSpaceSurfaceNormal(
+                                     result.mSubShapeID2, point)
+                               : -unit;
   return queryHit(impl_->world, impl_->ids, result.mBodyID, point, normal,
                   result.mFraction * distance, result.mFraction);
 }
@@ -1141,21 +1179,19 @@ PhysicsWorld3D::castSphere(const Vec3 origin, const float radius,
     return std::nullopt;
   const JPH::RShapeCast cast = JPH::RShapeCast::sFromWorldTransform(
       &shape, JPH::Vec3::sOne(),
-      JPH::RMat44::sTranslation(
-          JPH::RVec3(origin.x, origin.y, origin.z)),
+      JPH::RMat44::sTranslation(JPH::RVec3(origin.x, origin.y, origin.z)),
       unit * distance);
   JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> collector;
   const DemiQueryBodyFilter filter(impl_->world, &impl_->ids, layer,
                                    ignoredEntityId);
-  impl_->physics.GetNarrowPhaseQuery().CastShape(
-      cast, {}, JPH::RVec3::sZero(), collector, {}, {}, filter);
+  impl_->physics.GetNarrowPhaseQuery().CastShape(cast, {}, JPH::RVec3::sZero(),
+                                                 collector, {}, {}, filter);
   if (!collector.HadHit())
     return std::nullopt;
   const JPH::ShapeCastResult &hit = collector.mHit;
-  return queryHit(
-      impl_->world, impl_->ids, hit.mBodyID2, hit.mContactPointOn2,
-      -hit.mPenetrationAxis.NormalizedOr(JPH::Vec3::sAxisY()),
-      hit.mFraction * distance, hit.mFraction);
+  return queryHit(impl_->world, impl_->ids, hit.mBodyID2, hit.mContactPointOn2,
+                  -hit.mPenetrationAxis.NormalizedOr(JPH::Vec3::sAxisY()),
+                  hit.mFraction * distance, hit.mFraction);
 }
 
 std::optional<PhysicsQueryHit3D>
@@ -1165,29 +1201,26 @@ PhysicsWorld3D::castCapsule(const Vec3 origin, const float radius,
                             const std::string &ignoredEntityId) const {
   if (radius < 0.0F || height < 2.0F * radius)
     return std::nullopt;
-  const JPH::CapsuleShape shape(
-      std::max(height * 0.5F - radius, 0.0F),
-      std::max(radius, 0.001F));
+  const JPH::CapsuleShape shape(std::max(height * 0.5F - radius, 0.0F),
+                                std::max(radius, 0.001F));
   const JPH::Vec3 unit = jolt(direction).NormalizedOr(JPH::Vec3::sZero());
   if (distance < 0.0F || unit.IsNearZero() || impl_->world == nullptr)
     return std::nullopt;
   const JPH::RShapeCast cast = JPH::RShapeCast::sFromWorldTransform(
       &shape, JPH::Vec3::sOne(),
-      JPH::RMat44::sTranslation(
-          JPH::RVec3(origin.x, origin.y, origin.z)),
+      JPH::RMat44::sTranslation(JPH::RVec3(origin.x, origin.y, origin.z)),
       unit * distance);
   JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> collector;
   const DemiQueryBodyFilter filter(impl_->world, &impl_->ids, layer,
                                    ignoredEntityId);
-  impl_->physics.GetNarrowPhaseQuery().CastShape(
-      cast, {}, JPH::RVec3::sZero(), collector, {}, {}, filter);
+  impl_->physics.GetNarrowPhaseQuery().CastShape(cast, {}, JPH::RVec3::sZero(),
+                                                 collector, {}, {}, filter);
   if (!collector.HadHit())
     return std::nullopt;
   const JPH::ShapeCastResult &hit = collector.mHit;
-  return queryHit(
-      impl_->world, impl_->ids, hit.mBodyID2, hit.mContactPointOn2,
-      -hit.mPenetrationAxis.NormalizedOr(JPH::Vec3::sAxisY()),
-      hit.mFraction * distance, hit.mFraction);
+  return queryHit(impl_->world, impl_->ids, hit.mBodyID2, hit.mContactPointOn2,
+                  -hit.mPenetrationAxis.NormalizedOr(JPH::Vec3::sAxisY()),
+                  hit.mFraction * distance, hit.mFraction);
 }
 
 } // namespace demi::runtime

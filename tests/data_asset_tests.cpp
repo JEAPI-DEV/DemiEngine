@@ -56,11 +56,12 @@ int main() {
   using namespace demi::runtime;
 
   const auto dataImporter = importerFor("content.json", "DataAsset");
-  const auto legacyJsonImporter = importerFor("material.json", "Material");
+  const auto materialImporter = importerFor("material.json", "Material");
   if (!dataImporter || dataImporter->name != "json_data" ||
-      dataImporter->assetType != "DataAsset" || !legacyJsonImporter ||
-      legacyJsonImporter->name != "json-data") {
-    std::cerr << "JSON data registration broke a legacy JSON importer.\n";
+      dataImporter->assetType != "DataAsset" || !materialImporter ||
+      materialImporter->name != "material" ||
+      importerFor("unknown.json", "ArbitraryType")) {
+    std::cerr << "Typed JSON importer selection failed.\n";
     return 1;
   }
 

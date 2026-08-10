@@ -4,23 +4,93 @@
   "main_scene": "scene://minimal_voxel/main",
   "input": {
     "actions": {
-      "move_right": [
-        { "input": "a", "scale": -1.0 },
-        { "input": "d", "scale": 1.0 }
-      ],
-      "move_forward": [
-        { "input": "s", "scale": -1.0 },
-        { "input": "w", "scale": 1.0 }
-      ],
-      "move_vertical": [
-        { "input": "left shift", "scale": -1.0 },
-        { "input": "space", "scale": 1.0 }
-      ],
-      "sprint": ["left ctrl"],
-      "jump": ["space"],
-      "pause": ["escape"],
-      "toggle_fly": ["f"],
-      "inventory": ["e"]
+      "move_right": {
+        "type": "axis1d",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:a",
+            "scale": -1.0
+          },
+          {
+            "input": "key:d",
+            "scale": 1.0
+          }
+        ]
+      },
+      "move_forward": {
+        "type": "axis1d",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:s",
+            "scale": -1.0
+          },
+          {
+            "input": "key:w",
+            "scale": 1.0
+          }
+        ]
+      },
+      "move_vertical": {
+        "type": "axis1d",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:left shift",
+            "scale": -1.0
+          },
+          {
+            "input": "key:space",
+            "scale": 1.0
+          }
+        ]
+      },
+      "sprint": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:left ctrl"
+          }
+        ]
+      },
+      "jump": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:space"
+          }
+        ]
+      },
+      "pause": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:escape"
+          }
+        ]
+      },
+      "toggle_fly": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:f"
+          }
+        ]
+      },
+      "inventory": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:e"
+          }
+        ]
+      }
     }
   },
   "scenes": [

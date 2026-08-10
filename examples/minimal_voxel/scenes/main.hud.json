@@ -1,222 +1,3965 @@
 {
   "format_version": 1,
-  "canvas_size": [960,540],
+  "canvas_size": [
+    960,
+    540
+  ],
   "root": {
     "id": "ui_root",
     "type": "container",
-    "anchor_min": [0,0],
-    "anchor_max": [1,1],
+    "anchor_min": [
+      0,
+      0
+    ],
+    "anchor_max": [
+      1,
+      1
+    ],
     "children": [
-      {"type":"panel","id":"inventory_dim","group":"inventory","position":[0,0],"size":[960,540],"color":[0,0,0,0.34],"visible":false},
-      {"type":"panel","id":"inventory_panel","group":"inventory","position":[304,96],"size":[352,332],"color":[0.76,0.76,0.76,0.98],"visible":false},
-      {"type":"panel","id":"inventory_panel_shadow","group":"inventory","position":[312,104],"size":[336,316],"color":[0.88,0.88,0.88,0.32],"visible":false},
-      {"type":"label","id":"inventory_title","group":"inventory","text":"","position":[304,108],"font_size":24,"color":[0.13,0.13,0.13,1],"visible":false},
-      {"type":"panel","id":"inventory_player_preview","group":"inventory","position":[356,124],"size":[112,104],"color":[0.04,0.04,0.04,1],"visible":false},
-      {"type":"panel","id":"inventory_armor_1","group":"inventory","position":[320,124],"size":[32,32],"color":[0.24,0.24,0.24,1],"visible":false},
-      {"type":"panel","id":"inventory_armor_2","group":"inventory","position":[320,160],"size":[32,32],"color":[0.24,0.24,0.24,1],"visible":false},
-      {"type":"panel","id":"inventory_armor_3","group":"inventory","position":[320,196],"size":[32,32],"color":[0.24,0.24,0.24,1],"visible":false},
-      {"type":"panel","id":"inventory_armor_4","group":"inventory","position":[320,232],"size":[32,32],"color":[0.24,0.24,0.24,1],"visible":false},
-      {"type":"panel","id":"inventory_craft_1","group":"inventory","position":[500,142],"size":[32,32],"color":[0.24,0.24,0.24,1],"visible":false},
-      {"type":"panel","id":"inventory_craft_2","group":"inventory","position":[536,142],"size":[32,32],"color":[0.24,0.24,0.24,1],"visible":false},
-      {"type":"panel","id":"inventory_craft_3","group":"inventory","position":[500,178],"size":[32,32],"color":[0.24,0.24,0.24,1],"visible":false},
-      {"type":"panel","id":"inventory_craft_4","group":"inventory","position":[536,178],"size":[32,32],"color":[0.24,0.24,0.24,1],"visible":false},
-      {"type":"label","id":"inventory_craft_arrow","group":"inventory","text":">","position":[578,162],"font_size":32,"color":[0.45,0.45,0.45,1],"visible":false},
-      {"type":"panel","id":"inventory_craft_out","group":"inventory","position":[608,160],"size":[32,32],"color":[0.24,0.24,0.24,1],"visible":false},
-      {"type":"image","id":"inventory_carry_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[0,0],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"label","id":"inventory_carry","group":"inventory","text":"","position":[0,0],"font_size":16,"color":[1,1,1,1],"visible":false},
-      {"type":"image","id":"hotbar_frame","group":"hotbar","texture":"asset://textures/gui_widgets","position":[202,474],"size":[455,55],"source_position":[0,0],"source_size":[182,22],"visible":true},
-      {"type":"image","id":"hotbar_1_icon","group":"hotbar","texture":"asset://textures/terrain_atlas","position":[221,492],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"hotbar_2_icon","group":"hotbar","texture":"asset://textures/terrain_atlas","position":[271,492],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"hotbar_3_icon","group":"hotbar","texture":"asset://textures/terrain_atlas","position":[321,492],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"hotbar_4_icon","group":"hotbar","texture":"asset://textures/terrain_atlas","position":[371,492],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"hotbar_5_icon","group":"hotbar","texture":"asset://textures/terrain_atlas","position":[421,492],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"hotbar_6_icon","group":"hotbar","texture":"asset://textures/terrain_atlas","position":[471,492],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"hotbar_7_icon","group":"hotbar","texture":"asset://textures/terrain_atlas","position":[521,492],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"hotbar_8_icon","group":"hotbar","texture":"asset://textures/terrain_atlas","position":[571,492],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"hotbar_9_icon","group":"hotbar","texture":"asset://textures/terrain_atlas","position":[621,492],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"hotbar_select","group":"hotbar","texture":"asset://textures/gui_widgets","position":[202,473],"size":[60,60],"source_position":[0,22],"source_size":[24,24],"visible":true},
-      {"type":"panel","id":"hotbar_1_select","group":"hotbar","position":[207,475],"size":[50,50],"color":[1,1,1,0],"visible":true},
-      {"type":"panel","id":"hotbar_1_bg","group":"hotbar","position":[211,479],"size":[42,42],"color":[0.08,0.08,0.08,0.74],"visible":true},
-      {"type":"label","id":"hotbar_1_item","group":"hotbar","text":"","position":[216,487],"font_size":12,"color":[0.95,0.95,0.95,1],"visible":true},
-      {"type":"label","id":"hotbar_1_count","group":"hotbar","text":"","position":[237,505],"font_size":13,"color":[1,1,1,1],"visible":true},
-      {"type":"panel","id":"hotbar_2_select","group":"hotbar","position":[257,475],"size":[50,50],"color":[1,1,1,0],"visible":true},
-      {"type":"panel","id":"hotbar_2_bg","group":"hotbar","position":[261,479],"size":[42,42],"color":[0.08,0.08,0.08,0.74],"visible":true},
-      {"type":"label","id":"hotbar_2_item","group":"hotbar","text":"","position":[266,487],"font_size":12,"color":[0.95,0.95,0.95,1],"visible":true},
-      {"type":"label","id":"hotbar_2_count","group":"hotbar","text":"","position":[287,505],"font_size":13,"color":[1,1,1,1],"visible":true},
-      {"type":"panel","id":"hotbar_3_select","group":"hotbar","position":[307,475],"size":[50,50],"color":[1,1,1,0],"visible":true},
-      {"type":"panel","id":"hotbar_3_bg","group":"hotbar","position":[311,479],"size":[42,42],"color":[0.08,0.08,0.08,0.74],"visible":true},
-      {"type":"label","id":"hotbar_3_item","group":"hotbar","text":"","position":[316,487],"font_size":12,"color":[0.95,0.95,0.95,1],"visible":true},
-      {"type":"label","id":"hotbar_3_count","group":"hotbar","text":"","position":[337,505],"font_size":13,"color":[1,1,1,1],"visible":true},
-      {"type":"panel","id":"hotbar_4_select","group":"hotbar","position":[357,475],"size":[50,50],"color":[1,1,1,0],"visible":true},
-      {"type":"panel","id":"hotbar_4_bg","group":"hotbar","position":[361,479],"size":[42,42],"color":[0.08,0.08,0.08,0.74],"visible":true},
-      {"type":"label","id":"hotbar_4_item","group":"hotbar","text":"","position":[366,487],"font_size":12,"color":[0.95,0.95,0.95,1],"visible":true},
-      {"type":"label","id":"hotbar_4_count","group":"hotbar","text":"","position":[387,505],"font_size":13,"color":[1,1,1,1],"visible":true},
-      {"type":"panel","id":"hotbar_5_select","group":"hotbar","position":[407,475],"size":[50,50],"color":[1,1,1,0],"visible":true},
-      {"type":"panel","id":"hotbar_5_bg","group":"hotbar","position":[411,479],"size":[42,42],"color":[0.08,0.08,0.08,0.74],"visible":true},
-      {"type":"label","id":"hotbar_5_item","group":"hotbar","text":"","position":[416,487],"font_size":12,"color":[0.95,0.95,0.95,1],"visible":true},
-      {"type":"label","id":"hotbar_5_count","group":"hotbar","text":"","position":[437,505],"font_size":13,"color":[1,1,1,1],"visible":true},
-      {"type":"panel","id":"hotbar_6_select","group":"hotbar","position":[457,475],"size":[50,50],"color":[1,1,1,0],"visible":true},
-      {"type":"panel","id":"hotbar_6_bg","group":"hotbar","position":[461,479],"size":[42,42],"color":[0.08,0.08,0.08,0.74],"visible":true},
-      {"type":"label","id":"hotbar_6_item","group":"hotbar","text":"","position":[466,487],"font_size":12,"color":[0.95,0.95,0.95,1],"visible":true},
-      {"type":"label","id":"hotbar_6_count","group":"hotbar","text":"","position":[487,505],"font_size":13,"color":[1,1,1,1],"visible":true},
-      {"type":"panel","id":"hotbar_7_select","group":"hotbar","position":[507,475],"size":[50,50],"color":[1,1,1,0],"visible":true},
-      {"type":"panel","id":"hotbar_7_bg","group":"hotbar","position":[511,479],"size":[42,42],"color":[0.08,0.08,0.08,0.74],"visible":true},
-      {"type":"label","id":"hotbar_7_item","group":"hotbar","text":"","position":[516,487],"font_size":12,"color":[0.95,0.95,0.95,1],"visible":true},
-      {"type":"label","id":"hotbar_7_count","group":"hotbar","text":"","position":[537,505],"font_size":13,"color":[1,1,1,1],"visible":true},
-      {"type":"panel","id":"hotbar_8_select","group":"hotbar","position":[557,475],"size":[50,50],"color":[1,1,1,0],"visible":true},
-      {"type":"panel","id":"hotbar_8_bg","group":"hotbar","position":[561,479],"size":[42,42],"color":[0.08,0.08,0.08,0.74],"visible":true},
-      {"type":"label","id":"hotbar_8_item","group":"hotbar","text":"","position":[566,487],"font_size":12,"color":[0.95,0.95,0.95,1],"visible":true},
-      {"type":"label","id":"hotbar_8_count","group":"hotbar","text":"","position":[587,505],"font_size":13,"color":[1,1,1,1],"visible":true},
-      {"type":"panel","id":"hotbar_9_select","group":"hotbar","position":[607,475],"size":[50,50],"color":[1,1,1,0],"visible":true},
-      {"type":"panel","id":"hotbar_9_bg","group":"hotbar","position":[611,479],"size":[42,42],"color":[0.08,0.08,0.08,0.74],"visible":true},
-      {"type":"label","id":"hotbar_9_item","group":"hotbar","text":"","position":[616,487],"font_size":12,"color":[0.95,0.95,0.95,1],"visible":true},
-      {"type":"label","id":"hotbar_9_count","group":"hotbar","text":"","position":[637,505],"font_size":13,"color":[1,1,1,1],"visible":true},
-      {"type":"panel","id":"inventory_slot_1_bg","group":"inventory","position":[320,262],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_1_item","group":"inventory","text":"","position":[326,268],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_1_count","group":"inventory","text":"","position":[340,282],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_2_bg","group":"inventory","position":[356,262],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_2_item","group":"inventory","text":"","position":[362,268],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_2_count","group":"inventory","text":"","position":[376,282],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_3_bg","group":"inventory","position":[392,262],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_3_item","group":"inventory","text":"","position":[398,268],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_3_count","group":"inventory","text":"","position":[412,282],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_4_bg","group":"inventory","position":[428,262],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_4_item","group":"inventory","text":"","position":[434,268],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_4_count","group":"inventory","text":"","position":[448,282],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_5_bg","group":"inventory","position":[464,262],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_5_item","group":"inventory","text":"","position":[470,268],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_5_count","group":"inventory","text":"","position":[484,282],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_6_bg","group":"inventory","position":[500,262],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_6_item","group":"inventory","text":"","position":[506,268],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_6_count","group":"inventory","text":"","position":[520,282],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_7_bg","group":"inventory","position":[536,262],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_7_item","group":"inventory","text":"","position":[542,268],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_7_count","group":"inventory","text":"","position":[556,282],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_8_bg","group":"inventory","position":[572,262],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_8_item","group":"inventory","text":"","position":[578,268],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_8_count","group":"inventory","text":"","position":[592,282],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_9_bg","group":"inventory","position":[608,262],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_9_item","group":"inventory","text":"","position":[614,268],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_9_count","group":"inventory","text":"","position":[628,282],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_10_bg","group":"inventory","position":[320,298],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_10_item","group":"inventory","text":"","position":[326,304],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_10_count","group":"inventory","text":"","position":[340,318],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_11_bg","group":"inventory","position":[356,298],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_11_item","group":"inventory","text":"","position":[362,304],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_11_count","group":"inventory","text":"","position":[376,318],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_12_bg","group":"inventory","position":[392,298],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_12_item","group":"inventory","text":"","position":[398,304],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_12_count","group":"inventory","text":"","position":[412,318],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_13_bg","group":"inventory","position":[428,298],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_13_item","group":"inventory","text":"","position":[434,304],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_13_count","group":"inventory","text":"","position":[448,318],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_14_bg","group":"inventory","position":[464,298],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_14_item","group":"inventory","text":"","position":[470,304],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_14_count","group":"inventory","text":"","position":[484,318],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_15_bg","group":"inventory","position":[500,298],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_15_item","group":"inventory","text":"","position":[506,304],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_15_count","group":"inventory","text":"","position":[520,318],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_16_bg","group":"inventory","position":[536,298],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_16_item","group":"inventory","text":"","position":[542,304],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_16_count","group":"inventory","text":"","position":[556,318],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_17_bg","group":"inventory","position":[572,298],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_17_item","group":"inventory","text":"","position":[578,304],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_17_count","group":"inventory","text":"","position":[592,318],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_18_bg","group":"inventory","position":[608,298],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_18_item","group":"inventory","text":"","position":[614,304],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_18_count","group":"inventory","text":"","position":[628,318],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_19_bg","group":"inventory","position":[320,334],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_19_item","group":"inventory","text":"","position":[326,340],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_19_count","group":"inventory","text":"","position":[340,354],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_20_bg","group":"inventory","position":[356,334],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_20_item","group":"inventory","text":"","position":[362,340],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_20_count","group":"inventory","text":"","position":[376,354],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_21_bg","group":"inventory","position":[392,334],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_21_item","group":"inventory","text":"","position":[398,340],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_21_count","group":"inventory","text":"","position":[412,354],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_22_bg","group":"inventory","position":[428,334],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_22_item","group":"inventory","text":"","position":[434,340],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_22_count","group":"inventory","text":"","position":[448,354],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_23_bg","group":"inventory","position":[464,334],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_23_item","group":"inventory","text":"","position":[470,340],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_23_count","group":"inventory","text":"","position":[484,354],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_24_bg","group":"inventory","position":[500,334],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_24_item","group":"inventory","text":"","position":[506,340],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_24_count","group":"inventory","text":"","position":[520,354],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_25_bg","group":"inventory","position":[536,334],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_25_item","group":"inventory","text":"","position":[542,340],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_25_count","group":"inventory","text":"","position":[556,354],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_26_bg","group":"inventory","position":[572,334],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_26_item","group":"inventory","text":"","position":[578,340],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_26_count","group":"inventory","text":"","position":[592,354],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_27_bg","group":"inventory","position":[608,334],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_27_item","group":"inventory","text":"","position":[614,340],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_27_count","group":"inventory","text":"","position":[628,354],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_hotbar_label_bar","group":"inventory","position":[304,332],"size":[356,2],"color":[0.35,0.35,0.35,1],"visible":false},
-      {"type":"label","id":"inventory_hotbar_label","group":"inventory","text":"Hotbar","position":[304,342],"font_size":18,"color":[0.13,0.13,0.13,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_28_bg","group":"inventory","position":[320,390],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_28_item","group":"inventory","text":"","position":[326,396],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_28_count","group":"inventory","text":"","position":[340,410],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_29_bg","group":"inventory","position":[356,390],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_29_item","group":"inventory","text":"","position":[362,396],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_29_count","group":"inventory","text":"","position":[376,410],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_30_bg","group":"inventory","position":[392,390],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_30_item","group":"inventory","text":"","position":[398,396],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_30_count","group":"inventory","text":"","position":[412,410],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_31_bg","group":"inventory","position":[428,390],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_31_item","group":"inventory","text":"","position":[434,396],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_31_count","group":"inventory","text":"","position":[448,410],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_32_bg","group":"inventory","position":[464,390],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_32_item","group":"inventory","text":"","position":[470,396],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_32_count","group":"inventory","text":"","position":[484,410],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_33_bg","group":"inventory","position":[500,390],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_33_item","group":"inventory","text":"","position":[506,396],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_33_count","group":"inventory","text":"","position":[520,410],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_34_bg","group":"inventory","position":[536,390],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_34_item","group":"inventory","text":"","position":[542,396],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_34_count","group":"inventory","text":"","position":[556,410],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_35_bg","group":"inventory","position":[572,390],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_35_item","group":"inventory","text":"","position":[578,396],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_35_count","group":"inventory","text":"","position":[592,410],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"panel","id":"inventory_slot_36_bg","group":"inventory","position":[608,390],"size":[32,32],"color":[0.22,0.22,0.22,1],"visible":false},
-      {"type":"label","id":"inventory_slot_36_item","group":"inventory","text":"","position":[614,396],"font_size":11,"color":[0.96,0.96,0.96,1],"visible":false},
-      {"type":"label","id":"inventory_slot_36_count","group":"inventory","text":"","position":[628,410],"font_size":12,"color":[1,1,1,1],"visible":false},
-      {"type":"image","id":"inventory_slot_1_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[326,268],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_2_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[362,268],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_3_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[398,268],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_4_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[434,268],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_5_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[470,268],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_6_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[506,268],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_7_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[542,268],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_8_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[578,268],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_9_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[614,268],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_10_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[326,304],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_11_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[362,304],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_12_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[398,304],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_13_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[434,304],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_14_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[470,304],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_15_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[506,304],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_16_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[542,304],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_17_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[578,304],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_18_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[614,304],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_19_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[326,340],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_20_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[362,340],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_21_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[398,340],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_22_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[434,340],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_23_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[470,340],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_24_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[506,340],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_25_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[542,340],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_26_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[578,340],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_27_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[614,340],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_28_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[326,396],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_29_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[362,396],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_30_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[398,396],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_31_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[434,396],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_32_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[470,396],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_33_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[506,396],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_34_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[542,396],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_35_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[578,396],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false},
-      {"type":"image","id":"inventory_slot_36_icon","group":"inventory","texture":"asset://textures/terrain_atlas","position":[614,396],"size":[24,24],"source_position":[0,0],"source_size":[16,16],"visible":false}
+      {
+        "id": "inventory",
+        "type": "container",
+        "visible": false,
+        "children": [
+          {
+            "type": "panel",
+            "id": "inventory_dim",
+            "position": [
+              0,
+              0
+            ],
+            "size": [
+              960,
+              540
+            ],
+            "background_color": [
+              0,
+              0,
+              0,
+              0.34
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_panel",
+            "position": [
+              304,
+              96
+            ],
+            "size": [
+              352,
+              332
+            ],
+            "background_color": [
+              0.76,
+              0.76,
+              0.76,
+              0.98
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_panel_shadow",
+            "position": [
+              312,
+              104
+            ],
+            "size": [
+              336,
+              316
+            ],
+            "background_color": [
+              0.88,
+              0.88,
+              0.88,
+              0.32
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_title",
+            "text": "",
+            "position": [
+              304,
+              108
+            ],
+            "font_size": 24,
+            "color": [
+              0.13,
+              0.13,
+              0.13,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_player_preview",
+            "position": [
+              356,
+              124
+            ],
+            "size": [
+              112,
+              104
+            ],
+            "background_color": [
+              0.04,
+              0.04,
+              0.04,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_armor_1",
+            "position": [
+              320,
+              124
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.24,
+              0.24,
+              0.24,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_armor_2",
+            "position": [
+              320,
+              160
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.24,
+              0.24,
+              0.24,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_armor_3",
+            "position": [
+              320,
+              196
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.24,
+              0.24,
+              0.24,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_armor_4",
+            "position": [
+              320,
+              232
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.24,
+              0.24,
+              0.24,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_craft_1",
+            "position": [
+              500,
+              142
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.24,
+              0.24,
+              0.24,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_craft_2",
+            "position": [
+              536,
+              142
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.24,
+              0.24,
+              0.24,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_craft_3",
+            "position": [
+              500,
+              178
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.24,
+              0.24,
+              0.24,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_craft_4",
+            "position": [
+              536,
+              178
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.24,
+              0.24,
+              0.24,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_craft_arrow",
+            "text": ">",
+            "position": [
+              578,
+              162
+            ],
+            "font_size": 32,
+            "color": [
+              0.45,
+              0.45,
+              0.45,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_craft_out",
+            "position": [
+              608,
+              160
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.24,
+              0.24,
+              0.24,
+              1
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_carry_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              0,
+              0
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_carry",
+            "text": "",
+            "position": [
+              0,
+              0
+            ],
+            "font_size": 16,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_1_bg",
+            "position": [
+              320,
+              262
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_1_item",
+            "text": "",
+            "position": [
+              326,
+              268
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_1_count",
+            "text": "",
+            "position": [
+              340,
+              282
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_2_bg",
+            "position": [
+              356,
+              262
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_2_item",
+            "text": "",
+            "position": [
+              362,
+              268
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_2_count",
+            "text": "",
+            "position": [
+              376,
+              282
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_3_bg",
+            "position": [
+              392,
+              262
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_3_item",
+            "text": "",
+            "position": [
+              398,
+              268
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_3_count",
+            "text": "",
+            "position": [
+              412,
+              282
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_4_bg",
+            "position": [
+              428,
+              262
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_4_item",
+            "text": "",
+            "position": [
+              434,
+              268
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_4_count",
+            "text": "",
+            "position": [
+              448,
+              282
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_5_bg",
+            "position": [
+              464,
+              262
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_5_item",
+            "text": "",
+            "position": [
+              470,
+              268
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_5_count",
+            "text": "",
+            "position": [
+              484,
+              282
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_6_bg",
+            "position": [
+              500,
+              262
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_6_item",
+            "text": "",
+            "position": [
+              506,
+              268
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_6_count",
+            "text": "",
+            "position": [
+              520,
+              282
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_7_bg",
+            "position": [
+              536,
+              262
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_7_item",
+            "text": "",
+            "position": [
+              542,
+              268
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_7_count",
+            "text": "",
+            "position": [
+              556,
+              282
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_8_bg",
+            "position": [
+              572,
+              262
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_8_item",
+            "text": "",
+            "position": [
+              578,
+              268
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_8_count",
+            "text": "",
+            "position": [
+              592,
+              282
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_9_bg",
+            "position": [
+              608,
+              262
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_9_item",
+            "text": "",
+            "position": [
+              614,
+              268
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_9_count",
+            "text": "",
+            "position": [
+              628,
+              282
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_10_bg",
+            "position": [
+              320,
+              298
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_10_item",
+            "text": "",
+            "position": [
+              326,
+              304
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_10_count",
+            "text": "",
+            "position": [
+              340,
+              318
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_11_bg",
+            "position": [
+              356,
+              298
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_11_item",
+            "text": "",
+            "position": [
+              362,
+              304
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_11_count",
+            "text": "",
+            "position": [
+              376,
+              318
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_12_bg",
+            "position": [
+              392,
+              298
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_12_item",
+            "text": "",
+            "position": [
+              398,
+              304
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_12_count",
+            "text": "",
+            "position": [
+              412,
+              318
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_13_bg",
+            "position": [
+              428,
+              298
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_13_item",
+            "text": "",
+            "position": [
+              434,
+              304
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_13_count",
+            "text": "",
+            "position": [
+              448,
+              318
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_14_bg",
+            "position": [
+              464,
+              298
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_14_item",
+            "text": "",
+            "position": [
+              470,
+              304
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_14_count",
+            "text": "",
+            "position": [
+              484,
+              318
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_15_bg",
+            "position": [
+              500,
+              298
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_15_item",
+            "text": "",
+            "position": [
+              506,
+              304
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_15_count",
+            "text": "",
+            "position": [
+              520,
+              318
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_16_bg",
+            "position": [
+              536,
+              298
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_16_item",
+            "text": "",
+            "position": [
+              542,
+              304
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_16_count",
+            "text": "",
+            "position": [
+              556,
+              318
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_17_bg",
+            "position": [
+              572,
+              298
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_17_item",
+            "text": "",
+            "position": [
+              578,
+              304
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_17_count",
+            "text": "",
+            "position": [
+              592,
+              318
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_18_bg",
+            "position": [
+              608,
+              298
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_18_item",
+            "text": "",
+            "position": [
+              614,
+              304
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_18_count",
+            "text": "",
+            "position": [
+              628,
+              318
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_19_bg",
+            "position": [
+              320,
+              334
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_19_item",
+            "text": "",
+            "position": [
+              326,
+              340
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_19_count",
+            "text": "",
+            "position": [
+              340,
+              354
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_20_bg",
+            "position": [
+              356,
+              334
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_20_item",
+            "text": "",
+            "position": [
+              362,
+              340
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_20_count",
+            "text": "",
+            "position": [
+              376,
+              354
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_21_bg",
+            "position": [
+              392,
+              334
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_21_item",
+            "text": "",
+            "position": [
+              398,
+              340
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_21_count",
+            "text": "",
+            "position": [
+              412,
+              354
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_22_bg",
+            "position": [
+              428,
+              334
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_22_item",
+            "text": "",
+            "position": [
+              434,
+              340
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_22_count",
+            "text": "",
+            "position": [
+              448,
+              354
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_23_bg",
+            "position": [
+              464,
+              334
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_23_item",
+            "text": "",
+            "position": [
+              470,
+              340
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_23_count",
+            "text": "",
+            "position": [
+              484,
+              354
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_24_bg",
+            "position": [
+              500,
+              334
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_24_item",
+            "text": "",
+            "position": [
+              506,
+              340
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_24_count",
+            "text": "",
+            "position": [
+              520,
+              354
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_25_bg",
+            "position": [
+              536,
+              334
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_25_item",
+            "text": "",
+            "position": [
+              542,
+              340
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_25_count",
+            "text": "",
+            "position": [
+              556,
+              354
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_26_bg",
+            "position": [
+              572,
+              334
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_26_item",
+            "text": "",
+            "position": [
+              578,
+              340
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_26_count",
+            "text": "",
+            "position": [
+              592,
+              354
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_27_bg",
+            "position": [
+              608,
+              334
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_27_item",
+            "text": "",
+            "position": [
+              614,
+              340
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_27_count",
+            "text": "",
+            "position": [
+              628,
+              354
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_hotbar_label_bar",
+            "position": [
+              304,
+              332
+            ],
+            "size": [
+              356,
+              2
+            ],
+            "background_color": [
+              0.35,
+              0.35,
+              0.35,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_hotbar_label",
+            "text": "Hotbar",
+            "position": [
+              304,
+              342
+            ],
+            "font_size": 18,
+            "color": [
+              0.13,
+              0.13,
+              0.13,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_28_bg",
+            "position": [
+              320,
+              390
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_28_item",
+            "text": "",
+            "position": [
+              326,
+              396
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_28_count",
+            "text": "",
+            "position": [
+              340,
+              410
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_29_bg",
+            "position": [
+              356,
+              390
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_29_item",
+            "text": "",
+            "position": [
+              362,
+              396
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_29_count",
+            "text": "",
+            "position": [
+              376,
+              410
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_30_bg",
+            "position": [
+              392,
+              390
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_30_item",
+            "text": "",
+            "position": [
+              398,
+              396
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_30_count",
+            "text": "",
+            "position": [
+              412,
+              410
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_31_bg",
+            "position": [
+              428,
+              390
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_31_item",
+            "text": "",
+            "position": [
+              434,
+              396
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_31_count",
+            "text": "",
+            "position": [
+              448,
+              410
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_32_bg",
+            "position": [
+              464,
+              390
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_32_item",
+            "text": "",
+            "position": [
+              470,
+              396
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_32_count",
+            "text": "",
+            "position": [
+              484,
+              410
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_33_bg",
+            "position": [
+              500,
+              390
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_33_item",
+            "text": "",
+            "position": [
+              506,
+              396
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_33_count",
+            "text": "",
+            "position": [
+              520,
+              410
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_34_bg",
+            "position": [
+              536,
+              390
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_34_item",
+            "text": "",
+            "position": [
+              542,
+              396
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_34_count",
+            "text": "",
+            "position": [
+              556,
+              410
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_35_bg",
+            "position": [
+              572,
+              390
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_35_item",
+            "text": "",
+            "position": [
+              578,
+              396
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_35_count",
+            "text": "",
+            "position": [
+              592,
+              410
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "inventory_slot_36_bg",
+            "position": [
+              608,
+              390
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "background_color": [
+              0.22,
+              0.22,
+              0.22,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_36_item",
+            "text": "",
+            "position": [
+              614,
+              396
+            ],
+            "font_size": 11,
+            "color": [
+              0.96,
+              0.96,
+              0.96,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "inventory_slot_36_count",
+            "text": "",
+            "position": [
+              628,
+              410
+            ],
+            "font_size": 12,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_1_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              326,
+              268
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_2_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              362,
+              268
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_3_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              398,
+              268
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_4_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              434,
+              268
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_5_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              470,
+              268
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_6_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              506,
+              268
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_7_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              542,
+              268
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_8_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              578,
+              268
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_9_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              614,
+              268
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_10_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              326,
+              304
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_11_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              362,
+              304
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_12_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              398,
+              304
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_13_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              434,
+              304
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_14_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              470,
+              304
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_15_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              506,
+              304
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_16_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              542,
+              304
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_17_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              578,
+              304
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_18_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              614,
+              304
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_19_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              326,
+              340
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_20_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              362,
+              340
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_21_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              398,
+              340
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_22_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              434,
+              340
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_23_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              470,
+              340
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_24_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              506,
+              340
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_25_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              542,
+              340
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_26_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              578,
+              340
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_27_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              614,
+              340
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_28_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              326,
+              396
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_29_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              362,
+              396
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_30_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              398,
+              396
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_31_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              434,
+              396
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_32_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              470,
+              396
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_33_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              506,
+              396
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_34_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              542,
+              396
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_35_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              578,
+              396
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          },
+          {
+            "type": "image",
+            "id": "inventory_slot_36_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              614,
+              396
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ]
+          }
+        ],
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "hotbar",
+        "type": "container",
+        "visible": true,
+        "children": [
+          {
+            "type": "image",
+            "id": "hotbar_frame",
+            "texture": "asset://textures/gui_widgets",
+            "position": [
+              202,
+              474
+            ],
+            "size": [
+              455,
+              55
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              182,
+              22
+            ]
+          },
+          {
+            "type": "image",
+            "id": "hotbar_1_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              221,
+              492
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ],
+            "visible": false
+          },
+          {
+            "type": "image",
+            "id": "hotbar_2_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              271,
+              492
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ],
+            "visible": false
+          },
+          {
+            "type": "image",
+            "id": "hotbar_3_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              321,
+              492
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ],
+            "visible": false
+          },
+          {
+            "type": "image",
+            "id": "hotbar_4_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              371,
+              492
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ],
+            "visible": false
+          },
+          {
+            "type": "image",
+            "id": "hotbar_5_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              421,
+              492
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ],
+            "visible": false
+          },
+          {
+            "type": "image",
+            "id": "hotbar_6_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              471,
+              492
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ],
+            "visible": false
+          },
+          {
+            "type": "image",
+            "id": "hotbar_7_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              521,
+              492
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ],
+            "visible": false
+          },
+          {
+            "type": "image",
+            "id": "hotbar_8_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              571,
+              492
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ],
+            "visible": false
+          },
+          {
+            "type": "image",
+            "id": "hotbar_9_icon",
+            "texture": "asset://textures/terrain_atlas",
+            "position": [
+              621,
+              492
+            ],
+            "size": [
+              24,
+              24
+            ],
+            "source_position": [
+              0,
+              0
+            ],
+            "source_size": [
+              16,
+              16
+            ],
+            "visible": false
+          },
+          {
+            "type": "image",
+            "id": "hotbar_select",
+            "texture": "asset://textures/gui_widgets",
+            "position": [
+              202,
+              473
+            ],
+            "size": [
+              60,
+              60
+            ],
+            "source_position": [
+              0,
+              22
+            ],
+            "source_size": [
+              24,
+              24
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_1_select",
+            "position": [
+              207,
+              475
+            ],
+            "size": [
+              50,
+              50
+            ],
+            "background_color": [
+              1,
+              1,
+              1,
+              0
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_1_bg",
+            "position": [
+              211,
+              479
+            ],
+            "size": [
+              42,
+              42
+            ],
+            "background_color": [
+              0.08,
+              0.08,
+              0.08,
+              0.74
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_1_item",
+            "text": "",
+            "position": [
+              216,
+              487
+            ],
+            "font_size": 12,
+            "color": [
+              0.95,
+              0.95,
+              0.95,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_1_count",
+            "text": "",
+            "position": [
+              237,
+              505
+            ],
+            "font_size": 13,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_2_select",
+            "position": [
+              257,
+              475
+            ],
+            "size": [
+              50,
+              50
+            ],
+            "background_color": [
+              1,
+              1,
+              1,
+              0
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_2_bg",
+            "position": [
+              261,
+              479
+            ],
+            "size": [
+              42,
+              42
+            ],
+            "background_color": [
+              0.08,
+              0.08,
+              0.08,
+              0.74
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_2_item",
+            "text": "",
+            "position": [
+              266,
+              487
+            ],
+            "font_size": 12,
+            "color": [
+              0.95,
+              0.95,
+              0.95,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_2_count",
+            "text": "",
+            "position": [
+              287,
+              505
+            ],
+            "font_size": 13,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_3_select",
+            "position": [
+              307,
+              475
+            ],
+            "size": [
+              50,
+              50
+            ],
+            "background_color": [
+              1,
+              1,
+              1,
+              0
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_3_bg",
+            "position": [
+              311,
+              479
+            ],
+            "size": [
+              42,
+              42
+            ],
+            "background_color": [
+              0.08,
+              0.08,
+              0.08,
+              0.74
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_3_item",
+            "text": "",
+            "position": [
+              316,
+              487
+            ],
+            "font_size": 12,
+            "color": [
+              0.95,
+              0.95,
+              0.95,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_3_count",
+            "text": "",
+            "position": [
+              337,
+              505
+            ],
+            "font_size": 13,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_4_select",
+            "position": [
+              357,
+              475
+            ],
+            "size": [
+              50,
+              50
+            ],
+            "background_color": [
+              1,
+              1,
+              1,
+              0
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_4_bg",
+            "position": [
+              361,
+              479
+            ],
+            "size": [
+              42,
+              42
+            ],
+            "background_color": [
+              0.08,
+              0.08,
+              0.08,
+              0.74
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_4_item",
+            "text": "",
+            "position": [
+              366,
+              487
+            ],
+            "font_size": 12,
+            "color": [
+              0.95,
+              0.95,
+              0.95,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_4_count",
+            "text": "",
+            "position": [
+              387,
+              505
+            ],
+            "font_size": 13,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_5_select",
+            "position": [
+              407,
+              475
+            ],
+            "size": [
+              50,
+              50
+            ],
+            "background_color": [
+              1,
+              1,
+              1,
+              0
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_5_bg",
+            "position": [
+              411,
+              479
+            ],
+            "size": [
+              42,
+              42
+            ],
+            "background_color": [
+              0.08,
+              0.08,
+              0.08,
+              0.74
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_5_item",
+            "text": "",
+            "position": [
+              416,
+              487
+            ],
+            "font_size": 12,
+            "color": [
+              0.95,
+              0.95,
+              0.95,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_5_count",
+            "text": "",
+            "position": [
+              437,
+              505
+            ],
+            "font_size": 13,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_6_select",
+            "position": [
+              457,
+              475
+            ],
+            "size": [
+              50,
+              50
+            ],
+            "background_color": [
+              1,
+              1,
+              1,
+              0
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_6_bg",
+            "position": [
+              461,
+              479
+            ],
+            "size": [
+              42,
+              42
+            ],
+            "background_color": [
+              0.08,
+              0.08,
+              0.08,
+              0.74
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_6_item",
+            "text": "",
+            "position": [
+              466,
+              487
+            ],
+            "font_size": 12,
+            "color": [
+              0.95,
+              0.95,
+              0.95,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_6_count",
+            "text": "",
+            "position": [
+              487,
+              505
+            ],
+            "font_size": 13,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_7_select",
+            "position": [
+              507,
+              475
+            ],
+            "size": [
+              50,
+              50
+            ],
+            "background_color": [
+              1,
+              1,
+              1,
+              0
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_7_bg",
+            "position": [
+              511,
+              479
+            ],
+            "size": [
+              42,
+              42
+            ],
+            "background_color": [
+              0.08,
+              0.08,
+              0.08,
+              0.74
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_7_item",
+            "text": "",
+            "position": [
+              516,
+              487
+            ],
+            "font_size": 12,
+            "color": [
+              0.95,
+              0.95,
+              0.95,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_7_count",
+            "text": "",
+            "position": [
+              537,
+              505
+            ],
+            "font_size": 13,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_8_select",
+            "position": [
+              557,
+              475
+            ],
+            "size": [
+              50,
+              50
+            ],
+            "background_color": [
+              1,
+              1,
+              1,
+              0
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_8_bg",
+            "position": [
+              561,
+              479
+            ],
+            "size": [
+              42,
+              42
+            ],
+            "background_color": [
+              0.08,
+              0.08,
+              0.08,
+              0.74
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_8_item",
+            "text": "",
+            "position": [
+              566,
+              487
+            ],
+            "font_size": 12,
+            "color": [
+              0.95,
+              0.95,
+              0.95,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_8_count",
+            "text": "",
+            "position": [
+              587,
+              505
+            ],
+            "font_size": 13,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_9_select",
+            "position": [
+              607,
+              475
+            ],
+            "size": [
+              50,
+              50
+            ],
+            "background_color": [
+              1,
+              1,
+              1,
+              0
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "hotbar_9_bg",
+            "position": [
+              611,
+              479
+            ],
+            "size": [
+              42,
+              42
+            ],
+            "background_color": [
+              0.08,
+              0.08,
+              0.08,
+              0.74
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_9_item",
+            "text": "",
+            "position": [
+              616,
+              487
+            ],
+            "font_size": 12,
+            "color": [
+              0.95,
+              0.95,
+              0.95,
+              1
+            ]
+          },
+          {
+            "type": "label",
+            "id": "hotbar_9_count",
+            "text": "",
+            "position": [
+              637,
+              505
+            ],
+            "font_size": 13,
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ]
+          }
+        ],
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
+      },
+      {
+        "type": "label",
+        "id": "hud_hint",
+        "text": "WASD walk - Space jump - F fly - Mouse look - L/R click edit - ESC pause",
+        "position": [
+          20,
+          20
+        ],
+        "font_size": 24,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "type": "label",
+        "id": "hud_pos",
+        "text": "pos: (0.0, 0.0, 0.0)",
+        "position": [
+          20,
+          68
+        ],
+        "font_size": 24,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "type": "label",
+        "id": "hud_chunks",
+        "text": "chunks: loading",
+        "position": [
+          20,
+          116
+        ],
+        "font_size": 24,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "type": "label",
+        "id": "hud_target",
+        "text": "target: none",
+        "position": [
+          20,
+          164
+        ],
+        "font_size": 24,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "type": "label",
+        "id": "hud_performance",
+        "text": "fps: -- avg: -- 1%: -- 0.1%: --",
+        "position": [
+          20,
+          212
+        ],
+        "font_size": 24,
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "type": "rect",
+        "id": "pause_dim",
+        "position": [
+          0,
+          0
+        ],
+        "size": [
+          960,
+          540
+        ],
+        "background_color": [
+          0.02,
+          0.02,
+          0.03,
+          0.68
+        ],
+        "visible": false
+      },
+      {
+        "type": "rect",
+        "id": "pause_panel",
+        "position": [
+          300,
+          176
+        ],
+        "size": [
+          360,
+          188
+        ],
+        "background_color": [
+          0.08,
+          0.09,
+          0.11,
+          0.94
+        ],
+        "visible": false
+      },
+      {
+        "type": "label",
+        "id": "pause_title",
+        "text": "PAUSED",
+        "position": [
+          378,
+          214
+        ],
+        "font_size": 48,
+        "color": [
+          0.94,
+          0.98,
+          1,
+          1
+        ],
+        "visible": false
+      },
+      {
+        "type": "label",
+        "id": "pause_body",
+        "text": "MOUSE IS FREE",
+        "position": [
+          360,
+          284
+        ],
+        "font_size": 24,
+        "color": [
+          0.78,
+          0.86,
+          0.92,
+          1
+        ],
+        "visible": false
+      },
+      {
+        "type": "label",
+        "id": "pause_resume",
+        "text": "ESC TO RESUME",
+        "position": [
+          352,
+          322
+        ],
+        "font_size": 24,
+        "color": [
+          1,
+          0.82,
+          0.44,
+          1
+        ],
+        "visible": false
+      }
     ]
   }
 }

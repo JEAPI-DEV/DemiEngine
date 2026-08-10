@@ -503,12 +503,6 @@ void LuaEntityBindingModule::install(LuaScriptHost &host,
                                    ? jsonToLuaObject(state, *value)
                                    : sol::make_object(state, sol::nil);
                       });
-  entity.set_function("set_sprite_color", [&host](const std::string &entityId,
-                                                  float r, float g, float b,
-                                                  sol::optional<float> a) {
-    return host.setEntitySpriteColor(entityId,
-                                     Color{r, g, b, a.value_or(1.0F)});
-  });
 }
 
 } // namespace demi::runtime

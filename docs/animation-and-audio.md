@@ -86,9 +86,8 @@ Root motion is disabled unless scene data or
 `Animation.set_root_motion(entity, true)` explicitly enables it. State
 `root_motion_track` data contains evenly spaced local-space positions over the
 clip duration. The animation system extracts its delta, including across loop
-boundaries, and applies it independently of the renderer. For older data,
-`root_motion_per_second` remains a fallback. `pause_policy` is either `pause`
-or `continue`.
+boundaries, and applies it independently of the renderer. `pause_policy` is
+either `pause` or `continue`.
 
 For regular sprite sheets, `SpriteAnimator2D.atlas` can generate one clip per
 row:

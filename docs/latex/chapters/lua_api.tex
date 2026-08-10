@@ -19,11 +19,21 @@ function Script:on_destroy() end
 HUD button scripts may additionally implement:
 
 \begin{lstlisting}[language={[5.2]Lua}]
-function Script:on_ui_hover(event) end
-function Script:on_ui_click(event) end
+function Script:on_ui_event(event) end
+function Script:on_ui_value_changed(event) end
+function Script:on_ui_submit(event) end
+function Script:on_ui_drag(event) end
+function Script:on_ui_drop(event) end
 \end{lstlisting}
 
-The UI event contains \code{id}, \code{label}, \code{mouse\_x}, and \code{mouse\_y}. Mouse coordinates are in the HUD file canvas coordinate system.
+Typed events cover value changes, focus, submit/cancel, pointer enter/exit,
+press/release, drag/drop, and scroll.
+Their common payload contains \code{type}, \code{id}, \code{related\_id},
+\code{action}, \code{text}, \code{source}, \code{pointer\_id}, position and
+delta coordinates, \code{value}, \code{checked}, and \code{cancelled}.
+Coordinates are in the HUD file canvas coordinate system. Scripts can also
+subscribe to \code{ui\_event} or a specific channel such as
+\code{ui\_submit} through \code{Events}.
 
 \section{Services}
 
@@ -32,16 +42,18 @@ The current Lua services include:
 \begin{longtable}{>{\ttfamily}p{0.30\textwidth}p{0.58\textwidth}}
 Debug & Logging, debug lines, and clearing debug lines. \\
 Input & Keyboard, mouse buttons, mouse position, mouse world position, viewport size. \\
-Entity & Entity lookup, creation, destruction, and sprite appearance. \\
+Entity & Entity lookup, creation, destruction, and hierarchy. \\
+Sprite2D & Sprite animation, tint, size, layer, sorting, and material. \\
 Transform & Position, rotation, and scale access for entities with \code{Transform2D}. \\
 Timer & Delayed and repeating callbacks cancellable by timer id. \\
 Events & In-process named event subscriptions and payload delivery. \\
 Rigidbody2D & Get and set velocity and apply impulses. \\
 Physics2D & Overlap box queries. \\
-Hud & Imperative HUD text, rects, visibility, colors, groups, and text updates. \\
+Hud & Retained UI creation, mutation, visibility, colors, and text updates. \\
 Save & Simple number and string persistence in save slots. \\
 Audio & Play, stop, master volume get and set. \\
-Runtime & Quit, physics enable, window mode get and set. \\
+Physics & Global simulation enable state. \\
+Application & Quit, platform, window mode, frame limit, and application state. \\
 Scene & Runtime scene switching by scene id. \\
 \end{longtable}
 
@@ -59,17 +71,36 @@ Save.set_string("settings", "window_mode", mode)
 
 \section{HUD API}
 
-HUD elements can be generated or updated from Lua:
+HUD elements are authored in \filepath{*.hud.json}, or generated through the
+generic retained-tree API, then updated from Lua:
 
 \begin{lstlisting}[language={[5.2]Lua}]
-Hud.text("points", "POINTS: 0", 24.0, 24.0, 3.0)
-Hud.rect("panel", 20.0, 20.0, 320.0, 120.0, 0.1, 0.1, 0.2, 0.8)
 Hud.set_text("points", "POINTS: 10")
+Hud.set_font_size("points", 32.0)
 Hud.set_rect("bar", 100.0, 100.0, 200.0, 16.0)
-Hud.set_color("menu_tab_sound", 0.24, 0.27, 0.46, 0.94)
+Hud.set_background_color("menu_tab_sound", 0.24, 0.27, 0.46, 0.94)
 Hud.set_visible("points", true)
-Hud.set_group_visible("menu_main", false)
+Hud.set_visible("menu_main", false)
 \end{lstlisting}
+
+\code{Hud.accessibility\_snapshot()} returns the live backend-neutral semantic
+tree as an array. Each entry includes its stable ID, semantic parent, inferred
+role, label, description, text value, canvas bounds, numeric range, and
+focused, disabled, checked, focusable, and offscreen states. Bounds respect
+scroll clipping. Authored nodes may provide
+\code{accessibility\_label}, \code{accessibility\_description}, or
+\code{accessibility\_hidden}. Unlabeled layout containers are flattened and
+hidden/decorative subtrees are omitted. Native operating-system screen-reader
+bridges remain separate platform adapters.
+
+Uniform virtual lists use
+\code{Hud.visible\_range(item\_count, item\_extent, offset, viewport,
+overscan)}. Variable-height rows use a persistent
+\code{Hud.virtual\_layout(\{heights...\})} object. Its
+\code{visible\_range} method returns the one-based first item, live count,
+leading extent, and total scrollable extent; \code{set\_extent} updates a
+measured row and \code{item\_offset} returns placement. Invalid extents fail
+transactionally.
 
 \section{Scene Switching}
 

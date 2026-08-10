@@ -20,7 +20,7 @@ end
 
 function Game:on_start()
   Actions.bind(self)
-  Entity.set_sprite_color(Config.player_entity, 0.2, 0.9, 0.75, 0.2)
+  Sprite2D.set_color(Config.player_entity, 0.2, 0.9, 0.75, 0.2)
   HudView.show_menu("PORT " .. tostring(Config.port))
 end
 
@@ -31,7 +31,7 @@ function Game:activate(mode, sender_id)
   self.combat:set_local_player(sender_id)
 
   local color = Config.color_for(sender_id)
-  Entity.set_sprite_color(Config.player_entity, color[1], color[2], color[3], color[4])
+  Sprite2D.set_color(Config.player_entity, color[1], color[2], color[3], color[4])
   local x, y = Config.spawn_for(sender_id, 0)
   Rigidbody2D.set_velocity(Config.player_entity, 0, 0)
   Transform.set_position(Config.player_entity, x, y)
@@ -88,7 +88,7 @@ function Game:leave_match(message)
   Debug.clear_lines()
   Rigidbody2D.set_velocity(Config.player_entity, 0, 0)
   Transform.set_position(Config.player_entity, 0, 0)
-  Entity.set_sprite_color(Config.player_entity, 0.2, 0.9, 0.75, 0.2)
+  Sprite2D.set_color(Config.player_entity, 0.2, 0.9, 0.75, 0.2)
   HudView.show_menu(message or ("PORT " .. tostring(Config.port)))
 end
 

@@ -1,10 +1,10 @@
 # Example validation, headless runtime, packaging, replay, and script checks.
 add_test(NAME demi-runtime-minimal-frame
-  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json --frames 1
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json --max-frames 1
 )
 set_tests_properties(demi-runtime-minimal-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-runtime-networking-minimal-frame
-  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json --frames 1
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json --max-frames 1
 )
 set_tests_properties(demi-runtime-networking-minimal-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-runtime-multiplayer-ffa-shooter-replay
@@ -27,13 +27,13 @@ add_test(NAME demi-runtime-isometric-base-builder-replay
 )
 set_tests_properties(demi-runtime-isometric-base-builder-replay PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-runtime-fighting-game-2d-frame
-  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/demi.project.json --frames 3
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/demi.project.json --max-frames 3
 )
 set_tests_properties(demi-runtime-fighting-game-2d-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-runtime-production-2d-foundation-frame
   COMMAND demi run
     --project ${CMAKE_SOURCE_DIR}/examples/production_2d_foundation/demi.project.json
-    --frames 3
+    --max-frames 3
 )
 set_tests_properties(demi-runtime-production-2d-foundation-frame PROPERTIES
   ENVIRONMENT "DEMI_HEADLESS=1")
@@ -46,7 +46,7 @@ add_test(NAME demi-cook-fighting-game-2d
 add_test(NAME demi-runtime-cooked-fighting-game-2d
   COMMAND demi run
     --project ${CMAKE_BINARY_DIR}/generated/ctest-fighting-game-cooked/demi.project.json
-    --frames 3
+    --max-frames 3
 )
 set_tests_properties(demi-runtime-cooked-fighting-game-2d PROPERTIES
   DEPENDS demi-cook-fighting-game-2d
@@ -59,20 +59,20 @@ add_test(NAME demi-package-linux-fighting-game-2d
 )
 add_test(NAME demi-runtime-packaged-fighting-game-2d
   COMMAND ${CMAKE_BINARY_DIR}/generated/ctest-fighting-game-linux/fighting_game_2d
-    --frames 3
+    --max-frames 3
 )
 set_tests_properties(demi-runtime-packaged-fighting-game-2d PROPERTIES
   DEPENDS demi-package-linux-fighting-game-2d
   ENVIRONMENT "DEMI_HEADLESS=1"
 )
 add_test(NAME demi-runtime-minimal-3d-frame
-  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json --frames 1
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json --max-frames 1
 )
 set_tests_properties(demi-runtime-minimal-3d-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-runtime-minimal-3d-profiler
   COMMAND demi run linux
     --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json
-    --frames 3
+    --max-frames 3
     --profiler
 )
 set_tests_properties(demi-runtime-minimal-3d-profiler PROPERTIES
@@ -93,7 +93,7 @@ set_tests_properties(demi-runtime-minimal-3d-gameplay-replay PROPERTIES
 add_test(NAME demi-runtime-animation-3d-frame
   COMMAND demi run
     --project ${CMAKE_SOURCE_DIR}/examples/animation_3d/demi.project.json
-    --frames 3
+    --max-frames 3
     --profile-report ${CMAKE_BINARY_DIR}/generated/animation_3d_profile.csv
 )
 set_tests_properties(demi-runtime-animation-3d-frame PROPERTIES
@@ -101,7 +101,7 @@ set_tests_properties(demi-runtime-animation-3d-frame PROPERTIES
 add_test(NAME demi-runtime-animation-3d-selection-replay
   COMMAND demi run
     --project ${CMAKE_SOURCE_DIR}/examples/animation_3d/demi.project.json
-    --frames 10
+    --max-frames 10
     --input-replay
       ${CMAKE_SOURCE_DIR}/examples/animation_3d/replays/select_animations.replay.json
 )
@@ -110,17 +110,17 @@ set_tests_properties(demi-runtime-animation-3d-selection-replay PROPERTIES
   PASS_REGULAR_EXPRESSION "Selected animation: Jump_Loop"
 )
 add_test(NAME demi-runtime-minimal-voxel-frame
-  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/demi.project.json --frames 1
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/demi.project.json --max-frames 1
 )
 set_tests_properties(demi-runtime-minimal-voxel-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-runtime-animated-main-menu-frame
-  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/main_menu_animated/demi.project.json --frames 3
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/main_menu_animated/demi.project.json --max-frames 3
 )
 set_tests_properties(demi-runtime-animated-main-menu-frame PROPERTIES
   ENVIRONMENT "DEMI_HEADLESS=1"
   PASS_REGULAR_EXPRESSION "Loaded data-driven menu copy revision 1")
 add_test(NAME demi-runtime-gif-main-menu-frame
-  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/main_menu_gif/demi.project.json --frames 3
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/main_menu_gif/demi.project.json --max-frames 3
 )
 set_tests_properties(demi-runtime-gif-main-menu-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-validate-minimal-2d-networking
@@ -217,7 +217,7 @@ add_test(NAME demi-cook-data-driven-main-menu
 add_test(NAME demi-runtime-cooked-data-driven-main-menu
   COMMAND demi run
     --project ${CMAKE_BINARY_DIR}/generated/ctest-data-driven-main-menu/demi.project.json
-    --frames 3)
+    --max-frames 3)
 set_tests_properties(demi-runtime-cooked-data-driven-main-menu PROPERTIES
   DEPENDS demi-cook-data-driven-main-menu
   ENVIRONMENT "DEMI_HEADLESS=1"

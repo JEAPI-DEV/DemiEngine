@@ -1,5 +1,6 @@
 #include "demi/runtime/render/bgfx2d/SpriteCanvasRenderer.h"
 
+#include "demi/runtime/physics/PhysicsPresentation2D.h"
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/IsoTransformComponent.h"
@@ -27,7 +28,8 @@ bool SpriteCanvasRenderer::draw(const World &world,
                                 const Vec2 cameraPosition,
                                 const std::uint16_t viewportWidth,
                                 const std::uint16_t viewportHeight,
-                                const float animationTime) {
+                                const float animationTime,
+                                const float physicsInterpolationAlpha) {
   const float ppu =
       viewportHeight / std::max(camera.orthographicSize * 2.0F, 1.0F);
   std::vector<const Entity *> sprites;
@@ -45,18 +47,22 @@ bool SpriteCanvasRenderer::draw(const World &world,
 
   for (const Entity *entity : sprites) {
     const SpriteComponent &sprite = *entity->component<SpriteComponent>();
-    const Vec2 position = worldPosition2D(world, *entity);
+    const Vec2 position = physicsPresentationWorldPosition2D(
+        world, *entity, physicsInterpolationAlpha);
     const float screenX =
         viewportWidth * 0.5F + (position.x - cameraPosition.x) * ppu;
     const float screenY =
         viewportHeight * 0.5F - (position.y - cameraPosition.y) * ppu;
-    const float width = (sprite.size.x > 0.0F ? sprite.size.x : 1.0F) * ppu;
-    const float height = (sprite.size.y > 0.0F ? sprite.size.y : 1.0F) * ppu;
+    const Vec2 scale = worldScale2D(world, *entity);
+    const float width =
+        (sprite.size.x > 0.0F ? sprite.size.x : 1.0F) * std::abs(scale.x) * ppu;
+    const float height =
+        (sprite.size.y > 0.0F ? sprite.size.y : 1.0F) * std::abs(scale.y) * ppu;
     const std::uint32_t color = packVertexColorRgba8(sprite.color);
     const MaterialBinding *material =
         materials_ == nullptr ? nullptr : materials_->find(sprite.material);
-    const ProgramHandle program = material == nullptr ? ProgramHandle{}
-                                                       : material->program;
+    const ProgramHandle program =
+        material == nullptr ? ProgramHandle{} : material->program;
     const std::uint32_t uniformSet =
         material == nullptr ? 0U : material->uniformSet;
     const BlendMode blend =
@@ -77,11 +83,11 @@ bool SpriteCanvasRenderer::draw(const World &world,
       };
     }
 
-    const std::string &textureAsset =
-        sprite.texture.empty() && material != nullptr &&
-                !material->albedoTexture.empty()
-            ? material->albedoTexture
-            : sprite.texture;
+    const std::string &textureAsset = sprite.texture.empty() &&
+                                              material != nullptr &&
+                                              !material->albedoTexture.empty()
+                                          ? material->albedoTexture
+                                          : sprite.texture;
     TextureView2D texture;
     if (const auto *animator = entity->component<SpriteAnimator2DComponent>()) {
       texture = textures_.find(textureAsset + "#" +
@@ -106,11 +112,12 @@ bool SpriteCanvasRenderer::draw(const World &world,
         if (!canvas_.circle(screenX, screenY, std::min(width, height) * 0.5F,
                             color, 3, blend, scissor, program, uniformSet))
           return false;
-      } else if (!canvas_.solid({.x = screenX - sprite.pivot.x * width,
-                                 .y = screenY - sprite.pivot.y * height,
-                                 .width = width,
-                                 .height = height},
-                                color, blend, scissor, program, uniformSet)) {
+      } else if (!canvas_.imageTransformed(
+                     canvas_.whiteTexture(), screenX, screenY, width, height,
+                     sprite.pivot.x, sprite.pivot.y,
+                     -physicsPresentationWorldRotation2D(
+                         world, *entity, physicsInterpolationAlpha),
+                     {}, color, blend, scissor, program, uniformSet)) {
         return false;
       }
       continue;
@@ -152,7 +159,8 @@ bool SpriteCanvasRenderer::draw(const World &world,
       std::swap(source.u0, source.u1);
     if (sprite.flipY)
       std::swap(source.v0, source.v1);
-    const float rotation = -worldRotation2D(world, *entity);
+    const float rotation = -physicsPresentationWorldRotation2D(
+        world, *entity, physicsInterpolationAlpha);
     const bool sliced = sprite.sliceStart.x > 0.0F ||
                         sprite.sliceStart.y > 0.0F ||
                         sprite.sliceEnd.x > 0.0F || sprite.sliceEnd.y > 0.0F;
@@ -180,11 +188,10 @@ bool SpriteCanvasRenderer::draw(const World &world,
               },
               color, blend, scissor, program, uniformSet))
         return false;
-    } else if (!canvas_.imageTransformed(texture.handle, screenX, screenY,
-                                         width, height, sprite.pivot.x,
-                                         sprite.pivot.y, rotation, source,
-                                         color, blend, scissor, program,
-                                         uniformSet)) {
+    } else if (!canvas_.imageTransformed(
+                   texture.handle, screenX, screenY, width, height,
+                   sprite.pivot.x, sprite.pivot.y, rotation, source, color,
+                   blend, scissor, program, uniformSet)) {
       return false;
     }
   }

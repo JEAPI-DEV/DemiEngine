@@ -70,7 +70,7 @@ int main() {
   const auto external = root / "external";
   createProject(sourceProject);
   createProject(targetProject);
-  writeText(external / "main.ppm", "P3\n1 1\n255\n255 0 0\n");
+  writeText(external / "main.png", "deterministic-main-png-fixture");
   writeText(external / "dependency.png", "deterministic-png-fixture");
 
   const auto dependency =
@@ -78,7 +78,7 @@ int main() {
                            .source = external / "dependency.png",
                            .id = "asset://fixture/dependency"});
   const auto mainAsset = assets::importAsset({.projectDirectory = sourceProject,
-                                              .source = external / "main.ppm",
+                                              .source = external / "main.png",
                                               .id = "asset://fixture/main"});
   if (hasErrors(dependency.diagnostics) || hasErrors(mainAsset.diagnostics)) {
     std::cerr << "Asset import failed.\n";
@@ -145,7 +145,12 @@ int main() {
             {{"format_version", 1},
              {"id", "asset://models/fixture"},
              {"type", "Model3D"},
-             {"source", "scene.gltf"}});
+             {"source", "scene.gltf"},
+             {"importer", "gltf-model"},
+             {"importer_version", 1},
+             {"source_hash", *assets::hashFiles({modelDirectory / "scene.gltf"})},
+             {"dependencies", nlohmann::json::array()},
+             {"settings", nlohmann::json::object()}});
   if (hasErrors(assets::reimportAsset(modelDirectory / "model.asset.json"))) {
     std::cerr << "Model fixture manifest migration failed.\n";
     return 1;
@@ -252,8 +257,7 @@ int main() {
   mainDocument["attribution"] = "DemiEngine test fixture";
   mainDocument["settings"] = {{"filter", "nearest"},
                               {"wrap", "clamp"},
-                              {"mipmaps", true},
-                              {"color_key", "#0a10FF"}};
+                              {"mipmaps", true}};
   writeJson(mainAsset.manifestPath, mainDocument);
   const auto manifest = loadAssetManifest(mainAsset.manifestPath);
   if (!manifest || manifest->importer != "image" ||
@@ -262,8 +266,6 @@ int main() {
       manifest->textureSettings.filter != "nearest" ||
       manifest->textureSettings.wrap != "clamp" ||
       !manifest->textureSettings.mipmaps ||
-      manifest->textureSettings.colorKey !=
-          std::optional<std::array<std::uint8_t, 3>>{{10, 16, 255}} ||
       !manifest->generatedOutputPath ||
       !std::filesystem::exists(*manifest->generatedOutputPath)) {
     std::cerr << "Expanded manifest metadata was not preserved.\n";
@@ -281,8 +283,7 @@ int main() {
   }
   mainDocument["settings"] = {{"filter", "nearest"},
                               {"wrap", "clamp"},
-                              {"mipmaps", true},
-                              {"color_key", "#0a10FF"}};
+                              {"mipmaps", true}};
 
   mainDocument["settings"]["filter"] = "invalid";
   writeJson(mainAsset.manifestPath, mainDocument);
@@ -292,21 +293,6 @@ int main() {
     return 1;
   }
   mainDocument["settings"]["filter"] = "nearest";
-  writeJson(mainAsset.manifestPath, mainDocument);
-
-  for (const nlohmann::json invalidColorKey :
-       {nlohmann::json("000000"), nlohmann::json("#00000g"),
-        nlohmann::json::array({0, 0, 0})}) {
-    mainDocument["settings"]["color_key"] = invalidColorKey;
-    writeJson(mainAsset.manifestPath, mainDocument);
-    const AssetRegistry invalidRegistry = loadAssetRegistry(sourceProject);
-    if (!containsCode(invalidRegistry.diagnostics,
-                      "ASSET_TEXTURE_COLOR_KEY_INVALID")) {
-      std::cerr << "Invalid texture color key was not diagnosed.\n";
-      return 1;
-    }
-  }
-  mainDocument["settings"]["color_key"] = "#0a10FF";
   writeJson(mainAsset.manifestPath, mainDocument);
 
   writeText(external / "duplicate.png", "duplicate-id-fixture");
@@ -409,7 +395,7 @@ int main() {
            .outputDirectory = cooked,
            .platform = "linux"})) ||
       !std::filesystem::exists(cooked / "cook.manifest.json") ||
-      !std::filesystem::exists(cooked / "assets/fixture/main/main.ppm") ||
+      !std::filesystem::exists(cooked / "assets/fixture/main/main.png") ||
       !std::filesystem::exists(cooked /
                                "assets/fixture/dependency/dependency.png")) {
     std::cerr << "Project cooking failed.\n";
@@ -426,13 +412,15 @@ int main() {
   Diagnostic outdatedDiagnostic;
   if (loadAssetManifest(legacyManifest, &outdatedDiagnostic) ||
       outdatedDiagnostic.code != "ASSET_MANIFEST_OUTDATED" ||
-      hasErrors(assets::reimportAsset(legacyManifest)) ||
-      !loadAssetManifest(legacyManifest)) {
-    std::cerr << "Legacy manifest migration was not isolated to reimport.\n";
+      !hasErrors(assets::reimportAsset(legacyManifest)) ||
+      loadAssetManifest(legacyManifest)) {
+    std::cerr << "Outdated manifests were not rejected consistently.\n";
     return 1;
   }
 
   if (!assets::importerFor("image.png") || !assets::importerFor("sound.ogg") ||
+      !assets::importerFor("fallback.ttf") ||
+      assets::importerFor("fallback.otf")->assetType != "Font2D" ||
       !assets::importerFor("model.glb") ||
       !assets::importerFor("map.tilemap.json") ||
       assets::importerFor("unknown.xyz")) {

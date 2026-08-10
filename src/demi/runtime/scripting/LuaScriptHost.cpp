@@ -212,6 +212,11 @@ void LuaScriptHost::fixedUpdate(const float dt) {
 
 void LuaScriptHost::destroy() {
   unloadScripts();
+  if (world_ != nullptr) {
+    for (auto &[_, recycler] : world_->uiVirtualRecyclers)
+      recycler->clear(world_->ui, world_->uiTweens);
+    world_->uiVirtualRecyclers.clear();
+  }
   auto *state = static_cast<lua_State *>(state_);
   if (state != nullptr) {
     clearLuaBindingGlobals(state);

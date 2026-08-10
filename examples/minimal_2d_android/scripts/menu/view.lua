@@ -1,10 +1,11 @@
 local View = {}
+local touch_controls_enabled = Application.platform() == "android"
 
 local EXTRA_JUMP_SLOT_IDS = { "extra_jump_slot_1", "extra_jump_slot_2", "extra_jump_slot_3" }
 local EXTRA_JUMP_COIN_IDS = { "extra_jump_coin_1", "extra_jump_coin_2", "extra_jump_coin_3" }
 
 local function show_group(group, visible)
-  Hud.set_group_visible(group, visible)
+  Hud.set_visible(group, visible)
 end
 
 local function hide_network_groups()
@@ -26,8 +27,11 @@ function View.hide_menu()
 end
 
 function View.set_game_hud_visible(visible)
+  Hud.set_visible("game_hud", visible)
   Hud.set_visible("points", visible)
   Hud.set_visible("fps", visible)
+  Hud.set_visible("touch_move", visible and touch_controls_enabled)
+  Hud.set_visible("touch_jump", visible and touch_controls_enabled)
   for i = 1, 3 do
     Hud.set_visible(EXTRA_JUMP_SLOT_IDS[i], visible)
     Hud.set_visible(EXTRA_JUMP_COIN_IDS[i], false)

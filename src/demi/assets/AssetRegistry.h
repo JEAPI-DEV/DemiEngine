@@ -2,7 +2,6 @@
 
 #include "demi/diagnostics/Diagnostic.h"
 
-#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -15,7 +14,6 @@ struct TextureImporterSettings {
   std::string filter;
   std::string wrap = "clamp";
   bool mipmaps = false;
-  std::optional<std::array<std::uint8_t, 3>> colorKey;
 };
 
 struct AssetManifest {
@@ -47,9 +45,6 @@ struct AssetRegistry {
 [[nodiscard]] std::optional<AssetManifest>
 loadAssetManifest(const std::filesystem::path &manifestPath,
                   Diagnostic *diagnostic = nullptr);
-[[nodiscard]] std::optional<AssetManifest>
-loadAssetManifestForMigration(const std::filesystem::path &manifestPath,
-                              Diagnostic *diagnostic = nullptr);
 [[nodiscard]] AssetRegistry
 loadAssetRegistry(const std::filesystem::path &projectDirectory);
 [[nodiscard]] const AssetManifest *findAsset(const AssetRegistry &registry,

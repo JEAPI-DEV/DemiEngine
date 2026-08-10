@@ -106,7 +106,29 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
   tilemaps_.clear();
   textureAnimations_.clear();
   bool success = materials_.load(registry, diagnostics);
+  std::string fontError;
+  font_.shutdown();
+  if (!font_.initializeDefault(48.0F, fontError)) {
+    diagnostics.push_back("asset://fonts/default: " + fontError);
+    return false;
+  }
   for (const AssetManifest &asset : registry.assets) {
+    if (asset.type == "Font2D") {
+      const auto bytes = readBytes(asset.sourcePath);
+      std::uint64_t revision = 1469598103934665603ULL;
+      for (const unsigned char byte : asset.sourceHash) {
+        revision ^= byte;
+        revision *= 1099511628211ULL;
+      }
+      std::string error;
+      if (bytes.empty() ||
+          !font_.addFallback(asset.id, bytes, revision, error)) {
+        diagnostics.push_back(asset.id + ": " +
+                              (error.empty() ? "could not read source" : error));
+        success = false;
+      }
+      continue;
+    }
     if (asset.type == "Tilemap2D") {
       std::string error;
       auto tilemap = loadTilemapAsset(asset, error);
@@ -125,8 +147,7 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
         if (bytes.empty() ||
             !textures_.load(asset.id + "#" + std::to_string(frame), bytes,
                             error,
-                            textureSampling(asset, TextureFilter::Nearest),
-                            asset.textureSettings.colorKey)) {
+                            textureSampling(asset, TextureFilter::Nearest))) {
           diagnostics.push_back(
               asset.id + " frame " + std::to_string(frame) + ": " +
               (error.empty() ? "could not read source" : error));
@@ -154,8 +175,7 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
       for (std::size_t frame = 0; frame < animation.frames.size(); ++frame) {
         if (!textures_.upload(asset.id + "#" + std::to_string(frame),
                               animation.frames[frame], error,
-                              textureSampling(asset, TextureFilter::Nearest),
-                              asset.textureSettings.colorKey)) {
+                              textureSampling(asset, TextureFilter::Nearest))) {
           diagnostics.push_back(asset.id + " frame " + std::to_string(frame) +
                                 ": " + error);
           uploaded = false;
@@ -176,8 +196,7 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
       if (!decodeSvg2D(asset.sourcePath, asset.type == "Icon2D", image,
                        error) ||
           !textures_.upload(asset.id, image, error,
-                            textureSampling(asset, TextureFilter::Linear),
-                            asset.textureSettings.colorKey)) {
+                            textureSampling(asset, TextureFilter::Linear))) {
         diagnostics.push_back(asset.id + ": " + error);
         success = false;
       }
@@ -189,8 +208,7 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
     std::string error;
     if (bytes.empty() ||
         !textures_.load(asset.id, bytes, error,
-                        textureSampling(asset, TextureFilter::Nearest),
-                        asset.textureSettings.colorKey)) {
+                        textureSampling(asset, TextureFilter::Nearest))) {
       diagnostics.push_back(asset.id + ": " +
                             (error.empty() ? "could not read source" : error));
       success = false;
@@ -203,7 +221,8 @@ bool BgfxRenderer2D::beginFrame(const Camera2DComponent &camera,
                                 const Vec2 cameraPosition,
                                 const std::uint16_t viewportWidth,
                                 const std::uint16_t viewportHeight,
-                                const float deltaSeconds, std::string &error) {
+                                const float deltaSeconds, std::string &error,
+                                const float physicsInterpolationAlpha) {
   if (!initialized_) {
     error = "BgfxRenderer2D must be initialized before beginning a frame.";
     return false;
@@ -217,6 +236,8 @@ bool BgfxRenderer2D::beginFrame(const Camera2DComponent &camera,
   viewportWidth_ = std::max<std::uint16_t>(viewportWidth, 1);
   viewportHeight_ = std::max<std::uint16_t>(viewportHeight, 1);
   deltaSeconds_ = std::max(deltaSeconds, 0.0F);
+  physicsInterpolationAlpha_ =
+      std::clamp(physicsInterpolationAlpha, 0.0F, 1.0F);
   animationTime_ += deltaSeconds_;
   frameOpen_ = canvas_.begin(0, viewportWidth_, viewportHeight_,
                              packClearColorRgba8(camera.clearColor), error);
@@ -277,7 +298,8 @@ bool BgfxRenderer2D::drawWorld(const World &world) {
       !colliderRenderer.draw(world, camera_, cameraPosition_, viewportWidth_,
                              viewportHeight_) ||
       !spriteRenderer.draw(world, camera_, cameraPosition_, viewportWidth_,
-                           viewportHeight_, animationTime_))
+                           viewportHeight_, animationTime_,
+                           physicsInterpolationAlpha_))
     return false;
   particles_->system.update(world, deltaSeconds_);
   const auto particleData = particles_->system.renderData();

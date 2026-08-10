@@ -1,40 +1,67 @@
 {
   "format_version": 1,
-  "canvas_size": [960, 540],
+  "canvas_size": [
+    960,
+    540
+  ],
   "theme": "../ui/default.theme.json",
   "localization_file": "../ui/en.localization.json",
   "action_effects": {
     "play": {
-      "show": ["confirm_modal"],
+      "show": [
+        "confirm_modal"
+      ],
       "focus": "confirm"
     },
     "open_settings": {
-      "show": ["settings_panel"],
-      "hide": ["inventory_panel"],
+      "show": [
+        "settings_panel"
+      ],
+      "hide": [
+        "inventory_panel"
+      ],
       "focus": "window_mode_dropdown"
     },
     "open_inventory": {
-      "show": ["inventory_panel"],
-      "hide": ["settings_panel"],
+      "show": [
+        "inventory_panel"
+      ],
+      "hide": [
+        "settings_panel"
+      ],
       "focus": "inventory_search"
     },
     "confirm": {
-      "hide": ["confirm_modal"],
+      "hide": [
+        "confirm_modal"
+      ],
       "focus": "play"
     }
   },
   "root": {
     "id": "ui_root",
     "type": "container",
-    "anchor_min": [0, 0],
-    "anchor_max": [1, 1],
+    "anchor_min": [
+      0,
+      0
+    ],
+    "anchor_max": [
+      1,
+      1
+    ],
     "children": [
       {
         "id": "main_screen",
         "type": "panel",
         "style": "screen",
-        "anchor_min": [0, 0],
-        "anchor_max": [1, 1],
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ],
         "margin": 20,
         "layout": "row",
         "alignment": "stretch",
@@ -43,39 +70,151 @@
             "id": "menu",
             "type": "list",
             "style": "section",
-            "size": [240, 440],
+            "size": [
+              240,
+              440
+            ],
             "layout": "column",
             "children": [
-              {"id": "title", "type": "label", "style": "accent", "localization_key": "title", "size": [200, 42], "font_size": 30},
-              {"id": "play", "type": "button", "style": "control", "localization_key": "play", "action": "play", "accessibility_label": "Start game", "size": [200, 48]},
-              {"id": "open_settings", "type": "button", "style": "control", "localization_key": "settings", "action": "open_settings", "size": [200, 48]},
-              {"id": "open_inventory", "type": "button", "style": "control", "localization_key": "inventory", "action": "open_inventory", "size": [200, 48]}
+              {
+                "id": "title",
+                "type": "label",
+                "style": "accent",
+                "localization_key": "title",
+                "size": [
+                  200,
+                  42
+                ],
+                "font_size": 30
+              },
+              {
+                "id": "play",
+                "prefab": "ui-prefab://menu_button",
+                "arguments": {
+                  "localization_key": "play",
+                  "action": "play",
+                  "accessibility_label": "Start game"
+                }
+              },
+              {
+                "id": "open_settings",
+                "prefab": "ui-prefab://menu_button",
+                "arguments": {
+                  "localization_key": "settings",
+                  "action": "open_settings"
+                }
+              },
+              {
+                "id": "open_inventory",
+                "prefab": "ui-prefab://menu_button",
+                "arguments": {
+                  "localization_key": "inventory",
+                  "action": "open_inventory"
+                }
+              }
             ]
           },
           {
             "id": "settings_panel",
             "type": "panel",
             "style": "section",
-            "size": [290, 440],
+            "size": [
+              290,
+              440
+            ],
             "layout": "column",
             "children": [
-              {"id": "settings_title", "type": "label", "localization_key": "settings", "size": [250, 38], "font_size": 26},
-              {"id": "window_mode_dropdown", "type": "button", "style": "control", "text": "Window: Windowed  v", "action": "window_mode_dropdown", "accessibility_label": "Choose window mode", "size": [250, 44]},
+              {
+                "id": "settings_title",
+                "type": "label",
+                "localization_key": "settings",
+                "size": [
+                  250,
+                  38
+                ],
+                "font_size": 26
+              },
+              {
+                "id": "window_mode_dropdown",
+                "type": "button",
+                "style": "control",
+                "text": "Window: Windowed  v",
+                "action": "window_mode_dropdown",
+                "accessibility_label": "Choose window mode",
+                "size": [
+                  250,
+                  44
+                ]
+              },
               {
                 "id": "window_mode_options",
                 "type": "list",
                 "visible": false,
-                "size": [250, 126],
+                "size": [
+                  250,
+                  126
+                ],
                 "layout": "column",
                 "gap": 3,
                 "children": [
-                  {"id": "window_mode_windowed", "type": "button", "style": "control", "text": "Windowed", "action": "window_mode_windowed", "size": [250, 40]},
-                  {"id": "window_mode_borderless", "type": "button", "style": "control", "text": "Borderless", "action": "window_mode_borderless", "size": [250, 40]},
-                  {"id": "window_mode_fullscreen", "type": "button", "style": "control", "text": "Fullscreen", "action": "window_mode_fullscreen", "size": [250, 40]}
+                  {
+                    "id": "window_mode_windowed",
+                    "type": "button",
+                    "style": "control",
+                    "text": "Windowed",
+                    "action": "window_mode_windowed",
+                    "size": [
+                      250,
+                      40
+                    ]
+                  },
+                  {
+                    "id": "window_mode_borderless",
+                    "type": "button",
+                    "style": "control",
+                    "text": "Borderless",
+                    "action": "window_mode_borderless",
+                    "size": [
+                      250,
+                      40
+                    ]
+                  },
+                  {
+                    "id": "window_mode_fullscreen",
+                    "type": "button",
+                    "style": "control",
+                    "text": "Fullscreen",
+                    "action": "window_mode_fullscreen",
+                    "size": [
+                      250,
+                      40
+                    ]
+                  }
                 ]
               },
-              {"id": "volume", "type": "slider", "style": "accent", "accessibility_label": "Master volume", "minimum": 0, "maximum": 100, "value": 70, "size": [250, 24]},
-              {"id": "loading", "type": "progress", "style": "accent", "value": 0.65, "size": [250, 16]}
+              {
+                "id": "volume",
+                "type": "slider",
+                "style": "accent",
+                "accessibility_label": "Master volume",
+                "minimum": 0,
+                "maximum": 100,
+                "value": 70,
+                "size": [
+                  250,
+                  24
+                ]
+              },
+              {
+                "id": "loading",
+                "type": "progress",
+                "style": "accent",
+                "value": 0.65,
+                "size": [
+                  250,
+                  16
+                ]
+              }
             ]
           },
           {
@@ -83,12 +222,54 @@
             "type": "scroll",
             "style": "section",
             "visible": false,
-            "size": [290, 440],
+            "size": [
+              290,
+              440
+            ],
             "layout": "column",
             "children": [
-              {"id": "inventory_title", "type": "label", "localization_key": "inventory", "size": [250, 38], "font_size": 26},
-              {"id": "inventory_search", "type": "text_input", "style": "control", "placeholder_localization_key": "search", "size": [250, 42]},
-              {"id": "inventory_grid", "type": "list", "size": [250, 300], "layout": "grid", "columns": 3, "gap": 8}
+              {
+                "id": "inventory_title",
+                "type": "label",
+                "localization_key": "inventory",
+                "size": [
+                  250,
+                  38
+                ],
+                "font_size": 26
+              },
+              {
+                "id": "inventory_search",
+                "type": "text_input",
+                "style": "control",
+                "placeholder_localization_key": "search",
+                "size": [
+                  250,
+                  42
+                ],
+                "text_vertical_alignment": "center"
+              },
+              {
+                "id": "inventory_grid",
+                "type": "container",
+                "size": [
+                  250,
+                  300
+                ],
+                "children": [
+                  {
+                    "id": "inventory_row_template",
+                    "type": "button",
+                    "style": "control",
+                    "visible": false,
+                    "text": "Row",
+                    "size": [
+                      250,
+                      36
+                    ]
+                  }
+                ]
+              }
             ]
           }
         ]
@@ -98,12 +279,37 @@
         "type": "modal",
         "style": "screen",
         "visible": false,
-        "size": [360, 180],
+        "size": [
+          360,
+          180
+        ],
         "layout": "column",
         "alignment": "center",
         "children": [
-          {"id": "confirm_text", "type": "label", "text": "Confirm this action even when translated copy becomes much longer?", "size": [280, 64], "text_wrap": "word", "text_alignment": "center", "text_overflow": "ellipsis", "max_lines": 2},
-          {"id": "confirm", "type": "button", "style": "control", "text": "Confirm", "action": "confirm", "size": [180, 44]}
+          {
+            "id": "confirm_text",
+            "type": "label",
+            "text": "Confirm this action even when translated copy becomes much longer?",
+            "size": [
+              280,
+              64
+            ],
+            "text_wrap": "word",
+            "text_alignment": "center",
+            "text_overflow": "ellipsis",
+            "max_lines": 2
+          },
+          {
+            "id": "confirm",
+            "type": "button",
+            "style": "control",
+            "text": "Confirm",
+            "action": "confirm",
+            "size": [
+              180,
+              44
+            ]
+          }
         ]
       }
     ]

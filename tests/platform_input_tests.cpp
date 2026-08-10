@@ -51,6 +51,19 @@ void pointerDeltaAccumulatesWithinFrame() {
   assert(state.mouseDelta.y == 0.0F);
 }
 
+void pointerScrollAccumulatesWithinFrame() {
+  InputState state;
+  PlatformInput input(state);
+  input.beginFrame();
+  input.pointerScroll(1.0F, -2.0F);
+  input.pointerScroll(0.5F, 3.0F);
+  assert(state.mouseScroll.x == 1.5F);
+  assert(state.mouseScroll.y == 1.0F);
+  input.beginFrame();
+  assert(state.mouseScroll.x == 0.0F);
+  assert(state.mouseScroll.y == 0.0F);
+}
+
 void windowPointerCoordinatesMatchDrawablePixels() {
   const PointerMotion scaled = pointerMotionInDrawablePixels(
       {.position = {160.0F, 90.0F}, .delta = {4.0F, -3.0F}}, {960.0F, 540.0F},
@@ -84,8 +97,7 @@ void touchTerminalStateSurvivesOneFrame() {
 
   input.beginFrame();
   assert(state.touches.front().phase == TouchPhase::Stationary);
-  input.touch(7, TouchPhase::Ended, Vec2{11.0F, 12.0F},
-              Vec2{1.0F, 0.0F}, 0.0F);
+  input.touch(7, TouchPhase::Ended, Vec2{11.0F, 12.0F}, Vec2{1.0F, 0.0F}, 0.0F);
   assert(state.touches.front().phase == TouchPhase::Ended);
 
   input.beginFrame();
@@ -152,6 +164,7 @@ void compositionPersistsUntilChangedOrCommitted() {
 int main() {
   keyboardTransitionsIgnoreRepeats();
   pointerDeltaAccumulatesWithinFrame();
+  pointerScrollAccumulatesWithinFrame();
   windowPointerCoordinatesMatchDrawablePixels();
   touchTerminalStateSurvivesOneFrame();
   gamepadDisconnectAndUiMirroringAreStable();

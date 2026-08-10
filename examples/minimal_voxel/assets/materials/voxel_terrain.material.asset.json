@@ -4,7 +4,7 @@
   ],
   "format_version": 1,
   "id": "asset://materials/voxel_terrain",
-  "importer": "json-data",
+  "importer": "material",
   "importer_version": 1,
   "settings": {},
   "source": "voxel_terrain.material.json",

@@ -55,7 +55,7 @@ end
 
 function Game:on_start()
   if not state.auto_start then
-    Runtime.set_physics_enabled(false)
+    Physics.set_enabled(false)
     return
   end
 

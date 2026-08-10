@@ -88,6 +88,31 @@ int main() {
   capsuleWorld.entities.push_back(capsule);
   assert(buildDebugGeometry3D(capsuleWorld).size() == 100);
 
+  World characterWorld;
+  characterWorld.debug.colliders = true;
+  Entity character =
+      transformedEntity("character", {2.0F, 3.0F, 4.0F}, {2.0F, 1.0F, 0.5F});
+  character.setComponent(CharacterController3DComponent{});
+  character.setComponent(BoxCollider3DComponent{.size = {1.0F, 2.0F, 2.0F}});
+  characterWorld.entities.push_back(std::move(character));
+  lines = buildDebugGeometry3D(characterWorld);
+  assert(lines.size() == 12);
+  minimumX = lines.front().start.x;
+  maximumX = minimumX;
+  minimumY = lines.front().start.y;
+  maximumY = minimumY;
+  for (const DebugLine3D &line : lines)
+    for (const Vec3 point : {line.start, line.end}) {
+      minimumX = std::min(minimumX, point.x);
+      maximumX = std::max(maximumX, point.x);
+      minimumY = std::min(minimumY, point.y);
+      maximumY = std::max(maximumY, point.y);
+    }
+  assert(close(minimumX, 1.0F));
+  assert(close(maximumX, 3.0F));
+  assert(close(minimumY, 2.0F));
+  assert(close(maximumY, 4.0F));
+
   World convexWorld;
   convexWorld.debug.colliders = true;
   Entity convex = transformedEntity("convex");

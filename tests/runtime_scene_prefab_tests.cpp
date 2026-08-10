@@ -39,14 +39,15 @@ int main() {
   RuntimePrefabService prefabs;
   prefabs.configure(minimal3D->project.projectDirectory);
   WorldCommandBuffer commands;
-  const auto spawned = prefabs.instantiate(
-      minimal3D->world, commands, "prefab://player",
-      {.id = "runtime_player",
-       .position = Vec3{.x = 4.0F, .y = 2.0F, .z = 3.0F},
-       .pooled = true});
+  const auto spawned =
+      prefabs.instantiate(minimal3D->world, commands, "prefab://player",
+                          {.id = "runtime_player",
+                           .position = Vec3{.x = 4.0F, .y = 2.0F, .z = 3.0F},
+                           .pooled = true});
   if (!spawned ||
       spawned.entityIds != std::vector<std::string>{"runtime_player/body"}) {
-    std::cerr << "Runtime prefab expansion did not preserve stable local ids.\n";
+    std::cerr
+        << "Runtime prefab expansion did not preserve stable local ids.\n";
     return 1;
   }
   (void)commands.flush(minimal3D->world);
@@ -55,6 +56,15 @@ int main() {
       player->prefabLocalId != "body" ||
       player->component<Transform3DComponent>()->position.x != 4.0F) {
     std::cerr << "Runtime prefab identity or root placement was incorrect.\n";
+    return 1;
+  }
+  const auto *playerBox = player->component<BoxCollider3DComponent>();
+  if (playerBox == nullptr ||
+      !player->hasComponent<CharacterController3DComponent>() ||
+      player->hasComponent<Rigidbody3DComponent>() ||
+      playerBox->size.x != 1.0F || playerBox->size.y != 1.0F ||
+      playerBox->size.z != 1.0F) {
+    std::cerr << "Minimal 3D cube does not use a matching box collider.\n";
     return 1;
   }
   if (!prefabs.release(minimal3D->world, commands, "runtime_player")) {
@@ -67,11 +77,11 @@ int main() {
     std::cerr << "Pooled prefab was not retained in a disabled state.\n";
     return 1;
   }
-  const auto reused = prefabs.instantiate(
-      minimal3D->world, commands, "prefab://player",
-      {.id = "ignored_for_pool",
-       .position = Vec3{.x = 8.0F, .y = 1.0F, .z = 2.0F},
-       .pooled = true});
+  const auto reused =
+      prefabs.instantiate(minimal3D->world, commands, "prefab://player",
+                          {.id = "ignored_for_pool",
+                           .position = Vec3{.x = 8.0F, .y = 1.0F, .z = 2.0F},
+                           .pooled = true});
   (void)commands.flush(minimal3D->world);
   player = findEntity(minimal3D->world, "runtime_player/body");
   if (!reused || reused.instanceId != "runtime_player" || player == nullptr ||
@@ -122,8 +132,7 @@ int main() {
     return 1;
   }
   const auto unloaded = scenes.unload(
-      networking->world, "scene://minimal_2d_networking/platformer",
-      resources);
+      networking->world, "scene://minimal_2d_networking/platformer", resources);
   if (!unloaded ||
       networking->world.loadedSceneIds.contains(
           "scene://minimal_2d_networking/platformer") ||

@@ -146,17 +146,6 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
       (void)active;
 #endif
     });
-  input.set_function("axis", [&host](const std::string& negative, const std::string& positive) { return (host.isKeyDown(positive) ? 1.0F : 0.0F) - (host.isKeyDown(negative) ? 1.0F : 0.0F); });
-  input.set_function("vector", [&host](const std::string& left, const std::string& right, const std::string& down, const std::string& up) {
-      float x = (host.isKeyDown(right) ? 1.0F : 0.0F) - (host.isKeyDown(left) ? 1.0F : 0.0F);
-      float y = (host.isKeyDown(up) ? 1.0F : 0.0F) - (host.isKeyDown(down) ? 1.0F : 0.0F);
-      const float length = std::sqrt(x * x + y * y);
-      if (length > 0.0F) {
-        x /= length;
-        y /= length;
-      }
-      return std::tuple{x, y};
-    });
   input.set_function("mouse_down", [&host](const std::string& button) { return host.isMouseDown(button); });
   input.set_function("mouse_position", [&host] { const Vec2 value = host.mousePosition(); return std::tuple{value.x, value.y}; });
   input.set_function("mouse_delta", [&host] { const Vec2 value = host.mouseDelta(); return std::tuple{value.x, value.y}; });
@@ -200,30 +189,31 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
   scene.set_function("active", [&host] { return host.activeSceneId(); });
   scene.set_function("error", [&host] { return host.sceneFlowError(); });
 
-  sol::table runtime = lua.create_named_table("Runtime");
-  runtime.set_function("quit", [&host] { host.requestQuit(); });
-#if defined(__ANDROID__)
-  runtime.set_function("platform", [] { return "android"; });
-#elif defined(_WIN32)
-  runtime.set_function("platform", [] { return "windows"; });
-#elif defined(__APPLE__)
-  runtime.set_function("platform", [] { return "macos"; });
-#elif defined(__linux__)
-  runtime.set_function("platform", [] { return "linux"; });
-#else
-  runtime.set_function("platform", [] { return "unknown"; });
-#endif
-  runtime.set_function("set_physics_enabled", [&host](bool enabled) { host.setPhysicsEnabled(enabled); });
-  runtime.set_function("set_window_mode", [&host](const std::string& mode) { host.setWindowMode(mode); });
-  runtime.set_function("get_window_mode", [&host] { return host.windowMode(); });
-  runtime.set_function("set_max_fps", [&host](double maxFps) { host.setMaxFps(static_cast<int>(std::round(maxFps))); });
-  runtime.set_function("get_max_fps", [&host] { return host.maxFps(); });
-  runtime.set_function("set_mouse_captured", [&host](bool captured) { host.setMouseCaptured(captured); });
-  runtime.set_function("get_mouse_captured", [&host] { return host.mouseCaptured(); });
-  runtime.set_function("is_focused", [&host] { return host.applicationFocused(); });
-  runtime.set_function("is_suspended", [&host] { return host.applicationSuspended(); });
+  sol::table physics = lua.create_named_table("Physics");
+  physics.set_function("set_enabled", [&host](bool enabled) {
+    host.setPhysicsEnabled(enabled);
+  });
+  physics.set_function("enabled", [&host] { return host.physicsEnabled(); });
 
   sol::table application = lua.create_named_table("Application");
+  application.set_function("quit", [&host] { host.requestQuit(); });
+#if defined(__ANDROID__)
+  application.set_function("platform", [] { return "android"; });
+#elif defined(_WIN32)
+  application.set_function("platform", [] { return "windows"; });
+#elif defined(__APPLE__)
+  application.set_function("platform", [] { return "macos"; });
+#elif defined(__linux__)
+  application.set_function("platform", [] { return "linux"; });
+#else
+  application.set_function("platform", [] { return "unknown"; });
+#endif
+  application.set_function("set_window_mode", [&host](const std::string& mode) { host.setWindowMode(mode); });
+  application.set_function("window_mode", [&host] { return host.windowMode(); });
+  application.set_function("set_max_fps", [&host](double maxFps) { host.setMaxFps(static_cast<int>(std::round(maxFps))); });
+  application.set_function("max_fps", [&host] { return host.maxFps(); });
+  application.set_function("set_mouse_captured", [&host](bool captured) { host.setMouseCaptured(captured); });
+  application.set_function("mouse_captured", [&host] { return host.mouseCaptured(); });
   application.set_function("safe_area", [&host] {
       const auto value = host.applicationServices().safeArea();
       return std::tuple{value.left, value.top, value.right, value.bottom};

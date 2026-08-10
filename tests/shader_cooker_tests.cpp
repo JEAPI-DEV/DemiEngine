@@ -73,7 +73,7 @@ int main() {
         nlohmann::json({{"format_version", 1},
                         {"id", "asset://shaders/simple"},
                         {"type", "Shader"},
-                        {"importer", "json-data"},
+                        {"importer", "shader"},
                         {"importer_version", 1},
                         {"source", "simple.shader.json"},
                         {"source_hash", *sourceHash},

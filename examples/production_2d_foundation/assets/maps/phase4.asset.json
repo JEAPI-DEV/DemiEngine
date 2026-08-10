@@ -5,7 +5,7 @@
   ],
   "format_version": 1,
   "id": "asset://phase4/map",
-  "importer": "json-data",
+  "importer": "tilemap2d",
   "importer_version": 1,
   "settings": {},
   "source": "phase4.tilemap.json",

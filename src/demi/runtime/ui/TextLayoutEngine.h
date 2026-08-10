@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/ui/UiModel.h"
+#include "demi/runtime/ui/TextShaper.h"
 
 #include <cstddef>
 #include <functional>
@@ -29,6 +30,9 @@ struct TextLayoutRequest {
   TextVerticalAlignment vertical = TextVerticalAlignment::Start;
   TextOverflow overflow = TextOverflow::Clip;
   std::size_t maxLines = 0;
+  TextDirection direction = TextDirection::Auto;
+  std::string locale;
+  std::uint64_t fontRevision = 0;
 };
 
 struct TextLineLayout {
@@ -38,6 +42,7 @@ struct TextLineLayout {
   float x = 0.0F;
   float y = 0.0F;
   float width = 0.0F;
+  TextShapeResult shaped;
 };
 
 struct TextLayoutResult {
@@ -56,14 +61,24 @@ struct TextLayoutResult {
     float height = 0.0F;
   };
   std::vector<Caret> carets;
+  struct VisualSegment {
+    std::size_t graphemeStart = 0;
+    std::size_t graphemeCount = 0;
+    std::size_t line = 0;
+    float x = 0.0F;
+    float width = 0.0F;
+  };
+  std::vector<VisualSegment> visualSegments;
 };
 
 using TextMeasure = std::function<float(std::string_view)>;
+using TextShape = std::function<TextShapeResult(std::string_view)>;
 
 class TextLayoutEngine {
 public:
   [[nodiscard]] TextLayoutResult layout(const TextLayoutRequest &request,
-                                        const TextMeasure &measure = {}) const;
+                                        const TextMeasure &measure = {},
+                                        const TextShape &shape = {}) const;
   [[nodiscard]] static std::size_t graphemeCount(std::string_view text);
   [[nodiscard]] static std::optional<std::string>
   graphemeSlice(std::string_view text, std::size_t first,

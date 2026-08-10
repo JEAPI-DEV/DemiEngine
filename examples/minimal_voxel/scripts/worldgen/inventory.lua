@@ -65,8 +65,8 @@ local function set_inventory_open(inventory, open)
   end
   inventory.open = open
   inventory.dirty = true
-  Runtime.set_mouse_captured(not open)
-  Hud.set_group_visible("inventory", open)
+  Application.set_mouse_captured(not open)
+  Hud.set_visible("inventory", open)
 end
 
 local function canvas_mouse()
@@ -178,20 +178,20 @@ local function set_slot_hud(prefix, index, stack, selected, open)
     Hud.set_image(icon_id, config.pack.texture, tile * 16.0, 0.0, 16.0, 16.0)
     Hud.set_visible(icon_id, show_icon)
     Hud.set_text(slot_id(prefix, index, "item"), empty_label)
-    Hud.set_color(slot_id(prefix, index, "bg"), 0.08, 0.08, 0.08, prefix == "hotbar" and 0.0 or 1.0)
+    Hud.set_background_color(slot_id(prefix, index, "bg"), 0.08, 0.08, 0.08, prefix == "hotbar" and 0.0 or 1.0)
   else
     local color = block_colors[stack.block]
     if color == nil then
-      Hud.set_color(slot_id(prefix, index, "bg"), 0.08, 0.08, 0.08, prefix == "hotbar" and 0.0 or 1.0)
+      Hud.set_background_color(slot_id(prefix, index, "bg"), 0.08, 0.08, 0.08, prefix == "hotbar" and 0.0 or 1.0)
     else
-      Hud.set_color(slot_id(prefix, index, "bg"), color[1], color[2], color[3], prefix == "hotbar" and 0.88 or 1.0)
+      Hud.set_background_color(slot_id(prefix, index, "bg"), color[1], color[2], color[3], prefix == "hotbar" and 0.88 or 1.0)
     end
     Hud.set_visible(icon_id, false)
     Hud.set_text(slot_id(prefix, index, "item"), block_label(stack.block))
   end
   Hud.set_text(slot_id(prefix, index, "count"), stack_count_text(stack))
   if prefix == "hotbar" then
-    Hud.set_color(slot_id(prefix, index, "select"), 1.0, 1.0, 1.0, 0.0)
+    Hud.set_background_color(slot_id(prefix, index, "select"), 1.0, 1.0, 1.0, 0.0)
     if selected then
       Hud.set_rect("hotbar_select", 202.0 + ((index - 1) * 50.0), 473.0, 60.0, 60.0)
     end
@@ -226,8 +226,8 @@ function Inventory.create()
 end
 
 function Inventory.create_hud()
-  Hud.set_group_visible("inventory", false)
-  Hud.set_group_visible("hotbar", true)
+  Hud.set_visible("inventory", false)
+  Hud.set_visible("hotbar", true)
 end
 
 function Inventory.is_open(inventory)
@@ -353,9 +353,13 @@ function Inventory.update_hud(inventory)
       Hud.set_image("inventory_carry_icon", config.pack.texture, tile * 16.0, 0.0, 16.0, 16.0)
       Hud.set_rect("inventory_carry_icon", x + 10.0, y + 8.0, 24.0, 24.0)
       Hud.set_visible("inventory_carry_icon", true)
-      Hud.text("inventory_carry", inventory.carried.count > 1 and tostring(inventory.carried.count) or "", x + 28.0, y + 24.0, 1.0, 1.0, 1.0, 1.0, 1.0)
+      Hud.set_text("inventory_carry", inventory.carried.count > 1 and tostring(inventory.carried.count) or "")
+      Hud.set_position("inventory_carry", x + 28.0, y + 24.0)
+      Hud.set_font_size("inventory_carry", 8.0)
     else
-      Hud.text("inventory_carry", block_label(inventory.carried.block) .. " " .. tostring(inventory.carried.count), x + 14.0, y + 10.0, 1.2, 1.0, 1.0, 1.0, 1.0)
+      Hud.set_text("inventory_carry", block_label(inventory.carried.block) .. " " .. tostring(inventory.carried.count))
+      Hud.set_position("inventory_carry", x + 14.0, y + 10.0)
+      Hud.set_font_size("inventory_carry", 9.6)
     end
     Hud.set_visible("inventory_carry", true)
   else

@@ -1,27 +1,343 @@
 {
   "format_version": 1,
-  "canvas_size": [960,540],
+  "canvas_size": [
+    960,
+    540
+  ],
   "root": {
     "id": "ui_root",
     "type": "container",
-    "anchor_min": [0,0],
-    "anchor_max": [1,1],
+    "anchor_min": [
+      0,
+      0
+    ],
+    "anchor_max": [
+      1,
+      1
+    ],
     "children": [
-      {"type":"label","id":"points","group":"game_hud","text":"POINTS: 0","position":[24,24],"color":[1,1,1,1],"visible":false,"font_size":24},
-      {"type":"label","id":"fps","group":"game_hud","text":"FPS: 0","position":[820,24],"color":[0.86,0.96,1,1],"visible":false,"font_size":20},
-      {"type":"panel","id":"extra_jump_slot_1","group":"game_hud","position":[24,88],"size":[42,42],"color":[0.12,0.13,0.19,0.82],"visible":false},
-      {"type":"panel","id":"extra_jump_coin_1","group":"game_hud","position":[36,100],"size":[18,18],"color":[1,0.78,0.2,1],"visible":false},
-      {"type":"panel","id":"extra_jump_slot_2","group":"game_hud","position":[24,136],"size":[42,42],"color":[0.12,0.13,0.19,0.82],"visible":false},
-      {"type":"panel","id":"extra_jump_coin_2","group":"game_hud","position":[36,148],"size":[18,18],"color":[1,0.78,0.2,1],"visible":false},
-      {"type":"panel","id":"extra_jump_slot_3","group":"game_hud","position":[24,184],"size":[42,42],"color":[0.12,0.13,0.19,0.82],"visible":false},
-      {"type":"panel","id":"extra_jump_coin_3","group":"game_hud","position":[36,196],"size":[18,18],"color":[1,0.78,0.2,1],"visible":false},
-      {"type":"panel","id":"game_over_shade","group":"game_over","position":[0,0],"size":[960,540],"color":[0.02,0.015,0.09,0.86],"visible":false},
-      {"type":"panel","id":"game_over_panel","group":"game_over","position":[210,120],"size":[540,300],"color":[0.08,0.07,0.18,0.94],"visible":false},
-      {"type":"panel","id":"game_over_panel_glow","group":"game_over","position":[226,132],"size":[508,5],"color":[0.98,0.56,0.74,0.74],"visible":false},
-      {"type":"label","id":"game_over_title","group":"game_over","text":"GAME OVER","position":[318,162],"color":[0.94,0.98,1,1],"visible":false,"font_size":56},
-      {"type":"label","id":"game_over_points","group":"game_over","text":"POINTS: 0","position":[362,252],"color":[1,0.78,0.46,1],"visible":false,"font_size":32},
-      {"type":"button","id":"game_over_back","group":"game_over","position":[300,346],"size":[150,48],"color":[0.17,0.2,0.38,0.94],"hover_color":[0.28,0.33,0.52,0.94],"text_color":[0.94,0.98,1,1],"action":"game_over_back","visible":false,"text":"MAIN MENU","font_size":24},
-      {"type":"button","id":"game_retry","group":"game_over","position":[500,346],"size":[150,48],"color":[0.17,0.2,0.38,0.94],"hover_color":[0.28,0.33,0.52,0.94],"text_color":[0.94,0.98,1,1],"action":"game_retry","visible":false,"text":"TRY AGAIN","font_size":24}
+      {
+        "id": "game_hud",
+        "type": "container",
+        "visible": true,
+        "children": [
+          {
+            "type": "label",
+            "id": "points",
+            "text": "POINTS: 0",
+            "position": [
+              24,
+              24
+            ],
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "font_size": 24
+          },
+          {
+            "type": "label",
+            "id": "fps",
+            "text": "FPS: 0",
+            "position": [
+              820,
+              24
+            ],
+            "color": [
+              0.86,
+              0.96,
+              1,
+              1
+            ],
+            "font_size": 20
+          },
+          {
+            "type": "panel",
+            "id": "extra_jump_slot_1",
+            "position": [
+              24,
+              88
+            ],
+            "size": [
+              42,
+              42
+            ],
+            "background_color": [
+              0.12,
+              0.13,
+              0.19,
+              0.82
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "extra_jump_coin_1",
+            "position": [
+              36,
+              100
+            ],
+            "size": [
+              18,
+              18
+            ],
+            "background_color": [
+              1,
+              0.78,
+              0.2,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "extra_jump_slot_2",
+            "position": [
+              24,
+              136
+            ],
+            "size": [
+              42,
+              42
+            ],
+            "background_color": [
+              0.12,
+              0.13,
+              0.19,
+              0.82
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "extra_jump_coin_2",
+            "position": [
+              36,
+              148
+            ],
+            "size": [
+              18,
+              18
+            ],
+            "background_color": [
+              1,
+              0.78,
+              0.2,
+              1
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "extra_jump_slot_3",
+            "position": [
+              24,
+              184
+            ],
+            "size": [
+              42,
+              42
+            ],
+            "background_color": [
+              0.12,
+              0.13,
+              0.19,
+              0.82
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "extra_jump_coin_3",
+            "position": [
+              36,
+              196
+            ],
+            "size": [
+              18,
+              18
+            ],
+            "background_color": [
+              1,
+              0.78,
+              0.2,
+              1
+            ]
+          }
+        ],
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "game_over",
+        "type": "container",
+        "visible": false,
+        "children": [
+          {
+            "type": "panel",
+            "id": "game_over_shade",
+            "position": [
+              0,
+              0
+            ],
+            "size": [
+              960,
+              540
+            ],
+            "background_color": [
+              0.02,
+              0.015,
+              0.09,
+              0.86
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "game_over_panel",
+            "position": [
+              210,
+              120
+            ],
+            "size": [
+              540,
+              300
+            ],
+            "background_color": [
+              0.08,
+              0.07,
+              0.18,
+              0.94
+            ]
+          },
+          {
+            "type": "panel",
+            "id": "game_over_panel_glow",
+            "position": [
+              226,
+              132
+            ],
+            "size": [
+              508,
+              5
+            ],
+            "background_color": [
+              0.98,
+              0.56,
+              0.74,
+              0.74
+            ]
+          },
+          {
+            "type": "label",
+            "id": "game_over_title",
+            "text": "GAME OVER",
+            "position": [
+              318,
+              162
+            ],
+            "color": [
+              0.94,
+              0.98,
+              1,
+              1
+            ],
+            "font_size": 56
+          },
+          {
+            "type": "label",
+            "id": "game_over_points",
+            "text": "POINTS: 0",
+            "position": [
+              362,
+              252
+            ],
+            "color": [
+              1,
+              0.78,
+              0.46,
+              1
+            ],
+            "font_size": 32
+          },
+          {
+            "type": "button",
+            "id": "game_over_back",
+            "position": [
+              300,
+              346
+            ],
+            "size": [
+              150,
+              48
+            ],
+            "hover_color": [
+              0.28,
+              0.33,
+              0.52,
+              0.94
+            ],
+            "text_color": [
+              0.94,
+              0.98,
+              1,
+              1
+            ],
+            "action": "game_over_back",
+            "text": "MAIN MENU",
+            "font_size": 24,
+            "background_color": [
+              0.17,
+              0.2,
+              0.38,
+              0.94
+            ]
+          },
+          {
+            "type": "button",
+            "id": "game_retry",
+            "position": [
+              500,
+              346
+            ],
+            "size": [
+              150,
+              48
+            ],
+            "hover_color": [
+              0.28,
+              0.33,
+              0.52,
+              0.94
+            ],
+            "text_color": [
+              0.94,
+              0.98,
+              1,
+              1
+            ],
+            "action": "game_retry",
+            "text": "TRY AGAIN",
+            "font_size": 24,
+            "background_color": [
+              0.17,
+              0.2,
+              0.38,
+              0.94
+            ]
+          }
+        ],
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
+      }
     ]
   }
 }

@@ -102,7 +102,7 @@ draws through bgfx and batches compatible quads and triangle primitives.
 Texture decoding/upload/replacement, transformed and masked sprites, animated
 tilemaps, retained UI nodes, scroll clipping, scalable TTF glyph atlases,
 nine-patch geometry, isometric grids/entities, particles, GIF and image-frame
-animations, navigation and physics debug overlays, P3/P6 PPM compatibility,
+animations, navigation and physics debug overlays, production image formats,
 and per-frame draw statistics have Noop-backed regression coverage.
 `BgfxRenderer2D` now composes those specialized renderers behind one
 runtime-facing API and owns asset reload, frame sequencing, and shared

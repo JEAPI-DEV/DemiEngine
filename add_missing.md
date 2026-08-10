@@ -374,8 +374,9 @@ regressions. See `docs/3d-gameplay.md`.
   - fixed-step interpolation.
 - Define valid dynamic/static mesh-collider rules and make validation reject
   unsafe combinations.
-- Add a reusable capsule character controller with slope, step, grounding,
-  slide, and moving-platform behavior.
+- Add a reusable character controller with developer-selected box, sphere,
+  capsule, or convex collision geometry plus slope, step, grounding, slide,
+  and moving-platform behavior.
 - Add common joints and configurable constraints only after rigidbody behavior
   is stable.
 - Expose world/local transform directions, look-at, screen/world conversion,

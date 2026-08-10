@@ -33,13 +33,17 @@ Alignment alignment(const std::string &value) {
   return Alignment::Start;
 }
 TextWrapMode textWrap(const std::string &value) {
-  if (value == "word") return TextWrapMode::Word;
-  if (value == "grapheme") return TextWrapMode::Grapheme;
+  if (value == "word")
+    return TextWrapMode::Word;
+  if (value == "grapheme")
+    return TextWrapMode::Grapheme;
   return TextWrapMode::None;
 }
 TextOverflowMode textOverflow(const std::string &value) {
-  if (value == "visible") return TextOverflowMode::Visible;
-  if (value == "ellipsis") return TextOverflowMode::Ellipsis;
+  if (value == "visible")
+    return TextOverflowMode::Visible;
+  if (value == "ellipsis")
+    return TextOverflowMode::Ellipsis;
   return TextOverflowMode::Clip;
 }
 void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
@@ -61,7 +65,10 @@ void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
   node.script = scene_loading::stringOr(json, "script");
   node.accessibilityLabel =
       scene_loading::stringOr(json, "accessibility_label");
-  node.group = scene_loading::stringOr(json, "group");
+  node.accessibilityDescription =
+      scene_loading::stringOr(json, "accessibility_description");
+  node.accessibilityHidden =
+      scene_loading::boolField(json, "accessibility_hidden").value_or(false);
   if (auto value = scene_loading::vec2Field(json, "position"))
     node.layout.position = *value;
   else if (auto value = scene_loading::vec2Field(json, "center"))
@@ -116,16 +123,14 @@ void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
   node.borderWidth =
       scene_loading::numberField(json, "border_width").value_or(0.0F);
   node.radius = scene_loading::numberField(json, "radius").value_or(0.0F);
-  node.deadzone =
-      scene_loading::numberField(json, "deadzone").value_or(0.15F);
+  node.deadzone = scene_loading::numberField(json, "deadzone").value_or(0.15F);
   node.layer = static_cast<int>(
       scene_loading::numberField(json, "layer").value_or(0.0F));
   if (auto value = scene_loading::vec2Field(json, "source_position"))
     node.sourcePosition = *value;
   if (auto value = scene_loading::vec2Field(json, "source_size"))
     node.sourceSize = *value;
-  if (auto value = scene_loading::stringOr(json, "animation");
-      !value.empty()) {
+  if (auto value = scene_loading::stringOr(json, "animation"); !value.empty()) {
     node.animation = value;
     node.animationFrame = static_cast<int>(
         scene_loading::numberField(json, "animation_frame").value_or(0.0F));
@@ -147,7 +152,8 @@ void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
   node.placeholderLocalizationKey =
       scene_loading::stringOr(json, "placeholder_localization_key");
   if (!node.placeholderLocalizationKey.empty()) {
-    const auto localized = out.localization.find(node.placeholderLocalizationKey);
+    const auto localized =
+        out.localization.find(node.placeholderLocalizationKey);
     if (localized != out.localization.end())
       node.placeholder = localized->second;
   }

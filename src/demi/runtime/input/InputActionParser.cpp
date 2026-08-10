@@ -19,15 +19,10 @@ std::string normalized(std::string value) {
 }
 
 void parseBinding(const Json &value, InputAction &action) {
-  if (value.is_string()) {
-    action.bindings.push_back({.input = normalized(value.get<std::string>())});
-    return;
-  }
   if (!value.is_object())
     return;
-  std::string input = scene_loading::stringOr(
-      value, "input", scene_loading::stringOr(value, "key"));
-  if (input.empty())
+  std::string input = scene_loading::stringOr(value, "input");
+  if (input.empty() || input.find(':') == std::string::npos)
     return;
   InputBinding binding{
       .input = normalized(std::move(input)),
@@ -50,9 +45,9 @@ void parseBinding(const Json &value, InputAction &action) {
 InputActionType actionType(const Json &definition) {
   const std::string type =
       normalized(scene_loading::stringOr(definition, "type", "button"));
-  if (type == "axis" || type == "axis1d" || type == "1d")
+  if (type == "axis1d")
     return InputActionType::Axis1D;
-  if (type == "vector" || type == "vector2" || type == "2d")
+  if (type == "vector2")
     return InputActionType::Vector2;
   return InputActionType::Button;
 }
@@ -70,24 +65,21 @@ InputActionMap parseInputActions(const nlohmann::json &projectDocument) {
 
   for (const auto &[name, definition] : actions->items()) {
     InputAction action;
-    if (definition.is_object()) {
-      action.type = actionType(definition);
-      action.context =
-          normalized(scene_loading::stringOr(definition, "context", "gameplay"));
-      action.player = definition.value("player", -1);
-    }
-    const Json *bindings =
-        definition.is_array()
-            ? &definition
-            : scene_loading::arrayField(definition, "bindings");
+    if (!definition.is_object() || !definition.contains("type") ||
+        !definition.contains("context"))
+      continue;
+    const std::string typeName =
+        normalized(scene_loading::stringOr(definition, "type"));
+    if (typeName != "button" && typeName != "axis1d" &&
+        typeName != "vector2")
+      continue;
+    action.type = actionType(definition);
+    action.context = normalized(scene_loading::stringOr(definition, "context"));
+    action.player = definition.value("player", -1);
+    const Json *bindings = scene_loading::arrayField(definition, "bindings");
     if (bindings != nullptr)
       for (const Json &binding : *bindings)
         parseBinding(binding, action);
-    if ((!definition.is_object() || !definition.contains("type")) &&
-        std::ranges::any_of(action.bindings, [](const InputBinding &binding) {
-          return binding.scale != 1.0F;
-        }))
-      action.type = InputActionType::Axis1D;
     if (!action.bindings.empty())
       result[normalized(name)] = std::move(action);
   }

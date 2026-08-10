@@ -15,6 +15,7 @@ int main() {
       "frames": [
         {"keys_down": ["d"], "keys_pressed": ["space"],
          "keys_released": ["a"], "mouse_position": [10, 20],
+         "mouse_scroll": [1, -2],
          "gamepads": [{
            "device_id": 2, "player": 1, "name": "fixture",
            "buttons_down": ["south"], "buttons_pressed": ["south"],
@@ -45,13 +46,13 @@ int main() {
       !state.keysDown.contains("d") || !state.keysPressed.contains("space") ||
       !state.keysReleased.contains("a") || state.gamepads.size() != 1 ||
       state.gamepads[0].player != 1 ||
-      state.gamepads[0].axes["left_x"] != 0.75F ||
-      state.touches.size() != 1 || state.touches[0].id != 42 ||
-      state.virtualAxes["move"].y != -0.5F ||
+      state.gamepads[0].axes["left_x"] != 0.75F || state.touches.size() != 1 ||
+      state.touches[0].id != 42 || state.virtualAxes["move"].y != -0.5F ||
       !state.recordedActions["jump"].pressed ||
-      state.mousePosition.y != 20.0F || !replay->apply(1, state) ||
-      !state.keysDown.contains("a") || state.keysDown.contains("d") ||
-      state.textEntered != "x" || state.textComposition != "candidate" ||
+      state.mousePosition.y != 20.0F || state.mouseScroll.y != -2.0F ||
+      !replay->apply(1, state) || !state.keysDown.contains("a") ||
+      state.keysDown.contains("d") || state.textEntered != "x" ||
+      state.textComposition != "candidate" ||
       state.textCompositionSelectionStart != 2 ||
       state.textCompositionSelectionLength != 3 ||
       !state.textCompositionChanged || replay->apply(2, state)) {

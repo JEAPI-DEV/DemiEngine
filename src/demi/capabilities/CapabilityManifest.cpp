@@ -225,7 +225,8 @@ void verifyNoPrivateDependencies(const std::filesystem::path &projectDirectory,
            .path = entry.path().string(),
            .suggestion =
                "Use a public engine API, project-local authored source, or a "
-               "validated asset://, prefab://, scene://, or script:// ID."});
+               "validated asset://, prefab://, ui-prefab://, scene://, or "
+               "script:// ID."});
     }
   }
 }

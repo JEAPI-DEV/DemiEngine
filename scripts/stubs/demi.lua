@@ -145,17 +145,6 @@ function Input.gestures() end
 function Input.text_entered() end
 ---@param active boolean
 function Input.set_text_input_active(active) end
----@param negative_key string
----@param positive_key string
----@return number
-function Input.axis(negative_key, positive_key) end
----@param left string
----@param right string
----@param down string
----@param up string
----@return number x
----@return number y
-function Input.vector(left, right, down, up) end
 ---@param button string
 ---@return boolean
 function Input.mouse_down(button) end
@@ -177,6 +166,21 @@ function Input.ui_pointer_captured(pointer_id) end
 
 ---@class ApplicationService
 Application = {}
+function Application.quit() end
+---@return "android"|"windows"|"macos"|"linux"|"unknown"
+function Application.platform() end
+---@param mode string
+function Application.set_window_mode(mode) end
+---@return string mode
+function Application.window_mode() end
+---@param max_fps number
+function Application.set_max_fps(max_fps) end
+---@return integer max_fps
+function Application.max_fps() end
+---@param captured boolean
+function Application.set_mouse_captured(captured) end
+---@return boolean captured
+function Application.mouse_captured() end
 ---@return number left
 ---@return number top
 ---@return number right
@@ -323,13 +327,6 @@ function Entity.local_position(entity_id) end
 ---@param entity_id string
 ---@return number[]|nil
 function Entity.world_position(entity_id) end
----@param entity_id string
----@param r number
----@param g number
----@param b number
----@param a? number
----@return boolean
-function Entity.set_sprite_color(entity_id, r, g, b, a) end
 
 ---@class TransformService
 Transform = {}
@@ -429,6 +426,13 @@ function Transform3D.look_at(entity_id, x, y, z) end
 
 ---@class Sprite2DService
 Sprite2D = {}
+---@param entity_id string
+---@param r number
+---@param g number
+---@param b number
+---@param a? number
+---@return boolean
+function Sprite2D.set_color(entity_id, r, g, b, a) end
 ---@param entity_id string
 ---@param clip string
 ---@param restart? boolean
@@ -643,29 +647,12 @@ function Prefab.release(instance_or_entity_id) end
 ---@return integer
 function Prefab.pooled_count(prefab_id) end
 
----@class RuntimeService
-Runtime = {}
-function Runtime.quit() end
----@return "android"|"windows"|"macos"|"linux"|"unknown"
-function Runtime.platform() end
+---@class PhysicsService
+Physics = {}
 ---@param enabled boolean
-function Runtime.set_physics_enabled(enabled) end
----@param mode string
-function Runtime.set_window_mode(mode) end
----@return string mode
-function Runtime.get_window_mode() end
----@param max_fps number
-function Runtime.set_max_fps(max_fps) end
----@return integer max_fps
-function Runtime.get_max_fps() end
----@param captured boolean
-function Runtime.set_mouse_captured(captured) end
----@return boolean captured
-function Runtime.get_mouse_captured() end
+function Physics.set_enabled(enabled) end
 ---@return boolean
-function Runtime.is_focused() end
----@return boolean
-function Runtime.is_suspended() end
+function Physics.enabled() end
 
 ---@class Rigidbody2DService
 Rigidbody2D = {}
@@ -1036,6 +1023,29 @@ Hud = {}
 ---@class HudNodeHandle
 ---@field id string
 ---@field generation integer
+---@class HudVirtualLayout
+HudVirtualLayout = {}
+---@return integer
+function HudVirtualLayout:item_count() end
+---@return number
+function HudVirtualLayout:total_extent() end
+---@param scroll_offset number
+---@param viewport_extent number
+---@param overscan? integer
+---@return integer first One-based logical item index.
+---@return integer count Number of live rows needed.
+---@return number leading_extent Offset of the first returned item.
+---@return number total_extent Total scrollable extent.
+function HudVirtualLayout:visible_range(scroll_offset, viewport_extent, overscan) end
+---@param index integer One-based logical item index.
+---@param extent number
+---@return boolean changed
+---@return string error
+function HudVirtualLayout:set_extent(index, extent) end
+---@param index integer One-based logical item index.
+---@return number offset
+---@return string error
+function HudVirtualLayout:item_offset(index) end
 ---@class HudNodeDefinition
 ---@field id string
 ---@field type? string
@@ -1044,6 +1054,8 @@ Hud = {}
 ---@field style? string
 ---@field texture? string
 ---@field accessibility_label? string
+---@field accessibility_description? string
+---@field accessibility_hidden? boolean
 ---@field visible? boolean
 ---@field disabled? boolean
 ---@field focusable? boolean
@@ -1082,6 +1094,28 @@ function Hud.clear_children(parent) end
 ---@param parent string
 ---@return string[]
 function Hud.children(parent) end
+---@alias HudAccessibilityRole "generic"|"group"|"static_text"|"image"|"button"|"check_box"|"slider"|"text_field"|"scroll_area"|"list"|"progress_bar"|"dialog"|"joystick"
+---@class HudAccessibilityNode
+---@field id string
+---@field parent string
+---@field role HudAccessibilityRole
+---@field label string
+---@field description string
+---@field value_text string
+---@field x number
+---@field y number
+---@field width number
+---@field height number
+---@field value number
+---@field minimum number
+---@field maximum number
+---@field focused boolean
+---@field disabled boolean
+---@field checked boolean
+---@field focusable boolean
+---@field offscreen boolean
+---@return HudAccessibilityNode[]
+function Hud.accessibility_snapshot() end
 ---@param node HudNodeHandle
 ---@param property "opacity"|"x"|"y"|"scale"
 ---@param target number
@@ -1108,43 +1142,41 @@ function Hud.set_pseudo_locale(enabled) end
 ---@return integer first One-based logical item index.
 ---@return integer count Number of live rows needed.
 function Hud.visible_range(item_count, item_extent, scroll_offset, viewport_extent, overscan) end
+---@param item_extents number[]
+---@return HudVirtualLayout|nil layout
+---@return string error
+function Hud.virtual_layout(item_extents) end
+---@class HudRecycledRow
+---@field key string Stable game-owned data key.
+---@field index integer One-based logical row index.
+---@field node HudNodeHandle Generation-checked live row root.
+---@field offset number Logical offset in the collection.
+---@field extent number Logical row extent.
+---@field rebound boolean True when this pool slot was reset for a new key.
+---@param collection_id string Stable owner ID for this recycler.
+---@param row_template HudNodeHandle Hidden template node whose parent owns rows.
+---@param keys string[] Stable unique row keys in display order.
+---@param extents number[] Positive row extents matching keys.
+---@param scroll_offset number
+---@param viewport_extent number
+---@param overscan? integer
+---@return HudRecycledRow[] rows
+---@return string error
+function Hud.recycle_rows(collection_id, row_template, keys, extents, scroll_offset, viewport_extent, overscan) end
+---@param collection_id string
+---@return boolean cleared
+function Hud.clear_recycled_rows(collection_id) end
 ---@return number width
 ---@return number height
 function Hud.canvas_size() end
 ---@param id string
 ---@param text string
----@param x number
----@param y number
----@param scale? number
----@param r? number
----@param g? number
----@param b? number
----@param a? number
----@return boolean
-function Hud.text(id, text, x, y, scale, r, g, b, a) end
----@param id string
----@param scale number
----@return boolean
-function Hud.set_text_scale(id, scale) end
----@param id string
----@param x number
----@param y number
----@param width number
----@param height number
----@param r? number
----@param g? number
----@param b? number
----@param a? number
----@return boolean
-function Hud.rect(id, x, y, width, height, r, g, b, a) end
----@param id string
----@param text string
 ---@return boolean
 function Hud.set_text(id, text) end
 ---@param id string
----@param label string
+---@param size number
 ---@return boolean
-function Hud.set_button_label(id, label) end
+function Hud.set_font_size(id, size) end
 ---@param id string
 ---@param x number
 ---@param y number
@@ -1183,6 +1215,13 @@ function Hud.set_size(id, width, height) end
 ---@return boolean
 function Hud.set_color(id, r, g, b, a) end
 ---@param id string
+---@param r number
+---@param g number
+---@param b number
+---@param a? number
+---@return boolean
+function Hud.set_background_color(id, r, g, b, a) end
+---@param id string
 ---@param opacity number
 ---@return boolean
 function Hud.set_opacity(id, opacity) end
@@ -1207,10 +1246,6 @@ function Hud.set_disabled(id, disabled) end
 function Hud.focus_next(reverse) end
 ---@return string
 function Hud.focused() end
----@param group string
----@param visible boolean
----@return boolean
-function Hud.set_group_visible(group, visible) end
 ---@param id string
 ---@return string|nil
 function Hud.get_text(id) end
@@ -1819,15 +1854,53 @@ function DemiScript:on_update(dt) end
 function DemiScript:on_fixed_update(dt) end
 function DemiScript:on_destroy() end
 
----@class DemiUiEvent
+---@alias DemiUiEventType "value_changed"|"focus_gained"|"focus_lost"|"submit"|"cancel"|"pointer_enter"|"pointer_exit"|"press"|"release"|"drag_start"|"drag"|"drag_end"|"drop"|"scroll"
+---@alias DemiUiEventSource "mouse"|"touch"|"keyboard"|"controller"|"state_change"|"node_removed"
+---@class DemiTypedUiEvent
+---@field type DemiUiEventType
 ---@field id string
----@field label string
----@field mouse_x number
----@field mouse_y number
----@param event DemiUiEvent
-function DemiScript:on_ui_hover(event) end
----@param event DemiUiEvent
-function DemiScript:on_ui_click(event) end
+---@field related_id string Source for a drop, or the other node for pointer enter/exit.
+---@field action string
+---@field text string
+---@field source DemiUiEventSource|string
+---@field pointer_id integer -1 when the event has no pointer.
+---@field x number Position in HUD canvas coordinates.
+---@field y number Position in HUD canvas coordinates.
+---@field delta_x number
+---@field delta_y number
+---@field value number
+---@field checked boolean
+---@field cancelled boolean
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_event(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_value_changed(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_focus_gained(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_focus_lost(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_submit(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_cancel(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_pointer_enter(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_pointer_exit(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_press(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_release(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_drag_start(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_drag(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_drag_end(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_drop(event) end
+---@param event DemiTypedUiEvent
+function DemiScript:on_ui_scroll(event) end
 
 -- Generated from ComponentRegistry metadata.
 ---@class DemiRigidbody2DSpec

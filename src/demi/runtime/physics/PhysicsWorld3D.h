@@ -10,6 +10,7 @@
 namespace demi::runtime {
 
 struct World;
+struct Entity;
 
 class PhysicsWorld3D {
 public:
@@ -19,12 +20,10 @@ public:
   PhysicsWorld3D &operator=(const PhysicsWorld3D &) = delete;
 
   [[nodiscard]] bool available() const;
-  void step(World &world, float fixedDt,
-            Vec3 gravity = {0.0F, -9.81F, 0.0F});
+  void step(World &world, float fixedDt, Vec3 gravity = {0.0F, -9.81F, 0.0F});
 
   [[nodiscard]] bool setVelocity(const std::string &entityId, Vec3 velocity);
-  [[nodiscard]] std::optional<Vec3>
-  velocity(const std::string &entityId) const;
+  [[nodiscard]] std::optional<Vec3> velocity(const std::string &entityId) const;
   [[nodiscard]] bool addForce(const std::string &entityId, Vec3 force);
   [[nodiscard]] bool addImpulse(const std::string &entityId, Vec3 impulse);
   [[nodiscard]] bool addTorque(const std::string &entityId, Vec3 torque);
@@ -60,6 +59,10 @@ public:
               const std::string &ignoredEntityId = {}) const;
 
 private:
+  [[nodiscard]] std::vector<PhysicsQueryHit3D>
+  overlapCollider(const World &world, const Entity &entity, Vec3 position,
+                  Vec3 rotation, const std::string &ignoredEntityId = {}) const;
+
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };

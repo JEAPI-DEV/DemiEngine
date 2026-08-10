@@ -230,8 +230,8 @@ cmake --build --preset linux-release
 Headless runtime smoke tests can also run the built CLI directly:
 
 ```bash
-DEMI_HEADLESS=1 ./build/linux-debug/demi run --project examples/minimal_2d_networking/demi.project.json --frames 1
-DEMI_HEADLESS=1 ./build/linux-debug/demi run --project examples/minimal_3d/demi.project.json --frames 1
+DEMI_HEADLESS=1 ./build/linux-debug/demi run --project examples/minimal_2d_networking/demi.project.json --max-frames 1
+DEMI_HEADLESS=1 ./build/linux-debug/demi run --project examples/minimal_3d/demi.project.json --max-frames 1
 ```
 
 These source-build commands are for developing DemiEngine itself. Game-project users should normally use the shorter target commands:
@@ -343,14 +343,14 @@ function Player:on_start()
 end
 
 function Player:on_update(dt)
-  local x, y = Input.vector("a", "d", "s", "w")
+  local x, y = Input.action_vector("move")
   Transform2D.add_position(self.entity_id, x * dt * 6.0, y * dt * 6.0)
 end
 
 return Player
 ```
 
-Gameplay scripts should use high-level services such as `Entity`, `Transform2D`, `Transform3D`, `Network`, `NetworkSession`, `HUD`, `Save`, and `Runtime` instead of depending on raw C++ internals.
+Gameplay scripts should use high-level services such as `Entity`, `Transform2D`, `Transform3D`, `Network`, `NetworkSession`, `Hud`, `Save`, `Physics`, and `Application` instead of depending on raw C++ internals.
 
 ## Tests
 

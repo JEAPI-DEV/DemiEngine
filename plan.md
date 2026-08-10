@@ -427,18 +427,35 @@ by visual novels, RPGs, strategy games, settings screens, inventories, quest
 logs, editors, and lobbies. It does not add an engine-owned dialogue widget,
 inventory screen, quest screen, or other genre-specific presentation.
 
-**Status: in progress.** The 3A/3C foundation is implemented: Unicode grapheme
+**Status: completed.** The 3A/3C foundation includes Unicode grapheme
 segmentation, immutable wrapping/alignment/ellipsis results, selection/hit
 geometry, bounded caching, rich-text validation, renderer integration,
 generation-checked transactional mutations, runtime subtree cloning, bounded
-virtual ranges, locale reapplication, lifetime-bound tweens, Lua contracts,
+uniform and cached variable-height virtual ranges, locale reapplication,
+lifetime-bound tweens, Lua contracts,
 the dynamic `ui_showcase` probe, grapheme-safe caret/selection editing, and SDL
-IME composition with explicit commit/cancel behavior are covered.
-Complex-script shaping, font-fallback atlas pages, variable-height recycling,
-project-authored UI prefabs, and the remaining typed accessibility/input
-events are still required before this step meets its full done criteria; the
-text adapter reports incomplete shaping instead of silently claiming
-correctness meanwhile.
+IME composition with explicit commit/cancel behavior are covered. Project-
+authored UI prefabs now add validated typed parameters, defaults, nested
+instances, deterministic prefixed IDs, cycle/path-traversal protection, and
+transactional failure through the same retained-tree path. Backend-neutral
+typed events now cover value changes, focus, submit/cancel, independent
+pointer enter/exit and capture, press/release, drag/drop, and scrolling, with
+Lua node callbacks and event-bus channels. Hidden, disabled, and removed
+subtrees deterministically cancel capture, focus, and active drags. A
+backend-neutral accessibility snapshot now derives semantic roles, hierarchy,
+labels, descriptions, values, states, and safe canvas bounds from the same
+retained tree, including hidden/decorative filtering and inherited disabled
+state. HarfBuzz and SheenBidi now provide complex-script shaping and visual
+run ordering behind engine-owned contracts. Ordered project font fallbacks,
+demand-rasterized bounded atlas pages, missing-glyph diagnostics, and safe font
+reload invalidation share those shaping results with measurement and drawing.
+Stable-key row recycling keeps only the visible range plus overscan alive and
+resets focus, pointer capture, drag state, runtime descendants, text edits, and
+tweens before rebinding. Typed accessibility actions use the normal UI event
+and state paths; the thread-safe platform bridge publishes retained-tree
+snapshots to Linux/native hosts and an Android `AccessibilityNodeProvider`.
+The `ui_showcase` now exercises a searchable ten-thousand-row collection with
+mouse-wheel and touch scrolling through the public Lua API.
 
 ### Scope boundary
 

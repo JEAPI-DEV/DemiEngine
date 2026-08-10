@@ -10,27 +10,119 @@
   ],
   "input": {
     "actions": {
-      "move_x": [
-        {"input": "a", "scale": -1},
-        {"input": "left", "scale": -1},
-        {"input": "d", "scale": 1},
-        {"input": "right", "scale": 1},
-        {"input": "gamepad:axis:left_x", "deadzone": 0.18},
-        {"input": "virtual:move:x", "deadzone": 0.12}
-      ],
-      "move_y": [
-        {"input": "s", "scale": -1},
-        {"input": "down", "scale": -1},
-        {"input": "w", "scale": 1},
-        {"input": "up", "scale": 1},
-        {"input": "gamepad:axis:left_y", "deadzone": 0.18, "invert": true},
-        {"input": "virtual:move:y", "deadzone": 0.12, "invert": true}
-      ],
-      "fire": ["space", "gamepad:south", "virtual:fire"],
-      "host_match": ["h"],
-      "join_match": ["j"],
-      "practice_match": ["p"],
-      "leave_match": ["escape"]
+      "move_x": {
+        "type": "axis1d",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:a",
+            "scale": -1
+          },
+          {
+            "input": "key:left",
+            "scale": -1
+          },
+          {
+            "input": "key:d",
+            "scale": 1
+          },
+          {
+            "input": "key:right",
+            "scale": 1
+          },
+          {
+            "input": "gamepad:axis:left_x",
+            "deadzone": 0.18
+          },
+          {
+            "input": "virtual:move:x",
+            "deadzone": 0.12
+          }
+        ]
+      },
+      "move_y": {
+        "type": "axis1d",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:s",
+            "scale": -1
+          },
+          {
+            "input": "key:down",
+            "scale": -1
+          },
+          {
+            "input": "key:w",
+            "scale": 1
+          },
+          {
+            "input": "key:up",
+            "scale": 1
+          },
+          {
+            "input": "gamepad:axis:left_y",
+            "deadzone": 0.18,
+            "invert": true
+          },
+          {
+            "input": "virtual:move:y",
+            "deadzone": 0.12,
+            "invert": true
+          }
+        ]
+      },
+      "fire": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:space"
+          },
+          {
+            "input": "gamepad:south"
+          },
+          {
+            "input": "virtual:fire"
+          }
+        ]
+      },
+      "host_match": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:h"
+          }
+        ]
+      },
+      "join_match": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:j"
+          }
+        ]
+      },
+      "practice_match": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:p"
+          }
+        ]
+      },
+      "leave_match": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:escape"
+          }
+        ]
+      }
     }
   },
   "scripting": {

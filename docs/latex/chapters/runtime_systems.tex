@@ -6,7 +6,7 @@ The renderer is implemented in \filepath{src/demi/runtime/Renderer2D.cpp}. It us
 
 \begin{itemize}
   \item clearing with the active camera color;
-  \item drawing PPM-backed textures when available;
+  \item drawing imported alpha-capable textures when available;
   \item drawing fallback rectangles for entities without textures;
   \item drawing collider outlines for debug visibility;
   \item drawing debug lines;
@@ -54,7 +54,7 @@ The runtime supports Lua-requested window mode changes:
   \item \code{fullscreen}.
 \end{itemize}
 
-Window mode changes are requested from Lua and applied by the runtime loop. Lua can also pause or resume physics through \code{Runtime.set\_physics\_enabled} and request shutdown through \code{Runtime.quit}.
+Window mode changes are requested from Lua and applied by the runtime loop. Lua can also pause or resume physics through \code{Physics.set\_enabled} and request shutdown through \code{Application.quit}.
 
 \section{Scene Switching}
 

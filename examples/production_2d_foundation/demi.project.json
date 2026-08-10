@@ -14,26 +14,73 @@
   },
   "physics": {
     "layers": {
-      "goal": ["player"],
-      "player": ["goal", "wall"],
-      "wall": ["player"]
+      "goal": [
+        "player"
+      ],
+      "player": [
+        "goal",
+        "wall"
+      ],
+      "wall": [
+        "player"
+      ]
     }
   },
   "input": {
     "actions": {
-      "move_x": [
-        {"input": "a", "scale": -1},
-        {"input": "left", "scale": -1},
-        {"input": "d", "scale": 1},
-        {"input": "right", "scale": 1}
-      ],
-      "move_y": [
-        {"input": "s", "scale": -1},
-        {"input": "down", "scale": -1},
-        {"input": "w", "scale": 1},
-        {"input": "up", "scale": 1}
-      ],
-      "toggle_gate": ["space"]
+      "move_x": {
+        "type": "axis1d",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:a",
+            "scale": -1
+          },
+          {
+            "input": "key:left",
+            "scale": -1
+          },
+          {
+            "input": "key:d",
+            "scale": 1
+          },
+          {
+            "input": "key:right",
+            "scale": 1
+          }
+        ]
+      },
+      "move_y": {
+        "type": "axis1d",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:s",
+            "scale": -1
+          },
+          {
+            "input": "key:down",
+            "scale": -1
+          },
+          {
+            "input": "key:w",
+            "scale": 1
+          },
+          {
+            "input": "key:up",
+            "scale": 1
+          }
+        ]
+      },
+      "toggle_gate": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:space"
+          }
+        ]
+      }
     }
   }
 }

@@ -12,11 +12,51 @@
   },
   "input": {
     "actions": {
-      "animation_idle": ["1"],
-      "animation_walk": ["2"],
-      "animation_run": ["3"],
-      "animation_jump": ["4"],
-      "animation_dance": ["5"]
+      "animation_idle": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:1"
+          }
+        ]
+      },
+      "animation_walk": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:2"
+          }
+        ]
+      },
+      "animation_run": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:3"
+          }
+        ]
+      },
+      "animation_jump": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:4"
+          }
+        ]
+      },
+      "animation_dance": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:5"
+          }
+        ]
+      }
     }
   },
   "scenes": [

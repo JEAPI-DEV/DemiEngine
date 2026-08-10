@@ -38,7 +38,8 @@ public:
                                 Vec2 cameraPosition,
                                 std::uint16_t viewportWidth,
                                 std::uint16_t viewportHeight,
-                                float deltaSeconds, std::string &error);
+                                float deltaSeconds, std::string &error,
+                                float physicsInterpolationAlpha = 1.0F);
   [[nodiscard]] bool beginOverlay(std::uint16_t viewId,
                                   std::uint16_t viewportWidth,
                                   std::uint16_t viewportHeight,
@@ -79,6 +80,7 @@ private:
   std::uint16_t viewportHeight_ = 1;
   float deltaSeconds_ = 0.0F;
   float animationTime_ = 0.0F;
+  float physicsInterpolationAlpha_ = 1.0F;
   bool initialized_ = false;
   bool frameOpen_ = false;
 };

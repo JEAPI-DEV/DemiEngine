@@ -1,5 +1,7 @@
 #include "demi/runtime/ui/UiStateController.h"
 
+#include "demi/runtime/ui/UiEventQueue.h"
+
 #include <algorithm>
 #include <ranges>
 
@@ -8,9 +10,11 @@ namespace {
 bool belongsTo(const UiDocument &document, std::string id,
                const std::string_view ancestor) {
   while (!id.empty()) {
-    if (id == ancestor) return true;
+    if (id == ancestor)
+      return true;
     const auto node = std::ranges::find(document.nodes, id, &UiNode::id);
-    if (node == document.nodes.end()) return false;
+    if (node == document.nodes.end())
+      return false;
     id = node->parent;
   }
   return false;
@@ -22,13 +26,8 @@ void cancelSubtreeInteraction(UiDocument &document,
         std::ranges::find(document.nodes, document.focusedId, &UiNode::id);
     if (focused != document.nodes.end())
       TextEditingEngine::clearComposition(focused->textEdit);
-    document.focusedId.clear();
   }
-  if (belongsTo(document, document.pointerCaptureId, root))
-    document.pointerCaptureId.clear();
-  std::erase_if(document.pointerCaptures, [&](const auto &capture) {
-    return belongsTo(document, capture.second, root);
-  });
+  UiEventQueue::cancelSubtree(document, root, "state_change");
 }
 } // namespace
 
@@ -82,7 +81,8 @@ bool UiStateController::setDisabled(UiDocument &document,
   if (node == nullptr)
     return false;
   node->disabled = disabled;
-  if (disabled) cancelSubtreeInteraction(document, id);
+  if (disabled)
+    cancelSubtreeInteraction(document, id);
   return true;
 }
 
@@ -93,7 +93,8 @@ bool UiStateController::setVisible(UiDocument &document,
   if (node == nullptr)
     return false;
   node->visible = visible;
-  if (!visible) cancelSubtreeInteraction(document, id);
+  if (!visible)
+    cancelSubtreeInteraction(document, id);
   return true;
 }
 

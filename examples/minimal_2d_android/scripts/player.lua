@@ -41,7 +41,7 @@ end
 function Player:on_update(dt)
   Debug.clear_lines()
   local color = player_colors.for_sender(replication.sender_id())
-  Entity.set_sprite_color(self.entity_id, color[1], color[2], color[3], color[4])
+  Sprite2D.set_color(self.entity_id, color[1], color[2], color[3], color[4])
   replication.set_local_color(color[1], color[2], color[3], color[4])
 
   if state.menu_open or state.game_over then

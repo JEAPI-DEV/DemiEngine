@@ -71,15 +71,15 @@ void printHelp() {
       << "  demi script check <script>\n"
       << "  demi lua-stubs generate [path]\n"
       << "  demi test [--project <project>]\n"
-      << "  demi run --project <project> [--frames count|--max-frames count]\n"
+      << "  demi run --project <project> [--max-frames count]\n"
       << "           [--profiler]\n"
       << "           [--watch]\n"
       << "           [--input-replay <fixture.replay.json>]\n"
       << "           [--profile-report <report.csv>]\n"
       << "           [--debug-overlays <colliders,contacts,grid,entity_ids,"
          "draw_order,ui_bounds,profiler>]\n"
-      << "  demi run linux [--project <project>] [--frames count|--max-frames "
-         "count] [--profiler]\n"
+      << "  demi run linux [--project <project>] [--max-frames count] "
+         "[--profiler]\n"
       << "  demi serve --project <project>\n"
       << "  demi build apk [--project <project>] [--gradle gradle]\n"
       << "  demi build linux [--project <project>] [--output path]\n"
@@ -147,8 +147,7 @@ int numericValueAfter(const std::vector<std::string> &args,
 }
 
 int frameLimitFrom(const std::vector<std::string> &args) {
-  const int maxFrames = numericValueAfter(args, "--max-frames");
-  return maxFrames > 0 ? maxFrames : numericValueAfter(args, "--frames");
+  return numericValueAfter(args, "--max-frames");
 }
 
 int runProjectCommand(const std::vector<std::string> &args,

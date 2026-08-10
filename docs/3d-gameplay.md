@@ -55,9 +55,31 @@ local hit = Physics3D.sphere_cast(
 
 ## Character controller
 
-`CharacterController3D` is a reusable virtual capsule with slope limit, step
-height, skin width, gravity, grounding, wall slide, and moving-platform ground
-velocity. It intentionally does not define coyote time or jump buffering:
+`CharacterController3D` provides slope limit, step height, skin width, gravity,
+grounding, wall slide, and moving-platform ground velocity. Collision geometry
+is deliberately separate: add exactly one `BoxCollider3D`,
+`SphereCollider3D`, `CapsuleCollider3D`, or `ConvexCollider3D` to the same root
+entity. That collider owns the controller's dimensions, offset, transform
+scale, and collision layer. A controller collider cannot be a trigger or a
+triangle mesh, and a controller entity cannot also have `Rigidbody3D`.
+
+For example, a cube character uses matching data rather than an implicit
+capsule:
+
+```json
+"BoxCollider3D": {
+  "size": [1.0, 1.0, 1.0],
+  "layer": "player"
+},
+"CharacterController3D": {
+  "step_height": 0.35,
+  "slope_limit": 50.0,
+  "skin_width": 0.02,
+  "gravity": -20.0
+}
+```
+
+The controller intentionally does not define coyote time or jump buffering:
 those are game-feel policies and belong in gameplay code. Capture the pressed
 edge in `on_update`, retain it for the desired buffer duration, and issue the
 jump from `on_fixed_update` while the example's grounded grace period is
@@ -93,7 +115,7 @@ end
 ```
 
 The controller participates in trigger enter/stay/exit events even though its
-virtual capsule is not a dynamic rigidbody.
+selected virtual shape is not a dynamic rigidbody.
 
 ## Transforms and cameras
 

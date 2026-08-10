@@ -13,12 +13,14 @@ int main() {
   const auto actions =
       demi::runtime::input::parseInputActions(nlohmann::json::parse(R"({
         "input": {"actions": {
-          "move": [
-            {"input": "A", "scale": -1},
-            {"input": "d", "scale": 1}
-          ],
-          "jump": {"bindings": ["space", "up"]},
-          "fire": ["mouse:left"],
+          "move": {"type":"axis1d","context":"gameplay","bindings":[
+            {"input": "key:A", "scale": -1},
+            {"input": "key:d", "scale": 1}
+          ]},
+          "jump": {"type":"button","context":"gameplay","bindings": [
+            {"input":"key:space"},{"input":"key:up"}]},
+          "fire": {"type":"button","context":"gameplay","bindings":[
+            {"input":"mouse:left"}]},
           "move2": {
             "type": "vector2",
             "context": "gameplay",
@@ -28,19 +30,37 @@ int main() {
             ]
           },
           "menu_accept": {
+            "type": "button",
             "context": "menu",
             "bindings": [{"input": "gamepad:south", "player": 1}]
           },
           "touch_x": {
             "type": "axis1d",
-            "bindings": ["virtual:move:x"]
+            "context": "gameplay",
+            "bindings": [{"input":"virtual:move:x"}]
           },
           "touch_y": {
             "type": "axis1d",
+            "context": "gameplay",
             "bindings": [{"input": "virtual:move:y", "invert": true}]
           }
         }}
       })"));
+
+  const auto legacyActions =
+      demi::runtime::input::parseInputActions(nlohmann::json::parse(R"({
+        "input":{"actions":{
+          "array_form":["space"],
+          "string_binding":{"type":"button","context":"gameplay","bindings":["space"]},
+          "key_alias":{"type":"button","context":"gameplay","bindings":[{"key":"space"}]},
+          "unqualified":{"type":"button","context":"gameplay","bindings":[{"input":"space"}]},
+          "type_alias":{"type":"axis","context":"gameplay","bindings":[{"input":"key:a"}]}
+        }}
+      })"));
+  if (!legacyActions.empty()) {
+    std::cerr << "Legacy input forms were still accepted.\n";
+    return 1;
+  }
 
   demi::runtime::InputState state;
   state.keysDown = {"a", "space"};

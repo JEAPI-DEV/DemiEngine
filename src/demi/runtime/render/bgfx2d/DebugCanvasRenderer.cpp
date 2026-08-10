@@ -64,20 +64,15 @@ bool DebugCanvasRenderer::drawWorld(const World &world,
       continue;
     const Vec2 worldPosition = worldPosition2D(world, entity);
     const Vec2 entityScreen = screen.point(worldPosition);
-    const float rotation = -worldRotation2D(world, entity);
     if (world.debug.colliders) {
       if (const auto *box = entity.component<BoxCollider2DComponent>();
           box != nullptr && box->debugVisible) {
-        const Vec2 center = screen.point(
-            {worldPosition.x + box->offset.x, worldPosition.y + box->offset.y});
-        const float halfWidth = box->size.x * screen.ppu * 0.5F;
-        const float halfHeight = box->size.y * screen.ppu * 0.5F;
-        const float cosine = std::cos(rotation);
-        const float sine = std::sin(rotation);
         const auto corner = [&](const float x, const float y) {
-          return Vec2{center.x + x * cosine - y * sine,
-                      center.y + x * sine + y * cosine};
+          return screen.point(worldPoint2D(
+              world, entity, {box->offset.x + x, box->offset.y + y}));
         };
+        const float halfWidth = box->size.x * 0.5F;
+        const float halfHeight = box->size.y * 0.5F;
         const Vec2 corners[4] = {
             corner(-halfWidth, -halfHeight),
             corner(halfWidth, -halfHeight),
@@ -92,11 +87,14 @@ bool DebugCanvasRenderer::drawWorld(const World &world,
       }
       if (const auto *circle = entity.component<CircleCollider2DComponent>();
           circle != nullptr && circle->debugVisible) {
-        const Vec2 center = screen.point({worldPosition.x + circle->offset.x,
-                                          worldPosition.y + circle->offset.y});
-        if (!canvas_.circleOutline(center.x, center.y,
-                                   circle->radius * screen.ppu, 2.0F,
-                                   0xffdce646U, 32))
+        const Vec2 center =
+            screen.point(worldPoint2D(world, entity, circle->offset));
+        const Vec2 scale = worldScale2D(world, entity);
+        if (!canvas_.circleOutline(
+                center.x, center.y,
+                circle->radius *
+                    std::max(std::abs(scale.x), std::abs(scale.y)) * screen.ppu,
+                2.0F, 0xffdce646U, 32))
           return false;
       }
     }

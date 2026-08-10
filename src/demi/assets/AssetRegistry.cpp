@@ -9,8 +9,6 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
-#include <array>
-#include <charconv>
 #include <fstream>
 #include <set>
 #include <sstream>
@@ -24,22 +22,6 @@ std::string readFile(const std::filesystem::path &path) {
   std::ostringstream buffer;
   buffer << input.rdbuf();
   return buffer.str();
-}
-
-std::optional<std::array<std::uint8_t, 3>>
-parseColorKey(const std::string_view value) {
-  if (value.size() != 7 || value.front() != '#')
-    return std::nullopt;
-  std::array<std::uint8_t, 3> result{};
-  for (std::size_t channel = 0; channel < result.size(); ++channel) {
-    unsigned int byte = 0;
-    const char *begin = value.data() + 1 + channel * 2;
-    const auto parsed = std::from_chars(begin, begin + 2, byte, 16);
-    if (parsed.ec != std::errc{} || parsed.ptr != begin + 2)
-      return std::nullopt;
-    result[channel] = static_cast<std::uint8_t>(byte);
-  }
-  return result;
 }
 
 std::vector<std::string>
@@ -112,9 +94,8 @@ void graphVisit(const AssetRegistry &registry, const AssetManifest &asset,
 } // namespace
 
 std::optional<AssetManifest>
-loadAssetManifestImpl(const std::filesystem::path &manifestPath,
-                      Diagnostic *diagnostic,
-                      const bool allowMissingPipelineMetadata) {
+loadAssetManifest(const std::filesystem::path &manifestPath,
+                  Diagnostic *diagnostic) {
   if (!std::filesystem::exists(manifestPath)) {
     if (diagnostic != nullptr)
       *diagnostic = {.severity = Severity::Error,
@@ -150,7 +131,7 @@ loadAssetManifestImpl(const std::filesystem::path &manifestPath,
         !document["source_hash"].get<std::string>().empty() &&
         document.contains("dependencies") &&
         document["dependencies"].is_array();
-    if (!allowMissingPipelineMetadata && !hasPipelineMetadata) {
+    if (!hasPipelineMetadata) {
       if (diagnostic != nullptr)
         *diagnostic = {
             .severity = Severity::Error,
@@ -216,21 +197,6 @@ loadAssetManifestImpl(const std::filesystem::path &manifestPath,
       manifest.textureSettings.filter = settings->value("filter", "");
       manifest.textureSettings.wrap = settings->value("wrap", "clamp");
       manifest.textureSettings.mipmaps = settings->value("mipmaps", false);
-      if (const auto colorKey = settings->find("color_key");
-          colorKey != settings->end()) {
-        if (!colorKey->is_string() ||
-            !(manifest.textureSettings.colorKey =
-                  parseColorKey(colorKey->get<std::string>()))) {
-          if (diagnostic != nullptr)
-            *diagnostic = {.severity = Severity::Error,
-                           .code = "ASSET_TEXTURE_COLOR_KEY_INVALID",
-                           .message =
-                               "Texture color_key must use #RRGGBB syntax.",
-                           .path = manifestPath.string(),
-                           .suggestion = "Use an exact color such as #000000."};
-          return std::nullopt;
-        }
-      }
     }
     manifest.attribution = document.value("attribution", "");
     manifest.manifestPath = manifestPath;
@@ -251,18 +217,6 @@ loadAssetManifestImpl(const std::filesystem::path &manifestPath,
                      .suggestion = "Fix the asset manifest field types."};
     return std::nullopt;
   }
-}
-
-std::optional<AssetManifest>
-loadAssetManifest(const std::filesystem::path &manifestPath,
-                  Diagnostic *diagnostic) {
-  return loadAssetManifestImpl(manifestPath, diagnostic, false);
-}
-
-std::optional<AssetManifest>
-loadAssetManifestForMigration(const std::filesystem::path &manifestPath,
-                              Diagnostic *diagnostic) {
-  return loadAssetManifestImpl(manifestPath, diagnostic, true);
 }
 
 AssetRegistry loadAssetRegistry(const std::filesystem::path &projectDirectory) {

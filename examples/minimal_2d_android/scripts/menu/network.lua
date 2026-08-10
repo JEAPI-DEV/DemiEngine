@@ -14,7 +14,7 @@ local menu
 local callbacks
 
 local function status(text) Hud.set_text("menu_network_status", text or "") end
-local function group(name, visible) Hud.set_group_visible(name, visible) end
+local function group(name, visible) Hud.set_visible(name, visible) end
 local function masked(value) return string.rep("*", #value) end
 
 local function show_browser()
@@ -33,7 +33,7 @@ local function render_lobbies()
     Hud.set_visible(id, item ~= nil)
     if item ~= nil then
       local privacy = item.private and "[LOCKED]" or "[PUBLIC]"
-      Hud.set_button_label(id, privacy .. "  " .. item.name .. "  " .. tostring(item.players) .. "/" .. tostring(item.max_players))
+      Hud.set_text(id, privacy .. "  " .. item.name .. "  " .. tostring(item.players) .. "/" .. tostring(item.max_players))
     end
   end
   local pages = math.max(1, math.ceil(#NetworkMenu.lobbies / NetworkMenu.page_size))
@@ -74,9 +74,9 @@ end
 function NetworkMenu.show_create()
   menu.screen = "network_create"
   group("network_browser", false); group("network_empty", false); group("network_password", false); group("network_create", true)
-  Hud.set_button_label("network_create_name", "NAME: " .. (NetworkMenu.create_name ~= "" and NetworkMenu.create_name or "_"))
-  Hud.set_button_label("network_create_password", "PASSWORD: " .. masked(NetworkMenu.create_password))
-  Hud.set_button_label("network_create_visibility", NetworkMenu.create_private and "PRIVATE" or "PUBLIC")
+  Hud.set_text("network_create_name", "NAME: " .. (NetworkMenu.create_name ~= "" and NetworkMenu.create_name or "_"))
+  Hud.set_text("network_create_password", "PASSWORD: " .. masked(NetworkMenu.create_password))
+  Hud.set_text("network_create_visibility", NetworkMenu.create_private and "PRIVATE" or "PUBLIC")
   Hud.set_visible("network_create_password", NetworkMenu.create_private)
   status("CREATE A LOBBY")
 end
@@ -123,7 +123,7 @@ function NetworkMenu.join_row(row)
     group("network_browser", false); group("network_empty", false); group("network_create", false); group("network_password", true)
     NetworkMenu.join_password = ""; NetworkMenu.focus = "join_password"
     Hud.set_text("network_password_title", "JOIN " .. item.name)
-    Hud.set_button_label("network_join_password", "PASSWORD: ")
+    Hud.set_text("network_join_password", "PASSWORD: ")
     status("PASSWORD REQUIRED")
   else
     status("JOINING " .. item.name)
@@ -157,11 +157,11 @@ local function edit_text()
   local limit = key == "name" and 20 or 64
   value = (value .. entered):sub(1, limit)
   if key == "name" then
-    NetworkMenu.create_name = value; Hud.set_button_label("network_create_name", "NAME: " .. (value ~= "" and value or "_"))
+    NetworkMenu.create_name = value; Hud.set_text("network_create_name", "NAME: " .. (value ~= "" and value or "_"))
   elseif key == "create_password" then
-    NetworkMenu.create_password = value; Hud.set_button_label("network_create_password", "PASSWORD: " .. masked(value))
+    NetworkMenu.create_password = value; Hud.set_text("network_create_password", "PASSWORD: " .. masked(value))
   else
-    NetworkMenu.join_password = value; Hud.set_button_label("network_join_password", "PASSWORD: " .. masked(value))
+    NetworkMenu.join_password = value; Hud.set_text("network_join_password", "PASSWORD: " .. masked(value))
   end
 end
 

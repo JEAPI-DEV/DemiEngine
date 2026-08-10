@@ -82,7 +82,7 @@ function Menu.start()
   Menu.key_was_down = {}
   Menu.enter_was_down = true
   Menu.apply_settings()
-  Runtime.set_physics_enabled(false)
+  Physics.set_enabled(false)
   view.set_game_hud_visible(false)
   view.show_group("game_over", false)
   view.show_main(Menu)
@@ -94,7 +94,7 @@ function Menu.begin_active_level()
   state.game_started = true
   state.game_over = false
   state.game_over_pending = false
-  Runtime.set_physics_enabled(true)
+  Physics.set_enabled(true)
   view.set_game_hud_visible(true)
   local px, py = Transform.get_position(PLAYER_ID)
   if px ~= nil and py ~= nil then
@@ -110,11 +110,11 @@ function Menu.show_game_over(points)
   state.game_started = false
   state.game_over = true
   state.game_over_pending = false
-  Runtime.set_physics_enabled(false)
+  Physics.set_enabled(false)
   view.set_game_hud_visible(false)
   view.hide_menu()
   Hud.set_text("game_over_points", "POINTS: " .. tostring(points))
-  Hud.set_button_label("game_retry", multiplayer_active() and "RESPAWN" or "TRY AGAIN")
+  Hud.set_text("game_retry", multiplayer_active() and "RESPAWN" or "TRY AGAIN")
   view.show_group("game_over", true)
   Menu.screen = "game_over"
 end
@@ -132,7 +132,7 @@ function Menu.retry_game()
     state.game_over_pending = false
     state.score_reset_requested = true
     state.camera_reset_requested = true
-    Runtime.set_physics_enabled(true)
+    Physics.set_enabled(true)
     view.set_game_hud_visible(true)
     view.hide_menu()
     Transform.set_position(PLAYER_ID, state.respawn_x, state.respawn_y)

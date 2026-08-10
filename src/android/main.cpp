@@ -1,4 +1,6 @@
 #include "demi/runtime/app/RuntimeApp.h"
+#include "demi/runtime/ui/UiAccessibilityBridge.h"
+#include "demi/runtime/ui/UiAccessibilityTree.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
@@ -6,6 +8,8 @@
 #include <android/asset_manager.h>
 #include <android/log.h>
 #include <android/native_activity.h>
+#include <jni.h>
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <array>
@@ -18,6 +22,53 @@
 
 extern "C" ANativeActivity *DemiGetNativeActivity(void) {
   return static_cast<ANativeActivity *>(SDL_GetAndroidActivity());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_dev_jeapi_demi_android_DemiActivity_nativeAccessibilitySnapshot(
+    JNIEnv *environment, jclass) {
+  auto &bridge = demi::runtime::ui::platformUiAccessibilityBridge();
+  const auto canvas = bridge.canvasSize();
+  nlohmann::json output{{"revision", bridge.revision()},
+                        {"canvas_width", canvas.x},
+                        {"canvas_height", canvas.y},
+                        {"nodes", nlohmann::json::array()}};
+  for (const auto &node : bridge.snapshot())
+    output["nodes"].push_back(
+        {{"id", node.id},
+         {"parent", node.parent},
+         {"role", demi::runtime::ui::uiAccessibilityRoleName(node.role)},
+         {"label", node.label},
+         {"description", node.description},
+         {"value_text", node.valueText},
+         {"x", node.bounds.x}, {"y", node.bounds.y},
+         {"width", node.bounds.width}, {"height", node.bounds.height},
+         {"value", node.value}, {"minimum", node.minimum},
+         {"maximum", node.maximum}, {"focused", node.focused},
+         {"disabled", node.disabled}, {"checked", node.checked},
+         {"focusable", node.focusable}});
+  const std::string text = output.dump();
+  return environment->NewStringUTF(text.c_str());
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_dev_jeapi_demi_android_DemiActivity_nativeAccessibilityAction(
+    JNIEnv *environment, jclass, jint type, jstring nodeId, jfloat value,
+    jstring text) {
+  const char *idBytes = environment->GetStringUTFChars(nodeId, nullptr);
+  const char *textBytes = text == nullptr
+                              ? nullptr
+                              : environment->GetStringUTFChars(text, nullptr);
+  const auto boundedType = std::clamp(type, 0, 7);
+  demi::runtime::ui::platformUiAccessibilityBridge().submitAction(
+      {.type = static_cast<demi::runtime::ui::UiAccessibilityActionType>(boundedType),
+       .nodeId = idBytes == nullptr ? std::string{} : std::string(idBytes),
+       .value = value,
+       .text = textBytes == nullptr ? std::string{} : std::string(textBytes)});
+  if (idBytes != nullptr)
+    environment->ReleaseStringUTFChars(nodeId, idBytes);
+  if (textBytes != nullptr)
+    environment->ReleaseStringUTFChars(text, textBytes);
 }
 
 namespace {

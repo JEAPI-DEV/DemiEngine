@@ -1,5 +1,7 @@
 #include "demi/runtime/ui/UiMutationQueue.h"
 
+#include "demi/runtime/ui/UiEventQueue.h"
+
 #include <algorithm>
 #include <cctype>
 #include <ranges>
@@ -25,14 +27,17 @@ bool isDescendant(const UiDocument &document, std::string id,
                   const std::string_view ancestor) {
   std::unordered_set<std::string> visited;
   while (!id.empty() && visited.insert(id).second) {
-    if (id == ancestor) return true;
+    if (id == ancestor)
+      return true;
     const UiNode *node = find(document, id);
-    if (node == nullptr) return false;
+    if (node == nullptr)
+      return false;
     id = node->parent;
   }
   return false;
 }
 void eraseSubtree(UiDocument &document, const std::string &root) {
+  UiEventQueue::cancelSubtree(document, root, "node_removed");
   std::unordered_set<std::string> removed{root};
   for (bool changed = true; changed;) {
     changed = false;
@@ -42,12 +47,8 @@ void eraseSubtree(UiDocument &document, const std::string &root) {
   }
   std::erase_if(document.nodes,
                 [&](const UiNode &node) { return removed.contains(node.id); });
-  for (const auto &id : removed) document.generations.erase(id);
-  if (removed.contains(document.focusedId)) document.focusedId.clear();
-  if (removed.contains(document.pointerCaptureId))
-    document.pointerCaptureId.clear();
-  std::erase_if(document.pointerCaptures,
-                [&](const auto &capture) { return removed.contains(capture.second); });
+  for (const auto &id : removed)
+    document.generations.erase(id);
 }
 } // namespace
 
@@ -56,8 +57,8 @@ void UiMutationQueue::create(std::string parent, UiNode node) {
 }
 void UiMutationQueue::clone(UiNodeHandle source, std::string newRootId,
                             std::string parent) {
-  mutations_.push_back(Clone{std::move(source), std::move(newRootId),
-                             std::move(parent)});
+  mutations_.push_back(
+      Clone{std::move(source), std::move(newRootId), std::move(parent)});
 }
 void UiMutationQueue::remove(UiNodeHandle node) {
   mutations_.push_back(Remove{std::move(node)});
@@ -75,8 +76,8 @@ void UiMutationQueue::initializeGenerations(UiDocument &document) {
       document.generations[node.id] = document.nextGeneration++;
 }
 
-std::optional<UiNodeHandle>
-UiMutationQueue::handle(const UiDocument &document, const std::string_view id) {
+std::optional<UiNodeHandle> UiMutationQueue::handle(const UiDocument &document,
+                                                    const std::string_view id) {
   const auto generation = document.generations.find(std::string(id));
   if (generation == document.generations.end() || find(document, id) == nullptr)
     return std::nullopt;
@@ -99,8 +100,10 @@ UiMutationResult UiMutationQueue::apply(UiDocument &document) {
   };
   for (const Mutation &operation : mutations_) {
     if (const auto *value = std::get_if<Create>(&operation)) {
-      if (!validId(value->node.id)) return fail("Invalid UI node id.");
-      if (find(result, value->node.id)) return fail("Duplicate UI node id: " + value->node.id);
+      if (!validId(value->node.id))
+        return fail("Invalid UI node id.");
+      if (find(result, value->node.id))
+        return fail("Duplicate UI node id: " + value->node.id);
       if (!value->parent.empty() && !find(result, value->parent))
         return fail("Missing UI parent: " + value->parent);
       UiNode node = value->node;
@@ -109,44 +112,51 @@ UiMutationResult UiMutationQueue::apply(UiDocument &document) {
           style != result.styles.end()) {
         node.color = style->second.color;
         node.backgroundColor = style->second.backgroundColor;
-        if (node.layout.padding.left == 0.0F && node.layout.padding.top == 0.0F &&
-            node.layout.padding.right == 0.0F && node.layout.padding.bottom == 0.0F)
+        if (node.layout.padding.left == 0.0F &&
+            node.layout.padding.top == 0.0F &&
+            node.layout.padding.right == 0.0F &&
+            node.layout.padding.bottom == 0.0F)
           node.layout.padding = style->second.padding;
-        if (node.layout.gap == 0.0F) node.layout.gap = style->second.gap;
+        if (node.layout.gap == 0.0F)
+          node.layout.gap = style->second.gap;
       }
       result.generations[node.id] = result.nextGeneration++;
       result.nodes.push_back(std::move(node));
     } else if (const auto *value = std::get_if<Clone>(&operation)) {
-      if (!alive(result, value->source)) return fail("Stale UI clone handle.");
+      if (!alive(result, value->source))
+        return fail("Stale UI clone handle.");
       if (!validId(value->root) || find(result, value->root))
         return fail("Invalid or duplicate cloned UI root.");
       if (!value->parent.empty() && !find(result, value->parent))
         return fail("Missing clone parent: " + value->parent);
       std::vector<UiNode> copies;
       for (const auto &node : result.nodes)
-        if (isDescendant(result, node.id, value->source.id)) copies.push_back(node);
+        if (isDescendant(result, node.id, value->source.id))
+          copies.push_back(node);
       for (auto &node : copies) {
         const std::string oldId = node.id;
         node.hovered = false;
         node.textEdit = {};
-        node.id = oldId == value->source.id ? value->root
-                                            : value->root + "." + oldId;
-        node.parent = oldId == value->source.id
-                          ? value->parent
+        node.id =
+            oldId == value->source.id ? value->root : value->root + "." + oldId;
+        node.parent = oldId == value->source.id ? value->parent
                       : node.parent == value->source.id
                           ? value->root
                           : value->root + "." + node.parent;
-        if (find(result, node.id)) return fail("Cloned UI id collision: " + node.id);
+        if (find(result, node.id))
+          return fail("Cloned UI id collision: " + node.id);
       }
       for (auto &node : copies) {
         result.generations[node.id] = result.nextGeneration++;
         result.nodes.push_back(std::move(node));
       }
     } else if (const auto *value = std::get_if<Remove>(&operation)) {
-      if (!alive(result, value->node)) return fail("Stale UI remove handle.");
+      if (!alive(result, value->node))
+        return fail("Stale UI remove handle.");
       eraseSubtree(result, value->node.id);
     } else if (const auto *value = std::get_if<Reparent>(&operation)) {
-      if (!alive(result, value->node)) return fail("Stale UI reparent handle.");
+      if (!alive(result, value->node))
+        return fail("Stale UI reparent handle.");
       if (!value->parent.empty() && !find(result, value->parent))
         return fail("Missing UI parent: " + value->parent);
       if (value->parent == value->node.id ||
@@ -158,8 +168,10 @@ UiMutationResult UiMutationQueue::apply(UiDocument &document) {
         return fail("Missing UI parent: " + value->parent);
       std::vector<std::string> children;
       for (const auto &node : result.nodes)
-        if (node.parent == value->parent) children.push_back(node.id);
-      for (const auto &id : children) eraseSubtree(result, id);
+        if (node.parent == value->parent)
+          children.push_back(node.id);
+      for (const auto &id : children)
+        eraseSubtree(result, id);
     }
   }
   document = std::move(result);

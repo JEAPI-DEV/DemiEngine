@@ -2,10 +2,12 @@
 
 #include "demi/runtime/scene/model/SceneTypes.h"
 #include "demi/runtime/ui/TextEditingEngine.h"
+#include "demi/runtime/ui/UiEvent.h"
 
 #include <cstdint>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace demi::runtime::ui {
@@ -59,8 +61,8 @@ struct UiNode {
   std::string action;
   std::string control;
   std::string accessibilityLabel;
+  std::string accessibilityDescription;
   std::string script;
-  std::string group;
   LayoutSpec layout;
   Rect resolved;
   Color color{1.0F, 1.0F, 1.0F, 1.0F};
@@ -92,6 +94,7 @@ struct UiNode {
   bool focusable = false;
   bool checked = false;
   bool hovered = false;
+  bool accessibilityHidden = false;
   TextEditState textEdit;
 };
 
@@ -123,15 +126,18 @@ struct UiDocument {
   std::vector<UiNode> nodes;
   std::unordered_map<std::string, UiStyle> styles;
   std::unordered_map<std::string, std::string> localization;
-  std::unordered_map<std::string,
-                     std::unordered_map<std::string, std::string>> locales;
+  std::unordered_map<std::string, std::unordered_map<std::string, std::string>>
+      locales;
   std::string locale;
   std::unordered_map<std::string, std::string> actionMap;
   std::unordered_map<std::string, UiActionEffect> actionEffects;
   std::string focusedId;
   std::unordered_map<std::int64_t, std::string> pointerCaptures;
-  // Pointer zero mirrors the desktop mouse for source compatibility.
-  std::string pointerCaptureId;
+  std::unordered_map<std::int64_t, std::string> pointerHoverIds;
+  std::unordered_map<std::int64_t, Vec2> pointerPositions;
+  std::unordered_map<std::int64_t, Vec2> pointerPressPositions;
+  std::unordered_set<std::int64_t> draggingPointers;
+  std::vector<UiEvent> events;
   std::unordered_map<std::string, std::uint64_t> generations;
   std::uint64_t nextGeneration = 1;
 };

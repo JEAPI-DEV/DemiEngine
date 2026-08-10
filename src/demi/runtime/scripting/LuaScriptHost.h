@@ -17,6 +17,7 @@
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/simulation/DeterministicRandom.h"
 #include "demi/runtime/tilemap/TilemapRuntime.h"
+#include "demi/runtime/ui/UiAccessibilityTree.h"
 #include "demi/runtime/ui/UiModel.h"
 
 #include <cstdint>
@@ -162,8 +163,8 @@ public:
   cameraRay3D(const std::string &entityId, float screenX, float screenY,
               float viewportWidth, float viewportHeight) const;
   [[nodiscard]] std::optional<Vec2>
-  cameraWorldToScreen3D(const std::string &entityId, float worldX,
-                        float worldY, float worldZ, float viewportWidth,
+  cameraWorldToScreen3D(const std::string &entityId, float worldX, float worldY,
+                        float worldZ, float viewportWidth,
                         float viewportHeight) const;
   [[nodiscard]] std::optional<Vec3>
   cameraScreenToWorld3D(const std::string &entityId, float screenX,
@@ -203,8 +204,8 @@ public:
                                       const std::string &trigger);
   [[nodiscard]] bool setAnimationSpeed(const std::string &entityId,
                                        float speed);
-  [[nodiscard]] float animationNormalizedTime(
-      const std::string &entityId) const;
+  [[nodiscard]] float
+  animationNormalizedTime(const std::string &entityId) const;
   [[nodiscard]] std::string
   animationTransitionFrom(const std::string &entityId) const;
   [[nodiscard]] std::string
@@ -241,8 +242,8 @@ public:
   getRigidbodyVelocity3D(const std::string &entityId) const;
   [[nodiscard]] bool setRigidbodyVelocity3D(const std::string &entityId,
                                             float x, float y, float z);
-  [[nodiscard]] bool addRigidbodyImpulse3D(const std::string &entityId,
-                                           float x, float y, float z);
+  [[nodiscard]] bool addRigidbodyImpulse3D(const std::string &entityId, float x,
+                                           float y, float z);
   [[nodiscard]] bool addRigidbodyForce3D(const std::string &entityId, float x,
                                          float y, float z);
   [[nodiscard]] bool addRigidbodyTorque3D(const std::string &entityId, float x,
@@ -297,10 +298,9 @@ public:
                    float directionX, float directionY, float directionZ,
                    float distance, const std::string &ignoredEntityId) const;
   [[nodiscard]] std::optional<PhysicsQueryHit3D>
-  physicsSphereCast3D(float originX, float originY, float originZ,
-                      float radius, float directionX, float directionY,
-                      float directionZ, float distance,
-                      const std::string &layer,
+  physicsSphereCast3D(float originX, float originY, float originZ, float radius,
+                      float directionX, float directionY, float directionZ,
+                      float distance, const std::string &layer,
                       const std::string &ignoredEntityId) const;
   [[nodiscard]] bool
   physicsHasContact(const std::string &entityId,
@@ -347,22 +347,13 @@ public:
   [[nodiscard]] std::string
   applyEntityReplicatedState(const std::string &entityId,
                              const std::string &stateJson);
-  [[nodiscard]] bool setEntityMeshRenderer(const std::string &entityId,
-                                           std::string texture,
-                                           std::string material,
-                                           std::string renderLayer,
-                                           std::vector<Vec3> vertices,
-                                           std::vector<Vec3> normals,
-                                           std::vector<Vec2> uvs);
+  [[nodiscard]] bool
+  setEntityMeshRenderer(const std::string &entityId, std::string texture,
+                        std::string material, std::string renderLayer,
+                        std::vector<Vec3> vertices, std::vector<Vec3> normals,
+                        std::vector<Vec2> uvs);
   [[nodiscard]] bool setHudText(const std::string &id, const std::string &text);
-  [[nodiscard]] bool setHudButtonLabel(const std::string &id,
-                                       const std::string &label);
-  [[nodiscard]] bool createHudText(const std::string &id,
-                                   const std::string &text, float x, float y,
-                                   float scale, Color color);
-  [[nodiscard]] bool setHudTextScale(const std::string &id, float scale);
-  [[nodiscard]] bool createHudRect(const std::string &id, float x, float y,
-                                   float width, float height, Color color);
+  [[nodiscard]] bool setHudFontSize(const std::string &id, float fontSize);
   [[nodiscard]] bool setHudRect(const std::string &id, float x, float y,
                                 float width, float height);
   [[nodiscard]] bool setHudImage(const std::string &id, std::string texture,
@@ -375,6 +366,7 @@ public:
   [[nodiscard]] bool setHudSize(const std::string &id, float width,
                                 float height);
   [[nodiscard]] bool setHudColor(const std::string &id, Color color);
+  [[nodiscard]] bool setHudBackgroundColor(const std::string &id, Color color);
   [[nodiscard]] bool setHudOpacity(const std::string &id, float opacity);
   [[nodiscard]] bool setHudVisible(const std::string &id, bool visible);
   [[nodiscard]] bool setHudValue(const std::string &id, float value);
@@ -383,11 +375,9 @@ public:
   [[nodiscard]] bool focusNextHudControl(bool reverse);
   [[nodiscard]] std::string focusedHudControl() const;
   [[nodiscard]] Vec2 hudCanvasSize() const;
-  [[nodiscard]] bool setHudGroupVisible(const std::string &group, bool visible);
   [[nodiscard]] std::optional<std::string> hudText(const std::string &id) const;
   [[nodiscard]] std::optional<ui::UiNodeHandle>
-  createHudNode(const std::string &parent, ui::UiNode node,
-                std::string &error);
+  createHudNode(const std::string &parent, ui::UiNode node, std::string &error);
   [[nodiscard]] std::optional<ui::UiNodeHandle>
   hudNodeHandle(const std::string &id) const;
   [[nodiscard]] std::optional<ui::UiNodeHandle>
@@ -402,9 +392,19 @@ public:
                                       std::string &error);
   [[nodiscard]] std::vector<std::string>
   hudChildren(const std::string &parent) const;
-  [[nodiscard]] std::uint64_t startHudTween(
-      const ui::UiNodeHandle &node, const std::string &property, float target,
-      float duration, std::string &error);
+  [[nodiscard]] ui::UiVirtualReconcileResult
+  reconcileHudRows(const std::string &collectionId,
+                   const ui::UiNodeHandle &rowTemplate,
+                   const std::vector<std::string> &stableKeys,
+                   const std::vector<float> &rowExtents, float scrollOffset,
+                   float viewportExtent, std::size_t overscan);
+  [[nodiscard]] bool clearHudRows(const std::string &collectionId);
+  [[nodiscard]] std::vector<ui::UiAccessibilityNode>
+  hudAccessibilitySnapshot() const;
+  [[nodiscard]] std::uint64_t startHudTween(const ui::UiNodeHandle &node,
+                                            const std::string &property,
+                                            float target, float duration,
+                                            std::string &error);
   [[nodiscard]] bool cancelHudTween(std::uint64_t handle);
   void setHudReducedMotion(bool enabled);
   [[nodiscard]] bool setHudLocale(const std::string &locale,
@@ -448,8 +448,7 @@ public:
                     float b, float a, float width = 1.0F);
   void clearDebugLines();
   [[nodiscard]] std::uint64_t playAudio(const std::string &assetId);
-  [[nodiscard]] std::uint64_t
-  playAudio(const AudioPlaybackRequest &request);
+  [[nodiscard]] std::uint64_t playAudio(const AudioPlaybackRequest &request);
   [[nodiscard]] std::uint64_t playAudioSource(const std::string &entityId);
   [[nodiscard]] bool stopAudioSource(const std::string &entityId);
   [[nodiscard]] bool stopAudio(std::uint64_t handle);
@@ -459,9 +458,9 @@ public:
   [[nodiscard]] float audioBusVolume(const std::string &bus) const;
   [[nodiscard]] bool setAudioBusMuted(const std::string &bus, bool muted);
   [[nodiscard]] bool setAudioBusPaused(const std::string &bus, bool paused);
-  void defineAudioSnapshot(
-      const std::string &name,
-      const std::unordered_map<std::string, float> &volumes);
+  void
+  defineAudioSnapshot(const std::string &name,
+                      const std::unordered_map<std::string, float> &volumes);
   [[nodiscard]] bool transitionAudioSnapshot(const std::string &name,
                                              float duration);
   [[nodiscard]] std::uint64_t crossfadeAudio(std::uint64_t fromHandle,

@@ -38,8 +38,7 @@ int numericValueAfter(const std::vector<std::string>& args, const std::string& k
 }
 
 int frameLimitFrom(const std::vector<std::string>& args) {
-  const int maxFrames = numericValueAfter(args, "--max-frames");
-  return maxFrames > 0 ? maxFrames : numericValueAfter(args, "--frames");
+  return numericValueAfter(args, "--max-frames");
 }
 
 } // namespace
@@ -54,7 +53,7 @@ int main(int argc, char** argv) {
   if (project.empty()) {
     std::cerr << demi::EngineName << " runtime " << demi::EngineVersion << '\n';
     std::cerr << "Usage: demi-runtime --project <project> "
-                 "[--frames count|--max-frames count] [--profiler]\n";
+                 "[--max-frames count] [--profiler]\n";
     return 2;
   }
 
