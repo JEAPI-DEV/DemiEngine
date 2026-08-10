@@ -71,10 +71,8 @@ bool capsuleStopsAtPolygonFromAllSides() {
     obstacle.id = "polygon";
     obstacle.setComponent(Transform2DComponent{});
     obstacle.setComponent(PolygonCollider2DComponent{
-        .points = {{-0.5F, -0.5F},
-                   {0.5F, -0.5F},
-                   {0.5F, 0.5F},
-                   {-0.5F, 0.5F}}});
+        .points = {
+            {-0.5F, -0.5F}, {0.5F, -0.5F}, {0.5F, 0.5F}, {-0.5F, 0.5F}}});
     world.entities.push_back(std::move(obstacle));
 
     for (int step = 0; step < 80; ++step) {
@@ -177,6 +175,43 @@ int main() {
     return 1;
   }
 
+  World transformedColliderWorld;
+  Entity transformedBox;
+  transformedBox.id = "transformed_box";
+  transformedBox.setComponent(
+      Transform2DComponent{.position = {.x = 4.0F, .y = 0.0F},
+                           .rotation = 1.57079632679F,
+                           .scale = {.x = 2.0F, .y = 1.0F}});
+  transformedBox.setComponent(
+      BoxCollider2DComponent{.size = {2.0F, 1.0F}, .layer = "scaled"});
+  transformedColliderWorld.entities.push_back(std::move(transformedBox));
+  const auto transformedBoxHit =
+      raycast2D(transformedColliderWorld, {.x = 4.0F, .y = -10.0F},
+                {0.0F, 1.0F}, 20.0F, "scaled");
+  if (!transformedBoxHit ||
+      std::abs(transformedBoxHit->distance - 8.0F) > 0.001F) {
+    std::cerr << "Rotated, scaled box raycast did not match its world shape.\n";
+    return 1;
+  }
+
+  Entity transformedCircle;
+  transformedCircle.id = "transformed_circle";
+  transformedCircle.setComponent(Transform2DComponent{
+      .rotation = 1.57079632679F, .scale = {.x = 2.0F, .y = 3.0F}});
+  transformedCircle.setComponent(CircleCollider2DComponent{
+      .radius = 0.5F, .offset = {1.0F, 0.0F}, .layer = "scaled_circle"});
+  transformedColliderWorld.entities.push_back(std::move(transformedCircle));
+  const auto transformedCircleHit =
+      raycast2D(transformedColliderWorld, {.x = 0.0F, .y = -2.0F}, {0.0F, 1.0F},
+                10.0F, "scaled_circle");
+  if (!transformedCircleHit ||
+      std::abs(transformedCircleHit->distance - 2.5F) > 0.001F ||
+      transformedCircleHit->normal.y > -0.99F) {
+    std::cerr << "Rotated, scaled circle offset did not match its world "
+                 "shape.\n";
+    return 1;
+  }
+
   World wallCollisionWorld;
   Entity movingCircle;
   movingCircle.id = "moving_circle";
@@ -204,6 +239,24 @@ int main() {
   if (blockedX > 1.26F) {
     std::cerr << "Dynamic circle passed through a static arena wall: x="
               << blockedX << ".\n";
+    return 1;
+  }
+
+  // Changing Transform2D.scale after body creation must rebuild the Box2D
+  // fixture; otherwise rendering, queries, and contacts describe three
+  // different collider sizes.
+  Entity *scaledMover = findEntity(wallCollisionWorld, "moving_circle");
+  scaledMover->component<Transform2DComponent>()->position = {};
+  scaledMover->component<Transform2DComponent>()->scale = {2.0F, 2.0F};
+  scaledMover->component<Rigidbody2DComponent>()->velocity = {6.0F, 0.0F};
+  for (int step = 0; step < 60; ++step)
+    stepPhysics2D(wallCollisionWorld, 1.0F / 60.0F,
+                  PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
+  const float scaledBlockedX =
+      scaledMover->component<Transform2DComponent>()->position.x;
+  if (scaledBlockedX > 0.76F) {
+    std::cerr << "Runtime scale change did not rebuild the circle fixture: x="
+              << scaledBlockedX << ".\n";
     return 1;
   }
 

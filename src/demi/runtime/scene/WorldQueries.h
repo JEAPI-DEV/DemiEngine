@@ -5,8 +5,8 @@
 
 #include "demi/runtime/scene/model/World.h"
 
-#include <cmath>
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 namespace demi::runtime {
@@ -48,6 +48,22 @@ namespace demi::runtime {
   return {.x = value.x * cosR - value.y * sinR,
           .y = value.x * sinR + value.y * cosR};
 }
+[[nodiscard]] inline float worldRotation2D(const World &world,
+                                           const Entity &entity);
+[[nodiscard]] inline Vec2 worldScale2D(const World &world,
+                                       const Entity &entity) {
+  const auto *transform = entity.component<Transform2DComponent>();
+  if (transform == nullptr)
+    return {1.0F, 1.0F};
+  Vec2 scale = transform->scale;
+  if (!transform->parent.empty())
+    if (const Entity *parent = findEntity(world, transform->parent);
+        parent != nullptr && parent->hasComponent<Transform2DComponent>()) {
+      const Vec2 parentScale = worldScale2D(world, *parent);
+      scale = {.x = scale.x * parentScale.x, .y = scale.y * parentScale.y};
+    }
+  return scale;
+}
 [[nodiscard]] inline Vec2 worldPosition2D(const World &world,
                                           const Entity &entity) {
   if (!entity.component<Transform2DComponent>())
@@ -57,8 +73,10 @@ namespace demi::runtime {
     if (const Entity *parent =
             findEntity(world, entity.component<Transform2DComponent>()->parent);
         parent != nullptr && parent->component<Transform2DComponent>()) {
+      const Vec2 parentScale = worldScale2D(world, *parent);
       const Vec2 rotated = rotate2D(
-          position, parent->component<Transform2DComponent>()->rotation);
+          {.x = position.x * parentScale.x, .y = position.y * parentScale.y},
+          worldRotation2D(world, *parent));
       const Vec2 parentPosition = worldPosition2D(world, *parent);
       position = {.x = parentPosition.x + rotated.x,
                   .y = parentPosition.y + rotated.y};
@@ -95,6 +113,15 @@ worldIsoTransform(const World &world, const Entity &entity) {
       rotation += worldRotation2D(world, *parent);
   return rotation;
 }
+[[nodiscard]] inline Vec2 worldPoint2D(const World &world, const Entity &entity,
+                                       const Vec2 localPoint) {
+  const Vec2 position = worldPosition2D(world, entity);
+  const Vec2 scale = worldScale2D(world, entity);
+  const Vec2 offset =
+      rotate2D({.x = localPoint.x * scale.x, .y = localPoint.y * scale.y},
+               worldRotation2D(world, entity));
+  return {.x = position.x + offset.x, .y = position.y + offset.y};
+}
 [[nodiscard]] inline Vec2 activeCameraPosition(const World &world) {
   for (const Entity &entity : world.entities)
     if (entity.component<Camera2DComponent>() &&
@@ -113,8 +140,7 @@ activeCamera3D(const World &world) {
         best != nullptr ? best->component<Camera3DComponent>() : nullptr;
     if (best == nullptr || (camera->primary && !bestCamera->primary) ||
         (camera->primary == bestCamera->primary &&
-        camera->priority >
-            bestCamera->priority) ||
+         camera->priority > bestCamera->priority) ||
         (camera->primary == bestCamera->primary &&
          camera->priority == bestCamera->priority && entity.id < best->id))
       best = &entity;
@@ -132,8 +158,7 @@ activeCamera3D(const World &world) {
         best != nullptr ? best->component<Camera3DComponent>() : nullptr;
     if (best == nullptr || (camera->primary && !bestCamera->primary) ||
         (camera->primary == bestCamera->primary &&
-        camera->priority >
-            bestCamera->priority) ||
+         camera->priority > bestCamera->priority) ||
         (camera->primary == bestCamera->primary &&
          camera->priority == bestCamera->priority && entity.id < best->id))
       best = &entity;
@@ -147,13 +172,13 @@ renderCameras3D(const World &world) {
     if (entity.enabled && entity.hasComponent<Camera3DComponent>() &&
         entity.hasComponent<Transform3DComponent>())
       cameras.push_back(&entity);
-  std::ranges::stable_sort(cameras,
-                           [](const Entity *left, const Entity *right) {
-    const auto *a = left->component<Camera3DComponent>();
-    const auto *b = right->component<Camera3DComponent>();
-    return a->priority != b->priority ? a->priority < b->priority
-                                     : left->id < right->id;
-  });
+  std::ranges::stable_sort(
+      cameras, [](const Entity *left, const Entity *right) {
+        const auto *a = left->component<Camera3DComponent>();
+        const auto *b = right->component<Camera3DComponent>();
+        return a->priority != b->priority ? a->priority < b->priority
+                                          : left->id < right->id;
+      });
   return cameras;
 }
 [[nodiscard]] inline Vec3 worldPosition3D(const World &world,

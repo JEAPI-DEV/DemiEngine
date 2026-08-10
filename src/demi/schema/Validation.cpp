@@ -268,8 +268,7 @@ void validateSceneComponents(Diagnostics &diagnostics,
         if (machine.contains("layers") && machine["layers"].is_object())
           for (const auto &[layerName, layer] : machine["layers"].items())
             if (layer.is_object())
-              reportMissing("layer " + layerName,
-                            layer.value("state", ""));
+              reportMissing("layer " + layerName, layer.value("state", ""));
       }
     }
   }
@@ -331,9 +330,9 @@ void validatePhysics3D(Diagnostics &diagnostics,
                        const nlohmann::json &document) {
   if (!document.contains("entities") || !document["entities"].is_array())
     return;
-  constexpr std::array colliderNames{
-      "BoxCollider3D", "SphereCollider3D", "CapsuleCollider3D",
-      "ConvexCollider3D", "ModelCollider3D"};
+  constexpr std::array colliderNames{"BoxCollider3D", "SphereCollider3D",
+                                     "CapsuleCollider3D", "ConvexCollider3D",
+                                     "ModelCollider3D"};
   for (const auto &entity : document["entities"]) {
     if (!entity.is_object() || !entity.contains("components") ||
         !entity["components"].is_object())
@@ -341,35 +340,75 @@ void validatePhysics3D(Diagnostics &diagnostics,
     const std::string id = entity.value("id", "ent_unknown");
     const auto &components = entity["components"];
     const auto body = components.find("Rigidbody3D");
-    const std::string bodyType =
-        body != components.end() && body->is_object()
-            ? body->value("body_type", "static")
-            : "static";
-    const int colliderCount = static_cast<int>(std::ranges::count_if(
-        colliderNames, [&](const char *name) { return components.contains(name); }));
+    const auto character = components.find("CharacterController3D");
+    const std::string bodyType = body != components.end() && body->is_object()
+                                     ? body->value("body_type", "static")
+                                     : "static";
+    const int colliderCount = static_cast<int>(
+        std::ranges::count_if(colliderNames, [&](const char *name) {
+          return components.contains(name);
+        }));
     if (colliderCount > 1)
       diagnostics.push_back(
           {.severity = Severity::Error,
            .code = "PHYSICS3D_MULTIPLE_COLLIDERS",
-           .message = "Entity " + id +
-                      " has multiple 3D collider components.",
+           .message = "Entity " + id + " has multiple 3D collider components.",
            .path = path.string(),
            .suggestion = "Use one explicit collider per entity; compose a "
                          "compound from child entities."});
-    if (body != components.end() && bodyType != "static" &&
-        colliderCount == 0)
+    if (body != components.end() && bodyType != "static" && colliderCount == 0)
       diagnostics.push_back(
           {.severity = Severity::Error,
            .code = "PHYSICS3D_BODY_REQUIRES_COLLIDER",
            .message = "Moving Rigidbody3D " + id + " has no collider.",
            .path = path.string(),
            .suggestion = "Add a box, sphere, capsule, or convex collider."});
+    if (character != components.end() && colliderCount == 0)
+      diagnostics.push_back(
+          {.severity = Severity::Error,
+           .code = "PHYSICS3D_CHARACTER_REQUIRES_COLLIDER",
+           .message = "CharacterController3D " + id + " has no collider.",
+           .path = path.string(),
+           .suggestion = "Add a box, sphere, capsule, or convex collider to "
+                         "select the character shape."});
+    if (character != components.end() && body != components.end())
+      diagnostics.push_back(
+          {.severity = Severity::Error,
+           .code = "PHYSICS3D_CHARACTER_CONFLICTS_WITH_BODY",
+           .message =
+               "CharacterController3D " + id + " also has a Rigidbody3D.",
+           .path = path.string(),
+           .suggestion = "Use either character-controller movement or a "
+                         "rigidbody on one entity, not both."});
+    if (character != components.end() && components.contains("ModelCollider3D"))
+      diagnostics.push_back(
+          {.severity = Severity::Error,
+           .code = "PHYSICS3D_CHARACTER_REQUIRES_CONVEX_COLLIDER",
+           .message = "CharacterController3D " + id +
+                      " uses an unsupported triangle-mesh collider.",
+           .path = path.string(),
+           .suggestion = "Use a box, sphere, capsule, or convex collider."});
+    if (character != components.end()) {
+      for (const char *name : colliderNames) {
+        const auto collider = components.find(name);
+        if (collider != components.end() && collider->is_object() &&
+            collider->value("is_trigger", false))
+          diagnostics.push_back(
+              {.severity = Severity::Error,
+               .code = "PHYSICS3D_CHARACTER_COLLIDER_CANNOT_BE_TRIGGER",
+               .message = "CharacterController3D " + id +
+                          " uses a trigger as its movement shape.",
+               .path = path.string(),
+               .suggestion = "Set is_trigger to false; use a separate entity "
+                             "for trigger volumes."});
+      }
+    }
     if (components.contains("ModelCollider3D") && bodyType != "static")
       diagnostics.push_back(
           {.severity = Severity::Error,
            .code = "PHYSICS3D_MESH_REQUIRES_STATIC_BODY",
-           .message = "Triangle-mesh collider " + id +
-                      " must use a static body.",
+           .message =
+               "Triangle-mesh collider " + id + " must use a static body.",
            .path = path.string(),
            .suggestion = "Use ConvexCollider3D for moving bodies."});
     if (body != components.end() && bodyType != "static") {
@@ -385,10 +424,22 @@ void validatePhysics3D(Diagnostics &diagnostics,
              .suggestion = "Keep the physics body at the scene root and "
                            "parent visual children to it."});
     }
+    if (character != components.end()) {
+      const auto transform = components.find("Transform3D");
+      if (transform != components.end() && transform->is_object() &&
+          !transform->value("parent", "").empty())
+        diagnostics.push_back(
+            {.severity = Severity::Error,
+             .code = "PHYSICS3D_CHARACTER_REQUIRES_ROOT_TRANSFORM",
+             .message = "CharacterController3D " + id +
+                        " cannot have a parent Transform3D.",
+             .path = path.string(),
+             .suggestion = "Keep the controller at the scene root and parent "
+                           "visual children to it."});
+    }
     const auto capsule = components.find("CapsuleCollider3D");
     if (capsule != components.end() && capsule->is_object() &&
-        capsule->value("height", 1.8F) <
-            2.0F * capsule->value("radius", 0.4F))
+        capsule->value("height", 1.8F) < 2.0F * capsule->value("radius", 0.4F))
       diagnostics.push_back(
           {.severity = Severity::Error,
            .code = "PHYSICS3D_CAPSULE_HEIGHT_TOO_SMALL",
@@ -399,13 +450,12 @@ void validatePhysics3D(Diagnostics &diagnostics,
     const auto convex = components.find("ConvexCollider3D");
     if (convex != components.end() && convex->is_object()) {
       const auto points = convex->find("points");
-      if (points == convex->end() || !points->is_array() ||
-          points->size() < 4)
+      if (points == convex->end() || !points->is_array() || points->size() < 4)
         diagnostics.push_back(
             {.severity = Severity::Error,
              .code = "PHYSICS3D_CONVEX_REQUIRES_FOUR_POINTS",
-             .message = "Convex collider " + id +
-                        " needs at least four points.",
+             .message =
+                 "Convex collider " + id + " needs at least four points.",
              .path = path.string(),
              .suggestion = "Provide a non-coplanar convex point set."});
     }
@@ -562,16 +612,16 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
     break;
   case SourceFileKind::Hud:
     if (text.find("\"root\"") == std::string::npos) {
-      diagnostics.push_back(Diagnostic{
-          .severity = Severity::Error,
-          .code = "HUD_MISSING_CONTENT",
-          .message = "HUD file is missing a root UI node.",
-          .path = path.string(),
-          .suggestion = "Add a root object for tree UI."});
+      diagnostics.push_back(
+          Diagnostic{.severity = Severity::Error,
+                     .code = "HUD_MISSING_CONTENT",
+                     .message = "HUD file is missing a root UI node.",
+                     .path = path.string(),
+                     .suggestion = "Add a root object for tree UI."});
     }
     try {
-      const auto expansion = runtime::ui::expandUiDocument(
-          path, nlohmann::json::parse(text));
+      const auto expansion =
+          runtime::ui::expandUiDocument(path, nlohmann::json::parse(text));
       diagnostics.insert(diagnostics.end(), expansion.diagnostics.begin(),
                          expansion.diagnostics.end());
     } catch (const nlohmann::json::parse_error &) {
@@ -700,9 +750,8 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
     break;
   }
   case SourceFileKind::UiPrefab: {
-    requireToken(diagnostics, text, path, "\"id\"",
-                 "UI_PREFAB_MISSING_ID", "UI prefab is missing id.",
-                 "Add a ui-prefab:// id.");
+    requireToken(diagnostics, text, path, "\"id\"", "UI_PREFAB_MISSING_ID",
+                 "UI prefab is missing id.", "Add a ui-prefab:// id.");
     const auto expansion = runtime::ui::inspectUiPrefab(path);
     diagnostics.insert(diagnostics.end(), expansion.diagnostics.begin(),
                        expansion.diagnostics.end());

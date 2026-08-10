@@ -29,10 +29,21 @@ struct EntityProjection2D {
   float centerY;
   Vec2 camera;
   Vec2 position;
+  Vec2 scale;
   float cosine;
   float sine;
 
   [[nodiscard]] Vec2 point(const Vec2 local) const {
+    const Vec2 scaled{local.x * scale.x, local.y * scale.y};
+    const Vec2 rotated{scaled.x * cosine - scaled.y * sine,
+                       scaled.x * sine + scaled.y * cosine};
+    return {
+        centerX + (position.x + rotated.x - camera.x) * pixelsPerUnit,
+        centerY - (position.y + rotated.y - camera.y) * pixelsPerUnit,
+    };
+  }
+
+  [[nodiscard]] Vec2 worldUnitPoint(const Vec2 local) const {
     const Vec2 rotated{local.x * cosine - local.y * sine,
                        local.x * sine + local.y * cosine};
     return {
@@ -55,6 +66,7 @@ EntityProjection2D projection(const World &world, const Entity &entity,
       .centerY = viewportHeight * 0.5F,
       .camera = cameraPosition,
       .position = worldPosition2D(world, entity),
+      .scale = worldScale2D(world, entity),
       .cosine = std::cos(rotation),
       .sine = std::sin(rotation),
   };
@@ -74,8 +86,10 @@ bool lineLoop(Canvas2D &canvas, const std::vector<Vec2> &points,
 bool drawBox(Canvas2D &canvas, const EntityProjection2D &screen,
              const BoxCollider2DComponent &box, const std::uint32_t fill) {
   const Vec2 center = screen.point(box.offset);
-  const float width = box.size.x * screen.pixelsPerUnit;
-  const float height = box.size.y * screen.pixelsPerUnit;
+  const float width =
+      box.size.x * std::abs(screen.scale.x) * screen.pixelsPerUnit;
+  const float height =
+      box.size.y * std::abs(screen.scale.y) * screen.pixelsPerUnit;
   if (!canvas.imageTransformed(
           canvas.whiteTexture(), center.x, center.y, width, height, 0.5F, 0.5F,
           -std::atan2(screen.sine, screen.cosine), {}, fill))
@@ -101,7 +115,10 @@ bool drawCircle(Canvas2D &canvas, const EntityProjection2D &screen,
                 const CircleCollider2DComponent &circle,
                 const std::uint32_t fill) {
   const Vec2 center = screen.point(circle.offset);
-  const float radius = circle.radius * screen.pixelsPerUnit;
+  const float radius =
+      circle.radius *
+      std::max(std::abs(screen.scale.x), std::abs(screen.scale.y)) *
+      screen.pixelsPerUnit;
   return canvas.circle(center.x, center.y, radius, fill) &&
          canvas.circleOutline(center.x, center.y, radius, 1.0F,
                               ColliderOutline);
@@ -110,17 +127,20 @@ bool drawCircle(Canvas2D &canvas, const EntityProjection2D &screen,
 bool drawCapsule(Canvas2D &canvas, const EntityProjection2D &screen,
                  const CapsuleCollider2DComponent &capsule,
                  const std::uint32_t fill) {
-  const bool vertical = capsule.size.y >= capsule.size.x;
-  const float radius =
-      std::max(std::min(capsule.size.x, capsule.size.y) * 0.5F, 0.0F);
-  const float halfSegment = std::max(
-      (vertical ? capsule.size.y : capsule.size.x) * 0.5F - radius, 0.0F);
+  const Vec2 size{capsule.size.x * std::abs(screen.scale.x),
+                  capsule.size.y * std::abs(screen.scale.y)};
+  const Vec2 offset{capsule.offset.x * screen.scale.x,
+                    capsule.offset.y * screen.scale.y};
+  const bool vertical = size.y >= size.x;
+  const float radius = std::max(std::min(size.x, size.y) * 0.5F, 0.0F);
+  const float halfSegment =
+      std::max((vertical ? size.y : size.x) * 0.5F - radius, 0.0F);
   const Vec2 start =
-      screen.point({capsule.offset.x - (vertical ? 0.0F : halfSegment),
-                    capsule.offset.y - (vertical ? halfSegment : 0.0F)});
+      screen.worldUnitPoint({offset.x - (vertical ? 0.0F : halfSegment),
+                             offset.y - (vertical ? halfSegment : 0.0F)});
   const Vec2 end =
-      screen.point({capsule.offset.x + (vertical ? 0.0F : halfSegment),
-                    capsule.offset.y + (vertical ? halfSegment : 0.0F)});
+      screen.worldUnitPoint({offset.x + (vertical ? 0.0F : halfSegment),
+                             offset.y + (vertical ? halfSegment : 0.0F)});
   const float screenRadius = radius * screen.pixelsPerUnit;
   return canvas.line(start.x, start.y, end.x, end.y, screenRadius * 2.0F,
                      fill) &&

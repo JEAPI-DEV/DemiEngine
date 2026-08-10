@@ -1,7 +1,8 @@
 #Minimal 3D Example
 
 This reference scene exercises hierarchical transforms, glTF materials,
-texture importer settings, the public capsule character controller, a
+texture importer settings, the public character controller with an explicitly
+selected box collider matching the player cube, a
 kinematic moving platform, trigger pickups, continuous rigidbody projectiles,
 authored gameplay colliders, and debug colliders. Its
 project file sets explicit budgets of 16.67 ms per frame, 128 draw calls, and

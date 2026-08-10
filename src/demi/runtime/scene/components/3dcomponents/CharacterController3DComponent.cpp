@@ -10,10 +10,6 @@ namespace demi::runtime {
 void CharacterController3DComponent::parse(const nlohmann::json &json,
                                            Entity &entity) {
   CharacterController3DComponent component;
-  if (auto value = scene_loading::numberField(json, "radius"))
-    component.radius = std::max(*value, 0.001F);
-  if (auto value = scene_loading::numberField(json, "height"))
-    component.height = std::max(*value, component.radius * 2.0F);
   if (auto value = scene_loading::numberField(json, "step_height"))
     component.stepHeight = std::max(*value, 0.0F);
   if (auto value = scene_loading::numberField(json, "slope_limit"))
@@ -22,7 +18,6 @@ void CharacterController3DComponent::parse(const nlohmann::json &json,
     component.skinWidth = std::max(*value, 0.0001F);
   if (auto value = scene_loading::numberField(json, "gravity"))
     component.gravity = *value;
-  component.layer = scene_loading::stringOr(json, "layer");
   entity.setComponent(std::move(component));
 }
 

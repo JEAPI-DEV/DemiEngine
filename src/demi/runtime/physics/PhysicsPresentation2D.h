@@ -84,8 +84,10 @@ physicsPresentationWorldPosition2D(const World &world, const Entity &entity,
   const Entity *parent = findEntity(world, transform->parent);
   if (parent == nullptr || !parent->hasComponent<Transform2DComponent>())
     return position;
+  const Vec2 parentScale = worldScale2D(world, *parent);
   const Vec2 rotated = rotate2D(
-      position, physicsPresentationWorldRotation2D(world, *parent, alpha));
+      {.x = position.x * parentScale.x, .y = position.y * parentScale.y},
+      physicsPresentationWorldRotation2D(world, *parent, alpha));
   const Vec2 parentPosition =
       physicsPresentationWorldPosition2D(world, *parent, alpha);
   return {.x = parentPosition.x + rotated.x, .y = parentPosition.y + rotated.y};

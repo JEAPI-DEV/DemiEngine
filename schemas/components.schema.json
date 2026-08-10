@@ -660,23 +660,6 @@
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
-        "height": {
-          "minimum": 0.002,
-          "type": "number",
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "layer": {
-          "type": "string",
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "radius": {
-          "minimum": 0.001,
-          "type": "number",
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
         "skin_width": {
           "minimum": 0.0001,
           "type": "number",

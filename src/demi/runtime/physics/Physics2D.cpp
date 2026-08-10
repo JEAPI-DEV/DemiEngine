@@ -98,6 +98,20 @@ struct Aabb {
   float maxY = 0.0F;
 };
 
+[[nodiscard]] Vec2 scaledLocalPoint(const Transform2DComponent &transform,
+                                    const Vec2 point) {
+  return {.x = point.x * transform.scale.x, .y = point.y * transform.scale.y};
+}
+
+[[nodiscard]] Vec2 absoluteScale(const Transform2DComponent &transform) {
+  return {.x = std::abs(transform.scale.x), .y = std::abs(transform.scale.y)};
+}
+
+[[nodiscard]] float circleScale(const Transform2DComponent &transform) {
+  const Vec2 scale = absoluteScale(transform);
+  return std::max(scale.x, scale.y);
+}
+
 [[nodiscard]] bool participatesInCollision(const Entity &entity) {
   if (!entity.hasComponent<Transform2DComponent>())
     return false;
@@ -120,13 +134,15 @@ struct Aabb {
   const float cosine = std::cos(transform.rotation);
   const float sine = std::sin(transform.rotation);
   const auto worldPoint = [&](const Vec2 point) {
-    return Vec2{transform.position.x + point.x * cosine - point.y * sine,
-                transform.position.y + point.x * sine + point.y * cosine};
+    const Vec2 scaled = scaledLocalPoint(transform, point);
+    return Vec2{transform.position.x + scaled.x * cosine - scaled.y * sine,
+                transform.position.y + scaled.x * sine + scaled.y * cosine};
   };
   if (const auto *circle = entity.component<CircleCollider2DComponent>()) {
     const Vec2 center = worldPoint(circle->offset);
-    return {center.x - circle->radius, center.y - circle->radius,
-            center.x + circle->radius, center.y + circle->radius};
+    const float radius = circle->radius * circleScale(transform);
+    return {center.x - radius, center.y - radius, center.x + radius,
+            center.y + radius};
   }
 
   std::vector<Vec2> points;
@@ -455,8 +471,7 @@ std::optional<Vec2> moveAndSlideKinematic(World &world,
     if (applied.x > 0.0F && rightSeparation >= -KinematicContactSlop &&
         applied.x > rightSeparation)
       applied.x = std::min(applied.x, rightSeparation);
-    else if (applied.x < 0.0F &&
-             leftSeparation <= KinematicContactSlop &&
+    else if (applied.x < 0.0F && leftSeparation <= KinematicContactSlop &&
              applied.x < leftSeparation)
       applied.x = std::max(applied.x, leftSeparation);
   }
@@ -473,8 +488,7 @@ std::optional<Vec2> moveAndSlideKinematic(World &world,
     if (applied.y > 0.0F && topSeparation >= -KinematicContactSlop &&
         applied.y > topSeparation)
       applied.y = std::min(applied.y, topSeparation);
-    else if (applied.y < 0.0F &&
-             bottomSeparation <= KinematicContactSlop &&
+    else if (applied.y < 0.0F && bottomSeparation <= KinematicContactSlop &&
              applied.y < bottomSeparation)
       applied.y = std::max(applied.y, bottomSeparation);
   }
@@ -512,10 +526,18 @@ std::vector<std::string> overlapCircle(const World &world, const Vec2 center,
         (!layer.empty() && colliderLayer(entity) != layer))
       continue;
     if (const auto *circle = entity.component<CircleCollider2DComponent>()) {
-      const Vec2 position = entity.component<Transform2DComponent>()->position;
-      const float dx = center.x - (position.x + circle->offset.x);
-      const float dy = center.y - (position.y + circle->offset.y);
-      const float combinedRadius = queryRadius + circle->radius;
+      const Transform2DComponent &transform =
+          *entity.component<Transform2DComponent>();
+      const Vec2 offset = scaledLocalPoint(transform, circle->offset);
+      const float cosine = std::cos(transform.rotation);
+      const float sine = std::sin(transform.rotation);
+      const Vec2 circleCenter{
+          transform.position.x + offset.x * cosine - offset.y * sine,
+          transform.position.y + offset.x * sine + offset.y * cosine};
+      const float dx = center.x - circleCenter.x;
+      const float dy = center.y - circleCenter.y;
+      const float combinedRadius =
+          queryRadius + circle->radius * circleScale(transform);
       if (dx * dx + dy * dy <= combinedRadius * combinedRadius)
         hits.push_back(entity.id);
       continue;
@@ -610,17 +632,21 @@ raycast2D(const World &world, const Vec2 origin, Vec2 direction,
         (!layer.empty() && colliderLayer(entity) != layer))
       continue;
     if (const auto *circle = entity.component<CircleCollider2DComponent>()) {
-      const Vec2 entityPosition =
-          entity.component<Transform2DComponent>()->position;
-      const Vec2 circleCenter{entityPosition.x + circle->offset.x,
-                              entityPosition.y + circle->offset.y};
+      const Transform2DComponent &transform =
+          *entity.component<Transform2DComponent>();
+      const Vec2 offset = scaledLocalPoint(transform, circle->offset);
+      const float cosine = std::cos(transform.rotation);
+      const float sine = std::sin(transform.rotation);
+      const Vec2 circleCenter{
+          transform.position.x + offset.x * cosine - offset.y * sine,
+          transform.position.y + offset.x * sine + offset.y * cosine};
+      const float radius = circle->radius * circleScale(transform);
       const Vec2 relative{origin.x - circleCenter.x, origin.y - circleCenter.y};
       const float projection =
           relative.x * direction.x + relative.y * direction.y;
       const float discriminant =
           projection * projection -
-          (relative.x * relative.x + relative.y * relative.y -
-           circle->radius * circle->radius);
+          (relative.x * relative.x + relative.y * relative.y - radius * radius);
       if (discriminant < 0.0F)
         continue;
       const float hitDistance = -projection - std::sqrt(discriminant);
@@ -629,14 +655,14 @@ raycast2D(const World &world, const Vec2 origin, Vec2 direction,
       if (!closest || hitDistance < closest->distance) {
         const Vec2 point{origin.x + direction.x * hitDistance,
                          origin.y + direction.y * hitDistance};
-        closest = PhysicsRaycastHit2D{
-            .entityId = entity.id,
-            .layer = colliderLayer(entity),
-            .point = point,
-            .normal = {(point.x - circleCenter.x) / circle->radius,
-                       (point.y - circleCenter.y) / circle->radius},
-            .distance = hitDistance,
-            .fraction = hitDistance / maxDistance};
+        closest =
+            PhysicsRaycastHit2D{.entityId = entity.id,
+                                .layer = colliderLayer(entity),
+                                .point = point,
+                                .normal = {(point.x - circleCenter.x) / radius,
+                                           (point.y - circleCenter.y) / radius},
+                                .distance = hitDistance,
+                                .fraction = hitDistance / maxDistance};
       }
       continue;
     }
@@ -686,15 +712,17 @@ raycast2D(const World &world, const Vec2 origin, Vec2 direction,
     const auto *transform = entity.component<Transform2DComponent>();
     const float cosine = std::cos(transform->rotation);
     const float sine = std::sin(transform->rotation);
+    const Vec2 scale = absoluteScale(*transform);
+    const Vec2 offset = scaledLocalPoint(*transform, box->offset);
     const Vec2 translatedOrigin{origin.x - transform->position.x,
                                 origin.y - transform->position.y};
-    const Vec2 localOrigin{translatedOrigin.x * cosine +
-                               translatedOrigin.y * sine - box->offset.x,
-                           -translatedOrigin.x * sine +
-                               translatedOrigin.y * cosine - box->offset.y};
+    const Vec2 localOrigin{
+        translatedOrigin.x * cosine + translatedOrigin.y * sine - offset.x,
+        -translatedOrigin.x * sine + translatedOrigin.y * cosine - offset.y};
     const Vec2 localDirection{direction.x * cosine + direction.y * sine,
                               -direction.x * sine + direction.y * cosine};
-    const Aabb bounds = makeAabb({}, Vec2{.x = box->size.x, .y = box->size.y});
+    const Aabb bounds = makeAabb(
+        {}, Vec2{.x = box->size.x * scale.x, .y = box->size.y * scale.y});
     float nearTime = 0.0F;
     float farTime = maxDistance;
     Vec2 normal;
@@ -840,6 +868,10 @@ void stepPhysics2D(World &world, const float fixedDt,
       mix(static_cast<std::uint64_t>(rigidbody->lockRotation));
       mixFloat(rigidbody->bounciness);
     }
+    if (const auto *transform = entity.component<Transform2DComponent>()) {
+      mixFloat(transform->scale.x);
+      mixFloat(transform->scale.y);
+    }
     if (const auto *box = entity.component<BoxCollider2DComponent>()) {
       mix(0x01);
       mix(static_cast<std::uint64_t>(box->isTrigger));
@@ -909,12 +941,16 @@ void stepPhysics2D(World &world, const float fixedDt,
   liveEntityIds.reserve(world.entities.size());
 
   auto createFixtures = [&](Entity &entity, b2Body *body) {
+    const Transform2DComponent &transform =
+        *entity.component<Transform2DComponent>();
+    const Vec2 scale = absoluteScale(transform);
     if (entity.hasComponent<BoxCollider2DComponent>()) {
       const BoxCollider2DComponent &box =
           *entity.component<BoxCollider2DComponent>();
       b2PolygonShape shape;
-      shape.SetAsBox(box.size.x * 0.5F, box.size.y * 0.5F,
-                     {box.offset.x, box.offset.y}, 0.0F);
+      const Vec2 offset = scaledLocalPoint(transform, box.offset);
+      shape.SetAsBox(box.size.x * scale.x * 0.5F, box.size.y * scale.y * 0.5F,
+                     {offset.x, offset.y}, 0.0F);
       b2FixtureDef fixtureDef;
       fixtureDef.shape = &shape;
       fixtureDef.density = box.density;
@@ -941,8 +977,9 @@ void stepPhysics2D(World &world, const float fixedDt,
       const CircleCollider2DComponent &collider =
           *entity.component<CircleCollider2DComponent>();
       b2CircleShape shape;
-      shape.m_p.Set(collider.offset.x, collider.offset.y);
-      shape.m_radius = collider.radius;
+      const Vec2 offset = scaledLocalPoint(transform, collider.offset);
+      shape.m_p.Set(offset.x, offset.y);
+      shape.m_radius = collider.radius * circleScale(transform);
       b2FixtureDef fixtureDef;
       fixtureDef.shape = &shape;
       fixtureDef.density = collider.density;
@@ -966,11 +1003,12 @@ void stepPhysics2D(World &world, const float fixedDt,
       body->CreateFixture(&fixtureDef);
     }
     if (const auto *capsule = entity.component<CapsuleCollider2DComponent>()) {
-      const float radius =
-          std::max(std::min(capsule->size.x, capsule->size.y) * 0.5F, 0.001F);
-      const bool vertical = capsule->size.y >= capsule->size.x;
-      const float straight = std::max(
-          (vertical ? capsule->size.y : capsule->size.x) - radius * 2.0F, 0.0F);
+      const Vec2 size{capsule->size.x * scale.x, capsule->size.y * scale.y};
+      const Vec2 offset = scaledLocalPoint(transform, capsule->offset);
+      const float radius = std::max(std::min(size.x, size.y) * 0.5F, 0.001F);
+      const bool vertical = size.y >= size.x;
+      const float straight =
+          std::max((vertical ? size.y : size.x) - radius * 2.0F, 0.0F);
       b2FixtureDef definition;
       definition.density = capsule->density;
       definition.friction = capsule->friction;
@@ -987,16 +1025,15 @@ void stepPhysics2D(World &world, const float fixedDt,
         b2PolygonShape middle;
         middle.SetAsBox(vertical ? radius : straight * 0.5F,
                         vertical ? straight * 0.5F : radius,
-                        {capsule->offset.x, capsule->offset.y}, 0.0F);
+                        {offset.x, offset.y}, 0.0F);
         definition.shape = &middle;
         body->CreateFixture(&definition);
       }
       for (const float side : {-1.0F, 1.0F}) {
         b2CircleShape cap;
         cap.m_radius = radius;
-        cap.m_p = {
-            capsule->offset.x + (vertical ? 0.0F : side * straight * 0.5F),
-            capsule->offset.y + (vertical ? side * straight * 0.5F : 0.0F)};
+        cap.m_p = {offset.x + (vertical ? 0.0F : side * straight * 0.5F),
+                   offset.y + (vertical ? side * straight * 0.5F : 0.0F)};
         definition.shape = &cap;
         body->CreateFixture(&definition);
       }
@@ -1007,9 +1044,12 @@ void stepPhysics2D(World &world, const float fixedDt,
       const std::size_t count =
           std::min<std::size_t>(polygon->points.size(), b2_maxPolygonVertices);
       vertices.reserve(count);
-      for (std::size_t index = 0; index < count; ++index)
-        vertices.push_back({polygon->points[index].x + polygon->offset.x,
-                            polygon->points[index].y + polygon->offset.y});
+      for (std::size_t index = 0; index < count; ++index) {
+        const Vec2 point = scaledLocalPoint(
+            transform, {polygon->points[index].x + polygon->offset.x,
+                        polygon->points[index].y + polygon->offset.y});
+        vertices.push_back({point.x, point.y});
+      }
       b2PolygonShape shape;
       shape.Set(vertices.data(), static_cast<int32>(vertices.size()));
       b2FixtureDef definition;
@@ -1031,8 +1071,10 @@ void stepPhysics2D(World &world, const float fixedDt,
         edge != nullptr && edge->points.size() >= 2) {
       std::vector<b2Vec2> vertices;
       vertices.reserve(edge->points.size());
-      for (const Vec2 point : edge->points)
-        vertices.push_back({point.x, point.y});
+      for (const Vec2 point : edge->points) {
+        const Vec2 scaled = scaledLocalPoint(transform, point);
+        vertices.push_back({scaled.x, scaled.y});
+      }
       b2ChainShape shape;
       if (edge->loop && vertices.size() >= 3)
         shape.CreateLoop(vertices.data(), static_cast<int32>(vertices.size()));
