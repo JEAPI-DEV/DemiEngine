@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "type": "object",
+  "required": ["color"],
+  "properties": {
+    "color": {
+      "type": "array",
+      "maxItems": 4,
+      "items": { "type": "number", "minimum": 0, "maximum": 1 }
+    }
+  },
+  "additionalProperties": false
+}

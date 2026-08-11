@@ -1,4 +1,5 @@
 #include "demi/runtime/network/ReplicatedState.h"
+#include "demi/runtime/network/NetworkContract.h"
 
 #include "demi/runtime/scene/ComponentRegistry.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
@@ -11,8 +12,7 @@ namespace demi::runtime {
 
 namespace {
 
-template <typename Vector>
-nlohmann::json vectorJson(const Vector &value) {
+template <typename Vector> nlohmann::json vectorJson(const Vector &value) {
   if constexpr (requires { value.z; })
     return nlohmann::json::array({value.x, value.y, value.z});
   return nlohmann::json::array({value.x, value.y});
@@ -35,9 +35,8 @@ bool validReplicatedState(const nlohmann::json &state, std::string &error) {
       return false;
     }
     for (const auto &[fieldName, value] : componentState.items()) {
-      const auto field =
-          std::ranges::find(descriptor->fields, fieldName,
-                            &ComponentFieldDescriptor::name);
+      const auto field = std::ranges::find(descriptor->fields, fieldName,
+                                           &ComponentFieldDescriptor::name);
       if (field == descriptor->fields.end() || !field->replicated) {
         error = componentName + "." + fieldName +
                 " is not allowed in replicated state";
@@ -55,12 +54,34 @@ bool validReplicatedState(const nlohmann::json &state, std::string &error) {
   return true;
 }
 
+bool contractAllows(const NetworkPrefabRule &prefab, const std::string &path,
+                    const NetworkActor writer, const nlohmann::json &value,
+                    std::string &error) {
+  if (value.is_object()) {
+    for (const auto &[name, child] : value.items())
+      if (!contractAllows(prefab, path + "." + name, writer, child, error))
+        return false;
+    return true;
+  }
+  const auto rule = prefab.fields.find(path);
+  if (rule == prefab.fields.end()) {
+    error = path + " is not declared by the network contract";
+    return false;
+  }
+  if (rule->second.writeBy != writer &&
+      rule->second.writeBy != NetworkActor::All) {
+    error =
+        path + " is not writable by " + std::string(networkActorName(writer));
+    return false;
+  }
+  return true;
+}
+
 } // namespace
 
 bool isReplicatedField(const std::string_view component,
                        const std::string_view field) {
-  const auto *descriptor =
-      scene_loading::findComponentDescriptor(component);
+  const auto *descriptor = scene_loading::findComponentDescriptor(component);
   return descriptor != nullptr &&
          std::ranges::any_of(descriptor->fields, [&](const auto &candidate) {
            return candidate.name == field && candidate.replicated;
@@ -99,12 +120,50 @@ nlohmann::json captureReplicatedState(const Entity &entity) {
   return state;
 }
 
-ReplicatedStateResult
-validateReplicatedState(const nlohmann::json &state) {
+nlohmann::json captureContractReplicatedState(const Entity &entity,
+                                              const NetworkContract &contract,
+                                              const std::string_view prefabKey,
+                                              const NetworkActor writer) {
+  const auto prefab = contract.replicatedPrefabs.find(std::string(prefabKey));
+  if (prefab == contract.replicatedPrefabs.end())
+    return nlohmann::json::object();
+  const nlohmann::json full = captureReplicatedState(entity);
+  nlohmann::json filtered = nlohmann::json::object();
+  for (const auto &[component, fields] : full.items()) {
+    for (const auto &[field, value] : fields.items()) {
+      const auto rule = prefab->second.fields.find(component + "." + field);
+      if (rule != prefab->second.fields.end() &&
+          (writer == NetworkActor::All || rule->second.writeBy == writer ||
+           rule->second.writeBy == NetworkActor::All))
+        filtered[component][field] = value;
+    }
+  }
+  return filtered;
+}
+
+ReplicatedStateResult validateReplicatedState(const nlohmann::json &state) {
   std::string error;
   return validReplicatedState(state, error)
              ? ReplicatedStateResult{.ok = true, .error = {}}
              : ReplicatedStateResult{.ok = false, .error = std::move(error)};
+}
+
+ReplicatedStateResult validateContractReplicatedState(
+    const NetworkContract &contract, const std::string_view prefabKey,
+    const NetworkActor writer, const nlohmann::json &state) {
+  if (ReplicatedStateResult reflected = validateReplicatedState(state);
+      !reflected.ok)
+    return reflected;
+  const auto prefab = contract.replicatedPrefabs.find(std::string(prefabKey));
+  if (prefab == contract.replicatedPrefabs.end())
+    return {.ok = false, .error = "unknown replicated prefab"};
+  std::string error;
+  for (const auto &[component, fields] : state.items())
+    for (const auto &[field, value] : fields.items())
+      if (!contractAllows(prefab->second, component + "." + field, writer,
+                          value, error))
+        return {.ok = false, .error = std::move(error)};
+  return {.ok = true, .error = {}};
 }
 
 ReplicatedStateResult applyReplicatedState(Entity &entity,

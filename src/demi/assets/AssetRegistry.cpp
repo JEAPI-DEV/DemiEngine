@@ -6,6 +6,7 @@
 #include "demi/assets/DataAsset.h"
 #include "demi/assets/RenderAsset.h"
 #include "demi/assets/ModelImportProfile.h"
+#include "demi/runtime/network/NetworkContract.h"
 
 #include <nlohmann/json.hpp>
 
@@ -495,6 +496,14 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
   Diagnostics dataDiagnostics = assets::validateDataAssets(registry);
   diagnostics.insert(diagnostics.end(), dataDiagnostics.begin(),
                      dataDiagnostics.end());
+  for (const AssetManifest &asset : registry.assets) {
+    if (asset.type != "NetworkContract")
+      continue;
+    const runtime::NetworkContractLoadResult contract =
+        runtime::loadNetworkContract(registry, asset.id);
+    diagnostics.insert(diagnostics.end(), contract.diagnostics.begin(),
+                       contract.diagnostics.end());
+  }
   std::set<std::string> visiting;
   std::set<std::string> visited;
   for (const AssetManifest &asset : registry.assets)

@@ -1,0 +1,33 @@
+{
+  "format_version": 1,
+  "type": "object",
+  "required": ["players"],
+  "properties": {
+    "players": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "required": ["id", "health", "score", "deaths"],
+        "properties": {
+          "id": { "type": "string", "maxLength": 64 },
+          "health": { "type": "number", "minimum": 0, "maximum": 100 },
+          "score": { "type": "number", "minimum": 0 },
+          "deaths": { "type": "number", "minimum": 0 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "respawn": {
+      "type": "object",
+      "required": ["id", "x", "y"],
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -442,7 +442,8 @@ int runProject(const RuntimeOptions &options) {
             ? options.maxFrames
             : (inputReplay ? static_cast<int>(inputReplay->frames.size()) : 1);
     bool running = true;
-    while (running && (options.serve || frameCount < targetFrames)) {
+    const bool unboundedServer = options.serve && options.maxFrames == 0;
+    while (running && (unboundedServer || frameCount < targetFrames)) {
       if (options.watch)
         reportReload(reloadCoordinator.process(watcher.poll()));
       if (inputReplay &&

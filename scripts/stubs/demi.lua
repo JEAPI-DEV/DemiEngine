@@ -1738,7 +1738,19 @@ NetworkSession = {}
 ---@field sent_messages integer
 ---@field received_messages integer
 ---@field rejected_messages integer
+---@field session_epoch integer
+---@field contract_hash string
+---@field secure_accepted_messages integer
+---@field secure_rejected_messages integer
+---@field secure_ready boolean
+---@field phase "closed"|"connected"|"authenticated"|"ready"|"active"|"reconnecting"
 ---@field last_error string
+---@class NetworkContractInfo
+---@field active boolean
+---@field id string
+---@field compatibility_hash string
+---@field maximum_message_bytes integer
+---@field maximum_owned_entities_per_peer integer
 ---@class NetworkSessionGameEvent
 ---@field name string
 ---@field sender_id string
@@ -1770,25 +1782,47 @@ function NetworkSession.sender_id() end
 function NetworkSession.is_host() end
 ---@return NetworkSessionDiagnostics
 function NetworkSession.diagnostics() end
+---@return NetworkContractInfo
+function NetworkSession.contract() end
 ---@param network_id string
 ---@return string|nil
 function NetworkSession.owner(network_id) end
 ---@param network_id string
 ---@return boolean
 function NetworkSession.has_authority(network_id) end
+---@deprecated Use transfer with a declared network contract. Clients cannot change ownership.
 ---@param network_id string
 ---@param owner string
 ---@return boolean
 function NetworkSession.set_authority(network_id, owner) end
+---@deprecated For networking, use NetworkSession.send with a declared message. Events.emit remains the supported local event bus.
 ---@param name string
 ---@param data? any
 ---@param reliable? boolean
 ---@return boolean
 function NetworkSession.emit(name, data, reliable) end
+---@deprecated Use spawn with a prefab declared by the active network contract.
 ---@param entity_id string
 ---@param options? {network_id?: string, owner?: string}
 ---@return boolean
 function NetworkSession.register_entity(entity_id, options) end
+---@param name string Declared contract message name.
+---@param target? string Network entity target when required by the contract.
+---@param data? any Payload validated against the declared schema.
+---@return boolean
+function NetworkSession.send(name, target, data) end
+---@param prefab_key string Key from network_contract.replicated_prefabs.
+---@param entity_id string Local scene entity represented by this network entity.
+---@param owner? string Authenticated peer ID; server-only.
+---@return string|nil network_id
+function NetworkSession.spawn(prefab_key, entity_id, owner) end
+---@param network_id string
+---@param owner string
+---@return boolean
+function NetworkSession.transfer(network_id, owner) end
+---@param owner string
+---@return string|nil network_id
+function NetworkSession.network_id_for_owner(owner) end
 ---@param network_id string
 ---@return boolean
 function NetworkSession.despawn(network_id) end

@@ -98,6 +98,7 @@ importerFor(const std::filesystem::path &source, const std::string &type) {
       static const std::unordered_map<std::string, std::string> typedJson{
           {"DataAsset", "json_data"},
           {"DataSchema", "json_schema"},
+          {"NetworkContract", "network_contract"},
           {"Material", "material"},
           {"Shader", "shader"},
           {"RenderTarget", "render_target"},

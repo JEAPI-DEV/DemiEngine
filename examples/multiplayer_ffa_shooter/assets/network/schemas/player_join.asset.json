@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://network/schemas/player_join",
+  "importer": "json_schema",
+  "importer_version": 1,
+  "settings": {},
+  "source": "player_join.schema.json",
+  "source_hash": "fnv1a64:82757dda243311dc",
+  "type": "DataSchema"
+}

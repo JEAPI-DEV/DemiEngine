@@ -166,9 +166,9 @@ function Combat:request_shot()
 
   if self.game.mode == "host" then
     self:resolve_shot(self.local_id, data)
-    NetworkSession.emit("shot", data, false)
+    NetworkSession.send("shot", NetworkSession.network_id_for_owner("server"), data)
   elseif self.game.mode == "client" then
-    NetworkSession.emit("shot", data, false)
+    NetworkSession.send("shot", NetworkSession.network_id_for_owner(self.local_id), data)
   end
 end
 
@@ -203,7 +203,7 @@ function Combat:state_payload(respawn)
 end
 
 function Combat:broadcast_state(respawn)
-  NetworkSession.emit("combat_state", self:state_payload(respawn), true)
+  NetworkSession.send("combat_state", nil, self:state_payload(respawn))
 end
 
 function Combat:resolve_shot(shooter_id, data)
@@ -275,6 +275,8 @@ end
 function Combat:on_join(sender_id)
   self:ensure_player(sender_id)
   if self.game.mode == "host" then
+    local Session = require("shooter.session")
+    Session.spawn_remote(sender_id)
     self:broadcast_state(nil)
   end
 end

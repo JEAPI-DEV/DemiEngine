@@ -1,0 +1,1 @@
+{"format_version":1,"name":"demi.network.lobby","version":"1.0.0","engine":"^0.1.0","dependencies":{},"public_modules":["demi.network.lobby"],"files":["README.md","scripts/demi/network/lobby.lua","tests/lobby_test.lua"],"exported_events":[]}

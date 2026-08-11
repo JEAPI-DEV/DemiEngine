@@ -45,8 +45,10 @@ The current source layout reflects those boundaries:
   installable bindings.
 - `src/demi/runtime/audio`, `media`, and `network`: isolated integrations.
   Networking keeps `NetworkSystem` at the transport/security boundary;
-  `GameNetworkSession` owns game-facing identity, authority, and diagnostics,
-  while `ReplicatedState` gates snapshots through component metadata.
+  validated `NetworkContract`, `NetworkOwnershipRegistry`, and
+  `NetworkMessageGateway` services own policy and authority;
+  `GameNetworkSession` retains compatibility identity/diagnostics, while
+  `ReplicatedState` gates snapshots through contract and component metadata.
 
 ## Current Technology
 

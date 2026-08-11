@@ -11,6 +11,11 @@ foreach(package_name IN ITEMS
   set_tests_properties(demi-gameplay-package-${package_name}
     PROPERTIES LABELS "packages;gameplay")
 endforeach()
+add_test(NAME demi-network-lobby-package
+  COMMAND demi package test
+    ${CMAKE_SOURCE_DIR}/packages/sources/demi.network.lobby)
+set_tests_properties(demi-network-lobby-package
+  PROPERTIES LABELS "packages;network")
 add_test(NAME demi-project-watch-reload-tests
   COMMAND demi-project-watch-reload-tests)
 add_test(NAME demi-capability-manifest-tests
@@ -112,7 +117,12 @@ add_test(NAME demi-scene-diff-cli
   COMMAND demi scene diff ${CMAKE_SOURCE_DIR}/examples/minimal_3d/scenes/main.scene.json ${CMAKE_SOURCE_DIR}/examples/minimal_3d/scenes/main.scene.json)
 add_test(NAME demi-network-session-lua-tests COMMAND demi-network-session-lua-tests)
 add_test(NAME demi-game-network-session-tests COMMAND demi-game-network-session-tests)
+add_test(NAME demi-secure-network-session-tests COMMAND demi-secure-network-session-tests)
 if(DEMI_ENABLE_NETWORK)
+  add_test(NAME demi-server-headless-ffa-smoke
+    COMMAND demi-server run --project
+      ${CMAKE_SOURCE_DIR}/examples/multiplayer_ffa_shooter/demi.project.json
+      --max-frames 3)
   add_test(NAME demi-network-tests COMMAND demi-network-tests)
   add_test(NAME demi-network-two-client-tests COMMAND demi-network-two-client-tests)
   add_test(

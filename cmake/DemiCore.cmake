@@ -58,6 +58,7 @@ add_library(demi-core STATIC
   src/demi/runtime/isometric/IsoWorldQueries.cpp
   src/demi/runtime/isometric/IsoGridApi.cpp
   src/demi/runtime/navigation/NavigationGrid2D.cpp
+  src/demi/runtime/network/NetworkContract.cpp
   src/demi/runtime/tilemap/TilemapAsset.cpp
   src/demi/runtime/physics/Box2DWorldState.cpp
   src/demi/runtime/physics/SpatialQuery3D.cpp

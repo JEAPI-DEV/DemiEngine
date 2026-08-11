@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "type": "object",
+  "required": ["network_id", "owner", "state"],
+  "properties": {
+    "network_id": { "type": "string", "maxLength": 96 },
+    "owner": { "type": "string", "maxLength": 64 },
+    "state": { "type": "object" }
+  },
+  "additionalProperties": false
+}

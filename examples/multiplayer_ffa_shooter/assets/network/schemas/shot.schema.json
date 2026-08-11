@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "type": "object",
+  "required": ["x", "y", "dx", "dy"],
+  "properties": {
+    "x": { "type": "number", "minimum": -1000, "maximum": 1000 },
+    "y": { "type": "number", "minimum": -1000, "maximum": 1000 },
+    "dx": { "type": "number", "minimum": -1.1, "maximum": 1.1 },
+    "dy": { "type": "number", "minimum": -1.1, "maximum": 1.1 },
+    "distance": { "type": "number", "minimum": 0, "maximum": 64 }
+  },
+  "additionalProperties": false
+}

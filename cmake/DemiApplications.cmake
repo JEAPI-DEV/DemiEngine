@@ -45,7 +45,9 @@ else()
     src/cli/main.cpp
   )
   target_link_libraries(demi-server PRIVATE demi-core demi-cli-support demi-server-runtime-lib)
-  target_compile_definitions(demi-server PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  target_compile_definitions(demi-server PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+    DEMI_SERVER_CLI=1)
   if(NOT DEMI_HOST_SHADERC)
     add_dependencies(demi-server shaderc)
   endif()

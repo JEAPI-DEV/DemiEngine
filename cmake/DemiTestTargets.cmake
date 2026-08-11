@@ -200,6 +200,9 @@
   target_link_libraries(demi-network-session-lua-tests PRIVATE demi-runtime-lib)
   add_executable(demi-game-network-session-tests tests/game_network_session_tests.cpp)
   target_link_libraries(demi-game-network-session-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-secure-network-session-tests
+    tests/secure_network_session_tests.cpp)
+  target_link_libraries(demi-secure-network-session-tests PRIVATE demi-runtime-lib)
 
   if(DEMI_ENABLE_NETWORK)
     add_executable(demi-network-tests tests/network_tests.cpp)

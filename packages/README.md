@@ -14,6 +14,7 @@ public Demi APIs or explicitly declared packages and keep game policy in Lua.
 | `demi.gameplay.inventory` | stacks and equipment state |
 | `demi.gameplay.encounters` | waves, spawn failures, objectives |
 | `demi.gameplay.controllers` | platform/top-down/click/isometric intents |
+| `demi.network.lobby` | optional contract-backed lobby/ready/team/map state |
 
 Projects declare constraints in `demi.project.json`:
 

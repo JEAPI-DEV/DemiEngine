@@ -18,6 +18,10 @@
       "type": "string",
       "minLength": 1
     },
+    "network_contract": {
+      "type": "string",
+      "pattern": "^asset://"
+    },
     "packages": {
       "type": "object",
       "propertyNames": {

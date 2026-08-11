@@ -1087,16 +1087,26 @@ Networking should make the secure path the easiest path. Entity ownership,
 write authority, message permission, and lifecycle policy must be declared and
 enforced by the authoritative runtime rather than reconstructed by each game.
 
-**Status: planned.** `NetworkSession` provides transport-facing session,
-identity, authority, snapshots, and event primitives, but too much replicated
-state and lifecycle behavior still lives in the Lua binding and reference-game
-scripts. There is not yet one validated contract that prevents a peer from
-claiming an entity, writing an unauthorized field, invoking an undeclared
-message, or retaining authority after a lifecycle transition.
+**Status: implemented.** Projects can declare a versioned network-contract
+asset. The runtime resolves it before scripts start and enforces its prefab,
+field, ownership, message, schema, size, rate, sequence, epoch, and generation
+rules in C++ before constructing Lua values or mutating game state. The FFA
+shooter now exercises that path on Linux, in an Android package, and through a
+windowless dedicated-server smoke test.
 
-Prediction, reconciliation, snapshot interpolation, and lag compensation are
-explicitly deferred to Step 11. Step 6 first establishes a trustworthy
-host-authoritative foundation on which those latency-hiding features can rely.
+The implementation separates contract loading, the bounded envelope gateway,
+ownership registry, replicated-state filtering, lifecycle/reconnect leases,
+and deterministic fault simulation from the Lua facade. A small optional
+`demi.network.lobby` package demonstrates ready/team/map policy without owning
+transport or bypassing the contract. Legacy `NetworkSession.emit`,
+`register_entity`, and `set_authority` remain available only to projects that
+have not yet declared a contract; the unrelated local `Events.emit` API is not
+deprecated.
+
+Prediction, reconciliation, snapshot interpolation, acknowledged delta
+baselines, and lag compensation are explicitly deferred to Step 11. Step 6
+establishes the trustworthy host-authoritative foundation on which those
+latency-hiding and bandwidth-optimization features can rely.
 
 ### Trust and ownership model
 

@@ -172,10 +172,14 @@ int runProjectCommand(const std::vector<std::string> &args,
                  "the current directory.\n";
     return ExitUsageError;
   }
+  bool headlessServe = serve;
+#ifdef DEMI_SERVER_CLI
+  headlessServe = true;
+#endif
   return demi::runtime::runProject(demi::runtime::RuntimeOptions{
       .projectPath = project,
       .maxFrames = frameLimitFrom(args),
-      .serve = serve,
+      .serve = headlessServe,
       .profiler = hasArg(args, "--profiler"),
       .watch = hasArg(args, "--watch"),
       .inputReplayPath = valueAfter(args, "--input-replay"),

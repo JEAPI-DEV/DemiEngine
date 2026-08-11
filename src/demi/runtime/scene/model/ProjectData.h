@@ -53,6 +53,7 @@ struct ProjectData {
   std::string name;
   std::string mainScene;
   std::string scriptEntry;
+  std::string networkContract;
   std::vector<std::string> scriptModules;
   std::vector<SceneEntry> scenes;
   input::InputActionMap inputActions;

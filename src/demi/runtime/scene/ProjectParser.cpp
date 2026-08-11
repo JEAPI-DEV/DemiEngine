@@ -25,6 +25,7 @@ parseProjectData(const std::filesystem::path &projectPath, const Json &document,
   project.mainScene = *mainScene;
   project.inputActions = input::parseInputActions(document);
   project.scriptEntry = stringOr(document, "entry");
+  project.networkContract = stringOr(document, "network_contract");
 
   if (const Json *simulation = objectField(document, "simulation")) {
     project.simulation.fixedTimestep = std::clamp(
