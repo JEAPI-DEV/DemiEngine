@@ -253,13 +253,14 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
                                                   : ui::TextOverflow::Clip,
                                   .maxLines = node.maxLines,
                                   .locale = std::string(locale_),
+                                  .font = node.font,
                                   .fontRevision = font_.fonts().revision()};
     const ui::TextLayoutResult layout = ui::TextLayoutEngine{}.layout(
         request, [&](const std::string_view value) {
-          return font_.measure(value, fontScale).width;
+          return font_.measure(value, fontScale, node.font).width;
         }, [&](const std::string_view value) {
           return font_.shape(value, fontScale, request.direction,
-                             request.locale);
+                             request.locale, node.font);
         });
     const Rect2D textBounds =
         uiTextBounds(rect, layout.width, layout.height);

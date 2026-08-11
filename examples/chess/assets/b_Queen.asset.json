@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://chess/b_queen",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "b_Queen.png",
+  "source_hash": "fnv1a64:97afe19baedea333",
+  "type": "Texture2D"
+}

@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://chess/w_queen",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "w_Queen.png",
+  "source_hash": "fnv1a64:78105885208ef50a",
+  "type": "Texture2D"
+}

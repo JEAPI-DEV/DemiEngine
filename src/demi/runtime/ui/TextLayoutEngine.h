@@ -32,6 +32,7 @@ struct TextLayoutRequest {
   std::size_t maxLines = 0;
   TextDirection direction = TextDirection::Auto;
   std::string locale;
+  std::string font;
   std::uint64_t fontRevision = 0;
 };
 

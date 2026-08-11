@@ -440,11 +440,12 @@ int main() {
   }
 
   const UiDocument parsedAccessibility = parseUiDocument(nlohmann::json::parse(
-      R"({"root":{"id":"probe","type":"button","accessibility_label":"Run","accessibility_description":"Starts the probe","accessibility_hidden":true}})"));
+      R"({"root":{"id":"probe","type":"button","font":"asset://fonts/roboto","accessibility_label":"Run","accessibility_description":"Starts the probe","accessibility_hidden":true}})"));
   if (parsedAccessibility.nodes.size() != 1 ||
       parsedAccessibility.nodes[0].accessibilityLabel != "Run" ||
       parsedAccessibility.nodes[0].accessibilityDescription !=
           "Starts the probe" ||
+      parsedAccessibility.nodes[0].font != "asset://fonts/roboto" ||
       !parsedAccessibility.nodes[0].accessibilityHidden) {
     std::cerr << "Accessibility HUD metadata did not parse.\n";
     return 1;

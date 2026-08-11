@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://chess/w_rook",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "w_Rook.png",
+  "source_hash": "fnv1a64:ff8942ac556ef44d",
+  "type": "Texture2D"
+}

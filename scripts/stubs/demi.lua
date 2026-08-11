@@ -1050,6 +1050,7 @@ function HudVirtualLayout:item_offset(index) end
 ---@field id string
 ---@field type? string
 ---@field text? string
+---@field font? string Font2D asset ID; missing glyphs fall back to other loaded fonts.
 ---@field action? string
 ---@field style? string
 ---@field texture? string
@@ -1173,6 +1174,10 @@ function Hud.canvas_size() end
 ---@param text string
 ---@return boolean
 function Hud.set_text(id, text) end
+---@param id string
+---@param font string Font2D asset ID, or an empty string for automatic fallback.
+---@return boolean
+function Hud.set_font(id, font) end
 ---@param id string
 ---@param size number
 ---@return boolean

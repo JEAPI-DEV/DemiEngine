@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://chess/b_pawn",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "b_Pawn.png",
+  "source_hash": "fnv1a64:b3b93fbcc0607ece",
+  "type": "Texture2D"
+}

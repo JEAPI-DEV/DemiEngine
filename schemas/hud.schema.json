@@ -55,6 +55,7 @@
         "accessibility_description": {"type": "string"},
         "accessibility_hidden": {"type": "boolean"},
         "action": {"type": "string"},
+        "font": {"type": "string", "pattern": "^asset://"},
         "control": {"type": "string", "minLength": 1},
         "deadzone": {"type": "number", "minimum": 0, "maximum": 0.99},
         "placeholder": {"type": "string"},

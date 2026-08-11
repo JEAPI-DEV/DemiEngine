@@ -53,6 +53,7 @@ struct UiNode {
   std::string type;
   std::string style;
   std::string text;
+  std::string font;
   std::string placeholder;
   std::string placeholderLocalizationKey;
   std::string localizationKey;
