@@ -1,7 +1,9 @@
 #include "demi/schema/Validation.h"
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/SceneBudget3D.h"
 #include "demi/filesystem/ProjectPaths.h"
+#include "demi/packages/PackageManifest.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/runtime/ui/UiPrefabResolver.h"
@@ -465,6 +467,9 @@ void validatePhysics3D(Diagnostics &diagnostics,
 } // namespace
 
 SourceFileKind classifySourceFile(const std::filesystem::path &path) {
+  if (isPackageManifestFile(path)) {
+    return SourceFileKind::Package;
+  }
   if (isInputReplayFile(path)) {
     return SourceFileKind::InputReplay;
   }
@@ -527,8 +532,14 @@ ValidationSummary validatePath(const std::filesystem::path &path) {
 
   for (const std::filesystem::path &file : files) {
     ++summary.checkedFiles;
-    Diagnostics fileDiagnostics =
-        validateTextFile(file, classifySourceFile(file));
+    const SourceFileKind kind = classifySourceFile(file);
+    Diagnostics fileDiagnostics = validateTextFile(file, kind);
+    if (kind == SourceFileKind::Project &&
+        readFile(file).find("\"performance_budgets\"") != std::string::npos) {
+      const auto budget = assets::inspectSceneBudget3D(file, "android");
+      fileDiagnostics.insert(fileDiagnostics.end(), budget.diagnostics.begin(),
+                             budget.diagnostics.end());
+    }
     summary.diagnostics.insert(summary.diagnostics.end(),
                                fileDiagnostics.begin(), fileDiagnostics.end());
   }
@@ -586,7 +597,40 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
     requireToken(diagnostics, text, path, "\"scenes\"",
                  "PROJECT_MISSING_SCENES", "Project file is missing scenes.",
                  "Add a scenes array with scene:// references.");
+    try {
+      const auto project = nlohmann::json::parse(text);
+      if (const auto declared = project.find("packages");
+          declared != project.end()) {
+        if (!declared->is_object()) {
+          diagnostics.push_back(
+              {.severity = Severity::Error,
+               .code = "PROJECT_PACKAGES_INVALID",
+               .message = "Project packages must be a name-to-constraint object.",
+               .path = path.string(),
+               .suggestion = "Use packages: {\"demi.gameplay.health\": \"^1.0.0\"}."});
+        } else {
+          for (const auto &[name, constraint] : declared->items())
+            if (!packages::validPackageName(name) || !constraint.is_string() ||
+                !packages::VersionConstraint::parse(
+                    constraint.is_string() ? constraint.get<std::string>() : ""))
+              diagnostics.push_back(
+                  {.severity = Severity::Error,
+                   .code = "PROJECT_PACKAGE_REQUIREMENT_INVALID",
+                   .message = "Invalid package requirement: " + name,
+                   .path = path.string(),
+                   .suggestion = "Use a lowercase package name and semantic-version constraint."});
+        }
+      }
+    } catch (const nlohmann::json::parse_error &) {
+      // Other project validation reports malformed JSON.
+    }
     break;
+  case SourceFileKind::Package: {
+    const auto loaded = packages::loadPackageManifest(path);
+    diagnostics.insert(diagnostics.end(), loaded.diagnostics.begin(),
+                       loaded.diagnostics.end());
+    break;
+  }
   case SourceFileKind::Scene:
     requireToken(diagnostics, text, path, "\"id\"", "SCENE_MISSING_ID",
                  "Scene file is missing id.",

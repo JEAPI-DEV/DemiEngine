@@ -33,16 +33,24 @@ function Session.connect(address)
   return NetworkSession.connect(address, Config.port)
 end
 
-function Session.register_local(entity_id, sender_id, color)
+function Session.register_local(entity_id, sender_id, color, mode)
   NetworkSession.set_local_color(color[1], color[2], color[3], color[4])
-  return NetworkSession.register_entity(entity_id, {
-    network_id = "fighter_" .. sender_id,
-    owner = sender_id,
-  })
+  if mode == "host" then
+    return NetworkSession.spawn("player", entity_id, "server")
+  end
+  return true
 end
 
 function Session.update_local(sender_id, dt)
-  return NetworkSession.update_entity("fighter_" .. sender_id, dt)
+  local network_id = NetworkSession.network_id_for_owner(
+    sender_id == "host" and "server" or sender_id)
+  return network_id ~= nil and NetworkSession.update_entity(network_id, dt)
+end
+
+function Session.spawn_remote(sender_id)
+  if not NetworkSession.is_host() then return nil end
+  if NetworkSession.network_id_for_owner(sender_id) ~= nil then return nil end
+  return NetworkSession.spawn("player", Config.player_entity, sender_id)
 end
 
 return Session

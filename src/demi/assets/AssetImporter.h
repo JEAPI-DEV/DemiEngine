@@ -1,5 +1,6 @@
 #pragma once
 
+#include "demi/assets/ModelImportProfile.h"
 #include "demi/diagnostics/Diagnostic.h"
 
 #include <filesystem>
@@ -20,6 +21,7 @@ struct AssetImportRequest {
   std::string id;
   std::string type;
   std::optional<std::filesystem::path> license;
+  std::optional<ModelImportProfile> modelProfile;
 };
 
 struct GeneratedAssetRegistrationRequest {

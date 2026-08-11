@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    "asset://network/schemas/player_join",
+    "asset://network/schemas/state_update",
+    "asset://network/schemas/shot",
+    "asset://network/schemas/combat_state"
+  ],
+  "format_version": 1,
+  "id": "asset://network/ffa_contract",
+  "importer": "network_contract",
+  "importer_version": 1,
+  "settings": {},
+  "source": "ffa.network.json",
+  "source_hash": "fnv1a64:a6d6c08db1c9e723",
+  "type": "NetworkContract"
+}

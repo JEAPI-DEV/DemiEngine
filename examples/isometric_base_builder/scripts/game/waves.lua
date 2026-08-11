@@ -1,6 +1,6 @@
 local Waves = {}
 
-function Waves.new(state, config)
+function Waves.new(state, config, health_service)
   local self = {}
 
   local function available_enemy_types()
@@ -50,7 +50,7 @@ function Waves.new(state, config)
     local wave_index = math.max(0, state.wave - 1)
     local health_multiplier = 1 + wave_index * config.enemy.health_growth_per_wave
     local speed_multiplier = 1 + wave_index * config.enemy.speed_growth_per_wave
-    local health = math.floor(definition.health * health_multiplier + 0.5)
+    local maximum_health = math.floor(definition.health * health_multiplier + 0.5)
     local speed = definition.speed * speed_multiplier
     local reward_bonus = math.floor(wave_index / config.enemy.reward_growth_every)
     local reward = definition.reward + reward_bonus
@@ -72,8 +72,8 @@ function Waves.new(state, config)
       id = id,
       kind = kind,
       label = definition.label,
-      health = health,
-      max_health = health,
+      health = maximum_health,
+      max_health = maximum_health,
       reward = reward,
       base_damage = definition.base_damage,
       path = path,
@@ -83,6 +83,7 @@ function Waves.new(state, config)
       x = path[1][1],
       y = path[1][2],
     }
+    health_service:add(id, maximum_health)
   end
 
   function self.start()
@@ -101,7 +102,7 @@ function Waves.new(state, config)
   end
 
   function self.clear()
-    for id in pairs(state.enemies) do Entity.destroy(id) end
+    for id in pairs(state.enemies) do Entity.destroy(id); health_service:remove(id) end
     state.enemies = {}
     state.spawn_remaining = 0
     state.wave_active = false
@@ -139,6 +140,7 @@ function Waves.new(state, config)
       local enemy = state.enemies[id]
       Entity.destroy(id)
       state.enemies[id] = nil
+      health_service:remove(id)
       local damage = enemy and enemy.base_damage or 1
       state.base_health = math.max(0, state.base_health - damage)
       local label = enemy and enemy.label or "Enemy"

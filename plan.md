@@ -70,6 +70,7 @@ scenario are part of the feature.
 | Next | 4–7 | Turn stable engine primitives into reusable gameplay and content workflows. |
 | Later | 8–9 | Build visual authoring and release tooling on contracts proven by the earlier steps. |
 | Continuous | 10 | Add measurement and failure coverage during every earlier step, then complete the production-wide view. |
+| Advanced | 11 | Add latency-hiding action-game networking only after secure ownership and replication are stable. |
 
 ## Roadmap Rules
 
@@ -673,9 +674,12 @@ functions or renderer resources outside validated asset references.
 The engine primitives are stable; developers now need small, replaceable Lua
 packages that compose them into common game workflows.
 
-**Status: planned.** Several examples already contain useful modular Lua
-controllers, but there is no versioned package contract, consistent event
-vocabulary, or reusable test harness for composing them in a new project.
+**Status: implemented.** Versioned gameplay packages, deterministic semantic
+version resolution, verified immutable archives, recoverable atomic installs,
+committed lockfiles, directory/HTTP registries, a Docker development registry,
+and isolated headless package tests are now available. The fighting,
+multiplayer shooter, isometric builder, and two minimal 2D probes consume the
+packages where doing so removes duplicated policy.
 
 ### Package architecture
 
@@ -683,7 +687,7 @@ Packages live outside `src/demi` and depend only on installed public Lua APIs.
 Each package contains:
 
 ```text
-package.json
+demi.package.json
 scripts/<package modules>.lua
 schemas/<optional data schemas>.json
 prefabs/<optional composition>.prefab.json
@@ -696,9 +700,54 @@ Lua modules, asset/prefab/data dependencies, exported events, and configurable
 defaults. A package cannot read another package's private module path; declared
 dependencies expose explicit public modules.
 
-In this step, packages are checked into the engine distribution or directly
-vendored into a project. Step 7 later adds installation, dependency solving,
-and lock files without changing these Lua/event/data contracts.
+Packages may be project-local, checked into the engine distribution, or
+resolved from a configured registry. Resolution and installation are CLI/build
+operations: the runtime never downloads code or content while starting or
+playing a game. Registry packages use the same manifest and installed layout as
+local packages, so publishing does not create a second package format.
+
+### Package distribution and ownership
+
+- `PackageManifest` is the validated source contract for package identity,
+  semantic version, engine capabilities, public modules, dependencies, and
+  content hashes. It does not contain registry credentials or installation
+  state.
+- `PackageResolver` owns deterministic version selection and conflict
+  explanations from immutable registry metadata. It has no filesystem or HTTP
+  implementation details.
+- `PackageRegistryClient` is a narrow transport boundary for listing versions,
+  reading manifests, and downloading immutable archives. HTTP, local-directory,
+  and in-memory test implementations obey the same protocol.
+- `PackageInstaller` verifies hashes and paths, extracts into a package-owned
+  cache, and atomically materializes the resolved installation. It does not
+  choose versions.
+- `demi.packages.lock.json` records exact versions, dependency edges, source
+  registry, archive hashes, and manifest hashes. It is committed source data;
+  partial resolution or installation must not modify it.
+- The global download cache stores immutable verified archives. Installed
+  project state is derived from the lock and may be deleted and reconstructed
+  without changing authored project files.
+
+The registry protocol remains small and host-independent: normalized
+package/version metadata plus immutable archive downloads over HTTP. A
+Docker-hosted development registry provides publish/fetch integration tests and
+local iteration, but the engine and CLI depend on the protocol rather than that
+server implementation. Authentication and a production public registry are
+separate deployment concerns.
+
+```text
+demi package add demi.health@^1.2
+demi package remove demi.health
+demi package install
+demi package update demi.health
+demi package publish --registry http://localhost:8080
+```
+
+`add`, `remove`, and `update` plan the complete dependency graph, download and
+verify every missing archive, stage the installation, then atomically replace
+the manifest/lock/install state. `install --locked` reproduces the lock exactly
+and performs no version solving. Offline mode succeeds only from verified cache
+entries and reports every missing archive.
 
 Avoid a `GameplayManager` or universal character component. Packages exchange
 small values and events while the game owns composition and policy.
@@ -745,6 +794,11 @@ payload schemas are testable project data.
    simultaneous contacts, scene transitions, destroyed targets, and save/load.
 7. Update the platformer, shooter, fighting, and isometric examples to consume
    the packages where that makes them clearer.
+8. Add project dependency declarations, deterministic semantic-version
+   resolution, an atomic lockfile/install workflow, and an immutable package
+   cache.
+9. Add registry fetch and publish commands behind a documented HTTP protocol,
+   plus a disposable Docker development registry used by integration tests.
 
 ### Implementation slices
 
@@ -752,14 +806,34 @@ payload schemas are testable project data.
 
 1. Define deterministic in-project locations, public module names, direct
    dependency declarations, engine capability requirements, and conflict
-   diagnostics. Defer external package resolution and lock files to Step 7.
+   diagnostics.
 2. Extend `demi script check` and project validation to include installed
    package modules and their declared schemas.
 3. Add a lightweight headless package test runner with isolated world, events,
    deterministic time/random, and fixture-prefab support.
 4. Generate LuaLS paths/types from installed package manifests.
 
-#### 4B. Health, damage, and interactions
+#### 4B. Package registry, resolution, and installation
+
+1. Define and schema-validate the package manifest, project dependency entries,
+   registry metadata, and deterministic lock format.
+2. Resolve direct and transitive semantic-version constraints deterministically;
+   reject cycles, incompatible engine capabilities, yanked locked versions, and
+   unsatisfied constraints with a minimal useful conflict explanation.
+3. Add registry transport interfaces with in-memory, local-directory, and HTTP
+   implementations; keep credentials outside project and lock files.
+4. Verify archive and manifest hashes before extraction, reject absolute paths,
+   traversal, symlink escapes, duplicate files, undeclared public modules, and
+   stable-ID collisions before changing project state.
+5. Stage cache, installation, project dependency, and lock changes and commit
+   them atomically only after validation and `demi script check` succeed.
+6. Add `demi package add`, `remove`, `install`, `update`, `list`, `outdated`, and
+   `publish`, including locked, offline, dry-run, and machine-readable diagnostic
+   modes.
+7. Provide a disposable Docker development registry with persistent test volume,
+   health check, reset fixture, and documented local publish/fetch workflow.
+
+#### 4C. Health, damage, and interactions
 
 1. Implement health as explicit gameplay state associated with stable entity
    IDs, with clamp/max/invulnerability rules configured per instance.
@@ -769,7 +843,7 @@ payload schemas are testable project data.
 4. Add interaction queries/prompts that select candidates deterministically by
    priority, distance, and stable ID.
 
-#### 4C. Projectiles and weapons
+#### 4D. Projectiles and weapons
 
 1. Separate weapon cooldown/ammo policy, projectile motion, hit detection, and
    damage request emission.
@@ -779,7 +853,7 @@ payload schemas are testable project data.
 4. Make ownership, ignored entity, collision mask, lifetime, pierce count, and
    hit-once tracking explicit.
 
-#### 4D. Traversal, checkpoints, and cameras
+#### 4E. Traversal, checkpoints, and cameras
 
 1. Adapt existing public controllers instead of duplicating physics loops.
 2. Define checkpoint state by stable entrance/checkpoint IDs and serializable
@@ -788,7 +862,7 @@ payload schemas are testable project data.
 4. Compose camera follow, bounds, zones, shake, and look-ahead as independent
    policies writing to the existing camera service.
 
-#### 4E. Isometric encounters
+#### 4F. Isometric encounters
 
 1. Extract generic wave/objective scheduling from the tower-defense example
    without moving tower targeting or economy rules into the engine.
@@ -812,7 +886,16 @@ payload schemas are testable project data.
 - save/load occurs with active projectiles, queued damage, or an in-progress
   scene transition;
 - incompatible declared direct dependency and two packages exporting the same
-  public module/event schema.
+  public module/event schema;
+- registry timeout or malformed metadata, version disappearing between resolve
+  and fetch, yanked version already present in a lock, or inconsistent mirrors;
+- checksum mismatch, truncated archive, path traversal, symlink escape,
+  duplicate archive entry, archive bomb, or package claiming undeclared files;
+- dependency cycle, incompatible engine capability, ambiguous package source,
+  interrupted lock write, failed validation after extraction, and concurrent
+  installs targeting the same project;
+- offline install with a complete cache and with one transitive archive missing;
+  reinstall from a clean cache must reproduce identical installed bytes.
 
 ### Reference and test matrix
 
@@ -827,12 +910,22 @@ Each probe gets replay tests for ordinary input and adversarial lifecycle
 fixtures. Package tests must also run without rendering to prevent presentation
 from becoming an implicit dependency of gameplay policy.
 
+Resolver tests use generated dependency graphs and golden conflict explanations.
+Registry integration tests publish fixtures to the disposable local server,
+install from an empty cache, repeat from offline cache, corrupt an archive, and
+interrupt each atomic commit stage. They must not depend on a public service.
+
 ### Done when
 
 - A developer can assemble a small platformer, top-down action game, puzzle,
   or tower-defense prototype without adding engine bindings.
 - Packages can be used independently and replaced without changing engine
   source.
+- A clean checkout can restore exact package bytes from the committed lock with
+  one command, and a developer can add a package by name/version without copying
+  files manually.
+- Failed, interrupted, malicious, or conflicting package operations leave the
+  previous manifest, lock, cache trust state, and installation usable.
 - Common edge cases are covered outside individual example scripts.
 
 ## Step 5 — Lightweight 3D Creation Workflow
@@ -840,9 +933,13 @@ from becoming an implicit dependency of gameplay policy.
 Lightweight 3D should be approachable without understanding renderer or Jolt
 internals.
 
-**Status: planned.** Runtime rendering and physics are usable, but diagnosing
-third-party model orientation, scale, material, animation, collider, lighting,
-and cost still requires too much engine knowledge and visual trial-and-error.
+**Status: completed.** Model import profiles now normalize orientation and
+units, the CLI exposes structured model inspection and explicit collider
+recommendations, and generated colliders retain provenance for stale-input
+detection. The lightweight 3D template provides reusable controller,
+interaction, projectile, platform, camera, and presentation prefabs. Camera
+debug modes and static Linux/Android scene-budget reports cover the common
+rendering and mobile-cost diagnostics without requiring graphics-device access.
 
 ### Ownership and data flow
 
@@ -984,192 +1081,291 @@ and the normalized engine-space result.
 - Gameplay scripts depend only on engine-facing transforms, physics, cameras,
   animation, audio, and prefab APIs.
 
-## Step 6 — Multiplayer Game Workflow
+## Step 6 — Secure Multiplayer Ownership and Replication
 
-Networking should provide the lifecycle and debugging developers repeat while
-leaving game authority and rules explicit.
+Networking should make the secure path the easiest path. Entity ownership,
+write authority, message permission, and lifecycle policy must be declared and
+enforced by the authoritative runtime rather than reconstructed by each game.
 
-**Status: planned.** `NetworkSession` already isolates transport, identity,
-authority, snapshots, and events. Reference games still own conventions for
-RPC validation, late join, roster repair, replicated prefab selection,
-prediction, and lobby flow.
+**Status: implemented.** Projects can declare a versioned network-contract
+asset. The runtime resolves it before scripts start and enforces its prefab,
+field, ownership, message, schema, size, rate, sequence, epoch, and generation
+rules in C++ before constructing Lua values or mutating game state. The FFA
+shooter now exercises that path on Linux, in an Android package, and through a
+windowless dedicated-server smoke test.
 
-### Layer boundaries
+The implementation separates contract loading, the bounded envelope gateway,
+ownership registry, replicated-state filtering, lifecycle/reconnect leases,
+and deterministic fault simulation from the Lua facade. A small optional
+`demi.network.lobby` package demonstrates ready/team/map policy without owning
+transport or bypassing the contract. Legacy `NetworkSession.emit`,
+`register_entity`, and `set_authority` remain available only to projects that
+have not yet declared a contract; the unrelated local `Events.emit` API is not
+deprecated.
+
+Prediction, reconciliation, snapshot interpolation, acknowledged delta
+baselines, and lag compensation are explicitly deferred to Step 11. Step 6
+establishes the trustworthy host-authoritative foundation on which those
+latency-hiding and bandwidth-optimization features can rely.
+
+### Trust and ownership model
 
 ```text
-Lua game policy and optional lobby/gameplay packages
-  -> NetworkSession game-facing contract
-    -> replication/RPC/session services
-      -> transport and security adapters (ENet/TLS/DTLS)
+untrusted transport bytes
+  -> bounded envelope decoder and authenticated session/epoch check
+    -> ownership, authority, sequence, rate, and payload policy
+      -> simulation-thread command/event queue
+        -> authoritative session and replication state
+          -> narrow NetworkSession Lua facade
 ```
 
-- `NetworkSession` owns connection/session state, peers, stable network IDs,
-  authority, and diagnostics. It does not know health, weapons, teams, or score
-  rules.
-- `ReplicationRegistry` consumes component metadata and prefab declarations to
-  encode only explicitly allowed fields.
-- `RpcRegistry` owns declarations, payload validation, authority/rate rules,
-  and dispatch. Transport messages cannot directly name arbitrary Lua
-  functions.
-- `NetworkSimulation` is a test/development adapter between session and
-  transport; it applies deterministic delay/loss/reorder using a recorded seed.
-- Prediction/reconciliation helpers are opt-in policies above fixed simulation
-  and do not change authoritative world ownership.
+- A transport connection is not an identity and a claimed sender field is
+  never trusted. The authoritative session binds a transport peer to a stable
+  peer ID and current session epoch after handshake validation.
+- Entity ownership and permission are separate concepts. Ownership identifies
+  the peer associated with an entity. Each replicated field independently says
+  whether the `server` or `owner` may write it, and each message independently
+  says who may send and receive it. There is no compound ownership mode to
+  learn.
+- The recommended configuration lets an `owner` send declared input or intent
+  messages to the `server`, while replicated gameplay fields remain writable
+  by the `server`. A game may explicitly allow `owner` writes for selected
+  fields, but validation identifies that as a weaker trust boundary and still
+  applies schema, sequence, size, and rate limits.
+- Clients never grant themselves ownership. Spawn, transfer, revocation, and
+  despawn are authoritative reliable operations carrying a monotonically
+  increasing ownership generation and session epoch.
+- Component reflection is the upper permission bound. A network contract may
+  narrow replicated or client-writable fields but cannot expose a field that
+  component metadata forbids.
+- `NetworkSession` is a facade. Session identity, ownership, permission
+  evaluation, replication state, message validation, and transport adaptation
+  have separate C++ owners and can be tested without Lua or sockets.
+- Step 6 protects protocol and game-state integrity. Confidentiality, public
+  identity/accounts, anti-cheat, matchmaking, and denial-of-service protection
+  outside process-level budgets are not implied by an ENet connection.
 
-### Proposed authored contract
+### Authored network contract
 
 ```json
 {
   "format_version": 1,
+  "id": "network-contract://arena",
+  "limits": {
+    "maximum_message_bytes": 4096,
+    "maximum_messages_per_second": 60,
+    "maximum_owned_entities_per_peer": 4
+  },
   "replicated_prefabs": {
     "player": {
       "prefab": "prefab://network/player",
-      "fields": {
+      "spawn_by": "server",
+      "ownership": {
+        "default": "server",
+        "transfer_by": "server",
+        "on_disconnect": "despawn"
+      },
+      "components": {
         "Transform2D": {
-          "position": {"rate": 20, "reliability": "unreliable"},
-          "rotation": {"rate": 10, "reliability": "unreliable"}
+          "position": {
+            "write_by": "server",
+            "visible_to": "all",
+            "rate": 20,
+            "reliability": "unreliable"
+          }
         },
         "GameplayData": {
-          "values.health": {"rate": 5, "reliability": "reliable"}
+          "values": {
+            "health": {
+              "write_by": "server",
+              "visible_to": "owner_and_server",
+              "reliability": "reliable"
+            }
+          }
         }
       }
     }
   },
-  "rpcs": {
-    "fire": {
-      "direction": "client_to_authority",
+  "messages": {
+    "move_intent": {
+      "from": "owner",
+      "to": "server",
+      "target": "owned_entity",
+      "schema": "asset://schemas/network/move_intent",
       "reliability": "unreliable",
-      "rate_limit": 20,
-      "schema": "asset://schemas/rpc/fire"
+      "rate_limit": 30,
+      "maximum_bytes": 96
     }
   }
 }
 ```
 
-Metadata must still permit replication for every selected component field;
-project data can narrow that permission but cannot widen it.
+The contract is versioned source data with a deterministic compatibility hash.
+Validation resolves every prefab, component field, payload schema, authority
+rule, disconnect policy, and numerical limit before a session starts.
 
 ### Deliverables
 
-1. Add declarative replicated prefab fields driven by component metadata,
-   including change detection, rates, reliability, and owner visibility.
-2. Add typed game events/RPC declarations with sender, target, authority,
-   payload validation, size limits, and rate limits.
-3. Add automatic late-join spawn and current-state replay for active replicated
-   entities and session values.
-4. Add explicit ownership transfer, reconnect, despawn, peer-disconnect, and
-   session-reset lifecycles.
-5. Add lobby metadata, ready state, capacity, teams, and coordinated scene
-   activation as optional Lua packages above `NetworkSession`.
-6. Add host input queues, snapshots, interpolation, prediction, and
-   reconciliation helpers with documented suitability and limitations.
-7. Add latency, jitter, loss, duplication, reordering, and disconnect
-   simulation to headless tests and profiler diagnostics.
-8. Add a one-command local multi-process test and dedicated-server packaging
-   template.
-9. Update the FFA shooter so it does not manually rebuild roster, late-join,
-   or generic replicated-prefab behavior.
+1. Move session, remote-state, claim, and replication policy out of
+   `LuaNetworkSessionBindings` into cohesive engine-facing services. Bindings
+   translate values and expose a small facade only.
+2. Add validated network-contract assets covering replicated prefabs, field
+   writers and visibility, default owner, transfer and disconnect policy,
+   message direction/target, schemas, and resource limits.
+3. Add an authoritative ownership registry with stable network IDs, session
+   epochs, ownership generations, explicit transfer/revocation, and auditable
+   rejection reasons.
+4. Add a bounded message gateway that rejects malformed, stale, replayed,
+   unauthorized, oversized, over-depth, non-finite, or over-rate input before
+   constructing Lua values or mutating world state.
+5. Add reliable authoritative spawn/despawn/ownership operations and automatic
+   late-join reconstruction of active entities and session values.
+6. Add explicit reconnect, peer-disconnect, scene-transition, host-shutdown,
+   and session-reset behavior without retaining stale ownership or callbacks.
+7. Provide optional lobby/ready/team/map and coordinated scene-activation Lua
+   packages above the secure session contract; these packages do not bypass
+   ownership or message policy.
+8. Add deterministic loss, duplication, reordering, delay, disconnect, and
+   malicious-message simulation plus structured security counters.
+9. Add one-command multi-process testing and a dedicated-server package that
+   never initializes graphics or UI.
+10. Update the FFA shooter to use declared ownership, messages, spawn,
+    late-join, and disconnect behavior instead of rebuilding those conventions
+    in game scripts.
 
 ### Implementation slices
 
-#### 6A. Declared replication
+#### 6A. Boundary cleanup and bounded protocol
 
-1. Resolve declared prefabs/fields during project validation and assign stable
-   schema hashes for handshake compatibility.
-2. Track per-peer acknowledged baselines and field changes without serializing
-   the entire world every tick.
-3. Separate spawn/despawn reliability from high-rate state updates.
-4. Retain enough authoritative current state for deterministic late-join
-   reconstruction within explicit memory limits.
+1. Split transport adaptation, envelope codec, session state, ownership,
+   permission evaluation, replication, and Lua exposure into explicit owners.
+2. Decode a fixed-size bounded envelope before payload parsing. Validate
+   protocol version, contract hash, session epoch, peer binding, message kind,
+   payload length, sequence window, and declared limits.
+3. Queue accepted operations at a fixed simulation synchronization point;
+   transport threads never enter Lua or mutate entities.
+4. Give every rejected input a stable internal diagnostic code and bounded
+   counter while returning only sanitized failure information to the peer.
 
-#### 6B. RPC and event safety
+#### 6B. Ownership and authority enforcement
 
-1. Validate payload size/depth/type before creating Lua values.
-2. Apply sender direction, authority, target, session-state, and rate rules
-   before dispatch.
-3. Queue RPC callbacks at a simulation synchronization point; transport threads
-   never enter Lua or mutate the world.
-4. Return rejection diagnostics/counters without reflecting sensitive details
-   to an untrusted peer.
+1. Use the small shared vocabulary `server`, `owner`, and `all` for ownership,
+   field-write, message, and visibility rules. Do not introduce compound modes
+   that mix ownership with write or message permission.
+2. Make the server the only issuer of network IDs and ownership generation
+   changes. Duplicate IDs and client-issued transfer/revocation are rejected.
+3. Apply ownership generation, session epoch, sender, target, component-field,
+   and message-direction checks atomically before accepting an operation.
+4. Define disconnect policies (`despawn`, `return_to_server`, or
+   `transfer_by_game_policy`) and ensure the old owner loses permission before
+   callbacks observe the transition.
+5. Expose read-only ownership inspection and server-only transfer APIs to Lua;
+   do not expose mutation of the registry or trusted sender identity.
 
-#### 6C. Lifecycle and lobby packages
+#### 6C. Declared messages and replicated state
 
-1. Define peer connected/disconnected/reconnected events with stable ID and
-   reason.
-2. Specify ownership transfer/despawn policy for voluntary disconnect,
-   timeout, host shutdown, and scene transition.
-3. Implement ready/team/map/session metadata as an optional Lua package using
-   replicated session values.
-4. Coordinate `Scene.prepare` and activation after every required peer reaches
-   the declared readiness barrier, with timeout/host policy in game code.
+1. Resolve contracts during project validation and derive a deterministic hash
+   for handshake compatibility.
+2. Validate payload byte size, nesting, scalar types, array lengths, strings,
+   finite numbers, sender direction, target ownership, session state, sequence,
+   and rate before dispatch.
+3. Separate reliable spawn/despawn/ownership messages from replicated field
+   updates. Ignore late state for an older ownership generation or despawned ID.
+4. Track per-peer acknowledged field baselines and send only allowed changes at
+   declared rates without serializing the entire world each tick.
+5. Retain bounded authoritative current state for deterministic late join and
+   reject a join cleanly when reconstruction exceeds declared limits.
 
-#### 6D. Action-game helpers
+#### 6D. Lifecycle and optional lobby workflow
 
-1. Timestamp and sequence client input commands against fixed ticks.
-2. Keep an authoritative input queue with duplicate/old/future rejection.
-3. Add snapshot interpolation buffers with bounded extrapolation.
-4. Add opt-in local prediction and reconciliation callbacks that operate on
-   explicit serializable controller state.
-5. Document that physics rewind/lag compensation is limited and implement it
-   only for bounded query snapshots, never by mutating the live world mid-step.
+1. Define connected, authenticated, ready, active, reconnecting, disconnected,
+   and closed session states with legal transitions and stable reasons.
+2. Bind reconnect tokens to the session, peer identity, expiry, and ownership
+   generation; a stale token cannot reclaim a newer owner's entity.
+3. Coordinate `Scene.prepare` and activation only after authenticated required
+   peers reach the declared barrier. Timeout and map/team policy remain in the
+   optional game package.
+4. Make session reset revoke all peer capabilities, ownership, queued work,
+   baselines, and reconnect tokens before a new epoch begins.
 
-#### 6E. Test and deployment workflow
+#### 6E. Adversarial tests and deployment
 
-1. Start server and clients on dynamically allocated ports from one test
-   command and capture each structured log separately.
-2. Add deterministic network simulation profiles committed as fixtures.
-3. Package a headless server without renderer/UI assets unless reachable by
-   server-side project dependencies.
+1. Add codec property/fuzz tests independent of sockets and Lua, including
+   truncated frames, integer overflow, excessive nesting, invalid UTF-8,
+   non-finite numbers, decompression bombs if compression is added, and trailing
+   bytes.
+2. Use fake clocks and generated ownership graphs to test every authority,
+   transfer, visibility, rate, and disconnect rule.
+3. Run two- and four-client deterministic processes through late join,
+   reconnect, transfer, scene transition, and reset while injecting packet loss,
+   reordering, duplication, and disconnects.
+4. Repeat connect/reset/disconnect and mid-callback teardown under ASan/LSan;
+   verify no retained peers, entities, tokens, callbacks, buffers, or Lua values.
+5. Package and run the headless server without graphics/window initialization;
+   exercise Android suspend, resume, and network-interface replacement in the
+   platform integration tests.
 
-### Failure and security matrix
+### Security invariants
 
-- protocol/schema/capability mismatch during handshake;
-- duplicate network ID, unknown prefab, unauthorized field, malformed payload,
-  excessive nesting, oversized string/array, NaN, and replayed RPC sequence;
-- late join while entities spawn/despawn or the active scene changes;
-- disconnect during ownership transfer, reliable RPC delivery, or snapshot
-  baseline update;
-- host migration is explicitly unsupported until designed; it must fail
-  clearly rather than electing implicitly;
-- packet loss/reorder/duplication around spawn-before-state and
+- No unauthenticated peer can spawn, own, transfer, mutate, invoke, or observe
+  protected state.
+- No client-provided network ID, sender ID, owner ID, authority flag, session
+  epoch, or ownership generation is accepted as trusted identity.
+- Ownership transfer is reliable, ordered, authoritative, and atomic from the
+  permission evaluator's perspective.
+- Revocation takes effect before disconnect/transfer callbacks and before any
+  queued later operation from the old owner is evaluated.
+- Reordered state cannot resurrect a despawned entity or overwrite state from a
+  newer owner/session generation.
+- Invalid traffic consumes bounded memory, CPU, log volume, and diagnostic
+  storage per peer.
+- Payload validation and authority checks occur before Lua allocation or world
+  mutation.
+- Host migration remains unsupported and fails explicitly; no peer is elected
+  implicitly.
+
+### Failure matrix
+
+- protocol, contract hash, prefab revision, or capability mismatch at
+  handshake;
+- forged sender/owner, unknown prefab/message/field, duplicate network ID,
+  unauthorized target, stale epoch/generation, or replayed sequence;
+- malformed, truncated, oversized, over-depth, non-finite, or over-rate payload;
+- disconnect during transfer, spawn, despawn, reliable delivery, baseline
+  update, scene preparation, callback processing, or command-buffer flush;
+- late join while entities spawn/despawn, ownership changes, or scenes activate;
+- reconnect after expiry, session reset, despawn, or transfer to another peer;
+- loss/reorder/duplication around spawn-before-state and
   despawn-before-late-state ordering;
-- a local predicted entity is destroyed or authority changes during
-  reconciliation;
-- reconnect with stale session token, network ID, or prefab revision;
-- malicious rate-limit exhaustion and invalid-message log flooding;
-- Android suspend/background transition and network-interface change;
-- repeated connect/reset/disconnect under ASan/LSan with no retained peers,
-  callbacks, entities, or buffers.
-
-### Test matrix
-
-- codec property/fuzz tests independent of sockets;
-- authority and rate-rule unit tests with a fake clock;
-- deterministic simulated-transport tests for every failure profile;
-- two- and four-client process tests covering late join and disconnect;
-- dedicated-server tests proving no graphics/window initialization;
-- replay comparison of authoritative state after identical command streams;
-- bandwidth, buffer-size, rejected-message, and reconciliation counters with
-  enforceable budgets.
+- invalid-message flooding from one peer while healthy peers continue;
+- Android background/suspend and network-interface change;
+- repeated lifecycle teardown under sanitizers.
 
 ### Done when
 
-- A developer can build a lobby plus a small host-authoritative match using
-  public APIs and project packages.
-- Late join, reconnect, ownership transfer, and disconnect pass repeatable
-  multi-client tests.
-- Network failures identify the peer, message/RPC, authority rule, and payload
-  involved.
+- A developer can declare a host-authoritative lobby and match without manually
+  implementing identity trust, ownership permission, spawn, late join,
+  disconnect repair, or generic replication.
+- Every entity and declared message has an inspectable ownership/authority rule,
+  and unauthorized operations are rejected before Lua or world mutation.
+- Ownership transfer, revocation, reconnect, late join, disconnect, scene
+  transition, and reset pass repeatable adversarial multi-client tests.
+- Diagnostics identify the internal peer, message, target, ownership generation,
+  and failed rule without leaking sensitive details to the remote peer.
+- The FFA shooter uses only public contracts/packages for generic multiplayer
+  lifecycle and passes Linux, Android package, and dedicated-server tests.
 
-## Step 7 — Asset Iteration, Streaming, and Project Packages
+## Step 7 — Asset Iteration, Streaming, and Package Content
 
 Larger games need fast iteration and explicit memory ownership rather than a
 single startup asset set.
 
 **Status: planned.** Manifests, dependency validation, cooking, portable asset
 packages, scene resource groups, and startup upload are present. Importer
-registration, incremental dependency cooking, addressable groups, and reusable
-project-package version resolution are not complete developer workflows.
+registration, incremental dependency cooking, addressable groups, and package
+content cooking are not complete developer workflows. Package identity,
+registry resolution, installation, and lock ownership are established in Step
+4 and are not reimplemented here.
 
 ### Ownership model
 
@@ -1182,9 +1378,9 @@ project-package version resolution are not complete developer workflows.
 - `AssetGroupService` owns asynchronous acquire/release state and progress.
   Renderer/audio/script backends own their resource objects behind narrow
   loaders; the group service owns references, not backend internals.
-- `ProjectPackageResolver` owns package manifests, versions, dependency
-  solving, lock data, and stable-ID collision policy. It never silently renames
-  assets/components/modules.
+- The Step 4 package subsystem supplies a verified, locked package installation.
+  Asset cooking consumes that installation as source input and never performs
+  registry access or version selection.
 - Hot reload and normal load use the same asset handlers and resource lifetime
   registry. There is no separate editor-only cache owner.
 
@@ -1234,10 +1430,10 @@ explicit and atomic with respect to group ownership.
    stable asset ID.
 6. Route hot reload through the same resource ownership path as ordinary load
    and unload.
-7. Add versioned project packages for reusable Lua modules, prefabs, UI,
-   assets, schemas, and optional registered engine extensions.
-8. Add dependency/version/conflict diagnostics and deterministic package lock
-   data; never silently rewrite a stable ID.
+7. Extend Step 4 packages with reusable assets and optional registered engine
+   extensions, including deterministic per-platform cooked outputs.
+8. Diagnose content/stable-ID conflicts while cooking a locked package graph;
+   never silently rewrite a stable ID.
 
 ### Implementation slices
 
@@ -1280,17 +1476,19 @@ explicit and atomic with respect to group ownership.
 3. Preserve source asset IDs or provide explicit migration maps when packing
    changes runtime texture layout.
 
-#### 7E. Project packages
+#### 7E. Package content integration
 
-1. Define a package manifest and lock format with engine capability/version
-   requirements and content hashes.
-2. Resolve a dependency graph deterministically and reject cycles or
-   incompatible constraints with a minimal conflict explanation.
-3. Preview all files, stable IDs, Lua module names, schemas, and extension
-   registrations before installation.
-4. Install to a package-owned directory and update the lock atomically.
-5. Support uninstall only when no authored project reference or dependent
-   package remains, unless an explicit breaking removal is requested.
+1. Consume only the verified installed graph and lock produced by Step 4; do
+   not resolve versions or contact registries during cooking.
+2. Include package assets, import settings, and registered extensions in cook
+   keys and platform capability validation.
+3. Preview stable IDs, schemas, extension registrations, cooked outputs, and
+   cross-package collisions before committing generated content.
+4. Record source package and content hash provenance for every cooked output so
+   diagnostics and runtime memory reports identify its owner.
+5. Prevent package removal while authored references, cooked outputs, loaded
+   groups, or dependent packages still require it, unless an explicit breaking
+   removal workflow first updates those owners.
 
 ### Failure and edge-case matrix
 
@@ -1308,8 +1506,10 @@ explicit and atomic with respect to group ownership.
 - atlas edge bleed, rotated/trimmed sprites, nine-slice borders, empty sprites,
   and animation frames spanning pages;
 - missing font glyph after packaging and fallback cycle;
-- package path traversal, checksum mismatch, duplicate stable ID/module,
-  dependency cycle, lock interruption, and uninstall with live references.
+- locked package content missing or changed after install, duplicate stable ID,
+  unsupported native extension for the target, and uninstall with live or
+  cooked references. Registry, archive, solver, and lock failures are covered
+  by Step 4 rather than duplicated here.
 
 ### Test and observability plan
 
@@ -1326,7 +1526,8 @@ explicit and atomic with respect to group ownership.
 
 - A loading screen can prepare a content group, show progress, activate it,
   and unload the previous group with memory returning to budget.
-- A content-only package can be installed without copying files by hand.
+- A locked content package cooks reproducibly for Linux and Android without
+  registry access during the cook.
 - Incremental cook and reload never duplicate GPU, audio, script, or scene
   resources.
 
@@ -1810,6 +2011,101 @@ budget.
 - Repeated lifecycle tests show no leaks, dangling handles, or unbounded
   resource growth.
 
+## Step 11 — Advanced Real-Time Networked Movement
+
+Latency hiding should build on Step 6 ownership generations, validated intent
+messages, authoritative state, fixed simulation ticks, and deterministic test
+infrastructure. It must not introduce a second authority model or let predicted
+client state become trusted replicated state.
+
+**Status: deferred.** Implement only after Step 6 is stable and a reference
+action game demonstrates which controller states and query history are needed.
+
+### Prediction and correction protocol
+
+The owning client never waits for a movement round trip. It applies each local
+input immediately, assigns a monotonically increasing input sequence, stores the
+small replayable controller state, and sends the declared intent to the server.
+Prediction affects only the local presentation/controller copy; it never grants
+permission to write replicated authoritative fields.
+
+The server evaluates inputs at fixed ticks in sequence order and sends regular
+authoritative snapshots containing:
+
+- the session epoch and ownership generation;
+- the authoritative server tick and controller state;
+- the last input sequence evaluated for that owner, whether accepted or
+  rejected;
+- a bounded sanitized rejection code when an input was rejected;
+- a correction marker (`normal`, `teleport`, or `reset`) when ordinary replay
+  is unsafe.
+
+On receipt, the owner discards all inputs through the acknowledged sequence,
+restores the authoritative controller state, and reapplies every still-unacked
+input in order. A small visual correction may be smoothed while simulation state
+is corrected immediately. A teleport/reset, ownership-generation change,
+despawn, reconnect, or scene transition clears incompatible prediction history
+and snaps or reinitializes explicitly. Non-owning clients interpolate bounded
+authoritative snapshots and do not predict another player's input.
+
+An immediate rejection message may reduce correction latency, but correctness
+must not depend on receiving it. The next authoritative snapshot and its last
+evaluated sequence always repair divergence after loss or reordering.
+
+### Scope
+
+1. Add sequenced, timestamped owner-input queues with duplicate, old, and
+   excessive-future rejection at the authoritative fixed tick. Rejected inputs
+   still advance the server's last-evaluated acknowledgment so the client does
+   not replay them forever.
+2. Add snapshot interpolation with bounded buffering, bounded extrapolation,
+   teleport/reset markers, ownership-generation changes, and scene transitions.
+3. Add opt-in local prediction and reconciliation over explicit serializable
+   controller state, acknowledged input sequences, and authoritative snapshots;
+   gameplay callbacks define replayable state rather than exposing
+   physics-backend internals.
+4. Add reconciliation diagnostics for correction distance, replayed commands,
+   discarded inputs, buffer depth, extrapolation, and ownership changes.
+5. Add bounded historical query snapshots for selected hit/visibility tests if
+   the shooter demonstrates the requirement. Never rewind or mutate the live
+   world during an active simulation step.
+6. Test every helper under deterministic latency, jitter, loss, duplication,
+   reordering, tick drift, pause/resume, Android backgrounding, reconnect,
+   despawn, and ownership transfer.
+
+### Required reconciliation cases
+
+- accepted input with no divergence performs no correction;
+- accepted input with a small divergence corrects simulation immediately and
+  smooths only the visual offset;
+- rejected input is acknowledged, removed, and not replayed;
+- lost rejection notification is repaired by the next snapshot;
+- multiple unacknowledged inputs replay in their original fixed-tick order;
+- duplicate or reordered snapshots never move the acknowledgment backward;
+- teleport/reset clears history instead of replaying through the discontinuity;
+- ownership transfer prevents the former owner from predicting or replaying;
+- reconnect and scene changes cannot reuse sequences or state from an old
+  session epoch;
+- packet loss cannot make predicted state authoritative or suppress a later
+  server correction.
+
+### Explicit non-goals
+
+- generic rollback for arbitrary Lua/world state;
+- trusting client-reported transforms, hits, damage, inventory, or score;
+- transparent prediction of arbitrary Jolt or Box2D bodies;
+- host migration, global matchmaking, accounts, or anti-cheat;
+- unlimited physics history or live-world rewinding.
+
+### Done when
+
+- A reference action game remains responsive under declared latency/loss while
+  the authority produces the same final state for the same accepted input log.
+- Prediction cannot bypass Step 6 ownership, message, rate, sequence, or
+  payload rules.
+- Despawn, reconnect, scene change, and ownership transfer clear or rebase all
+  input and snapshot history without stale corrections or retained memory.
+
 ## Scenario Paths
 
 The steps are cumulative, but developers can follow the shortest path for the
@@ -1822,7 +2118,8 @@ kind of game they are building:
 | Top-down action or puzzle game | 1–4 | Input, navigation, weapons/interactions, prefabs, saves, and responsive UI |
 | Isometric builder or tactics game | 1–4 | Existing grid/path systems plus reusable objectives, units, UI, and content data |
 | Lightweight 3D exploration/action | 1–3 and 5 | Predictable import, controller, physics, animation, materials, lighting, and diagnostics |
-| Multiplayer action game | Relevant local-game path plus 6 | Lobby, authority, replication, late join, reconnect, testing, and server packaging |
+| Multiplayer game | Relevant local-game path plus 6 | Secure ownership, authority, replication, late join, reconnect, testing, and server packaging |
+| Latency-sensitive multiplayer action | Relevant local-game path plus 6 and 11 | The secure multiplayer workflow plus interpolation, prediction, reconciliation, and bounded historical queries |
 | Large content-driven game | Relevant gameplay path plus 7 | Streaming groups, incremental cooking, hot reload, and reusable packages |
 | Visual authoring workflow | 1–7, then 8 | Editor acceleration without hidden data or duplicate runtime behavior |
 | Public Linux/Android release | Relevant game path plus 9–10 | Reproducible packages, device validation, profiling, and stability gates |
@@ -2022,11 +2319,14 @@ blocking dependency:
           -> 8 Editor
             -> 9 Shipping
               -> 10 Performance and reliability
+                -> 11 Advanced real-time networking (when required)
 ```
 
 Steps 4, 5, and 6 may proceed independently after Step 3. Performance tests
 and failure coverage from Step 10 are added throughout the roadmap rather than
-postponed until the end.
+postponed until the end. Step 11 depends on the secure ownership and replication
+contract from Step 6 and is not required for turn-based, cooperative, or
+latency-tolerant multiplayer games.
 
 ## Explicit Deferrals
 

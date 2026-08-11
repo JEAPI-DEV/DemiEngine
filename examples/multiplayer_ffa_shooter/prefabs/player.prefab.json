@@ -1,0 +1,25 @@
+{
+  "format_version": 1,
+  "id": "prefab://player",
+  "name": "Network Player",
+  "entities": [{
+    "id": "ent_network_player_template",
+    "name": "Network Player",
+    "components": {
+      "Transform2D": {"position": [0.0, 0.0]},
+      "Rigidbody2D": {
+        "body_type": "dynamic",
+        "gravity_scale": 0.0,
+        "lock_rotation": true
+      },
+      "CircleCollider2D": {"radius": 0.45, "layer": "player"},
+      "Sprite": {
+        "shape": "circle",
+        "layer": "actors",
+        "sorting_order": 10,
+        "size": [0.9, 0.9],
+        "color": [0.2, 0.9, 0.75, 1.0]
+      }
+    }
+  }]
+}

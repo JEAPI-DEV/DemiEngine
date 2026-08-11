@@ -5,6 +5,8 @@
 #include "demi/assets/AssetSourceFiles.h"
 #include "demi/assets/DataAsset.h"
 #include "demi/assets/RenderAsset.h"
+#include "demi/assets/ModelImportProfile.h"
+#include "demi/runtime/network/NetworkContract.h"
 
 #include <nlohmann/json.hpp>
 
@@ -363,6 +365,45 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
                              .path = asset.manifestPath.string(),
                              .suggestion = "Use nearest, bilinear, or "
                                            "trilinear."});
+    if (asset.type == "Model3D") {
+      const nlohmann::json settings =
+          nlohmann::json::parse(asset.settingsJson, nullptr, false);
+      static_cast<void>(assets::parseModelImportProfile(
+          settings.is_object() ? settings : nlohmann::json::object(),
+          &diagnostics, asset.manifestPath.string()));
+    }
+    if (asset.type == "Collider3D") {
+      try {
+        const nlohmann::json collider =
+            nlohmann::json::parse(readFile(asset.manifestPath));
+        if (const auto generation = collider.find("generation");
+            generation != collider.end() && generation->is_object()) {
+          const std::string sourceId = generation->value("source_asset", "");
+          const std::string sourceHash = generation->value("source_hash", "");
+          const AssetManifest *source = findAsset(registry, sourceId);
+          if (source == nullptr || source->type != "Model3D")
+            diagnostics.push_back(
+                {.severity = Severity::Error,
+                 .code = "COLLIDER_SOURCE_ASSET_NOT_FOUND",
+                 .message = "Generated collider source asset is missing: " +
+                            sourceId,
+                 .path = asset.manifestPath.string()});
+          else if (sourceHash.empty() || sourceHash != source->sourceHash)
+            diagnostics.push_back(
+                {.severity = Severity::Error,
+                 .code = "COLLIDER_GENERATION_STALE",
+                 .message = "Collider generation inputs no longer match "
+                            "the source model.",
+                 .path = asset.manifestPath.string(),
+                 .suggestion = "Run demi asset collider again."});
+        }
+      } catch (const nlohmann::json::exception &exception) {
+        diagnostics.push_back({.severity = Severity::Error,
+                               .code = "COLLIDER_MANIFEST_INVALID",
+                               .message = exception.what(),
+                               .path = asset.manifestPath.string()});
+      }
+    }
     if (asset.textureSettings.wrap != "repeat" &&
         asset.textureSettings.wrap != "clamp" &&
         asset.textureSettings.wrap != "mirror")
@@ -455,6 +496,14 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
   Diagnostics dataDiagnostics = assets::validateDataAssets(registry);
   diagnostics.insert(diagnostics.end(), dataDiagnostics.begin(),
                      dataDiagnostics.end());
+  for (const AssetManifest &asset : registry.assets) {
+    if (asset.type != "NetworkContract")
+      continue;
+    const runtime::NetworkContractLoadResult contract =
+        runtime::loadNetworkContract(registry, asset.id);
+    diagnostics.insert(diagnostics.end(), contract.diagnostics.begin(),
+                       contract.diagnostics.end());
+  }
   std::set<std::string> visiting;
   std::set<std::string> visited;
   for (const AssetManifest &asset : registry.assets)

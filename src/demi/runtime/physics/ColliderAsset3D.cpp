@@ -1,6 +1,7 @@
 #include "demi/runtime/physics/ColliderAsset3D.h"
 
-#include "demi/assets/GltfGeometry.h"
+#include "demi/assets/GltfSkinnedModel.h"
+#include "demi/assets/ModelImportProfile.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scene/model/World.h"
 
@@ -48,14 +49,24 @@ std::optional<ColliderAsset3D> loadColliderAsset3D(const AssetManifest &asset,
         .size = *size, .offset = offset, .detail = detail, .triangles = {}};
     if (detail > 0.0F) {
       std::string geometryError;
+      const nlohmann::json settings =
+          nlohmann::json::parse(asset.settingsJson, nullptr, false);
+      Diagnostics diagnostics;
+      const auto profile = assets::parseModelImportProfile(
+          settings.is_object() ? settings : nlohmann::json::object(),
+          &diagnostics, asset.manifestPath.string());
       const auto geometry =
-          assets::loadGltfGeometry(asset.sourcePath, geometryError);
-      if (!geometry) {
+          profile ? assets::loadGltfSkinnedModel3D(asset.sourcePath, *profile,
+                                                   geometryError)
+                  : std::nullopt;
+      std::vector<Vec3> positions;
+      if (!geometry ||
+          !geometry->bindPosePositions(positions, geometryError)) {
         error = "Could not load triangle geometry for collider asset " +
                 asset.id + ": " + geometryError;
         return std::nullopt;
       }
-      const std::size_t total = geometry->triangles.size();
+      const std::size_t total = geometry->indices.size() / 3U;
       const std::size_t count =
           detail >= 1.0F
               ? total
@@ -63,11 +74,14 @@ std::optional<ColliderAsset3D> loadColliderAsset3D(const AssetManifest &asset,
                     1U, static_cast<std::size_t>(std::floor(total * detail)));
       collider.triangles.reserve(count);
       for (std::size_t index = 0; index < count; ++index) {
-        const auto &triangle = geometry->triangles[index * total / count];
+        const std::size_t triangle = index * total / count;
+        const auto position = [&](const std::size_t corner) {
+          const std::uint32_t vertex =
+              geometry->indices[triangle * 3U + corner];
+          return vertex < positions.size() ? positions[vertex] : Vec3{};
+        };
         collider.triangles.push_back(
-            {.a = {.x = triangle.a.x, .y = triangle.a.y, .z = triangle.a.z},
-             .b = {.x = triangle.b.x, .y = triangle.b.y, .z = triangle.b.z},
-             .c = {.x = triangle.c.x, .y = triangle.c.y, .z = triangle.c.z}});
+            {.a = position(0), .b = position(1), .c = position(2)});
       }
     }
     return collider;

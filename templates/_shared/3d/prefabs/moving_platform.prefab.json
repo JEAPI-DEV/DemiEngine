@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "prefab://moving_platform",
+  "name": "Moving Platform",
+  "entities": [{
+    "id": "body",
+    "components": {
+      "Transform3D": {"position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]},
+      "MeshRenderer": {"shape": "cube", "size": [3, 0.4, 3], "color": [0.2, 0.75, 0.7, 1]},
+      "BoxCollider3D": {"size": [3, 0.4, 3], "offset": [0, 0, 0], "layer": "platform"},
+      "Rigidbody3D": {"body_type": "kinematic", "use_gravity": false, "interpolate": true},
+      "LuaScript": {"module": "script://scripts/controllers/moving_platform.lua", "properties": {"distance": 3.0, "speed": 1.0}}
+    }
+  }]
+}

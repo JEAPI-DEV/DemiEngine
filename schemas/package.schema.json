@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demiengine.local/schemas/package.schema.json",
+  "title": "DemiEngine Lua Package",
+  "type": "object",
+  "required": ["format_version", "name", "version", "engine", "dependencies", "public_modules", "files"],
+  "additionalProperties": false,
+  "properties": {
+    "format_version": {"const": 1},
+    "name": {"type": "string", "pattern": "^[a-z0-9](?:[a-z0-9_-]|\\.(?=[a-z0-9_-]))*$", "maxLength": 128},
+    "version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"},
+    "engine": {"type": "string", "minLength": 1},
+    "dependencies": {
+      "type": "object",
+      "propertyNames": {"pattern": "^[a-z0-9](?:[a-z0-9_-]|\\.(?=[a-z0-9_-]))*$"},
+      "additionalProperties": {"type": "string", "minLength": 1}
+    },
+    "public_modules": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z0-9](?:[a-z0-9_-]|\\.(?=[a-z0-9_-]))*$"}
+    },
+    "files": {
+      "type": "array", "uniqueItems": true, "maxItems": 10000,
+      "items": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"}
+    },
+    "exported_events": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

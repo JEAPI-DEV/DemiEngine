@@ -20,6 +20,7 @@ namespace {
 constexpr Color SolidColliderColor{1.0F, 0.32F, 0.36F, 1.0F};
 constexpr Color TriggerColliderColor{1.0F, 0.78F, 0.20F, 1.0F};
 constexpr Color GridColor{0.20F, 0.62F, 0.62F, 0.48F};
+constexpr Color BoundsColor{0.25F, 0.75F, 1.0F, 1.0F};
 constexpr int CircleSegments = 24;
 
 Vec3 add(const Vec3 left, const Vec3 right) {
@@ -228,7 +229,9 @@ bool individuallyVisible(const Entity &entity) {
 
 } // namespace
 
-std::vector<DebugLine3D> buildDebugGeometry3D(const World &world) {
+std::vector<DebugLine3D>
+buildDebugGeometry3D(const World &world,
+                     const DebugGeometry3DRequest request) {
   std::vector<DebugLine3D> lines;
   if (world.debug.grid) {
     constexpr int HalfExtent = 20;
@@ -242,11 +245,29 @@ std::vector<DebugLine3D> buildDebugGeometry3D(const World &world) {
     }
   }
   for (const Entity &entity : world.entities) {
-    if (!entity.enabled ||
-        (!world.debug.colliders && !individuallyVisible(entity)))
+    if (!entity.enabled)
       continue;
     const auto transform = resolveWorldTransform3D(world, entity);
     if (!transform)
+      continue;
+    if (request.bounds) {
+      if (const auto *mesh = entity.component<MeshRendererComponent>()) {
+        const Vec3 minimum = mesh->hasBounds ? mesh->boundsMin
+                                             : Vec3{-0.5F, -0.5F, -0.5F};
+        const Vec3 maximum = mesh->hasBounds ? mesh->boundsMax
+                                             : Vec3{0.5F, 0.5F, 0.5F};
+        const Vec3 size{(maximum.x - minimum.x) * mesh->size.x,
+                        (maximum.y - minimum.y) * mesh->size.y,
+                        (maximum.z - minimum.z) * mesh->size.z};
+        const Vec3 offset{(minimum.x + maximum.x) * 0.5F * mesh->size.x,
+                          (minimum.y + maximum.y) * 0.5F * mesh->size.y,
+                          (minimum.z + maximum.z) * 0.5F * mesh->size.z};
+        addBox(lines, *transform, {.size = size, .offset = offset},
+               BoundsColor);
+      }
+    }
+    if (!request.forceColliders && !world.debug.colliders &&
+        !individuallyVisible(entity))
       continue;
     const Color color =
         isTrigger(entity) ? TriggerColliderColor : SolidColliderColor;
@@ -269,8 +290,9 @@ std::vector<DebugLine3D> buildDebugGeometry3D(const World &world) {
   return lines;
 }
 
-bool appendDebugGeometry3D(const World &world, PrimitiveCanvas3D &canvas) {
-  for (const DebugLine3D &line : buildDebugGeometry3D(world))
+bool appendDebugGeometry3D(const World &world, PrimitiveCanvas3D &canvas,
+                           const DebugGeometry3DRequest request) {
+  for (const DebugLine3D &line : buildDebugGeometry3D(world, request))
     if (!canvas.line(line.start, line.end, packVertexColorRgba8(line.color)))
       return false;
   return true;

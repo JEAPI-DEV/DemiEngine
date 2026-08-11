@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://network/schemas/shot",
+  "importer": "json_schema",
+  "importer_version": 1,
+  "settings": {},
+  "source": "shot.schema.json",
+  "source_hash": "fnv1a64:a414f86fc947a601",
+  "type": "DataSchema"
+}

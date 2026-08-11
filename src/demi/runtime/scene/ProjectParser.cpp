@@ -25,6 +25,7 @@ parseProjectData(const std::filesystem::path &projectPath, const Json &document,
   project.mainScene = *mainScene;
   project.inputActions = input::parseInputActions(document);
   project.scriptEntry = stringOr(document, "entry");
+  project.networkContract = stringOr(document, "network_contract");
 
   if (const Json *simulation = objectField(document, "simulation")) {
     project.simulation.fixedTimestep = std::clamp(
@@ -43,6 +44,25 @@ parseProjectData(const std::filesystem::path &projectPath, const Json &document,
         static_cast<int>(std::max(
             numberField(*budgets, "maximum_resident_assets").value_or(256.0F),
             1.0F));
+    const auto positiveInteger = [budgets](const char *name,
+                                           const float fallback) {
+      return static_cast<int>(
+          std::max(numberField(*budgets, name).value_or(fallback), 1.0F));
+    };
+    project.performanceBudgets.maximumVisibleInstances =
+        positiveInteger("maximum_visible_instances", 1000.0F);
+    project.performanceBudgets.maximumUniqueMeshes =
+        positiveInteger("maximum_unique_meshes", 128.0F);
+    project.performanceBudgets.maximumTriangles =
+        positiveInteger("maximum_triangles", 250000.0F);
+    project.performanceBudgets.maximumTextureMemoryMegabytes =
+        positiveInteger("maximum_texture_memory_mb", 128.0F);
+    project.performanceBudgets.maximumLights =
+        positiveInteger("maximum_lights", 8.0F);
+    project.performanceBudgets.maximumShadowLights =
+        positiveInteger("maximum_shadow_lights", 1.0F);
+    project.performanceBudgets.maximumTransparentDraws =
+        positiveInteger("maximum_transparent_draws", 128.0F);
   }
 
   if (const Json *debug = objectField(document, "debug")) {

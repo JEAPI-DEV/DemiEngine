@@ -5,7 +5,14 @@
   "performance_budgets": {
     "maximum_frame_ms": 16.67,
     "maximum_draw_calls": 128,
-    "maximum_resident_assets": 64
+    "maximum_resident_assets": 64,
+    "maximum_visible_instances": 64,
+    "maximum_unique_meshes": 16,
+    "maximum_triangles": 50000,
+    "maximum_texture_memory_mb": 32,
+    "maximum_lights": 4,
+    "maximum_shadow_lights": 1,
+    "maximum_transparent_draws": 16
   },
   "debug": {
     "colliders": true,

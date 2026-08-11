@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://network/schemas/combat_state",
+  "importer": "json_schema",
+  "importer_version": 1,
+  "settings": {},
+  "source": "combat_state.schema.json",
+  "source_hash": "fnv1a64:d9d8293980f14b27",
+  "type": "DataSchema"
+}

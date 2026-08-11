@@ -10,6 +10,8 @@
   target_link_libraries(demi-doctor-service-tests PRIVATE demi-cli-support)
   target_compile_definitions(demi-doctor-service-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-package-manager-tests tests/package_manager_tests.cpp)
+  target_link_libraries(demi-package-manager-tests PRIVATE demi-cli-support)
   add_executable(demi-project-watch-reload-tests
     tests/project_watch_reload_tests.cpp)
   target_link_libraries(demi-project-watch-reload-tests PRIVATE demi-runtime-lib)
@@ -169,6 +171,9 @@
   target_link_libraries(demi-audio-phase7-tests PRIVATE demi-runtime-lib)
   add_executable(demi-asset-pipeline-tests tests/asset_pipeline_tests.cpp)
   target_link_libraries(demi-asset-pipeline-tests PRIVATE demi-core)
+  add_executable(demi-lightweight-3d-workflow-tests
+    tests/lightweight_3d_workflow_tests.cpp)
+  target_link_libraries(demi-lightweight-3d-workflow-tests PRIVATE demi-core)
   add_executable(demi-data-asset-tests tests/data_asset_tests.cpp)
   target_link_libraries(demi-data-asset-tests PRIVATE demi-runtime-lib)
   add_executable(demi-lua-data-bindings-tests
@@ -195,6 +200,9 @@
   target_link_libraries(demi-network-session-lua-tests PRIVATE demi-runtime-lib)
   add_executable(demi-game-network-session-tests tests/game_network_session_tests.cpp)
   target_link_libraries(demi-game-network-session-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-secure-network-session-tests
+    tests/secure_network_session_tests.cpp)
+  target_link_libraries(demi-secure-network-session-tests PRIVATE demi-runtime-lib)
 
   if(DEMI_ENABLE_NETWORK)
     add_executable(demi-network-tests tests/network_tests.cpp)

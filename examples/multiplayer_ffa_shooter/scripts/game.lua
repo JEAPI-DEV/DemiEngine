@@ -37,8 +37,8 @@ function Game:activate(mode, sender_id)
   Transform.set_position(Config.player_entity, x, y)
 
   if mode ~= "practice" then
-    Session.register_local(Config.player_entity, sender_id, color)
-    NetworkSession.emit("player_join", {color = color}, true)
+    Session.register_local(Config.player_entity, sender_id, color, mode)
+    NetworkSession.send("player_join", nil, {color = color})
   end
   HudView.show_match()
 end
@@ -100,7 +100,8 @@ function Game:process_network()
   if self.join_pending then
     self.join_elapsed = self.join_elapsed + self.frame_dt
     local diagnostics = NetworkSession.diagnostics()
-    if diagnostics.connected and diagnostics.local_peer_id ~= "client" then
+    if diagnostics.connected and diagnostics.secure_ready
+      and diagnostics.local_peer_id ~= "client" then
       self:activate("client", diagnostics.local_peer_id)
     elseif update.disconnected or self.join_elapsed >= Config.join_timeout then
       self:leave_match("CONNECTION FAILED")

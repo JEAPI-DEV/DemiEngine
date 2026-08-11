@@ -5,6 +5,17 @@
   "importer": "gltf-model",
   "importer_version": 1,
   "settings": {
+    "model_import": {
+      "format_version": 1,
+      "preset": "animated_character",
+      "source_up": "+y",
+      "source_forward": "+z",
+      "meters_per_unit": 1.0,
+      "root_node": "preserve",
+      "material_policy": "import",
+      "import_animations": true,
+      "optimize_meshes": false
+    },
     "animations": {
       "clips": [
         {

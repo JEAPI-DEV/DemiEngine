@@ -1,0 +1,1 @@
+{"format_version":1,"name":"demi.gameplay.controllers","version":"1.0.0","engine":"^0.1.0","dependencies":{},"public_modules":["demi.gameplay.controllers","demi.gameplay.character_controller_2d"],"files":["README.md","scripts/demi/gameplay/controllers.lua","scripts/demi/gameplay/character_controller_2d.lua","tests/controllers_test.lua"],"exported_events":[]}

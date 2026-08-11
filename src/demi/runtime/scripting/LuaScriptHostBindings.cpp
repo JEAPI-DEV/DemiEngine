@@ -206,7 +206,23 @@ void luaConfigurePackagePath(lua_State *state, const ProjectData &project) {
   const std::filesystem::path scripts = project.projectDirectory / "scripts";
   const std::filesystem::path runtimeScripts =
       std::filesystem::path(DEMI_SOURCE_DIR) / "scripts" / "runtime";
-  const std::string path = scripts.string() + "/?.lua;" + scripts.string() +
+  std::string packagePaths;
+  const std::filesystem::path installedPackages =
+      project.projectDirectory / ".demi" / "packages";
+  std::error_code packageError;
+  if (std::filesystem::is_directory(installedPackages, packageError)) {
+    std::vector<std::filesystem::path> roots;
+    for (const auto &entry :
+         std::filesystem::directory_iterator(installedPackages))
+      if (entry.is_directory())
+        roots.push_back(entry.path() / "scripts");
+    std::ranges::sort(roots);
+    for (const auto &root : roots)
+      packagePaths += root.string() + "/?.lua;" + root.string() +
+                      "/?/init.lua;";
+  }
+  const std::string path = packagePaths + scripts.string() + "/?.lua;" +
+                           scripts.string() +
                            "/?/init.lua;" + project.projectDirectory.string() +
                            "/?.lua;" + project.projectDirectory.string() +
                            "/?/init.lua;" + runtimeScripts.string() +

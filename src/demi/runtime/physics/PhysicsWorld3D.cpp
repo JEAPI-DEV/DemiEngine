@@ -332,23 +332,32 @@ void mix(std::uint64_t &hash, const bool value) {
               convex->offset.z * scale.z};
   } else if (const auto *model = entity.component<ModelCollider3DComponent>()) {
     const auto triangles = resolvedTriangleCollider3D(world, entity);
-    if (triangles == nullptr || triangles->empty())
+    if (triangles != nullptr && !triangles->empty()) {
+      JPH::TriangleList list;
+      list.reserve(triangles->size());
+      for (const TriangleCollider3D &triangle : *triangles)
+        list.emplace_back(
+            JPH::Vec3(triangle.a.x * scale.x, triangle.a.y * scale.y,
+                      triangle.a.z * scale.z),
+            JPH::Vec3(triangle.b.x * scale.x, triangle.b.y * scale.y,
+                      triangle.b.z * scale.z),
+            JPH::Vec3(triangle.c.x * scale.x, triangle.c.y * scale.y,
+                      triangle.c.z * scale.z));
+      JPH::MeshShapeSettings settings(list);
+      const auto result = settings.Create();
+      if (result.HasError())
+        return {};
+      shape = result.Get();
+    } else if (const auto box = resolvedBoxCollider3D(world, entity)) {
+      shape = new JPH::BoxShape(
+          JPH::Vec3(std::max(box->size.x * scale.x * 0.5F, 0.001F),
+                    std::max(box->size.y * scale.y * 0.5F, 0.001F),
+                    std::max(box->size.z * scale.z * 0.5F, 0.001F)));
+      offset = {box->offset.x * scale.x, box->offset.y * scale.y,
+                box->offset.z * scale.z};
+    } else {
       return {};
-    JPH::TriangleList list;
-    list.reserve(triangles->size());
-    for (const TriangleCollider3D &triangle : *triangles)
-      list.emplace_back(
-          JPH::Vec3(triangle.a.x * scale.x, triangle.a.y * scale.y,
-                    triangle.a.z * scale.z),
-          JPH::Vec3(triangle.b.x * scale.x, triangle.b.y * scale.y,
-                    triangle.b.z * scale.z),
-          JPH::Vec3(triangle.c.x * scale.x, triangle.c.y * scale.y,
-                    triangle.c.z * scale.z));
-    JPH::MeshShapeSettings settings(list);
-    const auto result = settings.Create();
-    if (result.HasError())
-      return {};
-    shape = result.Get();
+    }
     (void)model;
   }
   if (shape == nullptr)

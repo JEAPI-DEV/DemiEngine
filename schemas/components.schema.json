@@ -20,11 +20,6 @@
     "AnimationPlayer3D": {
       "additionalProperties": false,
       "properties": {
-        "clip": {
-          "type": "integer",
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
         "clip_name": {
           "type": "string",
           "x-demi-lua-readable": true,
@@ -418,6 +413,22 @@
             "color",
             "depth",
             "none"
+          ],
+          "type": "string",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "debug_mode": {
+          "enum": [
+            "shaded",
+            "normals",
+            "uv",
+            "alpha",
+            "lighting",
+            "bounds",
+            "colliders",
+            "overdraw",
+            "instancing"
           ],
           "type": "string",
           "x-demi-lua-readable": true,

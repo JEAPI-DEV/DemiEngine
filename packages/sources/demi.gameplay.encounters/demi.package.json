@@ -1,0 +1,1 @@
+{"format_version":1,"name":"demi.gameplay.encounters","version":"1.0.0","engine":"^0.1.0","dependencies":{"demi.gameplay.core":"^1.0.0"},"public_modules":["demi.gameplay.encounters"],"files":["README.md","scripts/demi/gameplay/encounters.lua","tests/encounters_test.lua"],"exported_events":["wave_started","spawn_requested","spawn_failed","objective_failed","encounter_completed"]}

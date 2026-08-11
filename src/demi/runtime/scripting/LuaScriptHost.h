@@ -5,6 +5,7 @@
 #include "demi/runtime/input/TouchGestureRecognizer.h"
 #include "demi/runtime/isometric/IsoGridApi.h"
 #include "demi/runtime/navigation/NavigationGrid2D.h"
+#include "demi/runtime/network/NetworkContract.h"
 #include "demi/runtime/network/NetworkSystem.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/SpatialQuery3D.h"
@@ -59,6 +60,7 @@ public:
   void setMediaSystem(MediaSystem *media);
   void setNetworkSystem(NetworkSystem *network);
   void setAssetRegistry(const demi::AssetRegistry *assets);
+  [[nodiscard]] const NetworkContract *networkContract() const;
   [[nodiscard]] DataAssetStore &dataAssetStore();
   [[nodiscard]] const DataAssetStore &dataAssetStore() const;
   [[nodiscard]] std::filesystem::path
@@ -344,6 +346,9 @@ public:
   entityWorldPosition(const std::string &entityId) const;
   [[nodiscard]] std::optional<std::string>
   captureEntityReplicatedState(const std::string &entityId) const;
+  [[nodiscard]] std::optional<std::string> captureEntityReplicatedState(
+      const std::string &entityId, const NetworkContract &contract,
+      std::string_view prefabKey, NetworkActor writer) const;
   [[nodiscard]] std::string
   applyEntityReplicatedState(const std::string &entityId,
                              const std::string &stateJson);
@@ -627,6 +632,8 @@ private:
   navigation::NavigationGrid2D navigationGrid2D_;
   TilemapRuntime tilemapRuntime_;
   DataAssetStore dataAssetStore_;
+  const demi::AssetRegistry *assetRegistry_ = nullptr;
+  std::optional<NetworkContract> networkContract_;
   AudioSystem *audio_ = nullptr;
   MediaSystem *media_ = nullptr;
   NetworkSystem *network_ = nullptr;

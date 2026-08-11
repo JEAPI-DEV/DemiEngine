@@ -98,6 +98,7 @@ importerFor(const std::filesystem::path &source, const std::string &type) {
       static const std::unordered_map<std::string, std::string> typedJson{
           {"DataAsset", "json_data"},
           {"DataSchema", "json_schema"},
+          {"NetworkContract", "network_contract"},
           {"Material", "material"},
           {"Shader", "shader"},
           {"RenderTarget", "render_target"},
@@ -219,6 +220,9 @@ AssetImportResult importAsset(const AssetImportRequest &request) {
            .generic_string()},
       {"settings", nlohmann::json::object()},
   };
+  if (descriptor->assetType == "Model3D")
+    manifest["settings"]["model_import"] = modelImportProfileJson(
+        request.modelProfile.value_or(modelImportPreset("static_prop")));
   if (descriptor->assetType == "DataAsset")
     manifest["settings"]["content_type"] = "data";
   if (request.license) {

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demiengine.local/schemas/package-lock.schema.json",
+  "title": "DemiEngine Package Lock",
+  "type": "object",
+  "required": ["format_version", "registry", "packages"],
+  "additionalProperties": false,
+  "properties": {
+    "format_version": {"const": 1},
+    "registry": {"type": "string", "minLength": 1},
+    "packages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["manifest", "manifest_hash", "archive_hash", "archive_uri", "yanked"],
+        "additionalProperties": false,
+        "properties": {
+          "manifest": {"$ref": "package.schema.json"},
+          "manifest_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+          "archive_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+          "archive_uri": {"type": "string", "minLength": 1},
+          "yanked": {"type": "boolean"}
+        }
+      }
+    }
+  }
+}

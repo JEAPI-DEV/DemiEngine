@@ -18,23 +18,16 @@ end
 
 function CharacterController2D:is_grounded(entity_id)
   local x, y = Transform.get_position(entity_id)
-  if x == nil or y == nil then
-    return false
-  end
-  return Physics2D.raycast(
-    x, y, 0.0, -1.0, self.ground_distance, self.ground_layer, entity_id
-  ) ~= nil
+  if x == nil or y == nil then return false end
+  return Physics2D.raycast(x, y, 0.0, -1.0, self.ground_distance,
+    self.ground_layer, entity_id) ~= nil
 end
 
 function CharacterController2D:update_horizontal(entity_id)
   local axis = Input.action_value(self.move_action)
   Rigidbody2D.set_velocity_x(entity_id, axis * self.move_speed)
-  if self.flip_sprite and axis ~= 0.0 then
-    Sprite2D.set_flip(entity_id, axis < 0.0, false)
-  end
-  Sprite2D.play_animation(
-    entity_id, axis == 0.0 and self.idle_animation or self.run_animation
-  )
+  if self.flip_sprite and axis ~= 0.0 then Sprite2D.set_flip(entity_id, axis < 0.0, false) end
+  Sprite2D.play_animation(entity_id, axis == 0.0 and self.idle_animation or self.run_animation)
   return axis
 end
 

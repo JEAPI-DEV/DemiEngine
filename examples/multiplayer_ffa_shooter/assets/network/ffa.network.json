@@ -1,0 +1,107 @@
+{
+  "format_version": 1,
+  "id": "network-contract://multiplayer_ffa_shooter/arena",
+  "limits": {
+    "maximum_message_bytes": 4096,
+    "maximum_messages_per_second": 90,
+    "maximum_owned_entities_per_peer": 1,
+    "maximum_payload_depth": 10,
+    "maximum_payload_elements": 128,
+    "maximum_string_bytes": 128
+  },
+  "replicated_prefabs": {
+    "player": {
+      "prefab": "prefab://player",
+      "spawn_by": "server",
+      "ownership": {
+        "default": "server",
+        "transfer_by": "server",
+        "on_disconnect": "despawn"
+      },
+      "components": {
+        "Transform2D": {
+          "position": {
+            "write_by": "owner",
+            "visible_to": "all",
+            "rate": 30,
+            "reliability": "unreliable"
+          },
+          "rotation": {
+            "write_by": "owner",
+            "visible_to": "all",
+            "rate": 15,
+            "reliability": "unreliable"
+          },
+          "scale": {
+            "write_by": "server",
+            "visible_to": "all",
+            "reliability": "reliable"
+          }
+        },
+        "Rigidbody2D": {
+          "velocity": {
+            "write_by": "owner",
+            "visible_to": "all",
+            "rate": 30,
+            "reliability": "unreliable"
+          }
+        },
+        "Sprite": {
+          "flip_x": {
+            "write_by": "server",
+            "visible_to": "all",
+            "reliability": "reliable"
+          },
+          "flip_y": {
+            "write_by": "server",
+            "visible_to": "all",
+            "reliability": "reliable"
+          },
+          "color": {
+            "write_by": "server",
+            "visible_to": "all",
+            "reliability": "reliable"
+          }
+        }
+      }
+    }
+  },
+  "messages": {
+    "player_join": {
+      "from": "all",
+      "to": "all",
+      "target": "none",
+      "schema": "asset://network/schemas/player_join",
+      "reliability": "reliable",
+      "rate_limit": 2,
+      "maximum_bytes": 256
+    },
+    "state_update": {
+      "from": "owner",
+      "to": "all",
+      "target": "owned_entity",
+      "schema": "asset://network/schemas/state_update",
+      "reliability": "unreliable",
+      "rate_limit": 35,
+      "maximum_bytes": 1024
+    },
+    "shot": {
+      "from": "owner",
+      "to": "all",
+      "target": "owned_entity",
+      "schema": "asset://network/schemas/shot",
+      "reliability": "unreliable",
+      "rate_limit": 12,
+      "maximum_bytes": 384
+    },
+    "combat_state": {
+      "from": "server",
+      "to": "all",
+      "target": "none",
+      "schema": "asset://network/schemas/combat_state",
+      "reliability": "reliable",
+      "rate_limit": 20,
+      "maximum_bytes": 2048
+    }
+  }
+}

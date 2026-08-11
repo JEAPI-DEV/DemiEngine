@@ -14,6 +14,24 @@
       "type": "string",
       "minLength": 1
     },
+    "package_registry": {
+      "type": "string",
+      "minLength": 1
+    },
+    "network_contract": {
+      "type": "string",
+      "pattern": "^asset://"
+    },
+    "packages": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9](?:[a-z0-9_-]|\\.(?=[a-z0-9_-]))*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
     "main_scene": {
       "type": "string",
       "pattern": "^scene://"
@@ -73,7 +91,14 @@
       "properties": {
         "maximum_frame_ms": { "type": "number", "exclusiveMinimum": 0 },
         "maximum_draw_calls": { "type": "integer", "minimum": 1 },
-        "maximum_resident_assets": { "type": "integer", "minimum": 1 }
+        "maximum_resident_assets": { "type": "integer", "minimum": 1 },
+        "maximum_visible_instances": { "type": "integer", "minimum": 1 },
+        "maximum_unique_meshes": { "type": "integer", "minimum": 1 },
+        "maximum_triangles": { "type": "integer", "minimum": 1 },
+        "maximum_texture_memory_mb": { "type": "integer", "minimum": 1 },
+        "maximum_lights": { "type": "integer", "minimum": 1 },
+        "maximum_shadow_lights": { "type": "integer", "minimum": 1 },
+        "maximum_transparent_draws": { "type": "integer", "minimum": 1 }
       }
     },
     "debug": {

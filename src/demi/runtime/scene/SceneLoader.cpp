@@ -3,6 +3,7 @@
 #include "demi/assets/AssetRegistry.h"
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/physics/ColliderAsset3D.h"
+#include "demi/runtime/network/NetworkContract.h"
 #include "demi/runtime/scene/HudParser.h"
 #include "demi/runtime/scene/ProjectParser.h"
 #include "demi/runtime/scene/SceneEntityParser.h"
@@ -72,6 +73,17 @@ loadProject(const std::filesystem::path &projectPath, std::string &error) {
 
   const AssetRegistry assetRegistry =
       loadAssetRegistry(project->projectDirectory);
+  if (!project->networkContract.empty()) {
+    const NetworkContractLoadResult contract =
+        loadNetworkContract(assetRegistry, project->networkContract);
+    if (!contract.contract.has_value()) {
+      error = contract.diagnostics.empty()
+                  ? "Network contract could not be loaded."
+                  : contract.diagnostics.front().code + ": " +
+                        contract.diagnostics.front().message;
+      return std::nullopt;
+    }
+  }
   if (!resolveColliderAssets3D(*world, assetRegistry, error)) {
     return std::nullopt;
   }

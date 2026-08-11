@@ -6,6 +6,9 @@ add_library(demi-core STATIC
   src/demi/assets/DataAsset.cpp
   src/demi/assets/DataDocument.cpp
   src/demi/assets/ColliderAssetGenerator.cpp
+  src/demi/assets/ModelImportProfile.cpp
+  src/demi/assets/ModelInspector.cpp
+  src/demi/assets/SceneBudget3D.cpp
   src/demi/assets/GltfGeometry.cpp
   src/demi/assets/GltfSkinnedModel.cpp
   src/demi/assets/AssetSourceFiles.cpp
@@ -17,6 +20,8 @@ add_library(demi-core STATIC
   src/demi/runtime/render/ParticleSimulation3D.cpp
   src/demi/diagnostics/Diagnostic.cpp
   src/demi/filesystem/ProjectPaths.cpp
+  src/demi/packages/SemanticVersion.cpp
+  src/demi/packages/PackageManifest.cpp
   src/demi/schema/Validation.cpp
   src/demi/runtime/scene/composition/PrefabResolver.cpp
   src/demi/runtime/ui/UiLayoutEngine.cpp
@@ -53,6 +58,7 @@ add_library(demi-core STATIC
   src/demi/runtime/isometric/IsoWorldQueries.cpp
   src/demi/runtime/isometric/IsoGridApi.cpp
   src/demi/runtime/navigation/NavigationGrid2D.cpp
+  src/demi/runtime/network/NetworkContract.cpp
   src/demi/runtime/tilemap/TilemapAsset.cpp
   src/demi/runtime/physics/Box2DWorldState.cpp
   src/demi/runtime/physics/SpatialQuery3D.cpp

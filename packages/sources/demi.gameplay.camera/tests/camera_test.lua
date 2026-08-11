@@ -1,0 +1,15 @@
+local Camera = require("demi.gameplay.camera")
+
+Test.case("overlapping zones use priority then stable id", function()
+  local camera = Camera.new({ smoothing = 100 })
+  camera:set_zone("b", { left = 0, right = 10, top = 0, bottom = 10, priority = 2 })
+  camera:set_zone("a", { left = 0, right = 10, top = 0, bottom = 10, priority = 2 })
+  Test.equal(camera:update({ x = 5, y = 5 }, {}, 1).zone, "a")
+  camera:remove_zone("a"); Test.equal(camera:update({ x = 5, y = 5 }, {}, 1).zone, "b")
+end)
+
+Test.case("shake expires without retaining state", function()
+  local camera = Camera.new({ smoothing = 100 }); camera:shake(5, 0.1)
+  camera:update({ x = 0, y = 0 }, {}, 0.2, function() return 1 end)
+  Test.equal(#camera.shakes, 0)
+end)

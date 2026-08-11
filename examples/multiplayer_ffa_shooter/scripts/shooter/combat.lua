@@ -1,4 +1,6 @@
 local Config = require("shooter.config")
+local GameplayEvents = require("demi.gameplay.events")
+local Health = require("demi.gameplay.health")
 
 local Combat = {}
 Combat.__index = Combat
@@ -35,12 +37,19 @@ local function normalized(x, y)
 end
 
 function Combat.new(game)
-  return setmetatable({
+  local result = setmetatable({
     game = game,
     players = {},
     last_shot = {},
     tracer = nil,
   }, Combat)
+  result.gameplay_events = GameplayEvents.new()
+  result.health = Health.new(result.gameplay_events)
+  result.gameplay_events:on("health_changed", function(event)
+    local player = result.players[event.entity]
+    if player then player.health = event.current end
+  end)
+  return result
 end
 
 function Combat:ensure_player(id)
@@ -49,6 +58,7 @@ function Combat:ensure_player(id)
   end
   if self.players[id] == nil then
     self.players[id] = {id = id, health = 100, score = 0, deaths = 0, invulnerable_until = 0}
+    self.health:add(id, 100)
   end
   return self.players[id]
 end
@@ -156,9 +166,9 @@ function Combat:request_shot()
 
   if self.game.mode == "host" then
     self:resolve_shot(self.local_id, data)
-    NetworkSession.emit("shot", data, false)
+    NetworkSession.send("shot", NetworkSession.network_id_for_owner("server"), data)
   elseif self.game.mode == "client" then
-    NetworkSession.emit("shot", data, false)
+    NetworkSession.send("shot", NetworkSession.network_id_for_owner(self.local_id), data)
   end
 end
 
@@ -193,7 +203,7 @@ function Combat:state_payload(respawn)
 end
 
 function Combat:broadcast_state(respawn)
-  NetworkSession.emit("combat_state", self:state_payload(respawn), true)
+  NetworkSession.send("combat_state", nil, self:state_payload(respawn))
 end
 
 function Combat:resolve_shot(shooter_id, data)
@@ -223,11 +233,17 @@ function Combat:resolve_shot(shooter_id, data)
   end
 
   local target = self:ensure_player(target_id)
-  target.health = math.max(0, target.health - Config.shot_damage)
+  self.health:set_invulnerable(target_id,
+    self.game.elapsed < (target.invulnerable_until or 0))
+  self.health:damage({ source = shooter_id, target = target_id,
+    amount = Config.shot_damage, type = "physical", tags = { "hitscan" } })
+  self.gameplay_events:flush()
   local respawn = nil
   if target.health == 0 then
     shooter.score = shooter.score + 1
     target.deaths = target.deaths + 1
+    self.health:remove(target_id)
+    self.health:add(target_id, 100)
     target.health = 100
     target.invulnerable_until = self.game.elapsed + Config.respawn_invulnerability
     local x, y = Config.spawn_for(target_id, target.deaths)
@@ -246,6 +262,8 @@ function Combat:apply_state(data)
   for _, incoming in ipairs(data.players) do
     local player = self:ensure_player(incoming.id)
     player.health = incoming.health or player.health
+    self.health:remove(incoming.id)
+    self.health:add(incoming.id, 100, { current = player.health })
     player.score = incoming.score or player.score
     player.deaths = incoming.deaths or player.deaths
   end
@@ -257,6 +275,8 @@ end
 function Combat:on_join(sender_id)
   self:ensure_player(sender_id)
   if self.game.mode == "host" then
+    local Session = require("shooter.session")
+    Session.spawn_remote(sender_id)
     self:broadcast_state(nil)
   end
 end

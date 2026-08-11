@@ -1,5 +1,6 @@
 #pragma once
 
+#include "demi/assets/ModelImportProfile.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <array>
@@ -58,6 +59,10 @@ struct GltfSkinnedModel3D {
   std::vector<Skin> skins;
   std::vector<Clip> clips;
   std::vector<std::byte> albedoImage;
+  std::array<float, 16> importTransform{1.0F, 0.0F, 0.0F, 0.0F,
+                                         0.0F, 1.0F, 0.0F, 0.0F,
+                                         0.0F, 0.0F, 1.0F, 0.0F,
+                                         0.0F, 0.0F, 0.0F, 1.0F};
 
   [[nodiscard]] int clipIndex(std::string_view name, int fallback = 0) const;
   [[nodiscard]] bool bindPosePositions(std::vector<runtime::Vec3> &out,
@@ -69,5 +74,8 @@ struct GltfSkinnedModel3D {
 
 [[nodiscard]] std::optional<GltfSkinnedModel3D>
 loadGltfSkinnedModel3D(const std::filesystem::path &path, std::string &error);
+[[nodiscard]] std::optional<GltfSkinnedModel3D>
+loadGltfSkinnedModel3D(const std::filesystem::path &path,
+                       const ModelImportProfile &profile, std::string &error);
 
 } // namespace demi::assets

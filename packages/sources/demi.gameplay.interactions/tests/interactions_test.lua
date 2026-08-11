@@ -1,0 +1,31 @@
+local Events = require("demi.gameplay.events")
+local Interactions = require("demi.gameplay.interactions")
+
+Test.case("ties use priority distance then stable id", function()
+  local interactions = Interactions.new(Events.new())
+  interactions:set("b", { priority = 2, distance = 4 })
+  interactions:set("a", { priority = 2, distance = 4 })
+  interactions:set("near-low", { priority = 1, distance = 1 })
+  Test.equal(interactions:best(5).id, "a")
+end)
+
+Test.case("disabled candidate cannot be confirmed", function()
+  local interactions = Interactions.new(Events.new())
+  interactions:set("door", { enabled = false, distance = 0 })
+  Test.equal(interactions:confirm(1), false)
+end)
+
+Test.case("pickup collection is single use", function()
+  local Events = require("demi.gameplay.events")
+  local Pickups = require("demi.gameplay.pickups")
+  local events, collected = Events.new(), 0
+  events:on("pickup_collected", function(value)
+    collected = collected + value.count
+  end)
+  local pickups = Pickups.new(events)
+  pickups:add("coin-1", { item = "coin", count = 3 })
+  Test.equal(pickups:collect("coin-1", "player"), true)
+  Test.equal(pickups:collect("coin-1", "player"), false)
+  events:flush()
+  Test.equal(collected, 3)
+end)

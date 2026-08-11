@@ -3,6 +3,7 @@
 #include "cli/CapabilityCommands.h"
 #include "cli/CookCommands.h"
 #include "cli/doctor/DoctorService.h"
+#include "cli/package/PackageCommands.h"
 #include "cli/project/ProjectTemplates.h"
 #include "cli/SceneCompositionCommands.h"
 
@@ -55,17 +56,30 @@ void printHelp() {
       << "  demi scene inspect <scene>\n"
       << "  demi scene expand <scene>\n"
       << "  demi scene diff <old> <new>\n"
-      << "  demi asset inspect <asset>\n"
+      << "  demi asset inspect <asset> [--section nodes,materials,animations,"
+         "bounds] [--format json]\n"
       << "  demi asset deps <asset>\n"
-      << "  demi asset import <source> --project <project> --id asset://id\n"
+      << "  demi asset import <source> --project <project> --id asset://id "
+         "[--preset static_prop|animated_character|environment|billboard] "
+         "[--up +y] [--forward +z] [--meters-per-unit 1]\n"
       << "  demi asset reimport <asset>\n"
       << "  demi asset register-generated <source> --project <project> --id "
          "asset://id\n"
       << "  demi asset collider <model.asset.json> --project <project> --id "
-         "asset://colliders/id [--detail 0..1]\n"
+         "asset://colliders/id [--detail 0..1] [--body static|trigger] "
+         "[--recommend] [--preview scene.json]\n"
       << "  demi asset export --project <project> --output <file.demipack> "
          "--asset asset://id\n"
       << "  demi asset import-package <file.demipack> --project <project>\n"
+      << "  demi asset budget <project> [--platform android|linux] "
+         "[--format json]\n"
+      << "  demi package add <name>@<constraint> --project <project>\n"
+      << "  demi package remove <name> --project <project>\n"
+      << "  demi package install --project <project> [--locked] [--offline]\n"
+      << "  demi package update [name] --project <project>\n"
+      << "  demi package list|outdated --project <project>\n"
+      << "  demi package publish [directory] --registry <url-or-path>\n"
+      << "  demi package test [directory] [--format json]\n"
       << "  demi cook --project <project> [--platform linux] [--output path]\n"
       << "  demi save inspect <save>\n"
       << "  demi script check <script>\n"
@@ -158,10 +172,14 @@ int runProjectCommand(const std::vector<std::string> &args,
                  "the current directory.\n";
     return ExitUsageError;
   }
+  bool headlessServe = serve;
+#ifdef DEMI_SERVER_CLI
+  headlessServe = true;
+#endif
   return demi::runtime::runProject(demi::runtime::RuntimeOptions{
       .projectPath = project,
       .maxFrames = frameLimitFrom(args),
-      .serve = serve,
+      .serve = headlessServe,
       .profiler = hasArg(args, "--profiler"),
       .watch = hasArg(args, "--watch"),
       .inputReplayPath = valueAfter(args, "--input-replay"),
@@ -346,6 +364,11 @@ int main(int argc, char **argv) {
 
   if (args[0] == "asset") {
     return demi::cli::runAssetCommand(args, std::cout, std::cerr);
+  }
+
+  if (args[0] == "package") {
+    return demi::cli::package_commands::runPackageCommand(
+        args, {.engineRoot = sourceRoot()}, std::cout, std::cerr);
   }
 
   if (args[0] == "cook") {

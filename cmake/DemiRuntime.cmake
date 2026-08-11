@@ -21,6 +21,10 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/network/DtlsTransport.cpp
   src/demi/runtime/network/GameNetworkSession.cpp
   src/demi/runtime/network/HttpClient.cpp
+  src/demi/runtime/network/NetworkMessageGateway.cpp
+  src/demi/runtime/network/NetworkFaultSimulator.cpp
+  src/demi/runtime/network/NetworkOwnershipRegistry.cpp
+  src/demi/runtime/network/NetworkSessionLifecycle.cpp
   src/demi/runtime/network/NetworkSystem.cpp
   src/demi/runtime/network/ReplicatedState.cpp
   src/demi/runtime/network/TlsMessaging.cpp

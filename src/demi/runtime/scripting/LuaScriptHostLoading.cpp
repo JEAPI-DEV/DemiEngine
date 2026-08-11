@@ -58,6 +58,23 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData &project, World &world,
   }
 
   projectDirectory_ = project.projectDirectory;
+  networkContract_.reset();
+  if (!project.networkContract.empty()) {
+    if (assetRegistry_ == nullptr) {
+      error = "Project declares a network contract without an asset registry.";
+      return false;
+    }
+    NetworkContractLoadResult loadedContract =
+        loadNetworkContract(*assetRegistry_, project.networkContract);
+    if (!loadedContract.contract) {
+      error = loadedContract.diagnostics.empty()
+                  ? "Network contract could not be loaded."
+                  : loadedContract.diagnostics.front().code + ": " +
+                        loadedContract.diagnostics.front().message;
+      return false;
+    }
+    networkContract_ = std::move(*loadedContract.contract);
+  }
   applicationServices_.configureStorage(project.name, project.projectDirectory);
   if (project_ != &project) {
     prefabService_.configure(project.projectDirectory);

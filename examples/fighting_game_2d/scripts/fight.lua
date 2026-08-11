@@ -1,15 +1,17 @@
 local InputBuffer = require("demi.input_buffer")
 local Commands = require("demi.command_recognizer")
+local GameplayEvents = require("demi.gameplay.events")
+local Health = require("demi.gameplay.health")
 
 local Fight = {}
 
 local fighters = {
   ent_fighter_a = {
-    health = 100, left = "p1_left", right = "p1_right",
+    left = "p1_left", right = "p1_right",
     attack = "p1_attack", special = "p1_special", down = "p1_down", facing = 1,
   },
   ent_fighter_b = {
-    health = 100, left = "p2_left", right = "p2_right",
+    left = "p2_left", right = "p2_right",
     attack = "p2_attack", special = "p2_special", down = "p2_down", facing = -1,
   },
 }
@@ -19,9 +21,14 @@ local attacks = {
   special = { damage = 16, knockback_x = 0.42, knockback_y = 0.05 },
 }
 
+local gameplay_events = GameplayEvents.new()
+local health = Health.new(gameplay_events)
+
 local function reset_round(self, winner)
-  fighters.ent_fighter_a.health = 100
-  fighters.ent_fighter_b.health = 100
+  health:remove("ent_fighter_a")
+  health:remove("ent_fighter_b")
+  health:add("ent_fighter_a", 100)
+  health:add("ent_fighter_b", 100)
   Transform.set_position("ent_fighter_a", -2.0, 0.0)
   Transform.set_position("ent_fighter_b", 2.0, 0.0)
   Animation.play("ent_fighter_a", "idle")
@@ -30,9 +37,11 @@ local function reset_round(self, winner)
 end
 
 local function draw_hud(self)
-  Hud.set_rect("p1_health", 44, 38, 360 * fighters.ent_fighter_a.health / 100, 22)
-  Hud.set_rect("p2_health", 556 + 360 * (1 - fighters.ent_fighter_b.health / 100),
-    38, 360 * fighters.ent_fighter_b.health / 100, 22)
+  local p1_health = health:get("ent_fighter_a").current
+  local p2_health = health:get("ent_fighter_b").current
+  Hud.set_rect("p1_health", 44, 38, 360 * p1_health / 100, 22)
+  Hud.set_rect("p2_health", 556 + 360 * (1 - p2_health / 100),
+    38, 360 * p2_health / 100, 22)
   Hud.set_text("round_status", self.message)
 end
 
@@ -86,18 +95,22 @@ function Fight:on_create()
   self.clock = 0
   self.message = "FIGHT!  P1: A/D + F/G    P2: arrows + K/L"
   for _, fighter in pairs(fighters) do fighter.buffer = InputBuffer.new(0.22) end
+  health:add("ent_fighter_a", 100)
+  health:add("ent_fighter_b", 100)
+  self.defeat_subscription = gameplay_events:on("entity_defeated", function(event)
+    reset_round(self, event.source == "ent_fighter_a" and "P1" or "P2")
+  end)
   self.hit_subscription = Events.subscribe("animation_collision", function(overlap)
     local target = fighters[overlap.target_id]
     local source = fighters[overlap.source_id]
     local attack = attacks[overlap.window]
     if not target or not source or not attack then return end
-    target.health = math.max(0, target.health - attack.damage)
+    health:damage({ source = overlap.source_id, target = overlap.target_id,
+      amount = attack.damage, type = "physical", tags = { "melee", overlap.window } })
     Transform.add_position(overlap.target_id,
       attack.knockback_x * source.facing, attack.knockback_y)
     Animation.play(overlap.target_id, "hit")
-    if target.health == 0 then
-      reset_round(self, overlap.source_id == "ent_fighter_a" and "P1" or "P2")
-    end
+    gameplay_events:flush()
   end)
 end
 
@@ -114,6 +127,7 @@ end
 
 function Fight:on_destroy()
   Events.unsubscribe(self.hit_subscription)
+  self.defeat_subscription()
 end
 
 return Fight

@@ -55,6 +55,7 @@ void LuaScriptHost::setHotReloadEnabled(const bool enabled) {
 bool LuaScriptHost::hotReloadEnabled() const { return hotReloadEnabled_; }
 
 void LuaScriptHost::setAssetRegistry(const demi::AssetRegistry *assets) {
+  assetRegistry_ = assets;
   tilemapRuntime_.attach(world_, assets, &navigationGrid2D_);
   if (assets == nullptr)
     return;
@@ -82,6 +83,10 @@ void LuaScriptHost::setAssetRegistry(const demi::AssetRegistry *assets) {
     (void)emitEvent("data_asset_reloaded", lua_gettop(state));
     lua_pop(state, 1);
   }
+}
+
+const NetworkContract *LuaScriptHost::networkContract() const {
+  return networkContract_ ? &*networkContract_ : nullptr;
 }
 
 DataAssetStore &LuaScriptHost::dataAssetStore() { return dataAssetStore_; }

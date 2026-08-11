@@ -713,6 +713,18 @@ LuaScriptHost::captureEntityReplicatedState(const std::string &entityId) const {
   return captureReplicatedState(*entity).dump();
 }
 
+std::optional<std::string> LuaScriptHost::captureEntityReplicatedState(
+    const std::string &entityId, const NetworkContract &contract,
+    const std::string_view prefabKey, const NetworkActor writer) const {
+  if (world_ == nullptr)
+    return std::nullopt;
+  const Entity *entity = findEntity(*world_, entityId);
+  if (entity == nullptr)
+    return std::nullopt;
+  return captureContractReplicatedState(*entity, contract, prefabKey, writer)
+      .dump();
+}
+
 std::string
 LuaScriptHost::applyEntityReplicatedState(const std::string &entityId,
                                           const std::string &stateJson) {

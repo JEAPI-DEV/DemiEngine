@@ -1,392 +1,392 @@
 # DemiEngine
 
-DemiEngine is a Linux-first C++20 game engine for deterministic, text-authored game development. It combines JSON project data, Lua gameplay scripting, a unified command-line workflow, and playable reference projects without relying on hidden editor state.
-
-Linux is the primary supported desktop platform. Android support is experimental but functional: the same DemiEngine project can be built as a Linux executable or Android APK without changing the project code.
-
-```bash
-demi build linux
-demi build apk
-demi run linux
-```
-
-The runtime can load JSON projects and scenes, run Lua 5.4 scripts, render 2D
-and lightweight 3D scenes, step 2D and 3D physics helpers, play audio and
-media, save versioned JSON state, run data-driven HUDs, and package projects
-for Linux and Android. All visible 2D and 3D scenes use SDL3 and a Vulkan-first
-bgfx renderer. See `docs/bgfx-migration.md`.
-
-The editor executable currently exists as a command boundary rather than a finished graphical editor. The CLI is the primary development, validation, build, and automation interface.
-
-## Why DemiEngine
-
-DemiEngine is built around a few core ideas:
-
-- Project data should be deterministic, readable, and version-controlled.
-- Gameplay code should stay high-level and live in Lua.
-- Building and running should use the same commands across supported targets.
-- Projects should not depend on hidden editor-only state.
-- Engine features should be validated through playable examples and automated tests.
-- Humans and coding agents should be able to inspect, modify, validate, build, and run projects through the same workflow.
-
-## Build And Run
-
-DemiEngine uses a target-based CLI workflow.
-
-Build a Linux executable:
-
-```bash
-demi build linux
-```
-
-Build an Android APK:
-
-```bash
-demi build apk
-```
-
-Run a project on Linux without creating a standalone executable:
-
-```bash
-demi run linux
-```
-
-The commands remain the same between projects. Run them from a DemiEngine project directory, or provide the relevant project path where supported by the CLI.
-
-Android projects do not require a separate codebase. Existing DemiEngine examples and projects can be packaged as APKs directly. Runtime camera movement supports touch input out of the box. Game-specific mobile controls, such as movement buttons or touch actions, remain the responsibility of the project developer.
-
-See `examples/minimal_2d_android` for a minimal Android-ready project.
-
-## Current Output
-
-The checked-in examples are playable reference projects, focused demonstrations, and integration tests for engine features. They combine JSON scenes, HUD data, Lua gameplay, rendering, physics, input, saves, networking, and platform packaging.
-
-![Minimal 2D networking menu](images/minimal_2d_networking.png)
-
-`examples/minimal_2d_networking` combines a data-driven HUD menu, Lua action handlers, save-backed settings, scene switching, platformer and slingshot gameplay, and optional networking paths.
-
-![Minimal 3D runtime scene](images/minimal_3d.png)
-
-`examples/minimal_3d` demonstrates the 3D renderer, scene loader, collision helpers, and Lua-controlled movement.
-
-![Isometric base builder](images/isometric_base_builder.png)
-
-`examples/isometric_base_builder` is a playable minimal tower-defense and base-building game. It includes isometric rendering, grid-based construction, pathfinding, enemies, defenses, and resource management.
-
-![Main menu animated](images/main_menu_animated.png)
-
-`examples/main_menu_animated` demonstrates a polished animated menu using `GuiAnimation` and a looping background character.
-
-![Minimal voxel](images/minimal_voxel.png)
-
-`examples/minimal_voxel` demonstrates voxel-style 3D rendering and physics integration.
-
-![UI showcase](images/ui_showcase_1.png)
-
-`examples/ui_showcase` demonstrates data-driven UI layouts, interactive HUD elements, styling, animation, and Lua-controlled interface behavior.
-
-## Example Projects
-
-The examples are not throwaway snippets. They are reference projects used to exercise complete engine workflows and identify reusable features that belong in the runtime.
-
-### Playable and game-oriented examples
-
-- `examples/isometric_base_builder`: playable isometric tower-defense and base-building demo with construction, pathfinding, enemies, defenses, and resources.
-- `examples/minimal_2d_networking`: menu flow, saves, scene switching, platformer and slingshot gameplay, plus optional networking paths.
-- `examples/multiplayer_ffa_shooter`: shared Linux/Android top-down shooter with host-authoritative hits, replicated players, respawns, scoring, and touch controls.
-- `examples/fighting_game_2d`: 2D fighting-game systems, data, and Lua gameplay scripts.
-- `examples/minimal_voxel`: voxel-style 3D scene and physics integration.
-
-### UI and presentation examples
-
-- `examples/ui_showcase`: data-driven UI layouts and interactive HUD behavior.
-- `examples/main_menu_animated`: animated menu built with `GuiAnimation`.
-- `examples/main_menu_gif`: portrait mobile-style hub using GIF wallpaper and SVG icon assets.
-
-### Platform and runtime examples
-
-- `examples/minimal_2d_android`: minimal project that can be packaged directly as an APK.
-- `examples/minimal_2d_android_server`: Android-oriented server or networking companion example.
-- `examples/minimal_3d`: lightweight 3D rendering, scene loading, movement, and collisions.
-- `examples/animation_3d`: 3D animation workflow.
-
-When an example needs behavior that belongs in the engine, the preferred approach is to add the reusable runtime feature instead of hiding the behavior inside one project script.
-
-## What This Engine Is
-
-- A Linux-first C++20 game runtime.
-- A functional experimental Android target using the same project code and CLI workflow.
-- A Lua-driven gameplay layer with high-level engine services.
-- A schema-first project format built from deterministic JSON files.
-- An engine for 2D, isometric, 2.5D, UI-heavy, and data-heavy games.
-- A lightweight experimental 3D runtime for small exploration, action, voxel, and puzzle projects.
-- A repository designed to be changed by humans and coding agents without editor-only state.
-
-## What This Engine Is Not
-
-- Not a Unity clone.
-- Not a finished graphical editor.
-- Not a live-service backend, account system, or matchmaking platform.
-- Not a high-end 3D renderer or full 3D content-authoring suite.
-- Not a promise of equal support across every desktop and mobile platform.
-
-## Current Runtime Features
-
-- Project, scene, HUD, asset, script, and save validation through the `demi` CLI.
-- Unified project build targets through commands such as `demi build linux` and `demi build apk`.
-- Direct Linux execution through `demi run linux`.
-- Scene loading from `*.scene.json`, including nested component data.
-- HUD loading from `*.hud.json`.
-- Buttons, text, rectangles, images, groups, visibility, hover state, click actions, and Lua-controlled position, size, and opacity.
-- `require("demi.gui_animation")` for HUD animation scheduling.
-- Native-delay GIF playback through `GifAnimation2D`.
-- SVG HUD icons through `Icon2D`.
-- Lua 5.4 scripting through sol2.
-- Lua lifecycle functions: `on_create`, `on_start`, `on_update`, `on_fixed_update`, and `on_destroy`.
-- Lua action and event annotations: `@HandleAction("...")` and `@OnEvent("...")`.
-- Lua services for `Data`, `Debug`, `Input`, `Timer`, `Events`, `Scene`, `Runtime`, `Entity`, `Transform2D`, `Transform3D`, `Physics2D`, `Physics3D`, `Rigidbody2D`, `HUD`, `Save`, `Audio`, `Video`, `Cutscene`, `Network`, and `NetworkSession`.
-- 2D rendering, HUD rendering, debug lines, and pixel-style text rendering.
-- Lightweight 3D rendering with hierarchical transforms, glTF materials and
-  named skeletal clips, frustum culling, deterministic material batches,
-  collision-aware movement, and Lua spatial queries.
-- Box2D-backed 2D physics.
-- JSON save slots with versioned migration hooks.
-- Optional ENet networking when `DEMI_ENABLE_NETWORK=ON`.
-- FFmpeg-backed media support when `DEMI_ENABLE_MEDIA=ON`.
-- Touch camera movement on Android.
-
-## Project Workflow
-
-A typical DemiEngine project uses deterministic files that can be inspected and edited directly:
-
-- Projects: `demi.project.json`
-- Scenes: `*.scene.json`
-- HUD files: `*.hud.json`
-- Saves: `*.save.json`
-- Assets: `*.asset.json`
-- General game data: schema-backed `DataAsset` JSON loaded through Lua `Data`
-- Lua scripts: `*.lua`
-
-Every project, scene, save, and asset manifest should include `format_version`. Generated output belongs in `build/`, `generated/`, or `examples/**/generated/`.
-
-Because the project state is text-based, the same workflow works well for manual development, source control, CI, and AI-assisted changes.
-
-Assets are imported under stable `asset://` IDs, validated with the project,
-and cooked before shipping. Selected assets can also be shared between
-projects as deterministic `.demipack` files with transitive dependencies and
-license metadata included:
-
-```bash
-demi asset import hero.png --project demi.project.json --id asset://characters/hero
-demi asset export --project demi.project.json --output hero.demipack --asset asset://characters/hero
-demi asset import-package hero.demipack --project ../other-game/demi.project.json
-demi cook --project demi.project.json --platform linux
-```
-
-## CLI
-
-The CLI is the main interface for building, running, validating, inspecting, and automating DemiEngine projects.
-
-Common commands:
-
-```bash
-demi --help
-demi version
-
-demi build linux
-demi build apk
-demi run linux
-
-demi validate demi.project.json
-demi schema export
-demi scene list demi.project.json
-demi scene inspect scenes/menu.scene.json
-demi save inspect saves/settings.save.json
-demi script check scripts/main_menu.lua
-demi lua-stubs generate generated/demi.lua
-```
-
-`demi editor --project <project>` exists as an editor command boundary. Until the graphical editor is complete, treat the CLI and deterministic project files as the primary authoring and automation contract.
-
-## Building The Engine From Source
-
-For engine development, use the CMake presets.
-
-Linux debug build:
-
-```bash
+DemiEngine is a Linux-first C++20 game engine for deterministic, text-authored
+games. Projects are versioned JSON, gameplay is Lua 5.4, and the command line
+is the primary authoring, validation, testing, and packaging interface. Nothing
+required to build a game is hidden in editor-only state.
+
+The engine is aimed at finished 2D, isometric, 2.5D, UI-heavy, and data-heavy
+games. Lightweight 3D and Android are usable experimental targets. High-end
+Unity-style 3D and a full graphical editor are not current product targets.
+
+## What Works Today
+
+### Stable game-facing foundations
+
+- Versioned projects, scenes, prefabs, HUD trees, assets, data, and saves.
+- Lua lifecycle scripts, annotations, events, timers, hot reload, and generated
+  LuaLS stubs.
+- Vulkan-first bgfx rendering through a backend-neutral graphics device, with
+  OpenGL and OpenGL ES backends available where supported.
+- Production-oriented 2D sprites, cameras, animation, tilemaps, materials,
+  startup-loaded game shaders, particles, masks, nine-slice rendering, and
+  debug overlays.
+- Box2D physics with multiple collider shapes, contacts, queries, joints, CCD,
+  kinematic movement, and collider debug drawing that matches simulation.
+- Contextual input actions for keyboard, mouse, gamepads, touch, gestures, and
+  virtual controls, plus deterministic input replay.
+- Retained tree UI with anchors, layout containers, focus/navigation, themes,
+  localization, UI prefabs, text editing, virtualization, and accessibility
+  snapshots.
+- Schema-backed immutable game data and reusable Lua gameplay packages for
+  controllers, health, projectiles, interactions, traversal, cameras,
+  inventory, and encounters.
+- Audio mixing, buses, snapshots, scheduling, streaming, spatial voices, and
+  entity-attached sources behind a backend-neutral runtime API.
+- Deterministic asset importing, dependency validation, portable `.demipack`
+  archives, Linux cooking, and Linux runtime bundles.
+- Profiling, CSV reports, deterministic replay, headless smoke tests, and
+  capability compatibility gates.
+
+### Experimental foundations
+
+- Lightweight 3D rendering, glTF models and skeletal clips, materials, game
+  shaders, lighting, shadows, particles, cameras, post effects, spatial
+  queries, generated model colliders, and character movement.
+- Host-authoritative networking with validated contracts, declared messages,
+  server-issued entity IDs, ownership generations, bounded payload validation,
+  late-join state, reconnect primitives, and a windowless dedicated server.
+- Android debug APK packaging using the same project data and Lua gameplay as
+  Linux.
+- FFmpeg-backed video and cutscene playback when media support is enabled.
+
+The precise support level of each subsystem is tracked in the
+[capability matrix](docs/capabilities.md). Do not infer production support from
+an example alone.
+
+## Quick Start
+
+Build the engine:
+
+```sh
 cmake --preset linux-debug
 cmake --build --preset linux-debug
 ctest --preset linux-debug
 ```
 
-Linux release build:
+List the starter projects and create one:
 
-```bash
-cmake --preset linux-release
-cmake --build --preset linux-release
+```sh
+./build/linux-debug/demi new --list
+./build/linux-debug/demi new games/my_game \
+  --template platformer --name "My Game"
 ```
 
-Headless runtime smoke tests can also run the built CLI directly:
+Available templates currently include blank 2D, platformer, top-down,
+isometric, lightweight 3D, networked game, and visual novel foundations.
 
-```bash
-DEMI_HEADLESS=1 ./build/linux-debug/demi run --project examples/minimal_2d_networking/demi.project.json --max-frames 1
-DEMI_HEADLESS=1 ./build/linux-debug/demi run --project examples/minimal_3d/demi.project.json --max-frames 1
+Inspect the environment, validate the authored files, and run:
+
+```sh
+./build/linux-debug/demi doctor \
+  --project games/my_game/demi.project.json
+./build/linux-debug/demi validate games/my_game/demi.project.json
+./build/linux-debug/demi run linux \
+  --project games/my_game/demi.project.json --watch
 ```
 
-These source-build commands are for developing DemiEngine itself. Game-project users should normally use the shorter target commands:
+`demi new` is transactional: it never overwrites an existing destination and
+only publishes the generated directory after the project validates.
 
-```bash
-demi build linux
-demi build apk
-demi run linux
+## Project Model
+
+A project is a directory of inspectable source files:
+
+```text
+my_game/
+├── demi.project.json
+├── scenes/              # *.scene.json
+├── prefabs/             # versioned entity prefabs
+├── hud/                 # *.hud.json and UI prefabs
+├── scripts/             # Lua gameplay modules
+├── assets/              # *.asset.json manifests and source assets
+├── data/                # schema-backed game data
+└── tests/               # replay and project test fixtures
 ```
 
-## Runtime Layout
+Every durable format includes `format_version`. References use stable URI-style
+IDs such as `scene://main`, `prefab://player`, `asset://textures/player`, and
+`script://scripts/player.lua`. Generated files belong in `build/`, `generated/`,
+or an example's `generated/` directory.
 
-The runtime is split by responsibility:
+The CLI, runtime, tests, and future editor consume the same files and
+diagnostics. A project that only works because of unrecorded editor state is a
+bug.
 
-- `src/demi/runtime/app`: runtime loop, input polling, window setup, and subsystem orchestration.
-- `src/demi/runtime/audio`: audio playback through miniaudio.
-- `src/demi/runtime/media`: video and cutscene media plumbing.
-- `src/demi/runtime/network`: optional transport/security plus game-facing
-  sessions, authority, safe replicated state, and diagnostics.
-- `src/demi/runtime/physics`: 2D and 3D movement and collision helpers.
-- `src/demi/runtime/render`: 2D and 3D renderers and font support.
-- `src/demi/runtime/scene`: project loading, scene parsing, HUD parsing, JSON helpers, and runtime scene data.
-- `src/demi/runtime/scripting`: Lua host lifecycle, services, diagnostics, loading, persistence, and bindings.
-- `src/demi/runtime/scripting/bindings`: installable Lua binding modules.
-- `src/demi/runtime/scripting/persistence`: save-slot parsing and serialization.
+## Lua Gameplay
 
-`SceneLoader.cpp` acts as a facade, while `ProjectParser`, `SceneEntityParser`, `HudParser`, and `SceneJson` own the parsing details. Component parsing uses a strategy table keyed by component name, so adding a component does not require extending one large loader function.
-
-Lua bindings follow the same pattern. `LuaScriptHostBindings.cpp` installs binding modules, and each module owns its API surface. Save persistence is split behind `LuaSaveCodec`, which reads and writes the current versioned JSON save format.
-
-## Dependencies
-
-Required for the default Linux debug build:
-
-- CMake 3.22+
-- Ninja
-- GCC 12+ or Clang 15+
-- PkgConfig
-- Lua 5.4 development files
-- FFmpeg development packages when `DEMI_ENABLE_MEDIA=ON`
-
-Fetched or linked by CMake:
-
-- SDL3: Linux and Android windowing, lifecycle, input, and clipboard
-- bgfx: backend-neutral 2D and 3D GPU rendering with Vulkan, OpenGL, and
-  OpenGL ES
-- Lua 5.4.7 and sol2: gameplay VM and C++/Lua bindings
-- Box2D 2.4.1: 2D physics
-- miniaudio 0.11.22: audio playback
-- nlohmann/json 3.11.3: project, scene, HUD, asset, and save parsing
-- mbedTLS 3.6.2: TLS and DTLS security
-- ENet 1.3.18: optional networking when `DEMI_ENABLE_NETWORK=ON`
-- FFmpeg: system media libraries when `DEMI_ENABLE_MEDIA=ON`
-- librsvg: optional SVG rasterization support when available
-
-## Scene And HUD Data
-
-Scene components live under an entity's `components` object:
-
-```json
-{
-  "id": "ent_menu_controller",
-  "name": "Menu Controller",
-  "components": {
-    "LuaScript": {
-      "module": "script://scripts/menu_scene.lua"
-    }
-  }
-}
-```
-
-HUD button actions are plain data:
-
-```json
-{
-  "type": "button",
-  "id": "menu_button_network",
-  "label": "NETWORK PLAY",
-  "action": "menu_button_network"
-}
-```
-
-Lua can bind the action with an annotation:
-
-```lua
--- @HandleAction("menu_button_network")
-function Actions.show_network()
-  -- ...
-end
-```
-
-## Lua API
-
-Public Lua API stubs live in `scripts/stubs/demi.lua`.
-
-Generate a copy for editor tooling:
-
-```bash
-demi lua-stubs generate generated/demi.lua
-```
-
-Lua scripts use explicit lifecycle functions:
+Scripts use explicit lifecycle methods and narrow engine services:
 
 ```lua
 local Player = {}
 
 function Player:on_start()
-  Debug.log("ready")
+  self.speed = 6.0
 end
 
 function Player:on_update(dt)
   local x, y = Input.action_vector("move")
-  Transform2D.add_position(self.entity_id, x * dt * 6.0, y * dt * 6.0)
+  Transform2D.add_position(
+    self.entity_id,
+    x * self.speed * dt,
+    y * self.speed * dt
+  )
 end
 
 return Player
 ```
 
-Gameplay scripts should use high-level services such as `Entity`, `Transform2D`, `Transform3D`, `Network`, `NetworkSession`, `Hud`, `Save`, `Physics`, and `Application` instead of depending on raw C++ internals.
+Supported lifecycle methods are `on_create`, `on_start`, `on_update`,
+`on_fixed_update`, and `on_destroy`. Public API declarations live in
+[`scripts/stubs/demi.lua`](scripts/stubs/demi.lua) and can be copied for editor
+tooling with:
 
-## Tests
+```sh
+demi lua-stubs generate generated/demi.lua
+```
 
-The test suite covers validation, Lua scripting, generated stubs, scene loading, physics, networking paths, runtime smoke tests, example scripts, snapshots, replay, prefabs, tilemaps, sprite animation, UI, cameras, simulation, and isometric systems.
+Gameplay should depend on services such as `Entity`, `Transform2D`,
+`Transform3D`, `Input`, `Physics2D`, `Physics3D`, `HUD`, `Data`, `Save`,
+`Audio`, `Events`, and `NetworkSession`, rather than raw C++ internals.
 
-```bash
+## Gameplay Packages
+
+Reusable gameplay policy lives in optional Lua packages instead of engine
+singletons. A project declares version constraints and a registry location or
+URL in `demi.project.json`:
+
+```json
+{
+  "format_version": 1,
+  "package_registry": "../../packages",
+  "packages": {
+    "demi.gameplay.health": "^1.0.0",
+    "demi.gameplay.projectiles": "^1.0.0"
+  }
+}
+```
+
+Resolve, update, inspect, and test packages through the CLI:
+
+```sh
+demi package install --project demi.project.json
+demi package install --locked --offline --project demi.project.json
+demi package update demi.gameplay.health --project demi.project.json
+demi package list --project demi.project.json
+demi package test packages/sources/demi.gameplay.health
+```
+
+Commit `demi.packages.lock.json`. The installed `.demi/packages/` directory and
+download cache are derived state. The runtime never contacts a registry.
+Available first-party packages are documented in
+[`packages/README.md`](packages/README.md).
+
+## Secure Multiplayer
+
+Networking is optional at build time and experimental at the product level:
+
+```sh
+cmake --preset linux-debug -DDEMI_ENABLE_NETWORK=ON
+cmake --build --preset linux-debug
+```
+
+A multiplayer project declares a versioned `NetworkContract` asset:
+
+```json
+{
+  "format_version": 1,
+  "network_contract": "asset://network/arena_contract"
+}
+```
+
+The contract defines replicated prefabs and fields, who may write them,
+message senders and recipients, ownership and disconnect rules, schemas,
+reliability, rates, and resource limits. Its canonical compatibility hash is
+checked during session setup.
+
+Only the server issues network IDs and ownership changes. Incoming transport
+bytes pass through fixed-header, contract, epoch, generation, sequence,
+permission, rate, size, structure, finite-number, and schema validation before
+Lua receives an event or the world changes.
+
+```lua
+NetworkSession.send("move_intent", player_network_id, {
+  x = Input.action_value("move_x"),
+  y = Input.action_value("move_y"),
+})
+```
+
+`NetworkSession.emit` is legacy because it sent an undeclared generic network
+event. This does **not** apply to `Events.emit`, which remains the supported
+local event bus.
+
+Run or package a windowless server with:
+
+```sh
+demi serve --project demi.project.json
+demi build linux_server --project demi.project.json
+```
+
+Prediction, reconciliation, snapshot interpolation, delta baselines, lag
+compensation, accounts, matchmaking, and host migration are not included in
+the current networking layer. See [game-facing networking](docs/networking.md)
+for the trust model and migration rules.
+
+## Build, Test, and Package a Game
+
+Common project commands:
+
+```sh
+demi validate demi.project.json
+demi script check scripts/player.lua
+demi test --project demi.project.json
+
+demi run linux --project demi.project.json --profiler
+demi build linux --project demi.project.json
+demi build apk --project demi.project.json
+demi cook --project demi.project.json --platform linux
+```
+
+Useful inspection and asset commands:
+
+```sh
+demi scene inspect scenes/main.scene.json
+demi scene expand scenes/main.scene.json
+demi prefab inspect prefabs/player.prefab.json
+
+demi asset import hero.glb --project demi.project.json \
+  --id asset://models/hero --preset animated_character
+demi asset deps assets/models/hero.asset.json
+demi asset collider assets/models/hero.asset.json \
+  --project demi.project.json --id asset://colliders/hero --detail 0.8
+demi asset budget demi.project.json --platform android
+```
+
+Use `demi --help` as the authoritative command list.
+
+## Example Projects
+
+Examples are executable engine probes, not throwaway snippets:
+
+| Example | Purpose |
+|---|---|
+| `minimal_2d_android` | Shared Linux/Android 2D platform gameplay and virtual controls |
+| `minimal_2d_networking` | Menu flow, saves, scenes, platformer/slingshot gameplay, and networking integration |
+| `production_2d_foundation` | Physics shapes, contacts, navigation, animation, and production 2D APIs |
+| `isometric_base_builder` | Tower defense, placement, pathfinding, combat, targeting, and persistence |
+| `fighting_game_2d` | Local 2D fighting-game systems and animation-driven gameplay |
+| `multiplayer_ffa_shooter` | Contract-backed host-authoritative shooter for Linux/Android packaging |
+| `ui_showcase` | Responsive retained UI, controls, layout, text input, and virtualization |
+| `main_menu_animated` | UI animation and animated sprite presentation |
+| `main_menu_gif` | GIF wallpaper and SVG-driven mobile-style UI |
+| `minimal_3d` | Lightweight 3D movement, queries, collisions, materials, and debug overlays |
+| `animation_3d` | glTF skeletal animation selection and playback |
+| `minimal_voxel` | Chunked voxel-style terrain, editing, particles, lighting, and profiling |
+| `saves_simulation_debugging` | Versioned saves, simulation, replay, and diagnostics |
+| `minimal_2d_android_server` | Headless/server-oriented networking companion project |
+
+When an example exposes a general gap, the fix belongs in the engine or a
+reusable package—not as a private workaround in that example.
+
+## Engine Development
+
+Requirements for the default Linux build:
+
+- CMake 3.22 or newer
+- Ninja
+- GCC 12+ or Clang 15+
+- Lua 5.4 development files
+- PkgConfig
+- FFmpeg development packages when media is enabled
+
+Primary presets:
+
+```sh
+cmake --preset linux-debug
+cmake --build --preset linux-debug
 ctest --preset linux-debug --output-on-failure
+
+cmake --preset linux-release
+cmake --build --preset linux-release
+
+cmake --preset linux-asan
+cmake --build --preset linux-asan
+ctest --preset linux-asan --output-on-failure
 ```
 
-Useful focused checks:
+The test suite covers CLI behavior, formats and validation, package resolution,
+Lua bindings, UI, rendering, physics, audio, assets, scenes and resource
+lifetime, networking security, deterministic failures, examples, Linux
+bundles, Android APK packaging, and headless dedicated-server startup.
 
-```bash
-./build/linux-debug/demi-scene-loader-tests .
-./build/linux-debug/demi-lua-scripting-tests
-./build/linux-debug/demi-physics2d-tests
-./build/linux-debug/demi-physics3d-tests
+## Architecture
+
+The main dependency direction is deliberate:
+
+```text
+CLI / application composition
+  -> runtime subsystem contracts
+    -> scene components and authored data
+      -> platform and third-party adapters
+
+Lua bindings -> public runtime services (never raw subsystem storage)
 ```
 
-`demi-scene-loader-tests` guards the nested component format and HUD action loading used by the examples.
+Notable boundaries:
+
+- `src/demi/runtime/platform`: SDL3 window, lifecycle, input, and display APIs.
+- `src/demi/runtime/render`: backend-neutral rendering plus bgfx adapters.
+- `src/demi/runtime/physics`: Box2D and lightweight 3D collision/query systems.
+- `src/demi/runtime/scene`: projects, scenes, prefabs, components, UI, and
+  resource ownership.
+- `src/demi/runtime/scripting`: Lua lifecycle, services, packages, and binding
+  adapters.
+- `src/demi/runtime/network`: transport boundary, contracts, ownership,
+  validated messages, replication, lifecycle, and fault simulation.
+- `src/demi/assets`, `src/demi/schema`, and `src/demi/diagnostics`: shared
+  authored-data infrastructure used by both runtime and CLI.
+
+Third-party integrations stay behind those boundaries so rendering, audio,
+networking, and platform adapters can be replaced without rewriting game APIs.
+See [architecture](docs/architecture.md) for more detail.
+
+## Current Limitations
+
+- Linux is the primary supported development and desktop platform.
+- Android debug packaging works, but release signing, store delivery, and full
+  device/lifecycle qualification are incomplete.
+- Lightweight 3D is suitable for modest games, not high-end rendering or large
+  editor-authored worlds.
+- The editor executable is an architectural boundary, not a finished visual
+  editor. Authoring remains text-and-CLI first.
+- Networking establishes authority and validation, but advanced latency hiding
+  and service infrastructure are future work.
+- Android media and networking availability depends on the selected build
+  configuration; validate the actual package rather than assuming desktop
+  options carry over.
 
 ## Documentation
 
-- [Generated documentation PDF](https://github.com/JEAPI-DEV/DemiEngine/blob/main/docs/latex/main.pdf)
-- [Architecture notes](docs/architecture.md)
 - [Getting started](docs/getting-started.md)
-- [CLI notes](docs/cli.md)
+- [Capability matrix](docs/capabilities.md)
+- [Architecture](docs/architecture.md)
+- [CLI reference](docs/cli.md)
 - [File formats](docs/file-formats.md)
 - [Data assets](docs/data-assets.md)
-- [Capability matrix](docs/capabilities.md)
+- [Networking](docs/networking.md)
+- [First-party gameplay packages](packages/README.md)
+- [Capability and compatibility gates](docs/capability-gates.md)
 - [Compatibility policy](docs/compatibility.md)
+- [bgfx migration and renderer status](docs/bgfx-migration.md)
+- [Development roadmap](plan.md)
 
-## Development Guidelines
+## Repository Rules
 
-- Keep public APIs small and explicit.
-- Prefer stable IDs and URI-style references such as `scene://main`, `asset://textures/unit.png`, and `script://scripts/player.lua`.
-- Update features as a complete slice: C++ data, scene parsing, validation and schema, Lua bindings, generated stubs, and tests.
-- Keep runtime data serializable. State that matters beyond one frame should usually live in scene, project, or save data rather than a hidden script global.
-- Run validation after editing example data.
-- Use examples to prove reusable engine features across Linux and Android rather than implementing one-off project workarounds.
+- Keep public APIs small, explicit, serializable, and testable.
+- Prefer stable IDs over positional references.
+- Update a feature as a complete slice: data type, reflection, parsing,
+  validation/schema, bindings, stubs, documentation, and tests.
+- Treat example failures as evidence of a reusable engine or package gap.
+- Validate edited projects and run focused regression tests before the full
+  suite.
+- Never hand-edit generated build output.

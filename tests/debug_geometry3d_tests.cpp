@@ -148,5 +148,34 @@ int main() {
   World gridWorld;
   gridWorld.debug.grid = true;
   assert(buildDebugGeometry3D(gridWorld).size() == 82);
+
+  World requestedWorld;
+  Entity requestedCollider = transformedEntity("requested-collider");
+  requestedCollider.setComponent(BoxCollider3DComponent{});
+  requestedWorld.entities.push_back(requestedCollider);
+  assert(buildDebugGeometry3D(
+             requestedWorld, {.forceColliders = true, .bounds = false})
+             .size() == 12);
+
+  World boundsWorld;
+  Entity bounded = transformedEntity("bounded", {1.0F, 2.0F, 3.0F});
+  bounded.setComponent(MeshRendererComponent{
+      .size = {2.0F, 4.0F, 6.0F},
+      .boundsMin = {-0.5F, -0.25F, -1.0F},
+      .boundsMax = {0.5F, 0.25F, 1.0F},
+      .hasBounds = true});
+  boundsWorld.entities.push_back(std::move(bounded));
+  lines = buildDebugGeometry3D(
+      boundsWorld, {.forceColliders = false, .bounds = true});
+  assert(lines.size() == 12);
+  minimumX = lines.front().start.x;
+  maximumX = minimumX;
+  for (const DebugLine3D &line : lines)
+    for (const Vec3 point : {line.start, line.end}) {
+      minimumX = std::min(minimumX, point.x);
+      maximumX = std::max(maximumX, point.x);
+    }
+  assert(close(minimumX, 0.0F));
+  assert(close(maximumX, 2.0F));
   return 0;
 }

@@ -44,6 +44,8 @@ void Camera3DComponent::parse(const nlohmann::json &json, Entity &entity) {
       scene_loading::boolField(json, "primary").value_or(false);
   component.renderMask = scene_loading::stringOr(json, "render_mask");
   component.clearMode = scene_loading::stringOr(json, "clear_mode", "color");
+  component.debugMode =
+      scene_loading::stringOr(json, "debug_mode", "shaded");
   component.renderTarget = scene_loading::stringOr(json, "render_target");
   component.updateInterval = std::max(
       scene_loading::numberField(json, "update_interval").value_or(0.0F),
