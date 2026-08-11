@@ -675,7 +675,8 @@ packages that compose them into common game workflows.
 
 **Status: planned.** Several examples already contain useful modular Lua
 controllers, but there is no versioned package contract, consistent event
-vocabulary, or reusable test harness for composing them in a new project.
+vocabulary, reusable test harness, or reproducible way to resolve and fetch a
+package by name and version.
 
 ### Package architecture
 
@@ -696,9 +697,54 @@ Lua modules, asset/prefab/data dependencies, exported events, and configurable
 defaults. A package cannot read another package's private module path; declared
 dependencies expose explicit public modules.
 
-In this step, packages are checked into the engine distribution or directly
-vendored into a project. Step 7 later adds installation, dependency solving,
-and lock files without changing these Lua/event/data contracts.
+Packages may be project-local, checked into the engine distribution, or
+resolved from a configured registry. Resolution and installation are CLI/build
+operations: the runtime never downloads code or content while starting or
+playing a game. Registry packages use the same manifest and installed layout as
+local packages, so publishing does not create a second package format.
+
+### Package distribution and ownership
+
+- `PackageManifest` is the validated source contract for package identity,
+  semantic version, engine capabilities, public modules, dependencies, and
+  content hashes. It does not contain registry credentials or installation
+  state.
+- `PackageResolver` owns deterministic version selection and conflict
+  explanations from immutable registry metadata. It has no filesystem or HTTP
+  implementation details.
+- `PackageRegistryClient` is a narrow transport boundary for listing versions,
+  reading manifests, and downloading immutable archives. HTTP, local-directory,
+  and in-memory test implementations obey the same protocol.
+- `PackageInstaller` verifies hashes and paths, extracts into a package-owned
+  cache, and atomically materializes the resolved installation. It does not
+  choose versions.
+- `demi.packages.lock.json` records exact versions, dependency edges, source
+  registry, archive hashes, and manifest hashes. It is committed source data;
+  partial resolution or installation must not modify it.
+- The global download cache stores immutable verified archives. Installed
+  project state is derived from the lock and may be deleted and reconstructed
+  without changing authored project files.
+
+The registry protocol remains small and host-independent: normalized
+package/version metadata plus immutable archive downloads over HTTP. A
+Docker-hosted development registry provides publish/fetch integration tests and
+local iteration, but the engine and CLI depend on the protocol rather than that
+server implementation. Authentication and a production public registry are
+separate deployment concerns.
+
+```text
+demi package add demi.health@^1.2
+demi package remove demi.health
+demi package install
+demi package update demi.health
+demi package publish --registry http://localhost:8080
+```
+
+`add`, `remove`, and `update` plan the complete dependency graph, download and
+verify every missing archive, stage the installation, then atomically replace
+the manifest/lock/install state. `install --locked` reproduces the lock exactly
+and performs no version solving. Offline mode succeeds only from verified cache
+entries and reports every missing archive.
 
 Avoid a `GameplayManager` or universal character component. Packages exchange
 small values and events while the game owns composition and policy.
@@ -745,6 +791,11 @@ payload schemas are testable project data.
    simultaneous contacts, scene transitions, destroyed targets, and save/load.
 7. Update the platformer, shooter, fighting, and isometric examples to consume
    the packages where that makes them clearer.
+8. Add project dependency declarations, deterministic semantic-version
+   resolution, an atomic lockfile/install workflow, and an immutable package
+   cache.
+9. Add registry fetch and publish commands behind a documented HTTP protocol,
+   plus a disposable Docker development registry used by integration tests.
 
 ### Implementation slices
 
@@ -752,14 +803,34 @@ payload schemas are testable project data.
 
 1. Define deterministic in-project locations, public module names, direct
    dependency declarations, engine capability requirements, and conflict
-   diagnostics. Defer external package resolution and lock files to Step 7.
+   diagnostics.
 2. Extend `demi script check` and project validation to include installed
    package modules and their declared schemas.
 3. Add a lightweight headless package test runner with isolated world, events,
    deterministic time/random, and fixture-prefab support.
 4. Generate LuaLS paths/types from installed package manifests.
 
-#### 4B. Health, damage, and interactions
+#### 4B. Package registry, resolution, and installation
+
+1. Define and schema-validate the package manifest, project dependency entries,
+   registry metadata, and deterministic lock format.
+2. Resolve direct and transitive semantic-version constraints deterministically;
+   reject cycles, incompatible engine capabilities, yanked locked versions, and
+   unsatisfied constraints with a minimal useful conflict explanation.
+3. Add registry transport interfaces with in-memory, local-directory, and HTTP
+   implementations; keep credentials outside project and lock files.
+4. Verify archive and manifest hashes before extraction, reject absolute paths,
+   traversal, symlink escapes, duplicate files, undeclared public modules, and
+   stable-ID collisions before changing project state.
+5. Stage cache, installation, project dependency, and lock changes and commit
+   them atomically only after validation and `demi script check` succeed.
+6. Add `demi package add`, `remove`, `install`, `update`, `list`, `outdated`, and
+   `publish`, including locked, offline, dry-run, and machine-readable diagnostic
+   modes.
+7. Provide a disposable Docker development registry with persistent test volume,
+   health check, reset fixture, and documented local publish/fetch workflow.
+
+#### 4C. Health, damage, and interactions
 
 1. Implement health as explicit gameplay state associated with stable entity
    IDs, with clamp/max/invulnerability rules configured per instance.
@@ -769,7 +840,7 @@ payload schemas are testable project data.
 4. Add interaction queries/prompts that select candidates deterministically by
    priority, distance, and stable ID.
 
-#### 4C. Projectiles and weapons
+#### 4D. Projectiles and weapons
 
 1. Separate weapon cooldown/ammo policy, projectile motion, hit detection, and
    damage request emission.
@@ -779,7 +850,7 @@ payload schemas are testable project data.
 4. Make ownership, ignored entity, collision mask, lifetime, pierce count, and
    hit-once tracking explicit.
 
-#### 4D. Traversal, checkpoints, and cameras
+#### 4E. Traversal, checkpoints, and cameras
 
 1. Adapt existing public controllers instead of duplicating physics loops.
 2. Define checkpoint state by stable entrance/checkpoint IDs and serializable
@@ -788,7 +859,7 @@ payload schemas are testable project data.
 4. Compose camera follow, bounds, zones, shake, and look-ahead as independent
    policies writing to the existing camera service.
 
-#### 4E. Isometric encounters
+#### 4F. Isometric encounters
 
 1. Extract generic wave/objective scheduling from the tower-defense example
    without moving tower targeting or economy rules into the engine.
@@ -812,7 +883,16 @@ payload schemas are testable project data.
 - save/load occurs with active projectiles, queued damage, or an in-progress
   scene transition;
 - incompatible declared direct dependency and two packages exporting the same
-  public module/event schema.
+  public module/event schema;
+- registry timeout or malformed metadata, version disappearing between resolve
+  and fetch, yanked version already present in a lock, or inconsistent mirrors;
+- checksum mismatch, truncated archive, path traversal, symlink escape,
+  duplicate archive entry, archive bomb, or package claiming undeclared files;
+- dependency cycle, incompatible engine capability, ambiguous package source,
+  interrupted lock write, failed validation after extraction, and concurrent
+  installs targeting the same project;
+- offline install with a complete cache and with one transitive archive missing;
+  reinstall from a clean cache must reproduce identical installed bytes.
 
 ### Reference and test matrix
 
@@ -827,12 +907,22 @@ Each probe gets replay tests for ordinary input and adversarial lifecycle
 fixtures. Package tests must also run without rendering to prevent presentation
 from becoming an implicit dependency of gameplay policy.
 
+Resolver tests use generated dependency graphs and golden conflict explanations.
+Registry integration tests publish fixtures to the disposable local server,
+install from an empty cache, repeat from offline cache, corrupt an archive, and
+interrupt each atomic commit stage. They must not depend on a public service.
+
 ### Done when
 
 - A developer can assemble a small platformer, top-down action game, puzzle,
   or tower-defense prototype without adding engine bindings.
 - Packages can be used independently and replaced without changing engine
   source.
+- A clean checkout can restore exact package bytes from the committed lock with
+  one command, and a developer can add a package by name/version without copying
+  files manually.
+- Failed, interrupted, malicious, or conflicting package operations leave the
+  previous manifest, lock, cache trust state, and installation usable.
 - Common edge cases are covered outside individual example scripts.
 
 ## Step 5 — Lightweight 3D Creation Workflow
@@ -1161,15 +1251,17 @@ project data can narrow that permission but cannot widen it.
 - Network failures identify the peer, message/RPC, authority rule, and payload
   involved.
 
-## Step 7 — Asset Iteration, Streaming, and Project Packages
+## Step 7 — Asset Iteration, Streaming, and Package Content
 
 Larger games need fast iteration and explicit memory ownership rather than a
 single startup asset set.
 
 **Status: planned.** Manifests, dependency validation, cooking, portable asset
 packages, scene resource groups, and startup upload are present. Importer
-registration, incremental dependency cooking, addressable groups, and reusable
-project-package version resolution are not complete developer workflows.
+registration, incremental dependency cooking, addressable groups, and package
+content cooking are not complete developer workflows. Package identity,
+registry resolution, installation, and lock ownership are established in Step
+4 and are not reimplemented here.
 
 ### Ownership model
 
@@ -1182,9 +1274,9 @@ project-package version resolution are not complete developer workflows.
 - `AssetGroupService` owns asynchronous acquire/release state and progress.
   Renderer/audio/script backends own their resource objects behind narrow
   loaders; the group service owns references, not backend internals.
-- `ProjectPackageResolver` owns package manifests, versions, dependency
-  solving, lock data, and stable-ID collision policy. It never silently renames
-  assets/components/modules.
+- The Step 4 package subsystem supplies a verified, locked package installation.
+  Asset cooking consumes that installation as source input and never performs
+  registry access or version selection.
 - Hot reload and normal load use the same asset handlers and resource lifetime
   registry. There is no separate editor-only cache owner.
 
@@ -1234,10 +1326,10 @@ explicit and atomic with respect to group ownership.
    stable asset ID.
 6. Route hot reload through the same resource ownership path as ordinary load
    and unload.
-7. Add versioned project packages for reusable Lua modules, prefabs, UI,
-   assets, schemas, and optional registered engine extensions.
-8. Add dependency/version/conflict diagnostics and deterministic package lock
-   data; never silently rewrite a stable ID.
+7. Extend Step 4 packages with reusable assets and optional registered engine
+   extensions, including deterministic per-platform cooked outputs.
+8. Diagnose content/stable-ID conflicts while cooking a locked package graph;
+   never silently rewrite a stable ID.
 
 ### Implementation slices
 
@@ -1280,17 +1372,19 @@ explicit and atomic with respect to group ownership.
 3. Preserve source asset IDs or provide explicit migration maps when packing
    changes runtime texture layout.
 
-#### 7E. Project packages
+#### 7E. Package content integration
 
-1. Define a package manifest and lock format with engine capability/version
-   requirements and content hashes.
-2. Resolve a dependency graph deterministically and reject cycles or
-   incompatible constraints with a minimal conflict explanation.
-3. Preview all files, stable IDs, Lua module names, schemas, and extension
-   registrations before installation.
-4. Install to a package-owned directory and update the lock atomically.
-5. Support uninstall only when no authored project reference or dependent
-   package remains, unless an explicit breaking removal is requested.
+1. Consume only the verified installed graph and lock produced by Step 4; do
+   not resolve versions or contact registries during cooking.
+2. Include package assets, import settings, and registered extensions in cook
+   keys and platform capability validation.
+3. Preview stable IDs, schemas, extension registrations, cooked outputs, and
+   cross-package collisions before committing generated content.
+4. Record source package and content hash provenance for every cooked output so
+   diagnostics and runtime memory reports identify its owner.
+5. Prevent package removal while authored references, cooked outputs, loaded
+   groups, or dependent packages still require it, unless an explicit breaking
+   removal workflow first updates those owners.
 
 ### Failure and edge-case matrix
 
@@ -1308,8 +1402,10 @@ explicit and atomic with respect to group ownership.
 - atlas edge bleed, rotated/trimmed sprites, nine-slice borders, empty sprites,
   and animation frames spanning pages;
 - missing font glyph after packaging and fallback cycle;
-- package path traversal, checksum mismatch, duplicate stable ID/module,
-  dependency cycle, lock interruption, and uninstall with live references.
+- locked package content missing or changed after install, duplicate stable ID,
+  unsupported native extension for the target, and uninstall with live or
+  cooked references. Registry, archive, solver, and lock failures are covered
+  by Step 4 rather than duplicated here.
 
 ### Test and observability plan
 
@@ -1326,7 +1422,8 @@ explicit and atomic with respect to group ownership.
 
 - A loading screen can prepare a content group, show progress, activate it,
   and unload the previous group with memory returning to budget.
-- A content-only package can be installed without copying files by hand.
+- A locked content package cooks reproducibly for Linux and Android without
+  registry access during the cook.
 - Incremental cook and reload never duplicate GPU, audio, script, or scene
   resources.
 
