@@ -11,6 +11,9 @@ struct Camera3DComponent {
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
   static constexpr std::array<std::string_view, 3> clearModes{
       "color", "depth", "none"};
+  static constexpr std::array<std::string_view, 9> debugModes{
+      "shaded", "normals", "uv", "alpha", "lighting", "bounds",
+      "colliders", "overdraw", "instancing"};
   static constexpr std::array fields{
       ComponentFieldDescriptor{"clear_color", ComponentFieldType::Color},
       ComponentFieldDescriptor{"fov", ComponentFieldType::Number},
@@ -41,6 +44,8 @@ struct Camera3DComponent {
       ComponentFieldDescriptor{"render_mask", ComponentFieldType::String},
       ComponentFieldDescriptor{"clear_mode", ComponentFieldType::String, false,
                                true, clearModes},
+      ComponentFieldDescriptor{"debug_mode", ComponentFieldType::String,
+                               false, true, debugModes},
       ComponentFieldDescriptor::assetReference("render_target"),
       ComponentFieldDescriptor{"update_interval", ComponentFieldType::Number,
                                false, true, {}, 0.0, true},
@@ -68,6 +73,7 @@ struct Camera3DComponent {
   bool primary = false;
   std::string renderMask;
   std::string clearMode = "color";
+  std::string debugMode = "shaded";
   std::string renderTarget;
   float updateInterval = 0.0F;
   bool renderHudToTarget = false;

@@ -2,52 +2,33 @@
   "format_version": 1,
   "id": "scene://{{TEMPLATE_ID}}/main",
   "name": "Main Scene",
+  "instances": [
+    {"id": "player", "prefab": "prefab://first_person_controller"},
+    {"id": "moving_platform", "prefab": "prefab://moving_platform",
+     "overrides": {"body": {"Transform3D": {"position": [0, 1.0, -4]}}}},
+    {"id": "pickup", "prefab": "prefab://pickup",
+     "overrides": {"body": {"Transform3D": {"position": [0, 2.0, -4]}}}},
+    {"id": "door", "prefab": "prefab://door",
+     "overrides": {"root": {"Transform3D": {"position": [4, 1.5, -4]}}}},
+    {"id": "daylight", "prefab": "prefab://presentation/daylight"}
+  ],
   "entities": [
     {
-      "id": "ent_camera",
-      "name": "Main Camera",
+      "id": "ground",
+      "name": "Ground",
       "components": {
         "Transform3D": {
-          "position": [0.0, 4.0, 7.0],
-          "rotation": [0.0, 0.0, 0.0],
-          "scale": [1.0, 1.0, 1.0]
-        },
-        "Camera3D": {
-          "clear_color": [0.04, 0.05, 0.08, 1.0],
-          "fov": 60.0,
-          "near_clip": 0.05,
-          "far_clip": 200.0,
-          "target_offset": [0.0, -3.0, -7.0],
-          "primary": true
-        }
-      }
-    },
-    {
-      "id": "ent_light",
-      "name": "Sun",
-      "components": {
-        "DirectionalLight": {
-          "direction": [-0.4, -1.0, -0.3],
-          "color": [1.0, 0.95, 0.85, 1.0],
-          "intensity": 1.0
-        }
-      }
-    },
-    {
-      "id": "ent_marker",
-      "name": "Starter Marker",
-      "components": {
-        "Transform3D": {
-          "position": [0.0, 0.5, 0.0],
+          "position": [0.0, -0.25, -2.0],
           "rotation": [0.0, 0.0, 0.0],
           "scale": [1.0, 1.0, 1.0]
         },
         "MeshRenderer": {
           "shape": "cube",
-          "size": [1.0, 1.0, 1.0],
-          "color": [0.25, 0.9, 0.75, 1.0]
+          "size": [16.0, 0.5, 16.0],
+          "color": [0.18, 0.28, 0.22, 1.0]
         },
-        "LuaScript": { "module": "script://scripts/main.lua" }
+        "BoxCollider3D": {"size": [16.0, 0.5, 16.0], "offset": [0, 0, 0], "layer": "world"},
+        "Rigidbody3D": {"body_type": "static", "use_gravity": false}
       }
     }
   ]

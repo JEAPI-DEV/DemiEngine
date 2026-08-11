@@ -8,6 +8,7 @@ uniform vec4 u_lightColor;
 uniform vec4 u_ambientColor;
 uniform vec4 u_tint;
 uniform vec4 u_alphaCutoff;
+uniform vec4 u_debugMode;
 uniform vec4 u_pointPositionRange[4];
 uniform vec4 u_pointColorIntensity[4];
 uniform vec4 u_spotPositionRange[4];
@@ -64,5 +65,40 @@ void main()
                         spotAttenuation * spotAttenuation;
         }
     }
-    gl_FragColor = vec4(albedo.rgb * lighting, albedo.a);
+    if (u_debugMode.x > 0.5 && u_debugMode.x < 1.5)
+    {
+        gl_FragColor = vec4(normal * 0.5 + 0.5, 1.0);
+    }
+    else if (u_debugMode.x > 1.5 && u_debugMode.x < 2.5)
+    {
+        vec2 cell = floor(fract(v_texcoord0) * 10.0);
+        float checker = mod(cell.x + cell.y, 2.0);
+        vec3 uvColor = mix(vec3(0.08), vec3(0.92), checker);
+        if (v_texcoord0.x < 0.0 || v_texcoord0.y < 0.0 ||
+            v_texcoord0.x > 1.0 || v_texcoord0.y > 1.0)
+            uvColor = vec3(1.0, 0.1, 0.1);
+        gl_FragColor = vec4(uvColor, 1.0);
+    }
+    else if (u_debugMode.x > 2.5 && u_debugMode.x < 3.5)
+    {
+        gl_FragColor = vec4(vec3(albedo.a), 1.0);
+    }
+    else if (u_debugMode.x > 3.5 && u_debugMode.x < 4.5)
+    {
+        gl_FragColor = vec4(lighting, 1.0);
+    }
+    else if (u_debugMode.x > 4.5 && u_debugMode.x < 5.5)
+    {
+        gl_FragColor = vec4(0.12, 0.015, 0.0, 0.12);
+    }
+    else if (u_debugMode.x > 5.5)
+    {
+        gl_FragColor = u_debugMode.y > 0.5
+            ? vec4(0.1, 0.9, 0.2, 1.0)
+            : vec4(0.95, 0.15, 0.1, 1.0);
+    }
+    else
+    {
+        gl_FragColor = vec4(albedo.rgb * lighting, albedo.a);
+    }
 }

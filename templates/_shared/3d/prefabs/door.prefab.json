@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "id": "prefab://door",
+  "name": "Interactive Door",
+  "entities": [
+    {
+      "id": "root",
+      "components": {
+        "Transform3D": {"position": [0, 1.5, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]},
+        "LuaScript": {"module": "script://scripts/controllers/door.lua"}
+      }
+    },
+    {
+      "id": "solid",
+      "components": {
+        "Transform3D": {"parent": "root", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]},
+        "MeshRenderer": {"shape": "cube", "size": [1.2, 3, 0.25], "color": [0.45, 0.25, 0.12, 1]},
+        "BoxCollider3D": {"size": [1.2, 3, 0.25], "offset": [0, 0, 0], "layer": "world"},
+        "Rigidbody3D": {"body_type": "static", "use_gravity": false}
+      }
+    }
+  ]
+}

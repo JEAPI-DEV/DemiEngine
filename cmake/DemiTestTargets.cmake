@@ -171,6 +171,9 @@
   target_link_libraries(demi-audio-phase7-tests PRIVATE demi-runtime-lib)
   add_executable(demi-asset-pipeline-tests tests/asset_pipeline_tests.cpp)
   target_link_libraries(demi-asset-pipeline-tests PRIVATE demi-core)
+  add_executable(demi-lightweight-3d-workflow-tests
+    tests/lightweight_3d_workflow_tests.cpp)
+  target_link_libraries(demi-lightweight-3d-workflow-tests PRIVATE demi-core)
   add_executable(demi-data-asset-tests tests/data_asset_tests.cpp)
   target_link_libraries(demi-data-asset-tests PRIVATE demi-runtime-lib)
   add_executable(demi-lua-data-bindings-tests

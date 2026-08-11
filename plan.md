@@ -932,9 +932,13 @@ interrupt each atomic commit stage. They must not depend on a public service.
 Lightweight 3D should be approachable without understanding renderer or Jolt
 internals.
 
-**Status: planned.** Runtime rendering and physics are usable, but diagnosing
-third-party model orientation, scale, material, animation, collider, lighting,
-and cost still requires too much engine knowledge and visual trial-and-error.
+**Status: completed.** Model import profiles now normalize orientation and
+units, the CLI exposes structured model inspection and explicit collider
+recommendations, and generated colliders retain provenance for stale-input
+detection. The lightweight 3D template provides reusable controller,
+interaction, projectile, platform, camera, and presentation prefabs. Camera
+debug modes and static Linux/Android scene-budget reports cover the common
+rendering and mobile-cost diagnostics without requiring graphics-device access.
 
 ### Ownership and data flow
 

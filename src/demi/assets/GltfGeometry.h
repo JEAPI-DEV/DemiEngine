@@ -1,5 +1,7 @@
 #pragma once
 
+#include "demi/assets/ModelImportProfile.h"
+
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -38,5 +40,8 @@ struct GltfGeometry {
 // static meshes.
 [[nodiscard]] std::optional<GltfGeometry>
 loadGltfGeometry(const std::filesystem::path &path, std::string &error);
+[[nodiscard]] std::optional<GltfGeometry>
+loadGltfGeometry(const std::filesystem::path &path,
+                 const ModelImportProfile &profile, std::string &error);
 
 } // namespace demi::assets

@@ -4,6 +4,7 @@
 
 #include "demi/assets/GltfGeometry.h"
 #include "demi/assets/GltfSkinnedModel.h"
+#include "demi/assets/ModelImportProfile.h"
 #include "demi/assets/RenderAsset.h"
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 #include "demi/runtime/render/bgfx3d/MeshTransform3D.h"
@@ -20,6 +21,7 @@
 #include <bit>
 #include <fstream>
 #include <iterator>
+#include <nlohmann/json.hpp>
 #include <unordered_set>
 
 namespace demi::runtime::render {
@@ -75,6 +77,22 @@ std::uint64_t meshCacheRevision(const MeshRendererComponent &mesh) {
   return hash;
 }
 
+float debugModeValue(const std::string &mode) {
+  if (mode == "normals")
+    return 1.0F;
+  if (mode == "uv")
+    return 2.0F;
+  if (mode == "alpha")
+    return 3.0F;
+  if (mode == "lighting")
+    return 4.0F;
+  if (mode == "overdraw")
+    return 5.0F;
+  if (mode == "instancing")
+    return 6.0F;
+  return 0.0F;
+}
+
 } // namespace
 
 BgfxRenderer3D::BgfxRenderer3D(GpuResources &resources,
@@ -114,6 +132,8 @@ bool BgfxRenderer3D::initialize(std::string &error) {
       resources_.createUniform("u_tint", UniformType::Vec4, 1, error);
   alphaCutoffUniform_ =
       resources_.createUniform("u_alphaCutoff", UniformType::Vec4, 1, error);
+  debugModeUniform_ =
+      resources_.createUniform("u_debugMode", UniformType::Vec4, 1, error);
   lightDirectionUniform_ =
       resources_.createUniform("u_lightDirection", UniformType::Vec4, 1, error);
   lightColorUniform_ =
@@ -143,7 +163,8 @@ bool BgfxRenderer3D::initialize(std::string &error) {
                                             .debugName = "3D white fallback"},
                                            error);
   if (!meshProgram_ || !instancedMeshProgram_ || !meshSampler_ ||
-      !tintUniform_ || !alphaCutoffUniform_ || !whiteTexture_ ||
+      !tintUniform_ || !alphaCutoffUniform_ || !debugModeUniform_ ||
+      !whiteTexture_ ||
       !lightDirectionUniform_ ||
       !lightColorUniform_ || !ambientColorUniform_ ||
       !pointPositionRangeUniform_ || !pointColorIntensityUniform_ ||
@@ -161,6 +182,7 @@ void BgfxRenderer3D::shutdown() {
   modelMeshes_.clear();
   animatedModels_.clear();
   modelTextures_.clear();
+  modelUnlit_.clear();
   materials_.clear();
   for (const auto &[id, target] : renderTargets_) {
     static_cast<void>(id);
@@ -179,7 +201,8 @@ void BgfxRenderer3D::shutdown() {
   if (meshSampler_)
     resources_.destroy(meshSampler_);
   for (const UniformHandle uniform :
-       {tintUniform_, alphaCutoffUniform_, lightDirectionUniform_,
+       {tintUniform_, alphaCutoffUniform_, debugModeUniform_,
+        lightDirectionUniform_,
         lightColorUniform_,
         ambientColorUniform_, pointPositionRangeUniform_,
         pointColorIntensityUniform_, spotPositionRangeUniform_,
@@ -195,6 +218,7 @@ void BgfxRenderer3D::shutdown() {
   meshSampler_ = {};
   tintUniform_ = {};
   alphaCutoffUniform_ = {};
+  debugModeUniform_ = {};
   lightDirectionUniform_ = {};
   lightColorUniform_ = {};
   ambientColorUniform_ = {};
@@ -220,6 +244,7 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
   modelMeshes_.clear();
   animatedModels_.clear();
   modelTextures_.clear();
+  modelUnlit_.clear();
   materials_.clear();
   for (const auto &[id, target] : renderTargets_) {
     static_cast<void>(id);
@@ -283,7 +308,24 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
       std::vector<Vec2> textureCoordinates;
       std::vector<std::uint32_t> vertexColors;
       std::vector<std::uint32_t> indices;
-      auto animated = assets::loadGltfSkinnedModel3D(asset.sourcePath, error);
+      const nlohmann::json settings =
+          nlohmann::json::parse(asset.settingsJson, nullptr, false);
+      // Legacy manifests had no import profile and always exposed animation
+      // clips. Preserve that behavior while new imports remain explicit.
+      const bool hasProfile =
+          settings.is_object() && settings.contains("model_import");
+      const auto profile = hasProfile
+                               ? assets::parseModelImportProfile(settings)
+                               : std::make_optional(assets::modelImportPreset(
+                                     "animated_character"));
+      if (!profile) {
+        diagnostics.push_back(asset.id + ": invalid model import profile");
+        success = false;
+        continue;
+      }
+      modelUnlit_[asset.id] = profile->materialPolicy == "unlit";
+      auto animated =
+          assets::loadGltfSkinnedModel3D(asset.sourcePath, *profile, error);
       if (animated) {
         if (!animated->bindPosePositions(positions, error)) {
           diagnostics.push_back(asset.id + ": " + error);
@@ -299,7 +341,8 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
         indices = animated->indices;
       } else {
         error.clear();
-        const auto geometry = assets::loadGltfGeometry(asset.sourcePath, error);
+        const auto geometry =
+            assets::loadGltfGeometry(asset.sourcePath, *profile, error);
         if (!geometry) {
           diagnostics.push_back(asset.id + ": " + error);
           success = false;
@@ -328,7 +371,8 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
                      : std::vector<std::byte>{};
         if (animated && !animated->clips.empty())
           animatedModels_.emplace(asset.id, std::move(*animated));
-        if (asset.texturePath || !embeddedAlbedo.empty()) {
+        if (profile->materialPolicy != "ignore" &&
+            (asset.texturePath || !embeddedAlbedo.empty())) {
           const std::string textureId = asset.id + "#albedo";
           const auto bytes = asset.texturePath
                                  ? readBytes(*asset.texturePath)
@@ -415,9 +459,13 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       collectSceneLighting3D(world, frame.camera.renderMask);
   const std::array<float, 4> whiteTint{1.0F, 1.0F, 1.0F, 1.0F};
   const std::array<float, 4> noAlphaCutoff{};
-  const std::array<DrawUniformValue, 11> lightingUniforms{{
+  const std::array<float, 4> debugMode{
+      debugModeValue(frame.camera.debugMode), 0.0F, 0.0F, 0.0F};
+  const std::array<float, 16> disabledArrayLights{};
+  const std::array<DrawUniformValue, 12> lightingUniforms{{
       {.handle = tintUniform_, .values = whiteTint},
       {.handle = alphaCutoffUniform_, .values = noAlphaCutoff},
+      {.handle = debugModeUniform_, .values = debugMode},
       {.handle = lightDirectionUniform_, .values = lighting.direction},
       {.handle = lightColorUniform_, .values = lighting.directionalColor},
       {.handle = ambientColorUniform_, .values = lighting.ambient},
@@ -442,6 +490,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     const GpuMesh3D *mesh = nullptr;
     TextureHandle texture;
     std::array<float, 4> tint{1.0F, 1.0F, 1.0F, 1.0F};
+    bool unlit = false;
     std::vector<std::array<float, 16>> transforms;
   };
   std::unordered_map<std::string, InstanceGroup> instanceGroups;
@@ -467,7 +516,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       const ProgramHandle program =
           material != nullptr && material->program ? material->program
                                                    : meshProgram_;
-      const DrawState state =
+      DrawState state =
           material != nullptr
               ? material->state
               : DrawState{.blend = BlendMode::Opaque,
@@ -475,6 +524,11 @@ bool BgfxRenderer3D::renderFrame(const World &world,
                           .cull = CullMode::None,
                           .topology = PrimitiveTopology::Triangles,
                           .writeDepth = true};
+      if (frame.camera.debugMode == "overdraw") {
+        state.blend = BlendMode::Additive;
+        state.depthTest = DepthTest::Always;
+        state.writeDepth = false;
+      }
       std::vector<DrawUniformValue> drawUniforms(lightingUniforms.begin(),
                                                  lightingUniforms.end());
       drawUniforms.front().values = entityTint;
@@ -482,6 +536,19 @@ bool BgfxRenderer3D::renderFrame(const World &world,
           material == nullptr ? 0.0F : material->alphaCutoff, 0.0F, 0.0F,
           0.0F};
       drawUniforms[1].values = alphaCutoff;
+      const auto modelLighting = modelUnlit_.find(mesh->model);
+      const bool modelUnlit = modelLighting != modelUnlit_.end() &&
+                              modelLighting->second;
+      const std::array<float, 4> unlitAmbient{1.0F, 1.0F, 1.0F, 1.0F};
+      const std::array<float, 4> noLight{};
+      if (modelUnlit) {
+        drawUniforms[3].values = noLight;
+        drawUniforms[4].values = noLight;
+        drawUniforms[5].values = unlitAmbient;
+        for (std::size_t lightUniform = 6; lightUniform < 12;
+             ++lightUniform)
+          drawUniforms[lightUniform].values = disabledArrayLights;
+      }
       if (material != nullptr)
         drawUniforms.insert(drawUniforms.end(), material->uniforms.begin(),
                             material->uniforms.end());
@@ -579,11 +646,12 @@ bool BgfxRenderer3D::renderFrame(const World &world,
               std::to_string(color) + "\n" +
               std::to_string(resolvedTexture.index) + ":" +
               std::to_string(resolvedTexture.generation);
-          auto &[groupMesh, groupTexture, groupTint, transforms] =
+          auto &[groupMesh, groupTexture, groupTint, groupUnlit, transforms] =
               instanceGroups[groupKey];
           groupMesh = &drawMesh->gpu;
           groupTexture = resolvedTexture;
           groupTint = entityTint;
+          groupUnlit = modelUnlit;
           transforms.push_back(composeMeshTransform3D(*transform, mesh->size));
           queued = true;
         } else {
@@ -639,15 +707,34 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       }
     }
   if (frame.updateContent) {
-    const DrawState state{.blend = BlendMode::Opaque,
-                          .depthTest = DepthTest::Less,
-                          .cull = CullMode::None,
-                          .topology = PrimitiveTopology::Triangles,
-                          .writeDepth = true};
+    DrawState state{.blend = BlendMode::Opaque,
+                    .depthTest = DepthTest::Less,
+                    .cull = CullMode::None,
+                    .topology = PrimitiveTopology::Triangles,
+                    .writeDepth = true};
+    if (frame.camera.debugMode == "overdraw") {
+      state.blend = BlendMode::Additive;
+      state.depthTest = DepthTest::Always;
+      state.writeDepth = false;
+    }
     for (const auto &[key, group] : instanceGroups) {
       static_cast<void>(key);
-      std::array<DrawUniformValue, 11> groupUniforms = lightingUniforms;
+      std::array<DrawUniformValue, 12> groupUniforms = lightingUniforms;
       groupUniforms.front().values = group.tint;
+      const std::array<float, 4> groupingMode{
+          debugMode[0], group.transforms.size() > 1U ? 1.0F : 0.0F, 0.0F,
+          0.0F};
+      groupUniforms[2].values = groupingMode;
+      const std::array<float, 4> unlitAmbient{1.0F, 1.0F, 1.0F, 1.0F};
+      const std::array<float, 4> noLight{};
+      if (group.unlit) {
+        groupUniforms[3].values = noLight;
+        groupUniforms[4].values = noLight;
+        groupUniforms[5].values = unlitAmbient;
+        for (std::size_t lightUniform = 6; lightUniform < 12;
+             ++lightUniform)
+          groupUniforms[lightUniform].values = disabledArrayLights;
+      }
       const bool queued =
           group.transforms.size() == 1U
               ? group.mesh->draw(commands_, frame.viewId, meshProgram_,
@@ -703,7 +790,10 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     std::erase_if(dynamicMeshes_, [&liveDynamicMeshes](const auto &entry) {
       return !liveDynamicMeshes.contains(entry.first);
     });
-    if (!appendDebugGeometry3D(world, primitives_)) {
+    if (!appendDebugGeometry3D(
+            world, primitives_,
+            {.forceColliders = frame.camera.debugMode == "colliders",
+             .bounds = frame.camera.debugMode == "bounds"})) {
       error = "3D debug geometry exceeded the transient line capacity.";
       return false;
     }

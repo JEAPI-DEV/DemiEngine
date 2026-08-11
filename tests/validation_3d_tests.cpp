@@ -147,6 +147,21 @@ int main() {
     std::filesystem::remove_all(root);
     return 1;
   }
+  const auto invalidDebugScene = root / "invalid_debug.scene.json";
+  {
+    std::ofstream output(invalidDebugScene);
+    output << R"({"format_version":1,"id":"scene://debug","entities":[
+      {"id":"camera","components":{"Transform3D":{},
+       "Camera3D":{"debug_mode":"renderer-secret"}}}
+    ]})";
+  }
+  if (!hasCode(demi::validateTextFile(invalidDebugScene,
+                                      demi::SourceFileKind::Scene),
+               "SCENE_INVALID_COMPONENT_FIELD")) {
+    std::cerr << "Unknown renderer diagnostic modes were not rejected.\n";
+    std::filesystem::remove_all(root);
+    return 1;
+  }
   std::filesystem::remove_all(root);
   return 0;
 }

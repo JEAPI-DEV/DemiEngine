@@ -4,5 +4,16 @@
   "title": "Lightweight 3D",
   "default_name": "New 3D Game",
   "source": "../_shared/3d",
-  "files": [".luarc.json", "demi.project.json", "scenes/main.scene.json", "scripts/main.lua", "tests/smoke.replay.json"]
+  "files": [
+    ".luarc.json", "demi.project.json", "scenes/main.scene.json",
+    "scripts/main.lua", "scripts/controllers/character_3d.lua",
+    "scripts/controllers/moving_platform.lua", "scripts/controllers/pickup.lua",
+    "scripts/controllers/projectile.lua", "scripts/controllers/door.lua",
+    "prefabs/first_person_controller.prefab.json",
+    "prefabs/third_person_controller.prefab.json",
+    "prefabs/moving_platform.prefab.json", "prefabs/pickup.prefab.json",
+    "prefabs/projectile.prefab.json", "prefabs/door.prefab.json",
+    "prefabs/camera_rig.prefab.json",
+    "prefabs/presentation/daylight.prefab.json", "tests/smoke.replay.json"
+  ]
 }

@@ -219,6 +219,9 @@ AssetImportResult importAsset(const AssetImportRequest &request) {
            .generic_string()},
       {"settings", nlohmann::json::object()},
   };
+  if (descriptor->assetType == "Model3D")
+    manifest["settings"]["model_import"] = modelImportProfileJson(
+        request.modelProfile.value_or(modelImportPreset("static_prop")));
   if (descriptor->assetType == "DataAsset")
     manifest["settings"]["content_type"] = "data";
   if (request.license) {

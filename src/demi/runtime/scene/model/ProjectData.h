@@ -38,6 +38,13 @@ struct PerformanceBudgets {
   float maximumFrameMilliseconds = 16.67F;
   int maximumDrawCalls = 500;
   int maximumResidentAssets = 256;
+  int maximumVisibleInstances = 1000;
+  int maximumUniqueMeshes = 128;
+  int maximumTriangles = 250000;
+  int maximumTextureMemoryMegabytes = 128;
+  int maximumLights = 8;
+  int maximumShadowLights = 1;
+  int maximumTransparentDraws = 128;
 };
 
 struct ProjectData {

@@ -1,6 +1,7 @@
 #include "demi/schema/Validation.h"
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/SceneBudget3D.h"
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/packages/PackageManifest.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
@@ -531,8 +532,14 @@ ValidationSummary validatePath(const std::filesystem::path &path) {
 
   for (const std::filesystem::path &file : files) {
     ++summary.checkedFiles;
-    Diagnostics fileDiagnostics =
-        validateTextFile(file, classifySourceFile(file));
+    const SourceFileKind kind = classifySourceFile(file);
+    Diagnostics fileDiagnostics = validateTextFile(file, kind);
+    if (kind == SourceFileKind::Project &&
+        readFile(file).find("\"performance_budgets\"") != std::string::npos) {
+      const auto budget = assets::inspectSceneBudget3D(file, "android");
+      fileDiagnostics.insert(fileDiagnostics.end(), budget.diagnostics.begin(),
+                             budget.diagnostics.end());
+    }
     summary.diagnostics.insert(summary.diagnostics.end(),
                                fileDiagnostics.begin(), fileDiagnostics.end());
   }

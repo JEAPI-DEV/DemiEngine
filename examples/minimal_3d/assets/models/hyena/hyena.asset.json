@@ -7,6 +7,17 @@
   "settings": {
     "filter": "bilinear",
     "mipmaps": true,
+    "model_import": {
+      "format_version": 1,
+      "preset": "static_prop",
+      "source_up": "+y",
+      "source_forward": "+z",
+      "meters_per_unit": 1.0,
+      "root_node": "preserve",
+      "material_policy": "import",
+      "import_animations": false,
+      "optimize_meshes": true
+    },
     "wrap": "repeat"
   },
   "source": "scene.gltf",

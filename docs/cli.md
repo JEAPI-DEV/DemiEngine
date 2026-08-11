@@ -12,6 +12,8 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
 - `demi scene inspect <scene>`: validate and summarize a scene file.
 - `demi scene diff <old> <new>`: print a deterministic structural scene diff.
 - `demi asset inspect <asset>`: validate and summarize an asset manifest.
+  Model assets additionally expose normalized nodes, meshes, materials,
+  textures, skeletons, animations, bounds, and stable JSON output.
 - `demi asset deps <asset>`: list source-file dependencies for an asset manifest.
 - `demi asset import <source> --project <project> --id asset://id`: copy a
   production source into the project, select its importer, generate a cached
@@ -26,12 +28,19 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
   asset://colliders/id [--detail 0..1]`: generate a glTF collider asset.
   `0` (the default) is a bounding box; higher values retain a deterministic
   subset of model triangles, and `1` uses the complete model geometry.
+  `--recommend --body static|dynamic|trigger|character` explains an appropriate
+  explicit collider without changing the project; `--preview` writes a scene
+  using the generated collider.
 - `demi asset export --project <project> --output <file.demipack> --asset
   asset://id`: export selected assets and their transitive dependencies as a
   deterministic, checksummed package. Repeat `--asset` to select more roots.
 - `demi asset import-package <file.demipack> --project <project>`: verify and
   preview conflicts before importing a portable asset package. Existing paths
   and IDs are never replaced unless `--overwrite` is explicit.
+- `demi asset budget <demi.project.json> --platform android|linux`: inspect
+  visible instances, unique meshes, procedural triangles, decoded texture
+  memory, lights, shadow lights, and transparent draws without starting a
+  graphics device. Declared project budgets produce actionable diagnostics.
 - `demi cook --project <project> --platform linux [--output path]`: validate
   and produce deterministic runtime-ready project data plus a cook manifest.
 - `demi build linux --project <project> [--output path]`: cook the project and

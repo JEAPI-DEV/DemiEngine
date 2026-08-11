@@ -71,6 +71,7 @@ private:
   SamplerHandle meshSampler_;
   UniformHandle tintUniform_;
   UniformHandle alphaCutoffUniform_;
+  UniformHandle debugModeUniform_;
   UniformHandle lightDirectionUniform_;
   UniformHandle lightColorUniform_;
   UniformHandle ambientColorUniform_;
@@ -85,6 +86,7 @@ private:
   std::unordered_map<std::string, std::unique_ptr<CachedMesh>> modelMeshes_;
   std::unordered_map<std::string, assets::GltfSkinnedModel3D> animatedModels_;
   std::unordered_map<std::string, std::string> modelTextures_;
+  std::unordered_map<std::string, bool> modelUnlit_;
   std::unordered_map<std::string, RenderTarget> renderTargets_;
   ParticleSimulation3D particles_;
   RenderStatistics statistics_;

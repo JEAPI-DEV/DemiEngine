@@ -323,6 +323,12 @@ bool visitNode(const Json &document,
 
 std::optional<GltfGeometry> loadGltfGeometry(const std::filesystem::path &path,
                                              std::string &error) {
+  return loadGltfGeometry(path, ModelImportProfile{}, error);
+}
+
+std::optional<GltfGeometry>
+loadGltfGeometry(const std::filesystem::path &path,
+                 const ModelImportProfile &profile, std::string &error) {
   Json document;
   try {
     std::ifstream input(path);
@@ -358,8 +364,9 @@ std::optional<GltfGeometry> loadGltfGeometry(const std::filesystem::path &path,
                         .maximum = {std::numeric_limits<float>::lowest(),
                                     std::numeric_limits<float>::lowest(),
                                     std::numeric_limits<float>::lowest()}};
+  const Matrix conversion = modelImportConversion(profile);
   for (const Json &node : document["scenes"][sceneIndex].value("nodes", Json{}))
-    if (!visitNode(document, buffers, node.get<int>(), identityMatrix(),
+    if (!visitNode(document, buffers, node.get<int>(), conversion,
                    geometry, error))
       return std::nullopt;
   if (geometry.triangles.empty()) {

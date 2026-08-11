@@ -284,6 +284,8 @@ bool resolvePosePositions(
     }
     out[index] = totalWeight > 0.0F ? position : vertex.position;
   }
+  for (runtime::Vec3 &position : out)
+    position = transformPoint(model.importTransform, position);
   error.clear();
   return true;
 }
@@ -364,6 +366,16 @@ bool GltfSkinnedModel3D::samplePositions(const int clipIndex, float time,
 
 std::optional<GltfSkinnedModel3D>
 loadGltfSkinnedModel3D(const std::filesystem::path &path, std::string &error) {
+  // The unprofiled overload predates import profiles and historically loaded
+  // clips. Keep that contract for low-level callers while manifests select a
+  // versioned preset explicitly.
+  return loadGltfSkinnedModel3D(
+      path, modelImportPreset("animated_character"), error);
+}
+
+std::optional<GltfSkinnedModel3D>
+loadGltfSkinnedModel3D(const std::filesystem::path &path,
+                       const ModelImportProfile &profile, std::string &error) {
   cgltf_options options{};
   cgltf_data *raw = nullptr;
   cgltf_result result = cgltf_parse_file(&options, path.string().c_str(), &raw);
@@ -381,6 +393,7 @@ loadGltfSkinnedModel3D(const std::filesystem::path &path, std::string &error) {
   }
 
   GltfSkinnedModel3D model;
+  model.importTransform = modelImportConversion(profile);
   model.nodes.reserve(raw->nodes_count);
   for (cgltf_size index = 0; index < raw->nodes_count; ++index) {
     const cgltf_node &source = raw->nodes[index];
@@ -511,8 +524,9 @@ loadGltfSkinnedModel3D(const std::filesystem::path &path, std::string &error) {
     }
   }
 
-  model.clips.reserve(raw->animations_count);
-  for (cgltf_size animationIndex = 0; animationIndex < raw->animations_count;
+  model.clips.reserve(profile.importAnimations ? raw->animations_count : 0U);
+  for (cgltf_size animationIndex = 0;
+       profile.importAnimations && animationIndex < raw->animations_count;
        ++animationIndex) {
     const cgltf_animation &source = raw->animations[animationIndex];
     GltfSkinnedModel3D::Clip clip;

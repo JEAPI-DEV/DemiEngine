@@ -6,6 +6,9 @@ add_library(demi-core STATIC
   src/demi/assets/DataAsset.cpp
   src/demi/assets/DataDocument.cpp
   src/demi/assets/ColliderAssetGenerator.cpp
+  src/demi/assets/ModelImportProfile.cpp
+  src/demi/assets/ModelInspector.cpp
+  src/demi/assets/SceneBudget3D.cpp
   src/demi/assets/GltfGeometry.cpp
   src/demi/assets/GltfSkinnedModel.cpp
   src/demi/assets/AssetSourceFiles.cpp

@@ -3,6 +3,8 @@
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/GltfGeometry.h"
+#include "demi/assets/GltfSkinnedModel.h"
+#include "demi/assets/ModelImportProfile.h"
 
 #include <nlohmann/json.hpp>
 
@@ -253,7 +255,124 @@ bool writeJson(const std::filesystem::path &path, const Json &document) {
   return static_cast<bool>(output);
 }
 
+std::optional<ModelImportProfile> profileFor(const AssetManifest &model,
+                                             Diagnostics &diagnostics) {
+  const Json settings = Json::parse(model.settingsJson, nullptr, false);
+  return parseModelImportProfile(settings.is_object() ? settings
+                                                       : Json::object(),
+                                 &diagnostics, model.manifestPath.string());
+}
+
+std::optional<Bounds> normalizedBounds(const AssetManifest &model,
+                                       const ModelImportProfile &profile,
+                                       Diagnostics &diagnostics) {
+  std::string error;
+  const auto geometry = loadGltfSkinnedModel3D(model.sourcePath, profile, error);
+  std::vector<runtime::Vec3> points;
+  if (!geometry || !geometry->bindPosePositions(points, error) ||
+      points.empty()) {
+    addDiagnostic(diagnostics, "COLLIDER_GLTF_GEOMETRY_INVALID", error,
+                  model.sourcePath);
+    return std::nullopt;
+  }
+  Bounds result;
+  for (const runtime::Vec3 point : points)
+    expand(result, {point.x, point.y, point.z});
+  return result;
+}
+
+std::optional<Bounds> normalizedAccessorBounds(
+    const AssetManifest &model, const ModelImportProfile &profile,
+    Diagnostics &diagnostics) {
+  if (model.sourcePath.extension() != ".gltf")
+    return normalizedBounds(model, profile, diagnostics);
+  const auto authored = gltfBounds(model.sourcePath, diagnostics);
+  if (!authored)
+    return std::nullopt;
+  const Matrix conversion = modelImportConversion(profile);
+  Bounds result;
+  for (const float x : {authored->minimum[0], authored->maximum[0]})
+    for (const float y : {authored->minimum[1], authored->maximum[1]})
+      for (const float z : {authored->minimum[2], authored->maximum[2]})
+        expand(result, transformPoint(conversion, {x, y, z}));
+  return result;
+}
+
 } // namespace
+
+std::optional<ColliderRecommendation>
+recommendCollider(const std::filesystem::path &modelManifestPath,
+                  const std::string &body, Diagnostics &diagnostics) {
+  if (body != "static" && body != "dynamic" && body != "trigger" &&
+      body != "character") {
+    addDiagnostic(diagnostics, "COLLIDER_BODY_INVALID",
+                  "Collider body must be static, dynamic, trigger, or "
+                  "character.",
+                  modelManifestPath);
+    return std::nullopt;
+  }
+  Diagnostic diagnostic;
+  const auto model = loadAssetManifest(modelManifestPath, &diagnostic);
+  if (!model || model->type != "Model3D") {
+    if (!model)
+      diagnostics.push_back(std::move(diagnostic));
+    else
+      addDiagnostic(diagnostics, "COLLIDER_SOURCE_UNSUPPORTED",
+                    "Collider recommendation requires a Model3D asset.",
+                    modelManifestPath);
+    return std::nullopt;
+  }
+  const auto profile = profileFor(*model, diagnostics);
+  const auto bounds = profile ? normalizedBounds(*model, *profile, diagnostics)
+                              : std::nullopt;
+  if (!bounds)
+    return std::nullopt;
+  std::array<float, 3> size{};
+  std::array<float, 3> offset{};
+  for (std::size_t axis = 0; axis < size.size(); ++axis) {
+    size[axis] = bounds->maximum[axis] - bounds->minimum[axis];
+    offset[axis] = (bounds->maximum[axis] + bounds->minimum[axis]) * 0.5F;
+  }
+  ColliderRecommendation result;
+  result.body = body;
+  if (body == "character") {
+    const float radius = std::max(std::min(size[0], size[2]) * 0.5F, 0.01F);
+    result.shape = "capsule";
+    result.reason = "Character controllers need a stable convex sweep shape.";
+    result.component = {{"CapsuleCollider3D",
+                         {{"radius", radius},
+                          {"height", std::max(size[1], radius * 2.0F)},
+                          {"offset", offset},
+                          {"is_trigger", false}}}};
+  } else if (body == "dynamic") {
+    result.shape = "convex_hull";
+    result.reason = "Dynamic rigid bodies cannot use triangle mesh colliders.";
+    Json points = Json::array();
+    for (const float x : {bounds->minimum[0], bounds->maximum[0]})
+      for (const float y : {bounds->minimum[1], bounds->maximum[1]})
+        for (const float z : {bounds->minimum[2], bounds->maximum[2]})
+          points.push_back({x, y, z});
+    result.component = {{"ConvexCollider3D",
+                         {{"points", points},
+                          {"offset", {0.0F, 0.0F, 0.0F}},
+                          {"is_trigger", false}}}};
+  } else if (body == "trigger") {
+    result.shape = "box";
+    result.reason = "Triggers favor a predictable inexpensive volume.";
+    result.component = {{"BoxCollider3D",
+                         {{"size", size},
+                          {"offset", offset},
+                          {"is_trigger", true}}}};
+  } else {
+    result.shape = "triangle_mesh";
+    result.detail = 1.0F;
+    result.reason = "Static geometry can safely use exact source triangles.";
+    result.component = {{"ModelCollider3D",
+                         {{"asset", "<generated-collider-asset>"},
+                          {"is_trigger", false}}}};
+  }
+  return result;
+}
 
 ColliderAssetGenerationResult
 generateColliderAsset(const ColliderAssetGenerationRequest &request) {
@@ -271,17 +390,26 @@ generateColliderAsset(const ColliderAssetGenerationRequest &request) {
                   request.modelManifestPath);
     return result;
   }
+  if (request.body != "static" && request.body != "trigger") {
+    addDiagnostic(result.diagnostics, "COLLIDER_ASSET_BODY_UNSAFE",
+                  "Generated ModelCollider3D assets are for static geometry "
+                  "or triggers. Use the recommended explicit convex component "
+                  "for dynamic bodies and characters.",
+                  request.modelManifestPath);
+    return result;
+  }
   Diagnostic diagnostic;
   const auto model = loadAssetManifest(request.modelManifestPath, &diagnostic);
   if (!model) {
     result.diagnostics.push_back(std::move(diagnostic));
     return result;
   }
-  if (model->type != "Model3D" || model->sourcePath.extension() != ".gltf") {
+  if (model->type != "Model3D" ||
+      (model->sourcePath.extension() != ".gltf" &&
+       model->sourcePath.extension() != ".glb")) {
     addDiagnostic(
         result.diagnostics, "COLLIDER_SOURCE_UNSUPPORTED",
-        "Collider generation currently supports Model3D assets backed "
-        "by a .gltf source.",
+        "Collider generation supports glTF/GLB Model3D assets.",
         model->manifestPath);
     return result;
   }
@@ -293,12 +421,19 @@ generateColliderAsset(const ColliderAssetGenerationRequest &request) {
                   request.modelManifestPath);
     return result;
   }
-  const auto bounds = gltfBounds(model->sourcePath, result.diagnostics);
+  const auto profile = profileFor(*model, result.diagnostics);
+  const auto bounds =
+      profile ? (request.detail == 0.0F
+                     ? normalizedAccessorBounds(*model, *profile,
+                                                result.diagnostics)
+                     : normalizedBounds(*model, *profile, result.diagnostics))
+              : std::nullopt;
   if (!bounds)
     return result;
   if (request.detail > 0.0F) {
     std::string geometryError;
-    if (!loadGltfGeometry(model->sourcePath, geometryError)) {
+    if (model->sourcePath.extension() == ".gltf" &&
+        !loadGltfGeometry(model->sourcePath, *profile, geometryError)) {
       addDiagnostic(result.diagnostics, "COLLIDER_GLTF_GEOMETRY_INVALID",
                     geometryError, model->sourcePath);
       return result;
@@ -331,17 +466,41 @@ generateColliderAsset(const ColliderAssetGenerationRequest &request) {
                      .generic_string()},
       {"source_hash", *hash},
       {"dependencies", Json::array({model->id})},
-      {"settings", Json::object()},
+      {"settings", {{"model_import", modelImportProfileJson(*profile)}}},
       {"source_asset", model->id},
       {"shape", request.detail == 0.0F ? "box" : "triangle_mesh"},
       {"size", size},
       {"offset", offset},
       {"detail", request.detail},
+      {"generation",
+       {{"source_asset", model->id},
+        {"source_hash", model->sourceHash},
+        {"detail", request.detail},
+        {"body", request.body},
+        {"model_import", modelImportProfileJson(*profile)}}},
   };
   if (!writeJson(result.manifestPath, manifest)) {
     addDiagnostic(result.diagnostics, "COLLIDER_ASSET_WRITE_FAILED",
                   "Could not write collider asset manifest.",
                   result.manifestPath);
+  }
+  if (result.diagnostics.empty() && !request.previewPath.empty()) {
+    const Json preview = {
+        {"format_version", 1},
+        {"id", "scene://collider_preview"},
+        {"entities",
+         Json::array({{{"id", "preview"},
+                       {"components",
+                        {{"Transform3D", Json::object()},
+                         {"MeshRenderer", {{"model", model->id}}},
+                         {"ModelCollider3D", {{"asset", request.id}}},
+                         {"Rigidbody3D",
+                          {{"body_type", "static"},
+                           {"use_gravity", false}}}}}}})}};
+    if (!writeJson(request.previewPath, preview))
+      addDiagnostic(result.diagnostics, "COLLIDER_PREVIEW_WRITE_FAILED",
+                    "Could not write collider preview scene.",
+                    request.previewPath);
   }
   return result;
 }
