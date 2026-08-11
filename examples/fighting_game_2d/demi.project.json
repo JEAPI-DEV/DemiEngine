@@ -1,6 +1,10 @@
 {
   "format_version": 1,
   "name": "Fighting Game 2D",
+  "package_registry": "../../packages",
+  "packages": {
+    "demi.gameplay.health": "^1.0.0"
+  },
   "main_scene": "scene://fighting_game_2d/arena",
   "scenes": [
     {

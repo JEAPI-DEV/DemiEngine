@@ -14,6 +14,20 @@
       "type": "string",
       "minLength": 1
     },
+    "package_registry": {
+      "type": "string",
+      "minLength": 1
+    },
+    "packages": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9](?:[a-z0-9_-]|\\.(?=[a-z0-9_-]))*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
     "main_scene": {
       "type": "string",
       "pattern": "^scene://"

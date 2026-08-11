@@ -162,7 +162,7 @@ add_test(NAME demi-script-check-runtime-input-buffer
 add_test(NAME demi-script-check-runtime-command-recognizer
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/scripts/runtime/demi/command_recognizer.lua
 )
-foreach(controller character_controller_2d top_down_controller_2d click_move_controller_2d)
+foreach(controller top_down_controller_2d click_move_controller_2d)
   add_test(NAME demi-script-check-runtime-${controller}
     COMMAND demi script check
       ${CMAKE_SOURCE_DIR}/scripts/runtime/demi/${controller}.lua)

@@ -13,6 +13,8 @@ compile_commands.json
 generated/
 examples/**/build/
 examples/**/generated/
+examples/**/.demi/
+packages/.registry-cache/
 android/.gradle/
 android/build/
 android/app/build/

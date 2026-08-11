@@ -15,6 +15,7 @@ namespace demi {
 [[nodiscard]] bool isPrefabFile(const std::filesystem::path &path);
 [[nodiscard]] bool isUiPrefabFile(const std::filesystem::path &path);
 [[nodiscard]] bool isInputReplayFile(const std::filesystem::path &path);
+[[nodiscard]] bool isPackageManifestFile(const std::filesystem::path &path);
 [[nodiscard]] std::vector<std::filesystem::path>
 collectKnownSourceFiles(const std::filesystem::path &root);
 

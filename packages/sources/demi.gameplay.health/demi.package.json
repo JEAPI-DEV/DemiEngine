@@ -1,0 +1,1 @@
+{"format_version":1,"name":"demi.gameplay.health","version":"1.0.0","engine":"^0.1.0","dependencies":{"demi.gameplay.core":"^1.0.0"},"public_modules":["demi.gameplay.health"],"files":["README.md","scripts/demi/gameplay/health.lua","tests/health_test.lua"],"exported_events":["damage_applied","health_changed","entity_defeated"]}

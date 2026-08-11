@@ -62,7 +62,7 @@ bool shouldScanLuaFile(const std::filesystem::path &path) {
     return false;
   }
   for (const std::filesystem::path &component : path) {
-    if (component == "generated") {
+    if (component == "generated" || component == ".demi") {
       return false;
     }
   }

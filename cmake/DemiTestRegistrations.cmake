@@ -2,6 +2,15 @@
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-project-templates-tests COMMAND demi-project-templates-tests)
 add_test(NAME demi-doctor-service-tests COMMAND demi-doctor-service-tests)
+add_test(NAME demi-package-manager-tests COMMAND demi-package-manager-tests)
+foreach(package_name IN ITEMS
+    core controllers health projectiles interactions traversal camera inventory encounters)
+  add_test(NAME demi-gameplay-package-${package_name}
+    COMMAND demi package test
+      ${CMAKE_SOURCE_DIR}/packages/sources/demi.gameplay.${package_name})
+  set_tests_properties(demi-gameplay-package-${package_name}
+    PROPERTIES LABELS "packages;gameplay")
+endforeach()
 add_test(NAME demi-project-watch-reload-tests
   COMMAND demi-project-watch-reload-tests)
 add_test(NAME demi-capability-manifest-tests

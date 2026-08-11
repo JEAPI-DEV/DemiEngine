@@ -1,0 +1,30 @@
+{
+  "format_version": 1,
+  "packages": [
+    {
+      "archive_hash": "sha256:1935ba3b0aa16208f8c8c0abf06c1a0fe3717c4d369283cbe202a2789d622669",
+      "archive_uri": "package://demi.gameplay.controllers/1.0.0",
+      "manifest": {
+        "dependencies": {},
+        "engine": "^0.1.0",
+        "exported_events": [],
+        "files": [
+          "README.md",
+          "scripts/demi/gameplay/controllers.lua",
+          "scripts/demi/gameplay/character_controller_2d.lua",
+          "tests/controllers_test.lua"
+        ],
+        "format_version": 1,
+        "name": "demi.gameplay.controllers",
+        "public_modules": [
+          "demi.gameplay.controllers",
+          "demi.gameplay.character_controller_2d"
+        ],
+        "version": "1.0.0"
+      },
+      "manifest_hash": "sha256:258c5cca6f92a1faaa3728aba2226fbe430d645f45d3bde60f50515d714461d2",
+      "yanked": false
+    }
+  ],
+  "registry": "../../packages"
+}

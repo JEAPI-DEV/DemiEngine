@@ -4,7 +4,7 @@ local platformer = require("player_platformer")
 local slingshot = require("player_slingshot")
 local replication = require("network_replication")
 local player_colors = require("player_colors")
-local CharacterController2D = require("demi.character_controller_2d")
+local CharacterController2D = require("demi.gameplay.character_controller_2d")
 
 local Player = {}
 

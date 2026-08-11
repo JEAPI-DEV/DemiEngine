@@ -10,6 +10,8 @@
   target_link_libraries(demi-doctor-service-tests PRIVATE demi-cli-support)
   target_compile_definitions(demi-doctor-service-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-package-manager-tests tests/package_manager_tests.cpp)
+  target_link_libraries(demi-package-manager-tests PRIVATE demi-cli-support)
   add_executable(demi-project-watch-reload-tests
     tests/project_watch_reload_tests.cpp)
   target_link_libraries(demi-project-watch-reload-tests PRIVATE demi-runtime-lib)

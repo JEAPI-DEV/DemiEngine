@@ -673,10 +673,12 @@ functions or renderer resources outside validated asset references.
 The engine primitives are stable; developers now need small, replaceable Lua
 packages that compose them into common game workflows.
 
-**Status: planned.** Several examples already contain useful modular Lua
-controllers, but there is no versioned package contract, consistent event
-vocabulary, reusable test harness, or reproducible way to resolve and fetch a
-package by name and version.
+**Status: implemented.** Versioned gameplay packages, deterministic semantic
+version resolution, verified immutable archives, recoverable atomic installs,
+committed lockfiles, directory/HTTP registries, a Docker development registry,
+and isolated headless package tests are now available. The fighting,
+multiplayer shooter, isometric builder, and two minimal 2D probes consume the
+packages where doing so removes duplicated policy.
 
 ### Package architecture
 
@@ -684,7 +686,7 @@ Packages live outside `src/demi` and depend only on installed public Lua APIs.
 Each package contains:
 
 ```text
-package.json
+demi.package.json
 scripts/<package modules>.lua
 schemas/<optional data schemas>.json
 prefabs/<optional composition>.prefab.json

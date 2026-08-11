@@ -9,14 +9,22 @@ local Selection = require("game.selection")
 local Persistence = require("game.persistence")
 local Ui = require("game.ui")
 local Actions = require("game.actions")
+local GameplayEvents = require("demi.gameplay.events")
+local Health = require("demi.gameplay.health")
 
 local Game = {}
 
 function Game:on_create()
   self.state = State.new(Config)
+  self.gameplay_events = GameplayEvents.new()
+  self.health = Health.new(self.gameplay_events)
+  self.gameplay_events:on("health_changed", function(event)
+    local enemy = self.state.enemies[event.entity]
+    if enemy then enemy.health = event.current end
+  end)
   self.building = Building.new(self.state, Config)
-  self.waves = Waves.new(self.state, Config)
-  self.projectiles = Projectiles.new(self.state)
+  self.waves = Waves.new(self.state, Config, self.health)
+  self.projectiles = Projectiles.new(self.state, self.health, self.gameplay_events)
   self.persistence = Persistence.new(
     self.state, Config, self.building, self.waves,
     self.projectiles, HealthBars)

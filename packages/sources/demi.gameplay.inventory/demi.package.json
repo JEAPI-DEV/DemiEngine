@@ -1,0 +1,1 @@
+{"format_version":1,"name":"demi.gameplay.inventory","version":"1.0.0","engine":"^0.1.0","dependencies":{"demi.gameplay.core":"^1.0.0"},"public_modules":["demi.gameplay.inventory"],"files":["README.md","scripts/demi/gameplay/inventory.lua","tests/inventory_test.lua"],"exported_events":["inventory_changed","equipment_changed"]}

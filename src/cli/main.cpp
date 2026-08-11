@@ -3,6 +3,7 @@
 #include "cli/CapabilityCommands.h"
 #include "cli/CookCommands.h"
 #include "cli/doctor/DoctorService.h"
+#include "cli/package/PackageCommands.h"
 #include "cli/project/ProjectTemplates.h"
 #include "cli/SceneCompositionCommands.h"
 
@@ -66,6 +67,13 @@ void printHelp() {
       << "  demi asset export --project <project> --output <file.demipack> "
          "--asset asset://id\n"
       << "  demi asset import-package <file.demipack> --project <project>\n"
+      << "  demi package add <name>@<constraint> --project <project>\n"
+      << "  demi package remove <name> --project <project>\n"
+      << "  demi package install --project <project> [--locked] [--offline]\n"
+      << "  demi package update [name] --project <project>\n"
+      << "  demi package list|outdated --project <project>\n"
+      << "  demi package publish [directory] --registry <url-or-path>\n"
+      << "  demi package test [directory] [--format json]\n"
       << "  demi cook --project <project> [--platform linux] [--output path]\n"
       << "  demi save inspect <save>\n"
       << "  demi script check <script>\n"
@@ -346,6 +354,11 @@ int main(int argc, char **argv) {
 
   if (args[0] == "asset") {
     return demi::cli::runAssetCommand(args, std::cout, std::cerr);
+  }
+
+  if (args[0] == "package") {
+    return demi::cli::package_commands::runPackageCommand(
+        args, {.engineRoot = sourceRoot()}, std::cout, std::cerr);
   }
 
   if (args[0] == "cook") {

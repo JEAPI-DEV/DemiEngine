@@ -1,0 +1,1 @@
+{"format_version":1,"name":"demi.gameplay.traversal","version":"1.0.0","engine":"^0.1.0","dependencies":{"demi.gameplay.core":"^1.0.0"},"public_modules":["demi.gameplay.checkpoints"],"files":["README.md","scripts/demi/gameplay/checkpoints.lua","tests/checkpoints_test.lua"],"exported_events":["checkpoint_changed","respawn_requested","scene_entrance_requested"]}

@@ -1,6 +1,10 @@
 {
   "format_version": 1,
   "name": "Minimal 2D Android",
+  "package_registry": "../../packages",
+  "packages": {
+    "demi.gameplay.controllers": "^1.0.0"
+  },
   "main_scene": "scene://minimal_2d_android/menu",
   "scenes": [
     {

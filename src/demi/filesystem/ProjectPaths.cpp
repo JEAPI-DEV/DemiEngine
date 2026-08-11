@@ -43,6 +43,10 @@ bool isInputReplayFile(const std::filesystem::path &path) {
   return path.filename().string().ends_with(".replay.json");
 }
 
+bool isPackageManifestFile(const std::filesystem::path &path) {
+  return path.filename() == "demi.package.json";
+}
+
 std::vector<std::filesystem::path>
 collectKnownSourceFiles(const std::filesystem::path &root) {
   std::vector<std::filesystem::path> files;
@@ -53,7 +57,8 @@ collectKnownSourceFiles(const std::filesystem::path &root) {
   if (std::filesystem::is_regular_file(root)) {
     if (isProjectFile(root) || isSceneFile(root) || isHudFile(root) ||
         isSaveFile(root) || isAssetFile(root) || isPrefabFile(root) ||
-        isUiPrefabFile(root) || isInputReplayFile(root)) {
+        isUiPrefabFile(root) || isInputReplayFile(root) ||
+        isPackageManifestFile(root)) {
       files.push_back(root);
     }
     return files;
@@ -68,7 +73,8 @@ collectKnownSourceFiles(const std::filesystem::path &root) {
     const std::filesystem::path path = entry.path();
     if (isProjectFile(path) || isSceneFile(path) || isHudFile(path) ||
         isSaveFile(path) || isAssetFile(path) || isPrefabFile(path) ||
-        isUiPrefabFile(path) || isInputReplayFile(path)) {
+        isUiPrefabFile(path) || isInputReplayFile(path) ||
+        isPackageManifestFile(path)) {
       files.push_back(path);
     }
   }

@@ -5,8 +5,9 @@ local function distance(x1, y1, x2, y2)
   return math.sqrt(dx * dx + dy * dy), dx, dy
 end
 
-function Projectiles.new(state)
+function Projectiles.new(state, health, events)
   local self = {}
+  self.health = health
 
   function self.spawn(tower, target, definition, stats)
     local id = "ent_projectile_" .. tostring(state.next_projectile_id)
@@ -51,8 +52,11 @@ function Projectiles.new(state)
           projectile.x, projectile.y, target.x, target.y)
         local travel = projectile.speed * dt
         if remaining <= math.max(travel, 0.08) then
-          target.health = target.health - projectile.damage
-          if target.health <= 0 then defeated[target.id] = true end
+          health:damage({ source = id, target = target.id,
+            amount = projectile.damage, type = "physical", tags = { "tower", "projectile" } })
+          events:flush()
+          local target_health = health:get(target.id)
+          if target_health and target_health.current <= 0 then defeated[target.id] = true end
           removed[#removed + 1] = id
         else
           projectile.x = projectile.x + dx / remaining * travel
