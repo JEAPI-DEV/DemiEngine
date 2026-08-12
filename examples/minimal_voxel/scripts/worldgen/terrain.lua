@@ -290,8 +290,15 @@ function Terrain.terrain_block_at(world, world_x, y, world_z)
 end
 
 local function tree_origin_for_cell(world, cell_x, cell_z)
+  local origins = world and world.generated_tree_origins
+  local cached_column = origins and origins[cell_x]
+  local cached = cached_column and cached_column[cell_z]
+  if cached ~= nil then
+    return cached ~= false and cached or nil
+  end
   local settings = config.trees
   if random_hash(settings.seed, cell_x, cell_z) > settings.chance then
+    column_cache_set(origins, cell_x, cell_z, false)
     return nil
   end
   local offset_x = math.floor(random_hash(settings.seed + 13, cell_x, cell_z) * settings.cell_size)
@@ -299,20 +306,24 @@ local function tree_origin_for_cell(world, cell_x, cell_z)
   local world_x = (cell_x * settings.cell_size) + offset_x
   local world_z = (cell_z * settings.cell_size) + offset_z
   if not Terrain.biome_at(world, world_x, world_z).trees then
+    column_cache_set(origins, cell_x, cell_z, false)
     return nil
   end
   local ground_y = Terrain.column_height(world, world_x, world_z)
   if ground_y < settings.min_height then
+    column_cache_set(origins, cell_x, cell_z, false)
     return nil
   end
   local variants = settings.variants
   local variant_index = math.floor(random_hash(settings.seed + 47, cell_x, cell_z) * #variants) + 1
-  return {
+  local origin = {
     x = world_x,
     y = ground_y + 1,
     z = world_z,
     variant = variants[variant_index],
   }
+  column_cache_set(origins, cell_x, cell_z, origin)
+  return origin
 end
 
 local function tree_block_from_origin(origin, world_x, y, world_z)
@@ -343,29 +354,36 @@ local function tree_block_from_origin(origin, world_x, y, world_z)
   return 0
 end
 
-local function decoration_block_at(world, world_x, y, world_z)
+local function decoration_for_column(world, world_x, world_z)
   local settings = config.decorations
   if not settings.enabled then
-    return 0
+    return nil, 0
+  end
+  -- Most columns have no decoration. Reject those using the cheap stable roll
+  -- before paying for biome/noise/slope queries.
+  local roll = random_hash(settings.seed, world_x, world_z)
+  if roll >= settings.flower_chance + settings.grass_chance then
+    return nil, 0
   end
   local biome = Terrain.biome_at(world, world_x, world_z)
   if biome.id ~= "plains" then
-    return 0
+    return nil, 0
   end
   local ground_y = Terrain.column_height(world, world_x, world_z)
-  if y ~= ground_y + 1 or Terrain.block_for_height(ground_y, ground_y, biome, world_x, world_z, world) ~= biome.cap_block then
-    return 0
+  if Terrain.block_for_height(ground_y, ground_y, biome, world_x, world_z, world) ~= biome.cap_block then
+    return nil, 0
   end
-  local roll = random_hash(settings.seed, world_x, world_z)
   if roll < settings.flower_chance then
     local flowers = settings.flower_blocks
     local index = math.floor(random_hash(settings.seed + 31, world_x, world_z) * #flowers) + 1
-    return flowers[index]
+    return ground_y + 1, flowers[index]
   end
-  if roll < settings.flower_chance + settings.grass_chance then
-    return settings.grass_block
-  end
-  return 0
+  return ground_y + 1, settings.grass_block
+end
+
+local function decoration_block_at(world, world_x, y, world_z)
+  local decoration_y, block = decoration_for_column(world, world_x, world_z)
+  return decoration_y == y and block or 0
 end
 
 function Terrain.feature_block_at(world, world_x, y, world_z)
@@ -473,8 +491,7 @@ local function collect_feature_blocks_in_chunk(world, cx, cz)
   if config.decorations.enabled then
     for z = min_z, max_z do
       for x = min_x, max_x do
-        local y = Terrain.column_height(world, x, z) + 1
-        local block = decoration_block_at(world, x, y, z)
+        local y, block = decoration_for_column(world, x, z)
         if block ~= 0 then
           local key = Terrain.block_key(x, y, z)
           if emitted[key] == nil then

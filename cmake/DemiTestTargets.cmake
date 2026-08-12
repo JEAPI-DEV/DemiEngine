@@ -46,6 +46,8 @@
   target_link_libraries(demi-validation-3d-tests PRIVATE demi-core)
   add_executable(demi-render-phase6-tests tests/render_phase6_tests.cpp)
   target_link_libraries(demi-render-phase6-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-job-system-tests tests/job_system_tests.cpp)
+  target_link_libraries(demi-job-system-tests PRIVATE demi-core)
   add_executable(demi-bgfx-graphics-device-tests
     tests/bgfx_graphics_device_tests.cpp)
   target_link_libraries(demi-bgfx-graphics-device-tests
@@ -124,6 +126,10 @@
   add_executable(demi-bgfx-scene-extraction-tests
     tests/bgfx_scene_extraction_tests.cpp)
   target_link_libraries(demi-bgfx-scene-extraction-tests
+    PRIVATE demi-render3d-bgfx)
+  add_executable(demi-scene-visibility3d-tests
+    tests/scene_visibility3d_tests.cpp)
+  target_link_libraries(demi-scene-visibility3d-tests
     PRIVATE demi-render3d-bgfx)
   add_executable(demi-gltf-skinned-model-tests
     tests/gltf_skinned_model_tests.cpp)

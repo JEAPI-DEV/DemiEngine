@@ -4,6 +4,7 @@
 #include "demi/runtime/app/BgfxAppContext.h"
 #include "demi/runtime/camera/CameraRenderScheduler3D.h"
 #include "demi/runtime/render/BgfxRenderer3D.h"
+#include "demi/runtime/render/RenderStatistics.h"
 
 #include <memory>
 #include <span>
@@ -46,11 +47,15 @@ public:
                std::span<const render::BgfxCameraFrame3D> cameras,
                float deltaSeconds, std::string &error);
   [[nodiscard]] std::string_view rendererName() const;
+  [[nodiscard]] const RenderStatistics &statistics() const;
+  [[nodiscard]] double lastExtractionMilliseconds() const;
 private:
   class RendererOwner;
   BgfxAppContext context_;
   std::unique_ptr<RendererOwner> renderer_;
   CameraRenderScheduler3D cameraScheduler_;
+  RenderStatistics frameStatistics_;
+  double frameExtractionMilliseconds_ = 0.0;
 };
 
 } // namespace demi::runtime

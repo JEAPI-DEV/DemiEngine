@@ -235,12 +235,14 @@ end
 function Mesh.build_section(world, cx, section_y, cz)
   local mesh = ProceduralMesh.create(4096)
   local section_min_y, section_max_y = terrain.section_bounds(section_y)
-  local top_face = faces[3]
   local has_overrides = world.block_overrides ~= nil and next(world.block_overrides) ~= nil
   profile_scope("Voxel.mesh_terrain", function()
     local border_stride = config.chunk_size + 2
     local height_cache = {}
     local top_block_cache = {}
+    local fill_block_cache = {}
+    local base_block_cache = {}
+    local rocky_cache = {}
     local function column_index(x, z)
       return ((z + 1) * border_stride) + x + 2
     end
@@ -255,6 +257,37 @@ function Mesh.build_section(world, cx, section_y, cz)
           height_cache[index] = terrain.column_height(world, world_x, world_z)
         end
       end
+    end
+
+    if not has_overrides then
+      for z = 0, config.chunk_size - 1 do
+        for x = 0, config.chunk_size - 1 do
+          local world_x = (cx * config.chunk_size) + x
+          local world_z = (cz * config.chunk_size) + z
+          local index = column_index(x, z)
+          local height = height_cache[index]
+          local biome = terrain.biome_at(world, world_x, world_z)
+          local rocky = terrain.rocky_surface_at(world, world_x, world_z, height, biome)
+          rocky_cache[index] = rocky
+          top_block_cache[index] = rocky and config.terrain.base_block or biome.cap_block
+          fill_block_cache[index] = biome.fill_block
+          base_block_cache[index] = biome.base_block
+        end
+      end
+      mesh:add_voxel_heightfield(
+        height_cache,
+        top_block_cache,
+        fill_block_cache,
+        base_block_cache,
+        rocky_cache,
+        block_tiles,
+        config.pack.atlas_columns,
+        config.chunk_size,
+        section_min_y,
+        config.section_height,
+        config.terrain.fill_depth
+      )
+      return
     end
 
     for z = 0, config.chunk_size - 1 do
@@ -272,7 +305,7 @@ function Mesh.build_section(world, cx, section_y, cz)
           top_block = terrain_block_for_column_y(height, height, biome, rocky)
         end
         if top_block ~= 0 and height >= section_min_y and height <= section_max_y then
-          append_face(mesh, x, height - section_min_y, z, top_block, top_face)
+          append_face(mesh, x, height - section_min_y, z, top_block, faces[3])
         end
 
         for _, face in ipairs(side_faces) do
@@ -283,12 +316,8 @@ function Mesh.build_section(world, cx, section_y, cz)
           for y = min_y, max_y do
             local block = nil
             local exposed = true
-            if has_overrides then
-              block = terrain.terrain_block_at(world, world_x, y, world_z)
-              exposed = terrain.terrain_block_at(world, world_x + neighbor[1], y, world_z + neighbor[3]) == 0
-            else
-              block = terrain_block_for_column_y(y, height, biome, rocky)
-            end
+            block = terrain.terrain_block_at(world, world_x, y, world_z)
+            exposed = terrain.terrain_block_at(world, world_x + neighbor[1], y, world_z + neighbor[3]) == 0
             if block ~= 0 and exposed then
               append_face(mesh, x, y - section_min_y, z, block, face)
             end

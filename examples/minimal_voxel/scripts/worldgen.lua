@@ -17,6 +17,7 @@ local function reset_state(self)
   self.generated_heights = {}
   self.generated_biomes = {}
   self.generated_rocky_surfaces = {}
+  self.generated_tree_origins = {}
   self.generated_features = {}
   self.generated_feature_blocks = {}
   self.generated_feature_sections = {}

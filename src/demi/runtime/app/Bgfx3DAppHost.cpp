@@ -102,6 +102,8 @@ bool Bgfx3DAppHost::renderFrames(
   if (!context_.beginFrame(error))
     return false;
   bool rendered = !cameras.empty();
+  frameStatistics_.reset();
+  frameExtractionMilliseconds_ = 0.0;
   cameraScheduler_.beginFrame();
   for (render::BgfxCameraFrame3D current : cameras) {
     if (current.viewportWidth == 0)
@@ -120,6 +122,18 @@ bool Bgfx3DAppHost::renderFrames(
       rendered = false;
       break;
     }
+    const RenderStatistics &cameraStatistics = renderer_->renderer.statistics();
+    frameStatistics_.batches += cameraStatistics.batches;
+    frameStatistics_.triangles += cameraStatistics.triangles;
+    frameStatistics_.particles += cameraStatistics.particles;
+    frameStatistics_.lights += cameraStatistics.lights;
+    frameStatistics_.shadowPasses += cameraStatistics.shadowPasses;
+    frameStatistics_.renderTargetBytes += cameraStatistics.renderTargetBytes;
+    frameStatistics_.consideredMeshes += cameraStatistics.consideredMeshes;
+    frameStatistics_.visibleMeshes += cameraStatistics.visibleMeshes;
+    frameStatistics_.culledMeshes += cameraStatistics.culledMeshes;
+    frameExtractionMilliseconds_ +=
+        renderer_->renderer.lastExtractionMilliseconds();
   }
   cameraScheduler_.endFrame();
   context_.endFrame();
@@ -130,6 +144,15 @@ bool Bgfx3DAppHost::renderFrames(
 
 std::string_view Bgfx3DAppHost::rendererName() const {
   return context_.rendererName();
+}
+
+const RenderStatistics &Bgfx3DAppHost::statistics() const {
+  static const RenderStatistics empty;
+  return renderer_ == nullptr ? empty : frameStatistics_;
+}
+
+double Bgfx3DAppHost::lastExtractionMilliseconds() const {
+  return renderer_ == nullptr ? 0.0 : frameExtractionMilliseconds_;
 }
 
 } // namespace demi::runtime

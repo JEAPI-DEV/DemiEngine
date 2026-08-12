@@ -1,6 +1,9 @@
 {
   "format_version": 1,
   "name": "Minimal Voxel",
+  "display": {
+    "vsync": false
+  },
   "main_scene": "scene://minimal_voxel/main",
   "input": {
     "actions": {

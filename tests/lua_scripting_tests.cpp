@@ -194,9 +194,33 @@ function Probe:on_start()
     0,
     -1
   )
+  local heightfield = ProceduralMesh.create(0)
+  heightfield:add_voxel_heightfield(
+    {
+      [1] = 0, [2] = 0, [3] = 0, [4] = 0,
+      [5] = 0, [6] = 1, [7] = 1, [8] = 0,
+      [9] = 0, [10] = 0, [11] = 0, [12] = 0,
+      [13] = 0, [14] = 0, [15] = 0, [16] = 0,
+    },
+    { [6] = 1, [7] = 1 },
+    { [6] = 1, [7] = 1 },
+    { [6] = 1, [7] = 1 },
+    {},
+    voxel_tiles,
+    2,
+    2,
+    0,
+    2,
+    1
+  )
+  local invalid_heightfield = ProceduralMesh.create(0)
+  invalid_heightfield:add_voxel_heightfield({}, {}, {}, {}, {}, voxel_tiles,
+    0, 0, 0, 0, 0)
   if isolated_voxel:vertex_count() == 36
       and adjacent_voxels:vertex_count() == 60
-      and invalid_voxels:vertex_count() == 0 then
+      and invalid_voxels:vertex_count() == 0
+      and heightfield:vertex_count() == 48
+      and invalid_heightfield:vertex_count() == 0 then
     Save.set_string("test", "voxel_mesh_visibility", "passed")
   end
   Entity.create("ent_iso_parent", {

@@ -270,19 +270,19 @@ Examples are executable engine probes, not throwaway snippets:
 
 | Example | Purpose |
 |---|---|
-| `minimal_2d_android` | Shared Linux/Android 2D platform gameplay and virtual controls |
+| `minimal_2d_android` | Shared Linux/Android 2D platform gameplay and virtual controls ![Minimal 2D networking menu](images/minimal_2d_networking.png)  |
 | `minimal_2d_networking` | Menu flow, saves, scenes, platformer/slingshot gameplay, and networking integration |
 | `production_2d_foundation` | Physics shapes, contacts, navigation, animation, and production 2D APIs |
-| `isometric_base_builder` | Tower defense, placement, pathfinding, combat, targeting, and persistence |
-| `fighting_game_2d` | Local 2D fighting-game systems and animation-driven gameplay |
-| `chess` | Complete chess rules and a deterministic alpha-beta computer opponent |
-| `multiplayer_ffa_shooter` | Contract-backed host-authoritative shooter for Linux/Android packaging |
-| `ui_showcase` | Responsive retained UI, controls, layout, text input, and virtualization |
-| `main_menu_animated` | UI animation and animated sprite presentation |
+| `isometric_base_builder` | Tower defense, placement, pathfinding, combat, targeting, and persistence ![Isometric_base_builder](images/isometric_base_builder.png) |
+| `fighting_game_2d` | Local 2D fighting-game systems and animation-driven gameplay ![fighting_game_2d](images/fighting_game_2d.png) |
+| `chess` | Complete chess rules and a deterministic alpha-beta computer opponent ![chess](images/chess.png) |
+| `multiplayer_ffa_shooter` | Contract-backed host-authoritative shooter for Linux/Android packaging ![multiplayer_ffa_shooter](images/multiplayer_ffa_shooter.png.png) |
+| `ui_showcase` | Responsive retained UI, controls, layout, text input, and virtualization ![ui_showcase](images/ui_showcase_1.png)|
+| `main_menu_animated` | UI animation and animated sprite presentation ![main_menu_animated](images/main_menu_animated.png) |
 | `main_menu_gif` | GIF wallpaper and SVG-driven mobile-style UI |
-| `minimal_3d` | Lightweight 3D movement, queries, collisions, materials, and debug overlays |
-| `animation_3d` | glTF skeletal animation selection and playback |
-| `minimal_voxel` | Chunked voxel-style terrain, editing, particles, lighting, and profiling |
+| `minimal_3d` | Lightweight 3D movement, queries, collisions, materials, and debug overlays ![minimal_3d](images/minimal_3d.png) |
+| `animation_3d` | glTF skeletal animation selection and playback ![animation_3d](images/animation_3d.png) |
+| `minimal_voxel` | Chunked voxel-style terrain, editing, particles, lighting, and profiling ![minimal_voxel](images/minimal_voxel.png) |
 | `saves_simulation_debugging` | Versioned saves, simulation, replay, and diagnostics |
 | `minimal_2d_android_server` | Headless/server-oriented networking companion project |
 

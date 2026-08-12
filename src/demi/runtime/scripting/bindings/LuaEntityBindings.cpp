@@ -124,6 +124,99 @@ struct LuaProceduralMeshBuilder {
     }
   }
 
+  // Bulk heightfield meshing avoids a Lua/C++ call for every emitted face.
+  // The input includes a one-column border, allowing side visibility to be
+  // decided without callbacks into mutable script state.
+  void addVoxelHeightfield(const sol::table &heights,
+                           const sol::table &topBlocks,
+                           const sol::table &fillBlocks,
+                           const sol::table &baseBlocks,
+                           const sol::table &rockyColumns,
+                           const sol::table &blockTiles,
+                           const int atlasColumns, const int chunkSize,
+                           const int sectionMinimumY, const int sectionHeight,
+                           const int fillDepth) {
+    if (atlasColumns <= 0 || chunkSize <= 0 || sectionHeight <= 0)
+      return;
+    const int stride = chunkSize + 2;
+    const float tileWidth = 1.0F / static_cast<float>(atlasColumns);
+    struct VoxelTiles {
+      int side = 0;
+      int top = 0;
+      int bottom = 0;
+    };
+    std::unordered_map<int, VoxelTiles> tilesByBlock;
+    tilesByBlock.reserve(blockTiles.size());
+    for (const auto &pair : blockTiles) {
+      if (!pair.first.is<int>() || !pair.second.is<sol::table>())
+        continue;
+      const sol::table tiles = pair.second.as<sol::table>();
+      const int side = tiles.get_or("side", 0);
+      tilesByBlock.emplace(pair.first.as<int>(),
+                           VoxelTiles{.side = side,
+                                      .top = tiles.get_or("top", side),
+                                      .bottom = tiles.get_or("bottom", side)});
+    }
+    const auto index = [stride](const int x, const int z) {
+      return ((z + 1) * stride) + x + 2;
+    };
+    const auto heightAt = [&](const int x, const int z) {
+      return heights.get_or(index(x, z), -1);
+    };
+    const auto blockAtHeight = [&](const int fieldIndex, const int y,
+                                   const int height) {
+      const int top = topBlocks.get_or(fieldIndex, 0);
+      const int base = baseBlocks.get_or(fieldIndex, top);
+      if (y == height)
+        return top;
+      if (y == height - 1 && rockyColumns.get_or(fieldIndex, false))
+        return base;
+      if (y >= height - fillDepth)
+        return fillBlocks.get_or(fieldIndex, base);
+      return base;
+    };
+    const int sectionMaximumY = sectionMinimumY + sectionHeight - 1;
+    constexpr std::array<std::array<int, 2>, 4> SideDirections{{
+        {1, 0}, {-1, 0}, {0, 1}, {0, -1},
+    }};
+    constexpr std::array<std::array<int, 3>, 4> SideNormals{{
+        {1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1},
+    }};
+    for (int z = 0; z < chunkSize; ++z) {
+      for (int x = 0; x < chunkSize; ++x) {
+        const int fieldIndex = index(x, z);
+        const int height = heightAt(x, z);
+        if (height >= sectionMinimumY && height <= sectionMaximumY) {
+          const int block = blockAtHeight(fieldIndex, height, height);
+          const auto tiles = tilesByBlock.find(block);
+          if (tiles != tilesByBlock.end()) {
+            const float u0 = static_cast<float>(tiles->second.top) * tileWidth;
+            addVoxelFace(x, height - sectionMinimumY, z, 0, 1, 0, u0,
+                         u0 + tileWidth);
+          }
+        }
+        for (std::size_t side = 0; side < SideDirections.size(); ++side) {
+          const int neighborHeight =
+              heightAt(x + SideDirections[side][0],
+                       z + SideDirections[side][1]);
+          const int minimumY = std::max(neighborHeight + 1, sectionMinimumY);
+          const int maximumY = std::min(height, sectionMaximumY);
+          for (int y = minimumY; y <= maximumY; ++y) {
+            const int block = blockAtHeight(fieldIndex, y, height);
+            const auto tiles = tilesByBlock.find(block);
+            if (tiles == tilesByBlock.end())
+              continue;
+            const float u0 =
+                static_cast<float>(tiles->second.side) * tileWidth;
+            addVoxelFace(x, y - sectionMinimumY, z,
+                         SideNormals[side][0], SideNormals[side][1],
+                         SideNormals[side][2], u0, u0 + tileWidth);
+          }
+        }
+      }
+    }
+  }
+
   static int voxelOccupancyKey(const int x, const int y, const int z,
                                const int occupancyStride) {
     return (y * occupancyStride * occupancyStride) +
@@ -327,7 +420,8 @@ void LuaEntityBindingModule::install(LuaScriptHost &host,
       &LuaProceduralMeshBuilder::vertexCount, "add_vertex",
       &LuaProceduralMeshBuilder::addVertex, "add_quad",
       &LuaProceduralMeshBuilder::addQuad, "add_voxel_blocks",
-      &LuaProceduralMeshBuilder::addVoxelBlocks);
+      &LuaProceduralMeshBuilder::addVoxelBlocks, "add_voxel_heightfield",
+      &LuaProceduralMeshBuilder::addVoxelHeightfield);
 
   lua.new_usertype<LuaVoxelWorld>(
       "VoxelWorldHandle", "clear", &LuaVoxelWorld::clear, "set_section",
