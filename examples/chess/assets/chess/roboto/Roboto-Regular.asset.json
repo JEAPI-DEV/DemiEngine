@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/chess/roboto/Roboto-Regular.ttf",
+  "id": "asset://chess/roboto",
+  "importer": "font",
+  "importer_version": 1,
+  "license": "OFL.txt",
+  "settings": {},
+  "source": "Roboto-Regular.ttf",
+  "source_hash": "fnv1a64:884cc8f5cc1313fe",
+  "type": "Font2D"
+}

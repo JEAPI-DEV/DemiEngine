@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "id": "scene://chess/main",
+  "name": "Chess versus Computer",
+  "hud": "main.hud.json",
+  "entities": [
+    {
+      "id": "ent_chess_camera",
+      "name": "Chess Camera",
+      "components": {
+        "Transform2D": { "position": [0.0, 0.0], "rotation": 0.0, "scale": [1.0, 1.0] },
+        "Camera2D": { "clear_color": [0.025, 0.032, 0.050, 1.0], "orthographic_size": 5.0 }
+      }
+    },
+    {
+      "id": "ent_chess_game",
+      "name": "Chess Game",
+      "components": {
+        "LuaScript": { "module": "script://scripts/game.lua" }
+      }
+    }
+  ]
+}

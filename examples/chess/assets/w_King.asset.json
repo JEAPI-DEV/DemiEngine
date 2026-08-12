@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://chess/w_king",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "w_King.png",
+  "source_hash": "fnv1a64:6eb737b2bc334fb8",
+  "type": "Texture2D"
+}

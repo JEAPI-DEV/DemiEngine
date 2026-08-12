@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://chess/w_bishop",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "w_Bishop.png",
+  "source_hash": "fnv1a64:cc280250734c5131",
+  "type": "Texture2D"
+}

@@ -34,6 +34,16 @@ bool LuaScriptHost::setHudText(const std::string &id, const std::string &text) {
   return false;
 }
 
+bool LuaScriptHost::setHudFont(const std::string &id, std::string font) {
+  if (world_ == nullptr)
+    return false;
+  if (auto *node = ui::UiStateController{}.find(world_->ui, id)) {
+    node->font = std::move(font);
+    return true;
+  }
+  return false;
+}
+
 bool LuaScriptHost::setHudFontSize(const std::string &id, float fontSize) {
   if (world_ == nullptr)
     return false;

@@ -57,6 +57,7 @@ void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
   node.type = scene_loading::stringOr(json, "type", "container");
   node.style = scene_loading::stringOr(json, "style");
   node.text = scene_loading::stringOr(json, "text");
+  node.font = scene_loading::stringOr(json, "font");
   node.placeholder = scene_loading::stringOr(json, "placeholder");
   node.localizationKey = scene_loading::stringOr(json, "localization_key");
   node.texture = scene_loading::stringOr(json, "texture");

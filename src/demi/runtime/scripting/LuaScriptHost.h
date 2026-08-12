@@ -358,6 +358,7 @@ public:
                         std::vector<Vec3> vertices, std::vector<Vec3> normals,
                         std::vector<Vec2> uvs);
   [[nodiscard]] bool setHudText(const std::string &id, const std::string &text);
+  [[nodiscard]] bool setHudFont(const std::string &id, std::string font);
   [[nodiscard]] bool setHudFontSize(const std::string &id, float fontSize);
   [[nodiscard]] bool setHudRect(const std::string &id, float x, float y,
                                 float width, float height);

@@ -104,6 +104,9 @@ function Probe:on_start()
   if Hud.set_font_size("hud_probe", 44.0) then
     Save.set_string("test", "hud_font_size", "updated")
   end
+  if Hud.set_font("hud_probe", "asset://fonts/probe") then
+    Save.set_string("test", "hud_font", "updated")
+  end
   if Hud.set_position("hud_image", 18.0, 24.0) and Hud.set_image_animation_frame("hud_image", "asset://animations/test", 3) and Hud.set_size("button_start", 40.0, 90.0) and Hud.set_opacity("button_start", 0.25) then
     Save.set_string("test", "hud_animation_properties", "updated")
   end
@@ -553,6 +556,12 @@ return PropProbe
   if (host.saveString("test", "hud_font_size") != "updated" ||
       hudProbe == world.ui.nodes.end() || hudProbe->fontSize != 44.0F) {
     std::cerr << "Hud.set_font_size did not update the HUD font size.\n";
+    return 1;
+  }
+  if (host.saveString("test", "hud_font") != "updated" ||
+      hudProbe == world.ui.nodes.end() ||
+      hudProbe->font != "asset://fonts/probe") {
+    std::cerr << "Hud.set_font did not update the HUD font.\n";
     return 1;
   }
   if (host.saveString("test", "hud_animation_properties") != "updated" ||

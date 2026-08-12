@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://chess/w_knight",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "w_Knight.png",
+  "source_hash": "fnv1a64:98515f69117e8d18",
+  "type": "Texture2D"
+}

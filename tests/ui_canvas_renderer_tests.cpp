@@ -2,6 +2,7 @@
 #include "demi/runtime/render/bgfx2d/UiCanvasRenderer.h"
 
 #include <cassert>
+#include <cstring>
 #include <limits>
 #include <string>
 #include <vector>
@@ -21,6 +22,10 @@ public:
   }
   bool submit(const TransientDraw &draw, std::string &) override {
     scissors.push_back(draw.scissor);
+    const std::size_t first = vertices.size();
+    vertices.resize(first + draw.vertices.size() / sizeof(QuadVertex));
+    std::memcpy(vertices.data() + first, draw.vertices.data(),
+                draw.vertices.size());
     return true;
   }
   bool submit(const BufferedDraw &, std::string &) override { return true; }
@@ -29,6 +34,7 @@ public:
   }
 
   std::vector<ScissorRect> scissors;
+  std::vector<QuadVertex> vertices;
 };
 
 } // namespace
@@ -156,6 +162,27 @@ int main() {
   for (const ScissorRect submitted : capturingCommands.scissors)
     assert(submitted.x == 28 && submitted.y == 26 && submitted.width > 1 &&
            submitted.height > 1);
+
+  capturingCommands.scissors.clear();
+  capturingCommands.vertices.clear();
+  ui::UiDocument smallText;
+  smallText.canvasSize = {320, 180};
+  smallText.nodes = {{.id = "small_descenders",
+                      .type = "label",
+                      .text = "fpgqy",
+                      .resolved = {.x = 20,
+                                   .y = 40,
+                                   .width = 160,
+                                   .height = 12},
+                      .fontSize = 12}};
+  assert(capturedCanvas.begin(0, 320, 180, 0, error));
+  assert(capturedRenderer.draw(smallText, 320, 180));
+  assert(capturedCanvas.flush(error));
+  assert(!capturingCommands.vertices.empty());
+  for (const QuadVertex &vertex : capturingCommands.vertices) {
+    assert(vertex.y >= 40.0F - 0.01F);
+    assert(vertex.y <= 52.0F + 0.01F);
+  }
   capturedCanvas.shutdown();
 
   const ImageData2D pixel{.width = 1,

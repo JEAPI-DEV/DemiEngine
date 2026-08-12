@@ -33,11 +33,10 @@ bool FontAtlas2D::initializeResolver(std::string id,
     return false;
   }
   shutdown();
-  if (!fonts_.add(std::move(id), ttfData, 1, error))
+  if (!fonts_.add(std::move(id), ttfData, 1, error, pixelated))
     return false;
   pixelHeight_ = pixelHeight;
-  pixelated_ = pixelated;
-  if (!createPage(error)) {
+  if (!createPage(pixelated, error)) {
     shutdown();
     return false;
   }
@@ -69,7 +68,7 @@ bool FontAtlas2D::addFallback(std::string id,
                               const std::span<const std::byte> ttfData,
                               const std::uint64_t revision,
                               std::string &error) {
-  return fonts_.add(std::move(id), ttfData, revision, error);
+  return fonts_.add(std::move(id), ttfData, revision, error, false);
 }
 
 bool FontAtlas2D::setMaxPages(const std::size_t value, std::string &error) {
@@ -90,10 +89,9 @@ void FontAtlas2D::shutdown() {
   glyphs_.clear();
   fonts_.clear();
   pixelHeight_ = 0.0F;
-  pixelated_ = false;
 }
 
-bool FontAtlas2D::createPage(std::string &error) const {
+bool FontAtlas2D::createPage(const bool pixelated, std::string &error) const {
   if (pages_.size() >= maxPages_) {
     error = "Font atlas exhausted its configured page budget (" +
             std::to_string(maxPages_) + ").";
@@ -104,12 +102,12 @@ bool FontAtlas2D::createPage(std::string &error) const {
        .height = AtlasSize,
        .format = TextureFormat::RGBA8,
        .data = {},
-       .filter = pixelated_ ? TextureFilter::Nearest : TextureFilter::Linear,
+       .filter = pixelated ? TextureFilter::Nearest : TextureFilter::Linear,
        .debugName = "FontAtlas2D.page." + std::to_string(pages_.size())},
       error);
   if (!texture)
     return false;
-  pages_.push_back({.texture = texture});
+  pages_.push_back({.texture = texture, .pixelated = pixelated});
   return true;
 }
 
@@ -148,20 +146,34 @@ FontAtlas2D::ensureGlyph(const std::size_t fontIndex,
     error = "A rasterized font glyph exceeds the atlas page size.";
     return nullptr;
   }
-  if (pages_.empty() && !createPage(error))
-    return nullptr;
-  Page *page = &pages_.back();
-  if (page->cursorX + width + 1U >= AtlasSize) {
-    page->cursorX = 1;
-    page->cursorY = static_cast<std::uint16_t>(page->cursorY +
-                                               page->rowHeight + 1U);
-    page->rowHeight = 0;
+  std::size_t pageIndex = pages_.size();
+  for (std::size_t offset = 0; offset < pages_.size(); ++offset) {
+    const std::size_t candidateIndex = pages_.size() - offset - 1;
+    Page &candidate = pages_[candidateIndex];
+    if (candidate.pixelated != face->pixelated)
+      continue;
+    std::uint16_t cursorX = candidate.cursorX;
+    std::uint16_t cursorY = candidate.cursorY;
+    std::uint16_t rowHeight = candidate.rowHeight;
+    if (cursorX + width + 1U >= AtlasSize) {
+      cursorX = 1;
+      cursorY = static_cast<std::uint16_t>(cursorY + rowHeight + 1U);
+      rowHeight = 0;
+    }
+    if (cursorY + height + 1U < AtlasSize) {
+      candidate.cursorX = cursorX;
+      candidate.cursorY = cursorY;
+      candidate.rowHeight = rowHeight;
+      pageIndex = candidateIndex;
+      break;
+    }
   }
-  if (page->cursorY + height + 1U >= AtlasSize) {
-    if (!createPage(error))
+  if (pageIndex == pages_.size()) {
+    if (!createPage(face->pixelated, error))
       return nullptr;
-    page = &pages_.back();
+    pageIndex = pages_.size() - 1;
   }
+  Page *page = &pages_[pageIndex];
   const std::uint16_t atlasX = page->cursorX;
   const std::uint16_t atlasY = page->cursorY;
   page->cursorX = static_cast<std::uint16_t>(page->cursorX + width + 1U);
@@ -174,8 +186,8 @@ FontAtlas2D::ensureGlyph(const std::size_t fontIndex,
     std::vector<std::byte> rgba(alpha.size() * 4U);
     for (std::size_t index = 0; index < alpha.size(); ++index) {
       const unsigned char coverage =
-          pixelated_ ? (alpha[index] >= PixelAlphaThreshold ? 0xffU : 0U)
-                     : alpha[index];
+          face->pixelated ? (alpha[index] >= PixelAlphaThreshold ? 0xffU : 0U)
+                          : alpha[index];
       rgba[index * 4U] = std::byte{0xff};
       rgba[index * 4U + 1U] = std::byte{0xff};
       rgba[index * 4U + 2U] = std::byte{0xff};
@@ -192,7 +204,7 @@ FontAtlas2D::ensureGlyph(const std::size_t fontIndex,
       return nullptr;
   }
   const auto [inserted, _] = glyphs_.emplace(
-      key, Glyph{.page = pages_.size() - 1,
+      key, Glyph{.page = pageIndex,
                  .x0 = atlasX / static_cast<float>(AtlasSize),
                  .y0 = atlasY / static_cast<float>(AtlasSize),
                  .x1 = (atlasX + width) / static_cast<float>(AtlasSize),
@@ -208,11 +220,13 @@ FontAtlas2D::ensureGlyph(const std::size_t fontIndex,
 ui::TextShapeResult FontAtlas2D::shape(const std::string_view text,
                                        const float scale,
                                        const ui::TextDirection direction,
-                                       const std::string_view locale) const {
+                                       const std::string_view locale,
+                                       const std::string_view font) const {
   return shaper_.shape({.text = text,
                         .fontSize = pixelHeight_ * scale,
                         .direction = direction,
-                        .locale = locale},
+                        .locale = locale,
+                        .font = font},
                        fonts_);
 }
 
@@ -233,7 +247,8 @@ bool FontAtlas2D::precache(const std::string_view text, std::string &error,
 }
 
 TextMetrics2D FontAtlas2D::measure(const std::string_view text,
-                                   const float scale) const {
+                                   const float scale,
+                                   const std::string_view font) const {
   if (text.empty() || scale <= 0.0F || fonts_.size() == 0)
     return {};
   TextMetrics2D result{.height = pixelHeight_ * scale, .lines = 1};
@@ -242,7 +257,9 @@ TextMetrics2D FontAtlas2D::measure(const std::string_view text,
     const std::size_t end = text.find('\n', begin);
     const std::string_view line = text.substr(
         begin, end == std::string_view::npos ? text.size() - begin : end - begin);
-    result.width = std::max(result.width, shape(line, scale).advance);
+    result.width = std::max(result.width,
+                            shape(line, scale, ui::TextDirection::Auto, {}, font)
+                                .advance);
     if (end == std::string_view::npos)
       break;
     ++result.lines;

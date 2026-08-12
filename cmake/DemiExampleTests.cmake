@@ -30,6 +30,12 @@ add_test(NAME demi-runtime-fighting-game-2d-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/demi.project.json --max-frames 3
 )
 set_tests_properties(demi-runtime-fighting-game-2d-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-chess-frame
+  COMMAND demi run
+    --project ${CMAKE_SOURCE_DIR}/examples/chess/demi.project.json
+    --max-frames 3
+)
+set_tests_properties(demi-runtime-chess-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-runtime-production-2d-foundation-frame
   COMMAND demi run
     --project ${CMAKE_SOURCE_DIR}/examples/production_2d_foundation/demi.project.json
@@ -145,6 +151,21 @@ add_test(NAME demi-validate-isometric-base-builder
 add_test(NAME demi-validate-fighting-game-2d
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/demi.project.json
 )
+add_test(NAME demi-validate-chess
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/chess/demi.project.json
+)
+add_test(NAME demi-chess-rules-and-engine
+  COMMAND demi package test ${CMAKE_SOURCE_DIR}/examples/chess
+)
+set_tests_properties(demi-chess-rules-and-engine PROPERTIES
+  LABELS "examples;gameplay;chess")
+foreach(script_name game chess/rules chess/engine chess/view)
+  string(REPLACE "/" "-" script_test_name "${script_name}")
+  add_test(NAME demi-script-check-chess-${script_test_name}
+    COMMAND demi script check
+      ${CMAKE_SOURCE_DIR}/examples/chess/scripts/${script_name}.lua
+  )
+endforeach()
 add_test(NAME demi-validate-production-2d-foundation
   COMMAND demi validate
     ${CMAKE_SOURCE_DIR}/examples/production_2d_foundation/demi.project.json

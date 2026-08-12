@@ -54,6 +54,7 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
     node.text = definition.get_or("text", std::string{});
     node.action = definition.get_or("action", std::string{});
     node.style = definition.get_or("style", std::string{});
+    node.font = definition.get_or("font", std::string{});
     node.texture = definition.get_or("texture", std::string{});
     node.accessibilityLabel =
         definition.get_or("accessibility_label", std::string{});
@@ -233,6 +234,10 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
                    [&host](const std::string &id, float fontSize) {
                      return host.setHudFontSize(id, fontSize);
                    });
+  hud.set_function("set_font",
+                   [&host](const std::string &id, const std::string &font) {
+                     return host.setHudFont(id, font);
+                   });
   hud.set_function("set_rect", [&host](const std::string &id, float x, float y,
                                        float width, float height) {
     return host.setHudRect(id, x, y, width, height);
@@ -313,7 +318,8 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
                                            .width = width,
                                            .fontSize = fontSize,
                                            .maxLines = maxLines.value_or(0),
-                                           .locale = {}});
+                                           .locale = {},
+                                           .font = {}});
         sol::table out = lua.create_table();
         out["width"] = result.width;
         out["height"] = result.height;

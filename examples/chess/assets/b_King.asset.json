@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://chess/b_king",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "b_King.png",
+  "source_hash": "fnv1a64:7bc1477083826372",
+  "type": "Texture2D"
+}

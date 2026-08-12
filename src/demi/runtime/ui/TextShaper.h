@@ -17,6 +17,9 @@ struct TextFontFace {
   std::string id;
   std::shared_ptr<const std::vector<std::byte>> data;
   std::uint64_t revision = 0;
+  bool pixelated = false;
+  float ascentRatio = 0.8F;
+  float descentRatio = 0.2F;
 };
 
 struct MissingGlyphDiagnostic {
@@ -27,12 +30,19 @@ struct MissingGlyphDiagnostic {
 class FontResolver {
 public:
   [[nodiscard]] bool add(std::string id, std::span<const std::byte> data,
-                         std::uint64_t revision, std::string &error);
+                         std::uint64_t revision, std::string &error,
+                         bool pixelated = false);
   void clear();
   [[nodiscard]] const TextFontFace *font(std::size_t index) const;
+  [[nodiscard]] const TextFontFace *font(std::string_view id) const;
   [[nodiscard]] const TextFontFace *resolve(std::uint32_t codepoint) const;
+  [[nodiscard]] const TextFontFace *resolve(std::uint32_t codepoint,
+                                            std::string_view preferred) const;
   [[nodiscard]] const TextFontFace *
   resolve(std::span<const std::uint32_t> codepoints) const;
+  [[nodiscard]] const TextFontFace *
+  resolve(std::span<const std::uint32_t> codepoints,
+          std::string_view preferred) const;
   [[nodiscard]] std::size_t size() const { return fonts_.size(); }
   [[nodiscard]] std::uint64_t revision() const;
   [[nodiscard]] std::size_t coverageCacheSize() const {
@@ -70,6 +80,7 @@ struct TextShapeRequest {
   float fontSize = 20.0F;
   TextDirection direction = TextDirection::Auto;
   std::string_view locale;
+  std::string_view font;
 };
 
 struct TextShapeResult {
@@ -77,6 +88,8 @@ struct TextShapeResult {
   std::vector<MissingGlyphDiagnostic> missingGlyphs;
   float advance = 0.0F;
   float fontSize = 0.0F;
+  // Distance from the top of a font-size-high line box to its baseline.
+  float baseline = 0.0F;
   bool validUtf8 = true;
   bool complete = true;
 };

@@ -54,8 +54,11 @@ int main() {
   assert(std::abs(twoLines.height - 128.0F) < 0.01F);
   assert(font.measure("", 1.0F).lines == 0);
   const auto latin = font.shape("café");
+  const auto descenders = font.shape("fpgqy", 0.375F);
   const auto missing = font.shape("\xf0\x9f\x8e\xae");
   assert(latin.validUtf8 && latin.complete && !latin.runs.empty());
+  assert(descenders.validUtf8 && descenders.complete &&
+         descenders.baseline > 0.0F && descenders.baseline < 12.0F);
   assert(missing.validUtf8 && !missing.complete &&
          missing.missingGlyphs.size() == 1);
   assert(font.measure("\xc3").width == 0.0F);
@@ -80,6 +83,17 @@ int main() {
   assert(font.addFallback("pixel-bold", fallbackBytes, 7, error));
   assert(!font.addFallback("pixel-bold", fallbackBytes, 8, error));
   assert(font.fonts().size() == 2 && font.fonts().revision() != 0);
+  const auto selectedFont = font.shape(
+      "Selected", 1.0F, demi::runtime::ui::TextDirection::Auto, {},
+      "pixel-bold");
+  assert(selectedFont.complete && !selectedFont.runs.empty() &&
+         !selectedFont.runs.front().glyphs.empty() &&
+         selectedFont.runs.front().glyphs.front().fontIndex == 1);
+  const auto missingSelection = font.shape(
+      "Fallback", 1.0F, demi::runtime::ui::TextDirection::Auto, {},
+      "asset://missing-font");
+  assert(missingSelection.complete && !missingSelection.runs.empty() &&
+         missingSelection.runs.front().glyphs.front().fontIndex == 0);
   assert(!font.setMaxPages(0, error));
   assert(font.setMaxPages(2, error) && font.maxPages() == 2);
 
@@ -103,6 +117,8 @@ int main() {
 
   assert(canvas.initialize(error));
   assert(canvas.begin(0, 320, 180, 0, error));
+  assert(font.draw(canvas, selectedFont, 4.0F, 18.0F, 0xffffffffU));
+  assert(font.pageCount() >= 2);
   assert(font.draw(canvas, "ASCII and UTF-8: \xc3\xa9", 4.0F, 36.0F,
                    0xffffffffU));
   assert(font.draw(canvas, font.shape("Scaled", 2.0F), 4.0F, 72.0F,

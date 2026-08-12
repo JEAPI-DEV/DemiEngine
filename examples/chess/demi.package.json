@@ -1,0 +1,17 @@
+{
+    "format_version": 1,
+    "name": "demi.example.chess",
+    "version": "1.0.0",
+    "engine": "^0.1.0",
+    "dependencies": {},
+    "public_modules": [
+        "chess.rules",
+        "chess.engine"
+    ],
+    "files": [
+        "scripts/chess/rules.lua",
+        "scripts/chess/engine.lua",
+        "tests/chess_test.lua"
+    ],
+    "exported_events": []
+}

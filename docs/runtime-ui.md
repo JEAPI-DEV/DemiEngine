@@ -151,7 +151,9 @@ new key is exposed. `Hud.clear_recycled_rows` releases the owned pool.
 
 Project fonts are ordinary `Font2D` assets imported from TTF or OTF files.
 They are loaded in stable asset-ID order after the default pixel font and are
-selected per shaping run. Missing glyphs remain explicit diagnostics, while
+selected per node with `"font": "asset://fonts/body"`; `Hud.set_font` can
+change that selection at runtime. If the selected font lacks a glyph, shaping
+falls back through the other loaded fonts. Missing glyphs remain explicit diagnostics, while
 the GPU atlas grows on demand within a bounded page budget.
 
 Text nodes support `text_wrap` (`none`, `word`, or `grapheme`),

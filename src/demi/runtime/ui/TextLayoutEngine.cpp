@@ -366,7 +366,8 @@ std::string cacheKey(const TextLayoutRequest &request) {
          std::to_string(static_cast<int>(request.overflow)) + ':' +
          std::to_string(request.maxLines) + ':' +
          std::to_string(static_cast<int>(request.direction)) + ':' +
-         request.locale + ':' + std::to_string(request.fontRevision);
+         request.locale + ':' + request.font + ':' +
+         std::to_string(request.fontRevision);
 }
 } // namespace
 

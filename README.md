@@ -275,6 +275,7 @@ Examples are executable engine probes, not throwaway snippets:
 | `production_2d_foundation` | Physics shapes, contacts, navigation, animation, and production 2D APIs |
 | `isometric_base_builder` | Tower defense, placement, pathfinding, combat, targeting, and persistence |
 | `fighting_game_2d` | Local 2D fighting-game systems and animation-driven gameplay |
+| `chess` | Complete chess rules and a deterministic alpha-beta computer opponent |
 | `multiplayer_ffa_shooter` | Contract-backed host-authoritative shooter for Linux/Android packaging |
 | `ui_showcase` | Responsive retained UI, controls, layout, text input, and virtualization |
 | `main_menu_animated` | UI animation and animated sprite presentation |

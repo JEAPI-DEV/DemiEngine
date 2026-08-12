@@ -51,6 +51,20 @@ HbFont makeFont(const TextFontFace &source, const float fontSize) {
   return font;
 }
 
+void resolveVerticalMetrics(TextFontFace &face) {
+  HbFont font = makeFont(face, 64.0F);
+  hb_font_extents_t extents{};
+  if (!font || !hb_font_get_h_extents(font.get(), &extents))
+    return;
+  const float ascent = std::max(static_cast<float>(extents.ascender), 0.0F);
+  const float descent = std::max(-static_cast<float>(extents.descender), 0.0F);
+  const float height = ascent + descent;
+  if (height <= 0.0F)
+    return;
+  face.ascentRatio = ascent / height;
+  face.descentRatio = descent / height;
+}
+
 bool decode(std::string_view text,
             std::vector<std::pair<std::uint32_t, std::size_t>> &result,
             std::vector<std::size_t> &clusterStarts) {
@@ -74,8 +88,9 @@ bool decode(std::string_view text,
 }
 
 std::size_t fontIndexFor(const FontResolver &fonts,
-                         const std::uint32_t codepoint) {
-  const TextFontFace *resolved = fonts.resolve(codepoint);
+                         const std::uint32_t codepoint,
+                         const std::string_view preferred = {}) {
+  const TextFontFace *resolved = fonts.resolve(codepoint, preferred);
   for (std::size_t index = 0; index < fonts.size(); ++index)
     if (fonts.font(index) == resolved)
       return index;
@@ -85,7 +100,8 @@ std::size_t fontIndexFor(const FontResolver &fonts,
 } // namespace
 
 bool FontResolver::add(std::string id, const std::span<const std::byte> data,
-                       const std::uint64_t revision, std::string &error) {
+                       const std::uint64_t revision, std::string &error,
+                       const bool pixelated) {
   if (id.empty() || data.empty()) {
     error = "A fallback font requires a non-empty ID and font data.";
     return false;
@@ -97,11 +113,15 @@ bool FontResolver::add(std::string id, const std::span<const std::byte> data,
     return false;
   }
   auto bytes = std::make_shared<std::vector<std::byte>>(data.begin(), data.end());
-  TextFontFace probe{.id = id, .data = bytes, .revision = revision};
+  TextFontFace probe{.id = id,
+                     .data = bytes,
+                     .revision = revision,
+                     .pixelated = pixelated};
   if (!makeFont(probe, 16.0F)) {
     error = "Invalid OpenType font data for: " + id;
     return false;
   }
+  resolveVerticalMetrics(probe);
   fonts_.push_back(std::move(probe));
   coverageCache_.clear();
   error.clear();
@@ -112,6 +132,11 @@ void FontResolver::clear() { fonts_.clear(); coverageCache_.clear(); }
 
 const TextFontFace *FontResolver::font(const std::size_t index) const {
   return index < fonts_.size() ? &fonts_[index] : nullptr;
+}
+
+const TextFontFace *FontResolver::font(const std::string_view id) const {
+  const auto found = std::ranges::find(fonts_, id, &TextFontFace::id);
+  return found == fonts_.end() ? nullptr : &*found;
 }
 
 const TextFontFace *FontResolver::resolve(const std::uint32_t codepoint) const {
@@ -131,6 +156,19 @@ const TextFontFace *FontResolver::resolve(const std::uint32_t codepoint) const {
   }
   coverageCache_[codepoint] = Missing;
   return nullptr;
+}
+
+const TextFontFace *FontResolver::resolve(
+    const std::uint32_t codepoint, const std::string_view preferred) const {
+  const TextFontFace *candidate = font(preferred);
+  if (candidate != nullptr) {
+    HbFont selected = makeFont(*candidate, 16.0F);
+    hb_codepoint_t glyph = 0;
+    if (selected && hb_font_get_nominal_glyph(selected.get(), codepoint, &glyph) &&
+        glyph != 0)
+      return candidate;
+  }
+  return resolve(codepoint);
 }
 
 const TextFontFace *
@@ -154,6 +192,28 @@ FontResolver::resolve(const std::span<const std::uint32_t> codepoints) const {
       return &candidate;
   }
   return nullptr;
+}
+
+const TextFontFace *FontResolver::resolve(
+    const std::span<const std::uint32_t> codepoints,
+    const std::string_view preferred) const {
+  const TextFontFace *candidate = font(preferred);
+  if (candidate != nullptr) {
+    HbFont selected = makeFont(*candidate, 16.0F);
+    bool complete = selected != nullptr;
+    for (const std::uint32_t codepoint : codepoints) {
+      hb_codepoint_t glyph = 0;
+      if (!selected ||
+          !hb_font_get_nominal_glyph(selected.get(), codepoint, &glyph) ||
+          glyph == 0) {
+        complete = false;
+        break;
+      }
+    }
+    if (complete)
+      return candidate;
+  }
+  return resolve(codepoints);
 }
 
 std::uint64_t FontResolver::revision() const {
@@ -187,12 +247,15 @@ TextShapeResult TextShaper::shape(const TextShapeRequest &request,
   }
   for (const auto &[codepoint, byteOffset] : codepoints) {
     if (codepoint != '\n' && codepoint != '\r' && codepoint != '\t' &&
-        fonts.resolve(codepoint) == nullptr)
+        fonts.resolve(codepoint, request.font) == nullptr)
       result.missingGlyphs.push_back({codepoint, byteOffset});
   }
   result.complete = result.missingGlyphs.empty();
   if (request.text.empty())
     return result;
+
+  float maximumAscentRatio = 0.0F;
+  float maximumDescentRatio = 0.0F;
 
   const SBCodepointSequence sequence{
       .stringEncoding = SBStringEncodingUTF8,
@@ -253,9 +316,10 @@ TextShapeResult TextShaper::shape(const TextShapeRequest &request,
             for (const auto &[codepoint, byteOffset] : codepoints)
               if (byteOffset >= begin && byteOffset < end)
                 values.push_back(codepoint);
-            const TextFontFace *resolved = fonts.resolve(values);
+            const TextFontFace *resolved = fonts.resolve(values, request.font);
             return resolved == nullptr
-                       ? fontIndexFor(fonts, values.empty() ? 0 : values.front())
+                       ? fontIndexFor(fonts, values.empty() ? 0 : values.front(),
+                                      request.font)
                        : static_cast<std::size_t>(resolved - fonts.font(0));
           };
           const std::size_t selectedFont = fontForCluster(firstByte, clusterEnd);
@@ -271,6 +335,12 @@ TextShapeResult TextShaper::shape(const TextShapeRequest &request,
             segmentEnd = followingEnd;
           }
           const TextFontFace *face = fonts.font(selectedFont);
+          if (face != nullptr) {
+            maximumAscentRatio =
+                std::max(maximumAscentRatio, face->ascentRatio);
+            maximumDescentRatio =
+                std::max(maximumDescentRatio, face->descentRatio);
+          }
           HbFont font = face == nullptr ? HbFont{} : makeFont(*face, request.fontSize);
           HbBuffer buffer(hb_buffer_create());
           if (!font || !buffer) {
@@ -326,6 +396,10 @@ TextShapeResult TextShaper::shape(const TextShapeRequest &request,
     paragraphOffset += paragraphLength;
   }
   SBAlgorithmRelease(algorithm);
+  const float verticalRatio = maximumAscentRatio + maximumDescentRatio;
+  result.baseline = verticalRatio > 0.0F
+                        ? request.fontSize * maximumAscentRatio / verticalRatio
+                        : request.fontSize * 0.8F;
   return result;
 }
 

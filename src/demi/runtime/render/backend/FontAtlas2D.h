@@ -36,12 +36,14 @@ public:
   void shutdown();
 
   [[nodiscard]] TextMetrics2D measure(std::string_view text,
-                                      float scale = 1.0F) const;
+                                      float scale = 1.0F,
+                                      std::string_view font = {}) const;
   [[nodiscard]] ui::TextShapeResult shape(std::string_view text,
                                           float scale = 1.0F,
                                           ui::TextDirection direction =
                                               ui::TextDirection::Auto,
-                                          std::string_view locale = {}) const;
+                                          std::string_view locale = {},
+                                          std::string_view font = {}) const;
   [[nodiscard]] bool precache(
       std::string_view text, std::string &error,
       ui::TextDirection direction = ui::TextDirection::Auto,
@@ -78,13 +80,14 @@ private:
     std::uint16_t cursorX = 1;
     std::uint16_t cursorY = 1;
     std::uint16_t rowHeight = 0;
+    bool pixelated = false;
   };
 
   [[nodiscard]] bool initializeResolver(std::string id,
                                         std::span<const std::byte> ttfData,
                                         float pixelHeight, bool pixelated,
                                         std::string &error);
-  [[nodiscard]] bool createPage(std::string &error) const;
+  [[nodiscard]] bool createPage(bool pixelated, std::string &error) const;
   [[nodiscard]] const Glyph *ensureGlyph(std::size_t fontIndex,
                                          std::uint32_t glyphId,
                                          std::string &error) const;
@@ -97,7 +100,6 @@ private:
   mutable std::vector<Page> pages_;
   mutable std::unordered_map<std::uint64_t, Glyph> glyphs_;
   float pixelHeight_ = 0.0F;
-  bool pixelated_ = false;
   std::size_t maxPages_ = 8;
 };
 
