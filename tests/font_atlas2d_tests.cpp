@@ -54,8 +54,11 @@ int main() {
   assert(std::abs(twoLines.height - 128.0F) < 0.01F);
   assert(font.measure("", 1.0F).lines == 0);
   const auto latin = font.shape("café");
+  const auto descenders = font.shape("fpgqy", 0.375F);
   const auto missing = font.shape("\xf0\x9f\x8e\xae");
   assert(latin.validUtf8 && latin.complete && !latin.runs.empty());
+  assert(descenders.validUtf8 && descenders.complete &&
+         descenders.baseline > 0.0F && descenders.baseline < 12.0F);
   assert(missing.validUtf8 && !missing.complete &&
          missing.missingGlyphs.size() == 1);
   assert(font.measure("\xc3").width == 0.0F);

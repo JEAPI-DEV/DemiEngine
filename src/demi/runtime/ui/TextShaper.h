@@ -18,6 +18,8 @@ struct TextFontFace {
   std::shared_ptr<const std::vector<std::byte>> data;
   std::uint64_t revision = 0;
   bool pixelated = false;
+  float ascentRatio = 0.8F;
+  float descentRatio = 0.2F;
 };
 
 struct MissingGlyphDiagnostic {
@@ -86,6 +88,8 @@ struct TextShapeResult {
   std::vector<MissingGlyphDiagnostic> missingGlyphs;
   float advance = 0.0F;
   float fontSize = 0.0F;
+  // Distance from the top of a font-size-high line box to its baseline.
+  float baseline = 0.0F;
   bool validUtf8 = true;
   bool complete = true;
 };

@@ -293,11 +293,15 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
           return false;
       }
     }
-    for (const auto &line : layout.lines)
+    for (const auto &line : layout.lines) {
+      const float baseline = line.shaped.baseline > 0.0F
+                                 ? line.shaped.baseline
+                                 : authored * scale * 0.8F;
       if (!font_.draw(canvas_, line.shaped, rect.x + line.x,
-                      rect.y + line.y + authored * scale,
+                      rect.y + line.y + baseline,
                       packVertexColorRgba8(color), 1.0F, textScissor))
         return false;
+    }
     if (textInput && focused) {
       if (!node.textEdit.composition.empty()) {
         const ui::TextEditRange selected =

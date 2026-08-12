@@ -51,6 +51,20 @@ HbFont makeFont(const TextFontFace &source, const float fontSize) {
   return font;
 }
 
+void resolveVerticalMetrics(TextFontFace &face) {
+  HbFont font = makeFont(face, 64.0F);
+  hb_font_extents_t extents{};
+  if (!font || !hb_font_get_h_extents(font.get(), &extents))
+    return;
+  const float ascent = std::max(static_cast<float>(extents.ascender), 0.0F);
+  const float descent = std::max(-static_cast<float>(extents.descender), 0.0F);
+  const float height = ascent + descent;
+  if (height <= 0.0F)
+    return;
+  face.ascentRatio = ascent / height;
+  face.descentRatio = descent / height;
+}
+
 bool decode(std::string_view text,
             std::vector<std::pair<std::uint32_t, std::size_t>> &result,
             std::vector<std::size_t> &clusterStarts) {
@@ -107,6 +121,7 @@ bool FontResolver::add(std::string id, const std::span<const std::byte> data,
     error = "Invalid OpenType font data for: " + id;
     return false;
   }
+  resolveVerticalMetrics(probe);
   fonts_.push_back(std::move(probe));
   coverageCache_.clear();
   error.clear();
@@ -239,6 +254,9 @@ TextShapeResult TextShaper::shape(const TextShapeRequest &request,
   if (request.text.empty())
     return result;
 
+  float maximumAscentRatio = 0.0F;
+  float maximumDescentRatio = 0.0F;
+
   const SBCodepointSequence sequence{
       .stringEncoding = SBStringEncodingUTF8,
       .stringBuffer = request.text.data(),
@@ -317,6 +335,12 @@ TextShapeResult TextShaper::shape(const TextShapeRequest &request,
             segmentEnd = followingEnd;
           }
           const TextFontFace *face = fonts.font(selectedFont);
+          if (face != nullptr) {
+            maximumAscentRatio =
+                std::max(maximumAscentRatio, face->ascentRatio);
+            maximumDescentRatio =
+                std::max(maximumDescentRatio, face->descentRatio);
+          }
           HbFont font = face == nullptr ? HbFont{} : makeFont(*face, request.fontSize);
           HbBuffer buffer(hb_buffer_create());
           if (!font || !buffer) {
@@ -372,6 +396,10 @@ TextShapeResult TextShaper::shape(const TextShapeRequest &request,
     paragraphOffset += paragraphLength;
   }
   SBAlgorithmRelease(algorithm);
+  const float verticalRatio = maximumAscentRatio + maximumDescentRatio;
+  result.baseline = verticalRatio > 0.0F
+                        ? request.fontSize * maximumAscentRatio / verticalRatio
+                        : request.fontSize * 0.8F;
   return result;
 }
 
