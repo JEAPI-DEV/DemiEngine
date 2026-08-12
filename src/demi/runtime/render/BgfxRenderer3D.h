@@ -12,9 +12,11 @@
 #include "demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PostProcessRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveCanvas3D.h"
+#include "demi/runtime/concurrency/JobSystem.h"
 #include "demi/runtime/scene/model/World.h"
 
 #include <cstdint>
+#include <chrono>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -43,6 +45,9 @@ public:
 
   [[nodiscard]] const RenderStatistics &statistics() const {
     return statistics_;
+  }
+  [[nodiscard]] double lastExtractionMilliseconds() const {
+    return lastExtractionMilliseconds_;
   }
 
 private:
@@ -90,6 +95,8 @@ private:
   std::unordered_map<std::string, RenderTarget> renderTargets_;
   ParticleSimulation3D particles_;
   RenderStatistics statistics_;
+  JobSystem extractionJobs_;
+  double lastExtractionMilliseconds_ = 0.0;
   bool initialized_ = false;
 };
 

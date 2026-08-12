@@ -25,8 +25,10 @@ return {
   terrain_material = "asset://materials/voxel_terrain",
   chunk_size = 32,
   section_height = 32,
-  load_radius = 6,
-  unload_radius = 7,
+  -- Keep the default world dense without retaining almost 300 section meshes.
+  -- Larger worlds remain available as an explicit stress-test setting.
+  load_radius = tonumber(os.getenv("DEMI_VOXEL_LOAD_RADIUS") or "") or 4,
+  unload_radius = tonumber(os.getenv("DEMI_VOXEL_UNLOAD_RADIUS") or "") or 5,
   vertical_load_radius = 3,
   vertical_unload_radius = 4,
   camera_id = "ent_camera",

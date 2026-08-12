@@ -34,6 +34,10 @@ struct SimulationConfig {
   std::uint64_t randomSeed = 1;
 };
 
+struct DisplayConfig {
+  bool vsync = true;
+};
+
 struct PerformanceBudgets {
   float maximumFrameMilliseconds = 16.67F;
   int maximumDrawCalls = 500;
@@ -59,6 +63,7 @@ struct ProjectData {
   input::InputActionMap inputActions;
   std::vector<PhysicsLayer2D> physicsLayers2D;
   SimulationConfig simulation;
+  DisplayConfig display;
   PerformanceBudgets performanceBudgets;
   DebugOverlayConfig debug;
 };

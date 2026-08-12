@@ -85,6 +85,13 @@
         }
       }
     },
+    "display": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "vsync": { "type": "boolean", "default": true }
+      }
+    },
     "performance_budgets": {
       "type": "object",
       "additionalProperties": false,

@@ -515,7 +515,7 @@ int runProject(const RuntimeOptions &options) {
                 .width = 960,
                 .height = 540,
                 .graphicsApi = configuredGraphicsApi(),
-                .vsync = true,
+                .vsync = loaded.project.display.vsync,
                 .debugGraphics = false,
             },
             assetRegistry, renderDiagnostics, error)) {
@@ -695,7 +695,7 @@ int runProject(const RuntimeOptions &options) {
                                 .width = 960,
                                 .height = 540,
                                 .graphicsApi = configuredGraphicsApi(),
-                                .vsync = true,
+                                .vsync = loaded.project.display.vsync,
                                 .debugGraphics = false},
             assetRegistry, renderDiagnostics, error)) {
       std::cerr << "3D renderer initialization failed: " << error << '\n';
@@ -865,6 +865,24 @@ int runProject(const RuntimeOptions &options) {
           renderFailed = true;
           running = false;
         }
+      }
+      if (profileRun) {
+        RuntimeProfiler::record("Renderer3D.visibility_extract",
+                                appHost.lastExtractionMilliseconds());
+        const auto &renderStats = appHost.statistics();
+        RuntimeProfiler::setGauge(
+            "Renderer3D.meshes_considered",
+            static_cast<double>(renderStats.consideredMeshes));
+        RuntimeProfiler::setGauge(
+            "Renderer3D.meshes_visible",
+            static_cast<double>(renderStats.visibleMeshes));
+        RuntimeProfiler::setGauge(
+            "Renderer3D.meshes_culled",
+            static_cast<double>(renderStats.culledMeshes));
+        RuntimeProfiler::setGauge("Renderer3D.batches",
+                                  static_cast<double>(renderStats.batches));
+        RuntimeProfiler::setGauge("Renderer3D.triangles",
+                                  static_cast<double>(renderStats.triangles));
       }
       if (profileRun) {
         const double renderMs = millisecondsSince(renderStart);

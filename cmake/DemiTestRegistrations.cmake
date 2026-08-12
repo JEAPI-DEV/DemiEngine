@@ -41,6 +41,7 @@ add_test(NAME demi-transform3d-hierarchy-tests
   COMMAND demi-transform3d-hierarchy-tests)
 add_test(NAME demi-validation-3d-tests COMMAND demi-validation-3d-tests)
 add_test(NAME demi-render-phase6-tests COMMAND demi-render-phase6-tests)
+add_test(NAME demi-job-system-tests COMMAND demi-job-system-tests)
 add_test(NAME demi-bgfx-graphics-device-tests
   COMMAND demi-bgfx-graphics-device-tests)
 add_test(NAME demi-platform-input-tests COMMAND demi-platform-input-tests)
@@ -74,6 +75,8 @@ add_test(NAME demi-mesh-geometry3d-tests COMMAND demi-mesh-geometry3d-tests)
 add_test(NAME demi-bgfx-renderer3d-tests COMMAND demi-bgfx-renderer3d-tests)
 add_test(NAME demi-bgfx-scene-extraction-tests
   COMMAND demi-bgfx-scene-extraction-tests)
+add_test(NAME demi-scene-visibility3d-tests
+  COMMAND demi-scene-visibility3d-tests)
 add_test(NAME demi-gltf-skinned-model-tests COMMAND demi-gltf-skinned-model-tests)
 add_test(NAME demi-bgfx-2d-app-host-tests
   COMMAND demi-bgfx-2d-app-host-tests)

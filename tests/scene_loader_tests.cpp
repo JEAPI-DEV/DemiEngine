@@ -270,6 +270,7 @@ int main(int argc, char **argv) {
   std::filesystem::remove_all(gameplayFixture, fsError);
   if (!writeFile(gameplayFixture / "demi.project.json", R"json({
     "format_version": 1, "name": "Gameplay Fixture", "main_scene": "scene://fixture/main",
+    "display": {"vsync": false},
     "performance_budgets": {"maximum_frame_ms": 12.5, "maximum_draw_calls": 42,
       "maximum_resident_assets": 24},
     "scenes": [{"id": "scene://fixture/main", "path": "scenes/main.scene.json"}]
@@ -301,6 +302,7 @@ int main(int argc, char **argv) {
           12.5F ||
       gameplayProject->project.performanceBudgets.maximumDrawCalls != 42 ||
       gameplayProject->project.performanceBudgets.maximumResidentAssets != 24 ||
+      gameplayProject->project.display.vsync ||
       gameplayData == nullptr ||
       gameplayData->find("\"current\":50") == std::string::npos ||
       !gameplay->hasComponent<GameplayDataComponent>() ||

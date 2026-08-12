@@ -1,4 +1,5 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
+#include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 
 #include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
 
@@ -412,10 +413,22 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   }
   const bool authoredOffscreen = renderTarget != renderTargets_.end();
   const bool applyPostProcess = hasPostProcessEffects(frame.postProcess);
+  const float renderScale =
+      authoredOffscreen ? 1.0F : std::clamp(frame.camera.renderScale, 0.25F, 2.0F);
   const std::uint16_t renderWidth =
-      authoredOffscreen ? renderTarget->second.width : frame.viewportWidth;
+      authoredOffscreen
+          ? renderTarget->second.width
+          : static_cast<std::uint16_t>(std::clamp(
+                std::lround(static_cast<float>(frame.viewportWidth) *
+                            renderScale),
+                1L, static_cast<long>(UINT16_MAX)));
   const std::uint16_t renderHeight =
-      authoredOffscreen ? renderTarget->second.height : frame.viewportHeight;
+      authoredOffscreen
+          ? renderTarget->second.height
+          : static_cast<std::uint16_t>(std::clamp(
+                std::lround(static_cast<float>(frame.viewportHeight) *
+                            renderScale),
+                1L, static_cast<long>(UINT16_MAX)));
   RenderTargetHandles sourceTarget;
   if (authoredOffscreen)
     sourceTarget = renderTarget->second.handles;
@@ -455,6 +468,17 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     return false;
 
   std::unordered_set<std::string> liveDynamicMeshes;
+  // Cache ownership follows entity lifetime, not camera visibility. Otherwise
+  // leaving and re-entering the frustum would destroy and re-upload chunk
+  // meshes, turning culling into a camera-movement hitch.
+  for (const Entity &entity : world.entities) {
+    const auto *mesh = entity.component<MeshRendererComponent>();
+    if (mesh == nullptr)
+      continue;
+    if (!mesh->vertices.empty() || mesh->model.empty() ||
+        entity.component<AnimationPlayer3DComponent>() != nullptr)
+      liveDynamicMeshes.insert(entity.id);
+  }
   const SceneLighting3D lighting =
       collectSceneLighting3D(world, frame.camera.renderMask);
   const std::array<float, 4> whiteTint{1.0F, 1.0F, 1.0F, 1.0F};
@@ -496,19 +520,22 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   std::unordered_map<std::string, InstanceGroup> instanceGroups;
   std::uint32_t bufferedDraws = 0;
   std::uint32_t bufferedTriangles = 0;
+  SceneVisibility3D visibility;
+  if (frame.updateContent) {
+    const auto extractionStarted = std::chrono::steady_clock::now();
+    visibility = extractVisibleMeshes3D(world, frame, &extractionJobs_);
+    lastExtractionMilliseconds_ = std::chrono::duration<double, std::milli>(
+                                      std::chrono::steady_clock::now() -
+                                      extractionStarted)
+                                      .count();
+  } else {
+    lastExtractionMilliseconds_ = 0.0;
+  }
   if (frame.updateContent)
-    for (const Entity &entity : world.entities) {
-      if (!entity.enabled)
-        continue;
+    for (const VisibleMesh3D &visible : visibility.meshes) {
+      const Entity &entity = *visible.entity;
       const auto *mesh = entity.component<MeshRendererComponent>();
-      if (mesh == nullptr)
-        continue;
-      if (!frame.camera.renderMask.empty() && !mesh->renderLayer.empty() &&
-          frame.camera.renderMask != mesh->renderLayer)
-        continue;
-      const auto transform = resolveWorldTransform3D(world, entity);
-      if (!transform)
-        continue;
+      const WorldTransform3D &transform = visible.transform;
       const std::uint32_t color = packVertexColorRgba8(mesh->color);
       const std::array<float, 4> entityTint{mesh->color.r, mesh->color.g,
                                              mesh->color.b, mesh->color.a};
@@ -554,7 +581,6 @@ bool BgfxRenderer3D::renderFrame(const World &world,
                             material->uniforms.end());
       bool queued = false;
       if (!mesh->vertices.empty()) {
-        liveDynamicMeshes.insert(entity.id);
         const std::uint64_t signature = meshCacheRevision(*mesh);
         auto &cached = dynamicMeshes_[entity.id];
         if (!cached)
@@ -574,7 +600,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         queued = cached->gpu.draw(
             commands_, frame.viewId, program,
             texture.handle ? texture.handle : whiteTexture_, meshSampler_,
-            composeMeshTransform3D(*transform, mesh->size), state, error,
+            composeMeshTransform3D(transform, mesh->size), state, error,
             drawUniforms);
         if (queued) {
           ++bufferedDraws;
@@ -600,7 +626,6 @@ bool BgfxRenderer3D::renderFrame(const World &world,
           hashValue(signature, std::bit_cast<std::uint32_t>(player->time));
           hashValue(signature, color);
           auto &animatedMesh = dynamicMeshes_[entity.id];
-          liveDynamicMeshes.insert(entity.id);
           if (!animatedMesh)
             animatedMesh = std::make_unique<CachedMesh>(resources_);
           if (animatedMesh->signature != signature ||
@@ -652,12 +677,12 @@ bool BgfxRenderer3D::renderFrame(const World &world,
           groupTexture = resolvedTexture;
           groupTint = entityTint;
           groupUnlit = modelUnlit;
-          transforms.push_back(composeMeshTransform3D(*transform, mesh->size));
+          transforms.push_back(composeMeshTransform3D(transform, mesh->size));
           queued = true;
         } else {
           queued = drawMesh->gpu.draw(commands_, frame.viewId, program,
                                       resolvedTexture, meshSampler_,
-                                      composeMeshTransform3D(*transform,
+                                      composeMeshTransform3D(transform,
                                                              mesh->size),
                                       state, error, drawUniforms);
           if (queued) {
@@ -666,7 +691,6 @@ bool BgfxRenderer3D::renderFrame(const World &world,
           }
         }
       } else {
-        liveDynamicMeshes.insert(entity.id);
         const std::uint64_t signature = meshCacheRevision(*mesh);
         auto &cached = dynamicMeshes_[entity.id];
         if (!cached)
@@ -694,7 +718,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         queued = cached->gpu.draw(
             commands_, frame.viewId, program,
             texture.handle ? texture.handle : whiteTexture_, meshSampler_,
-            composeMeshTransform3D(*transform, mesh->size), state, error,
+            composeMeshTransform3D(transform, mesh->size), state, error,
             drawUniforms);
         if (queued) {
           ++bufferedDraws;
@@ -902,6 +926,9 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       bufferedTriangles + primitives_.statistics().triangles +
       particleRenderer_.statistics().triangles + overlayTriangles;
   statistics_.particles = static_cast<std::uint32_t>(particleData.size());
+  statistics_.consideredMeshes = visibility.considered;
+  statistics_.visibleMeshes = visibility.meshes.size();
+  statistics_.culledMeshes = visibility.culled;
   return true;
 }
 

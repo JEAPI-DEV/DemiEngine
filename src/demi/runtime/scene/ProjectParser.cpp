@@ -35,6 +35,9 @@ parseProjectData(const std::filesystem::path &projectPath, const Json &document,
         std::max(numberField(*simulation, "random_seed").value_or(1.0F), 1.0F));
   }
 
+  if (const Json *display = objectField(document, "display"))
+    project.display.vsync = boolField(*display, "vsync").value_or(true);
+
   if (const Json *budgets = objectField(document, "performance_budgets")) {
     project.performanceBudgets.maximumFrameMilliseconds = std::max(
         numberField(*budgets, "maximum_frame_ms").value_or(16.67F), 0.1F);

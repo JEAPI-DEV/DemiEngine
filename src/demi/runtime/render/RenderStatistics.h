@@ -11,6 +11,9 @@ struct RenderStatistics {
   std::size_t lights = 0;
   std::size_t shadowPasses = 0;
   std::size_t renderTargetBytes = 0;
+  std::size_t consideredMeshes = 0;
+  std::size_t visibleMeshes = 0;
+  std::size_t culledMeshes = 0;
 
   void reset() { *this = {}; }
 };
