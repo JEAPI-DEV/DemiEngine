@@ -276,7 +276,7 @@ Examples are executable engine probes, not throwaway snippets:
 | `isometric_base_builder` | Tower defense, placement, pathfinding, combat, targeting, and persistence ![Isometric_base_builder](images/isometric_base_builder.png) |
 | `fighting_game_2d` | Local 2D fighting-game systems and animation-driven gameplay ![fighting_game_2d](images/fighting_game_2d.png) |
 | `chess` | Complete chess rules and a deterministic alpha-beta computer opponent ![chess](images/chess.png) |
-| `multiplayer_ffa_shooter` | Contract-backed host-authoritative shooter for Linux/Android packaging ![multiplayer_ffa_shooter](images/multiplayer_ffa_shooter.png.png) |
+| `multiplayer_ffa_shooter` | Contract-backed host-authoritative shooter for Linux/Android packaging ![multiplayer_ffa_shooter](images/multiplayer_ffa_shooter.png) |
 | `ui_showcase` | Responsive retained UI, controls, layout, text input, and virtualization ![ui_showcase](images/ui_showcase_1.png)|
 | `main_menu_animated` | UI animation and animated sprite presentation ![main_menu_animated](images/main_menu_animated.png) |
 | `main_menu_gif` | GIF wallpaper and SVG-driven mobile-style UI |
