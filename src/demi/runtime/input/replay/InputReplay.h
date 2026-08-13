@@ -14,6 +14,10 @@ struct InputReplay {
   std::vector<InputState> frames;
 
   [[nodiscard]] bool apply(std::size_t frame, InputState &state) const;
+  // Applies a recorded frame when available, otherwise provides neutral
+  // input. This keeps a fixed-length replay run deterministic while allowing
+  // a simulation to continue settling after its final user input.
+  void applyOrNeutral(std::size_t frame, InputState &state) const;
 };
 
 [[nodiscard]] std::optional<InputReplay>

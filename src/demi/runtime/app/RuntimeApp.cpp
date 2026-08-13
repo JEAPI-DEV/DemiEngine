@@ -446,9 +446,15 @@ int runProject(const RuntimeOptions &options) {
     while (running && (unboundedServer || frameCount < targetFrames)) {
       if (options.watch)
         reportReload(reloadCoordinator.process(watcher.poll()));
-      if (inputReplay &&
-          !inputReplay->apply(static_cast<std::size_t>(frameCount), input))
-        break;
+      if (inputReplay) {
+        // A max-frame replay run commonly needs extra neutral frames for a
+        // simulation to settle after its final recorded input.
+        if (options.maxFrames <= 0 &&
+            static_cast<std::size_t>(frameCount) >= inputReplay->frames.size())
+          break;
+        inputReplay->applyOrNeutral(static_cast<std::size_t>(frameCount),
+                                    input);
+      }
       const auto nextFrame = std::chrono::steady_clock::now() +
                              std::chrono::duration<double>(fixedStep);
       RuntimeProfiler::beginFrame();
@@ -577,8 +583,11 @@ int runProject(const RuntimeOptions &options) {
       if (frameState.quitRequested)
         break;
       if (inputReplay) {
-        if (!inputReplay->apply(static_cast<std::size_t>(frameCount), input))
+        if (options.maxFrames <= 0 &&
+            static_cast<std::size_t>(frameCount) >= inputReplay->frames.size())
           break;
+        inputReplay->applyOrNeutral(static_cast<std::size_t>(frameCount),
+                                    input);
         const std::uint64_t frameSeed =
             loaded.project.simulation.randomSeed ^
             (static_cast<std::uint64_t>(frameCount) * 0x9E3779B97F4A7C15ULL);
@@ -756,8 +765,11 @@ int runProject(const RuntimeOptions &options) {
       if (frameState.quitRequested)
         break;
       if (inputReplay) {
-        if (!inputReplay->apply(static_cast<std::size_t>(frameCount), input))
+        if (options.maxFrames <= 0 &&
+            static_cast<std::size_t>(frameCount) >= inputReplay->frames.size())
           break;
+        inputReplay->applyOrNeutral(static_cast<std::size_t>(frameCount),
+                                    input);
         const std::uint64_t frameSeed =
             loaded.project.simulation.randomSeed ^
             (static_cast<std::uint64_t>(frameCount) * 0x9E3779B97F4A7C15ULL);

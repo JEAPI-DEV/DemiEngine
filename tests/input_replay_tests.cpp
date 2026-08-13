@@ -60,6 +60,12 @@ int main() {
               << '\n';
     return 1;
   }
+  replay->applyOrNeutral(2, state);
+  if (!state.keysDown.empty() || !state.keysPressed.empty() ||
+      !state.recordedActions.empty()) {
+    std::cerr << "Replay neutral-frame application failed.\n";
+    return 1;
+  }
   std::filesystem::remove(path);
   return 0;
 }

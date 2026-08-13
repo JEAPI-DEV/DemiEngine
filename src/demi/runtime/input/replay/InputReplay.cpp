@@ -107,6 +107,12 @@ bool InputReplay::apply(const std::size_t frame, InputState &state) const {
   return true;
 }
 
+void InputReplay::applyOrNeutral(const std::size_t frame,
+                                 InputState &state) const {
+  if (!apply(frame, state))
+    state = {};
+}
+
 std::optional<InputReplay> loadInputReplay(const std::filesystem::path &path,
                                            std::string &error) {
   std::ifstream input(path);

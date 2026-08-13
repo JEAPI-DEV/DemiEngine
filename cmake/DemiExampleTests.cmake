@@ -43,6 +43,16 @@ add_test(NAME demi-runtime-production-2d-foundation-frame
 )
 set_tests_properties(demi-runtime-production-2d-foundation-frame PROPERTIES
   ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-physics-2d-galton-board-replay
+  COMMAND demi run
+    --project ${CMAKE_SOURCE_DIR}/examples/physics_2d_galton_board/demi.project.json
+    --input-replay
+      ${CMAKE_SOURCE_DIR}/examples/physics_2d_galton_board/replays/release.replay.json
+    --max-frames 360
+)
+set_tests_properties(demi-runtime-physics-2d-galton-board-replay PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1"
+  PASS_REGULAR_EXPRESSION "Galton board release complete: 60 balls")
 add_test(NAME demi-cook-fighting-game-2d
   COMMAND demi cook
     --project ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/demi.project.json
@@ -170,6 +180,16 @@ add_test(NAME demi-validate-production-2d-foundation
   COMMAND demi validate
     ${CMAKE_SOURCE_DIR}/examples/production_2d_foundation/demi.project.json
 )
+add_test(NAME demi-validate-physics-2d-galton-board
+  COMMAND demi validate
+    ${CMAKE_SOURCE_DIR}/examples/physics_2d_galton_board/demi.project.json
+)
+foreach(script_name board game)
+  add_test(NAME demi-script-check-physics-2d-galton-board-${script_name}
+    COMMAND demi script check
+      ${CMAKE_SOURCE_DIR}/examples/physics_2d_galton_board/scripts/${script_name}.lua
+  )
+endforeach()
 add_test(NAME demi-script-check-production-2d-foundation
   COMMAND demi script check
     ${CMAKE_SOURCE_DIR}/examples/production_2d_foundation/scripts/demo.lua

@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <iostream>
 #include <sol/sol.hpp>
 #include <string>
 #include <unordered_map>
@@ -478,7 +479,12 @@ void LuaEntityBindingModule::install(LuaScriptHost &host,
         std::string error;
         std::optional<Entity> created =
             RuntimeObjectModel::buildEntity(json, error);
-        return created.has_value() && host.createEntity(std::move(*created));
+        if (!created.has_value()) {
+          std::cerr << "Entity.create failed for '" << entityId << "': "
+                    << error << '\n';
+          return false;
+        }
+        return host.createEntity(std::move(*created));
       });
   entity.set_function(
       "replace", [&host](const std::string &entityId, const sol::table spec) {

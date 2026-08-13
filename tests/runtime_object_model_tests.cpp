@@ -46,6 +46,29 @@ int main() {
     return 1;
   }
 
+  auto luaNumberEntity = RuntimeObjectModel::buildEntity(
+      nlohmann::json::parse(R"({
+        "id": "lua_numeric_fields",
+        "components": {
+          "Transform2D": {"position": [0, 0]},
+          "Sprite": {"shape": "circle", "sorting_order": 2.0},
+          "CircleCollider2D": {"radius": 0.25}
+        }
+      })"),
+      error);
+  if (!luaNumberEntity.has_value() ||
+      RuntimeObjectModel::buildEntity(
+          nlohmann::json::parse(R"({
+            "id": "fractional_integer_field",
+            "components": {"Sprite": {"sorting_order": 2.5}}
+          })"),
+          error)
+          .has_value()) {
+    std::cerr << "Lua-compatible integer field validation failed: " << error
+              << '\n';
+    return 1;
+  }
+
   World world;
   if (!RuntimeObjectModel::addEntity(world, std::move(*parent)) ||
       RuntimeObjectModel::addEntity(

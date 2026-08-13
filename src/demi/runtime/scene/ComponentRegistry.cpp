@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <sstream>
 
 namespace demi::runtime::scene_loading {
@@ -53,7 +54,13 @@ bool matchesFieldType(const nlohmann::json &value,
   case ComponentFieldType::Boolean:
     return value.is_boolean();
   case ComponentFieldType::Integer:
-    return value.is_number_integer();
+    // Lua exposes all numbers as doubles.  Accept an exactly integral JSON
+    // number here so an idiomatic Lua value such as `sorting_order = 2` can
+    // configure reflected integer fields just like authored JSON can.
+    return value.is_number_integer() ||
+           (value.is_number_float() &&
+            std::isfinite(value.get<double>()) &&
+            std::trunc(value.get<double>()) == value.get<double>());
   case ComponentFieldType::Number:
     return value.is_number();
   case ComponentFieldType::String:

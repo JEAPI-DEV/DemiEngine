@@ -1,0 +1,33 @@
+{
+  "format_version": 1,
+  "name": "2D Physics Galton Board",
+  "main_scene": "scene://physics_2d_galton_board/main",
+  "scenes": [
+    {
+      "id": "scene://physics_2d_galton_board/main",
+      "path": "scenes/main.scene.json"
+    }
+  ],
+  "gameplay_model": {
+    "projection": "side_view_2d",
+    "physics": "box2d"
+  },
+  "simulation": {
+    "fixed_timestep": 0.016666667,
+    "random_seed": 314159
+  },
+  "input": {
+    "actions": {
+      "release": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [{ "input": "key:space" }]
+      },
+      "reset": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [{ "input": "key:r" }]
+      }
+    }
+  }
+}
