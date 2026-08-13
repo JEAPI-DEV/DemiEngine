@@ -184,6 +184,11 @@ public:
     if (!setFrameBuffer(view.id, view.frameBuffer, resources_, error, "2D"))
       return false;
     bgfx::setViewRect(view.id, view.x, view.y, view.width, view.height);
+    // Canvas draw order is presentation order: tilemap layers, sprites, debug
+    // geometry, and UI may deliberately overlap while sharing no depth buffer.
+    // bgfx's default state sorting is valid for opaque 3D work, but can move a
+    // background quad in front of later 2D submissions.
+    bgfx::setViewMode(view.id, bgfx::ViewMode::Sequential);
     bgfx::setViewClear(view.id, view.clear ? BGFX_CLEAR_COLOR : BGFX_CLEAR_NONE,
                        view.clearRgba, 1.0F, 0);
     float projection[16];

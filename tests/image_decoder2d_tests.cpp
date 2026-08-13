@@ -3,6 +3,9 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <span>
 #include <string>
 #include <string_view>
@@ -32,6 +35,35 @@ int main() {
   assert(image.width == 16);
   assert(image.height == 16);
   assert(image.rgba.size() == 16 * 16 * 4);
+
+  const auto decodeFile = [&](const std::filesystem::path &path) {
+    std::ifstream input(path, std::ios::binary);
+    const std::vector<char> data((std::istreambuf_iterator<char>(input)),
+                                 std::istreambuf_iterator<char>());
+    return decodeImage2D(
+        std::as_bytes(std::span(data.data(), data.size())), image, error);
+  };
+  assert(decodeFile(std::filesystem::path(DEMI_SOURCE_DIR) /
+                    "examples/production_2d_foundation/assets/tiles/terrain.png"));
+  assert(image.width == 2 && image.height == 1);
+  assert(image.rgba[0] == std::byte{25});
+  assert(image.rgba[1] == std::byte{38});
+  assert(image.rgba[2] == std::byte{60});
+  assert(image.rgba[3] == std::byte{255});
+  assert(image.rgba[4] == std::byte{38});
+  assert(image.rgba[5] == std::byte{105});
+  assert(image.rgba[6] == std::byte{125});
+  assert(image.rgba[7] == std::byte{255});
+  assert(decodeFile(std::filesystem::path(DEMI_SOURCE_DIR) /
+                    "examples/production_2d_foundation/assets/tiles/effects.png"));
+  assert(image.rgba[0] == std::byte{40});
+  assert(image.rgba[1] == std::byte{230});
+  assert(image.rgba[2] == std::byte{190});
+  assert(image.rgba[3] == std::byte{255});
+  assert(image.rgba[4] == std::byte{245});
+  assert(image.rgba[5] == std::byte{190});
+  assert(image.rgba[6] == std::byte{70});
+  assert(image.rgba[7] == std::byte{255});
 
   const auto decodeText = [&](const std::string_view value) {
     return decodeImage2D(std::as_bytes(std::span(value.data(), value.size())),

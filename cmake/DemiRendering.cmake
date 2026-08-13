@@ -170,6 +170,7 @@ target_include_directories(demi-graphics-bgfx PRIVATE
   "${bgfx_SOURCE_DIR}/bgfx/examples/17-drawstress"
   "${bgfx_SOURCE_DIR}/bgfx/3rdparty/stb"
   "${bgfx_SOURCE_DIR}/bimg/3rdparty/stb"
+  "${bgfx_SOURCE_DIR}/bimg/3rdparty/lodepng"
   "${bgfx_SOURCE_DIR}/bx/include")
 target_compile_features(demi-graphics-bgfx PUBLIC cxx_std_20)
 target_link_libraries(demi-graphics-bgfx

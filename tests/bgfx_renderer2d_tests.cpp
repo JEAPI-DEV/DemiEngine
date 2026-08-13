@@ -4,6 +4,7 @@
 #include "demi/runtime/render/backend/SvgDecoder2D.h"
 #include "demi/runtime/scene/components/2dcomponents/Camera2DComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/SpriteComponent.h"
+#include "demi/runtime/scene/components/2dcomponents/Tilemap2DComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/Transform2DComponent.h"
 
 #include <cassert>
@@ -99,6 +100,33 @@ int main() {
   assert(renderer.statistics().quads > 1);
   static_cast<void>(graphics.endFrame());
   assert(!renderer.endFrame(error));
+
+  AssetRegistry tilemapRegistry = loadAssetRegistry(
+      std::filesystem::path(DEMI_SOURCE_DIR) /
+      "examples/production_2d_foundation");
+  assert(tilemapRegistry.diagnostics.empty());
+  std::erase_if(tilemapRegistry.assets, [](const AssetManifest &asset) {
+    return asset.id != "asset://phase4/map" &&
+           asset.id != "asset://phase4/terrain" &&
+           asset.id != "asset://phase4/effects";
+  });
+  diagnostics.clear();
+  assert(renderer.loadAssets(tilemapRegistry, diagnostics));
+  assert(diagnostics.empty());
+  World tilemapWorld;
+  Entity tilemap;
+  tilemap.id = "map";
+  tilemap.setComponent(Transform2DComponent{.position = {-6.0F, -4.0F}});
+  tilemap.setComponent(Tilemap2DComponent{
+      .asset = "asset://phase4/map", .pixelsPerUnit = 1.0F});
+  tilemapWorld.entities.push_back(std::move(tilemap));
+  assert(renderer.beginFrame(Camera2DComponent{.orthographicSize = 9.0F}, {},
+                             960, 540, 0.016F, error));
+  assert(renderer.drawWorld(tilemapWorld));
+  assert(renderer.endFrame(error));
+  // 96 ground tiles, 42 wall tiles, and one animated effect tile.
+  assert(renderer.statistics().quads == 139);
+  static_cast<void>(graphics.endFrame());
 
   renderer.shutdown();
   renderer.shutdown();

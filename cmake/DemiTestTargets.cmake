@@ -76,6 +76,8 @@
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-image-decoder2d-tests tests/image_decoder2d_tests.cpp)
   target_link_libraries(demi-image-decoder2d-tests PRIVATE demi-graphics-bgfx)
+  target_compile_definitions(demi-image-decoder2d-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-ui-canvas-renderer-tests
     tests/ui_canvas_renderer_tests.cpp)
   target_link_libraries(demi-ui-canvas-renderer-tests PRIVATE demi-render2d-bgfx)
