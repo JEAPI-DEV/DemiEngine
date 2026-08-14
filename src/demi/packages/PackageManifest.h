@@ -29,6 +29,8 @@ struct PackageManifest {
   std::vector<PackageDependency> dependencies;
   std::vector<std::string> publicModules;
   std::vector<std::string> files;
+  std::vector<std::string> assetManifests;
+  std::vector<std::string> engineExtensions;
   std::vector<std::string> exportedEvents;
   std::filesystem::path sourcePath;
 };

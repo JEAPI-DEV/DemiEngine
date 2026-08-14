@@ -35,6 +35,7 @@ Status meanings:
 | Animation-timed 2D collision | Stable | Named receiver volumes and state-time windows with neutral overlap events; gameplay policy stays in scripts |
 | Lightweight 3D animation adapter | Experimental | Shared state-machine control over embedded glTF clip names and deterministic `clip_N` aliases |
 | Asset import and validation | Stable | Versioned importer metadata, source hashes, dependencies, stale-output and cycle diagnostics |
+| Asset streaming and generated atlases | Experimental | Scene-rooted addressable groups, async progress/cancellation/reference counting, Lua `Assets`, deterministic incremental cook keys/cache reports, texture/font atlas generation, and locked package provenance; backend-native GPU/audio ownership and atomic scene activation remain in progress |
 | General game data | Stable | Immutable schema-backed JSON assets, deterministic Lua queries, revisioned hot reload, and optional dialogue/quest/inventory modules |
 | Portable asset packages | Stable | Deterministic dependency-complete export/import with checksums, path safety, licenses, and explicit conflicts |
 | Linux cooking and packaging | Stable | Runtime-only deterministic cook output, manifest, Linux runtime bundle, and headless smoke coverage |

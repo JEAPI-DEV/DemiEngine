@@ -1,7 +1,8 @@
-#include "demi/runtime/scene/components/EngineComponents.h"
-#include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/assets/RuntimeAssetService.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/components/EngineComponents.h"
+#include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
 #include "demi/runtime/scripting/annotations/HandleActionAnnotation.h"
@@ -179,8 +180,7 @@ bool LuaScriptHost::loadDynamicUiScript(const std::string &uiId,
     error = "Dynamic scripted UI node was not found: " + uiId;
     return false;
   }
-  const auto found =
-      std::ranges::find(world_->ui.nodes, uiId, &ui::UiNode::id);
+  const auto found = std::ranges::find(world_->ui.nodes, uiId, &ui::UiNode::id);
   if (found == world_->ui.nodes.end() || found->script.empty()) {
     error = "Dynamic scripted UI node was not found: " + uiId;
     return false;
@@ -191,8 +191,7 @@ bool LuaScriptHost::loadDynamicUiScript(const std::string &uiId,
     return false;
   }
   const std::size_t index = scripts_.size();
-  if (!loadScriptInstance(uiId, found->script, "dynamic HUD Lua script",
-                          error))
+  if (!loadScriptInstance(uiId, found->script, "dynamic HUD Lua script", error))
     return false;
   lua_rawgeti(state, LUA_REGISTRYINDEX, scripts_[index].tableRef);
   lua_pushstring(state, uiId.c_str());
@@ -307,31 +306,82 @@ void LuaScriptHost::unloadScripts() {
 
 bool LuaScriptHost::requestSceneLoad(const std::string &sceneId) {
   const bool accepted = sceneFlow_.prepare(sceneId, false);
-  if (accepted)
-    autoActivatePrepared_ = true;
-  return accepted;
+  if (!accepted)
+    return false;
+  preparedSceneAssetRequest_ = 0;
+  preparedSceneAssetId_.clear();
+  sceneAssetError_.clear();
+  if (runtimeAssets_ != nullptr && !activeSceneAssetGroups_.contains(sceneId)) {
+    Diagnostics diagnostics;
+    preparedSceneAssetRequest_ =
+        runtimeAssets_->prepareScene(sceneId, &diagnostics);
+    if (hasErrors(diagnostics)) {
+      sceneAssetError_ = diagnostics.front().message;
+      (void)sceneFlow_.cancel();
+      return false;
+    }
+    preparedSceneAssetId_ = sceneId;
+  }
+  autoActivatePrepared_ = true;
+  return true;
 }
 
 bool LuaScriptHost::prepareScene(const std::string &sceneId,
                                  const bool additive) {
   autoActivatePrepared_ = false;
-  return sceneFlow_.prepare(sceneId, additive);
+  if (!sceneFlow_.prepare(sceneId, additive))
+    return false;
+  preparedSceneAssetRequest_ = 0;
+  preparedSceneAssetId_.clear();
+  sceneAssetError_.clear();
+  if (runtimeAssets_ != nullptr && !activeSceneAssetGroups_.contains(sceneId)) {
+    Diagnostics diagnostics;
+    preparedSceneAssetRequest_ =
+        runtimeAssets_->prepareScene(sceneId, &diagnostics);
+    if (hasErrors(diagnostics)) {
+      sceneAssetError_ = diagnostics.front().message;
+      (void)sceneFlow_.cancel();
+      return false;
+    }
+    preparedSceneAssetId_ = sceneId;
+  }
+  return true;
 }
 
 bool LuaScriptHost::cancelScenePreparation() {
   autoActivatePrepared_ = false;
   pendingPreparedActivation_ = false;
+  if (runtimeAssets_ != nullptr && preparedSceneAssetRequest_ != 0)
+    (void)runtimeAssets_->cancel(preparedSceneAssetRequest_);
+  preparedSceneAssetRequest_ = 0;
+  preparedSceneAssetId_.clear();
+  sceneAssetError_.clear();
   return sceneFlow_.cancel();
 }
 
 float LuaScriptHost::scenePreparationProgress() {
   sceneFlow_.poll();
-  return sceneFlow_.progress();
+  if (runtimeAssets_ == nullptr || preparedSceneAssetRequest_ == 0)
+    return sceneFlow_.progress();
+  const auto assetProgress =
+      runtimeAssets_->progress(preparedSceneAssetRequest_);
+  return std::min(sceneFlow_.progress(),
+                  static_cast<float>(assetProgress.fraction));
 }
 
 bool LuaScriptHost::scenePrepared() {
   sceneFlow_.poll();
-  return sceneFlow_.state() == ScenePreparationState::Ready;
+  if (sceneFlow_.state() != ScenePreparationState::Ready)
+    return false;
+  if (runtimeAssets_ == nullptr || preparedSceneAssetRequest_ == 0)
+    return true;
+  const auto assetProgress =
+      runtimeAssets_->progress(preparedSceneAssetRequest_);
+  if (assetProgress.stage == assets::AssetGroupStage::Failed) {
+    sceneAssetError_ = assetProgress.error;
+    return false;
+  }
+  return assetProgress.stage == assets::AssetGroupStage::Ready;
 }
 
 bool LuaScriptHost::requestPreparedSceneActivation() {
@@ -354,6 +404,9 @@ bool LuaScriptHost::requestSceneReload() {
     return false;
   if (!sceneFlow_.prepare(world_->activeSceneId, false))
     return false;
+  preparedSceneAssetRequest_ = 0;
+  preparedSceneAssetId_.clear();
+  sceneAssetError_.clear();
   autoActivatePrepared_ = true;
   return true;
 }
@@ -369,15 +422,25 @@ std::string LuaScriptHost::activeSceneId() const {
 }
 
 std::string LuaScriptHost::sceneFlowError() const {
-  return sceneFlow_.error();
+  return sceneAssetError_.empty() ? sceneFlow_.error() : sceneAssetError_;
 }
 
 bool LuaScriptHost::hasPendingSceneLoad() {
   sceneFlow_.poll();
-  if (autoActivatePrepared_ &&
+  bool assetsFailed = false;
+  bool assetsReady = preparedSceneAssetRequest_ == 0;
+  if (runtimeAssets_ != nullptr && preparedSceneAssetRequest_ != 0) {
+    const auto progress = runtimeAssets_->progress(preparedSceneAssetRequest_);
+    assetsFailed = progress.stage == assets::AssetGroupStage::Failed;
+    assetsReady = progress.stage == assets::AssetGroupStage::Ready;
+    if (assetsFailed)
+      sceneAssetError_ = progress.error;
+  }
+  if (autoActivatePrepared_ && assetsReady &&
       sceneFlow_.state() == ScenePreparationState::Ready)
     pendingPreparedActivation_ = true;
   return pendingPreparedActivation_ || pendingSceneUnload_.has_value() ||
+         (autoActivatePrepared_ && assetsFailed) ||
          (autoActivatePrepared_ &&
           sceneFlow_.state() == ScenePreparationState::Failed);
 }
@@ -393,8 +456,17 @@ bool LuaScriptHost::applyPendingSceneLoad(std::string &error) {
     autoActivatePrepared_ = false;
     return false;
   }
+  if (!sceneAssetError_.empty()) {
+    error = sceneAssetError_;
+    autoActivatePrepared_ = false;
+    (void)sceneFlow_.cancel();
+    preparedSceneAssetRequest_ = 0;
+    preparedSceneAssetId_.clear();
+    return false;
+  }
 
   if (pendingSceneUnload_) {
+    const std::string unloadingScene = *pendingSceneUnload_;
     (void)emitEvent("scene_unloading", 0);
     flushWorldCommands();
     std::vector<std::string> unloadingScripts;
@@ -409,13 +481,22 @@ bool LuaScriptHost::applyPendingSceneLoad(std::string &error) {
     // Destruction callbacks cannot enqueue work into a scene whose lifetime
     // has already ended.
     worldCommands_.clear();
-    const auto transition = sceneFlow_.unload(
-        *world_, *pendingSceneUnload_, resourceLifetimes_);
+    const auto transition =
+        sceneFlow_.unload(*world_, *pendingSceneUnload_, resourceLifetimes_);
     prefabService_.prune(*world_);
     pendingSceneUnload_.reset();
     if (!transition) {
       error = "Scene unload failed.";
       return false;
+    }
+    if (runtimeAssets_ != nullptr &&
+        activeSceneAssetGroups_.erase(unloadingScene) > 0) {
+      Diagnostics diagnostics;
+      if (!runtimeAssets_->releaseScene(unloadingScene, &diagnostics)) {
+        error = diagnostics.empty() ? "Scene asset release failed."
+                                    : diagnostics.front().message;
+        return false;
+      }
     }
     (void)emitEvent("scene_unloaded", 0);
     (void)emitEvent("active_scene_changed", 0);
@@ -426,13 +507,22 @@ bool LuaScriptHost::applyPendingSceneLoad(std::string &error) {
     return false;
   pendingPreparedActivation_ = false;
   autoActivatePrepared_ = false;
-  if (const std::string activationFailure =
-          sceneFlow_.activationError(*world_);
+  if (const std::string activationFailure = sceneFlow_.activationError(*world_);
       !activationFailure.empty()) {
     error = activationFailure;
     return false;
   }
   const bool additive = sceneFlow_.preparedAdditive();
+  bool activatedAssets = false;
+  if (runtimeAssets_ != nullptr && preparedSceneAssetRequest_ != 0) {
+    Diagnostics diagnostics;
+    if (!runtimeAssets_->activate(preparedSceneAssetRequest_, &diagnostics)) {
+      error = diagnostics.empty() ? "Prepared scene assets could not activate."
+                                  : diagnostics.front().message;
+      return false;
+    }
+    activatedAssets = true;
+  }
   if (!additive) {
     (void)emitEvent("scene_unloading", 0);
     flushWorldCommands();
@@ -440,12 +530,35 @@ bool LuaScriptHost::applyPendingSceneLoad(std::string &error) {
     unloadScripts();
     worldCommands_.clear();
   }
-  const auto transition =
-      sceneFlow_.activate(*world_, resourceLifetimes_);
+  const auto transition = sceneFlow_.activate(*world_, resourceLifetimes_);
   prefabService_.prune(*world_);
   if (!transition) {
+    if (activatedAssets && runtimeAssets_ != nullptr) {
+      Diagnostics diagnostics;
+      (void)runtimeAssets_->releaseScene(preparedSceneAssetId_, &diagnostics);
+    }
     error = "Prepared scene activation failed.";
     return false;
+  }
+  if (activatedAssets)
+    activeSceneAssetGroups_.insert(preparedSceneAssetId_);
+  preparedSceneAssetRequest_ = 0;
+  preparedSceneAssetId_.clear();
+  sceneAssetError_.clear();
+  if (!transition->additive && runtimeAssets_ != nullptr) {
+    std::vector<std::string> outgoingGroups;
+    for (const std::string &activeScene : activeSceneAssetGroups_)
+      if (activeScene != transition->activeScene)
+        outgoingGroups.push_back(activeScene);
+    for (const std::string &outgoingScene : outgoingGroups) {
+      Diagnostics diagnostics;
+      if (!runtimeAssets_->releaseScene(outgoingScene, &diagnostics)) {
+        error = diagnostics.empty() ? "Outgoing scene assets could not release."
+                                    : diagnostics.front().message;
+        return false;
+      }
+      activeSceneAssetGroups_.erase(outgoingScene);
+    }
   }
   if (transition->additive) {
     for (const std::string &entityId : transition->loadedEntities) {

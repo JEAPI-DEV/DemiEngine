@@ -34,6 +34,8 @@ struct AssetManifest {
   std::optional<std::filesystem::path> atlasPath;
   std::optional<std::filesystem::path> generatedOutputPath;
   std::optional<std::filesystem::path> licensePath;
+  std::string sourcePackage;
+  std::string packageContentHash;
 };
 
 struct AssetRegistry {

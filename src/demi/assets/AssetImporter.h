@@ -1,5 +1,6 @@
 #pragma once
 
+#include "demi/assets/AssetImporterRegistry.h"
 #include "demi/assets/ModelImportProfile.h"
 #include "demi/diagnostics/Diagnostic.h"
 
@@ -9,17 +10,12 @@
 
 namespace demi::assets {
 
-struct ImporterDescriptor {
-  std::string name;
-  int version = 1;
-  std::string assetType;
-};
-
 struct AssetImportRequest {
   std::filesystem::path projectDirectory;
   std::filesystem::path source;
   std::string id;
   std::string type;
+  std::string importer;
   std::optional<std::filesystem::path> license;
   std::optional<ModelImportProfile> modelProfile;
 };

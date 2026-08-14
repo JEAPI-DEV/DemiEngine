@@ -23,6 +23,14 @@
       "type": "array", "uniqueItems": true, "maxItems": 10000,
       "items": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"}
     },
+    "asset_manifests": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+\\.asset\\.json$"}
+    },
+    "engine_extensions": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+\\.json$"}
+    },
     "exported_events": {
       "type": "array", "uniqueItems": true,
       "items": {"type": "string", "minLength": 1}

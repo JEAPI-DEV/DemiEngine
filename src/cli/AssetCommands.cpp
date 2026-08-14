@@ -122,7 +122,7 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
   if (command == "import") {
     if (args.size() < 3 || valueAfter(args, "--id").empty()) {
       error << "Usage: demi asset import <source> --project <project> --id "
-               "asset://id [--type type] [--license file]\n";
+               "asset://id [--type type] [--importer id] [--license file]\n";
       return ExitUsageError;
     }
     const std::string license = valueAfter(args, "--license");
@@ -159,6 +159,7 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
          .source = args[2],
          .id = valueAfter(args, "--id"),
          .type = valueAfter(args, "--type"),
+         .importer = valueAfter(args, "--importer"),
          .license = license.empty()
                         ? std::nullopt
                         : std::make_optional(std::filesystem::path(license)),

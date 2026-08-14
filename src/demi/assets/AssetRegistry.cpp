@@ -4,8 +4,9 @@
 #include "demi/assets/AssetImporter.h"
 #include "demi/assets/AssetSourceFiles.h"
 #include "demi/assets/DataAsset.h"
-#include "demi/assets/RenderAsset.h"
+#include "demi/assets/GeneratedAtlasCooker.h"
 #include "demi/assets/ModelImportProfile.h"
+#include "demi/assets/RenderAsset.h"
 #include "demi/runtime/network/NetworkContract.h"
 
 #include <nlohmann/json.hpp>
@@ -385,8 +386,8 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
             diagnostics.push_back(
                 {.severity = Severity::Error,
                  .code = "COLLIDER_SOURCE_ASSET_NOT_FOUND",
-                 .message = "Generated collider source asset is missing: " +
-                            sourceId,
+                 .message =
+                     "Generated collider source asset is missing: " + sourceId,
                  .path = asset.manifestPath.string()});
           else if (sourceHash.empty() || sourceHash != source->sourceHash)
             diagnostics.push_back(
@@ -491,6 +492,12 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
              .code = "AUDIO_STREAMING_SETTING_INVALID",
              .message = "Audio streaming setting must be boolean.",
              .path = asset.manifestPath.string()});
+    }
+    if (asset.type == "TextureAtlas2D" || asset.type == "FontAtlas2D") {
+      Diagnostics atlasDiagnostics =
+          assets::validateGeneratedAtlasManifest(asset, registry);
+      diagnostics.insert(diagnostics.end(), atlasDiagnostics.begin(),
+                         atlasDiagnostics.end());
     }
   }
   Diagnostics dataDiagnostics = assets::validateDataAssets(registry);

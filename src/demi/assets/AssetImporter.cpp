@@ -7,19 +7,10 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <fstream>
-#include <unordered_map>
 
 namespace demi::assets {
 namespace {
-
-std::string lower(std::string value) {
-  std::ranges::transform(value, value.begin(), [](const unsigned char c) {
-    return static_cast<char>(std::tolower(c));
-  });
-  return value;
-}
 
 std::string idPath(std::string id) {
   constexpr std::string_view prefix = "asset://";
@@ -63,54 +54,15 @@ bool writeJson(const std::filesystem::path &path,
 
 std::optional<ImporterDescriptor>
 importerFor(const std::filesystem::path &source, const std::string &type) {
-  static const std::unordered_map<std::string, ImporterDescriptor> importers{
-      {".png", {"image", 1, "Texture2D"}},
-      {".jpg", {"image", 1, "Texture2D"}},
-      {".jpeg", {"image", 1, "Texture2D"}},
-      {".bmp", {"image", 1, "Texture2D"}},
-      {".tga", {"image", 1, "Texture2D"}},
-      {".qoi", {"image", 1, "Texture2D"}},
-      {".svg", {"svg", 1, "Icon2D"}},
-      {".gif", {"gif", 1, "GifAnimation2D"}},
-      {".wav", {"audio", 1, "AudioClip"}},
-      {".ogg", {"audio", 1, "AudioClip"}},
-      {".mp3", {"audio", 1, "AudioClip"}},
-      {".flac", {"audio", 1, "AudioClip"}},
-      {".ttf", {"font", 1, "Font2D"}},
-      {".otf", {"font", 1, "Font2D"}},
-      {".gltf", {"gltf-model", 1, "Model3D"}},
-      {".glb", {"gltf-model", 1, "Model3D"}},
-      {".obj", {"model", 1, "Model3D"}},
-      {".iqm", {"model", 1, "Model3D"}},
-      {".m3d", {"model", 1, "Model3D"}},
-      {".mp4", {"video", 1, "VideoClip"}},
-      {".webm", {"video", 1, "VideoClip"}},
-      {".mov", {"video", 1, "VideoClip"}},
-      {".json", {"json_data", 1, "DataAsset"}},
-  };
-  const auto found = importers.find(lower(source.extension().string()));
-  if (found == importers.end())
-    return std::nullopt;
-  ImporterDescriptor descriptor = found->second;
-  if (!type.empty()) {
-    descriptor.assetType = type;
-    if (lower(source.extension().string()) == ".json") {
-      static const std::unordered_map<std::string, std::string> typedJson{
-          {"DataAsset", "json_data"},
-          {"DataSchema", "json_schema"},
-          {"NetworkContract", "network_contract"},
-          {"Material", "material"},
-          {"Shader", "shader"},
-          {"RenderTarget", "render_target"},
-          {"Tilemap2D", "tilemap2d"},
-      };
-      const auto typed = typedJson.find(type);
-      if (typed == typedJson.end())
-        return std::nullopt;
-      descriptor.name = typed->second;
-    }
+  std::string defaultImporter;
+  if (type.empty()) {
+    const std::string extension = source.extension().string();
+    if (extension == ".json")
+      defaultImporter = "json_data";
+    else if (extension == ".gltf" || extension == ".glb")
+      defaultImporter = "gltf-model";
   }
-  return descriptor;
+  return builtinImporterRegistry().select(source, type, defaultImporter);
 }
 
 AssetImportResult importAsset(const AssetImportRequest &request) {
@@ -130,7 +82,11 @@ AssetImportResult importAsset(const AssetImportRequest &request) {
                                   .path = request.source.string()});
     return result;
   }
-  const auto descriptor = importerFor(request.source, request.type);
+  const auto descriptor =
+      request.importer.empty()
+          ? importerFor(request.source, request.type)
+          : builtinImporterRegistry().select(request.source, request.type,
+                                             request.importer);
   if (!descriptor) {
     result.diagnostics.push_back(
         {.severity = Severity::Error,
@@ -209,7 +165,8 @@ AssetImportResult importAsset(const AssetImportRequest &request) {
   nlohmann::json manifest{
       {"format_version", 1},
       {"id", request.id},
-      {"type", descriptor->assetType},
+      {"type",
+       request.type.empty() ? descriptor->assetTypes.front() : request.type},
       {"source", sourceTarget.filename().generic_string()},
       {"importer", descriptor->name},
       {"importer_version", descriptor->version},
@@ -220,10 +177,12 @@ AssetImportResult importAsset(const AssetImportRequest &request) {
            .generic_string()},
       {"settings", nlohmann::json::object()},
   };
-  if (descriptor->assetType == "Model3D")
+  const std::string importedType =
+      request.type.empty() ? descriptor->assetTypes.front() : request.type;
+  if (importedType == "Model3D")
     manifest["settings"]["model_import"] = modelImportProfileJson(
         request.modelProfile.value_or(modelImportPreset("static_prop")));
-  if (descriptor->assetType == "DataAsset")
+  if (importedType == "DataAsset")
     manifest["settings"]["content_type"] = "data";
   if (request.license) {
     const auto licenseTarget = assetDirectory / request.license->filename();
@@ -343,7 +302,8 @@ registerGeneratedAsset(const GeneratedAssetRegistrationRequest &request) {
 
   manifest["format_version"] = 1;
   manifest["id"] = request.id;
-  manifest["type"] = descriptor->assetType;
+  manifest["type"] =
+      request.type.empty() ? descriptor->assetTypes.front() : request.type;
   manifest["source"] = request.source.filename().generic_string();
   manifest["importer"] = descriptor->name;
   manifest["importer_version"] = descriptor->version;
@@ -352,7 +312,8 @@ registerGeneratedAsset(const GeneratedAssetRegistrationRequest &request) {
     manifest["dependencies"] = nlohmann::json::array();
   if (!manifest.contains("settings"))
     manifest["settings"] = nlohmann::json::object();
-  if (descriptor->assetType == "DataAsset" &&
+  if ((request.type.empty() ? descriptor->assetTypes.front() : request.type) ==
+          "DataAsset" &&
       !manifest["settings"].contains("content_type"))
     manifest["settings"]["content_type"] = "data";
 

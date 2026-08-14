@@ -1,4 +1,5 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/assets/RuntimeAssetService.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 
@@ -46,6 +47,14 @@ void LuaScriptHost::setMediaSystem(MediaSystem *media) { media_ = media; }
 
 void LuaScriptHost::setNetworkSystem(NetworkSystem *network) {
   network_ = network;
+}
+
+void LuaScriptHost::setRuntimeAssetService(RuntimeAssetService *assets) {
+  runtimeAssets_ = assets;
+}
+
+RuntimeAssetService *LuaScriptHost::runtimeAssetService() const {
+  return runtimeAssets_;
 }
 
 void LuaScriptHost::setHotReloadEnabled(const bool enabled) {
@@ -144,6 +153,8 @@ void LuaScriptHost::start() {
 
 void LuaScriptHost::update(const float dt) {
   ProfileScope updateScope("LuaScriptHost.update");
+  if (runtimeAssets_ != nullptr)
+    runtimeAssets_->update();
   auto *state = static_cast<lua_State *>(state_);
   if (state == nullptr) {
     return;

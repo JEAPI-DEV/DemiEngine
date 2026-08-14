@@ -1,4 +1,5 @@
 #include "cli/package/PackageCommands.h"
+#include "demi/assets/PackageContent.h"
 
 #include "demi/core/Version.h"
 #include "demi/packages/PackageArchive.h"
@@ -383,6 +384,12 @@ int runPackageCommand(const std::vector<std::string> &args,
     if (args.size() < 3 || !packages::validPackageName(args[2])) {
       error << "Usage: demi package remove <name> --project <project>\n";
       return ExitUsage;
+    }
+    const Diagnostics removalDiagnostics = assets::validatePackageRemoval(
+        projectPath.parent_path(), args[2]);
+    if (hasErrors(removalDiagnostics)) {
+      print(removalDiagnostics, json, error);
+      return ExitFailure;
     }
     nlohmann::json replacement = *project;
     if (replacement.contains("packages") && replacement["packages"].is_object())

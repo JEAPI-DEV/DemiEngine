@@ -152,6 +152,10 @@ ManifestLoadResult parsePackageManifest(const nlohmann::json &document,
   readStringArray(document, "public_modules", manifest.publicModules,
                   result.diagnostics, path);
   readStringArray(document, "files", manifest.files, result.diagnostics, path);
+  readStringArray(document, "asset_manifests", manifest.assetManifests,
+                  result.diagnostics, path);
+  readStringArray(document, "engine_extensions", manifest.engineExtensions,
+                  result.diagnostics, path);
   readStringArray(document, "exported_events", manifest.exportedEvents,
                   result.diagnostics, path);
 
@@ -159,6 +163,17 @@ ManifestLoadResult parsePackageManifest(const nlohmann::json &document,
     if (!safePackageRelativePath(file))
       error(result.diagnostics, path, "PACKAGE_FILE_PATH_UNSAFE",
             "Package declares an unsafe file path: " + file);
+  const auto validateContentPath = [&](const std::string &file,
+                                       const char *kind) {
+    if (!safePackageRelativePath(file) ||
+        std::ranges::find(manifest.files, file) == manifest.files.end())
+      error(result.diagnostics, path, "PACKAGE_CONTENT_FILE_UNDECLARED",
+            std::string(kind) + " must also appear in files: " + file);
+  };
+  for (const std::string &file : manifest.assetManifests)
+    validateContentPath(file, "Asset manifest");
+  for (const std::string &file : manifest.engineExtensions)
+    validateContentPath(file, "Engine extension descriptor");
   for (const std::string &module : manifest.publicModules) {
     if (!validPackageName(module)) {
       error(result.diagnostics, path, "PACKAGE_MODULE_NAME_INVALID",
@@ -186,14 +201,20 @@ nlohmann::json packageManifestJson(const PackageManifest &manifest) {
   nlohmann::json dependencies = nlohmann::json::object();
   for (const auto &dependency : manifest.dependencies)
     dependencies[dependency.name] = dependency.constraint.text();
-  return {{"format_version", manifest.formatVersion},
-          {"name", manifest.name},
-          {"version", manifest.version.string()},
-          {"engine", manifest.engineVersion.text()},
-          {"dependencies", std::move(dependencies)},
-          {"public_modules", manifest.publicModules},
-          {"files", manifest.files},
-          {"exported_events", manifest.exportedEvents}};
+  nlohmann::json document{{"format_version", manifest.formatVersion},
+                          {"name", manifest.name},
+                          {"version", manifest.version.string()},
+                          {"engine", manifest.engineVersion.text()},
+                          {"dependencies", std::move(dependencies)},
+                          {"public_modules", manifest.publicModules},
+                          {"files", manifest.files},
+                          {"exported_events", manifest.exportedEvents}};
+  // Omit empty Step 7 fields so existing Step 4 lock hashes remain stable.
+  if (!manifest.assetManifests.empty())
+    document["asset_manifests"] = manifest.assetManifests;
+  if (!manifest.engineExtensions.empty())
+    document["engine_extensions"] = manifest.engineExtensions;
+  return document;
 }
 
 } // namespace demi::packages

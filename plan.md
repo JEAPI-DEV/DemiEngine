@@ -1360,12 +1360,55 @@ rule, disconnect policy, and numerical limit before a session starts.
 Larger games need fast iteration and explicit memory ownership rather than a
 single startup asset set.
 
-**Status: planned.** Manifests, dependency validation, cooking, portable asset
-packages, scene resource groups, and startup upload are present. Importer
-registration, incremental dependency cooking, addressable groups, and package
-content cooking are not complete developer workflows. Package identity,
-registry resolution, installation, and lock ownership are established in Step
-4 and are not reimplemented here.
+**Status: in progress.** Importer registration, deterministic transitive cook
+keys and verified output caching, addressable groups, scene-root discovery,
+the public Lua `Assets` API, per-platform settings, locked package provenance,
+and deterministic texture/font atlas generation are implemented and covered by
+focused tests. Concurrent preparations now share one in-flight decode/upload,
+including cancellation handoff. Scene transitions now prepare their scene root
+as an implicit group and commit asset activation with the scene at the frame
+boundary, so they do not require a duplicate startup manifest. The runtime
+currently uses a headless-safe resident-source loader; renderer/audio-native
+loaders, hot-reload parity, and the remaining backend failure matrix remain
+before this step meets its end-to-end done criteria. Package identity, registry
+resolution, installation, and lock ownership remain owned by Step 4.
+
+### Implemented in the current Step 7 slice
+
+- `AssetImporterRegistry`, `AssetCookGraph`, and `AssetCookCache` provide the
+  registered importer contract, transitive content keys, reverse reachability,
+  output verification, and machine-readable hit/miss reasons.
+- `AssetGroupService` provides asynchronous read/decode, bounded main-thread
+  upload, monotonic progress, activation, cancellation, shared in-flight and
+  resident ownership, release, reload, and memory reports.
+- `RuntimeAssetService` discovers `*.asset-group.json` manifests and expands a
+  `scene://` root from the scene's actual entity and UI asset references. No
+  separate startup manifest is required for the active scene.
+- Scene prepare/load creates an implicit group from the incoming `scene://`
+  root. Read/decode completes before readiness, activation occurs at the same
+  frame boundary as the world swap, cancellation rolls both back, and outgoing
+  scene ownership is released after a successful non-additive transition.
+- Lua exposes `Assets.prepare_group`, `progress`, `is_ready`, `activate`,
+  `cancel`, `release_group`, `reload`, and `memory_report`; the checked LuaLS
+  stub contains the same API.
+- Texture-atlas cooking emits deterministic PNG pages plus sprite rectangles,
+  pivots, borders, animation tags, padding, and bleed metadata. Font-atlas
+  cooking emits deterministic glyph pages, metrics, ranges, and fallbacks.
+- Locked package content contributes assets and extension descriptors to cook
+  keys and records package/content-hash provenance without registry access.
+  A self-contained locked installation cooks reproducibly twice for Linux and
+  once for Android while retaining identical package provenance.
+
+### Remaining before Step 7 is complete
+
+- Replace the resident-source fallback with renderer, audio, and script
+  loaders that own the actual backend resources used during rendering and
+  playback, without retaining a second eager cache.
+- Route watched asset reloads through the same loaders and prove ordinary load,
+  reload, cancellation, surface recreation, and low-memory failure parity.
+- Finish the backend failure matrix for cancellation during upload, graphics
+  surface recreation, and Android low-memory handling, then promote the
+  experimental capability reference when the native loaders are in place.
 
 ### Ownership model
 
@@ -1390,11 +1433,7 @@ registry resolution, installation, and lock ownership are established in Step
 {
   "format_version": 1,
   "id": "asset-group://chapter_02",
-  "roots": [
-    "scene://chapter_02",
-    "asset://voice/chapter_02",
-    "asset://backgrounds/chapter_02"
-  ],
+  "roots": ["scene://chapter_02"],
   "budget": {
     "resident_mb": 256,
     "upload_ms_per_frame": 3
@@ -1414,7 +1453,10 @@ Assets.release_group("asset-group://chapter_01")
 
 Progress is monotonic for a request and reports stages (`resolve`, `read`,
 `decode`, `upload`, `ready`). Cancellation is cooperative; activation is
-explicit and atomic with respect to group ownership.
+explicit and atomic with respect to group ownership. Scenes remain the source
+of truth for their referenced assets: a scene-rooted group derives those
+references transitively instead of repeating them. Explicit asset roots are
+reserved for content with a lifetime independent of the scene.
 
 ### Deliverables
 

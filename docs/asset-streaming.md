@@ -1,0 +1,152 @@
+# Asset iteration, streaming, and package content
+
+Demi's Step 7 asset pipeline separates authored manifests, deterministic cook
+policy, and runtime resource ownership. Importers never upload resources and
+resource loaders never resolve package versions.
+
+## Importers and deterministic cooking
+
+`AssetImporterRegistry` accepts in-tree and package-provided importer
+descriptors. A descriptor declares its identity and version, versioned settings
+schema, supported source extensions and asset types, generated output types,
+thread-safety, and target platforms. Selection fails when no importer matches
+or when multiple importers match without an explicit choice. Use
+`demi asset import ... --importer <id>` to disambiguate.
+
+`AssetCookGraph` computes keys from the importer identity/version, normalized
+settings, source hashes, platform/profile, package content provenance, and the
+keys of every dependency. It does not inspect file timestamps. Its reverse
+graph identifies exactly which dependents become stale, while `AssetCookCache`
+checks both metadata keys and output hashes before reporting a cache hit.
+
+Asset settings may include deterministic platform overrides while retaining a
+single stable ID:
+
+```json
+{
+  "settings": {
+    "compression": "bc7",
+    "quality": 90,
+    "platform_overrides": {
+      "android": {"compression": "astc_6x6", "quality": 75}
+    }
+  }
+}
+```
+
+Texture and font atlases use ordinary `*.asset.json` manifests with the
+registered `texture_atlas` and `font` importers. They are generated during a
+normal `demi cook`; no example script or editor-only state is involved.
+
+A texture-atlas asset points at a versioned JSON descriptor and declares every
+source texture as a dependency:
+
+```json
+{
+  "format_version": 1,
+  "id": "asset://atlases/units",
+  "type": "TextureAtlas2D",
+  "source": "units.atlas.json",
+  "importer": "texture_atlas",
+  "importer_version": 2,
+  "dependencies": ["asset://textures/archer"],
+  "settings": {}
+}
+```
+
+```json
+{
+  "format_version": 1,
+  "page_width": 1024,
+  "page_height": 1024,
+  "padding": 2,
+  "bleed": 1,
+  "sprites": [
+    {
+      "id": "asset://sprites/archer/idle",
+      "source": "asset://textures/archer",
+      "pivot": [0.5, 1.0],
+      "border": [0, 0, 0, 0],
+      "animation_tag": "idle"
+    }
+  ]
+}
+```
+
+Texture sources are currently PNG. Cooking emits deterministic atlas PNG pages
+and `atlas.json` metadata. A `FontAtlas2D` manifest points directly at TTF/OTF
+source and places `pixel_height`, `page_size`, `padding`, `glyph_ranges`, and
+`fallbacks` in its settings; cooking emits font pages and `font-atlas.json`.
+
+## Addressable groups
+
+Scenes remain the source of truth for the assets they reference. Loading a
+scene does not require a matching startup group, and scene-owned assets should
+not be repeated in one. Addressable groups are optional lifetime boundaries for
+content that must be prepared or released independently, such as the next
+chapter, persistent UI/audio, or an optional voice pack.
+
+Addressable groups use `*.asset-group.json`. This example preloads an optional
+voice pack that is not owned by the active scene:
+
+```json
+{
+  "format_version": 1,
+  "id": "asset-group://voice/de",
+  "roots": ["asset://voice/de"],
+  "budget": {
+    "resident_mb": 256,
+    "decoded_mb": 64,
+    "upload_ms_per_frame": 3
+  }
+}
+```
+
+Scene-rooted groups use `scene://chapter_02` as the root. The runtime loads the
+scene through the normal scene loader, includes expanded prefab content, finds
+the entity and UI asset references, and resolves their transitive asset
+dependencies. CLI validation also verifies that the scene root is declared by
+the project.
+
+Scene transitions apply this rule automatically. Preparing a scene creates an
+implicit group from its `scene://` root, waits for both the world and assets,
+and activates them together at the frame boundary. Cancelling preparation
+cancels both sides. A non-additive transition releases the outgoing scene's
+implicit ownership after the incoming scene commits; additive scenes retain
+their groups until unloaded.
+
+`AssetGroupService` resolves transitive dependencies, performs read/decode work
+off-thread through narrow `AssetResourceLoader` backends, and performs bounded
+uploads from `update`. Preparation, activation, cancellation, and release are
+separate operations. Shared resources, including resources requested
+concurrently before the first upload completes, are decoded and uploaded once
+and are unloaded only after their final active or preparing owner releases
+them. Cancelling the request that started shared work hands it to another
+waiting request. Progress is monotonic and reports `resolve`, `read`, `decode`,
+`upload`, `ready`, `failed`, or `cancelled`. Memory reports identify resident
+bytes, backend, and active owners per stable asset ID.
+
+## Locked package content
+
+Packages can declare reusable content without changing Step 4 resolution:
+
+```json
+{
+  "files": ["assets/theme.asset.json", "extensions/theme-importer.json"],
+  "asset_manifests": ["assets/theme.asset.json"],
+  "engine_extensions": ["extensions/theme-importer.json"]
+}
+```
+
+Both content lists must be subsets of `files`. Cooking reads only
+`demi.packages.lock.json` and `.demi/packages`; it never contacts a registry or
+selects versions. It verifies installed manifests against the lock, diagnoses
+stable-ID collisions, validates extension platform support, and records the
+source package and installed content hash for every cooked asset. Package
+removal is rejected while authored references or cooked manifests retain that
+package's assets.
+
+The integration test builds a complete installed-and-locked content fixture
+without a registry, cooks it twice for Linux and once for Android, and compares
+the Linux manifests for reproducibility while checking package provenance on
+both platforms.

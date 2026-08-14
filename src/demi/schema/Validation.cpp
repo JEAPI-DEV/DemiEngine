@@ -1,5 +1,6 @@
 #include "demi/schema/Validation.h"
 
+#include "demi/assets/AssetGroup.h"
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/SceneBudget3D.h"
 #include "demi/filesystem/ProjectPaths.h"
@@ -467,6 +468,9 @@ void validatePhysics3D(Diagnostics &diagnostics,
 } // namespace
 
 SourceFileKind classifySourceFile(const std::filesystem::path &path) {
+  if (isAssetGroupFile(path)) {
+    return SourceFileKind::AssetGroup;
+  }
   if (isPackageManifestFile(path)) {
     return SourceFileKind::Package;
   }
@@ -605,20 +609,24 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
           diagnostics.push_back(
               {.severity = Severity::Error,
                .code = "PROJECT_PACKAGES_INVALID",
-               .message = "Project packages must be a name-to-constraint object.",
+               .message =
+                   "Project packages must be a name-to-constraint object.",
                .path = path.string(),
-               .suggestion = "Use packages: {\"demi.gameplay.health\": \"^1.0.0\"}."});
+               .suggestion =
+                   "Use packages: {\"demi.gameplay.health\": \"^1.0.0\"}."});
         } else {
           for (const auto &[name, constraint] : declared->items())
             if (!packages::validPackageName(name) || !constraint.is_string() ||
                 !packages::VersionConstraint::parse(
-                    constraint.is_string() ? constraint.get<std::string>() : ""))
+                    constraint.is_string() ? constraint.get<std::string>()
+                                           : ""))
               diagnostics.push_back(
                   {.severity = Severity::Error,
                    .code = "PROJECT_PACKAGE_REQUIREMENT_INVALID",
                    .message = "Invalid package requirement: " + name,
                    .path = path.string(),
-                   .suggestion = "Use a lowercase package name and semantic-version constraint."});
+                   .suggestion = "Use a lowercase package name and "
+                                 "semantic-version constraint."});
         }
       }
     } catch (const nlohmann::json::parse_error &) {
@@ -629,6 +637,44 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
     const auto loaded = packages::loadPackageManifest(path);
     diagnostics.insert(diagnostics.end(), loaded.diagnostics.begin(),
                        loaded.diagnostics.end());
+    break;
+  }
+  case SourceFileKind::AssetGroup: {
+    const auto group = assets::loadAssetGroup(path, &diagnostics);
+    if (group) {
+      const auto projectDirectory = findProjectDirectory(path);
+      if (projectDirectory) {
+        std::vector<std::string> declaredScenes;
+        for (const auto &source : collectKnownSourceFiles(*projectDirectory))
+          if (isProjectFile(source)) {
+            declaredScenes = extractSceneReferences(source);
+            break;
+          }
+        (void)assets::resolveAssetGroup(
+            *group, loadAssetRegistry(*projectDirectory),
+            [&](const std::string_view root, Diagnostics *issues) {
+              if (root.starts_with("scene://") &&
+                  std::ranges::find(declaredScenes, root) !=
+                      declaredScenes.end())
+                return std::vector<std::string>{};
+              if (issues != nullptr)
+                issues->push_back(
+                    {.severity = Severity::Error,
+                     .code = root.starts_with("scene://")
+                                 ? "ASSET_GROUP_SCENE_ROOT_NOT_FOUND"
+                                 : "ASSET_GROUP_ROOT_UNSUPPORTED",
+                     .message = root.starts_with("scene://")
+                                    ? "Asset-group scene root is not declared "
+                                      "by the project: " +
+                                          std::string(root)
+                                    : "Unsupported asset-group root: " +
+                                          std::string(root),
+                     .path = path.string()});
+              return std::vector<std::string>{};
+            },
+            &diagnostics);
+      }
+    }
     break;
   }
   case SourceFileKind::Scene:

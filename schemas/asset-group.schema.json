@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demiengine.local/schemas/asset-group.schema.json",
+  "title": "DemiEngine Addressable Asset Group",
+  "type": "object",
+  "required": ["format_version", "id", "roots", "budget"],
+  "additionalProperties": false,
+  "properties": {
+    "format_version": {"const": 1},
+    "id": {"type": "string", "pattern": "^asset-group://.+"},
+    "roots": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^(asset|scene)://.+"}
+    },
+    "budget": {
+      "type": "object",
+      "required": ["resident_mb", "upload_ms_per_frame"],
+      "additionalProperties": false,
+      "properties": {
+        "resident_mb": {"type": "number", "exclusiveMinimum": 0},
+        "decoded_mb": {"type": "number", "exclusiveMinimum": 0},
+        "upload_ms_per_frame": {"type": "number", "exclusiveMinimum": 0}
+      }
+    }
+  }
+}

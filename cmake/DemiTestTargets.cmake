@@ -33,6 +33,10 @@
     PRIVATE demi-runtime-lib)
   target_compile_definitions(demi-runtime-lifetime-failure-tests
     PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-runtime-asset-service-tests
+    tests/runtime_asset_service_tests.cpp)
+  target_link_libraries(demi-runtime-asset-service-tests
+    PRIVATE demi-runtime-lib)
 
   add_executable(demi-physics2d-tests tests/physics2d_tests.cpp)
   target_link_libraries(demi-physics2d-tests PRIVATE demi-runtime-lib)
@@ -179,6 +183,10 @@
   target_link_libraries(demi-audio-phase7-tests PRIVATE demi-runtime-lib)
   add_executable(demi-asset-pipeline-tests tests/asset_pipeline_tests.cpp)
   target_link_libraries(demi-asset-pipeline-tests PRIVATE demi-core)
+  add_executable(demi-asset-streaming-tests tests/asset_streaming_tests.cpp)
+  target_link_libraries(demi-asset-streaming-tests PRIVATE demi-core)
+  target_compile_definitions(demi-asset-streaming-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-lightweight-3d-workflow-tests
     tests/lightweight_3d_workflow_tests.cpp)
   target_link_libraries(demi-lightweight-3d-workflow-tests PRIVATE demi-core)

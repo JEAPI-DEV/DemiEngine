@@ -16,7 +16,7 @@
     },
     "type": {
       "type": "string",
-      "enum": ["Texture2D", "Model3D", "AudioClip", "VideoClip", "DataAsset", "DataSchema", "NetworkContract"]
+      "enum": ["Texture2D", "TextureAtlas2D", "SpriteMetadata2D", "Font2D", "FontAtlas2D", "Model3D", "AudioClip", "VideoClip", "DataAsset", "DataSchema", "NetworkContract", "Material", "Shader", "RenderTarget", "Tilemap2D", "Icon2D", "SvgTexture2D", "GifAnimation2D", "ImageAnimation2D"]
     },
     "source": {
       "type": "string"
@@ -41,6 +41,57 @@
         },
         "mipmaps": {
           "type": "boolean"
+        },
+        "compression": {
+          "type": "string"
+        },
+        "quality": {
+          "type": "integer", "minimum": 0, "maximum": 100
+        },
+        "platform_overrides": {
+          "type": "object",
+          "propertyNames": {"enum": ["linux", "linux_server", "android"]},
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "compression": {"type": "string"},
+              "quality": {"type": "integer", "minimum": 0, "maximum": 100},
+              "mipmaps": {"type": "boolean"}
+            }
+          }
+        },
+        "sprites": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "source", "pivot"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^asset://"},
+              "source": {"type": "string", "pattern": "^asset://"},
+              "rect": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "integer", "minimum": 0}},
+              "pivot": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}},
+              "border": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "integer", "minimum": 0}},
+              "animation_tag": {"type": "string"}
+            }
+          }
+        },
+        "glyph_ranges": {
+          "type": "array", "items": {"type": "string"}
+        },
+        "pixel_height": {
+          "type": "number", "exclusiveMinimum": 0
+        },
+        "page_size": {
+          "type": "integer", "minimum": 1, "maximum": 8192
+        },
+        "fallbacks": {
+          "type": "array", "items": {"type": "string", "pattern": "^asset://"}
+        },
+        "padding": {
+          "type": "integer", "minimum": 0
+        },
+        "bleed": {
+          "type": "integer", "minimum": 0
         }
       }
     }

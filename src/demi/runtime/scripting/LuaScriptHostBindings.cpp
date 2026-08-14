@@ -7,6 +7,7 @@
 #include "demi/runtime/scripting/bindings/LuaRandomBindings.h"
 #include "demi/runtime/scripting/bindings/LuaTlsBindings.h"
 #include "demi/runtime/scripting/bindings/animation/LuaAnimationBindings.h"
+#include "demi/runtime/scripting/bindings/assets/LuaAssetsBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaCamera3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaCharacterController3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics2DBindings.h"
@@ -76,6 +77,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaRandomBindingModule random;
   const LuaIsoGridBindingModule isoGrid;
   const LuaAnimationBindingModule animation;
+  const LuaAssetsBindingModule assets;
   const LuaNavigation2DBindingModule navigation2D;
   const LuaTilemap2DBindingModule tilemap2D;
   const LuaDataBindingModule data;
@@ -102,6 +104,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
                                        &random,
                                        &isoGrid,
                                        &animation,
+                                       &assets,
                                        &navigation2D,
                                        &tilemap2D,
                                        &data};
@@ -218,16 +221,15 @@ void luaConfigurePackagePath(lua_State *state, const ProjectData &project) {
         roots.push_back(entry.path() / "scripts");
     std::ranges::sort(roots);
     for (const auto &root : roots)
-      packagePaths += root.string() + "/?.lua;" + root.string() +
-                      "/?/init.lua;";
+      packagePaths +=
+          root.string() + "/?.lua;" + root.string() + "/?/init.lua;";
   }
   const std::string path = packagePaths + scripts.string() + "/?.lua;" +
-                           scripts.string() +
-                           "/?/init.lua;" + project.projectDirectory.string() +
-                           "/?.lua;" + project.projectDirectory.string() +
-                           "/?/init.lua;" + runtimeScripts.string() +
-                           "/?.lua;" + runtimeScripts.string() +
-                           "/?/init.lua;" + current;
+                           scripts.string() + "/?/init.lua;" +
+                           project.projectDirectory.string() + "/?.lua;" +
+                           project.projectDirectory.string() + "/?/init.lua;" +
+                           runtimeScripts.string() + "/?.lua;" +
+                           runtimeScripts.string() + "/?/init.lua;" + current;
   lua_pushstring(state, path.c_str());
   lua_setfield(state, -2, "path");
   lua_pop(state, 1);

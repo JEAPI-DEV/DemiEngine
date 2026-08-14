@@ -43,6 +43,8 @@ files. New imports record all pipeline metadata:
 ```
 
 Use `demi asset reimport` to upgrade an older manifest before loading it.
+Platform overrides, generated atlas/font metadata, addressable groups, and
+locked package content are described in [Asset Iteration and Streaming](asset-streaming.md).
 Tools that produce sources under a project's `assets/` directory should use
 `demi asset register-generated` instead of calculating `source_hash` or writing
 manifest metadata themselves.

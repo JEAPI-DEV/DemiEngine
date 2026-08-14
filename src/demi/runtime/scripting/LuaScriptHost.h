@@ -35,6 +35,7 @@ struct AudioPlaybackRequest;
 class AudioSystem;
 class MediaSystem;
 class NetworkSystem;
+class RuntimeAssetService;
 
 class LuaScriptHost {
 public:
@@ -59,6 +60,8 @@ public:
                                 AudioSystem *audio, std::string &error);
   void setMediaSystem(MediaSystem *media);
   void setNetworkSystem(NetworkSystem *network);
+  void setRuntimeAssetService(RuntimeAssetService *assets);
+  [[nodiscard]] RuntimeAssetService *runtimeAssetService() const;
   void setAssetRegistry(const demi::AssetRegistry *assets);
   [[nodiscard]] const NetworkContract *networkContract() const;
   [[nodiscard]] DataAssetStore &dataAssetStore();
@@ -638,6 +641,7 @@ private:
   AudioSystem *audio_ = nullptr;
   MediaSystem *media_ = nullptr;
   NetworkSystem *network_ = nullptr;
+  RuntimeAssetService *runtimeAssets_ = nullptr;
   std::filesystem::path projectDirectory_;
   int viewportWidth_ = 1;
   int viewportHeight_ = 1;
@@ -662,6 +666,10 @@ private:
   bool cutscenePaused_ = false;
   bool previousUiMouseDown_ = false;
   std::optional<std::string> pendingSceneUnload_;
+  std::uint64_t preparedSceneAssetRequest_ = 0;
+  std::string preparedSceneAssetId_;
+  std::string sceneAssetError_;
+  std::unordered_set<std::string> activeSceneAssetGroups_;
   bool pendingPreparedActivation_ = false;
   bool autoActivatePrepared_ = false;
   std::string activeCutscene_;

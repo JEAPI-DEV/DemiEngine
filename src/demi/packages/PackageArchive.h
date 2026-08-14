@@ -2,6 +2,7 @@
 
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/packages/PackageManifest.h"
+#include "demi/packages/PackageHash.h"
 
 #include <filesystem>
 #include <optional>
@@ -15,9 +16,6 @@ struct PackageArchiveInfo {
   std::string archiveHash;
 };
 
-[[nodiscard]] std::optional<std::string>
-sha256File(const std::filesystem::path &path);
-[[nodiscard]] std::string sha256Text(std::string_view text);
 [[nodiscard]] Diagnostics
 createPackageArchive(const std::filesystem::path &packageRoot,
                      const std::filesystem::path &outputPath);

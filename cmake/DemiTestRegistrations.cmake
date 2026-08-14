@@ -26,6 +26,8 @@ add_test(NAME demi-runtime-scene-prefab-tests
   COMMAND demi-runtime-scene-prefab-tests)
 add_test(NAME demi-runtime-lifetime-failure-tests
   COMMAND demi-runtime-lifetime-failure-tests)
+add_test(NAME demi-runtime-asset-service-tests
+  COMMAND demi-runtime-asset-service-tests)
 set_tests_properties(demi-runtime-lifetime-failure-tests
   PROPERTIES LABELS "lifetime")
 add_test(NAME demi-capabilities-export
@@ -97,6 +99,7 @@ add_test(NAME demi-animation-primitives-tests COMMAND demi-animation-primitives-
 add_test(NAME demi-animation-phase7-tests COMMAND demi-animation-phase7-tests)
 add_test(NAME demi-audio-phase7-tests COMMAND demi-audio-phase7-tests)
 add_test(NAME demi-asset-pipeline-tests COMMAND demi-asset-pipeline-tests)
+add_test(NAME demi-asset-streaming-tests COMMAND demi-asset-streaming-tests)
 add_test(NAME demi-lightweight-3d-workflow-tests
   COMMAND demi-lightweight-3d-workflow-tests)
 add_test(NAME demi-data-asset-tests COMMAND demi-data-asset-tests)

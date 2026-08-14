@@ -40,7 +40,9 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scene/ProjectParser.cpp
   src/demi/runtime/scene/SceneEntityParser.cpp
   src/demi/runtime/scene/SceneFlow.cpp
+  src/demi/runtime/scene/SceneAssetReferences.cpp
   src/demi/runtime/scene/SceneLoader.cpp
+  src/demi/runtime/assets/RuntimeAssetService.cpp
   src/demi/runtime/scripting/LuaScriptHostBindings.cpp
   src/demi/runtime/scripting/LuaScriptHost.cpp
   src/demi/runtime/scripting/LuaBindingCleanup.cpp
@@ -73,6 +75,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/components/LuaTilemap2DBindings.cpp
   src/demi/runtime/scripting/bindings/data/LuaDataBindings.cpp
   src/demi/runtime/scripting/bindings/animation/LuaAnimationBindings.cpp
+  src/demi/runtime/scripting/bindings/assets/LuaAssetsBindings.cpp
   src/demi/runtime/scripting/bindings/hud/LuaHudBindings.cpp
   src/demi/runtime/scripting/bindings/media/LuaAudioBindings.cpp
   src/demi/runtime/scripting/bindings/media/LuaCutsceneBindings.cpp

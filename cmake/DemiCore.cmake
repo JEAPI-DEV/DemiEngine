@@ -13,6 +13,11 @@ add_library(demi-core STATIC
   src/demi/assets/GltfSkinnedModel.cpp
   src/demi/assets/AssetSourceFiles.cpp
   src/demi/assets/AssetImporter.cpp
+  src/demi/assets/AssetImporterRegistry.cpp
+  src/demi/assets/AssetCookGraph.cpp
+  src/demi/assets/AssetGroup.cpp
+  src/demi/assets/GeneratedAtlasCooker.cpp
+  src/demi/assets/PackageContent.cpp
   src/demi/assets/AssetPackage.cpp
   src/demi/assets/AssetCooker.cpp
   src/demi/assets/RenderAsset.cpp
@@ -23,6 +28,8 @@ add_library(demi-core STATIC
   src/demi/filesystem/ProjectPaths.cpp
   src/demi/packages/SemanticVersion.cpp
   src/demi/packages/PackageManifest.cpp
+  src/demi/packages/PackageHash.cpp
+  src/demi/packages/PackageLock.cpp
   src/demi/schema/Validation.cpp
   src/demi/runtime/scene/composition/PrefabResolver.cpp
   src/demi/runtime/ui/UiLayoutEngine.cpp
@@ -68,11 +75,12 @@ add_library(demi-core STATIC
 
 target_include_directories(demi-core PUBLIC src "${DEMI_GENERATED_INCLUDE_DIR}")
 target_include_directories(demi-core PRIVATE
-  "${bgfx_SOURCE_DIR}/bgfx/3rdparty/cgltf")
+  "${bgfx_SOURCE_DIR}/bgfx/3rdparty/cgltf"
+  "${bgfx_SOURCE_DIR}/bgfx/3rdparty/stb")
 
 target_compile_features(demi-core PUBLIC cxx_std_20)
 target_link_libraries(demi-core PUBLIC nlohmann_json::nlohmann_json box2d
-  utf8proc harfbuzz SheenBidi::SheenBidi)
+  utf8proc harfbuzz SheenBidi::SheenBidi mbedcrypto bimg_decode bimg)
 set(DEMI_HOST_SHADERC "" CACHE FILEPATH
   "Existing host shaderc executable to reuse instead of building shaderc")
 if(NOT ANDROID)

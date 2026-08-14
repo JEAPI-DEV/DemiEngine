@@ -60,6 +60,7 @@ void printHelp() {
          "bounds] [--format json]\n"
       << "  demi asset deps <asset>\n"
       << "  demi asset import <source> --project <project> --id asset://id "
+         "[--importer id] "
          "[--preset static_prop|animated_character|environment|billboard] "
          "[--up +y] [--forward +z] [--meters-per-unit 1]\n"
       << "  demi asset reimport <asset>\n"

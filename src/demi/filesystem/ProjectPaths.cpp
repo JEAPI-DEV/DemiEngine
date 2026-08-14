@@ -47,6 +47,10 @@ bool isPackageManifestFile(const std::filesystem::path &path) {
   return path.filename() == "demi.package.json";
 }
 
+bool isAssetGroupFile(const std::filesystem::path &path) {
+  return path.filename().string().ends_with(".asset-group.json");
+}
+
 std::vector<std::filesystem::path>
 collectKnownSourceFiles(const std::filesystem::path &root) {
   std::vector<std::filesystem::path> files;
@@ -58,7 +62,7 @@ collectKnownSourceFiles(const std::filesystem::path &root) {
     if (isProjectFile(root) || isSceneFile(root) || isHudFile(root) ||
         isSaveFile(root) || isAssetFile(root) || isPrefabFile(root) ||
         isUiPrefabFile(root) || isInputReplayFile(root) ||
-        isPackageManifestFile(root)) {
+        isPackageManifestFile(root) || isAssetGroupFile(root)) {
       files.push_back(root);
     }
     return files;
@@ -74,7 +78,7 @@ collectKnownSourceFiles(const std::filesystem::path &root) {
     if (isProjectFile(path) || isSceneFile(path) || isHudFile(path) ||
         isSaveFile(path) || isAssetFile(path) || isPrefabFile(path) ||
         isUiPrefabFile(path) || isInputReplayFile(path) ||
-        isPackageManifestFile(path)) {
+        isPackageManifestFile(path) || isAssetGroupFile(path)) {
       files.push_back(path);
     }
   }

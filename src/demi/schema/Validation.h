@@ -19,6 +19,7 @@ enum class SourceFileKind {
   UiPrefab,
   InputReplay,
   Package,
+  AssetGroup,
 };
 
 struct ValidationSummary {
