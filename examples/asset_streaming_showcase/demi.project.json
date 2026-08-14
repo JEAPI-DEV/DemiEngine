@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "name": "Asset Streaming Showcase",
+  "main_scene": "scene://asset_streaming_showcase/main",
+  "scenes": [
+    {
+      "id": "scene://asset_streaming_showcase/main",
+      "path": "scenes/main.scene.json"
+    }
+  ],
+  "scripting": {
+    "language": "lua54",
+    "modules": []
+  }
+}

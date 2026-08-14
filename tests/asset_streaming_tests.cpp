@@ -207,6 +207,8 @@ void sceneRootGroupValidationTest() {
                     "demi-scene-root-group-validation-test";
   std::filesystem::remove_all(root);
   std::filesystem::create_directories(root / "scenes");
+  std::filesystem::create_directories(root / "assets/groups");
+  const auto groupPath = root / "assets/groups/chapter.asset-group.json";
   {
     std::ofstream project(root / "demi.project.json");
     project
@@ -214,19 +216,28 @@ void sceneRootGroupValidationTest() {
     std::ofstream scene(root / "scenes/main.scene.json");
     scene
         << R"({"format_version":1,"id":"scene://main","name":"Main","entities":[]})";
-    std::ofstream group(root / "chapter.asset-group.json");
+    std::ofstream group(groupPath);
     group
         << R"({"format_version":1,"id":"asset-group://chapter","roots":["scene://main"],"budget":{"resident_mb":1,"upload_ms_per_frame":1}})";
   }
-  const auto valid = demi::validatePath(root / "chapter.asset-group.json");
+  const auto valid = demi::validatePath(groupPath);
   assert(!demi::hasErrors(valid.diagnostics));
 
+  const auto cooked = root / "generated/cooked";
+  const auto cookDiagnostics =
+      demi::assets::cookProject({.projectFile = root / "demi.project.json",
+                                 .outputDirectory = cooked,
+                                 .platform = "linux"});
+  assert(!demi::hasErrors(cookDiagnostics));
+  assert(std::filesystem::is_regular_file(
+      cooked / "assets/groups/chapter.asset-group.json"));
+
   {
-    std::ofstream group(root / "chapter.asset-group.json");
+    std::ofstream group(groupPath);
     group
         << R"({"format_version":1,"id":"asset-group://chapter","roots":["scene://missing"],"budget":{"resident_mb":1,"upload_ms_per_frame":1}})";
   }
-  const auto invalid = demi::validatePath(root / "chapter.asset-group.json");
+  const auto invalid = demi::validatePath(groupPath);
   assert(std::ranges::any_of(invalid.diagnostics, [](const auto &diagnostic) {
     return diagnostic.code == "ASSET_GROUP_SCENE_ROOT_NOT_FOUND";
   }));

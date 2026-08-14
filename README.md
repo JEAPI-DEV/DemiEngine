@@ -280,6 +280,7 @@ Examples are executable engine probes, not throwaway snippets:
 | `ui_showcase` | Responsive retained UI, controls, layout, text input, and virtualization ![ui_showcase](images/ui_showcase_1.png)|
 | `main_menu_animated` | UI animation and animated sprite presentation ![main_menu_animated](images/main_menu_animated.png) |
 | `main_menu_gif` | GIF wallpaper and SVG-driven mobile-style UI |
+| `asset_streaming_showcase` | Optional group preparation, progress, activation, cancellation, reload, release, transitive dependencies, and backend memory ownership |
 | `minimal_3d` | Lightweight 3D movement, queries, collisions, materials, and debug overlays ![minimal_3d](images/minimal_3d.png) |
 | `animation_3d` | glTF skeletal animation selection and playback ![animation_3d](images/animation_3d.png) |
 | `minimal_voxel` | Chunked voxel-style terrain, editing, particles, lighting, and profiling ![minimal_voxel](images/minimal_voxel.png) |

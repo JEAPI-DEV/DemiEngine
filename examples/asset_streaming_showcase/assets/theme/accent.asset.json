@@ -1,0 +1,17 @@
+{
+  "dependencies": [
+    "asset://theme/badge"
+  ],
+  "format_version": 1,
+  "id": "asset://theme/accent",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "bilinear",
+    "mipmaps": false,
+    "wrap": "clamp"
+  },
+  "source": "accent.svg",
+  "source_hash": "fnv1a64:8de8ca695dd20d06",
+  "type": "SvgTexture2D"
+}

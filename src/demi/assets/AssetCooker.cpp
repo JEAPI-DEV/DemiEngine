@@ -76,6 +76,32 @@ void addProjectFiles(const std::filesystem::path &projectDirectory,
   }
 }
 
+void addAssetGroupFiles(const std::filesystem::path &projectDirectory,
+                        std::set<std::filesystem::path> &files,
+                        Diagnostics &diagnostics) {
+  const auto assetsDirectory = projectDirectory / "assets";
+  if (!std::filesystem::is_directory(assetsDirectory))
+    return;
+
+  std::error_code code;
+  for (std::filesystem::recursive_directory_iterator
+           iterator(assetsDirectory, code),
+       end;
+       iterator != end; iterator.increment(code)) {
+    if (code) {
+      diagnostics.push_back({.severity = Severity::Error,
+                             .code = "COOK_ASSET_GROUP_SCAN_FAILED",
+                             .message = code.message(),
+                             .path = assetsDirectory.string(),
+                             .suggestion = {}});
+      return;
+    }
+    if (iterator->is_regular_file() &&
+        iterator->path().filename().string().ends_with(".asset-group.json"))
+      files.insert(iterator->path());
+  }
+}
+
 std::string shellQuote(const std::filesystem::path &path) {
   std::string result = "'";
   for (const char character : path.string())
@@ -233,6 +259,7 @@ Diagnostics cookProject(const CookRequest &request) {
 
   std::set<std::filesystem::path> files;
   addProjectFiles(projectDirectory, files, diagnostics);
+  addAssetGroupFiles(projectDirectory, files, diagnostics);
   for (const auto &asset : registry.assets)
     for (const auto &file : collectAssetFiles(asset)) {
       if (!pathIsInside(projectDirectory, file))

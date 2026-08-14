@@ -151,6 +151,11 @@ Low-memory notifications cancel non-active preparation work without evicting
 active groups. `restoreResources` reapplies each native backend's current
 resident snapshot after a graphics device or surface recreation.
 
+The runnable [`asset_streaming_showcase`](../examples/asset_streaming_showcase/README.md)
+keeps its initial scene asset-free and drives an optional, transitively rooted
+SVG group through prepare, progress, activation, cancellation, explicit reload,
+release, and memory reporting.
+
 ## Locked package content
 
 Packages can declare reusable content without changing Step 4 resolution:

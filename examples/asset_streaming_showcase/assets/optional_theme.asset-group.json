@@ -1,0 +1,10 @@
+{
+  "format_version": 1,
+  "id": "asset-group://optional_theme",
+  "roots": ["asset://theme/accent"],
+  "budget": {
+    "resident_mb": 4,
+    "decoded_mb": 2,
+    "upload_ms_per_frame": 2
+  }
+}

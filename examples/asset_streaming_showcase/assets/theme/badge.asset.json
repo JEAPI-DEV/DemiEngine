@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://theme/badge",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "bilinear",
+    "mipmaps": false,
+    "wrap": "clamp"
+  },
+  "source": "badge.svg",
+  "source_hash": "fnv1a64:2afd3cc6534a5bd3",
+  "type": "SvgTexture2D"
+}

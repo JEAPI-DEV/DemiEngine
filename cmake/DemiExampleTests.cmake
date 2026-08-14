@@ -139,6 +139,33 @@ add_test(NAME demi-runtime-gif-main-menu-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/main_menu_gif/demi.project.json --max-frames 3
 )
 set_tests_properties(demi-runtime-gif-main-menu-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-asset-streaming-showcase
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/asset_streaming_showcase/demi.project.json --max-frames 20
+)
+set_tests_properties(demi-runtime-asset-streaming-showcase PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1"
+  PASS_REGULAR_EXPRESSION "Asset streaming showcase activated optional theme group")
+add_test(NAME demi-validate-asset-streaming-showcase
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/asset_streaming_showcase/demi.project.json
+)
+add_test(NAME demi-script-check-asset-streaming-showcase
+  COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/asset_streaming_showcase/scripts/asset_streaming_showcase.lua
+)
+add_test(NAME demi-cook-asset-streaming-showcase
+  COMMAND demi cook
+    --project ${CMAKE_SOURCE_DIR}/examples/asset_streaming_showcase/demi.project.json
+    --platform linux
+    --output ${CMAKE_BINARY_DIR}/generated/ctest-asset-streaming-showcase
+)
+add_test(NAME demi-runtime-cooked-asset-streaming-showcase
+  COMMAND demi run
+    --project ${CMAKE_BINARY_DIR}/generated/ctest-asset-streaming-showcase/demi.project.json
+    --max-frames 20
+)
+set_tests_properties(demi-runtime-cooked-asset-streaming-showcase PROPERTIES
+  DEPENDS demi-cook-asset-streaming-showcase
+  ENVIRONMENT "DEMI_HEADLESS=1"
+  PASS_REGULAR_EXPRESSION "Asset streaming showcase activated optional theme group")
 add_test(NAME demi-validate-minimal-2d-networking
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json
 )
