@@ -106,6 +106,33 @@ The editor executable is currently a boundary, not a functional editor. Editor
 work starts after components, prefabs, UI layout, saves, and command semantics
 are stable. It must never create hidden state that the CLI cannot validate.
 
+## Keeping Large Translation Units Cohesive
+
+Line count is a warning, not an architectural boundary. Split a file when it
+has multiple owners or reasons to change; keep dense domain algorithms together
+when separating them would only add forwarding APIs.
+
+The current refactoring order is:
+
+1. `RuntimeApp.cpp`: keep it as the composition root and move reusable policies
+   behind runtime services. Step 7 has already extracted initial asset
+   preparation into `RuntimeAssetBootstrap` and atomic watched reload into
+   `RuntimeAssetReload`. Later loop extraction should produce headless, 2D, and
+   3D runners without introducing a second startup configuration object.
+2. `BgfxRenderer3D.cpp`: separate asset decode/upload and render-pass assembly
+   when those areas next change. `Bgfx3DAppHost` remains the native lifetime
+   owner; the renderer should not gain application or scene-flow policy.
+3. `Physics2D.cpp` and `PhysicsWorld3D.cpp`: separate body/shape construction,
+   simulation synchronization, contacts, and queries along existing domain
+   seams. Do not split individual collision algorithms merely to reduce lines.
+4. `LuaNetworkSessionBindings.cpp`: move session policy into runtime network
+   services and leave topic-based binding installers as thin Lua adapters.
+5. `Validation.cpp`: separate format-specific validators behind the existing
+   shared diagnostic contract, without duplicating schema or parsing rules.
+
+New functionality should follow these boundaries now; older files can migrate
+incrementally when behavior changes provide focused regression coverage.
+
 ## Compatibility
 
 All durable format changes follow the [compatibility policy](compatibility.md).

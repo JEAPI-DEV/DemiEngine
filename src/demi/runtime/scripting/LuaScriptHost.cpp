@@ -53,6 +53,11 @@ void LuaScriptHost::setRuntimeAssetService(RuntimeAssetService *assets) {
   runtimeAssets_ = assets;
 }
 
+void LuaScriptHost::adoptActiveSceneAssetGroup(std::string sceneId) {
+  if (!sceneId.empty())
+    activeSceneAssetGroups_.insert(std::move(sceneId));
+}
+
 RuntimeAssetService *LuaScriptHost::runtimeAssetService() const {
   return runtimeAssets_;
 }

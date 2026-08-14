@@ -11,6 +11,10 @@
 #include <string_view>
 #include <vector>
 
+namespace demi::assets {
+class AssetResourceLoader;
+}
+
 namespace demi::runtime::render {
 class GpuResources;
 class RenderCommands;
@@ -45,6 +49,8 @@ public:
   [[nodiscard]] bool reloadAssets(const AssetRegistry &assets,
                                   std::vector<std::string> &diagnostics,
                                   std::string &error);
+  [[nodiscard]] std::shared_ptr<assets::AssetResourceLoader>
+  createAssetLoader(const AssetRegistry &source);
   void shutdown();
 
   void poll(InputState &input);

@@ -61,6 +61,7 @@ public:
   void setMediaSystem(MediaSystem *media);
   void setNetworkSystem(NetworkSystem *network);
   void setRuntimeAssetService(RuntimeAssetService *assets);
+  void adoptActiveSceneAssetGroup(std::string sceneId);
   [[nodiscard]] RuntimeAssetService *runtimeAssetService() const;
   void setAssetRegistry(const demi::AssetRegistry *assets);
   [[nodiscard]] const NetworkContract *networkContract() const;

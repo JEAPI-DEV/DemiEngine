@@ -1,5 +1,7 @@
 #include "demi/runtime/app/Bgfx3DAppHost.h"
 
+#include "demi/runtime/assets/RegistryAssetResourceLoader.h"
+
 namespace demi::runtime {
 
 class Bgfx3DAppHost::RendererOwner {
@@ -55,6 +57,26 @@ bool Bgfx3DAppHost::reloadAssets(const AssetRegistry &assets,
   renderer_ = std::move(candidate);
   cameraScheduler_ = {};
   return true;
+}
+
+std::shared_ptr<assets::AssetResourceLoader>
+Bgfx3DAppHost::createAssetLoader(const AssetRegistry &source) {
+  return std::make_shared<RegistryAssetResourceLoader>(
+      source,
+      RegistryAssetBackend{
+          .name = "bgfx-3d",
+          .assetTypes = {"Font2D", "GifAnimation2D", "Icon2D",
+                         "ImageAnimation2D", "Material", "Model3D",
+                         "RenderTarget", "Shader", "SvgTexture2D", "Texture2D",
+                         "Tilemap2D"},
+          .apply = [this](const AssetRegistry &assets, std::string &error) {
+            std::vector<std::string> diagnostics;
+            if (reloadAssets(assets, diagnostics, error))
+              return true;
+            if (error.empty() && !diagnostics.empty())
+              error = diagnostics.front();
+            return false;
+          }});
 }
 
 void Bgfx3DAppHost::shutdown() {

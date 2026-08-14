@@ -5,6 +5,7 @@
 #include "demi/runtime/scene/SceneLoader.h"
 
 #include <fstream>
+#include <functional>
 #include <map>
 
 namespace demi::runtime {
@@ -26,7 +27,14 @@ struct ResidentSourcePayload {
 
 class ResidentSourceAssetLoader final : public assets::AssetResourceLoader {
 public:
-  bool supports(const AssetManifest &) const override { return true; }
+  using SupportPredicate = std::function<bool(const AssetManifest &)>;
+
+  explicit ResidentSourceAssetLoader(SupportPredicate supports = {})
+      : supports_(std::move(supports)) {}
+
+  bool supports(const AssetManifest &asset) const override {
+    return !supports_ || supports_(asset);
+  }
 
   std::optional<assets::DecodedAsset>
   readAndDecode(const AssetManifest &asset, const std::atomic_bool &isCancelled,
@@ -82,12 +90,22 @@ public:
   std::string_view backendName() const override { return "resident-source"; }
 
 private:
+  SupportPredicate supports_;
   std::map<std::string, std::shared_ptr<void>> resident_;
 };
 
 } // namespace
 
 RuntimeAssetService::~RuntimeAssetService() = default;
+
+void RuntimeAssetService::shutdown() {
+  service_.reset();
+  groups_.clear();
+  loaders_.clear();
+  fallbackLoader_.reset();
+  registry_ = nullptr;
+  project_ = {};
+}
 
 bool RuntimeAssetService::configure(const ProjectData &project,
                                     const AssetRegistry &registry,
@@ -111,8 +129,14 @@ bool RuntimeAssetService::configure(const ProjectData &project,
       registry, [this](const std::string_view root, Diagnostics *issues) {
         return resolveRoot(root, issues);
       });
-  if (loaders_.empty())
-    loaders_.push_back(createResidentSourceAssetLoader());
+  if (!fallbackLoader_) {
+    fallbackLoader_ = std::make_shared<ResidentSourceAssetLoader>(
+        ResidentSourceAssetLoader::SupportPredicate{
+            [this](const AssetManifest &asset) {
+              return isFallbackAsset(asset);
+            }});
+    loaders_.push_back(fallbackLoader_);
+  }
   for (const auto &loader : loaders_)
     service_->registerLoader(loader);
   return diagnostics == nullptr || !hasErrors(*diagnostics);
@@ -216,8 +240,54 @@ bool RuntimeAssetService::reload(const std::string_view assetId,
   return service_ && service_->reload(assetId, diagnostics);
 }
 
+bool RuntimeAssetService::reloadChangedResidentAssets(
+    const AssetRegistry &previous, Diagnostics *diagnostics) {
+  if (!service_ || registry_ == nullptr)
+    return false;
+  const auto changed = [](const AssetManifest &before,
+                          const AssetManifest &after) {
+    return before.type != after.type || before.importer != after.importer ||
+           before.importerVersion != after.importerVersion ||
+           before.sourceHash != after.sourceHash ||
+           before.settingsJson != after.settingsJson ||
+           before.dependencies != after.dependencies ||
+           before.sourcePaths != after.sourcePaths;
+  };
+  for (const assets::AssetMemoryEntry &entry :
+       service_->memoryReport().assets) {
+    const AssetManifest *before = findAsset(previous, entry.assetId);
+    const AssetManifest *after = findAsset(*registry_, entry.assetId);
+    if (before == nullptr || after == nullptr) {
+      report(diagnostics, "ASSET_RELOAD_RESIDENT_ID_REMOVED",
+             "A watched reload cannot remove or replace a resident stable ID.",
+             entry.assetId);
+      return false;
+    }
+    if (changed(*before, *after) &&
+        !service_->reload(entry.assetId, diagnostics))
+      return false;
+  }
+  return true;
+}
+
+bool RuntimeAssetService::restoreResources(Diagnostics *diagnostics) {
+  return service_ && service_->restoreResources(diagnostics);
+}
+
+void RuntimeAssetService::handleLowMemory() {
+  if (service_)
+    service_->cancelPending();
+}
+
 assets::AssetMemoryReport RuntimeAssetService::memoryReport() const {
   return service_ ? service_->memoryReport() : assets::AssetMemoryReport{};
+}
+
+bool RuntimeAssetService::isFallbackAsset(const AssetManifest &asset) const {
+  for (const auto &loader : loaders_)
+    if (loader.get() != fallbackLoader_.get() && loader->supports(asset))
+      return false;
+  return true;
 }
 
 std::vector<std::string>

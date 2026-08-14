@@ -1360,18 +1360,16 @@ rule, disconnect policy, and numerical limit before a session starts.
 Larger games need fast iteration and explicit memory ownership rather than a
 single startup asset set.
 
-**Status: in progress.** Importer registration, deterministic transitive cook
+**Status: completed.** Importer registration, deterministic transitive cook
 keys and verified output caching, addressable groups, scene-root discovery,
 the public Lua `Assets` API, per-platform settings, locked package provenance,
-and deterministic texture/font atlas generation are implemented and covered by
-focused tests. Concurrent preparations now share one in-flight decode/upload,
-including cancellation handoff. Scene transitions now prepare their scene root
-as an implicit group and commit asset activation with the scene at the frame
-boundary, so they do not require a duplicate startup manifest. The runtime
-currently uses a headless-safe resident-source loader; renderer/audio-native
-loaders, hot-reload parity, and the remaining backend failure matrix remain
-before this step meets its end-to-end done criteria. Package identity, registry
-resolution, installation, and lock ownership remain owned by Step 4.
+and deterministic texture/font atlas generation are implemented. Initial and
+transition scenes use the same implicit group contract, with activation before
+Lua start or atomically with a world swap. Renderer and audio resources now use
+native backend loaders instead of a second eager cache; watched reload, backend
+restoration, Android low-memory cancellation, shutdown, and rollback use that
+same ownership path. Package identity, registry resolution, installation, and
+lock ownership remain owned by Step 4.
 
 ### Implemented in the current Step 7 slice
 
@@ -1398,17 +1396,15 @@ resolution, installation, and lock ownership remain owned by Step 4.
   keys and records package/content-hash provenance without registry access.
   A self-contained locked installation cooks reproducibly twice for Linux and
   once for Android while retaining identical package provenance.
-
-### Remaining before Step 7 is complete
-
-- Replace the resident-source fallback with renderer, audio, and script
-  loaders that own the actual backend resources used during rendering and
-  playback, without retaining a second eager cache.
-- Route watched asset reloads through the same loaders and prove ordinary load,
-  reload, cancellation, surface recreation, and low-memory failure parity.
-- Finish the backend failure matrix for cancellation during upload, graphics
-  surface recreation, and Android low-memory handling, then promote the
-  experimental capability reference when the native loaders are in place.
+- `RegistryAssetResourceLoader` gives bgfx 2D, bgfx 3D, and miniaudio native
+  ownership behind the normal group service. Headless and non-native asset
+  types retain a dynamic resident-source fallback without competing ownership.
+- Initial scene preparation, watched-registry reload with rollback, backend
+  snapshot restoration, low-memory cancellation, and explicit shutdown are
+  reusable runtime services rather than extra startup-file conventions.
+- Lua script modules remain under `LuaScriptHost`'s existing scene lifecycle;
+  they do not create a duplicate script asset cache. Their scene asset group is
+  adopted at startup and released through the normal transition path.
 
 ### Ownership model
 

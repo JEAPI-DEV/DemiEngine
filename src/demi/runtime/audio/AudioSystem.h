@@ -10,6 +10,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
+namespace demi::assets {
+class AssetResourceLoader;
+}
+
 namespace demi::runtime {
 
 class AudioBackend;
@@ -20,12 +24,15 @@ public:
   explicit AudioSystem(std::unique_ptr<AudioBackend> backend);
   ~AudioSystem();
 
-  AudioSystem(const AudioSystem&) = delete;
-  AudioSystem& operator=(const AudioSystem&) = delete;
+  AudioSystem(const AudioSystem &) = delete;
+  AudioSystem &operator=(const AudioSystem &) = delete;
 
   [[nodiscard]] bool initialize();
-  void loadAudioAssets(const AssetRegistry& registry);
-  [[nodiscard]] std::uint64_t play(const std::string& assetId, bool loop = false, float volume = 1.0F);
+  void loadAudioAssets(const AssetRegistry &registry);
+  [[nodiscard]] std::shared_ptr<assets::AssetResourceLoader>
+  createAssetLoader(const AssetRegistry &source);
+  [[nodiscard]] std::uint64_t play(const std::string &assetId,
+                                   bool loop = false, float volume = 1.0F);
   [[nodiscard]] std::uint64_t play(AudioPlaybackRequest request);
   [[nodiscard]] bool stop(std::uint64_t handle, float fadeOutSeconds = 0.0F);
   [[nodiscard]] bool configure(std::uint64_t handle,

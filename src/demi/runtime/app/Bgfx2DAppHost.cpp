@@ -1,5 +1,6 @@
 #include "demi/runtime/app/Bgfx2DAppHost.h"
 
+#include "demi/runtime/assets/RegistryAssetResourceLoader.h"
 #include "demi/runtime/render/BgfxRenderer2D.h"
 #include "demi/runtime/render/backend/GpuResources.h"
 #include "demi/runtime/render/backend/RenderCommands.h"
@@ -64,6 +65,25 @@ bool Bgfx2DAppHost::reloadAssets(const AssetRegistry &assets,
   renderer_->renderer.shutdown();
   renderer_ = std::move(candidate);
   return true;
+}
+
+std::shared_ptr<assets::AssetResourceLoader>
+Bgfx2DAppHost::createAssetLoader(const AssetRegistry &source) {
+  return std::make_shared<RegistryAssetResourceLoader>(
+      source,
+      RegistryAssetBackend{
+          .name = "bgfx-2d",
+          .assetTypes = {"Font2D", "GifAnimation2D", "Icon2D",
+                         "ImageAnimation2D", "Material", "RenderTarget",
+                         "Shader", "SvgTexture2D", "Texture2D", "Tilemap2D"},
+          .apply = [this](const AssetRegistry &assets, std::string &error) {
+            std::vector<std::string> diagnostics;
+            if (reloadAssets(assets, diagnostics, error))
+              return true;
+            if (error.empty() && !diagnostics.empty())
+              error = diagnostics.front();
+            return false;
+          }});
 }
 
 void Bgfx2DAppHost::shutdown() {

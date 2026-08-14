@@ -23,6 +23,7 @@ public:
   [[nodiscard]] bool configure(const ProjectData &project,
                                const AssetRegistry &registry,
                                Diagnostics *diagnostics = nullptr);
+  void shutdown();
   void registerLoader(std::shared_ptr<assets::AssetResourceLoader> loader);
   [[nodiscard]] assets::AssetGroupRequestHandle
   prepare(std::string_view groupId, Diagnostics *diagnostics = nullptr);
@@ -43,9 +44,15 @@ public:
                                   Diagnostics *diagnostics = nullptr);
   [[nodiscard]] bool reload(std::string_view assetId,
                             Diagnostics *diagnostics = nullptr);
+  [[nodiscard]] bool
+  reloadChangedResidentAssets(const AssetRegistry &previous,
+                              Diagnostics *diagnostics = nullptr);
+  [[nodiscard]] bool restoreResources(Diagnostics *diagnostics = nullptr);
+  void handleLowMemory();
   [[nodiscard]] assets::AssetMemoryReport memoryReport() const;
 
 private:
+  [[nodiscard]] bool isFallbackAsset(const AssetManifest &asset) const;
   [[nodiscard]] std::vector<std::string>
   resolveRoot(std::string_view root, Diagnostics *diagnostics) const;
 
@@ -53,6 +60,7 @@ private:
   const AssetRegistry *registry_ = nullptr;
   std::map<std::string, assets::AssetGroupDescriptor> groups_;
   std::vector<std::shared_ptr<assets::AssetResourceLoader>> loaders_;
+  std::shared_ptr<assets::AssetResourceLoader> fallbackLoader_;
   std::unique_ptr<assets::AssetGroupService> service_;
 };
 

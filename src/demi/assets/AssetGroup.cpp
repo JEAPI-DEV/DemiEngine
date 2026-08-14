@@ -167,6 +167,10 @@ AssetGroupService::~AssetGroupService() {
         work.future.wait();
     rollback(handle, request);
   }
+  for (auto &[assetId, resource] : resources_)
+    if (resource.resident)
+      resource.loader->unload(assetId);
+  resources_.clear();
 }
 
 void AssetGroupService::registerLoader(
@@ -545,6 +549,36 @@ bool AssetGroupService::reload(const std::string_view assetId,
                                           decoded->residentBytes;
   }
   return true;
+}
+
+bool AssetGroupService::restoreResources(Diagnostics *diagnostics) {
+  std::set<AssetResourceLoader *> restored;
+  bool success = true;
+  for (const auto &[assetId, resource] : resources_) {
+    (void)assetId;
+    if (!resource.resident || !restored.insert(resource.loader.get()).second)
+      continue;
+    std::string error;
+    if (!resource.loader->restore(error)) {
+      report(diagnostics, "ASSET_BACKEND_RESTORE_FAILED",
+             error.empty() ? "A resource backend could not restore assets."
+                           : error,
+             std::string(resource.loader->backendName()));
+      success = false;
+    }
+  }
+  return success;
+}
+
+void AssetGroupService::cancelPending() {
+  std::vector<AssetGroupRequestHandle> pending;
+  for (const auto &[handle, request] : requests_)
+    if (!request.isActive &&
+        request.progress.stage != AssetGroupStage::Cancelled &&
+        request.progress.stage != AssetGroupStage::Failed)
+      pending.push_back(handle);
+  for (const AssetGroupRequestHandle handle : pending)
+    (void)cancel(handle);
 }
 
 AssetMemoryReport AssetGroupService::memoryReport() const {

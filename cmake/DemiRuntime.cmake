@@ -42,6 +42,9 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scene/SceneFlow.cpp
   src/demi/runtime/scene/SceneAssetReferences.cpp
   src/demi/runtime/scene/SceneLoader.cpp
+  src/demi/runtime/assets/RegistryAssetResourceLoader.cpp
+  src/demi/runtime/assets/RuntimeAssetBootstrap.cpp
+  src/demi/runtime/assets/RuntimeAssetReload.cpp
   src/demi/runtime/assets/RuntimeAssetService.cpp
   src/demi/runtime/scripting/LuaScriptHostBindings.cpp
   src/demi/runtime/scripting/LuaScriptHost.cpp

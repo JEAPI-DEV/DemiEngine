@@ -12,6 +12,10 @@
 #include <string_view>
 #include <vector>
 
+namespace demi::assets {
+class AssetResourceLoader;
+}
+
 namespace demi::runtime {
 
 using Bgfx3DAppHostConfig = BgfxAppContextConfig;
@@ -32,6 +36,8 @@ public:
   [[nodiscard]] bool reloadAssets(const AssetRegistry &assets,
                                   std::vector<std::string> &diagnostics,
                                   std::string &error);
+  [[nodiscard]] std::shared_ptr<assets::AssetResourceLoader>
+  createAssetLoader(const AssetRegistry &source);
   void shutdown();
   void poll(InputState &input);
   [[nodiscard]] const platform::PlatformFrameState &frameState() const;
@@ -49,6 +55,7 @@ public:
   [[nodiscard]] std::string_view rendererName() const;
   [[nodiscard]] const RenderStatistics &statistics() const;
   [[nodiscard]] double lastExtractionMilliseconds() const;
+
 private:
   class RendererOwner;
   BgfxAppContext context_;

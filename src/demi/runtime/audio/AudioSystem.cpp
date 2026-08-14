@@ -1,5 +1,6 @@
 #include "demi/runtime/audio/AudioSystem.h"
 
+#include "demi/runtime/assets/RegistryAssetResourceLoader.h"
 #include "demi/runtime/audio/AudioBackend.h"
 #include "demi/runtime/audio/MiniaudioAudioBackend.h"
 
@@ -16,8 +17,10 @@ namespace {
 class NullAudioBackend final : public AudioBackend {
 public:
   [[nodiscard]] bool initialize() override { return false; }
-  void loadAudioAssets(const AssetRegistry& registry) override { (void)registry; }
-  [[nodiscard]] std::uint64_t play(const std::string& assetId, bool loop,
+  void loadAudioAssets(const AssetRegistry &registry) override {
+    (void)registry;
+  }
+  [[nodiscard]] std::uint64_t play(const std::string &assetId, bool loop,
                                    bool streaming) override {
     (void)assetId;
     (void)loop;
@@ -57,9 +60,7 @@ public:
 
 } // namespace
 
-AudioSystem::AudioSystem()
-  : backend_(createAudioBackend()) {
-}
+AudioSystem::AudioSystem() : backend_(createAudioBackend()) {}
 
 AudioSystem::AudioSystem(std::unique_ptr<AudioBackend> backend)
     : backend_(std::move(backend)) {
@@ -67,16 +68,14 @@ AudioSystem::AudioSystem(std::unique_ptr<AudioBackend> backend)
     backend_ = std::make_unique<NullAudioBackend>();
 }
 
-AudioSystem::~AudioSystem() {
-  shutdown();
-}
+AudioSystem::~AudioSystem() { shutdown(); }
 
 bool AudioSystem::initialize() {
   initialized_ = backend_ != nullptr && backend_->initialize();
   return initialized_;
 }
 
-void AudioSystem::loadAudioAssets(const AssetRegistry& registry) {
+void AudioSystem::loadAudioAssets(const AssetRegistry &registry) {
   streamingAssets_.clear();
   for (const AssetManifest &asset : registry.assets) {
     if (asset.type != "AudioClip")
@@ -91,14 +90,27 @@ void AudioSystem::loadAudioAssets(const AssetRegistry& registry) {
   }
 }
 
-std::uint64_t AudioSystem::play(const std::string& assetId, const bool loop, const float volume) {
-  return play(AudioPlaybackRequest{
-      .assetId = assetId,
-      .concurrencyGroup = {},
-      .loop = loop,
-      .volume = volume,
-      .position = {},
-      .velocity = {}});
+std::shared_ptr<assets::AssetResourceLoader>
+AudioSystem::createAssetLoader(const AssetRegistry &source) {
+  return std::make_shared<RegistryAssetResourceLoader>(
+      source, RegistryAssetBackend{.name = "miniaudio",
+                                   .assetTypes = {"AudioClip"},
+                                   .apply = [this](const AssetRegistry &assets,
+                                                   std::string &error) {
+                                     loadAudioAssets(assets);
+                                     error.clear();
+                                     return true;
+                                   }});
+}
+
+std::uint64_t AudioSystem::play(const std::string &assetId, const bool loop,
+                                const float volume) {
+  return play(AudioPlaybackRequest{.assetId = assetId,
+                                   .concurrencyGroup = {},
+                                   .loop = loop,
+                                   .volume = volume,
+                                   .position = {},
+                                   .velocity = {}});
 }
 
 bool AudioSystem::enforceConcurrency(const AudioPlaybackRequest &request) {
@@ -117,13 +129,11 @@ bool AudioSystem::enforceConcurrency(const AudioPlaybackRequest &request) {
   const auto selected =
       request.voiceStealing == AudioVoiceStealing::Quietest
           ? std::ranges::min_element(
-                matching, {}, [](const Voice *voice) {
-                  return voice->request.volume;
-                })
-          : std::ranges::min_element(
-                matching, {}, [](const Voice *voice) {
-                  return voice->sequence;
-                });
+                matching, {},
+                [](const Voice *voice) { return voice->request.volume; })
+          : std::ranges::min_element(matching, {}, [](const Voice *voice) {
+              return voice->sequence;
+            });
   if (selected == matching.end())
     return false;
   (void)stop((*selected)->handle);
@@ -162,9 +172,8 @@ std::uint64_t AudioSystem::play(AudioPlaybackRequest request) {
 bool AudioSystem::startVoice(Voice &voice) {
   if (!initialized_ || backend_ == nullptr)
     return false;
-  voice.backendHandle = backend_->play(voice.request.assetId,
-                                      voice.request.loop,
-                                      voice.request.streaming);
+  voice.backendHandle = backend_->play(
+      voice.request.assetId, voice.request.loop, voice.request.streaming);
   if (voice.backendHandle == 0)
     return false;
   applyVoice(voice);
@@ -176,17 +185,15 @@ void AudioSystem::applyVoice(Voice &voice) {
     return;
   float fade = 1.0F;
   if (voice.request.fadeInSeconds > 0.0F)
-    fade = std::min(fade, std::clamp(
-                              voice.age / voice.request.fadeInSeconds, 0.0F,
-                              1.0F));
+    fade = std::min(
+        fade, std::clamp(voice.age / voice.request.fadeInSeconds, 0.0F, 1.0F));
   if (voice.fadeOutDuration > 0.0F)
-    fade = std::min(fade,
-                    std::clamp(voice.fadeOutRemaining /
-                                   voice.fadeOutDuration,
-                               0.0F, 1.0F));
+    fade = std::min(
+        fade,
+        std::clamp(voice.fadeOutRemaining / voice.fadeOutDuration, 0.0F, 1.0F));
   const AudioBackendVoiceParameters parameters{
-      .gain = voice.request.volume *
-              mixer_.effectiveGain(voice.request.bus) * fade,
+      .gain =
+          voice.request.volume * mixer_.effectiveGain(voice.request.bus) * fade,
       .pitch = voice.request.pitch,
       .pan = voice.request.pan,
       .spatialMode = voice.request.spatialMode,
@@ -202,8 +209,7 @@ void AudioSystem::applyVoice(Voice &voice) {
   (void)backend_->configure(voice.backendHandle, parameters);
 }
 
-bool AudioSystem::stop(const std::uint64_t handle,
-                       const float fadeOutSeconds) {
+bool AudioSystem::stop(const std::uint64_t handle, const float fadeOutSeconds) {
   const auto found = voices_.find(handle);
   if (found == voices_.end())
     return false;
@@ -212,9 +218,9 @@ bool AudioSystem::stop(const std::uint64_t handle,
     found->second.fadeOutRemaining = fadeOutSeconds;
     return true;
   }
-  const bool stopped =
-      found->second.backendHandle == 0 || backend_ == nullptr ||
-      backend_->stop(found->second.backendHandle);
+  const bool stopped = found->second.backendHandle == 0 ||
+                       backend_ == nullptr ||
+                       backend_->stop(found->second.backendHandle);
   voices_.erase(found);
   return stopped;
 }
@@ -251,9 +257,7 @@ void AudioSystem::setMasterVolume(const float volume) {
   (void)mixer_.setVolume("master", std::clamp(volume, 0.0F, 1.0F));
 }
 
-float AudioSystem::masterVolume() const {
-  return mixer_.volume("master");
-}
+float AudioSystem::masterVolume() const { return mixer_.volume("master"); }
 
 AudioMixer &AudioSystem::mixer() { return mixer_; }
 
@@ -295,9 +299,9 @@ void AudioSystem::update(const float deltaTime) {
         continue;
       }
     }
-    const bool paused =
-        suspended_ || mixer_.effectivelyPaused(voice.request.bus) ||
-        (gamePaused_ && voice.request.pauseWithGame);
+    const bool paused = suspended_ ||
+                        mixer_.effectivelyPaused(voice.request.bus) ||
+                        (gamePaused_ && voice.request.pauseWithGame);
     if (!paused && voice.backendHandle != 0 && backend_ != nullptr &&
         !backend_->isPlaying(voice.backendHandle) && !voice.request.loop) {
       finished.push_back(handle);

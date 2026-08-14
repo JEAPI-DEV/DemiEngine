@@ -115,6 +115,10 @@ cancels both sides. A non-additive transition releases the outgoing scene's
 implicit ownership after the incoming scene commits; additive scenes retain
 their groups until unloaded.
 
+The initial scene follows the same rule before Lua `on_start` and before the
+first rendered frame. Asset-free scenes continue immediately. There is no
+separate startup asset manifest or eager renderer/audio cache.
+
 `AssetGroupService` resolves transitive dependencies, performs read/decode work
 off-thread through narrow `AssetResourceLoader` backends, and performs bounded
 uploads from `update`. Preparation, activation, cancellation, and release are
@@ -125,6 +129,27 @@ them. Cancelling the request that started shared work hands it to another
 waiting request. Progress is monotonic and reports `resolve`, `read`, `decode`,
 `upload`, `ready`, `failed`, or `cancelled`. Memory reports identify resident
 bytes, backend, and active owners per stable asset ID.
+
+## Native ownership, reload, and recovery
+
+`RegistryAssetResourceLoader` adapts the group lifetime contract to native
+backends. The loader tracks stable IDs, while bgfx and miniaudio remain the
+sole owners of GPU and audio objects. Source access and verification happen on
+the worker stage; backend replacement happens during the bounded upload stage.
+The resident-source loader remains only for headless runs and asset types that
+have no native backend.
+
+The 2D renderer, 3D renderer, and audio system each register one narrow loader
+with `RuntimeAssetService`. Script modules do not need a second asset cache:
+`LuaScriptHost` already owns their scene lifecycle and releases the active
+scene's implicit group when a non-additive transition commits.
+
+Watched registry changes call `reloadChangedResidentAssets`, so ordinary load,
+reload, and unload share the same ownership path. A failed backend replacement
+restores both the previous registry and the previous native resource snapshot.
+Low-memory notifications cancel non-active preparation work without evicting
+active groups. `restoreResources` reapplies each native backend's current
+resident snapshot after a graphics device or surface recreation.
 
 ## Locked package content
 

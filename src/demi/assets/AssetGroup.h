@@ -76,6 +76,13 @@ public:
                                     std::string &error) = 0;
   virtual void unload(std::string_view assetId) = 0;
   [[nodiscard]] virtual std::string_view backendName() const = 0;
+  // Recreates native objects from the loader's resident stable-ID set after a
+  // graphics/audio device lifecycle event. Existing resources remain valid if
+  // restoration fails.
+  [[nodiscard]] virtual bool restore(std::string &error) {
+    error.clear();
+    return true;
+  }
 };
 
 struct AssetGroupProgress {
@@ -128,6 +135,8 @@ public:
   // for an existing stable ID must replace atomically or leave it unchanged.
   [[nodiscard]] bool reload(std::string_view assetId,
                             Diagnostics *diagnostics = nullptr);
+  [[nodiscard]] bool restoreResources(Diagnostics *diagnostics = nullptr);
+  void cancelPending();
   [[nodiscard]] AssetMemoryReport memoryReport() const;
 
 private:
