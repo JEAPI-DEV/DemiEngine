@@ -1,0 +1,22 @@
+# General Project Info
+PROJECT_NAME           = "DemiEngine"
+PROJECT_BRIEF          = "C++ Game Engine Runtime and Tools"
+OUTPUT_DIRECTORY       = "docs/doxy"
+
+# Source File Input Settings
+INPUT                  = src
+RECURSIVE              = YES
+FILE_PATTERNS          = *.cpp \
+                         *.h \
+                         *.hpp
+
+# Extraction & Parsing Settings
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = YES
+EXTRACT_STATIC         = YES
+
+# Graphviz / Diagrams Integration
+HAVE_DOT               = YES
+CLASS_DIAGRAMS         = YES
+CALL_GRAPH             = YES
+CALLER_GRAPH           = YES

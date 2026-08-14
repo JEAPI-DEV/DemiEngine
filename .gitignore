@@ -26,19 +26,18 @@ android/local.properties
 *.apk
 *.ap_
 *.aab
-docs/latex/main.log
-docs/latex/main.aux
-docs/latex/main.toc
-docs/latex/main.out
-docs/latex/main.fdb_latexmk
-docs/latex/main.fls
-docs/latex/main.synctex.gz
-docs/latex/main.aux
-todoplan.md
-EvaluationOFEngine.md
 *.save.json
 
 *.key
 *.crt
 todoplan.md
 .vscode/
+
+
+# Ignore all build output in docs/latex/
+docs/latex/*
+docs/html
+
+# Un-ignore your custom LaTeX source files
+!docs/latex/*.tex
+!docs/latex/sty/
