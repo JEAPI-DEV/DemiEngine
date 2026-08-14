@@ -88,6 +88,8 @@ add_test(NAME demi-iso-canvas-renderer-tests
   COMMAND demi-iso-canvas-renderer-tests)
 add_test(NAME demi-lua-stub-contract-tests COMMAND demi-lua-stub-contract-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
+add_test(NAME demi-script-property-contract-tests
+  COMMAND demi-script-property-contract-tests)
 add_test(NAME demi-scene-loader-tests COMMAND demi-scene-loader-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-prefab-tests COMMAND demi-prefab-tests)
 add_test(NAME demi-ui-tests COMMAND demi-ui-tests)

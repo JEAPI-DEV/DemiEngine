@@ -17,6 +17,7 @@
   "scenes": [
     { "id": "scene://{{TEMPLATE_ID}}/main", "path": "scenes/main.scene.json" }
   ],
+  "assets": [],
   "input": {
     "actions": {
       "move_x": {

@@ -110,10 +110,19 @@ source edits retain the last good runtime state when preparation fails.
   diagnostic codes.
 - `demi new`, `doctor`, `run`, and `test` accept the documented project paths
   and support automation-friendly diagnostics.
+- `demi dev` discovers the nearest parent project, runs development checks,
+  and starts last-known-good watch mode as one command.
 - Watch mode assigns source generations at the filesystem boundary, validates
   changes before activation, and uses prepared scenes and candidate renderers.
 - Failed Lua, scene, HUD, material, shader, texture, or other asset edits retain
   the last valid live state and report why the edit was rejected.
+- Lua modules may declare typed `property_schema` contracts. Defaults are
+  applied before lifecycle callbacks, overrides are validated, and an invalid
+  property edit cannot replace the live script.
+- Projects may declare always-used `asset://` resources or
+  `asset-group://` batches in the top-level `assets` array. They become
+  resident before Lua lifecycle callbacks, while undeclared content remains
+  streamable instead of loading the entire registry.
 
 ### Ownership and dependency boundaries
 
@@ -1386,8 +1395,9 @@ lock ownership remain owned by Step 4.
   root. Read/decode completes before readiness, activation occurs at the same
   frame boundary as the world swap, cancellation rolls both back, and outgoing
   scene ownership is released after a successful non-additive transition.
-- Lua exposes `Assets.prepare_group`, `progress`, `is_ready`, `activate`,
-  `cancel`, `release_group`, `reload`, and `memory_report`; the checked LuaLS
+- Lua exposes `Assets.load`, `progress`, `is_ready`, `cancel`, `unload`,
+  `reload`, and `memory_report`; `load` accepts either one `asset://` resource
+  or an `asset-group://` batch, and the checked LuaLS
   stub contains the same API.
 - Texture-atlas cooking emits deterministic PNG pages plus sprite rectangles,
   pivots, borders, animation tags, padding, and bleed metadata. Font-atlas
@@ -1438,18 +1448,19 @@ lock ownership remain owned by Step 4.
 ```
 
 ```lua
-local request = Assets.prepare_group("asset-group://chapter_02")
+local request = Assets.load("asset-group://chapter_02")
 local progress = Assets.progress(request)
 if Assets.is_ready(request) then
-  Assets.activate(request)
+  -- The group is now resident.
 end
 Assets.cancel(request)
-Assets.release_group("asset-group://chapter_01")
+Assets.unload("asset-group://chapter_01")
 ```
 
 Progress is monotonic for a request and reports stages (`resolve`, `read`,
-`decode`, `upload`, `ready`). Cancellation is cooperative; activation is
-explicit and atomic with respect to group ownership. Scenes remain the source
+`decode`, `upload`, `ready`). Cancellation is cooperative; public loads become
+resident automatically when ready. Internal scene activation remains atomic
+with respect to world and asset ownership. Scenes remain the source
 of truth for their referenced assets: a scene-rooted group derives those
 references transitively instead of repeating them. Explicit asset roots are
 reserved for content with a lifetime independent of the scene.

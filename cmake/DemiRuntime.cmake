@@ -63,6 +63,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/LuaScriptHostLoading.cpp
   src/demi/runtime/scripting/LuaScriptHostMediaNetworkServices.cpp
   src/demi/runtime/scripting/LuaScriptProperties.cpp
+  src/demi/runtime/scripting/ScriptPropertyContract.cpp
   src/demi/runtime/scripting/bindings/LuaBindingHelpers.cpp
   src/demi/runtime/scripting/bindings/LuaCoreBindings.cpp
   src/demi/runtime/scripting/bindings/LuaEntityBindings.cpp

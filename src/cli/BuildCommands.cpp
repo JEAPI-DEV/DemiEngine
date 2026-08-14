@@ -1,5 +1,6 @@
 #include "cli/BuildCommands.h"
 #include "cli/CliArguments.h"
+#include "cli/project/ProjectDiscovery.h"
 
 #include "demi/assets/AssetCooker.h"
 #include "demi/schema/Validation.h"
@@ -22,13 +23,6 @@ enum class LinuxBundleMode {
   Game,
   Server,
 };
-
-std::filesystem::path defaultProjectFile() {
-  const std::filesystem::path candidate =
-      std::filesystem::current_path() / "demi.project.json";
-  return std::filesystem::exists(candidate) ? candidate
-                                            : std::filesystem::path{};
-}
 
 std::string shellQuote(const std::string &value) {
   std::string quoted = "'";
@@ -169,15 +163,6 @@ int buildLinuxBundle(const std::filesystem::path &absoluteProject,
 }
 
 } // namespace
-
-std::filesystem::path
-projectFileFromArgs(const std::vector<std::string> &args) {
-  const std::string project = valueAfter(args, "--project");
-  if (!project.empty()) {
-    return project;
-  }
-  return defaultProjectFile();
-}
 
 int runBuildCommand(const std::vector<std::string> &args,
                     const BuildContext &context) {

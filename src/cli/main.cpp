@@ -3,9 +3,11 @@
 #include "cli/CapabilityCommands.h"
 #include "cli/CliArguments.h"
 #include "cli/CookCommands.h"
+#include "cli/RuntimeCommands.h"
 #include "cli/SceneCompositionCommands.h"
 #include "cli/doctor/DoctorService.h"
 #include "cli/package/PackageCommands.h"
+#include "cli/project/ProjectDiscovery.h"
 #include "cli/project/ProjectTemplates.h"
 
 #include "demi/assets/AssetRegistry.h"
@@ -90,6 +92,7 @@ void printHelp() {
       << "  demi script check <script>\n"
       << "  demi lua-stubs generate [path]\n"
       << "  demi test [--project <project>]\n"
+      << "  demi dev [--project <project>] [--max-frames count] [--profiler]\n"
       << "  demi run --project <project> [--max-frames count]\n"
       << "           [--profiler]\n"
       << "           [--watch]\n"
@@ -131,47 +134,6 @@ int runValidate(const std::vector<std::string> &args) {
 
   return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure
                                               : ExitSuccess;
-}
-
-int numericValueAfter(const std::vector<std::string> &args,
-                      const std::string &key) {
-  const std::string value = valueAfter(args, key);
-  if (value.empty()) {
-    return 0;
-  }
-  try {
-    return std::stoi(value);
-  } catch (...) {
-    return 0;
-  }
-}
-
-int frameLimitFrom(const std::vector<std::string> &args) {
-  return numericValueAfter(args, "--max-frames");
-}
-
-int runProjectCommand(const std::vector<std::string> &args,
-                      const bool serve = false) {
-  const std::filesystem::path project = demi::cli::projectFileFromArgs(args);
-  if (project.empty()) {
-    std::cerr << "run requires --project <project> or a demi.project.json in "
-                 "the current directory.\n";
-    return ExitUsageError;
-  }
-  bool headlessServe = serve;
-#ifdef DEMI_SERVER_CLI
-  headlessServe = true;
-#endif
-  return demi::runtime::runProject(demi::runtime::RuntimeOptions{
-      .projectPath = project,
-      .maxFrames = frameLimitFrom(args),
-      .serve = headlessServe,
-      .profiler = hasArg(args, "--profiler"),
-      .watch = hasArg(args, "--watch"),
-      .inputReplayPath = valueAfter(args, "--input-replay"),
-      .profileReportPath = valueAfter(args, "--profile-report"),
-      .debugOverlays = valueAfter(args, "--debug-overlays"),
-  });
 }
 
 int runScene(const std::vector<std::string> &args) {
@@ -397,16 +359,23 @@ int main(int argc, char **argv) {
                                             });
   }
 
+  if (args[0] == "dev") {
+    return demi::cli::runRuntimeCommand(
+        args, demi::cli::RuntimeCommandMode::Develop, std::cout, std::cerr);
+  }
+
   if (args[0] == "run") {
     if (args.size() >= 2 && !args[1].starts_with("--") && args[1] != "linux") {
       std::cerr << "Unknown run target: " << args[1] << '\n';
       return ExitUsageError;
     }
-    return runProjectCommand(args);
+    return demi::cli::runRuntimeCommand(
+        args, demi::cli::RuntimeCommandMode::Run, std::cout, std::cerr);
   }
 
   if (args[0] == "serve") {
-    return runProjectCommand(args, true);
+    return demi::cli::runRuntimeCommand(
+        args, demi::cli::RuntimeCommandMode::Serve, std::cout, std::cerr);
   }
 
   if (args[0] == "editor") {

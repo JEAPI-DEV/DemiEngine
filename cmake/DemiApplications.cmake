@@ -7,6 +7,7 @@ else()
   find_package(CURL REQUIRED)
   add_library(demi-cli-support STATIC
     src/cli/doctor/DoctorService.cpp
+    src/cli/project/ProjectDiscovery.cpp
     src/cli/project/ProjectTemplates.cpp
     src/cli/package/PackageCommands.cpp
     src/demi/runtime/scripting/PackageTestRunner.cpp
@@ -27,6 +28,7 @@ else()
     src/cli/BuildCommands.cpp
     src/cli/CapabilityCommands.cpp
     src/cli/CookCommands.cpp
+    src/cli/RuntimeCommands.cpp
     src/cli/SceneCompositionCommands.cpp
     src/cli/main.cpp
   )
@@ -41,6 +43,7 @@ else()
     src/cli/BuildCommands.cpp
     src/cli/CapabilityCommands.cpp
     src/cli/CookCommands.cpp
+    src/cli/RuntimeCommands.cpp
     src/cli/SceneCompositionCommands.cpp
     src/cli/main.cpp
   )

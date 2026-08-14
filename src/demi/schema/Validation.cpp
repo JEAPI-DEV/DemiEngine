@@ -629,6 +629,39 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
                                  "semantic-version constraint."});
         }
       }
+      if (const auto declared = project.find("assets");
+          declared != project.end()) {
+        if (!declared->is_array()) {
+          diagnostics.push_back(
+              {.severity = Severity::Error,
+               .code = "PROJECT_ASSETS_INVALID",
+               .message = "Project assets must be an array of stable URIs.",
+               .path = path.string(),
+               .suggestion = "Use assets: [\"asset://ui/logo\"]."});
+        } else {
+          std::set<std::string> groupIds;
+          for (const auto &source : collectKnownSourceFiles(path.parent_path())) {
+            if (!isAssetGroupFile(source))
+              continue;
+            if (const auto group = assets::loadAssetGroup(source))
+              groupIds.insert(group->id);
+          }
+          for (const auto &uri : *declared) {
+            if (!uri.is_string())
+              continue;
+            const std::string id = uri.get<std::string>();
+            if (id.starts_with("asset-group://") && !groupIds.contains(id))
+              diagnostics.push_back(
+                  {.severity = Severity::Error,
+                   .code = "PROJECT_ASSET_GROUP_NOT_FOUND",
+                   .message = "Preloaded asset group was not found: " + id,
+                   .path = path.string(),
+                   .suggestion = "Add its *.asset-group.json manifest or "
+                                 "remove it from assets."});
+          }
+        }
+      }
+      validateReferences(diagnostics, path, text);
     } catch (const nlohmann::json::parse_error &) {
       // Other project validation reports malformed JSON.
     }

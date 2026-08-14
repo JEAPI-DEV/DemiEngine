@@ -85,6 +85,13 @@ add_test(NAME demi-runtime-minimal-3d-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json --max-frames 1
 )
 set_tests_properties(demi-runtime-minimal-3d-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-dev-auto-project-discovery
+  COMMAND demi dev --max-frames 1
+)
+set_tests_properties(demi-dev-auto-project-discovery PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/minimal_3d/scenes
+  ENVIRONMENT "DEMI_HEADLESS=1"
+)
 add_test(NAME demi-runtime-minimal-3d-profiler
   COMMAND demi run linux
     --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json
@@ -144,7 +151,7 @@ add_test(NAME demi-runtime-asset-streaming-showcase
 )
 set_tests_properties(demi-runtime-asset-streaming-showcase PROPERTIES
   ENVIRONMENT "DEMI_HEADLESS=1"
-  PASS_REGULAR_EXPRESSION "Asset streaming showcase activated optional theme group")
+  PASS_REGULAR_EXPRESSION "Asset streaming showcase loaded optional theme group")
 add_test(NAME demi-validate-asset-streaming-showcase
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/asset_streaming_showcase/demi.project.json
 )
@@ -165,7 +172,7 @@ add_test(NAME demi-runtime-cooked-asset-streaming-showcase
 set_tests_properties(demi-runtime-cooked-asset-streaming-showcase PROPERTIES
   DEPENDS demi-cook-asset-streaming-showcase
   ENVIRONMENT "DEMI_HEADLESS=1"
-  PASS_REGULAR_EXPRESSION "Asset streaming showcase activated optional theme group")
+  PASS_REGULAR_EXPRESSION "Asset streaming showcase loaded optional theme group")
 add_test(NAME demi-validate-minimal-2d-networking
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json
 )

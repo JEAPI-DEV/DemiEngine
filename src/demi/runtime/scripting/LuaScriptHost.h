@@ -608,6 +608,7 @@ private:
   void unloadScripts();
   [[nodiscard]] bool loadScriptInstance(std::string entityId,
                                         const std::string &module,
+                                        const std::string &propertiesJson,
                                         const char *context,
                                         std::string &error);
   [[nodiscard]] bool loadDynamicEntityScript(const std::string &entityId,

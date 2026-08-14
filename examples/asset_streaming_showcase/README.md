@@ -13,10 +13,10 @@ cmake --build --preset linux-debug
 ./build/linux-debug/demi run --project examples/asset_streaming_showcase/demi.project.json
 ```
 
-The group prepares automatically and its two SVG resources appear only after
-activation. The buttons demonstrate preparing and activating, cancelling an
-in-flight request, reloading the root through the same backend path, and
-releasing the group. Release clears the HUD references before returning the
+The group loads asynchronously and its two SVG resources appear when the load
+request is ready. The buttons demonstrate loading, cancelling an in-flight
+request, reloading the root through the same backend path, and unloading the
+group. Unload clears the HUD references before returning the
 native resources. The memory display lists each resident stable ID, its owning
 backend, and total resident bytes.
 

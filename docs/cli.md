@@ -56,6 +56,10 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
 - `demi save inspect <save>`: validate and summarize a save file.
 - `demi script check <script>`: parse a Lua script with the embedded Lua 5.4 compiler and report diagnostics.
 - `demi lua-stubs generate [path]`: copy the checked-in LuaLS/EmmyLua annotations for the exposed runtime Lua API. The default output is `scripts/stubs/demi.lua`.
+- `demi dev [--project <project>]`: find the nearest project, run development
+  environment checks, and launch it with last-known-good source watching.
+  Runtime flags such as `--profiler`, `--debug-overlays`, and `--max-frames`
+  remain available.
 - `demi package add <name>@<constraint> --project <project>`: resolve the full
   dependency graph, verify archives, and atomically update the project,
   `demi.packages.lock.json`, and `.demi/packages/`.

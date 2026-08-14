@@ -102,6 +102,10 @@
       "path": "scenes/main.scene.json"
     }
   ],
+  "assets": [
+    "asset://materials/first_person",
+    "asset://materials/voxel_terrain"
+  ],
   "scripting": {
     "language": "lua54",
     "entry": "script://scripts/worldgen.lua",

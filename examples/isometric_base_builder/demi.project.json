@@ -12,6 +12,13 @@
       "path": "scenes/village.scene.json"
     }
   ],
+  "assets": [
+    "asset://units/archer_tower",
+    "asset://projectiles/arrow",
+    "asset://units/wizard_tower",
+    "asset://projectiles/fireball",
+    "asset://units/raider"
+  ],
   "gameplay_model": {
     "projection": "isometric_2d",
     "physics": "box2d"

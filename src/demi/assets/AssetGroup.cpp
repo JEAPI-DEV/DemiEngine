@@ -497,6 +497,10 @@ bool AssetGroupService::releaseGroup(const std::string_view groupId,
   return true;
 }
 
+bool AssetGroupService::isGroupActive(const std::string_view groupId) const {
+  return activeGroups_.contains(std::string(groupId));
+}
+
 bool AssetGroupService::reload(const std::string_view assetId,
                                Diagnostics *diagnostics) {
   const AssetManifest *asset = findAsset(registry_, std::string(assetId));

@@ -1,7 +1,7 @@
 #include "cli/CookCommands.h"
 
-#include "cli/BuildCommands.h"
 #include "cli/CliArguments.h"
+#include "cli/project/ProjectDiscovery.h"
 #include "demi/assets/AssetCooker.h"
 #include "demi/diagnostics/Diagnostic.h"
 

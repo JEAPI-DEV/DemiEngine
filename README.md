@@ -78,11 +78,8 @@ isometric, lightweight 3D, networked game, and visual novel foundations.
 Inspect the environment, validate the authored files, and run:
 
 ```sh
-./build/linux-debug/demi doctor \
-  --project games/my_game/demi.project.json
-./build/linux-debug/demi validate games/my_game/demi.project.json
-./build/linux-debug/demi run linux \
-  --project games/my_game/demi.project.json --watch
+cd games/my_game
+../../build/linux-debug/demi dev
 ```
 
 `demi new` is transactional: it never overwrites an existing destination and
@@ -144,6 +141,10 @@ tooling with:
 ```sh
 demi lua-stubs generate generated/demi.lua
 ```
+
+Scripts can declare validated defaults, ranges, enums, and asset/entity
+references through [`property_schema`](docs/script-properties.md). Scene and
+prefab `LuaScript.properties` then contain only game-specific overrides.
 
 Gameplay should depend on services such as `Entity`, `Transform2D`,
 `Transform3D`, `Input`, `Physics2D`, `Physics3D`, `HUD`, `Data`, `Save`,
@@ -280,7 +281,7 @@ Examples are executable engine probes, not throwaway snippets:
 | `ui_showcase` | Responsive retained UI, controls, layout, text input, and virtualization ![ui_showcase](images/ui_showcase_1.png)|
 | `main_menu_animated` | UI animation and animated sprite presentation ![main_menu_animated](images/main_menu_animated.png) |
 | `main_menu_gif` | GIF wallpaper and SVG-driven mobile-style UI |
-| `asset_streaming_showcase` | Optional group preparation, progress, activation, cancellation, reload, release, transitive dependencies, and backend memory ownership |
+| `asset_streaming_showcase` | Optional group load, progress, cancellation, reload, unload, transitive dependencies, and backend memory ownership |
 | `minimal_3d` | Lightweight 3D movement, queries, collisions, materials, and debug overlays ![minimal_3d](images/minimal_3d.png) |
 | `animation_3d` | glTF skeletal animation selection and playback ![animation_3d](images/animation_3d.png) |
 | `minimal_voxel` | Chunked voxel-style terrain, editing, particles, lighting, and profiling ![minimal_voxel](images/minimal_voxel.png) |

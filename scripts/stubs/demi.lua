@@ -1,6 +1,16 @@
 ---@meta
 -- Checked-in LuaLS/EmmyLua stubs copied by `demi lua-stubs generate`.
 
+---@class ScriptPropertyDefinition
+---@field type 'boolean'|'number'|'integer'|'string'|'asset'|'entity'|'enum'|'array'|'object'|'vec2'|'vec3'|'color'
+---@field default? any Applied before on_create when no override is authored.
+---@field required? boolean Requires an authored value when no default exists.
+---@field minimum? number
+---@field maximum? number
+---@field values? string[] Required for enum properties.
+
+---@alias ScriptPropertySchema table<string, ScriptPropertyDefinition>
+
 ---@class DataError
 ---@field code string
 ---@field message string
@@ -653,10 +663,10 @@ function Scene.error() end
 
 ---@class AssetsService
 Assets = {}
----@param group_id string
+---@param uri string asset:// resource or asset-group:// batch
 ---@return integer request
 ---@return string error
-function Assets.prepare_group(group_id) end
+function Assets.load(uri) end
 ---@param request integer
 ---@return AssetGroupProgress
 function Assets.progress(request) end
@@ -664,16 +674,12 @@ function Assets.progress(request) end
 ---@return boolean
 function Assets.is_ready(request) end
 ---@param request integer
----@return boolean success
----@return string error
-function Assets.activate(request) end
----@param request integer
 ---@return boolean
 function Assets.cancel(request) end
----@param group_id string
+---@param uri string asset:// resource or asset-group:// batch
 ---@return boolean success
 ---@return string error
-function Assets.release_group(group_id) end
+function Assets.unload(uri) end
 ---@param asset_id string
 ---@return boolean success
 ---@return string error

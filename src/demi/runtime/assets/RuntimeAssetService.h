@@ -26,7 +26,11 @@ public:
   void shutdown();
   void registerLoader(std::shared_ptr<assets::AssetResourceLoader> loader);
   [[nodiscard]] assets::AssetGroupRequestHandle
-  prepare(std::string_view groupId, Diagnostics *diagnostics = nullptr);
+  prepare(std::string_view uri, Diagnostics *diagnostics = nullptr);
+  // Starts an asynchronous load for either one asset:// resource or an
+  // asset-group:// batch. Ready requests become resident automatically.
+  [[nodiscard]] assets::AssetGroupRequestHandle
+  load(std::string_view uri, Diagnostics *diagnostics = nullptr);
   // Scenes are implicit groups. This keeps scene data as the source of truth
   // while still giving transitions an explicit prepare/activate lifetime.
   [[nodiscard]] assets::AssetGroupRequestHandle
@@ -38,8 +42,8 @@ public:
   [[nodiscard]] bool activate(assets::AssetGroupRequestHandle request,
                               Diagnostics *diagnostics = nullptr);
   [[nodiscard]] bool cancel(assets::AssetGroupRequestHandle request);
-  [[nodiscard]] bool release(std::string_view groupId,
-                             Diagnostics *diagnostics = nullptr);
+  [[nodiscard]] bool unload(std::string_view uri,
+                            Diagnostics *diagnostics = nullptr);
   [[nodiscard]] bool releaseScene(std::string_view sceneId,
                                   Diagnostics *diagnostics = nullptr);
   [[nodiscard]] bool reload(std::string_view assetId,
@@ -62,6 +66,7 @@ private:
   std::vector<std::shared_ptr<assets::AssetResourceLoader>> loaders_;
   std::shared_ptr<assets::AssetResourceLoader> fallbackLoader_;
   std::unique_ptr<assets::AssetGroupService> service_;
+  std::map<assets::AssetGroupRequestHandle, std::string> pendingLoads_;
 };
 
 [[nodiscard]] std::shared_ptr<assets::AssetResourceLoader>

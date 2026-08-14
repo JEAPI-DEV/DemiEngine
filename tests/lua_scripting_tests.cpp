@@ -350,8 +350,16 @@ return Button
 
   if (!writeFile(projectDirectory / "scripts" / "prop_probe.lua", R"lua(
 local PropProbe = {}
+PropProbe.property_schema = {
+  enabled = { type = "boolean", default = false },
+  speed = { type = "number", default = 6.0, minimum = 0.0, maximum = 20.0 },
+  tags = { type = "array", default = {} },
+  spawn = { type = "object", default = {} },
+  lives = { type = "integer", default = 3 },
+  role = { type = "enum", values = { "runner", "builder" }, default = "runner" }
+}
 function PropProbe:on_start()
-  if self.entity_id == "ent_prop" and self.speed == 12.5 and self.enabled == true and self.tags[1] == "runner" and self.spawn.x == 3.0 then
+  if self.entity_id == "ent_prop" and self.speed == 12.5 and self.enabled == true and self.tags[1] == "runner" and self.spawn.x == 3.0 and self.lives == 3 and self.role == "runner" then
     Save.set_string("test", "script_properties", "generic")
   end
 end

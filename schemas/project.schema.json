@@ -22,6 +22,14 @@
       "type": "string",
       "pattern": "^asset://"
     },
+    "assets": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^(asset|asset-group)://.+"
+      }
+    },
     "packages": {
       "type": "object",
       "propertyNames": {

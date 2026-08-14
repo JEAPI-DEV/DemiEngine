@@ -16,7 +16,7 @@
       {
         "id": "explanation",
         "type": "label",
-        "text": "The scene starts without the optional theme pack. Prepare loads and displays two transitive SVG assets; Release hides them and returns their memory.",
+        "text": "The scene starts without the optional theme pack. Load displays two transitive SVG assets; Unload hides them and returns their memory.",
         "position": [40, 82],
         "size": [860, 54],
         "font_size": 14,
@@ -70,10 +70,10 @@
         "size": [80, 80]
       },
       {
-        "id": "prepare",
+        "id": "load",
         "type": "button",
-        "text": "Prepare + Activate",
-        "action": "prepare",
+        "text": "Load group",
+        "action": "load",
         "position": [40, 360],
         "size": [190, 44]
       },
@@ -94,10 +94,10 @@
         "size": [150, 44]
       },
       {
-        "id": "release",
+        "id": "unload",
         "type": "button",
-        "text": "Release group",
-        "action": "release",
+        "text": "Unload group",
+        "action": "unload",
         "position": [558, 360],
         "size": [160, 44]
       },

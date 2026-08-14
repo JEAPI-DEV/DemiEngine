@@ -21,11 +21,11 @@ void LuaAssetsBindingModule::install(LuaScriptHost &host,
                                      lua_State *state) const {
   sol::state_view lua(state);
   sol::table assetsTable = lua.create_named_table("Assets");
-  assetsTable.set_function("prepare_group", [&host](const std::string &group) {
+  assetsTable.set_function("load", [&host](const std::string &uri) {
     Diagnostics diagnostics;
     RuntimeAssetService *assets = host.runtimeAssetService();
     const auto request =
-        assets == nullptr ? 0 : assets->prepare(group, &diagnostics);
+        assets == nullptr ? 0 : assets->load(uri, &diagnostics);
     return std::tuple{request, firstError(diagnostics)};
   });
   assetsTable.set_function("progress", [state,
@@ -55,22 +55,15 @@ void LuaAssetsBindingModule::install(LuaScriptHost &host,
     return assets != nullptr && assets->progress(request).stage ==
                                     demi::assets::AssetGroupStage::Ready;
   });
-  assetsTable.set_function("activate", [&host](const std::uint64_t request) {
-    Diagnostics diagnostics;
-    RuntimeAssetService *assets = host.runtimeAssetService();
-    const bool success =
-        assets != nullptr && assets->activate(request, &diagnostics);
-    return std::tuple{success, firstError(diagnostics)};
-  });
   assetsTable.set_function("cancel", [&host](const std::uint64_t request) {
     RuntimeAssetService *assets = host.runtimeAssetService();
     return assets != nullptr && assets->cancel(request);
   });
-  assetsTable.set_function("release_group", [&host](const std::string &group) {
+  assetsTable.set_function("unload", [&host](const std::string &uri) {
     Diagnostics diagnostics;
     RuntimeAssetService *assets = host.runtimeAssetService();
     const bool success =
-        assets != nullptr && assets->release(group, &diagnostics);
+        assets != nullptr && assets->unload(uri, &diagnostics);
     return std::tuple{success, firstError(diagnostics)};
   });
   assetsTable.set_function("reload", [&host](const std::string &assetId) {

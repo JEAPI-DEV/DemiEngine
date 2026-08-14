@@ -4,6 +4,7 @@
 #include "demi/runtime/scene/SceneAssetReferences.h"
 #include "demi/runtime/scene/SceneLoader.h"
 
+#include <algorithm>
 #include <fstream>
 #include <functional>
 #include <map>
@@ -103,6 +104,7 @@ void RuntimeAssetService::shutdown() {
   groups_.clear();
   loaders_.clear();
   fallbackLoader_.reset();
+  pendingLoads_.clear();
   registry_ = nullptr;
   project_ = {};
 }
@@ -113,6 +115,7 @@ bool RuntimeAssetService::configure(const ProjectData &project,
   project_ = project;
   registry_ = &registry;
   groups_.clear();
+  pendingLoads_.clear();
   for (const std::filesystem::path &path :
        collectKnownSourceFiles(project.projectDirectory)) {
     if (!isAssetGroupFile(path))
@@ -152,16 +155,53 @@ void RuntimeAssetService::registerLoader(
 }
 
 assets::AssetGroupRequestHandle
-RuntimeAssetService::prepare(const std::string_view groupId,
+RuntimeAssetService::prepare(const std::string_view uri,
                              Diagnostics *diagnostics) {
-  const auto group = groups_.find(std::string(groupId));
-  if (!service_ || group == groups_.end()) {
-    report(diagnostics, "ASSET_GROUP_NOT_FOUND",
-           "Asset group is not registered: " + std::string(groupId),
-           std::string(groupId));
+  if (!service_) {
+    report(diagnostics, "ASSET_SERVICE_UNAVAILABLE",
+           "Runtime asset service is not configured.", std::string(uri));
     return 0;
   }
-  return service_->prepare(group->second, diagnostics);
+  if (uri.starts_with("asset-group://")) {
+    const auto group = groups_.find(std::string(uri));
+    if (group != groups_.end())
+      return service_->prepare(group->second, diagnostics);
+    report(diagnostics, "ASSET_GROUP_NOT_FOUND",
+           "Asset group is not registered: " + std::string(uri),
+           std::string(uri));
+    return 0;
+  }
+  if (uri.starts_with("asset://") && registry_ != nullptr &&
+      findAsset(*registry_, std::string(uri)) != nullptr)
+    return service_->prepare(
+        assets::AssetGroupDescriptor{.id = std::string(uri),
+                                     .roots = {std::string(uri)},
+                                     .budget = {},
+                                     .sourcePath = {}},
+        diagnostics);
+  report(diagnostics, "ASSET_LOAD_URI_INVALID",
+         "Expected a registered asset:// or asset-group:// URI.",
+         std::string(uri));
+  return 0;
+}
+
+assets::AssetGroupRequestHandle
+RuntimeAssetService::load(const std::string_view uri,
+                          Diagnostics *diagnostics) {
+  const std::string id(uri);
+  if ((service_ && service_->isGroupActive(id)) ||
+      std::ranges::any_of(pendingLoads_, [&id](const auto &pending) {
+        return pending.second == id;
+      })) {
+    report(diagnostics, "ASSET_ALREADY_LOADED",
+           "Asset or asset group is already loaded: " + id, id);
+    return 0;
+  }
+
+  const assets::AssetGroupRequestHandle request = prepare(uri, diagnostics);
+  if (request != 0)
+    pendingLoads_.emplace(request, id);
+  return request;
 }
 
 assets::AssetGroupRequestHandle
@@ -202,8 +242,21 @@ std::string RuntimeAssetService::sceneGroupId(const std::string_view sceneId) {
 }
 
 void RuntimeAssetService::update(const double uploadBudgetMilliseconds) {
-  if (service_)
-    service_->update(uploadBudgetMilliseconds);
+  if (!service_)
+    return;
+  service_->update(uploadBudgetMilliseconds);
+  for (auto pending = pendingLoads_.begin(); pending != pendingLoads_.end();) {
+    const auto state = service_->progress(pending->first).stage;
+    if (state == assets::AssetGroupStage::Ready) {
+      (void)service_->activate(pending->first);
+      pending = pendingLoads_.erase(pending);
+    } else if (state == assets::AssetGroupStage::Failed ||
+               state == assets::AssetGroupStage::Cancelled) {
+      pending = pendingLoads_.erase(pending);
+    } else {
+      ++pending;
+    }
+  }
 }
 
 assets::AssetGroupProgress RuntimeAssetService::progress(
@@ -221,18 +274,27 @@ bool RuntimeAssetService::activate(
 
 bool RuntimeAssetService::cancel(
     const assets::AssetGroupRequestHandle request) {
-  return service_ && service_->cancel(request);
+  if (!service_ || !service_->cancel(request))
+    return false;
+  pendingLoads_.erase(request);
+  return true;
 }
 
-bool RuntimeAssetService::release(const std::string_view groupId,
-                                  Diagnostics *diagnostics) {
-  return service_ && service_->releaseGroup(groupId, diagnostics);
+bool RuntimeAssetService::unload(const std::string_view uri,
+                                 Diagnostics *diagnostics) {
+  const auto pending = std::ranges::find_if(
+      pendingLoads_, [uri](const auto &entry) { return entry.second == uri; });
+  if (pending != pendingLoads_.end())
+    return cancel(pending->first);
+  if (!service_ || !service_->releaseGroup(uri, diagnostics))
+    return false;
+  return true;
 }
 
 bool RuntimeAssetService::releaseScene(const std::string_view sceneId,
                                        Diagnostics *diagnostics) {
   const std::string groupId = sceneGroupId(sceneId);
-  return !groupId.empty() && release(groupId, diagnostics);
+  return !groupId.empty() && unload(groupId, diagnostics);
 }
 
 bool RuntimeAssetService::reload(const std::string_view assetId,

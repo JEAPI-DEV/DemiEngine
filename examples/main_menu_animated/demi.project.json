@@ -8,6 +8,10 @@
       "path": "scenes/main.scene.json"
     }
   ],
+  "assets": [
+    "asset://menu/copy",
+    "asset://walk/warrior"
+  ],
   "scripting": {
     "language": "lua54",
     "modules": []

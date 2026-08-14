@@ -411,7 +411,8 @@ int runProject(const RuntimeOptions &options) {
   const auto prepareStartupAssets = [&] {
     Diagnostics diagnostics;
     const SceneAssetBootstrapResult result = prepareInitialSceneAssets(
-        runtimeAssets, loaded.world.activeSceneId, &diagnostics);
+        runtimeAssets, loaded.world.activeSceneId,
+        loaded.project.preloadedAssets, &diagnostics);
     if (!result.success) {
       std::cerr << "Initial scene asset preparation failed.\n";
       printDiagnosticsText(std::cerr, diagnostics);

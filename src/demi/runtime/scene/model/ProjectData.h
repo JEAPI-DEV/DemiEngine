@@ -60,6 +60,7 @@ struct ProjectData {
   std::string networkContract;
   std::vector<std::string> scriptModules;
   std::vector<SceneEntry> scenes;
+  std::vector<std::string> preloadedAssets;
   input::InputActionMap inputActions;
   std::vector<PhysicsLayer2D> physicsLayers2D;
   SimulationConfig simulation;

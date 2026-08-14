@@ -20,6 +20,12 @@
       "path": "scenes/spiral.scene.json"
     }
   ],
+  "assets": [
+    "asset://sprites/player",
+    "asset://audio/death",
+    "asset://items/gold_coin",
+    "asset://audio/collect_coin"
+  ],
   "input": {
     "actions": {
       "move": {

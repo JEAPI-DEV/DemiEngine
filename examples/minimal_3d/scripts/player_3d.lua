@@ -1,14 +1,18 @@
 local Player3D = {}
 
+---@type ScriptPropertySchema
+Player3D.property_schema = {
+  speed = { type = "number", default = 6.0, minimum = 0.0, maximum = 20.0 },
+  rotation_speed = { type = "number", default = 1.5, minimum = 0.0 },
+  jump_buffer_duration = { type = "number", default = 0.12, minimum = 0.0 },
+  coyote_duration = { type = "number", default = 0.12, minimum = 0.0 },
+}
+
 function Player3D:on_create()
   Debug.log("3D Player created. Move with WASD, jump with SPACE, fire with F.")
-  self.speed = 6.0
-  self.rotation_speed = 1.5
   self.yaw = 0.0
   self.move_x = 0.0
   self.move_z = 0.0
-  self.jump_buffer_duration = 0.12
-  self.coyote_duration = 0.12
   self.jump_buffer_remaining = 0.0
   self.coyote_remaining = 0.0
   self.next_projectile_id = 1

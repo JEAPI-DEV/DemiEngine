@@ -18,6 +18,7 @@ namespace demi::runtime {
 
 bool LuaScriptHost::loadScriptInstance(std::string entityId,
                                        const std::string &module,
+                                       const std::string &propertiesJson,
                                        const char *context,
                                        std::string &error) {
   auto *state = static_cast<lua_State *>(state_);
@@ -38,6 +39,12 @@ bool LuaScriptHost::loadScriptInstance(std::string entityId,
     lua_setfield(state, -2, "entity_id");
   }
   const int tableRef = luaL_ref(state, LUA_REGISTRYINDEX);
+  if (!applyScriptProperties(state, tableRef, propertiesJson, error)) {
+    error = std::string("Invalid properties for ") + context + " " +
+            scriptPath.string() + ": " + error;
+    luaL_unref(state, LUA_REGISTRYINDEX, tableRef);
+    return false;
+  }
   scripts_.push_back(ScriptInstance{
       .entityId = std::move(entityId),
       .module = module,
@@ -101,7 +108,7 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData &project, World &world,
   }
 
   if (!project.scriptEntry.empty() &&
-      !loadScriptInstance({}, project.scriptEntry, "Lua project script",
+      !loadScriptInstance({}, project.scriptEntry, {}, "Lua project script",
                           error)) {
     return false;
   }
@@ -111,16 +118,12 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData &project, World &world,
       continue;
     }
 
-    const std::size_t scriptIndex = scripts_.size();
-    if (!loadScriptInstance(entity.id,
-                            entity.component<LuaScriptComponent>()->module,
-                            "Lua script", error)) {
+    if (!loadScriptInstance(
+            entity.id, entity.component<LuaScriptComponent>()->module,
+            entity.component<LuaScriptComponent>()->propertiesJson,
+            "Lua script", error)) {
       return false;
     }
-
-    applyScriptProperties(
-        state, scripts_[scriptIndex].tableRef,
-        entity.component<LuaScriptComponent>()->propertiesJson);
   }
 
   for (const ui::UiNode &node : world.ui.nodes) {
@@ -131,7 +134,7 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData &project, World &world,
     }
 
     const std::size_t scriptIndex = scripts_.size();
-    if (!loadScriptInstance(node.id, node.script, "HUD button Lua script",
+    if (!loadScriptInstance(node.id, node.script, {}, "HUD button Lua script",
                             error)) {
       return false;
     }
@@ -160,16 +163,13 @@ bool LuaScriptHost::loadDynamicEntityScript(const std::string &entityId,
     error = "Entity already has a loaded Lua script: " + entityId;
     return false;
   }
-  const std::size_t index = scripts_.size();
-  if (!loadScriptInstance(entityId,
-                          entity->component<LuaScriptComponent>()->module,
-                          "dynamic Lua script", error)) {
+  if (!loadScriptInstance(
+          entityId, entity->component<LuaScriptComponent>()->module,
+          entity->component<LuaScriptComponent>()->propertiesJson,
+          "dynamic Lua script", error)) {
     return false;
   }
-  applyScriptProperties(
-      state, scripts_[index].tableRef,
-      entity->component<LuaScriptComponent>()->propertiesJson);
-  startScriptInstance(scripts_[index]);
+  startScriptInstance(scripts_.back());
   return true;
 }
 
@@ -190,14 +190,14 @@ bool LuaScriptHost::loadDynamicUiScript(const std::string &uiId,
     error = "UI node already has a loaded Lua script: " + uiId;
     return false;
   }
-  const std::size_t index = scripts_.size();
-  if (!loadScriptInstance(uiId, found->script, "dynamic HUD Lua script", error))
+  if (!loadScriptInstance(uiId, found->script, {}, "dynamic HUD Lua script",
+                          error))
     return false;
-  lua_rawgeti(state, LUA_REGISTRYINDEX, scripts_[index].tableRef);
+  lua_rawgeti(state, LUA_REGISTRYINDEX, scripts_.back().tableRef);
   lua_pushstring(state, uiId.c_str());
   lua_setfield(state, -2, "ui_id");
   lua_pop(state, 1);
-  startScriptInstance(scripts_[index]);
+  startScriptInstance(scripts_.back());
   return true;
 }
 
@@ -263,16 +263,30 @@ void LuaScriptHost::reloadChangedScripts() {
     }
 
     const int newTableRef = luaL_ref(state, LUA_REGISTRYINDEX);
+    std::string propertyError;
+    if (const Entity *entity = findEntity(*world_, script.entityId);
+        entity != nullptr && entity->hasComponent<LuaScriptComponent>()) {
+      if (!applyScriptProperties(
+              state, newTableRef,
+              entity->component<LuaScriptComponent>()->propertiesJson,
+              propertyError)) {
+        std::cerr << "Lua hot reload rejected for " << script.path.string()
+                  << ": " << propertyError << '\n';
+        luaL_unref(state, LUA_REGISTRYINDEX, newTableRef);
+        script.lastWriteTime = currentWriteTime;
+        continue;
+      }
+    } else if (!applyScriptProperties(state, newTableRef, {}, propertyError)) {
+      std::cerr << "Lua hot reload rejected for " << script.path.string()
+                << ": " << propertyError << '\n';
+      luaL_unref(state, LUA_REGISTRYINDEX, newTableRef);
+      script.lastWriteTime = currentWriteTime;
+      continue;
+    }
     luaCallLifecycle(state, script.tableRef, "on_destroy", script.path,
                      script.entityId);
     luaL_unref(state, LUA_REGISTRYINDEX, script.tableRef);
     script.tableRef = newTableRef;
-    if (const Entity *entity = findEntity(*world_, script.entityId);
-        entity != nullptr && entity->hasComponent<LuaScriptComponent>()) {
-      applyScriptProperties(
-          state, script.tableRef,
-          entity->component<LuaScriptComponent>()->propertiesJson);
-    }
     script.actionHandlers = HandleActionAnnotation::parse(script.path);
     script.eventHandlers = OnEventAnnotation::parse(script.path);
     script.lastWriteTime = currentWriteTime;

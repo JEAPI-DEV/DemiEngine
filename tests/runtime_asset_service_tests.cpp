@@ -100,6 +100,10 @@ int main() {
   assert(assets.progress(request).stage ==
          demi::assets::AssetGroupStage::Ready);
   assert(assets.activate(request, &diagnostics));
+  diagnostics.clear();
+  assert(assets.load("asset-group://chapter", &diagnostics) == 0);
+  assert(demi::hasErrors(diagnostics));
+  diagnostics.clear();
   const auto report = assets.memoryReport();
   assert(report.assets.size() == 1);
   assert(report.assets.front().assetId == "asset://fixture");
@@ -130,7 +134,24 @@ int main() {
   assets.handleLowMemory();
   assert(assets.progress(lowMemoryRequest).stage ==
          demi::assets::AssetGroupStage::Cancelled);
-  assert(assets.release("asset-group://chapter", &diagnostics));
+  assert(assets.unload("asset-group://chapter", &diagnostics));
+  assert(assets.memoryReport().residentBytes == 0);
+
+  diagnostics.clear();
+  const auto assetRequest = assets.load("asset://fixture", &diagnostics);
+  assert(assetRequest != 0 && !demi::hasErrors(diagnostics));
+  for (int attempt = 0;
+       attempt < 1000 && assets.progress(assetRequest).stage !=
+                             demi::assets::AssetGroupStage::Ready;
+       ++attempt) {
+    assets.update();
+    std::this_thread::yield();
+  }
+  assert(assets.progress(assetRequest).stage ==
+         demi::assets::AssetGroupStage::Ready);
+  assert(assets.memoryReport().assets.front().owners.contains(
+      "asset://fixture"));
+  assert(assets.unload("asset://fixture", &diagnostics));
   assert(assets.memoryReport().residentBytes == 0);
 
   diagnostics.clear();
@@ -160,7 +181,8 @@ int main() {
   lua.setRuntimeAssetService(&assets);
   assert(lua.loadWorldScripts(project, world, error));
   const auto api = lua.publicLuaApi();
-  assert(std::ranges::find(api, "Assets.prepare_group") != api.end());
+  assert(std::ranges::find(api, "Assets.load") != api.end());
+  assert(std::ranges::find(api, "Assets.unload") != api.end());
   assert(std::ranges::find(api, "Assets.memory_report") != api.end());
 
   assert(lua.requestSceneLoad("scene://next"));

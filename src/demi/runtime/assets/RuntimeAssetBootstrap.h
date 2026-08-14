@@ -2,6 +2,8 @@
 
 #include "demi/diagnostics/Diagnostic.h"
 
+#include <span>
+#include <string>
 #include <string_view>
 
 namespace demi::runtime {
@@ -17,6 +19,7 @@ struct SceneAssetBootstrapResult {
 // transitions remain asynchronous through SceneFlow.
 [[nodiscard]] SceneAssetBootstrapResult
 prepareInitialSceneAssets(RuntimeAssetService &assets, std::string_view sceneId,
+                          std::span<const std::string> preloadedAssets = {},
                           Diagnostics *diagnostics = nullptr);
 
 } // namespace demi::runtime

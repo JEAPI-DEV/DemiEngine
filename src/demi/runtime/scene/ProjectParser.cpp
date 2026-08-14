@@ -120,6 +120,12 @@ parseProjectData(const std::filesystem::path &projectPath, const Json &document,
     return std::nullopt;
   }
 
+  if (const Json *assets = arrayField(document, "assets")) {
+    for (const Json &asset : *assets)
+      if (asset.is_string())
+        project.preloadedAssets.push_back(asset.get<std::string>());
+  }
+
   return project;
 }
 

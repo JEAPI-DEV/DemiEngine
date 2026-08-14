@@ -157,6 +157,7 @@ void groupLifetimeTest() {
     std::this_thread::yield();
   }
   assert(service.activate(firstRequest));
+  assert(service.isGroupActive(first.id));
   const auto secondRequest = service.prepare(second);
   service.update();
   assert(service.progress(secondRequest).fraction == 1.0);
@@ -166,6 +167,7 @@ void groupLifetimeTest() {
   assert(loader->decodeCount == 2 && loader->uploadCount == 2);
   assert(service.memoryReport().assets.size() == 1);
   assert(service.releaseGroup(first.id));
+  assert(!service.isGroupActive(first.id));
   assert(loader->unloaded.empty());
   assert(service.releaseGroup(second.id));
   assert(loader->unloaded == std::set<std::string>{"asset://shared"});

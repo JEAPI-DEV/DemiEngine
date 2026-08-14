@@ -1,4 +1,5 @@
 #include "cli/CliArguments.h"
+#include "cli/project/ProjectDiscovery.h"
 #include "cli/project/ProjectTemplates.h"
 
 #include "demi/schema/Validation.h"
@@ -49,6 +50,17 @@ int main() {
   std::error_code ignored;
   fs::remove_all(root, ignored);
   fs::create_directories(root);
+
+  const fs::path discoveredProject = root / "discovery" / "demi.project.json";
+  write(discoveredProject, "{}");
+  fs::create_directories(root / "discovery" / "scenes" / "nested");
+  assert(demi::cli::findProjectFile(root / "discovery" / "scenes" / "nested") ==
+         discoveredProject);
+  assert(demi::cli::projectFileFromArgs(
+             {"dev"}, root / "discovery" / "scenes") == discoveredProject);
+  assert(demi::cli::projectFileFromArgs(
+             {"dev", "--project", (root / "discovery").string()}, root) ==
+         discoveredProject);
 
   auto item = catalog.find("visual-novel", catalogDiagnostics);
   assert(item);

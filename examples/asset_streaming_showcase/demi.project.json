@@ -8,6 +8,7 @@
       "path": "scenes/main.scene.json"
     }
   ],
+  "assets": [],
   "scripting": {
     "language": "lua54",
     "modules": []

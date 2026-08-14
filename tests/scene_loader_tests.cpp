@@ -99,6 +99,17 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  const std::optional<runtime::LoadedProject> chess = runtime::loadProject(
+      root / "examples" / "chess" / "demi.project.json", error);
+  const std::optional<runtime::LoadedProject> streaming = runtime::loadProject(
+      root / "examples" / "asset_streaming_showcase" / "demi.project.json",
+      error);
+  if (!chess || chess->project.preloadedAssets.size() != 12 || !streaming ||
+      !streaming->project.preloadedAssets.empty()) {
+    std::cerr << "Project loader did not preserve preloaded assets.\n";
+    return 1;
+  }
+
   const runtime::Entity *camera =
       runtime::findEntity(loaded->world, "ent_camera_menu");
   if (camera == nullptr || !camera->hasComponent<Transform2DComponent>() ||
@@ -302,8 +313,7 @@ int main(int argc, char **argv) {
           12.5F ||
       gameplayProject->project.performanceBudgets.maximumDrawCalls != 42 ||
       gameplayProject->project.performanceBudgets.maximumResidentAssets != 24 ||
-      gameplayProject->project.display.vsync ||
-      gameplayData == nullptr ||
+      gameplayProject->project.display.vsync || gameplayData == nullptr ||
       gameplayData->find("\"current\":50") == std::string::npos ||
       !gameplay->hasComponent<GameplayDataComponent>() ||
       !gameplay->hasComponent<Transform2DComponent>()) {

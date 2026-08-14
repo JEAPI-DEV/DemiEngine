@@ -11,7 +11,7 @@ struct BuildContext {
   std::string executablePath;
 };
 
-[[nodiscard]] std::filesystem::path projectFileFromArgs(const std::vector<std::string>& args);
-[[nodiscard]] int runBuildCommand(const std::vector<std::string>& args, const BuildContext& context);
+[[nodiscard]] int runBuildCommand(const std::vector<std::string> &args,
+                                  const BuildContext &context);
 
 } // namespace demi::cli

@@ -83,10 +83,10 @@ source and places `pixel_height`, `page_size`, `padding`, `glyph_ranges`, and
 Scenes remain the source of truth for the assets they reference. Loading a
 scene does not require a matching startup group, and scene-owned assets should
 not be repeated in one. Addressable groups are optional lifetime boundaries for
-content that must be prepared or released independently, such as the next
+content that must be loaded or unloaded together, such as the next
 chapter, persistent UI/audio, or an optional voice pack.
 
-Addressable groups use `*.asset-group.json`. This example preloads an optional
+Addressable groups use `*.asset-group.json`. This example defines an optional
 voice pack that is not owned by the active scene:
 
 ```json
@@ -102,6 +102,45 @@ voice pack that is not owned by the active scene:
 }
 ```
 
+The initial scene automatically loads the assets referenced by its entities,
+HUD, and expanded prefabs. Assets selected dynamically by Lua can be declared
+after `scenes` in `demi.project.json` when they must be ready before gameplay:
+
+```json
+{
+  "scenes": [
+    {"id": "scene://main", "path": "scenes/main.scene.json"}
+  ],
+  "assets": [
+    "asset://ui/portrait",
+    "asset-group://audio/common"
+  ]
+}
+```
+
+Each entry may be one `asset://` resource or an `asset-group://` batch. These
+entries load before `on_create` and `on_start`. Undeclared, non-scene assets
+remain unloaded until `Assets.load`, so projects do not pay for every manifest
+in their registry.
+
+Lua uses one API for individual resources and batches:
+
+```lua
+local texture_request = Assets.load("asset://textures/portrait")
+local chapter_request = Assets.load("asset-group://chapter_02")
+
+if Assets.is_ready(chapter_request) then
+  -- The group is already resident; no separate activation call is needed.
+end
+
+Assets.unload("asset://textures/portrait")
+Assets.unload("asset-group://chapter_02")
+```
+
+The URI scheme is the type tag: `asset://` loads one resource and its
+dependencies, while `asset-group://` loads every root in the group. Both remain
+non-blocking and return a request for progress or cancellation.
+
 Scene-rooted groups use `scene://chapter_02` as the root. The runtime loads the
 scene through the normal scene loader, includes expanded prefab content, finds
 the entity and UI asset references, and resolves their transitive asset
@@ -116,13 +155,14 @@ implicit ownership after the incoming scene commits; additive scenes retain
 their groups until unloaded.
 
 The initial scene follows the same rule before Lua `on_start` and before the
-first rendered frame. Asset-free scenes continue immediately. There is no
-separate startup asset manifest or eager renderer/audio cache.
+first rendered frame. Asset-free scenes with no project `assets` continue
+immediately.
 
-`AssetGroupService` resolves transitive dependencies, performs read/decode work
+Internally, `AssetGroupService` resolves transitive dependencies, performs read/decode work
 off-thread through narrow `AssetResourceLoader` backends, and performs bounded
-uploads from `update`. Preparation, activation, cancellation, and release are
-separate operations. Shared resources, including resources requested
+uploads from `update`. Preparation and activation remain separate engine
+stages so scene transitions can commit atomically; the Lua facade combines
+them into `load`. Shared resources, including resources requested
 concurrently before the first upload completes, are decoded and uploaded once
 and are unloaded only after their final active or preparing owner releases
 them. Cancelling the request that started shared work hands it to another
@@ -153,8 +193,8 @@ resident snapshot after a graphics device or surface recreation.
 
 The runnable [`asset_streaming_showcase`](../examples/asset_streaming_showcase/README.md)
 keeps its initial scene asset-free and drives an optional, transitively rooted
-SVG group through prepare, progress, activation, cancellation, explicit reload,
-release, and memory reporting.
+SVG group through load, progress, cancellation, explicit reload, unload, and
+memory reporting.
 
 ## Locked package content
 

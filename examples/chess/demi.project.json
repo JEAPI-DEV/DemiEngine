@@ -8,6 +8,20 @@
       "path": "scenes/main.scene.json"
     }
   ],
+  "assets": [
+    "asset://chess/w_pawn",
+    "asset://chess/w_knight",
+    "asset://chess/w_bishop",
+    "asset://chess/w_rook",
+    "asset://chess/w_queen",
+    "asset://chess/w_king",
+    "asset://chess/b_pawn",
+    "asset://chess/b_knight",
+    "asset://chess/b_bishop",
+    "asset://chess/b_rook",
+    "asset://chess/b_queen",
+    "asset://chess/b_king"
+  ],
   "simulation": {
     "fixed_timestep": 0.016666667,
     "random_seed": 20260812

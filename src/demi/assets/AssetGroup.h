@@ -131,6 +131,7 @@ public:
   [[nodiscard]] bool cancel(AssetGroupRequestHandle request);
   [[nodiscard]] bool releaseGroup(std::string_view groupId,
                                   Diagnostics *diagnostics = nullptr);
+  [[nodiscard]] bool isGroupActive(std::string_view groupId) const;
   // Reuses the selected loader and existing ownership entry. Loader uploads
   // for an existing stable ID must replace atomically or leave it unchanged.
   [[nodiscard]] bool reload(std::string_view assetId,

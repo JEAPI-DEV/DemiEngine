@@ -30,8 +30,9 @@ luaScriptWriteTime(const std::filesystem::path &path);
 [[nodiscard]] bool luaLoadScriptTable(lua_State *state,
                                       const std::filesystem::path &scriptPath,
                                       std::string &error);
-void applyScriptProperties(lua_State *state, int tableRef,
-                           const std::string &propertiesJson);
+[[nodiscard]] bool applyScriptProperties(lua_State *state, int tableRef,
+                                         const std::string &propertiesJson,
+                                         std::string &error);
 void clearLuaBindingGlobals(lua_State *state);
 void luaCallLifecycle(lua_State *state, int tableRef, const char *functionName,
                       const std::filesystem::path &path,
