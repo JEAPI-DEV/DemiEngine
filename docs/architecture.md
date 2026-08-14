@@ -119,9 +119,11 @@ The current refactoring order is:
    preparation into `RuntimeAssetBootstrap` and atomic watched reload into
    `RuntimeAssetReload`. Later loop extraction should produce headless, 2D, and
    3D runners without introducing a second startup configuration object.
-2. `BgfxRenderer3D.cpp`: separate asset decode/upload and render-pass assembly
-   when those areas next change. `Bgfx3DAppHost` remains the native lifetime
-   owner; the renderer should not gain application or scene-flow policy.
+2. `BgfxRenderer3D.cpp`: asset decode/upload now lives in
+   `BgfxRenderer3DAssets.cpp`, while shared render-asset file access and texture
+   sampling live in `RenderAssetLoading`. Render-pass assembly is the next
+   boundary if frame extraction grows. `Bgfx3DAppHost` remains the native
+   lifetime owner; the renderer must not gain application or scene-flow policy.
 3. `Physics2D.cpp` and `PhysicsWorld3D.cpp`: separate body/shape construction,
    simulation synchronization, contacts, and queries along existing domain
    seams. Do not split individual collision algorithms merely to reduce lines.
@@ -132,6 +134,11 @@ The current refactoring order is:
 
 New functionality should follow these boundaries now; older files can migrate
 incrementally when behavior changes provide focused regression coverage.
+
+Small shared functions belong at the narrowest real boundary. CLI option lookup
+is centralized in `CliArguments.h`; renderer binary access and sampling policy
+are centralized in `RenderAssetLoading`. Neither is a general-purpose utility
+namespace, and neither introduces a new owner or configuration object.
 
 ## Compatibility
 

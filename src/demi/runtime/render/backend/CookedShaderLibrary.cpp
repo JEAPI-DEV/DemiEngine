@@ -1,26 +1,13 @@
 #include "demi/runtime/render/backend/CookedShaderLibrary.h"
+#include "demi/runtime/render/backend/RenderAssetLoading.h"
 
 #include <nlohmann/json.hpp>
 
-#include <algorithm>
 #include <fstream>
-#include <iterator>
 #include <unordered_set>
 
 namespace demi::runtime::render {
 namespace {
-
-std::vector<std::byte> readBytes(const std::filesystem::path &path) {
-  std::ifstream input(path, std::ios::binary);
-  if (!input)
-    return {};
-  const std::vector<char> chars((std::istreambuf_iterator<char>(input)), {});
-  std::vector<std::byte> bytes(chars.size());
-  std::transform(chars.begin(), chars.end(), bytes.begin(), [](char value) {
-    return static_cast<std::byte>(static_cast<unsigned char>(value));
-  });
-  return bytes;
-}
 
 bool validRelativePath(const std::filesystem::path &,
                        const std::filesystem::path &relative) {
@@ -74,7 +61,7 @@ bool CookedShaderLibrary::load(const AssetRegistry &registry,
   // Prefer a desktop binary so headless tests can still exercise loading.
   if (backend == "noop")
     backend = manifest.value("platform", "linux") == "android" ? "opengles"
-                                                                  : "opengl";
+                                                               : "opengl";
 
   std::unordered_map<std::string, ProgramHandle> replacements;
   std::unordered_set<std::string> seen;
@@ -94,8 +81,10 @@ bool CookedShaderLibrary::load(const AssetRegistry &registry,
         resources_.destroy(handle);
       return false;
     }
-    const auto vertexBytes = readBytes(registry.projectDirectory / vertex);
-    const auto fragmentBytes = readBytes(registry.projectDirectory / fragment);
+    const auto vertexBytes =
+        readRenderAssetBytes(registry.projectDirectory / vertex);
+    const auto fragmentBytes =
+        readRenderAssetBytes(registry.projectDirectory / fragment);
     if (vertexBytes.empty() || fragmentBytes.empty()) {
       diagnostics.push_back(asset + ": cooked shader binary is missing.");
       for (const auto &[unused, handle] : replacements)
@@ -103,11 +92,11 @@ bool CookedShaderLibrary::load(const AssetRegistry &registry,
       return false;
     }
     std::string error;
-    const ProgramHandle program = resources_.createProgram(
-        {.vertexShader = vertexBytes,
-         .fragmentShader = fragmentBytes,
-         .debugName = asset},
-        error);
+    const ProgramHandle program =
+        resources_.createProgram({.vertexShader = vertexBytes,
+                                  .fragmentShader = fragmentBytes,
+                                  .debugName = asset},
+                                 error);
     if (!program) {
       diagnostics.push_back(asset + ": " + error);
       for (const auto &[unused, handle] : replacements)

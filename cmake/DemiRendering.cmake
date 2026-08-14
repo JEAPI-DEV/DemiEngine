@@ -148,6 +148,7 @@ add_library(demi-graphics-bgfx STATIC
   src/demi/runtime/render/backend/GifDecoder2D.cpp
   src/demi/runtime/render/backend/ImageDecoder2D.cpp
   src/demi/runtime/render/backend/QuadBatch.cpp
+  src/demi/runtime/render/backend/RenderAssetLoading.cpp
   src/demi/runtime/render/backend/TextureLibrary2D.cpp
 )
 add_custom_command(
@@ -204,6 +205,7 @@ endif()
 
 add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/BgfxRenderer3D.cpp
+  src/demi/runtime/render/BgfxRenderer3DAssets.cpp
   src/demi/runtime/render/bgfx3d/DebugGeometry3D.cpp
   src/demi/runtime/render/bgfx3d/GpuMesh3D.cpp
   src/demi/runtime/render/bgfx3d/MeshTransform3D.cpp

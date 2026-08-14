@@ -1,4 +1,5 @@
 #include "cli/AssetCommands.h"
+#include "cli/CliArguments.h"
 
 #include "demi/assets/AssetImporter.h"
 #include "demi/assets/AssetPackage.h"
@@ -22,14 +23,6 @@ constexpr int ExitSuccess = 0;
 constexpr int ExitValidationFailure = 1;
 constexpr int ExitUsageError = 2;
 
-std::string valueAfter(const std::vector<std::string> &args,
-                       const std::string &key) {
-  for (std::size_t index = 0; index + 1 < args.size(); ++index)
-    if (args[index] == key)
-      return args[index + 1];
-  return {};
-}
-
 std::optional<float> floatAfter(const std::vector<std::string> &args,
                                 const std::string &key) {
   const std::string value = valueAfter(args, key);
@@ -40,10 +33,6 @@ std::optional<float> floatAfter(const std::vector<std::string> &args,
   } catch (...) {
     return std::nullopt;
   }
-}
-
-bool hasArg(const std::vector<std::string> &args, const std::string &key) {
-  return std::ranges::find(args, key) != args.end();
 }
 
 std::filesystem::path projectDirectory(const std::vector<std::string> &args) {
@@ -131,10 +120,9 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
         !valueAfter(args, "--up").empty() ||
         !valueAfter(args, "--forward").empty() ||
         !valueAfter(args, "--meters-per-unit").empty()) {
-      profile = assets::modelImportPreset(
-          valueAfter(args, "--preset").empty()
-              ? "static_prop"
-              : valueAfter(args, "--preset"));
+      profile = assets::modelImportPreset(valueAfter(args, "--preset").empty()
+                                              ? "static_prop"
+                                              : valueAfter(args, "--preset"));
       if (!valueAfter(args, "--up").empty())
         profile->sourceUp = valueAfter(args, "--up");
       if (!valueAfter(args, "--forward").empty())
@@ -226,8 +214,9 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
                  << '\n';
         else
           output << "recommended: " << recommendation->shape << " ("
-                 << recommendation->reason << ")\ncomponent: "
-                 << recommendation->component.dump() << '\n';
+                 << recommendation->reason
+                 << ")\ncomponent: " << recommendation->component.dump()
+                 << '\n';
       }
       const int status = printDiagnostics(diagnostics, error);
       if (status != ExitSuccess || valueAfter(args, "--id").empty())
@@ -310,10 +299,10 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
                     .dump(2)
              << '\n';
     else {
-      output << "3D budget (" << platform << "): "
-             << report.document.value("observed", nlohmann::json::object())
-                    .dump()
-             << '\n';
+      output
+          << "3D budget (" << platform << "): "
+          << report.document.value("observed", nlohmann::json::object()).dump()
+          << '\n';
       printDiagnosticsText(error, report.diagnostics);
     }
     return hasErrors(report.diagnostics) ? ExitValidationFailure : ExitSuccess;

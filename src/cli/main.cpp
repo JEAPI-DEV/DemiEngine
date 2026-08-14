@@ -1,11 +1,12 @@
 #include "cli/AssetCommands.h"
 #include "cli/BuildCommands.h"
 #include "cli/CapabilityCommands.h"
+#include "cli/CliArguments.h"
 #include "cli/CookCommands.h"
+#include "cli/SceneCompositionCommands.h"
 #include "cli/doctor/DoctorService.h"
 #include "cli/package/PackageCommands.h"
 #include "cli/project/ProjectTemplates.h"
-#include "cli/SceneCompositionCommands.h"
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/core/Version.h"
@@ -23,6 +24,9 @@
 #include <vector>
 
 namespace {
+
+using demi::cli::hasArg;
+using demi::cli::valueAfter;
 
 constexpr int ExitSuccess = 0;
 constexpr int ExitValidationFailure = 1;
@@ -100,25 +104,6 @@ void printHelp() {
       << "  demi build linux [--project <project>] [--output path]\n"
       << "  demi build linux_server [--project <project>] [--output path]\n"
       << "  demi editor --project <project>\n";
-}
-
-bool hasArg(const std::vector<std::string> &args, const std::string &needle) {
-  for (const std::string &arg : args) {
-    if (arg == needle) {
-      return true;
-    }
-  }
-  return false;
-}
-
-std::string valueAfter(const std::vector<std::string> &args,
-                       const std::string &key) {
-  for (std::size_t i = 0; i + 1 < args.size(); ++i) {
-    if (args[i] == key) {
-      return args[i + 1];
-    }
-  }
-  return {};
 }
 
 int runValidate(const std::vector<std::string> &args) {
@@ -322,8 +307,8 @@ int main(int argc, char **argv) {
   }
 
   if (args[0] == "new") {
-    return demi::cli::project::runNewCommand(
-        args, sourceRoot() / "templates", std::cout, std::cerr);
+    return demi::cli::project::runNewCommand(args, sourceRoot() / "templates",
+                                             std::cout, std::cerr);
   }
 
   if (args[0] == "doctor") {

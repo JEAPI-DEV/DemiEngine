@@ -1,4 +1,5 @@
 #include "cli/BuildCommands.h"
+#include "cli/CliArguments.h"
 
 #include "demi/assets/AssetCooker.h"
 #include "demi/schema/Validation.h"
@@ -21,16 +22,6 @@ enum class LinuxBundleMode {
   Game,
   Server,
 };
-
-std::string valueAfter(const std::vector<std::string> &args,
-                       const std::string &key) {
-  for (std::size_t i = 0; i + 1 < args.size(); ++i) {
-    if (args[i] == key) {
-      return args[i + 1];
-    }
-  }
-  return {};
-}
 
 std::filesystem::path defaultProjectFile() {
   const std::filesystem::path candidate =
@@ -217,12 +208,12 @@ int runBuildCommand(const std::vector<std::string> &args,
     const std::filesystem::path androidRoot = context.engineRoot / "android";
     const std::filesystem::path cookedProject =
         androidRoot / "app/build/generated/demi/cooked-project";
-    const Diagnostics cookDiagnostics = assets::cookProject(
-        {.projectFile = absoluteProject,
-         .outputDirectory = cookedProject,
-         .platform = "android",
-         .shaderCompiler = {},
-         .shaderIncludeDirectory = {}});
+    const Diagnostics cookDiagnostics =
+        assets::cookProject({.projectFile = absoluteProject,
+                             .outputDirectory = cookedProject,
+                             .platform = "android",
+                             .shaderCompiler = {},
+                             .shaderIncludeDirectory = {}});
     if (hasErrors(cookDiagnostics)) {
       printDiagnosticsText(std::cerr, cookDiagnostics);
       return ExitValidationFailure;

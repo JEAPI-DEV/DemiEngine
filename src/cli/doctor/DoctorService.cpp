@@ -1,4 +1,5 @@
 #include "cli/doctor/DoctorService.h"
+#include "cli/CliArguments.h"
 
 #include "demi/schema/Validation.h"
 
@@ -20,14 +21,6 @@ void add(Diagnostics &diagnostics, Severity severity, std::string code,
                          .message = std::move(message),
                          .path = path.string(),
                          .suggestion = std::move(suggestion)});
-}
-
-std::string valueAfter(const std::vector<std::string> &args,
-                       const std::string &key) {
-  for (std::size_t i = 0; i + 1 < args.size(); ++i)
-    if (args[i] == key)
-      return args[i + 1];
-  return {};
 }
 
 std::filesystem::path projectFileFrom(const std::vector<std::string> &args) {

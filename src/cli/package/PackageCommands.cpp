@@ -1,4 +1,5 @@
 #include "cli/package/PackageCommands.h"
+#include "cli/CliArguments.h"
 #include "demi/assets/PackageContent.h"
 
 #include "demi/core/Version.h"
@@ -22,18 +23,6 @@ constexpr int ExitSuccess = 0;
 constexpr int ExitFailure = 1;
 constexpr int ExitUsage = 2;
 
-std::string valueAfter(const std::vector<std::string> &args,
-                       const std::string &key) {
-  for (std::size_t index = 0; index + 1 < args.size(); ++index)
-    if (args[index] == key)
-      return args[index + 1];
-  return {};
-}
-
-bool hasArg(const std::vector<std::string> &args, const std::string &key) {
-  return std::ranges::find(args, key) != args.end();
-}
-
 std::filesystem::path projectFile(const std::vector<std::string> &args) {
   const std::string requested = valueAfter(args, "--project");
   if (!requested.empty()) {
@@ -51,7 +40,8 @@ std::optional<nlohmann::json> readJson(const std::filesystem::path &path,
     diagnostics.push_back({.severity = Severity::Error,
                            .code = "PACKAGE_PROJECT_READ_FAILED",
                            .message = "Could not read the project file.",
-                           .path = path.string()});
+                           .path = path.string(),
+                           .suggestion = {}});
     return std::nullopt;
   }
   try {
@@ -62,7 +52,8 @@ std::optional<nlohmann::json> readJson(const std::filesystem::path &path,
     diagnostics.push_back({.severity = Severity::Error,
                            .code = "PACKAGE_PROJECT_INVALID_JSON",
                            .message = exception.what(),
-                           .path = path.string()});
+                           .path = path.string(),
+                           .suggestion = {}});
     return std::nullopt;
   }
 }
@@ -78,7 +69,8 @@ requirementsFrom(const nlohmann::json &project, Diagnostics &diagnostics,
     diagnostics.push_back({.severity = Severity::Error,
                            .code = "PROJECT_PACKAGES_INVALID",
                            .message = "Project packages must be an object.",
-                           .path = path.string()});
+                           .path = path.string(),
+                           .suggestion = {}});
     return result;
   }
   for (const auto &[name, value] : values->items()) {
@@ -90,7 +82,8 @@ requirementsFrom(const nlohmann::json &project, Diagnostics &diagnostics,
       diagnostics.push_back({.severity = Severity::Error,
                              .code = "PROJECT_PACKAGE_REQUIREMENT_INVALID",
                              .message = "Invalid package requirement: " + name,
-                             .path = path.string()});
+                             .path = path.string(),
+                             .suggestion = {}});
       continue;
     }
     result.push_back(
@@ -157,7 +150,8 @@ int install(const std::vector<std::string> &args,
     diagnostics.push_back({.severity = Severity::Error,
                            .code = "PACKAGE_LOCK_REQUIRED",
                            .message = "Locked install requires a lock file.",
-                           .path = lockPath.string()});
+                           .path = lockPath.string(),
+                           .suggestion = {}});
     print(diagnostics, json, error);
     return ExitFailure;
   }
@@ -385,8 +379,8 @@ int runPackageCommand(const std::vector<std::string> &args,
       error << "Usage: demi package remove <name> --project <project>\n";
       return ExitUsage;
     }
-    const Diagnostics removalDiagnostics = assets::validatePackageRemoval(
-        projectPath.parent_path(), args[2]);
+    const Diagnostics removalDiagnostics =
+        assets::validatePackageRemoval(projectPath.parent_path(), args[2]);
     if (hasErrors(removalDiagnostics)) {
       print(removalDiagnostics, json, error);
       return ExitFailure;

@@ -1,4 +1,5 @@
 #include "cli/project/ProjectTemplates.h"
+#include "cli/CliArguments.h"
 
 #include "demi/schema/Validation.h"
 
@@ -76,18 +77,6 @@ std::string renderTemplate(std::string text, const std::string &projectName,
   replaceAll(text, "{{PROJECT_NAME_JSON}}", Json(projectName).dump());
   replaceAll(text, "{{TEMPLATE_ID}}", templateId);
   return text;
-}
-
-std::string valueAfter(const std::vector<std::string> &args,
-                       const std::string &key) {
-  for (std::size_t i = 0; i + 1 < args.size(); ++i)
-    if (args[i] == key)
-      return args[i + 1];
-  return {};
-}
-
-bool hasArg(const std::vector<std::string> &args, const std::string &key) {
-  return std::ranges::find(args, key) != args.end();
 }
 
 } // namespace

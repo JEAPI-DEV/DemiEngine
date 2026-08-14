@@ -1,6 +1,7 @@
 #include "demi/runtime/render/BgfxRenderer2D.h"
 
 #include "demi/runtime/render/ParticleSystem2D.h"
+#include "demi/runtime/render/backend/RenderAssetLoading.h"
 #include "demi/runtime/render/backend/SvgDecoder2D.h"
 #include "demi/runtime/render/bgfx2d/ColliderCanvasRenderer.h"
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
@@ -11,9 +12,6 @@
 #include "demi/runtime/render/bgfx2d/TilemapCanvasRenderer.h"
 #include "demi/runtime/render/bgfx2d/UiCanvasRenderer.h"
 
-#include <algorithm>
-#include <fstream>
-#include <iterator>
 #include <span>
 
 namespace demi::runtime::render {
@@ -25,42 +23,12 @@ public:
 
 namespace {
 
-std::vector<std::byte> readBytes(const std::filesystem::path &path) {
-  std::ifstream input(path, std::ios::binary);
-  if (!input)
-    return {};
-  const std::vector<char> chars((std::istreambuf_iterator<char>(input)),
-                                std::istreambuf_iterator<char>());
-  std::vector<std::byte> bytes(chars.size());
-  std::transform(
-      chars.begin(), chars.end(), bytes.begin(), [](const char value) {
-        return static_cast<std::byte>(static_cast<unsigned char>(value));
-      });
-  return bytes;
-}
-
 bool isRasterTexture(const AssetManifest &asset) {
   return asset.type == "Texture2D";
 }
 
 bool isSvgTexture(const AssetManifest &asset) {
   return asset.type == "Icon2D" || asset.type == "SvgTexture2D";
-}
-
-TextureSampling2D textureSampling(const AssetManifest &asset,
-                                  const TextureFilter defaultFilter) {
-  TextureSampling2D result{.filter = defaultFilter};
-  if (asset.textureSettings.filter == "nearest")
-    result.filter = TextureFilter::Nearest;
-  else if (asset.textureSettings.filter == "bilinear" ||
-           asset.textureSettings.filter == "trilinear")
-    result.filter = TextureFilter::Linear;
-
-  if (asset.textureSettings.wrap == "repeat")
-    result.wrap = TextureWrap::Repeat;
-  else if (asset.textureSettings.wrap == "mirror")
-    result.wrap = TextureWrap::Mirror;
-  return result;
 }
 
 } // namespace
@@ -114,7 +82,7 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
   }
   for (const AssetManifest &asset : registry.assets) {
     if (asset.type == "Font2D") {
-      const auto bytes = readBytes(asset.sourcePath);
+      const auto bytes = readRenderAssetBytes(asset.sourcePath);
       std::uint64_t revision = 1469598103934665603ULL;
       for (const unsigned char byte : asset.sourceHash) {
         revision ^= byte;
@@ -123,8 +91,9 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
       std::string error;
       if (bytes.empty() ||
           !font_.addFallback(asset.id, bytes, revision, error)) {
-        diagnostics.push_back(asset.id + ": " +
-                              (error.empty() ? "could not read source" : error));
+        diagnostics.push_back(
+            asset.id + ": " +
+            (error.empty() ? "could not read source" : error));
         success = false;
       }
       continue;
@@ -142,12 +111,12 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
     }
     if (asset.type == "ImageAnimation2D") {
       for (std::size_t frame = 0; frame < asset.sourcePaths.size(); ++frame) {
-        const auto bytes = readBytes(asset.sourcePaths[frame]);
+        const auto bytes = readRenderAssetBytes(asset.sourcePaths[frame]);
         std::string error;
         if (bytes.empty() ||
             !textures_.load(asset.id + "#" + std::to_string(frame), bytes,
                             error,
-                            textureSampling(asset, TextureFilter::Nearest))) {
+                            textureSampling2D(asset, TextureFilter::Nearest))) {
           diagnostics.push_back(
               asset.id + " frame " + std::to_string(frame) + ": " +
               (error.empty() ? "could not read source" : error));
@@ -161,7 +130,7 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
       continue;
     }
     if (asset.type == "GifAnimation2D") {
-      const auto bytes = readBytes(asset.sourcePath);
+      const auto bytes = readRenderAssetBytes(asset.sourcePath);
       AnimatedImageData2D animation;
       std::string error;
       if (bytes.empty() || !decodeGif2D(bytes, animation, error)) {
@@ -173,9 +142,9 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
       }
       bool uploaded = true;
       for (std::size_t frame = 0; frame < animation.frames.size(); ++frame) {
-        if (!textures_.upload(asset.id + "#" + std::to_string(frame),
-                              animation.frames[frame], error,
-                              textureSampling(asset, TextureFilter::Nearest))) {
+        if (!textures_.upload(
+                asset.id + "#" + std::to_string(frame), animation.frames[frame],
+                error, textureSampling2D(asset, TextureFilter::Nearest))) {
           diagnostics.push_back(asset.id + " frame " + std::to_string(frame) +
                                 ": " + error);
           uploaded = false;
@@ -196,7 +165,7 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
       if (!decodeSvg2D(asset.sourcePath, asset.type == "Icon2D", image,
                        error) ||
           !textures_.upload(asset.id, image, error,
-                            textureSampling(asset, TextureFilter::Linear))) {
+                            textureSampling2D(asset, TextureFilter::Linear))) {
         diagnostics.push_back(asset.id + ": " + error);
         success = false;
       }
@@ -204,11 +173,11 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
     }
     if (!isRasterTexture(asset))
       continue;
-    const auto bytes = readBytes(asset.sourcePath);
+    const auto bytes = readRenderAssetBytes(asset.sourcePath);
     std::string error;
     if (bytes.empty() ||
         !textures_.load(asset.id, bytes, error,
-                        textureSampling(asset, TextureFilter::Nearest))) {
+                        textureSampling2D(asset, TextureFilter::Nearest))) {
       diagnostics.push_back(asset.id + ": " +
                             (error.empty() ? "could not read source" : error));
       success = false;

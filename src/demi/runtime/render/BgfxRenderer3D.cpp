@@ -3,10 +3,6 @@
 
 #include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
 
-#include "demi/assets/GltfGeometry.h"
-#include "demi/assets/GltfSkinnedModel.h"
-#include "demi/assets/ModelImportProfile.h"
-#include "demi/assets/RenderAsset.h"
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 #include "demi/runtime/render/bgfx3d/MeshTransform3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveMeshFactory3D.h"
@@ -20,9 +16,6 @@
 
 #include <algorithm>
 #include <bit>
-#include <fstream>
-#include <iterator>
-#include <nlohmann/json.hpp>
 #include <unordered_set>
 
 namespace demi::runtime::render {
@@ -30,30 +23,6 @@ namespace {
 
 Point3D point(const Vec3 value) {
   return {.x = value.x, .y = value.y, .z = value.z};
-}
-
-std::vector<std::byte> readBytes(const std::filesystem::path &path) {
-  std::ifstream input(path, std::ios::binary);
-  if (!input)
-    return {};
-  const std::vector<char> source((std::istreambuf_iterator<char>(input)), {});
-  std::vector<std::byte> result(source.size());
-  std::transform(
-      source.begin(), source.end(), result.begin(), [](const char value) {
-        return static_cast<std::byte>(static_cast<unsigned char>(value));
-      });
-  return result;
-}
-
-TextureSampling2D textureSampling(const AssetManifest &asset) {
-  TextureSampling2D result;
-  if (asset.textureSettings.filter == "nearest")
-    result.filter = TextureFilter::Nearest;
-  if (asset.textureSettings.wrap == "repeat")
-    result.wrap = TextureWrap::Repeat;
-  else if (asset.textureSettings.wrap == "mirror")
-    result.wrap = TextureWrap::Mirror;
-  return result;
 }
 
 void hashValue(std::uint64_t &hash, const std::uint32_t value) {
@@ -165,12 +134,11 @@ bool BgfxRenderer3D::initialize(std::string &error) {
                                            error);
   if (!meshProgram_ || !instancedMeshProgram_ || !meshSampler_ ||
       !tintUniform_ || !alphaCutoffUniform_ || !debugModeUniform_ ||
-      !whiteTexture_ ||
-      !lightDirectionUniform_ ||
-      !lightColorUniform_ || !ambientColorUniform_ ||
-      !pointPositionRangeUniform_ || !pointColorIntensityUniform_ ||
-      !spotPositionRangeUniform_ || !spotDirectionOuterUniform_ ||
-      !spotColorIntensityUniform_ || !spotInnerUniform_) {
+      !whiteTexture_ || !lightDirectionUniform_ || !lightColorUniform_ ||
+      !ambientColorUniform_ || !pointPositionRangeUniform_ ||
+      !pointColorIntensityUniform_ || !spotPositionRangeUniform_ ||
+      !spotDirectionOuterUniform_ || !spotColorIntensityUniform_ ||
+      !spotInnerUniform_) {
     shutdown();
     return false;
   }
@@ -203,12 +171,10 @@ void BgfxRenderer3D::shutdown() {
     resources_.destroy(meshSampler_);
   for (const UniformHandle uniform :
        {tintUniform_, alphaCutoffUniform_, debugModeUniform_,
-        lightDirectionUniform_,
-        lightColorUniform_,
-        ambientColorUniform_, pointPositionRangeUniform_,
-        pointColorIntensityUniform_, spotPositionRangeUniform_,
-        spotDirectionOuterUniform_, spotColorIntensityUniform_,
-        spotInnerUniform_})
+        lightDirectionUniform_, lightColorUniform_, ambientColorUniform_,
+        pointPositionRangeUniform_, pointColorIntensityUniform_,
+        spotPositionRangeUniform_, spotDirectionOuterUniform_,
+        spotColorIntensityUniform_, spotInnerUniform_})
     if (uniform)
       resources_.destroy(uniform);
   if (meshProgram_)
@@ -239,159 +205,6 @@ void BgfxRenderer3D::shutdown() {
   initialized_ = false;
 }
 
-bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
-                                std::vector<std::string> &diagnostics) {
-  textures_.clear();
-  modelMeshes_.clear();
-  animatedModels_.clear();
-  modelTextures_.clear();
-  modelUnlit_.clear();
-  materials_.clear();
-  for (const auto &[id, target] : renderTargets_) {
-    static_cast<void>(id);
-    if (target.handles.frameBuffer)
-      resources_.destroy(target.handles.frameBuffer);
-    if (target.handles.depth)
-      resources_.destroy(target.handles.depth);
-    if (target.handles.color)
-      resources_.destroy(target.handles.color);
-  }
-  renderTargets_.clear();
-  bool success = materials_.load(registry, diagnostics);
-  success = overlay_.loadAssets(registry, diagnostics) && success;
-  for (const AssetManifest &asset : registry.assets) {
-    if (asset.type == "Texture2D") {
-      const auto bytes = readBytes(asset.sourcePath);
-      std::string error;
-      if (bytes.empty() ||
-          !textures_.load(asset.id, bytes, error, textureSampling(asset))) {
-        diagnostics.push_back(
-            asset.id + ": " +
-            (error.empty() ? "could not read source" : error));
-        success = false;
-      }
-    } else if (asset.type == "RenderTarget") {
-      const auto descriptor = assets::loadRenderTargetAsset(asset.sourcePath);
-      if (!descriptor) {
-        diagnostics.push_back(asset.id + ": could not load render target");
-        success = false;
-        continue;
-      }
-      std::string error;
-      const RenderTargetHandles handles = resources_.createRenderTarget(
-          {.width = static_cast<std::uint16_t>(descriptor->width),
-           .height = static_cast<std::uint16_t>(descriptor->height),
-           .colorFormat = TextureFormat::RGBA8,
-           .depth = descriptor->depth,
-           .debugName = asset.id},
-          error);
-      if (!handles.frameBuffer || !handles.color) {
-        diagnostics.push_back(asset.id + ": " + error);
-        success = false;
-      } else {
-        renderTargets_.emplace(
-            asset.id,
-            RenderTarget{.handles = handles,
-                         .width = static_cast<std::uint16_t>(descriptor->width),
-                         .height =
-                             static_cast<std::uint16_t>(descriptor->height)});
-        overlay_.setExternalTexture(
-            asset.id,
-            {.handle = handles.color,
-             .width = static_cast<std::uint16_t>(descriptor->width),
-             .height = static_cast<std::uint16_t>(descriptor->height)});
-      }
-    } else if (asset.type == "Model3D" &&
-               (asset.sourcePath.extension() == ".gltf" ||
-                asset.sourcePath.extension() == ".glb")) {
-      std::string error;
-      std::vector<Vec3> positions;
-      std::vector<Vec2> textureCoordinates;
-      std::vector<std::uint32_t> vertexColors;
-      std::vector<std::uint32_t> indices;
-      const nlohmann::json settings =
-          nlohmann::json::parse(asset.settingsJson, nullptr, false);
-      // Legacy manifests had no import profile and always exposed animation
-      // clips. Preserve that behavior while new imports remain explicit.
-      const bool hasProfile =
-          settings.is_object() && settings.contains("model_import");
-      const auto profile = hasProfile
-                               ? assets::parseModelImportProfile(settings)
-                               : std::make_optional(assets::modelImportPreset(
-                                     "animated_character"));
-      if (!profile) {
-        diagnostics.push_back(asset.id + ": invalid model import profile");
-        success = false;
-        continue;
-      }
-      modelUnlit_[asset.id] = profile->materialPolicy == "unlit";
-      auto animated =
-          assets::loadGltfSkinnedModel3D(asset.sourcePath, *profile, error);
-      if (animated) {
-        if (!animated->bindPosePositions(positions, error)) {
-          diagnostics.push_back(asset.id + ": " + error);
-          success = false;
-          continue;
-        }
-        textureCoordinates.reserve(animated->vertices.size());
-        vertexColors.reserve(animated->vertices.size());
-        for (const assets::GltfSkinnedVertex3D &vertex : animated->vertices) {
-          textureCoordinates.push_back(vertex.uv);
-          vertexColors.push_back(packVertexColorRgba8(vertex.color));
-        }
-        indices = animated->indices;
-      } else {
-        error.clear();
-        const auto geometry =
-            assets::loadGltfGeometry(asset.sourcePath, *profile, error);
-        if (!geometry) {
-          diagnostics.push_back(asset.id + ": " + error);
-          success = false;
-          continue;
-        }
-        positions.reserve(geometry->triangles.size() * 3U);
-        textureCoordinates.reserve(geometry->triangles.size() * 3U);
-        for (const assets::GltfTriangle &triangle : geometry->triangles) {
-          for (const assets::GltfPoint3 point :
-               {triangle.a, triangle.b, triangle.c})
-            positions.push_back({point.x, point.y, point.z});
-          for (const assets::GltfPoint2 point :
-               {triangle.uvA, triangle.uvB, triangle.uvC})
-            textureCoordinates.push_back({point.x, point.y});
-        }
-      }
-      auto cached = std::make_unique<CachedMesh>(resources_);
-      if (!cached->gpu.upload(positions, textureCoordinates, indices,
-                              0xffffffffU, error, {}, vertexColors)) {
-        diagnostics.push_back(asset.id + ": " + error);
-        success = false;
-      } else {
-        modelMeshes_.emplace(asset.id, std::move(cached));
-        std::vector<std::byte> embeddedAlbedo =
-            animated ? std::move(animated->albedoImage)
-                     : std::vector<std::byte>{};
-        if (animated && !animated->clips.empty())
-          animatedModels_.emplace(asset.id, std::move(*animated));
-        if (profile->materialPolicy != "ignore" &&
-            (asset.texturePath || !embeddedAlbedo.empty())) {
-          const std::string textureId = asset.id + "#albedo";
-          const auto bytes = asset.texturePath
-                                 ? readBytes(*asset.texturePath)
-                                 : embeddedAlbedo;
-          if (bytes.empty() || !textures_.load(textureId, bytes, error,
-                                               textureSampling(asset))) {
-            diagnostics.push_back(asset.id + ": " + error);
-            success = false;
-          } else {
-            modelTextures_[asset.id] = textureId;
-          }
-        }
-      }
-    }
-  }
-  return success;
-}
-
 bool BgfxRenderer3D::renderFrame(const World &world,
                                  const BgfxCameraFrame3D &frame,
                                  const float deltaSeconds, std::string &error) {
@@ -414,14 +227,15 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   const bool authoredOffscreen = renderTarget != renderTargets_.end();
   const bool applyPostProcess = hasPostProcessEffects(frame.postProcess);
   const float renderScale =
-      authoredOffscreen ? 1.0F : std::clamp(frame.camera.renderScale, 0.25F, 2.0F);
+      authoredOffscreen ? 1.0F
+                        : std::clamp(frame.camera.renderScale, 0.25F, 2.0F);
   const std::uint16_t renderWidth =
       authoredOffscreen
           ? renderTarget->second.width
-          : static_cast<std::uint16_t>(std::clamp(
-                std::lround(static_cast<float>(frame.viewportWidth) *
-                            renderScale),
-                1L, static_cast<long>(UINT16_MAX)));
+          : static_cast<std::uint16_t>(
+                std::clamp(std::lround(static_cast<float>(frame.viewportWidth) *
+                                       renderScale),
+                           1L, static_cast<long>(UINT16_MAX)));
   const std::uint16_t renderHeight =
       authoredOffscreen
           ? renderTarget->second.height
@@ -483,8 +297,8 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       collectSceneLighting3D(world, frame.camera.renderMask);
   const std::array<float, 4> whiteTint{1.0F, 1.0F, 1.0F, 1.0F};
   const std::array<float, 4> noAlphaCutoff{};
-  const std::array<float, 4> debugMode{
-      debugModeValue(frame.camera.debugMode), 0.0F, 0.0F, 0.0F};
+  const std::array<float, 4> debugMode{debugModeValue(frame.camera.debugMode),
+                                       0.0F, 0.0F, 0.0F};
   const std::array<float, 16> disabledArrayLights{};
   const std::array<DrawUniformValue, 12> lightingUniforms{{
       {.handle = tintUniform_, .values = whiteTint},
@@ -524,10 +338,10 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   if (frame.updateContent) {
     const auto extractionStarted = std::chrono::steady_clock::now();
     visibility = extractVisibleMeshes3D(world, frame, &extractionJobs_);
-    lastExtractionMilliseconds_ = std::chrono::duration<double, std::milli>(
-                                      std::chrono::steady_clock::now() -
-                                      extractionStarted)
-                                      .count();
+    lastExtractionMilliseconds_ =
+        std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - extractionStarted)
+            .count();
   } else {
     lastExtractionMilliseconds_ = 0.0;
   }
@@ -538,11 +352,11 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       const WorldTransform3D &transform = visible.transform;
       const std::uint32_t color = packVertexColorRgba8(mesh->color);
       const std::array<float, 4> entityTint{mesh->color.r, mesh->color.g,
-                                             mesh->color.b, mesh->color.a};
+                                            mesh->color.b, mesh->color.a};
       const MaterialBinding *material = materials_.find(mesh->material);
-      const ProgramHandle program =
-          material != nullptr && material->program ? material->program
-                                                   : meshProgram_;
+      const ProgramHandle program = material != nullptr && material->program
+                                        ? material->program
+                                        : meshProgram_;
       DrawState state =
           material != nullptr
               ? material->state
@@ -560,20 +374,18 @@ bool BgfxRenderer3D::renderFrame(const World &world,
                                                  lightingUniforms.end());
       drawUniforms.front().values = entityTint;
       const std::array<float, 4> alphaCutoff{
-          material == nullptr ? 0.0F : material->alphaCutoff, 0.0F, 0.0F,
-          0.0F};
+          material == nullptr ? 0.0F : material->alphaCutoff, 0.0F, 0.0F, 0.0F};
       drawUniforms[1].values = alphaCutoff;
       const auto modelLighting = modelUnlit_.find(mesh->model);
-      const bool modelUnlit = modelLighting != modelUnlit_.end() &&
-                              modelLighting->second;
+      const bool modelUnlit =
+          modelLighting != modelUnlit_.end() && modelLighting->second;
       const std::array<float, 4> unlitAmbient{1.0F, 1.0F, 1.0F, 1.0F};
       const std::array<float, 4> noLight{};
       if (modelUnlit) {
         drawUniforms[3].values = noLight;
         drawUniforms[4].values = noLight;
         drawUniforms[5].values = unlitAmbient;
-        for (std::size_t lightUniform = 6; lightUniform < 12;
-             ++lightUniform)
+        for (std::size_t lightUniform = 6; lightUniform < 12; ++lightUniform)
           drawUniforms[lightUniform].values = disabledArrayLights;
       }
       if (material != nullptr)
@@ -659,9 +471,8 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         const std::string textureId =
             material != nullptr && !material->albedoTexture.empty()
                 ? material->albedoTexture
-                : (modelTexture == modelTextures_.end()
-                       ? std::string{}
-                       : modelTexture->second);
+                : (modelTexture == modelTextures_.end() ? std::string{}
+                                                        : modelTexture->second);
         const TextureView2D texture = textures_.find(textureId);
         const TextureHandle resolvedTexture =
             texture.handle ? texture.handle : whiteTexture_;
@@ -680,11 +491,10 @@ bool BgfxRenderer3D::renderFrame(const World &world,
           transforms.push_back(composeMeshTransform3D(transform, mesh->size));
           queued = true;
         } else {
-          queued = drawMesh->gpu.draw(commands_, frame.viewId, program,
-                                      resolvedTexture, meshSampler_,
-                                      composeMeshTransform3D(transform,
-                                                             mesh->size),
-                                      state, error, drawUniforms);
+          queued = drawMesh->gpu.draw(
+              commands_, frame.viewId, program, resolvedTexture, meshSampler_,
+              composeMeshTransform3D(transform, mesh->size), state, error,
+              drawUniforms);
           if (queued) {
             ++bufferedDraws;
             bufferedTriangles += drawMesh->gpu.indexCount() / 3U;
@@ -704,8 +514,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
           }
           if (!cached->gpu.upload(primitive.positions,
                                   primitive.textureCoordinates,
-                                  primitive.indices,
-                                  0xffffffffU, error)) {
+                                  primitive.indices, 0xffffffffU, error)) {
             error = entity.id + ": " + error;
             return false;
           }
@@ -746,8 +555,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       std::array<DrawUniformValue, 12> groupUniforms = lightingUniforms;
       groupUniforms.front().values = group.tint;
       const std::array<float, 4> groupingMode{
-          debugMode[0], group.transforms.size() > 1U ? 1.0F : 0.0F, 0.0F,
-          0.0F};
+          debugMode[0], group.transforms.size() > 1U ? 1.0F : 0.0F, 0.0F, 0.0F};
       groupUniforms[2].values = groupingMode;
       const std::array<float, 4> unlitAmbient{1.0F, 1.0F, 1.0F, 1.0F};
       const std::array<float, 4> noLight{};
@@ -755,8 +563,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         groupUniforms[3].values = noLight;
         groupUniforms[4].values = noLight;
         groupUniforms[5].values = unlitAmbient;
-        for (std::size_t lightUniform = 6; lightUniform < 12;
-             ++lightUniform)
+        for (std::size_t lightUniform = 6; lightUniform < 12; ++lightUniform)
           groupUniforms[lightUniform].values = disabledArrayLights;
       }
       const bool queued =

@@ -669,7 +669,8 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
                                           std::string(root)
                                     : "Unsupported asset-group root: " +
                                           std::string(root),
-                     .path = path.string()});
+                     .path = path.string(),
+                     .suggestion = {}});
               return std::vector<std::string>{};
             },
             &diagnostics);

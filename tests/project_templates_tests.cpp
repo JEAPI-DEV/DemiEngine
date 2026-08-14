@@ -1,3 +1,4 @@
+#include "cli/CliArguments.h"
 #include "cli/project/ProjectTemplates.h"
 
 #include "demi/schema/Validation.h"
@@ -29,6 +30,14 @@ bool hasCode(const demi::Diagnostics &diagnostics, const std::string &code) {
 int main() {
   namespace fs = std::filesystem;
   using namespace demi::cli::project;
+  const std::vector<std::string> arguments{"demi", "--project",
+                                           "fixture.project.json", "--watch"};
+  assert(demi::cli::hasArg(arguments, "--watch"));
+  assert(!demi::cli::hasArg(arguments, "--missing"));
+  assert(demi::cli::valueAfter(arguments, "--project") ==
+         "fixture.project.json");
+  assert(demi::cli::valueAfter(arguments, "--watch").empty());
+
   const fs::path sourceRoot = DEMI_SOURCE_DIR;
   demi::Diagnostics catalogDiagnostics;
   ProjectTemplateCatalog catalog(sourceRoot / "templates");

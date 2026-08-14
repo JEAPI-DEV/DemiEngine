@@ -1,6 +1,7 @@
 #include "cli/CookCommands.h"
 
 #include "cli/BuildCommands.h"
+#include "cli/CliArguments.h"
 #include "demi/assets/AssetCooker.h"
 #include "demi/diagnostics/Diagnostic.h"
 
@@ -8,18 +9,6 @@
 #include <iostream>
 
 namespace demi::cli {
-namespace {
-
-std::string valueAfter(const std::vector<std::string> &args,
-                       const std::string &key) {
-  for (std::size_t index = 0; index + 1 < args.size(); ++index)
-    if (args[index] == key)
-      return args[index + 1];
-  return {};
-}
-
-} // namespace
-
 int runCookCommand(const std::vector<std::string> &args, std::ostream &output,
                    std::ostream &error) {
   const auto project = projectFileFromArgs(args);

@@ -1,4 +1,5 @@
 #include "cli/CapabilityCommands.h"
+#include "cli/CliArguments.h"
 
 #include "demi/capabilities/CapabilityManifest.h"
 #include "demi/diagnostics/Diagnostic.h"
@@ -20,16 +21,6 @@ using Json = nlohmann::json;
 constexpr int Success = 0;
 constexpr int Failure = 1;
 constexpr int UsageError = 2;
-
-std::string valueAfter(const std::vector<std::string> &args,
-                       const std::string &key) {
-  for (std::size_t index = 0; index + 1 < args.size(); ++index) {
-    if (args[index] == key) {
-      return args[index + 1];
-    }
-  }
-  return {};
-}
 
 std::optional<Json> readJson(const std::filesystem::path &path,
                              std::ostream &error) {
@@ -59,8 +50,8 @@ std::optional<Json> currentManifest(std::ostream &error) {
   return capabilities::buildManifest(host.publicLuaApi());
 }
 
-int exportManifest(const std::vector<std::string> &args,
-                   std::ostream &out, std::ostream &error) {
+int exportManifest(const std::vector<std::string> &args, std::ostream &out,
+                   std::ostream &error) {
   const auto manifest = currentManifest(error);
   if (!manifest.has_value()) {
     return Failure;
