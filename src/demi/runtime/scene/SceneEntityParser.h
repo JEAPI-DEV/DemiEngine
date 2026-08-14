@@ -7,6 +7,7 @@
 
 namespace demi::runtime::scene_loading {
 
+[[nodiscard]] Entity parseSceneEntity(const Json &entityJson);
 [[nodiscard]] World parseSceneWorld(const std::filesystem::path &scenePath,
                                     const Json &document);
 

@@ -1,13 +1,14 @@
 #pragma once
 
+#include "demi/filesystem/ProjectDiscovery.h"
+
 #include <filesystem>
 #include <string>
 #include <vector>
 
 namespace demi::cli {
 
-[[nodiscard]] std::filesystem::path
-findProjectFile(std::filesystem::path startDirectory);
+using ::demi::findProjectFile;
 
 [[nodiscard]] std::filesystem::path projectFileFromArgs(
     const std::vector<std::string> &args,

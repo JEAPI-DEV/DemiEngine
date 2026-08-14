@@ -25,6 +25,7 @@ add_library(demi-core STATIC
   src/demi/runtime/render/ParticleSimulation3D.cpp
   src/demi/runtime/concurrency/JobSystem.cpp
   src/demi/diagnostics/Diagnostic.cpp
+  src/demi/filesystem/ProjectDiscovery.cpp
   src/demi/filesystem/ProjectPaths.cpp
   src/demi/packages/SemanticVersion.cpp
   src/demi/packages/PackageManifest.cpp

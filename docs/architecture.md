@@ -65,9 +65,11 @@ The current source layout reflects those boundaries:
 - **mbedTLS 3.6.2:** TLS and DTLS security support.
 - **ENet 1.3.18:** optional reliable UDP transport.
 - **librsvg:** optional SVG rasterization when available.
+- **Dear ImGui:** editor-presentation UI only, compiled from the version pinned
+  by the existing bgfx dependency and isolated behind `EditorUiHost`.
 
-There is no EnTT, Dear ImGui, or ImGuizmo dependency in the current
-implementation.
+There is no EnTT or ImGuizmo dependency in the current implementation. Runtime
+data, component metadata, validation, and commands do not depend on Dear ImGui.
 
 ## Data And Composition
 
@@ -98,13 +100,15 @@ Supported lifecycle functions are `on_create`, `on_start`, `on_update`,
 
 ## Validation And Editor Direction
 
-`demi validate` is the current diagnostics contract. Validation, serialization,
-component metadata, schemas, Lua stubs, and the future inspector must converge
-on the same metadata path during Milestone 1.
-
-The editor executable is currently a boundary, not a functional editor. Editor
-work starts after components, prefabs, UI layout, saves, and command semantics
-are stable. It must never create hidden state that the CLI cannot validate.
+`demi validate` is the diagnostics contract shared by the CLI and editor.
+The graphical editor consumes the existing project loader, component metadata,
+authored component JSON, source discovery, and validation path. Its UI-free
+scene document owns reversible stable-ID field commands, while a document store
+owns external-change detection and atomic replacement. Play starts the normal
+runtime as an owned process. The authored 3D scene view submits through the
+normal renderer on a dedicated bgfx view; a 2D scene view, an embedded game
+target, and structural scene commands remain follow-up slices. The editor
+creates no hidden authored state.
 
 ## Keeping Large Translation Units Cohesive
 

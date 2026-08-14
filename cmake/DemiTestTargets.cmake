@@ -6,6 +6,14 @@
   target_link_libraries(demi-project-templates-tests PRIVATE demi-cli-support)
   target_compile_definitions(demi-project-templates-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-workspace-tests tests/editor_workspace_tests.cpp)
+  target_link_libraries(demi-editor-workspace-tests PRIVATE demi-editor-model)
+  target_compile_definitions(demi-editor-workspace-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-scene-document-tests
+    tests/editor_scene_document_tests.cpp)
+  target_link_libraries(demi-editor-scene-document-tests
+    PRIVATE demi-editor-model)
   add_executable(demi-doctor-service-tests tests/doctor_service_tests.cpp)
   target_link_libraries(demi-doctor-service-tests PRIVATE demi-cli-support)
   target_compile_definitions(demi-doctor-service-tests PRIVATE

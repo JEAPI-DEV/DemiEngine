@@ -58,6 +58,40 @@ else()
   add_executable(demi-runtime src/runtime/main.cpp)
   target_link_libraries(demi-runtime PRIVATE demi-core demi-runtime-lib)
 
+  add_library(demi-editor-model STATIC
+    src/editor/EditorDocumentStore.cpp
+    src/editor/EditorPlaySession.cpp
+    src/editor/EditorSceneDocument.cpp
+    src/editor/EditorWorkspace.cpp)
+  target_include_directories(demi-editor-model PUBLIC src)
+  target_compile_features(demi-editor-model PUBLIC cxx_std_20)
+  target_link_libraries(demi-editor-model PUBLIC demi-core PRIVATE
+    demi-runtime-lib)
+
+  add_library(demi-editor-ui STATIC
+    src/editor/EditorInspectorPanel.cpp
+    src/editor/EditorPanelStyle.cpp
+    src/editor/EditorShell.cpp
+    src/editor/EditorStbRectPack.cpp
+    src/editor/EditorTheme.cpp
+    src/editor/EditorUiHostBgfx.cpp
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui/imgui.cpp"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui/imgui_draw.cpp"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui/imgui_tables.cpp"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui/imgui_widgets.cpp"
+    "${bgfx_SOURCE_DIR}/bgfx/examples/common/imgui/imgui.cpp")
+  target_include_directories(demi-editor-ui PUBLIC src PRIVATE
+    "${bgfx_SOURCE_DIR}/bgfx/examples/common/imgui"
+    "${bgfx_SOURCE_DIR}/bgfx/examples/common"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty"
+    "${bgfx_SOURCE_DIR}/bx/include")
+  target_compile_features(demi-editor-ui PUBLIC cxx_std_20)
+  # The engine font atlas already owns stb_truetype's implementation. The bgfx
+  # sample wrapper only needs its declarations when linked with runtime UI.
+  target_compile_definitions(demi-editor-ui PRIVATE USE_LOCAL_STB=0)
+  target_link_libraries(demi-editor-ui PUBLIC demi-editor-model PRIVATE
+    demi-runtime-lib demi-graphics-bgfx SDL3::SDL3-static bgfx bx)
+
   add_executable(demi-editor src/editor/main.cpp)
-  target_link_libraries(demi-editor PRIVATE demi-core)
+  target_link_libraries(demi-editor PRIVATE demi-editor-ui)
 endif()

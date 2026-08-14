@@ -1585,10 +1585,15 @@ reserved for content with a lifetime independent of the scene.
 The editor should accelerate the same files and commands used by the CLI. It
 must not become a second engine with hidden state.
 
-**Status: planned.** `demi editor` and `src/editor` establish a boundary, but
-the executable is still a placeholder. Component metadata, prefab expansion,
-scene commands, validation, rendering, and debug services now provide the
-contracts the editor should consume.
+**Status: in progress.** `demi editor` now launches a native SDL3/bgfx/Dear
+ImGui workspace. It loads real projects, shows the scene hierarchy, generates
+editable fields from component metadata, browses authored sources, and reports
+shared CLI diagnostics. Scene field edits use reversible stable-ID commands,
+continuous edits coalesce, deterministic atomic saves reject external-change
+conflicts, the authored 3D scene renders through the normal bgfx renderer, and
+Play/Pause/Stop control an owned normal runtime process. Structural hierarchy
+and component commands, 2D preview, picking/gizmos, and embedded play sessions
+remain upcoming slices.
 
 ### Editor architecture
 

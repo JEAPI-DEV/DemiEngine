@@ -30,7 +30,9 @@ void parseComponents(const Json &entityJson, Entity &entity) {
   }
 }
 
-Entity parseEntity(const Json &entityJson) {
+} // namespace
+
+Entity parseSceneEntity(const Json &entityJson) {
   Entity entity;
   entity.id = stringOr(entityJson, "id", "ent_unknown");
   entity.name = stringOr(entityJson, "name", entity.id);
@@ -48,8 +50,6 @@ Entity parseEntity(const Json &entityJson) {
   return entity;
 }
 
-} // namespace
-
 World parseSceneWorld(const std::filesystem::path &scenePath,
                       const Json &document) {
   World world;
@@ -64,7 +64,7 @@ World parseSceneWorld(const std::filesystem::path &scenePath,
 
   for (const Json &entityJson : *entities) {
     if (entityJson.is_object()) {
-      world.entities.push_back(parseEntity(entityJson));
+      world.entities.push_back(parseSceneEntity(entityJson));
     }
   }
   return world;
