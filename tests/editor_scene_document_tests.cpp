@@ -66,6 +66,20 @@ int main() {
   assert(document.redo(error));
   assert((*document.component("ent_player", "Transform3D"))["position"] ==
          nlohmann::json({2.0, 3.0, 4.0}));
+
+  // Cancelling a drag restores both the canonical value and any redo branch
+  // that existed before the temporary continuous edit began.
+  assert(document.undo(error));
+  const std::string beforeCancelledDrag = document.json().dump();
+  assert(document.canRedo());
+  assert(document.setValue(position, {8.0, 9.0, 10.0}, true, error));
+  assert(document.setValue(position, {9.0, 10.0, 11.0}, true, error));
+  assert(document.cancelContinuousEdit(error));
+  assert(document.json().dump() == beforeCancelledDrag);
+  assert(document.canRedo());
+  assert(document.redo(error));
+  assert((*document.component("ent_player", "Transform3D"))["position"] ==
+         nlohmann::json({2.0, 3.0, 4.0}));
   // Optional field insertion/removal preserves authored presence exactly.
   const demi::editor::SceneValueTarget layer{.entityId = "ent_player",
                                              .field = "layer"};
@@ -82,17 +96,15 @@ int main() {
   assert(document.redo(error));
 
   assert(document.removeValue(position, error));
-  assert(!document.component("ent_player", "Transform3D")
-              ->contains("position"));
+  assert(
+      !document.component("ent_player", "Transform3D")->contains("position"));
   assert(document.undo(error));
   assert(document.component("ent_player", "Transform3D")->at("position") ==
          nlohmann::json({2.0, 3.0, 4.0}));
 
   // Removing a required field is rejected without changing either history.
   const demi::editor::SceneValueTarget requiredValues{
-      .entityId = "ent_player",
-      .component = "GameplayData",
-      .field = "values"};
+      .entityId = "ent_player", .component = "GameplayData", .field = "values"};
   const std::string beforeRequiredRemoval = document.json().dump();
   const bool couldUndoBeforeRequiredRemoval = document.canUndo();
   assert(!document.removeValue(requiredValues, error));
@@ -190,8 +202,7 @@ int main() {
     write(protectedScene, kScene);
     demi::editor::EditorSceneDocument protectedDocument;
     assert(protectedDocument.open(protectedScene, error));
-    assert(protectedDocument.setValue(position, {4.0, 4.0, 4.0}, false,
-                                      error));
+    assert(protectedDocument.setValue(position, {4.0, 4.0, 4.0}, false, error));
     fs::permissions(protectedDirectory,
                     fs::perms::owner_read | fs::perms::owner_exec,
                     fs::perm_options::replace);

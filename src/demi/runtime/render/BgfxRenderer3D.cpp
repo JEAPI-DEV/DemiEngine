@@ -621,10 +621,12 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     std::erase_if(dynamicMeshes_, [&liveDynamicMeshes](const auto &entry) {
       return !liveDynamicMeshes.contains(entry.first);
     });
-    if (!appendDebugGeometry3D(
-            world, primitives_,
-            {.forceColliders = frame.camera.debugMode == "colliders",
-             .bounds = frame.camera.debugMode == "bounds"})) {
+    DebugGeometry3DRequest debugRequest = frame.debugGeometry;
+    debugRequest.forceColliders =
+        debugRequest.forceColliders || frame.camera.debugMode == "colliders";
+    debugRequest.bounds =
+        debugRequest.bounds || frame.camera.debugMode == "bounds";
+    if (!appendDebugGeometry3D(world, primitives_, debugRequest)) {
       error = "3D debug geometry exceeded the transient line capacity.";
       return false;
     }

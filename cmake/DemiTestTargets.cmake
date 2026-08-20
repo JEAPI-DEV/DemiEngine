@@ -16,6 +16,12 @@
     PRIVATE demi-editor-model)
   target_compile_definitions(demi-editor-scene-view-state-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-viewport-tool-tests
+    tests/editor_viewport_tool_tests.cpp)
+  target_link_libraries(demi-editor-viewport-tool-tests
+    PRIVATE demi-editor-model)
+  target_compile_definitions(demi-editor-viewport-tool-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-editor-scene-document-tests
     tests/editor_scene_document_tests.cpp)
   target_link_libraries(demi-editor-scene-document-tests

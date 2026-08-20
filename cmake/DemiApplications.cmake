@@ -65,6 +65,8 @@ else()
     src/editor/EditorSceneDocument.cpp
     src/editor/EditorSceneJson.cpp
     src/editor/EditorSceneViewState.cpp
+    src/editor/EditorViewportProjection.cpp
+    src/editor/EditorViewportTool.cpp
     src/editor/EditorWorkspace.cpp)
   target_include_directories(demi-editor-model PUBLIC src)
   target_compile_features(demi-editor-model PUBLIC cxx_std_20)

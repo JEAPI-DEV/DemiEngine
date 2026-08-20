@@ -1,5 +1,6 @@
 #pragma once
 
+#include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
 #include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/PostProcessStackComponent.h"
 
@@ -13,6 +14,7 @@ struct BgfxCameraFrame3D {
   std::string cameraId;
   Camera3DComponent camera;
   std::optional<PostProcessStackComponent> postProcess;
+  DebugGeometry3DRequest debugGeometry;
   Vec3 position;
   Vec3 forward{0.0F, 0.0F, 1.0F};
   Vec3 up{0.0F, 1.0F, 0.0F};

@@ -22,7 +22,8 @@ public:
     return viewportArea_;
   }
   [[nodiscard]] bool viewportInputCaptured() const {
-    return workspace_.sceneView().capturesPointer();
+    return workspace_.sceneView().capturesPointer() ||
+           workspace_.viewportTool().isDragging();
   }
   void setNotice(std::string notice) { notice_ = std::move(notice); }
 

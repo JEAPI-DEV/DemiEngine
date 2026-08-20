@@ -17,6 +17,10 @@ bool close(const float left, const float right) {
   return std::abs(left - right) < 0.0001F;
 }
 
+bool closeDirection(const float left, const float right) {
+  return std::abs(left - right) < 0.001F;
+}
+
 Entity transformed(std::string id, Transform3DComponent transform) {
   Entity entity;
   entity.id = std::move(id);
@@ -32,7 +36,7 @@ int main() {
   world.entities.push_back(transformed(
       "root", {.position = {10.0F, 0.0F, 0.0F},
                .rotation = {0.0F, 0.0F, std::numbers::pi_v<float> * 0.5F},
-               .scale = {2.0F, 2.0F, 2.0F}}));
+               .scale = {2.0F, 3.0F, 4.0F}}));
   world.entities.push_back(transformed(
       "child", {.parent = "root",
                 .position = {1.0F, 0.0F, 0.0F},
@@ -45,13 +49,76 @@ int main() {
   const auto grandchild = resolveWorldTransform3D(world, world.entities[2]);
   if (!child || !grandchild || !close(child->position.x, 10.0F) ||
       !close(child->position.y, 2.0F) || !close(child->position.z, 0.0F) ||
-      !close(child->scale.x, 1.0F) || !close(grandchild->position.x, 10.0F) ||
-      !close(grandchild->position.y, 3.0F) ||
+      !close(child->scale.x, 1.0F) || !close(child->scale.y, 1.5F) ||
+      !close(child->scale.z, 2.0F) || !close(grandchild->position.x, 10.0F) ||
+      !close(grandchild->position.y, 4.0F) ||
       !close(grandchild->position.z, 0.0F)) {
     std::cerr << "Transform3D hierarchy did not compose position, rotation, "
                  "and scale.\n";
     return 1;
   }
+
+  const auto childLocal =
+      worldToLocalTransform3D(world, world.entities[1], *child);
+  const auto roundTripped =
+      childLocal
+          ? resolveWorldTransform3D(world, world.entities[1], *childLocal)
+          : std::nullopt;
+  const Vec3 childForward = forwardDirection3D(*child);
+  const Vec3 roundTrippedForward =
+      roundTripped ? forwardDirection3D(*roundTripped) : Vec3{};
+  if (!childLocal || !roundTripped ||
+      !close(roundTripped->position.x, child->position.x) ||
+      !close(roundTripped->position.y, child->position.y) ||
+      !close(roundTripped->position.z, child->position.z) ||
+      !closeDirection(roundTrippedForward.x, childForward.x) ||
+      !closeDirection(roundTrippedForward.y, childForward.y) ||
+      !closeDirection(roundTrippedForward.z, childForward.z) ||
+      !close(roundTripped->scale.x, child->scale.x)) {
+    std::cerr << "World-to-local conversion did not invert a rotated, scaled "
+                 "parent.\n";
+    if (childLocal)
+      std::cerr << "local position=" << childLocal->position.x << ','
+                << childLocal->position.y << ',' << childLocal->position.z
+                << " rotation=" << childLocal->rotation.x << ','
+                << childLocal->rotation.y << ',' << childLocal->rotation.z
+                << " scale=" << childLocal->scale.x << ','
+                << childLocal->scale.y << ',' << childLocal->scale.z << '\n';
+    if (roundTripped)
+      std::cerr << "world position=" << roundTripped->position.x << ','
+                << roundTripped->position.y << ',' << roundTripped->position.z
+                << " forward=" << roundTrippedForward.x << ','
+                << roundTrippedForward.y << ',' << roundTrippedForward.z
+                << '\n';
+    std::cerr << "expected position=" << child->position.x << ','
+              << child->position.y << ',' << child->position.z
+              << " forward=" << childForward.x << ',' << childForward.y << ','
+              << childForward.z << '\n';
+    return 1;
+  }
+
+  const Vec3 localQuarterTurn = rotateLocalEuler3D(
+      {}, {0.0F, 1.0F, 0.0F}, std::numbers::pi_v<float> * 0.5F);
+  const Vec3 localForward = forwardDirection3D(
+      {.position = {}, .rotation = localQuarterTurn, .scale = {1, 1, 1}});
+  const Vec3 worldQuarterTurn = rotateWorldEuler3D(
+      {}, {1.0F, 0.0F, 0.0F}, std::numbers::pi_v<float> * 0.5F);
+  const Vec3 worldUp = upDirection3D(
+      {.position = {}, .rotation = worldQuarterTurn, .scale = {1, 1, 1}});
+  if (!closeDirection(localForward.x, 1.0F) ||
+      !closeDirection(localForward.z, 0.0F) ||
+      !closeDirection(worldUp.z, 1.0F)) {
+    std::cerr << "Local/world axis rotation composition is incorrect.\n";
+    return 1;
+  }
+
+  auto *rootTransform = world.entities[0].component<Transform3DComponent>();
+  rootTransform->scale.x = 0.0F;
+  if (worldToLocalTransform3D(world, world.entities[1], *child)) {
+    std::cerr << "World-to-local conversion accepted a singular parent.\n";
+    return 1;
+  }
+  rootTransform->scale.x = 2.0F;
 
   World cameraWorld;
   cameraWorld.entities.push_back(transformed(

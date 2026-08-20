@@ -33,7 +33,8 @@ bool containsCaseInsensitive(const std::string_view value,
 }
 
 void drawViewport(EditorWorkspace &workspace, const ImVec2 position,
-                  const ImVec2 size, EditorViewportArea &viewportArea) {
+                  const ImVec2 size, EditorViewportArea &viewportArea,
+                  std::string &notice) {
   beginEditorPanel("Viewport", position, size,
                    ImGuiWindowFlags_NoScrollbar |
                        ImGuiWindowFlags_NoScrollWithMouse |
@@ -47,6 +48,25 @@ void drawViewport(EditorWorkspace &workspace, const ImVec2 position,
     sceneView.setProjection(perspective ? EditorProjection::Orthographic
                                         : EditorProjection::Perspective);
   ImGui::SameLine();
+  auto &viewportTool = workspace.viewportTool();
+  const auto operation = viewportTool.operation();
+  if (ImGui::SmallButton(operation == EditorGizmoOperation::Translate ? "[Move]"
+                                                                      : "Move"))
+    viewportTool.setOperation(EditorGizmoOperation::Translate);
+  ImGui::SameLine();
+  if (ImGui::SmallButton(operation == EditorGizmoOperation::Rotate ? "[Rotate]"
+                                                                   : "Rotate"))
+    viewportTool.setOperation(EditorGizmoOperation::Rotate);
+  ImGui::SameLine();
+  if (ImGui::SmallButton(operation == EditorGizmoOperation::Scale ? "[Scale]"
+                                                                  : "Scale"))
+    viewportTool.setOperation(EditorGizmoOperation::Scale);
+  ImGui::SameLine();
+  const bool local = sceneView.transformSpace() == EditorTransformSpace::Local;
+  if (ImGui::SmallButton(local ? "Local" : "World"))
+    sceneView.setTransformSpace(local ? EditorTransformSpace::World
+                                      : EditorTransformSpace::Local);
+  ImGui::SameLine();
   if (ImGui::SmallButton("Frame selected"))
     (void)sceneView.frameEntity(workspace.project().world,
                                 workspace.selectedEntityId());
@@ -56,6 +76,28 @@ void drawViewport(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::SameLine();
   if (ImGui::SmallButton("Reset view"))
     sceneView.reset(workspace.project().world);
+  ImGui::Separator();
+  ImGui::TextDisabled("Snap");
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(58.0F);
+  ImGui::DragFloat("##position-snap", &sceneView.translationSnap, 0.1F, 0.0F,
+                   1000.0F, "P %.1f");
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(64.0F);
+  ImGui::DragFloat("##rotation-snap", &sceneView.rotationSnapDegrees, 1.0F,
+                   0.0F, 180.0F, "R %.0f");
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(58.0F);
+  ImGui::DragFloat("##scale-snap", &sceneView.scaleSnap, 0.05F, 0.0F, 100.0F,
+                   "S %.2f");
+  ImGui::SameLine();
+  ImGui::Checkbox("Bounds", &sceneView.showBounds);
+  ImGui::SameLine();
+  ImGui::Checkbox("Colliders", &sceneView.showColliders);
+  ImGui::SameLine();
+  ImGui::Checkbox("Lights", &sceneView.showLights);
+  ImGui::SameLine();
+  ImGui::Checkbox("Cameras", &sceneView.showCameras);
   ImGui::Separator();
 
   const ImVec2 canvasMin = ImGui::GetCursorScreenPos();
@@ -117,11 +159,64 @@ void drawViewport(EditorWorkspace &workspace, const ImVec2 position,
         .moveDown = ImGui::IsKeyDown(ImGuiKey_Q),
         .fast = io.KeyShift,
     });
+    std::string interactionError;
+    if (!workspace.updateViewportTool(
+            {.mousePosition = {io.MousePos.x - canvasMin.x,
+                               io.MousePos.y - canvasMin.y},
+             .mouseDelta = {io.MouseDelta.x, io.MouseDelta.y},
+             .viewportSize = {canvasWidth, canvasHeight},
+             .hovered = hovered,
+             .focused = focused && !io.WantTextInput,
+             .leftPressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left),
+             .leftDown = ImGui::IsMouseDown(ImGuiMouseButton_Left),
+             .leftReleased = ImGui::IsMouseReleased(ImGuiMouseButton_Left),
+             .navigationModifier = io.KeyAlt,
+             .cancelPressed = ImGui::IsKeyPressed(ImGuiKey_Escape, false)},
+            interactionError))
+      notice = std::move(interactionError);
+
+    const EditorGizmoPresentation gizmo =
+        workspace.gizmoPresentation({canvasWidth, canvasHeight});
+    const EditorGizmoOperation drawnOperation = viewportTool.operation();
+    const auto color = [](const EditorGizmoAxis axis) {
+      if (axis == EditorGizmoAxis::X)
+        return IM_COL32(239, 79, 104, 255);
+      if (axis == EditorGizmoAxis::Y)
+        return IM_COL32(91, 215, 125, 255);
+      return IM_COL32(78, 126, 246, 255);
+    };
+    for (const EditorGizmoLine &line : gizmo.axes) {
+      const ImVec2 start{canvasMin.x + line.start.x,
+                         canvasMin.y + line.start.y};
+      const ImVec2 end{canvasMin.x + line.end.x, canvasMin.y + line.end.y};
+      draw->AddLine(start, end, color(line.axis), 4.0F);
+      if (drawnOperation == EditorGizmoOperation::Rotate)
+        draw->AddCircle(end, 6.0F, color(line.axis), 16, 3.0F);
+      else if (drawnOperation == EditorGizmoOperation::Scale)
+        draw->AddRectFilled({end.x - 5.0F, end.y - 5.0F},
+                            {end.x + 5.0F, end.y + 5.0F}, color(line.axis));
+      else {
+        const float dx = end.x - start.x;
+        const float dy = end.y - start.y;
+        const float length = std::sqrt(dx * dx + dy * dy);
+        const float x = length > 0.001F ? dx / length : 1.0F;
+        const float y = length > 0.001F ? dy / length : 0.0F;
+        const ImVec2 base{end.x - x * 10.0F, end.y - y * 10.0F};
+        draw->AddTriangleFilled(end, {base.x - y * 5.0F, base.y + x * 5.0F},
+                                {base.x + y * 5.0F, base.y - x * 5.0F},
+                                color(line.axis));
+      }
+    }
     if (hovered)
       ImGui::SetTooltip("Alt+Left orbit | Middle pan | Wheel zoom | "
                         "Right+WASDQE fly | F frame");
   } else {
     sceneView.update({});
+    if (viewportTool.isDragging()) {
+      std::string interactionError;
+      if (!workspace.updateViewportTool({.focused = false}, interactionError))
+        notice = std::move(interactionError);
+    }
   }
   ImGui::End();
 }
@@ -441,7 +536,7 @@ void EditorShell::draw(const int width, const int height,
   hierarchyPanel_.draw(workspace_, {0.0F, contentTop}, {leftWidth, upperHeight},
                        notice_);
   drawViewport(workspace_, {leftWidth, contentTop}, {centerWidth, upperHeight},
-               viewportArea_);
+               viewportArea_, notice_);
   drawInspectorPanel(workspace_, {screenWidth - rightWidth, contentTop},
                      {rightWidth, contentBottom - contentTop}, notice_);
   drawConsole(workspace_, {0.0F, contentTop + upperHeight},

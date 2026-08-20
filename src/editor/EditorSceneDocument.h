@@ -13,8 +13,12 @@
 
 namespace demi::editor {
 
-enum class ExternalChangeDecision { ReloadFromDisk, KeepEditing, SaveCopy,
-                                    Cancel };
+enum class ExternalChangeDecision {
+  ReloadFromDisk,
+  KeepEditing,
+  SaveCopy,
+  Cancel
+};
 
 struct EditorDocumentIssue {
   SceneValueTarget target;
@@ -31,14 +35,16 @@ public:
                           std::string &error);
   [[nodiscard]] bool reload(std::string &error);
   [[nodiscard]] bool save(std::string &error);
-  [[nodiscard]] bool resolveExternalChange(
-      ExternalChangeDecision decision, const std::filesystem::path &copyPath,
-      std::string &error);
+  [[nodiscard]] bool
+  resolveExternalChange(ExternalChangeDecision decision,
+                        const std::filesystem::path &copyPath,
+                        std::string &error);
 
   [[nodiscard]] bool setValue(SceneValueTarget target, nlohmann::json value,
                               bool continuous, std::string &error);
   [[nodiscard]] bool removeValue(SceneValueTarget target, std::string &error);
-  void endContinuousEdit() { continuousTarget_.reset(); }
+  void endContinuousEdit();
+  [[nodiscard]] bool cancelContinuousEdit(std::string &error);
 
   [[nodiscard]] bool createEntity(std::string &error);
   [[nodiscard]] bool deleteEntity(std::string_view id, std::string &error);
@@ -65,8 +71,8 @@ public:
   [[nodiscard]] const std::optional<EditorDocumentIssue> &issue() const {
     return issue_;
   }
-  [[nodiscard]] const std::string *issueFor(
-      const SceneValueTarget &target) const;
+  [[nodiscard]] const std::string *
+  issueFor(const SceneValueTarget &target) const;
   [[nodiscard]] const std::filesystem::path &path() const { return path_; }
   [[nodiscard]] const nlohmann::json &json() const { return document_; }
   [[nodiscard]] const nlohmann::json *entity(std::string_view id) const;
@@ -96,6 +102,7 @@ private:
   std::vector<SceneCommand> undo_;
   std::vector<SceneCommand> redo_;
   std::optional<SceneValueTarget> continuousTarget_;
+  std::vector<SceneCommand> continuousRedoBackup_;
   std::string lastChangedEntityId_;
   std::optional<EditorDocumentIssue> issue_;
   bool hasExternalConflict_ = false;

@@ -178,7 +178,11 @@ EditorSceneViewCamera EditorSceneViewState::camera() const {
   return {.projection = std::move(projection),
           .position = position_,
           .forward = forward_,
-          .up = up_};
+          .up = up_,
+          .debugGeometry = {.forceColliders = showColliders,
+                            .bounds = showBounds,
+                            .lights = showLights,
+                            .cameras = showCameras}};
 }
 
 void EditorSceneViewState::setProjection(const EditorProjection projection) {

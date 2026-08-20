@@ -907,6 +907,7 @@ int runProject(const RuntimeOptions &options) {
         cameraFrames.push_back({.cameraId = "fallback",
                                 .camera = fallbackCamera3D,
                                 .postProcess = std::nullopt,
+                                .debugGeometry = {},
                                 .position = {},
                                 .forward = {0.0F, 0.0F, 1.0F},
                                 .up = {0.0F, 1.0F, 0.0F},

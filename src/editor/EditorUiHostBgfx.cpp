@@ -33,6 +33,7 @@ editorCamera(const EditorSceneViewCamera &camera,
   frame.position = camera.position;
   frame.forward = camera.forward;
   frame.up = camera.up;
+  frame.debugGeometry = camera.debugGeometry;
   frame.viewportX = area.x;
   frame.viewportY = area.y;
   frame.viewportWidth = area.width;

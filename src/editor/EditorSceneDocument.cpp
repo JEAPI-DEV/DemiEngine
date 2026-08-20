@@ -69,6 +69,7 @@ bool EditorSceneDocument::open(const std::filesystem::path &path,
     undo_.clear();
     redo_.clear();
     continuousTarget_.reset();
+    continuousRedoBackup_.clear();
     lastChangedEntityId_.clear();
     issue_.reset();
     hasExternalConflict_ = false;
@@ -168,7 +169,7 @@ bool EditorSceneDocument::stageAndCommit(SceneCommand command,
   lastChangedEntityId_ = sceneCommandEntityId(command);
   undo_.push_back(std::move(command));
   redo_.clear();
-  continuousTarget_.reset();
+  endContinuousEdit();
   clearIssue();
   return true;
 }
@@ -202,12 +203,18 @@ bool EditorSceneDocument::setValue(SceneValueTarget target,
     return false;
   }
 
-  if (continuous && continuousTarget_ == target && !undo_.empty() &&
-      std::holds_alternative<SetValueCommand>(undo_.back())) {
+  const bool extendsContinuous =
+      continuous && continuousTarget_ == target && !undo_.empty() &&
+      std::holds_alternative<SetValueCommand>(undo_.back());
+  if (extendsContinuous) {
     auto &command = std::get<SetValueCommand>(undo_.back());
     command.after = std::move(next.after);
     (void)assignValueInDocument(document_, target, command.after);
   } else {
+    if (continuous)
+      continuousRedoBackup_ = redo_;
+    else
+      continuousRedoBackup_.clear();
     (void)assignValueInDocument(document_, target, next.after);
     undo_.push_back(std::move(next));
   }
@@ -215,6 +222,32 @@ bool EditorSceneDocument::setValue(SceneValueTarget target,
   const SetValueCommand &top = std::get<SetValueCommand>(undo_.back());
   lastChangedEntityId_ = top.target.entityId;
   continuousTarget_ = continuous ? std::optional(top.target) : std::nullopt;
+  if (!continuous)
+    continuousRedoBackup_.clear();
+  clearIssue();
+  return true;
+}
+
+void EditorSceneDocument::endContinuousEdit() {
+  continuousTarget_.reset();
+  continuousRedoBackup_.clear();
+}
+
+bool EditorSceneDocument::cancelContinuousEdit(std::string &error) {
+  if (!continuousTarget_)
+    return true;
+  if (undo_.empty() || !std::holds_alternative<SetValueCommand>(undo_.back()) ||
+      std::get<SetValueCommand>(undo_.back()).target != *continuousTarget_) {
+    error = "The active continuous edit no longer matches command history.";
+    endContinuousEdit();
+    return false;
+  }
+  SceneCommand command = std::move(undo_.back());
+  undo_.pop_back();
+  applySceneCommand(document_, command, false);
+  lastChangedEntityId_ = sceneCommandEntityId(command);
+  redo_ = std::move(continuousRedoBackup_);
+  continuousTarget_.reset();
   clearIssue();
   return true;
 }
@@ -347,26 +380,26 @@ bool EditorSceneDocument::addComponent(const std::string_view id,
                                        std::string &error) {
   if (entity(id) == nullptr) {
     error = "The entity no longer exists.";
-    reject({.entityId = std::string(id),
-            .component = std::string(componentName)},
-           error);
+    reject(
+        {.entityId = std::string(id), .component = std::string(componentName)},
+        error);
     return false;
   }
   if (component(id, componentName) != nullptr) {
     error = "The entity already has a " + std::string(componentName) +
             " component.";
-    reject({.entityId = std::string(id),
-            .component = std::string(componentName)},
-           error);
+    reject(
+        {.entityId = std::string(id), .component = std::string(componentName)},
+        error);
     return false;
   }
   const runtime::scene_loading::ComponentDescriptor *descriptor =
       runtime::scene_loading::findComponentDescriptor(componentName);
   if (descriptor == nullptr) {
     error = "Unknown component: " + std::string(componentName);
-    reject({.entityId = std::string(id),
-            .component = std::string(componentName)},
-           error);
+    reject(
+        {.entityId = std::string(id), .component = std::string(componentName)},
+        error);
     return false;
   }
   return stageAndCommit(
@@ -383,9 +416,9 @@ bool EditorSceneDocument::removeComponent(const std::string_view id,
   const nlohmann::json *authored = component(id, componentName);
   if (authored == nullptr) {
     error = "The component no longer exists.";
-    reject({.entityId = std::string(id),
-            .component = std::string(componentName)},
-           error);
+    reject(
+        {.entityId = std::string(id), .component = std::string(componentName)},
+        error);
     return false;
   }
   return stageAndCommit(
@@ -405,7 +438,7 @@ bool EditorSceneDocument::undo(std::string &error) {
   applySceneCommand(document_, command, false);
   lastChangedEntityId_ = sceneCommandEntityId(command);
   redo_.push_back(std::move(command));
-  continuousTarget_.reset();
+  endContinuousEdit();
   clearIssue();
   return true;
 }
@@ -420,7 +453,7 @@ bool EditorSceneDocument::redo(std::string &error) {
   applySceneCommand(document_, command, true);
   lastChangedEntityId_ = sceneCommandEntityId(command);
   undo_.push_back(std::move(command));
-  continuousTarget_.reset();
+  endContinuousEdit();
   clearIssue();
   return true;
 }

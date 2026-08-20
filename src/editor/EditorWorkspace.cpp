@@ -24,6 +24,7 @@ bool EditorWorkspace::open(std::filesystem::path projectPath,
     return false;
   }
   sceneView_.reset(project_->world);
+  viewportTool_.cancelDrag();
   discoverSources();
   if (!project_->world.entities.empty())
     selectedEntityId_ = project_->world.entities.front().id;
@@ -66,9 +67,10 @@ bool EditorWorkspace::refresh(std::string &error) {
   if (!sceneDocument_.reload(error))
     return false;
   project_ = std::move(loaded);
+  viewportTool_.cancelDrag();
   discoverSources();
-  if (selectedEntity() == nullptr && !project_->world.entities.empty())
-    selectedEntityId_ = project_->world.entities.front().id;
+  if (!selectedEntityId_.empty() && selectedEntity() == nullptr)
+    selectedEntityId_.clear();
   refreshDiagnostics();
   return true;
 }
@@ -101,9 +103,10 @@ bool EditorWorkspace::resolveExternalChange(
       return false;
     }
     project_ = std::move(loaded);
+    viewportTool_.cancelDrag();
     discoverSources();
-    if (selectedEntity() == nullptr && !project_->world.entities.empty())
-      selectedEntityId_ = project_->world.entities.front().id;
+    if (!selectedEntityId_.empty() && selectedEntity() == nullptr)
+      selectedEntityId_.clear();
   }
   refreshDiagnostics();
   return true;
@@ -224,6 +227,42 @@ bool EditorWorkspace::removeComponent(const std::string_view id,
         return document.removeComponent(id, componentName, mutationError);
       },
       error);
+}
+
+bool EditorWorkspace::updateViewportTool(const EditorViewportToolInput &input,
+                                         std::string &error) {
+  EditorViewportToolAction action = viewportTool_.update(
+      project_->world, selectedEntityId_, sceneView_, input);
+  if (action.selectionChanged)
+    selectEntity(std::move(action.selectedEntityId));
+
+  if (action.edit && !editValue(std::move(action.edit->target),
+                                std::move(action.edit->value), true, error)) {
+    viewportTool_.cancelDrag();
+    std::string cancelError;
+    if (!sceneDocument_.cancelContinuousEdit(cancelError) && error.empty())
+      error = std::move(cancelError);
+    if (!rebuildWorld(cancelError) && error.empty())
+      error = std::move(cancelError);
+    return false;
+  }
+
+  if (action.completion == EditorDragCompletion::Finish) {
+    sceneDocument_.endContinuousEdit();
+  } else if (action.completion == EditorDragCompletion::Cancel) {
+    const std::string before = sceneDocument_.json().dump();
+    if (!sceneDocument_.cancelContinuousEdit(error))
+      return false;
+    if (sceneDocument_.json().dump() != before && !rebuildWorld(error))
+      return false;
+  }
+  return true;
+}
+
+EditorGizmoPresentation
+EditorWorkspace::gizmoPresentation(const runtime::Vec2 viewportSize) const {
+  return viewportTool_.presentation(project_->world, selectedEntityId_,
+                                    sceneView_, viewportSize);
 }
 
 bool EditorWorkspace::mutateAndRebuild(

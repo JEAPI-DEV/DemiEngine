@@ -1595,11 +1595,15 @@ field presence round-trips through undo, rejected edits share inline/Console
 diagnostics, the authored 3D scene renders through the normal bgfx renderer,
 an independent non-authored scene camera provides focused orbit/pan/zoom/fly,
 frame-selected, projection, reset, and align-to-camera controls, and Play/Pause/
-Stop control an owned normal runtime process. Structural create/
-delete/reparent/duplicate and component add/remove commands stage full-document
-validation through a shared in-memory scene validator, and the preview world
-rebuilds from the authored document through the shared loader. 2D preview,
-picking/gizmos, and embedded play sessions remain upcoming slices.
+Stop control an owned normal runtime process. Stable-ID CPU picking now keeps
+the 3D viewport, hierarchy, and Inspector selection synchronized. Parent-aware
+move/rotate/scale gizmos use the existing command history with local/world
+space, snapping, coalesced undo, and clean cancellation, while bounds,
+collider, light, and camera overlays reuse runtime debug extraction. Structural
+create/delete/reparent/duplicate and component add/remove commands stage
+full-document validation through a shared in-memory scene validator, and the
+preview world rebuilds from the authored document through the shared loader.
+2D preview and embedded play sessions remain upcoming slices.
 
 ### Non-negotiable design rules
 
@@ -1668,6 +1672,8 @@ responsibilities.
 | `EditorDocumentStore` | Reads, file revision/hash checks, same-directory temporary writes, atomic replacement | JSON semantics, command policy, UI conflict choices |
 | `EditorConflictPanel` | External-change modal presentation and transient Save Copy path input | Conflict policy, document mutation, direct filesystem writes |
 | `EditorSceneViewState` | Transient editor camera pose/projection/focus, viewport navigation capture, local/world mode, and snap settings | Authored scene mutation, ImGui input polling, renderer ownership |
+| `EditorViewportProjection` | UI-free camera projection, deterministic CPU picking, and stable-ID hit results | Selection ownership, authored mutation, command history, widget drawing |
+| `EditorViewportTool` | UI-free gizmo presentation and one active transform-drag state machine | Direct authored mutation, document history, ImGui polling, renderer ownership |
 | `EditorUiHost` / `EditorUiHostBgfx` | SDL3/bgfx/Dear ImGui lifecycle, input forwarding, viewport rectangle submission, renderer adapter ownership | Authored data, undo history, editor business rules |
 | `EditorPlaySession` | Lifecycle of the exact runtime process/world owned by Play | Scene saving, UI state, unrelated child processes |
 | `EditorTheme` / `EditorPanelStyle` | Reusable visual tokens and panel chrome | Domain behavior or persistent project state |

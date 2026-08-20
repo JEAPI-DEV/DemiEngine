@@ -2,6 +2,7 @@
 
 #include "editor/EditorSceneDocument.h"
 #include "editor/EditorSceneViewState.h"
+#include "editor/EditorViewportTool.h"
 
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/scene/SceneLoader.h"
@@ -42,6 +43,14 @@ public:
   [[nodiscard]] bool removeComponent(std::string_view id,
                                      std::string_view componentName,
                                      std::string &error);
+  [[nodiscard]] bool updateViewportTool(const EditorViewportToolInput &input,
+                                        std::string &error);
+  [[nodiscard]] EditorGizmoPresentation
+  gizmoPresentation(runtime::Vec2 viewportSize) const;
+  [[nodiscard]] EditorViewportTool &viewportTool() { return viewportTool_; }
+  [[nodiscard]] const EditorViewportTool &viewportTool() const {
+    return viewportTool_;
+  }
   void endContinuousEdit() { sceneDocument_.endContinuousEdit(); }
   void refreshDiagnostics();
 
@@ -84,6 +93,7 @@ private:
   std::optional<runtime::LoadedProject> project_;
   EditorSceneDocument sceneDocument_;
   EditorSceneViewState sceneView_;
+  EditorViewportTool viewportTool_;
   std::vector<std::filesystem::path> sources_;
   Diagnostics diagnostics_;
   std::string selectedEntityId_;

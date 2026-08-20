@@ -1,5 +1,6 @@
 #pragma once
 
+#include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
 #include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
@@ -39,6 +40,7 @@ struct EditorSceneViewCamera {
   runtime::Vec3 position;
   runtime::Vec3 forward{0.0F, 0.0F, 1.0F};
   runtime::Vec3 up{0.0F, 1.0F, 0.0F};
+  runtime::render::DebugGeometry3DRequest debugGeometry;
 };
 
 // Owns transient scene-view navigation. Nothing in this type is serialized
@@ -66,6 +68,10 @@ public:
   float translationSnap = 1.0F;
   float rotationSnapDegrees = 15.0F;
   float scaleSnap = 0.1F;
+  bool showBounds = false;
+  bool showColliders = false;
+  bool showLights = true;
+  bool showCameras = true;
 
 private:
   void updateOrientation();

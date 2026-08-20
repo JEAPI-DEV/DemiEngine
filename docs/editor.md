@@ -44,10 +44,19 @@ filesystem service used by `demi dev`.
 - The central scene view renders authored 3D entities through the engine's
   existing bgfx renderer on the editor graphics device. It does not maintain a
   second editor-only rendering implementation.
+- Deterministic CPU picking selects authored 3D entities by stable ID and keeps
+  viewport, hierarchy, and Inspector selection synchronized, including empty
+  space and scene reloads.
+- Move, rotate, and scale gizmos submit parent-aware Transform3D edits through
+  the existing document command path. Local/world mode and position, angle,
+  and scale snapping are available in the viewport toolbar; Escape or focus
+  loss cancels a drag without leaving an undo entry.
+- Bounds, collider, light, and camera overlays are extracted by the shared
+  runtime debug-geometry path and can be toggled from the viewport.
 
 Lua-created/runtime-generated geometry appears in the Play window rather than
-the authored scene preview. A 2D preview, picking/gizmos, embedded frame
-stepping, and builds remain disabled until their real engine services exist.
+the authored scene preview. A 2D preview, embedded frame stepping, and builds
+remain disabled until their real engine services exist.
 
 ## Implementation roadmap
 
@@ -166,23 +175,27 @@ reset actions.
 **Goal:** select and position authored entities directly in the Scene view while
 keeping all mutations in the existing command path.
 
-- [ ] Add picking through an ID buffer or deterministic CPU query that returns a
+- [x] Add picking through an ID buffer or deterministic CPU query that returns a
   stable entity ID. Never store editor IDs in authored components.
-- [ ] Keep hierarchy and viewport selection synchronized through
+- [x] Keep hierarchy and viewport selection synchronized through
   `EditorWorkspace`, including empty space, deleted entities, and reloads.
-- [ ] Render translate, rotate, and scale gizmos for compatible Transform2D or
-  Transform3D components.
-- [ ] Support local/world modes and the toolbar's position/angle/scale snapping.
-- [ ] Convert world-space gizmo results to authored local transforms through the
+- [x] Render translate, rotate, and scale gizmos for Transform3D components in
+  the current 3D Scene view. Transform2D gizmos belong with the future 2D
+  preview rather than a parallel ImGui renderer.
+- [x] Support local/world modes and the toolbar's position/angle/scale snapping.
+- [x] Convert world-space gizmo results to authored local transforms through the
   existing parent hierarchy helpers.
-- [ ] Coalesce one pointer drag into one undo transaction and cancel it cleanly
+- [x] Coalesce one pointer drag into one undo transaction and cancel it cleanly
   on Escape, focus loss, validation failure, or target deletion.
-- [ ] Add runtime-backed bounds, collider, light, and camera overlays; debug
+- [x] Add runtime-backed bounds, collider, light, and camera overlays; debug
   visuals must match the runtime shapes.
 
-**Gate:** picking remains correct after duplicate/delete/reload; gizmo
-`apply -> undo` restores canonical JSON exactly; tests cover rotated parents,
-non-uniform scale, snapping, cancellation, and invalid targets.
+**Gate: passed.** Deterministic picking remains stable across duplicate,
+delete, empty selection, and reload cases. A multi-update drag creates one undo
+transaction, `apply -> undo` restores canonical JSON exactly, and cancellation
+also restores the pre-drag redo branch. Focused tests cover snapped
+move/rotate/scale output, Escape and focus-loss cancellation, deleted targets,
+rotated parents, non-uniform parent scale, and shared runtime overlay geometry.
 
 ### Milestone 4 — Complete inspector and hierarchy usability
 
@@ -321,9 +334,10 @@ editing and conflict handling remain supported.
 
 ### Immediate next task
 
-Start with **Milestone 3: stable-ID picking and transform gizmos**. Milestone 2
-now provides the independent camera, focused viewport input, local/world mode,
-and snap-setting owner that picking and gizmos must reuse.
+Start with **Milestone 4: inspector and hierarchy usability**. Milestone 3 now
+provides stable viewport selection and command-backed transform manipulation;
+reference pickers may reuse that stable-ID selection boundary without adding a
+second selection model.
 
 For each todo item that mutates authored state, use this implementation order:
 
