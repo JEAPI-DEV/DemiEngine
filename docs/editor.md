@@ -49,8 +49,10 @@ filesystem service used by `demi dev`.
   space and scene reloads.
 - Move, rotate, and scale gizmos submit parent-aware Transform3D edits through
   the existing document command path. Local/world mode and position, angle,
-  and scale snapping are available in the viewport toolbar; Escape or focus
-  loss cancels a drag without leaving an undo entry.
+  and scale snapping are available in the viewport toolbar. Holding `Shift`
+  during a drag temporarily bypasses snapping; Escape or focus loss cancels a
+  drag without leaving an undo entry. Gizmos and the orientation indicator use
+  the renderer's right-handed camera basis.
 - Bounds, collider, light, and camera overlays are extracted by the shared
   runtime debug-geometry path and can be toggled from the viewport.
 
@@ -166,7 +168,9 @@ existing bgfx device, 3D renderer, and app-host lifetime suites pass.
 Controls: `Alt+Left` orbits, middle mouse pans, the wheel zooms, right mouse
 plus `WASDQE` flies (`Shift` accelerates), and `F` frames the selected entity.
 The viewport toolbar exposes projection, frame-selected, align-to-camera, and
-reset actions.
+reset actions. Wheel input remains a floating-point per-frame delta: it zooms
+the hovered Scene view or scrolls the hovered editor panel, including on
+high-resolution touchpads.
 
 ### Milestone 3 — Implement stable-ID picking and transform gizmos
 
@@ -182,7 +186,8 @@ keeping all mutations in the existing command path.
 - [x] Render translate, rotate, and scale gizmos for Transform3D components in
   the current 3D Scene view. Transform2D gizmos belong with the future 2D
   preview rather than a parallel ImGui renderer.
-- [x] Support local/world modes and the toolbar's position/angle/scale snapping.
+- [x] Support local/world modes and the toolbar's position/angle/scale snapping,
+  with `Shift` as a temporary snap bypass.
 - [x] Convert world-space gizmo results to authored local transforms through the
   existing parent hierarchy helpers.
 - [x] Coalesce one pointer drag into one undo transaction and cancel it cleanly
@@ -204,23 +209,26 @@ rotated parents, non-uniform parent scale, and shared runtime overlay geometry.
 **Goal:** make ordinary component authoring discoverable without adding
 component-specific branches to the generic inspector.
 
-- [ ] Extend shared field metadata with editor label/help, reference kind,
+- [x] Extend shared field metadata with editor label/help, reference kind,
   canonical default, read-only policy, restart requirement, and useful numeric
   step where those values are missing.
-- [ ] Add asset/entity/prefab reference pickers backed by the shared resolver.
-- [ ] Filter and group Add Component choices by metadata category/domain; show
+- [x] Add asset/entity/prefab reference pickers backed by the shared resolver.
+- [x] Filter and group Add Component choices by metadata category/domain; show
   why an incompatible component cannot be added.
-- [ ] Add inline validation messages and tooltips without hiding the full
+- [x] Add inline validation messages and tooltips without hiding the full
   diagnostic from the Console.
-- [ ] Add explicit multi-selection with mixed-value display and one atomic
+- [x] Add explicit multi-selection with mixed-value display and one atomic
   multi-target command for fields common to every selection.
-- [ ] Add keyboard hierarchy actions for rename, duplicate, delete, focus, and
+- [x] Add keyboard hierarchy actions for rename, duplicate, delete, focus, and
   create-child while respecting text input focus.
-- [ ] Keep raw arrays/objects read-only until a dedicated reversible collection
+- [x] Keep raw arrays/objects read-only until a dedicated reversible collection
   editor exists.
 
-**Gate:** the generic inspector contains no component-name switch; reference
-choices use stable IDs; multi-edit either commits completely or changes nothing.
+**Gate: passed.** The generic inspector remains descriptor-driven with no
+component-name switch. Reference choices come from the asset registry, authored
+entity IDs, and prefab resolver. Focused model/document tests cover mixed common
+fields, domain incompatibility, shared defaults, and atomic multi-edit rejection
+and undo.
 
 ### Milestone 5 — Add the authored 2D Scene view
 

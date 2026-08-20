@@ -17,6 +17,10 @@ struct SetValueCommand {
   std::optional<nlohmann::json> after;
 };
 
+struct SetValuesCommand {
+  std::vector<SetValueCommand> values;
+};
+
 struct InsertEntityCommand {
   std::size_t index = 0;
   nlohmann::json entity;
@@ -62,9 +66,9 @@ struct RemoveComponentCommand {
 // against their owning document revision and never depend on live pointers or
 // selection.
 using SceneCommand =
-    std::variant<SetValueCommand, InsertEntityCommand, RemoveEntitiesCommand,
-                 DuplicateEntityCommand, ReparentCommand, AddComponentCommand,
-                 RemoveComponentCommand>;
+    std::variant<SetValueCommand, SetValuesCommand, InsertEntityCommand,
+                 RemoveEntitiesCommand, DuplicateEntityCommand,
+                 ReparentCommand, AddComponentCommand, RemoveComponentCommand>;
 
 // Applies `command` forward onto `document`, or reverts it when `forward` is
 // false. Purely structural: no validation is performed here.

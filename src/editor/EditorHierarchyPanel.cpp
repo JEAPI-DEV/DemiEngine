@@ -46,7 +46,7 @@ bool hasChildren(const runtime::World &world, const std::string_view parent) {
 }
 
 struct HierarchyAction {
-  enum class Kind { Create, Duplicate, Reparent, Delete };
+  enum class Kind { Create, Duplicate, Reparent, Delete, DeleteSelection };
   Kind kind = Kind::Create;
   std::string entityId;
   std::optional<std::string> parentId;
@@ -75,7 +75,7 @@ bool applyHierarchyAction(EditorWorkspace &workspace,
   bool succeeded = false;
   switch (action.kind) {
   case HierarchyAction::Kind::Create:
-    succeeded = workspace.createEntity(error);
+    succeeded = workspace.createEntity(error, action.parentId);
     notice = succeeded ? "Entity created" : error;
     break;
   case HierarchyAction::Kind::Duplicate:
@@ -93,6 +93,10 @@ bool applyHierarchyAction(EditorWorkspace &workspace,
   case HierarchyAction::Kind::Delete:
     succeeded = workspace.deleteEntity(action.entityId, error);
     notice = succeeded ? "Entity subtree deleted" : error;
+    break;
+  case HierarchyAction::Kind::DeleteSelection:
+    succeeded = workspace.deleteEntities(workspace.selectedEntityIds(), error);
+    notice = succeeded ? "Selected entity subtrees deleted" : error;
     break;
   }
   return succeeded;
@@ -115,7 +119,7 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
                              ImGuiTreeNodeFlags_DefaultOpen;
   if (!entityHasChildren)
     flags |= ImGuiTreeNodeFlags_Leaf;
-  if (workspace.selectedEntityId() == entity.id)
+  if (workspace.isEntitySelected(entity.id))
     flags |= ImGuiTreeNodeFlags_Selected;
   if (!entity.enabled)
     ImGui::PushStyleColor(ImGuiCol_Text,
@@ -124,8 +128,12 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
       ImGui::TreeNodeEx(entity.id.c_str(), flags, "%s", entity.name.c_str());
   if (!entity.enabled)
     ImGui::PopStyleColor();
-  if (ImGui::IsItemClicked())
-    workspace.selectEntity(entity.id);
+  if (ImGui::IsItemClicked()) {
+    if (ImGui::GetIO().KeyCtrl)
+      workspace.toggleEntitySelection(entity.id);
+    else
+      workspace.selectEntity(entity.id);
+  }
 
   if (ImGui::BeginDragDropSource()) {
     ImGui::SetDragDropPayload(EntityPayload, entity.id.c_str(),
@@ -183,6 +191,62 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
         drawEntityNode(workspace, entity, workspace.project().world,
                        filter_.data(), pending);
     ImGui::TreePop();
+  }
+
+  const bool handlesKeyboard = ImGui::IsWindowFocused() &&
+                               !ImGui::GetIO().WantTextInput &&
+                               !workspace.selectedEntityId().empty();
+  if (handlesKeyboard) {
+    const std::string selected(workspace.selectedEntityId());
+    if (ImGui::IsKeyPressed(ImGuiKey_F2, false)) {
+      const nlohmann::json *entity = workspace.sceneDocument().entity(selected);
+      const std::string name =
+          entity == nullptr ? selected : entity->value("name", selected);
+      rename_.fill('\0');
+      std::copy_n(name.data(), std::min(name.size(), rename_.size() - 1),
+                  rename_.data());
+      renamingEntityId_ = selected;
+      ImGui::OpenPopup("Rename Entity");
+    } else if (ImGui::IsKeyPressed(ImGuiKey_Delete, false)) {
+      pending = HierarchyAction{.kind = HierarchyAction::Kind::DeleteSelection,
+                                .entityId = selected};
+    } else if (ImGui::GetIO().KeyCtrl &&
+               ImGui::IsKeyPressed(ImGuiKey_D, false)) {
+      pending = HierarchyAction{.kind = HierarchyAction::Kind::Duplicate,
+                                .entityId = selected};
+    } else if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift &&
+               ImGui::IsKeyPressed(ImGuiKey_N, false)) {
+      pending = HierarchyAction{.kind = HierarchyAction::Kind::Create,
+                                .parentId = selected};
+    } else if (ImGui::IsKeyPressed(ImGuiKey_F, false)) {
+      (void)workspace.sceneView().frameEntity(workspace.project().world,
+                                              selected);
+      notice = "Framed selected entity";
+    }
+  }
+
+  if (ImGui::BeginPopupModal("Rename Entity", nullptr,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::SetKeyboardFocusHere();
+    const bool submitted = ImGui::InputText(
+        "Name", rename_.data(), rename_.size(), ImGuiInputTextFlags_EnterReturnsTrue);
+    if ((submitted || ImGui::Button("Rename")) &&
+        renamingEntityId_.has_value()) {
+      std::string error;
+      notice = workspace.editValue({.entityId = *renamingEntityId_,
+                                    .field = "name"},
+                                   std::string(rename_.data()), false, error)
+                   ? "Entity renamed"
+                   : error;
+      renamingEntityId_.reset();
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+      renamingEntityId_.reset();
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
   }
   ImGui::End();
 

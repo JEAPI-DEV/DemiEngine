@@ -31,6 +31,7 @@ struct EditorViewportToolInput {
   bool leftDown = false;
   bool leftReleased = false;
   bool navigationModifier = false;
+  bool bypassSnapping = false;
   bool cancelPressed = false;
 };
 

@@ -2,6 +2,7 @@
 
 #include "editor/EditorInspectorPanel.h"
 #include "editor/EditorPanelStyle.h"
+#include "editor/EditorViewportProjection.h"
 
 #include "demi/core/Version.h"
 #include "demi/filesystem/ProjectPaths.h"
@@ -10,7 +11,9 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
+#include <cmath>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -30,6 +33,37 @@ bool containsCaseInsensitive(const std::string_view value,
   std::ranges::transform(haystack, haystack.begin(), lower);
   std::ranges::transform(needle, needle.begin(), lower);
   return haystack.find(needle) != std::string::npos;
+}
+
+void drawOrientationGizmo(ImDrawList &draw, const ImVec2 center,
+                          const EditorSceneViewCamera &camera) {
+  struct Axis {
+    runtime::Vec3 worldDirection;
+    ImU32 color;
+    const char *label;
+  };
+  constexpr std::array Axes{
+      Axis{{1.0F, 0.0F, 0.0F}, IM_COL32(239, 79, 104, 255), "X"},
+      Axis{{0.0F, 1.0F, 0.0F}, IM_COL32(91, 215, 125, 255), "Y"},
+      Axis{{0.0F, 0.0F, 1.0F}, IM_COL32(78, 126, 246, 255), "Z"}};
+  draw.AddCircleFilled(center, 5.0F, EditorAccent);
+  for (const Axis &axis : Axes) {
+    const runtime::Vec2 projected =
+        projectSceneDirection3D(camera, axis.worldDirection);
+    const float magnitude =
+        std::sqrt(projected.x * projected.x + projected.y * projected.y);
+    if (magnitude <= 0.05F)
+      continue;
+    const ImVec2 direction{projected.x / magnitude,
+                           projected.y / magnitude};
+    const ImVec2 end{center.x + direction.x * 36.0F,
+                     center.y + direction.y * 36.0F};
+    draw.AddLine(center, end, axis.color, 3.0F);
+    draw.AddCircleFilled(end, 5.0F, axis.color);
+    draw.AddText({end.x + direction.x * 5.0F - 4.0F,
+                  end.y + direction.y * 5.0F - 7.0F},
+                 axis.color, axis.label);
+  }
 }
 
 void drawViewport(EditorWorkspace &workspace, const ImVec2 position,
@@ -119,13 +153,7 @@ void drawViewport(EditorWorkspace &workspace, const ImVec2 position,
   }
   ImDrawList *draw = ImGui::GetWindowDrawList();
   const ImVec2 gizmo{canvasMax.x - 66.0F, canvasMin.y + 66.0F};
-  draw->AddCircleFilled(gizmo, 5.0F, EditorAccent);
-  draw->AddLine(gizmo, {gizmo.x + 35.0F, gizmo.y - 11.0F},
-                IM_COL32(239, 79, 104, 255), 3.0F);
-  draw->AddLine(gizmo, {gizmo.x - 12.0F, gizmo.y - 37.0F},
-                IM_COL32(91, 215, 125, 255), 3.0F);
-  draw->AddLine(gizmo, {gizmo.x + 14.0F, gizmo.y + 29.0F},
-                IM_COL32(78, 126, 246, 255), 3.0F);
+  drawOrientationGizmo(*draw, gizmo, sceneView.camera());
   const runtime::Entity *selected = workspace.selectedEntity();
   const std::string label = selected == nullptr ? "No entity selected"
                                                 : "Selected: " + selected->name;
@@ -171,6 +199,7 @@ void drawViewport(EditorWorkspace &workspace, const ImVec2 position,
              .leftDown = ImGui::IsMouseDown(ImGuiMouseButton_Left),
              .leftReleased = ImGui::IsMouseReleased(ImGuiMouseButton_Left),
              .navigationModifier = io.KeyAlt,
+             .bypassSnapping = io.KeyShift,
              .cancelPressed = ImGui::IsKeyPressed(ImGuiKey_Escape, false)},
             interactionError))
       notice = std::move(interactionError);
@@ -209,7 +238,7 @@ void drawViewport(EditorWorkspace &workspace, const ImVec2 position,
     }
     if (hovered)
       ImGui::SetTooltip("Alt+Left orbit | Middle pan | Wheel zoom | "
-                        "Right+WASDQE fly | F frame");
+                        "Right+WASDQE fly | F frame | Shift bypass snap");
   } else {
     sceneView.update({});
     if (viewportTool.isDragging()) {

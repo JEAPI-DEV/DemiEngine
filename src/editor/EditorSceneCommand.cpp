@@ -13,6 +13,16 @@ void applySceneCommand(nlohmann::json &document, const SceneCommand &command,
         if constexpr (std::is_same_v<Command, SetValueCommand>) {
           (void)assignValueInDocument(document, typed.target,
                                       forward ? typed.after : typed.before);
+        } else if constexpr (std::is_same_v<Command, SetValuesCommand>) {
+          if (forward) {
+            for (const SetValueCommand &value : typed.values)
+              (void)assignValueInDocument(document, value.target, value.after);
+          } else {
+            for (auto value = typed.values.rbegin();
+                 value != typed.values.rend(); ++value)
+              (void)assignValueInDocument(document, value->target,
+                                          value->before);
+          }
         } else if constexpr (std::is_same_v<Command, InsertEntityCommand>) {
           nlohmann::json *entities = entitiesArray(document);
           if (entities == nullptr)
@@ -95,6 +105,9 @@ std::string sceneCommandEntityId(const SceneCommand &command) {
         using Command = std::decay_t<decltype(typed)>;
         if constexpr (std::is_same_v<Command, SetValueCommand>)
           return typed.target.entityId;
+        else if constexpr (std::is_same_v<Command, SetValuesCommand>)
+          return typed.values.empty() ? std::string{}
+                                      : typed.values.front().target.entityId;
         else if constexpr (std::is_same_v<Command, InsertEntityCommand>)
           return typed.entity.value("id", std::string{});
         else if constexpr (std::is_same_v<Command, RemoveEntitiesCommand>)

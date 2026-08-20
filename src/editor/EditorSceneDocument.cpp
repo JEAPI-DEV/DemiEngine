@@ -5,7 +5,9 @@
 #include "demi/schema/Validation.h"
 
 #include <algorithm>
+#include <array>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -37,6 +39,9 @@ bool stagedHasErrors(const std::filesystem::path &path,
 SceneValueTarget issueTarget(const SceneCommand &command) {
   if (const auto *setValue = std::get_if<SetValueCommand>(&command))
     return setValue->target;
+  if (const auto *setValues = std::get_if<SetValuesCommand>(&command);
+      setValues != nullptr && !setValues->values.empty())
+    return setValues->values.front().target;
   return {.entityId = sceneCommandEntityId(command)};
 }
 
@@ -228,6 +233,43 @@ bool EditorSceneDocument::setValue(SceneValueTarget target,
   return true;
 }
 
+bool EditorSceneDocument::setValues(std::vector<SceneValueTarget> targets,
+                                    nlohmann::json replacement,
+                                    std::string &error) {
+  if (targets.empty()) {
+    error = "A multi-edit requires at least one target.";
+    return false;
+  }
+  std::ranges::sort(targets, [](const SceneValueTarget &left,
+                               const SceneValueTarget &right) {
+    return std::tie(left.entityId, left.component, left.field) <
+           std::tie(right.entityId, right.component, right.field);
+  });
+  if (std::ranges::adjacent_find(targets) != targets.end()) {
+    error = "A multi-edit cannot contain the same field twice.";
+    reject(targets.front(), error);
+    return false;
+  }
+
+  SetValuesCommand command;
+  command.values.reserve(targets.size());
+  for (const SceneValueTarget &target : targets) {
+    const nlohmann::json *current = value(target);
+    if (current == nullptr) {
+      error = "Every multi-edit target must be an authored field.";
+      reject(target, error);
+      return false;
+    }
+    if (!validate(target, replacement, error)) {
+      reject(target, error);
+      return false;
+    }
+    command.values.push_back(
+        {.target = target, .before = *current, .after = replacement});
+  }
+  return stageAndCommit(std::move(command), error);
+}
+
 void EditorSceneDocument::endContinuousEdit() {
   continuousTarget_.reset();
   continuousRedoBackup_.clear();
@@ -266,7 +308,8 @@ bool EditorSceneDocument::removeValue(SceneValueTarget target,
                         error);
 }
 
-bool EditorSceneDocument::createEntity(std::string &error) {
+bool EditorSceneDocument::createEntity(std::string &error,
+                                       std::optional<std::string> parent) {
   nlohmann::json *entities = entitiesArray(document_);
   if (entities == nullptr) {
     error = "The scene has no entities array.";
@@ -277,6 +320,27 @@ bool EditorSceneDocument::createEntity(std::string &error) {
   nlohmann::json entity{{"id", id},
                         {"name", "New Entity"},
                         {"components", nlohmann::json::object()}};
+  if (parent.has_value()) {
+    const nlohmann::json *parentEntity = this->entity(*parent);
+    if (parentEntity == nullptr) {
+      error = "The parent entity no longer exists.";
+      reject({.entityId = *parent}, error);
+      return false;
+    }
+    const char *transform = transformComponentName(*parentEntity);
+    if (transform == nullptr) {
+      error = "Creating a child requires a Transform2D or Transform3D on the "
+              "parent.";
+      reject({.entityId = *parent}, error);
+      return false;
+    }
+    const auto *descriptor =
+        runtime::scene_loading::findComponentDescriptor(transform);
+    nlohmann::json childTransform =
+        runtime::scene_loading::componentDefaults(*descriptor);
+    childTransform["parent"] = *parent;
+    entity["components"][transform] = std::move(childTransform);
+  }
   return stageAndCommit(InsertEntityCommand{.index = entities->size(),
                                             .entity = std::move(entity)},
                         error);
@@ -284,18 +348,33 @@ bool EditorSceneDocument::createEntity(std::string &error) {
 
 bool EditorSceneDocument::deleteEntity(const std::string_view id,
                                        std::string &error) {
-  if (entity(id) == nullptr) {
-    error = "The entity no longer exists.";
-    reject({.entityId = std::string(id)}, error);
+  const std::array ids{std::string(id)};
+  return deleteEntities(ids, error);
+}
+
+bool EditorSceneDocument::deleteEntities(
+    const std::span<const std::string> ids, std::string &error) {
+  if (ids.empty()) {
+    error = "Select at least one entity to delete.";
     return false;
   }
+  std::unordered_set<std::string> members;
+  for (const std::string &id : ids) {
+    if (entity(id) == nullptr) {
+      error = "The entity no longer exists.";
+      reject({.entityId = id}, error);
+      return false;
+    }
+    for (std::string member : collectSubtreeIds(document_, id))
+      members.insert(std::move(member));
+  }
   std::vector<IndexedSceneEntity> removed;
-  for (const std::string &member : collectSubtreeIds(document_, id)) {
+  for (const std::string &member : members) {
     const std::optional<std::size_t> index = entityIndex(document_, member);
     const nlohmann::json *authored = entity(member);
     if (!index.has_value() || authored == nullptr) {
       error = "The entity subtree changed while preparing deletion.";
-      reject({.entityId = std::string(id)}, error);
+      reject({.entityId = ids.front()}, error);
       return false;
     }
     removed.push_back({.index = *index, .entity = *authored});

@@ -39,6 +39,15 @@ demi::runtime::Vec2 midpoint(const demi::editor::EditorGizmoLine &line) {
           (line.start.y + line.end.y) * 0.5F};
 }
 
+demi::runtime::Vec2 direction(const demi::editor::EditorGizmoLine &line,
+                              const float pixels) {
+  const float x = line.end.x - line.start.x;
+  const float y = line.end.y - line.start.y;
+  const float magnitude = std::sqrt(x * x + y * y);
+  assert(magnitude > 0.001F);
+  return {x * pixels / magnitude, y * pixels / magnitude};
+}
+
 } // namespace
 
 int main() {
@@ -53,8 +62,15 @@ int main() {
 
   assert(editor::pickSceneEntity3D(world, sceneView.camera(), {400.0F, 300.0F},
                                    viewport) == "cube");
-  assert(editor::pickSceneEntity3D(world, sceneView.camera(), {556.0F, 300.0F},
-                                   viewport) == "duplicate");
+  const auto duplicateScreen = editor::projectScenePoint3D(
+      sceneView.camera(), {3.0F, 0.0F, 0.0F}, viewport);
+  assert(duplicateScreen.has_value());
+  assert(duplicateScreen->x < 400.0F);
+  assert(editor::projectSceneDirection3D(sceneView.camera(),
+                                         {1.0F, 0.0F, 0.0F})
+             .x < 0.0F);
+  assert(editor::pickSceneEntity3D(world, sceneView.camera(),
+                                   *duplicateScreen, viewport) == "duplicate");
   std::erase_if(world.entities,
                 [](const auto &entity) { return entity.id == "cube"; });
   assert(!editor::pickSceneEntity3D(world, sceneView.camera(), {400.0F, 300.0F},
@@ -71,6 +87,7 @@ int main() {
                                        &editor::EditorGizmoLine::axis);
   assert(xAxis != gizmo.axes.end());
   const runtime::Vec2 handle = midpoint(*xAxis);
+  const runtime::Vec2 xDrag = direction(*xAxis, 120.0F);
   auto action = tool.update(world, "reloaded-cube", sceneView,
                             {.mousePosition = handle,
                              .viewportSize = viewport,
@@ -81,7 +98,7 @@ int main() {
   assert(!action.edit && tool.isDragging());
   action = tool.update(world, "reloaded-cube", sceneView,
                        {.mousePosition = handle,
-                        .mouseDelta = {120.0F, 0.0F},
+                        .mouseDelta = xDrag,
                         .viewportSize = viewport,
                         .hovered = true,
                         .focused = true,
@@ -90,6 +107,30 @@ int main() {
   assert(action.edit->target.entityId == "reloaded-cube");
   assert(action.edit->target.field == "position");
   assert(action.edit->value[0] == 1.0F);
+  action = tool.update(
+      world, "reloaded-cube", sceneView,
+      {.viewportSize = viewport, .focused = true, .leftReleased = true});
+  assert(action.completion == editor::EditorDragCompletion::Finish);
+
+  // Holding Shift temporarily bypasses the configured translation grid.
+  action = tool.update(world, "reloaded-cube", sceneView,
+                       {.mousePosition = handle,
+                        .viewportSize = viewport,
+                        .hovered = true,
+                        .focused = true,
+                        .leftPressed = true,
+                        .leftDown = true});
+  assert(tool.isDragging());
+  action = tool.update(world, "reloaded-cube", sceneView,
+                       {.mousePosition = handle,
+                        .mouseDelta = direction(*xAxis, 37.0F),
+                        .viewportSize = viewport,
+                        .hovered = true,
+                        .focused = true,
+                        .leftDown = true,
+                        .bypassSnapping = true});
+  assert(action.edit.has_value());
+  assert(std::abs(action.edit->value.at(0).get<float>() - 0.37F) < 0.001F);
   action = tool.update(
       world, "reloaded-cube", sceneView,
       {.viewportSize = viewport, .focused = true, .leftReleased = true});

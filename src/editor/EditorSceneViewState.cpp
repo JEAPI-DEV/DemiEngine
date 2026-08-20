@@ -107,7 +107,7 @@ void EditorSceneViewState::update(const EditorViewportInput &input) {
   }
 
   const runtime::Vec3 right =
-      normalized({forward_.z, 0.0F, -forward_.x}, {1.0F, 0.0F, 0.0F});
+      normalized({-forward_.z, 0.0F, forward_.x}, {-1.0F, 0.0F, 0.0F});
   if (input.panButton) {
     const float scale = std::max(distance_, 1.0F) * 0.0015F;
     focus_ = add(focus_, multiply(right, -input.mouseDelta.x * scale));
@@ -195,10 +195,10 @@ void EditorSceneViewState::updateOrientation() {
       {std::sin(yaw_) * cosPitch, std::sin(pitch_), std::cos(yaw_) * cosPitch},
       {0.0F, 0.0F, 1.0F});
   const runtime::Vec3 right =
-      normalized({forward_.z, 0.0F, -forward_.x}, {1.0F, 0.0F, 0.0F});
-  up_ = normalized({forward_.y * right.z - forward_.z * right.y,
-                    forward_.z * right.x - forward_.x * right.z,
-                    forward_.x * right.y - forward_.y * right.x},
+      normalized({-forward_.z, 0.0F, forward_.x}, {-1.0F, 0.0F, 0.0F});
+  up_ = normalized({right.y * forward_.z - right.z * forward_.y,
+                    right.z * forward_.x - right.x * forward_.z,
+                    right.x * forward_.y - right.y * forward_.x},
                    {0.0F, 1.0F, 0.0F});
   position_ = add(focus_, multiply(forward_, -distance_));
 }

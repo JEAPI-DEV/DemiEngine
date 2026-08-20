@@ -7,6 +7,7 @@
 
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -42,12 +43,17 @@ public:
 
   [[nodiscard]] bool setValue(SceneValueTarget target, nlohmann::json value,
                               bool continuous, std::string &error);
+  [[nodiscard]] bool setValues(std::vector<SceneValueTarget> targets,
+                               nlohmann::json value, std::string &error);
   [[nodiscard]] bool removeValue(SceneValueTarget target, std::string &error);
   void endContinuousEdit();
   [[nodiscard]] bool cancelContinuousEdit(std::string &error);
 
-  [[nodiscard]] bool createEntity(std::string &error);
+  [[nodiscard]] bool createEntity(std::string &error,
+                                  std::optional<std::string> parent = {});
   [[nodiscard]] bool deleteEntity(std::string_view id, std::string &error);
+  [[nodiscard]] bool deleteEntities(std::span<const std::string> ids,
+                                    std::string &error);
   [[nodiscard]] bool reparent(std::string_view id,
                               std::optional<std::string> newParent,
                               std::string &error);

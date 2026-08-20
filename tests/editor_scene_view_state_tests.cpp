@@ -1,4 +1,5 @@
 #include "editor/EditorWorkspace.h"
+#include "editor/EditorViewportProjection.h"
 
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
@@ -98,6 +99,12 @@ int main() {
                                 .focused = true,
                                 .flyButton = true,
                                 .moveRight = true});
+  const auto movedRight = workspace.sceneView().camera();
+  const demi::runtime::Vec3 movement{
+      movedRight.position.x - resetOnce.position.x,
+      movedRight.position.y - resetOnce.position.y,
+      movedRight.position.z - resetOnce.position.z};
+  assert(demi::editor::projectSceneDirection3D(resetOnce, movement).x > 0.0F);
   workspace.sceneView().reset(workspace.project().world);
   assert(close(workspace.sceneView().camera().position, resetOnce.position));
 

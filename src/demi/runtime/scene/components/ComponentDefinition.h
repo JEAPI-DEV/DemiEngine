@@ -32,6 +32,13 @@ enum class ComponentReferenceKind {
   Prefab,
 };
 
+struct ComponentFieldEditorMetadata {
+  std::string_view label;
+  std::string_view help;
+  double numericStep = 0.0;
+  bool readOnly = false;
+};
+
 struct ComponentFieldDescriptor {
   [[nodiscard]] static constexpr ComponentFieldDescriptor
   entityReference(std::string_view fieldName, bool fieldRequired = false) {
@@ -49,6 +56,14 @@ struct ComponentFieldDescriptor {
         ComponentReferenceKind::Asset);
   }
 
+  [[nodiscard]] static constexpr ComponentFieldDescriptor
+  prefabReference(std::string_view fieldName, bool fieldRequired = false) {
+    return ComponentFieldDescriptor(
+        fieldName, ComponentFieldType::String, fieldRequired, true, {}, 0.0,
+        false, false, true, true, false, 0.0, false,
+        ComponentReferenceKind::Prefab);
+  }
+
   constexpr ComponentFieldDescriptor(
       std::string_view fieldName, ComponentFieldType fieldType,
       bool fieldRequired = false, bool fieldEditorVisible = true,
@@ -60,7 +75,8 @@ struct ComponentFieldDescriptor {
       ComponentReferenceKind fieldReferenceKind = ComponentReferenceKind::None,
       std::string_view fieldArrayElementSchema = {},
       std::string_view fieldNestedObjectSchema = {},
-      bool fieldRestartRequired = false, bool fieldRuntimeReadOnly = false)
+      bool fieldRestartRequired = false, bool fieldRuntimeReadOnly = false,
+      ComponentFieldEditorMetadata fieldEditor = {})
       : name(fieldName), type(fieldType), required(fieldRequired),
         editorVisible(fieldEditorVisible), allowedValues(fieldAllowedValues),
         minimum(fieldMinimum), hasMinimum(fieldHasMinimum),
@@ -71,7 +87,7 @@ struct ComponentFieldDescriptor {
         arrayElementSchema(fieldArrayElementSchema),
         nestedObjectSchema(fieldNestedObjectSchema),
         restartRequired(fieldRestartRequired),
-        runtimeReadOnly(fieldRuntimeReadOnly) {}
+        runtimeReadOnly(fieldRuntimeReadOnly), editor(fieldEditor) {}
 
   std::string_view name;
   ComponentFieldType type;
@@ -91,6 +107,7 @@ struct ComponentFieldDescriptor {
   std::string_view nestedObjectSchema;
   bool restartRequired = false;
   bool runtimeReadOnly = false;
+  ComponentFieldEditorMetadata editor;
 };
 
 struct ComponentEditorMetadata {

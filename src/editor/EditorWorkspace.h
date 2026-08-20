@@ -30,9 +30,14 @@ public:
   [[nodiscard]] bool redo(std::string &error);
   [[nodiscard]] bool editValue(SceneValueTarget target, nlohmann::json value,
                                bool continuous, std::string &error);
+  [[nodiscard]] bool editValues(std::vector<SceneValueTarget> targets,
+                                nlohmann::json value, std::string &error);
   [[nodiscard]] bool removeValue(SceneValueTarget target, std::string &error);
-  [[nodiscard]] bool createEntity(std::string &error);
+  [[nodiscard]] bool createEntity(std::string &error,
+                                  std::optional<std::string> parent = {});
   [[nodiscard]] bool deleteEntity(std::string_view id, std::string &error);
+  [[nodiscard]] bool deleteEntities(std::vector<std::string> ids,
+                                    std::string &error);
   [[nodiscard]] bool reparentEntity(std::string_view id,
                                     std::optional<std::string> newParent,
                                     std::string &error);
@@ -74,9 +79,15 @@ public:
   }
   [[nodiscard]] EditorSceneViewState &sceneView() { return sceneView_; }
 
-  void selectEntity(std::string id) { selectedEntityId_ = std::move(id); }
+  void selectEntity(std::string id);
+  void toggleEntitySelection(std::string id);
+  [[nodiscard]] bool isEntitySelected(std::string_view id) const;
+  [[nodiscard]] const std::vector<std::string> &selectedEntityIds() const {
+    return selectedEntityIds_;
+  }
   [[nodiscard]] std::string_view selectedEntityId() const {
-    return selectedEntityId_;
+    return selectedEntityIds_.empty() ? std::string_view{}
+                                      : selectedEntityIds_.back();
   }
   [[nodiscard]] const runtime::Entity *selectedEntity() const;
 
@@ -96,7 +107,7 @@ private:
   EditorViewportTool viewportTool_;
   std::vector<std::filesystem::path> sources_;
   Diagnostics diagnostics_;
-  std::string selectedEntityId_;
+  std::vector<std::string> selectedEntityIds_;
   std::string workspaceOperationError_;
 };
 

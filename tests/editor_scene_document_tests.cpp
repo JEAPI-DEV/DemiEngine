@@ -120,6 +120,24 @@ int main() {
   assert(document.canUndo() == couldUndoBeforeRejectedEdit);
   assert(document.issueFor(position) != nullptr);
 
+  // A multi-edit is one command: every target commits or none do, and one
+  // undo restores the exact pre-edit document.
+  const demi::editor::SceneValueTarget scale{.entityId = "ent_player",
+                                             .component = "Transform3D",
+                                             .field = "scale"};
+  const std::string beforeMultiEdit = document.json().dump();
+  assert(document.setValues({position, scale}, {4.0, 4.0, 4.0}, error));
+  assert(document.component("ent_player", "Transform3D")->at("position") ==
+         nlohmann::json({4.0, 4.0, 4.0}));
+  assert(document.component("ent_player", "Transform3D")->at("scale") ==
+         nlohmann::json({4.0, 4.0, 4.0}));
+  assert(document.undo(error));
+  assert(document.json().dump() == beforeMultiEdit);
+  const std::string beforeRejectedMultiEdit = document.json().dump();
+  assert(!document.setValues({position, requiredValues},
+                             {6.0, 6.0, 6.0}, error));
+  assert(document.json().dump() == beforeRejectedMultiEdit);
+
   error.clear();
   assert(document.save(error));
   assert(!document.isDirty());

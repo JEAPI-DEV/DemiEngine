@@ -27,7 +27,7 @@ bool EditorWorkspace::open(std::filesystem::path projectPath,
   viewportTool_.cancelDrag();
   discoverSources();
   if (!project_->world.entities.empty())
-    selectedEntityId_ = project_->world.entities.front().id;
+    selectEntity(project_->world.entities.front().id);
   refreshDiagnostics();
   return true;
 }
@@ -69,8 +69,11 @@ bool EditorWorkspace::refresh(std::string &error) {
   project_ = std::move(loaded);
   viewportTool_.cancelDrag();
   discoverSources();
-  if (!selectedEntityId_.empty() && selectedEntity() == nullptr)
-    selectedEntityId_.clear();
+  std::erase_if(selectedEntityIds_, [this](const std::string &id) {
+    return std::ranges::find(project_->world.entities, id,
+                             &runtime::Entity::id) ==
+           project_->world.entities.end();
+  });
   refreshDiagnostics();
   return true;
 }
@@ -105,8 +108,11 @@ bool EditorWorkspace::resolveExternalChange(
     project_ = std::move(loaded);
     viewportTool_.cancelDrag();
     discoverSources();
-    if (!selectedEntityId_.empty() && selectedEntity() == nullptr)
-      selectedEntityId_.clear();
+    std::erase_if(selectedEntityIds_, [this](const std::string &id) {
+      return std::ranges::find(project_->world.entities, id,
+                               &runtime::Entity::id) ==
+             project_->world.entities.end();
+    });
   }
   refreshDiagnostics();
   return true;
@@ -120,7 +126,7 @@ bool EditorWorkspace::undo(std::string &error) {
           error))
     return false;
   if (selectedEntity() == nullptr && !project_->world.entities.empty())
-    selectedEntityId_ = project_->world.entities.front().id;
+    selectEntity(project_->world.entities.front().id);
   return true;
 }
 
@@ -132,7 +138,7 @@ bool EditorWorkspace::redo(std::string &error) {
           error))
     return false;
   if (selectedEntity() == nullptr && !project_->world.entities.empty())
-    selectedEntityId_ = project_->world.entities.front().id;
+    selectEntity(project_->world.entities.front().id);
   return true;
 }
 
@@ -149,6 +155,17 @@ bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
   return true;
 }
 
+bool EditorWorkspace::editValues(std::vector<SceneValueTarget> targets,
+                                 nlohmann::json value, std::string &error) {
+  return mutateAndRebuild(
+      [targets = std::move(targets), value = std::move(value)](
+          EditorSceneDocument &document, std::string &mutationError) mutable {
+        return document.setValues(std::move(targets), std::move(value),
+                                  mutationError);
+      },
+      error);
+}
+
 bool EditorWorkspace::removeValue(SceneValueTarget target, std::string &error) {
   return mutateAndRebuild(
       [target = std::move(target)](EditorSceneDocument &document,
@@ -158,10 +175,12 @@ bool EditorWorkspace::removeValue(SceneValueTarget target, std::string &error) {
       error);
 }
 
-bool EditorWorkspace::createEntity(std::string &error) {
+bool EditorWorkspace::createEntity(std::string &error,
+                                   std::optional<std::string> parent) {
   if (!mutateAndRebuild(
-          [](EditorSceneDocument &document, std::string &mutationError) {
-            return document.createEntity(mutationError);
+          [parent = std::move(parent)](EditorSceneDocument &document,
+                                       std::string &mutationError) mutable {
+            return document.createEntity(mutationError, std::move(parent));
           },
           error))
     return false;
@@ -171,15 +190,21 @@ bool EditorWorkspace::createEntity(std::string &error) {
 
 bool EditorWorkspace::deleteEntity(const std::string_view id,
                                    std::string &error) {
+  return deleteEntities({std::string(id)}, error);
+}
+
+bool EditorWorkspace::deleteEntities(std::vector<std::string> ids,
+                                     std::string &error) {
   if (!mutateAndRebuild(
-          [id = std::string(id)](EditorSceneDocument &document,
+          [ids = std::move(ids)](EditorSceneDocument &document,
                                  std::string &mutationError) {
-            return document.deleteEntity(id, mutationError);
+            return document.deleteEntities(ids, mutationError);
           },
           error))
     return false;
-  if (selectedEntity() == nullptr)
-    selectedEntityId_.clear();
+  std::erase_if(selectedEntityIds_, [this](const std::string &selected) {
+    return sceneDocument_.entity(selected) == nullptr;
+  });
   return true;
 }
 
@@ -232,7 +257,7 @@ bool EditorWorkspace::removeComponent(const std::string_view id,
 bool EditorWorkspace::updateViewportTool(const EditorViewportToolInput &input,
                                          std::string &error) {
   EditorViewportToolAction action = viewportTool_.update(
-      project_->world, selectedEntityId_, sceneView_, input);
+      project_->world, selectedEntityId(), sceneView_, input);
   if (action.selectionChanged)
     selectEntity(std::move(action.selectedEntityId));
 
@@ -261,7 +286,7 @@ bool EditorWorkspace::updateViewportTool(const EditorViewportToolInput &input,
 
 EditorGizmoPresentation
 EditorWorkspace::gizmoPresentation(const runtime::Vec2 viewportSize) const {
-  return viewportTool_.presentation(project_->world, selectedEntityId_,
+  return viewportTool_.presentation(project_->world, selectedEntityId(),
                                     sceneView_, viewportSize);
 }
 
@@ -340,8 +365,26 @@ const runtime::Entity *EditorWorkspace::selectedEntity() const {
   if (!project_)
     return nullptr;
   const auto found = std::ranges::find(project_->world.entities,
-                                       selectedEntityId_, &runtime::Entity::id);
+                                       selectedEntityId(), &runtime::Entity::id);
   return found == project_->world.entities.end() ? nullptr : &*found;
+}
+
+void EditorWorkspace::selectEntity(std::string id) {
+  selectedEntityIds_.clear();
+  if (!id.empty())
+    selectedEntityIds_.push_back(std::move(id));
+}
+
+void EditorWorkspace::toggleEntitySelection(std::string id) {
+  const auto found = std::ranges::find(selectedEntityIds_, id);
+  if (found == selectedEntityIds_.end())
+    selectedEntityIds_.push_back(std::move(id));
+  else
+    selectedEntityIds_.erase(found);
+}
+
+bool EditorWorkspace::isEntitySelected(const std::string_view id) const {
+  return std::ranges::find(selectedEntityIds_, id) != selectedEntityIds_.end();
 }
 
 } // namespace demi::editor

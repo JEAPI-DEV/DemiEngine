@@ -34,6 +34,18 @@
     tests/editor_authoring_workflow_tests.cpp)
   target_link_libraries(demi-editor-authoring-workflow-tests
     PRIVATE demi-editor-model)
+  add_executable(demi-editor-inspector-model-tests
+    tests/editor_inspector_model_tests.cpp)
+  target_link_libraries(demi-editor-inspector-model-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-imgui-input-tests
+    tests/editor_imgui_input_tests.cpp)
+  target_include_directories(demi-editor-imgui-input-tests PRIVATE
+    "${bgfx_SOURCE_DIR}/bgfx/examples/common/imgui"
+    "${bgfx_SOURCE_DIR}/bgfx/examples/common"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty"
+    "${bgfx_SOURCE_DIR}/bgfx/include")
+  target_link_libraries(demi-editor-imgui-input-tests PRIVATE demi-editor-ui)
   add_executable(demi-doctor-service-tests tests/doctor_service_tests.cpp)
   target_link_libraries(demi-doctor-service-tests PRIVATE demi-cli-support)
   target_compile_definitions(demi-doctor-service-tests PRIVATE

@@ -76,6 +76,11 @@ float snapped(const float value, const float increment) {
                                : value;
 }
 
+float applySnap(const float value, const float increment,
+                const bool bypassSnapping) {
+  return bypassSnapping ? value : snapped(value, increment);
+}
+
 } // namespace
 
 EditorGizmoPresentation
@@ -146,7 +151,8 @@ EditorViewportTool::update(const runtime::World &world,
     runtime::Transform3DComponent local = active_->initialLocal;
     if (active_->operation == EditorGizmoOperation::Translate) {
       const float amount =
-          snapped(active_->pixels * 0.01F, sceneView.translationSnap);
+          applySnap(active_->pixels * 0.01F, sceneView.translationSnap,
+                    input.bypassSnapping);
       runtime::WorldTransform3D desired = active_->initialWorld;
       desired.position =
           add(desired.position, multiply(active_->worldAxis, amount));
@@ -166,7 +172,8 @@ EditorViewportTool::update(const runtime::World &world,
     } else if (active_->operation == EditorGizmoOperation::Rotate) {
       constexpr float DegreesToRadians = 0.01745329251994329577F;
       const float increment = sceneView.rotationSnapDegrees * DegreesToRadians;
-      const float amount = snapped(active_->pixels * 0.01F, increment);
+      const float amount = applySnap(active_->pixels * 0.01F, increment,
+                                     input.bypassSnapping);
       if (sceneView.transformSpace() == EditorTransformSpace::Local) {
         local.rotation = runtime::rotateLocalEuler3D(
             active_->initialLocal.rotation, axisVector(active_->axis), amount);
@@ -190,7 +197,8 @@ EditorViewportTool::update(const runtime::World &world,
           .value = {local.rotation.x, local.rotation.y, local.rotation.z}};
     } else {
       const float amount =
-          snapped(active_->pixels * 0.01F, sceneView.scaleSnap);
+          applySnap(active_->pixels * 0.01F, sceneView.scaleSnap,
+                    input.bypassSnapping);
       if (sceneView.transformSpace() == EditorTransformSpace::Local) {
         axisValue(local.scale, active_->axis) = std::max(
             axisValue(active_->initialLocal.scale, active_->axis) + amount,

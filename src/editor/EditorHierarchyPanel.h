@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <optional>
 #include <string>
 
 struct ImVec2;
@@ -18,6 +19,8 @@ public:
 
 private:
   std::array<char, 128> filter_{};
+  std::array<char, 128> rename_{};
+  std::optional<std::string> renamingEntityId_;
 };
 
 } // namespace demi::editor

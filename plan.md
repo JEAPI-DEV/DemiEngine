@@ -1603,7 +1603,12 @@ collider, light, and camera overlays reuse runtime debug extraction. Structural
 create/delete/reparent/duplicate and component add/remove commands stage
 full-document validation through a shared in-memory scene validator, and the
 preview world rebuilds from the authored document through the shared loader.
-2D preview and embedded play sessions remain upcoming slices.
+The descriptor-driven Inspector now supplies shared labels, defaults, steps,
+read-only/restart policies, stable asset/entity/prefab choices, grouped
+domain-compatible component discovery, and atomic mixed-value multi-editing.
+Hierarchy multi-selection and keyboard rename/duplicate/delete/focus/create-child
+actions use the same stable-ID command path. 2D preview and embedded play
+sessions remain upcoming slices.
 
 ### Non-negotiable design rules
 
@@ -1841,7 +1846,7 @@ Viewport rules:
 - gizmos submit transform commands through parent-aware local/world conversion
   and existing transform hierarchy helpers;
 - snapping is applied before command submission and is defined in project/world
-  units, not pixels;
+  units, not pixels; holding `Shift` temporarily bypasses it during a drag;
 - collider, bounds, light, camera, navigation, and physics overlays use shared
   runtime debug extraction so visuals match runtime behavior;
 - a renderer/device failure disables only the affected view, preserves authored

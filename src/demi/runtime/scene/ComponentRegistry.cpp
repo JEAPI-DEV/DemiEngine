@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <sstream>
 
@@ -154,6 +155,71 @@ nlohmann::json componentDefaults(const ComponentDescriptor &descriptor) {
   return descriptor.defaults();
 }
 
+nlohmann::json componentFieldDefault(
+    const ComponentDescriptor &descriptor,
+    const ComponentFieldDescriptor &field) {
+  const nlohmann::json defaults = componentDefaults(descriptor);
+  if (const auto value = defaults.find(field.name); value != defaults.end())
+    return *value;
+  switch (field.type) {
+  case ComponentFieldType::Boolean:
+    return false;
+  case ComponentFieldType::Integer:
+    return 0;
+  case ComponentFieldType::Number:
+    return 0.0;
+  case ComponentFieldType::String:
+    return field.allowedValues.empty() ? nlohmann::json("")
+                                       : nlohmann::json(field.allowedValues[0]);
+  case ComponentFieldType::Object:
+    return nlohmann::json::object();
+  case ComponentFieldType::Vec2:
+    return nlohmann::json::array({0.0, 0.0});
+  case ComponentFieldType::Vec3:
+    return nlohmann::json::array({0.0, 0.0, 0.0});
+  case ComponentFieldType::Color:
+    return nlohmann::json::array({1.0, 1.0, 1.0, 1.0});
+  case ComponentFieldType::Vec2Array:
+  case ComponentFieldType::Vec3Array:
+    return nlohmann::json::array();
+  }
+  return nullptr;
+}
+
+std::string componentFieldEditorLabel(const ComponentFieldDescriptor &field) {
+  if (!field.editor.label.empty())
+    return std::string(field.editor.label);
+  std::string label;
+  label.reserve(field.name.size());
+  bool uppercase = true;
+  for (const char character : field.name) {
+    if (character == '_') {
+      label.push_back(' ');
+      uppercase = true;
+    } else {
+      label.push_back(uppercase
+                          ? static_cast<char>(std::toupper(
+                                static_cast<unsigned char>(character)))
+                          : character);
+      uppercase = false;
+    }
+  }
+  return label;
+}
+
+double componentFieldEditorStep(const ComponentFieldDescriptor &field) {
+  if (field.editor.numericStep > 0.0)
+    return field.editor.numericStep;
+  return field.type == ComponentFieldType::Integer ? 1.0 : 0.05;
+}
+
+bool componentFieldEditorReadOnly(const ComponentFieldDescriptor &field) {
+  return field.editor.readOnly || field.runtimeReadOnly ||
+         field.type == ComponentFieldType::Object ||
+         field.type == ComponentFieldType::Vec2Array ||
+         field.type == ComponentFieldType::Vec3Array;
+}
+
 nlohmann::json componentSchema(const ComponentDescriptor &descriptor) {
   nlohmann::json schema = {{"type", "object"},
                            {"additionalProperties", false},
@@ -217,6 +283,13 @@ nlohmann::json componentSchema(const ComponentDescriptor &descriptor) {
       property["x-demi-restart-required"] = true;
     if (field.runtimeReadOnly)
       property["readOnly"] = true;
+    property["default"] = componentFieldDefault(descriptor, field);
+    property["x-demi-editor-label"] = componentFieldEditorLabel(field);
+    property["x-demi-editor-step"] = componentFieldEditorStep(field);
+    if (!field.editor.help.empty())
+      property["x-demi-editor-help"] = field.editor.help;
+    if (componentFieldEditorReadOnly(field))
+      property["x-demi-editor-read-only"] = true;
     if (!field.arrayElementSchema.empty())
       property["x-demi-array-element-schema"] = field.arrayElementSchema;
     if (!field.nestedObjectSchema.empty())

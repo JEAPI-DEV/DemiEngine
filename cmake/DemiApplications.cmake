@@ -60,6 +60,7 @@ else()
 
   add_library(demi-editor-model STATIC
     src/editor/EditorDocumentStore.cpp
+    src/editor/EditorInspectorModel.cpp
     src/editor/EditorPlaySession.cpp
     src/editor/EditorSceneCommand.cpp
     src/editor/EditorSceneDocument.cpp
@@ -76,6 +77,7 @@ else()
   add_library(demi-editor-ui STATIC
     src/editor/EditorConflictPanel.cpp
     src/editor/EditorHierarchyPanel.cpp
+    src/editor/EditorImGuiInput.cpp
     src/editor/EditorInspectorPanel.cpp
     src/editor/EditorPanelStyle.cpp
     src/editor/EditorShell.cpp
