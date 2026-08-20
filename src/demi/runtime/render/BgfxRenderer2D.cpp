@@ -202,7 +202,8 @@ bool BgfxRenderer2D::beginFrameRegion(
     const std::uint16_t viewId, const std::uint16_t x, const std::uint16_t y,
     const std::uint16_t viewportWidth, const std::uint16_t viewportHeight,
     const float deltaSeconds, std::string &error,
-    const float physicsInterpolationAlpha) {
+    const float physicsInterpolationAlpha,
+    const FrameBufferHandle frameBuffer) {
   if (!initialized_) {
     error = "BgfxRenderer2D must be initialized before beginning a frame.";
     return false;
@@ -219,9 +220,10 @@ bool BgfxRenderer2D::beginFrameRegion(
   physicsInterpolationAlpha_ =
       std::clamp(physicsInterpolationAlpha, 0.0F, 1.0F);
   animationTime_ += deltaSeconds_;
-  frameOpen_ =
-      canvas_.begin(viewId, viewportWidth_, viewportHeight_,
-                    packClearColorRgba8(camera.clearColor), error, true, x, y);
+  frameOpen_ = canvas_.begin(viewId, viewportWidth_, viewportHeight_,
+                             packClearColorRgba8(camera.clearColor), error,
+                             true, frameBuffer ? std::uint16_t{0} : x,
+                             frameBuffer ? std::uint16_t{0} : y, frameBuffer);
   return frameOpen_;
 }
 
@@ -252,7 +254,8 @@ bool BgfxRenderer2D::beginOverlayRegion(
   deltaSeconds_ = std::max(deltaSeconds, 0.0F);
   animationTime_ += deltaSeconds_;
   frameOpen_ = canvas_.begin(viewId, viewportWidth_, viewportHeight_, 0, error,
-                             false, x, y, frameBuffer);
+                             false, frameBuffer ? std::uint16_t{0} : x,
+                             frameBuffer ? std::uint16_t{0} : y, frameBuffer);
   return frameOpen_;
 }
 

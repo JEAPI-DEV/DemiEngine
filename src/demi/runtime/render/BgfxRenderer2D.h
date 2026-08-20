@@ -46,7 +46,8 @@ public:
                                       std::uint16_t viewportWidth,
                                       std::uint16_t viewportHeight,
                                       float deltaSeconds, std::string &error,
-                                      float physicsInterpolationAlpha = 1.0F);
+                                      float physicsInterpolationAlpha = 1.0F,
+                                      FrameBufferHandle frameBuffer = {});
   [[nodiscard]] bool beginOverlay(std::uint16_t viewId,
                                   std::uint16_t viewportWidth,
                                   std::uint16_t viewportHeight,

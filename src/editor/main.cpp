@@ -85,6 +85,7 @@ int main(const int argc, char **argv) {
       workspace.project().project.projectDirectory, error);
   if (!viewportReady)
     shell.setNotice("Viewport unavailable: " + error);
+  bool gameRendererReady = false;
   int frame = 0;
   while (!ui->shouldClose() && !shell.wantsExit() &&
          (options.maximumFrames <= 0 || frame < options.maximumFrames)) {
@@ -93,14 +94,53 @@ int main(const int argc, char **argv) {
       ui->shutdown();
       return 1;
     }
+    if (gameRendererReady && !ui->prepareGameTarget(shell.gameArea(), error)) {
+      shell.playSession().reportFailure(error);
+      ui->releaseGameRenderer();
+      gameRendererReady = false;
+      shell.setNotice("Game target stopped: " + error);
+    }
+    shell.setGameTextureIndex(ui->gameTextureIndex());
     shell.draw(ui->width(), ui->height(), ui->rendererName());
+    if (shell.playSession().isEmbedded() && !gameRendererReady) {
+      gameRendererReady = ui->configureGameRenderer(
+          workspace.project().project.projectDirectory, error);
+      if (!gameRendererReady) {
+        shell.playSession().reportFailure(error);
+        shell.setNotice("Game view unavailable: " + error);
+      }
+    } else if (!shell.playSession().isEmbedded() && gameRendererReady) {
+      ui->releaseGameRenderer();
+      gameRendererReady = false;
+    }
+    if (shell.playSession().isEmbedded()) {
+      const demi::editor::EditorViewportArea area = shell.gameArea();
+      demi::runtime::InputState gameInput =
+          ui->gameInput(area, shell.gameViewFocused());
+      const std::uint16_t gameWidth = area.width == 0 ? 960 : area.width;
+      const std::uint16_t gameHeight = area.height == 0 ? 540 : area.height;
+      const bool advanced =
+          shell.takeStepRequest()
+              ? shell.playSession().step(std::move(gameInput), gameWidth,
+                                         gameHeight, error)
+              : shell.playSession().update(std::move(gameInput),
+                                           ui->deltaSeconds(), gameWidth,
+                                           gameHeight, error);
+      if (!advanced)
+        shell.setNotice("Play session failed: " + error);
+    }
     if (!ui->setViewportInputCaptured(shell.viewportInputCaptured(), error)) {
       shell.setNotice("Viewport input capture failed: " + error);
     }
     bool rendered = true;
-    if (viewportReady &&
-        workspace.viewDimension() ==
-            demi::editor::EditorSceneViewDimension::TwoDimensional) {
+    if (gameRendererReady && shell.showingGameView() &&
+        shell.playSession().runtimeWorld() != nullptr) {
+      rendered =
+          ui->renderGame(*shell.playSession().runtimeWorld(), shell.gameArea(),
+                         shell.playSession().interpolationAlpha(), error);
+    } else if (viewportReady &&
+               workspace.viewDimension() ==
+                   demi::editor::EditorSceneViewDimension::TwoDimensional) {
       rendered =
           ui->renderViewport2D(workspace.project().world, shell.viewportArea(),
                                workspace.sceneView2D().camera(),
@@ -110,13 +150,23 @@ int main(const int argc, char **argv) {
           ui->renderViewport(workspace.project().world, shell.viewportArea(),
                              workspace.sceneView().camera(), error);
     }
-    if (viewportReady && !rendered) {
-      viewportReady = false;
-      shell.setNotice("Viewport stopped: " + error);
+    if (!rendered) {
+      if (shell.showingGameView()) {
+        shell.playSession().reportFailure(error);
+        ui->releaseGameRenderer();
+        gameRendererReady = false;
+        shell.setNotice("Game view stopped: " + error);
+      } else {
+        viewportReady = false;
+        shell.setNotice("Viewport stopped: " + error);
+      }
     }
     ui->endFrame();
     ++frame;
   }
+  shell.playSession().stop();
+  if (gameRendererReady)
+    ui->releaseGameRenderer();
   ui->shutdown();
   return 0;
 }

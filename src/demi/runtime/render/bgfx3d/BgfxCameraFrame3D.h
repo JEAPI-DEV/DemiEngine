@@ -1,5 +1,6 @@
 #pragma once
 
+#include "demi/runtime/render/backend/GpuResources.h"
 #include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
 #include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/PostProcessStackComponent.h"
@@ -23,6 +24,7 @@ struct BgfxCameraFrame3D {
   std::uint16_t viewportWidth = 0;
   std::uint16_t viewportHeight = 0;
   std::uint16_t viewId = 0;
+  FrameBufferHandle frameBuffer;
   bool updateContent = true;
 };
 

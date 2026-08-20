@@ -84,6 +84,8 @@ else()
 
   add_library(demi-editor-ui STATIC
     src/editor/EditorConflictPanel.cpp
+    src/editor/EditorGameRenderer.cpp
+    src/editor/EditorGameViewPanel.cpp
     src/editor/EditorHierarchyPanel.cpp
     src/editor/EditorImGuiInput.cpp
     src/editor/EditorInspectorPanel.cpp

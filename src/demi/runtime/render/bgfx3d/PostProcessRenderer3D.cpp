@@ -122,8 +122,8 @@ bool PostProcessRenderer3D::present(const BgfxCameraFrame3D &frame,
   }
   if (!commands_.configureView2D(
           {.id = static_cast<std::uint16_t>(frame.viewId + 2U),
-           .x = frame.viewportX,
-           .y = frame.viewportY,
+           .x = destination ? std::uint16_t{0} : frame.viewportX,
+           .y = destination ? std::uint16_t{0} : frame.viewportY,
            .width = std::max<std::uint16_t>(frame.viewportWidth, 1),
            .height = std::max<std::uint16_t>(frame.viewportHeight, 1),
            .clear = false,

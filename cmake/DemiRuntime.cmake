@@ -11,6 +11,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/tilemap/TilemapCollisionGenerator.cpp
   src/demi/runtime/tilemap/TilemapRuntime.cpp
   src/demi/runtime/app/RuntimeApp.cpp
+  src/demi/runtime/app/EmbeddedRuntimeSession.cpp
   src/demi/runtime/app/ReloadCoordinator.cpp
   src/demi/runtime/audio/AudioClipPreprocess.cpp
   src/demi/runtime/audio/AudioMixer.cpp

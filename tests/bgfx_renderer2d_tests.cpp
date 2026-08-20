@@ -107,6 +107,19 @@ int main() {
   assert(renderer.endFrame(error));
   static_cast<void>(graphics.endFrame());
 
+  const RenderTargetHandles embeddedTarget = resources->createRenderTarget(
+      {.width = 240, .height = 120, .debugName = "embedded 2D test"}, error);
+  assert(embeddedTarget.frameBuffer && embeddedTarget.color);
+  assert(renderer.beginFrameRegion(Camera2DComponent{.orthographicSize = 5.0F},
+                                   {}, 8, 24, 32, 240, 120, 0.016F, error, 1.0F,
+                                   embeddedTarget.frameBuffer));
+  assert(renderer.drawWorld(world));
+  assert(renderer.endFrame(error));
+  static_cast<void>(graphics.endFrame());
+  assert(resources->destroy(embeddedTarget.frameBuffer));
+  assert(resources->destroy(embeddedTarget.depth));
+  assert(resources->destroy(embeddedTarget.color));
+
   AssetRegistry tilemapRegistry =
       loadAssetRegistry(std::filesystem::path(DEMI_SOURCE_DIR) /
                         "examples/production_2d_foundation");

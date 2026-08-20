@@ -225,6 +225,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     return false;
   }
   const bool authoredOffscreen = renderTarget != renderTargets_.end();
+  const bool hostOffscreen = static_cast<bool>(frame.frameBuffer);
   const bool applyPostProcess = hasPostProcessEffects(frame.postProcess);
   const float renderScale =
       authoredOffscreen ? 1.0F
@@ -250,8 +251,11 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     sourceTarget = postProcess_.scratchTarget(
         std::max<std::uint16_t>(renderWidth, 1),
         std::max<std::uint16_t>(renderHeight, 1), error);
-  const bool offscreen = authoredOffscreen || applyPostProcess;
-  if (offscreen && (!sourceTarget.frameBuffer || !sourceTarget.color)) {
+  else if (hostOffscreen)
+    sourceTarget.frameBuffer = frame.frameBuffer;
+  const bool offscreen = authoredOffscreen || hostOffscreen || applyPostProcess;
+  if (offscreen && (!sourceTarget.frameBuffer ||
+                    (applyPostProcess && !sourceTarget.color))) {
     if (error.empty())
       error = "Could not create the camera's offscreen render surface.";
     return false;
@@ -661,15 +665,16 @@ bool BgfxRenderer3D::renderFrame(const World &world,
 
   if (offscreen) {
     if (applyPostProcess) {
-      if (!postProcess_.present(frame, sourceTarget.color, {}, error))
+      if (!postProcess_.present(frame, sourceTarget.color, frame.frameBuffer,
+                                error))
         return false;
       ++overlayDrawCalls;
       overlayTriangles += 2;
-    } else {
+    } else if (authoredOffscreen) {
       if (!overlay_.beginOverlayRegion(
               static_cast<std::uint16_t>(frame.viewId + 2U), frame.viewportX,
               frame.viewportY, frame.viewportWidth, frame.viewportHeight,
-              deltaSeconds, error))
+              deltaSeconds, error, frame.frameBuffer))
         return false;
       ui::UiDocument presentation;
       presentation.canvasSize = {static_cast<float>(frame.viewportWidth),
@@ -694,7 +699,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       if (!overlay_.beginOverlayRegion(
               static_cast<std::uint16_t>(frame.viewId + 3U), frame.viewportX,
               frame.viewportY, frame.viewportWidth, frame.viewportHeight,
-              deltaSeconds, error))
+              deltaSeconds, error, frame.frameBuffer))
         return false;
       const bool rendered = overlay_.drawHud(world) &&
                             overlay_.drawUi(projectWorldText3D(world, frame));

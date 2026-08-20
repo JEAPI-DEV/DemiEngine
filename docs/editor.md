@@ -40,8 +40,10 @@ filesystem service used by `demi dev`.
 - The Console displays diagnostics from the same `validatePath` service used by
   the CLI. Rejected authored edits also appear beside their Inspector target
   and in the Console through one document issue.
-- Play saves pending valid changes and starts the normal `demi-runtime` beside
-  the editor. Pause/Resume and Stop control that owned process.
+- Play saves pending valid changes and starts an isolated embedded runtime
+  world in the Game view. Pause/Resume, exact fixed-tick Step, and Stop control
+  that world; an owned external `demi-runtime` window remains available from
+  the transport options.
 - The central scene view renders authored 2D and 3D entities through the
   engine's existing bgfx renderers on the editor graphics device. It does not
   maintain a second editor-only rendering implementation.
@@ -57,9 +59,11 @@ filesystem service used by `demi dev`.
 - Bounds, collider, light, and camera overlays are extracted by the shared
   runtime debug-geometry path and can be toggled from the viewport.
 
-Lua-created/runtime-generated geometry appears in the Play window rather than
-the authored scene preview. Embedded frame stepping and builds remain disabled
-until their real engine services exist.
+Lua-created/runtime-generated geometry appears only in the Game view or the
+optional external Play window. The Game view uses its own renderer and GPU
+target, focused gameplay input, and read-only runtime hierarchy/Inspector;
+runtime mutations are discarded on Stop. Builds remain disabled until their
+real engine services exist.
 
 ## Implementation roadmap
 
@@ -280,21 +284,26 @@ same Scene view toolbar and selection as 3D.
 authored preview. Keep the current external-process Play path working until the
 embedded path has equivalent lifecycle coverage.
 
-- [ ] Introduce a narrow runtime-host boundary only when both external and
+- [x] Introduce a narrow runtime-host boundary only when both external and
   embedded implementations exist.
-- [ ] Create a separate runtime world/render target with normal Lua lifecycle,
+- [x] Create a separate runtime world/render target with normal Lua lifecycle,
   fixed updates, physics, scene transitions, assets, audio, and networking.
-- [ ] Implement the explicit `Stopped -> Starting -> Running <-> Paused ->
+- [x] Implement the explicit `Stopped -> Starting -> Running <-> Paused ->
   Stopped` state machine and visible failure state.
-- [ ] Route gameplay input only while the Game view is focused.
-- [ ] Implement deterministic Step as exactly one fixed tick while paused.
-- [ ] Expose runtime entities/components read-only in the inspector.
-- [ ] Stop with complete script, scene, GPU/audio, input, and network teardown.
-- [ ] Never copy runtime mutations into authored source automatically.
+- [x] Route gameplay input only while the Game view is focused.
+- [x] Implement deterministic Step as exactly one fixed tick while paused.
+- [x] Expose runtime entities/components read-only in the inspector.
+- [x] Stop with complete script, scene, GPU/audio, input, and network teardown.
+- [x] Never copy runtime mutations into authored source automatically.
 
-**Gate:** repeated Play/Stop returns all owner/resource counts to baseline; Step
-advances one fixed tick; script failure and scene transition cannot corrupt the
-authored document.
+**Gate: passed.** Embedded Play owns a freshly loaded runtime world and the
+normal Lua, fixed-update, physics, scene-flow, asset, audio/media, networking,
+and accessibility services. Its Game renderer owns a resizable offscreen GPU
+target that is released on Stop. Three repeated lifecycle cycles return the
+session owner count to baseline; paused Update advances no fixed ticks, Step
+advances exactly one, startup failure becomes a visible `Failed` state, and the
+authored scene remains byte-for-byte unchanged. Scene-transition failures are
+contained by the same runtime-session failure boundary.
 
 ### Milestone 7 — Make assets and project workflows operational
 
@@ -363,9 +372,9 @@ editing and conflict handling remain supported.
 
 ### Immediate next task
 
-Start with **Milestone 6: embedded Game view and deterministic Play mode**.
-Milestones 0-5 now provide the safe document, hierarchy, inspector, and authored
-2D/3D Scene-view foundation it depends on.
+Start with **Milestone 7: operational asset and project workflows**. Milestones
+0-6 now provide the safe authoring, preview, and isolated Play foundation those
+workflows depend on.
 
 For each todo item that mutates authored state, use this implementation order:
 

@@ -52,6 +52,11 @@
     "${bgfx_SOURCE_DIR}/bgfx/3rdparty"
     "${bgfx_SOURCE_DIR}/bgfx/include")
   target_link_libraries(demi-editor-imgui-input-tests PRIVATE demi-editor-ui)
+  add_executable(demi-editor-play-session-tests
+    tests/editor_play_session_tests.cpp)
+  target_link_libraries(demi-editor-play-session-tests PRIVATE demi-editor-model)
+  target_compile_definitions(demi-editor-play-session-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-doctor-service-tests tests/doctor_service_tests.cpp)
   target_link_libraries(demi-doctor-service-tests PRIVATE demi-cli-support)
   target_compile_definitions(demi-doctor-service-tests PRIVATE

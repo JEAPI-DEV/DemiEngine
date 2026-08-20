@@ -200,7 +200,7 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size, bool &wantsExit,
 
 void drawToolbar(const ImVec2 position, const ImVec2 size,
                  EditorWorkspace &workspace, EditorPlaySession &playSession,
-                 std::string &notice) {
+                 bool &showGameView, bool &stepRequested, std::string &notice) {
   beginEditorPanel("Toolbar", position, size, ImGuiWindowFlags_NoScrollbar);
   if (ImGui::Button("Refresh")) {
     std::string error;
@@ -230,13 +230,15 @@ void drawToolbar(const ImVec2 position, const ImVec2 size,
   const float center = size.x * 0.5F - 88.0F;
   ImGui::SameLine(std::max(center, ImGui::GetCursorPosX() + 20.0F));
   ImGui::PushStyleColor(ImGuiCol_Button, {0.31F, 0.21F, 0.52F, 1.0F});
-  ImGui::BeginDisabled(playSession.isRunning());
+  ImGui::BeginDisabled(playSession.isRunning() ||
+                       playSession.state() == EditorPlayState::Starting);
   if (ImGui::Button("Play")) {
     std::string error;
     if (workspace.sceneDocument().isDirty() && !workspace.save(error)) {
       notice = error;
-    } else if (playSession.start(workspace.projectPath(), error)) {
-      notice = "Play session started in a runtime window";
+    } else if (playSession.startEmbedded(workspace.projectPath(), error)) {
+      notice = "Embedded play session started";
+      showGameView = true;
     } else {
       notice = error;
     }
@@ -254,8 +256,10 @@ void drawToolbar(const ImVec2 position, const ImVec2 size,
   }
   ImGui::EndDisabled();
   ImGui::SameLine();
-  disabledEditorButton("Step",
-                       "Frame stepping requires an embedded runtime session.");
+  ImGui::BeginDisabled(!playSession.isEmbedded() || !playSession.isPaused());
+  if (ImGui::Button("Step"))
+    stepRequested = true;
+  ImGui::EndDisabled();
   ImGui::SameLine();
   ImGui::BeginDisabled(!playSession.isRunning());
   if (ImGui::Button("Stop")) {
@@ -263,8 +267,30 @@ void drawToolbar(const ImVec2 position, const ImVec2 size,
     notice = "Play session stopped";
   }
   ImGui::EndDisabled();
+  ImGui::SameLine();
+  if (ImGui::SmallButton(showGameView ? "Scene" : "Game"))
+    showGameView = !showGameView;
+  ImGui::SameLine();
+  if (ImGui::SmallButton("..."))
+    ImGui::OpenPopup("play-options");
+  if (ImGui::BeginPopup("play-options")) {
+    ImGui::BeginDisabled(playSession.isRunning());
+    if (ImGui::MenuItem("Play in external window")) {
+      std::string error;
+      if (workspace.sceneDocument().isDirty() && !workspace.save(error))
+        notice = error;
+      else if (playSession.startExternal(workspace.projectPath(), error))
+        notice = "External play session started";
+      else
+        notice = error;
+    }
+    ImGui::EndDisabled();
+    ImGui::EndPopup();
+  }
   ImGui::SameLine(size.x - 205.0F);
-  ImGui::TextDisabled("Grid 1   Angle 15 deg");
+  const std::string_view state = editorPlayStateLabel(playSession.state());
+  ImGui::TextDisabled("Runtime: %.*s", static_cast<int>(state.size()),
+                      state.data());
   ImGui::End();
 }
 
@@ -345,13 +371,33 @@ void EditorShell::draw(const int width, const int height,
 
   drawMenu(workspace_, {screenWidth, menuHeight}, wantsExit_, notice_);
   drawToolbar({0.0F, menuHeight}, {screenWidth, toolbarHeight}, workspace_,
-              playSession_, notice_);
-  hierarchyPanel_.draw(workspace_, {0.0F, contentTop}, {leftWidth, upperHeight},
-                       notice_);
-  drawEditorViewport(workspace_, {leftWidth, contentTop},
-                     {centerWidth, upperHeight}, viewportArea_, notice_);
-  drawInspectorPanel(workspace_, {screenWidth - rightWidth, contentTop},
-                     {rightWidth, contentBottom - contentTop}, notice_);
+              playSession_, showGameView_, stepRequested_, notice_);
+  const runtime::World *runtimeWorld = playSession_.runtimeWorld();
+  const bool runtimePanels = showGameView_ && runtimeWorld != nullptr;
+  if (runtimePanels)
+    drawRuntimeHierarchy(*runtimeWorld, {0.0F, contentTop},
+                         {leftWidth, upperHeight}, selectedRuntimeEntityId_);
+  else
+    hierarchyPanel_.draw(workspace_, {0.0F, contentTop},
+                         {leftWidth, upperHeight}, notice_);
+  if (showGameView_) {
+    viewportArea_ = {};
+    drawEditorGameView(playSession_, {leftWidth, contentTop},
+                       {centerWidth, upperHeight}, gameTextureIndex_, gameArea_,
+                       gameViewFocused_);
+  } else {
+    gameArea_ = {};
+    gameViewFocused_ = false;
+    drawEditorViewport(workspace_, {leftWidth, contentTop},
+                       {centerWidth, upperHeight}, viewportArea_, notice_);
+  }
+  if (runtimePanels)
+    drawRuntimeInspector(*runtimeWorld, {screenWidth - rightWidth, contentTop},
+                         {rightWidth, contentBottom - contentTop},
+                         selectedRuntimeEntityId_);
+  else
+    drawInspectorPanel(workspace_, {screenWidth - rightWidth, contentTop},
+                       {rightWidth, contentBottom - contentTop}, notice_);
   drawConsole(workspace_, {0.0F, contentTop + upperHeight},
               {consoleWidth, bottomHeight});
   drawAssets(workspace_, {consoleWidth, contentTop + upperHeight},

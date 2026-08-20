@@ -1594,8 +1594,11 @@ conflicts and present explicit Reload/Keep/Save Copy/Cancel choices, optional
 field presence round-trips through undo, rejected edits share inline/Console
 diagnostics, the authored 3D scene renders through the normal bgfx renderer,
 an independent non-authored scene camera provides focused orbit/pan/zoom/fly,
-frame-selected, projection, reset, and align-to-camera controls, and Play/Pause/
-Stop control an owned normal runtime process. Stable-ID CPU picking now keeps
+frame-selected, projection, reset, and align-to-camera controls. Play now owns
+an isolated embedded runtime world and offscreen Game-view target with focused
+input, deterministic Pause/Step/Stop, read-only runtime inspection, and a
+visible failure state; the owned external runtime remains available as a
+compatibility path. Stable-ID CPU picking now keeps
 the 3D viewport, hierarchy, and Inspector selection synchronized. Parent-aware
 move/rotate/scale gizmos use the existing command history with local/world
 space, snapping, coalesced undo, and clean cancellation, while bounds,
@@ -1684,7 +1687,10 @@ responsibilities.
 | `EditorViewportProjection` | UI-free camera projection, deterministic CPU picking, and stable-ID hit results | Selection ownership, authored mutation, command history, widget drawing |
 | `EditorViewportTool` | UI-free gizmo presentation and one active transform-drag state machine | Direct authored mutation, document history, ImGui polling, renderer ownership |
 | `EditorUiHost` / `EditorUiHostBgfx` | SDL3/bgfx/Dear ImGui lifecycle, input forwarding, viewport rectangle submission, renderer adapter ownership | Authored data, undo history, editor business rules |
-| `EditorPlaySession` | Lifecycle of the exact runtime process/world owned by Play | Scene saving, UI state, unrelated child processes |
+| `EditorPlaySession` | Explicit Play state and ownership of the selected embedded or external runtime host | Scene saving, panel drawing, unrelated child processes |
+| `EmbeddedRuntimeSession` | One windowless runtime world and its Lua/simulation/physics/assets/audio/media/network lifecycle | Editor UI, authored documents, renderer ownership |
+| `EditorGameRenderer` | Separate embedded Game renderers and a resizable offscreen GPU target | Simulation, platform or ImGui frame lifecycle, authored state |
+| `EditorGameViewPanel` | Game canvas state plus read-only runtime hierarchy/Inspector presentation | Runtime mutation, simulation, authored command history |
 | `EditorTheme` / `EditorPanelStyle` | Reusable visual tokens and panel chrome | Domain behavior or persistent project state |
 | `demi/runtime`, schemas, asset services | Shared parsing, validation, transforms, rendering, assets, runtime behavior | Dear ImGui or editor panel dependencies |
 
@@ -1703,7 +1709,9 @@ EditorSceneDocument  shared runtime/validation APIs
 EditorDocumentStore
 
 EditorUiHostBgfx ---> existing renderer/GPU/platform adapters
-EditorPlaySession --> operating-system process boundary
+                 \--> EditorGameRenderer
+EditorPlaySession ---> EmbeddedRuntimeSession
+                  \--> operating-system process boundary (optional external Play)
 ```
 
 Dependencies must not point upward. In particular, runtime, component,
@@ -1863,20 +1871,18 @@ Use an explicit state machine:
 
 ```text
 Stopped --Play--> Starting --success--> Running <--Pause/Resume--> Paused
-                         \--failure---------------------------> Stopped
+                         \--failure---------------------------> Failed
 Running/Paused --Stop or process exit------------------------> Stopped
+Failed --Stop/Play--------------------------------------------> Stopped/Starting
 ```
 
-Current Play saves valid pending edits and starts the normal sibling
-`demi-runtime` as an owned process. Pause/Resume and Stop may signal only that
-exact child. Step stays disabled because an external stopped process cannot
-provide deterministic engine stepping.
-
-The future embedded Game view must own a separate runtime world rather than
-turning the authored preview world into a play world. It must route input only
-when focused, support fixed-step through runtime APIs, expose runtime values as
-read-only, and tear down scripts/scenes/assets completely on Stop. Do not copy
-runtime mutations back automatically.
+Current Play saves valid pending edits and starts a separate embedded runtime
+world. Its renderer owns a resizable offscreen Game-view target, input is
+neutral unless that view is focused, Step advances exactly one fixed tick while
+paused, and Stop tears down scripts, scenes, assets, GPU/audio, input, and
+network ownership. Runtime values are read-only and are never copied into the
+authored document. The normal sibling `demi-runtime` remains an explicitly
+selected external-window compatibility path.
 
 ### Editor interaction and visual contract
 
@@ -1979,19 +1985,13 @@ Acceptance: preview output uses the same asset/material/transform extraction as
 runtime; repeated open/resize/close leaks no GPU resources; parented transform
 gizmo tests cover rotated and non-uniformly scaled parents.
 
-#### 8D. Play mode and Game view — partial
+#### 8D. Play mode and Game view — complete
 
-Present: save-before-play plus owned external runtime Play, Pause/Resume, Stop,
-and process-exit polling on Linux.
-
-Next:
-
-1. Introduce a runtime-host interface only when implementing the second,
-   embedded implementation.
-2. Add a separate embedded runtime world/render target, deliberate input focus,
-   deterministic Pause/Step, read-only runtime inspection, and complete Stop.
-3. Cover script failure, scene transition, hot reload, networking, and repeated
-   play/stop resource lifetimes.
+Present: save-before-play, isolated embedded runtime world and GPU target,
+normal Lua/physics/assets/audio/media/network/scene lifecycle, explicit
+Stopped/Starting/Running/Paused/Failed states, focused input, exact fixed-tick
+Step, read-only runtime hierarchy/Inspector, complete Stop, and the retained
+owned external runtime option on Linux.
 
 Acceptance: Play never mutates the authored document; Stop returns resource and
 script owner counts to their pre-play baseline; Step advances exactly one fixed

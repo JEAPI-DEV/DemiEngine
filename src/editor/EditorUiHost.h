@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 
+#include "demi/runtime/scene/model/SceneTypes.h"
 #include "editor/EditorSceneView2DState.h"
 #include "editor/EditorSceneViewState.h"
 
@@ -43,6 +44,20 @@ public:
   renderViewport2D(const runtime::World &world, EditorViewportArea area,
                    const EditorSceneView2DCamera &camera, bool showColliders,
                    std::string &error) = 0;
+  [[nodiscard]] virtual bool
+  configureGameRenderer(const std::filesystem::path &projectDirectory,
+                        std::string &error) = 0;
+  [[nodiscard]] virtual bool prepareGameTarget(EditorViewportArea area,
+                                               std::string &error) = 0;
+  virtual void releaseGameRenderer() = 0;
+  [[nodiscard]] virtual bool renderGame(const runtime::World &world,
+                                        EditorViewportArea area,
+                                        float interpolationAlpha,
+                                        std::string &error) = 0;
+  [[nodiscard]] virtual runtime::InputState gameInput(EditorViewportArea area,
+                                                      bool focused) const = 0;
+  [[nodiscard]] virtual std::uint16_t gameTextureIndex() const = 0;
+  [[nodiscard]] virtual float deltaSeconds() const = 0;
   [[nodiscard]] virtual bool setViewportInputCaptured(bool captured,
                                                       std::string &error) = 0;
   virtual void endFrame() = 0;

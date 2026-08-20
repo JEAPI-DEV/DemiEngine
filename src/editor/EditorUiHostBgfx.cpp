@@ -1,3 +1,4 @@
+#include "editor/EditorGameRenderer.h"
 #include "editor/EditorImGuiInput.h"
 #include "editor/EditorUiHost.h"
 
@@ -83,6 +84,8 @@ public:
         *resources_, *commands_);
     renderer2D_ = std::make_unique<demi::runtime::render::BgfxRenderer2D>(
         *resources_, *commands_);
+    gameRenderer_ =
+        std::make_unique<EditorGameRenderer>(*resources_, *commands_);
     if (!renderer3D_->initialize(error) || !renderer2D_->initialize(error)) {
       shutdownGraphics();
       return false;
@@ -94,6 +97,8 @@ public:
   void shutdown() override {
     if (!initialized_)
       return;
+    releaseGameRenderer();
+    gameRenderer_.reset();
     renderer2D_->shutdown();
     renderer3D_->shutdown();
     renderer2D_.reset();
@@ -188,6 +193,42 @@ public:
     return renderer2D_->endFrame(error);
   }
 
+  bool configureGameRenderer(const std::filesystem::path &projectDirectory,
+                             std::string &error) override {
+    return gameRenderer_->configure(projectDirectory, error);
+  }
+
+  void releaseGameRenderer() override { gameRenderer_->release(); }
+
+  bool prepareGameTarget(const EditorViewportArea area,
+                         std::string &error) override {
+    return gameRenderer_->prepareTarget(area, error);
+  }
+
+  bool renderGame(const runtime::World &world, const EditorViewportArea area,
+                  const float interpolationAlpha, std::string &error) override {
+    return gameRenderer_->render(world, area, deltaSeconds(),
+                                 interpolationAlpha, error);
+  }
+
+  runtime::InputState gameInput(const EditorViewportArea area,
+                                const bool focused) const override {
+    if (!focused)
+      return {};
+    runtime::InputState result = input_;
+    result.mousePosition.x -= static_cast<float>(area.x);
+    result.mousePosition.y -= static_cast<float>(area.y);
+    return result;
+  }
+
+  std::uint16_t gameTextureIndex() const override {
+    return gameRenderer_->textureIndex();
+  }
+
+  float deltaSeconds() const override {
+    return platform_ == nullptr ? 0.0F : platform_->frameState().deltaSeconds;
+  }
+
   bool setViewportInputCaptured(const bool captured,
                                 std::string &error) override {
     if (captured == mouseCaptured_)
@@ -233,6 +274,7 @@ private:
   std::unique_ptr<demi::runtime::render::RenderCommands> commands_;
   std::unique_ptr<demi::runtime::render::BgfxRenderer3D> renderer3D_;
   std::unique_ptr<demi::runtime::render::BgfxRenderer2D> renderer2D_;
+  std::unique_ptr<EditorGameRenderer> gameRenderer_;
   InputState input_;
   bool initialized_ = false;
   bool mouseCaptured_ = false;
