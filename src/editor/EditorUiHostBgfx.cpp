@@ -1,8 +1,9 @@
-#include "editor/EditorUiHost.h"
 #include "editor/EditorImGuiInput.h"
+#include "editor/EditorUiHost.h"
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/platform/PlatformHost.h"
+#include "demi/runtime/render/BgfxRenderer2D.h"
 #include "demi/runtime/render/BgfxRenderer3D.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/render/backend/GpuResources.h"
@@ -78,9 +79,11 @@ public:
       shutdownGraphics();
       return false;
     }
-    renderer_ = std::make_unique<demi::runtime::render::BgfxRenderer3D>(
+    renderer3D_ = std::make_unique<demi::runtime::render::BgfxRenderer3D>(
         *resources_, *commands_);
-    if (!renderer_->initialize(error)) {
+    renderer2D_ = std::make_unique<demi::runtime::render::BgfxRenderer2D>(
+        *resources_, *commands_);
+    if (!renderer3D_->initialize(error) || !renderer2D_->initialize(error)) {
       shutdownGraphics();
       return false;
     }
@@ -91,8 +94,10 @@ public:
   void shutdown() override {
     if (!initialized_)
       return;
-    renderer_->shutdown();
-    renderer_.reset();
+    renderer2D_->shutdown();
+    renderer3D_->shutdown();
+    renderer2D_.reset();
+    renderer3D_.reset();
     commands_.reset();
     resources_->clear();
     resources_.reset();
@@ -125,8 +130,7 @@ public:
     submitEditorImGuiInput(input_);
     imguiBeginFrame(
         static_cast<std::int32_t>(input_.mousePosition.x),
-        static_cast<std::int32_t>(input_.mousePosition.y), buttons,
-        0,
+        static_cast<std::int32_t>(input_.mousePosition.y), buttons, 0,
         static_cast<std::uint16_t>(std::clamp(frame.width, 1, 65535)),
         static_cast<std::uint16_t>(std::clamp(frame.height, 1, 65535)));
     return true;
@@ -140,7 +144,9 @@ public:
       return false;
     }
     std::vector<std::string> diagnostics;
-    if (!renderer_->loadAssets(assets, diagnostics)) {
+    const bool loaded3D = renderer3D_->loadAssets(assets, diagnostics);
+    const bool loaded2D = renderer2D_->loadAssets(assets, diagnostics);
+    if (!loaded3D || !loaded2D) {
       error = diagnostics.empty() ? "Could not load viewport assets."
                                   : diagnostics.front();
       return false;
@@ -156,8 +162,30 @@ public:
     if (platformFrame.minimized || platformFrame.width <= 0 ||
         platformFrame.height <= 0 || area.width == 0 || area.height == 0)
       return true;
-    return renderer_->renderFrame(world, editorCamera(camera, area),
-                                  platform_->frameState().deltaSeconds, error);
+    return renderer3D_->renderFrame(world, editorCamera(camera, area),
+                                    platform_->frameState().deltaSeconds,
+                                    error);
+  }
+
+  bool renderViewport2D(const runtime::World &world,
+                        const EditorViewportArea area,
+                        const EditorSceneView2DCamera &camera,
+                        const bool showColliders, std::string &error) override {
+    const auto &frame = platform_->frameState();
+    if (frame.minimized || frame.width <= 0 || frame.height <= 0 ||
+        area.width == 0 || area.height == 0)
+      return true;
+    if (!renderer2D_->beginFrameRegion(camera.projection, camera.position, 1,
+                                       area.x, area.y, area.width, area.height,
+                                       frame.deltaSeconds, error))
+      return false;
+    if (!renderer2D_->drawWorld(world, showColliders)) {
+      std::string ignored;
+      (void)renderer2D_->endFrame(ignored);
+      error = "Could not draw the authored 2D scene.";
+      return false;
+    }
+    return renderer2D_->endFrame(error);
   }
 
   bool setViewportInputCaptured(const bool captured,
@@ -187,7 +215,8 @@ public:
 
 private:
   void shutdownGraphics() {
-    renderer_.reset();
+    renderer2D_.reset();
+    renderer3D_.reset();
     commands_.reset();
     if (resources_ != nullptr)
       resources_->clear();
@@ -202,7 +231,8 @@ private:
   BgfxGraphicsDevice graphics_;
   std::unique_ptr<demi::runtime::render::GpuResources> resources_;
   std::unique_ptr<demi::runtime::render::RenderCommands> commands_;
-  std::unique_ptr<demi::runtime::render::BgfxRenderer3D> renderer_;
+  std::unique_ptr<demi::runtime::render::BgfxRenderer3D> renderer3D_;
+  std::unique_ptr<demi::runtime::render::BgfxRenderer2D> renderer2D_;
   InputState input_;
   bool initialized_ = false;
   bool mouseCaptured_ = false;

@@ -1,8 +1,12 @@
 #include "editor/EditorHierarchyPanel.h"
 
+#include "editor/EditorIsoGridCell.h"
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorWorkspace.h"
 
+#include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/components/2dcomponents/IsoGridComponent.h"
+#include "demi/runtime/scene/components/2dcomponents/IsoTransformComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/Transform2DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 
@@ -36,20 +40,37 @@ std::string_view entityParent(const runtime::Entity &entity) {
     return transform->parent;
   if (const auto *transform = entity.component<runtime::Transform2DComponent>())
     return transform->parent;
+  if (const auto *transform =
+          entity.component<runtime::IsoTransformComponent>())
+    return transform->parent;
   return {};
 }
 
 bool hasChildren(const runtime::World &world, const std::string_view parent) {
-  return std::ranges::any_of(world.entities, [parent](const auto &candidate) {
-    return entityParent(candidate) == parent;
-  });
+  const runtime::Entity *entity =
+      runtime::findEntity(world, std::string(parent));
+  const auto *grid = entity == nullptr
+                         ? nullptr
+                         : entity->component<runtime::IsoGridComponent>();
+  return (grid != nullptr && !grid->cellTextures.empty()) ||
+         std::ranges::any_of(world.entities, [parent](const auto &candidate) {
+           return entityParent(candidate) == parent;
+         });
 }
 
 struct HierarchyAction {
-  enum class Kind { Create, Duplicate, Reparent, Delete, DeleteSelection };
+  enum class Kind {
+    Create,
+    Duplicate,
+    Reparent,
+    Delete,
+    DeleteSelection,
+    DeleteGridCell
+  };
   Kind kind = Kind::Create;
   std::string entityId;
   std::optional<std::string> parentId;
+  std::optional<EditorIsoGridCell> gridCell;
 };
 
 void acceptEntityDrop(std::optional<HierarchyAction> &pending,
@@ -98,8 +119,52 @@ bool applyHierarchyAction(EditorWorkspace &workspace,
     succeeded = workspace.deleteEntities(workspace.selectedEntityIds(), error);
     notice = succeeded ? "Selected entity subtrees deleted" : error;
     break;
+  case HierarchyAction::Kind::DeleteGridCell:
+    if (action.gridCell)
+      workspace.selectIsoGridCell(*action.gridCell);
+    succeeded = workspace.deleteSelectedIsoGridCell(error);
+    notice = succeeded ? "Painted cell cleared" : error;
+    break;
   }
   return succeeded;
+}
+
+void drawPaintedCells(EditorWorkspace &workspace, const runtime::Entity &entity,
+                      const std::string_view filter,
+                      std::optional<HierarchyAction> &pending) {
+  const std::vector<EditorIsoGridCell> cells =
+      paintedIsoGridCells(workspace.project().world, entity.id);
+  if (cells.empty())
+    return;
+  const std::string groupLabel =
+      "Painted Cells (" + std::to_string(cells.size()) + ")";
+  if (!ImGui::TreeNodeEx(("##painted-" + entity.id).c_str(),
+                         ImGuiTreeNodeFlags_SpanAvailWidth, "%s",
+                         groupLabel.c_str()))
+    return;
+  for (const EditorIsoGridCell &cell : cells) {
+    const std::string cellLabel = "Cell " + isoGridCellKey(cell.x, cell.y);
+    if (!containsCaseInsensitive(cellLabel, filter))
+      continue;
+    const bool selected = workspace.selectedIsoGridCell() == cell;
+    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf |
+                               ImGuiTreeNodeFlags_NoTreePushOnOpen |
+                               ImGuiTreeNodeFlags_SpanAvailWidth;
+    if (selected)
+      flags |= ImGuiTreeNodeFlags_Selected;
+    const std::string id =
+        "##cell-" + entity.id + "-" + isoGridCellKey(cell.x, cell.y);
+    ImGui::TreeNodeEx(id.c_str(), flags, "%s", cellLabel.c_str());
+    if (ImGui::IsItemClicked())
+      workspace.selectIsoGridCell(cell);
+    if (ImGui::BeginPopupContextItem(id.c_str())) {
+      if (ImGui::MenuItem("Clear painted cell"))
+        pending = HierarchyAction{.kind = HierarchyAction::Kind::DeleteGridCell,
+                                  .gridCell = cell};
+      ImGui::EndPopup();
+    }
+  }
+  ImGui::TreePop();
 }
 
 void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
@@ -110,7 +175,14 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
         return entityParent(candidate) == entity.id &&
                containsCaseInsensitive(candidate.name, filter);
       });
-  if (!containsCaseInsensitive(entity.name, filter) && !childMatch)
+  const bool paintedCellMatch = std::ranges::any_of(
+      paintedIsoGridCells(world, entity.id),
+      [&](const EditorIsoGridCell &cell) {
+        return containsCaseInsensitive("Cell " + isoGridCellKey(cell.x, cell.y),
+                                       filter);
+      });
+  if (!containsCaseInsensitive(entity.name, filter) && !childMatch &&
+      !paintedCellMatch)
     return;
 
   const bool entityHasChildren = hasChildren(world, entity.id);
@@ -161,6 +233,7 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
     for (const runtime::Entity &candidate : world.entities)
       if (entityParent(candidate) == entity.id)
         drawEntityNode(workspace, candidate, world, filter, pending);
+    drawPaintedCells(workspace, entity, filter, pending);
     ImGui::TreePop();
   }
 }
@@ -208,8 +281,13 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
       renamingEntityId_ = selected;
       ImGui::OpenPopup("Rename Entity");
     } else if (ImGui::IsKeyPressed(ImGuiKey_Delete, false)) {
-      pending = HierarchyAction{.kind = HierarchyAction::Kind::DeleteSelection,
-                                .entityId = selected};
+      if (workspace.selectedIsoGridCell())
+        pending = HierarchyAction{.kind = HierarchyAction::Kind::DeleteGridCell,
+                                  .gridCell = workspace.selectedIsoGridCell()};
+      else
+        pending =
+            HierarchyAction{.kind = HierarchyAction::Kind::DeleteSelection,
+                            .entityId = selected};
     } else if (ImGui::GetIO().KeyCtrl &&
                ImGui::IsKeyPressed(ImGuiKey_D, false)) {
       pending = HierarchyAction{.kind = HierarchyAction::Kind::Duplicate,
@@ -219,8 +297,18 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
       pending = HierarchyAction{.kind = HierarchyAction::Kind::Create,
                                 .parentId = selected};
     } else if (ImGui::IsKeyPressed(ImGuiKey_F, false)) {
-      (void)workspace.sceneView().frameEntity(workspace.project().world,
-                                              selected);
+      if (workspace.viewDimension() ==
+          EditorSceneViewDimension::TwoDimensional) {
+        if (workspace.selectedIsoGridCell())
+          (void)workspace.sceneView2D().frameGridCell(
+              workspace.project().world, *workspace.selectedIsoGridCell());
+        else
+          (void)workspace.sceneView2D().frameEntity(workspace.project().world,
+                                                    selected);
+      } else {
+        (void)workspace.sceneView().frameEntity(workspace.project().world,
+                                                selected);
+      }
       notice = "Framed selected entity";
     }
   }
@@ -228,16 +316,17 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
   if (ImGui::BeginPopupModal("Rename Entity", nullptr,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     ImGui::SetKeyboardFocusHere();
-    const bool submitted = ImGui::InputText(
-        "Name", rename_.data(), rename_.size(), ImGuiInputTextFlags_EnterReturnsTrue);
+    const bool submitted =
+        ImGui::InputText("Name", rename_.data(), rename_.size(),
+                         ImGuiInputTextFlags_EnterReturnsTrue);
     if ((submitted || ImGui::Button("Rename")) &&
         renamingEntityId_.has_value()) {
       std::string error;
-      notice = workspace.editValue({.entityId = *renamingEntityId_,
-                                    .field = "name"},
-                                   std::string(rename_.data()), false, error)
-                   ? "Entity renamed"
-                   : error;
+      notice =
+          workspace.editValue({.entityId = *renamingEntityId_, .field = "name"},
+                              std::string(rename_.data()), false, error)
+              ? "Entity renamed"
+              : error;
       renamingEntityId_.reset();
       ImGui::CloseCurrentPopup();
     }

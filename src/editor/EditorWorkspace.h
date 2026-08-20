@@ -1,17 +1,23 @@
 #pragma once
 
 #include "editor/EditorSceneDocument.h"
+#include "editor/EditorSceneDomain.h"
+#include "editor/EditorSceneView2DState.h"
 #include "editor/EditorSceneViewState.h"
+#include "editor/EditorSelection.h"
 #include "editor/EditorViewportTool.h"
+#include "editor/EditorViewportTool2D.h"
 
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/scene/SceneLoader.h"
+#include "demi/runtime/tilemap/TilemapAsset.h"
 
 #include <filesystem>
 #include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace demi::editor {
@@ -48,13 +54,27 @@ public:
   [[nodiscard]] bool removeComponent(std::string_view id,
                                      std::string_view componentName,
                                      std::string &error);
+  [[nodiscard]] bool moveSelectedIsoGridCell(int x, int y, std::string &error);
+  [[nodiscard]] bool setSelectedIsoGridCellTexture(std::string texture,
+                                                   std::string &error);
+  [[nodiscard]] bool deleteSelectedIsoGridCell(std::string &error);
   [[nodiscard]] bool updateViewportTool(const EditorViewportToolInput &input,
                                         std::string &error);
+  [[nodiscard]] bool updateViewportTool2D(const EditorViewportToolInput &input,
+                                          std::string &error);
   [[nodiscard]] EditorGizmoPresentation
   gizmoPresentation(runtime::Vec2 viewportSize) const;
+  [[nodiscard]] EditorGizmoPresentation
+  gizmoPresentation2D(runtime::Vec2 viewportSize) const;
   [[nodiscard]] EditorViewportTool &viewportTool() { return viewportTool_; }
   [[nodiscard]] const EditorViewportTool &viewportTool() const {
     return viewportTool_;
+  }
+  [[nodiscard]] EditorViewportTool2D &viewportTool2D() {
+    return viewportTool2D_;
+  }
+  [[nodiscard]] const EditorViewportTool2D &viewportTool2D() const {
+    return viewportTool2D_;
   }
   void endContinuousEdit() { sceneDocument_.endContinuousEdit(); }
   void refreshDiagnostics();
@@ -69,6 +89,7 @@ public:
   [[nodiscard]] const std::vector<std::filesystem::path> &sources() const {
     return sources_;
   }
+  [[nodiscard]] const auto &tilemaps2D() const { return tilemaps2D_; }
   [[nodiscard]] const Diagnostics &diagnostics() const { return diagnostics_; }
   [[nodiscard]] const EditorSceneDocument &sceneDocument() const {
     return sceneDocument_;
@@ -78,8 +99,18 @@ public:
     return sceneView_;
   }
   [[nodiscard]] EditorSceneViewState &sceneView() { return sceneView_; }
+  [[nodiscard]] const EditorSceneView2DState &sceneView2D() const {
+    return sceneView2D_;
+  }
+  [[nodiscard]] EditorSceneView2DState &sceneView2D() { return sceneView2D_; }
+  [[nodiscard]] EditorSceneDomain sceneDomain() const { return sceneDomain_; }
+  [[nodiscard]] EditorSceneViewDimension viewDimension() const {
+    return viewDimension_;
+  }
+  void setViewDimension(EditorSceneViewDimension dimension);
 
   void selectEntity(std::string id);
+  void selectIsoGridCell(EditorIsoGridCell cell);
   void toggleEntitySelection(std::string id);
   [[nodiscard]] bool isEntitySelected(std::string_view id) const;
   [[nodiscard]] const std::vector<std::string> &selectedEntityIds() const {
@@ -90,24 +121,41 @@ public:
                                       : selectedEntityIds_.back();
   }
   [[nodiscard]] const runtime::Entity *selectedEntity() const;
+  [[nodiscard]] const std::optional<EditorIsoGridCell> &
+  selectedIsoGridCell() const {
+    return selectedIsoGridCell_;
+  }
 
 private:
   void discoverSources();
+  void loadPreviewTilemaps();
   void syncChangedEntity();
+  void reconcileIsoGridCellSelection();
   void syncEditorDiagnostic();
   [[nodiscard]] bool mutateAndRebuild(
       const std::function<bool(EditorSceneDocument &, std::string &)> &mutation,
       std::string &error);
   [[nodiscard]] bool rebuildWorld(std::string &error);
+  [[nodiscard]] bool applyViewportAction(EditorViewportToolAction action,
+                                         const std::function<void()> &cancel,
+                                         std::string &error);
+  void updateSceneDomain(bool openingProject);
 
   std::filesystem::path projectPath_;
   std::optional<runtime::LoadedProject> project_;
   EditorSceneDocument sceneDocument_;
   EditorSceneViewState sceneView_;
+  EditorSceneView2DState sceneView2D_;
   EditorViewportTool viewportTool_;
+  EditorViewportTool2D viewportTool2D_;
+  EditorSceneDomain sceneDomain_ = EditorSceneDomain::Empty;
+  EditorSceneViewDimension viewDimension_ =
+      EditorSceneViewDimension::ThreeDimensional;
   std::vector<std::filesystem::path> sources_;
+  std::unordered_map<std::string, runtime::TilemapAsset2D> tilemaps2D_;
   Diagnostics diagnostics_;
   std::vector<std::string> selectedEntityIds_;
+  std::optional<EditorIsoGridCell> selectedIsoGridCell_;
   std::string workspaceOperationError_;
 };
 

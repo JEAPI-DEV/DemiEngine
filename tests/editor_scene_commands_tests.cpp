@@ -70,6 +70,11 @@ int main() {
          std::vector<std::string>({"child"}));
   assert(demi::editor::transformComponentName(parsed["entities"][1]) ==
          std::string_view("Transform3D"));
+  const nlohmann::json isoEntity = {
+      {"components", {{"IsoTransform", {{"parent", "road_root"}}}}}};
+  assert(demi::editor::transformComponentName(isoEntity) ==
+         std::string_view("IsoTransform"));
+  assert(demi::editor::transformParentId(isoEntity) == "road_root");
   assert(demi::editor::uniqueEntityId(parsed, "root") == "root_2");
   nlohmann::json cyclic = parsed;
   cyclic["entities"][0]["components"]["Transform3D"]["parent"] = "child";

@@ -125,7 +125,7 @@ std::string transformParentId(const nlohmann::json &entity) {
   const auto components = entity.find("components");
   if (components == entity.end() || !components->is_object())
     return {};
-  for (const char *name : {"Transform3D", "Transform2D"}) {
+  for (const char *name : {"Transform3D", "Transform2D", "IsoTransform"}) {
     const auto transform = components->find(name);
     if (transform == components->end() || !transform->is_object())
       continue;
@@ -140,7 +140,7 @@ const char *transformComponentName(const nlohmann::json &entity) {
   const auto components = entity.find("components");
   if (components == entity.end() || !components->is_object())
     return nullptr;
-  for (const char *name : {"Transform3D", "Transform2D"}) {
+  for (const char *name : {"Transform3D", "Transform2D", "IsoTransform"}) {
     if (components->contains(name))
       return name;
   }

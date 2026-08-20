@@ -22,8 +22,12 @@ public:
     return viewportArea_;
   }
   [[nodiscard]] bool viewportInputCaptured() const {
-    return workspace_.sceneView().capturesPointer() ||
-           workspace_.viewportTool().isDragging();
+    return workspace_.viewDimension() ==
+                   EditorSceneViewDimension::TwoDimensional
+               ? workspace_.sceneView2D().capturesPointer() ||
+                     workspace_.viewportTool2D().isDragging()
+               : workspace_.sceneView().capturesPointer() ||
+                     workspace_.viewportTool().isDragging();
   }
   void setNotice(std::string notice) { notice_ = std::move(notice); }
 

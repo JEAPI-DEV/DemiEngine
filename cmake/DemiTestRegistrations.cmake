@@ -4,6 +4,8 @@ add_test(NAME demi-project-templates-tests COMMAND demi-project-templates-tests)
 add_test(NAME demi-editor-workspace-tests COMMAND demi-editor-workspace-tests)
 add_test(NAME demi-editor-scene-view-state-tests
   COMMAND demi-editor-scene-view-state-tests)
+add_test(NAME demi-editor-2d-scene-view-tests
+  COMMAND demi-editor-2d-scene-view-tests)
 add_test(NAME demi-editor-viewport-tool-tests
   COMMAND demi-editor-viewport-tool-tests)
 add_test(NAME demi-editor-scene-document-tests

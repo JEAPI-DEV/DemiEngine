@@ -97,10 +97,20 @@ int main(const int argc, char **argv) {
     if (!ui->setViewportInputCaptured(shell.viewportInputCaptured(), error)) {
       shell.setNotice("Viewport input capture failed: " + error);
     }
-    if (viewportReady && !ui->renderViewport(workspace.project().world,
-                                             shell.viewportArea(),
-                                             workspace.sceneView().camera(),
-                                             error)) {
+    bool rendered = true;
+    if (viewportReady &&
+        workspace.viewDimension() ==
+            demi::editor::EditorSceneViewDimension::TwoDimensional) {
+      rendered =
+          ui->renderViewport2D(workspace.project().world, shell.viewportArea(),
+                               workspace.sceneView2D().camera(),
+                               workspace.sceneView2D().showColliders, error);
+    } else if (viewportReady) {
+      rendered =
+          ui->renderViewport(workspace.project().world, shell.viewportArea(),
+                             workspace.sceneView().camera(), error);
+    }
+    if (viewportReady && !rendered) {
       viewportReady = false;
       shell.setNotice("Viewport stopped: " + error);
     }

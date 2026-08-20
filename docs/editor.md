@@ -15,10 +15,11 @@ filesystem service used by `demi dev`.
 ## Current slice
 
 - The hierarchy displays entities from the loaded main scene and follows
-  authored 2D/3D transform parents.
+  authored 2D, 3D, and isometric transform parents.
 - Selection drives a reflected inspector over the authored scene document.
   Boolean, integer, number, string, enum, vector, and color fields are editable
-  using shared component descriptors, including their numeric bounds.
+  using shared component descriptors, including their numeric bounds. Numeric
+  fields accept direct keyboard input rather than requiring pointer drags.
 - Entity names, explicit enabled state, and explicit layers are editable.
 - Components can be added from the descriptor catalog and removed from the
   inspector; both are staged, validated against the shared scene validator, and
@@ -26,7 +27,7 @@ filesystem service used by `demi dev`.
 - The hierarchy supports create, duplicate (with child subtree and stable-id
   remap), drag-and-drop reparenting to another entity or the scene root, and
   atomic subtree deletion through real, reversible commands.
-- Inspector changes are reversible commands. Continuous drags collapse into a
+- Inspector changes are reversible commands. Continuous edits collapse into a
   single undo step, and optional fields can be explicitly authored or reset
   without losing their original presence through Undo. Save writes
   deterministic JSON through same-directory atomic replacement.
@@ -41,10 +42,10 @@ filesystem service used by `demi dev`.
   and in the Console through one document issue.
 - Play saves pending valid changes and starts the normal `demi-runtime` beside
   the editor. Pause/Resume and Stop control that owned process.
-- The central scene view renders authored 3D entities through the engine's
-  existing bgfx renderer on the editor graphics device. It does not maintain a
-  second editor-only rendering implementation.
-- Deterministic CPU picking selects authored 3D entities by stable ID and keeps
+- The central scene view renders authored 2D and 3D entities through the
+  engine's existing bgfx renderers on the editor graphics device. It does not
+  maintain a second editor-only rendering implementation.
+- Deterministic CPU picking selects authored entities by stable ID and keeps
   viewport, hierarchy, and Inspector selection synchronized, including empty
   space and scene reloads.
 - Move, rotate, and scale gizmos submit parent-aware Transform3D edits through
@@ -57,8 +58,8 @@ filesystem service used by `demi dev`.
   runtime debug-geometry path and can be toggled from the viewport.
 
 Lua-created/runtime-generated geometry appears in the Play window rather than
-the authored scene preview. A 2D preview, embedded frame stepping, and builds
-remain disabled until their real engine services exist.
+the authored scene preview. Embedded frame stepping and builds remain disabled
+until their real engine services exist.
 
 ## Implementation roadmap
 
@@ -237,19 +238,39 @@ and undo.
 **Goal:** provide equivalent scene authoring for 2D projects through the normal
 2D renderer.
 
-- [ ] Detect whether the active scene is 2D, 3D, or mixed without storing an
+- [x] Detect whether the active scene is 2D, 3D, or mixed without storing an
   editor-only project mode.
-- [ ] Render authored 2D content through `BgfxRenderer2D`, the normal asset
+- [x] Render authored 2D content through `BgfxRenderer2D`, the normal asset
   registry, camera extraction, layer ordering, and parent transforms.
-- [ ] Add a 2D editor camera with pan/zoom, pixel-aware grid, and frame-selected.
-- [ ] Reuse stable-ID picking, selection, snapping, and command transactions.
-- [ ] Add sprite/tilemap/collider/camera bounds overlays from runtime extraction.
-- [ ] Define an explicit view switch for mixed scenes; never approximate sprites
+- [x] Add a 2D editor camera with pan/zoom, pixel-aware grid, and frame-selected.
+- [x] Reuse stable-ID picking, selection, snapping, and command transactions.
+- [x] Add sprite/tilemap/collider/camera bounds overlays from runtime extraction.
+- [x] Define an explicit view switch for mixed scenes; never approximate sprites
   with ImGui primitives.
 
-**Gate:** representative 2D examples render in the editor, selection and gizmos
-round-trip through authored JSON, and runtime/editor ordering and collider
-visuals agree.
+**Gate: passed.** Pure 2D scenes select the authored 2D view automatically;
+mixed scenes expose an explicit transient 2D/3D switch. `BgfxRenderer2D` draws
+the authored world in an editor viewport region with the normal asset registry,
+ordering, and parent transforms. Runtime collider primitives are reused for the
+collider overlay, while the UI-free overlay extractor resolves sprite, tilemap,
+and camera bounds from runtime world queries and loaded tilemap assets. Focused
+coverage verifies domain detection, pan/zoom, projection, picking, gizmo edits,
+and exact authored-JSON restoration through undo. The production and networking
+2D projects validate, and the production project passes a headless runtime
+smoke.
+
+Isometric sprites use the renderer's placement, pivot, bounds, depth, layer,
+and sorting rules for selection. `IsoTransform` entities participate in normal
+hierarchy parenting and expose tile-axis move gizmos. Compact per-cell grid
+texture maps are projected as virtual `Painted Cells` below their grid entity;
+selecting one exposes its coordinate and texture through a dedicated inspector
+and lets the tile-axis gizmo move it without expanding the authored scene into
+one entity per cell. The generic inspector never exposes the map as raw JSON.
+
+2D controls: middle mouse pans, the wheel zooms, `F` frames the selected
+entity, and `Shift` temporarily bypasses transform snapping. Move, rotate,
+scale, local/world mode, grid, bounds, colliders, and camera overlays use the
+same Scene view toolbar and selection as 3D.
 
 ### Milestone 6 — Add an embedded Game view and deterministic Play mode
 
@@ -342,10 +363,9 @@ editing and conflict handling remain supported.
 
 ### Immediate next task
 
-Start with **Milestone 4: inspector and hierarchy usability**. Milestone 3 now
-provides stable viewport selection and command-backed transform manipulation;
-reference pickers may reuse that stable-ID selection boundary without adding a
-second selection model.
+Start with **Milestone 6: embedded Game view and deterministic Play mode**.
+Milestones 0-5 now provide the safe document, hierarchy, inspector, and authored
+2D/3D Scene-view foundation it depends on.
 
 For each todo item that mutates authored state, use this implementation order:
 

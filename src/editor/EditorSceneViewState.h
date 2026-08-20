@@ -19,6 +19,7 @@ struct EditorViewportInput {
   float deltaSeconds = 0.0F;
   runtime::Vec2 mousePosition;
   runtime::Vec2 mouseDelta;
+  runtime::Vec2 viewportSize;
   float wheel = 0.0F;
   bool hovered = false;
   bool focused = false;

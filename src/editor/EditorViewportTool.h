@@ -3,6 +3,7 @@
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "editor/EditorSceneJson.h"
 #include "editor/EditorSceneViewState.h"
+#include "editor/EditorSelection.h"
 
 #include <nlohmann/json.hpp>
 
@@ -54,6 +55,8 @@ struct EditorViewportEdit {
 struct EditorViewportToolAction {
   bool selectionChanged = false;
   std::string selectedEntityId;
+  bool isoGridCellSelectionChanged = false;
+  std::optional<EditorIsoGridCell> selectedIsoGridCell;
   std::optional<EditorViewportEdit> edit;
   EditorDragCompletion completion = EditorDragCompletion::None;
 };

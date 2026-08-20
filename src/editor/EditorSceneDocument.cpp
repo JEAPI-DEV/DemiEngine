@@ -329,8 +329,8 @@ bool EditorSceneDocument::createEntity(std::string &error,
     }
     const char *transform = transformComponentName(*parentEntity);
     if (transform == nullptr) {
-      error = "Creating a child requires a Transform2D or Transform3D on the "
-              "parent.";
+      error = "Creating a child requires a Transform2D, Transform3D, or "
+              "IsoTransform on the parent.";
       reject({.entityId = *parent}, error);
       return false;
     }
@@ -395,8 +395,8 @@ bool EditorSceneDocument::reparent(const std::string_view id,
   }
   const char *transform = transformComponentName(*authored);
   if (transform == nullptr) {
-    error = "Reparenting requires a Transform3D or Transform2D component on "
-            "the entity.";
+    error = "Reparenting requires a Transform3D, Transform2D, or IsoTransform "
+            "component on the entity.";
     reject({.entityId = std::string(id)}, error);
     return false;
   }

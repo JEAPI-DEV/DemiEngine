@@ -192,6 +192,17 @@ bool BgfxRenderer2D::beginFrame(const Camera2DComponent &camera,
                                 const std::uint16_t viewportHeight,
                                 const float deltaSeconds, std::string &error,
                                 const float physicsInterpolationAlpha) {
+  return beginFrameRegion(camera, cameraPosition, 0, 0, 0, viewportWidth,
+                          viewportHeight, deltaSeconds, error,
+                          physicsInterpolationAlpha);
+}
+
+bool BgfxRenderer2D::beginFrameRegion(
+    const Camera2DComponent &camera, const Vec2 cameraPosition,
+    const std::uint16_t viewId, const std::uint16_t x, const std::uint16_t y,
+    const std::uint16_t viewportWidth, const std::uint16_t viewportHeight,
+    const float deltaSeconds, std::string &error,
+    const float physicsInterpolationAlpha) {
   if (!initialized_) {
     error = "BgfxRenderer2D must be initialized before beginning a frame.";
     return false;
@@ -208,8 +219,9 @@ bool BgfxRenderer2D::beginFrame(const Camera2DComponent &camera,
   physicsInterpolationAlpha_ =
       std::clamp(physicsInterpolationAlpha, 0.0F, 1.0F);
   animationTime_ += deltaSeconds_;
-  frameOpen_ = canvas_.begin(0, viewportWidth_, viewportHeight_,
-                             packClearColorRgba8(camera.clearColor), error);
+  frameOpen_ =
+      canvas_.begin(viewId, viewportWidth_, viewportHeight_,
+                    packClearColorRgba8(camera.clearColor), error, true, x, y);
   return frameOpen_;
 }
 
@@ -250,7 +262,8 @@ void BgfxRenderer2D::setExternalTexture(std::string id,
     externalTextures_.insert_or_assign(std::move(id), texture);
 }
 
-bool BgfxRenderer2D::drawWorld(const World &world) {
+bool BgfxRenderer2D::drawWorld(const World &world,
+                               const bool forceColliderDebug) {
   if (!frameOpen_)
     return false;
   TilemapCanvasRenderer tilemapRenderer(canvas_, textures_, tilemaps_);
@@ -265,7 +278,7 @@ bool BgfxRenderer2D::drawWorld(const World &world) {
       !isoRenderer.draw(world, camera_, cameraPosition_, viewportWidth_,
                         viewportHeight_) ||
       !colliderRenderer.draw(world, camera_, cameraPosition_, viewportWidth_,
-                             viewportHeight_) ||
+                             viewportHeight_, forceColliderDebug) ||
       !spriteRenderer.draw(world, camera_, cameraPosition_, viewportWidth_,
                            viewportHeight_, animationTime_,
                            physicsInterpolationAlpha_))

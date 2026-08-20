@@ -1607,8 +1607,12 @@ The descriptor-driven Inspector now supplies shared labels, defaults, steps,
 read-only/restart policies, stable asset/entity/prefab choices, grouped
 domain-compatible component discovery, and atomic mixed-value multi-editing.
 Hierarchy multi-selection and keyboard rename/duplicate/delete/focus/create-child
-actions use the same stable-ID command path. 2D preview and embedded play
-sessions remain upcoming slices.
+actions use the same stable-ID command path. Authored 2D scenes now render
+through the normal `BgfxRenderer2D` path with an independent pan/zoom camera,
+pixel-aware grid, stable-ID picking, parent-aware move/rotate/scale gizmos,
+runtime collider visuals, resolved sprite/tilemap/camera bounds, and an
+explicit transient view switch for mixed scenes. Embedded play sessions remain
+an upcoming slice.
 
 ### Non-negotiable design rules
 
@@ -1958,21 +1962,18 @@ Acceptance: no component-specific switch is added to the generic inspector;
 hierarchy operations preserve stable references or reject with actionable
 diagnostics; undo/redo restores hierarchy and source exactly.
 
-#### 8C. Authored scene views, selection, and gizmos — partial
+#### 8C. Authored scene views, selection, and gizmos — complete
 
 Present: authored 3D preview through the existing bgfx 3D renderer, with one
 independent non-authored editor camera initialized from the first enabled scene
 camera. Focused Alt+left orbit, middle pan, wheel zoom, right+WASDQE fly,
 frame-selected, projection, reset, and explicit align-to-camera actions are
 implemented. Camera state survives scene edits/refresh and never changes
-authored JSON; minimized/zero-size viewports skip renderer submission.
-
-Next:
-
-1. Add stable-ID picking and transform gizmos using the existing scene-view
-   local/world and snap settings.
-2. Add runtime-backed debug overlays and camera previews.
-3. Add the authored 2D scene view through the normal 2D renderer.
+authored JSON; minimized/zero-size viewports skip renderer submission. The 2D
+view uses `BgfxRenderer2D`, normal assets and ordering, a transient pan/zoom
+camera, pixel-aware grid, parent-resolved bounds, runtime collider primitives,
+stable picking, and command-backed 2D transform gizmos. Mixed scenes expose an
+explicit 2D/3D view switch without adding a serialized project mode.
 
 Acceptance: preview output uses the same asset/material/transform extraction as
 runtime; repeated open/resize/close leaks no GPU resources; parented transform

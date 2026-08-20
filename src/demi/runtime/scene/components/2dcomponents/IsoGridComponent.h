@@ -16,8 +16,11 @@ struct IsoGridComponent {
       ComponentFieldDescriptor{"cell_size", ComponentFieldType::Vec2},
       ComponentFieldDescriptor{"width", ComponentFieldType::Integer},
       ComponentFieldDescriptor{"height", ComponentFieldType::Integer},
-      ComponentFieldDescriptor{"default_texture", ComponentFieldType::String},
-      ComponentFieldDescriptor{"cell_textures", ComponentFieldType::Object}};
+      ComponentFieldDescriptor::assetReference("default_texture"),
+      // A dedicated grid-cell adapter presents this compact map in the editor;
+      // the generic inspector must not expose it as raw JSON.
+      ComponentFieldDescriptor{"cell_textures", ComponentFieldType::Object,
+                               false, false}};
   static constexpr ComponentEditorMetadata editor{"Isometric", "Iso Grid"};
   static void parse(const nlohmann::json &json, Entity &entity);
 

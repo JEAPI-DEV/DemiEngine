@@ -101,9 +101,15 @@ int main() {
   static_cast<void>(graphics.endFrame());
   assert(!renderer.endFrame(error));
 
-  AssetRegistry tilemapRegistry = loadAssetRegistry(
-      std::filesystem::path(DEMI_SOURCE_DIR) /
-      "examples/production_2d_foundation");
+  assert(renderer.beginFrameRegion(Camera2DComponent{.orthographicSize = 5.0F},
+                                   {}, 7, 24, 32, 240, 120, 0.016F, error));
+  assert(renderer.drawWorld(world, true));
+  assert(renderer.endFrame(error));
+  static_cast<void>(graphics.endFrame());
+
+  AssetRegistry tilemapRegistry =
+      loadAssetRegistry(std::filesystem::path(DEMI_SOURCE_DIR) /
+                        "examples/production_2d_foundation");
   assert(tilemapRegistry.diagnostics.empty());
   std::erase_if(tilemapRegistry.assets, [](const AssetManifest &asset) {
     return asset.id != "asset://phase4/map" &&
@@ -117,8 +123,8 @@ int main() {
   Entity tilemap;
   tilemap.id = "map";
   tilemap.setComponent(Transform2DComponent{.position = {-6.0F, -4.0F}});
-  tilemap.setComponent(Tilemap2DComponent{
-      .asset = "asset://phase4/map", .pixelsPerUnit = 1.0F});
+  tilemap.setComponent(
+      Tilemap2DComponent{.asset = "asset://phase4/map", .pixelsPerUnit = 1.0F});
   tilemapWorld.entities.push_back(std::move(tilemap));
   assert(renderer.beginFrame(Camera2DComponent{.orthographicSize = 9.0F}, {},
                              960, 540, 0.016F, error));

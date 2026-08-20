@@ -51,12 +51,11 @@ bool assignValueInDocument(nlohmann::json &document,
                            const SceneValueTarget &target,
                            const std::optional<nlohmann::json> &value);
 
-// Returns the authored id of the Transform2D/Transform3D parent, or an empty
-// string when the entity is at the root or has no transform component.
+// Returns the authored id of the Transform2D, Transform3D, or IsoTransform
+// parent, or an empty string when the entity is at the root.
 std::string transformParentId(const nlohmann::json &entity);
 
-// Returns "Transform3D", "Transform2D", or nullptr depending on which transform
-// component the entity authors first.
+// Returns the authored spatial transform component name, or nullptr.
 const char *transformComponentName(const nlohmann::json &entity);
 
 // Returns the stable ids of an entity and every descendant reachable through
@@ -66,14 +65,14 @@ std::vector<std::string> collectSubtreeIds(const nlohmann::json &document,
 
 // Generates an id derived from `base` that collides with neither the document
 // nor any id already placed in `reserved`.
-std::string uniqueEntityId(
-    const nlohmann::json &document, std::string_view base,
-    const std::unordered_set<std::string> &reserved = {});
+std::string
+uniqueEntityId(const nlohmann::json &document, std::string_view base,
+               const std::unordered_set<std::string> &reserved = {});
 
 // Rewrites transform parent references that point into `remap` so a duplicated
 // subtree keeps its internal hierarchy intact while external parents survive.
-void remapParentReferences(nlohmann::json &entity,
-                           const std::unordered_map<std::string, std::string>
-                               &remap);
+void remapParentReferences(
+    nlohmann::json &entity,
+    const std::unordered_map<std::string, std::string> &remap);
 
 } // namespace demi::editor

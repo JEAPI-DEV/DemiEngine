@@ -1,6 +1,7 @@
 #include "editor/EditorInspectorPanel.h"
 
 #include "editor/EditorInspectorModel.h"
+#include "editor/EditorIsoGridInspector.h"
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorWorkspace.h"
 
@@ -28,6 +29,14 @@ bool inputString(const char *label, std::string &value) {
     return false;
   value = buffer.data();
   return true;
+}
+
+template <typename Value>
+void clampNumericValue(Value &value, const ComponentFieldDescriptor &field) {
+  if (field.hasMinimum)
+    value = std::max(value, static_cast<Value>(field.minimum));
+  if (field.hasMaximum)
+    value = std::min(value, static_cast<Value>(field.maximum));
 }
 
 void finishEdit(EditorWorkspace &workspace) {
@@ -94,7 +103,8 @@ bool drawReferenceString(EditorWorkspace &workspace,
                          const std::vector<SceneValueTarget> *targets) {
   std::string selected = value.get<std::string>();
   bool changed = false;
-  if (ImGui::BeginCombo("##value", selected.empty() ? "None" : selected.c_str())) {
+  if (ImGui::BeginCombo("##value",
+                        selected.empty() ? "None" : selected.c_str())) {
     const auto choices = editorReferenceChoices(
         field.referenceKind, workspace.project().project.projectDirectory,
         workspace.sceneDocument().path(), workspace.sceneDocument().json(),
@@ -114,9 +124,9 @@ bool drawReferenceString(EditorWorkspace &workspace,
     }
     ImGui::EndCombo();
   }
-  return !changed ||
-         (targets == nullptr ? commit(workspace, target, selected, notice)
-                             : commitMany(workspace, *targets, selected, notice));
+  return !changed || (targets == nullptr
+                          ? commit(workspace, target, selected, notice)
+                          : commitMany(workspace, *targets, selected, notice));
 }
 
 bool drawAllowedString(EditorWorkspace &workspace,
@@ -138,9 +148,9 @@ bool drawAllowedString(EditorWorkspace &workspace,
     }
     ImGui::EndCombo();
   }
-  return !changed ||
-         (targets == nullptr ? commit(workspace, target, selected, notice)
-                             : commitMany(workspace, *targets, selected, notice));
+  return !changed || (targets == nullptr
+                          ? commit(workspace, target, selected, notice)
+                          : commitMany(workspace, *targets, selected, notice));
 }
 
 bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
@@ -155,13 +165,6 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
   }
   bool changed = false;
   nlohmann::json replacement = value;
-  const float minimum =
-      field.hasMinimum ? static_cast<float>(field.minimum) : 0.0F;
-  const float maximum =
-      field.hasMaximum ? static_cast<float>(field.maximum) : 0.0F;
-  const float step = static_cast<float>(
-      runtime::scene_loading::componentFieldEditorStep(field));
-
   switch (field.type) {
   case ComponentFieldType::Boolean: {
     bool edited = value.get<bool>();
@@ -171,17 +174,17 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
   }
   case ComponentFieldType::Integer: {
     int edited = value.get<int>();
-    changed =
-        ImGui::DragInt("##value", &edited, step,
-                       field.hasMinimum ? static_cast<int>(field.minimum) : 0,
-                       field.hasMaximum ? static_cast<int>(field.maximum) : 0);
+    changed = ImGui::InputInt("##value", &edited, 0);
+    if (changed)
+      clampNumericValue(edited, field);
     replacement = edited;
     break;
   }
   case ComponentFieldType::Number: {
     float edited = value.get<float>();
-    changed =
-        ImGui::DragFloat("##value", &edited, step, minimum, maximum, "%.3f");
+    changed = ImGui::InputFloat("##value", &edited, 0.0F, 0.0F, "%.3f");
+    if (changed)
+      clampNumericValue(edited, field);
     replacement = edited;
     break;
   }
@@ -211,13 +214,14 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
     for (int index = 0; index < count; ++index)
       edited[index] = value[index].get<float>();
     if (field.type == ComponentFieldType::Vec2)
-      changed = ImGui::DragFloat2("##value", edited.data(), step, minimum,
-                                  maximum, "%.3f");
+      changed = ImGui::InputFloat2("##value", edited.data(), "%.3f");
     else if (field.type == ComponentFieldType::Vec3)
-      changed = ImGui::DragFloat3("##value", edited.data(), step, minimum,
-                                  maximum, "%.3f");
+      changed = ImGui::InputFloat3("##value", edited.data(), "%.3f");
     else
       changed = ImGui::ColorEdit4("##value", edited.data());
+    if (changed && field.type != ComponentFieldType::Color)
+      for (int index = 0; index < count; ++index)
+        clampNumericValue(edited[index], field);
     replacement = nlohmann::json::array();
     for (int index = 0; index < count; ++index)
       replacement.push_back(edited[index]);
@@ -230,11 +234,10 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
     return true;
   }
 
-  const bool accepted = !changed ||
-                        (targets == nullptr
-                             ? commit(workspace, target, replacement, notice)
-                             : commitMany(workspace, *targets, replacement,
-                                          notice));
+  const bool accepted =
+      !changed || (targets == nullptr
+                       ? commit(workspace, target, replacement, notice)
+                       : commitMany(workspace, *targets, replacement, notice));
   finishEdit(workspace);
   return accepted;
 }
@@ -293,7 +296,8 @@ void drawComponentFields(EditorWorkspace &workspace,
 
 void drawMultiSelection(EditorWorkspace &workspace, std::string &notice) {
   ImGui::Text("%zu entities selected", workspace.selectedEntityIds().size());
-  ImGui::TextDisabled("Only authored fields common to every selection are shown.");
+  ImGui::TextDisabled(
+      "Only authored fields common to every selection are shown.");
   ImGui::Separator();
   std::string currentComponent;
   for (const EditorCommonField &common : editorCommonFields(
@@ -320,8 +324,9 @@ void drawMultiSelection(EditorWorkspace &workspace, std::string &notice) {
       ImGui::SameLine();
       ImGui::TextDisabled("Mixed");
       if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("The selected entities have different values. "
-                          "Editing this field applies one value to all of them.");
+        ImGui::SetTooltip(
+            "The selected entities have different values. "
+            "Editing this field applies one value to all of them.");
     }
     ImGui::PopID();
     ImGui::PopID();
@@ -357,10 +362,10 @@ void drawEntityHeader(EditorWorkspace &workspace, const nlohmann::json &entity,
     ImGui::SameLine();
     if (ImGui::SmallButton("Use default##enabled")) {
       std::string error;
-      notice = workspace.removeValue({.entityId = id, .field = "enabled"},
-                                     error)
-                   ? "Enabled reset to its default"
-                   : error;
+      notice =
+          workspace.removeValue({.entityId = id, .field = "enabled"}, error)
+              ? "Enabled reset to its default"
+              : error;
     }
   } else {
     ImGui::TextDisabled("Enabled (default: true)");
@@ -408,6 +413,10 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
   beginEditorPanel("Inspector", position, size);
   editorSectionTitle("INSPECTOR",
                      workspace.sceneDocument().isDirty() ? "Unsaved" : nullptr);
+  if (drawIsoGridCellInspector(workspace, notice)) {
+    ImGui::End();
+    return;
+  }
   const runtime::Entity *selected = workspace.selectedEntity();
   if (selected == nullptr) {
     ImGui::TextDisabled("Select an entity to inspect its authored data.");
@@ -442,11 +451,11 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
       if (!ImGui::CollapsingHeader(title, ImGuiTreeNodeFlags_DefaultOpen))
         continue;
       ImGui::PushID(name.c_str());
-      drawInlineIssue(workspace,
-                      {.entityId = selected->id, .component = name});
+      drawInlineIssue(workspace, {.entityId = selected->id, .component = name});
       if (ImGui::SmallButton("Remove")) {
         std::string error;
-        const bool removed = workspace.removeComponent(selected->id, name, error);
+        const bool removed =
+            workspace.removeComponent(selected->id, name, error);
         notice = removed ? "Component removed" : error;
         ImGui::PopID();
         ImGui::End();
@@ -465,7 +474,8 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::SetNextItemWidth(-1.0F);
   if (ImGui::BeginCombo("##add-component", "Add Component")) {
     std::string_view category;
-    for (const EditorComponentChoice &choice : editorComponentChoices(*entity)) {
+    for (const EditorComponentChoice &choice :
+         editorComponentChoices(*entity)) {
       const ComponentDescriptor &descriptor = *choice.descriptor;
       if (category != descriptor.editor.category) {
         category = descriptor.editor.category;
@@ -484,7 +494,8 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         ImGui::End();
         return;
       }
-      if (!choice.compatible && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+      if (!choice.compatible &&
+          ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         ImGui::SetTooltip("%s", choice.incompatibility.c_str());
       if (!choice.compatible)
         ImGui::EndDisabled();

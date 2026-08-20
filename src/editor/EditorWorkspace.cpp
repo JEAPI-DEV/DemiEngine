@@ -1,6 +1,12 @@
 #include "editor/EditorWorkspace.h"
 
+#include "editor/EditorIsoGridCell.h"
+#include "editor/EditorIsoGridCellDocument.h"
+
+#include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/scene/SceneEntityParser.h"
+#include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/components/2dcomponents/IsoGridComponent.h"
 #include "demi/schema/Validation.h"
 
 #include <algorithm>
@@ -24,8 +30,12 @@ bool EditorWorkspace::open(std::filesystem::path projectPath,
     return false;
   }
   sceneView_.reset(project_->world);
+  sceneView2D_.reset(project_->world);
   viewportTool_.cancelDrag();
+  viewportTool2D_.cancelDrag();
+  updateSceneDomain(true);
   discoverSources();
+  loadPreviewTilemaps();
   if (!project_->world.entities.empty())
     selectEntity(project_->world.entities.front().id);
   refreshDiagnostics();
@@ -55,6 +65,19 @@ void EditorWorkspace::discoverSources() {
   std::ranges::sort(sources_);
 }
 
+void EditorWorkspace::loadPreviewTilemaps() {
+  tilemaps2D_.clear();
+  const AssetRegistry registry =
+      loadAssetRegistry(project_->project.projectDirectory);
+  for (const AssetManifest &asset : registry.assets) {
+    if (asset.type != "Tilemap2D")
+      continue;
+    std::string ignored;
+    if (auto tilemap = runtime::loadTilemapAsset(asset, ignored))
+      tilemaps2D_.insert_or_assign(asset.id, std::move(*tilemap));
+  }
+}
+
 bool EditorWorkspace::refresh(std::string &error) {
   if (sceneDocument_.isDirty()) {
     error = "The scene has unsaved changes. Save or undo them before "
@@ -68,7 +91,10 @@ bool EditorWorkspace::refresh(std::string &error) {
     return false;
   project_ = std::move(loaded);
   viewportTool_.cancelDrag();
+  viewportTool2D_.cancelDrag();
+  updateSceneDomain(false);
   discoverSources();
+  loadPreviewTilemaps();
   std::erase_if(selectedEntityIds_, [this](const std::string &id) {
     return std::ranges::find(project_->world.entities, id,
                              &runtime::Entity::id) ==
@@ -107,7 +133,10 @@ bool EditorWorkspace::resolveExternalChange(
     }
     project_ = std::move(loaded);
     viewportTool_.cancelDrag();
+    viewportTool2D_.cancelDrag();
+    updateSceneDomain(false);
     discoverSources();
+    loadPreviewTilemaps();
     std::erase_if(selectedEntityIds_, [this](const std::string &id) {
       return std::ranges::find(project_->world.entities, id,
                                &runtime::Entity::id) ==
@@ -125,6 +154,7 @@ bool EditorWorkspace::undo(std::string &error) {
           },
           error))
     return false;
+  reconcileIsoGridCellSelection();
   if (selectedEntity() == nullptr && !project_->world.entities.empty())
     selectEntity(project_->world.entities.front().id);
   return true;
@@ -137,6 +167,7 @@ bool EditorWorkspace::redo(std::string &error) {
           },
           error))
     return false;
+  reconcileIsoGridCellSelection();
   if (selectedEntity() == nullptr && !project_->world.entities.empty())
     selectEntity(project_->world.entities.front().id);
   return true;
@@ -254,16 +285,119 @@ bool EditorWorkspace::removeComponent(const std::string_view id,
       error);
 }
 
+bool EditorWorkspace::moveSelectedIsoGridCell(const int x, const int y,
+                                              std::string &error) {
+  if (!selectedIsoGridCell_) {
+    error = "Select a painted grid cell first.";
+    return false;
+  }
+  const EditorIsoGridCell before = *selectedIsoGridCell_;
+  const runtime::Entity *entity =
+      runtime::findEntity(project_->world, before.gridEntityId);
+  const auto *grid = entity == nullptr
+                         ? nullptr
+                         : entity->component<runtime::IsoGridComponent>();
+  if (grid == nullptr) {
+    error = "The selected isometric grid no longer exists.";
+    return false;
+  }
+  const nlohmann::json *component =
+      sceneDocument_.component(before.gridEntityId, "IsoGrid");
+  if (component == nullptr) {
+    error = "The authored isometric grid no longer exists.";
+    return false;
+  }
+  auto cells = moveAuthoredIsoGridCell(*component, before, x, y, grid->width,
+                                       grid->height, error);
+  if (!cells)
+    return false;
+  if (!editValue({.entityId = before.gridEntityId,
+                  .component = "IsoGrid",
+                  .field = "cell_textures"},
+                 std::move(*cells), false, error))
+    return false;
+  selectedIsoGridCell_ =
+      EditorIsoGridCell{.gridEntityId = before.gridEntityId, .x = x, .y = y};
+  return true;
+}
+
+bool EditorWorkspace::setSelectedIsoGridCellTexture(std::string texture,
+                                                    std::string &error) {
+  if (!selectedIsoGridCell_) {
+    error = "Select a painted grid cell first.";
+    return false;
+  }
+  const nlohmann::json *component =
+      sceneDocument_.component(selectedIsoGridCell_->gridEntityId, "IsoGrid");
+  if (component == nullptr) {
+    error = "The authored isometric grid no longer exists.";
+    return false;
+  }
+  auto cells = setAuthoredIsoGridCellTexture(*component, *selectedIsoGridCell_,
+                                             std::move(texture), error);
+  if (!cells)
+    return false;
+  return editValue({.entityId = selectedIsoGridCell_->gridEntityId,
+                    .component = "IsoGrid",
+                    .field = "cell_textures"},
+                   std::move(*cells), false, error);
+}
+
+bool EditorWorkspace::deleteSelectedIsoGridCell(std::string &error) {
+  if (!selectedIsoGridCell_) {
+    error = "Select a painted grid cell first.";
+    return false;
+  }
+  const EditorIsoGridCell selected = *selectedIsoGridCell_;
+  const nlohmann::json *component =
+      sceneDocument_.component(selected.gridEntityId, "IsoGrid");
+  if (component == nullptr) {
+    error = "The authored isometric grid no longer exists.";
+    return false;
+  }
+  auto cells = clearAuthoredIsoGridCell(*component, selected, error);
+  if (!cells)
+    return false;
+  if (!editValue({.entityId = selected.gridEntityId,
+                  .component = "IsoGrid",
+                  .field = "cell_textures"},
+                 std::move(*cells), false, error))
+    return false;
+  selectedIsoGridCell_.reset();
+  return true;
+}
+
 bool EditorWorkspace::updateViewportTool(const EditorViewportToolInput &input,
                                          std::string &error) {
-  EditorViewportToolAction action = viewportTool_.update(
-      project_->world, selectedEntityId(), sceneView_, input);
+  return applyViewportAction(
+      viewportTool_.update(project_->world, selectedEntityId(), sceneView_,
+                           input),
+      [this] { viewportTool_.cancelDrag(); }, error);
+}
+
+bool EditorWorkspace::updateViewportTool2D(const EditorViewportToolInput &input,
+                                           std::string &error) {
+  return applyViewportAction(
+      viewportTool2D_.update(project_->world, selectedEntityId(), sceneView2D_,
+                             input, selectedIsoGridCell_),
+      [this] { viewportTool2D_.cancelDrag(); }, error);
+}
+
+bool EditorWorkspace::applyViewportAction(EditorViewportToolAction action,
+                                          const std::function<void()> &cancel,
+                                          std::string &error) {
   if (action.selectionChanged)
     selectEntity(std::move(action.selectedEntityId));
+  if (action.isoGridCellSelectionChanged) {
+    if (action.selectedIsoGridCell)
+      selectIsoGridCell(std::move(*action.selectedIsoGridCell));
+    else
+      selectedIsoGridCell_.reset();
+  }
 
   if (action.edit && !editValue(std::move(action.edit->target),
                                 std::move(action.edit->value), true, error)) {
-    viewportTool_.cancelDrag();
+    cancel();
     std::string cancelError;
     if (!sceneDocument_.cancelContinuousEdit(cancelError) && error.empty())
       error = std::move(cancelError);
@@ -280,6 +414,7 @@ bool EditorWorkspace::updateViewportTool(const EditorViewportToolInput &input,
       return false;
     if (sceneDocument_.json().dump() != before && !rebuildWorld(error))
       return false;
+    reconcileIsoGridCellSelection();
   }
   return true;
 }
@@ -288,6 +423,13 @@ EditorGizmoPresentation
 EditorWorkspace::gizmoPresentation(const runtime::Vec2 viewportSize) const {
   return viewportTool_.presentation(project_->world, selectedEntityId(),
                                     sceneView_, viewportSize);
+}
+
+EditorGizmoPresentation
+EditorWorkspace::gizmoPresentation2D(const runtime::Vec2 viewportSize) const {
+  return viewportTool2D_.presentation(project_->world, selectedEntityId(),
+                                      sceneView2D_, viewportSize,
+                                      selectedIsoGridCell_);
 }
 
 bool EditorWorkspace::mutateAndRebuild(
@@ -326,14 +468,48 @@ void EditorWorkspace::syncChangedEntity() {
   *existing = std::move(reparsed);
 }
 
+void EditorWorkspace::reconcileIsoGridCellSelection() {
+  if (!selectedIsoGridCell_)
+    return;
+  const runtime::Entity *entity =
+      runtime::findEntity(project_->world, selectedIsoGridCell_->gridEntityId);
+  const auto *grid = entity == nullptr
+                         ? nullptr
+                         : entity->component<runtime::IsoGridComponent>();
+  if (grid == nullptr || !grid->cellTextures.contains(isoGridCellKey(
+                             selectedIsoGridCell_->x, selectedIsoGridCell_->y)))
+    selectedIsoGridCell_.reset();
+}
+
 bool EditorWorkspace::rebuildWorld(std::string &error) {
+  error.clear();
   auto world =
       runtime::loadSceneDocument(project_->project, project_->project.mainScene,
                                  sceneDocument_.json(), error);
   if (!world)
     return false;
   project_->world = std::move(*world);
+  updateSceneDomain(false);
   return true;
+}
+
+void EditorWorkspace::setViewDimension(
+    const EditorSceneViewDimension dimension) {
+  if (sceneDomain_ == EditorSceneDomain::TwoDimensional &&
+      dimension != EditorSceneViewDimension::TwoDimensional)
+    return;
+  if (sceneDomain_ == EditorSceneDomain::ThreeDimensional &&
+      dimension != EditorSceneViewDimension::ThreeDimensional)
+    return;
+  viewportTool_.cancelDrag();
+  viewportTool2D_.cancelDrag();
+  viewDimension_ = dimension;
+}
+
+void EditorWorkspace::updateSceneDomain(const bool openingProject) {
+  sceneDomain_ = detectEditorSceneDomain(project_->world);
+  if (openingProject || sceneDomain_ != EditorSceneDomain::Mixed)
+    viewDimension_ = defaultEditorSceneViewDimension(sceneDomain_);
 }
 
 void EditorWorkspace::refreshDiagnostics() {
@@ -364,18 +540,25 @@ void EditorWorkspace::syncEditorDiagnostic() {
 const runtime::Entity *EditorWorkspace::selectedEntity() const {
   if (!project_)
     return nullptr;
-  const auto found = std::ranges::find(project_->world.entities,
-                                       selectedEntityId(), &runtime::Entity::id);
+  const auto found = std::ranges::find(
+      project_->world.entities, selectedEntityId(), &runtime::Entity::id);
   return found == project_->world.entities.end() ? nullptr : &*found;
 }
 
 void EditorWorkspace::selectEntity(std::string id) {
+  selectedIsoGridCell_.reset();
   selectedEntityIds_.clear();
   if (!id.empty())
     selectedEntityIds_.push_back(std::move(id));
 }
 
+void EditorWorkspace::selectIsoGridCell(EditorIsoGridCell cell) {
+  selectEntity(cell.gridEntityId);
+  selectedIsoGridCell_ = std::move(cell);
+}
+
 void EditorWorkspace::toggleEntitySelection(std::string id) {
+  selectedIsoGridCell_.reset();
   const auto found = std::ranges::find(selectedEntityIds_, id);
   if (found == selectedEntityIds_.end())
     selectedEntityIds_.push_back(std::move(id));

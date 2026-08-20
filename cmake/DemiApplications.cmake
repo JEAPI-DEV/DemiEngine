@@ -61,13 +61,21 @@ else()
   add_library(demi-editor-model STATIC
     src/editor/EditorDocumentStore.cpp
     src/editor/EditorInspectorModel.cpp
+    src/editor/EditorIsoGridCell.cpp
+    src/editor/EditorIsoGridCellDocument.cpp
+    src/editor/EditorIsoScene2D.cpp
     src/editor/EditorPlaySession.cpp
     src/editor/EditorSceneCommand.cpp
     src/editor/EditorSceneDocument.cpp
+    src/editor/EditorSceneDomain.cpp
     src/editor/EditorSceneJson.cpp
+    src/editor/EditorSceneView2DState.cpp
     src/editor/EditorSceneViewState.cpp
+    src/editor/EditorViewportOverlay2D.cpp
     src/editor/EditorViewportProjection.cpp
+    src/editor/EditorViewportProjection2D.cpp
     src/editor/EditorViewportTool.cpp
+    src/editor/EditorViewportTool2D.cpp
     src/editor/EditorWorkspace.cpp)
   target_include_directories(demi-editor-model PUBLIC src)
   target_compile_features(demi-editor-model PUBLIC cxx_std_20)
@@ -79,11 +87,13 @@ else()
     src/editor/EditorHierarchyPanel.cpp
     src/editor/EditorImGuiInput.cpp
     src/editor/EditorInspectorPanel.cpp
+    src/editor/EditorIsoGridInspector.cpp
     src/editor/EditorPanelStyle.cpp
     src/editor/EditorShell.cpp
     src/editor/EditorStbRectPack.cpp
     src/editor/EditorTheme.cpp
     src/editor/EditorUiHostBgfx.cpp
+    src/editor/EditorViewportPanel.cpp
     "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui/imgui.cpp"
     "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui/imgui_draw.cpp"
     "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui/imgui_tables.cpp"

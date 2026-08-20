@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 
+#include "editor/EditorSceneView2DState.h"
 #include "editor/EditorSceneViewState.h"
 
 namespace demi::runtime {
@@ -38,6 +39,10 @@ public:
                                             EditorViewportArea area,
                                             const EditorSceneViewCamera &camera,
                                             std::string &error) = 0;
+  [[nodiscard]] virtual bool
+  renderViewport2D(const runtime::World &world, EditorViewportArea area,
+                   const EditorSceneView2DCamera &camera, bool showColliders,
+                   std::string &error) = 0;
   [[nodiscard]] virtual bool setViewportInputCaptured(bool captured,
                                                       std::string &error) = 0;
   virtual void endFrame() = 0;

@@ -2,7 +2,7 @@
 
 #include "editor/EditorInspectorPanel.h"
 #include "editor/EditorPanelStyle.h"
-#include "editor/EditorViewportProjection.h"
+#include "editor/EditorViewportPanel.h"
 
 #include "demi/core/Version.h"
 #include "demi/filesystem/ProjectPaths.h"
@@ -13,7 +13,6 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <cmath>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -33,221 +32,6 @@ bool containsCaseInsensitive(const std::string_view value,
   std::ranges::transform(haystack, haystack.begin(), lower);
   std::ranges::transform(needle, needle.begin(), lower);
   return haystack.find(needle) != std::string::npos;
-}
-
-void drawOrientationGizmo(ImDrawList &draw, const ImVec2 center,
-                          const EditorSceneViewCamera &camera) {
-  struct Axis {
-    runtime::Vec3 worldDirection;
-    ImU32 color;
-    const char *label;
-  };
-  constexpr std::array Axes{
-      Axis{{1.0F, 0.0F, 0.0F}, IM_COL32(239, 79, 104, 255), "X"},
-      Axis{{0.0F, 1.0F, 0.0F}, IM_COL32(91, 215, 125, 255), "Y"},
-      Axis{{0.0F, 0.0F, 1.0F}, IM_COL32(78, 126, 246, 255), "Z"}};
-  draw.AddCircleFilled(center, 5.0F, EditorAccent);
-  for (const Axis &axis : Axes) {
-    const runtime::Vec2 projected =
-        projectSceneDirection3D(camera, axis.worldDirection);
-    const float magnitude =
-        std::sqrt(projected.x * projected.x + projected.y * projected.y);
-    if (magnitude <= 0.05F)
-      continue;
-    const ImVec2 direction{projected.x / magnitude,
-                           projected.y / magnitude};
-    const ImVec2 end{center.x + direction.x * 36.0F,
-                     center.y + direction.y * 36.0F};
-    draw.AddLine(center, end, axis.color, 3.0F);
-    draw.AddCircleFilled(end, 5.0F, axis.color);
-    draw.AddText({end.x + direction.x * 5.0F - 4.0F,
-                  end.y + direction.y * 5.0F - 7.0F},
-                 axis.color, axis.label);
-  }
-}
-
-void drawViewport(EditorWorkspace &workspace, const ImVec2 position,
-                  const ImVec2 size, EditorViewportArea &viewportArea,
-                  std::string &notice) {
-  beginEditorPanel("Viewport", position, size,
-                   ImGuiWindowFlags_NoScrollbar |
-                       ImGuiWindowFlags_NoScrollWithMouse |
-                       ImGuiWindowFlags_NoBackground);
-  ImGui::TextUnformatted("SCENE VIEW");
-  ImGui::SameLine();
-  auto &sceneView = workspace.sceneView();
-  const bool perspective =
-      sceneView.projection() == EditorProjection::Perspective;
-  if (ImGui::SmallButton(perspective ? "Perspective" : "Orthographic"))
-    sceneView.setProjection(perspective ? EditorProjection::Orthographic
-                                        : EditorProjection::Perspective);
-  ImGui::SameLine();
-  auto &viewportTool = workspace.viewportTool();
-  const auto operation = viewportTool.operation();
-  if (ImGui::SmallButton(operation == EditorGizmoOperation::Translate ? "[Move]"
-                                                                      : "Move"))
-    viewportTool.setOperation(EditorGizmoOperation::Translate);
-  ImGui::SameLine();
-  if (ImGui::SmallButton(operation == EditorGizmoOperation::Rotate ? "[Rotate]"
-                                                                   : "Rotate"))
-    viewportTool.setOperation(EditorGizmoOperation::Rotate);
-  ImGui::SameLine();
-  if (ImGui::SmallButton(operation == EditorGizmoOperation::Scale ? "[Scale]"
-                                                                  : "Scale"))
-    viewportTool.setOperation(EditorGizmoOperation::Scale);
-  ImGui::SameLine();
-  const bool local = sceneView.transformSpace() == EditorTransformSpace::Local;
-  if (ImGui::SmallButton(local ? "Local" : "World"))
-    sceneView.setTransformSpace(local ? EditorTransformSpace::World
-                                      : EditorTransformSpace::Local);
-  ImGui::SameLine();
-  if (ImGui::SmallButton("Frame selected"))
-    (void)sceneView.frameEntity(workspace.project().world,
-                                workspace.selectedEntityId());
-  ImGui::SameLine();
-  if (ImGui::SmallButton("Align to camera"))
-    (void)sceneView.alignToFirstCamera(workspace.project().world);
-  ImGui::SameLine();
-  if (ImGui::SmallButton("Reset view"))
-    sceneView.reset(workspace.project().world);
-  ImGui::Separator();
-  ImGui::TextDisabled("Snap");
-  ImGui::SameLine();
-  ImGui::SetNextItemWidth(58.0F);
-  ImGui::DragFloat("##position-snap", &sceneView.translationSnap, 0.1F, 0.0F,
-                   1000.0F, "P %.1f");
-  ImGui::SameLine();
-  ImGui::SetNextItemWidth(64.0F);
-  ImGui::DragFloat("##rotation-snap", &sceneView.rotationSnapDegrees, 1.0F,
-                   0.0F, 180.0F, "R %.0f");
-  ImGui::SameLine();
-  ImGui::SetNextItemWidth(58.0F);
-  ImGui::DragFloat("##scale-snap", &sceneView.scaleSnap, 0.05F, 0.0F, 100.0F,
-                   "S %.2f");
-  ImGui::SameLine();
-  ImGui::Checkbox("Bounds", &sceneView.showBounds);
-  ImGui::SameLine();
-  ImGui::Checkbox("Colliders", &sceneView.showColliders);
-  ImGui::SameLine();
-  ImGui::Checkbox("Lights", &sceneView.showLights);
-  ImGui::SameLine();
-  ImGui::Checkbox("Cameras", &sceneView.showCameras);
-  ImGui::Separator();
-
-  const ImVec2 canvasMin = ImGui::GetCursorScreenPos();
-  const ImVec2 available = ImGui::GetContentRegionAvail();
-  const float canvasWidth = std::max(available.x, 0.0F);
-  const float canvasHeight = std::max(available.y, 0.0F);
-  const ImVec2 canvasMax{canvasMin.x + canvasWidth, canvasMin.y + canvasHeight};
-  viewportArea = {};
-  if (canvasWidth >= 1.0F && canvasHeight >= 1.0F) {
-    viewportArea = {
-        .x =
-            static_cast<std::uint16_t>(std::clamp(canvasMin.x, 0.0F, 65535.0F)),
-        .y =
-            static_cast<std::uint16_t>(std::clamp(canvasMin.y, 0.0F, 65535.0F)),
-        .width =
-            static_cast<std::uint16_t>(std::clamp(canvasWidth, 1.0F, 65535.0F)),
-        .height = static_cast<std::uint16_t>(
-            std::clamp(canvasHeight, 1.0F, 65535.0F))};
-  }
-  ImDrawList *draw = ImGui::GetWindowDrawList();
-  const ImVec2 gizmo{canvasMax.x - 66.0F, canvasMin.y + 66.0F};
-  drawOrientationGizmo(*draw, gizmo, sceneView.camera());
-  const runtime::Entity *selected = workspace.selectedEntity();
-  const std::string label = selected == nullptr ? "No entity selected"
-                                                : "Selected: " + selected->name;
-  draw->AddText({canvasMin.x + 16.0F, canvasMin.y + 15.0F},
-                IM_COL32(224, 227, 235, 255), label.c_str());
-  if (canvasWidth >= 1.0F && canvasHeight >= 1.0F) {
-    ImGui::InvisibleButton("viewport-canvas", {canvasWidth, canvasHeight});
-    const bool hovered = ImGui::IsItemHovered();
-    const bool focused = ImGui::IsWindowFocused();
-    ImGuiIO &io = ImGui::GetIO();
-    if (focused && !io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_F, false))
-      (void)sceneView.frameEntity(workspace.project().world,
-                                  workspace.selectedEntityId());
-    sceneView.update({
-        .deltaSeconds = io.DeltaTime,
-        .mousePosition = {io.MousePos.x - canvasMin.x,
-                          io.MousePos.y - canvasMin.y},
-        .mouseDelta = {io.MouseDelta.x, io.MouseDelta.y},
-        .wheel = hovered ? io.MouseWheel : 0.0F,
-        .hovered = hovered,
-        .focused = focused && !io.WantTextInput,
-        .orbitButton = ImGui::IsMouseDown(ImGuiMouseButton_Left),
-        .panButton = ImGui::IsMouseDown(ImGuiMouseButton_Middle),
-        .flyButton = ImGui::IsMouseDown(ImGuiMouseButton_Right),
-        .orbitModifier = io.KeyAlt,
-        .moveForward = ImGui::IsKeyDown(ImGuiKey_W),
-        .moveBackward = ImGui::IsKeyDown(ImGuiKey_S),
-        .moveLeft = ImGui::IsKeyDown(ImGuiKey_A),
-        .moveRight = ImGui::IsKeyDown(ImGuiKey_D),
-        .moveUp = ImGui::IsKeyDown(ImGuiKey_E),
-        .moveDown = ImGui::IsKeyDown(ImGuiKey_Q),
-        .fast = io.KeyShift,
-    });
-    std::string interactionError;
-    if (!workspace.updateViewportTool(
-            {.mousePosition = {io.MousePos.x - canvasMin.x,
-                               io.MousePos.y - canvasMin.y},
-             .mouseDelta = {io.MouseDelta.x, io.MouseDelta.y},
-             .viewportSize = {canvasWidth, canvasHeight},
-             .hovered = hovered,
-             .focused = focused && !io.WantTextInput,
-             .leftPressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left),
-             .leftDown = ImGui::IsMouseDown(ImGuiMouseButton_Left),
-             .leftReleased = ImGui::IsMouseReleased(ImGuiMouseButton_Left),
-             .navigationModifier = io.KeyAlt,
-             .bypassSnapping = io.KeyShift,
-             .cancelPressed = ImGui::IsKeyPressed(ImGuiKey_Escape, false)},
-            interactionError))
-      notice = std::move(interactionError);
-
-    const EditorGizmoPresentation gizmo =
-        workspace.gizmoPresentation({canvasWidth, canvasHeight});
-    const EditorGizmoOperation drawnOperation = viewportTool.operation();
-    const auto color = [](const EditorGizmoAxis axis) {
-      if (axis == EditorGizmoAxis::X)
-        return IM_COL32(239, 79, 104, 255);
-      if (axis == EditorGizmoAxis::Y)
-        return IM_COL32(91, 215, 125, 255);
-      return IM_COL32(78, 126, 246, 255);
-    };
-    for (const EditorGizmoLine &line : gizmo.axes) {
-      const ImVec2 start{canvasMin.x + line.start.x,
-                         canvasMin.y + line.start.y};
-      const ImVec2 end{canvasMin.x + line.end.x, canvasMin.y + line.end.y};
-      draw->AddLine(start, end, color(line.axis), 4.0F);
-      if (drawnOperation == EditorGizmoOperation::Rotate)
-        draw->AddCircle(end, 6.0F, color(line.axis), 16, 3.0F);
-      else if (drawnOperation == EditorGizmoOperation::Scale)
-        draw->AddRectFilled({end.x - 5.0F, end.y - 5.0F},
-                            {end.x + 5.0F, end.y + 5.0F}, color(line.axis));
-      else {
-        const float dx = end.x - start.x;
-        const float dy = end.y - start.y;
-        const float length = std::sqrt(dx * dx + dy * dy);
-        const float x = length > 0.001F ? dx / length : 1.0F;
-        const float y = length > 0.001F ? dy / length : 0.0F;
-        const ImVec2 base{end.x - x * 10.0F, end.y - y * 10.0F};
-        draw->AddTriangleFilled(end, {base.x - y * 5.0F, base.y + x * 5.0F},
-                                {base.x + y * 5.0F, base.y - x * 5.0F},
-                                color(line.axis));
-      }
-    }
-    if (hovered)
-      ImGui::SetTooltip("Alt+Left orbit | Middle pan | Wheel zoom | "
-                        "Right+WASDQE fly | F frame | Shift bypass snap");
-  } else {
-    sceneView.update({});
-    if (viewportTool.isDragging()) {
-      std::string interactionError;
-      if (!workspace.updateViewportTool({.focused = false}, interactionError))
-        notice = std::move(interactionError);
-    }
-  }
-  ImGui::End();
 }
 
 void drawConsole(EditorWorkspace &workspace, const ImVec2 position,
@@ -564,8 +348,8 @@ void EditorShell::draw(const int width, const int height,
               playSession_, notice_);
   hierarchyPanel_.draw(workspace_, {0.0F, contentTop}, {leftWidth, upperHeight},
                        notice_);
-  drawViewport(workspace_, {leftWidth, contentTop}, {centerWidth, upperHeight},
-               viewportArea_, notice_);
+  drawEditorViewport(workspace_, {leftWidth, contentTop},
+                     {centerWidth, upperHeight}, viewportArea_, notice_);
   drawInspectorPanel(workspace_, {screenWidth - rightWidth, contentTop},
                      {rightWidth, contentBottom - contentTop}, notice_);
   drawConsole(workspace_, {0.0F, contentTop + upperHeight},
