@@ -1,11 +1,13 @@
 #pragma once
 
 #include "editor/EditorSceneDocument.h"
+#include "editor/EditorSceneViewState.h"
 
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/scene/SceneLoader.h"
 
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -19,10 +21,15 @@ public:
                           std::string &error);
   [[nodiscard]] bool refresh(std::string &error);
   [[nodiscard]] bool save(std::string &error);
+  [[nodiscard]] bool
+  resolveExternalChange(ExternalChangeDecision decision,
+                        const std::filesystem::path &copyPath,
+                        std::string &error);
   [[nodiscard]] bool undo(std::string &error);
   [[nodiscard]] bool redo(std::string &error);
   [[nodiscard]] bool editValue(SceneValueTarget target, nlohmann::json value,
                                bool continuous, std::string &error);
+  [[nodiscard]] bool removeValue(SceneValueTarget target, std::string &error);
   [[nodiscard]] bool createEntity(std::string &error);
   [[nodiscard]] bool deleteEntity(std::string_view id, std::string &error);
   [[nodiscard]] bool reparentEntity(std::string_view id,
@@ -53,6 +60,10 @@ public:
     return sceneDocument_;
   }
   [[nodiscard]] EditorSceneDocument &sceneDocument() { return sceneDocument_; }
+  [[nodiscard]] const EditorSceneViewState &sceneView() const {
+    return sceneView_;
+  }
+  [[nodiscard]] EditorSceneViewState &sceneView() { return sceneView_; }
 
   void selectEntity(std::string id) { selectedEntityId_ = std::move(id); }
   [[nodiscard]] std::string_view selectedEntityId() const {
@@ -63,14 +74,20 @@ public:
 private:
   void discoverSources();
   void syncChangedEntity();
+  void syncEditorDiagnostic();
+  [[nodiscard]] bool mutateAndRebuild(
+      const std::function<bool(EditorSceneDocument &, std::string &)> &mutation,
+      std::string &error);
   [[nodiscard]] bool rebuildWorld(std::string &error);
 
   std::filesystem::path projectPath_;
   std::optional<runtime::LoadedProject> project_;
   EditorSceneDocument sceneDocument_;
+  EditorSceneViewState sceneView_;
   std::vector<std::filesystem::path> sources_;
   Diagnostics diagnostics_;
   std::string selectedEntityId_;
+  std::string workspaceOperationError_;
 };
 
 } // namespace demi::editor

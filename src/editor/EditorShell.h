@@ -1,5 +1,6 @@
 #pragma once
 
+#include "editor/EditorConflictPanel.h"
 #include "editor/EditorHierarchyPanel.h"
 #include "editor/EditorPlaySession.h"
 #include "editor/EditorUiHost.h"
@@ -20,6 +21,9 @@ public:
   [[nodiscard]] EditorViewportArea viewportArea() const {
     return viewportArea_;
   }
+  [[nodiscard]] bool viewportInputCaptured() const {
+    return workspace_.sceneView().capturesPointer();
+  }
   void setNotice(std::string notice) { notice_ = std::move(notice); }
 
 private:
@@ -27,6 +31,7 @@ private:
   EditorPlaySession playSession_;
   EditorViewportArea viewportArea_;
   EditorHierarchyPanel hierarchyPanel_;
+  EditorConflictPanel conflictPanel_;
   std::array<char, 128> assetFilter_{};
   std::filesystem::path selectedSource_;
   std::string notice_;

@@ -11,8 +11,8 @@ void applySceneCommand(nlohmann::json &document, const SceneCommand &command,
       [&](const auto &typed) {
         using Command = std::decay_t<decltype(typed)>;
         if constexpr (std::is_same_v<Command, SetValueCommand>) {
-          if (nlohmann::json *target = valueInDocument(document, typed.target))
-            *target = forward ? typed.after : typed.before;
+          (void)assignValueInDocument(document, typed.target,
+                                      forward ? typed.after : typed.before);
         } else if constexpr (std::is_same_v<Command, InsertEntityCommand>) {
           nlohmann::json *entities = entitiesArray(document);
           if (entities == nullptr)

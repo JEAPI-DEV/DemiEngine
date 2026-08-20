@@ -45,6 +45,12 @@ nlohmann::json *valueInDocument(nlohmann::json &document,
 const nlohmann::json *valueInDocument(const nlohmann::json &document,
                                       const SceneValueTarget &target);
 
+// Inserts/replaces a targeted field when `value` is present and erases it when
+// absent. Returns false only when the owning entity/component no longer exists.
+bool assignValueInDocument(nlohmann::json &document,
+                           const SceneValueTarget &target,
+                           const std::optional<nlohmann::json> &value);
+
 // Returns the authored id of the Transform2D/Transform3D parent, or an empty
 // string when the entity is at the root or has no transform component.
 std::string transformParentId(const nlohmann::json &entity);

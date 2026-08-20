@@ -103,6 +103,24 @@ const nlohmann::json *valueInDocument(const nlohmann::json &document,
   return field == container->end() ? nullptr : &*field;
 }
 
+bool assignValueInDocument(nlohmann::json &document,
+                           const SceneValueTarget &target,
+                           const std::optional<nlohmann::json> &value) {
+  nlohmann::json *container = findEntity(document, target.entityId);
+  if (container == nullptr)
+    return false;
+  if (!target.component.empty()) {
+    container = findComponent(*container, target.component);
+    if (container == nullptr)
+      return false;
+  }
+  if (value.has_value())
+    (*container)[target.field] = *value;
+  else
+    container->erase(target.field);
+  return true;
+}
+
 std::string transformParentId(const nlohmann::json &entity) {
   const auto components = entity.find("components");
   if (components == entity.end() || !components->is_object())

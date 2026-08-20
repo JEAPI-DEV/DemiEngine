@@ -50,5 +50,30 @@ int main() {
   assert(workspace.undo(error));
   assert(workspace.project().world.entities.size() == entityCount);
   assert(workspace.sceneDocument().entity(createdId) == nullptr);
+
+  const std::string selectedId(workspace.selectedEntityId());
+  const std::string beforeInvalidEdit = workspace.sceneDocument().json().dump();
+  assert(!workspace.editValue({.entityId = selectedId, .field = "name"}, 42,
+                              false, error));
+  assert(workspace.sceneDocument().json().dump() == beforeInvalidEdit);
+  assert(workspace.sceneDocument().issueFor(
+             {.entityId = selectedId, .field = "name"}) != nullptr);
+  assert(std::ranges::any_of(workspace.diagnostics(), [](const auto &diagnostic) {
+    return diagnostic.code == "EDITOR_SCENE_EDIT_REJECTED";
+  }));
+
+  // A preview rebuild failure restores the complete document and its history.
+  const std::string documentBeforeFailure = workspace.sceneDocument().json().dump();
+  const bool couldUndoBeforeFailure = workspace.sceneDocument().canUndo();
+  const bool couldRedoBeforeFailure = workspace.sceneDocument().canRedo();
+  workspace.project().project.mainScene = "scene://missing";
+  assert(!workspace.createEntity(error));
+  assert(error.find("No scene registered") != std::string::npos);
+  assert(workspace.sceneDocument().json().dump() == documentBeforeFailure);
+  assert(workspace.sceneDocument().canUndo() == couldUndoBeforeFailure);
+  assert(workspace.sceneDocument().canRedo() == couldRedoBeforeFailure);
+  assert(std::ranges::any_of(workspace.diagnostics(), [](const auto &diagnostic) {
+    return diagnostic.code == "EDITOR_PREVIEW_REBUILD_FAILED";
+  }));
   return 0;
 }

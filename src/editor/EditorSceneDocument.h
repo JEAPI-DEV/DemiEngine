@@ -13,6 +13,14 @@
 
 namespace demi::editor {
 
+enum class ExternalChangeDecision { ReloadFromDisk, KeepEditing, SaveCopy,
+                                    Cancel };
+
+struct EditorDocumentIssue {
+  SceneValueTarget target;
+  std::string message;
+};
+
 // Owns the active authored scene JSON, its command history, and its
 // conflict-safe persistence. Structural mutations are built with reusable
 // scene-JSON helpers (EditorSceneJson), staged and validated through the
@@ -23,9 +31,13 @@ public:
                           std::string &error);
   [[nodiscard]] bool reload(std::string &error);
   [[nodiscard]] bool save(std::string &error);
+  [[nodiscard]] bool resolveExternalChange(
+      ExternalChangeDecision decision, const std::filesystem::path &copyPath,
+      std::string &error);
 
   [[nodiscard]] bool setValue(SceneValueTarget target, nlohmann::json value,
                               bool continuous, std::string &error);
+  [[nodiscard]] bool removeValue(SceneValueTarget target, std::string &error);
   void endContinuousEdit() { continuousTarget_.reset(); }
 
   [[nodiscard]] bool createEntity(std::string &error);
@@ -47,6 +59,14 @@ public:
   [[nodiscard]] bool isDirty() const;
   [[nodiscard]] bool canUndo() const { return !undo_.empty(); }
   [[nodiscard]] bool canRedo() const { return !redo_.empty(); }
+  [[nodiscard]] bool hasExternalConflict() const {
+    return hasExternalConflict_;
+  }
+  [[nodiscard]] const std::optional<EditorDocumentIssue> &issue() const {
+    return issue_;
+  }
+  [[nodiscard]] const std::string *issueFor(
+      const SceneValueTarget &target) const;
   [[nodiscard]] const std::filesystem::path &path() const { return path_; }
   [[nodiscard]] const nlohmann::json &json() const { return document_; }
   [[nodiscard]] const nlohmann::json *entity(std::string_view id) const;
@@ -65,6 +85,8 @@ private:
                               std::string &error) const;
   // Validates a staged document before touching the live document or history.
   [[nodiscard]] bool stageAndCommit(SceneCommand command, std::string &error);
+  void reject(SceneValueTarget target, const std::string &error);
+  void clearIssue() { issue_.reset(); }
 
   EditorDocumentStore store_;
   std::filesystem::path path_;
@@ -75,6 +97,8 @@ private:
   std::vector<SceneCommand> redo_;
   std::optional<SceneValueTarget> continuousTarget_;
   std::string lastChangedEntityId_;
+  std::optional<EditorDocumentIssue> issue_;
+  bool hasExternalConflict_ = false;
 };
 
 } // namespace demi::editor

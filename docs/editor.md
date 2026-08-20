@@ -27,12 +27,18 @@ filesystem service used by `demi dev`.
   remap), drag-and-drop reparenting to another entity or the scene root, and
   atomic subtree deletion through real, reversible commands.
 - Inspector changes are reversible commands. Continuous drags collapse into a
-  single undo step; Save writes deterministic JSON through same-directory
-  atomic replacement and refuses to overwrite an externally changed scene.
+  single undo step, and optional fields can be explicitly authored or reset
+  without losing their original presence through Undo. Save writes
+  deterministic JSON through same-directory atomic replacement.
+- When the scene changes externally, a modal offers Reload from disk, Keep
+  editing, Save Copy, and Cancel. The editor never overwrites the external
+  version, and a failed preview rebuild restores the document and both history
+  stacks.
 - The Assets panel lists authored project files while excluding generated,
   build, package-cache, and Git internals.
 - The Console displays diagnostics from the same `validatePath` service used by
-  the CLI.
+  the CLI. Rejected authored edits also appear beside their Inspector target
+  and in the Console through one document issue.
 - Play saves pending valid changes and starts the normal `demi-runtime` beside
   the editor. Pause/Resume and Stop control that owned process.
 - The central scene view renders authored 3D entities through the engine's
@@ -100,18 +106,21 @@ DEMI_HEADLESS=1 ./build/linux-debug/demi run \
 can rely on it. Keep policy in `EditorSceneDocument`; keep filesystem mechanics
 in `EditorDocumentStore`; presentation belongs in a small conflict dialog/panel.
 
-- [ ] Represent insertion and removal of optional fields as reversible commands
+**Status:** complete. Optional-field shape, conflict choices, atomic preview
+rollback, inline diagnostics, and the failure matrix are covered.
+
+- [x] Represent insertion and removal of optional fields as reversible commands
   so undo preserves whether a value was explicitly authored.
-- [ ] Add a UI-free external-change decision model with explicit `Reload from
+- [x] Add a UI-free external-change decision model with explicit `Reload from
   disk`, `Keep editing`, `Save Copy`, and `Cancel` outcomes.
-- [ ] Never overwrite the external version. `Keep editing` retains the authored
+- [x] Never overwrite the external version. `Keep editing` retains the authored
   editor document in memory; `Save Copy` writes only to a user-selected path.
-- [ ] Make preview rebuild failure recover by reverting the just-committed
+- [x] Make preview rebuild failure recover by reverting the just-committed
   command or rebuilding from the still-authoritative document; never leave
   document and preview silently out of sync.
-- [ ] Surface document validation beside the affected field/entity while also
+- [x] Surface document validation beside the affected field/entity while also
   retaining the diagnostic in the Console.
-- [ ] Cover missing/deleted files, stale temporary files, permission failure,
+- [x] Cover missing/deleted files, stale temporary files, permission failure,
   save conflicts, save followed by undo, and reload history reset.
 
 **Gate:** every supported mutation is atomic; rejected edits change neither
@@ -124,24 +133,31 @@ content.
 Introduce one editor-only scene-view state owner; do not store its camera in the
 scene or add another renderer.
 
-- [ ] Add an `EditorSceneViewState`-style value owner for editor camera pose,
+- [x] Add an `EditorSceneViewState`-style value owner for editor camera pose,
   projection mode, focus, local/world mode, and snap settings. Choose the final
   name when implementing; do not duplicate this state in `EditorShell` and
   `EditorUiHostBgfx`.
-- [ ] Route a narrow viewport input snapshot from the UI layer: hovered/focused,
+- [x] Route a narrow viewport input snapshot from the UI layer: hovered/focused,
   mouse position/delta/wheel, buttons, and movement/modifier keys.
-- [ ] Add focused orbit, pan, zoom, and fly controls with frame-rate-independent
+- [x] Add focused orbit, pan, zoom, and fly controls with frame-rate-independent
   movement and predictable focus capture/release.
-- [ ] Use the first enabled authored camera only to initialize the editor camera
+- [x] Use the first enabled authored camera only to initialize the editor camera
   or through an explicit “Align view to camera” action.
-- [ ] Add frame-selected and reset-view actions.
-- [ ] Preserve camera state through ordinary scene edits and viewport resize,
+- [x] Add frame-selected and reset-view actions.
+- [x] Preserve camera state through ordinary scene edits and viewport resize,
   but reset it deterministically when opening another project.
-- [ ] Ensure minimized/zero-size viewports submit no invalid bgfx rectangle.
+- [x] Ensure minimized/zero-size viewports submit no invalid bgfx rectangle.
 
-**Gate:** navigation never edits authored JSON; text fields and other panels do
-not leak input into the viewport; repeated resize/open/close passes renderer
-lifetime tests.
+**Gate: passed.** Navigation is covered as a UI-free state transition and never
+edits authored JSON. Capture begins only in the focused viewport and releases
+with its navigation buttons. Camera state survives preview rebuild/refresh,
+project open resets it, zero/minimized areas skip renderer submission, and the
+existing bgfx device, 3D renderer, and app-host lifetime suites pass.
+
+Controls: `Alt+Left` orbits, middle mouse pans, the wheel zooms, right mouse
+plus `WASDQE` flies (`Shift` accelerates), and `F` frames the selected entity.
+The viewport toolbar exposes projection, frame-selected, align-to-camera, and
+reset actions.
 
 ### Milestone 3 — Implement stable-ID picking and transform gizmos
 
@@ -305,11 +321,9 @@ editing and conflict handling remain supported.
 
 ### Immediate next task
 
-Start with **Milestone 1: optional-field commands and the external-change choice
-model**. It strengthens the shared mutation/persistence boundary needed by every
-later editor and avoids building viewport or specialized UI on unsafe document
-semantics. After its gate passes, proceed directly to the independent editor
-camera in Milestone 2.
+Start with **Milestone 3: stable-ID picking and transform gizmos**. Milestone 2
+now provides the independent camera, focused viewport input, local/world mode,
+and snap-setting owner that picking and gizmos must reuse.
 
 For each todo item that mutates authored state, use this implementation order:
 

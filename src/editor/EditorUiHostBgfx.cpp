@@ -6,9 +6,6 @@
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/render/backend/GpuResources.h"
 #include "demi/runtime/render/backend/RenderCommands.h"
-#include "demi/runtime/scene/Transform3DHierarchy.h"
-#include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
-#include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 
 #include <imgui.h>
 
@@ -27,40 +24,21 @@ using demi::runtime::InputState;
 using demi::runtime::platform::PlatformHost;
 using demi::runtime::render::BgfxGraphicsDevice;
 
-runtime::render::BgfxCameraFrame3D editorCamera(const runtime::World &world,
-                                                const EditorViewportArea area) {
+runtime::render::BgfxCameraFrame3D
+editorCamera(const EditorSceneViewCamera &camera,
+             const EditorViewportArea area) {
   runtime::render::BgfxCameraFrame3D frame;
   frame.cameraId = "editor-camera";
-  frame.camera.clearColor = {0.055F, 0.07F, 0.09F, 1.0F};
-  frame.camera.renderHud = false;
-  frame.position = {6.0F, 4.0F, 6.0F};
-  frame.forward = {-6.0F, -3.0F, -6.0F};
-  frame.up = {0.0F, 1.0F, 0.0F};
+  frame.camera = camera.projection;
+  frame.position = camera.position;
+  frame.forward = camera.forward;
+  frame.up = camera.up;
   frame.viewportX = area.x;
   frame.viewportY = area.y;
   frame.viewportWidth = area.width;
   frame.viewportHeight = area.height;
   frame.viewId = 1;
 
-  const auto found =
-      std::ranges::find_if(world.entities, [](const auto &entity) {
-        return entity.enabled &&
-               entity.template hasComponent<runtime::Camera3DComponent>();
-      });
-  if (found == world.entities.end())
-    return frame;
-  frame.cameraId = found->id;
-  frame.camera = *found->component<runtime::Camera3DComponent>();
-  frame.camera.renderTarget.clear();
-  frame.camera.renderHud = false;
-  frame.postProcess.reset();
-  if (const auto transform = runtime::resolveWorldTransform3D(world, *found)) {
-    frame.position = transform->position;
-    frame.forward =
-        runtime::transformDirection3D(*transform, frame.camera.targetOffset);
-    frame.up = runtime::transformDirection3D(*transform,
-                                             {0.0F, frame.camera.upAxis, 0.0F});
-  }
   return frame;
 }
 
@@ -79,9 +57,14 @@ ImGuiKey imguiKey(const std::string_view key) {
       {"return", ImGuiKey_Enter},
       {"escape", ImGuiKey_Escape},
       {"a", ImGuiKey_A},
+      {"d", ImGuiKey_D},
+      {"e", ImGuiKey_E},
+      {"f", ImGuiKey_F},
+      {"q", ImGuiKey_Q},
       {"c", ImGuiKey_C},
       {"s", ImGuiKey_S},
       {"v", ImGuiKey_V},
+      {"w", ImGuiKey_W},
       {"x", ImGuiKey_X},
       {"y", ImGuiKey_Y},
       {"z", ImGuiKey_Z},
@@ -117,6 +100,7 @@ void submitKeyboardInput(const InputState &input) {
   };
   io.AddKeyEvent(ImGuiMod_Ctrl, down("left ctrl", "right ctrl"));
   io.AddKeyEvent(ImGuiMod_Shift, down("left shift", "right shift"));
+  io.AddKeyEvent(ImGuiMod_Alt, down("left alt", "right alt"));
   if (!input.textEntered.empty())
     io.AddInputCharactersUTF8(input.textEntered.c_str());
 }
@@ -186,7 +170,8 @@ public:
   bool beginFrame(std::string &error) override {
     platform_->poll(input_);
     const auto &frame = platform_->frameState();
-    if (!graphics_.resize(static_cast<std::uint32_t>(frame.width),
+    if (!frame.minimized && frame.width > 0 && frame.height > 0 &&
+        !graphics_.resize(static_cast<std::uint32_t>(frame.width),
                           static_cast<std::uint32_t>(frame.height), error))
       return false;
 
@@ -202,8 +187,8 @@ public:
         static_cast<std::int32_t>(input_.mousePosition.x),
         static_cast<std::int32_t>(input_.mousePosition.y), buttons,
         static_cast<std::int32_t>(std::lround(input_.mouseScroll.y)),
-        static_cast<std::uint16_t>(frame.width),
-        static_cast<std::uint16_t>(frame.height));
+        static_cast<std::uint16_t>(std::clamp(frame.width, 1, 65535)),
+        static_cast<std::uint16_t>(std::clamp(frame.height, 1, 65535)));
     submitKeyboardInput(input_);
     return true;
   }
@@ -226,11 +211,24 @@ public:
 
   bool renderViewport(const runtime::World &world,
                       const EditorViewportArea area,
+                      const EditorSceneViewCamera &camera,
                       std::string &error) override {
-    if (area.width == 0 || area.height == 0)
+    const auto &platformFrame = platform_->frameState();
+    if (platformFrame.minimized || platformFrame.width <= 0 ||
+        platformFrame.height <= 0 || area.width == 0 || area.height == 0)
       return true;
-    return renderer_->renderFrame(world, editorCamera(world, area),
-                                  1.0F / 60.0F, error);
+    return renderer_->renderFrame(world, editorCamera(camera, area),
+                                  platform_->frameState().deltaSeconds, error);
+  }
+
+  bool setViewportInputCaptured(const bool captured,
+                                std::string &error) override {
+    if (captured == mouseCaptured_)
+      return true;
+    if (!platform_->setMouseCaptured(captured, error))
+      return false;
+    mouseCaptured_ = captured;
+    return true;
   }
 
   void endFrame() override {
@@ -268,6 +266,7 @@ private:
   std::unique_ptr<demi::runtime::render::BgfxRenderer3D> renderer_;
   InputState input_;
   bool initialized_ = false;
+  bool mouseCaptured_ = false;
 };
 
 } // namespace

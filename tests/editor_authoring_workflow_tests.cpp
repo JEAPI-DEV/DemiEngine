@@ -137,6 +137,29 @@ int main(int argc, char **argv) {
   assert(reopened.sceneDocument().entity("root_copy") != nullptr);
   assert(reopened.sceneDocument().entity("root")->at("name") == "Edited Root");
 
+  // Reloading a conflicting but unloadable external scene is atomic across
+  // the authored document and preview world.
+  assert(reopened.editValue({.entityId = "root", .field = "name"},
+                            "Keep In Memory", false, error));
+  const std::string beforeFailedReload = reopened.sceneDocument().json().dump();
+  write(root / "scenes/main.scene.json", R"({
+  "format_version": 1,
+  "id": "scene://editor_workflow/main",
+  "name": "Broken External Scene",
+  "entities": [{
+    "id": "orphan",
+    "components": {
+      "Transform3D": { "parent": "missing" }
+    }
+  }]
+})");
+  assert(!reopened.save(error));
+  assert(reopened.sceneDocument().hasExternalConflict());
+  assert(!reopened.resolveExternalChange(
+      demi::editor::ExternalChangeDecision::ReloadFromDisk, {}, error));
+  assert(reopened.sceneDocument().json().dump() == beforeFailedReload);
+  assert(reopened.sceneDocument().hasExternalConflict());
+
   if (!preserveFixture) {
     std::error_code ignored;
     fs::remove_all(root, ignored);

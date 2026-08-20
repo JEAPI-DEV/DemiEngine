@@ -34,13 +34,26 @@ bool stagedHasErrors(const std::filesystem::path &path,
   return false;
 }
 
+SceneValueTarget issueTarget(const SceneCommand &command) {
+  if (const auto *setValue = std::get_if<SetValueCommand>(&command))
+    return setValue->target;
+  return {.entityId = sceneCommandEntityId(command)};
+}
+
 } // namespace
 
 bool EditorSceneDocument::open(const std::filesystem::path &path,
                                std::string &error) {
+  std::error_code filesystemError;
+  const std::filesystem::path resolvedPath =
+      std::filesystem::absolute(path, filesystemError).lexically_normal();
+  if (filesystemError) {
+    error = "Could not resolve the scene path: " + filesystemError.message();
+    return false;
+  }
   std::string text;
   FileRevision revision;
-  if (!store_.read(path, text, revision, error))
+  if (!store_.read(resolvedPath, text, revision, error))
     return false;
   try {
     nlohmann::json parsed = nlohmann::json::parse(text);
@@ -49,7 +62,7 @@ bool EditorSceneDocument::open(const std::filesystem::path &path,
       error = "The active scene is not an editable scene document.";
       return false;
     }
-    path_ = path;
+    path_ = resolvedPath;
     revision_ = revision;
     document_ = std::move(parsed);
     savedCanonical_ = document_.dump();
@@ -57,6 +70,8 @@ bool EditorSceneDocument::open(const std::filesystem::path &path,
     redo_.clear();
     continuousTarget_.reset();
     lastChangedEntityId_.clear();
+    issue_.reset();
+    hasExternalConflict_ = false;
     return true;
   } catch (const nlohmann::json::exception &exception) {
     error =
@@ -75,76 +90,154 @@ bool EditorSceneDocument::reload(std::string &error) {
 }
 
 bool EditorSceneDocument::save(std::string &error) {
-  if (!isDirty())
+  if (!isDirty()) {
+    hasExternalConflict_ = false;
     return true;
+  }
   const std::string serialized = document_.dump(2) + '\n';
   FileRevision revision;
-  if (!store_.writeIfUnchanged(path_, serialized, revision_, revision, error))
+  const DocumentWriteStatus status =
+      store_.writeIfUnchanged(path_, serialized, revision_, revision, error);
+  if (status == DocumentWriteStatus::Conflict) {
+    hasExternalConflict_ = true;
+    return false;
+  }
+  if (status == DocumentWriteStatus::Failed)
     return false;
   revision_ = revision;
   savedCanonical_ = document_.dump();
+  hasExternalConflict_ = false;
   return true;
+}
+
+bool EditorSceneDocument::resolveExternalChange(
+    const ExternalChangeDecision decision,
+    const std::filesystem::path &copyPath, std::string &error) {
+  if (!hasExternalConflict_) {
+    error = "There is no external scene change to resolve.";
+    return false;
+  }
+  switch (decision) {
+  case ExternalChangeDecision::ReloadFromDisk:
+    return open(path_, error);
+  case ExternalChangeDecision::KeepEditing:
+  case ExternalChangeDecision::Cancel:
+    hasExternalConflict_ = false;
+    return true;
+  case ExternalChangeDecision::SaveCopy: {
+    if (copyPath.empty()) {
+      error = "Choose a path for the scene copy.";
+      return false;
+    }
+    std::error_code filesystemError;
+    const std::filesystem::path destination =
+        std::filesystem::absolute(copyPath, filesystemError).lexically_normal();
+    if (filesystemError) {
+      error = "Could not resolve the copy destination: " +
+              filesystemError.message();
+      return false;
+    }
+    if (destination == path_.lexically_normal()) {
+      error = "The copy must use a different path from the external scene.";
+      return false;
+    }
+    if (!store_.writeNew(destination, document_.dump(2) + '\n', error))
+      return false;
+    hasExternalConflict_ = false;
+    return true;
+  }
+  }
+  error = "Unknown external-change decision.";
+  return false;
+}
+
+void EditorSceneDocument::reject(SceneValueTarget target,
+                                 const std::string &error) {
+  issue_ = EditorDocumentIssue{.target = std::move(target), .message = error};
 }
 
 bool EditorSceneDocument::stageAndCommit(SceneCommand command,
                                          std::string &error) {
   nlohmann::json staged = document_;
   applySceneCommand(staged, command, true);
-  if (stagedHasErrors(path_, staged, error))
+  if (stagedHasErrors(path_, staged, error)) {
+    reject(issueTarget(command), error);
     return false;
+  }
   applySceneCommand(document_, command, true);
   lastChangedEntityId_ = sceneCommandEntityId(command);
   undo_.push_back(std::move(command));
   redo_.clear();
   continuousTarget_.reset();
+  clearIssue();
   return true;
 }
 
 bool EditorSceneDocument::setValue(SceneValueTarget target,
                                    nlohmann::json replacement,
                                    const bool continuous, std::string &error) {
-  nlohmann::json *current = value(target);
-  if (current == nullptr) {
-    error = "The selected authored field no longer exists.";
-    return false;
-  }
-  if (*current == replacement)
+  const nlohmann::json *current = value(target);
+  if (current != nullptr && *current == replacement) {
+    clearIssue();
     return true;
-  if (!validate(target, replacement, error))
-    return false;
-  nlohmann::json staged = document_;
-  nlohmann::json *stagedValue = valueInDocument(staged, target);
-  if (stagedValue == nullptr) {
-    error = "The selected authored field no longer exists.";
+  }
+  if (!validate(target, replacement, error)) {
+    reject(target, error);
     return false;
   }
-  *stagedValue = replacement;
-  if (stagedHasErrors(path_, staged, error))
+
+  SetValueCommand next{.target = target,
+                       .before = current == nullptr
+                                     ? std::nullopt
+                                     : std::optional<nlohmann::json>(*current),
+                       .after = std::move(replacement)};
+  nlohmann::json staged = document_;
+  if (!assignValueInDocument(staged, target, next.after)) {
+    error = "The selected entity or component no longer exists.";
+    reject(target, error);
     return false;
+  }
+  if (stagedHasErrors(path_, staged, error)) {
+    reject(target, error);
+    return false;
+  }
 
   if (continuous && continuousTarget_ == target && !undo_.empty() &&
       std::holds_alternative<SetValueCommand>(undo_.back())) {
     auto &command = std::get<SetValueCommand>(undo_.back());
-    command.after = std::move(replacement);
-    *current = command.after;
+    command.after = std::move(next.after);
+    (void)assignValueInDocument(document_, target, command.after);
   } else {
-    SetValueCommand command{.target = std::move(target),
-                            .before = *current,
-                            .after = std::move(replacement)};
-    *current = command.after;
-    undo_.push_back(std::move(command));
+    (void)assignValueInDocument(document_, target, next.after);
+    undo_.push_back(std::move(next));
   }
   redo_.clear();
   const SetValueCommand &top = std::get<SetValueCommand>(undo_.back());
   lastChangedEntityId_ = top.target.entityId;
   continuousTarget_ = continuous ? std::optional(top.target) : std::nullopt;
+  clearIssue();
   return true;
+}
+
+bool EditorSceneDocument::removeValue(SceneValueTarget target,
+                                      std::string &error) {
+  const nlohmann::json *current = value(target);
+  if (current == nullptr) {
+    error = "The selected authored field no longer exists.";
+    reject(target, error);
+    return false;
+  }
+  return stageAndCommit(SetValueCommand{.target = std::move(target),
+                                        .before = *current,
+                                        .after = std::nullopt},
+                        error);
 }
 
 bool EditorSceneDocument::createEntity(std::string &error) {
   nlohmann::json *entities = entitiesArray(document_);
   if (entities == nullptr) {
     error = "The scene has no entities array.";
+    reject({}, error);
     return false;
   }
   const std::string id = uniqueEntityId(document_, "ent_new");
@@ -160,6 +253,7 @@ bool EditorSceneDocument::deleteEntity(const std::string_view id,
                                        std::string &error) {
   if (entity(id) == nullptr) {
     error = "The entity no longer exists.";
+    reject({.entityId = std::string(id)}, error);
     return false;
   }
   std::vector<IndexedSceneEntity> removed;
@@ -168,6 +262,7 @@ bool EditorSceneDocument::deleteEntity(const std::string_view id,
     const nlohmann::json *authored = entity(member);
     if (!index.has_value() || authored == nullptr) {
       error = "The entity subtree changed while preparing deletion.";
+      reject({.entityId = std::string(id)}, error);
       return false;
     }
     removed.push_back({.index = *index, .entity = *authored});
@@ -183,12 +278,14 @@ bool EditorSceneDocument::reparent(const std::string_view id,
   nlohmann::json *authored = findEntity(document_, id);
   if (authored == nullptr) {
     error = "The entity no longer exists.";
+    reject({.entityId = std::string(id)}, error);
     return false;
   }
   const char *transform = transformComponentName(*authored);
   if (transform == nullptr) {
     error = "Reparenting requires a Transform3D or Transform2D component on "
             "the entity.";
+    reject({.entityId = std::string(id)}, error);
     return false;
   }
   nlohmann::json *component = findComponent(*authored, transform);
@@ -209,6 +306,7 @@ bool EditorSceneDocument::duplicateEntity(const std::string_view id,
   const nlohmann::json *source = entity(id);
   if (source == nullptr) {
     error = "The entity no longer exists.";
+    reject({.entityId = std::string(id)}, error);
     return false;
   }
   const std::vector<std::string> subtree = collectSubtreeIds(document_, id);
@@ -232,6 +330,7 @@ bool EditorSceneDocument::duplicateEntity(const std::string_view id,
   }
   if (copies.empty()) {
     error = "The entity could not be duplicated.";
+    reject({.entityId = std::string(id)}, error);
     return false;
   }
 
@@ -248,17 +347,26 @@ bool EditorSceneDocument::addComponent(const std::string_view id,
                                        std::string &error) {
   if (entity(id) == nullptr) {
     error = "The entity no longer exists.";
+    reject({.entityId = std::string(id),
+            .component = std::string(componentName)},
+           error);
     return false;
   }
   if (component(id, componentName) != nullptr) {
     error = "The entity already has a " + std::string(componentName) +
             " component.";
+    reject({.entityId = std::string(id),
+            .component = std::string(componentName)},
+           error);
     return false;
   }
   const runtime::scene_loading::ComponentDescriptor *descriptor =
       runtime::scene_loading::findComponentDescriptor(componentName);
   if (descriptor == nullptr) {
     error = "Unknown component: " + std::string(componentName);
+    reject({.entityId = std::string(id),
+            .component = std::string(componentName)},
+           error);
     return false;
   }
   return stageAndCommit(
@@ -275,6 +383,9 @@ bool EditorSceneDocument::removeComponent(const std::string_view id,
   const nlohmann::json *authored = component(id, componentName);
   if (authored == nullptr) {
     error = "The component no longer exists.";
+    reject({.entityId = std::string(id),
+            .component = std::string(componentName)},
+           error);
     return false;
   }
   return stageAndCommit(
@@ -295,6 +406,7 @@ bool EditorSceneDocument::undo(std::string &error) {
   lastChangedEntityId_ = sceneCommandEntityId(command);
   redo_.push_back(std::move(command));
   continuousTarget_.reset();
+  clearIssue();
   return true;
 }
 
@@ -309,6 +421,7 @@ bool EditorSceneDocument::redo(std::string &error) {
   lastChangedEntityId_ = sceneCommandEntityId(command);
   undo_.push_back(std::move(command));
   continuousTarget_.reset();
+  clearIssue();
   return true;
 }
 
@@ -327,6 +440,12 @@ EditorSceneDocument::component(const std::string_view entityId,
   const nlohmann::json *authoredEntity = entity(entityId);
   return authoredEntity == nullptr ? nullptr
                                    : findComponent(*authoredEntity, name);
+}
+
+const std::string *
+EditorSceneDocument::issueFor(const SceneValueTarget &target) const {
+  return issue_.has_value() && issue_->target == target ? &issue_->message
+                                                        : nullptr;
 }
 
 nlohmann::json *EditorSceneDocument::value(const SceneValueTarget &target) {

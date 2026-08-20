@@ -40,19 +40,41 @@ void drawViewport(EditorWorkspace &workspace, const ImVec2 position,
                        ImGuiWindowFlags_NoBackground);
   ImGui::TextUnformatted("SCENE VIEW");
   ImGui::SameLine();
-  ImGui::TextDisabled("Perspective");
+  auto &sceneView = workspace.sceneView();
+  const bool perspective =
+      sceneView.projection() == EditorProjection::Perspective;
+  if (ImGui::SmallButton(perspective ? "Perspective" : "Orthographic"))
+    sceneView.setProjection(perspective ? EditorProjection::Orthographic
+                                        : EditorProjection::Perspective);
+  ImGui::SameLine();
+  if (ImGui::SmallButton("Frame selected"))
+    (void)sceneView.frameEntity(workspace.project().world,
+                                workspace.selectedEntityId());
+  ImGui::SameLine();
+  if (ImGui::SmallButton("Align to camera"))
+    (void)sceneView.alignToFirstCamera(workspace.project().world);
+  ImGui::SameLine();
+  if (ImGui::SmallButton("Reset view"))
+    sceneView.reset(workspace.project().world);
   ImGui::Separator();
 
   const ImVec2 canvasMin = ImGui::GetCursorScreenPos();
   const ImVec2 available = ImGui::GetContentRegionAvail();
-  const ImVec2 canvasMax{canvasMin.x + available.x, canvasMin.y + available.y};
-  viewportArea = {
-      .x = static_cast<std::uint16_t>(std::clamp(canvasMin.x, 0.0F, 65535.0F)),
-      .y = static_cast<std::uint16_t>(std::clamp(canvasMin.y, 0.0F, 65535.0F)),
-      .width =
-          static_cast<std::uint16_t>(std::clamp(available.x, 1.0F, 65535.0F)),
-      .height =
-          static_cast<std::uint16_t>(std::clamp(available.y, 1.0F, 65535.0F))};
+  const float canvasWidth = std::max(available.x, 0.0F);
+  const float canvasHeight = std::max(available.y, 0.0F);
+  const ImVec2 canvasMax{canvasMin.x + canvasWidth, canvasMin.y + canvasHeight};
+  viewportArea = {};
+  if (canvasWidth >= 1.0F && canvasHeight >= 1.0F) {
+    viewportArea = {
+        .x =
+            static_cast<std::uint16_t>(std::clamp(canvasMin.x, 0.0F, 65535.0F)),
+        .y =
+            static_cast<std::uint16_t>(std::clamp(canvasMin.y, 0.0F, 65535.0F)),
+        .width =
+            static_cast<std::uint16_t>(std::clamp(canvasWidth, 1.0F, 65535.0F)),
+        .height = static_cast<std::uint16_t>(
+            std::clamp(canvasHeight, 1.0F, 65535.0F))};
+  }
   ImDrawList *draw = ImGui::GetWindowDrawList();
   const ImVec2 gizmo{canvasMax.x - 66.0F, canvasMin.y + 66.0F};
   draw->AddCircleFilled(gizmo, 5.0F, EditorAccent);
@@ -67,7 +89,40 @@ void drawViewport(EditorWorkspace &workspace, const ImVec2 position,
                                                 : "Selected: " + selected->name;
   draw->AddText({canvasMin.x + 16.0F, canvasMin.y + 15.0F},
                 IM_COL32(224, 227, 235, 255), label.c_str());
-  ImGui::InvisibleButton("viewport-canvas", available);
+  if (canvasWidth >= 1.0F && canvasHeight >= 1.0F) {
+    ImGui::InvisibleButton("viewport-canvas", {canvasWidth, canvasHeight});
+    const bool hovered = ImGui::IsItemHovered();
+    const bool focused = ImGui::IsWindowFocused();
+    ImGuiIO &io = ImGui::GetIO();
+    if (focused && !io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_F, false))
+      (void)sceneView.frameEntity(workspace.project().world,
+                                  workspace.selectedEntityId());
+    sceneView.update({
+        .deltaSeconds = io.DeltaTime,
+        .mousePosition = {io.MousePos.x - canvasMin.x,
+                          io.MousePos.y - canvasMin.y},
+        .mouseDelta = {io.MouseDelta.x, io.MouseDelta.y},
+        .wheel = hovered ? io.MouseWheel : 0.0F,
+        .hovered = hovered,
+        .focused = focused && !io.WantTextInput,
+        .orbitButton = ImGui::IsMouseDown(ImGuiMouseButton_Left),
+        .panButton = ImGui::IsMouseDown(ImGuiMouseButton_Middle),
+        .flyButton = ImGui::IsMouseDown(ImGuiMouseButton_Right),
+        .orbitModifier = io.KeyAlt,
+        .moveForward = ImGui::IsKeyDown(ImGuiKey_W),
+        .moveBackward = ImGui::IsKeyDown(ImGuiKey_S),
+        .moveLeft = ImGui::IsKeyDown(ImGuiKey_A),
+        .moveRight = ImGui::IsKeyDown(ImGuiKey_D),
+        .moveUp = ImGui::IsKeyDown(ImGuiKey_E),
+        .moveDown = ImGui::IsKeyDown(ImGuiKey_Q),
+        .fast = io.KeyShift,
+    });
+    if (hovered)
+      ImGui::SetTooltip("Alt+Left orbit | Middle pan | Wheel zoom | "
+                        "Right+WASDQE fly | F frame");
+  } else {
+    sceneView.update({});
+  }
   ImGui::End();
 }
 
@@ -383,8 +438,8 @@ void EditorShell::draw(const int width, const int height,
   drawMenu(workspace_, {screenWidth, menuHeight}, wantsExit_, notice_);
   drawToolbar({0.0F, menuHeight}, {screenWidth, toolbarHeight}, workspace_,
               playSession_, notice_);
-  hierarchyPanel_.draw(workspace_, {0.0F, contentTop},
-                       {leftWidth, upperHeight}, notice_);
+  hierarchyPanel_.draw(workspace_, {0.0F, contentTop}, {leftWidth, upperHeight},
+                       notice_);
   drawViewport(workspace_, {leftWidth, contentTop}, {centerWidth, upperHeight},
                viewportArea_);
   drawInspectorPanel(workspace_, {screenWidth - rightWidth, contentTop},
@@ -398,6 +453,7 @@ void EditorShell::draw(const int width, const int height,
             {buildWidth, bottomHeight}, linuxTarget_, androidTarget_);
   drawStatus(workspace_, {0.0F, contentBottom}, {screenWidth, statusHeight},
              rendererName, notice_);
+  conflictPanel_.draw(workspace_, notice_);
 }
 
 } // namespace demi::editor

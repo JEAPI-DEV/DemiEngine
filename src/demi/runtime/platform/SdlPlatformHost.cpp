@@ -21,113 +21,209 @@ using Clock = std::chrono::steady_clock;
 
 std::string_view keyName(const SDL_Scancode key) {
   switch (key) {
-  case SDL_SCANCODE_A: return "a";
-  case SDL_SCANCODE_B: return "b";
-  case SDL_SCANCODE_C: return "c";
-  case SDL_SCANCODE_D: return "d";
-  case SDL_SCANCODE_E: return "e";
-  case SDL_SCANCODE_F: return "f";
-  case SDL_SCANCODE_G: return "g";
-  case SDL_SCANCODE_H: return "h";
-  case SDL_SCANCODE_I: return "i";
-  case SDL_SCANCODE_J: return "j";
-  case SDL_SCANCODE_K: return "k";
-  case SDL_SCANCODE_L: return "l";
-  case SDL_SCANCODE_M: return "m";
-  case SDL_SCANCODE_N: return "n";
-  case SDL_SCANCODE_O: return "o";
-  case SDL_SCANCODE_P: return "p";
-  case SDL_SCANCODE_Q: return "q";
-  case SDL_SCANCODE_R: return "r";
-  case SDL_SCANCODE_S: return "s";
-  case SDL_SCANCODE_T: return "t";
-  case SDL_SCANCODE_U: return "u";
-  case SDL_SCANCODE_V: return "v";
-  case SDL_SCANCODE_W: return "w";
-  case SDL_SCANCODE_X: return "x";
-  case SDL_SCANCODE_Y: return "y";
-  case SDL_SCANCODE_Z: return "z";
-  case SDL_SCANCODE_0: return "0";
-  case SDL_SCANCODE_1: return "1";
-  case SDL_SCANCODE_2: return "2";
-  case SDL_SCANCODE_3: return "3";
-  case SDL_SCANCODE_4: return "4";
-  case SDL_SCANCODE_5: return "5";
-  case SDL_SCANCODE_6: return "6";
-  case SDL_SCANCODE_7: return "7";
-  case SDL_SCANCODE_8: return "8";
-  case SDL_SCANCODE_9: return "9";
-  case SDL_SCANCODE_SPACE: return "space";
-  case SDL_SCANCODE_RETURN: return "return";
-  case SDL_SCANCODE_ESCAPE: return "escape";
-  case SDL_SCANCODE_TAB: return "tab";
-  case SDL_SCANCODE_BACKSPACE: return "backspace";
-  case SDL_SCANCODE_DELETE: return "delete";
-  case SDL_SCANCODE_HOME: return "home";
-  case SDL_SCANCODE_END: return "end";
-  case SDL_SCANCODE_UP: return "up";
-  case SDL_SCANCODE_DOWN: return "down";
-  case SDL_SCANCODE_LEFT: return "left";
-  case SDL_SCANCODE_RIGHT: return "right";
-  case SDL_SCANCODE_LSHIFT: return "left shift";
-  case SDL_SCANCODE_RSHIFT: return "right shift";
-  case SDL_SCANCODE_LCTRL: return "left ctrl";
-  case SDL_SCANCODE_RCTRL: return "right ctrl";
-  case SDL_SCANCODE_F1: return "f1";
-  case SDL_SCANCODE_F2: return "f2";
-  case SDL_SCANCODE_F3: return "f3";
-  case SDL_SCANCODE_F4: return "f4";
-  case SDL_SCANCODE_F5: return "f5";
-  case SDL_SCANCODE_F6: return "f6";
-  case SDL_SCANCODE_F7: return "f7";
-  case SDL_SCANCODE_F8: return "f8";
-  case SDL_SCANCODE_F9: return "f9";
-  case SDL_SCANCODE_F10: return "f10";
-  case SDL_SCANCODE_F11: return "f11";
-  case SDL_SCANCODE_F12: return "f12";
-  default: return {};
+  case SDL_SCANCODE_A:
+    return "a";
+  case SDL_SCANCODE_B:
+    return "b";
+  case SDL_SCANCODE_C:
+    return "c";
+  case SDL_SCANCODE_D:
+    return "d";
+  case SDL_SCANCODE_E:
+    return "e";
+  case SDL_SCANCODE_F:
+    return "f";
+  case SDL_SCANCODE_G:
+    return "g";
+  case SDL_SCANCODE_H:
+    return "h";
+  case SDL_SCANCODE_I:
+    return "i";
+  case SDL_SCANCODE_J:
+    return "j";
+  case SDL_SCANCODE_K:
+    return "k";
+  case SDL_SCANCODE_L:
+    return "l";
+  case SDL_SCANCODE_M:
+    return "m";
+  case SDL_SCANCODE_N:
+    return "n";
+  case SDL_SCANCODE_O:
+    return "o";
+  case SDL_SCANCODE_P:
+    return "p";
+  case SDL_SCANCODE_Q:
+    return "q";
+  case SDL_SCANCODE_R:
+    return "r";
+  case SDL_SCANCODE_S:
+    return "s";
+  case SDL_SCANCODE_T:
+    return "t";
+  case SDL_SCANCODE_U:
+    return "u";
+  case SDL_SCANCODE_V:
+    return "v";
+  case SDL_SCANCODE_W:
+    return "w";
+  case SDL_SCANCODE_X:
+    return "x";
+  case SDL_SCANCODE_Y:
+    return "y";
+  case SDL_SCANCODE_Z:
+    return "z";
+  case SDL_SCANCODE_0:
+    return "0";
+  case SDL_SCANCODE_1:
+    return "1";
+  case SDL_SCANCODE_2:
+    return "2";
+  case SDL_SCANCODE_3:
+    return "3";
+  case SDL_SCANCODE_4:
+    return "4";
+  case SDL_SCANCODE_5:
+    return "5";
+  case SDL_SCANCODE_6:
+    return "6";
+  case SDL_SCANCODE_7:
+    return "7";
+  case SDL_SCANCODE_8:
+    return "8";
+  case SDL_SCANCODE_9:
+    return "9";
+  case SDL_SCANCODE_SPACE:
+    return "space";
+  case SDL_SCANCODE_RETURN:
+    return "return";
+  case SDL_SCANCODE_ESCAPE:
+    return "escape";
+  case SDL_SCANCODE_TAB:
+    return "tab";
+  case SDL_SCANCODE_BACKSPACE:
+    return "backspace";
+  case SDL_SCANCODE_DELETE:
+    return "delete";
+  case SDL_SCANCODE_HOME:
+    return "home";
+  case SDL_SCANCODE_END:
+    return "end";
+  case SDL_SCANCODE_UP:
+    return "up";
+  case SDL_SCANCODE_DOWN:
+    return "down";
+  case SDL_SCANCODE_LEFT:
+    return "left";
+  case SDL_SCANCODE_RIGHT:
+    return "right";
+  case SDL_SCANCODE_LSHIFT:
+    return "left shift";
+  case SDL_SCANCODE_RSHIFT:
+    return "right shift";
+  case SDL_SCANCODE_LCTRL:
+    return "left ctrl";
+  case SDL_SCANCODE_RCTRL:
+    return "right ctrl";
+  case SDL_SCANCODE_LALT:
+    return "left alt";
+  case SDL_SCANCODE_RALT:
+    return "right alt";
+  case SDL_SCANCODE_F1:
+    return "f1";
+  case SDL_SCANCODE_F2:
+    return "f2";
+  case SDL_SCANCODE_F3:
+    return "f3";
+  case SDL_SCANCODE_F4:
+    return "f4";
+  case SDL_SCANCODE_F5:
+    return "f5";
+  case SDL_SCANCODE_F6:
+    return "f6";
+  case SDL_SCANCODE_F7:
+    return "f7";
+  case SDL_SCANCODE_F8:
+    return "f8";
+  case SDL_SCANCODE_F9:
+    return "f9";
+  case SDL_SCANCODE_F10:
+    return "f10";
+  case SDL_SCANCODE_F11:
+    return "f11";
+  case SDL_SCANCODE_F12:
+    return "f12";
+  default:
+    return {};
   }
 }
 
 std::string_view mouseButtonName(const std::uint8_t button) {
   switch (button) {
-  case SDL_BUTTON_LEFT: return "left";
-  case SDL_BUTTON_RIGHT: return "right";
-  case SDL_BUTTON_MIDDLE: return "middle";
-  default: return {};
+  case SDL_BUTTON_LEFT:
+    return "left";
+  case SDL_BUTTON_RIGHT:
+    return "right";
+  case SDL_BUTTON_MIDDLE:
+    return "middle";
+  default:
+    return {};
   }
 }
 
 std::string_view gamepadButtonName(const SDL_GamepadButton button) {
   switch (button) {
-  case SDL_GAMEPAD_BUTTON_SOUTH: return "south";
-  case SDL_GAMEPAD_BUTTON_EAST: return "east";
-  case SDL_GAMEPAD_BUTTON_WEST: return "west";
-  case SDL_GAMEPAD_BUTTON_NORTH: return "north";
-  case SDL_GAMEPAD_BUTTON_BACK: return "select";
-  case SDL_GAMEPAD_BUTTON_GUIDE: return "guide";
-  case SDL_GAMEPAD_BUTTON_START: return "start";
-  case SDL_GAMEPAD_BUTTON_LEFT_STICK: return "left_stick";
-  case SDL_GAMEPAD_BUTTON_RIGHT_STICK: return "right_stick";
-  case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER: return "left_bumper";
-  case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER: return "right_bumper";
-  case SDL_GAMEPAD_BUTTON_DPAD_UP: return "dpad_up";
-  case SDL_GAMEPAD_BUTTON_DPAD_DOWN: return "dpad_down";
-  case SDL_GAMEPAD_BUTTON_DPAD_LEFT: return "dpad_left";
-  case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: return "dpad_right";
-  default: return {};
+  case SDL_GAMEPAD_BUTTON_SOUTH:
+    return "south";
+  case SDL_GAMEPAD_BUTTON_EAST:
+    return "east";
+  case SDL_GAMEPAD_BUTTON_WEST:
+    return "west";
+  case SDL_GAMEPAD_BUTTON_NORTH:
+    return "north";
+  case SDL_GAMEPAD_BUTTON_BACK:
+    return "select";
+  case SDL_GAMEPAD_BUTTON_GUIDE:
+    return "guide";
+  case SDL_GAMEPAD_BUTTON_START:
+    return "start";
+  case SDL_GAMEPAD_BUTTON_LEFT_STICK:
+    return "left_stick";
+  case SDL_GAMEPAD_BUTTON_RIGHT_STICK:
+    return "right_stick";
+  case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
+    return "left_bumper";
+  case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER:
+    return "right_bumper";
+  case SDL_GAMEPAD_BUTTON_DPAD_UP:
+    return "dpad_up";
+  case SDL_GAMEPAD_BUTTON_DPAD_DOWN:
+    return "dpad_down";
+  case SDL_GAMEPAD_BUTTON_DPAD_LEFT:
+    return "dpad_left";
+  case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
+    return "dpad_right";
+  default:
+    return {};
   }
 }
 
 std::string_view gamepadAxisName(const SDL_GamepadAxis axis) {
   switch (axis) {
-  case SDL_GAMEPAD_AXIS_LEFTX: return "left_x";
-  case SDL_GAMEPAD_AXIS_LEFTY: return "left_y";
-  case SDL_GAMEPAD_AXIS_RIGHTX: return "right_x";
-  case SDL_GAMEPAD_AXIS_RIGHTY: return "right_y";
-  case SDL_GAMEPAD_AXIS_LEFT_TRIGGER: return "left_trigger";
-  case SDL_GAMEPAD_AXIS_RIGHT_TRIGGER: return "right_trigger";
-  default: return {};
+  case SDL_GAMEPAD_AXIS_LEFTX:
+    return "left_x";
+  case SDL_GAMEPAD_AXIS_LEFTY:
+    return "left_y";
+  case SDL_GAMEPAD_AXIS_RIGHTX:
+    return "right_x";
+  case SDL_GAMEPAD_AXIS_RIGHTY:
+    return "right_y";
+  case SDL_GAMEPAD_AXIS_LEFT_TRIGGER:
+    return "left_trigger";
+  case SDL_GAMEPAD_AXIS_RIGHT_TRIGGER:
+    return "right_trigger";
+  default:
+    return {};
   }
 }
 
@@ -154,9 +250,8 @@ public:
       error = SDL_GetError();
       return false;
     }
-    SDL_WindowFlags flags =
-        SDL_WINDOW_HIGH_PIXEL_DENSITY |
-        (config.resizable ? SDL_WINDOW_RESIZABLE : 0);
+    SDL_WindowFlags flags = SDL_WINDOW_HIGH_PIXEL_DENSITY |
+                            (config.resizable ? SDL_WINDOW_RESIZABLE : 0);
     window_ = SDL_CreateWindow(config.title.c_str(), config.width,
                                config.height, flags);
     if (window_ == nullptr) {
@@ -313,9 +408,8 @@ public:
     }
     updateWindowState();
     const Clock::time_point now = Clock::now();
-    state_.deltaSeconds =
-        std::clamp(std::chrono::duration<float>(now - lastFrame_).count(),
-                   0.0F, 0.1F);
+    state_.deltaSeconds = std::clamp(
+        std::chrono::duration<float>(now - lastFrame_).count(), 0.0F, 0.1F);
     lastFrame_ = now;
   }
 

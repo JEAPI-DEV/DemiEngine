@@ -46,6 +46,44 @@ bool commit(EditorWorkspace &workspace, const SceneValueTarget &target,
   return true;
 }
 
+void drawInlineIssue(const EditorWorkspace &workspace,
+                     const SceneValueTarget &target) {
+  const std::string *issue = workspace.sceneDocument().issueFor(target);
+  if (issue != nullptr)
+    ImGui::TextColored({0.95F, 0.34F, 0.38F, 1.0F}, "%s", issue->c_str());
+}
+
+nlohmann::json defaultValue(const ComponentDescriptor &descriptor,
+                            const ComponentFieldDescriptor &field) {
+  const nlohmann::json defaults =
+      runtime::scene_loading::componentDefaults(descriptor);
+  if (const auto value = defaults.find(field.name); value != defaults.end())
+    return *value;
+  switch (field.type) {
+  case ComponentFieldType::Boolean:
+    return false;
+  case ComponentFieldType::Integer:
+    return 0;
+  case ComponentFieldType::Number:
+    return 0.0;
+  case ComponentFieldType::String:
+    return field.allowedValues.empty() ? nlohmann::json("")
+                                       : nlohmann::json(field.allowedValues[0]);
+  case ComponentFieldType::Object:
+    return nlohmann::json::object();
+  case ComponentFieldType::Vec2:
+    return nlohmann::json::array({0.0, 0.0});
+  case ComponentFieldType::Vec3:
+    return nlohmann::json::array({0.0, 0.0, 0.0});
+  case ComponentFieldType::Color:
+    return nlohmann::json::array({1.0, 1.0, 1.0, 1.0});
+  case ComponentFieldType::Vec2Array:
+  case ComponentFieldType::Vec3Array:
+    return nlohmann::json::array();
+  }
+  return nullptr;
+}
+
 bool drawAllowedString(EditorWorkspace &workspace,
                        const SceneValueTarget &target,
                        const ComponentFieldDescriptor &field,
@@ -153,18 +191,38 @@ void drawComponentFields(EditorWorkspace &workspace,
     if (!field.editorVisible)
       continue;
     const auto value = component.find(field.name);
-    if (value == component.end())
+    const SceneValueTarget target{.entityId = std::string(entityId),
+                                  .component = componentName,
+                                  .field = std::string(field.name)};
+    if (value == component.end()) {
+      if (!field.required) {
+        ImGui::PushID(field.name.data());
+        ImGui::TextDisabled("%s (default)", field.name.data());
+        ImGui::SameLine(180.0F);
+        if (ImGui::SmallButton("Author"))
+          (void)commit(workspace, target, defaultValue(descriptor, field),
+                       notice);
+        drawInlineIssue(workspace, target);
+        ImGui::PopID();
+      }
       continue;
+    }
     ImGui::PushID(field.name.data());
     ImGui::AlignTextToFramePadding();
     ImGui::TextDisabled("%s", field.name.data());
     ImGui::SameLine(112.0F);
-    ImGui::SetNextItemWidth(-1.0F);
-    (void)drawFieldValue(workspace,
-                         {.entityId = std::string(entityId),
-                          .component = componentName,
-                          .field = std::string(field.name)},
-                         field, *value, notice);
+    ImGui::SetNextItemWidth(field.required ? -1.0F : -52.0F);
+    (void)drawFieldValue(workspace, target, field, *value, notice);
+    if (!field.required) {
+      ImGui::SameLine();
+      if (ImGui::SmallButton("Reset")) {
+        std::string error;
+        notice = workspace.removeValue(target, error)
+                     ? "Optional field reset to its default"
+                     : error;
+      }
+    }
+    drawInlineIssue(workspace, target);
     ImGui::PopID();
   }
 }
@@ -187,6 +245,7 @@ void drawEntityHeader(EditorWorkspace &workspace, const nlohmann::json &entity,
   if (inputString("##entity-name", name))
     (void)commit(workspace, {.entityId = id, .field = "name"}, name, notice);
   finishEdit(workspace);
+  drawInlineIssue(workspace, {.entityId = id, .field = "name"});
   ImGui::TextDisabled("%s", id.c_str());
 
   bool enabled = entity.value("enabled", true);
@@ -194,9 +253,22 @@ void drawEntityHeader(EditorWorkspace &workspace, const nlohmann::json &entity,
     if (ImGui::Checkbox("Enabled", &enabled))
       (void)commit(workspace, {.entityId = id, .field = "enabled"}, enabled,
                    notice);
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Use default##enabled")) {
+      std::string error;
+      notice = workspace.removeValue({.entityId = id, .field = "enabled"},
+                                     error)
+                   ? "Enabled reset to its default"
+                   : error;
+    }
   } else {
-    ImGui::TextDisabled("Enabled (default)");
+    ImGui::TextDisabled("Enabled (default: true)");
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Author##enabled"))
+      (void)commit(workspace, {.entityId = id, .field = "enabled"}, true,
+                   notice);
   }
+  drawInlineIssue(workspace, {.entityId = id, .field = "enabled"});
 
   if (entity.contains("layer")) {
     std::string layer = entity.value("layer", std::string{});
@@ -205,9 +277,26 @@ void drawEntityHeader(EditorWorkspace &workspace, const nlohmann::json &entity,
       (void)commit(workspace, {.entityId = id, .field = "layer"}, layer,
                    notice);
     finishEdit(workspace);
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Use default##layer")) {
+      std::string error;
+      notice = workspace.removeValue({.entityId = id, .field = "layer"}, error)
+                   ? "Layer reset to its default"
+                   : error;
+    }
   } else {
     ImGui::TextDisabled("Layer: Default");
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Author##layer"))
+      (void)commit(workspace, {.entityId = id, .field = "layer"}, "Default",
+                   notice);
   }
+  drawInlineIssue(workspace, {.entityId = id, .field = "layer"});
+  if (const auto &issue = workspace.sceneDocument().issue();
+      issue.has_value() && issue->target.entityId == id &&
+      issue->target.field.empty())
+    ImGui::TextColored({0.95F, 0.34F, 0.38F, 1.0F}, "%s",
+                       issue->message.c_str());
   ImGui::Separator();
 }
 
@@ -247,6 +336,8 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
       if (!ImGui::CollapsingHeader(title, ImGuiTreeNodeFlags_DefaultOpen))
         continue;
       ImGui::PushID(name.c_str());
+      drawInlineIssue(workspace,
+                      {.entityId = selected->id, .component = name});
       if (ImGui::SmallButton("Remove")) {
         std::string error;
         const bool removed = workspace.removeComponent(selected->id, name, error);

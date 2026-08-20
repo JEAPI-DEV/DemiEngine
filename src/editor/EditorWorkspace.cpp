@@ -23,6 +23,7 @@ bool EditorWorkspace::open(std::filesystem::path projectPath,
     project_.reset();
     return false;
   }
+  sceneView_.reset(project_->world);
   discoverSources();
   if (!project_->world.entities.empty())
     selectedEntityId_ = project_->world.entities.front().id;
@@ -54,10 +55,15 @@ void EditorWorkspace::discoverSources() {
 }
 
 bool EditorWorkspace::refresh(std::string &error) {
-  if (!sceneDocument_.reload(error))
+  if (sceneDocument_.isDirty()) {
+    error = "The scene has unsaved changes. Save or undo them before "
+            "refreshing.";
     return false;
+  }
   auto loaded = runtime::loadProject(projectPath_, error);
   if (!loaded)
+    return false;
+  if (!sceneDocument_.reload(error))
     return false;
   project_ = std::move(loaded);
   discoverSources();
@@ -68,8 +74,10 @@ bool EditorWorkspace::refresh(std::string &error) {
 }
 
 bool EditorWorkspace::save(std::string &error) {
-  if (!sceneDocument_.save(error))
+  if (!sceneDocument_.save(error)) {
+    syncEditorDiagnostic();
     return false;
+  }
   auto loaded = runtime::loadProject(projectPath_, error);
   if (!loaded)
     return false;
@@ -78,10 +86,35 @@ bool EditorWorkspace::save(std::string &error) {
   return true;
 }
 
-bool EditorWorkspace::undo(std::string &error) {
-  if (!sceneDocument_.undo(error))
+bool EditorWorkspace::resolveExternalChange(
+    const ExternalChangeDecision decision,
+    const std::filesystem::path &copyPath, std::string &error) {
+  EditorSceneDocument before = sceneDocument_;
+  if (!sceneDocument_.resolveExternalChange(decision, copyPath, error))
     return false;
-  if (!rebuildWorld(error))
+  if (decision == ExternalChangeDecision::ReloadFromDisk) {
+    auto loaded = runtime::loadProject(projectPath_, error);
+    if (!loaded) {
+      sceneDocument_ = std::move(before);
+      workspaceOperationError_ = error;
+      syncEditorDiagnostic();
+      return false;
+    }
+    project_ = std::move(loaded);
+    discoverSources();
+    if (selectedEntity() == nullptr && !project_->world.entities.empty())
+      selectedEntityId_ = project_->world.entities.front().id;
+  }
+  refreshDiagnostics();
+  return true;
+}
+
+bool EditorWorkspace::undo(std::string &error) {
+  if (!mutateAndRebuild(
+          [](EditorSceneDocument &document, std::string &mutationError) {
+            return document.undo(mutationError);
+          },
+          error))
     return false;
   if (selectedEntity() == nullptr && !project_->world.entities.empty())
     selectedEntityId_ = project_->world.entities.front().id;
@@ -89,9 +122,11 @@ bool EditorWorkspace::undo(std::string &error) {
 }
 
 bool EditorWorkspace::redo(std::string &error) {
-  if (!sceneDocument_.redo(error))
-    return false;
-  if (!rebuildWorld(error))
+  if (!mutateAndRebuild(
+          [](EditorSceneDocument &document, std::string &mutationError) {
+            return document.redo(mutationError);
+          },
+          error))
     return false;
   if (selectedEntity() == nullptr && !project_->world.entities.empty())
     selectedEntityId_ = project_->world.entities.front().id;
@@ -101,16 +136,31 @@ bool EditorWorkspace::redo(std::string &error) {
 bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
                                 const bool continuous, std::string &error) {
   if (!sceneDocument_.setValue(std::move(target), std::move(value), continuous,
-                               error))
+                               error)) {
+    syncEditorDiagnostic();
     return false;
+  }
+  workspaceOperationError_.clear();
   syncChangedEntity();
+  syncEditorDiagnostic();
   return true;
 }
 
+bool EditorWorkspace::removeValue(SceneValueTarget target, std::string &error) {
+  return mutateAndRebuild(
+      [target = std::move(target)](EditorSceneDocument &document,
+                                   std::string &mutationError) mutable {
+        return document.removeValue(std::move(target), mutationError);
+      },
+      error);
+}
+
 bool EditorWorkspace::createEntity(std::string &error) {
-  if (!sceneDocument_.createEntity(error))
-    return false;
-  if (!rebuildWorld(error))
+  if (!mutateAndRebuild(
+          [](EditorSceneDocument &document, std::string &mutationError) {
+            return document.createEntity(mutationError);
+          },
+          error))
     return false;
   selectEntity(std::string(sceneDocument_.lastChangedEntityId()));
   return true;
@@ -118,9 +168,12 @@ bool EditorWorkspace::createEntity(std::string &error) {
 
 bool EditorWorkspace::deleteEntity(const std::string_view id,
                                    std::string &error) {
-  if (!sceneDocument_.deleteEntity(id, error))
-    return false;
-  if (!rebuildWorld(error))
+  if (!mutateAndRebuild(
+          [id = std::string(id)](EditorSceneDocument &document,
+                                 std::string &mutationError) {
+            return document.deleteEntity(id, mutationError);
+          },
+          error))
     return false;
   if (selectedEntity() == nullptr)
     selectedEntityId_.clear();
@@ -130,16 +183,22 @@ bool EditorWorkspace::deleteEntity(const std::string_view id,
 bool EditorWorkspace::reparentEntity(const std::string_view id,
                                      std::optional<std::string> newParent,
                                      std::string &error) {
-  if (!sceneDocument_.reparent(id, std::move(newParent), error))
-    return false;
-  return rebuildWorld(error);
+  return mutateAndRebuild(
+      [id = std::string(id), newParent = std::move(newParent)](
+          EditorSceneDocument &document, std::string &mutationError) mutable {
+        return document.reparent(id, std::move(newParent), mutationError);
+      },
+      error);
 }
 
 bool EditorWorkspace::duplicateEntity(const std::string_view id,
                                       std::string &error) {
-  if (!sceneDocument_.duplicateEntity(id, error))
-    return false;
-  if (!rebuildWorld(error))
+  if (!mutateAndRebuild(
+          [id = std::string(id)](EditorSceneDocument &document,
+                                 std::string &mutationError) {
+            return document.duplicateEntity(id, mutationError);
+          },
+          error))
     return false;
   selectEntity(std::string(sceneDocument_.lastChangedEntityId()));
   return true;
@@ -148,17 +207,42 @@ bool EditorWorkspace::duplicateEntity(const std::string_view id,
 bool EditorWorkspace::addComponent(const std::string_view id,
                                    const std::string_view componentName,
                                    std::string &error) {
-  if (!sceneDocument_.addComponent(id, componentName, error))
-    return false;
-  return rebuildWorld(error);
+  return mutateAndRebuild(
+      [id = std::string(id), componentName = std::string(componentName)](
+          EditorSceneDocument &document, std::string &mutationError) {
+        return document.addComponent(id, componentName, mutationError);
+      },
+      error);
 }
 
 bool EditorWorkspace::removeComponent(const std::string_view id,
                                       const std::string_view componentName,
                                       std::string &error) {
-  if (!sceneDocument_.removeComponent(id, componentName, error))
+  return mutateAndRebuild(
+      [id = std::string(id), componentName = std::string(componentName)](
+          EditorSceneDocument &document, std::string &mutationError) {
+        return document.removeComponent(id, componentName, mutationError);
+      },
+      error);
+}
+
+bool EditorWorkspace::mutateAndRebuild(
+    const std::function<bool(EditorSceneDocument &, std::string &)> &mutation,
+    std::string &error) {
+  EditorSceneDocument before = sceneDocument_;
+  if (!mutation(sceneDocument_, error)) {
+    syncEditorDiagnostic();
     return false;
-  return rebuildWorld(error);
+  }
+  if (!rebuildWorld(error)) {
+    sceneDocument_ = std::move(before);
+    workspaceOperationError_ = error;
+    syncEditorDiagnostic();
+    return false;
+  }
+  workspaceOperationError_.clear();
+  syncEditorDiagnostic();
+  return true;
 }
 
 void EditorWorkspace::syncChangedEntity() {
@@ -179,9 +263,9 @@ void EditorWorkspace::syncChangedEntity() {
 }
 
 bool EditorWorkspace::rebuildWorld(std::string &error) {
-  auto world = runtime::loadSceneDocument(project_->project,
-                                          project_->project.mainScene,
-                                          sceneDocument_.json(), error);
+  auto world =
+      runtime::loadSceneDocument(project_->project, project_->project.mainScene,
+                                 sceneDocument_.json(), error);
   if (!world)
     return false;
   project_->world = std::move(*world);
@@ -191,6 +275,26 @@ bool EditorWorkspace::rebuildWorld(std::string &error) {
 void EditorWorkspace::refreshDiagnostics() {
   const ValidationSummary summary = validatePath(projectPath_.parent_path());
   diagnostics_ = summary.diagnostics;
+  syncEditorDiagnostic();
+}
+
+void EditorWorkspace::syncEditorDiagnostic() {
+  std::erase_if(diagnostics_, [](const Diagnostic &diagnostic) {
+    return diagnostic.code == "EDITOR_SCENE_EDIT_REJECTED" ||
+           diagnostic.code == "EDITOR_PREVIEW_REBUILD_FAILED";
+  });
+  if (const auto &issue = sceneDocument_.issue(); issue.has_value()) {
+    diagnostics_.push_back({.severity = Severity::Error,
+                            .code = "EDITOR_SCENE_EDIT_REJECTED",
+                            .message = issue->message,
+                            .path = sceneDocument_.path().string()});
+  }
+  if (!workspaceOperationError_.empty()) {
+    diagnostics_.push_back({.severity = Severity::Error,
+                            .code = "EDITOR_PREVIEW_REBUILD_FAILED",
+                            .message = workspaceOperationError_,
+                            .path = sceneDocument_.path().string()});
+  }
 }
 
 const runtime::Entity *EditorWorkspace::selectedEntity() const {

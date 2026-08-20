@@ -8,9 +8,9 @@
 #include <string>
 
 using demi::runtime::InputState;
+using demi::runtime::platform::createSdlPlatformHost;
 using demi::runtime::platform::PlatformHostConfig;
 using demi::runtime::platform::WindowMode;
-using demi::runtime::platform::createSdlPlatformHost;
 using demi::runtime::render::BgfxGraphicsDevice;
 using demi::runtime::render::GraphicsApi;
 using demi::runtime::render::GraphicsDeviceConfig;
@@ -21,8 +21,7 @@ void invalidConfigurationIsRejected() {
   auto host = createSdlPlatformHost();
   std::string error;
   assert(!host->initialize(
-      PlatformHostConfig{.title = "invalid", .width = 0, .height = 1},
-      error));
+      PlatformHostConfig{.title = "invalid", .width = 0, .height = 1}, error));
   assert(!error.empty());
   host->shutdown();
 }
@@ -31,11 +30,10 @@ void lifecycleAndEventTranslationWorkWithoutAGpu() {
   assert(setenv("SDL_VIDEODRIVER", "dummy", 1) == 0);
   auto host = createSdlPlatformHost();
   std::string error;
-  assert(host->initialize(
-      PlatformHostConfig{.title = "Demi platform test",
-                         .width = 320,
-                         .height = 180},
-      error));
+  assert(host->initialize(PlatformHostConfig{.title = "Demi platform test",
+                                             .width = 320,
+                                             .height = 180},
+                          error));
   assert(host->frameState().width == 320);
   assert(host->frameState().height == 180);
   assert(!host->initialize(PlatformHostConfig{}, error));
@@ -53,6 +51,15 @@ void lifecycleAndEventTranslationWorkWithoutAGpu() {
   assert(input.keysPressed.contains("w"));
 
   event = {};
+  event.type = SDL_EVENT_KEY_DOWN;
+  event.key.type = SDL_EVENT_KEY_DOWN;
+  event.key.scancode = SDL_SCANCODE_LALT;
+  event.key.down = true;
+  assert(SDL_PushEvent(&event));
+  host->poll(input);
+  assert(input.keysDown.contains("left alt"));
+
+  event = {};
   event.type = SDL_EVENT_KEY_UP;
   event.key.type = SDL_EVENT_KEY_UP;
   event.key.scancode = SDL_SCANCODE_W;
@@ -63,12 +70,11 @@ void lifecycleAndEventTranslationWorkWithoutAGpu() {
   assert(input.keysReleased.contains("w"));
 
   BgfxGraphicsDevice graphics;
-  assert(graphics.initialize(
-      GraphicsDeviceConfig{.api = GraphicsApi::Noop,
-                           .width = 320,
-                           .height = 180,
-                           .vsync = false},
-      error));
+  assert(graphics.initialize(GraphicsDeviceConfig{.api = GraphicsApi::Noop,
+                                                  .width = 320,
+                                                  .height = 180,
+                                                  .vsync = false},
+                             error));
   graphics.beginFrame(0x112233ff);
   const std::uint32_t submittedFrame = graphics.endFrame();
   (void)submittedFrame;

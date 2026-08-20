@@ -5,6 +5,8 @@
 #include <memory>
 #include <string>
 
+#include "editor/EditorSceneViewState.h"
+
 namespace demi::runtime {
 struct World;
 }
@@ -34,7 +36,10 @@ public:
                     std::string &error) = 0;
   [[nodiscard]] virtual bool renderViewport(const runtime::World &world,
                                             EditorViewportArea area,
+                                            const EditorSceneViewCamera &camera,
                                             std::string &error) = 0;
+  [[nodiscard]] virtual bool setViewportInputCaptured(bool captured,
+                                                      std::string &error) = 0;
   virtual void endFrame() = 0;
   [[nodiscard]] virtual bool shouldClose() const = 0;
   [[nodiscard]] virtual int width() const = 0;

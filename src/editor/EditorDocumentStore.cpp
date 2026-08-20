@@ -59,21 +59,68 @@ bool EditorDocumentStore::read(const std::filesystem::path &path,
   return EditorDocumentStore::revision(path, revision, error);
 }
 
-bool EditorDocumentStore::writeIfUnchanged(const std::filesystem::path &path,
-                                           const std::string &text,
-                                           const FileRevision &expected,
-                                           FileRevision &revision,
-                                           std::string &error) const {
+DocumentWriteStatus EditorDocumentStore::writeIfUnchanged(
+    const std::filesystem::path &path, const std::string &text,
+    const FileRevision &expected, FileRevision &revision,
+    std::string &error) const {
   FileRevision current;
-  if (!EditorDocumentStore::revision(path, current, error))
-    return false;
+  if (!EditorDocumentStore::revision(path, current, error)) {
+    std::error_code filesystemError;
+    if (!std::filesystem::exists(path, filesystemError) && !filesystemError) {
+      error = "The scene was removed from disk. Reload it or save your changes "
+              "to a new file.";
+      return DocumentWriteStatus::Conflict;
+    }
+    return DocumentWriteStatus::Failed;
+  }
   if (current != expected) {
-    error = "The scene changed on disk. Refresh before saving or preserve your "
-            "changes elsewhere.";
-    return false;
+    error = "The scene changed on disk. Choose whether to reload it, keep the "
+            "in-memory version, or save a copy.";
+    return DocumentWriteStatus::Conflict;
   }
 
+  if (!writeAtomically(path, text, error))
+    return DocumentWriteStatus::Failed;
+  if (!EditorDocumentStore::revision(path, revision, error))
+    return DocumentWriteStatus::Failed;
+  return DocumentWriteStatus::Written;
+}
+
+bool EditorDocumentStore::writeNew(const std::filesystem::path &path,
+                                   const std::string &text,
+                                   std::string &error) const {
+  std::error_code filesystemError;
+  const bool exists = std::filesystem::exists(path, filesystemError);
+  if (filesystemError) {
+    error = "Could not inspect the copy destination: " +
+            filesystemError.message();
+    return false;
+  }
+  if (exists) {
+    error = "The copy destination already exists; choose a new path.";
+    return false;
+  }
+  return writeAtomically(path, text, error);
+}
+
+bool EditorDocumentStore::writeAtomically(const std::filesystem::path &path,
+                                          const std::string &text,
+                                          std::string &error) {
   const std::filesystem::path temporary = path.string() + ".demi-editor.tmp";
+  std::error_code statusError;
+  const std::filesystem::file_status temporaryStatus =
+      std::filesystem::symlink_status(temporary, statusError);
+  if (statusError &&
+      statusError != std::errc::no_such_file_or_directory) {
+    error = "Could not inspect the temporary scene file: " +
+            statusError.message();
+    return false;
+  }
+  if (!statusError && std::filesystem::exists(temporaryStatus) &&
+      !std::filesystem::is_regular_file(temporaryStatus)) {
+    error = "The temporary scene path is not a regular file.";
+    return false;
+  }
   {
     std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
     if (!output) {
@@ -83,6 +130,9 @@ bool EditorDocumentStore::writeIfUnchanged(const std::filesystem::path &path,
     output << text;
     output.flush();
     if (!output) {
+      output.close();
+      std::error_code cleanupError;
+      std::filesystem::remove(temporary, cleanupError);
       error = "Could not finish writing the temporary scene file.";
       return false;
     }
@@ -97,7 +147,7 @@ bool EditorDocumentStore::writeIfUnchanged(const std::filesystem::path &path,
         "Could not replace the scene atomically: " + filesystemError.message();
     return false;
   }
-  return EditorDocumentStore::revision(path, revision, error);
+  return true;
 }
 
 } // namespace demi::editor

@@ -1590,8 +1590,12 @@ ImGui workspace. It loads real projects, shows the scene hierarchy, generates
 editable fields from component metadata, browses authored sources, and reports
 shared CLI diagnostics. Scene field edits use reversible stable-ID commands,
 continuous edits coalesce, deterministic atomic saves reject external-change
-conflicts, the authored 3D scene renders through the normal bgfx renderer, and
-Play/Pause/Stop control an owned normal runtime process. Structural create/
+conflicts and present explicit Reload/Keep/Save Copy/Cancel choices, optional
+field presence round-trips through undo, rejected edits share inline/Console
+diagnostics, the authored 3D scene renders through the normal bgfx renderer,
+an independent non-authored scene camera provides focused orbit/pan/zoom/fly,
+frame-selected, projection, reset, and align-to-camera controls, and Play/Pause/
+Stop control an owned normal runtime process. Structural create/
 delete/reparent/duplicate and component add/remove commands stage full-document
 validation through a shared in-memory scene validator, and the preview world
 rebuilds from the authored document through the shared loader. 2D preview,
@@ -1626,8 +1630,9 @@ shortcut is not acceptable when it violates one of them.
    inspector.
 6. **The editor reuses runtime rendering.** Scene and game views submit through
    the normal renderer, GPU resource owners, material/asset registry, transform
-   resolution, and debug extraction. Never implement an editor-only mesh,
-   camera, lighting, animation, or asset-loading path.
+   resolution, and debug extraction. The Scene view may own a transient camera
+   pose, but must not implement a second camera renderer, mesh, lighting,
+   animation, or asset-loading path.
 7. **Presentation never owns mutations or IO.** Panels collect user intent and
    display results. Documents validate and apply changes; the document store
    reads and writes files; runtime/platform adapters own rendering and child
@@ -1661,6 +1666,8 @@ responsibilities.
 | `EditorSceneJson` | Pure authored-scene JSON manipulation: entity/component lookup, subtree collection, stable-id generation, parent remapping | Document state, history, validation, persistence |
 | `EditorSceneCommand` | Reversible value-type command variant and its apply/revert | Validation, persistence, UI intent |
 | `EditorDocumentStore` | Reads, file revision/hash checks, same-directory temporary writes, atomic replacement | JSON semantics, command policy, UI conflict choices |
+| `EditorConflictPanel` | External-change modal presentation and transient Save Copy path input | Conflict policy, document mutation, direct filesystem writes |
+| `EditorSceneViewState` | Transient editor camera pose/projection/focus, viewport navigation capture, local/world mode, and snap settings | Authored scene mutation, ImGui input polling, renderer ownership |
 | `EditorUiHost` / `EditorUiHostBgfx` | SDL3/bgfx/Dear ImGui lifecycle, input forwarding, viewport rectangle submission, renderer adapter ownership | Authored data, undo history, editor business rules |
 | `EditorPlaySession` | Lifecycle of the exact runtime process/world owned by Play | Scene saving, UI state, unrelated child processes |
 | `EditorTheme` / `EditorPanelStyle` | Reusable visual tokens and panel chrome | Domain behavior or persistent project state |
@@ -1902,16 +1909,20 @@ Present: main-scene document, scalar/vector/color field commands, continuous
 coalescing, undo/redo, canonical dirty tracking, conflict-safe atomic save,
 and reusable create/delete/reparent/duplicate and component add/remove
 commands with staged full-document validation through a shared in-memory
-scene validator, plus focused document/workspace/command tests.
+scene validator. Optional-field insertion/removal preserves authored shape;
+external conflicts have explicit Reload/Keep/Save Copy/Cancel outcomes; failed
+preview rebuilds restore canonical JSON and both history stacks; focused tests
+cover missing/deleted files, stale temporaries, permissions, save/undo, reload,
+and every conflict outcome.
 
 Next:
 
-1. Represent optional-field insertion/removal without losing authored shape.
-2. Add an explicit external-change choice model before offering Keep/Reload;
-   add structural merge only if a deterministic tested algorithm exists.
-3. Generalize the document abstraction only when a second real format (prefab,
+1. Generalize the document abstraction only when a second real format (prefab,
    HUD, material, or data asset) is implemented. Do not create empty base
    classes in advance.
+2. Add structural merge only if a deterministic tested algorithm and clear
+   conflict presentation are implemented; it is not required by the current
+   safe choice model.
 
 Acceptance: every supported operation is atomic; invalid operations leave
 canonical content and both history stacks unchanged; save/reload/conflict tests
@@ -1922,14 +1933,15 @@ cover success and failure paths.
 Present: parent-derived hierarchy, stable-ID selection, entity name/enabled/
 layer editing, metadata-generated boolean/integer/number/string/enum/vector/
 color fields, hierarchy create/duplicate/drag-reparent/subtree-delete controls,
-and inspector add/remove component controls driven by the descriptor catalog.
+inspector add/remove component controls driven by the descriptor catalog, and
+inline rejected-edit diagnostics mirrored in the Console.
 
 Next:
 
 1. Add a reference picker once the editor camera/selection affordances exist.
 2. Add metadata for reference pickers, documentation, restart/read-only policy,
    and canonical component defaults where missing.
-3. Add inline shared diagnostics and explicit mixed-value multi-selection.
+3. Add explicit mixed-value multi-selection.
 
 Acceptance: no component-specific switch is added to the generic inspector;
 hierarchy operations preserve stable references or reject with actionable
@@ -1937,15 +1949,19 @@ diagnostics; undo/redo restores hierarchy and source exactly.
 
 #### 8C. Authored scene views, selection, and gizmos — partial
 
-Present: authored 3D preview through the existing bgfx 3D renderer and a safe
-fallback camera.
+Present: authored 3D preview through the existing bgfx 3D renderer, with one
+independent non-authored editor camera initialized from the first enabled scene
+camera. Focused Alt+left orbit, middle pan, wheel zoom, right+WASDQE fly,
+frame-selected, projection, reset, and explicit align-to-camera actions are
+implemented. Camera state survives scene edits/refresh and never changes
+authored JSON; minimized/zero-size viewports skip renderer submission.
 
 Next:
 
-1. Add an independent editor camera with focused orbit/pan/fly controls.
-2. Add stable-ID picking, transform gizmos, local/world modes, and snapping.
-3. Add runtime-backed debug overlays and camera previews.
-4. Add the authored 2D scene view through the normal 2D renderer.
+1. Add stable-ID picking and transform gizmos using the existing scene-view
+   local/world and snap settings.
+2. Add runtime-backed debug overlays and camera previews.
+3. Add the authored 2D scene view through the normal 2D renderer.
 
 Acceptance: preview output uses the same asset/material/transform extraction as
 runtime; repeated open/resize/close leaks no GPU resources; parented transform

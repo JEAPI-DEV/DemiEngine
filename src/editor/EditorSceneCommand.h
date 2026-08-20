@@ -13,8 +13,8 @@ namespace demi::editor {
 
 struct SetValueCommand {
   SceneValueTarget target;
-  nlohmann::json before;
-  nlohmann::json after;
+  std::optional<nlohmann::json> before;
+  std::optional<nlohmann::json> after;
 };
 
 struct InsertEntityCommand {

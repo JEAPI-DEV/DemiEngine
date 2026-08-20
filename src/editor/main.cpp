@@ -94,8 +94,13 @@ int main(const int argc, char **argv) {
       return 1;
     }
     shell.draw(ui->width(), ui->height(), ui->rendererName());
+    if (!ui->setViewportInputCaptured(shell.viewportInputCaptured(), error)) {
+      shell.setNotice("Viewport input capture failed: " + error);
+    }
     if (viewportReady && !ui->renderViewport(workspace.project().world,
-                                             shell.viewportArea(), error)) {
+                                             shell.viewportArea(),
+                                             workspace.sceneView().camera(),
+                                             error)) {
       viewportReady = false;
       shell.setNotice("Viewport stopped: " + error);
     }
