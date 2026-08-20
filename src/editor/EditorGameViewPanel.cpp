@@ -82,7 +82,8 @@ void drawRuntimeHierarchy(const runtime::World &world, const ImVec2 position,
     selectedEntityId.clear();
   for (const runtime::Entity &entity : world.entities) {
     const std::string label = entity.name.empty() ? entity.id : entity.name;
-    if (ImGui::Selectable(label.c_str(), selectedEntityId == entity.id))
+    const std::string widgetLabel = label + "###runtime-entity-" + entity.id;
+    if (ImGui::Selectable(widgetLabel.c_str(), selectedEntityId == entity.id))
       selectedEntityId = entity.id;
   }
   ImGui::End();
