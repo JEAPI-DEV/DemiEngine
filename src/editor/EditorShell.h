@@ -1,5 +1,6 @@
 #pragma once
 
+#include "editor/EditorAssetsPanel.h"
 #include "editor/EditorConflictPanel.h"
 #include "editor/EditorGameViewPanel.h"
 #include "editor/EditorHierarchyPanel.h"
@@ -7,8 +8,6 @@
 #include "editor/EditorUiHost.h"
 #include "editor/EditorWorkspace.h"
 
-#include <array>
-#include <filesystem>
 #include <string>
 
 namespace demi::editor {
@@ -49,10 +48,9 @@ private:
   EditorPlaySession playSession_;
   EditorViewportArea viewportArea_;
   EditorViewportArea gameArea_;
+  EditorAssetsPanel assetsPanel_;
   EditorHierarchyPanel hierarchyPanel_;
   EditorConflictPanel conflictPanel_;
-  std::array<char, 128> assetFilter_{};
-  std::filesystem::path selectedSource_;
   std::string notice_;
   std::string selectedRuntimeEntityId_;
   bool wantsExit_ = false;

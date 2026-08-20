@@ -1900,10 +1900,45 @@ console/profiler | assets | build targets
 status bar
 ```
 
-Retain the restrained charcoal surfaces, fine separators, compact technical
-density, and violet selection/focus rail. Color communicates state: violet for
-selection/action, green for clean/ready, amber for dirty/warning, red for
-failure. Motion is limited to state feedback; do not add decorative animation.
+The Minimal Voxel editor reference supplied by the project owner is the
+authoritative appearance, not merely inspiration. The current flat Dear ImGui
+layout is a functional scaffold and must not become the visual baseline.
+Matching only its panel rectangles does not satisfy this contract.
+
+Retain the reference's restrained charcoal surfaces, subtle depth between
+toolbar/panel/canvas layers, fine separators, compact technical density, and
+violet selection. Color communicates state: violet for selection/action, green
+for clean/ready, amber for dirty/warning, and red for failure. Motion is limited
+to state feedback; do not add decorative animation.
+
+Concrete chrome requirements:
+
+- implement the second row as grouped command clusters with consistent square
+  hit targets and separators: file/history, Play, viewport tools, snapping,
+  visibility, configuration, and settings;
+- put Scene and Game tabs on the central document stage rather than representing
+  the switch as an unrelated global-toolbar text button;
+- give Hierarchy, Inspector, Console/Output/Profiler, Assets/Lua Console, and
+  Build explicit headers or tabs matching their responsibility;
+- keep the central render surface visually dominant and uninterrupted;
+- use a stable two-column Inspector property grid with compact vector/color/
+  reference editors and component sections quieter than the selected entity;
+- evolve Assets toward the reference's folder tree, breadcrumb/search bar, and
+  thumbnail/file grid during 8E; do not fake thumbnails or imported metadata;
+- keep engine/language context on the status bar's left and project, target,
+  state, and readiness on its right.
+
+The signature differentiator is the framed central stage: compact Scene/Game
+tabs and viewport tools sit immediately around the render surface while the
+supporting panels use quieter layered chrome. Avoid oversized text, decorative
+cards, rows of unrelated text buttons, loud full-width violet component bars,
+and enabled controls without connected behavior.
+
+The shared visual-alignment checkpoint is complete in `EditorTheme`,
+`EditorPanelStyle`, `EditorChrome`, `EditorToolbar`, `EditorAssetsPanel`, and
+`EditorShell`. Preserve that presentation boundary while adding the Milestone
+7/8E asset workflow surface; preview generation, profiler data, Lua Console
+behavior, and builds remain owned by their respective implementation slices.
 
 Interaction requirements:
 

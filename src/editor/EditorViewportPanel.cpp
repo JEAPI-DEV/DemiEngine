@@ -55,127 +55,8 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                    ImGuiWindowFlags_NoScrollbar |
                        ImGuiWindowFlags_NoScrollWithMouse |
                        ImGuiWindowFlags_NoBackground);
-  ImGui::TextUnformatted("SCENE VIEW");
-  ImGui::SameLine();
   const bool is2D =
       workspace.viewDimension() == EditorSceneViewDimension::TwoDimensional;
-  if (workspace.sceneDomain() == EditorSceneDomain::Mixed) {
-    if (ImGui::SmallButton(is2D ? "[2D]" : "2D"))
-      workspace.setViewDimension(EditorSceneViewDimension::TwoDimensional);
-    ImGui::SameLine();
-    if (ImGui::SmallButton(is2D ? "3D" : "[3D]"))
-      workspace.setViewDimension(EditorSceneViewDimension::ThreeDimensional);
-  } else if (is2D) {
-    ImGui::TextDisabled("2D");
-  } else {
-    auto &sceneView = workspace.sceneView();
-    const bool perspective =
-        sceneView.projection() == EditorProjection::Perspective;
-    if (ImGui::SmallButton(perspective ? "Perspective" : "Orthographic"))
-      sceneView.setProjection(perspective ? EditorProjection::Orthographic
-                                          : EditorProjection::Perspective);
-  }
-  ImGui::SameLine();
-  const auto operation = is2D ? workspace.viewportTool2D().operation()
-                              : workspace.viewportTool().operation();
-  const auto setOperation = [&](const EditorGizmoOperation value) {
-    if (is2D)
-      workspace.viewportTool2D().setOperation(value);
-    else
-      workspace.viewportTool().setOperation(value);
-  };
-  if (ImGui::SmallButton(operation == EditorGizmoOperation::Translate ? "[Move]"
-                                                                      : "Move"))
-    setOperation(EditorGizmoOperation::Translate);
-  ImGui::SameLine();
-  if (ImGui::SmallButton(operation == EditorGizmoOperation::Rotate ? "[Rotate]"
-                                                                   : "Rotate"))
-    setOperation(EditorGizmoOperation::Rotate);
-  ImGui::SameLine();
-  if (ImGui::SmallButton(operation == EditorGizmoOperation::Scale ? "[Scale]"
-                                                                  : "Scale"))
-    setOperation(EditorGizmoOperation::Scale);
-  ImGui::SameLine();
-  const bool local = is2D ? workspace.sceneView2D().transformSpace() ==
-                                EditorTransformSpace::Local
-                          : workspace.sceneView().transformSpace() ==
-                                EditorTransformSpace::Local;
-  if (ImGui::SmallButton(local ? "Local" : "World"))
-    if (is2D)
-      workspace.sceneView2D().setTransformSpace(
-          local ? EditorTransformSpace::World : EditorTransformSpace::Local);
-    else
-      workspace.sceneView().setTransformSpace(
-          local ? EditorTransformSpace::World : EditorTransformSpace::Local);
-  ImGui::SameLine();
-  if (ImGui::SmallButton("Frame selected")) {
-    if (is2D && workspace.selectedIsoGridCell())
-      (void)workspace.sceneView2D().frameGridCell(
-          workspace.project().world, *workspace.selectedIsoGridCell());
-    else if (is2D)
-      (void)workspace.sceneView2D().frameEntity(workspace.project().world,
-                                                workspace.selectedEntityId());
-    else
-      (void)workspace.sceneView().frameEntity(workspace.project().world,
-                                              workspace.selectedEntityId());
-  }
-  ImGui::SameLine();
-  if (ImGui::SmallButton("Align to camera")) {
-    if (is2D)
-      (void)workspace.sceneView2D().alignToFirstCamera(
-          workspace.project().world);
-    else
-      (void)workspace.sceneView().alignToFirstCamera(workspace.project().world);
-  }
-  ImGui::SameLine();
-  if (ImGui::SmallButton("Reset view")) {
-    if (is2D)
-      workspace.sceneView2D().reset(workspace.project().world);
-    else
-      workspace.sceneView().reset(workspace.project().world);
-  }
-  ImGui::Separator();
-  float &translationSnap = is2D ? workspace.sceneView2D().translationSnap
-                                : workspace.sceneView().translationSnap;
-  float &rotationSnap = is2D ? workspace.sceneView2D().rotationSnapDegrees
-                             : workspace.sceneView().rotationSnapDegrees;
-  float &scaleSnap = is2D ? workspace.sceneView2D().scaleSnap
-                          : workspace.sceneView().scaleSnap;
-  ImGui::TextDisabled("Snap");
-  ImGui::SameLine();
-  ImGui::SetNextItemWidth(58.0F);
-  if (ImGui::InputFloat("##position-snap", &translationSnap, 0.0F, 0.0F,
-                        "P %.1f"))
-    translationSnap = std::clamp(translationSnap, 0.0F, 1000.0F);
-  ImGui::SameLine();
-  ImGui::SetNextItemWidth(64.0F);
-  if (ImGui::InputFloat("##rotation-snap", &rotationSnap, 0.0F, 0.0F, "R %.0f"))
-    rotationSnap = std::clamp(rotationSnap, 0.0F, 180.0F);
-  ImGui::SameLine();
-  ImGui::SetNextItemWidth(58.0F);
-  if (ImGui::InputFloat("##scale-snap", &scaleSnap, 0.0F, 0.0F, "S %.2f"))
-    scaleSnap = std::clamp(scaleSnap, 0.0F, 100.0F);
-  ImGui::SameLine();
-  bool &showBounds = is2D ? workspace.sceneView2D().showBounds
-                          : workspace.sceneView().showBounds;
-  bool &showColliders = is2D ? workspace.sceneView2D().showColliders
-                             : workspace.sceneView().showColliders;
-  bool &showCameras = is2D ? workspace.sceneView2D().showCameras
-                           : workspace.sceneView().showCameras;
-  ImGui::Checkbox("Bounds", &showBounds);
-  ImGui::SameLine();
-  ImGui::Checkbox("Colliders", &showColliders);
-  if (is2D) {
-    ImGui::SameLine();
-    ImGui::Checkbox("Grid", &workspace.sceneView2D().showGrid);
-  } else {
-    ImGui::SameLine();
-    ImGui::Checkbox("Lights", &workspace.sceneView().showLights);
-  }
-  ImGui::SameLine();
-  ImGui::Checkbox("Cameras", &showCameras);
-  ImGui::Separator();
-
   const ImVec2 canvasMin = ImGui::GetCursorScreenPos();
   const ImVec2 available = ImGui::GetContentRegionAvail();
   const float canvasWidth = std::max(available.x, 0.0F);
@@ -194,6 +75,19 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
             std::clamp(canvasHeight, 1.0F, 65535.0F))};
   }
   ImDrawList *draw = ImGui::GetWindowDrawList();
+  const char *viewLabel =
+      is2D ? "2D"
+      : workspace.sceneView().projection() == EditorProjection::Perspective
+          ? "Perspective"
+          : "Orthographic";
+  const ImVec2 badgeMin{canvasMin.x + 9.0F, canvasMin.y + 9.0F};
+  const ImVec2 badgeText = ImGui::CalcTextSize(viewLabel);
+  const ImVec2 badgeMax{badgeMin.x + badgeText.x + 18.0F,
+                        badgeMin.y + badgeText.y + 10.0F};
+  draw->AddRectFilled(badgeMin, badgeMax, IM_COL32(50, 57, 69, 235), 3.0F);
+  draw->AddRect(badgeMin, badgeMax, IM_COL32(80, 88, 103, 255), 3.0F);
+  draw->AddText({badgeMin.x + 9.0F, badgeMin.y + 5.0F},
+                IM_COL32(224, 227, 235, 255), viewLabel);
   if (is2D) {
     for (const EditorOverlayLine2D &line : buildEditorViewportOverlays2D(
              workspace.project().world, workspace.sceneView2D().camera(),
@@ -216,8 +110,8 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                                workspace.selectedIsoGridCell()->y)
       : selected == nullptr ? "No entity selected"
                             : "Selected: " + selected->name;
-  draw->AddText({canvasMin.x + 16.0F, canvasMin.y + 15.0F},
-                IM_COL32(224, 227, 235, 255), label.c_str());
+  draw->AddText({canvasMin.x + 14.0F, badgeMax.y + 10.0F},
+                IM_COL32(205, 209, 218, 255), label.c_str());
   if (canvasWidth >= 1.0F && canvasHeight >= 1.0F) {
     ImGui::InvisibleButton("viewport-canvas", {canvasWidth, canvasHeight});
     const bool hovered = ImGui::IsItemHovered();

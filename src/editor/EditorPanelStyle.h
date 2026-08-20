@@ -4,8 +4,8 @@
 
 namespace demi::editor {
 
-inline constexpr ImU32 EditorAccent = IM_COL32(139, 92, 246, 255);
-inline constexpr ImU32 EditorAccentSoft = IM_COL32(104, 72, 170, 170);
+inline constexpr ImU32 EditorAccent = IM_COL32(112, 78, 183, 255);
+inline constexpr ImU32 EditorAccentSoft = IM_COL32(88, 64, 140, 170);
 
 void beginEditorPanel(const char *id, ImVec2 position, ImVec2 size,
                       ImGuiWindowFlags additionalFlags = 0);

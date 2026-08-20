@@ -19,22 +19,11 @@ void drawEditorGameView(const EditorPlaySession &session, const ImVec2 position,
                    ImGuiWindowFlags_NoScrollbar |
                        ImGuiWindowFlags_NoScrollWithMouse |
                        ImGuiWindowFlags_NoBackground);
-  ImGui::TextUnformatted("GAME VIEW");
-  ImGui::SameLine();
   const ImVec4 stateColor = session.state() == EditorPlayState::Failed
                                 ? ImVec4{0.95F, 0.34F, 0.38F, 1.0F}
                             : session.state() == EditorPlayState::Paused
                                 ? ImVec4{0.95F, 0.72F, 0.30F, 1.0F}
                                 : ImVec4{0.35F, 0.85F, 0.55F, 1.0F};
-  ImGui::TextColored(
-      stateColor, "%.*s",
-      static_cast<int>(editorPlayStateLabel(session.state()).size()),
-      editorPlayStateLabel(session.state()).data());
-  if (session.mode() == EditorPlayMode::External) {
-    ImGui::SameLine();
-    ImGui::TextDisabled("External window");
-  }
-  ImGui::Separator();
   if (session.state() == EditorPlayState::Failed) {
     ImGui::TextColored({0.95F, 0.34F, 0.38F, 1.0F}, "Runtime failed");
     ImGui::TextWrapped("%.*s", static_cast<int>(session.failure().size()),
@@ -64,9 +53,19 @@ void drawEditorGameView(const EditorPlaySession &session, const ImVec2 position,
       ImGui::InvisibleButton("game-canvas", available);
     }
     focused = ImGui::IsWindowFocused();
+    ImDrawList *draw = ImGui::GetWindowDrawList();
+    const std::string_view state = editorPlayStateLabel(session.state());
+    const ImVec2 textSize =
+        ImGui::CalcTextSize(state.data(), state.data() + state.size());
+    const ImVec2 badgeMin{canvasMin.x + 9.0F, canvasMin.y + 9.0F};
+    const ImVec2 badgeMax{badgeMin.x + textSize.x + 18.0F,
+                          badgeMin.y + textSize.y + 10.0F};
+    draw->AddRectFilled(badgeMin, badgeMax, IM_COL32(36, 39, 47, 235), 3.0F);
+    draw->AddText({badgeMin.x + 9.0F, badgeMin.y + 5.0F},
+                  ImGui::ColorConvertFloat4ToU32(stateColor), state.data(),
+                  state.data() + state.size());
     if (!session.isEmbedded()) {
-      ImDrawList *draw = ImGui::GetWindowDrawList();
-      draw->AddText({canvasMin.x + 18.0F, canvasMin.y + 18.0F},
+      draw->AddText({canvasMin.x + 18.0F, canvasMin.y + 52.0F},
                     IM_COL32(145, 149, 162, 255),
                     "Start embedded Play to render the game here.");
     }

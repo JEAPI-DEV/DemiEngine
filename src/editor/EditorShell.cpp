@@ -1,7 +1,9 @@
 #include "editor/EditorShell.h"
 
+#include "editor/EditorChrome.h"
 #include "editor/EditorInspectorPanel.h"
 #include "editor/EditorPanelStyle.h"
+#include "editor/EditorToolbar.h"
 #include "editor/EditorViewportPanel.h"
 
 #include "demi/core/Version.h"
@@ -11,28 +13,11 @@
 #include <imgui.h>
 
 #include <algorithm>
-#include <array>
-#include <cctype>
-#include <filesystem>
 #include <string>
 #include <string_view>
 
 namespace demi::editor {
 namespace {
-
-bool containsCaseInsensitive(const std::string_view value,
-                             const std::string_view filter) {
-  if (filter.empty())
-    return true;
-  const auto lower = [](const unsigned char character) {
-    return static_cast<char>(std::tolower(character));
-  };
-  std::string haystack(value);
-  std::string needle(filter);
-  std::ranges::transform(haystack, haystack.begin(), lower);
-  std::ranges::transform(needle, needle.begin(), lower);
-  return haystack.find(needle) != std::string::npos;
-}
 
 void drawConsole(EditorWorkspace &workspace, const ImVec2 position,
                  const ImVec2 size) {
@@ -62,82 +47,15 @@ void drawConsole(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::End();
 }
 
-const char *sourceKindLabel(const std::filesystem::path &path) {
-  switch (classifySourceFile(path)) {
-  case SourceFileKind::Project:
-    return "PROJECT";
-  case SourceFileKind::Scene:
-    return "SCENE";
-  case SourceFileKind::Hud:
-    return "HUD";
-  case SourceFileKind::Asset:
-    return "ASSET";
-  case SourceFileKind::AssetGroup:
-    return "GROUP";
-  case SourceFileKind::Prefab:
-    return "PREFAB";
-  case SourceFileKind::UiPrefab:
-    return "UI";
-  case SourceFileKind::InputReplay:
-    return "REPLAY";
-  case SourceFileKind::Package:
-    return "PACKAGE";
-  case SourceFileKind::Save:
-    return "SAVE";
-  case SourceFileKind::Unknown:
-    return "FILE";
-  }
-  return "FILE";
-}
-
-void drawAssets(EditorWorkspace &workspace, const ImVec2 position,
-                const ImVec2 size, std::array<char, 128> &filter,
-                std::filesystem::path &selectedSource, std::string &notice) {
-  beginEditorPanel("Assets", position, size);
-  editorSectionTitle("ASSETS", "authored sources");
-  ImGui::SetNextItemWidth(-1.0F);
-  ImGui::InputTextWithHint("##asset-search", "Search project sources",
-                           filter.data(), filter.size());
-  if (!selectedSource.empty()) {
-    std::error_code error;
-    const auto relative = std::filesystem::relative(
-        selectedSource, workspace.project().project.projectDirectory, error);
-    ImGui::TextDisabled("Selected: %s",
-                        (error ? selectedSource.filename() : relative)
-                            .generic_string()
-                            .c_str());
-  }
-  ImGui::BeginChild("asset-list", {0.0F, 0.0F}, ImGuiChildFlags_None);
-  for (const std::filesystem::path &source : workspace.sources()) {
-    const auto relative = std::filesystem::relative(
-        source, workspace.project().project.projectDirectory);
-    const std::string display = relative.generic_string();
-    if (!containsCaseInsensitive(display, filter.data()))
-      continue;
-    ImGui::PushID(display.c_str());
-    ImGui::TextColored({0.54F, 0.40F, 0.85F, 1.0F}, "%s",
-                       sourceKindLabel(source));
-    ImGui::SameLine(76.0F);
-    if (ImGui::Selectable(display.c_str(), selectedSource == source,
-                          ImGuiSelectableFlags_SpanAllColumns)) {
-      selectedSource = source;
-      notice = "Selected project source: " + display;
-    }
-    if (ImGui::IsItemHovered())
-      ImGui::SetTooltip("%s", source.string().c_str());
-    ImGui::PopID();
-  }
-  ImGui::EndChild();
-  ImGui::End();
-}
-
 void drawBuild(const ImVec2 position, const ImVec2 size, bool &linuxTarget,
                bool &androidTarget) {
   beginEditorPanel("Build", position, size);
-  editorSectionTitle("BUILD TARGETS");
+  editorSectionTitle("Build");
+  ImGui::TextDisabled("Targets");
   ImGui::Checkbox("Linux (64-bit)", &linuxTarget);
   ImGui::Checkbox("Android (ARM64)", &androidTarget);
-  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::TextDisabled("Build Settings");
   ImGui::TextDisabled("Configuration");
   ImGui::SameLine();
   ImGui::TextUnformatted("Debug");
@@ -145,6 +63,21 @@ void drawBuild(const ImVec2 position, const ImVec2 size, bool &linuxTarget,
   disabledEditorButton("Build Project",
                        "Build command execution is not connected yet.",
                        {-1.0F, 30.0F});
+  ImGui::End();
+}
+
+void drawStageTabs(const ImVec2 position, const ImVec2 size,
+                   bool &showGameView) {
+  beginEditorPanel("StageTabs", position, size,
+                   ImGuiWindowFlags_NoScrollbar |
+                       ImGuiWindowFlags_NoScrollWithMouse);
+  if (editorStageTab("Viewport", !showGameView))
+    showGameView = false;
+  ImGui::SameLine(0.0F, 2.0F);
+  if (editorStageTab("Game View", showGameView))
+    showGameView = true;
+  ImGui::SameLine(size.x - 22.0F);
+  ImGui::TextDisabled("x");
   ImGui::End();
 }
 
@@ -198,105 +131,10 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size, bool &wantsExit,
   ImGui::End();
 }
 
-void drawToolbar(const ImVec2 position, const ImVec2 size,
-                 EditorWorkspace &workspace, EditorPlaySession &playSession,
-                 bool &showGameView, bool &stepRequested, std::string &notice) {
-  beginEditorPanel("Toolbar", position, size, ImGuiWindowFlags_NoScrollbar);
-  if (ImGui::Button("Refresh")) {
-    std::string error;
-    notice = workspace.refresh(error) ? "Project refreshed" : error;
-  }
-  ImGui::SameLine();
-  ImGui::BeginDisabled(!workspace.sceneDocument().isDirty());
-  if (ImGui::Button("Save")) {
-    std::string error;
-    notice = workspace.save(error) ? "Scene saved" : error;
-  }
-  ImGui::EndDisabled();
-  ImGui::SameLine(170.0F);
-  ImGui::BeginDisabled(!workspace.sceneDocument().canUndo());
-  if (ImGui::Button("Undo")) {
-    std::string error;
-    notice = workspace.undo(error) ? "Undid scene edit" : error;
-  }
-  ImGui::EndDisabled();
-  ImGui::SameLine();
-  ImGui::BeginDisabled(!workspace.sceneDocument().canRedo());
-  if (ImGui::Button("Redo")) {
-    std::string error;
-    notice = workspace.redo(error) ? "Redid scene edit" : error;
-  }
-  ImGui::EndDisabled();
-  const float center = size.x * 0.5F - 88.0F;
-  ImGui::SameLine(std::max(center, ImGui::GetCursorPosX() + 20.0F));
-  ImGui::PushStyleColor(ImGuiCol_Button, {0.31F, 0.21F, 0.52F, 1.0F});
-  ImGui::BeginDisabled(playSession.isRunning() ||
-                       playSession.state() == EditorPlayState::Starting);
-  if (ImGui::Button("Play")) {
-    std::string error;
-    if (workspace.sceneDocument().isDirty() && !workspace.save(error)) {
-      notice = error;
-    } else if (playSession.startEmbedded(workspace.projectPath(), error)) {
-      notice = "Embedded play session started";
-      showGameView = true;
-    } else {
-      notice = error;
-    }
-  }
-  ImGui::EndDisabled();
-  ImGui::PopStyleColor();
-  ImGui::SameLine();
-  ImGui::BeginDisabled(!playSession.isRunning());
-  if (ImGui::Button(playSession.isPaused() ? "Resume" : "Pause")) {
-    std::string error;
-    notice = playSession.togglePause(error)
-                 ? (playSession.isPaused() ? "Play session paused"
-                                           : "Play session resumed")
-                 : error;
-  }
-  ImGui::EndDisabled();
-  ImGui::SameLine();
-  ImGui::BeginDisabled(!playSession.isEmbedded() || !playSession.isPaused());
-  if (ImGui::Button("Step"))
-    stepRequested = true;
-  ImGui::EndDisabled();
-  ImGui::SameLine();
-  ImGui::BeginDisabled(!playSession.isRunning());
-  if (ImGui::Button("Stop")) {
-    playSession.stop();
-    notice = "Play session stopped";
-  }
-  ImGui::EndDisabled();
-  ImGui::SameLine();
-  if (ImGui::SmallButton(showGameView ? "Scene" : "Game"))
-    showGameView = !showGameView;
-  ImGui::SameLine();
-  if (ImGui::SmallButton("..."))
-    ImGui::OpenPopup("play-options");
-  if (ImGui::BeginPopup("play-options")) {
-    ImGui::BeginDisabled(playSession.isRunning());
-    if (ImGui::MenuItem("Play in external window")) {
-      std::string error;
-      if (workspace.sceneDocument().isDirty() && !workspace.save(error))
-        notice = error;
-      else if (playSession.startExternal(workspace.projectPath(), error))
-        notice = "External play session started";
-      else
-        notice = error;
-    }
-    ImGui::EndDisabled();
-    ImGui::EndPopup();
-  }
-  ImGui::SameLine(size.x - 205.0F);
-  const std::string_view state = editorPlayStateLabel(playSession.state());
-  ImGui::TextDisabled("Runtime: %.*s", static_cast<int>(state.size()),
-                      state.data());
-  ImGui::End();
-}
-
 void drawStatus(EditorWorkspace &workspace, const ImVec2 position,
                 const ImVec2 size, const std::string_view renderer,
-                const std::string &notice) {
+                const std::string &notice, const bool linuxTarget,
+                const bool androidTarget) {
   beginEditorPanel("Status", position, size,
                    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs);
   ImDrawList *draw = ImGui::GetWindowDrawList();
@@ -305,15 +143,26 @@ void drawStatus(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::SetCursorPosX(20.0F);
   ImGui::Text("%s %s", EngineName.data(), EngineVersion.data());
   ImGui::SameLine(190.0F);
-  ImGui::TextDisabled("%.*s", static_cast<int>(renderer.size()),
+  ImGui::TextDisabled("Lua Scripting");
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("Renderer: %.*s", static_cast<int>(renderer.size()),
                       renderer.data());
   if (!notice.empty()) {
     ImGui::SameLine(360.0F);
     ImGui::TextDisabled("%s", notice.c_str());
   }
   const std::string project = "Project: " + workspace.project().project.name;
-  ImGui::SameLine(std::max(size.x - 390.0F, 420.0F));
+  const std::string target = linuxTarget && androidTarget
+                                 ? "Target: Linux, Android"
+                             : linuxTarget   ? "Target: Linux"
+                             : androidTarget ? "Target: Android"
+                                             : "No target";
+  ImGui::SameLine(std::max(size.x - 520.0F, 420.0F));
   ImGui::TextDisabled("%s", project.c_str());
+  ImGui::SameLine();
+  ImGui::TextDisabled("|");
+  ImGui::SameLine();
+  ImGui::TextDisabled("%s", target.c_str());
   ImGui::SameLine(size.x - 105.0F);
   if (workspace.sceneDocument().isDirty())
     ImGui::TextColored({0.95F, 0.67F, 0.28F, 1.0F}, "Modified");
@@ -352,8 +201,9 @@ void EditorShell::draw(const int width, const int height,
 
   const float screenWidth = static_cast<float>(width);
   const float screenHeight = static_cast<float>(height);
-  constexpr float menuHeight = 30.0F;
-  constexpr float toolbarHeight = 48.0F;
+  constexpr float menuHeight = 32.0F;
+  constexpr float toolbarHeight = 52.0F;
+  constexpr float stageTabsHeight = 31.0F;
   constexpr float statusHeight = 27.0F;
   const float leftWidth = std::clamp(screenWidth * 0.195F, 240.0F, 340.0F);
   const float rightWidth = std::clamp(screenWidth * 0.225F, 285.0F, 405.0F);
@@ -370,8 +220,9 @@ void EditorShell::draw(const int width, const int height,
       std::max(280.0F, screenWidth - consoleWidth - rightWidth - buildWidth);
 
   drawMenu(workspace_, {screenWidth, menuHeight}, wantsExit_, notice_);
-  drawToolbar({0.0F, menuHeight}, {screenWidth, toolbarHeight}, workspace_,
-              playSession_, showGameView_, stepRequested_, notice_);
+  drawEditorToolbar({0.0F, menuHeight}, {screenWidth, toolbarHeight},
+                    workspace_, playSession_, showGameView_, stepRequested_,
+                    notice_);
   const runtime::World *runtimeWorld = playSession_.runtimeWorld();
   const bool runtimePanels = showGameView_ && runtimeWorld != nullptr;
   if (runtimePanels)
@@ -380,16 +231,19 @@ void EditorShell::draw(const int width, const int height,
   else
     hierarchyPanel_.draw(workspace_, {0.0F, contentTop},
                          {leftWidth, upperHeight}, notice_);
+  drawStageTabs({leftWidth, contentTop}, {centerWidth, stageTabsHeight},
+                showGameView_);
+  const ImVec2 stagePosition{leftWidth, contentTop + stageTabsHeight};
+  const ImVec2 stageSize{centerWidth, upperHeight - stageTabsHeight};
   if (showGameView_) {
     viewportArea_ = {};
-    drawEditorGameView(playSession_, {leftWidth, contentTop},
-                       {centerWidth, upperHeight}, gameTextureIndex_, gameArea_,
-                       gameViewFocused_);
+    drawEditorGameView(playSession_, stagePosition, stageSize,
+                       gameTextureIndex_, gameArea_, gameViewFocused_);
   } else {
     gameArea_ = {};
     gameViewFocused_ = false;
-    drawEditorViewport(workspace_, {leftWidth, contentTop},
-                       {centerWidth, upperHeight}, viewportArea_, notice_);
+    drawEditorViewport(workspace_, stagePosition, stageSize, viewportArea_,
+                       notice_);
   }
   if (runtimePanels)
     drawRuntimeInspector(*runtimeWorld, {screenWidth - rightWidth, contentTop},
@@ -400,13 +254,12 @@ void EditorShell::draw(const int width, const int height,
                        {rightWidth, contentBottom - contentTop}, notice_);
   drawConsole(workspace_, {0.0F, contentTop + upperHeight},
               {consoleWidth, bottomHeight});
-  drawAssets(workspace_, {consoleWidth, contentTop + upperHeight},
-             {assetsWidth, bottomHeight}, assetFilter_, selectedSource_,
-             notice_);
+  assetsPanel_.draw(workspace_, {consoleWidth, contentTop + upperHeight},
+                    {assetsWidth, bottomHeight}, notice_);
   drawBuild({consoleWidth + assetsWidth, contentTop + upperHeight},
             {buildWidth, bottomHeight}, linuxTarget_, androidTarget_);
   drawStatus(workspace_, {0.0F, contentBottom}, {screenWidth, statusHeight},
-             rendererName, notice_);
+             rendererName, notice_, linuxTarget_, androidTarget_);
   conflictPanel_.draw(workspace_, notice_);
 }
 

@@ -1,5 +1,6 @@
 #include "editor/EditorInspectorPanel.h"
 
+#include "editor/EditorChrome.h"
 #include "editor/EditorInspectorModel.h"
 #include "editor/EditorIsoGridInspector.h"
 #include "editor/EditorPanelStyle.h"
@@ -411,8 +412,16 @@ void drawEntityHeader(EditorWorkspace &workspace, const nlohmann::json &entity,
 void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
                         const ImVec2 size, std::string &notice) {
   beginEditorPanel("Inspector", position, size);
-  editorSectionTitle("INSPECTOR",
-                     workspace.sceneDocument().isDirty() ? "Unsaved" : nullptr);
+  (void)editorStageTab("Inspector", true, {76.0F, 25.0F});
+  ImGui::SameLine(0.0F, 2.0F);
+  ImGui::BeginDisabled();
+  (void)editorStageTab("Lighting", false, {70.0F, 25.0F});
+  ImGui::EndDisabled();
+  if (workspace.sceneDocument().isDirty()) {
+    ImGui::SameLine(size.x - 68.0F);
+    ImGui::TextColored({0.95F, 0.67F, 0.28F, 1.0F}, "Unsaved");
+  }
+  ImGui::Separator();
   if (drawIsoGridCellInspector(workspace, notice)) {
     ImGui::End();
     return;
@@ -448,11 +457,23 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
       const char *title = descriptor == nullptr
                               ? name.c_str()
                               : descriptor->editor.displayName.data();
-      if (!ImGui::CollapsingHeader(title, ImGuiTreeNodeFlags_DefaultOpen))
-        continue;
       ImGui::PushID(name.c_str());
-      drawInlineIssue(workspace, {.entityId = selected->id, .component = name});
-      if (ImGui::SmallButton("Remove")) {
+      ImGui::PushStyleColor(ImGuiCol_Header, {0.115F, 0.119F, 0.139F, 1.0F});
+      ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
+                            {0.16F, 0.16F, 0.19F, 1.0F});
+      ImGui::PushStyleColor(ImGuiCol_HeaderActive, {0.19F, 0.17F, 0.24F, 1.0F});
+      const bool componentOpen =
+          ImGui::CollapsingHeader(title, ImGuiTreeNodeFlags_DefaultOpen);
+      ImGui::PopStyleColor(3);
+      ImGui::SameLine(ImGui::GetWindowWidth() - 36.0F);
+      if (ImGui::SmallButton("..."))
+        ImGui::OpenPopup("component-menu");
+      bool removeRequested = false;
+      if (ImGui::BeginPopup("component-menu")) {
+        removeRequested = ImGui::MenuItem("Remove component");
+        ImGui::EndPopup();
+      }
+      if (removeRequested) {
         std::string error;
         const bool removed =
             workspace.removeComponent(selected->id, name, error);
@@ -461,6 +482,11 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         ImGui::End();
         return;
       }
+      if (!componentOpen) {
+        ImGui::PopID();
+        continue;
+      }
+      drawInlineIssue(workspace, {.entityId = selected->id, .component = name});
       if (descriptor == nullptr || descriptor->fields.empty())
         drawGenericComponent(component);
       else

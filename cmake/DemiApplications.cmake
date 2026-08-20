@@ -83,6 +83,8 @@ else()
     demi-runtime-lib)
 
   add_library(demi-editor-ui STATIC
+    src/editor/EditorAssetsPanel.cpp
+    src/editor/EditorChrome.cpp
     src/editor/EditorConflictPanel.cpp
     src/editor/EditorGameRenderer.cpp
     src/editor/EditorGameViewPanel.cpp
@@ -94,6 +96,7 @@ else()
     src/editor/EditorShell.cpp
     src/editor/EditorStbRectPack.cpp
     src/editor/EditorTheme.cpp
+    src/editor/EditorToolbar.cpp
     src/editor/EditorUiHostBgfx.cpp
     src/editor/EditorViewportPanel.cpp
     "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui/imgui.cpp"

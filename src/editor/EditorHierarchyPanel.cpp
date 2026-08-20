@@ -1,5 +1,6 @@
 #include "editor/EditorHierarchyPanel.h"
 
+#include "editor/EditorChrome.h"
 #include "editor/EditorIsoGridCell.h"
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorWorkspace.h"
@@ -169,7 +170,8 @@ void drawPaintedCells(EditorWorkspace &workspace, const runtime::Entity &entity,
 
 void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
                     const runtime::World &world, const std::string_view filter,
-                    std::optional<HierarchyAction> &pending) {
+                    std::optional<HierarchyAction> &pending,
+                    std::string &notice) {
   const bool childMatch =
       std::ranges::any_of(world.entities, [&](const auto &candidate) {
         return entityParent(candidate) == entity.id &&
@@ -200,7 +202,27 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
       ImGui::TreeNodeEx(entity.id.c_str(), flags, "%s", entity.name.c_str());
   if (!entity.enabled)
     ImGui::PopStyleColor();
-  if (ImGui::IsItemClicked()) {
+  const ImVec2 rowMin = ImGui::GetItemRectMin();
+  const ImVec2 rowMax = ImGui::GetItemRectMax();
+  const ImVec2 visibilityCenter{rowMax.x - 13.0F, (rowMin.y + rowMax.y) * 0.5F};
+  const ImVec2 mouse = ImGui::GetIO().MousePos;
+  const bool overVisibility = mouse.x >= visibilityCenter.x - 10.0F &&
+                              mouse.x <= visibilityCenter.x + 10.0F &&
+                              mouse.y >= rowMin.y && mouse.y <= rowMax.y;
+  drawEditorGlyph(
+      *ImGui::GetWindowDrawList(), EditorIcon::Eye, visibilityCenter,
+      entity.enabled ? IM_COL32(169, 173, 183, 255) : IM_COL32(85, 88, 98, 255),
+      0.72F);
+  if (overVisibility)
+    ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+  if (overVisibility && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+    std::string error;
+    const bool changed =
+        workspace.editValue({.entityId = entity.id, .field = "enabled"},
+                            !entity.enabled, false, error);
+    notice = changed ? (entity.enabled ? "Entity disabled" : "Entity enabled")
+                     : error;
+  } else if (ImGui::IsItemClicked()) {
     if (ImGui::GetIO().KeyCtrl)
       workspace.toggleEntitySelection(entity.id);
     else
@@ -232,7 +254,7 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
   if (open) {
     for (const runtime::Entity &candidate : world.entities)
       if (entityParent(candidate) == entity.id)
-        drawEntityNode(workspace, candidate, world, filter, pending);
+        drawEntityNode(workspace, candidate, world, filter, pending, notice);
     drawPaintedCells(workspace, entity, filter, pending);
     ImGui::TreePop();
   }
@@ -244,7 +266,7 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
                                 const ImVec2 position, const ImVec2 size,
                                 std::string &notice) {
   beginEditorPanel("Hierarchy", position, size);
-  editorSectionTitle("SCENE", workspace.project().world.name.c_str());
+  editorSectionTitle("Scene", workspace.project().world.name.c_str());
   std::optional<HierarchyAction> pending;
   ImGui::SetNextItemWidth(-1.0F);
   ImGui::InputTextWithHint("##hierarchy-search", "Search entities",
@@ -262,7 +284,7 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
     for (const runtime::Entity &entity : workspace.project().world.entities)
       if (entityParent(entity).empty())
         drawEntityNode(workspace, entity, workspace.project().world,
-                       filter_.data(), pending);
+                       filter_.data(), pending, notice);
     ImGui::TreePop();
   }
 

@@ -6,7 +6,7 @@ namespace {
 constexpr ImGuiWindowFlags PanelFlags =
     ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
     ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
-    ImGuiWindowFlags_NoBringToFrontOnFocus;
+    ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoSavedSettings;
 
 } // namespace
 
@@ -15,11 +15,6 @@ void beginEditorPanel(const char *id, const ImVec2 position, const ImVec2 size,
   ImGui::SetNextWindowPos(position);
   ImGui::SetNextWindowSize(size);
   ImGui::Begin(id, nullptr, PanelFlags | additionalFlags);
-  if (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows)) {
-    ImDrawList *draw = ImGui::GetWindowDrawList();
-    const ImVec2 min = ImGui::GetWindowPos();
-    draw->AddRectFilled(min, {min.x + 3.0F, min.y + size.y}, EditorAccent);
-  }
 }
 
 void editorSectionTitle(const char *title, const char *detail) {

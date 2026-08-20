@@ -35,8 +35,14 @@ filesystem service used by `demi dev`.
   editing, Save Copy, and Cancel. The editor never overwrites the external
   version, and a failed preview rebuild restores the document and both history
   stacks.
-- The Assets panel lists authored project files while excluding generated,
-  build, package-cache, and Git internals.
+- The Assets panel presents authored project files in a folder tree and compact
+  file grid while excluding generated, build, package-cache, and Git internals.
+  Generic file glyphs remain intentionally honest until preview generation is
+  implemented by the asset-workflow milestone.
+- The shared shell now follows the Minimal Voxel visual contract: grouped icon
+  commands, central Viewport/Game View tabs, quiet charcoal panel chrome,
+  compact Inspector sections, hierarchy visibility controls, a dedicated
+  Build panel, and split engine/project status.
 - The Console displays diagnostics from the same `validatePath` service used by
   the CLI. Rejected authored edits also appear beside their Inspector target
   and in the Console through one document issue.
@@ -64,6 +70,57 @@ optional external Play window. The Game view uses its own renderer and GPU
 target, focused gameplay input, and read-only runtime hierarchy/Inspector;
 runtime mutations are discarded on Stop. Builds remain disabled until their
 real engine services exist.
+
+## Visual design target
+
+The polished editor reference supplied for the Minimal Voxel project is the
+authoritative visual target. The current Dear ImGui screen is a functional
+authoring scaffold, not an accepted approximation of that design. Preserving
+the same rough panel positions is insufficient.
+
+The target is a compact native game-development workspace with three clearly
+layered horizontal bands: the application menu, a grouped icon command bar,
+and the document workspace. It uses charcoal surfaces with small depth changes,
+fine separators, restrained violet selection, and tightly aligned controls.
+Text labels are reserved for menus, panel titles, properties, and actions that
+would be ambiguous as icons.
+
+Required layout and presentation:
+
+- The top command bar groups file/history, Play controls, viewport tools,
+  snapping, visibility, configuration, and settings. Groups have separators
+  and consistent square hit targets; the current row of unrelated text buttons
+  is temporary.
+- Scene and Game are document tabs directly above the central canvas. Switching
+  views is not presented as a small global-toolbar text button.
+- Hierarchy rows communicate nesting, entity kind, expansion, visibility, and
+  locked/runtime-owned state without turning generated data such as grid cells
+  into ordinary authored entities.
+- The Inspector has an entity header followed by visually distinct component
+  sections. Labels and editors form a stable property grid; vector axes, color
+  channels, reset actions, pickers, and resource fields must remain compact and
+  keyboard operable.
+- The lower workspace uses tabbed Console/Output/Profiler and
+  Assets/Lua Console regions. Tabs must not imply functionality that has not
+  been connected to a real service.
+- The Assets region is ultimately a folder tree plus breadcrumb/search toolbar
+  and thumbnail/file grid. The current flat source list remains honest but is
+  not the final asset-browser design.
+- Build targets remain a narrow dedicated panel with configuration controls and
+  one clear primary build action once the real build service is connected.
+- The status bar keeps engine/language context on the left and project, target,
+  validation/runtime state, and readiness on the right.
+
+The signature visual element is the central stage: Scene/Game tabs and compact
+viewport tools frame an uninterrupted render surface, while surrounding panels
+remain quieter and denser. Do not compensate for missing functionality with
+decorative cards, oversized typography, invented data, or permanently disabled
+controls.
+
+The shared visual-alignment checkpoint is implemented in `EditorTheme`,
+`EditorPanelStyle`, `EditorChrome`, `EditorToolbar`, `EditorAssetsPanel`, and
+`EditorShell`. Asset thumbnails, real profiler content, Lua Console behavior,
+and functional build controls still belong to their owning later milestones.
 
 ## Implementation roadmap
 
@@ -372,8 +429,12 @@ editing and conflict handling remain supported.
 
 ### Immediate next task
 
-Start with **Milestone 7: operational asset and project workflows**. Milestones
-0-6 now provide the safe authoring, preview, and isolated Play foundation those
+The **visual-alignment checkpoint** described above is complete. Preserve its
+shared chrome, grouped command bar, Viewport/Game View tabs, panel hierarchy,
+spacing, and property-grid presentation while starting **Milestone 7:
+operational asset and project workflows**. Do not fill the remaining surfaces
+with fake asset, profiler, Lua Console, or build behavior. Milestones 0-6
+provide the safe authoring, preview, and isolated Play foundation those
 workflows depend on.
 
 For each todo item that mutates authored state, use this implementation order:
