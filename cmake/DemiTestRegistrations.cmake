@@ -4,6 +4,10 @@ add_test(NAME demi-project-templates-tests COMMAND demi-project-templates-tests)
 add_test(NAME demi-editor-workspace-tests COMMAND demi-editor-workspace-tests)
 add_test(NAME demi-editor-scene-document-tests
   COMMAND demi-editor-scene-document-tests)
+add_test(NAME demi-editor-scene-commands-tests
+  COMMAND demi-editor-scene-commands-tests)
+add_test(NAME demi-editor-authoring-workflow-tests
+  COMMAND demi-editor-authoring-workflow-tests)
 add_test(NAME demi-editor-help COMMAND demi-editor --help)
 add_test(NAME demi-doctor-service-tests COMMAND demi-doctor-service-tests)
 add_test(NAME demi-package-manager-tests COMMAND demi-package-manager-tests)

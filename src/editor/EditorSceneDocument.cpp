@@ -1,44 +1,16 @@
 #include "editor/EditorSceneDocument.h"
 
+#include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/schema/Validation.h"
 
 #include <algorithm>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace demi::editor {
 namespace {
-
-nlohmann::json *findEntity(nlohmann::json &document,
-                           const std::string_view id) {
-  auto entities = document.find("entities");
-  if (entities == document.end() || !entities->is_array())
-    return nullptr;
-  const auto found = std::ranges::find_if(*entities, [&](auto &entity) {
-    return entity.is_object() && entity.value("id", std::string{}) == id;
-  });
-  return found == entities->end() ? nullptr : &*found;
-}
-
-const nlohmann::json *findEntity(const nlohmann::json &document,
-                                 const std::string_view id) {
-  auto entities = document.find("entities");
-  if (entities == document.end() || !entities->is_array())
-    return nullptr;
-  const auto found = std::ranges::find_if(*entities, [&](const auto &entity) {
-    return entity.is_object() && entity.value("id", std::string{}) == id;
-  });
-  return found == entities->end() ? nullptr : &*found;
-}
-
-template <typename Json>
-Json *findComponent(Json &entity, const std::string_view name) {
-  auto components = entity.find("components");
-  Json &source = components != entity.end() && components->is_object()
-                     ? *components
-                     : entity;
-  auto component = source.find(name);
-  return component == source.end() || !component->is_object() ? nullptr
-                                                              : &*component;
-}
 
 std::string validationMessage(
     const std::vector<runtime::scene_loading::ComponentValidationError>
@@ -48,6 +20,18 @@ std::string validationMessage(
   const auto &first = errors.front();
   return first.field.empty() ? first.message
                              : first.field + " " + first.message;
+}
+
+bool stagedHasErrors(const std::filesystem::path &path,
+                     const nlohmann::json &document, std::string &error) {
+  const Diagnostics diagnostics = demi::validateSceneDocument(path, document);
+  for (const Diagnostic &diagnostic : diagnostics) {
+    if (diagnostic.severity == Severity::Error) {
+      error = diagnostic.code + ": " + diagnostic.message;
+      return true;
+    }
+  }
+  return false;
 }
 
 } // namespace
@@ -102,6 +86,20 @@ bool EditorSceneDocument::save(std::string &error) {
   return true;
 }
 
+bool EditorSceneDocument::stageAndCommit(SceneCommand command,
+                                         std::string &error) {
+  nlohmann::json staged = document_;
+  applySceneCommand(staged, command, true);
+  if (stagedHasErrors(path_, staged, error))
+    return false;
+  applySceneCommand(document_, command, true);
+  lastChangedEntityId_ = sceneCommandEntityId(command);
+  undo_.push_back(std::move(command));
+  redo_.clear();
+  continuousTarget_.reset();
+  return true;
+}
+
 bool EditorSceneDocument::setValue(SceneValueTarget target,
                                    nlohmann::json replacement,
                                    const bool continuous, std::string &error) {
@@ -114,10 +112,21 @@ bool EditorSceneDocument::setValue(SceneValueTarget target,
     return true;
   if (!validate(target, replacement, error))
     return false;
+  nlohmann::json staged = document_;
+  nlohmann::json *stagedValue = valueInDocument(staged, target);
+  if (stagedValue == nullptr) {
+    error = "The selected authored field no longer exists.";
+    return false;
+  }
+  *stagedValue = replacement;
+  if (stagedHasErrors(path_, staged, error))
+    return false;
 
-  if (continuous && continuousTarget_ == target && !undo_.empty()) {
-    undo_.back().after = replacement;
-    *current = std::move(replacement);
+  if (continuous && continuousTarget_ == target && !undo_.empty() &&
+      std::holds_alternative<SetValueCommand>(undo_.back())) {
+    auto &command = std::get<SetValueCommand>(undo_.back());
+    command.after = std::move(replacement);
+    *current = command.after;
   } else {
     SetValueCommand command{.target = std::move(target),
                             .before = *current,
@@ -126,10 +135,153 @@ bool EditorSceneDocument::setValue(SceneValueTarget target,
     undo_.push_back(std::move(command));
   }
   redo_.clear();
-  continuousTarget_ =
-      continuous ? std::optional(undo_.back().target) : std::nullopt;
-  lastChangedEntityId_ = undo_.back().target.entityId;
+  const SetValueCommand &top = std::get<SetValueCommand>(undo_.back());
+  lastChangedEntityId_ = top.target.entityId;
+  continuousTarget_ = continuous ? std::optional(top.target) : std::nullopt;
   return true;
+}
+
+bool EditorSceneDocument::createEntity(std::string &error) {
+  nlohmann::json *entities = entitiesArray(document_);
+  if (entities == nullptr) {
+    error = "The scene has no entities array.";
+    return false;
+  }
+  const std::string id = uniqueEntityId(document_, "ent_new");
+  nlohmann::json entity{{"id", id},
+                        {"name", "New Entity"},
+                        {"components", nlohmann::json::object()}};
+  return stageAndCommit(InsertEntityCommand{.index = entities->size(),
+                                            .entity = std::move(entity)},
+                        error);
+}
+
+bool EditorSceneDocument::deleteEntity(const std::string_view id,
+                                       std::string &error) {
+  if (entity(id) == nullptr) {
+    error = "The entity no longer exists.";
+    return false;
+  }
+  std::vector<IndexedSceneEntity> removed;
+  for (const std::string &member : collectSubtreeIds(document_, id)) {
+    const std::optional<std::size_t> index = entityIndex(document_, member);
+    const nlohmann::json *authored = entity(member);
+    if (!index.has_value() || authored == nullptr) {
+      error = "The entity subtree changed while preparing deletion.";
+      return false;
+    }
+    removed.push_back({.index = *index, .entity = *authored});
+  }
+  std::ranges::sort(removed, {}, &IndexedSceneEntity::index);
+  return stageAndCommit(RemoveEntitiesCommand{.entities = std::move(removed)},
+                        error);
+}
+
+bool EditorSceneDocument::reparent(const std::string_view id,
+                                   std::optional<std::string> newParent,
+                                   std::string &error) {
+  nlohmann::json *authored = findEntity(document_, id);
+  if (authored == nullptr) {
+    error = "The entity no longer exists.";
+    return false;
+  }
+  const char *transform = transformComponentName(*authored);
+  if (transform == nullptr) {
+    error = "Reparenting requires a Transform3D or Transform2D component on "
+            "the entity.";
+    return false;
+  }
+  nlohmann::json *component = findComponent(*authored, transform);
+  std::optional<std::string> before;
+  if (const auto parent = component->find("parent");
+      parent != component->end() && parent->is_string())
+    before = parent->get<std::string>();
+
+  return stageAndCommit(ReparentCommand{.entityId = std::string(id),
+                                        .component = transform,
+                                        .before = std::move(before),
+                                        .after = std::move(newParent)},
+                        error);
+}
+
+bool EditorSceneDocument::duplicateEntity(const std::string_view id,
+                                          std::string &error) {
+  const nlohmann::json *source = entity(id);
+  if (source == nullptr) {
+    error = "The entity no longer exists.";
+    return false;
+  }
+  const std::vector<std::string> subtree = collectSubtreeIds(document_, id);
+  std::unordered_map<std::string, std::string> remap;
+  std::unordered_set<std::string> reserved;
+  for (const std::string &member : subtree) {
+    remap[member] = uniqueEntityId(document_, member + "_copy", reserved);
+    reserved.insert(remap[member]);
+  }
+
+  std::vector<nlohmann::json> copies;
+  copies.reserve(subtree.size());
+  for (const std::string &member : subtree) {
+    const nlohmann::json *original = entity(member);
+    if (original == nullptr)
+      continue;
+    nlohmann::json copy = *original;
+    copy["id"] = remap[member];
+    remapParentReferences(copy, remap);
+    copies.push_back(std::move(copy));
+  }
+  if (copies.empty()) {
+    error = "The entity could not be duplicated.";
+    return false;
+  }
+
+  nlohmann::json *entities = entitiesArray(document_);
+  return stageAndCommit(DuplicateEntityCommand{.index = entities == nullptr
+                                                            ? 0
+                                                            : entities->size(),
+                                               .entities = std::move(copies)},
+                        error);
+}
+
+bool EditorSceneDocument::addComponent(const std::string_view id,
+                                       const std::string_view componentName,
+                                       std::string &error) {
+  if (entity(id) == nullptr) {
+    error = "The entity no longer exists.";
+    return false;
+  }
+  if (component(id, componentName) != nullptr) {
+    error = "The entity already has a " + std::string(componentName) +
+            " component.";
+    return false;
+  }
+  const runtime::scene_loading::ComponentDescriptor *descriptor =
+      runtime::scene_loading::findComponentDescriptor(componentName);
+  if (descriptor == nullptr) {
+    error = "Unknown component: " + std::string(componentName);
+    return false;
+  }
+  return stageAndCommit(
+      AddComponentCommand{
+          .entityId = std::string(id),
+          .componentName = std::string(componentName),
+          .component = runtime::scene_loading::componentDefaults(*descriptor)},
+      error);
+}
+
+bool EditorSceneDocument::removeComponent(const std::string_view id,
+                                          const std::string_view componentName,
+                                          std::string &error) {
+  const nlohmann::json *authored = component(id, componentName);
+  if (authored == nullptr) {
+    error = "The component no longer exists.";
+    return false;
+  }
+  return stageAndCommit(
+      RemoveComponentCommand{.entityId = std::string(id),
+                             .componentName = std::string(componentName),
+                             .component = *authored},
+      error);
 }
 
 bool EditorSceneDocument::undo(std::string &error) {
@@ -137,10 +289,10 @@ bool EditorSceneDocument::undo(std::string &error) {
     error = "There is nothing to undo.";
     return false;
   }
-  SetValueCommand command = std::move(undo_.back());
+  SceneCommand command = std::move(undo_.back());
   undo_.pop_back();
-  apply(command, false);
-  lastChangedEntityId_ = command.target.entityId;
+  applySceneCommand(document_, command, false);
+  lastChangedEntityId_ = sceneCommandEntityId(command);
   redo_.push_back(std::move(command));
   continuousTarget_.reset();
   return true;
@@ -151,10 +303,10 @@ bool EditorSceneDocument::redo(std::string &error) {
     error = "There is nothing to redo.";
     return false;
   }
-  SetValueCommand command = std::move(redo_.back());
+  SceneCommand command = std::move(redo_.back());
   redo_.pop_back();
-  apply(command, true);
-  lastChangedEntityId_ = command.target.entityId;
+  applySceneCommand(document_, command, true);
+  lastChangedEntityId_ = sceneCommandEntityId(command);
   undo_.push_back(std::move(command));
   continuousTarget_.reset();
   return true;
@@ -178,32 +330,12 @@ EditorSceneDocument::component(const std::string_view entityId,
 }
 
 nlohmann::json *EditorSceneDocument::value(const SceneValueTarget &target) {
-  nlohmann::json *authoredEntity = findEntity(document_, target.entityId);
-  if (authoredEntity == nullptr)
-    return nullptr;
-  nlohmann::json *container = authoredEntity;
-  if (!target.component.empty()) {
-    container = findComponent(*authoredEntity, target.component);
-    if (container == nullptr)
-      return nullptr;
-  }
-  const auto field = container->find(target.field);
-  return field == container->end() ? nullptr : &*field;
+  return valueInDocument(document_, target);
 }
 
 const nlohmann::json *
 EditorSceneDocument::value(const SceneValueTarget &target) const {
-  const nlohmann::json *authoredEntity = findEntity(document_, target.entityId);
-  if (authoredEntity == nullptr)
-    return nullptr;
-  const nlohmann::json *container = authoredEntity;
-  if (!target.component.empty()) {
-    container = findComponent(*authoredEntity, target.component);
-    if (container == nullptr)
-      return nullptr;
-  }
-  const auto field = container->find(target.field);
-  return field == container->end() ? nullptr : &*field;
+  return valueInDocument(document_, target);
 }
 
 bool EditorSceneDocument::validate(const SceneValueTarget &target,
@@ -235,12 +367,6 @@ bool EditorSceneDocument::validate(const SceneValueTarget &target,
     return true;
   error = validationMessage(errors);
   return false;
-}
-
-void EditorSceneDocument::apply(const SetValueCommand &command,
-                                const bool forward) {
-  if (nlohmann::json *target = value(command.target))
-    *target = forward ? command.after : command.before;
 }
 
 } // namespace demi::editor

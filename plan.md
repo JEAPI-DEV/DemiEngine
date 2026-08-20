@@ -1591,9 +1591,11 @@ editable fields from component metadata, browses authored sources, and reports
 shared CLI diagnostics. Scene field edits use reversible stable-ID commands,
 continuous edits coalesce, deterministic atomic saves reject external-change
 conflicts, the authored 3D scene renders through the normal bgfx renderer, and
-Play/Pause/Stop control an owned normal runtime process. Structural hierarchy
-and component commands, 2D preview, picking/gizmos, and embedded play sessions
-remain upcoming slices.
+Play/Pause/Stop control an owned normal runtime process. Structural create/
+delete/reparent/duplicate and component add/remove commands stage full-document
+validation through a shared in-memory scene validator, and the preview world
+rebuilds from the authored document through the shared loader. 2D preview,
+picking/gizmos, and embedded play sessions remain upcoming slices.
 
 ### Non-negotiable design rules
 
@@ -1652,9 +1654,12 @@ responsibilities.
 | --- | --- | --- |
 | `src/editor/main.cpp` | CLI option parsing, project discovery, object construction, main frame loop, orderly shutdown | Panel logic, scene parsing, commands, persistence |
 | `EditorShell` | Top-level panel composition, shortcuts, focus, notices, toolbar/menu state | JSON mutation, filesystem writes, renderer implementation |
+| `EditorHierarchyPanel` | Hierarchy filtering, selection presentation, context actions, stable-ID drag/drop intent | Scene JSON mutation, command history, validation |
 | `EditorInspectorPanel` | Metadata-to-widget adaptation and submission of edit intent | Component schemas, command history, direct runtime mutation |
 | `EditorWorkspace` | Application-level coordination of the active project, document, selection, diagnostics, and preview projection | Widget drawing, file format parsing, direct platform calls |
-| `EditorSceneDocument` | Active authored scene JSON, dirty state, validated commands, transactions, undo/redo | Dear ImGui, bgfx, process control, project-wide source discovery |
+| `EditorSceneDocument` | Active authored scene JSON, dirty state, staged validation, command history, undo/redo | Dear ImGui, bgfx, process control, project-wide source discovery, raw JSON surgery |
+| `EditorSceneJson` | Pure authored-scene JSON manipulation: entity/component lookup, subtree collection, stable-id generation, parent remapping | Document state, history, validation, persistence |
+| `EditorSceneCommand` | Reversible value-type command variant and its apply/revert | Validation, persistence, UI intent |
 | `EditorDocumentStore` | Reads, file revision/hash checks, same-directory temporary writes, atomic replacement | JSON semantics, command policy, UI conflict choices |
 | `EditorUiHost` / `EditorUiHostBgfx` | SDL3/bgfx/Dear ImGui lifecycle, input forwarding, viewport rectangle submission, renderer adapter ownership | Authored data, undo history, editor business rules |
 | `EditorPlaySession` | Lifecycle of the exact runtime process/world owned by Play | Scene saving, UI state, unrelated child processes |
@@ -1894,17 +1899,17 @@ represented by an enabled control.
 #### 8A. Scene document, persistence, and field commands — partial
 
 Present: main-scene document, scalar/vector/color field commands, continuous
-coalescing, undo/redo, canonical dirty tracking, conflict-safe atomic save, and
-focused document/workspace tests.
+coalescing, undo/redo, canonical dirty tracking, conflict-safe atomic save,
+and reusable create/delete/reparent/duplicate and component add/remove
+commands with staged full-document validation through a shared in-memory
+scene validator, plus focused document/workspace/command tests.
 
 Next:
 
-1. Add reusable create/delete/reparent/duplicate and component add/remove value
-   commands with staged full-document validation.
-2. Represent optional-field insertion/removal without losing authored shape.
-3. Add an explicit external-change choice model before offering Keep/Reload;
+1. Represent optional-field insertion/removal without losing authored shape.
+2. Add an explicit external-change choice model before offering Keep/Reload;
    add structural merge only if a deterministic tested algorithm exists.
-4. Generalize the document abstraction only when a second real format (prefab,
+3. Generalize the document abstraction only when a second real format (prefab,
    HUD, material, or data asset) is implemented. Do not create empty base
    classes in advance.
 
@@ -1915,13 +1920,13 @@ cover success and failure paths.
 #### 8B. Generated hierarchy and inspector — partial
 
 Present: parent-derived hierarchy, stable-ID selection, entity name/enabled/
-layer editing, and metadata-generated boolean/integer/number/string/enum/
-vector/color fields.
+layer editing, metadata-generated boolean/integer/number/string/enum/vector/
+color fields, hierarchy create/duplicate/drag-reparent/subtree-delete controls,
+and inspector add/remove component controls driven by the descriptor catalog.
 
 Next:
 
-1. Wire the structural commands from 8A into create, duplicate, delete,
-   reparent, add-component, and remove-component controls.
+1. Add a reference picker once the editor camera/selection affordances exist.
 2. Add metadata for reference pickers, documentation, restart/read-only policy,
    and canonical component defaults where missing.
 3. Add inline shared diagnostics and explicit mixed-value multi-selection.

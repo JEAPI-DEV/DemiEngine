@@ -247,6 +247,14 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
       if (!ImGui::CollapsingHeader(title, ImGuiTreeNodeFlags_DefaultOpen))
         continue;
       ImGui::PushID(name.c_str());
+      if (ImGui::SmallButton("Remove")) {
+        std::string error;
+        const bool removed = workspace.removeComponent(selected->id, name, error);
+        notice = removed ? "Component removed" : error;
+        ImGui::PopID();
+        ImGui::End();
+        return;
+      }
       if (descriptor == nullptr || descriptor->fields.empty())
         drawGenericComponent(component);
       else
@@ -255,10 +263,27 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
       ImGui::PopID();
     }
   }
+
   ImGui::Spacing();
-  disabledEditorButton("+ Add Component",
-                       "Component add/remove commands are not implemented yet.",
-                       {-1.0F, 0.0F});
+  ImGui::SetNextItemWidth(-1.0F);
+  if (ImGui::BeginCombo("##add-component", "Add Component")) {
+    for (const ComponentDescriptor &descriptor :
+         runtime::scene_loading::componentDescriptors()) {
+      const std::string_view name = descriptor.name;
+      if (components != entity->end() && components->is_object() &&
+          components->find(name) != components->end())
+        continue;
+      if (ImGui::Selectable(descriptor.editor.displayName.data())) {
+        std::string error;
+        const bool added = workspace.addComponent(selected->id, name, error);
+        notice = added ? "Component added" : error;
+        ImGui::EndCombo();
+        ImGui::End();
+        return;
+      }
+    }
+    ImGui::EndCombo();
+  }
   ImGui::End();
 }
 

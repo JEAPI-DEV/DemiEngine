@@ -277,9 +277,11 @@ void validateSceneComponents(Diagnostics &diagnostics,
   }
 }
 
-void validateTransform3DHierarchy(Diagnostics &diagnostics,
-                                  const std::filesystem::path &path,
-                                  const nlohmann::json &document) {
+void validateTransformHierarchy(Diagnostics &diagnostics,
+                                const std::filesystem::path &path,
+                                const nlohmann::json &document,
+                                const std::string_view transformName,
+                                const std::string_view diagnosticPrefix) {
   if (!document.contains("entities") || !document["entities"].is_array())
     return;
   std::map<std::string, std::string> parents;
@@ -288,7 +290,7 @@ void validateTransform3DHierarchy(Diagnostics &diagnostics,
         !entity["id"].is_string() || !entity.contains("components") ||
         !entity["components"].is_object())
       continue;
-    const auto transform = entity["components"].find("Transform3D");
+    const auto transform = entity["components"].find(transformName);
     if (transform == entity["components"].end() || !transform->is_object())
       continue;
     const auto parent = transform->find("parent");
@@ -304,11 +306,12 @@ void validateTransform3DHierarchy(Diagnostics &diagnostics,
     if (!parentId.empty() && !parents.contains(parentId))
       diagnostics.push_back(Diagnostic{
           .severity = Severity::Error,
-          .code = "TRANSFORM3D_PARENT_NOT_FOUND",
-          .message = "Transform3D parent was not found for " + entityId + ": " +
-                     parentId,
+          .code = std::string(diagnosticPrefix) + "_PARENT_NOT_FOUND",
+          .message = std::string(transformName) + " parent was not found for " +
+                     entityId + ": " + parentId,
           .path = path.string(),
-          .suggestion = "Reference an entity with Transform3D by stable ID."});
+          .suggestion = "Reference an entity with " +
+                        std::string(transformName) + " by stable ID."});
     std::unordered_set<std::string> visiting;
     std::string current = entityId;
     while (parents.contains(current) && !parents.at(current).empty()) {
@@ -316,9 +319,9 @@ void validateTransform3DHierarchy(Diagnostics &diagnostics,
         if (reportedCycles.insert(current).second)
           diagnostics.push_back(Diagnostic{
               .severity = Severity::Error,
-              .code = "TRANSFORM3D_HIERARCHY_CYCLE",
-              .message =
-                  "Transform3D hierarchy cycle includes entity: " + current,
+              .code = std::string(diagnosticPrefix) + "_HIERARCHY_CYCLE",
+              .message = std::string(transformName) +
+                         " hierarchy cycle includes entity: " + current,
               .path = path.string(),
               .suggestion = "Remove one parent edge from the cycle."});
         break;
@@ -466,6 +469,26 @@ void validatePhysics3D(Diagnostics &diagnostics,
 }
 
 } // namespace
+
+Diagnostics validateSceneDocument(const std::filesystem::path &scenePath,
+                                  const nlohmann::json &document) {
+  Diagnostics diagnostics;
+  const std::string text = document.dump();
+  validateDuplicateEntityIds(diagnostics, scenePath, text);
+  validateSceneComponents(diagnostics, scenePath, text);
+  const runtime::composition::ExpansionResult expansion =
+      runtime::composition::expandScene(scenePath, document);
+  diagnostics.insert(diagnostics.end(), expansion.diagnostics.begin(),
+                     expansion.diagnostics.end());
+  if (expansion.document) {
+    validateTransformHierarchy(diagnostics, scenePath, *expansion.document,
+                               "Transform2D", "TRANSFORM2D");
+    validateTransformHierarchy(diagnostics, scenePath, *expansion.document,
+                               "Transform3D", "TRANSFORM3D");
+    validatePhysics3D(diagnostics, scenePath, *expansion.document);
+  }
+  return diagnostics;
+}
 
 SourceFileKind classifySourceFile(const std::filesystem::path &path) {
   if (isAssetGroupFile(path)) {
@@ -640,7 +663,8 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
                .suggestion = "Use assets: [\"asset://ui/logo\"]."});
         } else {
           std::set<std::string> groupIds;
-          for (const auto &source : collectKnownSourceFiles(path.parent_path())) {
+          for (const auto &source :
+               collectKnownSourceFiles(path.parent_path())) {
             if (!isAssetGroupFile(source))
               continue;
             if (const auto group = assets::loadAssetGroup(source))
@@ -718,19 +742,18 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
     requireToken(diagnostics, text, path, "\"entities\"",
                  "SCENE_MISSING_ENTITIES", "Scene file is missing entities.",
                  "Add an entities array, even if it is empty.");
-    validateDuplicateEntityIds(diagnostics, path, text);
-    validateSceneComponents(diagnostics, path, text);
     try {
-      const auto expansion =
-          runtime::composition::expandScene(path, nlohmann::json::parse(text));
-      diagnostics.insert(diagnostics.end(), expansion.diagnostics.begin(),
-                         expansion.diagnostics.end());
-      if (expansion.document)
-        validateTransform3DHierarchy(diagnostics, path, *expansion.document);
-      if (expansion.document)
-        validatePhysics3D(diagnostics, path, *expansion.document);
-    } catch (const nlohmann::json::parse_error &) {
-      // validateSceneComponents already reports malformed JSON.
+      const nlohmann::json document = nlohmann::json::parse(text);
+      const Diagnostics sceneDiagnostics =
+          validateSceneDocument(path, document);
+      diagnostics.insert(diagnostics.end(), sceneDiagnostics.begin(),
+                         sceneDiagnostics.end());
+    } catch (const nlohmann::json::parse_error &exception) {
+      diagnostics.push_back(Diagnostic{.severity = Severity::Error,
+                                       .code = "INVALID_JSON",
+                                       .message = exception.what(),
+                                       .path = path.string(),
+                                       .suggestion = "Fix the JSON syntax."});
     }
     validateReferences(diagnostics, path, text);
     break;

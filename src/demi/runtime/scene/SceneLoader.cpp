@@ -41,6 +41,69 @@ namespace {
   return scene == project.scenes.end() ? nullptr : &*scene;
 }
 
+[[nodiscard]] std::optional<World>
+buildSceneWorld(const ProjectData &project, const std::string &sceneId,
+                const std::filesystem::path &scenePath,
+                const scene_loading::Json &sceneJson, std::string &error) {
+  const composition::ExpansionResult expansion =
+      composition::expandScene(scenePath, sceneJson);
+  if (!expansion.document.has_value()) {
+    error = expansion.diagnostics.empty()
+                ? "Scene prefab expansion failed: " + scenePath.string()
+                : expansion.diagnostics.front().message;
+    return std::nullopt;
+  }
+
+  World world =
+      scene_loading::parseSceneWorld(scenePath, *expansion.document);
+  world.activeSceneId = sceneId;
+  world.loadedSceneIds.insert(sceneId);
+  for (Entity &entity : world.entities)
+    entity.sceneOwner = sceneId;
+  if (const auto issues = validateTransform3DHierarchy(world);
+      !issues.empty()) {
+    const auto &issue = issues.front();
+    error =
+        issue.kind == Transform3DHierarchyIssueKind::Cycle
+            ? "Transform3D hierarchy cycle includes entity: " + issue.entityId
+            : "Transform3D parent was not found for " + issue.entityId + ": " +
+                  issue.parentId;
+    return std::nullopt;
+  }
+  world.debug = project.debug;
+  const std::size_t layerCount =
+      std::min<std::size_t>(project.physicsLayers2D.size(), 16);
+  for (std::size_t index = 0; index < layerCount; ++index) {
+    world.physicsCategoryBits[project.physicsLayers2D[index].name] =
+        static_cast<std::uint16_t>(1U << index);
+  }
+  for (std::size_t index = 0; index < layerCount; ++index) {
+    std::uint16_t mask = 0;
+    for (const std::string &target :
+         project.physicsLayers2D[index].collidesWith) {
+      if (const auto found = world.physicsCategoryBits.find(target);
+          found != world.physicsCategoryBits.end())
+        mask = static_cast<std::uint16_t>(mask | found->second);
+    }
+    world.physicsMaskBits[project.physicsLayers2D[index].name] = mask;
+  }
+  if (const std::optional<std::string> hud =
+          scene_loading::stringField(sceneJson, "hud")) {
+    const std::filesystem::path hudPath = scenePath.parent_path() / *hud;
+    if (!validateLoadPath(hudPath, "HUD", error)) {
+      return std::nullopt;
+    }
+    scene_loading::loadHudFile(world, hudPath, error);
+    if (!error.empty()) {
+      return std::nullopt;
+    }
+  }
+  for (ui::UiNode &node : world.ui.nodes)
+    node.sceneOwner = sceneId;
+
+  return world;
+}
+
 } // namespace
 
 std::optional<LoadedProject>
@@ -111,62 +174,21 @@ std::optional<World> loadScene(const ProjectData &project,
     return std::nullopt;
   }
 
-  const composition::ExpansionResult expansion =
-      composition::expandScene(scenePath, *sceneJson);
-  if (!expansion.document.has_value()) {
-    error = expansion.diagnostics.empty()
-                ? "Scene prefab expansion failed: " + scenePath.string()
-                : expansion.diagnostics.front().message;
+  return buildSceneWorld(project, sceneId, scenePath, *sceneJson, error);
+}
+
+std::optional<World>
+loadSceneDocument(const ProjectData &project, const std::string &sceneId,
+                  const nlohmann::json &document, std::string &error) {
+  const SceneEntry *scene = findSceneEntry(project, sceneId);
+  if (scene == nullptr) {
+    error = "No scene registered with id: " + sceneId;
     return std::nullopt;
   }
 
-  World world = scene_loading::parseSceneWorld(scenePath, *expansion.document);
-  world.activeSceneId = sceneId;
-  world.loadedSceneIds.insert(sceneId);
-  for (Entity &entity : world.entities)
-    entity.sceneOwner = sceneId;
-  if (const auto issues = validateTransform3DHierarchy(world);
-      !issues.empty()) {
-    const auto &issue = issues.front();
-    error =
-        issue.kind == Transform3DHierarchyIssueKind::Cycle
-            ? "Transform3D hierarchy cycle includes entity: " + issue.entityId
-            : "Transform3D parent was not found for " + issue.entityId + ": " +
-                  issue.parentId;
-    return std::nullopt;
-  }
-  world.debug = project.debug;
-  const std::size_t layerCount =
-      std::min<std::size_t>(project.physicsLayers2D.size(), 16);
-  for (std::size_t index = 0; index < layerCount; ++index) {
-    world.physicsCategoryBits[project.physicsLayers2D[index].name] =
-        static_cast<std::uint16_t>(1U << index);
-  }
-  for (std::size_t index = 0; index < layerCount; ++index) {
-    std::uint16_t mask = 0;
-    for (const std::string &target :
-         project.physicsLayers2D[index].collidesWith) {
-      if (const auto found = world.physicsCategoryBits.find(target);
-          found != world.physicsCategoryBits.end())
-        mask = static_cast<std::uint16_t>(mask | found->second);
-    }
-    world.physicsMaskBits[project.physicsLayers2D[index].name] = mask;
-  }
-  if (const std::optional<std::string> hud =
-          scene_loading::stringField(*sceneJson, "hud")) {
-    const std::filesystem::path hudPath = scenePath.parent_path() / *hud;
-    if (!validateLoadPath(hudPath, "HUD", error)) {
-      return std::nullopt;
-    }
-    scene_loading::loadHudFile(world, hudPath, error);
-    if (!error.empty()) {
-      return std::nullopt;
-    }
-  }
-  for (ui::UiNode &node : world.ui.nodes)
-    node.sceneOwner = sceneId;
-
-  return world;
+  const std::filesystem::path scenePath =
+      project.projectDirectory / scene->path;
+  return buildSceneWorld(project, sceneId, scenePath, document, error);
 }
 
 } // namespace demi::runtime

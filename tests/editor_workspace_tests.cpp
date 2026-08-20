@@ -39,5 +39,16 @@ int main() {
     assert(workspace.selectedEntity()->name == originalName);
     assert(!workspace.sceneDocument().isDirty());
   }
+
+  const std::size_t entityCount = workspace.project().world.entities.size();
+  assert(workspace.createEntity(error));
+  assert(workspace.project().world.entities.size() == entityCount + 1);
+  assert(workspace.selectedEntity() != nullptr);
+  assert(workspace.selectedEntity()->id ==
+         workspace.sceneDocument().lastChangedEntityId());
+  const std::string createdId(workspace.selectedEntityId());
+  assert(workspace.undo(error));
+  assert(workspace.project().world.entities.size() == entityCount);
+  assert(workspace.sceneDocument().entity(createdId) == nullptr);
   return 0;
 }

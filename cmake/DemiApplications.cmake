@@ -61,7 +61,9 @@ else()
   add_library(demi-editor-model STATIC
     src/editor/EditorDocumentStore.cpp
     src/editor/EditorPlaySession.cpp
+    src/editor/EditorSceneCommand.cpp
     src/editor/EditorSceneDocument.cpp
+    src/editor/EditorSceneJson.cpp
     src/editor/EditorWorkspace.cpp)
   target_include_directories(demi-editor-model PUBLIC src)
   target_compile_features(demi-editor-model PUBLIC cxx_std_20)
@@ -69,6 +71,7 @@ else()
     demi-runtime-lib)
 
   add_library(demi-editor-ui STATIC
+    src/editor/EditorHierarchyPanel.cpp
     src/editor/EditorInspectorPanel.cpp
     src/editor/EditorPanelStyle.cpp
     src/editor/EditorShell.cpp

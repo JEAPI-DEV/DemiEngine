@@ -1,6 +1,7 @@
 #pragma once
 
 #include "editor/EditorDocumentStore.h"
+#include "editor/EditorSceneCommand.h"
 
 #include <nlohmann/json.hpp>
 
@@ -12,15 +13,10 @@
 
 namespace demi::editor {
 
-struct SceneValueTarget {
-  std::string entityId;
-  std::string component;
-  std::string field;
-
-  friend bool operator==(const SceneValueTarget &,
-                         const SceneValueTarget &) = default;
-};
-
+// Owns the active authored scene JSON, its command history, and its
+// conflict-safe persistence. Structural mutations are built with reusable
+// scene-JSON helpers (EditorSceneJson), staged and validated through the
+// shared scene validator, then recorded as reversible SceneCommands.
 class EditorSceneDocument {
 public:
   [[nodiscard]] bool open(const std::filesystem::path &path,
@@ -31,6 +27,20 @@ public:
   [[nodiscard]] bool setValue(SceneValueTarget target, nlohmann::json value,
                               bool continuous, std::string &error);
   void endContinuousEdit() { continuousTarget_.reset(); }
+
+  [[nodiscard]] bool createEntity(std::string &error);
+  [[nodiscard]] bool deleteEntity(std::string_view id, std::string &error);
+  [[nodiscard]] bool reparent(std::string_view id,
+                              std::optional<std::string> newParent,
+                              std::string &error);
+  [[nodiscard]] bool duplicateEntity(std::string_view id, std::string &error);
+  [[nodiscard]] bool addComponent(std::string_view id,
+                                  std::string_view componentName,
+                                  std::string &error);
+  [[nodiscard]] bool removeComponent(std::string_view id,
+                                     std::string_view componentName,
+                                     std::string &error);
+
   [[nodiscard]] bool undo(std::string &error);
   [[nodiscard]] bool redo(std::string &error);
 
@@ -47,27 +57,22 @@ public:
   }
 
 private:
-  struct SetValueCommand {
-    SceneValueTarget target;
-    nlohmann::json before;
-    nlohmann::json after;
-  };
-
   [[nodiscard]] nlohmann::json *value(const SceneValueTarget &target);
   [[nodiscard]] const nlohmann::json *
   value(const SceneValueTarget &target) const;
   [[nodiscard]] bool validate(const SceneValueTarget &target,
                               const nlohmann::json &replacement,
                               std::string &error) const;
-  void apply(const SetValueCommand &command, bool forward);
+  // Validates a staged document before touching the live document or history.
+  [[nodiscard]] bool stageAndCommit(SceneCommand command, std::string &error);
 
   EditorDocumentStore store_;
   std::filesystem::path path_;
   FileRevision revision_;
   nlohmann::json document_;
   std::string savedCanonical_;
-  std::vector<SetValueCommand> undo_;
-  std::vector<SetValueCommand> redo_;
+  std::vector<SceneCommand> undo_;
+  std::vector<SceneCommand> redo_;
   std::optional<SceneValueTarget> continuousTarget_;
   std::string lastChangedEntityId_;
 };

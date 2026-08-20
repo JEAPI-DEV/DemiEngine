@@ -23,6 +23,18 @@ public:
   [[nodiscard]] bool redo(std::string &error);
   [[nodiscard]] bool editValue(SceneValueTarget target, nlohmann::json value,
                                bool continuous, std::string &error);
+  [[nodiscard]] bool createEntity(std::string &error);
+  [[nodiscard]] bool deleteEntity(std::string_view id, std::string &error);
+  [[nodiscard]] bool reparentEntity(std::string_view id,
+                                    std::optional<std::string> newParent,
+                                    std::string &error);
+  [[nodiscard]] bool duplicateEntity(std::string_view id, std::string &error);
+  [[nodiscard]] bool addComponent(std::string_view id,
+                                  std::string_view componentName,
+                                  std::string &error);
+  [[nodiscard]] bool removeComponent(std::string_view id,
+                                     std::string_view componentName,
+                                     std::string &error);
   void endContinuousEdit() { sceneDocument_.endContinuousEdit(); }
   void refreshDiagnostics();
 
@@ -51,6 +63,7 @@ public:
 private:
   void discoverSources();
   void syncChangedEntity();
+  [[nodiscard]] bool rebuildWorld(std::string &error);
 
   std::filesystem::path projectPath_;
   std::optional<runtime::LoadedProject> project_;

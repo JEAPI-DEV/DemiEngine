@@ -39,6 +39,23 @@ int main() {
     return 1;
   }
 
+  const auto scene2d = root / "hierarchy_2d.scene.json";
+  {
+    std::ofstream output(scene2d);
+    output << R"({"format_version":1,"id":"scene://test-2d","entities":[
+      {"id":"a","components":{"Transform2D":{"parent":"b"}}},
+      {"id":"b","components":{"Transform2D":{"parent":"a"}}},
+      {"id":"missing_child","components":{"Transform2D":{"parent":"gone"}}}
+    ]})";
+  }
+  const auto diagnostics2d =
+      demi::validateTextFile(scene2d, demi::SourceFileKind::Scene);
+  if (!hasCode(diagnostics2d, "TRANSFORM2D_HIERARCHY_CYCLE") ||
+      !hasCode(diagnostics2d, "TRANSFORM2D_PARENT_NOT_FOUND")) {
+    std::cerr << "2D hierarchy validation diagnostics were not emitted.\n";
+    return 1;
+  }
+
   const auto physicsScene = root / "invalid_physics.scene.json";
   {
     std::ofstream output(physicsScene);

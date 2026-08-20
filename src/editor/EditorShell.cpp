@@ -5,8 +5,6 @@
 
 #include "demi/core/Version.h"
 #include "demi/filesystem/ProjectPaths.h"
-#include "demi/runtime/scene/components/2dcomponents/Transform2DComponent.h"
-#include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/schema/Validation.h"
 
 #include <imgui.h>
@@ -32,74 +30,6 @@ bool containsCaseInsensitive(const std::string_view value,
   std::ranges::transform(haystack, haystack.begin(), lower);
   std::ranges::transform(needle, needle.begin(), lower);
   return haystack.find(needle) != std::string::npos;
-}
-
-std::string_view entityParent(const runtime::Entity &entity) {
-  if (const auto *transform = entity.component<runtime::Transform3DComponent>())
-    return transform->parent;
-  if (const auto *transform = entity.component<runtime::Transform2DComponent>())
-    return transform->parent;
-  return {};
-}
-
-bool hasChildren(const runtime::World &world, const std::string_view parent) {
-  return std::ranges::any_of(world.entities, [parent](const auto &candidate) {
-    return entityParent(candidate) == parent;
-  });
-}
-
-void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
-                    const runtime::World &world,
-                    const std::string_view filter) {
-  const bool childMatch =
-      std::ranges::any_of(world.entities, [&](const auto &candidate) {
-        return entityParent(candidate) == entity.id &&
-               containsCaseInsensitive(candidate.name, filter);
-      });
-  if (!containsCaseInsensitive(entity.name, filter) && !childMatch)
-    return;
-
-  ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow |
-                             ImGuiTreeNodeFlags_SpanAvailWidth |
-                             ImGuiTreeNodeFlags_DefaultOpen;
-  if (!hasChildren(world, entity.id))
-    flags |= ImGuiTreeNodeFlags_Leaf;
-  if (workspace.selectedEntityId() == entity.id)
-    flags |= ImGuiTreeNodeFlags_Selected;
-  if (!entity.enabled)
-    ImGui::PushStyleColor(ImGuiCol_Text,
-                          ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-  const bool open =
-      ImGui::TreeNodeEx(entity.id.c_str(), flags, "%s", entity.name.c_str());
-  if (!entity.enabled)
-    ImGui::PopStyleColor();
-  if (ImGui::IsItemClicked())
-    workspace.selectEntity(entity.id);
-  if (open) {
-    for (const runtime::Entity &candidate : world.entities)
-      if (entityParent(candidate) == entity.id)
-        drawEntityNode(workspace, candidate, world, filter);
-    ImGui::TreePop();
-  }
-}
-
-void drawHierarchy(EditorWorkspace &workspace, const ImVec2 position,
-                   const ImVec2 size, std::array<char, 128> &filter) {
-  beginEditorPanel("Hierarchy", position, size);
-  editorSectionTitle("SCENE", workspace.project().world.name.c_str());
-  ImGui::SetNextItemWidth(-1.0F);
-  ImGui::InputTextWithHint("##hierarchy-search", "Search entities",
-                           filter.data(), filter.size());
-  ImGui::Spacing();
-  if (ImGui::TreeNodeEx("Scene", ImGuiTreeNodeFlags_DefaultOpen |
-                                     ImGuiTreeNodeFlags_SpanAvailWidth)) {
-    for (const runtime::Entity &entity : workspace.project().world.entities)
-      if (entityParent(entity).empty())
-        drawEntityNode(workspace, entity, workspace.project().world,
-                       filter.data());
-    ImGui::TreePop();
-  }
-  ImGui::End();
 }
 
 void drawViewport(EditorWorkspace &workspace, const ImVec2 position,
@@ -453,8 +383,8 @@ void EditorShell::draw(const int width, const int height,
   drawMenu(workspace_, {screenWidth, menuHeight}, wantsExit_, notice_);
   drawToolbar({0.0F, menuHeight}, {screenWidth, toolbarHeight}, workspace_,
               playSession_, notice_);
-  drawHierarchy(workspace_, {0.0F, contentTop}, {leftWidth, upperHeight},
-                hierarchyFilter_);
+  hierarchyPanel_.draw(workspace_, {0.0F, contentTop},
+                       {leftWidth, upperHeight}, notice_);
   drawViewport(workspace_, {leftWidth, contentTop}, {centerWidth, upperHeight},
                viewportArea_);
   drawInspectorPanel(workspace_, {screenWidth - rightWidth, contentTop},

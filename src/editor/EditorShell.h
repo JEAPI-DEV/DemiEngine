@@ -1,5 +1,6 @@
 #pragma once
 
+#include "editor/EditorHierarchyPanel.h"
 #include "editor/EditorPlaySession.h"
 #include "editor/EditorUiHost.h"
 #include "editor/EditorWorkspace.h"
@@ -25,7 +26,7 @@ private:
   EditorWorkspace &workspace_;
   EditorPlaySession playSession_;
   EditorViewportArea viewportArea_;
-  std::array<char, 128> hierarchyFilter_{};
+  EditorHierarchyPanel hierarchyPanel_;
   std::array<char, 128> assetFilter_{};
   std::filesystem::path selectedSource_;
   std::string notice_;

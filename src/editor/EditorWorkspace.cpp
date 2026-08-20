@@ -81,14 +81,20 @@ bool EditorWorkspace::save(std::string &error) {
 bool EditorWorkspace::undo(std::string &error) {
   if (!sceneDocument_.undo(error))
     return false;
-  syncChangedEntity();
+  if (!rebuildWorld(error))
+    return false;
+  if (selectedEntity() == nullptr && !project_->world.entities.empty())
+    selectedEntityId_ = project_->world.entities.front().id;
   return true;
 }
 
 bool EditorWorkspace::redo(std::string &error) {
   if (!sceneDocument_.redo(error))
     return false;
-  syncChangedEntity();
+  if (!rebuildWorld(error))
+    return false;
+  if (selectedEntity() == nullptr && !project_->world.entities.empty())
+    selectedEntityId_ = project_->world.entities.front().id;
   return true;
 }
 
@@ -99,6 +105,60 @@ bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
     return false;
   syncChangedEntity();
   return true;
+}
+
+bool EditorWorkspace::createEntity(std::string &error) {
+  if (!sceneDocument_.createEntity(error))
+    return false;
+  if (!rebuildWorld(error))
+    return false;
+  selectEntity(std::string(sceneDocument_.lastChangedEntityId()));
+  return true;
+}
+
+bool EditorWorkspace::deleteEntity(const std::string_view id,
+                                   std::string &error) {
+  if (!sceneDocument_.deleteEntity(id, error))
+    return false;
+  if (!rebuildWorld(error))
+    return false;
+  if (selectedEntity() == nullptr)
+    selectedEntityId_.clear();
+  return true;
+}
+
+bool EditorWorkspace::reparentEntity(const std::string_view id,
+                                     std::optional<std::string> newParent,
+                                     std::string &error) {
+  if (!sceneDocument_.reparent(id, std::move(newParent), error))
+    return false;
+  return rebuildWorld(error);
+}
+
+bool EditorWorkspace::duplicateEntity(const std::string_view id,
+                                      std::string &error) {
+  if (!sceneDocument_.duplicateEntity(id, error))
+    return false;
+  if (!rebuildWorld(error))
+    return false;
+  selectEntity(std::string(sceneDocument_.lastChangedEntityId()));
+  return true;
+}
+
+bool EditorWorkspace::addComponent(const std::string_view id,
+                                   const std::string_view componentName,
+                                   std::string &error) {
+  if (!sceneDocument_.addComponent(id, componentName, error))
+    return false;
+  return rebuildWorld(error);
+}
+
+bool EditorWorkspace::removeComponent(const std::string_view id,
+                                      const std::string_view componentName,
+                                      std::string &error) {
+  if (!sceneDocument_.removeComponent(id, componentName, error))
+    return false;
+  return rebuildWorld(error);
 }
 
 void EditorWorkspace::syncChangedEntity() {
@@ -116,6 +176,16 @@ void EditorWorkspace::syncChangedEntity() {
   reparsed.prefabInstance = existing->prefabInstance;
   reparsed.prefabLocalId = existing->prefabLocalId;
   *existing = std::move(reparsed);
+}
+
+bool EditorWorkspace::rebuildWorld(std::string &error) {
+  auto world = runtime::loadSceneDocument(project_->project,
+                                          project_->project.mainScene,
+                                          sceneDocument_.json(), error);
+  if (!world)
+    return false;
+  project_->world = std::move(*world);
+  return true;
 }
 
 void EditorWorkspace::refreshDiagnostics() {
