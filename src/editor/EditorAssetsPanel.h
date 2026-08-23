@@ -1,5 +1,7 @@
 #pragma once
 
+#include "editor/EditorAssetDialogs.h"
+
 #include <array>
 #include <filesystem>
 #include <string>
@@ -19,6 +21,8 @@ private:
   std::array<char, 128> filter_{};
   std::filesystem::path directory_;
   std::filesystem::path selectedSource_;
+  std::string typeFilter_;
+  EditorAssetDialogs dialogs_;
 };
 
 } // namespace demi::editor

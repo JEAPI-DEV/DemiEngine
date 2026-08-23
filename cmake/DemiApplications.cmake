@@ -6,6 +6,7 @@ if(ANDROID)
 else()
   find_package(CURL REQUIRED)
   add_library(demi-cli-support STATIC
+    src/cli/build/BuildService.cpp
     src/cli/doctor/DoctorService.cpp
     src/cli/project/ProjectDiscovery.cpp
     src/cli/project/ProjectTemplates.cpp
@@ -59,12 +60,16 @@ else()
   target_link_libraries(demi-runtime PRIVATE demi-core demi-runtime-lib)
 
   add_library(demi-editor-model STATIC
+    src/editor/EditorAssetGroupDocument.cpp
+    src/editor/EditorAssetIndex.cpp
     src/editor/EditorDocumentStore.cpp
     src/editor/EditorInspectorModel.cpp
     src/editor/EditorIsoGridCell.cpp
     src/editor/EditorIsoGridCellDocument.cpp
     src/editor/EditorIsoScene2D.cpp
     src/editor/EditorPlaySession.cpp
+    src/editor/EditorProjectDocument.cpp
+    src/editor/EditorProjectOperations.cpp
     src/editor/EditorSceneCommand.cpp
     src/editor/EditorSceneDocument.cpp
     src/editor/EditorSceneDomain.cpp
@@ -76,14 +81,17 @@ else()
     src/editor/EditorViewportProjection2D.cpp
     src/editor/EditorViewportTool.cpp
     src/editor/EditorViewportTool2D.cpp
-    src/editor/EditorWorkspace.cpp)
+    src/editor/EditorWorkspace.cpp
+    src/editor/EditorWorkspaceAssets.cpp)
   target_include_directories(demi-editor-model PUBLIC src)
   target_compile_features(demi-editor-model PUBLIC cxx_std_20)
   target_link_libraries(demi-editor-model PUBLIC demi-core PRIVATE
-    demi-runtime-lib)
+    demi-cli-support demi-runtime-lib)
 
   add_library(demi-editor-ui STATIC
+    src/editor/EditorAssetDialogs.cpp
     src/editor/EditorAssetsPanel.cpp
+    src/editor/EditorBuildPanel.cpp
     src/editor/EditorChrome.cpp
     src/editor/EditorConflictPanel.cpp
     src/editor/EditorGameRenderer.cpp
@@ -93,6 +101,7 @@ else()
     src/editor/EditorInspectorPanel.cpp
     src/editor/EditorIsoGridInspector.cpp
     src/editor/EditorPanelStyle.cpp
+    src/editor/EditorProjectPanel.cpp
     src/editor/EditorShell.cpp
     src/editor/EditorStbRectPack.cpp
     src/editor/EditorTheme.cpp
@@ -118,4 +127,6 @@ else()
 
   add_executable(demi-editor src/editor/main.cpp)
   target_link_libraries(demi-editor PRIVATE demi-editor-ui)
+  target_compile_definitions(demi-editor-ui PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 endif()

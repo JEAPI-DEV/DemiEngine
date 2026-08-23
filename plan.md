@@ -2049,18 +2049,19 @@ second unsynchronized model.
 
 #### 8F. Project, assets, diagnostics, profiler, and builds — partial
 
-Present: project discovery/opening, authored-source browsing, shared validation
-diagnostics, and honest disabled build-target presentation.
+Present: project discovery/opening/creation through the atomic template
+scaffolder; authored-source folder browsing and type filtering; manifest,
+dependency, diagnostics, and cook-freshness inspection; importer-backed import
+and reimport; filesystem location; reversible conflict-safe project preload,
+scene-membership, and asset-group documents; and cancellable background
+Validate, transactional Cook, Linux Package, and Android Package operations.
+CLI and editor packaging share the structured `BuildService`; selected real
+targets produce artifacts and structured failures remain visible.
 
 Next:
 
-1. Add project creation through existing templates and surface importer/cook
-   status from existing asset services.
-2. Add log and profiler views backed by real runtime data, including render and
+1. Add log and profiler views backed by real runtime data, including render and
    physics debug modes, input state, and network simulation controls.
-3. Invoke existing cook/package services for enabled build controls and stream
-   their structured diagnostics/progress. Do not duplicate CLI command logic or
-   parse human console output when a service API exists.
 
 Acceptance: an editor-triggered validate/cook/package operation returns the
 same result and artifacts as the corresponding CLI service call; cancellation

@@ -6,6 +6,8 @@
   target_link_libraries(demi-project-templates-tests PRIVATE demi-cli-support)
   target_compile_definitions(demi-project-templates-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-build-service-tests tests/build_service_tests.cpp)
+  target_link_libraries(demi-build-service-tests PRIVATE demi-cli-support)
   add_executable(demi-editor-workspace-tests tests/editor_workspace_tests.cpp)
   target_link_libraries(demi-editor-workspace-tests PRIVATE demi-editor-model)
   target_compile_definitions(demi-editor-workspace-tests PRIVATE
@@ -57,6 +59,18 @@
   target_link_libraries(demi-editor-play-session-tests PRIVATE demi-editor-model)
   target_compile_definitions(demi-editor-play-session-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-project-document-tests
+    tests/editor_project_document_tests.cpp)
+  target_link_libraries(demi-editor-project-document-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-asset-workflow-tests
+    tests/editor_asset_workflow_tests.cpp)
+  target_link_libraries(demi-editor-asset-workflow-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-asset-group-document-tests
+    tests/editor_asset_group_document_tests.cpp)
+  target_link_libraries(demi-editor-asset-group-document-tests
+    PRIVATE demi-editor-model)
   add_executable(demi-doctor-service-tests tests/doctor_service_tests.cpp)
   target_link_libraries(demi-doctor-service-tests PRIVATE demi-cli-support)
   target_compile_definitions(demi-doctor-service-tests PRIVATE

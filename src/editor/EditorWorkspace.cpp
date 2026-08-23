@@ -25,6 +25,10 @@ bool EditorWorkspace::open(std::filesystem::path projectPath,
 
   projectPath_ = std::move(projectPath);
   project_ = std::move(loaded);
+  if (!projectDocument_.open(projectPath_, error)) {
+    project_.reset();
+    return false;
+  }
   if (!sceneDocument_.open(project_->world.scenePath, error)) {
     project_.reset();
     return false;
@@ -35,34 +39,12 @@ bool EditorWorkspace::open(std::filesystem::path projectPath,
   viewportTool2D_.cancelDrag();
   updateSceneDomain(true);
   discoverSources();
+  refreshAssetIndex();
   loadPreviewTilemaps();
   if (!project_->world.entities.empty())
     selectEntity(project_->world.entities.front().id);
   refreshDiagnostics();
   return true;
-}
-
-void EditorWorkspace::discoverSources() {
-  sources_.clear();
-  std::error_code filesystemError;
-  std::filesystem::recursive_directory_iterator iterator(
-      project_->project.projectDirectory,
-      std::filesystem::directory_options::skip_permission_denied,
-      filesystemError);
-  const std::filesystem::recursive_directory_iterator end;
-  for (; !filesystemError && iterator != end;
-       iterator.increment(filesystemError)) {
-    if (iterator->is_directory()) {
-      const std::string name = iterator->path().filename().string();
-      if (name == "generated" || name == "build" || name == ".demi" ||
-          name == ".git")
-        iterator.disable_recursion_pending();
-      continue;
-    }
-    if (iterator->is_regular_file())
-      sources_.push_back(iterator->path());
-  }
-  std::ranges::sort(sources_);
 }
 
 void EditorWorkspace::loadPreviewTilemaps() {
@@ -79,9 +61,10 @@ void EditorWorkspace::loadPreviewTilemaps() {
 }
 
 bool EditorWorkspace::refresh(std::string &error) {
-  if (sceneDocument_.isDirty()) {
-    error = "The scene has unsaved changes. Save or undo them before "
-            "refreshing.";
+  if (sceneDocument_.isDirty() || projectDocument_.isDirty()) {
+    error =
+        "The scene or project has unsaved changes. Save or undo them before "
+        "refreshing.";
     return false;
   }
   auto loaded = runtime::loadProject(projectPath_, error);
@@ -89,11 +72,14 @@ bool EditorWorkspace::refresh(std::string &error) {
     return false;
   if (!sceneDocument_.reload(error))
     return false;
+  if (!projectDocument_.reload(error))
+    return false;
   project_ = std::move(loaded);
   viewportTool_.cancelDrag();
   viewportTool2D_.cancelDrag();
   updateSceneDomain(false);
   discoverSources();
+  refreshAssetIndex();
   loadPreviewTilemaps();
   std::erase_if(selectedEntityIds_, [this](const std::string &id) {
     return std::ranges::find(project_->world.entities, id,
@@ -136,6 +122,7 @@ bool EditorWorkspace::resolveExternalChange(
     viewportTool2D_.cancelDrag();
     updateSceneDomain(false);
     discoverSources();
+    refreshAssetIndex();
     loadPreviewTilemaps();
     std::erase_if(selectedEntityIds_, [this](const std::string &id) {
       return std::ranges::find(project_->world.entities, id,

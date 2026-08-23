@@ -1,10 +1,12 @@
 #pragma once
 
 #include "editor/EditorAssetsPanel.h"
+#include "editor/EditorBuildPanel.h"
 #include "editor/EditorConflictPanel.h"
 #include "editor/EditorGameViewPanel.h"
 #include "editor/EditorHierarchyPanel.h"
 #include "editor/EditorPlaySession.h"
+#include "editor/EditorProjectPanel.h"
 #include "editor/EditorUiHost.h"
 #include "editor/EditorWorkspace.h"
 
@@ -49,6 +51,8 @@ private:
   EditorViewportArea viewportArea_;
   EditorViewportArea gameArea_;
   EditorAssetsPanel assetsPanel_;
+  EditorBuildPanel buildPanel_;
+  EditorProjectPanel projectPanel_;
   EditorHierarchyPanel hierarchyPanel_;
   EditorConflictPanel conflictPanel_;
   std::string notice_;
@@ -58,8 +62,6 @@ private:
   bool gameViewFocused_ = false;
   bool stepRequested_ = false;
   std::uint16_t gameTextureIndex_ = UINT16_MAX;
-  bool linuxTarget_ = true;
-  bool androidTarget_ = false;
 };
 
 } // namespace demi::editor

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "editor/EditorAssetIndex.h"
+#include "editor/EditorProjectDocument.h"
 #include "editor/EditorSceneDocument.h"
 #include "editor/EditorSceneDomain.h"
 #include "editor/EditorSceneView2DState.h"
@@ -8,6 +10,7 @@
 #include "editor/EditorViewportTool.h"
 #include "editor/EditorViewportTool2D.h"
 
+#include "demi/assets/AssetImporter.h"
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/tilemap/TilemapAsset.h"
@@ -28,6 +31,22 @@ public:
                           std::string &error);
   [[nodiscard]] bool refresh(std::string &error);
   [[nodiscard]] bool save(std::string &error);
+  [[nodiscard]] bool saveProject(std::string &error);
+  [[nodiscard]] bool projectUndo(std::string &error);
+  [[nodiscard]] bool projectRedo(std::string &error);
+  [[nodiscard]] bool setPreloadedAssets(std::vector<std::string> assets,
+                                        std::string &error);
+  [[nodiscard]] bool addProjectScene(std::string id, std::filesystem::path path,
+                                     std::string &error);
+  [[nodiscard]] bool removeProjectScene(std::string_view id,
+                                        std::string &error);
+  [[nodiscard]] bool importAsset(const assets::AssetImportRequest &request,
+                                 std::string &error);
+  [[nodiscard]] bool reimportAsset(const std::filesystem::path &manifest,
+                                   std::string &error);
+  [[nodiscard]] bool createAssetGroup(std::string id,
+                                      std::vector<std::string> roots,
+                                      std::string &error);
   [[nodiscard]] bool
   resolveExternalChange(ExternalChangeDecision decision,
                         const std::filesystem::path &copyPath,
@@ -78,6 +97,7 @@ public:
   }
   void endContinuousEdit() { sceneDocument_.endContinuousEdit(); }
   void refreshDiagnostics();
+  void refreshAssetMetadata();
 
   [[nodiscard]] const runtime::LoadedProject &project() const {
     return *project_;
@@ -91,6 +111,12 @@ public:
   }
   [[nodiscard]] const auto &tilemaps2D() const { return tilemaps2D_; }
   [[nodiscard]] const Diagnostics &diagnostics() const { return diagnostics_; }
+  [[nodiscard]] const EditorAssetIndex &assetIndex() const {
+    return assetIndex_;
+  }
+  [[nodiscard]] const EditorProjectDocument &projectDocument() const {
+    return projectDocument_;
+  }
   [[nodiscard]] const EditorSceneDocument &sceneDocument() const {
     return sceneDocument_;
   }
@@ -128,6 +154,7 @@ public:
 
 private:
   void discoverSources();
+  void refreshAssetIndex();
   void loadPreviewTilemaps();
   void syncChangedEntity();
   void reconcileIsoGridCellSelection();
@@ -144,6 +171,8 @@ private:
   std::filesystem::path projectPath_;
   std::optional<runtime::LoadedProject> project_;
   EditorSceneDocument sceneDocument_;
+  EditorProjectDocument projectDocument_;
+  EditorAssetIndex assetIndex_;
   EditorSceneViewState sceneView_;
   EditorSceneView2DState sceneView2D_;
   EditorViewportTool viewportTool_;

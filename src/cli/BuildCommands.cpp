@@ -1,165 +1,24 @@
 #include "cli/BuildCommands.h"
+
 #include "cli/CliArguments.h"
+#include "cli/build/BuildService.h"
 #include "cli/project/ProjectDiscovery.h"
 
-#include "demi/assets/AssetCooker.h"
-#include "demi/schema/Validation.h"
-
-#include <cstdlib>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
-#include <string>
 
 namespace demi::cli {
-
 namespace {
 
-constexpr int ExitSuccess = 0;
-constexpr int ExitValidationFailure = 1;
-constexpr int ExitUsageError = 2;
-
-enum class LinuxBundleMode {
-  Game,
-  Server,
-};
-
-std::string shellQuote(const std::string &value) {
-  std::string quoted = "'";
-  for (const char character : value) {
-    if (character == '\'') {
-      quoted += "'\\''";
-    } else {
-      quoted += character;
-    }
-  }
-  quoted += "'";
-  return quoted;
-}
-
-std::string shellQuote(const std::filesystem::path &path) {
-  return shellQuote(path.string());
-}
-
-std::string launcherNameFor(const std::filesystem::path &projectFile) {
-  const std::string name = projectFile.parent_path().filename().string();
-  return name.empty() ? "demi-game" : name;
-}
-
-std::string runtimeCommand() { return "\"$DIR/bin/demi\""; }
-
-bool copyRuntimeExecutable(const std::string &executablePath,
-                           const std::filesystem::path &outputRoot,
-                           std::string &error) {
-  const std::filesystem::path source =
-      std::filesystem::absolute(executablePath);
-  const std::filesystem::path target = outputRoot / "bin" / "demi";
-  std::error_code code;
-  std::filesystem::create_directories(target.parent_path(), code);
-  if (!code) {
-    std::filesystem::copy_file(
-        source, target, std::filesystem::copy_options::overwrite_existing,
-        code);
-  }
-  if (code) {
-    error = "Failed to copy Demi runtime: " + source.string();
-    return false;
-  }
-  std::filesystem::permissions(target,
-                               std::filesystem::perms::owner_exec |
-                                   std::filesystem::perms::group_exec |
-                                   std::filesystem::perms::others_exec,
-                               std::filesystem::perm_options::add, code);
-  return true;
-}
-
-std::filesystem::path serverRuntimeExecutable(const BuildContext &context) {
-  const std::filesystem::path cliPath =
-      std::filesystem::absolute(context.executablePath);
-  return cliPath.parent_path() / "demi-server";
-}
-
-std::filesystem::path
-defaultLinuxOutputRoot(const std::filesystem::path &projectFile,
-                       const LinuxBundleMode mode) {
-  const std::string folder =
-      mode == LinuxBundleMode::Server ? "linux_server" : "linux";
-  return std::filesystem::current_path() / "build" / folder /
-         launcherNameFor(projectFile);
-}
-
-std::string launcherFileNameFor(const std::filesystem::path &projectFile,
-                                const LinuxBundleMode mode) {
-  return mode == LinuxBundleMode::Server ? "serve"
-                                         : launcherNameFor(projectFile);
-}
-
-bool writeLinuxLauncher(const std::filesystem::path &launcherPath,
-                        const std::string &runtimeCommand,
-                        const LinuxBundleMode mode, std::string &error) {
-  std::error_code code;
-  std::filesystem::create_directories(launcherPath.parent_path(), code);
-  std::ofstream launcher(launcherPath);
-  if (!launcher) {
-    error = "Failed to write launcher: " + launcherPath.string();
-    return false;
-  }
-
-  const std::string command = mode == LinuxBundleMode::Server ? "serve" : "run";
-  launcher << "#!/usr/bin/env sh\n"
-           << "set -eu\n"
-           << "DIR=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\n"
-           << "exec " << runtimeCommand << ' ' << command
-           << " --project \"$DIR/project/demi.project.json\" \"$@\"\n";
-  launcher.close();
-  std::filesystem::permissions(launcherPath,
-                               std::filesystem::perms::owner_exec |
-                                   std::filesystem::perms::group_exec |
-                                   std::filesystem::perms::others_exec,
-                               std::filesystem::perm_options::add, code);
-  return true;
-}
-
-int buildLinuxBundle(const std::filesystem::path &absoluteProject,
-                     const BuildContext &context,
-                     const std::vector<std::string> &args,
-                     const LinuxBundleMode mode) {
-  const std::filesystem::path outputRoot =
-      valueAfter(args, "--output").empty()
-          ? defaultLinuxOutputRoot(absoluteProject, mode)
-          : std::filesystem::path(valueAfter(args, "--output"));
-  const std::filesystem::path bundledProject = outputRoot / "project";
-  const std::filesystem::path runtimeExecutable =
-      mode == LinuxBundleMode::Server
-          ? serverRuntimeExecutable(context)
-          : std::filesystem::path(context.executablePath);
-  std::string error;
-  if (mode == LinuxBundleMode::Server &&
-      !std::filesystem::is_regular_file(runtimeExecutable)) {
-    std::cerr << "Dedicated server runtime was not found: "
-              << runtimeExecutable.string() << '\n';
-    return ExitValidationFailure;
-  }
-  const Diagnostics cookDiagnostics = assets::cookProject(
-      {.projectFile = absoluteProject,
-       .outputDirectory = bundledProject,
-       .platform = mode == LinuxBundleMode::Server ? "linux_server" : "linux"});
-  if (hasErrors(cookDiagnostics)) {
-    printDiagnosticsText(std::cerr, cookDiagnostics);
-    return ExitValidationFailure;
-  }
-  if (!copyRuntimeExecutable(runtimeExecutable.string(), outputRoot, error) ||
-      !writeLinuxLauncher(outputRoot /
-                              launcherFileNameFor(absoluteProject, mode),
-                          runtimeCommand(), mode, error)) {
-    std::cerr << error << '\n';
-    return ExitValidationFailure;
-  }
-
-  std::cout << "Wrote Linux "
-            << (mode == LinuxBundleMode::Server ? "server " : "")
-            << "bundle: " << outputRoot.string() << '\n';
-  return ExitSuccess;
+std::filesystem::path defaultOutput(const std::filesystem::path &project,
+                                    const std::string &target) {
+  if (target == "apk")
+    return {};
+  std::string name = project.parent_path().filename().string();
+  if (name.empty())
+    name = "demi-game";
+  return std::filesystem::current_path() / "build" /
+         (target == "linux_server" ? "linux_server" : "linux") / name;
 }
 
 } // namespace
@@ -168,63 +27,51 @@ int runBuildCommand(const std::vector<std::string> &args,
                     const BuildContext &context) {
   if (args.size() < 2) {
     std::cerr << "build requires a target: apk, linux, or linux_server.\n";
-    return ExitUsageError;
+    return 2;
   }
-
   const std::filesystem::path project = projectFileFromArgs(args);
   if (project.empty()) {
     std::cerr << "build requires --project <project> or a demi.project.json in "
                  "the current directory.\n";
-    return ExitUsageError;
+    return 2;
+  }
+
+  build::ProjectOperation operation;
+  if (args[1] == "linux")
+    operation = build::ProjectOperation::PackageLinux;
+  else if (args[1] == "linux_server")
+    operation = build::ProjectOperation::PackageLinuxServer;
+  else if (args[1] == "apk")
+    operation = build::ProjectOperation::PackageAndroid;
+  else {
+    std::cerr << "Unknown build target: " << args[1] << '\n';
+    return 2;
   }
 
   const std::filesystem::path absoluteProject =
       std::filesystem::absolute(project);
-  const ValidationSummary summary = validatePath(absoluteProject);
-  if (hasErrors(summary.diagnostics)) {
-    printDiagnosticsText(std::cerr, summary.diagnostics);
-    return ExitValidationFailure;
-  }
-
-  if (args[1] == "apk") {
-    const std::string gradle = valueAfter(args, "--gradle").empty()
-                                   ? "gradle"
-                                   : valueAfter(args, "--gradle");
-    const std::filesystem::path androidRoot = context.engineRoot / "android";
-    const std::filesystem::path cookedProject =
-        androidRoot / "app/build/generated/demi/cooked-project";
-    const Diagnostics cookDiagnostics =
-        assets::cookProject({.projectFile = absoluteProject,
-                             .outputDirectory = cookedProject,
-                             .platform = "android",
-                             .shaderCompiler = {},
-                             .shaderIncludeDirectory = {}});
-    if (hasErrors(cookDiagnostics)) {
-      printDiagnosticsText(std::cerr, cookDiagnostics);
-      return ExitValidationFailure;
-    }
-    const std::filesystem::path packagedProject =
-        cookedProject / absoluteProject.filename();
-    const std::string command =
-        shellQuote(gradle) + " -p " + shellQuote(androidRoot) +
-        " -PdemiProjectFile=" + shellQuote(packagedProject) +
-        " :app:assembleDebug";
-    return std::system(command.c_str()) == 0 ? ExitSuccess
-                                             : ExitValidationFailure;
-  }
-
-  if (args[1] == "linux") {
-    return buildLinuxBundle(absoluteProject, context, args,
-                            LinuxBundleMode::Game);
-  }
-
-  if (args[1] == "linux_server") {
-    return buildLinuxBundle(absoluteProject, context, args,
-                            LinuxBundleMode::Server);
-  }
-
-  std::cerr << "Unknown build target: " << args[1] << '\n';
-  return ExitUsageError;
+  const std::string requestedOutput = valueAfter(args, "--output");
+  const build::ProjectOperationResult result = build::runProjectOperation(
+      {.operation = operation,
+       .projectFile = absoluteProject,
+       .outputDirectory = requestedOutput.empty()
+                              ? defaultOutput(absoluteProject, args[1])
+                              : std::filesystem::path(requestedOutput),
+       .engineRoot = context.engineRoot,
+       .runtimeExecutable = std::filesystem::absolute(context.executablePath),
+       .gradleExecutable = valueAfter(args, "--gradle").empty()
+                               ? "gradle"
+                               : valueAfter(args, "--gradle")});
+  if (!result.diagnostics.empty())
+    printDiagnosticsText(std::cerr, result.diagnostics);
+  if (!result.succeeded())
+    return 1;
+  std::cout << "Wrote "
+            << (args[1] == "apk"            ? "Android package: "
+                : args[1] == "linux_server" ? "Linux server bundle: "
+                                            : "Linux bundle: ")
+            << result.artifact.string() << '\n';
+  return 0;
 }
 
 } // namespace demi::cli

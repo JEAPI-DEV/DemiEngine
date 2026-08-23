@@ -67,15 +67,17 @@ DocumentWriteStatus EditorDocumentStore::writeIfUnchanged(
   if (!EditorDocumentStore::revision(path, current, error)) {
     std::error_code filesystemError;
     if (!std::filesystem::exists(path, filesystemError) && !filesystemError) {
-      error = "The scene was removed from disk. Reload it or save your changes "
-              "to a new file.";
+      error =
+          "The document was removed from disk. Reload it or save your changes "
+          "to a new file.";
       return DocumentWriteStatus::Conflict;
     }
     return DocumentWriteStatus::Failed;
   }
   if (current != expected) {
-    error = "The scene changed on disk. Choose whether to reload it, keep the "
-            "in-memory version, or save a copy.";
+    error =
+        "The document changed on disk. Choose whether to reload it, keep the "
+        "in-memory version, or save a copy.";
     return DocumentWriteStatus::Conflict;
   }
 
@@ -92,8 +94,8 @@ bool EditorDocumentStore::writeNew(const std::filesystem::path &path,
   std::error_code filesystemError;
   const bool exists = std::filesystem::exists(path, filesystemError);
   if (filesystemError) {
-    error = "Could not inspect the copy destination: " +
-            filesystemError.message();
+    error =
+        "Could not inspect the copy destination: " + filesystemError.message();
     return false;
   }
   if (exists) {
@@ -110,21 +112,20 @@ bool EditorDocumentStore::writeAtomically(const std::filesystem::path &path,
   std::error_code statusError;
   const std::filesystem::file_status temporaryStatus =
       std::filesystem::symlink_status(temporary, statusError);
-  if (statusError &&
-      statusError != std::errc::no_such_file_or_directory) {
-    error = "Could not inspect the temporary scene file: " +
+  if (statusError && statusError != std::errc::no_such_file_or_directory) {
+    error = "Could not inspect the temporary document file: " +
             statusError.message();
     return false;
   }
   if (!statusError && std::filesystem::exists(temporaryStatus) &&
       !std::filesystem::is_regular_file(temporaryStatus)) {
-    error = "The temporary scene path is not a regular file.";
+    error = "The temporary document path is not a regular file.";
     return false;
   }
   {
     std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
     if (!output) {
-      error = "Could not create the temporary scene file.";
+      error = "Could not create the temporary document file.";
       return false;
     }
     output << text;
@@ -133,7 +134,7 @@ bool EditorDocumentStore::writeAtomically(const std::filesystem::path &path,
       output.close();
       std::error_code cleanupError;
       std::filesystem::remove(temporary, cleanupError);
-      error = "Could not finish writing the temporary scene file.";
+      error = "Could not finish writing the temporary document file.";
       return false;
     }
   }
@@ -143,8 +144,8 @@ bool EditorDocumentStore::writeAtomically(const std::filesystem::path &path,
   if (filesystemError) {
     std::error_code cleanupError;
     std::filesystem::remove(temporary, cleanupError);
-    error =
-        "Could not replace the scene atomically: " + filesystemError.message();
+    error = "Could not replace the document atomically: " +
+            filesystemError.message();
     return false;
   }
   return true;

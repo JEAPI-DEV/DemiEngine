@@ -20,7 +20,8 @@ namespace demi::editor {
 namespace {
 
 void drawConsole(EditorWorkspace &workspace, const ImVec2 position,
-                 const ImVec2 size) {
+                 const ImVec2 size,
+                 const EditorProjectOperationSnapshot &operation) {
   beginEditorPanel("Console", position, size);
   if (ImGui::BeginTabBar("diagnostic-tabs")) {
     if (ImGui::BeginTabItem("Console")) {
@@ -35,6 +36,15 @@ void drawConsole(EditorWorkspace &workspace, const ImVec2 position,
         ImGui::SameLine();
         ImGui::TextWrapped("%s", diagnostic.message.c_str());
       }
+      if (operation.result)
+        for (const Diagnostic &diagnostic : operation.result->diagnostics) {
+          const ImVec4 color = diagnostic.severity == Severity::Error
+                                   ? ImVec4{0.95F, 0.34F, 0.38F, 1.0F}
+                                   : ImVec4{0.95F, 0.72F, 0.30F, 1.0F};
+          ImGui::TextColored(color, "%s", diagnostic.code.c_str());
+          ImGui::SameLine();
+          ImGui::TextWrapped("%s", diagnostic.message.c_str());
+        }
       ImGui::EndTabItem();
     }
     if (ImGui::BeginTabItem("Profiler")) {
@@ -44,25 +54,6 @@ void drawConsole(EditorWorkspace &workspace, const ImVec2 position,
     }
     ImGui::EndTabBar();
   }
-  ImGui::End();
-}
-
-void drawBuild(const ImVec2 position, const ImVec2 size, bool &linuxTarget,
-               bool &androidTarget) {
-  beginEditorPanel("Build", position, size);
-  editorSectionTitle("Build");
-  ImGui::TextDisabled("Targets");
-  ImGui::Checkbox("Linux (64-bit)", &linuxTarget);
-  ImGui::Checkbox("Android (ARM64)", &androidTarget);
-  ImGui::Separator();
-  ImGui::TextDisabled("Build Settings");
-  ImGui::TextDisabled("Configuration");
-  ImGui::SameLine();
-  ImGui::TextUnformatted("Debug");
-  ImGui::SetCursorPosY(std::max(ImGui::GetCursorPosY(), size.y - 48.0F));
-  disabledEditorButton("Build Project",
-                       "Build command execution is not connected yet.",
-                       {-1.0F, 30.0F});
   ImGui::End();
 }
 
@@ -82,15 +73,25 @@ void drawStageTabs(const ImVec2 position, const ImVec2 size,
 }
 
 void drawMenu(EditorWorkspace &workspace, const ImVec2 size, bool &wantsExit,
-              std::string &notice) {
+              EditorProjectPanel &projectPanel, std::string &notice) {
   beginEditorPanel("MainMenu", {0.0F, 0.0F}, size,
                    ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar);
   if (ImGui::BeginMenuBar()) {
     if (ImGui::BeginMenu("File")) {
+      if (ImGui::MenuItem("New project..."))
+        projectPanel.openCreateProject();
+      if (ImGui::MenuItem("Project settings..."))
+        projectPanel.openSettings();
+      ImGui::Separator();
       if (ImGui::MenuItem("Save scene", "Ctrl+S", false,
                           workspace.sceneDocument().isDirty())) {
         std::string error;
         notice = workspace.save(error) ? "Scene saved" : error;
+      }
+      if (ImGui::MenuItem("Save project", nullptr, false,
+                          workspace.projectDocument().isDirty())) {
+        std::string error;
+        notice = workspace.saveProject(error) ? "Project saved" : error;
       }
       if (ImGui::MenuItem("Refresh project", "F5")) {
         std::string error;
@@ -98,8 +99,9 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size, bool &wantsExit,
       }
       ImGui::Separator();
       if (ImGui::MenuItem("Exit")) {
-        if (workspace.sceneDocument().isDirty())
-          notice = "Save or undo scene changes before exiting.";
+        if (workspace.sceneDocument().isDirty() ||
+            workspace.projectDocument().isDirty())
+          notice = "Save or undo scene and project changes before exiting.";
         else
           wantsExit = true;
       }
@@ -182,7 +184,13 @@ void EditorShell::draw(const int width, const int height,
   if (!input.WantTextInput && input.KeyCtrl &&
       ImGui::IsKeyPressed(ImGuiKey_S, false)) {
     std::string error;
-    notice_ = workspace_.save(error) ? "Scene saved" : error;
+    if (workspace_.sceneDocument().isDirty() && !workspace_.save(error))
+      notice_ = error;
+    else if (workspace_.projectDocument().isDirty() &&
+             !workspace_.saveProject(error))
+      notice_ = error;
+    else
+      notice_ = "Authored documents saved";
   }
   if (!input.WantTextInput && input.KeyCtrl &&
       ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
@@ -219,7 +227,10 @@ void EditorShell::draw(const int width, const int height,
   const float assetsWidth =
       std::max(280.0F, screenWidth - consoleWidth - rightWidth - buildWidth);
 
-  drawMenu(workspace_, {screenWidth, menuHeight}, wantsExit_, notice_);
+  const EditorProjectOperationSnapshot projectOperation =
+      buildPanel_.operation();
+  drawMenu(workspace_, {screenWidth, menuHeight}, wantsExit_, projectPanel_,
+           notice_);
   drawEditorToolbar({0.0F, menuHeight}, {screenWidth, toolbarHeight},
                     workspace_, playSession_, showGameView_, stepRequested_,
                     notice_);
@@ -253,14 +264,17 @@ void EditorShell::draw(const int width, const int height,
     drawInspectorPanel(workspace_, {screenWidth - rightWidth, contentTop},
                        {rightWidth, contentBottom - contentTop}, notice_);
   drawConsole(workspace_, {0.0F, contentTop + upperHeight},
-              {consoleWidth, bottomHeight});
+              {consoleWidth, bottomHeight}, projectOperation);
   assetsPanel_.draw(workspace_, {consoleWidth, contentTop + upperHeight},
                     {assetsWidth, bottomHeight}, notice_);
-  drawBuild({consoleWidth + assetsWidth, contentTop + upperHeight},
-            {buildWidth, bottomHeight}, linuxTarget_, androidTarget_);
+  buildPanel_.draw(workspace_,
+                   {consoleWidth + assetsWidth, contentTop + upperHeight},
+                   {buildWidth, bottomHeight}, notice_);
   drawStatus(workspace_, {0.0F, contentBottom}, {screenWidth, statusHeight},
-             rendererName, notice_, linuxTarget_, androidTarget_);
+             rendererName, notice_, buildPanel_.linuxTarget(),
+             buildPanel_.androidTarget());
   conflictPanel_.draw(workspace_, notice_);
+  projectPanel_.draw(workspace_, notice_);
 }
 
 } // namespace demi::editor

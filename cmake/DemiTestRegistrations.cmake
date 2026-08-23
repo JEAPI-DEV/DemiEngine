@@ -1,7 +1,14 @@
 # Unit, subsystem, CLI, and networking test registration.
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-project-templates-tests COMMAND demi-project-templates-tests)
+add_test(NAME demi-build-service-tests COMMAND demi-build-service-tests)
 add_test(NAME demi-editor-workspace-tests COMMAND demi-editor-workspace-tests)
+add_test(NAME demi-editor-project-document-tests
+  COMMAND demi-editor-project-document-tests)
+add_test(NAME demi-editor-asset-workflow-tests
+  COMMAND demi-editor-asset-workflow-tests)
+add_test(NAME demi-editor-asset-group-document-tests
+  COMMAND demi-editor-asset-group-document-tests)
 add_test(NAME demi-editor-scene-view-state-tests
   COMMAND demi-editor-scene-view-state-tests)
 add_test(NAME demi-editor-2d-scene-view-tests

@@ -38,7 +38,18 @@ filesystem service used by `demi dev`.
 - The Assets panel presents authored project files in a folder tree and compact
   file grid while excluding generated, build, package-cache, and Git internals.
   Generic file glyphs remain intentionally honest until preview generation is
-  implemented by the asset-workflow milestone.
+  implemented by the relevant specialized-document preview milestone.
+- Asset workflows are operational: type filtering, manifest metadata,
+  dependencies, source/import diagnostics, Linux cook freshness, reimport,
+  filesystem location, importer-backed import, and versioned asset-group
+  creation/editing all use authored files and shared engine services.
+- Project Settings edits preload assets/groups and scene membership through a
+  conflict-safe reversible project document. New Project uses the existing
+  template catalog and atomic scaffolder.
+- Validate, transactional Linux Cook, Linux Package, and supported Android
+  Package run as cancellable background operations with structured progress
+  and diagnostics. The CLI and editor share the same packaging service, and
+  Build Project is enabled only when at least one real target is selected.
 - The shared shell now follows the Minimal Voxel visual contract: grouped icon
   commands, central Viewport/Game View tabs, quiet charcoal panel chrome,
   compact Inspector sections, hierarchy visibility controls, a dedicated
@@ -367,24 +378,27 @@ contained by the same runtime-session failure boundary.
 **Depends on:** Milestone 1 for document safety. Cooking/building can progress
 independently of viewport gizmos.
 
-- [ ] Extract `EditorAssetsPanel` when adding state beyond the current filter and
+- [x] Extract `EditorAssetsPanel` when adding state beyond the current filter and
   selection; keep source discovery in `EditorWorkspace` or a named source index.
-- [ ] Add folder navigation, type filters, asset-manifest details, dependency and
+- [x] Add folder navigation, type filters, asset-manifest details, dependency and
   stale-cook status, and locate-in-filesystem.
-- [ ] Add import/create actions through existing importer and template services;
+- [x] Add import/create actions through existing importer and template services;
   never write an editor-only asset database.
-- [ ] Edit project preload `assets`, asset groups, and scene membership through
+- [x] Edit project preload `assets`, asset groups, and scene membership through
   versioned authored documents and reversible commands.
-- [ ] Add project creation through existing project templates.
-- [ ] Connect Validate, Cook, Linux Package, and supported Android packaging to
+- [x] Add project creation through existing project templates.
+- [x] Connect Validate, Cook, Linux Package, and supported Android packaging to
   the existing service layer with structured progress, cancellation, and
   diagnostics. Do not parse human CLI output when a service API exists.
-- [ ] Enable Build Project only after selected targets and configuration produce
+- [x] Enable Build Project only after selected targets and configuration produce
   real artifacts and failures remain visible.
 
-**Gate:** editor-triggered validate/cook/package produces the same diagnostics,
+**Gate: passed.** Editor-triggered validate/cook/package produces the same diagnostics,
 manifest, and artifacts as the corresponding CLI service; cancellation leaves
-no half-owned process or false success state.
+no committed staging directory, half-owned child process, or false success
+state. UI-free coverage exercises project and asset-group undo/save, importer
+and reimport flows, transactional cook/package parity, replacement, and
+cancellation. Linux and Android CLI package smokes exercise the shared service.
 
 ### Milestone 8 — Add prefab, HUD, and specialized document editors
 
@@ -429,13 +443,11 @@ editing and conflict handling remain supported.
 
 ### Immediate next task
 
-The **visual-alignment checkpoint** described above is complete. Preserve its
-shared chrome, grouped command bar, Viewport/Game View tabs, panel hierarchy,
-spacing, and property-grid presentation while starting **Milestone 7:
-operational asset and project workflows**. Do not fill the remaining surfaces
-with fake asset, profiler, Lua Console, or build behavior. Milestones 0-6
-provide the safe authoring, preview, and isolated Play foundation those
-workflows depend on.
+Milestone 7 is complete. Preserve its authored-document, shared-service,
+background-operation, and honest asset-index boundaries while starting
+**Milestone 8: prefab, HUD, and specialized document editors**. Implement one
+real document type at a time; profiler and Lua Console behavior still belong to
+Milestone 9 rather than the asset workflow.
 
 For each todo item that mutates authored state, use this implementation order:
 
@@ -463,3 +475,12 @@ bgfx, input forwarding, the authored 3D viewport, and the Dear ImGui frame
 lifecycle. The viewport reuses `BgfxRenderer3D`, `GpuResources`, and
 `RenderCommands` on a separate bgfx view. Runtime and authored-data modules do
 not depend on ImGui.
+
+Milestone 7 keeps authored and operational responsibilities separate:
+`EditorProjectDocument` and `EditorAssetGroupDocument` own reversible,
+conflict-safe JSON; `EditorAssetIndex` is a rebuildable read-only projection;
+`EditorWorkspaceAssets` coordinates importer and authored-file actions;
+`BuildService` is the synchronous structured CLI/editor contract;
+`EditorProjectOperations` owns its background thread and cancellation; and
+`EditorAssetDialogs`, `EditorBuildPanel`, and `EditorProjectPanel` own only
+presentation state. No editor-only asset or project database exists.
