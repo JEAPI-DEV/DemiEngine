@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/model/SceneTypes.h"
+#include "editor/EditorProfilerModel.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -59,6 +60,7 @@ public:
   [[nodiscard]] std::string_view failure() const { return failure_; }
   [[nodiscard]] std::uint64_t fixedTickCount() const;
   [[nodiscard]] float interpolationAlpha() const;
+  [[nodiscard]] EditorProfilerSnapshot profilerSnapshot() const;
 
 private:
   std::unique_ptr<runtime::EmbeddedRuntimeSession> embedded_;

@@ -1,5 +1,6 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 
+#include <algorithm>
 #include <iostream>
 
 int main() {
@@ -16,8 +17,14 @@ int main() {
   RuntimeProfiler::record("Lua.update", 2.0);
 
   const auto entries = RuntimeProfiler::sessionEntries();
+  const auto current = RuntimeProfiler::frameEntries();
+  const auto lua =
+      std::ranges::find(entries, "Lua.update", &RuntimeProfiler::Entry::name);
   const std::string report = RuntimeProfiler::sessionReport();
-  if (entries.empty() ||
+  if (entries.empty() || lua == entries.end() ||
+      lua->latestMilliseconds != 2.0 || lua->p95Milliseconds != 2.0 ||
+      RuntimeProfiler::frameCount() != 2 || current.size() != 1 ||
+      current.front().name != "Lua.update" ||
       report.find("Lua.update,3.250,2.000,2") == std::string::npos ||
       report.find("Physics2D.step") == std::string::npos ||
       report.find("Network.update") == std::string::npos ||

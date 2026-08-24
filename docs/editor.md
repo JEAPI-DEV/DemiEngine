@@ -76,6 +76,14 @@ filesystem service used by `demi dev`.
 - The Console displays diagnostics from the same `validatePath` service used by
   the CLI. Rejected authored edits also appear beside their Inspector target
   and in the Console through one document issue.
+- Console diagnostics and build results share searchable severity filters,
+  copyable source locations, and stable entity/component/field navigation when
+  the validator exposes that context.
+- Embedded Play enables the runtime profiler and the Profiler tab presents
+  real latest/average/p95/max CPU scope timings plus renderer submissions,
+  physics, Lua, animation, network, input, world/UI counts, and asset residency.
+  GPU time is shown as unavailable rather than estimated because the bgfx
+  backend does not yet expose timestamp-query results.
 - Play saves pending valid changes and starts an isolated embedded runtime
   world in the Game view. Pause/Resume, exact fixed-tick Step, and Stop control
   that world; an owned external `demi-runtime` window remains available from
@@ -465,17 +473,23 @@ as those services gain structured data.
 - [ ] Verify keyboard and pointer flows, readable error/empty/disabled states,
   narrow-window layout, high DPI, and repeated renderer/runtime lifetimes.
 
+**9A present:** the placeholder Profiler has been replaced with runtime-backed
+rolling samples and searchable category tables. Console and build diagnostics
+are searchable by severity, code, message, path, entity, component, and field,
+with source-copy and entity-selection actions. GPU timestamps, runtime log
+ingestion, debug views, recovery/preferences, and the full release workflow
+remain open, so the Milestone 9 gate is not yet marked passed.
+
 **Gate:** a small 2D or lightweight 3D game can be assembled, inspected, played,
 diagnosed, cooked, and packaged without manual JSON editing, while direct text
 editing and conflict handling remain supported.
 
 ### Immediate next task
 
-Milestone 8 is complete. Preserve its conflict-aware document adapters and
-runtime parser/preview boundaries while starting **Milestone 9: diagnostics,
-profiler, recovery, and release gate**. Specialized previews remain transient;
-they never save expanded prefab entities, resolved HUD nodes, sample data, or
-animation playback state into authored source.
+Milestone 9A instrumentation and searchable diagnostics are present. Continue
+with **Milestone 9B: input, renderer, physics, navigation, asset-residency, and
+network debug views**. Every view must consume a runtime snapshot; do not read
+private subsystem state from ImGui or invent unavailable metrics.
 
 For each todo item that mutates authored state, use this implementation order:
 
@@ -525,3 +539,8 @@ paths, then enter `EditorAssetDialogs`; they never bypass `AssetImporter`.
 `EditorHudDocument` owns nested authored-node operations and HUD history;
 `EditorHudCanvas` owns screen-independent bounds and picking; the hierarchy,
 viewport, and Inspector consume those services through `EditorWorkspace`.
+
+Milestone 9A keeps profiling and diagnostics UI-free until presentation:
+`RuntimeProfiler` owns bounded rolling samples; `EditorProfilerModel`
+categorizes immutable snapshots; `EditorDiagnosticsModel` merges and filters
+CLI/editor records; and `EditorConsolePanel` owns only filter and tab state.

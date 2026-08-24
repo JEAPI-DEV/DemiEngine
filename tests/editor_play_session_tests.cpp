@@ -43,6 +43,9 @@ int main() {
     assert(session.fixedTickCount() == beforeStep);
     assert(session.step({}, 960, 540, error));
     assert(session.fixedTickCount() == beforeStep + 1);
+    const auto profile = session.profilerSnapshot();
+    assert(profile.attached && profile.frameCount >= 1 &&
+           !profile.rows.empty());
     session.stop();
     assert(session.state() == demi::editor::EditorPlayState::Stopped);
     assert(session.runtimeWorld() == nullptr);

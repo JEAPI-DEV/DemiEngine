@@ -20,44 +20,6 @@
 namespace demi::editor {
 namespace {
 
-void drawConsole(EditorWorkspace &workspace, const ImVec2 position,
-                 const ImVec2 size,
-                 const EditorProjectOperationSnapshot &operation) {
-  beginEditorPanel("Console", position, size);
-  if (ImGui::BeginTabBar("diagnostic-tabs")) {
-    if (ImGui::BeginTabItem("Console")) {
-      if (workspace.diagnostics().empty())
-        ImGui::TextColored({0.35F, 0.85F, 0.55F, 1.0F},
-                           "Project validation is clean.");
-      for (const Diagnostic &diagnostic : workspace.diagnostics()) {
-        const ImVec4 color = diagnostic.severity == Severity::Error
-                                 ? ImVec4{0.95F, 0.34F, 0.38F, 1.0F}
-                                 : ImVec4{0.95F, 0.72F, 0.30F, 1.0F};
-        ImGui::TextColored(color, "%s", diagnostic.code.c_str());
-        ImGui::SameLine();
-        ImGui::TextWrapped("%s", diagnostic.message.c_str());
-      }
-      if (operation.result)
-        for (const Diagnostic &diagnostic : operation.result->diagnostics) {
-          const ImVec4 color = diagnostic.severity == Severity::Error
-                                   ? ImVec4{0.95F, 0.34F, 0.38F, 1.0F}
-                                   : ImVec4{0.95F, 0.72F, 0.30F, 1.0F};
-          ImGui::TextColored(color, "%s", diagnostic.code.c_str());
-          ImGui::SameLine();
-          ImGui::TextWrapped("%s", diagnostic.message.c_str());
-        }
-      ImGui::EndTabItem();
-    }
-    if (ImGui::BeginTabItem("Profiler")) {
-      ImGui::TextDisabled(
-          "Profiler data appears when a play session is attached.");
-      ImGui::EndTabItem();
-    }
-    ImGui::EndTabBar();
-  }
-  ImGui::End();
-}
-
 void drawStageTabs(const ImVec2 position, const ImVec2 size,
                    bool &showGameView) {
   beginEditorPanel("StageTabs", position, size,
@@ -298,8 +260,13 @@ void EditorShell::draw(const int width, const int height,
   else
     drawInspectorPanel(workspace_, {screenWidth - rightWidth, contentTop},
                        {rightWidth, contentBottom - contentTop}, notice_);
-  drawConsole(workspace_, {0.0F, contentTop + upperHeight},
-              {consoleWidth, bottomHeight}, projectOperation);
+  consolePanel_.draw(workspace_, playSession_, {0.0F, contentTop + upperHeight},
+                     {consoleWidth, bottomHeight}, projectOperation, notice_);
+  if (auto source = consolePanel_.takeOpenRequest()) {
+    std::string error;
+    if (!openDocument(*source, error))
+      notice_ = "Diagnostic source: " + source->string();
+  }
   assetsPanel_.draw(workspace_, {consoleWidth, contentTop + upperHeight},
                     {assetsWidth, bottomHeight}, notice_);
   if (auto source = assetsPanel_.takeOpenRequest()) {

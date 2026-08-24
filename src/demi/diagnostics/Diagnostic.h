@@ -24,10 +24,10 @@ struct Diagnostic {
 
 using Diagnostics = std::vector<Diagnostic>;
 
-[[nodiscard]] const char* toString(Severity severity);
-[[nodiscard]] bool hasErrors(const Diagnostics& diagnostics);
+[[nodiscard]] const char *toString(Severity severity);
+[[nodiscard]] bool hasErrors(const Diagnostics &diagnostics);
 
-void printDiagnosticsText(std::ostream& out, const Diagnostics& diagnostics);
-void printDiagnosticsJson(std::ostream& out, const Diagnostics& diagnostics);
+void printDiagnosticsText(std::ostream &out, const Diagnostics &diagnostics);
+void printDiagnosticsJson(std::ostream &out, const Diagnostics &diagnostics);
 
 } // namespace demi

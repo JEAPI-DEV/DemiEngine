@@ -64,6 +64,10 @@
     "${bgfx_SOURCE_DIR}/bgfx/3rdparty"
     "${bgfx_SOURCE_DIR}/bgfx/include")
   target_link_libraries(demi-editor-imgui-input-tests PRIVATE demi-editor-ui)
+  add_executable(demi-editor-diagnostics-profiler-tests
+    tests/editor_diagnostics_profiler_tests.cpp)
+  target_link_libraries(demi-editor-diagnostics-profiler-tests
+    PRIVATE demi-editor-model)
   add_executable(demi-editor-play-session-tests
     tests/editor_play_session_tests.cpp)
   target_link_libraries(demi-editor-play-session-tests PRIVATE demi-editor-model)

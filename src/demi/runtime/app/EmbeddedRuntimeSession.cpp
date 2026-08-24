@@ -14,6 +14,7 @@
 #include "demi/runtime/network/NetworkSystem.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/Physics3D.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/runtime/tilemap/TilemapCollisionGenerator.h"
@@ -153,6 +154,8 @@ bool EmbeddedRuntimeSession::advance(State &state, InputState input,
                                      const std::uint16_t viewportHeight,
                                      const bool oneFixedTick,
                                      std::string &error) {
+  RuntimeProfiler::beginFrame();
+  ProfileScope frameScope("Frame.update");
   error.clear();
   state.input = std::move(input);
   state.lua.setViewport(std::max<int>(viewportWidth, 1),
@@ -166,10 +169,17 @@ bool EmbeddedRuntimeSession::advance(State &state, InputState input,
   const float scaledDelta = state.lua.deltaTime();
   state.fixedAccumulator += scaledDelta;
   const auto fixedUpdate = [&] {
+    ProfileScope fixedScope("Frame.fixed_update");
     state.lua.fixedUpdate(fixedStep);
     if (state.lua.physicsEnabled()) {
-      stepPhysics2D(state.loaded.world, fixedStep);
-      stepPhysics3D(state.loaded.world, fixedStep);
+      {
+        ProfileScope physicsScope("Physics2D.step");
+        stepPhysics2D(state.loaded.world, fixedStep);
+      }
+      {
+        ProfileScope physicsScope("Physics3D.step");
+        stepPhysics3D(state.loaded.world, fixedStep);
+      }
     }
     state.lua.advanceFixedTime(fixedStep);
     ++state.fixedTicks;
@@ -183,11 +193,17 @@ bool EmbeddedRuntimeSession::advance(State &state, InputState input,
       state.fixedAccumulator -= fixedStep;
     }
   }
-  state.network.update();
-  AnimationStateMachineSystem{}.update(state.loaded.world, scaledDelta,
-                                       frameDelta);
-  SpriteAnimationSystem{}.update(state.loaded.world, scaledDelta);
-  AnimationCollision2DSystem{}.update(state.loaded.world);
+  {
+    ProfileScope networkScope("Network.update");
+    state.network.update();
+  }
+  {
+    ProfileScope animationScope("Animation.update");
+    AnimationStateMachineSystem{}.update(state.loaded.world, scaledDelta,
+                                         frameDelta);
+    SpriteAnimationSystem{}.update(state.loaded.world, scaledDelta);
+    AnimationCollision2DSystem{}.update(state.loaded.world);
+  }
   state.lua.update(scaledDelta);
   if (state.loaded.world.uiTweens.activeCount() > 0) {
     state.loaded.world.uiTweens.update(state.loaded.world.ui, scaledDelta);
@@ -215,6 +231,24 @@ bool EmbeddedRuntimeSession::advance(State &state, InputState input,
   state.audio.update(frameDelta);
   state.media.update(frameDelta);
   state.accessibility.update(state.loaded.world.ui);
+  const assets::AssetMemoryReport memory = state.assets.memoryReport();
+  RuntimeProfiler::setGauge(
+      "World.entities",
+      static_cast<double>(state.loaded.world.entities.size()));
+  RuntimeProfiler::setGauge(
+      "UI.nodes", static_cast<double>(state.loaded.world.ui.nodes.size()));
+  RuntimeProfiler::setGauge("Assets.resident_count",
+                            static_cast<double>(memory.assets.size()));
+  RuntimeProfiler::setGauge("Assets.resident_bytes",
+                            static_cast<double>(memory.residentBytes));
+  RuntimeProfiler::setGauge("Input.keys_down",
+                            static_cast<double>(state.input.keysDown.size()));
+  RuntimeProfiler::setGauge("Input.gamepads",
+                            static_cast<double>(state.input.gamepads.size()));
+  RuntimeProfiler::setGauge("Network.connected",
+                            state.network.isConnected() ? 1.0 : 0.0);
+  RuntimeProfiler::setGauge("Network.latency_ms",
+                            static_cast<double>(state.network.latencyMs()));
   if (restorePause)
     state.lua.setPaused(true);
   return true;

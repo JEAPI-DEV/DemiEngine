@@ -64,6 +64,7 @@ else()
     src/editor/EditorAssetDrop.cpp
     src/editor/EditorAssetIndex.cpp
     src/editor/EditorDocumentStore.cpp
+    src/editor/EditorDiagnosticsModel.cpp
     src/editor/EditorInspectorModel.cpp
     src/editor/EditorHudHierarchy.cpp
     src/editor/EditorHudDocument.cpp
@@ -73,6 +74,7 @@ else()
     src/editor/EditorIsoScene2D.cpp
     src/editor/EditorJsonDocument.cpp
     src/editor/EditorPlaySession.cpp
+    src/editor/EditorProfilerModel.cpp
     src/editor/EditorProjectDocument.cpp
     src/editor/EditorProjectOperations.cpp
     src/editor/EditorSceneCommand.cpp
@@ -102,6 +104,7 @@ else()
     src/editor/EditorBuildPanel.cpp
     src/editor/EditorChrome.cpp
     src/editor/EditorConflictPanel.cpp
+    src/editor/EditorConsolePanel.cpp
     src/editor/EditorGameRenderer.cpp
     src/editor/EditorGameViewPanel.cpp
     src/editor/EditorHierarchyPanel.cpp

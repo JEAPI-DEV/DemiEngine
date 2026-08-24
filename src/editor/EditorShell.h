@@ -4,6 +4,7 @@
 #include "editor/EditorAssetsPanel.h"
 #include "editor/EditorBuildPanel.h"
 #include "editor/EditorConflictPanel.h"
+#include "editor/EditorConsolePanel.h"
 #include "editor/EditorGameViewPanel.h"
 #include "editor/EditorHierarchyPanel.h"
 #include "editor/EditorHudNodeInspector.h"
@@ -68,6 +69,7 @@ private:
   EditorSpecializedPanel specializedPanel_;
   EditorHierarchyPanel hierarchyPanel_;
   EditorConflictPanel conflictPanel_;
+  EditorConsolePanel consolePanel_;
   std::string notice_;
   std::string selectedRuntimeEntityId_;
   bool wantsExit_ = false;

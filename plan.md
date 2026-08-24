@@ -2073,10 +2073,20 @@ Validate, transactional Cook, Linux Package, and Android Package operations.
 CLI and editor packaging share the structured `BuildService`; selected real
 targets produce artifacts and structured failures remain visible.
 
+Milestone 9A replaces the editor profiler placeholder with bounded runtime
+samples for update/fixed-step, Lua, physics, animation, network, input,
+resource residency, and render submission statistics. It exposes latest,
+average, p95, and maximum CPU times plus real gauges. Searchable Console/build
+diagnostics include severity filters, copyable source locations, and stable
+entity/component/field navigation when validation provides enough context. GPU
+time remains explicitly unavailable pending bgfx timestamp-query support.
+
 Next:
 
-1. Add log and profiler views backed by real runtime data, including render and
-   physics debug modes, input state, and network simulation controls.
+1. Add runtime-snapshot-backed input, renderer, physics, navigation,
+   asset-residency, and network debug views.
+2. Add runtime log ingestion, recovery/preferences, and end-to-end release
+   workflow tests.
 
 Acceptance: an editor-triggered validate/cook/package operation returns the
 same result and artifacts as the corresponding CLI service call; cancellation

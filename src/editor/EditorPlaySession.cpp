@@ -1,6 +1,7 @@
 #include "editor/EditorPlaySession.h"
 
 #include "demi/runtime/app/EmbeddedRuntimeSession.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 
 #if defined(__linux__)
 #include <csignal>
@@ -39,7 +40,10 @@ bool EditorPlaySession::startEmbedded(const std::filesystem::path &project,
   mode_ = EditorPlayMode::Embedded;
   failure_.clear();
   auto session = std::make_unique<runtime::EmbeddedRuntimeSession>();
+  runtime::RuntimeProfiler::setEnabled(true);
+  runtime::RuntimeProfiler::resetSession();
   if (!session->start(project, error)) {
+    runtime::RuntimeProfiler::setEnabled(false);
     reportFailure(error);
     return false;
   }
@@ -154,6 +158,7 @@ void EditorPlaySession::stop() {
   if (embedded_ != nullptr) {
     embedded_->stop();
     embedded_.reset();
+    runtime::RuntimeProfiler::setEnabled(false);
   }
 #if defined(__linux__)
   if (processId_ > 0) {
@@ -197,6 +202,12 @@ std::uint64_t EditorPlaySession::fixedTickCount() const {
 
 float EditorPlaySession::interpolationAlpha() const {
   return embedded_ == nullptr ? 1.0F : embedded_->interpolationAlpha();
+}
+
+EditorProfilerSnapshot EditorPlaySession::profilerSnapshot() const {
+  return buildEditorProfilerSnapshot(isEmbedded(), isPaused(),
+                                     runtime::RuntimeProfiler::sessionEntries(),
+                                     runtime::RuntimeProfiler::frameCount());
 }
 
 void EditorPlaySession::reportFailure(std::string message) {

@@ -1,6 +1,7 @@
 #include "editor/EditorGameRenderer.h"
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/BgfxRenderer2D.h"
 #include "demi/runtime/render/BgfxRenderer3D.h"
 #include "demi/runtime/render/backend/BgfxResourceLookup.h"
@@ -71,6 +72,7 @@ bool EditorGameRenderer::render(const runtime::World &world,
                                 const float deltaSeconds,
                                 const float interpolationAlpha,
                                 std::string &error) {
+  runtime::ProfileScope renderScope("Render.submit");
   if (renderer2D_ == nullptr || renderer3D_ == nullptr) {
     error = "The Game view renderer is not configured.";
     return false;
@@ -97,6 +99,12 @@ bool EditorGameRenderer::render(const runtime::World &world,
     const bool rendered =
         renderer2D_->drawWorld(world) && renderer2D_->drawHud(world);
     const bool flushed = renderer2D_->endFrame(error);
+    const auto &statistics = renderer2D_->statistics();
+    runtime::RuntimeProfiler::setGauge("Renderer2D.draw_calls",
+                                       statistics.drawCalls);
+    runtime::RuntimeProfiler::setGauge("Renderer2D.triangles",
+                                       statistics.triangles);
+    runtime::RuntimeProfiler::setGauge("Renderer2D.quads", statistics.quads);
     if (!rendered && error.empty())
       error = "Could not queue the 2D Game view.";
     return rendered && flushed;
@@ -125,7 +133,19 @@ bool EditorGameRenderer::render(const runtime::World &world,
           *transform, {0.0F, frame.camera.upAxis, 0.0F});
     }
   }
-  return renderer3D_->renderFrame(world, frame, deltaSeconds, error);
+  const bool rendered =
+      renderer3D_->renderFrame(world, frame, deltaSeconds, error);
+  const auto &statistics = renderer3D_->statistics();
+  runtime::RuntimeProfiler::setGauge("Renderer3D.batches", statistics.batches);
+  runtime::RuntimeProfiler::setGauge("Renderer3D.triangles",
+                                     statistics.triangles);
+  runtime::RuntimeProfiler::setGauge("Renderer3D.visible_meshes",
+                                     statistics.visibleMeshes);
+  runtime::RuntimeProfiler::setGauge("Renderer3D.culled_meshes",
+                                     statistics.culledMeshes);
+  runtime::RuntimeProfiler::setGauge("Renderer3D.render_target_bytes",
+                                     statistics.renderTargetBytes);
+  return rendered;
 }
 
 std::uint16_t EditorGameRenderer::textureIndex() const {
