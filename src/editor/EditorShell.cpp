@@ -1,6 +1,7 @@
 #include "editor/EditorShell.h"
 
 #include "editor/EditorChrome.h"
+#include "editor/EditorHudNodeInspector.h"
 #include "editor/EditorInspectorPanel.h"
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorToolbar.h"
@@ -73,7 +74,9 @@ void drawStageTabs(const ImVec2 position, const ImVec2 size,
 }
 
 void drawMenu(EditorWorkspace &workspace, const ImVec2 size, bool &wantsExit,
-              EditorProjectPanel &projectPanel, std::string &notice) {
+              EditorProjectPanel &projectPanel,
+              EditorAnimationMachinePanel &animationPanel,
+              std::string &notice) {
   beginEditorPanel("MainMenu", {0.0F, 0.0F}, size,
                    ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar);
   if (ImGui::BeginMenuBar()) {
@@ -83,10 +86,10 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size, bool &wantsExit,
       if (ImGui::MenuItem("Project settings..."))
         projectPanel.openSettings();
       ImGui::Separator();
-      if (ImGui::MenuItem("Save scene", "Ctrl+S", false,
-                          workspace.sceneDocument().isDirty())) {
+      if (ImGui::MenuItem("Save active document", "Ctrl+S", false,
+                          workspace.activeDocumentDirty())) {
         std::string error;
-        notice = workspace.save(error) ? "Scene saved" : error;
+        notice = workspace.save(error) ? "Document saved" : error;
       }
       if (ImGui::MenuItem("Save project", nullptr, false,
                           workspace.projectDocument().isDirty())) {
@@ -99,8 +102,7 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size, bool &wantsExit,
       }
       ImGui::Separator();
       if (ImGui::MenuItem("Exit")) {
-        if (workspace.sceneDocument().isDirty() ||
-            workspace.projectDocument().isDirty())
+        if (workspace.hasUnsavedChanges())
           notice = "Save or undo scene and project changes before exiting.";
         else
           wantsExit = true;
@@ -109,12 +111,12 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size, bool &wantsExit,
     }
     if (ImGui::BeginMenu("Edit")) {
       if (ImGui::MenuItem("Undo", "Ctrl+Z", false,
-                          workspace.sceneDocument().canUndo())) {
+                          workspace.activeDocumentCanUndo())) {
         std::string error;
         notice = workspace.undo(error) ? "Undid scene edit" : error;
       }
       if (ImGui::MenuItem("Redo", "Ctrl+Y", false,
-                          workspace.sceneDocument().canRedo())) {
+                          workspace.activeDocumentCanRedo())) {
         std::string error;
         notice = workspace.redo(error) ? "Redid scene edit" : error;
       }
@@ -125,7 +127,17 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size, bool &wantsExit,
       ImGui::EndMenu();
     }
     ImGui::MenuItem("Scene");
-    ImGui::MenuItem("Tools");
+    if (ImGui::BeginMenu("Tools")) {
+      const bool canEditAnimation = animationPanel.canOpen(workspace);
+      if (ImGui::MenuItem("Animation State Machine...", nullptr, false,
+                          canEditAnimation))
+        animationPanel.open(workspace);
+      if (!canEditAnimation &&
+          ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip(
+            "Select an entity with Animation State Machine first.");
+      ImGui::EndMenu();
+    }
     ImGui::MenuItem("Build");
     ImGui::MenuItem("Help");
     ImGui::EndMenuBar();
@@ -177,6 +189,23 @@ void drawStatus(EditorWorkspace &workspace, const ImVec2 position,
 
 EditorShell::EditorShell(EditorWorkspace &workspace) : workspace_(workspace) {}
 
+bool EditorShell::openDocument(const std::filesystem::path &path,
+                               std::string &error) {
+  if (isHudFile(path) && workspace_.authoredHudPath() &&
+      std::filesystem::absolute(path).lexically_normal() ==
+          std::filesystem::absolute(*workspace_.authoredHudPath())
+              .lexically_normal()) {
+    const EditorHudDocument *hud = workspace_.hudDocument();
+    if (hud == nullptr || hud->preview().nodes.empty()) {
+      error = "The current HUD could not be opened in the viewport.";
+      return false;
+    }
+    workspace_.selectHudNode(hud->preview().nodes.front().id);
+    return true;
+  }
+  return specializedPanel_.open(path, workspace_.assetIndex(), error);
+}
+
 void EditorShell::draw(const int width, const int height,
                        const std::string_view rendererName) {
   playSession_.poll();
@@ -184,7 +213,9 @@ void EditorShell::draw(const int width, const int height,
   if (!input.WantTextInput && input.KeyCtrl &&
       ImGui::IsKeyPressed(ImGuiKey_S, false)) {
     std::string error;
-    if (workspace_.sceneDocument().isDirty() && !workspace_.save(error))
+    if (workspace_.hudDirty() && !workspace_.saveHud(error))
+      notice_ = error;
+    else if (workspace_.sceneDocument().isDirty() && !workspace_.save(error))
       notice_ = error;
     else if (workspace_.projectDocument().isDirty() &&
              !workspace_.saveProject(error))
@@ -230,7 +261,7 @@ void EditorShell::draw(const int width, const int height,
   const EditorProjectOperationSnapshot projectOperation =
       buildPanel_.operation();
   drawMenu(workspace_, {screenWidth, menuHeight}, wantsExit_, projectPanel_,
-           notice_);
+           animationMachinePanel_, notice_);
   drawEditorToolbar({0.0F, menuHeight}, {screenWidth, toolbarHeight},
                     workspace_, playSession_, showGameView_, stepRequested_,
                     notice_);
@@ -254,12 +285,16 @@ void EditorShell::draw(const int width, const int height,
     gameArea_ = {};
     gameViewFocused_ = false;
     drawEditorViewport(workspace_, stagePosition, stageSize, viewportArea_,
-                       notice_);
+                       hudViewportState_, notice_);
   }
   if (runtimePanels)
     drawRuntimeInspector(*runtimeWorld, {screenWidth - rightWidth, contentTop},
                          {rightWidth, contentBottom - contentTop},
                          selectedRuntimeEntityId_);
+  else if (!workspace_.selectedHudNodeId().empty())
+    drawEditorHudNodeInspector(
+        workspace_, {screenWidth - rightWidth, contentTop},
+        {rightWidth, contentBottom - contentTop}, hudInspectorState_, notice_);
   else
     drawInspectorPanel(workspace_, {screenWidth - rightWidth, contentTop},
                        {rightWidth, contentBottom - contentTop}, notice_);
@@ -267,6 +302,11 @@ void EditorShell::draw(const int width, const int height,
               {consoleWidth, bottomHeight}, projectOperation);
   assetsPanel_.draw(workspace_, {consoleWidth, contentTop + upperHeight},
                     {assetsWidth, bottomHeight}, notice_);
+  if (auto source = assetsPanel_.takeOpenRequest()) {
+    std::string error;
+    if (!openDocument(*source, error))
+      notice_ = error;
+  }
   buildPanel_.draw(workspace_,
                    {consoleWidth + assetsWidth, contentTop + upperHeight},
                    {buildWidth, bottomHeight}, notice_);
@@ -275,6 +315,8 @@ void EditorShell::draw(const int width, const int height,
              buildPanel_.androidTarget());
   conflictPanel_.draw(workspace_, notice_);
   projectPanel_.draw(workspace_, notice_);
+  specializedPanel_.draw(workspace_, notice_);
+  animationMachinePanel_.draw(workspace_, notice_);
 }
 
 } // namespace demi::editor

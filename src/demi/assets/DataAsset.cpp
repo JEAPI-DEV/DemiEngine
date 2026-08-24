@@ -240,46 +240,59 @@ Diagnostics validateDataAssets(const AssetRegistry &registry,
     auto asset = loadDataAsset(manifest, limits, &diagnostics);
     if (!asset)
       continue;
-    if (asset->metadata.contentType.empty())
-      error(diagnostics, "DATA_CONTENT_TYPE_MISSING",
-            "DataAsset settings require content_type.", manifest.manifestPath,
-            "/settings/content_type");
-    if (asset->metadata.schema.empty())
-      continue;
-    const AssetManifest *schema = findAsset(registry, asset->metadata.schema);
-    if (schema == nullptr || schema->type != "DataSchema") {
-      error(diagnostics, "DATA_SCHEMA_NOT_FOUND",
-            "Data schema asset was not found: " + asset->metadata.schema,
-            manifest.manifestPath, "/settings/schema");
-      continue;
-    }
-    if (std::ranges::find(manifest.dependencies, asset->metadata.schema) ==
-        manifest.dependencies.end())
-      error(diagnostics, "DATA_DEPENDENCY_UNDECLARED",
-            "Schema must be declared in manifest dependencies: " +
-                asset->metadata.schema,
-            manifest.manifestPath, "/dependencies");
-    const auto schemaDocument = loadSchema(*schema, diagnostics);
-    if (!schemaDocument)
-      continue;
-    if (schemaDocument->value("format_version", 0) != 1) {
-      error(diagnostics, "DATA_SCHEMA_VERSION_UNSUPPORTED",
-            "Data schemas require format_version 1.", schema->sourcePath,
-            "/format_version");
-      continue;
-    }
-    std::set<std::string> references;
-    validateValue(asset->document->root(), *schemaDocument, registry,
-                  manifest.sourcePath, "", diagnostics, references);
-    for (const std::string &reference : references)
-      if (reference.starts_with("asset://") &&
-          std::ranges::find(manifest.dependencies, reference) ==
-              manifest.dependencies.end())
-        error(diagnostics, "DATA_DEPENDENCY_UNDECLARED",
-              "Schema-declared reference must appear in dependencies: " +
-                  reference,
-              manifest.manifestPath, "/dependencies");
+    Diagnostics staged =
+        validateDataAssetDocument(manifest, *asset->document, registry);
+    diagnostics.insert(diagnostics.end(), staged.begin(), staged.end());
   }
+  return diagnostics;
+}
+
+Diagnostics validateDataAssetDocument(const AssetManifest &manifest,
+                                      const DataDocument &document,
+                                      const AssetRegistry &registry) {
+  Diagnostics diagnostics;
+  const auto metadata = dataAssetMetadata(manifest, &diagnostics);
+  if (!metadata)
+    return diagnostics;
+  if (metadata->contentType.empty())
+    error(diagnostics, "DATA_CONTENT_TYPE_MISSING",
+          "DataAsset settings require content_type.", manifest.manifestPath,
+          "/settings/content_type");
+  if (metadata->schema.empty())
+    return diagnostics;
+  const AssetManifest *schema = findAsset(registry, metadata->schema);
+  if (schema == nullptr || schema->type != "DataSchema") {
+    error(diagnostics, "DATA_SCHEMA_NOT_FOUND",
+          "Data schema asset was not found: " + metadata->schema,
+          manifest.manifestPath, "/settings/schema");
+    return diagnostics;
+  }
+  if (std::ranges::find(manifest.dependencies, metadata->schema) ==
+      manifest.dependencies.end())
+    error(diagnostics, "DATA_DEPENDENCY_UNDECLARED",
+          "Schema must be declared in manifest dependencies: " +
+              metadata->schema,
+          manifest.manifestPath, "/dependencies");
+  const auto schemaDocument = loadSchema(*schema, diagnostics);
+  if (!schemaDocument)
+    return diagnostics;
+  if (schemaDocument->value("format_version", 0) != 1) {
+    error(diagnostics, "DATA_SCHEMA_VERSION_UNSUPPORTED",
+          "Data schemas require format_version 1.", schema->sourcePath,
+          "/format_version");
+    return diagnostics;
+  }
+  std::set<std::string> references;
+  validateValue(document.root(), *schemaDocument, registry, manifest.sourcePath,
+                "", diagnostics, references);
+  for (const std::string &reference : references)
+    if (reference.starts_with("asset://") &&
+        std::ranges::find(manifest.dependencies, reference) ==
+            manifest.dependencies.end())
+      error(diagnostics, "DATA_DEPENDENCY_UNDECLARED",
+            "Schema-declared reference must appear in dependencies: " +
+                reference,
+            manifest.manifestPath, "/dependencies");
   return diagnostics;
 }
 

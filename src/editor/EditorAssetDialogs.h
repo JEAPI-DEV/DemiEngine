@@ -7,6 +7,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <vector>
 
 namespace demi::editor {
 
@@ -15,6 +16,7 @@ class EditorWorkspace;
 class EditorAssetDialogs {
 public:
   void openImport() { showImport_ = true; }
+  void queueImport(std::filesystem::path source);
   void openCreateGroup() { showCreateGroup_ = true; }
   [[nodiscard]] bool openEditGroup(const std::filesystem::path &path,
                                    std::string &error);
@@ -30,6 +32,7 @@ private:
   bool showImport_ = false;
   bool showCreateGroup_ = false;
   bool showEditGroup_ = false;
+  std::vector<std::filesystem::path> droppedSources_;
 };
 
 } // namespace demi::editor

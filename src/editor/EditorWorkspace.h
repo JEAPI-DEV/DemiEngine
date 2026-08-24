@@ -1,6 +1,7 @@
 #pragma once
 
 #include "editor/EditorAssetIndex.h"
+#include "editor/EditorHudDocument.h"
 #include "editor/EditorProjectDocument.h"
 #include "editor/EditorSceneDocument.h"
 #include "editor/EditorSceneDomain.h"
@@ -40,6 +41,10 @@ public:
                                      std::string &error);
   [[nodiscard]] bool removeProjectScene(std::string_view id,
                                         std::string &error);
+  [[nodiscard]] bool setProjectInputActions(nlohmann::json actions,
+                                            std::string &error) {
+    return projectDocument_.setInputActions(std::move(actions), error);
+  }
   [[nodiscard]] bool importAsset(const assets::AssetImportRequest &request,
                                  std::string &error);
   [[nodiscard]] bool reimportAsset(const std::filesystem::path &manifest,
@@ -77,6 +82,12 @@ public:
   [[nodiscard]] bool setSelectedIsoGridCellTexture(std::string texture,
                                                    std::string &error);
   [[nodiscard]] bool deleteSelectedIsoGridCell(std::string &error);
+  [[nodiscard]] bool createHudNode(std::string_view type, std::string &error);
+  [[nodiscard]] bool deleteSelectedHudNode(std::string &error);
+  [[nodiscard]] bool setHudNodeField(std::string_view id,
+                                     std::string_view field,
+                                     nlohmann::json value, std::string &error);
+  [[nodiscard]] bool saveHud(std::string &error);
   [[nodiscard]] bool updateViewportTool(const EditorViewportToolInput &input,
                                         std::string &error);
   [[nodiscard]] bool updateViewportTool2D(const EditorViewportToolInput &input,
@@ -109,6 +120,32 @@ public:
   [[nodiscard]] const std::vector<std::filesystem::path> &sources() const {
     return sources_;
   }
+  [[nodiscard]] std::optional<std::filesystem::path> authoredHudPath() const;
+  [[nodiscard]] const EditorHudDocument *hudDocument() const {
+    return hudDocument_ ? &*hudDocument_ : nullptr;
+  }
+  [[nodiscard]] bool activeDocumentDirty() const {
+    return !selectedHudNodeId_.empty() && hudDocument_
+               ? hudDocument_->isDirty()
+               : sceneDocument_.isDirty();
+  }
+  [[nodiscard]] bool activeDocumentCanUndo() const {
+    return !selectedHudNodeId_.empty() && hudDocument_
+               ? hudDocument_->canUndo()
+               : sceneDocument_.canUndo();
+  }
+  [[nodiscard]] bool activeDocumentCanRedo() const {
+    return !selectedHudNodeId_.empty() && hudDocument_
+               ? hudDocument_->canRedo()
+               : sceneDocument_.canRedo();
+  }
+  [[nodiscard]] bool hasUnsavedChanges() const {
+    return sceneDocument_.isDirty() || projectDocument_.isDirty() ||
+           (hudDocument_ && hudDocument_->isDirty());
+  }
+  [[nodiscard]] bool hudDirty() const {
+    return hudDocument_ && hudDocument_->isDirty();
+  }
   [[nodiscard]] const auto &tilemaps2D() const { return tilemaps2D_; }
   [[nodiscard]] const Diagnostics &diagnostics() const { return diagnostics_; }
   [[nodiscard]] const EditorAssetIndex &assetIndex() const {
@@ -136,6 +173,7 @@ public:
   void setViewDimension(EditorSceneViewDimension dimension);
 
   void selectEntity(std::string id);
+  void selectHudNode(std::string id);
   void selectIsoGridCell(EditorIsoGridCell cell);
   void toggleEntitySelection(std::string id);
   [[nodiscard]] bool isEntitySelected(std::string_view id) const;
@@ -147,6 +185,10 @@ public:
                                       : selectedEntityIds_.back();
   }
   [[nodiscard]] const runtime::Entity *selectedEntity() const;
+  [[nodiscard]] std::string_view selectedHudNodeId() const {
+    return selectedHudNodeId_;
+  }
+  [[nodiscard]] const runtime::ui::UiNode *selectedHudNode() const;
   [[nodiscard]] const std::optional<EditorIsoGridCell> &
   selectedIsoGridCell() const {
     return selectedIsoGridCell_;
@@ -159,6 +201,8 @@ private:
   void syncChangedEntity();
   void reconcileIsoGridCellSelection();
   void syncEditorDiagnostic();
+  [[nodiscard]] bool loadHudDocument(std::string &error);
+  void syncHudPreview();
   [[nodiscard]] bool mutateAndRebuild(
       const std::function<bool(EditorSceneDocument &, std::string &)> &mutation,
       std::string &error);
@@ -172,6 +216,7 @@ private:
   std::optional<runtime::LoadedProject> project_;
   EditorSceneDocument sceneDocument_;
   EditorProjectDocument projectDocument_;
+  std::optional<EditorHudDocument> hudDocument_;
   EditorAssetIndex assetIndex_;
   EditorSceneViewState sceneView_;
   EditorSceneView2DState sceneView2D_;
@@ -184,6 +229,7 @@ private:
   std::unordered_map<std::string, runtime::TilemapAsset2D> tilemaps2D_;
   Diagnostics diagnostics_;
   std::vector<std::string> selectedEntityIds_;
+  std::string selectedHudNodeId_;
   std::optional<EditorIsoGridCell> selectedIsoGridCell_;
   std::string workspaceOperationError_;
 };

@@ -1,13 +1,17 @@
 #pragma once
 
+#include "editor/EditorAnimationMachinePanel.h"
 #include "editor/EditorAssetsPanel.h"
 #include "editor/EditorBuildPanel.h"
 #include "editor/EditorConflictPanel.h"
 #include "editor/EditorGameViewPanel.h"
 #include "editor/EditorHierarchyPanel.h"
+#include "editor/EditorHudNodeInspector.h"
 #include "editor/EditorPlaySession.h"
 #include "editor/EditorProjectPanel.h"
+#include "editor/EditorSpecializedPanel.h"
 #include "editor/EditorUiHost.h"
+#include "editor/EditorViewportPanel.h"
 #include "editor/EditorWorkspace.h"
 
 #include <string>
@@ -33,6 +37,9 @@ public:
     return requested;
   }
   void setGameTextureIndex(std::uint16_t value) { gameTextureIndex_ = value; }
+  void queueAssetImport(std::filesystem::path source) {
+    assetsPanel_.queueImport(std::move(source));
+  }
   [[nodiscard]] bool viewportInputCaptured() const {
     if (showGameView_)
       return false;
@@ -44,15 +51,21 @@ public:
                      workspace_.viewportTool().isDragging();
   }
   void setNotice(std::string notice) { notice_ = std::move(notice); }
+  [[nodiscard]] bool openDocument(const std::filesystem::path &path,
+                                  std::string &error);
 
 private:
   EditorWorkspace &workspace_;
   EditorPlaySession playSession_;
   EditorViewportArea viewportArea_;
+  EditorHudViewportState hudViewportState_;
+  EditorHudInspectorState hudInspectorState_;
   EditorViewportArea gameArea_;
   EditorAssetsPanel assetsPanel_;
+  EditorAnimationMachinePanel animationMachinePanel_;
   EditorBuildPanel buildPanel_;
   EditorProjectPanel projectPanel_;
+  EditorSpecializedPanel specializedPanel_;
   EditorHierarchyPanel hierarchyPanel_;
   EditorConflictPanel conflictPanel_;
   std::string notice_;

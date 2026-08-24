@@ -15,7 +15,22 @@ filesystem service used by `demi dev`.
 ## Current slice
 
 - The hierarchy displays entities from the loaded main scene and follows
-  authored 2D, 3D, and isometric transform parents.
+  authored 2D, 3D, and isometric transform parents. The scene's runtime HUD is
+  also projected as a distinct nested `HUD` subtree with UI-specific icons and
+  visibility state; selecting a HUD node shows its resolved properties, while
+  prefab-expanded nodes remain visibly read-only.
+- The authored HUD is rendered through the runtime UI renderer over both 2D
+  and 3D scene views. Visible elements can be picked, moved, and resized on the
+  canvas; empty transparent containers do not steal scene selection. The same
+  selection drives rect-transform, anchor, visibility, text, texture, color,
+  delete, Undo/Redo, and Save controls in the Inspector.
+  Canvas clip rectangles remain viewport-local and are translated by the
+  renderer for embedded backbuffer regions, so glyph atlases and clipped icons
+  render at the same positions as their solid UI geometry.
+- `+ UI Element` creates containers, panels, labels, buttons, images, and text
+  inputs under the selected authored HUD node. The operation is reversible and
+  updates the viewport and hierarchy immediately without writing the file
+  until Save.
 - Selection drives a reflected inspector over the authored scene document.
   Boolean, integer, number, string, enum, vector, and color fields are editable
   using shared component descriptors, including their numeric bounds. Numeric
@@ -43,6 +58,10 @@ filesystem service used by `demi dev`.
   dependencies, source/import diagnostics, Linux cook freshness, reimport,
   filesystem location, importer-backed import, and versioned asset-group
   creation/editing all use authored files and shared engine services.
+- Desktop files can be dropped onto the editor to queue the same importer
+  workflow used by `+ Import`; stable IDs remain editable and multiple dropped
+  files are processed in order. Directories and unsupported formats use the
+  normal importer diagnostics.
 - Project Settings edits preload assets/groups and scene membership through a
   conflict-safe reversible project document. New Project uses the existing
   template catalog and atomic scaffolder.
@@ -101,7 +120,8 @@ Required layout and presentation:
 - The top command bar groups file/history, Play controls, viewport tools,
   snapping, visibility, configuration, and settings. Groups have separators
   and consistent square hit targets; the current row of unrelated text buttons
-  is temporary.
+  is temporary. Undo and Redo use conventional left- and right-facing hooked
+  arrows so their direction is recognizable without a label.
 - Scene and Game are document tabs directly above the central canvas. Switching
   views is not presented as a small global-toolbar text button.
 - Hierarchy rows communicate nesting, entity kind, expansion, visibility, and
@@ -406,18 +426,26 @@ cancellation. Linux and Android CLI package smokes exercise the shared service.
 Implement one real document type at a time; do not introduce speculative base
 classes before a second format needs shared behavior.
 
-- [ ] Prefab editor: source/expanded view, nested stable IDs, override diff,
+- [x] Prefab editor: source/expanded view, nested stable IDs, override diff,
   apply/revert, missing references, and atomic multi-file failure handling.
-- [ ] HUD editor: hierarchy, anchors/layout, safe-area, DPI, locale, and sample
-  data through the runtime layout engine without saving generated nodes.
-- [ ] Material editor: reflected properties and runtime-backed preview.
-- [ ] Animation editor: clip/state-machine editing and preview using existing
+- [x] HUD editor: hierarchy, anchors/layout, safe-area, DPI, locale, and sample
+  data through the runtime layout engine without saving generated nodes. The
+  active scene HUD is also a first-class viewport document with visual
+  selection, move/resize handles, typed Inspector controls, and structural
+  add/delete commands; raw JSON is an advanced fallback rather than the main
+  workflow.
+- [x] Material editor: reflected properties and runtime-backed preview.
+- [x] Animation editor: clip/state-machine editing and preview using existing
   animation assets and runtime playback rules.
-- [ ] Data/dialogue, input-action, and audio editors as adapters over their
+- [x] Data/dialogue, input-action, and audio editors as adapters over their
   versioned authored documents and shared validators.
 
-**Gate:** each specialized editor saves canonical source equivalent to direct
-text authoring and has no second unsynchronized data model.
+**Gate: passed.** Each specialized editor saves deterministic canonical source
+through conflict-aware documents and has no second unsynchronized authored
+model. Prefab apply rolls back the referenced source if the owner commit
+conflicts; HUD previews are runtime-layout projections; material, animation,
+data/schema, input, and audio changes use the same parsers and validators used
+outside the editor.
 
 ### Milestone 9 — Diagnostics, profiler, recovery, and release gate
 
@@ -443,11 +471,11 @@ editing and conflict handling remain supported.
 
 ### Immediate next task
 
-Milestone 7 is complete. Preserve its authored-document, shared-service,
-background-operation, and honest asset-index boundaries while starting
-**Milestone 8: prefab, HUD, and specialized document editors**. Implement one
-real document type at a time; profiler and Lua Console behavior still belong to
-Milestone 9 rather than the asset workflow.
+Milestone 8 is complete. Preserve its conflict-aware document adapters and
+runtime parser/preview boundaries while starting **Milestone 9: diagnostics,
+profiler, recovery, and release gate**. Specialized previews remain transient;
+they never save expanded prefab entities, resolved HUD nodes, sample data, or
+animation playback state into authored source.
 
 For each todo item that mutates authored state, use this implementation order:
 
@@ -470,11 +498,13 @@ replacement. `EditorWorkspace` coordinates those documents with loaded project
 state, selection, source discovery, and diagnostics, and rebuilds its preview
 world through `loadSceneDocument` after structural changes.
 `EditorHierarchyPanel` owns hierarchy filtering, menus, and drag/drop intent;
-it submits only stable IDs to `EditorWorkspace`. `EditorUiHost` owns SDL3,
-bgfx, input forwarding, the authored 3D viewport, and the Dear ImGui frame
-lifecycle. The viewport reuses `BgfxRenderer3D`, `GpuResources`, and
-`RenderCommands` on a separate bgfx view. Runtime and authored-data modules do
-not depend on ImGui.
+it submits only stable IDs to `EditorWorkspace`. HUD rows are a read-only
+hierarchy projection of the parsed `UiDocument`, not synthetic scene entities;
+HUD mutations remain owned by the specialized document editor.
+`EditorUiHost` owns SDL3, bgfx, input forwarding, the authored 3D viewport, and
+the Dear ImGui frame lifecycle. The viewport reuses `BgfxRenderer3D`,
+`GpuResources`, and `RenderCommands` on a separate bgfx view. Runtime and
+authored-data modules do not depend on ImGui.
 
 Milestone 7 keeps authored and operational responsibilities separate:
 `EditorProjectDocument` and `EditorAssetGroupDocument` own reversible,
@@ -484,3 +514,14 @@ conflict-safe JSON; `EditorAssetIndex` is a rebuildable read-only projection;
 `EditorProjectOperations` owns its background thread and cancellation; and
 `EditorAssetDialogs`, `EditorBuildPanel`, and `EditorProjectPanel` own only
 presentation state. No editor-only asset or project database exists.
+
+Milestone 8 adds `EditorJsonDocument` only for persistence/history shared by
+the now-proven specialized formats. `EditorSpecializedDocument` selects the
+real prefab, HUD, material, animation, data, and audio validator;
+`EditorSpecializedPanel` owns source/preview presentation; and
+`EditorAnimationMachinePanel` submits state-machine changes through the normal
+scene command path. SDL file drops cross `PlatformHost` and `EditorUiHost` as
+paths, then enter `EditorAssetDialogs`; they never bypass `AssetImporter`.
+`EditorHudDocument` owns nested authored-node operations and HUD history;
+`EditorHudCanvas` owns screen-independent bounds and picking; the hierarchy,
+viewport, and Inspector consume those services through `EditorWorkspace`.

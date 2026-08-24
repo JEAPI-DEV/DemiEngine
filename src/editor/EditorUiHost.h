@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "demi/runtime/scene/model/SceneTypes.h"
 #include "editor/EditorSceneView2DState.h"
@@ -33,6 +34,8 @@ public:
                                         std::string &error) = 0;
   virtual void shutdown() = 0;
   [[nodiscard]] virtual bool beginFrame(std::string &error) = 0;
+  [[nodiscard]] virtual std::vector<std::filesystem::path>
+  takeDroppedFiles() = 0;
   [[nodiscard]] virtual bool
   configureViewport(const std::filesystem::path &projectDirectory,
                     std::string &error) = 0;

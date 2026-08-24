@@ -39,6 +39,17 @@ int main() {
   assert(document.scenes().size() == 2);
   assert(!document.removeScene("scene://main", error));
   assert(document.removeScene("scene://menu", error));
+  assert(document.setInputActions(
+      {{"jump",
+        {{"type", "button"},
+         {"context", "gameplay"},
+         {"bindings", nlohmann::json::array({{{"input", "key:space"}}})}}}},
+      error));
+  assert(document.inputActions().contains("jump"));
+  const std::string beforeInvalidInput = document.json().dump();
+  assert(!document.setInputActions(
+      {{"broken", {{"type", "unknown"}, {"context", "gameplay"}}}}, error));
+  assert(document.json().dump() == beforeInvalidInput);
   assert(document.save(error));
   assert(!document.isDirty());
 

@@ -43,6 +43,10 @@ struct Canvas2DStatistics {
   std::uint32_t triangles = 0;
 };
 
+[[nodiscard]] ScissorRect canvasScissorForView(ScissorRect local,
+                                               std::uint16_t viewportX,
+                                               std::uint16_t viewportY);
+
 // Backend-neutral immediate 2D canvas. It groups compatible commands and owns
 // only the tiny fallback resources needed for solid-color drawing.
 class Canvas2D {
@@ -64,30 +68,27 @@ public:
 
   [[nodiscard]] bool solid(const Rect2D &destination, std::uint32_t rgba,
                            BlendMode blend = BlendMode::Alpha,
-                           ScissorRect scissor = {},
-                           ProgramHandle program = {},
+                           ScissorRect scissor = {}, ProgramHandle program = {},
                            std::uint32_t uniformSet = 0);
   [[nodiscard]] bool image(TextureHandle texture, const Rect2D &destination,
                            const TextureRegion2D &source = {},
                            std::uint32_t rgba = 0xffffffffU,
                            BlendMode blend = BlendMode::Alpha,
-                           ScissorRect scissor = {},
-                           ProgramHandle program = {},
+                           ScissorRect scissor = {}, ProgramHandle program = {},
                            std::uint32_t uniformSet = 0);
-  [[nodiscard]] bool imageTransformed(
-      TextureHandle texture, float positionX, float positionY, float width,
-      float height, float pivotX, float pivotY, float rotationRadians,
-      const TextureRegion2D &source = {}, std::uint32_t rgba = 0xffffffffU,
-      BlendMode blend = BlendMode::Alpha, ScissorRect scissor = {},
-      ProgramHandle program = {}, std::uint32_t uniformSet = 0);
-  [[nodiscard]] bool ninePatch(TextureHandle texture, const Rect2D &destination,
-                               const TextureRegion2D &source,
-                               const NinePatch2D &border,
-                               std::uint32_t rgba = 0xffffffffU,
-                               BlendMode blend = BlendMode::Alpha,
-                               ScissorRect scissor = {},
-                               ProgramHandle program = {},
-                               std::uint32_t uniformSet = 0);
+  [[nodiscard]] bool
+  imageTransformed(TextureHandle texture, float positionX, float positionY,
+                   float width, float height, float pivotX, float pivotY,
+                   float rotationRadians, const TextureRegion2D &source = {},
+                   std::uint32_t rgba = 0xffffffffU,
+                   BlendMode blend = BlendMode::Alpha, ScissorRect scissor = {},
+                   ProgramHandle program = {}, std::uint32_t uniformSet = 0);
+  [[nodiscard]] bool
+  ninePatch(TextureHandle texture, const Rect2D &destination,
+            const TextureRegion2D &source, const NinePatch2D &border,
+            std::uint32_t rgba = 0xffffffffU,
+            BlendMode blend = BlendMode::Alpha, ScissorRect scissor = {},
+            ProgramHandle program = {}, std::uint32_t uniformSet = 0);
   [[nodiscard]] bool circle(float centerX, float centerY, float radius,
                             std::uint32_t rgba, int segments = 32,
                             BlendMode blend = BlendMode::Alpha,
@@ -131,6 +132,8 @@ private:
   std::unordered_map<std::uint32_t, std::span<const DrawUniformValue>>
       uniformSets_;
   std::uint16_t viewId_ = 0;
+  std::uint16_t scissorOffsetX_ = 0;
+  std::uint16_t scissorOffsetY_ = 0;
   Canvas2DStatistics statistics_;
 };
 

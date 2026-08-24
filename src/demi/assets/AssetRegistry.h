@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <nlohmann/json_fwd.hpp>
 #include <optional>
 #include <string>
 #include <vector>
@@ -55,6 +56,12 @@ loadAssetRegistry(const std::filesystem::path &projectDirectory);
 assetDependencies(const AssetRegistry &registry, const AssetManifest &asset,
                   Diagnostics *diagnostics = nullptr);
 [[nodiscard]] Diagnostics validateAssetRegistry(const AssetRegistry &registry);
+[[nodiscard]] Diagnostics
+validateModelAnimationSettings(const nlohmann::json &settings,
+                               const std::filesystem::path &path);
+[[nodiscard]] Diagnostics
+validateAudioClipSettings(const nlohmann::json &settings,
+                          const std::filesystem::path &path);
 [[nodiscard]] std::vector<std::string>
 extractAssetReferences(const std::string &text);
 [[nodiscard]] std::vector<std::string>

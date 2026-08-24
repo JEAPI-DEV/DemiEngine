@@ -33,21 +33,24 @@ void drawEditorGlyph(ImDrawList &draw, const EditorIcon icon,
   constexpr float Thickness = 1.6F;
   const float thickness = Thickness * scale;
   switch (icon) {
-  case EditorIcon::Refresh:
+  case EditorIcon::Refresh: {
+    draw.PathArcTo(center, 7.0F * scale, -2.7F, 2.1F, 18);
+    draw.PathStroke(color, 0, thickness);
+    arrowHead(draw, point(center, -6.3F, -3.0F, scale), {-1.0F, 0.0F}, color,
+              scale);
+    break;
+  }
   case EditorIcon::Undo:
   case EditorIcon::Redo: {
-    const bool reverse = icon == EditorIcon::Undo;
-    const bool refresh = icon == EditorIcon::Refresh;
-    draw.PathArcTo(center, 7.0F * scale,
-                   refresh ? -2.7F : (reverse ? 0.4F : 2.7F),
-                   refresh ? 2.1F : (reverse ? 3.8F : -0.8F), 18);
+    const float direction = icon == EditorIcon::Undo ? -1.0F : 1.0F;
+    const ImVec2 tip = point(center, 7.5F * direction, -2.5F, scale);
+    draw.PathLineTo(tip);
+    draw.PathLineTo(point(center, 2.5F * direction, -7.0F, scale));
+    draw.PathBezierCubicCurveTo(point(center, -5.5F * direction, -7.0F, scale),
+                                point(center, -7.0F * direction, -1.0F, scale),
+                                point(center, -7.0F * direction, 6.0F, scale));
     draw.PathStroke(color, 0, thickness);
-    const ImVec2 tip = refresh   ? point(center, -6.3F, -3.0F, scale)
-                       : reverse ? point(center, -6.5F, 1.5F, scale)
-                                 : point(center, 6.5F, 1.5F, scale);
-    arrowHead(draw, tip,
-              reverse || refresh ? ImVec2{-1.0F, 0.0F} : ImVec2{1.0F, 0.0F},
-              color, scale);
+    arrowHead(draw, tip, {direction, 0.0F}, color, scale * 0.9F);
     break;
   }
   case EditorIcon::Save:
@@ -142,6 +145,16 @@ void drawEditorGlyph(ImDrawList &draw, const EditorIcon icon,
                         point(center, -3.0F, 7.0F, scale),
                         point(center, -8.0F, 0.0F, scale), color, thickness);
     draw.AddCircleFilled(center, 2.5F * scale, color);
+    break;
+  case EditorIcon::Hud:
+    draw.AddRect(point(center, -7.5F, -6.5F, scale),
+                 point(center, 7.5F, 6.5F, scale), color, 1.5F, 0, thickness);
+    draw.AddLine(point(center, -7.5F, -2.5F, scale),
+                 point(center, 7.5F, -2.5F, scale), color, thickness);
+    draw.AddCircleFilled(point(center, -4.8F, -4.5F, scale), 0.9F * scale,
+                         color);
+    draw.AddRect(point(center, -4.5F, 0.0F, scale),
+                 point(center, 4.5F, 3.5F, scale), color, 0.5F, 0, thickness);
     break;
   case EditorIcon::Folder:
     draw.AddRectFilled(point(center, -8.0F, -3.0F, scale),

@@ -1,6 +1,7 @@
 #include "editor/EditorHierarchyPanel.h"
 
 #include "editor/EditorChrome.h"
+#include "editor/EditorHudHierarchy.h"
 #include "editor/EditorIsoGridCell.h"
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorWorkspace.h"
@@ -168,6 +169,105 @@ void drawPaintedCells(EditorWorkspace &workspace, const runtime::Entity &entity,
   ImGui::TreePop();
 }
 
+bool hudNodeMatches(const std::vector<EditorHudHierarchyNode> &nodes,
+                    const EditorHudHierarchyNode &node,
+                    const std::string_view filter) {
+  if (containsCaseInsensitive(node.label, filter) ||
+      containsCaseInsensitive(node.type, filter))
+    return true;
+  return std::ranges::any_of(nodes, [&](const EditorHudHierarchyNode &child) {
+    return child.parent == node.id && hudNodeMatches(nodes, child, filter);
+  });
+}
+
+void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
+                 const EditorHudHierarchyNode &node,
+                 const std::string_view filter, EditorWorkspace &workspace,
+                 std::string &notice) {
+  if (!hudNodeMatches(nodes, node, filter))
+    return;
+  const bool hasChildren =
+      std::ranges::any_of(nodes, [&](const auto &candidate) {
+        return candidate.parent == node.id;
+      });
+  ImGuiTreeNodeFlags flags =
+      ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow;
+  if (!hasChildren)
+    flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+  if (workspace.selectedHudNodeId() == node.id)
+    flags |= ImGuiTreeNodeFlags_Selected;
+  if (!node.visible)
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+  const std::string widgetId = "##hud-node-" + node.id;
+  const bool open =
+      ImGui::TreeNodeEx(widgetId.c_str(), flags, "   %s", node.label.c_str());
+  if (!node.visible)
+    ImGui::PopStyleColor();
+  const ImVec2 rowMin = ImGui::GetItemRectMin();
+  const ImVec2 rowMax = ImGui::GetItemRectMax();
+  drawEditorGlyph(*ImGui::GetWindowDrawList(), EditorIcon::Hud,
+                  {rowMin.x + 28.0F, (rowMin.y + rowMax.y) * 0.5F},
+                  node.visible ? IM_COL32(157, 139, 211, 255)
+                               : IM_COL32(87, 83, 101, 255),
+                  0.64F);
+  if (ImGui::IsItemClicked()) {
+    workspace.selectHudNode(node.id);
+  }
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("HUD %s · %s\nSelect to edit in the viewport",
+                      node.type.c_str(), node.visible ? "visible" : "hidden");
+  }
+  if (ImGui::BeginPopupContextItem(widgetId.c_str())) {
+    if (ImGui::MenuItem("Delete UI element")) {
+      workspace.selectHudNode(node.id);
+      std::string error;
+      notice = workspace.deleteSelectedHudNode(error) ? "HUD element deleted"
+                                                      : error;
+    }
+    ImGui::EndPopup();
+  }
+  if (hasChildren && open) {
+    for (const EditorHudHierarchyNode &child : nodes)
+      if (child.parent == node.id)
+        drawHudNode(nodes, child, filter, workspace, notice);
+    ImGui::TreePop();
+  }
+}
+
+void drawHudHierarchy(EditorWorkspace &workspace, const std::string_view filter,
+                      std::string &notice) {
+  const auto hudPath = workspace.authoredHudPath();
+  if (!hudPath)
+    return;
+  const std::vector<EditorHudHierarchyNode> nodes =
+      editorHudHierarchy(workspace.project().world.ui);
+  const bool hasMatch =
+      filter.empty() || std::ranges::any_of(nodes, [&](const auto &node) {
+        return hudNodeMatches(nodes, node, filter);
+      });
+  if (!hasMatch)
+    return;
+  const std::string label = "HUD (" + std::to_string(nodes.size()) + ")";
+  const bool open = ImGui::TreeNodeEx("##hud-root",
+                                      ImGuiTreeNodeFlags_SpanAvailWidth |
+                                          ImGuiTreeNodeFlags_DefaultOpen,
+                                      "   %s", label.c_str());
+  const ImVec2 rowMin = ImGui::GetItemRectMin();
+  const ImVec2 rowMax = ImGui::GetItemRectMax();
+  drawEditorGlyph(*ImGui::GetWindowDrawList(), EditorIcon::Hud,
+                  {rowMin.x + 28.0F, (rowMin.y + rowMax.y) * 0.5F},
+                  IM_COL32(171, 151, 230, 255), 0.7F);
+  if (open) {
+    for (const EditorHudHierarchyNode &node : nodes)
+      if (node.parent.empty())
+        drawHudNode(nodes, node, filter, workspace, notice);
+    if (nodes.empty())
+      ImGui::TextDisabled("HUD contains no parsed nodes.");
+    ImGui::TreePop();
+  }
+}
+
 void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
                     const runtime::World &world, const std::string_view filter,
                     std::optional<HierarchyAction> &pending,
@@ -274,6 +374,25 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
   ImGui::Spacing();
   if (ImGui::SmallButton("+ Add Entity"))
     pending = HierarchyAction{.kind = HierarchyAction::Kind::Create};
+  if (workspace.hudDocument()) {
+    ImGui::SameLine();
+    if (ImGui::SmallButton("+ UI Element"))
+      ImGui::OpenPopup("add-hud-element");
+    if (ImGui::BeginPopup("add-hud-element")) {
+      ImGui::TextDisabled("Add under selected HUD node");
+      ImGui::Separator();
+      for (const char *type :
+           {"container", "panel", "label", "button", "image", "text_input"}) {
+        if (!ImGui::MenuItem(type))
+          continue;
+        std::string error;
+        notice = workspace.createHudNode(type, error)
+                     ? std::string(type) + " added"
+                     : error;
+      }
+      ImGui::EndPopup();
+    }
+  }
   ImGui::Spacing();
 
   const bool sceneOpen =
@@ -285,6 +404,7 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
       if (entityParent(entity).empty())
         drawEntityNode(workspace, entity, workspace.project().world,
                        filter_.data(), pending, notice);
+    drawHudHierarchy(workspace, filter_.data(), notice);
     ImGui::TreePop();
   }
 
@@ -333,6 +453,13 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
       }
       notice = "Framed selected entity";
     }
+  }
+  if (ImGui::IsWindowFocused() && !ImGui::GetIO().WantTextInput &&
+      !workspace.selectedHudNodeId().empty() &&
+      ImGui::IsKeyPressed(ImGuiKey_Delete, false)) {
+    std::string error;
+    notice =
+        workspace.deleteSelectedHudNode(error) ? "HUD element deleted" : error;
   }
 
   if (ImGui::BeginPopupModal("Rename Entity", nullptr,

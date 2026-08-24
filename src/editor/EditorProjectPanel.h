@@ -18,6 +18,10 @@ private:
   std::array<char, 240> scenePath_{};
   std::array<char, 240> projectDestination_{};
   std::array<char, 128> projectName_{};
+  std::array<char, 96> actionName_{};
+  std::array<char, 96> actionContext_{};
+  std::array<char, 128> actionBinding_{};
+  std::string actionType_ = "button";
   std::string selectedTemplate_;
   bool showSettings_ = false;
   bool showCreateProject_ = false;

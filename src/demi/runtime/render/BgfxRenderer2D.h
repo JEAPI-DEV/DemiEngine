@@ -72,6 +72,9 @@ public:
   [[nodiscard]] std::size_t loadedTextureCount() const {
     return textures_.size();
   }
+  [[nodiscard]] bool hasTexture(const std::string_view id) const {
+    return static_cast<bool>(textures_.find(id).handle);
+  }
 
 private:
   Canvas2D canvas_;

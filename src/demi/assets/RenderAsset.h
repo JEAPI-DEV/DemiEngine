@@ -4,6 +4,7 @@
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <filesystem>
+#include <nlohmann/json_fwd.hpp>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -51,6 +52,10 @@ struct RenderTargetAsset {
 [[nodiscard]] std::optional<MaterialAsset>
 loadMaterialAsset(const std::filesystem::path &path,
                   Diagnostics *diagnostics = nullptr);
+[[nodiscard]] std::optional<MaterialAsset>
+parseMaterialAsset(const nlohmann::json &document,
+                   const std::filesystem::path &sourcePath = {},
+                   Diagnostics *diagnostics = nullptr);
 [[nodiscard]] std::optional<ShaderAsset>
 loadShaderAsset(const std::filesystem::path &path,
                 Diagnostics *diagnostics = nullptr);

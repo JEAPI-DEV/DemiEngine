@@ -7,6 +7,10 @@ add_test(NAME demi-editor-project-document-tests
   COMMAND demi-editor-project-document-tests)
 add_test(NAME demi-editor-asset-workflow-tests
   COMMAND demi-editor-asset-workflow-tests)
+add_test(NAME demi-editor-asset-drop-tests
+  COMMAND demi-editor-asset-drop-tests)
+add_test(NAME demi-editor-specialized-document-tests
+  COMMAND demi-editor-specialized-document-tests)
 add_test(NAME demi-editor-asset-group-document-tests
   COMMAND demi-editor-asset-group-document-tests)
 add_test(NAME demi-editor-scene-view-state-tests
@@ -23,6 +27,10 @@ add_test(NAME demi-editor-authoring-workflow-tests
   COMMAND demi-editor-authoring-workflow-tests)
 add_test(NAME demi-editor-inspector-model-tests
   COMMAND demi-editor-inspector-model-tests)
+add_test(NAME demi-editor-hud-hierarchy-tests
+  COMMAND demi-editor-hud-hierarchy-tests)
+add_test(NAME demi-editor-hud-document-tests
+  COMMAND demi-editor-hud-document-tests)
 add_test(NAME demi-editor-imgui-input-tests
   COMMAND demi-editor-imgui-input-tests)
 add_test(NAME demi-editor-play-session-tests

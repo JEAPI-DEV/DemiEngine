@@ -61,12 +61,17 @@ else()
 
   add_library(demi-editor-model STATIC
     src/editor/EditorAssetGroupDocument.cpp
+    src/editor/EditorAssetDrop.cpp
     src/editor/EditorAssetIndex.cpp
     src/editor/EditorDocumentStore.cpp
     src/editor/EditorInspectorModel.cpp
+    src/editor/EditorHudHierarchy.cpp
+    src/editor/EditorHudDocument.cpp
+    src/editor/EditorHudCanvas.cpp
     src/editor/EditorIsoGridCell.cpp
     src/editor/EditorIsoGridCellDocument.cpp
     src/editor/EditorIsoScene2D.cpp
+    src/editor/EditorJsonDocument.cpp
     src/editor/EditorPlaySession.cpp
     src/editor/EditorProjectDocument.cpp
     src/editor/EditorProjectOperations.cpp
@@ -76,6 +81,8 @@ else()
     src/editor/EditorSceneJson.cpp
     src/editor/EditorSceneView2DState.cpp
     src/editor/EditorSceneViewState.cpp
+    src/editor/EditorSpecializedDocument.cpp
+    src/editor/EditorSpecializedValidation.cpp
     src/editor/EditorViewportOverlay2D.cpp
     src/editor/EditorViewportProjection.cpp
     src/editor/EditorViewportProjection2D.cpp
@@ -89,6 +96,7 @@ else()
     demi-cli-support demi-runtime-lib)
 
   add_library(demi-editor-ui STATIC
+    src/editor/EditorAnimationMachinePanel.cpp
     src/editor/EditorAssetDialogs.cpp
     src/editor/EditorAssetsPanel.cpp
     src/editor/EditorBuildPanel.cpp
@@ -97,12 +105,15 @@ else()
     src/editor/EditorGameRenderer.cpp
     src/editor/EditorGameViewPanel.cpp
     src/editor/EditorHierarchyPanel.cpp
+    src/editor/EditorHudNodeInspector.cpp
     src/editor/EditorImGuiInput.cpp
     src/editor/EditorInspectorPanel.cpp
     src/editor/EditorIsoGridInspector.cpp
+    src/editor/EditorJsonInspector.cpp
     src/editor/EditorPanelStyle.cpp
     src/editor/EditorProjectPanel.cpp
     src/editor/EditorShell.cpp
+    src/editor/EditorSpecializedPanel.cpp
     src/editor/EditorStbRectPack.cpp
     src/editor/EditorTheme.cpp
     src/editor/EditorToolbar.cpp

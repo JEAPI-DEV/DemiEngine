@@ -9,9 +9,12 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace demi::runtime::platform {
 
@@ -350,6 +353,10 @@ public:
                             event.wheel.y * direction);
         break;
       }
+      case SDL_EVENT_DROP_FILE:
+        if (event.drop.data != nullptr)
+          droppedFiles_.emplace_back(event.drop.data);
+        break;
       case SDL_EVENT_FINGER_DOWN:
       case SDL_EVENT_FINGER_MOTION:
       case SDL_EVENT_FINGER_UP:
@@ -414,6 +421,10 @@ public:
   }
 
   const PlatformFrameState &frameState() const override { return state_; }
+
+  std::vector<std::filesystem::path> takeDroppedFiles() override {
+    return std::exchange(droppedFiles_, {});
+  }
 
   render::NativeWindowHandle nativeWindow() const override {
     return sdlNativeWindowHandle(window_);
@@ -513,6 +524,7 @@ private:
 
   SDL_Window *window_ = nullptr;
   std::unordered_map<SDL_JoystickID, SDL_Gamepad *> gamepads_;
+  std::vector<std::filesystem::path> droppedFiles_;
   PlatformFrameState state_;
   int windowWidth_ = 1;
   int windowHeight_ = 1;

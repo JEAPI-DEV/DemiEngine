@@ -1,5 +1,6 @@
 #include "editor/EditorViewportPanel.h"
 
+#include "editor/EditorHudCanvas.h"
 #include "editor/EditorIsoGridCell.h"
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorViewportOverlay2D.h"
@@ -50,7 +51,7 @@ void drawOrientationGizmo(ImDrawList &draw, const ImVec2 center,
 
 void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                         const ImVec2 size, EditorViewportArea &viewportArea,
-                        std::string &notice) {
+                        EditorHudViewportState &hudState, std::string &notice) {
   beginEditorPanel("Viewport", position, size,
                    ImGuiWindowFlags_NoScrollbar |
                        ImGuiWindowFlags_NoScrollWithMouse |
@@ -117,6 +118,63 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
     const bool hovered = ImGui::IsItemHovered();
     const bool focused = ImGui::IsWindowFocused();
     ImGuiIO &io = ImGui::GetIO();
+    const runtime::ui::UiDocument &hud = workspace.project().world.ui;
+    const float hudScaleX = canvasWidth / std::max(hud.canvasSize.x, 1.0F);
+    const float hudScaleY = canvasHeight / std::max(hud.canvasSize.y, 1.0F);
+    const runtime::Vec2 hudMouse{
+        (io.MousePos.x - canvasMin.x) / std::max(hudScaleX, 0.001F),
+        (io.MousePos.y - canvasMin.y) / std::max(hudScaleY, 0.001F)};
+    bool hudConsumed = false;
+    const runtime::ui::UiNode *selectedHud = workspace.selectedHudNode();
+    if (hovered && !io.KeyAlt && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+      bool resize = false;
+      if (selectedHud != nullptr) {
+        const runtime::ui::Rect selectedRect =
+            editorHudEditableRect(*selectedHud);
+        const runtime::Vec2 handle{selectedRect.x + selectedRect.width,
+                                   selectedRect.y + selectedRect.height};
+        const float handleRadius =
+            10.0F / std::max(std::min(hudScaleX, hudScaleY), 0.001F);
+        resize = std::abs(hudMouse.x - handle.x) <= handleRadius &&
+                 std::abs(hudMouse.y - handle.y) <= handleRadius;
+      }
+      const runtime::ui::UiNode *picked =
+          resize ? selectedHud : pickEditorHudNode(hud, hudMouse);
+      if (picked != nullptr) {
+        workspace.selectHudNode(picked->id);
+        hudState.drag = resize ? EditorHudViewportState::Drag::Resize
+                               : EditorHudViewportState::Drag::Move;
+        hudState.nodeId = picked->id;
+        hudState.startMouse = hudMouse;
+        hudState.startPosition = picked->layout.position;
+        hudState.startSize = picked->layout.size;
+        hudConsumed = true;
+      }
+    }
+    if (hudState.drag != EditorHudViewportState::Drag::None) {
+      hudConsumed = true;
+      if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+        const runtime::Vec2 delta{hudMouse.x - hudState.startMouse.x,
+                                  hudMouse.y - hudState.startMouse.y};
+        const bool resize =
+            hudState.drag == EditorHudViewportState::Drag::Resize;
+        const runtime::Vec2 value =
+            resize
+                ? runtime::Vec2{std::max(hudState.startSize.x + delta.x, 1.0F),
+                                std::max(hudState.startSize.y + delta.y, 1.0F)}
+                : runtime::Vec2{hudState.startPosition.x + delta.x,
+                                hudState.startPosition.y + delta.y};
+        std::string error;
+        notice = workspace.setHudNodeField(
+                     hudState.nodeId, resize ? "size" : "position",
+                     nlohmann::json::array({value.x, value.y}), error)
+                     ? resize ? "HUD element resized" : "HUD element moved"
+                     : error;
+        hudState = {};
+      } else if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+        hudState = {};
+      }
+    }
     if (focused && !io.WantTextInput &&
         ImGui::IsKeyPressed(ImGuiKey_F, false)) {
       if (is2D)
@@ -135,7 +193,8 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
         .wheel = hovered ? io.MouseWheel : 0.0F,
         .hovered = hovered,
         .focused = focused && !io.WantTextInput,
-        .orbitButton = ImGui::IsMouseDown(ImGuiMouseButton_Left),
+        .orbitButton =
+            !hudConsumed && ImGui::IsMouseDown(ImGuiMouseButton_Left),
         .panButton = ImGui::IsMouseDown(ImGuiMouseButton_Middle),
         .flyButton = ImGui::IsMouseDown(ImGuiMouseButton_Right),
         .orbitModifier = io.KeyAlt,
@@ -162,7 +221,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
         .leftPressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left),
         .leftDown = ImGui::IsMouseDown(ImGuiMouseButton_Left),
         .leftReleased = ImGui::IsMouseReleased(ImGuiMouseButton_Left),
-        .navigationModifier = io.KeyAlt,
+        .navigationModifier = io.KeyAlt || hudConsumed,
         .bypassSnapping = io.KeyShift,
         .cancelPressed = ImGui::IsKeyPressed(ImGuiKey_Escape, false)};
     const bool toolUpdated =
@@ -205,6 +264,32 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                                 {base.x + y * 5.0F, base.y - x * 5.0F},
                                 color(line.axis));
       }
+    }
+    if (const runtime::ui::UiNode *hudNode = workspace.selectedHudNode()) {
+      runtime::ui::Rect rect = editorHudEditableRect(*hudNode);
+      if (hudState.drag != EditorHudViewportState::Drag::None &&
+          hudState.nodeId == hudNode->id) {
+        const runtime::Vec2 delta{hudMouse.x - hudState.startMouse.x,
+                                  hudMouse.y - hudState.startMouse.y};
+        if (hudState.drag == EditorHudViewportState::Drag::Move) {
+          rect.x += delta.x;
+          rect.y += delta.y;
+        } else {
+          rect.width = std::max(rect.width + delta.x, 1.0F);
+          rect.height = std::max(rect.height + delta.y, 1.0F);
+        }
+      }
+      const ImVec2 rectMin{canvasMin.x + rect.x * hudScaleX,
+                           canvasMin.y + rect.y * hudScaleY};
+      const ImVec2 rectMax{rectMin.x + rect.width * hudScaleX,
+                           rectMin.y + rect.height * hudScaleY};
+      draw->AddRect(rectMin, rectMax, IM_COL32(180, 147, 255, 255), 1.0F, 0,
+                    2.0F);
+      draw->AddRectFilled({rectMax.x - 5.0F, rectMax.y - 5.0F},
+                          {rectMax.x + 5.0F, rectMax.y + 5.0F},
+                          IM_COL32(180, 147, 255, 255));
+      draw->AddText({rectMin.x, rectMin.y - 19.0F},
+                    IM_COL32(210, 194, 255, 255), hudNode->id.c_str());
     }
     if (hovered)
       ImGui::SetTooltip(

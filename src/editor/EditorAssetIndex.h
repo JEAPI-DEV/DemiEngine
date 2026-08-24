@@ -34,14 +34,18 @@ public:
     return groups_;
   }
   [[nodiscard]] const Diagnostics &diagnostics() const { return diagnostics_; }
+  [[nodiscard]] const AssetRegistry &registry() const { return registry_; }
   [[nodiscard]] const EditorAssetRecord *
   findByManifest(const std::filesystem::path &path) const;
+  [[nodiscard]] const EditorAssetRecord *
+  findBySource(const std::filesystem::path &path) const;
   [[nodiscard]] std::vector<std::string> types() const;
 
 private:
   std::vector<EditorAssetRecord> assets_;
   std::vector<assets::AssetGroupDescriptor> groups_;
   Diagnostics diagnostics_;
+  AssetRegistry registry_;
 };
 
 [[nodiscard]] const char *editorAssetCookStateName(EditorAssetCookState state);

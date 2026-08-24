@@ -5,7 +5,9 @@
 
 #include <cassert>
 #include <cstdlib>
+#include <filesystem>
 #include <string>
+#include <vector>
 
 using demi::runtime::InputState;
 using demi::runtime::platform::createSdlPlatformHost;
@@ -68,6 +70,17 @@ void lifecycleAndEventTranslationWorkWithoutAGpu() {
   host->poll(input);
   assert(!input.keysDown.contains("w"));
   assert(input.keysReleased.contains("w"));
+
+  event = {};
+  event.type = SDL_EVENT_DROP_FILE;
+  event.drop.type = SDL_EVENT_DROP_FILE;
+  event.drop.data = "/tmp/demi-dropped-asset.png";
+  assert(SDL_PushEvent(&event));
+  host->poll(input);
+  const auto dropped = host->takeDroppedFiles();
+  assert(dropped ==
+         std::vector<std::filesystem::path>{"/tmp/demi-dropped-asset.png"});
+  assert(host->takeDroppedFiles().empty());
 
   BgfxGraphicsDevice graphics;
   assert(graphics.initialize(GraphicsDeviceConfig{.api = GraphicsApi::Noop,

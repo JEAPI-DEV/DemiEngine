@@ -15,6 +15,7 @@ namespace {
 
 struct EditorOptions {
   std::filesystem::path projectPath;
+  std::filesystem::path openSource;
   int maximumFrames = 0;
   bool showHelp = false;
 };
@@ -31,6 +32,8 @@ EditorOptions parseOptions(const int argc, char **argv) {
       } catch (const std::exception &) {
         options.maximumFrames = 0;
       }
+    } else if (argument == "--open" && index + 1 < argc) {
+      options.openSource = argv[++index];
     } else if (argument == "--help" || argument == "-h") {
       options.showHelp = true;
     } else if (!argument.starts_with('-') && options.projectPath.empty()) {
@@ -42,6 +45,7 @@ EditorOptions parseOptions(const int argc, char **argv) {
 
 void printHelp() {
   std::cout << "Usage: demi-editor [--project <demi.project.json|directory>]\n"
+               "                   [--open <authored-source>]\n"
                "                   [--max-frames <count>]\n\n"
                "Without --project, the nearest parent demi.project.json is "
                "opened.\n";
@@ -81,6 +85,13 @@ int main(const int argc, char **argv) {
 
   demi::editor::applyEditorTheme();
   demi::editor::EditorShell shell(workspace);
+  if (!options.openSource.empty()) {
+    std::filesystem::path source = options.openSource;
+    if (source.is_relative())
+      source = workspace.project().project.projectDirectory / source;
+    if (!shell.openDocument(source.lexically_normal(), error))
+      shell.setNotice("Could not open source: " + error);
+  }
   bool viewportReady = ui->configureViewport(
       workspace.project().project.projectDirectory, error);
   if (!viewportReady)
@@ -94,6 +105,8 @@ int main(const int argc, char **argv) {
       ui->shutdown();
       return 1;
     }
+    for (std::filesystem::path &dropped : ui->takeDroppedFiles())
+      shell.queueAssetImport(std::move(dropped));
     if (gameRendererReady && !ui->prepareGameTarget(shell.gameArea(), error)) {
       shell.playSession().reportFailure(error);
       ui->releaseGameRenderer();
@@ -151,6 +164,7 @@ int main(const int argc, char **argv) {
                              workspace.sceneView().camera(), error);
     }
     if (!rendered) {
+      std::cerr << "Editor render failed: " << error << '\n';
       if (shell.showingGameView()) {
         shell.playSession().reportFailure(error);
         ui->releaseGameRenderer();

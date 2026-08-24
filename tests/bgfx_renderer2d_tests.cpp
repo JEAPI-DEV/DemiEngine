@@ -75,6 +75,18 @@ int main() {
   assert(diagnostics.empty());
 #endif
 
+  diagnostics.clear();
+  const AssetRegistry isometricRegistry =
+      loadAssetRegistry(std::filesystem::path(DEMI_SOURCE_DIR) /
+                        "examples/isometric_base_builder");
+  assert(renderer.loadAssets(isometricRegistry, diagnostics));
+  assert(diagnostics.empty());
+  assert(renderer.hasTexture("asset://ui/upgrade"));
+  assert(renderer.hasTexture("asset://ui/destroy"));
+  diagnostics.clear();
+  assert(renderer.loadAssets(registry, diagnostics));
+  assert(diagnostics.empty());
+
   World world;
   world.hudCanvasSize = {320, 180};
   world.ui.canvasSize = {320, 180};

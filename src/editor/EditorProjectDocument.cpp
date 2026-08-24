@@ -1,5 +1,6 @@
 #include "editor/EditorProjectDocument.h"
 
+#include "demi/runtime/input/InputActionParser.h"
 #include "demi/runtime/scene/ProjectParser.h"
 
 #include <algorithm>
@@ -104,6 +105,17 @@ bool EditorProjectDocument::addScene(std::string id, std::filesystem::path path,
   return commit(std::move(replacement), error);
 }
 
+bool EditorProjectDocument::setInputActions(nlohmann::json actions,
+                                            std::string &error) {
+  if (!actions.is_object()) {
+    error = "Input actions must be an object keyed by action name.";
+    return false;
+  }
+  nlohmann::json replacement = document_;
+  replacement["input"]["actions"] = std::move(actions);
+  return commit(std::move(replacement), error);
+}
+
 bool EditorProjectDocument::removeScene(const std::string_view id,
                                         std::string &error) {
   if (document_.value("main_scene", "") == id) {
@@ -170,6 +182,15 @@ std::vector<runtime::SceneEntry> EditorProjectDocument::scenes() const {
   return result;
 }
 
+nlohmann::json EditorProjectDocument::inputActions() const {
+  if (const auto input = document_.find("input");
+      input != document_.end() && input->is_object())
+    if (const auto actions = input->find("actions");
+        actions != input->end() && actions->is_object())
+      return *actions;
+  return nlohmann::json::object();
+}
+
 bool EditorProjectDocument::commit(nlohmann::json replacement,
                                    std::string &error) {
   if (replacement == document_)
@@ -218,6 +239,34 @@ bool EditorProjectDocument::validate(const nlohmann::json &document,
         error = "Project assets require unique asset:// or asset-group:// IDs.";
         return false;
       }
+    }
+  }
+  if (const auto input = document.find("input"); input != document.end()) {
+    if (!input->is_object() ||
+        (input->contains("actions") && !(*input)["actions"].is_object())) {
+      error = "Project input actions must be an object.";
+      return false;
+    }
+    if (input->contains("actions"))
+      for (const auto &[name, action] : (*input)["actions"].items()) {
+        const std::string type =
+            action.is_object() ? action.value("type", "") : "";
+        const std::string context =
+            action.is_object() ? action.value("context", "") : "";
+        if (name.empty() || !action.is_object() ||
+            (type != "button" && type != "axis1d" && type != "vector2") ||
+            context.empty() || !action.contains("bindings") ||
+            !action["bindings"].is_array() || action["bindings"].empty()) {
+          error = "Every input action requires a name, supported type, "
+                  "context, and binding.";
+          return false;
+        }
+      }
+    if (input->contains("actions") &&
+        runtime::input::parseInputActions(document).size() !=
+            (*input)["actions"].size()) {
+      error = "Input actions must be accepted by the runtime action parser.";
+      return false;
     }
   }
   return true;

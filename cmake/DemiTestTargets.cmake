@@ -46,6 +46,16 @@
     tests/editor_inspector_model_tests.cpp)
   target_link_libraries(demi-editor-inspector-model-tests
     PRIVATE demi-editor-model)
+  add_executable(demi-editor-hud-hierarchy-tests
+    tests/editor_hud_hierarchy_tests.cpp)
+  target_link_libraries(demi-editor-hud-hierarchy-tests
+    PRIVATE demi-editor-model)
+  target_compile_definitions(demi-editor-hud-hierarchy-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-hud-document-tests
+    tests/editor_hud_document_tests.cpp)
+  target_link_libraries(demi-editor-hud-document-tests
+    PRIVATE demi-editor-model)
   add_executable(demi-editor-imgui-input-tests
     tests/editor_imgui_input_tests.cpp)
   target_include_directories(demi-editor-imgui-input-tests PRIVATE
@@ -66,6 +76,14 @@
   add_executable(demi-editor-asset-workflow-tests
     tests/editor_asset_workflow_tests.cpp)
   target_link_libraries(demi-editor-asset-workflow-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-asset-drop-tests
+    tests/editor_asset_drop_tests.cpp)
+  target_link_libraries(demi-editor-asset-drop-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-specialized-document-tests
+    tests/editor_specialized_document_tests.cpp)
+  target_link_libraries(demi-editor-specialized-document-tests
     PRIVATE demi-editor-model)
   add_executable(demi-editor-asset-group-document-tests
     tests/editor_asset_group_document_tests.cpp)

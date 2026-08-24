@@ -304,9 +304,14 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
         selectedSource_ = source;
         notice = "Selected project source: " + display;
       }
+      if (ImGui::IsItemHovered() &&
+          ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+        openRequest_ = source;
       if (ImGui::IsItemHovered())
         ImGui::SetTooltip("%s", display.c_str());
       if (ImGui::BeginPopupContextItem()) {
+        if (ImGui::MenuItem("Open"))
+          openRequest_ = source;
         if (ImGui::MenuItem("Locate in filesystem"))
           locateSource(source, notice);
         if (record != nullptr && ImGui::MenuItem("Reimport")) {

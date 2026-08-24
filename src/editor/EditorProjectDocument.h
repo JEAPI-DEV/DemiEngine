@@ -27,6 +27,8 @@ public:
                                         std::string &error);
   [[nodiscard]] bool addScene(std::string id, std::filesystem::path path,
                               std::string &error);
+  [[nodiscard]] bool setInputActions(nlohmann::json actions,
+                                     std::string &error);
   [[nodiscard]] bool removeScene(std::string_view id, std::string &error);
   [[nodiscard]] bool undo(std::string &error);
   [[nodiscard]] bool redo(std::string &error);
@@ -40,6 +42,7 @@ public:
   [[nodiscard]] const nlohmann::json &json() const { return document_; }
   [[nodiscard]] std::vector<std::string> preloadedAssets() const;
   [[nodiscard]] std::vector<runtime::SceneEntry> scenes() const;
+  [[nodiscard]] nlohmann::json inputActions() const;
   [[nodiscard]] const std::filesystem::path &path() const { return path_; }
 
 private:

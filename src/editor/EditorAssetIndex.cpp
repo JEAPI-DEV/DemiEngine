@@ -31,8 +31,8 @@ void EditorAssetIndex::refresh(
     const std::vector<std::filesystem::path> &sources) {
   assets_.clear();
   groups_.clear();
-  const AssetRegistry registry = loadAssetRegistry(projectDirectory);
-  diagnostics_ = validateAssetRegistry(registry);
+  registry_ = loadAssetRegistry(projectDirectory);
+  diagnostics_ = validateAssetRegistry(registry_);
 
   const std::filesystem::path cookDirectory =
       projectDirectory / "generated/cooked/linux";
@@ -59,7 +59,7 @@ void EditorAssetIndex::refresh(
     }
   }
 
-  for (const AssetManifest &manifest : registry.assets) {
+  for (const AssetManifest &manifest : registry_.assets) {
     EditorAssetRecord record{.manifest = manifest};
     for (const Diagnostic &diagnostic : diagnostics_)
       if (diagnostic.path == manifest.manifestPath.string() ||
@@ -102,6 +102,15 @@ EditorAssetIndex::findByManifest(const std::filesystem::path &path) const {
   const auto found =
       std::ranges::find(assets_, path, [](const EditorAssetRecord &record) {
         return record.manifest.manifestPath;
+      });
+  return found == assets_.end() ? nullptr : &*found;
+}
+
+const EditorAssetRecord *
+EditorAssetIndex::findBySource(const std::filesystem::path &path) const {
+  const auto found =
+      std::ranges::find(assets_, path, [](const EditorAssetRecord &record) {
+        return record.manifest.sourcePath;
       });
   return found == assets_.end() ? nullptr : &*found;
 }

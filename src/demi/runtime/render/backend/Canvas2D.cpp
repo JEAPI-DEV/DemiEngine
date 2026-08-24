@@ -31,6 +31,18 @@ bool positive(const Rect2D &rect) {
 
 } // namespace
 
+ScissorRect canvasScissorForView(ScissorRect local,
+                                 const std::uint16_t viewportX,
+                                 const std::uint16_t viewportY) {
+  if (local.width == 0 || local.height == 0)
+    return local;
+  local.x = static_cast<std::uint16_t>(std::min<std::uint32_t>(
+      static_cast<std::uint32_t>(local.x) + viewportX, UINT16_MAX));
+  local.y = static_cast<std::uint16_t>(std::min<std::uint32_t>(
+      static_cast<std::uint32_t>(local.y) + viewportY, UINT16_MAX));
+  return local;
+}
+
 Canvas2D::Canvas2D(GpuResources &resources, RenderCommands &commands,
                    const std::size_t maxQuadsPerDraw)
     : resources_(resources), commands_(commands), batch_(maxQuadsPerDraw) {}
@@ -88,6 +100,10 @@ bool Canvas2D::begin(const std::uint16_t viewId, const std::uint16_t width,
   uniformSets_.clear();
   statistics_ = {};
   viewId_ = viewId;
+  // Canvas callers author clip rectangles in viewport-local coordinates.
+  // bgfx scissor rectangles are backbuffer coordinates for an embedded view.
+  scissorOffsetX_ = frameBuffer ? 0 : x;
+  scissorOffsetY_ = frameBuffer ? 0 : y;
   return commands_.configureView2D(View2DConfig{.id = viewId,
                                                 .x = x,
                                                 .y = y,
@@ -116,16 +132,13 @@ bool Canvas2D::image(const TextureHandle texture, const Rect2D &destination,
              uniformSet);
 }
 
-bool Canvas2D::imageTransformed(const TextureHandle texture,
-                                const float positionX, const float positionY,
-                                const float width, const float height,
-                                const float pivotX, const float pivotY,
-                                const float rotationRadians,
-                                const TextureRegion2D &source,
-                                const std::uint32_t rgba, const BlendMode blend,
-                                const ScissorRect scissor,
-                                ProgramHandle program,
-                                const std::uint32_t uniformSet) {
+bool Canvas2D::imageTransformed(
+    const TextureHandle texture, const float positionX, const float positionY,
+    const float width, const float height, const float pivotX,
+    const float pivotY, const float rotationRadians,
+    const TextureRegion2D &source, const std::uint32_t rgba,
+    const BlendMode blend, const ScissorRect scissor, ProgramHandle program,
+    const std::uint32_t uniformSet) {
   if (!program)
     program = program_;
   if (!texture || !program || width <= 0.0F || height <= 0.0F ||
@@ -306,9 +319,10 @@ bool Canvas2D::flush(std::string &error) {
         indices.subspan(range.firstIndex, range.indexCount);
     const auto uniformSet = uniformSets_.find(range.key.uniformSet);
     const std::span<const DrawUniformValue> uniforms =
-        uniformSet == uniformSets_.end()
-            ? std::span<const DrawUniformValue>{}
-            : uniformSet->second;
+        uniformSet == uniformSets_.end() ? std::span<const DrawUniformValue>{}
+                                         : uniformSet->second;
+    const ScissorRect scissor = canvasScissorForView(
+        range.key.scissor, scissorOffsetX_, scissorOffsetY_);
     success = commands_.submit(
                   TransientDraw{
                       .viewId = viewId_,
@@ -320,7 +334,7 @@ bool Canvas2D::flush(std::string &error) {
                       .sampler = sampler_,
                       .blend = range.key.blend,
                       .state = {.blend = range.key.blend},
-                      .scissor = range.key.scissor,
+                      .scissor = scissor,
                       .uniforms = uniforms,
                   },
                   error) &&
@@ -338,9 +352,8 @@ bool Canvas2D::flush(std::string &error) {
   return success;
 }
 
-void Canvas2D::setUniformSet(
-    const std::uint32_t id,
-    const std::span<const DrawUniformValue> uniforms) {
+void Canvas2D::setUniformSet(const std::uint32_t id,
+                             const std::span<const DrawUniformValue> uniforms) {
   if (id != 0)
     uniformSets_.insert_or_assign(id, uniforms);
 }
@@ -351,8 +364,8 @@ bool Canvas2D::add(const TextureHandle texture, const Rect2D &destination,
                    ProgramHandle program, const std::uint32_t uniformSet) {
   if (!program)
     program = program_;
-  if (!texture || !program || !positive(destination) ||
-      source.u1 < source.u0 || source.v1 < source.v0)
+  if (!texture || !program || !positive(destination) || source.u1 < source.u0 ||
+      source.v1 < source.v0)
     return false;
   return batch_.add(
       QuadBatchKey{

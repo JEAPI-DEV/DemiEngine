@@ -58,19 +58,19 @@ void drawDocumentGroup(EditorWorkspace &workspace, std::string &notice) {
   }
   sameLine();
   if (editorIconButton("save-scene", EditorIcon::Save, "Save scene (Ctrl+S)",
-                       false, workspace.sceneDocument().isDirty())) {
+                       false, workspace.activeDocumentDirty())) {
     std::string error;
-    notice = workspace.save(error) ? "Scene saved" : error;
+    notice = workspace.save(error) ? "Document saved" : error;
   }
   editorToolbarSeparator();
   if (editorIconButton("undo-scene", EditorIcon::Undo, "Undo (Ctrl+Z)", false,
-                       workspace.sceneDocument().canUndo())) {
+                       workspace.activeDocumentCanUndo())) {
     std::string error;
     notice = workspace.undo(error) ? "Undid scene edit" : error;
   }
   sameLine();
   if (editorIconButton("redo-scene", EditorIcon::Redo, "Redo (Ctrl+Y)", false,
-                       workspace.sceneDocument().canRedo())) {
+                       workspace.activeDocumentCanRedo())) {
     std::string error;
     notice = workspace.redo(error) ? "Redid scene edit" : error;
   }
@@ -85,7 +85,9 @@ void drawPlayGroup(EditorWorkspace &workspace, EditorPlaySession &playSession,
                        playSession.state() == EditorPlayState::Running,
                        canStart)) {
     std::string error;
-    if (workspace.sceneDocument().isDirty() && !workspace.save(error)) {
+    if (workspace.hudDirty() && !workspace.saveHud(error)) {
+      notice = error;
+    } else if (workspace.sceneDocument().isDirty() && !workspace.save(error)) {
       notice = error;
     } else if (playSession.startEmbedded(workspace.projectPath(), error)) {
       notice = "Embedded play session started";
@@ -122,7 +124,9 @@ void drawPlayGroup(EditorWorkspace &workspace, EditorPlaySession &playSession,
     ImGui::BeginDisabled(playSession.isRunning());
     if (ImGui::MenuItem("Play in external window")) {
       std::string error;
-      if (workspace.sceneDocument().isDirty() && !workspace.save(error))
+      if (workspace.hudDirty() && !workspace.saveHud(error))
+        notice = error;
+      else if (workspace.sceneDocument().isDirty() && !workspace.save(error))
         notice = error;
       else if (playSession.startExternal(workspace.projectPath(), error))
         notice = "External play session started";

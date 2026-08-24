@@ -20,6 +20,7 @@ enum class EditorIcon {
   Camera,
   Grid,
   Eye,
+  Hud,
   Folder,
   File,
   Add,

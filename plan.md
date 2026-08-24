@@ -2032,7 +2032,7 @@ Acceptance: Play never mutates the authored document; Stop returns resource and
 script owner counts to their pre-play baseline; Step advances exactly one fixed
 tick while paused.
 
-#### 8E. Prefab, HUD, and specialized documents — planned
+#### 8E. Prefab, HUD, and specialized documents — complete
 
 1. Implement one document type at a time through its existing parser and
    format version.
@@ -2042,6 +2042,21 @@ tick while paused.
    preview without saving generated runtime nodes.
 4. Build animation, material, dialogue/data, input-action, and audio inspectors
    as command adapters over their authored documents.
+
+Present: conflict-aware canonical JSON history shared only at the persistence
+boundary; prefab source/expanded/diff inspection with nested stable IDs,
+missing-reference diagnostics, reversible overrides, and rollback-protected
+two-file apply; HUD source hierarchy plus runtime layout/localization preview
+with safe area, DPI, locale, and preview-only sample text; runtime-parser-backed
+material properties/preview; model clip and scene state-machine editing through
+runtime animation validation/preview; and schema-validated data/dialogue,
+runtime input-map, and audio-setting editors. Asset sources open by double-click
+or context action, and desktop file drops queue the existing importer flow.
+The active scene HUD is additionally rendered and authored in the main viewport:
+hierarchy/canvas selection is synchronized, visible elements support direct
+move and resize, the Inspector exposes typed layout and presentation fields,
+and reversible add/delete operations modify the real HUD document. Expanded UI
+prefab nodes are deliberately read-only until their source prefab is opened.
 
 Acceptance: saving from a specialized editor produces the same canonical source
 and validation result as direct text authoring; no specialized document keeps a

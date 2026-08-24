@@ -141,6 +141,10 @@ public:
     return true;
   }
 
+  std::vector<std::filesystem::path> takeDroppedFiles() override {
+    return platform_->takeDroppedFiles();
+  }
+
   bool configureViewport(const std::filesystem::path &projectDirectory,
                          std::string &error) override {
     const AssetRegistry assets = loadAssetRegistry(projectDirectory);
@@ -184,10 +188,11 @@ public:
                                        area.x, area.y, area.width, area.height,
                                        frame.deltaSeconds, error))
       return false;
-    if (!renderer2D_->drawWorld(world, showColliders)) {
+    if (!renderer2D_->drawWorld(world, showColliders) ||
+        !renderer2D_->drawHud(world)) {
       std::string ignored;
       (void)renderer2D_->endFrame(ignored);
-      error = "Could not draw the authored 2D scene.";
+      error = "Could not draw the authored 2D scene and HUD.";
       return false;
     }
     return renderer2D_->endFrame(error);
