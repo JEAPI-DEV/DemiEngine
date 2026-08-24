@@ -105,6 +105,7 @@ else()
     src/editor/EditorChrome.cpp
     src/editor/EditorConflictPanel.cpp
     src/editor/EditorConsolePanel.cpp
+    src/editor/EditorDebugPanel.cpp
     src/editor/EditorGameRenderer.cpp
     src/editor/EditorGameViewPanel.cpp
     src/editor/EditorHierarchyPanel.cpp

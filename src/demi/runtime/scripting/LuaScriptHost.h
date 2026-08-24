@@ -127,6 +127,9 @@ public:
   [[nodiscard]] int randomInteger(int minimum, int maximum);
   [[nodiscard]] isometric::IsoGridApi &isoGridApi();
   [[nodiscard]] navigation::NavigationGrid2D &navigationGrid2D();
+  [[nodiscard]] const navigation::NavigationGrid2D &navigationGrid2D() const {
+    return navigationGrid2D_;
+  }
   [[nodiscard]] TilemapRuntime &tilemapRuntime();
   [[nodiscard]] std::string textEntered() const;
   [[nodiscard]] bool addEntityPosition(const std::string &entityId, float dx,

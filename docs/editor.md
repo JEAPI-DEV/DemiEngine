@@ -84,6 +84,16 @@ filesystem service used by `demi dev`.
   physics, Lua, animation, network, input, world/UI counts, and asset residency.
   GPU time is shown as unavailable rather than estimated because the bgfx
   backend does not yet expose timestamp-query results.
+- The Debug tab reads one immutable embedded-runtime snapshot for input,
+  renderer gauges, 2D/3D physics bodies and contacts, NavigationGrid2D state,
+  resident asset ownership/bytes, and network mode/security/latency. Runtime
+  overlay toggles affect only the isolated Play world and are discarded on
+  Stop.
+- The editor exposes draw order as a selection-scoped inspection tool: select
+  an entity in the runtime hierarchy, then enable `Selected draw index`. Only
+  that entity receives a backed callout and leader line. Entity ID is already
+  present in the runtime Inspector and is deliberately not duplicated in the
+  viewport. The CLI's global `entity_ids` overlay remains available.
 - Play saves pending valid changes and starts an isolated embedded runtime
   world in the Game view. Pause/Resume, exact fixed-tick Step, and Stop control
   that world; an owned external `demi-runtime` window remains available from
@@ -463,7 +473,7 @@ as those services gain structured data.
 - [ ] Replace placeholder profiler content with real frame/CPU/GPU/script/
   physics/resource data from the runtime profiler contract.
 - [ ] Add searchable diagnostics and logs with stable source/entity/field links.
-- [ ] Add input, renderer, physics, navigation, asset residency, and network
+- [x] Add input, renderer, physics, navigation, asset residency, and network
   debug views backed by real service data.
 - [ ] Add explicit dirty-document close handling and recovery for interrupted
   saves; cached recovery data must never silently become authored source.
@@ -480,16 +490,22 @@ with source-copy and entity-selection actions. GPU timestamps, runtime log
 ingestion, debug views, recovery/preferences, and the full release workflow
 remain open, so the Milestone 9 gate is not yet marked passed.
 
+**9B present:** a categorized Debug tab consumes `RuntimeDebugSnapshot` for
+input, physics/contact counts, navigation configuration, resident asset memory,
+and network state, plus the profiler's renderer gauges. Collider, contact,
+entity-ID, draw-order, and UI-bound overlays mutate only the embedded
+runtime world. No authored debug configuration is changed.
+
 **Gate:** a small 2D or lightweight 3D game can be assembled, inspected, played,
 diagnosed, cooked, and packaged without manual JSON editing, while direct text
 editing and conflict handling remain supported.
 
 ### Immediate next task
 
-Milestone 9A instrumentation and searchable diagnostics are present. Continue
-with **Milestone 9B: input, renderer, physics, navigation, asset-residency, and
-network debug views**. Every view must consume a runtime snapshot; do not read
-private subsystem state from ImGui or invent unavailable metrics.
+Milestone 9A instrumentation/search and 9B debug views are present. Continue
+with **Milestone 9C: dirty-document close handling, interrupted-save recovery,
+and workspace preferences**. Recovery data must remain an explicit cache that
+never silently replaces authored source.
 
 For each todo item that mutates authored state, use this implementation order:
 
@@ -544,3 +560,7 @@ Milestone 9A keeps profiling and diagnostics UI-free until presentation:
 `RuntimeProfiler` owns bounded rolling samples; `EditorProfilerModel`
 categorizes immutable snapshots; `EditorDiagnosticsModel` merges and filters
 CLI/editor records; and `EditorConsolePanel` owns only filter and tab state.
+`EmbeddedRuntimeSession` owns `RuntimeDebugSnapshot`; `EditorDebugPanel`
+renders that value and can submit only runtime overlay configuration.
+`DebugLabelLayout2D` owns debug-callout compaction and placement independently
+of bgfx; `DebugCanvasRenderer` only measures and draws the resulting callouts.

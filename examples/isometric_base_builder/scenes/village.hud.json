@@ -1,23 +1,26 @@
 {
-  "format_version": 1,
   "canvas_size": [
     960.0,
     540.0
   ],
+  "format_version": 1,
   "root": {
-    "id": "ui_root",
-    "type": "container",
-    "anchor_min": [
-      0.0,
-      0.0
-    ],
     "anchor_max": [
       1.0,
       1.0
     ],
+    "anchor_min": [
+      0.0,
+      0.0
+    ],
     "children": [
       {
-        "type": "panel",
+        "background_color": [
+          0.04,
+          0.06,
+          0.1,
+          0.92
+        ],
         "id": "top_bar",
         "position": [
           16.0,
@@ -27,83 +30,83 @@
           928.0,
           58.0
         ],
-        "background_color": [
-          0.04,
-          0.06,
-          0.1,
-          0.92
-        ]
+        "type": "panel"
       },
       {
-        "type": "label",
-        "id": "game_title",
-        "text": "LAST KEEP",
-        "position": [
-          34.0,
-          32.0
-        ],
         "color": [
           0.45,
           0.94,
           0.78,
           1.0
         ],
-        "font_size": 28
+        "font_size": 28,
+        "id": "game_title",
+        "position": [
+          34.0,
+          32.0
+        ],
+        "text": "LAST KEEP",
+        "type": "label"
       },
       {
-        "type": "label",
-        "id": "gold_value",
-        "text": "GOLD 240",
-        "position": [
-          238.0,
-          34.0
-        ],
         "color": [
           1.0,
           0.78,
           0.3,
           1.0
         ],
-        "font_size": 21.6
-      },
-      {
-        "type": "label",
-        "id": "base_value",
-        "text": "KEEP 20",
+        "font_size": 21.6,
+        "id": "gold_value",
         "position": [
-          420.0,
+          238.0,
           34.0
         ],
+        "text": "GOLD 240",
+        "type": "label"
+      },
+      {
         "color": [
           0.96,
           0.48,
           0.48,
           1.0
         ],
-        "font_size": 21.6
+        "font_size": 21.6,
+        "id": "base_value",
+        "position": [
+          420.0,
+          34.0
+        ],
+        "text": "KEEP 20",
+        "type": "label"
       },
       {
-        "type": "label",
+        "font_size": 21.6,
         "id": "wave_value",
-        "text": "WAVE 0",
         "position": [
           610.0,
           34.0
         ],
-        "font_size": 21.6
+        "text": "WAVE 0",
+        "type": "label"
       },
       {
-        "type": "label",
+        "font_size": 21.6,
         "id": "enemy_value",
-        "text": "ENEMIES 0",
         "position": [
           760.0,
           34.0
         ],
-        "font_size": 21.6
+        "text": "ENEMIES 0",
+        "type": "label"
       },
       {
-        "type": "panel",
+        "background_color": [
+          0.05,
+          0.08,
+          0.13,
+          0.94
+        ],
         "id": "build_panel",
         "position": [
           742.0,
@@ -113,58 +116,66 @@
           202.0,
           284.0
         ],
-        "background_color": [
-          0.05,
-          0.08,
-          0.13,
-          0.94
-        ]
+        "type": "panel"
       },
       {
-        "type": "label",
-        "id": "build_title",
-        "text": "BUILD",
-        "position": [
-          768.0,
-          112.0
-        ],
         "color": [
           0.45,
           0.94,
           0.78,
           1.0
         ],
-        "font_size": 25.6
+        "font_size": 25.6,
+        "id": "build_title",
+        "position": [
+          768.0,
+          112.0
+        ],
+        "text": "BUILD",
+        "type": "label"
       },
       {
-        "type": "button",
-        "id": "build_arrow",
-        "position": [
-          760.0,
-          154.0
+        "action": "build_arrow",
+        "background_color": [
+          0.16,
+          0.28,
+          0.32,
+          1.0
         ],
-        "size": [
-          166.0,
-          48.0
-        ],
+        "font_size": 17.6,
         "hover_color": [
           0.24,
           0.45,
           0.45,
           1.0
         ],
-        "action": "build_arrow",
+        "id": "build_arrow",
+        "position": [
+          759.4663696289063,
+          154.0
+        ],
+        "size": [
+          166.0,
+          48.0
+        ],
         "text": "[1] ARROW 50",
-        "font_size": 17.6,
-        "background_color": [
-          0.16,
-          0.28,
-          0.32,
-          1.0
-        ]
+        "type": "button"
       },
       {
-        "type": "button",
+        "action": "build_wizard",
+        "background_color": [
+          0.28,
+          0.2,
+          0.34,
+          1.0
+        ],
+        "font_size": 17.6,
+        "hover_color": [
+          0.45,
+          0.3,
+          0.5,
+          1.0
+        ],
         "id": "build_wizard",
         "position": [
           760.0,
@@ -174,24 +185,24 @@
           166.0,
           48.0
         ],
-        "hover_color": [
-          0.45,
-          0.3,
-          0.5,
-          1.0
-        ],
-        "action": "build_wizard",
         "text": "[2] WIZARD 90",
-        "font_size": 17.6,
-        "background_color": [
-          0.28,
-          0.2,
-          0.34,
-          1.0
-        ]
+        "type": "button"
       },
       {
-        "type": "button",
+        "action": "start_wave",
+        "background_color": [
+          0.36,
+          0.2,
+          0.2,
+          1.0
+        ],
+        "font_size": 16.8,
+        "hover_color": [
+          0.58,
+          0.28,
+          0.28,
+          1.0
+        ],
         "id": "start_wave",
         "position": [
           760.0,
@@ -201,40 +212,32 @@
           166.0,
           48.0
         ],
-        "hover_color": [
-          0.58,
-          0.28,
-          0.28,
-          1.0
-        ],
-        "action": "start_wave",
         "text": "[SPACE] WAVE",
-        "font_size": 16.8,
-        "background_color": [
-          0.36,
-          0.2,
-          0.2,
-          1.0
-        ]
+        "type": "button"
       },
       {
-        "type": "label",
-        "id": "selection_value",
-        "text": "SELECTED: NONE",
-        "position": [
-          760.0,
-          350.0
-        ],
         "color": [
           0.72,
           0.8,
           0.88,
           1.0
         ],
-        "font_size": 13.6
+        "font_size": 13.6,
+        "id": "selection_value",
+        "position": [
+          760.0,
+          350.0
+        ],
+        "text": "SELECTED: NONE",
+        "type": "label"
       },
       {
-        "type": "panel",
+        "background_color": [
+          0.04,
+          0.06,
+          0.1,
+          0.92
+        ],
         "id": "status_panel",
         "position": [
           16.0,
@@ -244,52 +247,57 @@
           928.0,
           70.0
         ],
-        "background_color": [
-          0.04,
-          0.06,
-          0.1,
-          0.92
-        ]
+        "type": "panel"
       },
       {
-        "type": "label",
-        "id": "status_value",
-        "text": "Choose a tower, then click a free tile.",
-        "position": [
-          34.0,
-          470.0
-        ],
         "color": [
           0.88,
           0.92,
           0.96,
           1.0
         ],
-        "font_size": 18.4
-      },
-      {
-        "type": "label",
-        "id": "help_value",
-        "text": "LMB place/select | U upgrade | DEL destroy | S save | L load",
+        "font_size": 18.4,
+        "id": "status_value",
         "position": [
           34.0,
-          498.0
+          470.0
         ],
+        "text": "Choose a tower, then click a free tile.",
+        "type": "label"
+      },
+      {
         "color": [
           0.48,
           0.7,
           0.82,
           1.0
         ],
-        "font_size": 14.4
+        "font_size": 14.4,
+        "id": "help_value",
+        "position": [
+          34.0,
+          498.0
+        ],
+        "text": "LMB place/select | U upgrade | DEL destroy | S save | L load",
+        "type": "label"
       },
       {
-        "id": "tower_menu",
-        "type": "container",
-        "visible": false,
+        "anchor_max": [
+          1,
+          1
+        ],
+        "anchor_min": [
+          0,
+          0
+        ],
         "children": [
           {
-            "type": "panel",
+            "background_color": [
+              0.04,
+              0.07,
+              0.11,
+              0.96
+            ],
             "id": "tower_menu_bg",
             "position": [
               360.0,
@@ -299,32 +307,27 @@
               184.0,
               244.0
             ],
-            "background_color": [
-              0.04,
-              0.07,
-              0.11,
-              0.96
-            ]
+            "type": "panel"
           },
           {
-            "type": "label",
-            "id": "tower_stats",
-            "text": "LV 1/5  POW 0  RNG 0",
-            "position": [
-              372.0,
-              260.0
-            ],
             "color": [
               0.82,
               0.9,
               0.96,
               1.0
             ],
-            "font_size": 13.6
+            "font_size": 13.6,
+            "id": "tower_stats",
+            "position": [
+              372.0,
+              260.0
+            ],
+            "text": "LV 1/5  POW 0  RNG 0",
+            "type": "label"
           },
           {
-            "type": "image",
             "id": "upgrade_icon",
+            "layer": 3,
             "position": [
               370.0,
               293.0
@@ -334,10 +337,23 @@
               28.0
             ],
             "texture": "asset://ui/upgrade",
-            "layer": 3
+            "type": "image"
           },
           {
-            "type": "button",
+            "action": "tower_upgrade",
+            "background_color": [
+              0.14,
+              0.34,
+              0.28,
+              1.0
+            ],
+            "font_size": 14.4,
+            "hover_color": [
+              0.2,
+              0.52,
+              0.4,
+              1.0
+            ],
             "id": "tower_upgrade",
             "position": [
               368.0,
@@ -347,25 +363,12 @@
               168.0,
               38.0
             ],
-            "hover_color": [
-              0.2,
-              0.52,
-              0.4,
-              1.0
-            ],
-            "action": "tower_upgrade",
             "text": "UPGRADE",
-            "font_size": 14.4,
-            "background_color": [
-              0.14,
-              0.34,
-              0.28,
-              1.0
-            ]
+            "type": "button"
           },
           {
-            "type": "image",
             "id": "destroy_icon",
+            "layer": 3,
             "position": [
               370.0,
               337.0
@@ -375,10 +378,23 @@
               28.0
             ],
             "texture": "asset://ui/destroy",
-            "layer": 3
+            "type": "image"
           },
           {
-            "type": "button",
+            "action": "tower_destroy",
+            "background_color": [
+              0.38,
+              0.16,
+              0.18,
+              1.0
+            ],
+            "font_size": 14.4,
+            "hover_color": [
+              0.6,
+              0.22,
+              0.24,
+              1.0
+            ],
             "id": "tower_destroy",
             "position": [
               368.0,
@@ -388,24 +404,24 @@
               168.0,
               38.0
             ],
-            "hover_color": [
-              0.6,
-              0.22,
-              0.24,
-              1.0
-            ],
-            "action": "tower_destroy",
             "text": "DESTROY",
-            "font_size": 14.4,
-            "background_color": [
-              0.38,
-              0.16,
-              0.18,
-              1.0
-            ]
+            "type": "button"
           },
           {
-            "type": "button",
+            "action": "tower_target_random",
+            "background_color": [
+              0.1,
+              0.22,
+              0.3,
+              1.0
+            ],
+            "font_size": 8,
+            "hover_color": [
+              0.22,
+              0.5,
+              0.42,
+              1.0
+            ],
             "id": "tower_target_random",
             "position": [
               368.0,
@@ -415,24 +431,24 @@
               80.0,
               52.0
             ],
-            "hover_color": [
-              0.22,
-              0.5,
-              0.42,
-              1.0
-            ],
-            "action": "tower_target_random",
             "text": "RANDOM",
-            "font_size": 8,
-            "background_color": [
-              0.1,
-              0.22,
-              0.3,
-              1.0
-            ]
+            "type": "button"
           },
           {
-            "type": "button",
+            "action": "tower_target_strongest",
+            "background_color": [
+              0.22,
+              0.16,
+              0.3,
+              1.0
+            ],
+            "font_size": 6.56,
+            "hover_color": [
+              0.42,
+              0.28,
+              0.62,
+              1.0
+            ],
             "id": "tower_target_strongest",
             "position": [
               456.0,
@@ -442,24 +458,24 @@
               80.0,
               52.0
             ],
-            "hover_color": [
-              0.42,
-              0.28,
-              0.62,
-              1.0
-            ],
-            "action": "tower_target_strongest",
             "text": "STRONGEST",
-            "font_size": 6.56,
-            "background_color": [
-              0.22,
-              0.16,
-              0.3,
-              1.0
-            ]
+            "type": "button"
           },
           {
-            "type": "button",
+            "action": "tower_target_weakest",
+            "background_color": [
+              0.28,
+              0.2,
+              0.14,
+              1.0
+            ],
+            "font_size": 6.56,
+            "hover_color": [
+              0.48,
+              0.32,
+              0.22,
+              1.0
+            ],
             "id": "tower_target_weakest",
             "position": [
               368.0,
@@ -469,24 +485,24 @@
               80.0,
               52.0
             ],
-            "hover_color": [
-              0.48,
-              0.32,
-              0.22,
-              1.0
-            ],
-            "action": "tower_target_weakest",
             "text": "WEAKEST",
-            "font_size": 6.56,
-            "background_color": [
-              0.28,
-              0.2,
-              0.14,
-              1.0
-            ]
+            "type": "button"
           },
           {
-            "type": "button",
+            "action": "tower_target_first",
+            "background_color": [
+              0.12,
+              0.28,
+              0.36,
+              1.0
+            ],
+            "font_size": 8,
+            "hover_color": [
+              0.22,
+              0.42,
+              0.62,
+              1.0
+            ],
             "id": "tower_target_first",
             "position": [
               456.0,
@@ -496,39 +512,31 @@
               80.0,
               52.0
             ],
-            "hover_color": [
-              0.22,
-              0.42,
-              0.62,
-              1.0
-            ],
-            "action": "tower_target_first",
             "text": "FIRST",
-            "font_size": 8,
-            "background_color": [
-              0.12,
-              0.28,
-              0.36,
-              1.0
-            ]
+            "type": "button"
           }
+        ],
+        "id": "tower_menu",
+        "type": "container",
+        "visible": false
+      },
+      {
+        "anchor_max": [
+          1,
+          1
         ],
         "anchor_min": [
           0,
           0
         ],
-        "anchor_max": [
-          1,
-          1
-        ]
-      },
-      {
-        "id": "upgrade_choice_menu",
-        "type": "container",
-        "visible": false,
         "children": [
           {
-            "type": "panel",
+            "background_color": [
+              0.04,
+              0.07,
+              0.11,
+              0.96
+            ],
             "id": "upgrade_choice_bg",
             "position": [
               170.0,
@@ -538,31 +546,39 @@
               180.0,
               132.0
             ],
-            "background_color": [
-              0.04,
-              0.07,
-              0.11,
-              0.96
-            ]
+            "type": "panel"
           },
           {
-            "type": "label",
-            "id": "upgrade_choice_title",
-            "text": "CHOOSE UPGRADE",
-            "position": [
-              182.0,
-              260.0
-            ],
             "color": [
               0.45,
               0.94,
               0.78,
               1.0
             ],
-            "font_size": 14.4
+            "font_size": 14.4,
+            "id": "upgrade_choice_title",
+            "position": [
+              182.0,
+              260.0
+            ],
+            "text": "CHOOSE UPGRADE",
+            "type": "label"
           },
           {
-            "type": "button",
+            "action": "upgrade_range",
+            "background_color": [
+              0.16,
+              0.25,
+              0.38,
+              1.0
+            ],
+            "font_size": 15.2,
+            "hover_color": [
+              0.24,
+              0.4,
+              0.6,
+              1.0
+            ],
             "id": "upgrade_range",
             "position": [
               178.0,
@@ -572,24 +588,24 @@
               164.0,
               36.0
             ],
-            "hover_color": [
-              0.24,
-              0.4,
-              0.6,
-              1.0
-            ],
-            "action": "upgrade_range",
             "text": "RANGE",
-            "font_size": 15.2,
-            "background_color": [
-              0.16,
-              0.25,
-              0.38,
-              1.0
-            ]
+            "type": "button"
           },
           {
-            "type": "button",
+            "action": "upgrade_power",
+            "background_color": [
+              0.4,
+              0.24,
+              0.14,
+              1.0
+            ],
+            "font_size": 15.2,
+            "hover_color": [
+              0.62,
+              0.38,
+              0.2,
+              1.0
+            ],
             "id": "upgrade_power",
             "position": [
               178.0,
@@ -599,32 +615,16 @@
               164.0,
               36.0
             ],
-            "hover_color": [
-              0.62,
-              0.38,
-              0.2,
-              1.0
-            ],
-            "action": "upgrade_power",
             "text": "POWER",
-            "font_size": 15.2,
-            "background_color": [
-              0.4,
-              0.24,
-              0.14,
-              1.0
-            ]
+            "type": "button"
           }
         ],
-        "anchor_min": [
-          0,
-          0
-        ],
-        "anchor_max": [
-          1,
-          1
-        ]
+        "id": "upgrade_choice_menu",
+        "type": "container",
+        "visible": false
       }
-    ]
+    ],
+    "id": "ui_root",
+    "type": "container"
   }
 }

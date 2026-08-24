@@ -105,6 +105,8 @@ add_test(NAME demi-tilemap-canvas-renderer-tests
   COMMAND demi-tilemap-canvas-renderer-tests)
 add_test(NAME demi-bgfx2d-effect-renderers-tests
   COMMAND demi-bgfx2d-effect-renderers-tests)
+add_test(NAME demi-debug-label-layout-tests
+  COMMAND demi-debug-label-layout-tests)
 add_test(NAME demi-bgfx-renderer2d-tests COMMAND demi-bgfx-renderer2d-tests)
 add_test(NAME demi-material-library-tests COMMAND demi-material-library-tests)
 add_test(NAME demi-primitive-canvas3d-tests COMMAND demi-primitive-canvas3d-tests)

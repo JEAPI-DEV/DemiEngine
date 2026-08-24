@@ -2080,13 +2080,20 @@ average, p95, and maximum CPU times plus real gauges. Searchable Console/build
 diagnostics include severity filters, copyable source locations, and stable
 entity/component/field navigation when validation provides enough context. GPU
 time remains explicitly unavailable pending bgfx timestamp-query support.
+Milestone 9B adds an immutable embedded-runtime debug snapshot and categorized
+Input, Renderer, Physics, Navigation, Assets, and Network views. Runtime overlay
+toggles are isolated to Play state and are discarded on Stop.
+The editor's draw-order overlay follows runtime hierarchy focus: only the
+selected entity receives a deterministic backed callout and leader line.
+Entity ID stays in the runtime Inspector; the CLI retains its global
+`entity_ids` overlay for headless/external diagnostics.
 
 Next:
 
-1. Add runtime-snapshot-backed input, renderer, physics, navigation,
-   asset-residency, and network debug views.
-2. Add runtime log ingestion, recovery/preferences, and end-to-end release
-   workflow tests.
+1. Add runtime log ingestion, explicit dirty-close recovery, and workspace-only
+   preferences.
+2. Add end-to-end release workflow tests and the remaining interaction/high-DPI
+   lifetime gates.
 
 Acceptance: an editor-triggered validate/cook/package operation returns the
 same result and artifacts as the corresponding CLI service call; cancellation

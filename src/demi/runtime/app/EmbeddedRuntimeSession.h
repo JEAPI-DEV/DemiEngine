@@ -1,5 +1,6 @@
 #pragma once
 
+#include "demi/runtime/debug/RuntimeDebugSnapshot.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <cstdint>
@@ -39,6 +40,9 @@ public:
   [[nodiscard]] float fixedTimestep() const;
   [[nodiscard]] float interpolationAlpha() const;
   [[nodiscard]] std::uint64_t fixedTickCount() const;
+  [[nodiscard]] RuntimeDebugSnapshot debugSnapshot() const;
+  void setDebugOverlays(DebugOverlayConfig overlays);
+  void setDebugFocus(std::string entityId);
   [[nodiscard]] static std::size_t liveSessionCount();
 
 private:

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "demi/runtime/debug/RuntimeDebugSnapshot.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 #include "editor/EditorProfilerModel.h"
 
@@ -61,6 +62,9 @@ public:
   [[nodiscard]] std::uint64_t fixedTickCount() const;
   [[nodiscard]] float interpolationAlpha() const;
   [[nodiscard]] EditorProfilerSnapshot profilerSnapshot() const;
+  [[nodiscard]] runtime::RuntimeDebugSnapshot debugSnapshot() const;
+  void setDebugOverlays(runtime::DebugOverlayConfig overlays);
+  void setDebugFocus(std::string entityId);
 
 private:
   std::unique_ptr<runtime::EmbeddedRuntimeSession> embedded_;

@@ -194,6 +194,10 @@
     tests/bgfx2d_effect_renderers_tests.cpp)
   target_link_libraries(demi-bgfx2d-effect-renderers-tests
     PRIVATE demi-render2d-bgfx)
+  add_executable(demi-debug-label-layout-tests
+    tests/debug_label_layout_tests.cpp)
+  target_link_libraries(demi-debug-label-layout-tests
+    PRIVATE demi-render2d-bgfx)
   add_executable(demi-bgfx-renderer2d-tests tests/bgfx_renderer2d_tests.cpp)
   target_link_libraries(demi-bgfx-renderer2d-tests PRIVATE demi-runtime-lib)
   target_compile_definitions(demi-bgfx-renderer2d-tests PRIVATE

@@ -210,6 +210,22 @@ EditorProfilerSnapshot EditorPlaySession::profilerSnapshot() const {
                                      runtime::RuntimeProfiler::frameCount());
 }
 
+runtime::RuntimeDebugSnapshot EditorPlaySession::debugSnapshot() const {
+  return embedded_ == nullptr ? runtime::RuntimeDebugSnapshot{}
+                              : embedded_->debugSnapshot();
+}
+
+void EditorPlaySession::setDebugOverlays(
+    const runtime::DebugOverlayConfig overlays) {
+  if (embedded_ != nullptr)
+    embedded_->setDebugOverlays(overlays);
+}
+
+void EditorPlaySession::setDebugFocus(std::string entityId) {
+  if (embedded_ != nullptr)
+    embedded_->setDebugFocus(std::move(entityId));
+}
+
 void EditorPlaySession::reportFailure(std::string message) {
   if (embedded_ != nullptr) {
     embedded_->stop();

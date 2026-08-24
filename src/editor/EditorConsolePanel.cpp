@@ -45,7 +45,7 @@ std::optional<std::filesystem::path> EditorConsolePanel::takeOpenRequest() {
 }
 
 void EditorConsolePanel::draw(EditorWorkspace &workspace,
-                              const EditorPlaySession &playSession,
+                              EditorPlaySession &playSession,
                               const ImVec2 position, const ImVec2 size,
                               const EditorProjectOperationSnapshot &operation,
                               std::string &notice) {
@@ -204,6 +204,10 @@ void EditorConsolePanel::draw(EditorWorkspace &workspace,
       }
       ImGui::EndTabItem();
     }
+  }
+  if (ImGui::BeginTabItem("Debug")) {
+    debugPanel_.draw(playSession);
+    ImGui::EndTabItem();
   }
   ImGui::EndTabBar();
   ImGui::End();

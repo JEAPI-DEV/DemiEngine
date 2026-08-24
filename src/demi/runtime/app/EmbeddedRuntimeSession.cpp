@@ -317,6 +317,73 @@ std::uint64_t EmbeddedRuntimeSession::fixedTickCount() const {
   return state_ == nullptr ? 0 : state_->fixedTicks;
 }
 
+RuntimeDebugSnapshot EmbeddedRuntimeSession::debugSnapshot() const {
+  if (state_ == nullptr)
+    return {};
+  RuntimeDebugSnapshot snapshot;
+  const World &world = state_->loaded.world;
+  snapshot.entities = world.entities.size();
+  snapshot.focusedEntityId = world.debugFocusedEntityId;
+  snapshot.input.keysDown.assign(state_->input.keysDown.begin(),
+                                 state_->input.keysDown.end());
+  snapshot.input.mouseButtonsDown.assign(state_->input.mouseButtonsDown.begin(),
+                                         state_->input.mouseButtonsDown.end());
+  std::ranges::sort(snapshot.input.keysDown);
+  std::ranges::sort(snapshot.input.mouseButtonsDown);
+  snapshot.input.gamepads = state_->input.gamepads.size();
+  snapshot.input.touches = state_->input.touches.size();
+  snapshot.input.mousePosition = state_->input.mousePosition;
+  snapshot.input.mouseDelta = state_->input.mouseDelta;
+  snapshot.input.mouseScroll = state_->input.mouseScroll;
+  snapshot.input.textEntered = state_->input.textEntered;
+  for (const Entity &entity : world.entities) {
+    for (const auto &[type, unused] : entity.serializedComponents) {
+      static_cast<void>(unused);
+      if (type == "Rigidbody2D")
+        ++snapshot.physics.rigidbodies2D;
+      else if (type == "Rigidbody3D")
+        ++snapshot.physics.rigidbodies3D;
+      if (type.ends_with("Collider2D"))
+        ++snapshot.physics.colliders2D;
+      else if (type.ends_with("Collider3D"))
+        ++snapshot.physics.colliders3D;
+    }
+  }
+  snapshot.physics.contacts2D = world.physicsContacts.size();
+  snapshot.physics.contacts3D = world.physicsContacts3D.size();
+  const navigation::NavigationGrid2D &navigation =
+      state_->lua.navigationGrid2D();
+  snapshot.navigation = {.available = navigation.available(),
+                         .width = navigation.width(),
+                         .height = navigation.height(),
+                         .cellSize = navigation.cellSize(),
+                         .blockers = navigation.blockerCount(),
+                         .weightedCells = navigation.costCount()};
+  snapshot.network = {.available = state_->network.available(),
+                      .mode = state_->network.mode(),
+                      .connected = state_->network.isConnected(),
+                      .secure = state_->network.isSecure(),
+                      .latencyMilliseconds = state_->network.latencyMs(),
+                      .securityError = state_->network.securityError()};
+  snapshot.assets = state_->assets.memoryReport();
+  snapshot.overlays = world.debug;
+  return snapshot;
+}
+
+void EmbeddedRuntimeSession::setDebugOverlays(DebugOverlayConfig overlays) {
+  if (state_ != nullptr)
+    state_->loaded.world.debug = overlays;
+}
+
+void EmbeddedRuntimeSession::setDebugFocus(std::string entityId) {
+  if (state_ != nullptr) {
+    state_->loaded.world.debugFocusRequired = true;
+    // The editor Inspector already owns stable-ID presentation.
+    state_->loaded.world.debug.entityIds = false;
+    state_->loaded.world.debugFocusedEntityId = std::move(entityId);
+  }
+}
+
 std::size_t EmbeddedRuntimeSession::liveSessionCount() {
   return LiveSessions.load();
 }

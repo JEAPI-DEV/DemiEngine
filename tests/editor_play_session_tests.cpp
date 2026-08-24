@@ -1,12 +1,14 @@
 #include "editor/EditorPlaySession.h"
 
 #include "demi/runtime/app/EmbeddedRuntimeSession.h"
+#include "demi/runtime/scene/model/World.h"
 
 #include <cassert>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <utility>
 
 namespace {
 
@@ -41,11 +43,27 @@ int main() {
     const std::uint64_t beforeStep = session.fixedTickCount();
     assert(session.update({}, 1.0F, 960, 540, error));
     assert(session.fixedTickCount() == beforeStep);
-    assert(session.step({}, 960, 540, error));
+    demi::runtime::InputState stepInput;
+    stepInput.keysDown.insert("W");
+    stepInput.mouseButtonsDown.insert("left");
+    assert(session.step(std::move(stepInput), 960, 540, error));
     assert(session.fixedTickCount() == beforeStep + 1);
     const auto profile = session.profilerSnapshot();
     assert(profile.attached && profile.frameCount >= 1 &&
            !profile.rows.empty());
+    const auto debug = session.debugSnapshot();
+    assert(debug.entities > 0 && debug.input.keysDown.size() == 1 &&
+           debug.input.keysDown.front() == "W" &&
+           debug.input.mouseButtonsDown.size() == 1);
+    demi::runtime::DebugOverlayConfig overlays;
+    overlays.colliders = true;
+    overlays.uiBounds = true;
+    session.setDebugOverlays(overlays);
+    const std::string focus = session.runtimeWorld()->entities.front().id;
+    session.setDebugFocus(focus);
+    assert(session.debugSnapshot().overlays.colliders &&
+           session.debugSnapshot().overlays.uiBounds &&
+           session.debugSnapshot().focusedEntityId == focus);
     session.stop();
     assert(session.state() == demi::editor::EditorPlayState::Stopped);
     assert(session.runtimeWorld() == nullptr);

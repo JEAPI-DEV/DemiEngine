@@ -235,6 +235,8 @@ void EditorShell::draw(const int width, const int height,
   else
     hierarchyPanel_.draw(workspace_, {0.0F, contentTop},
                          {leftWidth, upperHeight}, notice_);
+  if (runtimePanels)
+    playSession_.setDebugFocus(selectedRuntimeEntityId_);
   drawStageTabs({leftWidth, contentTop}, {centerWidth, stageTabsHeight},
                 showGameView_);
   const ImVec2 stagePosition{leftWidth, contentTop + stageTabsHeight};
