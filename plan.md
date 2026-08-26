@@ -2087,11 +2087,15 @@ The editor's draw-order overlay follows runtime hierarchy focus: only the
 selected entity receives a deterministic backed callout and leader line.
 Entity ID stays in the runtime Inspector; the CLI retains its global
 `entity_ids` overlay for headless/external diagnostics.
+Milestone 9C adds cache-only interrupted-session recovery for scene, project,
+HUD, and the active specialized document; explicit Save All / Discard / Cancel
+handling for menu and OS closes; and user-data preferences limited to snapping
+and viewport visibility. Recovery restoration is validated and remains dirty
+until an explicit authored save.
 
 Next:
 
-1. Add runtime log ingestion, explicit dirty-close recovery, and workspace-only
-   preferences.
+1. Add runtime log ingestion.
 2. Add end-to-end release workflow tests and the remaining interaction/high-DPI
    lifetime gates.
 

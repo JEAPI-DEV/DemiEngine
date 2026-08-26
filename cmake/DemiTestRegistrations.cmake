@@ -35,6 +35,8 @@ add_test(NAME demi-editor-imgui-input-tests
   COMMAND demi-editor-imgui-input-tests)
 add_test(NAME demi-editor-diagnostics-profiler-tests
   COMMAND demi-editor-diagnostics-profiler-tests)
+add_test(NAME demi-editor-recovery-preferences-tests
+  COMMAND demi-editor-recovery-preferences-tests)
 add_test(NAME demi-editor-play-session-tests
   COMMAND demi-editor-play-session-tests)
 add_test(NAME demi-editor-help COMMAND demi-editor --help)

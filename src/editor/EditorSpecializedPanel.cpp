@@ -277,6 +277,41 @@ bool EditorSpecializedPanel::open(const std::filesystem::path &source,
   return true;
 }
 
+std::optional<EditorRecoveryDocument>
+EditorSpecializedPanel::recoveryDocument() const {
+  if (!isDirty())
+    return std::nullopt;
+  return EditorRecoveryDocument{.path = active_->document().path(),
+                                .kind = "specialized",
+                                .content = active_->document().json()};
+}
+
+bool EditorSpecializedPanel::saveActive(EditorWorkspace &workspace,
+                                        std::string &error) {
+  if (!active_ || !active_->document().isDirty())
+    return true;
+  if (!active_->document().save(error))
+    return false;
+  if (active_->associatedManifest() &&
+      !workspace.reimportAsset(*active_->associatedManifest(), error))
+    return false;
+  workspace.refreshAssetMetadata();
+  return true;
+}
+
+bool EditorSpecializedPanel::restore(const EditorRecoveryDocument &recovery,
+                                     EditorWorkspace &workspace,
+                                     std::string &error) {
+  if (!open(recovery.path, workspace.assetIndex(), error))
+    return false;
+  if (!active_->document().replace(recovery.content, error)) {
+    active_.reset();
+    return false;
+  }
+  active_->rebuildPreview();
+  return true;
+}
+
 void EditorSpecializedPanel::draw(EditorWorkspace &workspace,
                                   std::string &notice) {
   if (!active_)

@@ -77,6 +77,8 @@ else()
     src/editor/EditorProfilerModel.cpp
     src/editor/EditorProjectDocument.cpp
     src/editor/EditorProjectOperations.cpp
+    src/editor/EditorPreferencesStore.cpp
+    src/editor/EditorRecoveryStore.cpp
     src/editor/EditorSceneCommand.cpp
     src/editor/EditorSceneDocument.cpp
     src/editor/EditorSceneDomain.cpp

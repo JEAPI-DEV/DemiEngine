@@ -35,8 +35,8 @@ void drawStageTabs(const ImVec2 position, const ImVec2 size,
   ImGui::End();
 }
 
-void drawMenu(EditorWorkspace &workspace, const ImVec2 size, bool &wantsExit,
-              EditorProjectPanel &projectPanel,
+void drawMenu(EditorWorkspace &workspace, const ImVec2 size,
+              bool &exitRequested, EditorProjectPanel &projectPanel,
               EditorAnimationMachinePanel &animationPanel,
               std::string &notice) {
   beginEditorPanel("MainMenu", {0.0F, 0.0F}, size,
@@ -63,12 +63,8 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size, bool &wantsExit,
         notice = workspace.refresh(error) ? "Project refreshed" : error;
       }
       ImGui::Separator();
-      if (ImGui::MenuItem("Exit")) {
-        if (workspace.hasUnsavedChanges())
-          notice = "Save or undo scene and project changes before exiting.";
-        else
-          wantsExit = true;
-      }
+      if (ImGui::MenuItem("Exit"))
+        exitRequested = true;
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Edit")) {
@@ -149,7 +145,36 @@ void drawStatus(EditorWorkspace &workspace, const ImVec2 position,
 
 } // namespace
 
-EditorShell::EditorShell(EditorWorkspace &workspace) : workspace_(workspace) {}
+EditorShell::EditorShell(EditorWorkspace &workspace)
+    : workspace_(workspace), recoveryStore_(defaultEditorCacheDirectory()),
+      preferencesStore_(defaultEditorDataDirectory()) {
+  std::string error;
+  pendingRecovery_ = recoveryStore_.load(workspace_.projectPath(), error);
+  if (!error.empty()) {
+    notice_ = "Recovery cache: " + error;
+    recoverySyncBlocked_ = true;
+  }
+  error.clear();
+  if (!preferencesStore_.load(preferences_, error)) {
+    notice_ = "Editor preferences: " + error;
+    preferenceSyncBlocked_ = true;
+  }
+  workspace_.sceneView().translationSnap = preferences_.translationSnap;
+  workspace_.sceneView().rotationSnapDegrees = preferences_.rotationSnapDegrees;
+  workspace_.sceneView().scaleSnap = preferences_.scaleSnap;
+  workspace_.sceneView().showBounds = preferences_.showBounds3D;
+  workspace_.sceneView().showColliders = preferences_.showColliders3D;
+  workspace_.sceneView().showLights = preferences_.showLights3D;
+  workspace_.sceneView().showCameras = preferences_.showCameras3D;
+  workspace_.sceneView2D().translationSnap = preferences_.translationSnap;
+  workspace_.sceneView2D().rotationSnapDegrees =
+      preferences_.rotationSnapDegrees;
+  workspace_.sceneView2D().scaleSnap = preferences_.scaleSnap;
+  workspace_.sceneView2D().showGrid = preferences_.showGrid2D;
+  workspace_.sceneView2D().showBounds = preferences_.showBounds2D;
+  workspace_.sceneView2D().showColliders = preferences_.showColliders2D;
+  workspace_.sceneView2D().showCameras = preferences_.showCameras2D;
+}
 
 bool EditorShell::openDocument(const std::filesystem::path &path,
                                std::string &error) {
@@ -171,6 +196,20 @@ bool EditorShell::openDocument(const std::filesystem::path &path,
 void EditorShell::draw(const int width, const int height,
                        const std::string_view rendererName) {
   playSession_.poll();
+  bool openClosePrompt = false;
+  bool openRecoveryPrompt = false;
+  if (exitRequested_) {
+    exitRequested_ = false;
+    if (workspace_.hasUnsavedChanges() || specializedPanel_.isDirty()) {
+      openClosePrompt = true;
+    } else {
+      wantsExit_ = true;
+    }
+  }
+  if (pendingRecovery_ && !recoveryPromptOpened_) {
+    recoveryPromptOpened_ = true;
+    openRecoveryPrompt = true;
+  }
   ImGuiIO &input = ImGui::GetIO();
   if (!input.WantTextInput && input.KeyCtrl &&
       ImGui::IsKeyPressed(ImGuiKey_S, false)) {
@@ -222,7 +261,7 @@ void EditorShell::draw(const int width, const int height,
 
   const EditorProjectOperationSnapshot projectOperation =
       buildPanel_.operation();
-  drawMenu(workspace_, {screenWidth, menuHeight}, wantsExit_, projectPanel_,
+  drawMenu(workspace_, {screenWidth, menuHeight}, exitRequested_, projectPanel_,
            animationMachinePanel_, notice_);
   drawEditorToolbar({0.0F, menuHeight}, {screenWidth, toolbarHeight},
                     workspace_, playSession_, showGameView_, stepRequested_,
@@ -286,6 +325,141 @@ void EditorShell::draw(const int width, const int height,
   projectPanel_.draw(workspace_, notice_);
   specializedPanel_.draw(workspace_, notice_);
   animationMachinePanel_.draw(workspace_, notice_);
+
+  ImGui::SetNextWindowPos({0.0F, 0.0F}, ImGuiCond_Always);
+  ImGui::SetNextWindowSize({1.0F, 1.0F}, ImGuiCond_Always);
+  ImGui::Begin("##editor-modal-host", nullptr,
+               ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground |
+                   ImGuiWindowFlags_NoSavedSettings);
+  if (openRecoveryPrompt)
+    ImGui::OpenPopup("Recover editor session");
+  if (ImGui::BeginPopupModal("Recover editor session", nullptr,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::TextUnformatted(
+        "Unsaved documents from an interrupted editor session were found.");
+    ImGui::TextDisabled("Restoring loads them as unsaved memory state only.");
+    for (const EditorRecoveryDocument &document : pendingRecovery_->documents)
+      ImGui::BulletText("%s · %s", document.kind.c_str(),
+                        document.path.filename().string().c_str());
+    if (ImGui::Button("Restore into editor")) {
+      std::string error;
+      EditorRecoverySnapshot workspaceRecovery = *pendingRecovery_;
+      std::erase_if(workspaceRecovery.documents, [](const auto &document) {
+        return document.kind == "specialized";
+      });
+      bool restored = workspace_.applyRecovery(workspaceRecovery, error);
+      if (restored)
+        for (const EditorRecoveryDocument &document :
+             pendingRecovery_->documents)
+          if (document.kind == "specialized" &&
+              !specializedPanel_.restore(document, workspace_, error)) {
+            restored = false;
+            break;
+          }
+      if (restored) {
+        notice_ = "Recovered documents loaded as unsaved changes";
+        pendingRecovery_.reset();
+        recoveryPromptOpened_ = false;
+        ImGui::CloseCurrentPopup();
+      } else {
+        notice_ = error;
+      }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Discard recovery")) {
+      std::string error;
+      if (!recoveryStore_.discard(workspace_.projectPath(), error))
+        notice_ = error;
+      else {
+        pendingRecovery_.reset();
+        recoveryPromptOpened_ = false;
+        ImGui::CloseCurrentPopup();
+      }
+    }
+    ImGui::EndPopup();
+  }
+
+  if (openClosePrompt)
+    ImGui::OpenPopup("Unsaved changes");
+  if (ImGui::BeginPopupModal("Unsaved changes", nullptr,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::TextUnformatted("Save changes before closing the editor?");
+    for (const EditorRecoveryDocument &document : workspace_.dirtyDocuments())
+      ImGui::BulletText("%s · %s", document.kind.c_str(),
+                        document.path.filename().string().c_str());
+    if (const auto specialized = specializedPanel_.recoveryDocument())
+      ImGui::BulletText("%s · %s", specialized->kind.c_str(),
+                        specialized->path.filename().string().c_str());
+    if (ImGui::Button("Save all and exit")) {
+      std::string error;
+      if (workspace_.saveAll(error) &&
+          specializedPanel_.saveActive(workspace_, error)) {
+        (void)recoveryStore_.discard(workspace_.projectPath(), error);
+        wantsExit_ = true;
+        ImGui::CloseCurrentPopup();
+      } else {
+        notice_ = error;
+      }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Discard and exit")) {
+      std::string error;
+      (void)recoveryStore_.discard(workspace_.projectPath(), error);
+      specializedPanel_.discardActive();
+      wantsExit_ = true;
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel")) {
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+  }
+  ImGui::End();
+
+  if (!pendingRecovery_ && !recoverySyncBlocked_ && !wantsExit_) {
+    std::vector<EditorRecoveryDocument> recovery = workspace_.dirtyDocuments();
+    if (auto specialized = specializedPanel_.recoveryDocument())
+      recovery.push_back(std::move(*specialized));
+    nlohmann::json fingerprint = nlohmann::json::array();
+    for (const auto &document : recovery)
+      fingerprint.push_back({document.path.string(), document.content});
+    const std::string canonical = fingerprint.dump();
+    if (canonical != recoveryFingerprint_) {
+      std::string error;
+      if (!recoveryStore_.update(workspace_.projectPath(), recovery, error))
+        notice_ = "Recovery cache: " + error;
+      else
+        recoveryFingerprint_ = canonical;
+    }
+  }
+  const EditorPreferences currentPreferences{
+      .translationSnap =
+          workspace_.viewDimension() == EditorSceneViewDimension::TwoDimensional
+              ? workspace_.sceneView2D().translationSnap
+              : workspace_.sceneView().translationSnap,
+      .rotationSnapDegrees =
+          workspace_.viewDimension() == EditorSceneViewDimension::TwoDimensional
+              ? workspace_.sceneView2D().rotationSnapDegrees
+              : workspace_.sceneView().rotationSnapDegrees,
+      .scaleSnap =
+          workspace_.viewDimension() == EditorSceneViewDimension::TwoDimensional
+              ? workspace_.sceneView2D().scaleSnap
+              : workspace_.sceneView().scaleSnap,
+      .showBounds3D = workspace_.sceneView().showBounds,
+      .showColliders3D = workspace_.sceneView().showColliders,
+      .showLights3D = workspace_.sceneView().showLights,
+      .showCameras3D = workspace_.sceneView().showCameras,
+      .showGrid2D = workspace_.sceneView2D().showGrid,
+      .showBounds2D = workspace_.sceneView2D().showBounds,
+      .showColliders2D = workspace_.sceneView2D().showColliders,
+      .showCameras2D = workspace_.sceneView2D().showCameras};
+  if (!preferenceSyncBlocked_ && preferences_ != currentPreferences) {
+    preferences_ = currentPreferences;
+    std::string error;
+    if (!preferencesStore_.save(preferences_, error))
+      notice_ = "Editor preferences: " + error;
+  }
 }
 
 } // namespace demi::editor

@@ -116,6 +116,19 @@ bool EditorSceneDocument::save(std::string &error) {
   return true;
 }
 
+bool EditorSceneDocument::restore(nlohmann::json document, std::string &error) {
+  if (stagedHasErrors(path_, document, error))
+    return false;
+  document_ = std::move(document);
+  undo_.clear();
+  redo_.clear();
+  continuousTarget_.reset();
+  continuousRedoBackup_.clear();
+  issue_.reset();
+  lastChangedEntityId_.clear();
+  return true;
+}
+
 bool EditorSceneDocument::resolveExternalChange(
     const ExternalChangeDecision decision,
     const std::filesystem::path &copyPath, std::string &error) {
@@ -240,11 +253,11 @@ bool EditorSceneDocument::setValues(std::vector<SceneValueTarget> targets,
     error = "A multi-edit requires at least one target.";
     return false;
   }
-  std::ranges::sort(targets, [](const SceneValueTarget &left,
-                               const SceneValueTarget &right) {
-    return std::tie(left.entityId, left.component, left.field) <
-           std::tie(right.entityId, right.component, right.field);
-  });
+  std::ranges::sort(
+      targets, [](const SceneValueTarget &left, const SceneValueTarget &right) {
+        return std::tie(left.entityId, left.component, left.field) <
+               std::tie(right.entityId, right.component, right.field);
+      });
   if (std::ranges::adjacent_find(targets) != targets.end()) {
     error = "A multi-edit cannot contain the same field twice.";
     reject(targets.front(), error);
@@ -352,8 +365,8 @@ bool EditorSceneDocument::deleteEntity(const std::string_view id,
   return deleteEntities(ids, error);
 }
 
-bool EditorSceneDocument::deleteEntities(
-    const std::span<const std::string> ids, std::string &error) {
+bool EditorSceneDocument::deleteEntities(const std::span<const std::string> ids,
+                                         std::string &error) {
   if (ids.empty()) {
     error = "Select at least one entity to delete.";
     return false;

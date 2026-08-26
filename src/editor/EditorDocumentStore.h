@@ -27,14 +27,16 @@ public:
   [[nodiscard]] bool writeNew(const std::filesystem::path &path,
                               const std::string &text,
                               std::string &error) const;
+  // Cache and preference stores need the same crash-safe replacement without
+  // authored-document revision semantics.
+  [[nodiscard]] static bool writeAtomically(const std::filesystem::path &path,
+                                            const std::string &text,
+                                            std::string &error);
 
 private:
   [[nodiscard]] static bool revision(const std::filesystem::path &path,
                                      FileRevision &revision,
                                      std::string &error);
-  [[nodiscard]] static bool writeAtomically(const std::filesystem::path &path,
-                                            const std::string &text,
-                                            std::string &error);
 };
 
 } // namespace demi::editor

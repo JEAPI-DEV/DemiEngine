@@ -475,9 +475,9 @@ as those services gain structured data.
 - [ ] Add searchable diagnostics and logs with stable source/entity/field links.
 - [x] Add input, renderer, physics, navigation, asset residency, and network
   debug views backed by real service data.
-- [ ] Add explicit dirty-document close handling and recovery for interrupted
+- [x] Add explicit dirty-document close handling and recovery for interrupted
   saves; cached recovery data must never silently become authored source.
-- [ ] Persist only workspace layout/preferences as editor state.
+- [x] Persist only workspace layout/preferences as editor state.
 - [ ] Add end-to-end authoring tests: create project, edit hierarchy/components,
   undo/redo, save, validate, play, cook, and package.
 - [ ] Verify keyboard and pointer flows, readable error/empty/disabled states,
@@ -493,8 +493,16 @@ remain open, so the Milestone 9 gate is not yet marked passed.
 **9B present:** a categorized Debug tab consumes `RuntimeDebugSnapshot` for
 input, physics/contact counts, navigation configuration, resident asset memory,
 and network state, plus the profiler's renderer gauges. Collider, contact,
-entity-ID, draw-order, and UI-bound overlays mutate only the embedded
+selected draw-order, and UI-bound overlays mutate only the embedded
 runtime world. No authored debug configuration is changed.
+
+**9C present:** scene, project, HUD, and active specialized-document changes
+are mirrored into an atomic recovery cache under the user's cache directory.
+On restart, Restore loads validated content as dirty memory state and Discard
+removes the cache; neither action silently writes authored source. Menu and OS
+window close share an explicit Save All / Discard / Cancel modal. Snap values
+and viewport visibility preferences are the only persisted editor state and
+live under the user data directory, never in the project.
 
 **Gate:** a small 2D or lightweight 3D game can be assembled, inspected, played,
 diagnosed, cooked, and packaged without manual JSON editing, while direct text
@@ -502,10 +510,9 @@ editing and conflict handling remain supported.
 
 ### Immediate next task
 
-Milestone 9A instrumentation/search and 9B debug views are present. Continue
-with **Milestone 9C: dirty-document close handling, interrupted-save recovery,
-and workspace preferences**. Recovery data must remain an explicit cache that
-never silently replaces authored source.
+Milestone 9A instrumentation/search, 9B debug views, and 9C recovery/preferences
+are present. Continue with **Milestone 9D: end-to-end authoring/release tests
+and keyboard, pointer, narrow-window, high-DPI, and repeated-lifetime gates**.
 
 For each todo item that mutates authored state, use this implementation order:
 
@@ -562,5 +569,8 @@ categorizes immutable snapshots; `EditorDiagnosticsModel` merges and filters
 CLI/editor records; and `EditorConsolePanel` owns only filter and tab state.
 `EmbeddedRuntimeSession` owns `RuntimeDebugSnapshot`; `EditorDebugPanel`
 renders that value and can submit only runtime overlay configuration.
+`EditorRecoveryStore` owns cache-only atomic snapshots keyed by project path;
+`EditorPreferencesStore` owns only editor presentation settings. Restoration
+enters normal dirty document state through `EditorWorkspace` validation.
 `DebugLabelLayout2D` owns debug-callout compaction and placement independently
 of bgfx; `DebugCanvasRenderer` only measures and draws the resulting callouts.

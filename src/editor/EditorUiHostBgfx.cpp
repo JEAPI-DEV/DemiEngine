@@ -253,6 +253,11 @@ public:
     return platform_ == nullptr || platform_->frameState().quitRequested;
   }
 
+  void acknowledgeCloseRequest() override {
+    if (platform_ != nullptr)
+      platform_->clearQuitRequest();
+  }
+
   int width() const override { return platform_->frameState().width; }
   int height() const override { return platform_->frameState().height; }
   std::string rendererName() const override {

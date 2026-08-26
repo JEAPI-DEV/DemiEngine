@@ -65,6 +65,7 @@ public:
                                                       std::string &error) = 0;
   virtual void endFrame() = 0;
   [[nodiscard]] virtual bool shouldClose() const = 0;
+  virtual void acknowledgeCloseRequest() = 0;
   [[nodiscard]] virtual int width() const = 0;
   [[nodiscard]] virtual int height() const = 0;
   [[nodiscard]] virtual std::string rendererName() const = 0;

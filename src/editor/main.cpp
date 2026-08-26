@@ -98,8 +98,12 @@ int main(const int argc, char **argv) {
     shell.setNotice("Viewport unavailable: " + error);
   bool gameRendererReady = false;
   int frame = 0;
-  while (!ui->shouldClose() && !shell.wantsExit() &&
+  while (!shell.wantsExit() &&
          (options.maximumFrames <= 0 || frame < options.maximumFrames)) {
+    if (ui->shouldClose()) {
+      shell.requestExit();
+      ui->acknowledgeCloseRequest();
+    }
     if (!ui->beginFrame(error)) {
       std::cerr << "Editor frame failed: " << error << '\n';
       ui->shutdown();

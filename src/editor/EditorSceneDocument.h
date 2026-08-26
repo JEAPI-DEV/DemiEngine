@@ -36,6 +36,7 @@ public:
                           std::string &error);
   [[nodiscard]] bool reload(std::string &error);
   [[nodiscard]] bool save(std::string &error);
+  [[nodiscard]] bool restore(nlohmann::json document, std::string &error);
   [[nodiscard]] bool
   resolveExternalChange(ExternalChangeDecision decision,
                         const std::filesystem::path &copyPath,

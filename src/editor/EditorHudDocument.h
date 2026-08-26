@@ -24,6 +24,7 @@ public:
   [[nodiscard]] bool undo(std::string &error);
   [[nodiscard]] bool redo(std::string &error);
   [[nodiscard]] bool save(std::string &error) { return document_.save(error); }
+  [[nodiscard]] bool restore(nlohmann::json document, std::string &error);
 
   [[nodiscard]] bool isDirty() const { return document_.isDirty(); }
   [[nodiscard]] bool canUndo() const { return document_.canUndo(); }
@@ -34,6 +35,7 @@ public:
   [[nodiscard]] const runtime::ui::UiDocument &preview() const {
     return preview_;
   }
+  [[nodiscard]] const nlohmann::json &json() const { return document_.json(); }
   [[nodiscard]] const nlohmann::json *authoredNode(std::string_view id) const;
 
 private:

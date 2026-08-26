@@ -420,6 +420,8 @@ public:
     lastFrame_ = now;
   }
 
+  void clearQuitRequest() override { state_.quitRequested = false; }
+
   const PlatformFrameState &frameState() const override { return state_; }
 
   std::vector<std::filesystem::path> takeDroppedFiles() override {

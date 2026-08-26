@@ -61,6 +61,16 @@ bool EditorProjectDocument::save(std::string &error) {
   return true;
 }
 
+bool EditorProjectDocument::restore(nlohmann::json document,
+                                    std::string &error) {
+  if (!validate(document, error))
+    return false;
+  document_ = std::move(document);
+  undo_.clear();
+  redo_.clear();
+  return true;
+}
+
 bool EditorProjectDocument::setPreloadedAssets(std::vector<std::string> assets,
                                                std::string &error) {
   std::ranges::sort(assets);

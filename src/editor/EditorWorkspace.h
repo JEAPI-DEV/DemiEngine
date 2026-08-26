@@ -3,6 +3,7 @@
 #include "editor/EditorAssetIndex.h"
 #include "editor/EditorHudDocument.h"
 #include "editor/EditorProjectDocument.h"
+#include "editor/EditorRecoveryStore.h"
 #include "editor/EditorSceneDocument.h"
 #include "editor/EditorSceneDomain.h"
 #include "editor/EditorSceneView2DState.h"
@@ -33,6 +34,10 @@ public:
   [[nodiscard]] bool refresh(std::string &error);
   [[nodiscard]] bool save(std::string &error);
   [[nodiscard]] bool saveProject(std::string &error);
+  [[nodiscard]] bool saveAll(std::string &error);
+  [[nodiscard]] std::vector<EditorRecoveryDocument> dirtyDocuments() const;
+  [[nodiscard]] bool applyRecovery(const EditorRecoverySnapshot &snapshot,
+                                   std::string &error);
   [[nodiscard]] bool projectUndo(std::string &error);
   [[nodiscard]] bool projectRedo(std::string &error);
   [[nodiscard]] bool setPreloadedAssets(std::vector<std::string> assets,

@@ -185,6 +185,12 @@ bool EditorHudDocument::redo(std::string &error) {
   return document_.redo(error) && rebuild(error);
 }
 
+bool EditorHudDocument::restore(nlohmann::json document, std::string &error) {
+  if (!document_.replace(std::move(document), error))
+    return false;
+  return rebuild(error);
+}
+
 const Json *EditorHudDocument::authoredNode(const std::string_view id) const {
   const auto root = document_.json().find("root");
   return root == document_.json().end() ? nullptr : findNode(*root, id);

@@ -9,6 +9,7 @@
 #include "editor/EditorHierarchyPanel.h"
 #include "editor/EditorHudNodeInspector.h"
 #include "editor/EditorPlaySession.h"
+#include "editor/EditorPreferencesStore.h"
 #include "editor/EditorProjectPanel.h"
 #include "editor/EditorSpecializedPanel.h"
 #include "editor/EditorUiHost.h"
@@ -25,6 +26,7 @@ public:
 
   void draw(int width, int height, std::string_view rendererName);
   [[nodiscard]] bool wantsExit() const { return wantsExit_; }
+  void requestExit() { exitRequested_ = true; }
   [[nodiscard]] EditorViewportArea viewportArea() const {
     return viewportArea_;
   }
@@ -70,9 +72,18 @@ private:
   EditorHierarchyPanel hierarchyPanel_;
   EditorConflictPanel conflictPanel_;
   EditorConsolePanel consolePanel_;
+  EditorRecoveryStore recoveryStore_;
+  EditorPreferencesStore preferencesStore_;
+  EditorPreferences preferences_;
+  std::optional<EditorRecoverySnapshot> pendingRecovery_;
+  std::string recoveryFingerprint_;
   std::string notice_;
   std::string selectedRuntimeEntityId_;
   bool wantsExit_ = false;
+  bool exitRequested_ = false;
+  bool recoveryPromptOpened_ = false;
+  bool recoverySyncBlocked_ = false;
+  bool preferenceSyncBlocked_ = false;
   bool showGameView_ = false;
   bool gameViewFocused_ = false;
   bool stepRequested_ = false;

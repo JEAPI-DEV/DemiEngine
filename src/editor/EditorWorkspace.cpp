@@ -112,6 +112,73 @@ bool EditorWorkspace::save(std::string &error) {
   return true;
 }
 
+bool EditorWorkspace::saveAll(std::string &error) {
+  if (hudDirty() && !saveHud(error))
+    return false;
+  if (sceneDocument_.isDirty() && !save(error))
+    return false;
+  if (projectDocument_.isDirty() && !saveProject(error))
+    return false;
+  return true;
+}
+
+std::vector<EditorRecoveryDocument> EditorWorkspace::dirtyDocuments() const {
+  std::vector<EditorRecoveryDocument> documents;
+  if (sceneDocument_.isDirty())
+    documents.push_back({.path = sceneDocument_.path(),
+                         .kind = "scene",
+                         .content = sceneDocument_.json()});
+  if (projectDocument_.isDirty())
+    documents.push_back({.path = projectDocument_.path(),
+                         .kind = "project",
+                         .content = projectDocument_.json()});
+  if (hudDocument_ && hudDocument_->isDirty())
+    documents.push_back({.path = hudDocument_->path(),
+                         .kind = "hud",
+                         .content = hudDocument_->json()});
+  return documents;
+}
+
+bool EditorWorkspace::applyRecovery(const EditorRecoverySnapshot &snapshot,
+                                    std::string &error) {
+  EditorSceneDocument sceneBefore = sceneDocument_;
+  EditorProjectDocument projectBefore = projectDocument_;
+  std::optional<EditorHudDocument> hudBefore = hudDocument_;
+  const auto samePath = [](const std::filesystem::path &left,
+                           const std::filesystem::path &right) {
+    return std::filesystem::absolute(left).lexically_normal() ==
+           std::filesystem::absolute(right).lexically_normal();
+  };
+  for (const EditorRecoveryDocument &document : snapshot.documents) {
+    bool restored = false;
+    if (document.kind == "scene" &&
+        samePath(document.path, sceneDocument_.path()))
+      restored = sceneDocument_.restore(document.content, error);
+    else if (document.kind == "project" &&
+             samePath(document.path, projectDocument_.path()))
+      restored = projectDocument_.restore(document.content, error);
+    else if (document.kind == "hud" && hudDocument_ &&
+             samePath(document.path, hudDocument_->path()))
+      restored = hudDocument_->restore(document.content, error);
+    else
+      continue;
+    if (!restored) {
+      sceneDocument_ = std::move(sceneBefore);
+      projectDocument_ = std::move(projectBefore);
+      hudDocument_ = std::move(hudBefore);
+      return false;
+    }
+  }
+  if (!rebuildWorld(error)) {
+    sceneDocument_ = std::move(sceneBefore);
+    projectDocument_ = std::move(projectBefore);
+    hudDocument_ = std::move(hudBefore);
+    return false;
+  }
+  syncHudPreview();
+  return true;
+}
+
 bool EditorWorkspace::resolveExternalChange(
     const ExternalChangeDecision decision,
     const std::filesystem::path &copyPath, std::string &error) {

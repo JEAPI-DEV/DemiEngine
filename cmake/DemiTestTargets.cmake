@@ -68,6 +68,12 @@
     tests/editor_diagnostics_profiler_tests.cpp)
   target_link_libraries(demi-editor-diagnostics-profiler-tests
     PRIVATE demi-editor-model)
+  add_executable(demi-editor-recovery-preferences-tests
+    tests/editor_recovery_preferences_tests.cpp)
+  target_link_libraries(demi-editor-recovery-preferences-tests
+    PRIVATE demi-editor-model)
+  target_compile_definitions(demi-editor-recovery-preferences-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-editor-play-session-tests
     tests/editor_play_session_tests.cpp)
   target_link_libraries(demi-editor-play-session-tests PRIVATE demi-editor-model)
