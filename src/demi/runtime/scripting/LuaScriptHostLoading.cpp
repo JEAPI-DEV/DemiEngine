@@ -5,6 +5,7 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
+#include "demi/runtime/scripting/ScriptComponentMetadata.h"
 #include "demi/runtime/scripting/annotations/HandleActionAnnotation.h"
 #include "demi/runtime/scripting/annotations/LuaModulePath.h"
 #include "demi/runtime/scripting/annotations/OnEventAnnotation.h"
@@ -28,6 +29,13 @@ bool LuaScriptHost::loadScriptInstance(std::string entityId,
   }
   const std::filesystem::path scriptPath =
       luaResolveScriptPath(*project_, module);
+  std::string metadataError;
+  const auto metadata = parseScriptComponentMetadata(scriptPath, metadataError);
+  if (!metadataError.empty()) {
+    error = std::string("Invalid component metadata for ") + context + " " +
+            scriptPath.string() + ": " + metadataError;
+    return false;
+  }
   std::string scriptError;
   if (!luaLoadScriptTable(state, scriptPath, scriptError)) {
     error = std::string("Failed to load ") + context + " " +
@@ -39,7 +47,8 @@ bool LuaScriptHost::loadScriptInstance(std::string entityId,
     lua_setfield(state, -2, "entity_id");
   }
   const int tableRef = luaL_ref(state, LUA_REGISTRYINDEX);
-  if (!applyScriptProperties(state, tableRef, propertiesJson, error)) {
+  if (!applyScriptProperties(state, tableRef, propertiesJson, error,
+                             metadata ? &metadata->propertySchema : nullptr)) {
     error = std::string("Invalid properties for ") + context + " " +
             scriptPath.string() + ": " + error;
     luaL_unref(state, LUA_REGISTRYINDEX, tableRef);
@@ -264,19 +273,31 @@ void LuaScriptHost::reloadChangedScripts() {
 
     const int newTableRef = luaL_ref(state, LUA_REGISTRYINDEX);
     std::string propertyError;
+    std::string metadataError;
+    const auto metadata =
+        parseScriptComponentMetadata(script.path, metadataError);
+    if (!metadataError.empty()) {
+      std::cerr << "Lua hot reload rejected for " << script.path.string()
+                << ": " << metadataError << '\n';
+      luaL_unref(state, LUA_REGISTRYINDEX, newTableRef);
+      script.lastWriteTime = currentWriteTime;
+      continue;
+    }
     if (const Entity *entity = findEntity(*world_, script.entityId);
         entity != nullptr && entity->hasComponent<LuaScriptComponent>()) {
       if (!applyScriptProperties(
               state, newTableRef,
               entity->component<LuaScriptComponent>()->propertiesJson,
-              propertyError)) {
+              propertyError, metadata ? &metadata->propertySchema : nullptr)) {
         std::cerr << "Lua hot reload rejected for " << script.path.string()
                   << ": " << propertyError << '\n';
         luaL_unref(state, LUA_REGISTRYINDEX, newTableRef);
         script.lastWriteTime = currentWriteTime;
         continue;
       }
-    } else if (!applyScriptProperties(state, newTableRef, {}, propertyError)) {
+    } else if (!applyScriptProperties(state, newTableRef, {}, propertyError,
+                                      metadata ? &metadata->propertySchema
+                                               : nullptr)) {
       std::cerr << "Lua hot reload rejected for " << script.path.string()
                 << ": " << propertyError << '\n';
       luaL_unref(state, LUA_REGISTRYINDEX, newTableRef);

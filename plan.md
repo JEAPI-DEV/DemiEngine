@@ -2092,12 +2092,19 @@ HUD, and the active specialized document; explicit Save All / Discard / Cancel
 handling for menu and OS closes; and user-data preferences limited to snapping
 and viewport visibility. Recovery restoration is validated and remains dirty
 until an explicit authored save.
+Milestone 9D adds a scaffold-to-package release workflow over public editor and
+build services, responsive panel geometry down to 320x240, explicit DPI font
+policy checks, and three-cycle embedded-runtime and bgfx-device lifetime gates.
+Lua gameplay modules may opt into Add Component discovery with lightweight
+`@demi_component` and `@demi_property` annotations. Module URIs provide stable
+identity, assignment values provide defaults and inferred types, and the shared
+runtime/editor parser avoids a second schema or editor-only representation.
 
 Next:
 
-1. Add runtime log ingestion.
-2. Add end-to-end release workflow tests and the remaining interaction/high-DPI
-   lifetime gates.
+1. Add structured runtime log ingestion with stable source/entity links.
+2. Add real GPU timestamp samples where the bgfx backend supports them, keeping
+   unsupported backends explicitly unavailable.
 
 Acceptance: an editor-triggered validate/cook/package operation returns the
 same result and artifacts as the corresponding CLI service call; cancellation

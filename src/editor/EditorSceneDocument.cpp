@@ -502,6 +502,35 @@ bool EditorSceneDocument::addComponent(const std::string_view id,
       error);
 }
 
+bool EditorSceneDocument::addScriptComponent(const std::string_view id,
+                                             std::string module,
+                                             nlohmann::json properties,
+                                             std::string &error) {
+  if (entity(id) == nullptr) {
+    error = "The entity no longer exists.";
+    reject({.entityId = std::string(id), .component = "LuaScript"}, error);
+    return false;
+  }
+  if (component(id, "LuaScript") != nullptr) {
+    error = "This entity already has a Lua script component.";
+    reject({.entityId = std::string(id), .component = "LuaScript"}, error);
+    return false;
+  }
+  if (module.empty() || !module.starts_with("script://") ||
+      !properties.is_object()) {
+    error =
+        "Script components require a script:// module and object properties.";
+    reject({.entityId = std::string(id), .component = "LuaScript"}, error);
+    return false;
+  }
+  return stageAndCommit(
+      AddComponentCommand{.entityId = std::string(id),
+                          .componentName = "LuaScript",
+                          .component = {{"module", std::move(module)},
+                                        {"properties", std::move(properties)}}},
+      error);
+}
+
 bool EditorSceneDocument::removeComponent(const std::string_view id,
                                           const std::string_view componentName,
                                           std::string &error) {

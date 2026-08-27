@@ -38,7 +38,13 @@ filesystem service used by `demi dev`.
 - Entity names, explicit enabled state, and explicit layers are editable.
 - Components can be added from the descriptor catalog and removed from the
   inspector; both are staged, validated against the shared scene validator, and
-  undoable.
+  undoable. Add Component opens with a keyboard-focused search that matches
+  native and Lua components by display name, internal name/module, and category;
+  empty categories disappear and unmatched searches show an explicit state.
+- Lua files annotated with `@demi_component` are discovered under Add Component
+  using their optional display name, category, and description. Annotated table
+  fields provide inferred defaults and typed Inspector controls while scenes
+  continue to store the normal `LuaScript` component.
 - The hierarchy supports create, duplicate (with child subtree and stable-id
   remap), drag-and-drop reparenting to another entity or the scene root, and
   atomic subtree deletion through real, reversible commands.
@@ -478,9 +484,9 @@ as those services gain structured data.
 - [x] Add explicit dirty-document close handling and recovery for interrupted
   saves; cached recovery data must never silently become authored source.
 - [x] Persist only workspace layout/preferences as editor state.
-- [ ] Add end-to-end authoring tests: create project, edit hierarchy/components,
+- [x] Add end-to-end authoring tests: create project, edit hierarchy/components,
   undo/redo, save, validate, play, cook, and package.
-- [ ] Verify keyboard and pointer flows, readable error/empty/disabled states,
+- [x] Verify keyboard and pointer flows, readable error/empty/disabled states,
   narrow-window layout, high DPI, and repeated renderer/runtime lifetimes.
 
 **9A present:** the placeholder Profiler has been replaced with runtime-backed
@@ -504,15 +510,23 @@ window close share an explicit Save All / Discard / Cancel modal. Snap values
 and viewport visibility preferences are the only persisted editor state and
 live under the user data directory, never in the project.
 
+**9D present:** one deterministic release workflow scaffolds Blank 2D, authors
+hierarchy and component changes through `EditorWorkspace`, exercises Undo/Redo,
+saves, validates, runs embedded Play, cooks Linux content, and packages the real
+runtime. Responsive layout calculations are shared by the Shell and tested down
+to 320x240 without panel overlap; DPI font policy is tested at low, standard,
+and 2x scale. Pointer/keyboard regression suites, three embedded Play lifetimes,
+and three complete bgfx device lifetimes cover repeated interaction and teardown.
+
 **Gate:** a small 2D or lightweight 3D game can be assembled, inspected, played,
 diagnosed, cooked, and packaged without manual JSON editing, while direct text
 editing and conflict handling remain supported.
 
 ### Immediate next task
 
-Milestone 9A instrumentation/search, 9B debug views, and 9C recovery/preferences
-are present. Continue with **Milestone 9D: end-to-end authoring/release tests
-and keyboard, pointer, narrow-window, high-DPI, and repeated-lifetime gates**.
+Milestone 9A through 9D are present. Continue with **Milestone 9E: structured
+runtime log ingestion and real GPU timestamps where supported**. Do not mark
+the profiler/diagnostics bullets complete while either remains unavailable.
 
 For each todo item that mutates authored state, use this implementation order:
 
@@ -572,5 +586,8 @@ renders that value and can submit only runtime overlay configuration.
 `EditorRecoveryStore` owns cache-only atomic snapshots keyed by project path;
 `EditorPreferencesStore` owns only editor presentation settings. Restoration
 enters normal dirty document state through `EditorWorkspace` validation.
+`EditorWorkspaceLayout` is the responsive Shell geometry and DPI policy; the
+release-workflow test composes public scaffold, workspace, Play, BuildService,
+Cook, and Package contracts without ImGui-only shortcuts.
 `DebugLabelLayout2D` owns debug-callout compaction and placement independently
 of bgfx; `DebugCanvasRenderer` only measures and draws the resulting callouts.

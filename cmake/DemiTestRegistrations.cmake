@@ -37,6 +37,12 @@ add_test(NAME demi-editor-diagnostics-profiler-tests
   COMMAND demi-editor-diagnostics-profiler-tests)
 add_test(NAME demi-editor-recovery-preferences-tests
   COMMAND demi-editor-recovery-preferences-tests)
+add_test(NAME demi-editor-workspace-layout-tests
+  COMMAND demi-editor-workspace-layout-tests)
+add_test(NAME demi-editor-lua-component-metadata-tests
+  COMMAND demi-editor-lua-component-metadata-tests)
+add_test(NAME demi-editor-release-workflow-tests
+  COMMAND demi-editor-release-workflow-tests)
 add_test(NAME demi-editor-play-session-tests
   COMMAND demi-editor-play-session-tests)
 add_test(NAME demi-editor-help COMMAND demi-editor --help)

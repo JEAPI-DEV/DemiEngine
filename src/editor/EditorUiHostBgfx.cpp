@@ -1,6 +1,7 @@
 #include "editor/EditorGameRenderer.h"
 #include "editor/EditorImGuiInput.h"
 #include "editor/EditorUiHost.h"
+#include "editor/EditorWorkspaceLayout.h"
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/platform/PlatformHost.h"
@@ -69,8 +70,7 @@ public:
       return false;
     }
 
-    const float fontSize =
-        std::clamp(15.0F * frame.logicalDpi / 96.0F, 14.0F, 22.0F);
+    const float fontSize = editorFontSize(frame.logicalDpi);
     imguiCreate(fontSize);
     ImGui::GetIO().IniFilename = nullptr;
     resources_ = demi::runtime::render::createBgfxGpuResources();

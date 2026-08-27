@@ -6,6 +6,7 @@
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorToolbar.h"
 #include "editor/EditorViewportPanel.h"
+#include "editor/EditorWorkspaceLayout.h"
 
 #include "demi/core/Version.h"
 #include "demi/filesystem/ProjectPaths.h"
@@ -241,23 +242,22 @@ void EditorShell::draw(const int width, const int height,
 
   const float screenWidth = static_cast<float>(width);
   const float screenHeight = static_cast<float>(height);
-  constexpr float menuHeight = 32.0F;
-  constexpr float toolbarHeight = 52.0F;
-  constexpr float stageTabsHeight = 31.0F;
-  constexpr float statusHeight = 27.0F;
-  const float leftWidth = std::clamp(screenWidth * 0.195F, 240.0F, 340.0F);
-  const float rightWidth = std::clamp(screenWidth * 0.225F, 285.0F, 405.0F);
-  const float bottomHeight = std::clamp(screenHeight * 0.30F, 205.0F, 292.0F);
-  const float contentTop = menuHeight + toolbarHeight;
-  const float contentBottom = screenHeight - statusHeight;
-  const float upperHeight =
-      std::max(180.0F, contentBottom - contentTop - bottomHeight);
-  const float centerWidth =
-      std::max(320.0F, screenWidth - leftWidth - rightWidth);
-  const float consoleWidth = std::clamp(screenWidth * 0.26F, 310.0F, 470.0F);
-  const float buildWidth = std::clamp(screenWidth * 0.15F, 220.0F, 280.0F);
-  const float assetsWidth =
-      std::max(280.0F, screenWidth - consoleWidth - rightWidth - buildWidth);
+  const EditorWorkspaceLayout layout =
+      editorWorkspaceLayout(screenWidth, screenHeight);
+  const float menuHeight = layout.menuHeight;
+  const float toolbarHeight = layout.toolbarHeight;
+  const float stageTabsHeight = layout.stageTabsHeight;
+  const float statusHeight = layout.statusHeight;
+  const float leftWidth = layout.leftWidth;
+  const float rightWidth = layout.rightWidth;
+  const float bottomHeight = layout.bottomHeight;
+  const float contentTop = layout.contentTop;
+  const float contentBottom = layout.contentBottom;
+  const float upperHeight = layout.upperHeight;
+  const float centerWidth = layout.centerWidth;
+  const float consoleWidth = layout.consoleWidth;
+  const float buildWidth = layout.buildWidth;
+  const float assetsWidth = layout.assetsWidth;
 
   const EditorProjectOperationSnapshot projectOperation =
       buildPanel_.operation();
@@ -300,7 +300,8 @@ void EditorShell::draw(const int width, const int height,
         {rightWidth, contentBottom - contentTop}, hudInspectorState_, notice_);
   else
     drawInspectorPanel(workspace_, {screenWidth - rightWidth, contentTop},
-                       {rightWidth, contentBottom - contentTop}, notice_);
+                       {rightWidth, contentBottom - contentTop},
+                       inspectorState_, notice_);
   consolePanel_.draw(workspace_, playSession_, {0.0F, contentTop + upperHeight},
                      {consoleWidth, bottomHeight}, projectOperation, notice_);
   if (auto source = consolePanel_.takeOpenRequest()) {

@@ -7,6 +7,7 @@
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 
 #include <algorithm>
+#include <cctype>
 #include <tuple>
 
 namespace demi::editor {
@@ -26,11 +27,24 @@ bool hasDomain(const nlohmann::json &entity, const ComponentDomain domain) {
   });
 }
 
+bool containsCaseInsensitive(const std::string_view value,
+                             const std::string_view query) {
+  if (query.empty())
+    return true;
+  return std::ranges::search(
+             value, query,
+             [](const char left, const char right) {
+               return std::tolower(static_cast<unsigned char>(left)) ==
+                      std::tolower(static_cast<unsigned char>(right));
+             })
+             .begin() != value.end();
+}
+
 std::string prefabReference(const std::filesystem::path &projectDirectory,
                             const std::filesystem::path &path) {
   std::error_code error;
-  std::filesystem::path relative = std::filesystem::relative(
-      path, projectDirectory / "prefabs", error);
+  std::filesystem::path relative =
+      std::filesystem::relative(path, projectDirectory / "prefabs", error);
   if (error || relative.empty() || relative.string().starts_with(".."))
     return {};
   std::string value = relative.generic_string();
@@ -43,14 +57,25 @@ std::string prefabReference(const std::filesystem::path &projectDirectory,
 
 } // namespace
 
-std::vector<EditorReferenceChoice> editorReferenceChoices(
-    const runtime::ComponentReferenceKind kind,
-    const std::filesystem::path &projectDirectory,
-    const std::filesystem::path &scenePath, const nlohmann::json &scene,
-    const std::span<const std::filesystem::path> sources) {
+bool editorComponentMatchesSearch(const std::string_view query,
+                                  const std::string_view internalName,
+                                  const std::string_view displayName,
+                                  const std::string_view category) {
+  return containsCaseInsensitive(internalName, query) ||
+         containsCaseInsensitive(displayName, query) ||
+         containsCaseInsensitive(category, query);
+}
+
+std::vector<EditorReferenceChoice>
+editorReferenceChoices(const runtime::ComponentReferenceKind kind,
+                       const std::filesystem::path &projectDirectory,
+                       const std::filesystem::path &scenePath,
+                       const nlohmann::json &scene,
+                       const std::span<const std::filesystem::path> sources) {
   std::vector<EditorReferenceChoice> choices;
   if (kind == runtime::ComponentReferenceKind::Asset) {
-    for (const AssetManifest &asset : loadAssetRegistry(projectDirectory).assets)
+    for (const AssetManifest &asset :
+         loadAssetRegistry(projectDirectory).assets)
       choices.push_back({.id = asset.id, .label = asset.id});
   } else if (kind == runtime::ComponentReferenceKind::Entity) {
     const nlohmann::json *entities = entitiesArray(scene);
@@ -69,17 +94,17 @@ std::vector<EditorReferenceChoice> editorReferenceChoices(
       if (!isPrefabFile(source))
         continue;
       const std::string id = prefabReference(projectDirectory, source);
-      const auto resolved = runtime::composition::resolvePrefabReference(
-          scenePath, id);
+      const auto resolved =
+          runtime::composition::resolvePrefabReference(scenePath, id);
       if (!id.empty() && resolved.has_value() &&
           runtime::composition::inspectPrefab(*resolved).document.has_value())
         choices.push_back({.id = id, .label = id});
     }
   }
   std::ranges::sort(choices, {}, &EditorReferenceChoice::id);
-  choices.erase(std::ranges::unique(choices, {}, &EditorReferenceChoice::id)
-                    .begin(),
-                choices.end());
+  choices.erase(
+      std::ranges::unique(choices, {}, &EditorReferenceChoice::id).begin(),
+      choices.end());
   return choices;
 }
 

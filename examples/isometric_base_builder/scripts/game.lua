@@ -1,3 +1,7 @@
+---@demi_component
+---@display_name Tower Defense Controller
+---@category Gameplay
+---@description Coordinates building, waves, combat, persistence, and HUD state.
 local Config = require("game.config")
 local State = require("game.state")
 local Building = require("game.building")

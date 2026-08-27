@@ -8,6 +8,7 @@
 #include "editor/EditorGameViewPanel.h"
 #include "editor/EditorHierarchyPanel.h"
 #include "editor/EditorHudNodeInspector.h"
+#include "editor/EditorInspectorPanel.h"
 #include "editor/EditorPlaySession.h"
 #include "editor/EditorPreferencesStore.h"
 #include "editor/EditorProjectPanel.h"
@@ -63,6 +64,7 @@ private:
   EditorViewportArea viewportArea_;
   EditorHudViewportState hudViewportState_;
   EditorHudInspectorState hudInspectorState_;
+  EditorInspectorPanelState inspectorState_;
   EditorViewportArea gameArea_;
   EditorAssetsPanel assetsPanel_;
   EditorAnimationMachinePanel animationMachinePanel_;

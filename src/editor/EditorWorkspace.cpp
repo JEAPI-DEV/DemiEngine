@@ -10,6 +10,7 @@
 #include "demi/schema/Validation.h"
 
 #include <algorithm>
+#include <iterator>
 
 namespace demi::editor {
 
@@ -349,6 +350,19 @@ bool EditorWorkspace::addComponent(const std::string_view id,
       error);
 }
 
+bool EditorWorkspace::addScriptComponent(
+    const std::string_view id, const EditorLuaComponentMetadata &metadata,
+    std::string &error) {
+  return mutateAndRebuild(
+      [id = std::string(id), module = metadata.module,
+       properties = metadata.defaultProperties](EditorSceneDocument &document,
+                                                std::string &mutationError) {
+        return document.addScriptComponent(id, module, properties,
+                                           mutationError);
+      },
+      error);
+}
+
 bool EditorWorkspace::removeComponent(const std::string_view id,
                                       const std::string_view componentName,
                                       std::string &error) {
@@ -643,6 +657,11 @@ void EditorWorkspace::updateSceneDomain(const bool openingProject) {
 void EditorWorkspace::refreshDiagnostics() {
   const ValidationSummary summary = validatePath(projectPath_.parent_path());
   diagnostics_ = summary.diagnostics;
+  EditorLuaComponentCatalog scripts =
+      discoverEditorLuaComponents(project_->project.projectDirectory, sources_);
+  diagnostics_.insert(diagnostics_.end(),
+                      std::make_move_iterator(scripts.diagnostics.begin()),
+                      std::make_move_iterator(scripts.diagnostics.end()));
   syncEditorDiagnostic();
 }
 

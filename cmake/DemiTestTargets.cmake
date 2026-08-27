@@ -74,6 +74,24 @@
     PRIVATE demi-editor-model)
   target_compile_definitions(demi-editor-recovery-preferences-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-workspace-layout-tests
+    tests/editor_workspace_layout_tests.cpp)
+  target_link_libraries(demi-editor-workspace-layout-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-lua-component-metadata-tests
+    tests/editor_lua_component_metadata_tests.cpp)
+  target_link_libraries(demi-editor-lua-component-metadata-tests
+    PRIVATE demi-editor-model)
+  target_compile_definitions(demi-editor-lua-component-metadata-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-release-workflow-tests
+    tests/editor_release_workflow_tests.cpp)
+  target_link_libraries(demi-editor-release-workflow-tests
+    PRIVATE demi-editor-model demi-cli-support)
+  target_compile_definitions(demi-editor-release-workflow-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+    DEMI_RUNTIME_PATH="$<TARGET_FILE:demi-runtime>")
+  add_dependencies(demi-editor-release-workflow-tests demi-runtime)
   add_executable(demi-editor-play-session-tests
     tests/editor_play_session_tests.cpp)
   target_link_libraries(demi-editor-play-session-tests PRIVATE demi-editor-model)

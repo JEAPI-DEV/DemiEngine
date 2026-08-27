@@ -2,6 +2,8 @@
 
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
+#include <nlohmann/json_fwd.hpp>
+
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -30,9 +32,10 @@ luaScriptWriteTime(const std::filesystem::path &path);
 [[nodiscard]] bool luaLoadScriptTable(lua_State *state,
                                       const std::filesystem::path &scriptPath,
                                       std::string &error);
-[[nodiscard]] bool applyScriptProperties(lua_State *state, int tableRef,
-                                         const std::string &propertiesJson,
-                                         std::string &error);
+[[nodiscard]] bool
+applyScriptProperties(lua_State *state, int tableRef,
+                      const std::string &propertiesJson, std::string &error,
+                      const nlohmann::json *headerSchema = nullptr);
 void clearLuaBindingGlobals(lua_State *state);
 void luaCallLifecycle(lua_State *state, int tableRef, const char *functionName,
                       const std::filesystem::path &path,

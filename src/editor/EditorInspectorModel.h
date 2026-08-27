@@ -33,14 +33,20 @@ struct EditorCommonField {
   bool mixed = false;
 };
 
-[[nodiscard]] std::vector<EditorReferenceChoice> editorReferenceChoices(
-    runtime::ComponentReferenceKind kind,
-    const std::filesystem::path &projectDirectory,
-    const std::filesystem::path &scenePath, const nlohmann::json &scene,
-    std::span<const std::filesystem::path> sources);
+[[nodiscard]] std::vector<EditorReferenceChoice>
+editorReferenceChoices(runtime::ComponentReferenceKind kind,
+                       const std::filesystem::path &projectDirectory,
+                       const std::filesystem::path &scenePath,
+                       const nlohmann::json &scene,
+                       std::span<const std::filesystem::path> sources);
 
 [[nodiscard]] std::vector<EditorComponentChoice>
 editorComponentChoices(const nlohmann::json &entity);
+
+[[nodiscard]] bool editorComponentMatchesSearch(std::string_view query,
+                                                std::string_view internalName,
+                                                std::string_view displayName,
+                                                std::string_view category);
 
 [[nodiscard]] std::vector<EditorCommonField>
 editorCommonFields(const nlohmann::json &scene,

@@ -73,6 +73,7 @@ else()
     src/editor/EditorIsoGridCellDocument.cpp
     src/editor/EditorIsoScene2D.cpp
     src/editor/EditorJsonDocument.cpp
+    src/editor/EditorLuaComponentMetadata.cpp
     src/editor/EditorPlaySession.cpp
     src/editor/EditorProfilerModel.cpp
     src/editor/EditorProjectDocument.cpp
@@ -93,6 +94,7 @@ else()
     src/editor/EditorViewportTool.cpp
     src/editor/EditorViewportTool2D.cpp
     src/editor/EditorWorkspace.cpp
+    src/editor/EditorWorkspaceLayout.cpp
     src/editor/EditorWorkspaceAssets.cpp)
   target_include_directories(demi-editor-model PUBLIC src)
   target_compile_features(demi-editor-model PUBLIC cxx_std_20)

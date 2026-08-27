@@ -3,6 +3,7 @@
 #include "editor/EditorChrome.h"
 #include "editor/EditorInspectorModel.h"
 #include "editor/EditorIsoGridInspector.h"
+#include "editor/EditorLuaComponentMetadata.h"
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorWorkspace.h"
 
@@ -21,6 +22,15 @@ namespace {
 using runtime::ComponentFieldDescriptor;
 using runtime::ComponentFieldType;
 using runtime::scene_loading::ComponentDescriptor;
+
+const EditorLuaComponentMetadata *
+scriptMetadata(const EditorLuaComponentCatalog &catalog,
+               const nlohmann::json &luaScriptComponent) {
+  const std::string module = luaScriptComponent.value("module", "");
+  const auto found = std::ranges::find(catalog.components, module,
+                                       &EditorLuaComponentMetadata::module);
+  return found == catalog.components.end() ? nullptr : &*found;
+}
 
 bool inputString(const char *label, std::string &value) {
   std::array<char, 512> buffer{};
@@ -67,6 +77,97 @@ bool commitMany(EditorWorkspace &workspace,
   }
   notice = "Scene modified";
   return true;
+}
+
+void drawScriptProperties(EditorWorkspace &workspace,
+                          const std::string_view entityId,
+                          const nlohmann::json &component,
+                          const EditorLuaComponentMetadata &metadata,
+                          std::string &notice) {
+  if (!metadata.description.empty())
+    ImGui::TextDisabled("%s", metadata.description.c_str());
+  ImGui::TextDisabled("Module");
+  ImGui::SameLine(112.0F);
+  ImGui::TextUnformatted(metadata.module.c_str());
+  nlohmann::json properties =
+      component.value("properties", nlohmann::json::object());
+  for (const auto &[name, definition] : metadata.propertySchema.items()) {
+    if (!definition.is_object())
+      continue;
+    nlohmann::json value = properties.contains(name)
+                               ? properties[name]
+                               : definition.value("default", nlohmann::json{});
+    const std::string type = definition.value("type", "");
+    const std::string label = definition.value("label", name);
+    ImGui::PushID(name.c_str());
+    bool changed = false;
+    if (type == "boolean" && value.is_boolean()) {
+      bool edited = value.get<bool>();
+      changed = ImGui::Checkbox(label.c_str(), &edited);
+      value = edited;
+    } else if (type == "number" && value.is_number()) {
+      double edited = value.get<double>();
+      changed = ImGui::InputDouble(label.c_str(), &edited);
+      if (definition.contains("minimum"))
+        edited = std::max(edited, definition["minimum"].get<double>());
+      if (definition.contains("maximum"))
+        edited = std::min(edited, definition["maximum"].get<double>());
+      value = edited;
+    } else if (type == "integer" && value.is_number_integer()) {
+      int edited = value.get<int>();
+      changed = ImGui::InputInt(label.c_str(), &edited);
+      value = edited;
+    } else if ((type == "string" || type == "asset" || type == "entity") &&
+               value.is_string()) {
+      std::string edited = value.get<std::string>();
+      changed = inputString(label.c_str(), edited);
+      value = std::move(edited);
+    } else if (type == "enum" && value.is_string() &&
+               definition.contains("values") &&
+               definition["values"].is_array()) {
+      std::string edited = value.get<std::string>();
+      if (ImGui::BeginCombo(label.c_str(), edited.c_str())) {
+        for (const nlohmann::json &choice : definition["values"])
+          if (choice.is_string() &&
+              ImGui::Selectable(choice.get_ref<const std::string &>().c_str(),
+                                choice == edited)) {
+            edited = choice.get<std::string>();
+            changed = true;
+          }
+        ImGui::EndCombo();
+      }
+      value = std::move(edited);
+    } else if ((type == "vec2" || type == "vec3" || type == "color") &&
+               value.is_array()) {
+      const std::size_t count = type == "vec2" ? 2U : type == "vec3" ? 3U : 4U;
+      std::array<float, 4> edited{};
+      if (value.size() == count &&
+          std::ranges::all_of(
+              value, [](const auto &item) { return item.is_number(); })) {
+        for (std::size_t index = 0; index < count; ++index)
+          edited[index] = value[index].get<float>();
+        changed =
+            type == "vec2"   ? ImGui::InputFloat2(label.c_str(), edited.data())
+            : type == "vec3" ? ImGui::InputFloat3(label.c_str(), edited.data())
+                             : ImGui::ColorEdit4(label.c_str(), edited.data());
+        value = nlohmann::json::array();
+        for (std::size_t index = 0; index < count; ++index)
+          value.push_back(edited[index]);
+      }
+    } else {
+      ImGui::TextDisabled("%s: %s", label.c_str(), value.dump().c_str());
+    }
+    if (changed) {
+      properties[name] = std::move(value);
+      commit(workspace,
+             {.entityId = std::string(entityId),
+              .component = "LuaScript",
+              .field = "properties"},
+             std::move(properties), notice);
+      finishEdit(workspace);
+    }
+    ImGui::PopID();
+  }
 }
 
 void drawInlineIssue(const EditorWorkspace &workspace,
@@ -410,7 +511,8 @@ void drawEntityHeader(EditorWorkspace &workspace, const nlohmann::json &entity,
 } // namespace
 
 void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
-                        const ImVec2 size, std::string &notice) {
+                        const ImVec2 size, EditorInspectorPanelState &state,
+                        std::string &notice) {
   beginEditorPanel("Inspector", position, size);
   (void)editorStageTab("Inspector", true, {76.0F, 25.0F});
   ImGui::SameLine(0.0F, 2.0F);
@@ -446,6 +548,8 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
     return;
   }
   drawEntityHeader(workspace, *entity, notice);
+  const EditorLuaComponentCatalog luaComponents = discoverEditorLuaComponents(
+      workspace.project().project.projectDirectory, workspace.sources());
 
   const auto components = entity->find("components");
   if (components != entity->end() && components->is_object()) {
@@ -454,9 +558,13 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         continue;
       const ComponentDescriptor *descriptor =
           runtime::scene_loading::findComponentDescriptor(name);
-      const char *title = descriptor == nullptr
-                              ? name.c_str()
-                              : descriptor->editor.displayName.data();
+      const EditorLuaComponentMetadata *luaMetadata =
+          name == "LuaScript" ? scriptMetadata(luaComponents, component)
+                              : nullptr;
+      const char *title =
+          luaMetadata != nullptr  ? luaMetadata->displayName.c_str()
+          : descriptor == nullptr ? name.c_str()
+                                  : descriptor->editor.displayName.data();
       ImGui::PushID(name.c_str());
       ImGui::PushStyleColor(ImGuiCol_Header, {0.115F, 0.119F, 0.139F, 1.0F});
       ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
@@ -487,7 +595,10 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         continue;
       }
       drawInlineIssue(workspace, {.entityId = selected->id, .component = name});
-      if (descriptor == nullptr || descriptor->fields.empty())
+      if (luaMetadata != nullptr)
+        drawScriptProperties(workspace, selected->id, component, *luaMetadata,
+                             notice);
+      else if (descriptor == nullptr || descriptor->fields.empty())
         drawGenericComponent(component);
       else
         drawComponentFields(workspace, selected->id, name, component,
@@ -499,10 +610,26 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::Spacing();
   ImGui::SetNextItemWidth(-1.0F);
   if (ImGui::BeginCombo("##add-component", "Add Component")) {
+    if (ImGui::IsWindowAppearing()) {
+      state.componentSearch.fill('\0');
+      ImGui::SetKeyboardFocusHere();
+    }
+    ImGui::SetNextItemWidth(-1.0F);
+    ImGui::InputTextWithHint("##component-search", "Search components...",
+                             state.componentSearch.data(),
+                             state.componentSearch.size());
+    ImGui::Separator();
+    const std::string_view query(state.componentSearch.data());
+    bool anyResult = false;
     std::string_view category;
     for (const EditorComponentChoice &choice :
          editorComponentChoices(*entity)) {
       const ComponentDescriptor &descriptor = *choice.descriptor;
+      if (!editorComponentMatchesSearch(query, descriptor.name,
+                                        descriptor.editor.displayName,
+                                        descriptor.editor.category))
+        continue;
+      anyResult = true;
       if (category != descriptor.editor.category) {
         category = descriptor.editor.category;
         ImGui::SeparatorText(category.data());
@@ -526,6 +653,47 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
       if (!choice.compatible)
         ImGui::EndDisabled();
     }
+    if (!luaComponents.components.empty()) {
+      const bool hasLuaScript = components != entity->end() &&
+                                components->is_object() &&
+                                components->contains("LuaScript");
+      std::string_view luaCategory;
+      for (const EditorLuaComponentMetadata &metadata :
+           luaComponents.components) {
+        if (!editorComponentMatchesSearch(query, metadata.module,
+                                          metadata.displayName,
+                                          metadata.category))
+          continue;
+        anyResult = true;
+        if (luaCategory != metadata.category) {
+          luaCategory = metadata.category;
+          const std::string heading = "Lua · " + metadata.category;
+          ImGui::SeparatorText(heading.c_str());
+        }
+        if (hasLuaScript)
+          ImGui::BeginDisabled();
+        if (ImGui::Selectable(metadata.displayName.c_str())) {
+          std::string error;
+          const bool added =
+              workspace.addScriptComponent(selected->id, metadata, error);
+          notice = added ? metadata.displayName + " added" : error;
+          if (hasLuaScript)
+            ImGui::EndDisabled();
+          ImGui::EndCombo();
+          ImGui::End();
+          return;
+        }
+        if (hasLuaScript &&
+            ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+          ImGui::SetTooltip(
+              "This entity already has a Lua component. Multiple scripts per "
+              "entity are not supported yet.");
+        if (hasLuaScript)
+          ImGui::EndDisabled();
+      }
+    }
+    if (!anyResult)
+      ImGui::TextDisabled("No matching components.");
     ImGui::EndCombo();
   }
   ImGui::End();

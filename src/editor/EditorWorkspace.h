@@ -2,6 +2,7 @@
 
 #include "editor/EditorAssetIndex.h"
 #include "editor/EditorHudDocument.h"
+#include "editor/EditorLuaComponentMetadata.h"
 #include "editor/EditorProjectDocument.h"
 #include "editor/EditorRecoveryStore.h"
 #include "editor/EditorSceneDocument.h"
@@ -80,6 +81,10 @@ public:
   [[nodiscard]] bool addComponent(std::string_view id,
                                   std::string_view componentName,
                                   std::string &error);
+  [[nodiscard]] bool
+  addScriptComponent(std::string_view id,
+                     const EditorLuaComponentMetadata &metadata,
+                     std::string &error);
   [[nodiscard]] bool removeComponent(std::string_view id,
                                      std::string_view componentName,
                                      std::string &error);
