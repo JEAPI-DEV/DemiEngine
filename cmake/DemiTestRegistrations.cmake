@@ -41,6 +41,8 @@ add_test(NAME demi-editor-workspace-layout-tests
   COMMAND demi-editor-workspace-layout-tests)
 add_test(NAME demi-editor-lua-component-metadata-tests
   COMMAND demi-editor-lua-component-metadata-tests)
+add_test(NAME demi-editor-authored-json-tests
+  COMMAND demi-editor-authored-json-tests)
 add_test(NAME demi-editor-release-workflow-tests
   COMMAND demi-editor-release-workflow-tests)
 add_test(NAME demi-editor-play-session-tests

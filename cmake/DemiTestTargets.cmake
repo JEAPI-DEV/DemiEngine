@@ -84,6 +84,10 @@
     PRIVATE demi-editor-model)
   target_compile_definitions(demi-editor-lua-component-metadata-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-authored-json-tests
+    tests/editor_authored_json_tests.cpp)
+  target_link_libraries(demi-editor-authored-json-tests
+    PRIVATE demi-editor-model)
   add_executable(demi-editor-release-workflow-tests
     tests/editor_release_workflow_tests.cpp)
   target_link_libraries(demi-editor-release-workflow-tests

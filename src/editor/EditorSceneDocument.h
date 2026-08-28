@@ -101,6 +101,7 @@ private:
                               std::string &error) const;
   // Validates a staged document before touching the live document or history.
   [[nodiscard]] bool stageAndCommit(SceneCommand command, std::string &error);
+  [[nodiscard]] std::string serializedText() const;
   void reject(SceneValueTarget target, const std::string &error);
   void clearIssue() { issue_.reset(); }
 
@@ -108,6 +109,8 @@ private:
   std::filesystem::path path_;
   FileRevision revision_;
   nlohmann::json document_;
+  nlohmann::json savedDocument_;
+  std::string originalText_;
   std::string savedCanonical_;
   std::vector<SceneCommand> undo_;
   std::vector<SceneCommand> redo_;

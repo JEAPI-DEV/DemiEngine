@@ -1,5 +1,7 @@
 #include "editor/EditorSceneDocument.h"
 
+#include "editor/EditorAuthoredJson.h"
+
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
 #include "demi/schema/Validation.h"
@@ -70,6 +72,8 @@ bool EditorSceneDocument::open(const std::filesystem::path &path,
     path_ = resolvedPath;
     revision_ = revision;
     document_ = std::move(parsed);
+    savedDocument_ = document_;
+    originalText_ = std::move(text);
     savedCanonical_ = document_.dump();
     undo_.clear();
     redo_.clear();
@@ -100,7 +104,7 @@ bool EditorSceneDocument::save(std::string &error) {
     hasExternalConflict_ = false;
     return true;
   }
-  const std::string serialized = document_.dump(2) + '\n';
+  const std::string serialized = serializedText();
   FileRevision revision;
   const DocumentWriteStatus status =
       store_.writeIfUnchanged(path_, serialized, revision_, revision, error);
@@ -112,8 +116,17 @@ bool EditorSceneDocument::save(std::string &error) {
     return false;
   revision_ = revision;
   savedCanonical_ = document_.dump();
+  savedDocument_ = document_;
+  originalText_ = serialized;
   hasExternalConflict_ = false;
   return true;
+}
+
+std::string EditorSceneDocument::serializedText() const {
+  if (const auto patched =
+          patchEditorJsonSource(originalText_, savedDocument_, document_))
+    return *patched;
+  return document_.dump(2) + '\n';
 }
 
 bool EditorSceneDocument::restore(nlohmann::json document, std::string &error) {
@@ -160,7 +173,7 @@ bool EditorSceneDocument::resolveExternalChange(
       error = "The copy must use a different path from the external scene.";
       return false;
     }
-    if (!store_.writeNew(destination, document_.dump(2) + '\n', error))
+    if (!store_.writeNew(destination, serializedText(), error))
       return false;
     hasExternalConflict_ = false;
     return true;
@@ -196,6 +209,7 @@ bool EditorSceneDocument::setValue(SceneValueTarget target,
                                    nlohmann::json replacement,
                                    const bool continuous, std::string &error) {
   const nlohmann::json *current = value(target);
+  replacement = normalizeEditorAuthoredValue(std::move(replacement), current);
   if (current != nullptr && *current == replacement) {
     clearIssue();
     return true;
@@ -273,12 +287,14 @@ bool EditorSceneDocument::setValues(std::vector<SceneValueTarget> targets,
       reject(target, error);
       return false;
     }
-    if (!validate(target, replacement, error)) {
+    nlohmann::json normalized =
+        normalizeEditorAuthoredValue(replacement, current);
+    if (!validate(target, normalized, error)) {
       reject(target, error);
       return false;
     }
     command.values.push_back(
-        {.target = target, .before = *current, .after = replacement});
+        {.target = target, .before = *current, .after = std::move(normalized)});
   }
   return stageAndCommit(std::move(command), error);
 }
