@@ -1,5 +1,6 @@
 #pragma once
 
+#include "editor/EditorAboutPanel.h"
 #include "editor/EditorAnimationMachinePanel.h"
 #include "editor/EditorAssetsPanel.h"
 #include "editor/EditorBuildPanel.h"
@@ -41,6 +42,9 @@ public:
     return requested;
   }
   void setGameTextureIndex(std::uint16_t value) { gameTextureIndex_ = value; }
+  void setBrandingTextureIndex(std::uint16_t value) {
+    brandingTextureIndex_ = value;
+  }
   void queueAssetImport(std::filesystem::path source) {
     assetsPanel_.queueImport(std::move(source));
   }
@@ -67,6 +71,7 @@ private:
   EditorInspectorPanelState inspectorState_;
   EditorViewportArea gameArea_;
   EditorAssetsPanel assetsPanel_;
+  EditorAboutPanel aboutPanel_;
   EditorAnimationMachinePanel animationMachinePanel_;
   EditorBuildPanel buildPanel_;
   EditorProjectPanel projectPanel_;
@@ -90,6 +95,7 @@ private:
   bool gameViewFocused_ = false;
   bool stepRequested_ = false;
   std::uint16_t gameTextureIndex_ = UINT16_MAX;
+  std::uint16_t brandingTextureIndex_ = UINT16_MAX;
 };
 
 } // namespace demi::editor

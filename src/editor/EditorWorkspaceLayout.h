@@ -14,7 +14,6 @@ struct EditorWorkspaceLayout {
   float bottomHeight = 0.0F;
   float consoleWidth = 0.0F;
   float assetsWidth = 0.0F;
-  float buildWidth = 0.0F;
   float contentTop = 0.0F;
   float contentBottom = 0.0F;
 };

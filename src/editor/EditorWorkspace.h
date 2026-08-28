@@ -51,6 +51,13 @@ public:
                                             std::string &error) {
     return projectDocument_.setInputActions(std::move(actions), error);
   }
+  [[nodiscard]] bool setProjectInputBinding(std::string_view action,
+                                            std::size_t bindingIndex,
+                                            std::string input,
+                                            std::string &error) {
+    return projectDocument_.setInputBinding(action, bindingIndex,
+                                            std::move(input), error);
+  }
   [[nodiscard]] bool importAsset(const assets::AssetImportRequest &request,
                                  std::string &error);
   [[nodiscard]] bool reimportAsset(const std::filesystem::path &manifest,

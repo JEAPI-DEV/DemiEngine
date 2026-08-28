@@ -32,10 +32,6 @@ void drawEditorHudNodeInspector(EditorWorkspace &workspace,
   if (ImGui::BeginTabBar("hud-inspector-tabs")) {
     if (ImGui::BeginTabItem("Inspector"))
       ImGui::EndTabItem();
-    ImGui::BeginDisabled();
-    if (ImGui::BeginTabItem("Lighting"))
-      ImGui::EndTabItem();
-    ImGui::EndDisabled();
     ImGui::EndTabBar();
   }
 

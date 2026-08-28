@@ -8,15 +8,19 @@
 #include "demi/runtime/render/BgfxRenderer2D.h"
 #include "demi/runtime/render/BgfxRenderer3D.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
+#include "demi/runtime/render/backend/BgfxResourceLookup.h"
 #include "demi/runtime/render/backend/GpuResources.h"
+#include "demi/runtime/render/backend/ImageDecoder2D.h"
 #include "demi/runtime/render/backend/RenderCommands.h"
 
 #include <imgui.h>
 
 #include <algorithm>
 #include <cstdint>
+#include <fstream>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace demi::editor {
 namespace {
@@ -42,6 +46,27 @@ editorCamera(const EditorSceneViewCamera &camera,
   frame.viewId = 1;
 
   return frame;
+}
+
+bool readBytes(const std::filesystem::path &path, std::vector<std::byte> &bytes,
+               std::string &error) {
+  std::ifstream input(path, std::ios::binary | std::ios::ate);
+  if (!input) {
+    error = "Could not open editor branding image: " + path.string();
+    return false;
+  }
+  const std::streamsize size = input.tellg();
+  if (size <= 0) {
+    error = "Editor branding image is empty.";
+    return false;
+  }
+  bytes.resize(static_cast<std::size_t>(size));
+  input.seekg(0);
+  if (!input.read(reinterpret_cast<char *>(bytes.data()), size)) {
+    error = "Could not read the editor branding image.";
+    return false;
+  }
+  return true;
 }
 
 class BgfxEditorUiHost final : public EditorUiHost {
@@ -94,6 +119,36 @@ public:
     return true;
   }
 
+  bool loadBranding(std::string &error) override {
+    if (brandingTexture_)
+      return true;
+    std::vector<std::byte> encoded;
+    if (!readBytes(DEMI_EDITOR_BRANDING_PATH, encoded, error))
+      return false;
+    runtime::render::ImageData2D image;
+    if (!runtime::render::decodeImage2D(encoded, image, error))
+      return false;
+    brandingTexture_ = resources_->createTexture(
+        {.width = image.width,
+         .height = image.height,
+         .format = runtime::render::TextureFormat::RGBA8,
+         .data = image.rgba,
+         .filter = runtime::render::TextureFilter::Linear,
+         .wrap = runtime::render::TextureWrap::Clamp,
+         .debugName = "DemiEngine editor branding"},
+        error);
+    return static_cast<bool>(brandingTexture_);
+  }
+
+  std::uint16_t brandingTextureIndex() const override {
+    const auto *lookup =
+        dynamic_cast<const runtime::render::BgfxResourceLookup *>(
+            resources_.get());
+    if (lookup == nullptr || !brandingTexture_)
+      return UINT16_MAX;
+    return lookup->bgfxTexture(brandingTexture_).idx;
+  }
+
   void shutdown() override {
     if (!initialized_)
       return;
@@ -105,6 +160,7 @@ public:
     renderer3D_.reset();
     commands_.reset();
     resources_->clear();
+    brandingTexture_ = {};
     resources_.reset();
     imguiDestroy();
     graphics_.shutdown();
@@ -285,6 +341,7 @@ private:
   std::unique_ptr<demi::runtime::render::BgfxRenderer3D> renderer3D_;
   std::unique_ptr<demi::runtime::render::BgfxRenderer2D> renderer2D_;
   std::unique_ptr<EditorGameRenderer> gameRenderer_;
+  runtime::render::TextureHandle brandingTexture_;
   InputState input_;
   bool initialized_ = false;
   bool mouseCaptured_ = false;

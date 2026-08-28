@@ -85,6 +85,10 @@ int main(const int argc, char **argv) {
 
   demi::editor::applyEditorTheme();
   demi::editor::EditorShell shell(workspace);
+  if (!ui->loadBranding(error))
+    shell.setNotice("About logo unavailable: " + error);
+  else
+    shell.setBrandingTextureIndex(ui->brandingTextureIndex());
   if (!options.openSource.empty()) {
     std::filesystem::path source = options.openSource;
     if (source.is_relative())

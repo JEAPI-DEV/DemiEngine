@@ -39,6 +39,7 @@ void drawStageTabs(const ImVec2 position, const ImVec2 size,
 void drawMenu(EditorWorkspace &workspace, const ImVec2 size,
               bool &exitRequested, EditorProjectPanel &projectPanel,
               EditorAnimationMachinePanel &animationPanel,
+              EditorBuildPanel &buildPanel, EditorAboutPanel &aboutPanel,
               std::string &notice) {
   beginEditorPanel("MainMenu", {0.0F, 0.0F}, size,
                    ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar);
@@ -97,8 +98,16 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size,
             "Select an entity with Animation State Machine first.");
       ImGui::EndMenu();
     }
-    ImGui::MenuItem("Build");
-    ImGui::MenuItem("Help");
+    if (ImGui::BeginMenu("Build")) {
+      if (ImGui::MenuItem("Build Project..."))
+        buildPanel.open();
+      ImGui::EndMenu();
+    }
+    if (ImGui::BeginMenu("Help")) {
+      if (ImGui::MenuItem("About..."))
+        aboutPanel.open();
+      ImGui::EndMenu();
+    }
     ImGui::EndMenuBar();
   }
   ImGui::End();
@@ -256,13 +265,12 @@ void EditorShell::draw(const int width, const int height,
   const float upperHeight = layout.upperHeight;
   const float centerWidth = layout.centerWidth;
   const float consoleWidth = layout.consoleWidth;
-  const float buildWidth = layout.buildWidth;
   const float assetsWidth = layout.assetsWidth;
 
   const EditorProjectOperationSnapshot projectOperation =
       buildPanel_.operation();
   drawMenu(workspace_, {screenWidth, menuHeight}, exitRequested_, projectPanel_,
-           animationMachinePanel_, notice_);
+           animationMachinePanel_, buildPanel_, aboutPanel_, notice_);
   drawEditorToolbar({0.0F, menuHeight}, {screenWidth, toolbarHeight},
                     workspace_, playSession_, showGameView_, stepRequested_,
                     notice_);
@@ -316,9 +324,7 @@ void EditorShell::draw(const int width, const int height,
     if (!openDocument(*source, error))
       notice_ = error;
   }
-  buildPanel_.draw(workspace_,
-                   {consoleWidth + assetsWidth, contentTop + upperHeight},
-                   {buildWidth, bottomHeight}, notice_);
+  buildPanel_.draw(workspace_, notice_);
   drawStatus(workspace_, {0.0F, contentBottom}, {screenWidth, statusHeight},
              rendererName, notice_, buildPanel_.linuxTarget(),
              buildPanel_.androidTarget());
@@ -326,12 +332,15 @@ void EditorShell::draw(const int width, const int height,
   projectPanel_.draw(workspace_, notice_);
   specializedPanel_.draw(workspace_, notice_);
   animationMachinePanel_.draw(workspace_, notice_);
+  aboutPanel_.draw(brandingTextureIndex_, notice_);
 
   ImGui::SetNextWindowPos({0.0F, 0.0F}, ImGuiCond_Always);
   ImGui::SetNextWindowSize({1.0F, 1.0F}, ImGuiCond_Always);
   ImGui::Begin("##editor-modal-host", nullptr,
                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground |
-                   ImGuiWindowFlags_NoSavedSettings);
+                   ImGuiWindowFlags_NoSavedSettings |
+                   ImGuiWindowFlags_NoInputs |
+                   ImGuiWindowFlags_NoBringToFrontOnFocus);
   if (openRecoveryPrompt)
     ImGui::OpenPopup("Recover editor session");
   if (ImGui::BeginPopupModal("Recover editor session", nullptr,

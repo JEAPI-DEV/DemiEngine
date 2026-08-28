@@ -2,6 +2,7 @@
 
 #include <array>
 #include <string>
+#include <unordered_map>
 
 namespace demi::editor {
 
@@ -14,6 +15,11 @@ public:
   void draw(EditorWorkspace &workspace, std::string &notice);
 
 private:
+  struct InputBindingEditor {
+    std::array<char, 160> value{};
+    std::string source;
+  };
+
   std::array<char, 160> sceneId_{};
   std::array<char, 240> scenePath_{};
   std::array<char, 240> projectDestination_{};
@@ -23,6 +29,7 @@ private:
   std::array<char, 128> actionBinding_{};
   std::string actionType_ = "button";
   std::string selectedTemplate_;
+  std::unordered_map<std::string, InputBindingEditor> inputBindingEditors_;
   bool showSettings_ = false;
   bool showCreateProject_ = false;
 };

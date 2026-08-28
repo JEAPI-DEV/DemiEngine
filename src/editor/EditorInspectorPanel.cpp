@@ -515,10 +515,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
                         std::string &notice) {
   beginEditorPanel("Inspector", position, size);
   (void)editorStageTab("Inspector", true, {76.0F, 25.0F});
-  ImGui::SameLine(0.0F, 2.0F);
-  ImGui::BeginDisabled();
-  (void)editorStageTab("Lighting", false, {70.0F, 25.0F});
-  ImGui::EndDisabled();
   if (workspace.sceneDocument().isDirty()) {
     ImGui::SameLine(size.x - 68.0F);
     ImGui::TextColored({0.95F, 0.67F, 0.28F, 1.0F}, "Unsaved");

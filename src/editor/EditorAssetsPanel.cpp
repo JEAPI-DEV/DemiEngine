@@ -216,10 +216,6 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
                              const ImVec2 size, std::string &notice) {
   beginEditorPanel("Assets", position, size);
   (void)editorStageTab("Assets", true, {67.0F, 25.0F});
-  ImGui::SameLine(0.0F, 2.0F);
-  ImGui::BeginDisabled();
-  (void)editorStageTab("Lua Console", false, {92.0F, 25.0F});
-  ImGui::EndDisabled();
   ImGui::SameLine(size.x - 27.0F);
   ImGui::TextDisabled("x");
   ImGui::Separator();

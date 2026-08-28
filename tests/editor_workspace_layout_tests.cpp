@@ -18,10 +18,8 @@ void verify(const float width, const float height) {
   assert(layout.upperHeight > 0 && layout.bottomHeight > 0);
   assert(near(layout.contentTop + layout.upperHeight + layout.bottomHeight,
               layout.contentBottom));
-  assert(layout.consoleWidth > 0 && layout.assetsWidth > 0 &&
-         layout.buildWidth > 0);
-  assert(near(layout.consoleWidth + layout.assetsWidth + layout.buildWidth +
-                  layout.rightWidth,
+  assert(layout.consoleWidth > 0 && layout.assetsWidth > 0);
+  assert(near(layout.consoleWidth + layout.assetsWidth + layout.rightWidth,
               std::max(width, 320.0F)));
 }
 

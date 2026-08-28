@@ -12,8 +12,8 @@ class EditorWorkspace;
 
 class EditorBuildPanel {
 public:
-  void draw(EditorWorkspace &workspace, ImVec2 position, ImVec2 size,
-            std::string &notice);
+  void open() { show_ = true; }
+  void draw(EditorWorkspace &workspace, std::string &notice);
   [[nodiscard]] EditorProjectOperationSnapshot operation() const {
     return operations_.snapshot();
   }
@@ -25,6 +25,7 @@ private:
   std::uint64_t handledOperation_ = 0;
   bool linuxTarget_ = true;
   bool androidTarget_ = false;
+  bool show_ = false;
 };
 
 } // namespace demi::editor

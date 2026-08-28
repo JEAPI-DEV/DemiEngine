@@ -126,6 +126,40 @@ bool EditorProjectDocument::setInputActions(nlohmann::json actions,
   return commit(std::move(replacement), error);
 }
 
+bool EditorProjectDocument::setInputBinding(const std::string_view action,
+                                            const std::size_t bindingIndex,
+                                            std::string input,
+                                            std::string &error) {
+  if (input.empty() || input.find(':') == std::string::npos) {
+    error = "Input bindings use device:value, for example key:space.";
+    return false;
+  }
+  nlohmann::json replacement = document_;
+  auto actions = replacement.find("input");
+  if (actions == replacement.end() || !actions->is_object()) {
+    error = "The project has no input actions.";
+    return false;
+  }
+  actions = actions->find("actions");
+  if (actions == replacement["input"].end() || !actions->is_object() ||
+      !actions->contains(action)) {
+    error = "The input action no longer exists.";
+    return false;
+  }
+  nlohmann::json &definition = (*actions)[std::string(action)];
+  if (!definition.is_object() || !definition.contains("bindings") ||
+      !definition["bindings"].is_array() ||
+      bindingIndex >= definition["bindings"].size()) {
+    error = "The input binding no longer exists.";
+    return false;
+  }
+  nlohmann::json &binding = definition["bindings"][bindingIndex];
+  if (!binding.is_object())
+    binding = nlohmann::json::object();
+  binding["input"] = std::move(input);
+  return commit(std::move(replacement), error);
+}
+
 bool EditorProjectDocument::removeScene(const std::string_view id,
                                         std::string &error) {
   if (document_.value("main_scene", "") == id) {

@@ -30,6 +30,9 @@ public:
                               std::string &error);
   [[nodiscard]] bool setInputActions(nlohmann::json actions,
                                      std::string &error);
+  [[nodiscard]] bool setInputBinding(std::string_view action,
+                                     std::size_t bindingIndex,
+                                     std::string input, std::string &error);
   [[nodiscard]] bool removeScene(std::string_view id, std::string &error);
   [[nodiscard]] bool undo(std::string &error);
   [[nodiscard]] bool redo(std::string &error);

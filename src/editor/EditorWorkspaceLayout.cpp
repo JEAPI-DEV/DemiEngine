@@ -38,16 +38,10 @@ EditorWorkspaceLayout editorWorkspaceLayout(const float requestedWidth,
   const float lowerWidth = width - layout.rightWidth;
   layout.consoleWidth =
       std::clamp(width * 0.26F, narrow ? 150.0F : 310.0F, 470.0F);
-  layout.buildWidth =
-      std::clamp(width * 0.15F, narrow ? 140.0F : 220.0F, 280.0F);
   constexpr float MinimumAssets = 120.0F;
-  if (layout.consoleWidth + layout.buildWidth + MinimumAssets > lowerWidth) {
-    const float available = std::max(lowerWidth - MinimumAssets, 1.0F);
-    const float scale = available / (layout.consoleWidth + layout.buildWidth);
-    layout.consoleWidth *= scale;
-    layout.buildWidth *= scale;
-  }
-  layout.assetsWidth = lowerWidth - layout.consoleWidth - layout.buildWidth;
+  layout.consoleWidth =
+      std::min(layout.consoleWidth, std::max(lowerWidth - MinimumAssets, 1.0F));
+  layout.assetsWidth = lowerWidth - layout.consoleWidth;
   return layout;
 }
 

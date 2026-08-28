@@ -44,10 +44,7 @@ bool saveBeforeOperation(EditorWorkspace &workspace, std::string &notice) {
 
 } // namespace
 
-void EditorBuildPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
-                            const ImVec2 size, std::string &notice) {
-  beginEditorPanel("Build", position, size);
-  editorSectionTitle("Build");
+void EditorBuildPanel::draw(EditorWorkspace &workspace, std::string &notice) {
   const EditorProjectOperationSnapshot operation = operations_.snapshot();
   if (!operation.running && operation.result &&
       operation.generation != handledOperation_) {
@@ -65,6 +62,15 @@ void EditorBuildPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
                    : operation.result->diagnostics.front().message;
     }
   }
+  if (!show_)
+    return;
+  ImGui::SetNextWindowSize({420.0F, 390.0F}, ImGuiCond_Appearing);
+  if (!ImGui::Begin("Build Project", &show_,
+                    ImGuiWindowFlags_NoSavedSettings)) {
+    ImGui::End();
+    return;
+  }
+  editorSectionTitle("Build");
   if (ImGui::SmallButton("Validate") &&
       saveBeforeOperation(workspace, notice)) {
     std::string error;
@@ -98,7 +104,8 @@ void EditorBuildPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
     ImGui::TextWrapped("%s", operation.progress.message.c_str());
     ImGui::ProgressBar(operation.progress.fraction, {-1.0F, 0.0F});
   }
-  ImGui::SetCursorPosY(std::max(ImGui::GetCursorPosY(), size.y - 48.0F));
+  ImGui::SetCursorPosY(
+      std::max(ImGui::GetCursorPosY(), ImGui::GetWindowHeight() - 48.0F));
   if (operation.running) {
     if (ImGui::Button("Cancel", {-1.0F, 30.0F})) {
       operations_.cancel();

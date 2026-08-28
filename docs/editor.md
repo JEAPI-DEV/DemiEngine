@@ -71,17 +71,23 @@ filesystem service used by `demi dev`.
   workflow used by `+ Import`; stable IDs remain editable and multiple dropped
   files are processed in order. Directories and unsupported formats use the
   normal importer diagnostics.
-- Project Settings edits preload assets/groups and scene membership through a
-  conflict-safe reversible project document. New Project uses the existing
-  template catalog and atomic scaffolder.
+- Project Settings edits preload assets/groups, scene membership, and every
+  authored input-action binding through a scrollable, conflict-safe reversible
+  project document. Binding fields show their device-qualified values and
+  preserve scale, vector, deadzone, inversion, normalization, and player
+  metadata when the input is changed. New Project uses the existing template
+  catalog and atomic scaffolder.
 - Validate, transactional Linux Cook, Linux Package, and supported Android
   Package run as cancellable background operations with structured progress
   and diagnostics. The CLI and editor share the same packaging service, and
   Build Project is enabled only when at least one real target is selected.
 - The shared shell now follows the Minimal Voxel visual contract: grouped icon
   commands, central Viewport/Game View tabs, quiet charcoal panel chrome,
-  compact Inspector sections, hierarchy visibility controls, a dedicated
-  Build panel, and split engine/project status.
+  compact Inspector sections, hierarchy visibility controls, a Build workflow
+  opened from the application menu, and split engine/project status.
+- Help > About presents the bundled engine mark, semantic version
+  plus deterministic Git-derived build iteration, and the official repository
+  link. CI can override the numeric iteration at configure time.
 - The Console displays diagnostics from the same `validatePath` service used by
   the CLI. Rejected authored edits also appear beside their Inspector target
   and in the Console through one document issue.
@@ -158,14 +164,16 @@ Required layout and presentation:
   sections. Labels and editors form a stable property grid; vector axes, color
   channels, reset actions, pickers, and resource fields must remain compact and
   keyboard operable.
-- The lower workspace uses tabbed Console/Output/Profiler and
-  Assets/Lua Console regions. Tabs must not imply functionality that has not
-  been connected to a real service.
+- The lower workspace uses Console/Profiler/Debug tabs and an Assets region.
+  Tabs must not imply functionality that has not been connected to a real
+  service. The Lua Console placeholder remains hidden until embedded Play
+  exposes a safe command-execution and structured-output contract.
 - The Assets region is ultimately a folder tree plus breadcrumb/search toolbar
   and thumbnail/file grid. The current flat source list remains honest but is
   not the final asset-browser design.
-- Build targets remain a narrow dedicated panel with configuration controls and
-  one clear primary build action once the real build service is connected.
+- Build targets and configuration open from the top Build menu instead of
+  permanently consuming lower-workspace width. The window retains one clear
+  primary build action backed by the real build service.
 - The status bar keeps engine/language context on the left and project, target,
   validation/runtime state, and readiness on the right.
 
@@ -177,8 +185,8 @@ controls.
 
 The shared visual-alignment checkpoint is implemented in `EditorTheme`,
 `EditorPanelStyle`, `EditorChrome`, `EditorToolbar`, `EditorAssetsPanel`, and
-`EditorShell`. Asset thumbnails, real profiler content, Lua Console behavior,
-and functional build controls still belong to their owning later milestones.
+`EditorShell`. Asset thumbnails and the Lua Console still belong to their
+owning later milestones.
 
 ## Implementation roadmap
 
@@ -479,9 +487,15 @@ outside the editor.
 **Depends on:** the services being displayed; it can be delivered incrementally
 as those services gain structured data.
 
-- [ ] Replace placeholder profiler content with real frame/CPU/GPU/script/
-  physics/resource data from the runtime profiler contract.
-- [ ] Add searchable diagnostics and logs with stable source/entity/field links.
+- [x] Replace placeholder profiler content with real frame/CPU/script/physics/
+  resource data from the runtime profiler contract.
+- [ ] Add real GPU timestamp samples where the active bgfx backend supports
+  them; report unsupported backends explicitly.
+- [x] Add searchable project/build diagnostics with stable
+  source/entity/component/field links.
+- [ ] Ingest structured runtime logs with stable source/entity links.
+- [ ] Add a Lua Console backed by the isolated embedded Play Lua state, with
+  bounded history and structured results/errors.
 - [x] Add input, renderer, physics, navigation, asset residency, and network
   debug views backed by real service data.
 - [x] Add explicit dirty-document close handling and recovery for interrupted
@@ -496,8 +510,8 @@ as those services gain structured data.
 rolling samples and searchable category tables. Console and build diagnostics
 are searchable by severity, code, message, path, entity, component, and field,
 with source-copy and entity-selection actions. GPU timestamps, runtime log
-ingestion, debug views, recovery/preferences, and the full release workflow
-remain open, so the Milestone 9 gate is not yet marked passed.
+ingestion, and the Lua Console remain open, so the Milestone 9 gate is not yet
+marked passed.
 
 **9B present:** a categorized Debug tab consumes `RuntimeDebugSnapshot` for
 input, physics/contact counts, navigation configuration, resident asset memory,
@@ -528,8 +542,12 @@ editing and conflict handling remain supported.
 ### Immediate next task
 
 Milestone 9A through 9D are present. Continue with **Milestone 9E: structured
-runtime log ingestion and real GPU timestamps where supported**. Do not mark
-the profiler/diagnostics bullets complete while either remains unavailable.
+runtime log ingestion, an embedded-Play Lua Console, and real GPU timestamps
+where supported**. The Lua Console must execute against the isolated runtime
+Lua state rather than a second editor-only VM, retain bounded command history,
+and route values and errors through the structured runtime log stream. Do not
+restore its tab or mark the profiler/diagnostics bullets complete while the
+corresponding service remains unavailable.
 
 For each todo item that mutates authored state, use this implementation order:
 

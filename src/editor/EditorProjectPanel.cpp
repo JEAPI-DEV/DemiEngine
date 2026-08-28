@@ -8,6 +8,7 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <cstring>
 
 namespace demi::editor {
 namespace {
@@ -16,6 +17,18 @@ void reportDiagnostics(const Diagnostics &diagnostics, std::string &notice) {
   if (diagnostics.empty())
     return;
   notice = diagnostics.front().message;
+}
+
+std::string inputBindingValue(const nlohmann::json &binding) {
+  return binding.is_object() ? binding.value("input", std::string{})
+                             : std::string{};
+}
+
+void copyInput(std::array<char, 160> &destination,
+               const std::string_view value) {
+  destination.fill('\0');
+  const std::size_t count = std::min(value.size(), destination.size() - 1);
+  std::memcpy(destination.data(), value.data(), count);
 }
 
 } // namespace
@@ -31,6 +44,7 @@ void EditorProjectPanel::draw(EditorWorkspace &workspace, std::string &notice) {
         ImGui::TextColored({0.95F, 0.67F, 0.28F, 1.0F}, "Modified");
       }
       ImGui::Separator();
+      ImGui::BeginChild("project-settings-content", {0.0F, -48.0F}, false);
       ImGui::TextUnformatted("Preloaded assets and groups");
       std::vector<std::string> preloads =
           workspace.projectDocument().preloadedAssets();
@@ -131,7 +145,48 @@ void EditorProjectPanel::draw(EditorWorkspace &workspace, std::string &notice) {
           ImGui::SameLine(565.0F);
           if (ImGui::SmallButton("Remove"))
             removeAction = name;
+          const auto bindings = action.find("bindings");
+          if (bindings != action.end() && bindings->is_array()) {
+            for (std::size_t index = 0; index < bindings->size(); ++index) {
+              ImGui::PushID(static_cast<int>(index));
+              const std::string input = inputBindingValue((*bindings)[index]);
+              const std::string editorId = name + '#' + std::to_string(index);
+              InputBindingEditor &editor = inputBindingEditors_[editorId];
+              const bool hasPendingEdit =
+                  std::string(editor.value.data()) != editor.source;
+              if (editor.source != input) {
+                if (!hasPendingEdit)
+                  copyInput(editor.value, input);
+                editor.source = input;
+              }
+              ImGui::TextDisabled("Binding %zu", index + 1);
+              ImGui::SameLine(105.0F);
+              ImGui::SetNextItemWidth(360.0F);
+              const bool submitted = ImGui::InputTextWithHint(
+                  "##input", "key:space, mouse:left, gamepad:south...",
+                  editor.value.data(), editor.value.size(),
+                  ImGuiInputTextFlags_EnterReturnsTrue);
+              ImGui::SameLine();
+              const std::string replacement = editor.value.data();
+              const bool changed = replacement != input;
+              ImGui::BeginDisabled(!changed || replacement.empty());
+              if ((ImGui::SmallButton("Apply") || submitted) && changed &&
+                  !replacement.empty()) {
+                std::string error;
+                if (workspace.setProjectInputBinding(name, index, replacement,
+                                                     error)) {
+                  editor.source = replacement;
+                  notice = "Input binding updated";
+                } else {
+                  notice = error;
+                }
+              }
+              ImGui::EndDisabled();
+              ImGui::PopID();
+            }
+          }
           ImGui::PopID();
+          ImGui::Spacing();
         }
         if (removeAction) {
           actions.erase(*removeAction);
@@ -187,7 +242,8 @@ void EditorProjectPanel::draw(EditorWorkspace &workspace, std::string &notice) {
         ImGui::EndDisabled();
       }
 
-      ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 50.0F);
+      ImGui::EndChild();
+      ImGui::Separator();
       ImGui::BeginDisabled(!workspace.projectDocument().canUndo());
       if (ImGui::Button("Undo")) {
         std::string error;

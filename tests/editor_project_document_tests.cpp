@@ -43,9 +43,21 @@ int main() {
       {{"jump",
         {{"type", "button"},
          {"context", "gameplay"},
-         {"bindings", nlohmann::json::array({{{"input", "key:space"}}})}}}},
+         {"bindings",
+          nlohmann::json::array({{{"input", "key:space"}, {"player", 1}}})}}}},
       error));
   assert(document.inputActions().contains("jump"));
+  assert(document.setInputBinding("jump", 0, "key:j", error));
+  assert(document.inputActions()["jump"]["bindings"][0]["input"] == "key:j");
+  assert(document.inputActions()["jump"]["bindings"][0]["player"] == 1);
+  const std::string beforeInvalidBinding = document.json().dump();
+  assert(!document.setInputBinding("jump", 0, "space", error));
+  assert(document.json().dump() == beforeInvalidBinding);
+  assert(document.undo(error));
+  assert(document.inputActions()["jump"]["bindings"][0]["input"] ==
+         "key:space");
+  assert(document.redo(error));
+  assert(document.inputActions()["jump"]["bindings"][0]["input"] == "key:j");
   const std::string beforeInvalidInput = document.json().dump();
   assert(!document.setInputActions(
       {{"broken", {{"type", "unknown"}, {"context", "gameplay"}}}}, error));

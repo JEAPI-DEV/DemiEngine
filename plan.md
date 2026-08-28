@@ -2103,7 +2103,10 @@ runtime/editor parser avoids a second schema or editor-only representation.
 Next:
 
 1. Add structured runtime log ingestion with stable source/entity links.
-2. Add real GPU timestamp samples where the bgfx backend supports them, keeping
+2. Add a Lua Console attached to the isolated embedded Play Lua state, with
+   bounded command history and results/errors carried by the structured runtime
+   log service. Do not create a second editor-only Lua VM.
+3. Add real GPU timestamp samples where the bgfx backend supports them, keeping
    unsupported backends explicitly unavailable.
 
 Acceptance: an editor-triggered validate/cook/package operation returns the

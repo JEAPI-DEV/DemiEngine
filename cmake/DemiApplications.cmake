@@ -103,6 +103,7 @@ else()
     demi-cli-support demi-runtime-lib)
 
   add_library(demi-editor-ui STATIC
+    src/editor/EditorAboutPanel.cpp
     src/editor/EditorAnimationMachinePanel.cpp
     src/editor/EditorAssetDialogs.cpp
     src/editor/EditorAssetsPanel.cpp
@@ -148,5 +149,9 @@ else()
   add_executable(demi-editor src/editor/main.cpp)
   target_link_libraries(demi-editor PRIVATE demi-editor-ui)
   target_compile_definitions(demi-editor-ui PRIVATE
-    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+    DEMI_EDITOR_BRANDING_PATH="${CMAKE_BINARY_DIR}/editor-assets/demi_engine.png")
+  file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/editor-assets")
+  configure_file("${CMAKE_SOURCE_DIR}/images/demi_engine.png"
+    "${CMAKE_BINARY_DIR}/editor-assets/demi_engine.png" COPYONLY)
 endif()
