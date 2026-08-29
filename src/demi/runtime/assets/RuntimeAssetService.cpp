@@ -79,7 +79,8 @@ public:
       error = "Resident source upload received an empty payload.";
       return false;
     }
-    resident_[asset.id] = decoded.payload;
+    resident_[asset.id] =
+        std::static_pointer_cast<ResidentSourcePayload>(decoded.payload);
     error.clear();
     return true;
   }
@@ -88,11 +89,22 @@ public:
     resident_.erase(std::string(assetId));
   }
 
+  [[nodiscard]] std::optional<std::string>
+  text(const std::string_view assetId) const {
+    const auto found = resident_.find(std::string(assetId));
+    if (found == resident_.end() || found->second == nullptr ||
+        found->second->files.size() != 1)
+      return std::nullopt;
+    const std::vector<std::byte> &bytes = found->second->files.front();
+    return std::string(reinterpret_cast<const char *>(bytes.data()),
+                       bytes.size());
+  }
+
   std::string_view backendName() const override { return "resident-source"; }
 
 private:
   SupportPredicate supports_;
-  std::map<std::string, std::shared_ptr<void>> resident_;
+  std::map<std::string, std::shared_ptr<ResidentSourcePayload>> resident_;
 };
 
 } // namespace
@@ -300,6 +312,20 @@ bool RuntimeAssetService::releaseScene(const std::string_view sceneId,
 bool RuntimeAssetService::reload(const std::string_view assetId,
                                  Diagnostics *diagnostics) {
   return service_ && service_->reload(assetId, diagnostics);
+}
+
+std::optional<std::string>
+RuntimeAssetService::text(const std::string_view assetId,
+                          Diagnostics *diagnostics) const {
+  const auto loader =
+      std::dynamic_pointer_cast<ResidentSourceAssetLoader>(fallbackLoader_);
+  if (loader != nullptr)
+    if (auto content = loader->text(assetId))
+      return content;
+  report(diagnostics, "ASSET_TEXT_NOT_RESIDENT",
+         "Text requires one loaded resident source: " + std::string(assetId),
+         std::string(assetId));
+  return std::nullopt;
 }
 
 bool RuntimeAssetService::reloadChangedResidentAssets(

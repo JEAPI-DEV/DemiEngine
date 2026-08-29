@@ -1,5 +1,6 @@
 #include "demi/runtime/ui/UiDocumentParser.h"
 #include "demi/runtime/scene/SceneJson.h"
+#include "demi/runtime/ui/UiVariables.h"
 #include <nlohmann/json.hpp>
 namespace demi::runtime::ui {
 namespace {
@@ -57,8 +58,10 @@ void parseNode(const Json &json, const std::string &parent, UiDocument &out) {
   node.type = scene_loading::stringOr(json, "type", "container");
   node.style = scene_loading::stringOr(json, "style");
   node.text = scene_loading::stringOr(json, "text");
+  node.textTemplate = node.text;
   node.font = scene_loading::stringOr(json, "font");
   node.placeholder = scene_loading::stringOr(json, "placeholder");
+  node.placeholderTemplate = node.placeholder;
   node.localizationKey = scene_loading::stringOr(json, "localization_key");
   node.texture = scene_loading::stringOr(json, "texture");
   node.action = scene_loading::stringOr(json, "action");
@@ -169,6 +172,10 @@ UiDocument parseUiDocument(const nlohmann::json &document) {
   UiDocument result;
   if (auto value = scene_loading::vec2Field(document, "canvas_size"))
     result.canvasSize = *value;
+  if (const Json *variables = scene_loading::arrayField(document, "variables"))
+    for (const Json &name : *variables)
+      if (name.is_string())
+        result.declaredVariables.insert(name.get<std::string>());
   if (const Json *localization =
           scene_loading::objectField(document, "localization"))
     for (const auto &[key, value] : localization->items())
@@ -222,6 +229,8 @@ UiDocument parseUiDocument(const nlohmann::json &document) {
   }
   if (const Json *root = scene_loading::objectField(document, "root"))
     parseNode(*root, {}, result);
+  UiVariables{}.discover(result);
+  UiVariables{}.apply(result);
   for (UiNode &node : result.nodes)
     if (const auto style = result.styles.find(node.style);
         style != result.styles.end()) {

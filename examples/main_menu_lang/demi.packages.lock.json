@@ -1,0 +1,28 @@
+{
+  "format_version": 1,
+  "packages": [
+    {
+      "archive_hash": "sha256:e08fd06b15c7c8f30e1fcc93e3594c94c7f2c37216a6ad464b5026ac9ba4453e",
+      "archive_uri": "package://demi.ui.language_file/1.0.0",
+      "manifest": {
+        "dependencies": {},
+        "engine": "^0.1.0",
+        "exported_events": [],
+        "files": [
+          "README.md",
+          "scripts/language_file.lua",
+          "tests/language_file_test.lua"
+        ],
+        "format_version": 1,
+        "name": "demi.ui.language_file",
+        "public_modules": [
+          "language_file"
+        ],
+        "version": "1.0.0"
+      },
+      "manifest_hash": "sha256:fdb09e69e179999acd1c9f7df66692695111331ac4093e5119b65805b61cd135",
+      "yanked": false
+    }
+  ],
+  "registry": "../../packages"
+}

@@ -63,6 +63,11 @@ add_test(NAME demi-network-lobby-package
     ${CMAKE_SOURCE_DIR}/packages/sources/demi.network.lobby)
 set_tests_properties(demi-network-lobby-package
   PROPERTIES LABELS "packages;network")
+add_test(NAME demi-ui-language-file-package
+  COMMAND demi package test
+    ${CMAKE_SOURCE_DIR}/packages/sources/demi.ui.language_file)
+set_tests_properties(demi-ui-language-file-package
+  PROPERTIES LABELS "packages;ui;localization")
 add_test(NAME demi-project-watch-reload-tests
   COMMAND demi-project-watch-reload-tests)
 add_test(NAME demi-capability-manifest-tests

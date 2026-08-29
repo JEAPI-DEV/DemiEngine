@@ -48,6 +48,10 @@ public:
                                   Diagnostics *diagnostics = nullptr);
   [[nodiscard]] bool reload(std::string_view assetId,
                             Diagnostics *diagnostics = nullptr);
+  // Returns one resident source as UTF-8-compatible text without rereading it.
+  // File formats and parsing remain consumer policy.
+  [[nodiscard]] std::optional<std::string>
+  text(std::string_view assetId, Diagnostics *diagnostics = nullptr) const;
   [[nodiscard]] bool
   reloadChangedResidentAssets(const AssetRegistry &previous,
                               Diagnostics *diagnostics = nullptr);

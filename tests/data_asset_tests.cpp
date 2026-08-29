@@ -1,6 +1,7 @@
 #include "demi/assets/AssetImporter.h"
 #include "demi/assets/DataAsset.h"
 #include "demi/assets/DataDocument.h"
+#include "demi/assets/YamlDataDocument.h"
 #include "demi/runtime/data/DataAssetStore.h"
 
 #include <algorithm>
@@ -57,10 +58,12 @@ int main() {
 
   const auto dataImporter = importerFor("content.json", "DataAsset");
   const auto materialImporter = importerFor("material.json", "Material");
+  const auto textImporter = importerFor("language.yml", "Text");
   if (!dataImporter || dataImporter->name != "json_data" ||
       dataImporter->assetType != "DataAsset" || !materialImporter ||
       materialImporter->name != "material" ||
-      importerFor("unknown.json", "ArbitraryType")) {
+      importerFor("unknown.json", "ArbitraryType") || !textImporter ||
+      textImporter->name != "text" || textImporter->copyToGeneratedOnImport) {
     std::cerr << "Typed JSON importer selection failed.\n";
     return 1;
   }
@@ -86,6 +89,30 @@ int main() {
       !allTypes.document->root().find("empty_array")->isArray() ||
       allTypes.document->root().find("array")->array()->size() != 3) {
     std::cerr << "DataDocument did not preserve JSON value kinds.\n";
+    return 1;
+  }
+
+  const auto yaml = parseYamlDataDocument(R"yaml(
+locale: de
+variables:
+  title: "Burg"
+  hint: |
+    Baue Tuerme.
+    Beschuetze die Burg.
+enabled: true
+count: 3
+)yaml");
+  const DataValue *yamlVariables =
+      yaml.document ? yaml.document->root().find("variables") : nullptr;
+  if (!yaml.document || hasErrors(yaml.diagnostics) ||
+      yaml.document->root().find("enabled") == nullptr ||
+      !yaml.document->root().find("enabled")->isBoolean() ||
+      !yaml.document->root().find("count")->isInteger() ||
+      yamlVariables == nullptr || yamlVariables->find("title") == nullptr ||
+      std::get<std::string>(yamlVariables->find("title")->value) != "Burg" ||
+      !containsCode(parseYamlDataDocument("value: [").diagnostics,
+                    "YAML_DOCUMENT_INVALID")) {
+    std::cerr << "YAML did not convert through the generic Data contract.\n";
     return 1;
   }
 

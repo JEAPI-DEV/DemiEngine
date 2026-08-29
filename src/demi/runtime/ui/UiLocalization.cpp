@@ -1,4 +1,5 @@
 #include "demi/runtime/ui/UiLocalization.h"
+#include "demi/runtime/ui/UiVariables.h"
 namespace demi::runtime::ui {
 namespace {
 std::string pseudo(std::string_view value) {
@@ -6,12 +7,13 @@ std::string pseudo(std::string_view value) {
   out.reserve(value.size() * 2 + 2);
   for (const char c : value) {
     out += c;
-    if (c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u' ||
-        c == 'A' || c == 'E' || c == 'I' || c == 'O' || c == 'U') out += c;
+    if (c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u' || c == 'A' ||
+        c == 'E' || c == 'I' || c == 'O' || c == 'U')
+      out += c;
   }
   return out + "]";
 }
-}
+} // namespace
 bool UiLocalization::setLocale(UiDocument &document, std::string locale,
                                std::string &error) const {
   const auto values = document.locales.find(locale);
@@ -37,9 +39,12 @@ void UiLocalization::apply(UiDocument &document, bool usePseudo) {
         TextEditingEngine::normalize(node.text, node.textEdit);
       }
     if (!node.placeholderLocalizationKey.empty())
-      if (const auto found = document.localization.find(node.placeholderLocalizationKey);
+      if (const auto found =
+              document.localization.find(node.placeholderLocalizationKey);
           found != document.localization.end())
         node.placeholder = usePseudo ? pseudo(found->second) : found->second;
   }
+  if (!usePseudo)
+    UiVariables{}.apply(document);
 }
 } // namespace demi::runtime::ui

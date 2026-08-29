@@ -183,6 +183,9 @@ AssetImporterRegistry createBuiltinImporterRegistry() {
   add(descriptor("collider-generator", {".gltf", ".glb"}, {"Collider3D"}));
   add(descriptor("model", {".obj", ".iqm", ".m3d"}, {"Model3D"}));
   add(descriptor("video", {".mp4", ".webm", ".mov"}, {"VideoClip"}));
+  auto text = descriptor("text", {".txt", ".yaml", ".yml"}, {"Text"});
+  text.copyToGeneratedOnImport = false;
+  add(std::move(text));
   add(descriptor("json_data", {".json"}, {"DataAsset"}));
   add(descriptor("json_schema", {".json"}, {"DataSchema"}));
   add(descriptor("network_contract", {".json"}, {"NetworkContract"}));

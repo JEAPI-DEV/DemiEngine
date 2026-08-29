@@ -1,0 +1,43 @@
+{
+  "format_version": 1,
+  "name": "Main Menu Languages",
+  "package_registry": "../../packages",
+  "packages": {
+    "demi.ui.language_file": "^1.0.0"
+  },
+  "main_scene": "scene://main_menu_lang/main",
+  "scenes": [
+    {
+      "id": "scene://main_menu_lang/main",
+      "path": "scenes/main.scene.json"
+    }
+  ],
+  "assets": [
+    "asset://language/en"
+  ],
+  "gameplay_model": {
+    "projection": "2d",
+    "physics": "box2d"
+  },
+  "simulation": {
+    "fixed_timestep": 0.016666667,
+    "random_seed": 1201
+  },
+  "input": {
+    "actions": {
+      "language_english": {
+        "type": "button",
+        "context": "menu",
+        "bindings": [{"input": "key:1"}]
+      },
+      "language_german": {
+        "type": "button",
+        "context": "menu",
+        "bindings": [{"input": "key:2"}]
+      }
+    }
+  },
+  "scripting": {
+    "language": "lua54"
+  }
+}

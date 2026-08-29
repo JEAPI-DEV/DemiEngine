@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://language/en",
+  "importer": "text",
+  "importer_version": 1,
+  "settings": {},
+  "source": "language_en.yml",
+  "source_hash": "fnv1a64:840b012f25bfc90e",
+  "type": "Text"
+}

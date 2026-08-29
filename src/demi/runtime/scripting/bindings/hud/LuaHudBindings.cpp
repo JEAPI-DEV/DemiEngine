@@ -149,6 +149,31 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
   });
   hud.set_function("set_pseudo_locale",
                    [&host](bool enabled) { host.setHudPseudoLocale(enabled); });
+  hud.set_function("set_variable", [&host](const std::string &name,
+                                           const std::string &value) {
+    std::string error;
+    const bool changed = host.setHudVariable(name, value, error);
+    return std::tuple{changed, error};
+  });
+  hud.set_function("set_variables", [&host](const sol::table &values) {
+    std::unordered_map<std::string, std::string> variables;
+    for (const auto &[key, value] : values) {
+      if (!key.is<std::string>() || !value.is<std::string>())
+        return std::tuple{
+            false, std::string{"HUD variables must map strings to strings."}};
+      variables[key.as<std::string>()] = value.as<std::string>();
+    }
+    std::string error;
+    const bool changed = host.setHudVariables(std::move(variables), error);
+    return std::tuple{changed, error};
+  });
+  hud.set_function("has_variable", [&host](const std::string &name) {
+    return host.hudVariableDeclared(name);
+  });
+  hud.set_function("get_variable", [&host](const std::string &name) {
+    return host.hudVariable(name);
+  });
+  hud.set_function("reset_variables", [&host] { host.resetHudVariables(); });
   hud.set_function("visible_range", [](std::size_t count, float itemExtent,
                                        float offset, float viewport,
                                        sol::optional<std::size_t> overscan) {
@@ -177,9 +202,9 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
   hud.set_function(
       "recycle_rows",
       [&host, lua](const std::string &collectionId,
-                   const ui::UiNodeHandle &rowTemplate,
-                   const sol::table &keys, const sol::table &extents,
-                   const float offset, const float viewport,
+                   const ui::UiNodeHandle &rowTemplate, const sol::table &keys,
+                   const sol::table &extents, const float offset,
+                   const float viewport,
                    const sol::optional<std::size_t> overscan) mutable {
         std::vector<std::string> stableKeys;
         std::vector<float> rowExtents;
@@ -189,9 +214,9 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
           const auto key = keys.get<sol::optional<std::string>>(index);
           if (!key) {
             sol::table empty = lua.create_table();
-            return std::tuple{empty, std::string{
-                                         "Virtual row keys must be a dense "
-                                         "string array."}};
+            return std::tuple{empty,
+                              std::string{"Virtual row keys must be a dense "
+                                          "string array."}};
           }
           stableKeys.push_back(*key);
         }
@@ -199,16 +224,17 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
           const auto extent = extents.get<sol::optional<float>>(index);
           if (!extent) {
             sol::table empty = lua.create_table();
-            return std::tuple{empty, std::string{
-                                         "Virtual row extents must be a dense "
-                                         "number array."}};
+            return std::tuple{empty,
+                              std::string{"Virtual row extents must be a dense "
+                                          "number array."}};
           }
           rowExtents.push_back(*extent);
         }
         const auto result = host.reconcileHudRows(
-            collectionId, rowTemplate, stableKeys, rowExtents, offset,
-            viewport, overscan.value_or(2));
-        sol::table rows = lua.create_table(static_cast<int>(result.rows.size()), 0);
+            collectionId, rowTemplate, stableKeys, rowExtents, offset, viewport,
+            overscan.value_or(2));
+        sol::table rows =
+            lua.create_table(static_cast<int>(result.rows.size()), 0);
         for (std::size_t index = 0; index < result.rows.size(); ++index) {
           const auto &binding = result.rows[index];
           sol::table row = lua.create_table();
@@ -264,12 +290,11 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
                                         float b, sol::optional<float> a) {
     return host.setHudColor(id, {r, g, b, a.value_or(1.0F)});
   });
-  hud.set_function("set_background_color",
-                   [&host](const std::string &id, float r, float g, float b,
-                           sol::optional<float> a) {
-                     return host.setHudBackgroundColor(
-                         id, {r, g, b, a.value_or(1.0F)});
-                   });
+  hud.set_function("set_background_color", [&host](const std::string &id,
+                                                   float r, float g, float b,
+                                                   sol::optional<float> a) {
+    return host.setHudBackgroundColor(id, {r, g, b, a.value_or(1.0F)});
+  });
   hud.set_function("set_opacity",
                    [&host](const std::string &id, float opacity) {
                      return host.setHudOpacity(id, opacity);

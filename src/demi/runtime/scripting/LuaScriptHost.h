@@ -428,6 +428,16 @@ public:
   void setHudReducedMotion(bool enabled);
   [[nodiscard]] bool setHudLocale(const std::string &locale,
                                   std::string &error);
+  [[nodiscard]] bool setHudVariable(const std::string &name,
+                                    const std::string &value,
+                                    std::string &error);
+  [[nodiscard]] bool
+  setHudVariables(std::unordered_map<std::string, std::string> variables,
+                  std::string &error);
+  [[nodiscard]] bool hudVariableDeclared(const std::string &name) const;
+  [[nodiscard]] std::optional<std::string>
+  hudVariable(const std::string &name) const;
+  void resetHudVariables();
   void setHudPseudoLocale(bool enabled);
   [[nodiscard]] std::optional<float> saveNumber(const std::string &slot,
                                                 const std::string &key);

@@ -1,0 +1,8 @@
+locale: en
+variables:
+  title: DEMI ENGINE
+  subtitle: Native HUD variables with cached YAML language assets
+  play: PLAY
+  settings: SETTINGS
+  language_hint: "[1] English  [2] Deutsch"
+  load_status: English was preloaded with the project

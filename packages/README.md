@@ -15,6 +15,7 @@ public Demi APIs or explicitly declared packages and keep game policy in Lua.
 | `demi.gameplay.encounters` | waves, spawn failures, objectives |
 | `demi.gameplay.controllers` | platform/top-down/click/isometric intents |
 | `demi.network.lobby` | optional contract-backed lobby/ready/team/map state |
+| `demi.ui.language_file` | cached YAML languages applied to native HUD variables |
 
 Projects declare constraints in `demi.project.json`:
 

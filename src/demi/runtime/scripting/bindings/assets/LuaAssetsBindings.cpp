@@ -62,8 +62,7 @@ void LuaAssetsBindingModule::install(LuaScriptHost &host,
   assetsTable.set_function("unload", [&host](const std::string &uri) {
     Diagnostics diagnostics;
     RuntimeAssetService *assets = host.runtimeAssetService();
-    const bool success =
-        assets != nullptr && assets->unload(uri, &diagnostics);
+    const bool success = assets != nullptr && assets->unload(uri, &diagnostics);
     return std::tuple{success, firstError(diagnostics)};
   });
   assetsTable.set_function("reload", [&host](const std::string &assetId) {
@@ -72,6 +71,14 @@ void LuaAssetsBindingModule::install(LuaScriptHost &host,
     const bool success =
         assets != nullptr && assets->reload(assetId, &diagnostics);
     return std::tuple{success, firstError(diagnostics)};
+  });
+  assetsTable.set_function("text", [&host](const std::string &assetId) {
+    Diagnostics diagnostics;
+    RuntimeAssetService *assets = host.runtimeAssetService();
+    const auto content = assets == nullptr
+                             ? std::optional<std::string>{}
+                             : assets->text(assetId, &diagnostics);
+    return std::tuple{content, firstError(diagnostics)};
   });
   assetsTable.set_function("memory_report", [state, &host] {
     sol::state_view view(state);

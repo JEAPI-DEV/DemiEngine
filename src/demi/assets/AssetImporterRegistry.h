@@ -25,6 +25,7 @@ struct ImporterDescriptor {
   std::vector<std::string> platforms;
   std::string settingsSchema = R"({"type":"object"})";
   bool threadSafe = true;
+  bool copyToGeneratedOnImport = true;
 };
 
 struct ImportExecutionRequest {
