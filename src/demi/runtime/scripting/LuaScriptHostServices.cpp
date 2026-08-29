@@ -247,7 +247,7 @@ int LuaScriptHost::emitEvent(const std::string &eventName,
     payloadIndex > 0 ? lua_pushvalue(state, payloadIndex) : lua_newtable(state);
     std::string error;
     if (!luaCall(state, 1, 0, error)) {
-      luaReportCallbackError("Events.emit", {}, eventName, error);
+      luaReportCallbackError(state, "Events.emit", {}, eventName, error);
     }
     ++delivered;
   }
@@ -384,16 +384,13 @@ void LuaScriptHost::dispatchHudEvents() {
           if (touch.phase == TouchPhase::Moved &&
               (touch.delta.x != 0.0F || touch.delta.y != 0.0F)) {
             const Vec2 canvasDelta{
-                .x = -touch.delta.x *
-                     std::max(world_->hudCanvasSize.x, 1.0F) /
+                .x = -touch.delta.x * std::max(world_->hudCanvasSize.x, 1.0F) /
                      static_cast<float>(std::max(viewportWidth_, 1)),
-                .y = -touch.delta.y *
-                     std::max(world_->hudCanvasSize.y, 1.0F) /
+                .y = -touch.delta.y * std::max(world_->hudCanvasSize.y, 1.0F) /
                      static_cast<float>(std::max(viewportHeight_, 1)),
             };
-            changed = interaction.scrollPointer(world_->ui, touch.id,
-                                                  position, canvasDelta,
-                                                  "touch") ||
+            changed = interaction.scrollPointer(world_->ui, touch.id, position,
+                                                canvasDelta, "touch") ||
                       changed;
           }
           if (changed)
@@ -580,7 +577,8 @@ void LuaScriptHost::updateTimers(const float dt) {
     lua_pushinteger(state, static_cast<lua_Integer>(timer.id));
     std::string error;
     if (!luaCall(state, 1, 0, error)) {
-      luaReportCallbackError("Timer", {}, std::to_string(timer.id), error);
+      luaReportCallbackError(state, "Timer", {}, std::to_string(timer.id),
+                             error);
     }
     if (timer.repeating && !timer.cancelled) {
       timer.remaining += std::max(timer.interval, 0.0001F);

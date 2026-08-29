@@ -20,7 +20,9 @@ namespace demi::runtime {
 
 [[nodiscard]] bool luaCall(lua_State *state, int argCount, int resultCount,
                            std::string &error);
-void luaReportCallbackError(const char *functionName,
+void luaInstallRuntimeLogging(lua_State *state, RuntimeLogBuffer &log);
+[[nodiscard]] RuntimeLogBuffer *luaRuntimeLog(lua_State *state);
+void luaReportCallbackError(lua_State *state, const char *functionName,
                             const std::filesystem::path &path,
                             const std::string &ownerId,
                             const std::string &error);

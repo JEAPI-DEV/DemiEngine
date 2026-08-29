@@ -1585,7 +1585,7 @@ reserved for content with a lifetime independent of the scene.
 The editor should accelerate the same files and commands used by the CLI. It
 must not become a second engine with hidden state.
 
-**Status: in progress.** `demi editor` now launches a native SDL3/bgfx/Dear
+**Status: complete.** `demi editor` now launches a native SDL3/bgfx/Dear
 ImGui workspace. It loads real projects, shows the scene hierarchy, generates
 editable fields from component metadata, browses authored sources, and reports
 shared CLI diagnostics. Scene field edits use reversible stable-ID commands,
@@ -1959,7 +1959,7 @@ Status labels below mean: **done** is implemented and covered, **partial** has a
 usable vertical slice but listed work remains, and **planned** must not be
 represented by an enabled control.
 
-#### 8A. Scene document, persistence, and field commands — partial
+#### 8A. Scene document, persistence, and field commands — complete
 
 Present: main-scene document, scalar/vector/color field commands, continuous
 coalescing, undo/redo, canonical dirty tracking, conflict-safe atomic save,
@@ -1971,20 +1971,15 @@ preview rebuilds restore canonical JSON and both history stacks; focused tests
 cover missing/deleted files, stale temporaries, permissions, save/undo, reload,
 and every conflict outcome.
 
-Next:
-
-1. Generalize the document abstraction only when a second real format (prefab,
-   HUD, material, or data asset) is implemented. Do not create empty base
-   classes in advance.
-2. Add structural merge only if a deterministic tested algorithm and clear
-   conflict presentation are implemented; it is not required by the current
-   safe choice model.
+The persistence boundary is now reused by real prefab, HUD, material,
+animation, data, input, and audio documents. Structural merge remains an
+optional future workflow and is not part of this slice's safe conflict model.
 
 Acceptance: every supported operation is atomic; invalid operations leave
 canonical content and both history stacks unchanged; save/reload/conflict tests
 cover success and failure paths.
 
-#### 8B. Generated hierarchy and inspector — partial
+#### 8B. Generated hierarchy and inspector — complete
 
 Present: parent-derived hierarchy, stable-ID selection, entity name/enabled/
 layer editing, metadata-generated boolean/integer/number/string/enum/vector/
@@ -1992,12 +1987,9 @@ color fields, hierarchy create/duplicate/drag-reparent/subtree-delete controls,
 inspector add/remove component controls driven by the descriptor catalog, and
 inline rejected-edit diagnostics mirrored in the Console.
 
-Next:
-
-1. Add a reference picker once the editor camera/selection affordances exist.
-2. Add metadata for reference pickers, documentation, restart/read-only policy,
-   and canonical component defaults where missing.
-3. Add explicit mixed-value multi-selection.
+Reference pickers, reference metadata, canonical component defaults, restart/
+read-only presentation, and explicit mixed-value multi-selection are present
+and use the shared descriptor/document paths.
 
 Acceptance: no component-specific switch is added to the generic inspector;
 hierarchy operations preserve stable references or reject with actionable
@@ -2062,7 +2054,7 @@ Acceptance: saving from a specialized editor produces the same canonical source
 and validation result as direct text authoring; no specialized document keeps a
 second unsynchronized model.
 
-#### 8F. Project, assets, diagnostics, profiler, and builds — partial
+#### 8F. Project, assets, diagnostics, profiler, and builds — complete
 
 Present: project discovery/opening/creation through the atomic template
 scaffolder; authored-source folder browsing and type filtering; manifest,
@@ -2078,8 +2070,10 @@ samples for update/fixed-step, Lua, physics, animation, network, input,
 resource residency, and render submission statistics. It exposes latest,
 average, p95, and maximum CPU times plus real gauges. Searchable Console/build
 diagnostics include severity filters, copyable source locations, and stable
-entity/component/field navigation when validation provides enough context. GPU
-time remains explicitly unavailable pending bgfx timestamp-query support.
+entity/component/field navigation when validation provides enough context.
+The editor consumes bgfx per-view GPU timestamps for the embedded Game views
+8-11 and records total/pass samples when the backend supplies a valid timer;
+unsupported backends remain explicitly unavailable.
 Milestone 9B adds an immutable embedded-runtime debug snapshot and categorized
 Input, Renderer, Physics, Navigation, Assets, and Network views. Runtime overlay
 toggles are isolated to Play state and are discarded on Stop.
@@ -2099,15 +2093,12 @@ Lua gameplay modules may opt into Add Component discovery with lightweight
 `@demi_component` and `@demi_property` annotations. Module URIs provide stable
 identity, assignment values provide defaults and inferred types, and the shared
 runtime/editor parser avoids a second schema or editor-only representation.
-
-Next:
-
-1. Add structured runtime log ingestion with stable source/entity links.
-2. Add a Lua Console attached to the isolated embedded Play Lua state, with
-   bounded command history and results/errors carried by the structured runtime
-   log service. Do not create a second editor-only Lua VM.
-3. Add real GPU timestamp samples where the bgfx backend supports them, keeping
-   unsupported backends explicitly unavailable.
+Milestone 9E adds a bounded per-runtime structured log for engine messages, Lua
+`print`, callback failures, and console results, including source/line and
+entity/component context where available. The searchable Console ingests those
+records and retains the final Play snapshot after Stop. The Lua Console runs
+expressions and statements against the isolated embedded Play Lua state, keeps
+bounded navigable command history, and creates no second VM.
 
 Acceptance: an editor-triggered validate/cook/package operation returns the
 same result and artifacts as the corresponding CLI service call; cancellation
@@ -2619,6 +2610,125 @@ evaluated sequence always repair divergence after loss or reordering.
 - Despawn, reconnect, scene change, and ownership transfer clear or rebase all
   input and snapshot history without stale corrections or retained memory.
 
+## Step 12 — Dockable and Persistent Editor Workspace
+
+The editor should eventually support a Unity-style workspace in which the
+Hierarchy, Scene/Game view, Inspector, Console, Assets, and specialized panels
+can be moved, resized, tabbed, and docked. The arrangement must survive an
+editor restart without becoming project-authored state.
+
+**Status: explicitly deferred.** The current fixed layout remains the supported
+workspace while Steps 9 and 10 close shipping and reliability gaps. Do not
+approximate this step by merely removing `NoMove`/`NoResize`: floating panels
+without a dockspace would overlap, lose the current coherent default, and fail
+the requested workflow.
+
+### Architectural boundaries
+
+- Pin a Dear ImGui docking revision compatible with the bgfx wrapper. Complete
+  a dependency spike before changing the editor shell; do not maintain two
+  ImGui copies or invent a custom docking framework.
+- `EditorDockingWorkspace` owns the full-window dockspace, first-run default
+  arrangement, panel visibility, and Reset Workspace command. It does not own
+  panel content or authored documents.
+- The UI host owns ImGui docking configuration and the user-data layout path.
+  Workspace state belongs below the platform user-data directory, never beside
+  `demi.project.json`, in source control, or in generated project content.
+- Individual panels own their controls and content. They query their current
+  content region and report viewport rectangles; they do not choose global
+  positions or sibling sizes.
+- `EditorDesignTokens` centralizes shared spacing, standard control sizes,
+  minimum panel dimensions, and visual constants. `EditorDefaultLayout`
+  centralizes initial split ratios and dock relationships. Keep genuinely
+  component-specific measurements local rather than creating a global bag of
+  unrelated numbers.
+- Existing `EditorPreferencesStore` remains responsible for typed preferences
+  such as snapping and overlay visibility. Dock layout persistence is a
+  separate workspace concern with its own reset/corruption behavior.
+
+### Implementation slices
+
+#### 12A. Docking dependency gate
+
+1. Pin the official docking branch at a revision matching the bundled ImGui
+   API used by bgfx; document the dependency and license through CMake.
+2. Enable docking only inside the main editor window initially. Native
+   multi-viewport OS windows are a separate, optional follow-up because Linux
+   X11/Wayland window management adds another input and lifecycle boundary.
+3. Prove mouse/keyboard input, fonts, dynamic texture IDs, viewport/game render
+   targets, menus, popups, modals, drag-and-drop, and shutdown on the candidate
+   dependency before migrating panels.
+4. Stop this step if the bgfx adapter requires an unsafe fork or loses input or
+   texture behavior; do not hide a failed dependency spike behind floating
+   windows.
+
+#### 12B. Dockspace shell migration
+
+1. Keep the application menu, primary toolbar, and status bar as intentional
+   shell chrome; place one dockspace in the remaining main-window work area.
+2. Convert Hierarchy, Scene/Game, Inspector, Console/Profiler/Debug, Assets, and
+   specialized editors into ordinary dockable windows with stable IDs.
+3. Build the current visual arrangement as a first-run default: hierarchy left,
+   scene/game center, inspector right, console and assets below.
+4. Retire the per-frame global rectangles in `EditorWorkspaceLayout`. Viewport
+   and Game render targets must derive their size and input origin from the
+   actual docked content region every frame.
+5. Preserve selection, gizmos, HUD manipulation, scrolling, drag-and-drop, and
+   runtime input focus while panels move, resize, tab, hide, and reappear.
+
+#### 12C. Persistence and recovery
+
+1. Load and save workspace layout below the user-data directory with a stable
+   editor-specific filename. Missing state creates the default layout.
+2. Treat corrupt or incompatible layout data as recoverable user state: retain
+   a diagnostic, fall back to the default, and never block project opening.
+3. Implement `View -> Reset Workspace` as an explicit layout reset that rebuilds
+   the default dock tree and replaces the saved workspace state.
+4. Save panel visibility and layout only. Never serialize selection, authored
+   content, runtime state, modal state, or transient Play data into the layout.
+5. Verify independent layouts do not leak between users and do not modify a
+   clean project worktree.
+
+#### 12D. Design-token and hardcoded-layout cleanup
+
+1. Inventory editor presentation literals and classify them as shared design
+   tokens, default-layout policy, responsive calculations, or genuinely local
+   widget measurements.
+2. Move shared colors, spacing, toolbar/control dimensions, panel minimums, and
+   default dock ratios into cohesive configuration owners.
+3. Replace absolute `SameLine` and cursor offsets in responsive property rows
+   with tables, available-region calculations, or reusable property-grid
+   helpers where practical.
+4. Do not turn `EditorDesignTokens` into a god configuration object and do not
+   move gameplay, renderer, schema, or authored-data constants into UI config.
+
+### Verification and release gate
+
+- clean first launch produces the documented default workspace;
+- panels can move, resize, dock, undock, tab, close, and reopen;
+- restart restores the previous arrangement and Reset Workspace restores the
+  default;
+- layout persistence changes no project/source file;
+- viewport picking, gizmo dragging, HUD editing, mouse capture, and Game input
+  remain correct after arbitrary dock changes and DPI/window resize;
+- menus, popups, modal recovery, asset drops, and build progress remain usable
+  above docked windows;
+- narrow-window, high-DPI, corrupted-layout, missing-layout, and repeated
+  device/editor lifetime tests pass;
+- the bgfx/ImGui docking revision and its update procedure are documented and
+  reproducible.
+
+### Done when
+
+- A developer can arrange a practical workspace without editing configuration
+  files, restart the editor, and receive the same layout.
+- The default remains polished and usable for developers who never customize
+  it.
+- Global layout policy and shared design constants have clear owners instead of
+  being spread through panel implementations.
+- The migration introduces no editor-only project state and no second UI or
+  rendering implementation.
+
 ## Scenario Paths
 
 The steps are cumulative, but developers can follow the shortest path for the
@@ -2833,13 +2943,16 @@ blocking dependency:
             -> 9 Shipping
               -> 10 Performance and reliability
                 -> 11 Advanced real-time networking (when required)
+                -> 12 Dockable editor workspace (deferred)
 ```
 
 Steps 4, 5, and 6 may proceed independently after Step 3. Performance tests
 and failure coverage from Step 10 are added throughout the roadmap rather than
 postponed until the end. Step 11 depends on the secure ownership and replication
 contract from Step 6 and is not required for turn-based, cooperative, or
-latency-tolerant multiplayer games.
+latency-tolerant multiplayer games. Step 12 depends on the editor contract from
+Step 8 and the lifecycle/reliability gates from Step 10; it does not depend on
+advanced networking and may be scheduled independently after those gates.
 
 ## Explicit Deferrals
 

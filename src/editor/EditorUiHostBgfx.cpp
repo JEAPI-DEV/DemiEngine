@@ -149,6 +149,10 @@ public:
     return lookup->bgfxTexture(brandingTexture_).idx;
   }
 
+  EditorGpuTimingSample gpuTimingSample() const override {
+    return gpuTimingSample_;
+  }
+
   void shutdown() override {
     if (!initialized_)
       return;
@@ -303,6 +307,20 @@ public:
   void endFrame() override {
     imguiEndFrame();
     (void)graphics_.endFrame();
+    const bgfx::Stats *stats = bgfx::getStats();
+    std::vector<EditorGpuViewCounters> views;
+    if (stats != nullptr && stats->viewStats != nullptr) {
+      views.reserve(stats->numViews);
+      for (std::uint16_t index = 0; index < stats->numViews; ++index) {
+        const bgfx::ViewStats &view = stats->viewStats[index];
+        views.push_back({.viewId = view.view,
+                         .name = view.name,
+                         .begin = view.gpuTimeBegin,
+                         .end = view.gpuTimeEnd});
+      }
+    }
+    gpuTimingSample_ = buildEditorGpuTimingSample(
+        stats != nullptr ? stats->gpuTimerFreq : 0, views);
   }
 
   bool shouldClose() const override {
@@ -342,6 +360,7 @@ private:
   std::unique_ptr<demi::runtime::render::BgfxRenderer2D> renderer2D_;
   std::unique_ptr<EditorGameRenderer> gameRenderer_;
   runtime::render::TextureHandle brandingTexture_;
+  EditorGpuTimingSample gpuTimingSample_;
   InputState input_;
   bool initialized_ = false;
   bool mouseCaptured_ = false;

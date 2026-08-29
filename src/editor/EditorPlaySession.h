@@ -1,7 +1,10 @@
 #pragma once
 
 #include "demi/runtime/debug/RuntimeDebugSnapshot.h"
+#include "demi/runtime/diagnostics/RuntimeLog.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
+#include "demi/runtime/scripting/LuaScriptHost.h"
+#include "editor/EditorGpuTiming.h"
 #include "editor/EditorProfilerModel.h"
 
 #include <cstdint>
@@ -9,6 +12,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace demi::runtime {
 class EmbeddedRuntimeSession;
@@ -62,7 +66,11 @@ public:
   [[nodiscard]] std::uint64_t fixedTickCount() const;
   [[nodiscard]] float interpolationAlpha() const;
   [[nodiscard]] EditorProfilerSnapshot profilerSnapshot() const;
+  void setGpuTiming(EditorGpuTimingSample sample);
   [[nodiscard]] runtime::RuntimeDebugSnapshot debugSnapshot() const;
+  [[nodiscard]] std::vector<runtime::RuntimeLogEntry> runtimeLogs() const;
+  [[nodiscard]] runtime::LuaScriptHost::ConsoleResult
+  executeLuaConsole(std::string_view command);
   void setDebugOverlays(runtime::DebugOverlayConfig overlays);
   void setDebugFocus(std::string entityId);
 
@@ -72,6 +80,8 @@ private:
   EditorPlayState state_ = EditorPlayState::Stopped;
   EditorPlayMode mode_ = EditorPlayMode::Embedded;
   std::string failure_;
+  std::vector<runtime::RuntimeLogEntry> retainedLogs_;
+  bool gpuTimingAvailable_ = false;
 };
 
 } // namespace demi::editor

@@ -2,6 +2,7 @@
 
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/data/DataAssetStore.h"
+#include "demi/runtime/diagnostics/RuntimeLog.h"
 #include "demi/runtime/input/TouchGestureRecognizer.h"
 #include "demi/runtime/isometric/IsoGridApi.h"
 #include "demi/runtime/navigation/NavigationGrid2D.h"
@@ -39,6 +40,11 @@ class RuntimeAssetService;
 
 class LuaScriptHost {
 public:
+  struct ConsoleResult {
+    bool succeeded = false;
+    std::vector<std::string> values;
+    std::string error;
+  };
   struct SaveValue {
     std::string value;
     bool number = false;
@@ -565,6 +571,13 @@ public:
   [[nodiscard]] static Diagnostics
   checkScriptSyntax(const std::filesystem::path &path);
   [[nodiscard]] std::vector<std::string> publicLuaApi() const;
+  [[nodiscard]] ConsoleResult executeConsole(std::string_view command);
+  [[nodiscard]] std::vector<RuntimeLogEntry> runtimeLogs() const {
+    return runtimeLog_.entries();
+  }
+  void appendRuntimeLog(RuntimeLogEntry entry) {
+    runtimeLog_.append(std::move(entry));
+  }
 
 private:
   struct ScriptInstance {
@@ -628,6 +641,7 @@ private:
   [[nodiscard]] bool writeSaveSlot(const std::string &slot);
 
   void *state_ = nullptr;
+  RuntimeLogBuffer runtimeLog_{512};
   World *world_ = nullptr;
   const ProjectData *project_ = nullptr;
   InputState *input_ = nullptr;

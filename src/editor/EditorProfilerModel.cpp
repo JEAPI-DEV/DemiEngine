@@ -54,7 +54,8 @@ editorProfilerCategoryLabel(const EditorProfilerCategory category) {
 EditorProfilerCategory editorProfilerCategory(const std::string_view scope) {
   if (begins(scope, "Frame."))
     return EditorProfilerCategory::Frame;
-  if (begins(scope, "Render") || begins(scope, "Renderer"))
+  if (begins(scope, "Render") || begins(scope, "Renderer") ||
+      begins(scope, "GPU."))
     return EditorProfilerCategory::Rendering;
   if (begins(scope, "Lua") || begins(scope, "Script"))
     return EditorProfilerCategory::Scripting;
@@ -74,10 +75,10 @@ EditorProfilerCategory editorProfilerCategory(const std::string_view scope) {
 EditorProfilerSnapshot buildEditorProfilerSnapshot(
     const bool attached, const bool paused,
     std::vector<runtime::RuntimeProfiler::Entry> entries,
-    const std::size_t frameCount) {
+    const std::size_t frameCount, const bool gpuTimingAvailable) {
   EditorProfilerSnapshot snapshot{.attached = attached,
                                   .paused = paused,
-                                  .gpuTimingAvailable = false,
+                                  .gpuTimingAvailable = gpuTimingAvailable,
                                   .frameCount = frameCount};
   snapshot.rows.reserve(entries.size());
   for (runtime::RuntimeProfiler::Entry &entry : entries) {

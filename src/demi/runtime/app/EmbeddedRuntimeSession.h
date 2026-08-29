@@ -1,7 +1,9 @@
 #pragma once
 
 #include "demi/runtime/debug/RuntimeDebugSnapshot.h"
+#include "demi/runtime/diagnostics/RuntimeLog.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
+#include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -41,6 +43,9 @@ public:
   [[nodiscard]] float interpolationAlpha() const;
   [[nodiscard]] std::uint64_t fixedTickCount() const;
   [[nodiscard]] RuntimeDebugSnapshot debugSnapshot() const;
+  [[nodiscard]] std::vector<RuntimeLogEntry> runtimeLogs() const;
+  [[nodiscard]] LuaScriptHost::ConsoleResult
+  executeLuaConsole(std::string_view command);
   void setDebugOverlays(DebugOverlayConfig overlays);
   void setDebugFocus(std::string entityId);
   [[nodiscard]] static std::size_t liveSessionCount();

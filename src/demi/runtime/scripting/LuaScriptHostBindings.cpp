@@ -174,7 +174,7 @@ std::vector<std::string> LuaScriptHost::publicLuaApi() const {
   return result;
 }
 
-void luaReportCallbackError(const char *functionName,
+void luaReportCallbackError(lua_State *state, const char *functionName,
                             const std::filesystem::path &path,
                             const std::string &ownerId,
                             const std::string &error) {
@@ -186,6 +186,15 @@ void luaReportCallbackError(const char *functionName,
     std::cerr << " for " << ownerId;
   }
   std::cerr << ": " << error << '\n';
+  if (RuntimeLogBuffer *log = luaRuntimeLog(state))
+    log->append({.severity = RuntimeLogSeverity::Error,
+                 .channel = "lua.callback",
+                 .message = std::string(functionName) + ": " + error,
+                 .source = path.string(),
+                 .line = 0,
+                 .entityId = ownerId,
+                 .component = "LuaScript",
+                 .field = {}});
 }
 
 std::filesystem::path luaResolveScriptPath(const ProjectData &project,
@@ -282,7 +291,7 @@ void luaCallLifecycle(lua_State *state, const int tableRef,
   }
   std::string error;
   if (!luaCall(state, argCount, 0, error)) {
-    luaReportCallbackError(functionName, path, ownerId, error);
+    luaReportCallbackError(state, functionName, path, ownerId, error);
   }
   lua_pop(state, 1);
 }
@@ -333,7 +342,7 @@ void luaCallTypedUiEvent(lua_State *state, const int tableRef,
   luaPushUiEvent(state, event);
   std::string error;
   if (!luaCall(state, 2, 0, error))
-    luaReportCallbackError(functionName, path, event.id, error);
+    luaReportCallbackError(state, functionName, path, event.id, error);
   lua_pop(state, 1);
 }
 
@@ -361,7 +370,8 @@ void luaCallActionEvent(lua_State *state, const int tableRef,
   lua_setfield(state, -2, "mouse_y");
   std::string error;
   if (!luaCall(state, 2, 0, error)) {
-    luaReportCallbackError(functionName.c_str(), path, node.action, error);
+    luaReportCallbackError(state, functionName.c_str(), path, node.action,
+                           error);
   }
   lua_pop(state, 1);
 }
@@ -405,7 +415,8 @@ void luaCallModuleActionEvent(lua_State *state, const std::string &moduleName,
   lua_setfield(state, -2, "mouse_y");
   std::string error;
   if (!luaCall(state, 1, 0, error)) {
-    luaReportCallbackError(functionName.c_str(), path, node.action, error);
+    luaReportCallbackError(state, functionName.c_str(), path, node.action,
+                           error);
   }
   lua_pop(state, 1);
 }
@@ -424,7 +435,7 @@ void luaCallScriptEvent(lua_State *state, const int tableRef,
   payloadIndex > 0 ? lua_pushvalue(state, payloadIndex) : lua_newtable(state);
   std::string error;
   if (!luaCall(state, 2, 0, error)) {
-    luaReportCallbackError(functionName.c_str(), path, eventName, error);
+    luaReportCallbackError(state, functionName.c_str(), path, eventName, error);
   }
   lua_pop(state, 1);
 }
@@ -458,7 +469,7 @@ void luaCallModuleEvent(lua_State *state, const std::string &moduleName,
   payloadIndex > 0 ? lua_pushvalue(state, payloadIndex) : lua_newtable(state);
   std::string error;
   if (!luaCall(state, 1, 0, error)) {
-    luaReportCallbackError(functionName.c_str(), path, eventName, error);
+    luaReportCallbackError(state, functionName.c_str(), path, eventName, error);
   }
   lua_pop(state, 1);
 }

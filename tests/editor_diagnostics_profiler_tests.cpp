@@ -1,4 +1,5 @@
 #include "editor/EditorDiagnosticsModel.h"
+#include "editor/EditorGpuTiming.h"
 #include "editor/EditorProfilerModel.h"
 
 #include <cassert>
@@ -52,4 +53,14 @@ int main() {
   assert(filterEditorProfilerRows(snapshot, {}, EditorProfilerCategory::Frame,
                                   true)
              .size() == 3);
+
+  const EditorGpuTimingSample gpu = buildEditorGpuTimingSample(
+      1'000'000, {{.viewId = 1, .name = "scene", .begin = 0, .end = 5000},
+                  {.viewId = 8, .name = "game", .begin = 1000, .end = 3500},
+                  {.viewId = 9, .name = "post", .begin = 4000, .end = 5000}});
+  assert(gpu.available && gpu.passes.size() == 2 &&
+         gpu.totalMilliseconds == 3.5);
+  assert(!buildEditorGpuTimingSample(0, {}).available);
+  assert(editorProfilerCategory("GPU.game_view") ==
+         EditorProfilerCategory::Rendering);
 }

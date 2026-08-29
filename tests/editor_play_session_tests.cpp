@@ -1,12 +1,14 @@
 #include "editor/EditorPlaySession.h"
 
 #include "demi/runtime/app/EmbeddedRuntimeSession.h"
+#include "demi/runtime/input/replay/InputReplay.h"
 #include "demi/runtime/scene/model/World.h"
 
 #include <cassert>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <ranges>
 #include <string>
 #include <utility>
 
@@ -36,6 +38,15 @@ int main() {
     assert(session.startEmbedded(project, error));
     assert(session.state() == demi::editor::EditorPlayState::Running);
     assert(session.runtimeWorld() != nullptr);
+    const auto console = session.executeLuaConsole("1 + 2");
+    assert(console.succeeded && console.values.size() == 1 &&
+           console.values.front() == "3");
+    const auto printed = session.executeLuaConsole("print('editor-log-probe')");
+    assert(printed.succeeded);
+    const auto logs = session.runtimeLogs();
+    assert(std::ranges::any_of(logs, [](const auto &entry) {
+      return entry.channel == "lua" && entry.message == "editor-log-probe";
+    }));
     assert(demi::runtime::EmbeddedRuntimeSession::liveSessionCount() ==
            baseline + 1);
     assert(session.togglePause(error));
@@ -65,11 +76,39 @@ int main() {
            session.debugSnapshot().overlays.uiBounds &&
            session.debugSnapshot().focusedEntityId == focus);
     session.stop();
+    assert(!session.runtimeLogs().empty());
     assert(session.state() == demi::editor::EditorPlayState::Stopped);
     assert(session.runtimeWorld() == nullptr);
     assert(demi::runtime::EmbeddedRuntimeSession::liveSessionCount() ==
            baseline);
   }
+
+  demi::editor::EditorPlaySession isometric;
+  std::string isometricError;
+  assert(isometric.startEmbedded(
+      source / "examples/isometric_base_builder/demi.project.json",
+      isometricError));
+  const auto replay = demi::runtime::input::loadInputReplay(
+      source / "examples/isometric_base_builder/replays/"
+               "build_and_defend.replay.json",
+      isometricError);
+  assert(replay);
+  for (std::size_t frame = 0; frame < 3000; ++frame) {
+    demi::runtime::InputState input;
+    replay->applyOrNeutral(frame, input);
+    assert(isometric.update(std::move(input), replay->fixedTimestep, 960, 540,
+                            isometricError));
+  }
+  const auto isometricLogs = isometric.runtimeLogs();
+  const auto hasMessage = [&](const std::string_view prefix) {
+    return std::ranges::any_of(isometricLogs, [&](const auto &entry) {
+      return entry.channel == "lua" && entry.message.starts_with(prefix);
+    });
+  };
+  assert(hasMessage("Tower placed: Arrow tower"));
+  assert(hasMessage("Wave started: 1"));
+  assert(hasMessage("Wave completed: 1"));
+  isometric.stop();
 
   demi::editor::EditorPlaySession failed;
   std::string error;

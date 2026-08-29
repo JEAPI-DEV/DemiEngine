@@ -66,6 +66,7 @@ else()
     src/editor/EditorAuthoredJson.cpp
     src/editor/EditorDocumentStore.cpp
     src/editor/EditorDiagnosticsModel.cpp
+    src/editor/EditorGpuTiming.cpp
     src/editor/EditorInspectorModel.cpp
     src/editor/EditorHudHierarchy.cpp
     src/editor/EditorHudDocument.cpp

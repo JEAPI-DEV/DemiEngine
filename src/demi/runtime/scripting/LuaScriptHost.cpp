@@ -39,6 +39,7 @@ bool LuaScriptHost::initialize(World &world, InputState &input,
   }
   luaL_openlibs(state);
   state_ = state;
+  luaInstallRuntimeLogging(state, runtimeLog_);
 
   return luaRegisterBindings(*this, state, error);
 }

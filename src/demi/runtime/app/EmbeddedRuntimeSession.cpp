@@ -122,6 +122,14 @@ bool EmbeddedRuntimeSession::start(const std::filesystem::path &projectPath,
   if (prepared.hasResidentGroup)
     state->lua.adoptActiveSceneAssetGroup(state->loaded.world.activeSceneId);
   state->lua.start();
+  state->lua.appendRuntimeLog({.severity = RuntimeLogSeverity::Info,
+                               .channel = "runtime",
+                               .message = "Embedded Play started",
+                               .source = projectPath.string(),
+                               .line = 0,
+                               .entityId = {},
+                               .component = {},
+                               .field = {}});
   state->running = true;
   state_ = std::move(state);
   ++LiveSessions;
@@ -220,6 +228,14 @@ bool EmbeddedRuntimeSession::advance(State &state, InputState input,
     generateTilemapColliders(state.loaded.world, state.assetRegistry);
   if (state.lua.hasPendingSceneLoad()) {
     if (!state.lua.applyPendingSceneLoad(error)) {
+      state.lua.appendRuntimeLog({.severity = RuntimeLogSeverity::Error,
+                                  .channel = "runtime.scene",
+                                  .message = error,
+                                  .source = {},
+                                  .line = 0,
+                                  .entityId = {},
+                                  .component = {},
+                                  .field = {}});
       if (restorePause)
         state.lua.setPaused(true);
       return false;
@@ -368,6 +384,20 @@ RuntimeDebugSnapshot EmbeddedRuntimeSession::debugSnapshot() const {
   snapshot.assets = state_->assets.memoryReport();
   snapshot.overlays = world.debug;
   return snapshot;
+}
+
+std::vector<RuntimeLogEntry> EmbeddedRuntimeSession::runtimeLogs() const {
+  return state_ == nullptr ? std::vector<RuntimeLogEntry>{}
+                           : state_->lua.runtimeLogs();
+}
+
+LuaScriptHost::ConsoleResult
+EmbeddedRuntimeSession::executeLuaConsole(const std::string_view command) {
+  if (state_ == nullptr)
+    return {.succeeded = false,
+            .values = {},
+            .error = "No embedded runtime session is running."};
+  return state_->lua.executeConsole(command);
 }
 
 void EmbeddedRuntimeSession::setDebugOverlays(DebugOverlayConfig overlays) {

@@ -39,6 +39,8 @@ bool EditorPlaySession::startEmbedded(const std::filesystem::path &project,
   state_ = EditorPlayState::Starting;
   mode_ = EditorPlayMode::Embedded;
   failure_.clear();
+  retainedLogs_.clear();
+  gpuTimingAvailable_ = false;
   auto session = std::make_unique<runtime::EmbeddedRuntimeSession>();
   runtime::RuntimeProfiler::setEnabled(true);
   runtime::RuntimeProfiler::resetSession();
@@ -155,6 +157,8 @@ bool EditorPlaySession::update(runtime::InputState input,
 }
 
 void EditorPlaySession::stop() {
+  if (embedded_ != nullptr)
+    retainedLogs_ = embedded_->runtimeLogs();
   if (embedded_ != nullptr) {
     embedded_->stop();
     embedded_.reset();
@@ -205,14 +209,40 @@ float EditorPlaySession::interpolationAlpha() const {
 }
 
 EditorProfilerSnapshot EditorPlaySession::profilerSnapshot() const {
-  return buildEditorProfilerSnapshot(isEmbedded(), isPaused(),
-                                     runtime::RuntimeProfiler::sessionEntries(),
-                                     runtime::RuntimeProfiler::frameCount());
+  return buildEditorProfilerSnapshot(
+      isEmbedded(), isPaused(), runtime::RuntimeProfiler::sessionEntries(),
+      runtime::RuntimeProfiler::frameCount(), gpuTimingAvailable_);
+}
+
+void EditorPlaySession::setGpuTiming(EditorGpuTimingSample sample) {
+  if (!isEmbedded()) {
+    gpuTimingAvailable_ = false;
+    return;
+  }
+  if (!sample.available)
+    return;
+  gpuTimingAvailable_ = true;
+  runtime::RuntimeProfiler::record("GPU.game_view", sample.totalMilliseconds);
+  for (const EditorGpuPassTiming &pass : sample.passes)
+    runtime::RuntimeProfiler::record("GPU." + pass.name, pass.milliseconds);
 }
 
 runtime::RuntimeDebugSnapshot EditorPlaySession::debugSnapshot() const {
   return embedded_ == nullptr ? runtime::RuntimeDebugSnapshot{}
                               : embedded_->debugSnapshot();
+}
+
+std::vector<runtime::RuntimeLogEntry> EditorPlaySession::runtimeLogs() const {
+  return embedded_ != nullptr ? embedded_->runtimeLogs() : retainedLogs_;
+}
+
+runtime::LuaScriptHost::ConsoleResult
+EditorPlaySession::executeLuaConsole(const std::string_view command) {
+  if (!isEmbedded() || embedded_ == nullptr)
+    return {.succeeded = false,
+            .values = {},
+            .error = "Start embedded Play before using the Lua Console."};
+  return embedded_->executeLuaConsole(command);
 }
 
 void EditorPlaySession::setDebugOverlays(
@@ -228,6 +258,7 @@ void EditorPlaySession::setDebugFocus(std::string entityId) {
 
 void EditorPlaySession::reportFailure(std::string message) {
   if (embedded_ != nullptr) {
+    retainedLogs_ = embedded_->runtimeLogs();
     embedded_->stop();
     embedded_.reset();
   }

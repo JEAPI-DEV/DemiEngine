@@ -98,6 +98,8 @@ function Waves.new(state, config, health_service)
     state.build_kind = nil
     Grid.clear_preview()
     state.status = "Wave " .. tostring(state.wave) .. " incoming!"
+    print(string.format(
+      "Wave started: %d; enemies=%d", state.wave, state.spawn_remaining))
     return true
   end
 
@@ -149,8 +151,12 @@ function Waves.new(state, config, health_service)
 
     if state.spawn_remaining == 0 and next(state.enemies) == nil then
       state.wave_active = false
-      state.gold = state.gold + 30 + state.wave * 5
+      local reward = 30 + state.wave * 5
+      state.gold = state.gold + reward
       state.status = "Wave cleared. Build before the next attack."
+      print(string.format(
+        "Wave completed: %d; reward=%d; gold=%d",
+        state.wave, reward, state.gold))
     end
     if state.base_health <= 0 then
       self.clear()

@@ -122,6 +122,7 @@ int main(const int argc, char **argv) {
       shell.setNotice("Game target stopped: " + error);
     }
     shell.setGameTextureIndex(ui->gameTextureIndex());
+    shell.playSession().setGpuTiming(ui->gpuTimingSample());
     shell.draw(ui->width(), ui->height(), ui->rendererName());
     if (shell.playSession().isEmbedded() && !gameRendererReady) {
       gameRendererReady = ui->configureGameRenderer(

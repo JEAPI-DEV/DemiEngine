@@ -1,3 +1,4 @@
+#include "demi/runtime/diagnostics/RuntimeLog.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 
 #include <algorithm>
@@ -35,5 +36,17 @@ int main() {
     return 1;
   }
   RuntimeProfiler::setEnabled(false);
+
+  demi::runtime::RuntimeLogBuffer logs(2);
+  logs.append({.channel = "test", .message = "one"});
+  logs.append({.channel = "test", .message = "two"});
+  logs.append({.channel = "test", .message = "three"});
+  const auto retained = logs.entries();
+  if (retained.size() != 2 || retained.front().message != "two" ||
+      retained.back().message != "three" ||
+      retained.front().sequence >= retained.back().sequence) {
+    std::cerr << "runtime log buffer was not bounded and ordered\n";
+    return 1;
+  }
   return 0;
 }

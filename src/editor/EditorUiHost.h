@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "demi/runtime/scene/model/SceneTypes.h"
+#include "editor/EditorGpuTiming.h"
 #include "editor/EditorSceneView2DState.h"
 #include "editor/EditorSceneViewState.h"
 
@@ -34,6 +35,7 @@ public:
                                         std::string &error) = 0;
   [[nodiscard]] virtual bool loadBranding(std::string &error) = 0;
   [[nodiscard]] virtual std::uint16_t brandingTextureIndex() const = 0;
+  [[nodiscard]] virtual EditorGpuTimingSample gpuTimingSample() const = 0;
   virtual void shutdown() = 0;
   [[nodiscard]] virtual bool beginFrame(std::string &error) = 0;
   [[nodiscard]] virtual std::vector<std::filesystem::path>

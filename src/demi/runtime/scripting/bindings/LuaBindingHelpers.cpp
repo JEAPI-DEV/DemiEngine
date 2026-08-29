@@ -149,7 +149,8 @@ sol::object luaReadSaveTable(lua_State *state, LuaScriptHost &host,
       lua_pushinteger(state, hook.toVersion);
       std::string error;
       if (!luaCall(state, 3, 1, error)) {
-        luaReportCallbackError("Save.register_migration", {}, slot, error);
+        luaReportCallbackError(state, "Save.register_migration", {}, slot,
+                               error);
         return sol::nil;
       }
       if (lua_istable(state, -1)) {

@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <vector>
 
 struct ImVec2;
 
@@ -28,6 +29,9 @@ public:
 private:
   std::array<char, 128> diagnosticFilter_{};
   std::array<char, 128> profilerFilter_{};
+  std::array<char, 512> luaCommand_{};
+  std::vector<std::string> luaHistory_;
+  int luaHistoryCursor_ = -1;
   bool showInfo_ = true;
   bool showWarnings_ = true;
   bool showErrors_ = true;

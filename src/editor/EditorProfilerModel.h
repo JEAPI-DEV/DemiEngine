@@ -42,7 +42,7 @@ editorProfilerCategory(std::string_view scope);
 [[nodiscard]] EditorProfilerSnapshot buildEditorProfilerSnapshot(
     bool attached, bool paused,
     std::vector<runtime::RuntimeProfiler::Entry> entries,
-    std::size_t frameCount);
+    std::size_t frameCount, bool gpuTimingAvailable = false);
 [[nodiscard]] std::vector<EditorProfilerRow>
 filterEditorProfilerRows(const EditorProfilerSnapshot &snapshot,
                          std::string_view query,

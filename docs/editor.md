@@ -94,11 +94,15 @@ filesystem service used by `demi dev`.
 - Console diagnostics and build results share searchable severity filters,
   copyable source locations, and stable entity/component/field navigation when
   the validator exposes that context.
+- The same Console ingests bounded structured Play logs from engine lifecycle
+  events, Lua `print`, callback failures, and Lua Console results. Source/line
+  and entity/component context remain directly navigable when available, and
+  the final log snapshot remains inspectable after Stop.
 - Embedded Play enables the runtime profiler and the Profiler tab presents
   real latest/average/p95/max CPU scope timings plus renderer submissions,
   physics, Lua, animation, network, input, world/UI counts, and asset residency.
-  GPU time is shown as unavailable rather than estimated because the bgfx
-  backend does not yet expose timestamp-query results.
+  Valid bgfx GPU timestamps for embedded Game views are reported as total and
+  per-pass samples; unsupported backends show unavailable rather than zero.
 - The Debug tab reads one immutable embedded-runtime snapshot for input,
   renderer gauges, 2D/3D physics bodies and contacts, NavigationGrid2D state,
   resident asset ownership/bytes, and network mode/security/latency. Runtime
@@ -164,10 +168,11 @@ Required layout and presentation:
   sections. Labels and editors form a stable property grid; vector axes, color
   channels, reset actions, pickers, and resource fields must remain compact and
   keyboard operable.
-- The lower workspace uses Console/Profiler/Debug tabs and an Assets region.
+- The lower workspace uses Console/Lua Console/Profiler/Debug tabs and an
+  Assets region.
   Tabs must not imply functionality that has not been connected to a real
-  service. The Lua Console placeholder remains hidden until embedded Play
-  exposes a safe command-execution and structured-output contract.
+  service. Lua Console commands execute only against the isolated embedded Play
+  VM, with bounded Up/Down history and structured results/errors.
 - The Assets region is ultimately a folder tree plus breadcrumb/search toolbar
   and thumbnail/file grid. The current flat source list remains honest but is
   not the final asset-browser design.
@@ -185,8 +190,7 @@ controls.
 
 The shared visual-alignment checkpoint is implemented in `EditorTheme`,
 `EditorPanelStyle`, `EditorChrome`, `EditorToolbar`, `EditorAssetsPanel`, and
-`EditorShell`. Asset thumbnails and the Lua Console still belong to their
-owning later milestones.
+`EditorShell`. Asset thumbnails still belong to their owning later milestone.
 
 ## Implementation roadmap
 
@@ -489,12 +493,12 @@ as those services gain structured data.
 
 - [x] Replace placeholder profiler content with real frame/CPU/script/physics/
   resource data from the runtime profiler contract.
-- [ ] Add real GPU timestamp samples where the active bgfx backend supports
+- [x] Add real GPU timestamp samples where the active bgfx backend supports
   them; report unsupported backends explicitly.
 - [x] Add searchable project/build diagnostics with stable
   source/entity/component/field links.
-- [ ] Ingest structured runtime logs with stable source/entity links.
-- [ ] Add a Lua Console backed by the isolated embedded Play Lua state, with
+- [x] Ingest structured runtime logs with stable source/entity links.
+- [x] Add a Lua Console backed by the isolated embedded Play Lua state, with
   bounded history and structured results/errors.
 - [x] Add input, renderer, physics, navigation, asset residency, and network
   debug views backed by real service data.
@@ -506,12 +510,11 @@ as those services gain structured data.
 - [x] Verify keyboard and pointer flows, readable error/empty/disabled states,
   narrow-window layout, high DPI, and repeated renderer/runtime lifetimes.
 
-**9A present:** the placeholder Profiler has been replaced with runtime-backed
+**9A complete:** the placeholder Profiler has been replaced with runtime-backed
 rolling samples and searchable category tables. Console and build diagnostics
 are searchable by severity, code, message, path, entity, component, and field,
-with source-copy and entity-selection actions. GPU timestamps, runtime log
-ingestion, and the Lua Console remain open, so the Milestone 9 gate is not yet
-marked passed.
+with source-copy and entity-selection actions. Valid bgfx Game-view GPU
+timestamps are recorded by pass and unsupported backends remain explicit.
 
 **9B present:** a categorized Debug tab consumes `RuntimeDebugSnapshot` for
 input, physics/contact counts, navigation configuration, resident asset memory,
@@ -535,19 +538,13 @@ to 320x240 without panel overlap; DPI font policy is tested at low, standard,
 and 2x scale. Pointer/keyboard regression suites, three embedded Play lifetimes,
 and three complete bgfx device lifetimes cover repeated interaction and teardown.
 
-**Gate:** a small 2D or lightweight 3D game can be assembled, inspected, played,
+**Gate: passed.** A small 2D or lightweight 3D game can be assembled, inspected, played,
 diagnosed, cooked, and packaged without manual JSON editing, while direct text
 editing and conflict handling remain supported.
 
-### Immediate next task
-
-Milestone 9A through 9D are present. Continue with **Milestone 9E: structured
-runtime log ingestion, an embedded-Play Lua Console, and real GPU timestamps
-where supported**. The Lua Console must execute against the isolated runtime
-Lua state rather than a second editor-only VM, retain bounded command history,
-and route values and errors through the structured runtime log stream. Do not
-restore its tab or mark the profiler/diagnostics bullets complete while the
-corresponding service remains unavailable.
+**9E complete:** structured runtime logs, the embedded-Play Lua Console, and
+backend-gated GPU timestamp samples share the runtime/profiler contracts and
+have focused model, Play-session, and lifecycle coverage.
 
 For each todo item that mutates authored state, use this implementation order:
 
