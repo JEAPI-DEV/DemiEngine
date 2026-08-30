@@ -1,8 +1,8 @@
 #pragma once
 
 #include "demi/assets/AssetRegistry.h"
-#include "demi/runtime/render/MaterialLibrary.h"
 #include "demi/runtime/navigation/NavigationGrid2D.h"
+#include "demi/runtime/render/MaterialLibrary.h"
 #include "demi/runtime/render/backend/Canvas2D.h"
 #include "demi/runtime/render/backend/FontAtlas2D.h"
 #include "demi/runtime/render/backend/TextureLibrary2D.h"
@@ -40,6 +40,14 @@ public:
                                 std::uint16_t viewportHeight,
                                 float deltaSeconds, std::string &error,
                                 float physicsInterpolationAlpha = 1.0F);
+  [[nodiscard]] bool beginFrameRegion(const Camera2DComponent &camera,
+                                      Vec2 cameraPosition, std::uint16_t viewId,
+                                      std::uint16_t x, std::uint16_t y,
+                                      std::uint16_t viewportWidth,
+                                      std::uint16_t viewportHeight,
+                                      float deltaSeconds, std::string &error,
+                                      float physicsInterpolationAlpha = 1.0F,
+                                      FrameBufferHandle frameBuffer = {});
   [[nodiscard]] bool beginOverlay(std::uint16_t viewId,
                                   std::uint16_t viewportWidth,
                                   std::uint16_t viewportHeight,
@@ -51,7 +59,8 @@ public:
                                         float deltaSeconds, std::string &error,
                                         FrameBufferHandle frameBuffer = {});
   void setExternalTexture(std::string id, TextureView2D texture);
-  [[nodiscard]] bool drawWorld(const World &world);
+  [[nodiscard]] bool drawWorld(const World &world,
+                               bool forceColliderDebug = false);
   [[nodiscard]] bool drawNavigation(const navigation::NavigationGrid2D &grid);
   [[nodiscard]] bool drawHud(const World &world);
   [[nodiscard]] bool drawUi(const ui::UiDocument &document);
@@ -62,6 +71,9 @@ public:
   }
   [[nodiscard]] std::size_t loadedTextureCount() const {
     return textures_.size();
+  }
+  [[nodiscard]] bool hasTexture(const std::string_view id) const {
+    return static_cast<bool>(textures_.find(id).handle);
   }
 
 private:

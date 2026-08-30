@@ -16,7 +16,8 @@ public:
 
   [[nodiscard]] bool draw(const World &world, const Camera2DComponent &camera,
                           Vec2 cameraPosition, std::uint16_t viewportWidth,
-                          std::uint16_t viewportHeight);
+                          std::uint16_t viewportHeight,
+                          bool forceVisible = false);
 
 private:
   Canvas2D &canvas_;

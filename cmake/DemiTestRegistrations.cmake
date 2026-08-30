@@ -1,6 +1,53 @@
 # Unit, subsystem, CLI, and networking test registration.
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-project-templates-tests COMMAND demi-project-templates-tests)
+add_test(NAME demi-build-service-tests COMMAND demi-build-service-tests)
+add_test(NAME demi-editor-workspace-tests COMMAND demi-editor-workspace-tests)
+add_test(NAME demi-editor-project-document-tests
+  COMMAND demi-editor-project-document-tests)
+add_test(NAME demi-editor-asset-workflow-tests
+  COMMAND demi-editor-asset-workflow-tests)
+add_test(NAME demi-editor-asset-drop-tests
+  COMMAND demi-editor-asset-drop-tests)
+add_test(NAME demi-editor-specialized-document-tests
+  COMMAND demi-editor-specialized-document-tests)
+add_test(NAME demi-editor-asset-group-document-tests
+  COMMAND demi-editor-asset-group-document-tests)
+add_test(NAME demi-editor-scene-view-state-tests
+  COMMAND demi-editor-scene-view-state-tests)
+add_test(NAME demi-editor-2d-scene-view-tests
+  COMMAND demi-editor-2d-scene-view-tests)
+add_test(NAME demi-editor-viewport-tool-tests
+  COMMAND demi-editor-viewport-tool-tests)
+add_test(NAME demi-editor-scene-document-tests
+  COMMAND demi-editor-scene-document-tests)
+add_test(NAME demi-editor-scene-commands-tests
+  COMMAND demi-editor-scene-commands-tests)
+add_test(NAME demi-editor-authoring-workflow-tests
+  COMMAND demi-editor-authoring-workflow-tests)
+add_test(NAME demi-editor-inspector-model-tests
+  COMMAND demi-editor-inspector-model-tests)
+add_test(NAME demi-editor-hud-hierarchy-tests
+  COMMAND demi-editor-hud-hierarchy-tests)
+add_test(NAME demi-editor-hud-document-tests
+  COMMAND demi-editor-hud-document-tests)
+add_test(NAME demi-editor-imgui-input-tests
+  COMMAND demi-editor-imgui-input-tests)
+add_test(NAME demi-editor-diagnostics-profiler-tests
+  COMMAND demi-editor-diagnostics-profiler-tests)
+add_test(NAME demi-editor-recovery-preferences-tests
+  COMMAND demi-editor-recovery-preferences-tests)
+add_test(NAME demi-editor-workspace-layout-tests
+  COMMAND demi-editor-workspace-layout-tests)
+add_test(NAME demi-editor-lua-component-metadata-tests
+  COMMAND demi-editor-lua-component-metadata-tests)
+add_test(NAME demi-editor-authored-json-tests
+  COMMAND demi-editor-authored-json-tests)
+add_test(NAME demi-editor-release-workflow-tests
+  COMMAND demi-editor-release-workflow-tests)
+add_test(NAME demi-editor-play-session-tests
+  COMMAND demi-editor-play-session-tests)
+add_test(NAME demi-editor-help COMMAND demi-editor --help)
 add_test(NAME demi-doctor-service-tests COMMAND demi-doctor-service-tests)
 add_test(NAME demi-package-manager-tests COMMAND demi-package-manager-tests)
 foreach(package_name IN ITEMS
@@ -16,6 +63,11 @@ add_test(NAME demi-network-lobby-package
     ${CMAKE_SOURCE_DIR}/packages/sources/demi.network.lobby)
 set_tests_properties(demi-network-lobby-package
   PROPERTIES LABELS "packages;network")
+add_test(NAME demi-ui-language-file-package
+  COMMAND demi package test
+    ${CMAKE_SOURCE_DIR}/packages/sources/demi.ui.language_file)
+set_tests_properties(demi-ui-language-file-package
+  PROPERTIES LABELS "packages;ui;localization")
 add_test(NAME demi-project-watch-reload-tests
   COMMAND demi-project-watch-reload-tests)
 add_test(NAME demi-capability-manifest-tests
@@ -68,6 +120,8 @@ add_test(NAME demi-tilemap-canvas-renderer-tests
   COMMAND demi-tilemap-canvas-renderer-tests)
 add_test(NAME demi-bgfx2d-effect-renderers-tests
   COMMAND demi-bgfx2d-effect-renderers-tests)
+add_test(NAME demi-debug-label-layout-tests
+  COMMAND demi-debug-label-layout-tests)
 add_test(NAME demi-bgfx-renderer2d-tests COMMAND demi-bgfx-renderer2d-tests)
 add_test(NAME demi-material-library-tests COMMAND demi-material-library-tests)
 add_test(NAME demi-primitive-canvas3d-tests COMMAND demi-primitive-canvas3d-tests)

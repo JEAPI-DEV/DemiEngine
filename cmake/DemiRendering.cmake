@@ -190,6 +190,7 @@ add_library(demi-render2d-bgfx STATIC
   src/demi/runtime/render/backend/SvgDecoder2D.cpp
   src/demi/runtime/render/bgfx2d/ColliderCanvasRenderer.cpp
   src/demi/runtime/render/bgfx2d/DebugCanvasRenderer.cpp
+  src/demi/runtime/render/bgfx2d/DebugLabelLayout2D.cpp
   src/demi/runtime/render/bgfx2d/IsoCanvasRenderer.cpp
   src/demi/runtime/render/bgfx2d/IsoSpriteVisual2D.cpp
   src/demi/runtime/render/bgfx2d/ParticleCanvasRenderer.cpp

@@ -11,11 +11,10 @@ using namespace demi::runtime::render;
 int main() {
   BgfxGraphicsDevice graphics;
   std::string error;
-  assert(graphics.initialize(GraphicsDeviceConfig{.api = GraphicsApi::Noop,
-                                                  .width = 100,
-                                                  .height = 80,
-                                                  .vsync = false},
-                             error));
+  assert(graphics.initialize(
+      GraphicsDeviceConfig{
+          .api = GraphicsApi::Noop, .width = 100, .height = 80, .vsync = false},
+      error));
   auto resources = createBgfxGpuResources();
   auto commands = createBgfxRenderCommands(*resources);
   Canvas2D canvas(*resources, *commands, 4);
@@ -28,26 +27,24 @@ int main() {
   assert(!canvas.solid(Rect2D{}, 0xffffffffU));
   assert(canvas.solid(Rect2D{.x = 2, .y = 3, .width = 10, .height = 11},
                       0xffffffffU));
-  assert(canvas.image(
-      canvas.whiteTexture(),
-      Rect2D{.x = 20, .y = 3, .width = 10, .height = 11}, {}, 0xff00ffffU,
-      BlendMode::Alpha, ScissorRect{.x = 0, .y = 0, .width = 40, .height = 40}));
+  assert(canvas.image(canvas.whiteTexture(),
+                      Rect2D{.x = 20, .y = 3, .width = 10, .height = 11}, {},
+                      0xff00ffffU, BlendMode::Alpha,
+                      ScissorRect{.x = 0, .y = 0, .width = 40, .height = 40}));
   assert(canvas.imageTransformed(canvas.whiteTexture(), 70, 20, 10, 12, 0.5F,
                                  0.5F, 0.25F));
   assert(canvas.ninePatch(
-      canvas.whiteTexture(),
-      Rect2D{.x = 5, .y = 20, .width = 30, .height = 20}, {},
-      NinePatch2D{.left = 5.0F,
-                  .top = 5.0F,
-                  .right = 5.0F,
-                  .bottom = 5.0F,
-                  .center = {.u0 = 0.25F,
-                             .v0 = 0.25F,
-                             .u1 = 0.75F,
-                             .v1 = 0.75F}}));
-  assert(!canvas.ninePatch(
-      canvas.whiteTexture(), Rect2D{.width = 30, .height = 20}, {},
-      NinePatch2D{.center = {.u0 = 0.8F, .u1 = 0.2F}}));
+      canvas.whiteTexture(), Rect2D{.x = 5, .y = 20, .width = 30, .height = 20},
+      {},
+      NinePatch2D{
+          .left = 5.0F,
+          .top = 5.0F,
+          .right = 5.0F,
+          .bottom = 5.0F,
+          .center = {.u0 = 0.25F, .v0 = 0.25F, .u1 = 0.75F, .v1 = 0.75F}}));
+  assert(!canvas.ninePatch(canvas.whiteTexture(),
+                           Rect2D{.width = 30, .height = 20}, {},
+                           NinePatch2D{.center = {.u0 = 0.8F, .u1 = 0.2F}}));
   assert(!canvas.circle(50.0F, 40.0F, 4.0F, 0xffffffffU, 2));
   assert(canvas.circle(50.0F, 40.0F, 4.0F, 0xffffffffU, 8));
 
@@ -60,6 +57,11 @@ int main() {
   assert(stats.vertices == 72);
   assert(stats.indices == 96);
   assert(stats.triangles == 32);
+  const ScissorRect embedded = canvasScissorForView(
+      {.x = 3, .y = 5, .width = 40, .height = 30}, 240, 120);
+  assert(embedded.x == 243 && embedded.y == 125);
+  assert(embedded.width == 40 && embedded.height == 30);
+  assert(canvasScissorForView({}, 240, 120) == ScissorRect{});
   static_cast<void>(graphics.endFrame());
 
   assert(canvas.begin(0, 100, 80, 0, error));

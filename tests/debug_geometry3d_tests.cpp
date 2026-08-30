@@ -153,20 +153,20 @@ int main() {
   Entity requestedCollider = transformedEntity("requested-collider");
   requestedCollider.setComponent(BoxCollider3DComponent{});
   requestedWorld.entities.push_back(requestedCollider);
-  assert(buildDebugGeometry3D(
-             requestedWorld, {.forceColliders = true, .bounds = false})
+  assert(buildDebugGeometry3D(requestedWorld,
+                              {.forceColliders = true, .bounds = false})
              .size() == 12);
 
   World boundsWorld;
   Entity bounded = transformedEntity("bounded", {1.0F, 2.0F, 3.0F});
-  bounded.setComponent(MeshRendererComponent{
-      .size = {2.0F, 4.0F, 6.0F},
-      .boundsMin = {-0.5F, -0.25F, -1.0F},
-      .boundsMax = {0.5F, 0.25F, 1.0F},
-      .hasBounds = true});
+  bounded.setComponent(
+      MeshRendererComponent{.size = {2.0F, 4.0F, 6.0F},
+                            .boundsMin = {-0.5F, -0.25F, -1.0F},
+                            .boundsMax = {0.5F, 0.25F, 1.0F},
+                            .hasBounds = true});
   boundsWorld.entities.push_back(std::move(bounded));
-  lines = buildDebugGeometry3D(
-      boundsWorld, {.forceColliders = false, .bounds = true});
+  lines = buildDebugGeometry3D(boundsWorld,
+                               {.forceColliders = false, .bounds = true});
   assert(lines.size() == 12);
   minimumX = lines.front().start.x;
   maximumX = minimumX;
@@ -177,5 +177,30 @@ int main() {
     }
   assert(close(minimumX, 0.0F));
   assert(close(maximumX, 2.0F));
+
+  World overlayWorld;
+  Entity pointLight =
+      transformedEntity("point-light", {2.0F, 3.0F, 4.0F}, {4.0F, 4.0F, 4.0F});
+  pointLight.setComponent(PointLightComponent{.range = 1.5F});
+  overlayWorld.entities.push_back(std::move(pointLight));
+  Entity camera = transformedEntity("camera", {-2.0F, 1.0F, 0.0F});
+  camera.setComponent(Camera3DComponent{});
+  overlayWorld.entities.push_back(std::move(camera));
+  assert(buildDebugGeometry3D(overlayWorld).empty());
+  assert(buildDebugGeometry3D(overlayWorld, {.lights = true}).size() ==
+         3U + 3U * 24U);
+  lines = buildDebugGeometry3D(overlayWorld, {.lights = true});
+  minimumX = lines.front().start.x;
+  maximumX = minimumX;
+  for (const DebugLine3D &line : lines)
+    for (const Vec3 point : {line.start, line.end}) {
+      minimumX = std::min(minimumX, point.x);
+      maximumX = std::max(maximumX, point.x);
+    }
+  assert(close(minimumX, 0.5F));
+  assert(close(maximumX, 3.5F));
+  assert(buildDebugGeometry3D(overlayWorld, {.cameras = true}).size() == 8U);
+  assert(buildDebugGeometry3D(overlayWorld, {.lights = true, .cameras = true})
+             .size() == 3U + 3U * 24U + 8U);
   return 0;
 }

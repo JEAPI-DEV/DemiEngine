@@ -21,6 +21,8 @@ constexpr Color SolidColliderColor{1.0F, 0.32F, 0.36F, 1.0F};
 constexpr Color TriggerColliderColor{1.0F, 0.78F, 0.20F, 1.0F};
 constexpr Color GridColor{0.20F, 0.62F, 0.62F, 0.48F};
 constexpr Color BoundsColor{0.25F, 0.75F, 1.0F, 1.0F};
+constexpr Color LightColor{1.0F, 0.82F, 0.22F, 1.0F};
+constexpr Color CameraColor{0.66F, 0.42F, 1.0F, 1.0F};
 constexpr int CircleSegments = 24;
 
 Vec3 add(const Vec3 left, const Vec3 right) {
@@ -227,11 +229,65 @@ bool individuallyVisible(const Entity &entity) {
   return false;
 }
 
+void addLight(std::vector<DebugLine3D> &lines, const Entity &entity,
+              const WorldTransform3D &transform) {
+  constexpr float Marker = 0.3F;
+  addLine(lines, add(transform.position, {-Marker, 0.0F, 0.0F}),
+          add(transform.position, {Marker, 0.0F, 0.0F}), LightColor);
+  addLine(lines, add(transform.position, {0.0F, -Marker, 0.0F}),
+          add(transform.position, {0.0F, Marker, 0.0F}), LightColor);
+  addLine(lines, add(transform.position, {0.0F, 0.0F, -Marker}),
+          add(transform.position, {0.0F, 0.0F, Marker}), LightColor);
+  Vec3 direction{};
+  float distance = 1.0F;
+  if (const auto *light = entity.component<DirectionalLightComponent>())
+    direction = light->direction;
+  else if (const auto *light = entity.component<SpotLightComponent>()) {
+    direction = light->direction;
+    distance = std::min(light->range, 2.0F);
+  } else if (const auto *light = entity.component<PointLightComponent>()) {
+    SphereCollider3DComponent marker;
+    marker.radius = std::min(light->range, 2.0F);
+    WorldTransform3D unscaled = transform;
+    unscaled.scale = {1.0F, 1.0F, 1.0F};
+    addSphere(lines, unscaled, marker, LightColor);
+    return;
+  }
+  direction = normalize(transformDirection3D(transform, direction));
+  addLine(lines, transform.position,
+          add(transform.position, multiply(direction, distance)), LightColor);
+}
+
+void addCamera(std::vector<DebugLine3D> &lines, const Camera3DComponent &camera,
+               const WorldTransform3D &transform) {
+  const Vec3 forward =
+      normalize(transformDirection3D(transform, camera.targetOffset));
+  const Vec3 right = normalize(rightDirection3D(transform));
+  const Vec3 up = normalize(upDirection3D(transform));
+  constexpr float Depth = 1.2F;
+  constexpr float DegreesToRadians = 0.01745329251994329577F;
+  const float half = camera.perspective
+                         ? std::tan(std::clamp(camera.fov, 1.0F, 160.0F) *
+                                    DegreesToRadians * 0.5F) *
+                               Depth
+                         : std::min(camera.orthographicSize, 2.0F);
+  const Vec3 center = add(transform.position, multiply(forward, Depth));
+  const std::array<Vec3, 4> corners{
+      add(center, add(multiply(right, -half), multiply(up, -half))),
+      add(center, add(multiply(right, half), multiply(up, -half))),
+      add(center, add(multiply(right, half), multiply(up, half))),
+      add(center, add(multiply(right, -half), multiply(up, half)))};
+  for (std::size_t index = 0; index < corners.size(); ++index) {
+    addLine(lines, transform.position, corners[index], CameraColor);
+    addLine(lines, corners[index], corners[(index + 1) % corners.size()],
+            CameraColor);
+  }
+}
+
 } // namespace
 
 std::vector<DebugLine3D>
-buildDebugGeometry3D(const World &world,
-                     const DebugGeometry3DRequest request) {
+buildDebugGeometry3D(const World &world, const DebugGeometry3DRequest request) {
   std::vector<DebugLine3D> lines;
   if (world.debug.grid) {
     constexpr int HalfExtent = 20;
@@ -250,12 +306,20 @@ buildDebugGeometry3D(const World &world,
     const auto transform = resolveWorldTransform3D(world, entity);
     if (!transform)
       continue;
+    if (request.lights && (entity.hasComponent<DirectionalLightComponent>() ||
+                           entity.hasComponent<PointLightComponent>() ||
+                           entity.hasComponent<SpotLightComponent>()))
+      addLight(lines, entity, *transform);
+    if (request.cameras) {
+      if (const auto *camera = entity.component<Camera3DComponent>())
+        addCamera(lines, *camera, *transform);
+    }
     if (request.bounds) {
       if (const auto *mesh = entity.component<MeshRendererComponent>()) {
-        const Vec3 minimum = mesh->hasBounds ? mesh->boundsMin
-                                             : Vec3{-0.5F, -0.5F, -0.5F};
-        const Vec3 maximum = mesh->hasBounds ? mesh->boundsMax
-                                             : Vec3{0.5F, 0.5F, 0.5F};
+        const Vec3 minimum =
+            mesh->hasBounds ? mesh->boundsMin : Vec3{-0.5F, -0.5F, -0.5F};
+        const Vec3 maximum =
+            mesh->hasBounds ? mesh->boundsMax : Vec3{0.5F, 0.5F, 0.5F};
         const Vec3 size{(maximum.x - minimum.x) * mesh->size.x,
                         (maximum.y - minimum.y) * mesh->size.y,
                         (maximum.z - minimum.z) * mesh->size.z};

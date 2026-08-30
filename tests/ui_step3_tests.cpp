@@ -2,9 +2,9 @@
 #include "demi/runtime/ui/RichTextParser.h"
 #include "demi/runtime/ui/TextEditingEngine.h"
 #include "demi/runtime/ui/TextLayoutEngine.h"
-#include "demi/runtime/ui/UiAccessibilityTree.h"
 #include "demi/runtime/ui/UiAccessibilityActions.h"
 #include "demi/runtime/ui/UiAccessibilityBridge.h"
+#include "demi/runtime/ui/UiAccessibilityTree.h"
 #include "demi/runtime/ui/UiDocumentParser.h"
 #include "demi/runtime/ui/UiEventQueue.h"
 #include "demi/runtime/ui/UiInteractionController.h"
@@ -13,6 +13,7 @@
 #include "demi/runtime/ui/UiPrefabResolver.h"
 #include "demi/runtime/ui/UiStateController.h"
 #include "demi/runtime/ui/UiTweenSystem.h"
+#include "demi/runtime/ui/UiVariables.h"
 #include "demi/runtime/ui/UiVirtualCollection.h"
 #include "demi/schema/Validation.h"
 
@@ -75,8 +76,8 @@ int main() {
         return static_cast<float>(TextLayoutEngine::graphemeCount(value)) *
                10.0F;
       });
-  const auto hostileSize = text.layout(
-      {.text = "wide", .width = -10.0F, .fontSize = 100000.0F});
+  const auto hostileSize =
+      text.layout({.text = "wide", .width = -10.0F, .fontSize = 100000.0F});
   if (cjk.lines.size() < 3 || hostileSize.lines.empty() ||
       !std::isfinite(hostileSize.width)) {
     std::cerr << "CJK fallback wrapping or hostile text sizing failed.\n";
@@ -91,12 +92,12 @@ int main() {
   }
   const auto trailingSpaceLayout = TextLayoutEngine{}.layout(
       {.text = "Search ", .width = 200.0F, .fontSize = 20.0F});
-  const auto trailingCaret = std::ranges::find(
-      trailingSpaceLayout.carets, std::size_t{7},
-      &TextLayoutResult::Caret::grapheme);
-  const auto previousCaret = std::ranges::find(
-      trailingSpaceLayout.carets, std::size_t{6},
-      &TextLayoutResult::Caret::grapheme);
+  const auto trailingCaret =
+      std::ranges::find(trailingSpaceLayout.carets, std::size_t{7},
+                        &TextLayoutResult::Caret::grapheme);
+  const auto previousCaret =
+      std::ranges::find(trailingSpaceLayout.carets, std::size_t{6},
+                        &TextLayoutResult::Caret::grapheme);
   if (trailingSpaceLayout.lines.size() != 1 ||
       trailingSpaceLayout.lines.front().text != "Search " ||
       trailingSpaceLayout.lines.front().graphemeCount != 7 ||
@@ -298,6 +299,33 @@ int main() {
   UiLocalization{}.setPseudoLocale(localized, true);
   if (localized.nodes[0].text.front() != '[') {
     std::cerr << "Pseudo-localization did not invalidate localized text.\n";
+    return 1;
+  }
+  UiDocument variableHud = parseUiDocument(nlohmann::json::parse(R"({
+    "variables":["explicit_dynamic"],
+    "root":{"id":"root","children":[
+      {"id":"label","type":"label","text":"${title}: ${action}"},
+      {"id":"input","type":"text_input","placeholder":"${action}"},
+      {"id":"runtime","type":"label","text":"Authored"}
+    ]}
+  })"));
+  variableHud.nodes[3].text = "Runtime";
+  std::string variableError;
+  if (variableHud.nodes[1].text != "${title}: ${action}" ||
+      variableHud.nodes[2].placeholder != "${action}" ||
+      !variableHud.declaredVariables.contains("title") ||
+      !variableHud.declaredVariables.contains("explicit_dynamic") ||
+      !UiVariables{}.set(variableHud, "title", "Demi", variableError) ||
+      !UiVariables{}.set(variableHud, "action", "Play", variableError) ||
+      variableHud.nodes[1].text != "Demi: Play" ||
+      variableHud.nodes[3].text != "Runtime" ||
+      UiVariables{}.set(variableHud, "missing", "value", variableError)) {
+    std::cerr << "Native HUD variable substitution failed.\n";
+    return 1;
+  }
+  UiVariables{}.reset(variableHud);
+  if (variableHud.nodes[1].text != "${title}: ${action}") {
+    std::cerr << "HUD variable reset did not clear runtime values.\n";
     return 1;
   }
   UiDocument hidden;
@@ -826,18 +854,17 @@ int main() {
   // Stable-key row recycling keeps the live tree bounded and invalidates all
   // transient state before a slot represents different game data.
   UiDocument recycled;
-  recycled.nodes = {
-      {.id = "rows", .type = "panel"},
-      {.id = "row_template",
-       .parent = "rows",
-       .type = "button",
-       .text = "template",
-       .visible = false,
-       .focusable = true},
-      {.id = "row_label",
-       .parent = "row_template",
-       .type = "label",
-       .text = "template label"}};
+  recycled.nodes = {{.id = "rows", .type = "panel"},
+                    {.id = "row_template",
+                     .parent = "rows",
+                     .type = "button",
+                     .text = "template",
+                     .visible = false,
+                     .focusable = true},
+                    {.id = "row_label",
+                     .parent = "row_template",
+                     .type = "label",
+                     .text = "template label"}};
   UiMutationQueue::initializeGenerations(recycled);
   const auto rowTemplate = UiMutationQueue::handle(recycled, "row_template");
   UiTweenSystem recycleTweens;
@@ -891,7 +918,8 @@ int main() {
       dirtyChild->text != "template label" ||
       UiStateController{}.find(recycled, staleRow.id + ".runtime_child") !=
           nullptr) {
-    std::cerr << "Recycled row retained focus, capture, tween, or binding state.\n";
+    std::cerr
+        << "Recycled row retained focus, capture, tween, or binding state.\n";
     return 1;
   }
   const std::string retainedKey = visibleRows.rows[1].key;
@@ -901,18 +929,20 @@ int main() {
             stableKeys[visibleRows.rows[1].index]);
   visibleRows = recycler.reconcile(recycled, recycleTweens, *rowTemplate,
                                    stableKeys, extents, 500.0F, 30.0F, 1);
-  const auto retained = std::ranges::find(
-      visibleRows.rows, retainedKey, &UiVirtualRowBinding::key);
+  const auto retained = std::ranges::find(visibleRows.rows, retainedKey,
+                                          &UiVirtualRowBinding::key);
   if (!visibleRows.applied || retained == visibleRows.rows.end() ||
       retained->node.id != retainedNode || recycled.focusedId != retainedNode) {
-    std::cerr << "Stable row key did not retain its node and focus after reorder.\n";
+    std::cerr
+        << "Stable row key did not retain its node and focus after reorder.\n";
     return 1;
   }
   const std::size_t boundedNodeCount = recycled.nodes.size();
   for (std::size_t cycle = 0; cycle < 250; ++cycle) {
     const float offset = static_cast<float>((cycle * 37) % 9900) * 10.0F;
-    if (!recycler.reconcile(recycled, recycleTweens, *rowTemplate, stableKeys,
-                            extents, offset, 30.0F, 1)
+    if (!recycler
+             .reconcile(recycled, recycleTweens, *rowTemplate, stableKeys,
+                        extents, offset, 30.0F, 1)
              .applied ||
         recycled.nodes.size() != boundedNodeCount) {
       std::cerr << "Repeated row recycling grew or corrupted the live tree.\n";
@@ -921,9 +951,9 @@ int main() {
   }
   std::vector<std::string> duplicateKeys = stableKeys;
   duplicateKeys[1] = duplicateKeys[0];
-  const auto rejectedRows = recycler.reconcile(
-      recycled, recycleTweens, *rowTemplate, duplicateKeys, extents, 0.0F,
-      30.0F, 1);
+  const auto rejectedRows =
+      recycler.reconcile(recycled, recycleTweens, *rowTemplate, duplicateKeys,
+                         extents, 0.0F, 30.0F, 1);
   if (rejectedRows.applied || recycled.nodes.size() != boundedNodeCount) {
     std::cerr << "Duplicate virtual keys were not rejected transactionally.\n";
     return 1;
@@ -944,10 +974,7 @@ int main() {
   UiDocument actionable;
   actionable.nodes = {
       {.id = "play", .type = "button", .action = "play", .focusable = true},
-      {.id = "music",
-       .type = "toggle",
-       .action = "music",
-       .focusable = true},
+      {.id = "music", .type = "toggle", .action = "music", .focusable = true},
       {.id = "volume",
        .type = "slider",
        .value = 5.0F,
@@ -958,10 +985,7 @@ int main() {
       {.id = "list",
        .type = "scroll",
        .resolved = {.width = 100.0F, .height = 80.0F}},
-      {.id = "hidden",
-       .type = "button",
-       .visible = false,
-       .focusable = true}};
+      {.id = "hidden", .type = "button", .visible = false, .focusable = true}};
   UiAccessibilityActions accessibilityActions;
   if (!accessibilityActions
            .perform(actionable, {.type = UiAccessibilityActionType::Focus,
@@ -978,15 +1002,13 @@ int main() {
       actionable,
       {.type = UiAccessibilityActionType::Activate, .nodeId = "music"}));
   static_cast<void>(accessibilityActions.perform(
-      actionable,
-      {.type = UiAccessibilityActionType::SetValue,
-       .nodeId = "volume",
-       .value = 50.0F}));
+      actionable, {.type = UiAccessibilityActionType::SetValue,
+                   .nodeId = "volume",
+                   .value = 50.0F}));
   static_cast<void>(accessibilityActions.perform(
-      actionable,
-      {.type = UiAccessibilityActionType::SetText,
-       .nodeId = "name",
-       .text = "Zoë"}));
+      actionable, {.type = UiAccessibilityActionType::SetText,
+                   .nodeId = "name",
+                   .text = "Zoë"}));
   static_cast<void>(accessibilityActions.perform(
       actionable,
       {.type = UiAccessibilityActionType::ScrollForward, .nodeId = "list"}));

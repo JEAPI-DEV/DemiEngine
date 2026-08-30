@@ -1,12 +1,28 @@
+---@demi_component
+---@display_name Player Controller 3D
+---@category Gameplay
+---@description First-person movement, jumping, rotation, and projectiles.
 local Player3D = {}
 
----@type ScriptPropertySchema
-Player3D.property_schema = {
-  speed = { type = "number", default = 6.0, minimum = 0.0, maximum = 20.0 },
-  rotation_speed = { type = "number", default = 1.5, minimum = 0.0 },
-  jump_buffer_duration = { type = "number", default = 0.12, minimum = 0.0 },
-  coyote_duration = { type = "number", default = 0.12, minimum = 0.0 },
-}
+---@demi_property
+---@label Move Speed
+---@range 0 20
+Player3D.speed = 6.0
+
+---@demi_property
+---@label Rotation Speed
+---@range 0 100
+Player3D.rotation_speed = 1.5
+
+---@demi_property
+---@label Jump Buffer
+---@range 0 10
+Player3D.jump_buffer_duration = 0.12
+
+---@demi_property
+---@label Coyote Time
+---@range 0 10
+Player3D.coyote_duration = 0.12
 
 function Player3D:on_create()
   Debug.log("3D Player created. Move with WASD, jump with SPACE, fire with F.")

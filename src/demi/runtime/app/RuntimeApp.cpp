@@ -410,9 +410,9 @@ int runProject(const RuntimeOptions &options) {
 
   const auto prepareStartupAssets = [&] {
     Diagnostics diagnostics;
-    const SceneAssetBootstrapResult result = prepareInitialSceneAssets(
-        runtimeAssets, loaded.world.activeSceneId,
-        loaded.project.preloadedAssets, &diagnostics);
+    const SceneAssetBootstrapResult result =
+        prepareInitialSceneAssets(runtimeAssets, loaded.world.activeSceneId,
+                                  loaded.project.preloadedAssets, &diagnostics);
     if (!result.success) {
       std::cerr << "Initial scene asset preparation failed.\n";
       printDiagnosticsText(std::cerr, diagnostics);
@@ -907,6 +907,7 @@ int runProject(const RuntimeOptions &options) {
         cameraFrames.push_back({.cameraId = "fallback",
                                 .camera = fallbackCamera3D,
                                 .postProcess = std::nullopt,
+                                .debugGeometry = {},
                                 .position = {},
                                 .forward = {0.0F, 0.0F, 1.0F},
                                 .up = {0.0F, 1.0F, 0.0F},
@@ -914,7 +915,8 @@ int runProject(const RuntimeOptions &options) {
                                 .viewportY = 0,
                                 .viewportWidth = 0,
                                 .viewportHeight = 0,
-                                .viewId = 0});
+                                .viewId = 0,
+                                .frameBuffer = {}});
       } else {
         cameraFrames.reserve(cameraEntities.size());
         for (std::size_t index = 0; index < cameraEntities.size(); ++index) {

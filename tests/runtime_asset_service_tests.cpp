@@ -41,6 +41,19 @@ int main() {
                        {"dependencies", nlohmann::json::array()},
                        {"settings", nlohmann::json::object()}}
             .dump(2));
+  const auto languageSource = root / "assets/language_en.yml";
+  write(languageSource, "variables:\n  title: Keep\n");
+  write(root / "assets/language_en.asset.json",
+        nlohmann::json{{"format_version", 1},
+                       {"id", "asset://language/en"},
+                       {"type", "Text"},
+                       {"source", "language_en.yml"},
+                       {"importer", "copy"},
+                       {"importer_version", 1},
+                       {"source_hash", *demi::assets::hashFile(languageSource)},
+                       {"dependencies", nlohmann::json::array()},
+                       {"settings", nlohmann::json::object()}}
+            .dump(2));
   write(
       root / "scenes/main.scene.json",
       R"({"format_version":1,"id":"scene://main","name":"Main","entities":[{"id":"data","name":"Data","components":{"Sprite":{"texture":"asset://fixture"}}}]})");
@@ -88,6 +101,22 @@ int main() {
                         }}));
   demi::Diagnostics diagnostics;
   assert(assets.configure(project, registry, &diagnostics));
+  const auto textRequest = assets.load("asset://language/en", &diagnostics);
+  assert(textRequest != 0);
+  for (int attempt = 0;
+       attempt < 1000 && assets.progress(textRequest).stage !=
+                             demi::assets::AssetGroupStage::Ready;
+       ++attempt) {
+    assets.update();
+    std::this_thread::yield();
+  }
+  const auto residentText = assets.text("asset://language/en", &diagnostics);
+  assert(residentText && *residentText == "variables:\n  title: Keep\n");
+  assert(assets.unload("asset://language/en", &diagnostics));
+  diagnostics.clear();
+  assert(!assets.text("asset://language/en", &diagnostics));
+  assert(demi::hasErrors(diagnostics));
+  diagnostics.clear();
   const auto request = assets.prepare("asset-group://chapter", &diagnostics);
   assert(request != 0 && !demi::hasErrors(diagnostics));
   for (int attempt = 0;
@@ -149,8 +178,8 @@ int main() {
   }
   assert(assets.progress(assetRequest).stage ==
          demi::assets::AssetGroupStage::Ready);
-  assert(assets.memoryReport().assets.front().owners.contains(
-      "asset://fixture"));
+  assert(
+      assets.memoryReport().assets.front().owners.contains("asset://fixture"));
   assert(assets.unload("asset://fixture", &diagnostics));
   assert(assets.memoryReport().residentBytes == 0);
 

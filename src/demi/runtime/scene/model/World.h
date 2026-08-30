@@ -88,6 +88,9 @@ struct World {
   std::unordered_map<std::string, std::uint16_t> physicsMaskBits;
   std::unordered_map<std::string, ColliderAsset3D> colliderAssets3D;
   DebugOverlayConfig debug;
+  // Transient editor/runtime inspection focus. Never serialized as scene data.
+  std::string debugFocusedEntityId;
+  bool debugFocusRequired = false;
   GridPlacementPreview placementPreview;
   bool tilemapCollisionDirty = false;
   std::unique_ptr<Box2DWorldState> box2dState;

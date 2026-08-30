@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "name": "demi.ui.language_file",
+  "version": "1.0.0",
+  "engine": "^0.1.0",
+  "dependencies": {},
+  "public_modules": ["language_file"],
+  "files": [
+    "README.md",
+    "scripts/language_file.lua",
+    "tests/language_file_test.lua"
+  ]
+}

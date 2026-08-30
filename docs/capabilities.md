@@ -40,7 +40,7 @@ Status meanings:
 | Portable asset packages | Stable | Deterministic dependency-complete export/import with checksums, path safety, licenses, and explicit conflicts |
 | Linux cooking and packaging | Stable | Runtime-only deterministic cook output, manifest, Linux runtime bundle, and headless smoke coverage |
 | Android cooking integration | Planned | Deferred until the Android runtime path has equivalent automated coverage |
-| Functional editor | Planned | Begins after the authored data model stabilizes |
+| Functional editor | Experimental | Native project shell, hierarchy, metadata-driven field editors, coalesced undo/redo, conflict-safe atomic saves, authored 3D preview, asset/source browser, shared diagnostics, and owned runtime play controls are available; structural commands, 2D preview, and an embedded game view remain planned |
 | High-end Unity-style 3D | Deferred | Not a product target |
 
 The machine-readable status and compatibility workflow is documented in

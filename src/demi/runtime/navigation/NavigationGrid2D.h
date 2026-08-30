@@ -35,6 +35,8 @@ public:
   [[nodiscard]] int height() const;
   [[nodiscard]] float cellSize() const;
   [[nodiscard]] Vec2 origin() const;
+  [[nodiscard]] std::size_t blockerCount() const { return blockers_.size(); }
+  [[nodiscard]] std::size_t costCount() const { return costs_.size(); }
   [[nodiscard]] bool setBlocked(NavigationCell2D cell, bool blocked);
   [[nodiscard]] bool setCost(NavigationCell2D cell, float cost);
   [[nodiscard]] bool blocked(NavigationCell2D cell) const;

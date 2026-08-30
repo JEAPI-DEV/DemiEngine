@@ -32,5 +32,9 @@ loadDataAsset(const AssetManifest &manifest,
 [[nodiscard]] Diagnostics
 validateDataAssets(const AssetRegistry &registry,
                    const DataDocumentLimits &limits = {});
+[[nodiscard]] Diagnostics
+validateDataAssetDocument(const AssetManifest &manifest,
+                          const DataDocument &document,
+                          const AssetRegistry &registry);
 
 } // namespace demi::assets

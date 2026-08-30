@@ -49,10 +49,8 @@ bool validColor(const nlohmann::json &value) {
 
 std::optional<ShaderAsset::Stages>
 shaderStages(const nlohmann::json &document,
-             const std::filesystem::path &directory,
-             Diagnostics *diagnostics,
-             const std::filesystem::path &assetPath,
-             const std::string &label) {
+             const std::filesystem::path &directory, Diagnostics *diagnostics,
+             const std::filesystem::path &assetPath, const std::string &label) {
   if (!document.is_object()) {
     invalid(diagnostics, assetPath, "SHADER_PLATFORM_SOURCE_INVALID",
             label + " shader stages must be an object.");
@@ -81,7 +79,17 @@ shaderStages(const nlohmann::json &document,
 std::optional<MaterialAsset>
 loadMaterialAsset(const std::filesystem::path &path, Diagnostics *diagnostics) {
   const auto document = readDocument(path, diagnostics, "Material");
-  if (!document || !document->is_object())
+  if (!document)
+    return std::nullopt;
+  return parseMaterialAsset(*document, path, diagnostics);
+}
+
+std::optional<MaterialAsset>
+parseMaterialAsset(const nlohmann::json &value,
+                   const std::filesystem::path &path,
+                   Diagnostics *diagnostics) {
+  const nlohmann::json *document = &value;
+  if (!document->is_object())
     return std::nullopt;
 
   try {

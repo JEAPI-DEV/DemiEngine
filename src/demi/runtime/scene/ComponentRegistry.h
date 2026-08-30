@@ -114,6 +114,15 @@ validateComponent(const ComponentDescriptor &descriptor,
 [[nodiscard]] nlohmann::json
 componentDefaults(const ComponentDescriptor &descriptor);
 [[nodiscard]] nlohmann::json
+componentFieldDefault(const ComponentDescriptor &descriptor,
+                      const ComponentFieldDescriptor &field);
+[[nodiscard]] std::string
+componentFieldEditorLabel(const ComponentFieldDescriptor &field);
+[[nodiscard]] double
+componentFieldEditorStep(const ComponentFieldDescriptor &field);
+[[nodiscard]] bool
+componentFieldEditorReadOnly(const ComponentFieldDescriptor &field);
+[[nodiscard]] nlohmann::json
 componentSchema(const ComponentDescriptor &descriptor);
 [[nodiscard]] nlohmann::json canonicalComponentSchema();
 [[nodiscard]] std::string generatedLuaComponentTypes();

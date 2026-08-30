@@ -161,11 +161,13 @@ bool ColliderCanvasRenderer::draw(const World &world,
                                   const Camera2DComponent &camera,
                                   const Vec2 cameraPosition,
                                   const std::uint16_t viewportWidth,
-                                  const std::uint16_t viewportHeight) {
+                                  const std::uint16_t viewportHeight,
+                                  const bool forceVisible) {
   for (const Entity &entity : world.entities) {
-    if (!entity.enabled || entity.hasComponent<SpriteComponent>() ||
-        entity.hasComponent<Tilemap2DComponent>() ||
-        entity.hasComponent<IsoTransformComponent>())
+    if (!entity.enabled ||
+        (!forceVisible && (entity.hasComponent<SpriteComponent>() ||
+                           entity.hasComponent<Tilemap2DComponent>() ||
+                           entity.hasComponent<IsoTransformComponent>())))
       continue;
 
     const EntityProjection2D screen = projection(
@@ -175,19 +177,19 @@ bool ColliderCanvasRenderer::draw(const World &world,
                                    ? StaticFill
                                    : DynamicFill;
     if (const auto *box = entity.component<BoxCollider2DComponent>();
-        box != nullptr && box->debugVisible) {
+        box != nullptr && (forceVisible || box->debugVisible)) {
       if (!drawBox(canvas_, screen, *box, fill))
         return false;
       continue;
     }
     if (const auto *circle = entity.component<CircleCollider2DComponent>();
-        circle != nullptr && circle->debugVisible) {
+        circle != nullptr && (forceVisible || circle->debugVisible)) {
       if (!drawCircle(canvas_, screen, *circle, fill))
         return false;
       continue;
     }
     if (const auto *capsule = entity.component<CapsuleCollider2DComponent>();
-        capsule != nullptr && capsule->debugVisible) {
+        capsule != nullptr && (forceVisible || capsule->debugVisible)) {
       if (!drawCapsule(canvas_, screen, *capsule, fill))
         return false;
       continue;
@@ -196,9 +198,11 @@ bool ColliderCanvasRenderer::draw(const World &world,
     const auto *polygon = entity.component<PolygonCollider2DComponent>();
     const auto *edge = entity.component<EdgeCollider2DComponent>();
     const std::vector<Vec2> *source =
-        polygon != nullptr && polygon->debugVisible ? &polygon->points
-        : edge != nullptr && edge->debugVisible     ? &edge->points
-                                                    : nullptr;
+        polygon != nullptr && (forceVisible || polygon->debugVisible)
+            ? &polygon->points
+        : edge != nullptr && (forceVisible || edge->debugVisible)
+            ? &edge->points
+            : nullptr;
     if (source == nullptr)
       continue;
     const Vec2 offset = polygon != nullptr ? polygon->offset : Vec2{};

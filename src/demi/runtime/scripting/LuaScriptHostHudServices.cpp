@@ -5,6 +5,7 @@
 #include "demi/runtime/ui/UiLocalization.h"
 #include "demi/runtime/ui/UiMutationQueue.h"
 #include "demi/runtime/ui/UiStateController.h"
+#include "demi/runtime/ui/UiVariables.h"
 
 #include <algorithm>
 
@@ -32,6 +33,39 @@ bool LuaScriptHost::setHudText(const std::string &id, const std::string &text) {
   if (ui::UiStateController{}.setText(world_->ui, id, text))
     return true;
   return false;
+}
+
+bool LuaScriptHost::setHudVariable(const std::string &name,
+                                   const std::string &value,
+                                   std::string &error) {
+  return world_ != nullptr &&
+         ui::UiVariables{}.set(world_->ui, name, value, error);
+}
+
+bool LuaScriptHost::setHudVariables(
+    std::unordered_map<std::string, std::string> variables,
+    std::string &error) {
+  return world_ != nullptr &&
+         ui::UiVariables{}.setMany(world_->ui, std::move(variables), error);
+}
+
+bool LuaScriptHost::hudVariableDeclared(const std::string &name) const {
+  return world_ != nullptr && world_->ui.declaredVariables.contains(name);
+}
+
+std::optional<std::string>
+LuaScriptHost::hudVariable(const std::string &name) const {
+  if (world_ == nullptr)
+    return std::nullopt;
+  const auto found = world_->ui.variables.find(name);
+  return found == world_->ui.variables.end()
+             ? std::nullopt
+             : std::optional<std::string>(found->second);
+}
+
+void LuaScriptHost::resetHudVariables() {
+  if (world_ != nullptr)
+    ui::UiVariables{}.reset(world_->ui);
 }
 
 bool LuaScriptHost::setHudFont(const std::string &id, std::string font) {
@@ -216,6 +250,10 @@ LuaScriptHost::createHudNode(const std::string &parent, ui::UiNode node,
     return std::nullopt;
   }
   const std::string id = node.id;
+  if (node.textTemplate.empty())
+    node.textTemplate = node.text;
+  if (node.placeholderTemplate.empty())
+    node.placeholderTemplate = node.placeholder;
   ui::UiMutationQueue queue;
   queue.create(parent, std::move(node));
   const auto result = queue.apply(world_->ui);
@@ -223,6 +261,8 @@ LuaScriptHost::createHudNode(const std::string &parent, ui::UiNode node,
     error = result.error;
     return std::nullopt;
   }
+  ui::UiVariables{}.discover(world_->ui);
+  ui::UiVariables{}.apply(world_->ui);
   discardInvalidRecyclers(*world_);
   relayoutHud(*world_);
   return ui::UiMutationQueue::handle(world_->ui, id);
@@ -330,9 +370,9 @@ ui::UiVirtualReconcileResult LuaScriptHost::reconcileHudRows(
   auto &owner = world_->uiVirtualRecyclers[collectionId];
   if (!owner)
     owner = std::make_unique<ui::UiVirtualRecycler>(collectionId);
-  auto result = owner->reconcile(world_->ui, world_->uiTweens, rowTemplate,
-                                 stableKeys, rowExtents, scrollOffset,
-                                 viewportExtent, overscan);
+  auto result =
+      owner->reconcile(world_->ui, world_->uiTweens, rowTemplate, stableKeys,
+                       rowExtents, scrollOffset, viewportExtent, overscan);
   if (result.applied)
     relayoutHud(*world_);
   return result;

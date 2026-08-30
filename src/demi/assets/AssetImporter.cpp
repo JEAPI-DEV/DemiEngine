@@ -152,16 +152,6 @@ AssetImportResult importAsset(const AssetImportRequest &request) {
       return result;
     }
   }
-  const auto generatedTarget = request.projectDirectory / "generated" /
-                               "assets" / relativeId /
-                               request.source.filename();
-  if (!copyFile(sourceTarget, generatedTarget, copyError)) {
-    result.diagnostics.push_back({.severity = Severity::Error,
-                                  .code = "ASSET_IMPORT_GENERATE_FAILED",
-                                  .message = copyError,
-                                  .path = generatedTarget.string()});
-    return result;
-  }
   nlohmann::json manifest{
       {"format_version", 1},
       {"id", request.id},
@@ -172,11 +162,23 @@ AssetImportResult importAsset(const AssetImportRequest &request) {
       {"importer_version", descriptor->version},
       {"source_hash", *hashFiles(collectReferencedSourceFiles(sourceTarget))},
       {"dependencies", nlohmann::json::array()},
-      {"generated_output",
-       std::filesystem::relative(generatedTarget, assetDirectory)
-           .generic_string()},
       {"settings", nlohmann::json::object()},
   };
+  if (descriptor->copyToGeneratedOnImport) {
+    const auto generatedTarget = request.projectDirectory / "generated" /
+                                 "assets" / relativeId /
+                                 request.source.filename();
+    if (!copyFile(sourceTarget, generatedTarget, copyError)) {
+      result.diagnostics.push_back({.severity = Severity::Error,
+                                    .code = "ASSET_IMPORT_GENERATE_FAILED",
+                                    .message = copyError,
+                                    .path = generatedTarget.string()});
+      return result;
+    }
+    manifest["generated_output"] =
+        std::filesystem::relative(generatedTarget, assetDirectory)
+            .generic_string();
+  }
   const std::string importedType =
       request.type.empty() ? descriptor->assetTypes.front() : request.type;
   if (importedType == "Model3D")

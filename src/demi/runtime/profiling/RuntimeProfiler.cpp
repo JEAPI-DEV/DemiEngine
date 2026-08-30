@@ -1,6 +1,8 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 
 #include <algorithm>
+#include <cmath>
+#include <deque>
 #include <iomanip>
 #include <sstream>
 #include <unordered_map>
@@ -12,21 +14,52 @@ namespace {
 
 struct ProfileEntry {
   double totalMilliseconds = 0.0;
+  double latestMilliseconds = 0.0;
   double maxMilliseconds = 0.0;
   int calls = 0;
   std::size_t bytes = 0;
   double gauge = 0.0;
   bool hasGauge = false;
+  std::deque<double> samples;
 };
 
 bool profilerEnabled = false;
-std::unordered_map<std::string, ProfileEntry> frameEntries;
+std::unordered_map<std::string, ProfileEntry> currentFrameData;
 std::unordered_map<std::string, ProfileEntry> sessionData;
+std::size_t sessionFrames = 0;
+constexpr std::size_t MaximumSamples = 600;
 
 void updateEntry(ProfileEntry &entry, const double milliseconds) {
   entry.totalMilliseconds += milliseconds;
+  entry.latestMilliseconds = milliseconds;
   entry.maxMilliseconds = std::max(entry.maxMilliseconds, milliseconds);
   ++entry.calls;
+  entry.samples.push_back(milliseconds);
+  if (entry.samples.size() > MaximumSamples)
+    entry.samples.pop_front();
+}
+
+double percentile95(const ProfileEntry &entry) {
+  if (entry.samples.empty())
+    return 0.0;
+  std::vector<double> sorted(entry.samples.begin(), entry.samples.end());
+  std::ranges::sort(sorted);
+  const std::size_t index = static_cast<std::size_t>(
+      std::ceil(0.95 * static_cast<double>(sorted.size())) - 1.0);
+  return sorted[std::min(index, sorted.size() - 1)];
+}
+
+RuntimeProfiler::Entry publicEntry(const std::string &name,
+                                   const ProfileEntry &entry) {
+  return {.name = name,
+          .totalMilliseconds = entry.totalMilliseconds,
+          .latestMilliseconds = entry.latestMilliseconds,
+          .maxMilliseconds = entry.maxMilliseconds,
+          .p95Milliseconds = percentile95(entry),
+          .calls = entry.calls,
+          .bytes = entry.bytes,
+          .gauge = entry.gauge,
+          .hasGauge = entry.hasGauge};
 }
 
 } // namespace
@@ -34,16 +67,18 @@ void updateEntry(ProfileEntry &entry, const double milliseconds) {
 void RuntimeProfiler::setEnabled(const bool enabled) {
   profilerEnabled = enabled;
   if (!profilerEnabled) {
-    frameEntries.clear();
+    currentFrameData.clear();
     sessionData.clear();
+    sessionFrames = 0;
   }
 }
 
 bool RuntimeProfiler::enabled() { return profilerEnabled; }
 
 void RuntimeProfiler::resetSession() {
-  frameEntries.clear();
+  currentFrameData.clear();
   sessionData.clear();
+  sessionFrames = 0;
   if (profilerEnabled) {
     for (const char *scope :
          {"Frame.total", "Lua.update", "Render.total", "Physics2D.step",
@@ -54,7 +89,8 @@ void RuntimeProfiler::resetSession() {
 
 void RuntimeProfiler::beginFrame() {
   if (profilerEnabled) {
-    frameEntries.clear();
+    currentFrameData.clear();
+    ++sessionFrames;
   }
 }
 
@@ -62,7 +98,7 @@ void RuntimeProfiler::record(std::string name, const double milliseconds) {
   if (!profilerEnabled || name.empty()) {
     return;
   }
-  updateEntry(frameEntries[name], milliseconds);
+  updateEntry(currentFrameData[name], milliseconds);
   updateEntry(sessionData[std::move(name)], milliseconds);
 }
 
@@ -70,7 +106,7 @@ void RuntimeProfiler::addBytes(std::string name, const std::size_t bytes) {
   if (!profilerEnabled || name.empty() || bytes == 0) {
     return;
   }
-  frameEntries[name].bytes += bytes;
+  currentFrameData[name].bytes += bytes;
   sessionData[std::move(name)].bytes += bytes;
 }
 
@@ -81,7 +117,7 @@ void RuntimeProfiler::setGauge(std::string name, const double value) {
     entry.gauge = value;
     entry.hasGauge = true;
   };
-  set(frameEntries[name]);
+  set(currentFrameData[name]);
   set(sessionData[std::move(name)]);
 }
 
@@ -89,19 +125,26 @@ std::vector<RuntimeProfiler::Entry> RuntimeProfiler::sessionEntries() {
   std::vector<Entry> result;
   result.reserve(sessionData.size());
   for (const auto &[name, entry] : sessionData) {
-    result.push_back({.name = name,
-                      .totalMilliseconds = entry.totalMilliseconds,
-                      .maxMilliseconds = entry.maxMilliseconds,
-                      .calls = entry.calls,
-                      .bytes = entry.bytes,
-                      .gauge = entry.gauge,
-                      .hasGauge = entry.hasGauge});
+    result.push_back(publicEntry(name, entry));
   }
   std::ranges::sort(result, [](const Entry &left, const Entry &right) {
     return left.totalMilliseconds > right.totalMilliseconds;
   });
   return result;
 }
+
+std::vector<RuntimeProfiler::Entry> RuntimeProfiler::frameEntries() {
+  std::vector<Entry> result;
+  result.reserve(currentFrameData.size());
+  for (const auto &[name, entry] : currentFrameData)
+    result.push_back(publicEntry(name, entry));
+  std::ranges::sort(result, [](const Entry &left, const Entry &right) {
+    return left.totalMilliseconds > right.totalMilliseconds;
+  });
+  return result;
+}
+
+std::size_t RuntimeProfiler::frameCount() { return sessionFrames; }
 
 std::string RuntimeProfiler::sessionReport() {
   std::ostringstream output;
@@ -120,13 +163,13 @@ std::string RuntimeProfiler::sessionReport() {
 }
 
 std::string RuntimeProfiler::frameSummary(const double minimumMilliseconds) {
-  if (!profilerEnabled || frameEntries.empty()) {
+  if (!profilerEnabled || currentFrameData.empty()) {
     return {};
   }
 
   std::vector<std::pair<std::string, ProfileEntry>> entries;
-  entries.reserve(frameEntries.size());
-  for (const auto &[name, entry] : frameEntries) {
+  entries.reserve(currentFrameData.size());
+  for (const auto &[name, entry] : currentFrameData) {
     if (entry.totalMilliseconds >= minimumMilliseconds || entry.bytes > 0 ||
         entry.hasGauge) {
       entries.emplace_back(name, entry);

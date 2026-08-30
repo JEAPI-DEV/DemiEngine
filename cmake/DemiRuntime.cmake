@@ -8,9 +8,11 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/camera/Camera3DMath.cpp
   src/demi/runtime/camera/CameraRenderScheduler3D.cpp
   src/demi/runtime/data/DataAssetStore.cpp
+  src/demi/runtime/diagnostics/RuntimeLog.cpp
   src/demi/runtime/tilemap/TilemapCollisionGenerator.cpp
   src/demi/runtime/tilemap/TilemapRuntime.cpp
   src/demi/runtime/app/RuntimeApp.cpp
+  src/demi/runtime/app/EmbeddedRuntimeSession.cpp
   src/demi/runtime/app/ReloadCoordinator.cpp
   src/demi/runtime/audio/AudioClipPreprocess.cpp
   src/demi/runtime/audio/AudioMixer.cpp
@@ -48,6 +50,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/assets/RuntimeAssetService.cpp
   src/demi/runtime/scripting/LuaScriptHostBindings.cpp
   src/demi/runtime/scripting/LuaScriptHost.cpp
+  src/demi/runtime/scripting/LuaScriptConsole.cpp
   src/demi/runtime/scripting/LuaBindingCleanup.cpp
   src/demi/runtime/scripting/annotations/HandleActionAnnotation.cpp
   src/demi/runtime/scripting/annotations/LuaAnnotationScanner.cpp
@@ -64,6 +67,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/LuaScriptHostMediaNetworkServices.cpp
   src/demi/runtime/scripting/LuaScriptProperties.cpp
   src/demi/runtime/scripting/ScriptPropertyContract.cpp
+  src/demi/runtime/scripting/ScriptComponentMetadata.cpp
   src/demi/runtime/scripting/bindings/LuaBindingHelpers.cpp
   src/demi/runtime/scripting/bindings/LuaCoreBindings.cpp
   src/demi/runtime/scripting/bindings/LuaEntityBindings.cpp

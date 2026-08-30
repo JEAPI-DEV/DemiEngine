@@ -48,7 +48,8 @@ void pushJsonToLua(lua_State *state, const nlohmann::json &value) {
 
 bool applyScriptProperties(lua_State *state, const int tableRef,
                            const std::string &propertiesJson,
-                           std::string &error) {
+                           std::string &error,
+                           const nlohmann::json *headerSchema) {
   nlohmann::json authored = nlohmann::json::object();
   try {
     if (!propertiesJson.empty())
@@ -65,18 +66,25 @@ bool applyScriptProperties(lua_State *state, const int tableRef,
 
   sol::state_view lua(state);
   sol::table script = lua.registry()[tableRef];
-  const sol::object schemaObject = script["property_schema"];
   nlohmann::json resolved = authored;
-  if (schemaObject.valid() && schemaObject.get_type() != sol::type::nil) {
-    if (schemaObject.get_type() != sol::type::table) {
-      error = "property_schema must be a table keyed by property name.";
-      return false;
-    }
-    const auto values =
-        resolveScriptProperties(luaObjectToJson(schemaObject), authored, error);
+  if (headerSchema != nullptr) {
+    const auto values = resolveScriptProperties(*headerSchema, authored, error);
     if (!values)
       return false;
     resolved = *values;
+  } else {
+    const sol::object schemaObject = script["property_schema"];
+    if (schemaObject.valid() && schemaObject.get_type() != sol::type::nil) {
+      if (schemaObject.get_type() != sol::type::table) {
+        error = "property_schema must be a table keyed by property name.";
+        return false;
+      }
+      const auto values = resolveScriptProperties(luaObjectToJson(schemaObject),
+                                                  authored, error);
+      if (!values)
+        return false;
+      resolved = *values;
+    }
   }
 
   lua_rawgeti(state, LUA_REGISTRYINDEX, tableRef);

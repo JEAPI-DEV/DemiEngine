@@ -6,6 +6,121 @@
   target_link_libraries(demi-project-templates-tests PRIVATE demi-cli-support)
   target_compile_definitions(demi-project-templates-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-build-service-tests tests/build_service_tests.cpp)
+  target_link_libraries(demi-build-service-tests PRIVATE demi-cli-support)
+  add_executable(demi-editor-workspace-tests tests/editor_workspace_tests.cpp)
+  target_link_libraries(demi-editor-workspace-tests PRIVATE demi-editor-model)
+  target_compile_definitions(demi-editor-workspace-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-scene-view-state-tests
+    tests/editor_scene_view_state_tests.cpp)
+  target_link_libraries(demi-editor-scene-view-state-tests
+    PRIVATE demi-editor-model)
+  target_compile_definitions(demi-editor-scene-view-state-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-2d-scene-view-tests
+    tests/editor_2d_scene_view_tests.cpp)
+  target_link_libraries(demi-editor-2d-scene-view-tests
+    PRIVATE demi-editor-model)
+  target_compile_definitions(demi-editor-2d-scene-view-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-viewport-tool-tests
+    tests/editor_viewport_tool_tests.cpp)
+  target_link_libraries(demi-editor-viewport-tool-tests
+    PRIVATE demi-editor-model)
+  target_compile_definitions(demi-editor-viewport-tool-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-scene-document-tests
+    tests/editor_scene_document_tests.cpp)
+  target_link_libraries(demi-editor-scene-document-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-scene-commands-tests
+    tests/editor_scene_commands_tests.cpp)
+  target_link_libraries(demi-editor-scene-commands-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-authoring-workflow-tests
+    tests/editor_authoring_workflow_tests.cpp)
+  target_link_libraries(demi-editor-authoring-workflow-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-inspector-model-tests
+    tests/editor_inspector_model_tests.cpp)
+  target_link_libraries(demi-editor-inspector-model-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-hud-hierarchy-tests
+    tests/editor_hud_hierarchy_tests.cpp)
+  target_link_libraries(demi-editor-hud-hierarchy-tests
+    PRIVATE demi-editor-model)
+  target_compile_definitions(demi-editor-hud-hierarchy-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-hud-document-tests
+    tests/editor_hud_document_tests.cpp)
+  target_link_libraries(demi-editor-hud-document-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-imgui-input-tests
+    tests/editor_imgui_input_tests.cpp)
+  target_include_directories(demi-editor-imgui-input-tests PRIVATE
+    "${bgfx_SOURCE_DIR}/bgfx/examples/common/imgui"
+    "${bgfx_SOURCE_DIR}/bgfx/examples/common"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty"
+    "${bgfx_SOURCE_DIR}/bgfx/include")
+  target_link_libraries(demi-editor-imgui-input-tests PRIVATE demi-editor-ui)
+  add_executable(demi-editor-diagnostics-profiler-tests
+    tests/editor_diagnostics_profiler_tests.cpp)
+  target_link_libraries(demi-editor-diagnostics-profiler-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-recovery-preferences-tests
+    tests/editor_recovery_preferences_tests.cpp)
+  target_link_libraries(demi-editor-recovery-preferences-tests
+    PRIVATE demi-editor-model)
+  target_compile_definitions(demi-editor-recovery-preferences-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-workspace-layout-tests
+    tests/editor_workspace_layout_tests.cpp)
+  target_link_libraries(demi-editor-workspace-layout-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-lua-component-metadata-tests
+    tests/editor_lua_component_metadata_tests.cpp)
+  target_link_libraries(demi-editor-lua-component-metadata-tests
+    PRIVATE demi-editor-model)
+  target_compile_definitions(demi-editor-lua-component-metadata-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-authored-json-tests
+    tests/editor_authored_json_tests.cpp)
+  target_link_libraries(demi-editor-authored-json-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-release-workflow-tests
+    tests/editor_release_workflow_tests.cpp)
+  target_link_libraries(demi-editor-release-workflow-tests
+    PRIVATE demi-editor-model demi-cli-support)
+  target_compile_definitions(demi-editor-release-workflow-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+    DEMI_RUNTIME_PATH="$<TARGET_FILE:demi-runtime>")
+  add_dependencies(demi-editor-release-workflow-tests demi-runtime)
+  add_executable(demi-editor-play-session-tests
+    tests/editor_play_session_tests.cpp)
+  target_link_libraries(demi-editor-play-session-tests PRIVATE demi-editor-model)
+  target_compile_definitions(demi-editor-play-session-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-project-document-tests
+    tests/editor_project_document_tests.cpp)
+  target_link_libraries(demi-editor-project-document-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-asset-workflow-tests
+    tests/editor_asset_workflow_tests.cpp)
+  target_link_libraries(demi-editor-asset-workflow-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-asset-drop-tests
+    tests/editor_asset_drop_tests.cpp)
+  target_link_libraries(demi-editor-asset-drop-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-specialized-document-tests
+    tests/editor_specialized_document_tests.cpp)
+  target_link_libraries(demi-editor-specialized-document-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-asset-group-document-tests
+    tests/editor_asset_group_document_tests.cpp)
+  target_link_libraries(demi-editor-asset-group-document-tests
+    PRIVATE demi-editor-model)
   add_executable(demi-doctor-service-tests tests/doctor_service_tests.cpp)
   target_link_libraries(demi-doctor-service-tests PRIVATE demi-cli-support)
   target_compile_definitions(demi-doctor-service-tests PRIVATE
@@ -106,6 +221,10 @@
   add_executable(demi-bgfx2d-effect-renderers-tests
     tests/bgfx2d_effect_renderers_tests.cpp)
   target_link_libraries(demi-bgfx2d-effect-renderers-tests
+    PRIVATE demi-render2d-bgfx)
+  add_executable(demi-debug-label-layout-tests
+    tests/debug_label_layout_tests.cpp)
+  target_link_libraries(demi-debug-label-layout-tests
     PRIVATE demi-render2d-bgfx)
   add_executable(demi-bgfx-renderer2d-tests tests/bgfx_renderer2d_tests.cpp)
   target_link_libraries(demi-bgfx-renderer2d-tests PRIVATE demi-runtime-lib)

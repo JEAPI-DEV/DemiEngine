@@ -49,6 +49,26 @@ Quaternion quaternionFromEuler(const Vec3 rotation) {
   return multiply(z, multiply(y, x));
 }
 
+Quaternion inverse(const Quaternion value) {
+  return {.x = -value.x, .y = -value.y, .z = -value.z, .w = value.w};
+}
+
+Quaternion quaternionFromAxisAngle(const Vec3 axis, const float radians) {
+  const float magnitude =
+      std::sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z);
+  if (magnitude <= 0.000001F)
+    return {};
+  const float sine = std::sin(radians * 0.5F) / magnitude;
+  return {.x = axis.x * sine,
+          .y = axis.y * sine,
+          .z = axis.z * sine,
+          .w = std::cos(radians * 0.5F)};
+}
+
+float safeDivide(const float value, const float divisor) {
+  return std::abs(divisor) > 0.000001F ? value / divisor : 0.0F;
+}
+
 Vec3 rotate(const Quaternion rotation, const Vec3 value) {
   const Vec3 q{rotation.x, rotation.y, rotation.z};
   const Vec3 twiceCross{
@@ -157,6 +177,79 @@ Vec3 transformDirection3D(const WorldTransform3D &transform,
   return rotate(quaternionFromEuler(transform.rotation), localDirection);
 }
 
+Vec3 inverseTransformPoint3D(const WorldTransform3D &transform,
+                             const Vec3 worldPoint) {
+  const Vec3 offset{worldPoint.x - transform.position.x,
+                    worldPoint.y - transform.position.y,
+                    worldPoint.z - transform.position.z};
+  const Vec3 unrotated =
+      rotate(inverse(quaternionFromEuler(transform.rotation)), offset);
+  return {safeDivide(unrotated.x, transform.scale.x),
+          safeDivide(unrotated.y, transform.scale.y),
+          safeDivide(unrotated.z, transform.scale.z)};
+}
+
+Vec3 inverseTransformVector3D(const WorldTransform3D &transform,
+                              const Vec3 worldVector) {
+  const Vec3 unrotated =
+      rotate(inverse(quaternionFromEuler(transform.rotation)), worldVector);
+  return {safeDivide(unrotated.x, transform.scale.x),
+          safeDivide(unrotated.y, transform.scale.y),
+          safeDivide(unrotated.z, transform.scale.z)};
+}
+
+Vec3 rotateLocalEuler3D(const Vec3 rotation, const Vec3 localAxis,
+                        const float radians) {
+  return eulerFromQuaternion(
+      multiply(quaternionFromEuler(rotation),
+               quaternionFromAxisAngle(localAxis, radians)));
+}
+
+Vec3 rotateWorldEuler3D(const Vec3 rotation, const Vec3 worldAxis,
+                        const float radians) {
+  return eulerFromQuaternion(
+      multiply(quaternionFromAxisAngle(worldAxis, radians),
+               quaternionFromEuler(rotation)));
+}
+
+std::optional<Transform3DComponent>
+worldToLocalTransform3D(const World &world, const Entity &entity,
+                        const WorldTransform3D &worldTransform) {
+  const auto *current = entity.component<Transform3DComponent>();
+  if (current == nullptr)
+    return std::nullopt;
+  Transform3DComponent local = *current;
+  if (current->parent.empty()) {
+    local.position = worldTransform.position;
+    local.rotation = worldTransform.rotation;
+    local.scale = worldTransform.scale;
+    return local;
+  }
+  const Entity *parent = findById(world, current->parent);
+  if (parent == nullptr)
+    return std::nullopt;
+  const auto parentTransform = resolveWorldTransform3D(world, *parent);
+  if (!parentTransform)
+    return std::nullopt;
+  if (std::abs(parentTransform->scale.x) <= 0.000001F ||
+      std::abs(parentTransform->scale.y) <= 0.000001F ||
+      std::abs(parentTransform->scale.z) <= 0.000001F)
+    return std::nullopt;
+
+  local.position =
+      inverseTransformPoint3D(*parentTransform, worldTransform.position);
+  local.scale = {safeDivide(worldTransform.scale.x, parentTransform->scale.x),
+                 safeDivide(worldTransform.scale.y, parentTransform->scale.y),
+                 safeDivide(worldTransform.scale.z, parentTransform->scale.z)};
+  const Quaternion parentRotation =
+      quaternionFromEuler(parentTransform->rotation);
+  const Quaternion desiredRotation =
+      quaternionFromEuler(worldTransform.rotation);
+  local.rotation =
+      eulerFromQuaternion(multiply(inverse(parentRotation), desiredRotation));
+  return local;
+}
+
 Vec3 forwardDirection3D(const WorldTransform3D &transform) {
   return transformDirection3D(transform, {0.0F, 0.0F, 1.0F});
 }
@@ -172,13 +265,11 @@ Vec3 upDirection3D(const WorldTransform3D &transform) {
 Vec3 lookAtRotation3D(const Vec3 origin, const Vec3 target) {
   const Vec3 offset{target.x - origin.x, target.y - origin.y,
                     target.z - origin.z};
-  const float length =
-      std::sqrt(offset.x * offset.x + offset.y * offset.y +
-                offset.z * offset.z);
+  const float length = std::sqrt(offset.x * offset.x + offset.y * offset.y +
+                                 offset.z * offset.z);
   if (length <= 0.000001F)
     return {};
-  const Vec3 direction{offset.x / length, offset.y / length,
-                       offset.z / length};
+  const Vec3 direction{offset.x / length, offset.y / length, offset.z / length};
   return {
       .x = -std::asin(std::clamp(direction.y, -1.0F, 1.0F)),
       .y = std::atan2(direction.x, direction.z),

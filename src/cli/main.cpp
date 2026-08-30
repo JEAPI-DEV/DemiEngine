@@ -25,6 +25,10 @@
 #include <string>
 #include <vector>
 
+#if defined(__linux__)
+#include <unistd.h>
+#endif
+
 namespace {
 
 using demi::cli::hasArg;
@@ -106,7 +110,7 @@ void printHelp() {
       << "  demi build apk [--project <project>] [--gradle gradle]\n"
       << "  demi build linux [--project <project>] [--output path]\n"
       << "  demi build linux_server [--project <project>] [--output path]\n"
-      << "  demi editor --project <project>\n";
+      << "  demi editor [--project <project>] [--max-frames count]\n";
 }
 
 int runValidate(const std::vector<std::string> &args) {
@@ -134,6 +138,45 @@ int runValidate(const std::vector<std::string> &args) {
 
   return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure
                                               : ExitSuccess;
+}
+
+int launchEditor(const std::vector<std::string> &args) {
+#if defined(__linux__) && !defined(DEMI_SERVER_CLI)
+  const std::filesystem::path project =
+      demi::cli::projectFileFromArgs(args, std::filesystem::current_path());
+  if (project.empty()) {
+    std::cerr << "No demi.project.json was found. Pass --project <project>.\n";
+    return ExitUsageError;
+  }
+  std::error_code error;
+  const std::filesystem::path executable =
+      std::filesystem::read_symlink("/proc/self/exe", error);
+  if (error) {
+    std::cerr << "Could not locate the DemiEngine executable: "
+              << error.message() << '\n';
+    return ExitValidationFailure;
+  }
+  const std::filesystem::path editor = executable.parent_path() / "demi-editor";
+  std::vector<std::string> arguments{editor.string(), "--project",
+                                     project.string()};
+  if (const std::string maximumFrames = valueAfter(args, "--max-frames");
+      !maximumFrames.empty()) {
+    arguments.push_back("--max-frames");
+    arguments.push_back(maximumFrames);
+  }
+  std::vector<char *> nativeArguments;
+  nativeArguments.reserve(arguments.size() + 1);
+  for (std::string &argument : arguments)
+    nativeArguments.push_back(argument.data());
+  nativeArguments.push_back(nullptr);
+  execv(editor.c_str(), nativeArguments.data());
+  std::cerr << "Could not launch " << editor << ".\n";
+  return ExitValidationFailure;
+#else
+  (void)args;
+  std::cerr << "The graphical editor is available in desktop Linux builds.\n";
+  return ExitUsageError;
+#endif
 }
 
 int runScene(const std::vector<std::string> &args) {
@@ -379,13 +422,7 @@ int main(int argc, char **argv) {
   }
 
   if (args[0] == "editor") {
-    const std::string project = valueAfter(args, "--project");
-    if (project.empty()) {
-      std::cerr << "editor requires --project <project>.\n";
-      return ExitUsageError;
-    }
-    std::cout << "Editor launch placeholder for project: " << project << '\n';
-    return ExitSuccess;
+    return launchEditor(args);
   }
 
   if (hasArg(args, "--help")) {

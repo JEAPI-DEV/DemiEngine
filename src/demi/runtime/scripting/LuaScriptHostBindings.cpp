@@ -174,7 +174,7 @@ std::vector<std::string> LuaScriptHost::publicLuaApi() const {
   return result;
 }
 
-void luaReportCallbackError(const char *functionName,
+void luaReportCallbackError(lua_State *state, const char *functionName,
                             const std::filesystem::path &path,
                             const std::string &ownerId,
                             const std::string &error) {
@@ -186,6 +186,15 @@ void luaReportCallbackError(const char *functionName,
     std::cerr << " for " << ownerId;
   }
   std::cerr << ": " << error << '\n';
+  if (RuntimeLogBuffer *log = luaRuntimeLog(state))
+    log->append({.severity = RuntimeLogSeverity::Error,
+                 .channel = "lua.callback",
+                 .message = std::string(functionName) + ": " + error,
+                 .source = path.string(),
+                 .line = 0,
+                 .entityId = ownerId,
+                 .component = "LuaScript",
+                 .field = {}});
 }
 
 std::filesystem::path luaResolveScriptPath(const ProjectData &project,
@@ -210,20 +219,21 @@ void luaConfigurePackagePath(lua_State *state, const ProjectData &project) {
   const std::filesystem::path runtimeScripts =
       std::filesystem::path(DEMI_SOURCE_DIR) / "scripts" / "runtime";
   std::string packagePaths;
-  const std::filesystem::path installedPackages =
-      project.projectDirectory / ".demi" / "packages";
-  std::error_code packageError;
-  if (std::filesystem::is_directory(installedPackages, packageError)) {
-    std::vector<std::filesystem::path> roots;
-    for (const auto &entry :
-         std::filesystem::directory_iterator(installedPackages))
+  std::vector<std::filesystem::path> roots;
+  for (const std::filesystem::path &packages :
+       {project.projectDirectory / ".demi" / "packages",
+        project.projectDirectory / "packages"}) {
+    std::error_code packageError;
+    if (!std::filesystem::is_directory(packages, packageError))
+      continue;
+    for (const auto &entry : std::filesystem::directory_iterator(packages))
       if (entry.is_directory())
         roots.push_back(entry.path() / "scripts");
-    std::ranges::sort(roots);
-    for (const auto &root : roots)
-      packagePaths +=
-          root.string() + "/?.lua;" + root.string() + "/?/init.lua;";
   }
+  std::ranges::sort(roots);
+  roots.erase(std::unique(roots.begin(), roots.end()), roots.end());
+  for (const auto &root : roots)
+    packagePaths += root.string() + "/?.lua;" + root.string() + "/?/init.lua;";
   const std::string path = packagePaths + scripts.string() + "/?.lua;" +
                            scripts.string() + "/?/init.lua;" +
                            project.projectDirectory.string() + "/?.lua;" +
@@ -282,7 +292,7 @@ void luaCallLifecycle(lua_State *state, const int tableRef,
   }
   std::string error;
   if (!luaCall(state, argCount, 0, error)) {
-    luaReportCallbackError(functionName, path, ownerId, error);
+    luaReportCallbackError(state, functionName, path, ownerId, error);
   }
   lua_pop(state, 1);
 }
@@ -333,7 +343,7 @@ void luaCallTypedUiEvent(lua_State *state, const int tableRef,
   luaPushUiEvent(state, event);
   std::string error;
   if (!luaCall(state, 2, 0, error))
-    luaReportCallbackError(functionName, path, event.id, error);
+    luaReportCallbackError(state, functionName, path, event.id, error);
   lua_pop(state, 1);
 }
 
@@ -361,7 +371,8 @@ void luaCallActionEvent(lua_State *state, const int tableRef,
   lua_setfield(state, -2, "mouse_y");
   std::string error;
   if (!luaCall(state, 2, 0, error)) {
-    luaReportCallbackError(functionName.c_str(), path, node.action, error);
+    luaReportCallbackError(state, functionName.c_str(), path, node.action,
+                           error);
   }
   lua_pop(state, 1);
 }
@@ -405,7 +416,8 @@ void luaCallModuleActionEvent(lua_State *state, const std::string &moduleName,
   lua_setfield(state, -2, "mouse_y");
   std::string error;
   if (!luaCall(state, 1, 0, error)) {
-    luaReportCallbackError(functionName.c_str(), path, node.action, error);
+    luaReportCallbackError(state, functionName.c_str(), path, node.action,
+                           error);
   }
   lua_pop(state, 1);
 }
@@ -424,7 +436,7 @@ void luaCallScriptEvent(lua_State *state, const int tableRef,
   payloadIndex > 0 ? lua_pushvalue(state, payloadIndex) : lua_newtable(state);
   std::string error;
   if (!luaCall(state, 2, 0, error)) {
-    luaReportCallbackError(functionName.c_str(), path, eventName, error);
+    luaReportCallbackError(state, functionName.c_str(), path, eventName, error);
   }
   lua_pop(state, 1);
 }
@@ -458,7 +470,7 @@ void luaCallModuleEvent(lua_State *state, const std::string &moduleName,
   payloadIndex > 0 ? lua_pushvalue(state, payloadIndex) : lua_newtable(state);
   std::string error;
   if (!luaCall(state, 1, 0, error)) {
-    luaReportCallbackError(functionName.c_str(), path, eventName, error);
+    luaReportCallbackError(state, functionName.c_str(), path, eventName, error);
   }
   lua_pop(state, 1);
 }

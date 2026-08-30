@@ -52,6 +52,20 @@ files provide `styles` and an optional `action_map`; localization files provide
 a `localization` object. Values declared directly in the HUD take precedence.
 See `examples/ui_showcase` for a menu/settings/inventory document.
 
+HUD text and placeholders may reference native variables directly:
+
+```json
+{"id":"title","type":"label","text":"${game_title}"}
+```
+
+Every `${name}` declares itself automatically. An optional top-level
+`"variables": ["name"]` array can explicitly declare values used only by
+runtime-created UI, but it never contains translated text. `Hud.set_variable`
+updates one value; `Hud.set_variables` validates and applies a complete string
+map in one pass; `Hud.reset_variables` clears runtime values. Unresolved
+variables remain visible as `${name}` so missing language data is diagnosable.
+See `examples/main_menu_lang` for preloaded and lazily loaded YAML languages.
+
 `action_effects` can attach declarative `show`, `hide`, and `focus` changes to
 an action. Use these for screen/tab transitions that do not require gameplay
 logic. Actions are still emitted to Lua after the built-in state change.
@@ -63,6 +77,8 @@ Lua changes state without controlling layout:
 - `Hud.set_value(id, value)`
 - `Hud.set_checked(id, checked)`
 - `Hud.set_disabled(id, disabled)` and `Hud.set_visible(id, visible)`
+- `Hud.has_variable(name)`, `Hud.set_variable(name, text)`, and
+  `Hud.set_variables(values)`
 - `Hud.focus_next(reverse)` and `Hud.focused()`
 
 Runtime-generated UI uses the same retained tree and layout path as authored

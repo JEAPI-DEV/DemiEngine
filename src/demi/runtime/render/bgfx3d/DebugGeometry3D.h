@@ -21,14 +21,15 @@ struct DebugLine3D {
 struct DebugGeometry3DRequest {
   bool forceColliders = false;
   bool bounds = false;
+  bool lights = false;
+  bool cameras = false;
 };
 
 // Extracts world-space debug geometry from the same authored collider data and
 // resolved transforms used by PhysicsWorld3D. Keeping extraction separate from
 // GPU submission makes shape/transform regressions testable without a backend.
 [[nodiscard]] std::vector<DebugLine3D>
-buildDebugGeometry3D(const World &world,
-                     DebugGeometry3DRequest request = {});
+buildDebugGeometry3D(const World &world, DebugGeometry3DRequest request = {});
 
 [[nodiscard]] bool appendDebugGeometry3D(const World &world,
                                          PrimitiveCanvas3D &canvas,

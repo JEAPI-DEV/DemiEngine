@@ -57,6 +57,9 @@ function Building.new(state, config)
       power_level = 0, range_level = 0, targeting = "first",
     }
     state.status = definition.label .. " built."
+    print(string.format(
+      "Tower placed: %s [%s] at tile (%d, %d); gold=%d",
+      definition.label, id, x, y, state.gold))
     state.build_kind = nil
     Grid.clear_preview()
     return true

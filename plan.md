@@ -1585,165 +1585,620 @@ reserved for content with a lifetime independent of the scene.
 The editor should accelerate the same files and commands used by the CLI. It
 must not become a second engine with hidden state.
 
-**Status: planned.** `demi editor` and `src/editor` establish a boundary, but
-the executable is still a placeholder. Component metadata, prefab expansion,
-scene commands, validation, rendering, and debug services now provide the
-contracts the editor should consume.
+**Status: complete.** `demi editor` now launches a native SDL3/bgfx/Dear
+ImGui workspace. It loads real projects, shows the scene hierarchy, generates
+editable fields from component metadata, browses authored sources, and reports
+shared CLI diagnostics. Scene field edits use reversible stable-ID commands,
+continuous edits coalesce, deterministic atomic saves reject external-change
+conflicts and present explicit Reload/Keep/Save Copy/Cancel choices, optional
+field presence round-trips through undo, rejected edits share inline/Console
+diagnostics, the authored 3D scene renders through the normal bgfx renderer,
+an independent non-authored scene camera provides focused orbit/pan/zoom/fly,
+frame-selected, projection, reset, and align-to-camera controls. Play now owns
+an isolated embedded runtime world and offscreen Game-view target with focused
+input, deterministic Pause/Step/Stop, read-only runtime inspection, and a
+visible failure state; the owned external runtime remains available as a
+compatibility path. Stable-ID CPU picking now keeps
+the 3D viewport, hierarchy, and Inspector selection synchronized. Parent-aware
+move/rotate/scale gizmos use the existing command history with local/world
+space, snapping, coalesced undo, and clean cancellation, while bounds,
+collider, light, and camera overlays reuse runtime debug extraction. Structural
+create/delete/reparent/duplicate and component add/remove commands stage
+full-document validation through a shared in-memory scene validator, and the
+preview world rebuilds from the authored document through the shared loader.
+The descriptor-driven Inspector now supplies shared labels, defaults, steps,
+read-only/restart policies, stable asset/entity/prefab choices, grouped
+domain-compatible component discovery, and atomic mixed-value multi-editing.
+Hierarchy multi-selection and keyboard rename/duplicate/delete/focus/create-child
+actions use the same stable-ID command path. Authored 2D scenes now render
+through the normal `BgfxRenderer2D` path with an independent pan/zoom camera,
+pixel-aware grid, stable-ID picking, parent-aware move/rotate/scale gizmos,
+runtime collider visuals, resolved sprite/tilemap/camera bounds, and an
+explicit transient view switch for mixed scenes. Embedded play sessions remain
+an upcoming slice.
 
-### Editor architecture
+### Non-negotiable design rules
 
-- `EditorApplication` coordinates panels, documents, play sessions, and
-  commands. It does not parse scene JSON, inspect component internals, or
-  mutate runtime storage directly.
-- `EditorDocument` owns one authored source document, its last saved canonical
-  representation, dirty state, diagnostics, external-file revision, and undo
-  stack.
-- `EditorCommand` describes a validated source mutation with apply/revert and
-  serialization. Commands target stable IDs/field paths rather than pointers.
-- Inspector/property widgets are generated from component/UI/asset metadata.
-  Specialized editors adapt values but still submit ordinary commands.
-- Scene/Game previews run through the existing bgfx hosts and runtime services.
-  Editor rendering owns separate views/targets, not another renderer.
-- File IO is behind a document store that performs conflict detection and
-  atomic saves. Panels never write files directly.
+These rules are the contract for every Step 8 change. A locally convenient UI
+shortcut is not acceptable when it violates one of them.
 
-The first implementation should choose a single UI technology behind an
-`EditorUiHost` boundary and document that decision. The authored/runtime data
-contracts must not depend on Dear ImGui, another immediate UI library, or any
-specific docking implementation.
+1. **Authored files are the source of truth.** Project, scene, prefab, HUD,
+   material, asset, and data files remain ordinary versioned source files.
+   `runtime::LoadedProject` and `runtime::World` are projections used for
+   preview and execution; never serialize those projections back as a
+   replacement for the authored document.
+2. **No hidden editor state.** A project must validate, cook, package, and run
+   identically after the editor closes. Layout preferences and caches may live
+   under `.demi/`, but entity/component values, references, imports, and build
+   settings must not exist only there.
+3. **Stable IDs are the identity boundary.** Commands, selection, hierarchy,
+   prefab overrides, picking, and diagnostics use stable entity/node/asset IDs
+   and field paths. Do not retain pointers, array indexes, ImGui IDs, or ECS
+   addresses as authored identity.
+4. **One parser and validator per format.** Editor code calls the existing
+   loaders, component descriptors, reference resolvers, and diagnostics used by
+   `demi validate`. Do not add permissive editor-only parsers or duplicate
+   validation tables.
+5. **Reflection metadata drives generic UI.** Component field type, label,
+   bounds, enum choices, reference kind, editability, and documentation come
+   from component metadata. If the metadata is insufficient, extend the shared
+   descriptor and its tests instead of hard-coding a component name in the
+   inspector.
+6. **The editor reuses runtime rendering.** Scene and game views submit through
+   the normal renderer, GPU resource owners, material/asset registry, transform
+   resolution, and debug extraction. The Scene view may own a transient camera
+   pose, but must not implement a second camera renderer, mesh, lighting,
+   animation, or asset-loading path.
+7. **Presentation never owns mutations or IO.** Panels collect user intent and
+   display results. Documents validate and apply changes; the document store
+   reads and writes files; runtime/platform adapters own rendering and child
+   processes.
+8. **Every authored mutation is one reversible transaction.** A rejected
+   operation changes neither the source document nor undo history. A successful
+   compound action such as duplicate-with-children or prefab apply is undone as
+   one action.
+9. **Edit state and play state are separate.** Runtime scripts may mutate only
+   the play world. Stopping Play discards those mutations. Copying a runtime
+   value into authored data requires a future explicit, validated editor
+   command; it must never happen automatically.
+10. **Do not expose fake controls.** A visible enabled button must call a real
+    service, report failure, and have coverage. Unimplemented actions stay
+    disabled with a short explanation rather than modifying UI-only state.
 
-### Command contract
+### Concrete module ownership
 
-```cpp
-struct EditorCommandResult {
-  bool applied = false;
-  Diagnostics diagnostics;
-};
+Use the existing names below. Do not introduce parallel `EditorApplication`,
+`EditorDocument`, `SceneModel`, or editor-specific ECS abstractions for the same
+responsibilities.
 
-class EditorCommand {
-public:
-  virtual ~EditorCommand() = default;
-  virtual EditorCommandResult apply(EditorDocument &) = 0;
-  virtual EditorCommandResult revert(EditorDocument &) = 0;
-  virtual Json serialize() const = 0;
-};
+| Module | Owns | Must not own |
+| --- | --- | --- |
+| `src/editor/main.cpp` | CLI option parsing, project discovery, object construction, main frame loop, orderly shutdown | Panel logic, scene parsing, commands, persistence |
+| `EditorShell` | Top-level panel composition, shortcuts, focus, notices, toolbar/menu state | JSON mutation, filesystem writes, renderer implementation |
+| `EditorHierarchyPanel` | Hierarchy filtering, selection presentation, context actions, stable-ID drag/drop intent | Scene JSON mutation, command history, validation |
+| `EditorInspectorPanel` | Metadata-to-widget adaptation and submission of edit intent | Component schemas, command history, direct runtime mutation |
+| `EditorWorkspace` | Application-level coordination of the active project, document, selection, diagnostics, and preview projection | Widget drawing, file format parsing, direct platform calls |
+| `EditorSceneDocument` | Active authored scene JSON, dirty state, staged validation, command history, undo/redo | Dear ImGui, bgfx, process control, project-wide source discovery, raw JSON surgery |
+| `EditorSceneJson` | Pure authored-scene JSON manipulation: entity/component lookup, subtree collection, stable-id generation, parent remapping | Document state, history, validation, persistence |
+| `EditorSceneCommand` | Reversible value-type command variant and its apply/revert | Validation, persistence, UI intent |
+| `EditorDocumentStore` | Reads, file revision/hash checks, same-directory temporary writes, atomic replacement | JSON semantics, command policy, UI conflict choices |
+| `EditorConflictPanel` | External-change modal presentation and transient Save Copy path input | Conflict policy, document mutation, direct filesystem writes |
+| `EditorSceneViewState` | Transient editor camera pose/projection/focus, viewport navigation capture, local/world mode, and snap settings | Authored scene mutation, ImGui input polling, renderer ownership |
+| `EditorViewportProjection` | UI-free camera projection, deterministic CPU picking, and stable-ID hit results | Selection ownership, authored mutation, command history, widget drawing |
+| `EditorViewportTool` | UI-free gizmo presentation and one active transform-drag state machine | Direct authored mutation, document history, ImGui polling, renderer ownership |
+| `EditorUiHost` / `EditorUiHostBgfx` | SDL3/bgfx/Dear ImGui lifecycle, input forwarding, viewport rectangle submission, renderer adapter ownership | Authored data, undo history, editor business rules |
+| `EditorPlaySession` | Explicit Play state and ownership of the selected embedded or external runtime host | Scene saving, panel drawing, unrelated child processes |
+| `EmbeddedRuntimeSession` | One windowless runtime world and its Lua/simulation/physics/assets/audio/media/network lifecycle | Editor UI, authored documents, renderer ownership |
+| `EditorGameRenderer` | Separate embedded Game renderers and a resizable offscreen GPU target | Simulation, platform or ImGui frame lifecycle, authored state |
+| `EditorGameViewPanel` | Game canvas state plus read-only runtime hierarchy/Inspector presentation | Runtime mutation, simulation, authored command history |
+| `EditorTheme` / `EditorPanelStyle` | Reusable visual tokens and panel chrome | Domain behavior or persistent project state |
+| `demi/runtime`, schemas, asset services | Shared parsing, validation, transforms, rendering, assets, runtime behavior | Dear ImGui or editor panel dependencies |
+
+Dependency direction is:
+
+```text
+EditorShell / EditorInspectorPanel
+              |
+              v
+       EditorWorkspace
+        /            \
+       v              v
+EditorSceneDocument  shared runtime/validation APIs
+       |
+       v
+EditorDocumentStore
+
+EditorUiHostBgfx ---> existing renderer/GPU/platform adapters
+                 \--> EditorGameRenderer
+EditorPlaySession ---> EmbeddedRuntimeSession
+                  \--> operating-system process boundary (optional external Play)
 ```
 
-This is a design shape, not a requirement for one inheritance hierarchy.
-Commands may be value variants dispatched by a command service if that is
-clearer. The required properties are explicit target, validation, reversible
-state, deterministic serialization, and no hidden live pointers.
+Dependencies must not point upward. In particular, runtime, component,
+validation, and filesystem modules must not include editor or ImGui headers.
+Avoid generic `Manager`, `Helper`, or `Utils` modules: add a named owner only
+when a responsibility has an independent lifecycle or reason to change.
 
-### Deliverables
+When a panel becomes independently stateful or makes `EditorShell` change for
+an unrelated reason, extract it as `EditorHierarchyPanel`, `EditorAssetsPanel`,
+`EditorDiagnosticsPanel`, or another concrete panel. Do not split files by line
+count alone, and do not hide a new subsystem in an anonymous namespace.
 
-1. Add project creation/template selection and asset import status.
-2. Add hierarchy editing with create, rename, parent, enable, duplicate, and
-   delete operations.
-3. Generate the inspector from component and UI metadata with inline shared
-   validation diagnostics.
-4. Add 2D and 3D scene views, selection, transforms, snapping, collider
-   visualization, camera previews, and play-from-here.
-5. Add prefab create/open/apply/revert/override workflows.
-6. Add UI hierarchy, anchors/layout editing, safe-area presets, localization
-   preview, and dynamic-data sample preview.
-7. Add focused animation, material, dialogue-data, input-action, and audio
-   inspectors without introducing editor-only formats.
-8. Implement every mutation as a serializable undoable command.
-9. Add Play/Pause/Step/Stop with an explicit edit/play state boundary.
-10. Integrate diagnostics, logs, profiler, network simulation, input state,
-    and render/physics debug views.
+### Data and mutation flows
 
-### Implementation slices
+Opening a project follows exactly this direction:
 
-#### 8A. Documents and commands
+```text
+project path -> shared project loader -> LoadedProject preview projection
+             -> EditorSceneDocument opens authored main-scene JSON
+             -> shared validation diagnostics -> panels
+```
 
-1. Open project/scene/prefab/HUD/material/data documents through existing
-   parsers and retain source-format version.
-2. Implement commands for entity/node create, delete, rename, enable, parent,
-   duplicate, component add/remove, and field set.
-3. Validate a command against a staged document before committing it to the
-   undo stack.
-4. Group continuous gizmo/slider edits into one transaction while still
-   previewing intermediate values.
-5. Detect external changes and offer reload, keep, or structural merge only
-   when a safe merge contract exists.
+An inspector, hierarchy, or gizmo edit follows exactly this direction:
 
-#### 8B. Generated hierarchy and inspector
+```text
+widget intent + stable target
+  -> EditorWorkspace
+  -> EditorSceneDocument stages command on authored JSON
+  -> shared validation
+  -> commit to document + undo stack
+  -> reparse only affected preview data through shared scene parser
+  -> renderer displays updated preview
+```
 
-1. Build hierarchy rows from stable entity/UI IDs and resolved parent links.
-2. Generate field editors from descriptor type, bounds, enum, asset/entity
-   reference kind, read-only/restart policy, and documentation.
-3. Use the same diagnostics and reference resolver as `demi validate`.
-4. Keep multi-selection editing explicit: show mixed values and submit one
-   atomic multi-target command.
+Panels must not edit `runtime::World` first. The preview projection changes only
+after the authored command succeeds. If preview synchronization fails, surface
+the error and rebuild the projection from the still-authoritative document.
 
-#### 8C. Scene and game views
+Saving follows exactly this direction:
 
-1. Allocate editor camera views/render targets through normal GPU resource
-   owners.
-2. Implement ID-buffer or deterministic CPU picking without embedding editor
-   IDs into authored components.
-3. Express gizmo operations in local/world transform APIs with snapping and
-   parent-aware conversion.
-4. Show colliders, bounds, lights, cameras, navigation, UI safe areas, and
-   renderer diagnostic modes using runtime debug extraction.
+```text
+EditorSceneDocument deterministic serialization
+  -> EditorDocumentStore compares expected file revision/content hash
+  -> same-directory temporary file
+  -> atomic replacement
+  -> refreshed saved revision and shared diagnostics
+```
 
-#### 8D. Prefab and UI workflows
+Do not silently overwrite an externally changed file. Until a tested merge UI
+exists, preserve both versions and require an explicit user choice. Refresh
+must not discard dirty changes.
 
-1. Display resolved prefab source, instance overrides, nested instance IDs,
-   and invalid/missing references.
-2. Apply/revert overrides as source commands with a preview diff.
-3. Reuse runtime layout for UI preview at selectable viewport/DPI/safe-area/
-   locale settings.
-4. Allow sample data to populate dynamic lists without saving sample runtime
-   nodes into authored HUD data.
+### Document and command contract
 
-#### 8E. Play mode
+The current implementation has a JSON `SetValueCommand` inside
+`EditorSceneDocument`; it stores a `SceneValueTarget` plus JSON `before` and
+`after` values. Extend this design rather than adding callbacks that capture UI
+or runtime objects.
 
-1. Snapshot the validated authored world and start a separate runtime world.
-2. Route input/focus deliberately between editor and game views.
-3. Pause, fixed-step, inspect runtime values read-only, and stop with complete
-   scene/script/resource teardown.
-4. Do not copy runtime mutations back automatically. A future explicit
-   “apply selected runtime value” command must validate and show its target.
+The target command representation should be a small value-type variant, not an
+inheritance hierarchy unless multiple independently supplied implementations
+actually require one. Each command/transaction must contain enough source data
+to apply and revert deterministically and eventually serialize for crash
+recovery. Required command kinds are:
+
+- set entity field and set component field;
+- create/delete entity, preserving the full entity JSON for undo;
+- enable/disable and rename as ordinary field commands;
+- reparent with stable old/new parent IDs and cycle validation;
+- duplicate entity/subtree with one precomputed stable-ID remap;
+- add/remove component, preserving its full authored JSON;
+- atomic multi-target edit for explicit multi-selection;
+- prefab and HUD operations only when their document types are implemented.
+
+Command invariants:
+
+- validate a staged document before altering the live document or history;
+- clear redo only after a new command commits;
+- `apply -> revert` restores canonical source exactly;
+- undo/redo never depends on a currently selected row or live pointer;
+- one continuous drag edits the newest command's `after` value and closes when
+  the widget deactivates, focus changes, or another target begins;
+- commands affecting several entities either commit completely or do nothing;
+- open/reload clears history because its commands refer to the previous
+  revision; save retains history and merely advances the clean baseline;
+- dirty state compares canonical authored content with the saved baseline, not
+  an independently toggled boolean;
+- absent optional fields require an explicit add/remove-field representation;
+  do not invent a default and lose whether it was authored.
+
+Structural commands should use reusable scene-document functions with focused
+tests. They do not belong as private JSON surgery in hierarchy button handlers.
+Do not add a generic command bus, event bus, service locator, or plugin command
+framework for the current single-editor use case.
+
+### Inspector and hierarchy design
+
+- The hierarchy is derived from stable IDs plus resolved `Transform2D.parent`
+  or `Transform3D.parent`. It must show or diagnose missing parents and cycles;
+  it must not repair source implicitly.
+- Selection stores stable IDs. After reload/delete, invalid selection becomes
+  empty or moves to a deterministic neighbor; never dereference stale data.
+- Generic inspector widgets are selected by descriptor field type. Asset and
+  entity references use the shared resolver and may add picker presentation,
+  but still submit the same field command.
+- Specialized animation/material/audio/data inspectors are adapters over
+  authored fields and commands. They must not create a second representation
+  that later needs synchronization.
+- Arrays and objects remain read-only until a dedicated, reversible collection
+  editor exists. Displaying raw JSON is acceptable; silently replacing a whole
+  object from a text widget is not.
+- Multi-selection is opt-in. Show mixed values explicitly and submit one atomic
+  transaction only for fields common to all selected targets.
+- Adding a component must use the descriptor's canonical authored defaults and
+  reject domain conflicts. Removing a component must preserve its complete JSON
+  for undo.
+
+### Scene viewport and game-view design
+
+There are two different views; do not blur their ownership:
+
+- **Scene view:** renders the authored preview projection. It does not run Lua,
+  physics, navigation, or gameplay updates. Lua-generated voxel terrain and
+  other runtime-created entities therefore appear only in Play/Game view.
+- **Game view:** renders a separate runtime world with normal lifecycle,
+  scripting, fixed updates, scene transitions, and runtime-only mutations.
+
+The current 3D Scene view reuses `BgfxRenderer3D`, `GpuResources`,
+`RenderCommands`, the project asset registry, and the existing editor graphics
+device on a dedicated bgfx view. Preserve that design. Future 2D support must
+reuse `BgfxRenderer2D`; do not simulate sprites with ImGui draw lists.
+
+Viewport rules:
+
+- each view/target has an explicit owner, view ID, rectangle, camera, clear
+  behavior, and shutdown order;
+- resizing changes the viewport/target without recreating project resources on
+  every frame;
+- use the first enabled authored camera only as an initial view; an independent
+  non-authored editor camera owns scene navigation and is never saved into the
+  scene unless the user invokes an explicit align/create command;
+- picking returns a stable entity ID through an ID buffer or deterministic CPU
+  query; never write editor IDs into authored components;
+- gizmos submit transform commands through parent-aware local/world conversion
+  and existing transform hierarchy helpers;
+- snapping is applied before command submission and is defined in project/world
+  units, not pixels; holding `Shift` temporarily bypasses it during a drag;
+- collider, bounds, light, camera, navigation, and physics overlays use shared
+  runtime debug extraction so visuals match runtime behavior;
+- a renderer/device failure disables only the affected view, preserves authored
+  changes, and reports a diagnostic rather than terminating or corrupting the
+  document.
+
+### Play-mode state contract
+
+Use an explicit state machine:
+
+```text
+Stopped --Play--> Starting --success--> Running <--Pause/Resume--> Paused
+                         \--failure---------------------------> Failed
+Running/Paused --Stop or process exit------------------------> Stopped
+Failed --Stop/Play--------------------------------------------> Stopped/Starting
+```
+
+Current Play saves valid pending edits and starts a separate embedded runtime
+world. Its renderer owns a resizable offscreen Game-view target, input is
+neutral unless that view is focused, Step advances exactly one fixed tick while
+paused, and Stop tears down scripts, scenes, assets, GPU/audio, input, and
+network ownership. Runtime values are read-only and are never copied into the
+authored document. The normal sibling `demi-runtime` remains an explicitly
+selected external-window compatibility path.
+
+### Editor interaction and visual contract
+
+The chosen UI stack is native C++20 with SDL3, bgfx, and the repository-pinned
+Dear ImGui version behind `EditorUiHost`. Do not add a web frontend, a second UI
+toolkit, or direct Dear ImGui dependencies to authored/runtime modules.
+
+The intended desktop layout is:
+
+```text
+menu bar
+command/transform/play toolbar
+hierarchy | scene or game view | inspector
+console/profiler | assets | build targets
+status bar
+```
+
+The Minimal Voxel editor reference supplied by the project owner is the
+authoritative appearance, not merely inspiration. The current flat Dear ImGui
+layout is a functional scaffold and must not become the visual baseline.
+Matching only its panel rectangles does not satisfy this contract.
+
+Retain the reference's restrained charcoal surfaces, subtle depth between
+toolbar/panel/canvas layers, fine separators, compact technical density, and
+violet selection. Color communicates state: violet for selection/action, green
+for clean/ready, amber for dirty/warning, and red for failure. Motion is limited
+to state feedback; do not add decorative animation.
+
+Concrete chrome requirements:
+
+- implement the second row as grouped command clusters with consistent square
+  hit targets and separators: file/history, Play, viewport tools, snapping,
+  visibility, configuration, and settings;
+- put Scene and Game tabs on the central document stage rather than representing
+  the switch as an unrelated global-toolbar text button;
+- give Hierarchy, Inspector, Console/Output/Profiler, Assets/Lua Console, and
+  Build explicit headers or tabs matching their responsibility;
+- keep the central render surface visually dominant and uninterrupted;
+- use a stable two-column Inspector property grid with compact vector/color/
+  reference editors and component sections quieter than the selected entity;
+- evolve Assets toward the reference's folder tree, breadcrumb/search bar, and
+  thumbnail/file grid during 8E; do not fake thumbnails or imported metadata;
+- keep engine/language context on the status bar's left and project, target,
+  state, and readiness on its right.
+
+The signature differentiator is the framed central stage: compact Scene/Game
+tabs and viewport tools sit immediately around the render surface while the
+supporting panels use quieter layered chrome. Avoid oversized text, decorative
+cards, rows of unrelated text buttons, loud full-width violet component bars,
+and enabled controls without connected behavior.
+
+The shared visual-alignment checkpoint is complete in `EditorTheme`,
+`EditorPanelStyle`, `EditorChrome`, `EditorToolbar`, `EditorAssetsPanel`, and
+`EditorShell`. Preserve that presentation boundary while adding the Milestone
+7/8E asset workflow surface; preview generation, profiler data, Lua Console
+behavior, and builds remain owned by their respective implementation slices.
+
+Interaction requirements:
+
+- preserve `Ctrl+S`, `Ctrl+Z`, `Ctrl+Y`, and `F5` where the platform permits;
+- keyboard shortcuts do not fire while a text field owns keyboard input;
+- disabled controls explain the missing prerequisite in a tooltip/status line;
+- dirty state, play state, validation state, current project, and renderer are
+  visible without opening a modal;
+- errors remain visible until replaced or dismissed; do not report them only to
+  stdout;
+- asset rows represent authored sources and asset manifests honestly. A plain
+  file is not relabeled as an imported runtime asset;
+- panels must not display invented profiler, build, import, or runtime data.
+
+### Implementation slices and acceptance criteria
+
+Status labels below mean: **done** is implemented and covered, **partial** has a
+usable vertical slice but listed work remains, and **planned** must not be
+represented by an enabled control.
+
+#### 8A. Scene document, persistence, and field commands — complete
+
+Present: main-scene document, scalar/vector/color field commands, continuous
+coalescing, undo/redo, canonical dirty tracking, conflict-safe atomic save,
+and reusable create/delete/reparent/duplicate and component add/remove
+commands with staged full-document validation through a shared in-memory
+scene validator. Optional-field insertion/removal preserves authored shape;
+external conflicts have explicit Reload/Keep/Save Copy/Cancel outcomes; failed
+preview rebuilds restore canonical JSON and both history stacks; focused tests
+cover missing/deleted files, stale temporaries, permissions, save/undo, reload,
+and every conflict outcome.
+
+The persistence boundary is now reused by real prefab, HUD, material,
+animation, data, input, and audio documents. Structural merge remains an
+optional future workflow and is not part of this slice's safe conflict model.
+
+Acceptance: every supported operation is atomic; invalid operations leave
+canonical content and both history stacks unchanged; save/reload/conflict tests
+cover success and failure paths.
+
+#### 8B. Generated hierarchy and inspector — complete
+
+Present: parent-derived hierarchy, stable-ID selection, entity name/enabled/
+layer editing, metadata-generated boolean/integer/number/string/enum/vector/
+color fields, hierarchy create/duplicate/drag-reparent/subtree-delete controls,
+inspector add/remove component controls driven by the descriptor catalog, and
+inline rejected-edit diagnostics mirrored in the Console.
+
+Reference pickers, reference metadata, canonical component defaults, restart/
+read-only presentation, and explicit mixed-value multi-selection are present
+and use the shared descriptor/document paths.
+
+Acceptance: no component-specific switch is added to the generic inspector;
+hierarchy operations preserve stable references or reject with actionable
+diagnostics; undo/redo restores hierarchy and source exactly.
+
+#### 8C. Authored scene views, selection, and gizmos — complete
+
+Present: authored 3D preview through the existing bgfx 3D renderer, with one
+independent non-authored editor camera initialized from the first enabled scene
+camera. Focused Alt+left orbit, middle pan, wheel zoom, right+WASDQE fly,
+frame-selected, projection, reset, and explicit align-to-camera actions are
+implemented. Camera state survives scene edits/refresh and never changes
+authored JSON; minimized/zero-size viewports skip renderer submission. The 2D
+view uses `BgfxRenderer2D`, normal assets and ordering, a transient pan/zoom
+camera, pixel-aware grid, parent-resolved bounds, runtime collider primitives,
+stable picking, and command-backed 2D transform gizmos. Mixed scenes expose an
+explicit 2D/3D view switch without adding a serialized project mode.
+
+Acceptance: preview output uses the same asset/material/transform extraction as
+runtime; repeated open/resize/close leaks no GPU resources; parented transform
+gizmo tests cover rotated and non-uniformly scaled parents.
+
+#### 8D. Play mode and Game view — complete
+
+Present: save-before-play, isolated embedded runtime world and GPU target,
+normal Lua/physics/assets/audio/media/network/scene lifecycle, explicit
+Stopped/Starting/Running/Paused/Failed states, focused input, exact fixed-tick
+Step, read-only runtime hierarchy/Inspector, complete Stop, and the retained
+owned external runtime option on Linux.
+
+Acceptance: Play never mutates the authored document; Stop returns resource and
+script owner counts to their pre-play baseline; Step advances exactly one fixed
+tick while paused.
+
+#### 8E. Prefab, HUD, and specialized documents — complete
+
+1. Implement one document type at a time through its existing parser and
+   format version.
+2. Display prefab source, nested stable IDs, resolved overrides, and missing
+   references; apply/revert overrides as atomic source commands with a diff.
+3. Reuse runtime HUD layout for anchors, safe-area, DPI, locale, and sample-data
+   preview without saving generated runtime nodes.
+4. Build animation, material, dialogue/data, input-action, and audio inspectors
+   as command adapters over their authored documents.
+
+Present: conflict-aware canonical JSON history shared only at the persistence
+boundary; prefab source/expanded/diff inspection with nested stable IDs,
+missing-reference diagnostics, reversible overrides, and rollback-protected
+two-file apply; HUD source hierarchy plus runtime layout/localization preview
+with safe area, DPI, locale, and preview-only sample text; runtime-parser-backed
+material properties/preview; model clip and scene state-machine editing through
+runtime animation validation/preview; and schema-validated data/dialogue,
+runtime input-map, and audio-setting editors. Asset sources open by double-click
+or context action, and desktop file drops queue the existing importer flow.
+The active scene HUD is additionally rendered and authored in the main viewport:
+hierarchy/canvas selection is synchronized, visible elements support direct
+move and resize, the Inspector exposes typed layout and presentation fields,
+and reversible add/delete operations modify the real HUD document. Expanded UI
+prefab nodes are deliberately read-only until their source prefab is opened.
+
+Acceptance: saving from a specialized editor produces the same canonical source
+and validation result as direct text authoring; no specialized document keeps a
+second unsynchronized model.
+
+#### 8F. Project, assets, diagnostics, profiler, and builds — complete
+
+Present: project discovery/opening/creation through the atomic template
+scaffolder; authored-source folder browsing and type filtering; manifest,
+dependency, diagnostics, and cook-freshness inspection; importer-backed import
+and reimport; filesystem location; reversible conflict-safe project preload,
+scene-membership, and asset-group documents; and cancellable background
+Validate, transactional Cook, Linux Package, and Android Package operations.
+CLI and editor packaging share the structured `BuildService`; selected real
+targets produce artifacts and structured failures remain visible.
+
+Milestone 9A replaces the editor profiler placeholder with bounded runtime
+samples for update/fixed-step, Lua, physics, animation, network, input,
+resource residency, and render submission statistics. It exposes latest,
+average, p95, and maximum CPU times plus real gauges. Searchable Console/build
+diagnostics include severity filters, copyable source locations, and stable
+entity/component/field navigation when validation provides enough context.
+The editor consumes bgfx per-view GPU timestamps for the embedded Game views
+8-11 and records total/pass samples when the backend supplies a valid timer;
+unsupported backends remain explicitly unavailable.
+Milestone 9B adds an immutable embedded-runtime debug snapshot and categorized
+Input, Renderer, Physics, Navigation, Assets, and Network views. Runtime overlay
+toggles are isolated to Play state and are discarded on Stop.
+The editor's draw-order overlay follows runtime hierarchy focus: only the
+selected entity receives a deterministic backed callout and leader line.
+Entity ID stays in the runtime Inspector; the CLI retains its global
+`entity_ids` overlay for headless/external diagnostics.
+Milestone 9C adds cache-only interrupted-session recovery for scene, project,
+HUD, and the active specialized document; explicit Save All / Discard / Cancel
+handling for menu and OS closes; and user-data preferences limited to snapping
+and viewport visibility. Recovery restoration is validated and remains dirty
+until an explicit authored save.
+Milestone 9D adds a scaffold-to-package release workflow over public editor and
+build services, responsive panel geometry down to 320x240, explicit DPI font
+policy checks, and three-cycle embedded-runtime and bgfx-device lifetime gates.
+Lua gameplay modules may opt into Add Component discovery with lightweight
+`@demi_component` and `@demi_property` annotations. Module URIs provide stable
+identity, assignment values provide defaults and inferred types, and the shared
+runtime/editor parser avoids a second schema or editor-only representation.
+Milestone 9E adds a bounded per-runtime structured log for engine messages, Lua
+`print`, callback failures, and console results, including source/line and
+entity/component context where available. The searchable Console ingests those
+records and retains the final Play snapshot after Stop. The Lua Console runs
+expressions and statements against the isolated embedded Play Lua state, keeps
+bounded navigable command history, and creates no second VM.
+
+Acceptance: an editor-triggered validate/cook/package operation returns the
+same result and artifacts as the corresponding CLI service call; cancellation
+and failure leave no half-owned background process or UI-only success state.
+
+### Required implementation order
+
+Unless a regression requires otherwise, future agents should work in this
+order so presentation never gets ahead of its model:
+
+1. finish the relevant document command and its UI-free tests;
+2. expose the narrow operation through `EditorWorkspace`;
+3. wire one panel interaction and its failure/disabled state;
+4. synchronize or rebuild the preview projection only after command success;
+5. add an integration or smoke test through the real service boundary;
+6. update this status and `docs/editor.md` in the same change.
+
+Do not combine unrelated slices merely because they share screen space. A
+hierarchy feature should not also redesign rendering, and a viewport feature
+should not invent new authored fields.
 
 ### Failure and edge-case matrix
 
-- undo after target deletion/rename, nested transaction failure, command
-  validation rejection, and undo stack across document reload;
+Every relevant slice must select cases from this matrix and turn them into
+tests before it is marked done:
+
+- undo after target deletion/rename, nested transaction failure, validation
+  rejection, and history across save versus reload;
 - duplicate stable IDs, prefab cycles, missing asset references, and a field
   becoming invalid after another command;
-- external edit while dirty, file deleted/renamed, save permission failure,
-  storage full, and crash during atomic save;
-- multi-selection with incompatible component sets;
-- selection/picking after entity destruction or scene reload;
+- external edit while clean or dirty, file deletion/rename, save permission
+  failure, storage full, stale temporary file, and atomic replacement failure;
+- multi-selection with incompatible component sets or partial validation;
+- selection/picking after entity destruction, scene reload, or prefab expansion;
 - negative/non-uniform parent scale during world-space gizmo movement;
-- renderer/device failure while game view is active;
+- viewport resize/minimize, missing GPU asset, renderer/device loss, and failure
+  while a Game view is active;
 - play-mode script exception, scene transition, network session, hot reload,
-  and stop during callback/command processing;
+  child-process exit, and Stop during callback/command processing;
 - prefab apply affecting several open scenes and undo after dependency reload;
-- locale/font/safe-area change while editing UI;
-- editor closure with dirty documents and running background asset work.
+- locale/font/DPI/safe-area change while editing UI;
+- editor close with dirty documents, a play session, or background asset/build
+  work.
 
-### Test strategy
+### Test and validation contract
 
-- command unit tests use in-memory documents and shared validators;
-- property tests assert `apply -> revert` restores canonical source exactly;
-- golden serialization tests ensure deterministic formatting;
-- panel/view models are tested without a GPU/UI toolkit;
-- Noop-backed scene/game-view lifetime tests cover repeated open/play/stop;
-- scripted end-to-end tests create a project, edit a scene/prefab/UI, undo,
-  save, validate through CLI, run, and compare expanded output;
-- crash-recovery tests never treat autosaved/editor cache state as authored
-  source without explicit user recovery.
+- command tests use in-memory authored documents and shared validators;
+- property-style tests assert `apply -> revert` restores canonical source;
+- golden serialization tests ensure stable formatting and `format_version`;
+- document-store tests use temporary directories and cover revision conflicts
+  and recoverable write failures;
+- panel/view-model behavior is tested without SDL3, bgfx, or Dear ImGui where a
+  UI-free boundary exists;
+- renderer tests use the existing Noop backend where possible, plus short real
+  editor smoke runs for lifecycle integration;
+- scripted end-to-end tests edit, undo, save, validate through the CLI contract,
+  run, and compare expanded output;
+- crash recovery never promotes cache/autosave data to authored source without
+  explicit user confirmation.
 
-### Done when
+For every Step 8 change, run at minimum:
 
-- An editor-authored project produces the same validated source and expanded
-  scene as an equivalent CLI-authored project.
-- Every edit supports undo/redo and deterministic formatting.
-- A small game can be assembled, tested, diagnosed, and packaged without
-  manually editing JSON, while direct text editing remains supported.
+```sh
+cmake --build --preset linux-debug
+ctest --preset linux-debug --output-on-failure -R 'demi-editor|demi-scene-loader'
+./build/linux-debug/demi validate <affected-project>/demi.project.json
+```
+
+Do not add a manual `-j` flag to the build command; the configured build tool
+may use the machine's available parallelism. Run the relevant renderer/runtime
+smoke when a view or Play behavior changes. Do not hand-edit generated files.
+
+### Rules for the next implementation agent
+
+Before changing Step 8 code:
+
+1. Read this whole Step 8 section, `docs/editor.md`, repository `AGENTS.md`, and
+   the concrete owner headers listed above.
+2. State which implementation slice and acceptance criterion the change serves.
+3. Inspect the shared runtime/parser/validator/service that should own the
+   underlying behavior before adding editor code.
+4. Add or update the UI-free model test before wiring presentation when the
+   change mutates authored state.
+5. Keep existing unrelated dirty-worktree changes intact and never edit
+   generated output.
+6. Do not mark a slice done because controls are visible; mark it done only when
+   its acceptance criteria and failure coverage pass.
+
+### Step 8 is done when
+
+- A small 2D or lightweight 3D game can be assembled, inspected, played,
+  diagnosed, cooked, and packaged without manually editing JSON.
+- The resulting authored files validate and expand identically through the CLI
+  and contain no editor-only required state.
+- Every authored edit is validated, atomic, undoable/redoable, deterministic,
+  and safe against external file changes.
+- Scene and Game views reuse runtime render/asset/transform behavior and have
+  verified resource lifetimes.
+- Direct text editing remains supported, with explicit conflict handling when
+  the editor and another tool touch the same document.
 
 ## Step 9 — Shipping Linux and Android Games
 
@@ -2155,6 +2610,125 @@ evaluated sequence always repair divergence after loss or reordering.
 - Despawn, reconnect, scene change, and ownership transfer clear or rebase all
   input and snapshot history without stale corrections or retained memory.
 
+## Step 12 — Dockable and Persistent Editor Workspace
+
+The editor should eventually support a Unity-style workspace in which the
+Hierarchy, Scene/Game view, Inspector, Console, Assets, and specialized panels
+can be moved, resized, tabbed, and docked. The arrangement must survive an
+editor restart without becoming project-authored state.
+
+**Status: explicitly deferred.** The current fixed layout remains the supported
+workspace while Steps 9 and 10 close shipping and reliability gaps. Do not
+approximate this step by merely removing `NoMove`/`NoResize`: floating panels
+without a dockspace would overlap, lose the current coherent default, and fail
+the requested workflow.
+
+### Architectural boundaries
+
+- Pin a Dear ImGui docking revision compatible with the bgfx wrapper. Complete
+  a dependency spike before changing the editor shell; do not maintain two
+  ImGui copies or invent a custom docking framework.
+- `EditorDockingWorkspace` owns the full-window dockspace, first-run default
+  arrangement, panel visibility, and Reset Workspace command. It does not own
+  panel content or authored documents.
+- The UI host owns ImGui docking configuration and the user-data layout path.
+  Workspace state belongs below the platform user-data directory, never beside
+  `demi.project.json`, in source control, or in generated project content.
+- Individual panels own their controls and content. They query their current
+  content region and report viewport rectangles; they do not choose global
+  positions or sibling sizes.
+- `EditorDesignTokens` centralizes shared spacing, standard control sizes,
+  minimum panel dimensions, and visual constants. `EditorDefaultLayout`
+  centralizes initial split ratios and dock relationships. Keep genuinely
+  component-specific measurements local rather than creating a global bag of
+  unrelated numbers.
+- Existing `EditorPreferencesStore` remains responsible for typed preferences
+  such as snapping and overlay visibility. Dock layout persistence is a
+  separate workspace concern with its own reset/corruption behavior.
+
+### Implementation slices
+
+#### 12A. Docking dependency gate
+
+1. Pin the official docking branch at a revision matching the bundled ImGui
+   API used by bgfx; document the dependency and license through CMake.
+2. Enable docking only inside the main editor window initially. Native
+   multi-viewport OS windows are a separate, optional follow-up because Linux
+   X11/Wayland window management adds another input and lifecycle boundary.
+3. Prove mouse/keyboard input, fonts, dynamic texture IDs, viewport/game render
+   targets, menus, popups, modals, drag-and-drop, and shutdown on the candidate
+   dependency before migrating panels.
+4. Stop this step if the bgfx adapter requires an unsafe fork or loses input or
+   texture behavior; do not hide a failed dependency spike behind floating
+   windows.
+
+#### 12B. Dockspace shell migration
+
+1. Keep the application menu, primary toolbar, and status bar as intentional
+   shell chrome; place one dockspace in the remaining main-window work area.
+2. Convert Hierarchy, Scene/Game, Inspector, Console/Profiler/Debug, Assets, and
+   specialized editors into ordinary dockable windows with stable IDs.
+3. Build the current visual arrangement as a first-run default: hierarchy left,
+   scene/game center, inspector right, console and assets below.
+4. Retire the per-frame global rectangles in `EditorWorkspaceLayout`. Viewport
+   and Game render targets must derive their size and input origin from the
+   actual docked content region every frame.
+5. Preserve selection, gizmos, HUD manipulation, scrolling, drag-and-drop, and
+   runtime input focus while panels move, resize, tab, hide, and reappear.
+
+#### 12C. Persistence and recovery
+
+1. Load and save workspace layout below the user-data directory with a stable
+   editor-specific filename. Missing state creates the default layout.
+2. Treat corrupt or incompatible layout data as recoverable user state: retain
+   a diagnostic, fall back to the default, and never block project opening.
+3. Implement `View -> Reset Workspace` as an explicit layout reset that rebuilds
+   the default dock tree and replaces the saved workspace state.
+4. Save panel visibility and layout only. Never serialize selection, authored
+   content, runtime state, modal state, or transient Play data into the layout.
+5. Verify independent layouts do not leak between users and do not modify a
+   clean project worktree.
+
+#### 12D. Design-token and hardcoded-layout cleanup
+
+1. Inventory editor presentation literals and classify them as shared design
+   tokens, default-layout policy, responsive calculations, or genuinely local
+   widget measurements.
+2. Move shared colors, spacing, toolbar/control dimensions, panel minimums, and
+   default dock ratios into cohesive configuration owners.
+3. Replace absolute `SameLine` and cursor offsets in responsive property rows
+   with tables, available-region calculations, or reusable property-grid
+   helpers where practical.
+4. Do not turn `EditorDesignTokens` into a god configuration object and do not
+   move gameplay, renderer, schema, or authored-data constants into UI config.
+
+### Verification and release gate
+
+- clean first launch produces the documented default workspace;
+- panels can move, resize, dock, undock, tab, close, and reopen;
+- restart restores the previous arrangement and Reset Workspace restores the
+  default;
+- layout persistence changes no project/source file;
+- viewport picking, gizmo dragging, HUD editing, mouse capture, and Game input
+  remain correct after arbitrary dock changes and DPI/window resize;
+- menus, popups, modal recovery, asset drops, and build progress remain usable
+  above docked windows;
+- narrow-window, high-DPI, corrupted-layout, missing-layout, and repeated
+  device/editor lifetime tests pass;
+- the bgfx/ImGui docking revision and its update procedure are documented and
+  reproducible.
+
+### Done when
+
+- A developer can arrange a practical workspace without editing configuration
+  files, restart the editor, and receive the same layout.
+- The default remains polished and usable for developers who never customize
+  it.
+- Global layout policy and shared design constants have clear owners instead of
+  being spread through panel implementations.
+- The migration introduces no editor-only project state and no second UI or
+  rendering implementation.
+
 ## Scenario Paths
 
 The steps are cumulative, but developers can follow the shortest path for the
@@ -2369,13 +2943,16 @@ blocking dependency:
             -> 9 Shipping
               -> 10 Performance and reliability
                 -> 11 Advanced real-time networking (when required)
+                -> 12 Dockable editor workspace (deferred)
 ```
 
 Steps 4, 5, and 6 may proceed independently after Step 3. Performance tests
 and failure coverage from Step 10 are added throughout the roadmap rather than
 postponed until the end. Step 11 depends on the secure ownership and replication
 contract from Step 6 and is not required for turn-based, cooperative, or
-latency-tolerant multiplayer games.
+latency-tolerant multiplayer games. Step 12 depends on the editor contract from
+Step 8 and the lifecycle/reliability gates from Step 10; it does not depend on
+advanced networking and may be scheduled independently after those gates.
 
 ## Explicit Deferrals
 

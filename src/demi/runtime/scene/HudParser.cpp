@@ -49,32 +49,38 @@ bool mergeUiResources(Json &document, const std::filesystem::path &hudPath,
 
 } // namespace
 
+std::optional<ui::UiDocument>
+parseHudDocument(const std::filesystem::path &hudPath, const Json &document,
+                 std::string &error) {
+  const ui::UiPrefabExpansionResult expansion =
+      ui::expandUiDocument(hudPath, document);
+  if (!expansion.document.has_value()) {
+    error = expansion.diagnostics.empty()
+                ? "HUD prefab expansion failed: " + hudPath.string()
+                : expansion.diagnostics.front().message;
+    return std::nullopt;
+  }
+  Json expanded = *expansion.document;
+  if (!mergeUiResources(expanded, hudPath, error))
+    return std::nullopt;
+
+  ui::UiDocument result = ui::parseUiDocument(expanded);
+  ui::UiLayoutEngine{}.layout(result, result.canvasSize);
+  return result;
+}
+
 void loadHudFile(World &world, const std::filesystem::path &hudPath,
                  std::string &error) {
   const std::optional<Json> document = readJsonFile(hudPath, error);
   if (!document.has_value())
     return;
-
-  const ui::UiPrefabExpansionResult expansion =
-      ui::expandUiDocument(hudPath, *document);
-  if (!expansion.document.has_value()) {
-    error = expansion.diagnostics.empty()
-                ? "HUD prefab expansion failed: " + hudPath.string()
-                : expansion.diagnostics.front().message;
-    return;
-  }
-  Json expanded = *expansion.document;
-  if (!mergeUiResources(expanded, hudPath, error))
+  std::optional<ui::UiDocument> parsed =
+      parseHudDocument(hudPath, *document, error);
+  if (!parsed)
     return;
 
-  if (const std::optional<Vec2> canvasSize = vec2Field(expanded, "canvas_size");
-      canvasSize.has_value() && canvasSize->x > 0.0F && canvasSize->y > 0.0F) {
-    world.hudCanvasSize = *canvasSize;
-    world.ui.canvasSize = *canvasSize;
-  }
-
-  world.ui = ui::parseUiDocument(expanded);
-  ui::UiLayoutEngine{}.layout(world.ui, world.ui.canvasSize);
+  world.ui = std::move(*parsed);
+  world.hudCanvasSize = world.ui.canvasSize;
 }
 
 } // namespace demi::runtime::scene_loading

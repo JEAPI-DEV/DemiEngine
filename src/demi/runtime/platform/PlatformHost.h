@@ -4,8 +4,10 @@
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace demi::runtime::platform {
 
@@ -41,6 +43,9 @@ public:
                                         std::string &error) = 0;
   virtual void shutdown() = 0;
   virtual void poll(InputState &input) = 0;
+  virtual void clearQuitRequest() = 0;
+  [[nodiscard]] virtual std::vector<std::filesystem::path>
+  takeDroppedFiles() = 0;
 
   [[nodiscard]] virtual const PlatformFrameState &frameState() const = 0;
   [[nodiscard]] virtual render::NativeWindowHandle nativeWindow() const = 0;

@@ -360,8 +360,12 @@ See [architecture](docs/architecture.md) for more detail.
   device/lifecycle qualification are incomplete.
 - Lightweight 3D is suitable for modest games, not high-end rendering or large
   editor-authored worlds.
-- The editor executable is an architectural boundary, not a finished visual
-  editor. Authoring remains text-and-CLI first.
+- The experimental native editor provides a project hierarchy, metadata-driven
+  scene-field editing, undo/redo, conflict-safe atomic saves, an authored-source
+  browser, shared validation diagnostics, an authored 3D scene preview, and
+  external runtime play controls. Structural scene editing, 2D preview, and an
+  embedded game view are still in progress, so advanced authoring remains
+  text-and-CLI first.
 - Networking establishes authority and validation, but advanced latency hiding
   and service infrastructure are future work.
 - Android media and networking availability depends on the selected build
@@ -373,6 +377,7 @@ See [architecture](docs/architecture.md) for more detail.
 - [Getting started](docs/getting-started.md)
 - [Capability matrix](docs/capabilities.md)
 - [Architecture](docs/architecture.md)
+- [Editor](docs/editor.md)
 - [CLI reference](docs/cli.md)
 - [File formats](docs/file-formats.md)
 - [Data assets](docs/data-assets.md)

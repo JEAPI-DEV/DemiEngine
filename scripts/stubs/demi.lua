@@ -27,6 +27,11 @@ Data = {}
 ---@return any? snapshot A detached Lua snapshot of the immutable document.
 ---@return DataError? error
 function Data.load(id) end
+---@param text string YAML source text.
+---@param source? string Diagnostic source label.
+---@return any? value
+---@return DataError? error
+function Data.parse_yaml(text, source) end
 ---@param query? DataQuery
 ---@return table[] snapshots Ordered deterministically by stable asset ID.
 function Data.query(query) end
@@ -684,6 +689,10 @@ function Assets.unload(uri) end
 ---@return boolean success
 ---@return string error
 function Assets.reload(asset_id) end
+---@param asset_id string Loaded single-source asset ID.
+---@return string? text Cached resident source; never rereads the file.
+---@return string error
+function Assets.text(asset_id) end
 ---@return AssetMemoryReport
 function Assets.memory_report() end
 
@@ -1194,6 +1203,22 @@ function Hud.set_reduced_motion(enabled) end
 function Hud.set_locale(locale) end
 ---@param enabled boolean
 function Hud.set_pseudo_locale(enabled) end
+---@param name string Variable declared by the active HUD document.
+---@param value string
+---@return boolean changed
+---@return string error
+function Hud.set_variable(name, value) end
+---@param values table<string, string>
+---@return boolean changed
+---@return string error
+function Hud.set_variables(values) end
+---@param name string
+---@return boolean
+function Hud.has_variable(name) end
+---@param name string
+---@return string? value
+function Hud.get_variable(name) end
+function Hud.reset_variables() end
 ---@param item_count integer
 ---@param item_extent number
 ---@param scroll_offset number

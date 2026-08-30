@@ -1,0 +1,8 @@
+locale: de
+variables:
+  title: DEMI ENGINE
+  subtitle: Native HUD-Variablen mit zwischengespeicherten YAML-Sprachdateien
+  play: SPIELEN
+  settings: EINSTELLUNGEN
+  language_hint: "[1] English  [2] Deutsch"
+  load_status: Deutsch wurde bei Bedarf geladen und bleibt im Speicher

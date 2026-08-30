@@ -1,6 +1,7 @@
 #include "demi/runtime/scripting/bindings/data/LuaDataBindings.h"
 
 #include "demi/assets/DataDocument.h"
+#include "demi/assets/YamlDataDocument.h"
 
 #include <algorithm>
 
@@ -92,6 +93,31 @@ int load(lua_State *state) {
   return 2;
 }
 
+int parseYaml(lua_State *state) {
+  std::size_t length = 0;
+  const char *text = luaL_checklstring(state, 1, &length);
+  const char *source = luaL_optstring(state, 2, "<yaml>");
+  const assets::DataDocumentResult parsed = assets::parseYamlDataDocument(
+      std::string_view(text, length), std::filesystem::path(source));
+  if (!parsed.document) {
+    lua_pushnil(state);
+    const Diagnostic diagnostic =
+        parsed.diagnostics.empty()
+            ? Diagnostic{.severity = Severity::Error,
+                         .code = "YAML_DOCUMENT_INVALID",
+                         .message = "YAML could not be parsed.",
+                         .path = source,
+                         .suggestion = {}}
+            : parsed.diagnostics.front();
+    pushError(state, diagnostic.code.c_str(), diagnostic.message,
+              diagnostic.path);
+    return 2;
+  }
+  pushDataValue(state, parsed.document->root());
+  lua_pushnil(state);
+  return 2;
+}
+
 int revision(lua_State *state) {
   const char *id = luaL_checkstring(state, 1);
   lua_pushinteger(state, static_cast<lua_Integer>(
@@ -168,6 +194,7 @@ void LuaDataBindingModule::install(LuaScriptHost &scriptHost,
                                    lua_State *state) const {
   lua_newtable(state);
   addFunction(state, "load", load, scriptHost);
+  addFunction(state, "parse_yaml", parseYaml, scriptHost);
   addFunction(state, "query", query, scriptHost);
   addFunction(state, "revision", revision, scriptHost);
   addFunction(state, "kind", kind, scriptHost);

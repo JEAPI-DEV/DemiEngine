@@ -134,6 +134,18 @@ int main() {
   assert(renderer.statistics().batches >= 2);
   static_cast<void>(graphics.endFrame());
 
+  const RenderTargetHandles embeddedTarget = resources->createRenderTarget(
+      {.width = 320, .height = 180, .debugName = "embedded 3D test"}, error);
+  assert(embeddedTarget.frameBuffer && embeddedTarget.color);
+  BgfxCameraFrame3D embeddedFrame = postProcessFrame;
+  embeddedFrame.frameBuffer = embeddedTarget.frameBuffer;
+  embeddedFrame.camera.renderHudToTarget = true;
+  assert(renderer.renderFrame(world, embeddedFrame, 0.016F, error));
+  static_cast<void>(graphics.endFrame());
+  assert(resources->destroy(embeddedTarget.frameBuffer));
+  assert(resources->destroy(embeddedTarget.depth));
+  assert(resources->destroy(embeddedTarget.color));
+
   BgfxCameraFrame3D targetFrame = frame;
   targetFrame.cameraId = "minimap";
   targetFrame.camera.renderTarget = "asset://targets/test";

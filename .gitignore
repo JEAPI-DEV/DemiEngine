@@ -1,4 +1,6 @@
 build/
+!src/cli/build/
+!src/cli/build/**
 out/
 .cache/
 .idea/

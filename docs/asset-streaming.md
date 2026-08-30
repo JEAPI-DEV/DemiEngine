@@ -13,6 +13,12 @@ thread-safety, and target platforms. Selection fails when no importer matches
 or when multiple importers match without an explicit choice. Use
 `demi asset import ... --importer <id>` to disambiguate.
 
+The built-in `text` importer registers `.txt`, `.yaml`, and `.yml` as `Text`
+assets. Text is pass-through authored content, so import does not create a
+redundant project `generated_output`; deterministic cook/package staging still
+copies reachable content. Once loaded or preloaded, `Assets.text(asset_id)`
+returns the resident single-source bytes without rereading the filesystem.
+
 `AssetCookGraph` computes keys from the importer identity/version, normalized
 settings, source hashes, platform/profile, package content provenance, and the
 keys of every dependency. It does not inspect file timestamps. Its reverse

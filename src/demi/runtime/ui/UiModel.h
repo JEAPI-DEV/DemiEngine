@@ -53,8 +53,10 @@ struct UiNode {
   std::string type;
   std::string style;
   std::string text;
+  std::string textTemplate;
   std::string font;
   std::string placeholder;
+  std::string placeholderTemplate;
   std::string placeholderLocalizationKey;
   std::string localizationKey;
   std::string texture;
@@ -127,6 +129,8 @@ struct UiDocument {
   std::vector<UiNode> nodes;
   std::unordered_map<std::string, UiStyle> styles;
   std::unordered_map<std::string, std::string> localization;
+  std::unordered_set<std::string> declaredVariables;
+  std::unordered_map<std::string, std::string> variables;
   std::unordered_map<std::string, std::unordered_map<std::string, std::string>>
       locales;
   std::string locale;

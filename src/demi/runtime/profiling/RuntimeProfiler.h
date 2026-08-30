@@ -12,7 +12,9 @@ public:
   struct Entry {
     std::string name;
     double totalMilliseconds = 0.0;
+    double latestMilliseconds = 0.0;
     double maxMilliseconds = 0.0;
+    double p95Milliseconds = 0.0;
     int calls = 0;
     std::size_t bytes = 0;
     double gauge = 0.0;
@@ -29,6 +31,8 @@ public:
   [[nodiscard]] static std::string
   frameSummary(double minimumMilliseconds = 0.01);
   [[nodiscard]] static std::vector<Entry> sessionEntries();
+  [[nodiscard]] static std::vector<Entry> frameEntries();
+  [[nodiscard]] static std::size_t frameCount();
   [[nodiscard]] static std::string sessionReport();
 };
 

@@ -5,6 +5,7 @@ add_library(demi-core STATIC
   src/demi/assets/AssetHash.cpp
   src/demi/assets/DataAsset.cpp
   src/demi/assets/DataDocument.cpp
+  src/demi/assets/YamlDataDocument.cpp
   src/demi/assets/ColliderAssetGenerator.cpp
   src/demi/assets/ModelImportProfile.cpp
   src/demi/assets/ModelInspector.cpp
@@ -25,6 +26,7 @@ add_library(demi-core STATIC
   src/demi/runtime/render/ParticleSimulation3D.cpp
   src/demi/runtime/concurrency/JobSystem.cpp
   src/demi/diagnostics/Diagnostic.cpp
+  src/demi/filesystem/ProjectDiscovery.cpp
   src/demi/filesystem/ProjectPaths.cpp
   src/demi/packages/SemanticVersion.cpp
   src/demi/packages/PackageManifest.cpp
@@ -40,6 +42,7 @@ add_library(demi-core STATIC
   src/demi/runtime/ui/UiMutationQueue.cpp
   src/demi/runtime/ui/UiVirtualCollection.cpp
   src/demi/runtime/ui/UiTweenSystem.cpp
+  src/demi/runtime/ui/UiVariables.cpp
   src/demi/runtime/ui/UiLocalization.cpp
   src/demi/runtime/ui/UiAccessibilityTree.cpp
   src/demi/runtime/ui/UiAccessibilityActions.cpp
@@ -80,7 +83,8 @@ target_include_directories(demi-core PRIVATE
 
 target_compile_features(demi-core PUBLIC cxx_std_20)
 target_link_libraries(demi-core PUBLIC nlohmann_json::nlohmann_json box2d
-  utf8proc harfbuzz SheenBidi::SheenBidi mbedcrypto bimg_decode bimg)
+  utf8proc harfbuzz SheenBidi::SheenBidi mbedcrypto bimg_decode bimg
+  yaml-cpp::yaml-cpp)
 set(DEMI_HOST_SHADERC "" CACHE FILEPATH
   "Existing host shaderc executable to reuse instead of building shaderc")
 if(NOT ANDROID)

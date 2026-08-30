@@ -85,7 +85,8 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
   runtime scopes to a report file. It also enables collection when
   `--profiler` is omitted.
 - `demi run ... --debug-overlays <names>`: override project overlays with a comma-separated list of `colliders`, `contacts`, `grid`, `entity_ids`, `draw_order`, `ui_bounds`, and `profiler`.
-- `demi editor --project <project>`: launch the editor target once implemented.
+- `demi editor [--project <project>]`: launch the native editor. Without an
+  explicit path, it discovers the nearest parent `demi.project.json`.
 
 See [Capability Manifest and Reference Gates](capability-gates.md) for the
 checked baseline and reference-game workflow.

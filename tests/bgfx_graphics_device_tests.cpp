@@ -8,8 +8,8 @@ namespace {
 
 using demi::runtime::render::BgfxGraphicsDevice;
 using demi::runtime::render::GraphicsApi;
-using demi::runtime::render::GraphicsDeviceConfig;
 using demi::runtime::render::graphicsApiName;
+using demi::runtime::render::GraphicsDeviceConfig;
 using demi::runtime::render::parseGraphicsApi;
 
 bool apiNamesRoundTrip() {
@@ -23,9 +23,8 @@ bool apiNamesRoundTrip() {
   }
 
   GraphicsApi parsed = GraphicsApi::Automatic;
-  return parseGraphicsApi("auto", parsed) &&
-         parsed == GraphicsApi::Automatic && parseGraphicsApi("gles", parsed) &&
-         parsed == GraphicsApi::OpenGLES &&
+  return parseGraphicsApi("auto", parsed) && parsed == GraphicsApi::Automatic &&
+         parseGraphicsApi("gles", parsed) && parsed == GraphicsApi::OpenGLES &&
          !parseGraphicsApi("direct-rendering-manager", parsed);
 }
 
@@ -33,63 +32,64 @@ bool invalidInitializationIsRejected() {
   BgfxGraphicsDevice device;
   std::string error;
   if (device.initialize(
-          GraphicsDeviceConfig{.api = GraphicsApi::Noop, .width = 0},
-          error) ||
+          GraphicsDeviceConfig{.api = GraphicsApi::Noop, .width = 0}, error) ||
       error.empty() || device.initialized())
     return false;
 
   error.clear();
   if (device.initialize(
-          GraphicsDeviceConfig{.api = GraphicsApi::Noop,
-                               .width = std::numeric_limits<std::uint16_t>::max() +
-                                        1U},
+          GraphicsDeviceConfig{
+              .api = GraphicsApi::Noop,
+              .width = std::numeric_limits<std::uint16_t>::max() + 1U},
           error) ||
       error.empty())
     return false;
 
   error.clear();
-  return !device.initialize(
-             GraphicsDeviceConfig{.api = GraphicsApi::Vulkan,
-                                  .width = 64,
-                                  .height = 64},
-             error) &&
+  return !device.initialize(GraphicsDeviceConfig{.api = GraphicsApi::Vulkan,
+                                                 .width = 64,
+                                                 .height = 64},
+                            error) &&
          !error.empty() && !device.initialized();
 }
 
 bool noopLifecycleIsSafe() {
-  BgfxGraphicsDevice device;
-  std::string error;
-  if (!device.initialize(GraphicsDeviceConfig{.api = GraphicsApi::Noop,
-                                               .width = 64,
-                                               .height = 32,
-                                               .vsync = false},
-                         error) ||
-      !device.initialized() || device.rendererName() != "Noop")
-    return false;
+  for (int iteration = 0; iteration < 3; ++iteration) {
+    BgfxGraphicsDevice device;
+    std::string error;
+    if (!device.initialize(GraphicsDeviceConfig{.api = GraphicsApi::Noop,
+                                                .width = 64,
+                                                .height = 32,
+                                                .vsync = false},
+                           error) ||
+        !device.initialized() || device.rendererName() != "Noop")
+      return false;
 
-  error.clear();
-  if (device.initialize(GraphicsDeviceConfig{.api = GraphicsApi::Noop},
-                        error) ||
-      error.empty())
-    return false;
+    error.clear();
+    if (device.initialize(GraphicsDeviceConfig{.api = GraphicsApi::Noop},
+                          error) ||
+        error.empty())
+      return false;
 
-  device.beginFrame(0x102030ffU);
-  (void)device.endFrame();
-  if (!device.resize(128, 72, error))
-    return false;
-  device.beginFrame(0x000000ffU);
-  (void)device.endFrame();
+    device.beginFrame(0x102030ffU);
+    (void)device.endFrame();
+    if (!device.resize(128, 72, error))
+      return false;
+    device.beginFrame(0x000000ffU);
+    (void)device.endFrame();
 
-  error.clear();
-  if (device.resize(0, 72, error) || error.empty())
-    return false;
+    error.clear();
+    if (device.resize(0, 72, error) || error.empty())
+      return false;
 
-  device.shutdown();
-  device.shutdown();
-  error.clear();
-  return !device.initialized() && device.rendererName().empty() &&
-         !device.resize(1, 1, error) && !error.empty() &&
-         device.endFrame() == 0;
+    device.shutdown();
+    device.shutdown();
+    error.clear();
+    if (device.initialized() || !device.rendererName().empty() ||
+        device.resize(1, 1, error) || error.empty() || device.endFrame() != 0)
+      return false;
+  }
+  return true;
 }
 
 } // namespace
