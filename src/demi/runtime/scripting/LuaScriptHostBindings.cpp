@@ -219,20 +219,21 @@ void luaConfigurePackagePath(lua_State *state, const ProjectData &project) {
   const std::filesystem::path runtimeScripts =
       std::filesystem::path(DEMI_SOURCE_DIR) / "scripts" / "runtime";
   std::string packagePaths;
-  const std::filesystem::path installedPackages =
-      project.projectDirectory / ".demi" / "packages";
-  std::error_code packageError;
-  if (std::filesystem::is_directory(installedPackages, packageError)) {
-    std::vector<std::filesystem::path> roots;
-    for (const auto &entry :
-         std::filesystem::directory_iterator(installedPackages))
+  std::vector<std::filesystem::path> roots;
+  for (const std::filesystem::path &packages :
+       {project.projectDirectory / ".demi" / "packages",
+        project.projectDirectory / "packages"}) {
+    std::error_code packageError;
+    if (!std::filesystem::is_directory(packages, packageError))
+      continue;
+    for (const auto &entry : std::filesystem::directory_iterator(packages))
       if (entry.is_directory())
         roots.push_back(entry.path() / "scripts");
-    std::ranges::sort(roots);
-    for (const auto &root : roots)
-      packagePaths +=
-          root.string() + "/?.lua;" + root.string() + "/?/init.lua;";
   }
+  std::ranges::sort(roots);
+  roots.erase(std::unique(roots.begin(), roots.end()), roots.end());
+  for (const auto &root : roots)
+    packagePaths += root.string() + "/?.lua;" + root.string() + "/?/init.lua;";
   const std::string path = packagePaths + scripts.string() + "/?.lua;" +
                            scripts.string() + "/?/init.lua;" +
                            project.projectDirectory.string() + "/?.lua;" +

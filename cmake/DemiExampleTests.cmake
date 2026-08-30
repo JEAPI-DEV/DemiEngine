@@ -162,6 +162,23 @@ set_tests_properties(demi-runtime-main-menu-lang PROPERTIES
   DEPENDS demi-install-main-menu-lang-package
   ENVIRONMENT "DEMI_HEADLESS=1"
   PASS_REGULAR_EXPRESSION "Language active: de; play=SPIELEN")
+add_test(NAME demi-cook-main-menu-lang
+  COMMAND demi cook
+    --project ${CMAKE_SOURCE_DIR}/examples/main_menu_lang/demi.project.json
+    --platform linux
+    --output ${CMAKE_BINARY_DIR}/generated/ctest-main-menu-lang-cooked)
+set_tests_properties(demi-cook-main-menu-lang PROPERTIES
+  DEPENDS demi-install-main-menu-lang-package)
+add_test(NAME demi-runtime-cooked-main-menu-lang
+  COMMAND demi run
+    --project ${CMAKE_BINARY_DIR}/generated/ctest-main-menu-lang-cooked/demi.project.json
+    --input-replay
+      ${CMAKE_SOURCE_DIR}/examples/main_menu_lang/replays/switch_german.replay.json
+    --max-frames 120)
+set_tests_properties(demi-runtime-cooked-main-menu-lang PROPERTIES
+  DEPENDS demi-cook-main-menu-lang
+  ENVIRONMENT "DEMI_HEADLESS=1"
+  PASS_REGULAR_EXPRESSION "Language active: de; play=SPIELEN")
 add_test(NAME demi-runtime-gif-main-menu-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/main_menu_gif/demi.project.json --max-frames 3
 )

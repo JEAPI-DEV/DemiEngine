@@ -250,6 +250,10 @@ LuaScriptHost::createHudNode(const std::string &parent, ui::UiNode node,
     return std::nullopt;
   }
   const std::string id = node.id;
+  if (node.textTemplate.empty())
+    node.textTemplate = node.text;
+  if (node.placeholderTemplate.empty())
+    node.placeholderTemplate = node.placeholder;
   ui::UiMutationQueue queue;
   queue.create(parent, std::move(node));
   const auto result = queue.apply(world_->ui);
@@ -257,6 +261,8 @@ LuaScriptHost::createHudNode(const std::string &parent, ui::UiNode node,
     error = result.error;
     return std::nullopt;
   }
+  ui::UiVariables{}.discover(world_->ui);
+  ui::UiVariables{}.apply(world_->ui);
   discardInvalidRecyclers(*world_);
   relayoutHud(*world_);
   return ui::UiMutationQueue::handle(world_->ui, id);
