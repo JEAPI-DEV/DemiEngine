@@ -14,6 +14,7 @@ def demiProjectAssetsDir = demiProjectFile.parentFile
 def demiProjectJson = new groovy.json.JsonSlurper().parse(demiProjectFile)
 def demiProjectDisplayName = demiProjectJson.name ?: demiProjectAssetsDir.name
 def demiGeneratedAssetsDir = layout.buildDirectory.dir("generated/demi/assets")
+def demiBuildTokenProperty = providers.gradleProperty("demiBuildToken")
 def demiAssetIndexTask = tasks.register("generateDemiAssetIndex") {
     def outputFile = demiGeneratedAssetsDir.map { it.file("demi_asset_index.txt") }
     inputs.dir(demiProjectAssetsDir)
@@ -89,4 +90,17 @@ android {
 
 tasks.named("preBuild").configure {
     dependsOn(demiAssetIndexTask)
+}
+
+tasks.register("demiAssembleDebug") {
+    dependsOn("assembleDebug")
+    doLast {
+        if (!demiBuildTokenProperty.isPresent()) {
+            throw new GradleException("Missing -PdemiBuildToken=<token>")
+        }
+        def marker = layout.buildDirectory.file(
+            "generated/demi/package-debug-complete.txt").get().asFile
+        marker.parentFile.mkdirs()
+        marker.text = demiBuildTokenProperty.get() + "\n"
+    }
 }

@@ -23,6 +23,13 @@ parseProjectData(const std::filesystem::path &projectPath, const Json &document,
 
   project.name = *name;
   project.mainScene = *mainScene;
+  const ProjectBuildSettingsResult build =
+      parseProjectBuildSettings(document, projectPath);
+  if (hasErrors(build.diagnostics)) {
+    error = build.diagnostics.front().message;
+    return std::nullopt;
+  }
+  project.build = build.settings;
   project.inputActions = input::parseInputActions(document);
   project.scriptEntry = stringOr(document, "entry");
   project.networkContract = stringOr(document, "network_contract");

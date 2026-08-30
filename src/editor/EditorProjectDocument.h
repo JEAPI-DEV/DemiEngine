@@ -33,6 +33,8 @@ public:
   [[nodiscard]] bool setInputBinding(std::string_view action,
                                      std::size_t bindingIndex,
                                      std::string input, std::string &error);
+  [[nodiscard]] bool
+  setBuildSettings(runtime::ProjectBuildSettings settings, std::string &error);
   [[nodiscard]] bool removeScene(std::string_view id, std::string &error);
   [[nodiscard]] bool undo(std::string &error);
   [[nodiscard]] bool redo(std::string &error);
@@ -47,6 +49,7 @@ public:
   [[nodiscard]] std::vector<std::string> preloadedAssets() const;
   [[nodiscard]] std::vector<runtime::SceneEntry> scenes() const;
   [[nodiscard]] nlohmann::json inputActions() const;
+  [[nodiscard]] runtime::ProjectBuildSettings buildSettings() const;
   [[nodiscard]] const std::filesystem::path &path() const { return path_; }
 
 private:

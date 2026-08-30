@@ -29,6 +29,8 @@ add_library(demi-core STATIC
   src/demi/filesystem/ProjectDiscovery.cpp
   src/demi/filesystem/ProjectPaths.cpp
   src/demi/packages/SemanticVersion.cpp
+  src/demi/runtime/scene/ProjectBuildSettings.cpp
+  src/demi/runtime/scene/ProjectBuildValidation.cpp
   src/demi/packages/PackageManifest.cpp
   src/demi/packages/PackageHash.cpp
   src/demi/packages/PackageLock.cpp

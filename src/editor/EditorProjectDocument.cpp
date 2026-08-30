@@ -160,6 +160,14 @@ bool EditorProjectDocument::setInputBinding(const std::string_view action,
   return commit(std::move(replacement), error);
 }
 
+bool EditorProjectDocument::setBuildSettings(
+    runtime::ProjectBuildSettings settings, std::string &error) {
+  settings.authored = true;
+  nlohmann::json replacement = document_;
+  replacement["build"] = runtime::projectBuildSettingsJson(settings);
+  return commit(std::move(replacement), error);
+}
+
 bool EditorProjectDocument::removeScene(const std::string_view id,
                                         std::string &error) {
   if (document_.value("main_scene", "") == id) {
@@ -233,6 +241,10 @@ nlohmann::json EditorProjectDocument::inputActions() const {
         actions != input->end() && actions->is_object())
       return *actions;
   return nlohmann::json::object();
+}
+
+runtime::ProjectBuildSettings EditorProjectDocument::buildSettings() const {
+  return runtime::parseProjectBuildSettings(document_, path_).settings;
 }
 
 bool EditorProjectDocument::commit(nlohmann::json replacement,

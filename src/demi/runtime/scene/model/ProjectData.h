@@ -2,6 +2,7 @@
 
 #include "demi/runtime/debug/DebugOverlayConfig.h"
 #include "demi/runtime/input/InputActionMap.h"
+#include "demi/runtime/scene/ProjectBuildSettings.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -67,6 +68,7 @@ struct ProjectData {
   DisplayConfig display;
   PerformanceBudgets performanceBudgets;
   DebugOverlayConfig debug;
+  ProjectBuildSettings build;
 };
 
 } // namespace demi::runtime

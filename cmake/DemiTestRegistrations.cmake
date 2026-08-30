@@ -1,5 +1,7 @@
 # Unit, subsystem, CLI, and networking test registration.
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
+add_test(NAME demi-project-build-settings-tests
+  COMMAND demi-project-build-settings-tests)
 add_test(NAME demi-project-templates-tests COMMAND demi-project-templates-tests)
 add_test(NAME demi-build-service-tests COMMAND demi-build-service-tests)
 add_test(NAME demi-editor-workspace-tests COMMAND demi-editor-workspace-tests)
@@ -45,6 +47,11 @@ add_test(NAME demi-editor-authored-json-tests
   COMMAND demi-editor-authored-json-tests)
 add_test(NAME demi-editor-release-workflow-tests
   COMMAND demi-editor-release-workflow-tests)
+add_test(NAME demi-editor-android-packaging-tests
+  COMMAND demi-editor-android-packaging-tests)
+set_tests_properties(demi-editor-android-packaging-tests PROPERTIES
+  RUN_SERIAL TRUE
+  LABELS "editor;packaging;android;capability-gate")
 add_test(NAME demi-editor-play-session-tests
   COMMAND demi-editor-play-session-tests)
 add_test(NAME demi-editor-help COMMAND demi-editor --help)

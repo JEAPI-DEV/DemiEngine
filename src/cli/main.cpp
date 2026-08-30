@@ -108,6 +108,7 @@ void printHelp() {
          "[--profiler]\n"
       << "  demi serve --project <project>\n"
       << "  demi build apk [--project <project>] [--gradle gradle]\n"
+      << "  demi build inspect [--project <project>]\n"
       << "  demi build linux [--project <project>] [--output path]\n"
       << "  demi build linux_server [--project <project>] [--output path]\n"
       << "  demi editor [--project <project>] [--max-frames count]\n";

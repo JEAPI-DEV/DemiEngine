@@ -2205,9 +2205,10 @@ Before changing Step 8 code:
 Packaging should cover the ordinary work between a successful debug run and a
 release artifact.
 
-**Status: planned.** Linux bundles and Android debug APK staging exist, but
-release metadata, signing, permissions, device coverage, and lifecycle
-qualification are not yet one compatibility-protected shipping workflow.
+**Status: in progress.** Build settings now have a shared value model, schema,
+parser, canonical inspection output, branding-asset validation, and regression
+coverage. Linux/Android packagers still need to consume the settings, and
+release signing, lifecycle handling, and device qualification remain pending.
 
 ### Ownership boundaries
 
@@ -2267,6 +2268,23 @@ errors before Gradle or packaging starts.
 ### Implementation slices
 
 #### 9A. Build settings and capability checks
+
+**Status: in progress.** The schema, parser, canonical serializer,
+`demi build inspect`, legacy-project defaults, field diagnostics, supported
+SDK/ABI checks, and branding asset type/format/dimension checks are present.
+The editor Build window exposes the same application, branding, desktop, and
+Android settings through one undoable project-document edit. Reachable-feature
+capability checks and explicit migration coverage beyond an absent legacy
+`build` block remain.
+
+Android Gradle packaging is launched through the multithread-safe
+`posix_spawn` path, reports elapsed progress while Gradle is running, and
+reports a distinct finalization phase after Gradle exits. A tokenized Gradle
+completion marker allows the editor to reap a launcher that remains alive
+after a verified APK build, and the exact editor background-operation path has
+an Android packaging integration test. Successful APKs are transactionally
+published to `<project>/build/android/<executable>-debug.apk`, and the editor
+shows that artifact path after completion.
 
 1. Add schema, parser, canonical serializer, migration tests, and CLI inspect
    output for build settings.
@@ -2360,160 +2378,7 @@ errors before Gradle or packaging starts.
 - Platform metadata is project data, not a modified engine template.
 - Device tests catch renderer and asset differences before manual testing.
 
-## Step 10 — Performance and Reliability as Product Features
-
-Developers should be able to identify the responsible subsystem before
-changing game code or the engine.
-
-**Status: planned.** CPU profiling, CSV reports, renderer statistics, debug
-overlays, replay, and ownership failure suites already exist. Coverage and
-budget enforcement are not yet uniform across assets, UI, Lua allocation,
-audio, networking, GPU passes, and packaged Android lifecycle scenarios.
-
-### Measurement architecture
-
-- `ProfilerRegistry` owns stable counter/scope descriptors, frame samples,
-  aggregation windows, and capture lifecycle. Subsystems publish values; they
-  do not format HUD/CSV output.
-- CPU scopes, counters, and GPU timings are different metric types with
-  explicit units and availability. Missing GPU timing is reported as
-  unavailable, never as zero.
-- `PerformanceBudgetEvaluator` consumes captured metrics plus versioned project
-  budget data and produces shared diagnostics for HUD, CLI, CI, and editor.
-- `DiagnosticSnapshot` correlates immutable summaries from scene, script,
-  assets, physics, render, audio, UI, network, and application lifecycle
-  owners. It does not expose third-party pointers or sensitive payload data.
-- Benchmark fixtures are representative committed source projects/replays with
-  declared hardware/backend context. Optimizations must cite one fixture and
-  retain its before/after evidence.
-
-### Budget format
-
-```json
-{
-  "format_version": 1,
-  "profiles": {
-    "android_mid": {
-      "frame.p95_ms": {"max": 16.67},
-      "lua.p95_ms": {"max": 2.0},
-      "render.draw_calls.max": {"max": 800},
-      "assets.resident_mb.max": {"max": 512},
-      "ui.layout.p95_ms": {"max": 1.0},
-      "network.out_kbps.p95": {"max": 128}
-    }
-  }
-}
-```
-
-Budgets specify warm-up, sample length, percentile/aggregate, allowed backend,
-and whether unavailable metrics skip or fail. CI comparisons use absolute
-budgets first; noisy percentage-only regression gates are secondary.
-
-### Deliverables
-
-1. Add hierarchical CPU scopes and GPU/render-pass timing where supported.
-2. Report Lua time/GC, allocations, asset memory, audio voices, network
-   bandwidth, physics contacts, animation work, particles, UI nodes, batches,
-   draw calls, and triangles.
-3. Add per-project budgets and warnings for frames, loading, memory, entities,
-   contacts, particles, lights, UI, and network traffic.
-4. Allow deterministic performance gates in `demi test` and CI reports.
-5. Add soak tests for create/destroy, pooling, scene replacement, additive
-   scenes, resource reload, save migration, connect/disconnect, and Android
-   lifecycle events.
-6. Run ownership stress suites under ASan/LSan and add platform-appropriate
-   thread/undefined-behavior checks.
-7. Add diagnostic snapshots that correlate the active scene, scripts, asset
-   groups, network peers, renderer, and recent lifecycle events.
-8. Optimize only measured hot paths and preserve representative benchmarks for
-   every accepted optimization.
-
-### Implementation slices
-
-#### 10A. Metric catalog
-
-1. Define stable names, units, descriptions, owners, and collection cost for
-   every metric.
-2. Instrument frame/update/fixed/Lua callbacks, GC/allocation where measurable,
-   physics steps/contacts/queries, UI mutation/layout/text, scene preparation,
-   asset IO/decode/upload/residency, render extraction/batching/passes,
-   animation/particles, audio voices/mixing, and network encode/traffic/buffer.
-3. Compile or sample expensive metrics only when a capture/debug mode requests
-   them.
-4. Expose the catalog through CLI JSON and generated documentation.
-
-#### 10B. Capture and reporting
-
-1. Use bounded ring buffers and explicit capture start/stop; profiling cannot
-   grow memory for an unbounded session.
-2. Report mean, median, p95, p99, maximum, count, and longest-frame correlation
-   where meaningful.
-3. Export machine-readable JSON/CSV plus a concise human report using the same
-   sample data.
-4. Add frame markers for scene/load/reload/network/lifecycle events so spikes
-   can be correlated without parsing logs.
-
-#### 10C. Budget evaluation
-
-1. Parse/validate project budget profiles and select them explicitly from CLI.
-2. Separate warm-up from measured frames and report insufficient samples.
-3. Produce a diagnostic per failed metric containing measured value, limit,
-   aggregate, sample count, and capture context.
-4. Store baseline reports only for stable deterministic fixtures; never hide a
-   failed absolute budget by updating a baseline automatically.
-
-#### 10D. Reliability and soak harness
-
-1. Express lifecycle actions as deterministic commands: load/prepare/cancel,
-   spawn/release, reload, save/migrate, connect/disconnect, pause/resume,
-   low-memory, and surface recreate.
-2. Combine bounded randomized sequences with recorded seeds and shrink/failure
-   reproduction output.
-3. Capture counts of live entities, scripts, callbacks, assets by owner, GPU
-   handles, physics bodies, audio voices, peers, UI nodes, and allocated bytes
-   before/after cycles.
-4. Run selected sequences under ASan/LSan/UBSan and platform-specific tooling.
-
-### Failure and edge-case matrix
-
-- nested/recursive profiler scopes, scope exits through exceptions, duplicate
-  names with wrong units, counter reset, and thread handoff;
-- frame stalls longer than the capture window, timer wrap/precision, zero
-  frames, pause/time-scale, and headless Noop backend;
-- GPU timing unavailable, delayed by several frames, device reset, or multiple
-  camera views;
-- percentile calculation with few samples and capture crossing scene reload;
-- profiler overhead changes the budget result or exceeds its own budget;
-- Lua GC spike, asset decode/upload spike, shader compilation accidentally at
-  runtime, UI relayout loop, physics contact storm, particle exhaustion,
-  network resend storm, and audio voice thrashing;
-- failure snapshot while another subsystem is tearing down;
-- soak test failure must print seed, minimal command prefix, current owners,
-  and last lifecycle events;
-- user/network payloads and filesystem secrets must be redacted from reports.
-
-### Required budget suites
-
-| Suite | Primary risks |
-|---|---|
-| Visual novel | glyph/layout cache, backlog virtualization, image/voice transitions, save latency |
-| 2D action | physics contacts/queries, projectiles/pooling, particles, draw batching |
-| Isometric builder | pathfinding, entity count, UI updates, wave spawning |
-| Lightweight 3D | mesh/texture residency, culling/instancing, lights/shadows, Jolt step |
-| Multiplayer shooter | encode/decode, bandwidth, interpolation, peers/entities, server tick |
-| Scene/resource stress | cancellation, shared ownership, reload, callback teardown, leaks |
-
-Every suite declares debug and release expectations separately. Performance
-numbers from a debug build may diagnose behavior but cannot certify a shipping
-budget.
-
-### Done when
-
-- A developer can tell whether a slowdown is caused by Lua, rendering,
-  physics, assets, UI, audio, or networking using shipped tools.
-- Reference scenarios meet checked Linux and Android budgets.
-- Repeated lifecycle tests show no leaks, dangling handles, or unbounded
-  resource growth.
+## Step 10 - REMOVED
 
 ## Step 11 — Advanced Real-Time Networked Movement
 

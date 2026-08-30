@@ -58,6 +58,31 @@ int main() {
          "key:space");
   assert(document.redo(error));
   assert(document.inputActions()["jump"]["bindings"][0]["input"] == "key:j");
+
+  demi::runtime::ProjectBuildSettings build;
+  build.applicationId = "dev.jeapi.editor_test";
+  build.displayName = "Editor Test";
+  build.executableName = "editor_test";
+  build.versionName = "1.2.0";
+  build.versionCode = 12;
+  build.window = {.width = 1600, .height = 900, .mode = "borderless"};
+  build.android = {.orientation = "landscape",
+                   .minimumSdk = 28,
+                   .abis = {"arm64-v8a"},
+                   .permissions = {"android.permission.INTERNET"}};
+  assert(document.setBuildSettings(build, error));
+  assert(document.buildSettings().applicationId == "dev.jeapi.editor_test");
+  assert(document.buildSettings().window.width == 1600);
+  assert(document.undo(error));
+  assert(!document.buildSettings().authored);
+  assert(document.redo(error));
+  assert(document.buildSettings().android.minimumSdk == 28);
+
+  build.applicationId = "Invalid ID";
+  const std::string beforeInvalidBuild = document.json().dump();
+  assert(!document.setBuildSettings(build, error));
+  assert(document.json().dump() == beforeInvalidBuild);
+
   const std::string beforeInvalidInput = document.json().dump();
   assert(!document.setInputActions(
       {{"broken", {{"type", "unknown"}, {"context", "gameplay"}}}}, error));

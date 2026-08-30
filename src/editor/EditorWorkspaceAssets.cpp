@@ -78,6 +78,27 @@ bool EditorWorkspace::setPreloadedAssets(std::vector<std::string> assets,
   return projectDocument_.setPreloadedAssets(std::move(assets), error);
 }
 
+bool EditorWorkspace::setProjectBuildSettings(
+    runtime::ProjectBuildSettings settings, std::string &error) {
+  const auto validateBranding = [&](const std::string &id) {
+    if (id.empty())
+      return true;
+    const auto asset = std::ranges::find_if(
+        assetIndex_.assets(), [&](const EditorAssetRecord &record) {
+          return record.manifest.id == id;
+        });
+    return asset != assetIndex_.assets().end() &&
+           (asset->manifest.type == "Texture2D" ||
+            asset->manifest.type == "SvgTexture2D");
+  };
+  if (!validateBranding(settings.icon) ||
+      !validateBranding(settings.splash)) {
+    error = "Icon and splash must reference an authored 2D image asset.";
+    return false;
+  }
+  return projectDocument_.setBuildSettings(std::move(settings), error);
+}
+
 bool EditorWorkspace::addProjectScene(std::string id,
                                       std::filesystem::path path,
                                       std::string &error) {

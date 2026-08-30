@@ -6,6 +6,8 @@
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/packages/PackageManifest.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/runtime/scene/ProjectBuildSettings.h"
+#include "demi/runtime/scene/ProjectBuildValidation.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/runtime/ui/UiPrefabResolver.h"
 
@@ -626,6 +628,15 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
                  "Add a scenes array with scene:// references.");
     try {
       const auto project = nlohmann::json::parse(text);
+      const auto build = runtime::parseProjectBuildSettings(project, path);
+      diagnostics.insert(diagnostics.end(), build.diagnostics.begin(),
+                         build.diagnostics.end());
+      if (!hasErrors(build.diagnostics)) {
+        const AssetRegistry registry = loadAssetRegistry(path.parent_path());
+        const Diagnostics branding = runtime::validateProjectBuildAssets(
+            build.settings, registry, path);
+        diagnostics.insert(diagnostics.end(), branding.begin(), branding.end());
+      }
       if (const auto declared = project.find("packages");
           declared != project.end()) {
         if (!declared->is_object()) {

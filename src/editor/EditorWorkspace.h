@@ -58,6 +58,9 @@ public:
     return projectDocument_.setInputBinding(action, bindingIndex,
                                             std::move(input), error);
   }
+  [[nodiscard]] bool
+  setProjectBuildSettings(runtime::ProjectBuildSettings settings,
+                          std::string &error);
   [[nodiscard]] bool importAsset(const assets::AssetImportRequest &request,
                                  std::string &error);
   [[nodiscard]] bool reimportAsset(const std::filesystem::path &manifest,

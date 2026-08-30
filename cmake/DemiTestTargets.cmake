@@ -2,6 +2,10 @@
   add_executable(demi-smoke-tests tests/smoke_tests.cpp)
   target_link_libraries(demi-smoke-tests PRIVATE demi-core)
 
+  add_executable(demi-project-build-settings-tests
+    tests/project_build_settings_tests.cpp)
+  target_link_libraries(demi-project-build-settings-tests PRIVATE demi-core)
+
   add_executable(demi-project-templates-tests tests/project_templates_tests.cpp)
   target_link_libraries(demi-project-templates-tests PRIVATE demi-cli-support)
   target_compile_definitions(demi-project-templates-tests PRIVATE
@@ -96,6 +100,12 @@
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
     DEMI_RUNTIME_PATH="$<TARGET_FILE:demi-runtime>")
   add_dependencies(demi-editor-release-workflow-tests demi-runtime)
+  add_executable(demi-editor-android-packaging-tests
+    tests/editor_android_packaging_tests.cpp)
+  target_link_libraries(demi-editor-android-packaging-tests
+    PRIVATE demi-editor-model demi-cli-support)
+  target_compile_definitions(demi-editor-android-packaging-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-editor-play-session-tests
     tests/editor_play_session_tests.cpp)
   target_link_libraries(demi-editor-play-session-tests PRIVATE demi-editor-model)

@@ -1,16 +1,26 @@
 #include "cli/build/BuildService.h"
 
 #include "demi/assets/AssetCooker.h"
+#include "demi/runtime/scene/ProjectBuildSettings.h"
 #include "demi/schema/Validation.h"
 
+#include <algorithm>
+#include <array>
 #include <chrono>
 #include <fstream>
+#include <nlohmann/json.hpp>
+#include <optional>
 #include <system_error>
 
 #if defined(__linux__)
+#include <cerrno>
 #include <csignal>
+#include <fcntl.h>
+#include <spawn.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+extern char **environ;
 #endif
 
 namespace demi::build {
@@ -101,6 +111,96 @@ bool commitDirectory(const std::filesystem::path &staging,
   return true;
 }
 
+bool publishFile(const std::filesystem::path &source,
+                 const std::filesystem::path &target, Diagnostics &issues) {
+  std::error_code error;
+  std::filesystem::create_directories(target.parent_path(), error);
+  if (error) {
+    add(issues, "BUILD_ARTIFACT_DIRECTORY_FAILED", error.message(),
+        target.parent_path());
+    return false;
+  }
+
+  const std::filesystem::path staging = uniqueSibling(target, "staging");
+  std::filesystem::copy_file(source, staging,
+                             std::filesystem::copy_options::overwrite_existing,
+                             error);
+  if (error) {
+    add(issues, "BUILD_ARTIFACT_COPY_FAILED", error.message(), target);
+    return false;
+  }
+
+  const std::filesystem::path backup = uniqueSibling(target, "previous");
+  const bool hadTarget = std::filesystem::exists(target, error);
+  if (error) {
+    const std::string message = error.message();
+    std::error_code cleanupError;
+    std::filesystem::remove(staging, cleanupError);
+    add(issues, "BUILD_ARTIFACT_INSPECT_FAILED", message, target);
+    return false;
+  }
+  std::filesystem::file_status targetStatus;
+  if (hadTarget)
+    targetStatus = std::filesystem::symlink_status(target, error);
+  if (error) {
+    const std::string message = error.message();
+    std::error_code cleanupError;
+    std::filesystem::remove(staging, cleanupError);
+    add(issues, "BUILD_ARTIFACT_INSPECT_FAILED", message, target);
+    return false;
+  }
+  if (hadTarget && (!std::filesystem::is_regular_file(targetStatus) ||
+                    std::filesystem::is_symlink(targetStatus))) {
+    std::error_code cleanupError;
+    std::filesystem::remove(staging, cleanupError);
+    add(issues, "BUILD_ARTIFACT_OUTPUT_UNSAFE",
+        "Existing artifact output must be a regular file, not a directory or "
+        "symbolic link.",
+        target);
+    return false;
+  }
+  if (hadTarget) {
+    std::filesystem::rename(target, backup, error);
+    if (error) {
+      const std::string message = error.message();
+      std::error_code cleanupError;
+      std::filesystem::remove(staging, cleanupError);
+      add(issues, "BUILD_ARTIFACT_BACKUP_FAILED", message, target);
+      return false;
+    }
+  }
+  std::filesystem::rename(staging, target, error);
+  if (error) {
+    if (hadTarget) {
+      std::error_code restoreError;
+      std::filesystem::rename(backup, target, restoreError);
+    }
+    add(issues, "BUILD_ARTIFACT_PUBLISH_FAILED", error.message(), target);
+    return false;
+  }
+  if (hadTarget)
+    std::filesystem::remove(backup, error);
+  return true;
+}
+
+std::string androidArtifactBaseName(
+    const std::filesystem::path &projectFile) {
+  try {
+    std::ifstream input(projectFile);
+    if (input) {
+      const auto document = nlohmann::json::parse(input);
+      const auto build = runtime::parseProjectBuildSettings(document,
+                                                             projectFile);
+      if (!build.settings.executableName.empty())
+        return build.settings.executableName;
+    }
+  } catch (const nlohmann::json::exception &) {
+    // Project validation reports malformed JSON before packaging reaches here.
+  }
+  const std::string fallback = projectFile.parent_path().filename().string();
+  return fallback.empty() ? "demi-game" : fallback;
+}
+
 bool cookTransactionally(const ProjectOperationRequest &request,
                          const std::filesystem::path &output,
                          const std::string &platform,
@@ -182,31 +282,141 @@ bool runAndroidGradle(const ProjectOperationRequest &request,
                       const std::filesystem::path &packagedProject,
                       Diagnostics &issues) {
   const auto androidRoot = request.engineRoot / "android";
+  const auto completionMarker =
+      androidRoot / "app/build/generated/demi/package-debug-complete.txt";
+  const std::string buildToken = std::to_string(
+      std::chrono::steady_clock::now().time_since_epoch().count());
   const std::string projectProperty =
       "-PdemiProjectFile=" + packagedProject.string();
-  const pid_t child = fork();
-  if (child < 0) {
-    add(issues, "BUILD_ANDROID_PROCESS_FAILED",
-        "Could not start the Android build process.", androidRoot);
+  const std::string tokenProperty = "-PdemiBuildToken=" + buildToken;
+  const std::string androidRootString = androidRoot.string();
+  std::error_code filesystemError;
+  (void)std::filesystem::remove(completionMarker, filesystemError);
+  if (filesystemError) {
+    add(issues, "BUILD_ANDROID_MARKER_REMOVE_FAILED",
+        "Could not clear the previous Android completion marker: " +
+            filesystemError.message(),
+        completionMarker);
     return false;
   }
-  if (child == 0) {
-    (void)setpgid(0, 0);
-    execlp(request.gradleExecutable.c_str(), request.gradleExecutable.c_str(),
-           "--no-daemon", "-p", androidRoot.c_str(), projectProperty.c_str(),
-           ":app:assembleDebug", static_cast<char *>(nullptr));
-    _exit(127);
+
+  std::array<char *, 10> arguments{
+      const_cast<char *>(request.gradleExecutable.c_str()),
+      const_cast<char *>("--no-daemon"),
+      const_cast<char *>("--console=plain"),
+      const_cast<char *>("--no-watch-fs"),
+      const_cast<char *>("-p"),
+      const_cast<char *>(androidRootString.c_str()),
+      const_cast<char *>(projectProperty.c_str()),
+      const_cast<char *>(tokenProperty.c_str()),
+      const_cast<char *>(":app:demiAssembleDebug"),
+      nullptr};
+
+  posix_spawnattr_t attributes;
+  if (posix_spawnattr_init(&attributes) != 0) {
+    add(issues, "BUILD_ANDROID_PROCESS_FAILED",
+        "Could not initialize the Android build process.", androidRoot);
+    return false;
   }
+  (void)posix_spawnattr_setflags(&attributes, POSIX_SPAWN_SETPGROUP);
+  (void)posix_spawnattr_setpgroup(&attributes, 0);
+
+  posix_spawn_file_actions_t fileActions;
+  const int actionsResult = posix_spawn_file_actions_init(&fileActions);
+  if (actionsResult != 0) {
+    (void)posix_spawnattr_destroy(&attributes);
+    add(issues, "BUILD_ANDROID_PROCESS_FAILED",
+        "Could not initialize Android process IO: " +
+            std::error_code(actionsResult, std::generic_category()).message(),
+        androidRoot);
+    return false;
+  }
+  (void)posix_spawn_file_actions_addopen(&fileActions, STDIN_FILENO,
+                                         "/dev/null", O_RDONLY, 0);
+
+  pid_t child = 0;
+  const int spawnResult =
+      posix_spawnp(&child, request.gradleExecutable.c_str(), &fileActions,
+                   &attributes, arguments.data(), environ);
+  (void)posix_spawn_file_actions_destroy(&fileActions);
+  (void)posix_spawnattr_destroy(&attributes);
+  if (spawnResult != 0) {
+    add(issues, "BUILD_ANDROID_PROCESS_FAILED",
+        "Could not start the Android build process: " +
+            std::error_code(spawnResult, std::generic_category()).message(),
+        androidRoot);
+    return false;
+  }
+
+  const auto started = std::chrono::steady_clock::now();
+  std::optional<std::chrono::steady_clock::time_point> markerObserved;
+  bool completedFromMarker = false;
+  long lastReportedSecond = -1;
   int status = 0;
-  (void)setpgid(child, child);
-  while (waitpid(child, &status, WNOHANG) == 0) {
+  while (true) {
+    const pid_t waitResult = waitpid(child, &status, WNOHANG);
+    if (waitResult == child)
+      break;
+    if (waitResult < 0) {
+      if (errno == EINTR)
+        continue;
+      add(issues, "BUILD_ANDROID_WAIT_FAILED",
+          "Could not wait for the Android build process: " +
+              std::error_code(errno, std::generic_category()).message(),
+          androidRoot);
+      return false;
+    }
+
+    std::ifstream markerInput(completionMarker);
+    std::string markerToken;
+    if (markerInput && std::getline(markerInput, markerToken) &&
+        markerToken == buildToken) {
+      if (!markerObserved) {
+        markerObserved = std::chrono::steady_clock::now();
+        report(request, ProjectOperationStage::Package, 0.96F,
+               "Gradle build complete; stopping its launcher");
+      } else if (std::chrono::steady_clock::now() - *markerObserved >=
+                 std::chrono::seconds(2)) {
+        (void)kill(-child, SIGTERM);
+        const auto stopDeadline = std::chrono::steady_clock::now() +
+                                  std::chrono::seconds(2);
+        while (std::chrono::steady_clock::now() < stopDeadline) {
+          const pid_t stopped = waitpid(child, &status, WNOHANG);
+          if (stopped == child)
+            break;
+          if (stopped < 0 && errno != EINTR)
+            break;
+          usleep(50'000);
+        }
+        if (waitpid(child, &status, WNOHANG) == 0) {
+          (void)kill(-child, SIGKILL);
+          (void)waitpid(child, &status, 0);
+        }
+        completedFromMarker = true;
+        break;
+      }
+    }
     if (cancelled(request)) {
       (void)kill(-child, SIGTERM);
       (void)waitpid(child, &status, 0);
       return false;
     }
+
+    const long elapsedSeconds = std::chrono::duration_cast<std::chrono::seconds>(
+                                    std::chrono::steady_clock::now() - started)
+                                    .count();
+    if (elapsedSeconds != lastReportedSecond) {
+      lastReportedSecond = elapsedSeconds;
+      const float progress =
+          std::min(0.92F, 0.72F + static_cast<float>(elapsedSeconds) / 300.0F);
+      report(request, ProjectOperationStage::Package, progress,
+             "Running Android packaging (" +
+                 std::to_string(elapsedSeconds) + "s)");
+    }
     usleep(50'000);
   }
+  if (completedFromMarker)
+    return true;
   if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
     add(issues, "BUILD_ANDROID_GRADLE_FAILED",
         "Gradle did not produce a successful Android debug package.",
@@ -333,16 +543,32 @@ runProjectOperation(const ProjectOperationRequest &request) {
                                       : ProjectOperationStage::Failed;
     return result;
   }
+  report(request, ProjectOperationStage::Package, 0.96F,
+         "Finalizing Android package");
 #else
   add(result.diagnostics, "BUILD_ANDROID_UNSUPPORTED",
       "Android packaging is only available from a Linux host.", androidRoot);
   result.stage = ProjectOperationStage::Failed;
   return result;
 #endif
-  result.artifact = androidRoot / "app/build/outputs/apk/debug/app-debug.apk";
-  if (!std::filesystem::is_regular_file(result.artifact)) {
+  const auto gradleArtifact =
+      androidRoot / "app/build/outputs/apk/debug/app-debug.apk";
+  if (!std::filesystem::is_regular_file(gradleArtifact)) {
     add(result.diagnostics, "BUILD_ANDROID_ARTIFACT_MISSING",
-        "Gradle completed but the debug APK was not found.", result.artifact);
+        "Gradle completed but the debug APK was not found.", gradleArtifact);
+    result.stage = ProjectOperationStage::Failed;
+    return result;
+  }
+  const std::filesystem::path outputDirectory =
+      request.outputDirectory.empty()
+          ? request.projectFile.parent_path() / "build/android"
+          : request.outputDirectory;
+  result.artifact = outputDirectory /
+                    (androidArtifactBaseName(request.projectFile) +
+                     "-debug.apk");
+  report(request, ProjectOperationStage::Package, 0.98F,
+         "Publishing Android package");
+  if (!publishFile(gradleArtifact, result.artifact, result.diagnostics)) {
     result.stage = ProjectOperationStage::Failed;
     return result;
   }
