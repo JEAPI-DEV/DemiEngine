@@ -13,7 +13,9 @@ enum class ProjectOperation {
   CookLinux,
   PackageLinux,
   PackageLinuxServer,
-  PackageAndroid
+  PackageAndroid,
+  PackageAndroidRelease,
+  BundleAndroidRelease
 };
 
 enum class ProjectOperationStage {

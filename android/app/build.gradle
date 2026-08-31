@@ -2,6 +2,10 @@ plugins {
     id "com.android.application"
 }
 
+import groovy.json.JsonOutput
+import org.gradle.api.execution.TaskExecutionListener
+import org.gradle.api.tasks.TaskState
+
 def demiProjectFileProperty = providers.gradleProperty("demiProjectFile")
 if (!demiProjectFileProperty.isPresent()) {
     throw new GradleException("Missing -PdemiProjectFile=/path/to/demi.project.json")
@@ -12,9 +16,183 @@ if (!demiProjectFile.isFile()) {
 }
 def demiProjectAssetsDir = demiProjectFile.parentFile
 def demiProjectJson = new groovy.json.JsonSlurper().parse(demiProjectFile)
-def demiProjectDisplayName = demiProjectJson.name ?: demiProjectAssetsDir.name
+def demiBuild = demiProjectJson.build ?: [:]
+def demiAndroid = demiBuild.android ?: [:]
+def demiProjectDisplayName = demiBuild.display_name ?: demiProjectJson.name ?: demiProjectAssetsDir.name
+def demiApplicationId = demiBuild.application_id ?: "dev.jeapi.demi.android"
+def demiVersionName = demiBuild.version_name ?: "0.1.0"
+def demiVersionCode = (demiBuild.version_code ?: 1) as int
+def demiMinimumSdk = (demiAndroid.min_sdk ?: 23) as int
+def demiAndroidAbis = (demiAndroid.abis ?: ["arm64-v8a"]) as List<String>
+def demiPermissions = (demiAndroid.permissions ?:
+    (demiBuild.isEmpty() ? ["android.permission.INTERNET"] : [])) as List<String>
+def demiOrientationNames = [
+    unspecified: "unspecified",
+    portrait: "portrait",
+    landscape: "landscape",
+    portrait_sensor: "sensorPortrait",
+    landscape_sensor: "sensorLandscape"
+]
+def demiOrientationKey = demiAndroid.orientation ?: (demiBuild.isEmpty() ? "landscape" : "unspecified")
+def demiScreenOrientation = demiOrientationNames[demiOrientationKey]
+if (demiScreenOrientation == null) {
+    throw new GradleException("Unsupported Android orientation: ${demiOrientationKey}")
+}
+
 def demiGeneratedAssetsDir = layout.buildDirectory.dir("generated/demi/assets")
+def demiGeneratedAndroidDir = layout.buildDirectory.dir("generated/demi/android").get().asFile
+def demiGeneratedResDir = new File(demiGeneratedAndroidDir, "res")
+def demiGeneratedManifest = new File(demiGeneratedAndroidDir, "AndroidManifest.xml")
 def demiBuildTokenProperty = providers.gradleProperty("demiBuildToken")
+def demiProgressFileProperty = providers.gradleProperty("demiProgressFile")
+
+def demiProgressLock = new Object()
+def demiProgress = [format_version: 1, token: "", total: 0, completed: 0,
+                    current: "Configuring Gradle", outcome: "running"]
+def writeDemiProgress = {
+    if (!demiProgressFileProperty.isPresent()) return
+    synchronized (demiProgressLock) {
+        def progressFile = file(demiProgressFileProperty.get())
+        progressFile.parentFile.mkdirs()
+        def temporary = new File(progressFile.parentFile,
+                                 progressFile.name + ".tmp")
+        temporary.text = JsonOutput.toJson(demiProgress) + "\n"
+        if (!temporary.renameTo(progressFile)) {
+            progressFile.text = temporary.text
+            temporary.delete()
+        }
+    }
+}
+if (demiBuildTokenProperty.isPresent()) {
+    demiProgress.token = demiBuildTokenProperty.get()
+    writeDemiProgress()
+    gradle.taskGraph.whenReady { graph ->
+        demiProgress.total = graph.allTasks.size()
+        demiProgress.current = "Preparing task graph"
+        writeDemiProgress()
+    }
+    gradle.taskGraph.addTaskExecutionListener([
+        beforeExecute: { task ->
+            demiProgress.current = task.path
+            writeDemiProgress()
+        },
+        afterExecute: { task, TaskState state ->
+            def completed = Math.min(
+                demiProgress.total as int,
+                (demiProgress.completed as int) + 1)
+            demiProgress.completed = completed
+            demiProgress.current = task.path
+            demiProgress.outcome = state.failure != null ? "failed" :
+                (completed >= (demiProgress.total as int) ? "complete" : "running")
+            writeDemiProgress()
+        }
+    ] as TaskExecutionListener)
+}
+
+def xmlEscape = { Object value ->
+    value.toString()
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&apos;")
+}
+def resolveBrandingSource = { String assetId ->
+    if (assetId == null || assetId.isEmpty()) return null
+    def manifest = fileTree(demiProjectAssetsDir) {
+        include "**/*.asset.json"
+    }.files.find { candidate ->
+        try {
+            new groovy.json.JsonSlurper().parse(candidate).id == assetId
+        } catch (Exception ignored) {
+            false
+        }
+    }
+    if (manifest == null) {
+        throw new GradleException("Branding asset was not found: ${assetId}")
+    }
+    def asset = new groovy.json.JsonSlurper().parse(manifest)
+    if (!(asset.type in ["Texture2D", "SvgTexture2D"])) {
+        throw new GradleException("Branding assets must be 2D textures: ${assetId}")
+    }
+    def source = new File(manifest.parentFile, asset.source.toString())
+    if (!source.isFile()) {
+        throw new GradleException("Branding source was not found: ${source}")
+    }
+    source
+}
+def stageBrandingDrawable = { String assetId, String resourceName ->
+    def source = resolveBrandingSource(assetId)
+    if (source == null) return null
+    def extensionStart = source.name.lastIndexOf('.')
+    if (extensionStart < 0) {
+        throw new GradleException("Android branding sources require a file extension: ${assetId}")
+    }
+    def extension = source.name.substring(extensionStart).toLowerCase()
+    if (!(extension in [".png", ".jpg", ".jpeg", ".webp", ".svg"])) {
+        throw new GradleException(
+            "Android branding supports PNG, JPEG, WebP, or SVG sources: ${assetId}")
+    }
+    def destination = new File(demiGeneratedResDir, "drawable-nodpi")
+    destination.mkdirs()
+    if (extension == ".svg") {
+        def raster = new File(destination, resourceName + ".png")
+        providers.exec {
+            commandLine "rsvg-convert", "--width", "512", "--height", "512",
+                        "--keep-aspect-ratio", "--output", raster, source
+        }.result.get().assertNormalExitValue()
+        return "@drawable/${resourceName}"
+    }
+    copy {
+        from source
+        into destination
+        rename { resourceName + extension }
+    }
+    "@drawable/${resourceName}"
+}
+
+delete(demiGeneratedAndroidDir)
+demiGeneratedResDir.mkdirs()
+def demiIcon = stageBrandingDrawable(demiBuild.icon as String, "demi_app_icon")
+def demiSplash = stageBrandingDrawable(demiBuild.splash as String, "demi_splash")
+def demiValuesDir = new File(demiGeneratedResDir, "values")
+demiValuesDir.mkdirs()
+new File(demiValuesDir, "styles.xml").text = """<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="DemiTheme" parent="android:style/Theme.NoTitleBar.Fullscreen">
+        ${demiSplash == null ? "" : "<item name=\"android:windowBackground\">${demiSplash}</item>"}
+    </style>
+</resources>
+"""
+
+def permissionElements = demiPermissions.collect { permission ->
+    "    <uses-permission android:name=\"${xmlEscape(permission)}\" />"
+}.join("\n")
+def iconAttribute = demiIcon == null ? "" : "\n        android:icon=\"${demiIcon}\""
+demiGeneratedManifest.parentFile.mkdirs()
+demiGeneratedManifest.text = """<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+${permissionElements}${permissionElements.isEmpty() ? "" : "\n"}    <uses-feature android:glEsVersion="0x00020000" android:required="true" />
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"${iconAttribute}
+        android:usesCleartextTraffic="true"
+        android:theme="@style/DemiTheme">
+        <activity
+            android:name="dev.jeapi.demi.android.DemiActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="${xmlEscape(demiScreenOrientation)}">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+"""
+
 def demiAssetIndexTask = tasks.register("generateDemiAssetIndex") {
     def outputFile = demiGeneratedAssetsDir.map { it.file("demi_asset_index.txt") }
     inputs.dir(demiProjectAssetsDir)
@@ -45,12 +223,29 @@ android {
         resValues true
     }
 
+    def signingEnvironment = [
+        keystore: System.getenv("DEMI_ANDROID_KEYSTORE"),
+        storePassword: System.getenv("DEMI_ANDROID_KEYSTORE_PASSWORD"),
+        keyAlias: System.getenv("DEMI_ANDROID_KEY_ALIAS"),
+        keyPassword: System.getenv("DEMI_ANDROID_KEY_PASSWORD")
+    ]
+    if (signingEnvironment.values().every { it != null && !it.isEmpty() }) {
+        signingConfigs {
+            release {
+                storeFile file(signingEnvironment.keystore)
+                storePassword signingEnvironment.storePassword
+                keyAlias signingEnvironment.keyAlias
+                keyPassword signingEnvironment.keyPassword
+            }
+        }
+    }
+
     defaultConfig {
-        applicationId "dev.jeapi.demi.android"
-        minSdk 23
+        applicationId demiApplicationId
+        minSdk demiMinimumSdk
         targetSdk 36
-        versionCode 1
-        versionName "0.1.0"
+        versionCode demiVersionCode
+        versionName demiVersionName
         resValue "string", "app_name", demiProjectDisplayName
 
         externalNativeBuild {
@@ -58,13 +253,22 @@ android {
                 arguments "-DDEMI_ENABLE_MEDIA=OFF",
                           "-DDEMI_ENABLE_NETWORK=ON",
                           "-DANDROID_STL=c++_shared",
-                          "-DANDROID_PLATFORM=android-23"
+                          "-DANDROID_PLATFORM=android-${demiMinimumSdk}"
                 cppFlags "-std=c++20"
             }
         }
 
         ndk {
-            abiFilters "arm64-v8a"
+            abiFilters.addAll(demiAndroidAbis)
+        }
+    }
+
+    buildTypes {
+        release {
+            debuggable false
+            minifyEnabled false
+            if (signingConfigs.findByName("release") != null)
+                signingConfig signingConfigs.release
         }
     }
 
@@ -77,7 +281,9 @@ android {
 
     sourceSets {
         main {
+            manifest.srcFile demiGeneratedManifest
             assets.srcDirs = [demiProjectAssetsDir, demiGeneratedAssetsDir]
+            res.srcDirs += demiGeneratedResDir
         }
     }
 
@@ -101,6 +307,34 @@ tasks.register("demiAssembleDebug") {
         def marker = layout.buildDirectory.file(
             "generated/demi/package-debug-complete.txt").get().asFile
         marker.parentFile.mkdirs()
+        demiProgress.completed = demiProgress.total
+        demiProgress.current = ":app:demiAssembleDebug"
+        demiProgress.outcome = "complete"
+        writeDemiProgress()
         marker.text = demiBuildTokenProperty.get() + "\n"
     }
+}
+
+def completeDemiPackage = {
+    if (!demiBuildTokenProperty.isPresent()) {
+        throw new GradleException("Missing -PdemiBuildToken=<token>")
+    }
+    def marker = layout.buildDirectory.file(
+        "generated/demi/package-complete.txt").get().asFile
+    marker.parentFile.mkdirs()
+    demiProgress.completed = demiProgress.total
+    demiProgress.current = "Android package complete"
+    demiProgress.outcome = "complete"
+    writeDemiProgress()
+    marker.text = demiBuildTokenProperty.get() + "\n"
+}
+
+tasks.register("demiAssembleRelease") {
+    dependsOn("assembleRelease")
+    doLast completeDemiPackage
+}
+
+tasks.register("demiBundleRelease") {
+    dependsOn("bundleRelease")
+    doLast completeDemiPackage
 }

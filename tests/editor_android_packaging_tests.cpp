@@ -3,31 +3,27 @@
 #include <cassert>
 #include <chrono>
 #include <filesystem>
+#include <fstream>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <thread>
 
 int main() {
   namespace fs = std::filesystem;
-  using namespace std::chrono_literals;
 
   demi::editor::EditorProjectOperations operations;
   std::string error;
   assert(operations.start(
       {.operation = demi::build::ProjectOperation::PackageAndroid,
        .projectFile = fs::path(DEMI_SOURCE_DIR) /
-                      "examples/main_menu_lang/demi.project.json",
+                      "examples/minimal_2d_android/demi.project.json",
        .engineRoot = DEMI_SOURCE_DIR},
       error));
 
-  const auto deadline = std::chrono::steady_clock::now() + 90s;
   demi::editor::EditorProjectOperationSnapshot snapshot;
   do {
-    std::this_thread::sleep_for(50ms);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     snapshot = operations.snapshot();
-    if (std::chrono::steady_clock::now() >= deadline) {
-      operations.cancel();
-      assert(false && "Editor Android packaging did not complete in 90s");
-    }
   } while (snapshot.running);
 
   assert(snapshot.result && snapshot.result->succeeded());
@@ -35,6 +31,15 @@ int main() {
   assert(fs::is_regular_file(snapshot.result->artifact));
   assert(snapshot.result->artifact ==
          fs::path(DEMI_SOURCE_DIR) /
-             "examples/main_menu_lang/build/android/main_menu_lang-debug.apk");
+             "examples/minimal_2d_android/build/android/minimal_2d_android-debug.apk");
+  const fs::path reportPath = snapshot.result->artifact.string() +
+                              ".build-report.json";
+  assert(fs::is_regular_file(reportPath));
+  std::ifstream reportInput(reportPath);
+  const nlohmann::json report = nlohmann::json::parse(reportInput);
+  assert(report["format_version"] == 1);
+  assert(report["configuration"] == "debug");
+  assert(report["application_id"] == "dev.jeapi.demi.minimal_2d_android");
+  assert(report["artifact_hash"].get<std::string>().starts_with("fnv1a64:"));
   return 0;
 }

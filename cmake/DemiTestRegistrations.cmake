@@ -52,6 +52,47 @@ add_test(NAME demi-editor-android-packaging-tests
 set_tests_properties(demi-editor-android-packaging-tests PROPERTIES
   RUN_SERIAL TRUE
   LABELS "editor;packaging;android;capability-gate")
+find_program(DEMI_AAPT_EXECUTABLE NAMES aapt)
+if(DEMI_AAPT_EXECUTABLE)
+  set(DEMI_EDITOR_ANDROID_APK
+    "${CMAKE_SOURCE_DIR}/examples/minimal_2d_android/build/android/minimal_2d_android-debug.apk")
+  add_test(NAME demi-editor-android-package-identity
+    COMMAND "${DEMI_AAPT_EXECUTABLE}" dump badging "${DEMI_EDITOR_ANDROID_APK}")
+  set_tests_properties(demi-editor-android-package-identity PROPERTIES
+    DEPENDS demi-editor-android-packaging-tests
+    PASS_REGULAR_EXPRESSION
+      "package: name='dev.jeapi.demi.minimal_2d_android' versionCode='1' versionName='1.0.0'")
+  add_test(NAME demi-editor-android-package-sdk
+    COMMAND "${DEMI_AAPT_EXECUTABLE}" dump badging "${DEMI_EDITOR_ANDROID_APK}")
+  set_tests_properties(demi-editor-android-package-sdk PROPERTIES
+    DEPENDS demi-editor-android-packaging-tests
+    PASS_REGULAR_EXPRESSION "sdkVersion:'26'")
+  add_test(NAME demi-editor-android-package-label
+    COMMAND "${DEMI_AAPT_EXECUTABLE}" dump badging "${DEMI_EDITOR_ANDROID_APK}")
+  set_tests_properties(demi-editor-android-package-label PROPERTIES
+    DEPENDS demi-editor-android-packaging-tests
+    PASS_REGULAR_EXPRESSION "application-label:'Minimal 2D Android'")
+  add_test(NAME demi-editor-android-package-abi
+    COMMAND "${DEMI_AAPT_EXECUTABLE}" dump badging "${DEMI_EDITOR_ANDROID_APK}")
+  set_tests_properties(demi-editor-android-package-abi PROPERTIES
+    DEPENDS demi-editor-android-packaging-tests
+    PASS_REGULAR_EXPRESSION "native-code: 'arm64-v8a'")
+  add_test(NAME demi-editor-android-package-permission
+    COMMAND "${DEMI_AAPT_EXECUTABLE}" dump permissions "${DEMI_EDITOR_ANDROID_APK}")
+  set_tests_properties(demi-editor-android-package-permission PROPERTIES
+    DEPENDS demi-editor-android-packaging-tests
+    PASS_REGULAR_EXPRESSION "uses-permission: name='android.permission.INTERNET'")
+  add_test(NAME demi-editor-android-package-branding
+    COMMAND "${DEMI_AAPT_EXECUTABLE}" list "${DEMI_EDITOR_ANDROID_APK}")
+  set_tests_properties(demi-editor-android-package-branding PROPERTIES
+    DEPENDS demi-editor-android-packaging-tests
+    PASS_REGULAR_EXPRESSION "res/drawable-nodpi-v4/demi_splash.png")
+  add_test(NAME demi-editor-android-package-icon
+    COMMAND "${DEMI_AAPT_EXECUTABLE}" list "${DEMI_EDITOR_ANDROID_APK}")
+  set_tests_properties(demi-editor-android-package-icon PROPERTIES
+    DEPENDS demi-editor-android-packaging-tests
+    PASS_REGULAR_EXPRESSION "res/drawable-nodpi-v4/demi_app_icon.png")
+endif()
 add_test(NAME demi-editor-play-session-tests
   COMMAND demi-editor-play-session-tests)
 add_test(NAME demi-editor-help COMMAND demi-editor --help)

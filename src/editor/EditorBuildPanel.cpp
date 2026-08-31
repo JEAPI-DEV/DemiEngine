@@ -312,7 +312,32 @@ void EditorBuildPanel::draw(EditorWorkspace &workspace, std::string &notice) {
   ImGui::Separator();
   ImGui::TextDisabled("Targets");
   ImGui::Checkbox("Linux (64-bit)", &linuxTarget_);
-  ImGui::Checkbox("Android (ARM64)", &androidTarget_);
+  ImGui::Checkbox("Android", &androidTarget_);
+  if (androidTarget_) {
+    if (ImGui::BeginCombo("Configuration",
+                          releaseBuild_ ? "Release" : "Debug")) {
+      if (ImGui::Selectable("Debug", !releaseBuild_)) {
+        releaseBuild_ = false;
+        androidBundle_ = false;
+      }
+      if (ImGui::Selectable("Release", releaseBuild_))
+        releaseBuild_ = true;
+      ImGui::EndCombo();
+    }
+    if (releaseBuild_ && ImGui::BeginCombo(
+                             "Android Output",
+                             androidBundle_ ? "App Bundle (.aab)" : "APK")) {
+      if (ImGui::Selectable("APK", !androidBundle_))
+        androidBundle_ = false;
+      if (ImGui::Selectable("App Bundle (.aab)", androidBundle_))
+        androidBundle_ = true;
+      ImGui::EndCombo();
+    }
+    if (releaseBuild_)
+      ImGui::TextDisabled(
+          "Signing uses DEMI_ANDROID_KEYSTORE, KEYSTORE_PASSWORD, KEY_ALIAS, "
+          "and KEY_PASSWORD");
+  }
   ImGui::Separator();
   editorSectionTitle("Build Settings");
   drawBuildSettings(workspace, notice);
@@ -345,7 +370,12 @@ void EditorBuildPanel::draw(EditorWorkspace &workspace, std::string &notice) {
             operationRequest(workspace, build::ProjectOperation::PackageLinux));
       if (androidTarget_)
         requests.push_back(operationRequest(
-            workspace, build::ProjectOperation::PackageAndroid));
+            workspace,
+            !releaseBuild_
+                ? build::ProjectOperation::PackageAndroid
+                : androidBundle_
+                      ? build::ProjectOperation::BundleAndroidRelease
+                      : build::ProjectOperation::PackageAndroidRelease));
       std::string error;
       notice = operations_.start(std::move(requests), error)
                    ? "Project build started"

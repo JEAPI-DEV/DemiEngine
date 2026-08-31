@@ -2207,8 +2207,9 @@ release artifact.
 
 **Status: in progress.** Build settings now have a shared value model, schema,
 parser, canonical inspection output, branding-asset validation, and regression
-coverage. Linux/Android packagers still need to consume the settings, and
-release signing, lifecycle handling, and device qualification remain pending.
+coverage. Android debug packages consume the validated settings; Linux release
+metadata, Android release signing/AAB output, lifecycle handling, and device
+qualification remain pending.
 
 ### Ownership boundaries
 
@@ -2278,11 +2279,11 @@ capability checks and explicit migration coverage beyond an absent legacy
 `build` block remain.
 
 Android Gradle packaging is launched through the multithread-safe
-`posix_spawn` path, reports elapsed progress while Gradle is running, and
-reports a distinct finalization phase after Gradle exits. A tokenized Gradle
-completion marker allows the editor to reap a launcher that remains alive
-after a verified APK build, and the exact editor background-operation path has
-an Android packaging integration test. Successful APKs are transactionally
+`posix_spawn` path and reports the real Gradle task graph, completed-task count,
+and current task without imposing a duration limit. A tokenized Gradle
+completion marker allows the editor to reap a launcher that remains alive after
+a verified APK build, and the exact editor background-operation path has an
+Android packaging integration test. Successful APKs are transactionally
 published to `<project>/build/android/<executable>-debug.apk`, and the editor
 shows that artifact path after completion.
 
@@ -2305,6 +2306,15 @@ shows that artifact path after completion.
    dependencies.
 
 #### 9C. Android release pipeline
+
+**Status: complete.** Android staging applies application ID, display
+name, version, minimum SDK, ABI selection, orientation, declared permissions,
+PNG/JPEG/WebP/SVG icon, and splash data from the cooked project. Debug APK,
+externally signed release APK, and externally signed release AAB workflows are
+available without serializing secrets. Versioned reports record engine,
+project, cook, artifact, SDK, ABI, permission, and graphics metadata. Package
+inspection tests verify identity, SDK, label, ABI, permission, and branding;
+release APK/AAB signing was qualified with an ephemeral keystore.
 
 1. Generate Gradle project metadata deterministically from build settings.
 2. Support selected ABIs and record native/content hashes in the package

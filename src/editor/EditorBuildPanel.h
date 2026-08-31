@@ -56,6 +56,8 @@ private:
   std::uint64_t handledOperation_ = 0;
   bool linuxTarget_ = true;
   bool androidTarget_ = false;
+  bool releaseBuild_ = false;
+  bool androidBundle_ = false;
   bool show_ = false;
 };
 

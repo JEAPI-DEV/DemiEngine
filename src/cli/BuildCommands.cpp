@@ -15,7 +15,7 @@ namespace {
 
 std::filesystem::path defaultOutput(const std::filesystem::path &project,
                                     const std::string &target) {
-  if (target == "apk")
+  if (target == "apk" || target == "aab")
     return {};
   std::string name = project.parent_path().filename().string();
   if (name.empty())
@@ -57,7 +57,8 @@ int runBuildCommand(const std::vector<std::string> &args,
                     const BuildContext &context) {
   if (args.size() < 2) {
     std::cerr
-        << "build requires a target: inspect, apk, linux, or linux_server.\n";
+        << "build requires a target: inspect, apk, aab, linux, or "
+           "linux_server.\n";
     return 2;
   }
   const std::filesystem::path project = projectFileFromArgs(args);
@@ -70,13 +71,29 @@ int runBuildCommand(const std::vector<std::string> &args,
   if (args[1] == "inspect")
     return inspectBuildSettings(std::filesystem::absolute(project));
 
+  const std::string configuration = valueAfter(args, "--configuration");
+  if (!configuration.empty() && configuration != "debug" &&
+      configuration != "release") {
+    std::cerr << "--configuration must be debug or release.\n";
+    return 2;
+  }
+  if (args[1] == "aab" && configuration == "debug") {
+    std::cerr << "AAB output is a release workflow; omit --configuration or "
+                 "use release.\n";
+    return 2;
+  }
+
   build::ProjectOperation operation;
   if (args[1] == "linux")
     operation = build::ProjectOperation::PackageLinux;
   else if (args[1] == "linux_server")
     operation = build::ProjectOperation::PackageLinuxServer;
   else if (args[1] == "apk")
-    operation = build::ProjectOperation::PackageAndroid;
+    operation = configuration == "release"
+                    ? build::ProjectOperation::PackageAndroidRelease
+                    : build::ProjectOperation::PackageAndroid;
+  else if (args[1] == "aab")
+    operation = build::ProjectOperation::BundleAndroidRelease;
   else {
     std::cerr << "Unknown build target: " << args[1] << '\n';
     return 2;
@@ -101,7 +118,8 @@ int runBuildCommand(const std::vector<std::string> &args,
   if (!result.succeeded())
     return 1;
   std::cout << "Wrote "
-            << (args[1] == "apk"            ? "Android package: "
+            << (args[1] == "apk"            ? "Android APK: "
+                : args[1] == "aab"          ? "Android App Bundle: "
                 : args[1] == "linux_server" ? "Linux server bundle: "
                                             : "Linux bundle: ")
             << result.artifact.string() << '\n';

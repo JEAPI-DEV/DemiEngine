@@ -1,9 +1,12 @@
 #include "cli/build/BuildService.h"
 
+#include <algorithm>
 #include <cassert>
 #include <filesystem>
 #include <fstream>
 #include <nlohmann/json.hpp>
+
+#include <cstdlib>
 
 namespace {
 
@@ -67,6 +70,18 @@ int main() {
        .isCancelled = [] { return true; }});
   assert(cancelled.stage == demi::build::ProjectOperationStage::Cancelled);
   assert(!fs::exists(cancelledOutput));
+
+  unsetenv("DEMI_ANDROID_KEYSTORE");
+  unsetenv("DEMI_ANDROID_KEYSTORE_PASSWORD");
+  unsetenv("DEMI_ANDROID_KEY_ALIAS");
+  unsetenv("DEMI_ANDROID_KEY_PASSWORD");
+  const auto unsignedRelease = demi::build::runProjectOperation(
+      {.operation = demi::build::ProjectOperation::BundleAndroidRelease,
+       .projectFile = project});
+  assert(!unsignedRelease.succeeded());
+  assert(std::ranges::any_of(unsignedRelease.diagnostics, [](const auto &item) {
+    return item.code == "BUILD_ANDROID_SIGNING_ENVIRONMENT_MISSING";
+  }));
 
   fs::remove_all(root, ignored);
 }
