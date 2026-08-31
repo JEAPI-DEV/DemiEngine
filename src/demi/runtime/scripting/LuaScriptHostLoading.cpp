@@ -93,6 +93,7 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData &project, World &world,
     networkContract_ = std::move(*loadedContract.contract);
   }
   applicationServices_.configureStorage(project.name, project.projectDirectory);
+  applicationServices_.configurePermissions(project.build.android.permissions);
   if (project_ != &project) {
     prefabService_.configure(project.projectDirectory);
     sceneFlow_.configure(project);

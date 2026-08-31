@@ -16,11 +16,55 @@
 #include <utility>
 #include <vector>
 
+#if defined(__ANDROID__)
+#include <jni.h>
+#endif
+
 namespace demi::runtime::platform {
 
 namespace {
 
 using Clock = std::chrono::steady_clock;
+
+#if defined(__ANDROID__)
+bool androidPermissionPermanentlyDenied(const char *permission) {
+  auto *environment = static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
+  auto activity = static_cast<jobject>(SDL_GetAndroidActivity());
+  if (environment == nullptr || activity == nullptr)
+    return false;
+  const jclass activityClass = environment->GetObjectClass(activity);
+  const jmethodID method = environment->GetMethodID(
+      activityClass, "shouldShowRequestPermissionRationale",
+      "(Ljava/lang/String;)Z");
+  const jstring name = environment->NewStringUTF(permission);
+  const bool permanentlyDenied =
+      method != nullptr && name != nullptr &&
+      !environment->CallBooleanMethod(activity, method, name);
+  if (environment->ExceptionCheck()) {
+    environment->ExceptionClear();
+    environment->DeleteLocalRef(activityClass);
+    if (name != nullptr)
+      environment->DeleteLocalRef(name);
+    return false;
+  }
+  if (name != nullptr)
+    environment->DeleteLocalRef(name);
+  environment->DeleteLocalRef(activityClass);
+  return permanentlyDenied;
+}
+
+struct AndroidPermissionRequest {
+  std::function<void(bool, bool)> result;
+};
+
+void SDLCALL permissionResult(void *userdata, const char *permission,
+                              const bool granted) {
+  std::unique_ptr<AndroidPermissionRequest> request(
+      static_cast<AndroidPermissionRequest *>(userdata));
+  request->result(granted,
+                  !granted && androidPermissionPermanentlyDenied(permission));
+}
+#endif
 
 std::string_view keyName(const SDL_Scancode key) {
   switch (key) {
@@ -102,6 +146,8 @@ std::string_view keyName(const SDL_Scancode key) {
     return "return";
   case SDL_SCANCODE_ESCAPE:
     return "escape";
+  case SDL_SCANCODE_AC_BACK:
+    return "back";
   case SDL_SCANCODE_TAB:
     return "tab";
   case SDL_SCANCODE_BACKSPACE:
@@ -292,6 +338,7 @@ public:
     updateWindowState();
     state_.lowMemorySignals = pendingLowMemorySignals_;
     pendingLowMemorySignals_ = 0;
+    state_.backRequests = 0;
 
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -301,6 +348,9 @@ public:
         break;
       case SDL_EVENT_KEY_DOWN:
       case SDL_EVENT_KEY_UP:
+        if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat &&
+            event.key.scancode == SDL_SCANCODE_AC_BACK)
+          ++state_.backRequests;
         if (const std::string_view name = keyName(event.key.scancode);
             !name.empty())
           input.key(name, event.key.down, event.key.repeat);
@@ -465,6 +515,29 @@ public:
       return true;
     error = SDL_GetError();
     return false;
+  }
+
+  bool requestPermission(
+      const std::string &permission,
+      std::function<void(bool, bool)> result,
+      std::string &error) override {
+#if defined(__ANDROID__)
+    auto request =
+        std::make_unique<AndroidPermissionRequest>(AndroidPermissionRequest{
+            .result = std::move(result)});
+    if (!SDL_RequestAndroidPermission(permission.c_str(), permissionResult,
+                                      request.get())) {
+      error = SDL_GetError();
+      return false;
+    }
+    (void)request.release();
+    return true;
+#else
+    (void)permission;
+    (void)error;
+    result(true, false);
+    return true;
+#endif
   }
 
 private:

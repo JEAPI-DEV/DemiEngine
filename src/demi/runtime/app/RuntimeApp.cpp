@@ -635,6 +635,12 @@ int runProject(const RuntimeOptions &options) {
           if (!appHost.setClipboard(text, clipboardError))
             std::cerr << "Clipboard update failed: " << clipboardError << '\n';
         });
+    luaHost.applicationServices().setPermissionRequester(
+        [&appHost](const std::string &permission,
+                   platform::PermissionResult result, std::string &error) {
+          return appHost.requestPermission(permission, std::move(result),
+                                           error);
+        });
 
     std::cout << "Using bgfx " << appHost.rendererName()
               << " through the SDL3 platform host.\n";
@@ -669,9 +675,15 @@ int runProject(const RuntimeOptions &options) {
         runtimeAssets.handleLowMemory();
         luaHost.notifyApplicationLowMemory();
       }
+      for (unsigned request = 0; request < frameState.backRequests; ++request)
+        luaHost.applicationServices().notifyBackRequested();
       luaHost.applicationServices().updateDisplay(
           frameState.width, frameState.height, frameState.logicalDpi);
       luaHost.setViewport(frameState.width, frameState.height);
+      if (frameState.suspended) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        continue;
+      }
 
       RuntimeProfiler::beginFrame();
       const auto frameStart = std::chrono::steady_clock::now();
@@ -834,6 +846,12 @@ int runProject(const RuntimeOptions &options) {
           if (!appHost.setClipboard(text, clipboardError))
             std::cerr << "Clipboard update failed: " << clipboardError << '\n';
         });
+    luaHost.applicationServices().setPermissionRequester(
+        [&appHost](const std::string &permission,
+                   platform::PermissionResult result, std::string &error) {
+          return appHost.requestPermission(permission, std::move(result),
+                                           error);
+        });
     std::cout << "Using bgfx " << appHost.rendererName()
               << " through the SDL3 3D platform host.\n";
 
@@ -868,9 +886,15 @@ int runProject(const RuntimeOptions &options) {
         runtimeAssets.handleLowMemory();
         luaHost.notifyApplicationLowMemory();
       }
+      for (unsigned request = 0; request < frameState.backRequests; ++request)
+        luaHost.applicationServices().notifyBackRequested();
       luaHost.applicationServices().updateDisplay(
           frameState.width, frameState.height, frameState.logicalDpi);
       luaHost.setViewport(frameState.width, frameState.height);
+      if (frameState.suspended) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        continue;
+      }
 
       RuntimeProfiler::beginFrame();
       const auto frameStart = std::chrono::steady_clock::now();

@@ -6,6 +6,10 @@
     tests/project_build_settings_tests.cpp)
   target_link_libraries(demi-project-build-settings-tests PRIVATE demi-core)
 
+  add_executable(demi-application-permissions-tests
+    tests/application_permissions_tests.cpp)
+  target_link_libraries(demi-application-permissions-tests PRIVATE demi-core)
+
   add_executable(demi-project-templates-tests tests/project_templates_tests.cpp)
   target_link_libraries(demi-project-templates-tests PRIVATE demi-cli-support)
   target_compile_definitions(demi-project-templates-tests PRIVATE

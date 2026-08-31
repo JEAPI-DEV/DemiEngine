@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -30,6 +31,7 @@ struct PlatformFrameState {
   bool suspended = false;
   bool quitRequested = false;
   unsigned lowMemorySignals = 0;
+  unsigned backRequests = 0;
 };
 
 class PlatformHost {
@@ -56,6 +58,10 @@ public:
   [[nodiscard]] virtual std::string clipboard() const = 0;
   [[nodiscard]] virtual bool setClipboard(const std::string &text,
                                           std::string &error) = 0;
+  [[nodiscard]] virtual bool requestPermission(
+      const std::string &permission,
+      std::function<void(bool granted, bool deniedPermanently)> result,
+      std::string &error) = 0;
 
 protected:
   PlatformHost() = default;

@@ -2209,8 +2209,7 @@ release artifact.
 parser, canonical inspection output, branding-asset validation, and regression
 coverage. Android debug packages consume the validated settings; Linux release
 bundles and Android release signing/AAB output are operational. Capability
-cross-checks, Android lifecycle/permission APIs, and device qualification
-remain pending.
+cross-checks and device qualification remain pending.
 
 ### Ownership boundaries
 
@@ -2336,6 +2335,17 @@ release APK/AAB signing was qualified with an ephemeral keystore.
    variants, and source/cook hashes in a build report.
 
 #### 9D. Runtime lifecycle and permissions
+
+**Status: complete.** `ApplicationServices` now owns declared asynchronous
+permission state/events, generation-safe callbacks, private Android storage,
+IME/orientation/safe-area operations, and ordered lifecycle events. SDL maps
+Android permission requests and permanent denial, background/foreground,
+low-memory, and back input into that contract. Suspension retains scene/script/
+resource ownership while pausing simulation, rendering, audio, and ordinary
+network updates; resumed drawable changes use the existing bgfx back-buffer
+resize path. Host tests cover every permission state, undeclared requests,
+late callbacks, and lifecycle ordering, and the Android APK compiles with the
+manifest-declared permission path.
 
 1. Model permission states as `unknown`, `not_requested`, `requesting`,
    `granted`, `denied`, and `denied_permanently` with asynchronous result

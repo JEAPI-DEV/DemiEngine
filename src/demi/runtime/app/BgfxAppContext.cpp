@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <limits>
+#include <utility>
 
 namespace demi::runtime {
 namespace {
@@ -155,6 +156,12 @@ std::string BgfxAppContext::clipboard() const { return platform_->clipboard(); }
 
 bool BgfxAppContext::setClipboard(const std::string &text, std::string &error) {
   return platform_->setClipboard(text, error);
+}
+
+bool BgfxAppContext::requestPermission(
+    const std::string &permission, std::function<void(bool, bool)> result,
+    std::string &error) {
+  return platform_->requestPermission(permission, std::move(result), error);
 }
 
 std::string_view BgfxAppContext::rendererName() const {

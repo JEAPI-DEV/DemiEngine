@@ -61,6 +61,7 @@ add_library(demi-core STATIC
   src/demi/runtime/input/InputRebinding.cpp
   src/demi/runtime/input/TouchGestureRecognizer.cpp
   src/demi/runtime/platform/ApplicationServices.cpp
+  src/demi/runtime/platform/ApplicationPermissions.cpp
   src/demi/runtime/input/replay/InputReplay.cpp
   src/demi/runtime/input/InputActionParser.cpp
   src/demi/runtime/isometric/GridTypes.cpp

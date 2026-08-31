@@ -59,6 +59,10 @@ public:
   [[nodiscard]] bool setMouseCaptured(bool captured, std::string &error);
   [[nodiscard]] std::string clipboard() const;
   [[nodiscard]] bool setClipboard(const std::string &text, std::string &error);
+  [[nodiscard]] bool requestPermission(
+      const std::string &permission,
+      std::function<void(bool granted, bool deniedPermanently)> result,
+      std::string &error);
 
   [[nodiscard]] bool renderFrame(const World &world,
                                  const Camera2DComponent &camera,

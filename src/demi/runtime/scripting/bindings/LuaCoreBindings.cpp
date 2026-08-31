@@ -12,11 +12,6 @@
 #include <iostream>
 #include <tuple>
 
-#if defined(__ANDROID__)
-#include <android/native_activity.h>
-extern "C" ANativeActivity* DemiGetNativeActivity(void);
-#endif
-
 namespace demi::runtime {
 
 void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const {
@@ -136,15 +131,6 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
   input.set_function("text_entered", [&host] { return host.textEntered(); });
   input.set_function("set_text_input_active", [&host](const bool active) {
       host.applicationServices().setKeyboardVisible(active);
-#if defined(__ANDROID__)
-      ANativeActivity* activity = DemiGetNativeActivity();
-      if (activity != nullptr) {
-        if (active) ANativeActivity_showSoftInput(activity, ANATIVEACTIVITY_SHOW_SOFT_INPUT_IMPLICIT);
-        else ANativeActivity_hideSoftInput(activity, ANATIVEACTIVITY_HIDE_SOFT_INPUT_NOT_ALWAYS);
-      }
-#else
-      (void)active;
-#endif
     });
   input.set_function("mouse_down", [&host](const std::string& button) { return host.isMouseDown(button); });
   input.set_function("mouse_position", [&host] { const Vec2 value = host.mousePosition(); return std::tuple{value.x, value.y}; });
@@ -245,6 +231,40 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
   application.set_function("low_memory_generation", [&host] { return host.applicationServices().lowMemoryGeneration(); });
   application.set_function("user_data_path", [&host] { return host.applicationServices().userDataPath().string(); });
   application.set_function("cache_path", [&host] { return host.applicationServices().cachePath().string(); });
+  application.set_function("permission_state", [&host](const std::string& permission) {
+    return platform::permissionStateName(
+        host.applicationServices().permissionState(permission));
+  });
+  application.set_function("request_permission", [&host](const std::string& permission) {
+    std::string error;
+    const bool requested =
+        host.applicationServices().requestPermission(permission, error);
+    return std::tuple{requested, error};
+  });
+  application.set_function("take_permission_events", [&host, &lua] {
+    sol::table result = lua.create_table();
+    int index = 1;
+    for (const platform::PermissionEvent& event :
+         host.applicationServices().takePermissionEvents()) {
+      sol::table item = lua.create_table();
+      item["permission"] = event.permission;
+      item["state"] = platform::permissionStateName(event.state);
+      result[index++] = item;
+    }
+    return result;
+  });
+  application.set_function("take_lifecycle_events", [&host, &lua] {
+    sol::table result = lua.create_table();
+    int index = 1;
+    for (const platform::ApplicationLifecycleEvent& event :
+         host.applicationServices().takeLifecycleEvents()) {
+      sol::table item = lua.create_table();
+      item["type"] = event.type;
+      item["generation"] = event.generation;
+      result[index++] = item;
+    }
+    return result;
+  });
 }
 
 } // namespace demi::runtime

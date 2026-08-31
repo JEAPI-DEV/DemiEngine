@@ -2,6 +2,8 @@
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-project-build-settings-tests
   COMMAND demi-project-build-settings-tests)
+add_test(NAME demi-application-permissions-tests
+  COMMAND demi-application-permissions-tests)
 add_test(NAME demi-project-templates-tests COMMAND demi-project-templates-tests)
 add_test(NAME demi-build-service-tests COMMAND demi-build-service-tests)
 add_test(NAME demi-editor-workspace-tests COMMAND demi-editor-workspace-tests)

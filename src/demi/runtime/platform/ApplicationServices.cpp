@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <utility>
 
 #if defined(__ANDROID__)
 #include <android/configuration.h>
@@ -119,10 +120,8 @@ void ApplicationServices::configureStorage(
   if (ANativeActivity *activity = DemiGetNativeActivity();
       activity != nullptr && activity->internalDataPath != nullptr) {
     userDataPath_ = std::filesystem::path(activity->internalDataPath) / folder;
-    cachePath_ =
-        activity->externalDataPath != nullptr
-            ? std::filesystem::path(activity->externalDataPath) / "cache"
-            : userDataPath_ / "cache";
+    cachePath_ = std::filesystem::path(activity->internalDataPath) / "cache" /
+                 folder;
   }
 #else
   std::filesystem::path dataRoot = environmentPath("XDG_DATA_HOME");
@@ -160,26 +159,74 @@ void ApplicationServices::updateDisplay(const int width, const int height,
 #else
   const float platformDpi = 0.0F;
 #endif
-  width_ = std::max(width, 1);
-  height_ = std::max(height, 1);
+  const int nextWidth = std::max(width, 1);
+  const int nextHeight = std::max(height, 1);
+  const bool displayChanged = nextWidth != width_ || nextHeight != height_;
+  const bool safeAreaChanged = safeArea.left != safeArea_.left ||
+                               safeArea.top != safeArea_.top ||
+                               safeArea.right != safeArea_.right ||
+                               safeArea.bottom != safeArea_.bottom;
+  width_ = nextWidth;
+  height_ = nextHeight;
   logicalDpi_ =
       std::max(platformDpi > 0.0F ? platformDpi : logicalDpi, 1.0F);
   uiScale_ = std::clamp(logicalDpi_ / 96.0F, 0.5F, 4.0F);
   safeArea_ = safeArea;
   orientation_ = width_ >= height_ ? Orientation::Landscape
                                     : Orientation::Portrait;
+  if (displayChanged)
+    lifecycleEvents_.push_back(
+        {.type = "display_changed", .generation = ++lifecycleGeneration_});
+  if (safeAreaChanged)
+    lifecycleEvents_.push_back(
+        {.type = "safe_area_changed", .generation = ++lifecycleGeneration_});
 }
 
-void ApplicationServices::setFocused(const bool focused) { focused_ = focused; }
+void ApplicationServices::setFocused(const bool focused) {
+  if (focused_ == focused)
+    return;
+  focused_ = focused;
+  lifecycleEvents_.push_back(
+      {.type = focused ? "focus_gained" : "focus_lost",
+       .generation = ++lifecycleGeneration_});
+}
 void ApplicationServices::setMinimized(const bool minimized) {
+  if (minimized_ == minimized)
+    return;
   minimized_ = minimized;
+  lifecycleEvents_.push_back(
+      {.type = minimized ? "minimized" : "restored",
+       .generation = ++lifecycleGeneration_});
 }
 void ApplicationServices::setSuspended(const bool suspended) {
+  if (suspended_ == suspended)
+    return;
   suspended_ = suspended;
+  lifecycleEvents_.push_back(
+      {.type = suspended ? "suspended" : "resumed",
+       .generation = ++lifecycleGeneration_});
 }
-void ApplicationServices::notifyLowMemory() { ++lowMemoryGeneration_; }
+void ApplicationServices::notifyLowMemory() {
+  ++lowMemoryGeneration_;
+  lifecycleEvents_.push_back(
+      {.type = "low_memory", .generation = ++lifecycleGeneration_});
+}
+void ApplicationServices::notifyBackRequested() {
+  lifecycleEvents_.push_back(
+      {.type = "back_requested", .generation = ++lifecycleGeneration_});
+}
 void ApplicationServices::setKeyboardVisible(const bool visible) {
   keyboardVisible_ = visible;
+#if defined(__ANDROID__)
+  if (ANativeActivity *activity = DemiGetNativeActivity(); activity != nullptr) {
+    if (visible)
+      ANativeActivity_showSoftInput(
+          activity, ANATIVEACTIVITY_SHOW_SOFT_INPUT_IMPLICIT);
+    else
+      ANativeActivity_hideSoftInput(
+          activity, ANATIVEACTIVITY_HIDE_SOFT_INPUT_NOT_ALWAYS);
+  }
+#endif
 }
 void ApplicationServices::requestOrientation(const Orientation orientation) {
   requestedOrientation_ = orientation;
@@ -224,6 +271,29 @@ void ApplicationServices::setClipboard(const std::string &text) {
   clipboardFallback_ = text;
   if (clipboardWriter_)
     clipboardWriter_(text);
+}
+void ApplicationServices::configurePermissions(
+    std::vector<std::string> declaredPermissions) {
+  permissions_.configure(std::move(declaredPermissions));
+}
+void ApplicationServices::setPermissionRequester(
+    PermissionRequester requester) {
+  permissions_.setRequester(std::move(requester));
+}
+PermissionState
+ApplicationServices::permissionState(const std::string_view permission) const {
+  return permissions_.state(permission);
+}
+bool ApplicationServices::requestPermission(std::string permission,
+                                            std::string &error) {
+  return permissions_.request(std::move(permission), error);
+}
+std::vector<PermissionEvent> ApplicationServices::takePermissionEvents() {
+  return permissions_.takeEvents();
+}
+std::vector<ApplicationLifecycleEvent>
+ApplicationServices::takeLifecycleEvents() {
+  return std::exchange(lifecycleEvents_, {});
 }
 int ApplicationServices::width() const { return width_; }
 int ApplicationServices::height() const { return height_; }

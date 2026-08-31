@@ -2,6 +2,8 @@
 
 #include "demi/runtime/assets/RegistryAssetResourceLoader.h"
 
+#include <utility>
+
 namespace demi::runtime {
 
 class Bgfx3DAppHost::RendererOwner {
@@ -105,6 +107,12 @@ std::string Bgfx3DAppHost::clipboard() const { return context_.clipboard(); }
 
 bool Bgfx3DAppHost::setClipboard(const std::string &text, std::string &error) {
   return context_.setClipboard(text, error);
+}
+
+bool Bgfx3DAppHost::requestPermission(
+    const std::string &permission, std::function<void(bool, bool)> result,
+    std::string &error) {
+  return context_.requestPermission(permission, std::move(result), error);
 }
 
 bool Bgfx3DAppHost::renderFrame(const World &world,

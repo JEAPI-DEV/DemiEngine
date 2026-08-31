@@ -228,6 +228,19 @@ function Application.low_memory_generation() end
 function Application.user_data_path() end
 ---@return string
 function Application.cache_path() end
+---@alias PermissionState "unknown"|"not_requested"|"requesting"|"granted"|"denied"|"denied_permanently"
+---@param permission string
+---@return PermissionState
+function Application.permission_state(permission) end
+---@param permission string Must be declared in project build.android.permissions.
+---@return boolean requested
+---@return string error
+function Application.request_permission(permission) end
+---@return {permission: string, state: PermissionState}[]
+function Application.take_permission_events() end
+---@alias ApplicationLifecycleEventType "focus_gained"|"focus_lost"|"minimized"|"restored"|"suspended"|"resumed"|"low_memory"|"display_changed"|"safe_area_changed"|"back_requested"
+---@return {type: ApplicationLifecycleEventType, generation: integer}[]
+function Application.take_lifecycle_events() end
 
 ---@class ProceduralMeshBuilder
 ---@field clear fun(self: ProceduralMeshBuilder)
