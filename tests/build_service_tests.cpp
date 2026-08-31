@@ -30,7 +30,7 @@ int main() {
   fs::remove_all(root, ignored);
   write(
       root / "project/demi.project.json",
-      R"({"format_version":1,"name":"Build Fixture","main_scene":"scene://main","scenes":[{"id":"scene://main","path":"scenes/main.scene.json"}],"assets":[]})");
+      R"({"format_version":1,"name":"Build Fixture","main_scene":"scene://main","scenes":[{"id":"scene://main","path":"scenes/main.scene.json"}],"assets":[],"build":{"application_id":"dev.example.build_fixture","display_name":"Build Fixture","executable_name":"build_fixture","version_name":"1.0.0","version_code":1}})");
   write(root / "project/scenes/main.scene.json",
         R"({"format_version":1,"id":"scene://main","entities":[]})");
   write(root / "bin/demi", "runtime");
@@ -56,9 +56,18 @@ int main() {
        .outputDirectory = bundle,
        .runtimeExecutable = root / "bin/demi"});
   assert(package.succeeded());
-  assert(fs::is_regular_file(bundle / "bin/demi"));
+  assert(fs::is_regular_file(bundle / "bin/build_fixture"));
+  assert(fs::is_regular_file(bundle / "build_fixture"));
   assert(fs::is_regular_file(bundle / "project/demi.project.json"));
   assert(fs::is_regular_file(bundle / "project/cook.manifest.json"));
+  assert(fs::is_regular_file(
+      bundle / "share/applications/dev.example.build_fixture.desktop"));
+  assert(fs::is_regular_file(
+      bundle / "share/doc/build_fixture/THIRD_PARTY_NOTICES.txt"));
+  assert(fs::is_regular_file(bundle / "build-report.json"));
+  const auto report = readJson(bundle / "build-report.json");
+  assert(report["application_id"] == "dev.example.build_fixture");
+  assert(report["shared_library_policy"] == "system");
   assert(readJson(cooked / "cook.manifest.json") ==
          readJson(bundle / "project/cook.manifest.json"));
 

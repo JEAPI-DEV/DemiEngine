@@ -79,7 +79,8 @@ add_test(NAME demi-runtime-packaged-fighting-game-2d
 )
 set_tests_properties(demi-runtime-packaged-fighting-game-2d PROPERTIES
   DEPENDS demi-package-linux-fighting-game-2d
-  ENVIRONMENT "DEMI_HEADLESS=1"
+  ENVIRONMENT
+    "DEMI_HEADLESS=1;HOME=${CMAKE_BINARY_DIR}/generated/ctest-linux-home;XDG_DATA_HOME=${CMAKE_BINARY_DIR}/generated/ctest-linux-data;XDG_CACHE_HOME=${CMAKE_BINARY_DIR}/generated/ctest-linux-cache;LD_LIBRARY_PATH="
 )
 add_test(NAME demi-runtime-minimal-3d-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json --max-frames 1

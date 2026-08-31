@@ -50,3 +50,19 @@ Android packaging accepts PNG, JPEG, WebP, and SVG source assets for `icon` and
 The editor reads Gradle's real task graph and displays the current task plus
 completed and total task counts. Builds have no duration limit and remain
 explicitly cancellable.
+
+## Linux bundles
+
+```sh
+demi build linux --project path/to/demi.project.json
+```
+
+Linux bundles contain the configured executable and launcher name, cooked
+project content, a freedesktop desktop entry, optional application icon,
+third-party attribution notices, and `build-report.json`. The report records
+the engine version, project/cook/runtime hashes, and the shared-library policy.
+
+Game saves and writable data use `$XDG_DATA_HOME/<game>/`; caches use
+`$XDG_CACHE_HOME/<game>/`. When those variables are absent, the runtime follows
+the standard `$HOME/.local/share` and `$HOME/.cache` fallbacks. Packaged games
+never need to write beside their executable or cooked project.

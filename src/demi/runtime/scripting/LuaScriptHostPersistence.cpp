@@ -21,7 +21,8 @@ LuaScriptHost::loadSaveSlot(const std::string &slot) {
   }
 
   std::unordered_map<std::string, SaveValue> values;
-  const std::filesystem::path path = savePath(projectDirectory_, safeSlot);
+  const std::filesystem::path path =
+      savePath(applicationServices_.userDataPath(), safeSlot);
   std::ifstream input(path);
   if (input) {
     std::ostringstream buffer;
@@ -34,7 +35,7 @@ LuaScriptHost::loadSaveSlot(const std::string &slot) {
 }
 
 bool LuaScriptHost::writeSaveSlot(const std::string &slot) {
-  if (projectDirectory_.empty()) {
+  if (applicationServices_.userDataPath().empty()) {
     return false;
   }
 
@@ -44,7 +45,7 @@ bool LuaScriptHost::writeSaveSlot(const std::string &slot) {
     return false;
   }
 
-  return atomicWriteText(savePath(projectDirectory_, safeSlot),
+  return atomicWriteText(savePath(applicationServices_.userDataPath(), safeSlot),
                          serializeSaveSlotDocument(safeSlot, found->second));
 }
 
@@ -90,27 +91,29 @@ bool LuaScriptHost::setSaveString(const std::string &slot,
 }
 
 bool LuaScriptHost::saveExists(const std::string &slot) const {
-  return !projectDirectory_.empty() &&
-         std::filesystem::exists(savePath(projectDirectory_, slot));
+  return !applicationServices_.userDataPath().empty() &&
+         std::filesystem::exists(
+             savePath(applicationServices_.userDataPath(), slot));
 }
 
 bool LuaScriptHost::deleteSave(const std::string &slot) {
-  if (projectDirectory_.empty()) {
+  if (applicationServices_.userDataPath().empty()) {
     return false;
   }
   std::error_code error;
   const bool removed =
-      std::filesystem::remove(savePath(projectDirectory_, slot), error);
+      std::filesystem::remove(
+          savePath(applicationServices_.userDataPath(), slot), error);
   saves_.erase(sanitizedSaveSlot(slot));
   return removed && !error;
 }
 
 std::optional<std::string>
 LuaScriptHost::readSaveDocument(const std::string &slot) const {
-  if (projectDirectory_.empty()) {
+  if (applicationServices_.userDataPath().empty()) {
     return std::nullopt;
   }
-  std::ifstream input(savePath(projectDirectory_, slot));
+  std::ifstream input(savePath(applicationServices_.userDataPath(), slot));
   if (!input) {
     return std::nullopt;
   }
@@ -125,7 +128,7 @@ LuaScriptHost::readSaveDocument(const std::string &slot) const {
 bool LuaScriptHost::writeSaveDocument(const std::string &slot,
                                       const std::string &stateJson,
                                       const int formatVersion) {
-  if (projectDirectory_.empty() || formatVersion < 1) {
+  if (applicationServices_.userDataPath().empty() || formatVersion < 1) {
     return false;
   }
 
@@ -154,7 +157,7 @@ bool LuaScriptHost::writeSaveDocument(const std::string &slot,
     }
   }
   saves_.erase(safeSlot);
-  return atomicWriteText(savePath(projectDirectory_, safeSlot),
+  return atomicWriteText(savePath(applicationServices_.userDataPath(), safeSlot),
                          document.dump(2) + "\n");
 }
 
@@ -181,7 +184,7 @@ bool LuaScriptHost::writeGameSaveDocument(const std::string &slot,
   if (!document)
     return false;
   saves_.erase(safeSlot);
-  if (!atomicWriteText(savePath(projectDirectory_, safeSlot),
+  if (!atomicWriteText(savePath(applicationServices_.userDataPath(), safeSlot),
                        document->dump(2) + "\n")) {
     lastSaveError_ = "failed to atomically write game save";
     return false;

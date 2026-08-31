@@ -1,4 +1,5 @@
 #include "cli/build/BuildService.h"
+#include "cli/build/LinuxPackaging.h"
 
 #include "demi/assets/AssetCooker.h"
 #include "demi/assets/AssetHash.h"
@@ -346,61 +347,6 @@ bool cookTransactionally(const ProjectOperationRequest &request,
   return true;
 }
 
-bool copyRuntime(const std::filesystem::path &runtime,
-                 const std::filesystem::path &output, Diagnostics &issues) {
-  if (!std::filesystem::is_regular_file(runtime)) {
-    add(issues, "BUILD_RUNTIME_NOT_FOUND",
-        "The Demi runtime executable was not found.", runtime);
-    return false;
-  }
-  std::error_code error;
-  const auto target = output / "bin/demi";
-  std::filesystem::create_directories(target.parent_path(), error);
-  if (!error)
-    std::filesystem::copy_file(
-        runtime, target, std::filesystem::copy_options::overwrite_existing,
-        error);
-  if (error) {
-    add(issues, "BUILD_RUNTIME_COPY_FAILED", error.message(), target);
-    return false;
-  }
-  std::filesystem::permissions(target,
-                               std::filesystem::perms::owner_exec |
-                                   std::filesystem::perms::group_exec |
-                                   std::filesystem::perms::others_exec,
-                               std::filesystem::perm_options::add, error);
-  return true;
-}
-
-bool writeLauncher(const std::filesystem::path &projectFile,
-                   const std::filesystem::path &output, const bool server,
-                   Diagnostics &issues) {
-  std::string name = projectFile.parent_path().filename().string();
-  if (name.empty() || name == "project" || name == "bin")
-    name = "demi-game";
-  const auto path = output / (server ? "serve" : name);
-  std::ofstream launcher(path);
-  if (!launcher) {
-    add(issues, "BUILD_LAUNCHER_WRITE_FAILED",
-        "Could not write the Linux launcher.", path);
-    return false;
-  }
-  launcher << "#!/usr/bin/env sh\n"
-              "set -eu\n"
-              "DIR=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\n"
-              "exec \"$DIR/bin/demi\" "
-           << (server ? "serve" : "run")
-           << " --project \"$DIR/project/demi.project.json\" \"$@\"\n";
-  launcher.close();
-  std::error_code error;
-  std::filesystem::permissions(path,
-                               std::filesystem::perms::owner_exec |
-                                   std::filesystem::perms::group_exec |
-                                   std::filesystem::perms::others_exec,
-                               std::filesystem::perm_options::add, error);
-  return true;
-}
-
 #if defined(__linux__)
 bool runAndroidGradle(const ProjectOperationRequest &request,
                       const std::filesystem::path &packagedProject,
@@ -659,9 +605,14 @@ runProjectOperation(const ProjectOperationRequest &request) {
     const std::filesystem::path runtime =
         server ? request.runtimeExecutable.parent_path() / "demi-server"
                : request.runtimeExecutable;
-    if (!copyRuntime(runtime, staging, result.diagnostics) ||
-        !writeLauncher(request.projectFile, staging, server,
-                       result.diagnostics)) {
+    const Diagnostics staged = stageLinuxPackage(
+        {.projectFile = request.projectFile,
+         .runtimeExecutable = runtime,
+         .stagingDirectory = staging,
+         .server = server});
+    result.diagnostics.insert(result.diagnostics.end(), staged.begin(),
+                              staged.end());
+    if (hasErrors(result.diagnostics)) {
       result.stage = ProjectOperationStage::Failed;
       return result;
     }

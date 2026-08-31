@@ -7,6 +7,7 @@ else()
   find_package(CURL REQUIRED)
   add_library(demi-cli-support STATIC
     src/cli/build/BuildService.cpp
+    src/cli/build/LinuxPackaging.cpp
     src/cli/doctor/DoctorService.cpp
     src/cli/project/ProjectDiscovery.cpp
     src/cli/project/ProjectTemplates.cpp

@@ -2208,8 +2208,9 @@ release artifact.
 **Status: in progress.** Build settings now have a shared value model, schema,
 parser, canonical inspection output, branding-asset validation, and regression
 coverage. Android debug packages consume the validated settings; Linux release
-metadata, Android release signing/AAB output, lifecycle handling, and device
-qualification remain pending.
+bundles and Android release signing/AAB output are operational. Capability
+cross-checks, Android lifecycle/permission APIs, and device qualification
+remain pending.
 
 ### Ownership boundaries
 
@@ -2296,6 +2297,14 @@ shows that artifact path after completion.
    network, SVG, graphics API, and Android capability support.
 
 #### 9B. Linux release bundle
+
+**Status: complete.** Linux packaging now applies the configured executable,
+display name, application ID, and optional icon; emits a relocatable launcher,
+freedesktop desktop entry, attribution notices, and versioned build report;
+and excludes cook caches plus package tests/docs/examples. Lua save persistence
+uses the XDG-backed application data root instead of writing into the cooked
+project. A packaged runtime smoke test runs with isolated HOME/XDG directories
+and no `LD_LIBRARY_PATH` build-tree assistance.
 
 1. Produce runtime executable, reachable cooked assets, shared-library policy,
    desktop entry, icons, license/attribution report, and launch script only
