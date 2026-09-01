@@ -7,22 +7,19 @@
 #include <SDL3/SDL_system.h>
 #include <android/asset_manager.h>
 #include <android/log.h>
-#include <android/native_activity.h>
+#include <android/asset_manager_jni.h>
 #include <jni.h>
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
-
-extern "C" ANativeActivity *DemiGetNativeActivity(void) {
-  return static_cast<ANativeActivity *>(SDL_GetAndroidActivity());
-}
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_dev_jeapi_demi_android_DemiActivity_nativeAccessibilitySnapshot(
@@ -69,6 +66,21 @@ Java_dev_jeapi_demi_android_DemiActivity_nativeAccessibilityAction(
     environment->ReleaseStringUTFChars(nodeId, idBytes);
   if (textBytes != nullptr)
     environment->ReleaseStringUTFChars(text, textBytes);
+}
+
+namespace {
+std::atomic_bool AndroidSurfaceAvailable = false;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_dev_jeapi_demi_android_DemiActivity_nativeSurfaceAvailable(
+    JNIEnv *, jclass, const jboolean available) {
+  AndroidSurfaceAvailable.store(available == JNI_TRUE,
+                                std::memory_order_release);
+}
+
+extern "C" bool DemiAndroidSurfaceAvailable(void) {
+  return AndroidSurfaceAvailable.load(std::memory_order_acquire);
 }
 
 namespace {
@@ -164,12 +176,13 @@ void clearBundledProjectFiles(const std::filesystem::path &projectRoot) {
   std::filesystem::remove_all(projectRoot / "scripts", error);
   error.clear();
   std::filesystem::remove_all(projectRoot / "certs", error);
+  error.clear();
+  std::filesystem::remove_all(projectRoot / "packages", error);
 }
 
-std::filesystem::path prepareProject(ANativeActivity *activity) {
+std::filesystem::path prepareProject(AAssetManager *manager) {
   const std::filesystem::path storageRoot = SDL_GetAndroidInternalStoragePath();
   const std::filesystem::path projectRoot = storageRoot / ProjectDirectory;
-  AAssetManager *manager = activity->assetManager;
 
   const std::vector<std::string> assetPaths = readAssetIndex(manager);
   if (assetPaths.empty()) {
@@ -194,17 +207,36 @@ int main(int argc, char **argv) {
   (void)argc;
   (void)argv;
 
-  ANativeActivity *activity = DemiGetNativeActivity();
+  auto *environment = static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
+  auto activity = static_cast<jobject>(SDL_GetAndroidActivity());
   const char *storagePath = SDL_GetAndroidInternalStoragePath();
-  if (activity == nullptr || activity->assetManager == nullptr ||
-      storagePath == nullptr) {
+  AAssetManager *assetManager = nullptr;
+  if (environment != nullptr && activity != nullptr) {
+    const jclass activityClass = environment->GetObjectClass(activity);
+    const jmethodID getAssets = environment->GetMethodID(
+        activityClass, "getAssets", "()Landroid/content/res/AssetManager;");
+    jobject javaAssets = getAssets == nullptr
+                             ? nullptr
+                             : environment->CallObjectMethod(activity, getAssets);
+    if (javaAssets != nullptr) {
+      assetManager = AAssetManager_fromJava(environment, javaAssets);
+      environment->DeleteLocalRef(javaAssets);
+    }
+    environment->DeleteLocalRef(activityClass);
+  }
+  if (assetManager == nullptr || storagePath == nullptr) {
     logError("Android activity is unavailable.");
     return 1;
   }
 
-  const std::filesystem::path projectPath = prepareProject(activity);
+  const std::filesystem::path projectPath = prepareProject(assetManager);
+  const bool hotReload = std::filesystem::is_regular_file(
+      std::filesystem::path(storagePath) / ".demi_hot_reload");
   logInfo("Launching " + std::string(ProjectFile));
+  if (hotReload)
+    logInfo("Physical-device hot reload enabled.");
   return demi::runtime::runProject(demi::runtime::RuntimeOptions{
       .projectPath = projectPath,
+      .watch = hotReload,
   });
 }

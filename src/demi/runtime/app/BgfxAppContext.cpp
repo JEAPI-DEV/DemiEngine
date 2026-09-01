@@ -1,5 +1,6 @@
 #include "demi/runtime/app/BgfxAppContext.h"
 
+#include "demi/runtime/diagnostics/DeviceLog.h"
 #include "demi/runtime/render/backend/GpuResources.h"
 #include "demi/runtime/render/backend/RenderCommands.h"
 
@@ -34,12 +35,30 @@ std::uint16_t viewportDimension(const int value) {
 
 render::GraphicsApi configuredGraphicsApi() {
   const char *configured = std::getenv("DEMI_GRAPHICS_API");
+#if defined(__ANDROID__)
+  if (configured == nullptr || *configured == '\0') {
+    deviceLog(deviceLogMessage(
+        "render",
+        std::string("Graphics api resolved to ") +
+            std::string(render::graphicsApiName(render::GraphicsApi::Vulkan)) +
+            " (Android default)."));
+    return render::GraphicsApi::Vulkan;
+  }
+#endif
   if (configured == nullptr || *configured == '\0')
     return render::GraphicsApi::Automatic;
   render::GraphicsApi api = render::GraphicsApi::Automatic;
-  return render::parseGraphicsApi(configured, api)
-             ? api
-             : render::GraphicsApi::Automatic;
+  const bool recognised = render::parseGraphicsApi(configured, api);
+  if (!recognised)
+    api = render::GraphicsApi::Automatic;
+  deviceLog(deviceLogMessage(
+      "render",
+      std::string("Graphics api resolved to ") +
+          std::string(render::graphicsApiName(api)) +
+          " (DEMI_GRAPHICS_API=" + configured + ")" +
+          (recognised ? "" : "; the value is unrecognised and was ignored") +
+          "."));
+  return api;
 }
 
 BgfxAppContext::BgfxAppContext()
@@ -60,20 +79,41 @@ bool BgfxAppContext::initialize(const BgfxAppContextConfig &config,
                              error))
     return false;
   const auto &state = platform_->frameState();
+  surfaceGeneration_ = state.surfaceGeneration;
   renderWidth_ = drawableDimension(state.width);
   renderHeight_ = drawableDimension(state.height);
-  if (!graphics_.initialize(
-          {.api = config.graphicsApi,
-           .nativeWindow = platform_->nativeWindow(),
-           .width = static_cast<std::uint32_t>(renderWidth_),
-           .height = static_cast<std::uint32_t>(renderHeight_),
-           .vsync = config.vsync,
-           .debug = config.debugGraphics},
-          error)) {
-    platform_->shutdown();
-    renderWidth_ = 0;
-    renderHeight_ = 0;
-    return false;
+  const auto tryInitializeGraphics = [&](render::GraphicsApi api,
+                                         std::string &failure) {
+    return graphics_.initialize(
+        {.api = api,
+         .nativeWindow = platform_->nativeWindow(),
+         .width = static_cast<std::uint32_t>(renderWidth_),
+         .height = static_cast<std::uint32_t>(renderHeight_),
+         .vsync = config.vsync,
+         .debug = config.debugGraphics},
+        failure);
+  };
+  if (!tryInitializeGraphics(config.graphicsApi, error)) {
+#if defined(__ANDROID__)
+    const bool canFallBack =
+        config.graphicsApi == render::GraphicsApi::Vulkan;
+    if (canFallBack) {
+      deviceLogError(deviceLogMessage(
+          "render", error + " Falling back to OpenGL ES."));
+      std::string fallbackError;
+      if (!tryInitializeGraphics(render::GraphicsApi::OpenGLES,
+                                 fallbackError)) {
+        error = fallbackError;
+      }
+    }
+#endif
+    if (!graphics_.initialized()) {
+      deviceLogError(deviceLogMessage("render", error));
+      platform_->shutdown();
+      renderWidth_ = 0;
+      renderHeight_ = 0;
+      return false;
+    }
   }
   resources_ = render::createBgfxGpuResources();
   commands_ = render::createBgfxRenderCommands(*resources_);
@@ -98,6 +138,7 @@ void BgfxAppContext::shutdown() {
     platform_->shutdown();
   renderWidth_ = 0;
   renderHeight_ = 0;
+  surfaceGeneration_ = 0;
   initialized_ = false;
 }
 
@@ -111,12 +152,32 @@ bool BgfxAppContext::beginFrame(std::string &error) {
     return false;
   }
   const auto &state = platform_->frameState();
+  if (!state.drawableAvailable) {
+    error = "The platform drawable is temporarily unavailable.";
+    deviceLogError(deviceLogMessage("render", error));
+    return false;
+  }
+  if (state.surfaceGeneration != surfaceGeneration_) {
+    if (!graphics_.updateNativeWindow(platform_->nativeWindow(), error)) {
+      deviceLogError(deviceLogMessage("render", error));
+      return false;
+    }
+    surfaceGeneration_ = state.surfaceGeneration;
+  }
   const int width = drawableDimension(state.width);
   const int height = drawableDimension(state.height);
-  if ((width != renderWidth_ || height != renderHeight_) &&
-      !graphics_.resize(static_cast<std::uint32_t>(width),
-                        static_cast<std::uint32_t>(height), error))
-    return false;
+  if ((width != renderWidth_ || height != renderHeight_)) {
+    deviceLog(deviceLogMessage(
+        "render",
+        "Back buffer resize " + std::to_string(renderWidth_) + "x" +
+            std::to_string(renderHeight_) + " -> " + std::to_string(width) +
+            "x" + std::to_string(height) + "."));
+    if (!graphics_.resize(static_cast<std::uint32_t>(width),
+                          static_cast<std::uint32_t>(height), error)) {
+      deviceLogError(deviceLogMessage("render", error));
+      return false;
+    }
+  }
   renderWidth_ = width;
   renderHeight_ = height;
   graphics_.beginFrame(0x000000ffU);

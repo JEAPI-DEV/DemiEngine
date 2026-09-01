@@ -20,6 +20,8 @@ public:
   void shutdown() override;
   [[nodiscard]] bool resize(std::uint32_t width, std::uint32_t height,
                             std::string &error) override;
+  [[nodiscard]] bool updateNativeWindow(NativeWindowHandle handle,
+                                        std::string &error);
   void beginFrame(std::uint32_t rgba) override;
   [[nodiscard]] std::uint32_t endFrame() override;
 

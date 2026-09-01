@@ -16,6 +16,7 @@
 #include "demi/runtime/audio/AudioSceneSystem.h"
 #include "demi/runtime/audio/AudioSystem.h"
 #include "demi/runtime/camera/Camera2DSystem.h"
+#include "demi/runtime/diagnostics/DeviceLog.h"
 #include "demi/runtime/input/replay/InputReplay.h"
 #include "demi/runtime/media/MediaSystem.h"
 #include "demi/runtime/network/NetworkSystem.h"
@@ -141,10 +142,15 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
     std::string sceneError;
     if (!luaHost.applyPendingSceneLoad(sceneError)) {
       std::cerr << "Scene switch failed: " << sceneError << '\n';
+      deviceLogError(deviceLogMessage("runtime",
+                                      "Scene switch failed: " + sceneError));
     } else {
       generateTilemapColliders(loaded.world, assetRegistry);
       std::cout << "Switched scene to " << loaded.world.id << " ("
                 << loaded.world.name << ").\n";
+      deviceLog(deviceLogMessage("runtime", "Switched scene to " +
+                                                loaded.world.activeSceneId +
+                                                "."));
     }
   }
 
@@ -578,6 +584,9 @@ int runProject(const RuntimeOptions &options) {
                           .diagnostics = {}},
             renderDiagnostics, error)) {
       std::cerr << "2D renderer initialization failed: " << error << '\n';
+      deviceLogError(deviceLogMessage("runtime",
+                                      "2D renderer initialization failed: " +
+                                          error));
       luaHost.destroy();
       networkSystem.shutdown();
       mediaSystem.shutdown();
@@ -644,8 +653,13 @@ int runProject(const RuntimeOptions &options) {
 
     std::cout << "Using bgfx " << appHost.rendererName()
               << " through the SDL3 platform host.\n";
+    deviceLog(deviceLogMessage(
+        "render", std::string("Using bgfx ") + std::string(
+                                            appHost.rendererName()) +
+                      " through the SDL3 platform host."));
     bool running = true;
     bool renderFailed = false;
+    bool pausedState = false;
     int frameCount = 0;
     while (running) {
       appHost.poll(input);
@@ -680,7 +694,21 @@ int runProject(const RuntimeOptions &options) {
       luaHost.applicationServices().updateDisplay(
           frameState.width, frameState.height, frameState.logicalDpi);
       luaHost.setViewport(frameState.width, frameState.height);
-      if (frameState.suspended) {
+      const bool paused = frameState.suspended || !frameState.drawableAvailable ||
+                    !frameState.surfaceSettled;
+      if (paused != pausedState) {
+        pausedState = paused;
+        deviceLog(deviceLogMessage(
+            "runtime",
+            paused ? std::string("Frame loop paused (") +
+                           (frameState.suspended ? "suspended"
+                                                 : !frameState.drawableAvailable
+                                                       ? "drawable unavailable"
+                                                       : "surface settling") +
+                           ")."
+                   : "Frame loop resumed."));
+      }
+      if (paused) {
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
         continue;
       }
@@ -694,6 +722,13 @@ int runProject(const RuntimeOptions &options) {
                      networkSystem, assetRegistry, dt,
                      static_cast<float>(fixedStep), fixedAccumulator, running,
                      accessibility);
+      if (frameCount == 0 || frameCount == 60)
+        deviceLog(deviceLogMessage(
+            "runtime", "Frame " + std::to_string(frameCount + 1) +
+                           ", Lua frame " +
+                           std::to_string(luaHost.frameCount()) + ", scene " +
+                           loaded.world.activeSceneId + ", dt " +
+                           std::to_string(dt) + "."));
       if (profileRun) {
         updateMs = millisecondsSince(updateStart);
         profile.updateMs += updateMs;
@@ -726,6 +761,9 @@ int runProject(const RuntimeOptions &options) {
                 activeCameraPosition(loaded.world), dt, navigation, renderError,
                 fixedStepInterpolationAlpha(fixedAccumulator, fixedStep))) {
           std::cerr << "2D rendering failed: " << renderError << '\n';
+          deviceLogError(deviceLogMessage("runtime",
+                                          "2D rendering failed: " +
+                                              renderError));
           renderFailed = true;
           running = false;
         }
@@ -789,6 +827,9 @@ int runProject(const RuntimeOptions &options) {
                           .diagnostics = {}},
             renderDiagnostics, error)) {
       std::cerr << "3D renderer initialization failed: " << error << '\n';
+      deviceLogError(deviceLogMessage("runtime",
+                                      "3D renderer initialization failed: " +
+                                          error));
       luaHost.destroy();
       networkSystem.shutdown();
       mediaSystem.shutdown();
@@ -857,6 +898,7 @@ int runProject(const RuntimeOptions &options) {
 
     bool running = true;
     bool renderFailed = false;
+    bool pausedState = false;
     int frameCount = 0;
     while (running) {
       appHost.poll(input);
@@ -891,7 +933,21 @@ int runProject(const RuntimeOptions &options) {
       luaHost.applicationServices().updateDisplay(
           frameState.width, frameState.height, frameState.logicalDpi);
       luaHost.setViewport(frameState.width, frameState.height);
-      if (frameState.suspended) {
+      const bool paused = frameState.suspended || !frameState.drawableAvailable ||
+                    !frameState.surfaceSettled;
+      if (paused != pausedState) {
+        pausedState = paused;
+        deviceLog(deviceLogMessage(
+            "runtime",
+            paused ? std::string("Frame loop paused (") +
+                           (frameState.suspended ? "suspended"
+                                                 : !frameState.drawableAvailable
+                                                       ? "drawable unavailable"
+                                                       : "surface settling") +
+                           ")."
+                   : "Frame loop resumed."));
+      }
+      if (paused) {
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
         continue;
       }
@@ -905,6 +961,13 @@ int runProject(const RuntimeOptions &options) {
                      networkSystem, assetRegistry, dt,
                      static_cast<float>(fixedStep), fixedAccumulator, running,
                      accessibility);
+      if (frameCount == 0 || frameCount == 60)
+        deviceLog(deviceLogMessage(
+            "runtime", "Frame " + std::to_string(frameCount + 1) +
+                           ", Lua frame " +
+                           std::to_string(luaHost.frameCount()) + ", scene " +
+                           loaded.world.activeSceneId + ", dt " +
+                           std::to_string(dt) + "."));
       if (profileRun) {
         updateMs = millisecondsSince(updateStart);
         profile.updateMs += updateMs;
@@ -984,6 +1047,9 @@ int runProject(const RuntimeOptions &options) {
         if (!appHost.renderFrames(loaded.world, cameraFrames, dt,
                                   renderError)) {
           std::cerr << "3D rendering failed: " << renderError << '\n';
+          deviceLogError(deviceLogMessage("runtime",
+                                          "3D rendering failed: " +
+                                              renderError));
           renderFailed = true;
           running = false;
         }

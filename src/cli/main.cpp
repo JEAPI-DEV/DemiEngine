@@ -46,6 +46,35 @@ std::filesystem::path sourceRoot() {
 #endif
 }
 
+int launchAndroidDeviceTool(const std::string &mode,
+                            const std::vector<std::string> &args,
+                            const std::size_t forwardedFrom,
+                            const std::filesystem::path &demiExecutable) {
+#if defined(__linux__)
+  std::vector<std::string> command{
+      "python3", (sourceRoot() / "scripts/android_device.py").string(), mode,
+      "--demi-executable", std::filesystem::absolute(demiExecutable).string()};
+  command.insert(command.end(), args.begin() +
+                                    static_cast<std::ptrdiff_t>(forwardedFrom),
+                 args.end());
+  std::vector<char *> native;
+  native.reserve(command.size() + 1);
+  for (std::string &argument : command)
+    native.push_back(argument.data());
+  native.push_back(nullptr);
+  execvp(native.front(), native.data());
+  std::cerr << "Could not launch the Android device tool.\n";
+  return ExitValidationFailure;
+#else
+  (void)mode;
+  (void)args;
+  (void)forwardedFrom;
+  (void)demiExecutable;
+  std::cerr << "Android device workflows currently require a Linux host.\n";
+  return ExitUsageError;
+#endif
+}
+
 void printHelp() {
   std::cout
       << "DemiEngine CLI\n"
@@ -96,6 +125,7 @@ void printHelp() {
       << "  demi script check <script>\n"
       << "  demi lua-stubs generate [path]\n"
       << "  demi test [--project <project>]\n"
+      << "  demi test android --project <project> [--serial device]\n"
       << "  demi dev [--project <project>] [--max-frames count] [--profiler]\n"
       << "  demi run --project <project> [--max-frames count]\n"
       << "           [--profiler]\n"
@@ -106,6 +136,8 @@ void printHelp() {
          "draw_order,ui_bounds,profiler>]\n"
       << "  demi run linux [--project <project>] [--max-frames count] "
          "[--profiler]\n"
+      << "  demi run android [--project <project>] [--serial device] "
+         "[--watch]\n"
       << "  demi serve --project <project>\n"
       << "  demi build apk [--project <project>] [--configuration debug|release]\n"
       << "  demi build aab [--project <project>] [--gradle gradle]\n"
@@ -381,6 +413,8 @@ int main(int argc, char **argv) {
   }
 
   if (args[0] == "test") {
+    if (args.size() >= 2 && args[1] == "android")
+      return launchAndroidDeviceTool("qualify", args, 2, argv[0]);
     const std::filesystem::path project = demi::cli::projectFileFromArgs(args);
     if (!project.empty()) {
       const demi::ValidationSummary validation =
@@ -410,6 +444,8 @@ int main(int argc, char **argv) {
   }
 
   if (args[0] == "run") {
+    if (args.size() >= 2 && args[1] == "android")
+      return launchAndroidDeviceTool("run", args, 2, argv[0]);
     if (args.size() >= 2 && !args[1].starts_with("--") && args[1] != "linux") {
       std::cerr << "Unknown run target: " << args[1] << '\n';
       return ExitUsageError;

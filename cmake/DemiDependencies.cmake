@@ -238,6 +238,10 @@ FetchContent_Declare(bgfx
   GIT_REPOSITORY https://github.com/bkaradzic/bgfx.cmake.git
   GIT_TAG cc51d430dff56872f61df760e2d6dfa6ace095c1
   GIT_SUBMODULES_RECURSE TRUE
+  # Android can destroy the native window between the WSI capability query and
+  # swapchain creation; bgfx then aborts the process on VK_ERROR_SURFACE_LOST_KHR.
+  # Patch swapchain recreation to retry on the next frame instead.
+  PATCH_COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${FETCHCONTENT_BASE_DIR}/bgfx-src -P ${CMAKE_SOURCE_DIR}/cmake/patches/apply_bgfx_vk_surface_loss_retry.cmake
 )
 FetchContent_MakeAvailable(bgfx)
 # bgfx itself needs bimg, but its optional offline image encoder/decoder

@@ -2360,14 +2360,37 @@ manifest-declared permission path.
 
 #### 9E. Device qualification
 
+**Status: in progress.** `demi test android` now builds, installs, and exercises
+the physical-device reference project; records device/API/ABI/GPU, step timing,
+screenshots and hashes, private files, logcat, launched PIDs, and fatal markers;
+and covers touch, scene selection, IME input, background/resume, low-memory,
+rotation/surface replacement, force-stop, and relaunch. Qualification on a
+Pixel 7/API 35 exposed and drove fixes for invalid Android activity ownership
+and surface lifecycle handling. The final runtime-frame/scene gate is being
+verified before this slice is marked complete.
+
 1. Create one deterministic automated smoke scene exercising text/fallback
    font, transparent texture, shader/material, audio, touch/IME, save path,
    network loopback, rotation/safe area, suspend/resume, and surface recreation.
 2. Collect structured results and screenshots/hashes where pixel-stable output
    is realistic; otherwise assert render/resource counters and visible probe
    IDs.
-3. Run at least one emulator/API level in CI and maintain a documented small
-   physical-device matrix for GPU/vendor differences.
+3. Qualify at least one attached physical device and maintain a documented
+   small device matrix for API/GPU/vendor differences. A CI device-farm lane
+   may supplement this later; an emulator is not required for local release.
+
+#### 9F. Attached-device development loop
+
+1. `demi run android` builds a debug APK, selects or validates the attached
+   device, installs, launches, and streams filtered engine/SDL/crash logs until
+   the developer stops it.
+2. `--watch` enables the Android runtime project watcher, incrementally cooks
+   changed project sources, hashes cooked output, and synchronizes only changed
+   files into the debuggable application sandbox.
+3. Device selection uses `--serial` when more than one authorized device is
+   attached; offline/unauthorized/ambiguous device states fail clearly.
+4. Native engine changes rebuild/reinstall on the next command invocation;
+   data, scene, HUD, Lua, and asset changes use hot reload without reinstalling.
 
 ### Failure and edge-case matrix
 

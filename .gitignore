@@ -29,6 +29,8 @@ android/local.properties
 *.ap_
 *.aab
 *.save.json
+__pycache__/
+*.pyc
 
 *.key
 *.crt

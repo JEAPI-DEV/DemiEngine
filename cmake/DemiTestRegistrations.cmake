@@ -1,4 +1,8 @@
 # Unit, subsystem, CLI, and networking test registration.
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME demi-android-device-tool-tests
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/tests/android_device_tool_tests.py")
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-project-build-settings-tests
   COMMAND demi-project-build-settings-tests)

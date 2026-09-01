@@ -22,16 +22,22 @@ struct PlatformHostConfig {
 };
 
 struct PlatformFrameState {
-  int width = 1;
-  int height = 1;
-  float logicalDpi = 96.0F;
+  int width = 0;
+  int height = 0;
+  float logicalDpi = 0.0F;
   float deltaSeconds = 0.0F;
-  bool focused = true;
+  bool focused = false;
   bool minimized = false;
   bool suspended = false;
   bool quitRequested = false;
   unsigned lowMemorySignals = 0;
   unsigned backRequests = 0;
+  bool drawableAvailable = true;
+  // False while the native surface churns after an Android destroy/recreate;
+  // rendering stays paused until it settles to avoid swapping on a window
+  // that is about to be replaced again.
+  bool surfaceSettled = true;
+  unsigned surfaceGeneration = 0;
 };
 
 class PlatformHost {

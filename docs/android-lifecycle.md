@@ -43,3 +43,27 @@ changes, and back requests. Existing polling functions remain available.
 Background networking is paused by the default suspension policy. A future
 explicit background-service feature must declare and validate its Android
 capabilities rather than silently bypassing this policy.
+
+## Attached-device workflow
+
+Run the current project on one connected Android phone and stream logs:
+
+```sh
+demi run android --project path/to/demi.project.json
+```
+
+When multiple devices are attached, select one explicitly with `--serial`.
+Add `--watch` to incrementally cook and synchronize changed scene, HUD, Lua,
+data, and asset files into the debuggable app sandbox. Native engine changes
+still require a rebuild/reinstall.
+
+Run the physical-device lifecycle gate with:
+
+```sh
+demi test android --project path/to/demi.project.json --serial DEVICE
+```
+
+The gate writes `build/android/qualification/qualification.json`, `launch.png`,
+and `logcat.txt` beneath the project. It scopes crash detection to processes
+launched by that qualification session because Android can retain protected
+crash-buffer entries from older installations.

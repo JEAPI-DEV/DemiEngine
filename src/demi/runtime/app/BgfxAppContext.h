@@ -63,6 +63,7 @@ private:
   std::unique_ptr<render::RenderCommands> commands_;
   int renderWidth_ = 0;
   int renderHeight_ = 0;
+  unsigned surfaceGeneration_ = 0;
   bool frameOpen_ = false;
   bool initialized_ = false;
 };

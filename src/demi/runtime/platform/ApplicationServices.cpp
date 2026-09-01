@@ -6,10 +6,9 @@
 #include <utility>
 
 #if defined(__ANDROID__)
-#include <android/configuration.h>
-#include <android/native_activity.h>
 #include <jni.h>
-extern "C" ANativeActivity *DemiGetNativeActivity(void);
+extern "C" void *SDL_GetAndroidJNIEnv(void);
+extern "C" void *SDL_GetAndroidActivity(void);
 #endif
 
 namespace demi::runtime::platform {
@@ -30,28 +29,53 @@ std::filesystem::path environmentPath(const char *name) {
 #endif
 
 #if defined(__ANDROID__)
-SafeAreaInsets androidSafeArea() {
-  ANativeActivity *activity = DemiGetNativeActivity();
-  if (activity == nullptr || activity->vm == nullptr ||
-      activity->clazz == nullptr)
+JNIEnv *androidEnvironment() {
+  return static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
+}
+
+jobject androidActivity() {
+  return static_cast<jobject>(SDL_GetAndroidActivity());
+}
+
+std::filesystem::path androidPath(const char *methodName) {
+  JNIEnv *environment = androidEnvironment();
+  jobject activity = androidActivity();
+  if (environment == nullptr || activity == nullptr)
     return {};
-  JNIEnv *environment = nullptr;
-  bool attached = false;
-  if (activity->vm->GetEnv(reinterpret_cast<void **>(&environment),
-                           JNI_VERSION_1_6) != JNI_OK) {
-    if (activity->vm->AttachCurrentThread(&environment, nullptr) != JNI_OK)
-      return {};
-    attached = true;
+  const jclass activityClass = environment->GetObjectClass(activity);
+  const jmethodID method = environment->GetMethodID(
+      activityClass, methodName, "()Ljava/lang/String;");
+  auto value = method == nullptr
+                   ? nullptr
+                   : static_cast<jstring>(
+                         environment->CallObjectMethod(activity, method));
+  std::filesystem::path result;
+  if (value != nullptr) {
+    const char *text = environment->GetStringUTFChars(value, nullptr);
+    if (text != nullptr) {
+      result = text;
+      environment->ReleaseStringUTFChars(value, text);
+    }
+    environment->DeleteLocalRef(value);
   }
+  environment->DeleteLocalRef(activityClass);
+  return result;
+}
+
+SafeAreaInsets androidSafeArea() {
+  JNIEnv *environment = androidEnvironment();
+  jobject activity = androidActivity();
+  if (environment == nullptr || activity == nullptr)
+    return {};
   SafeAreaInsets result;
-  const jclass activityClass = environment->GetObjectClass(activity->clazz);
+  const jclass activityClass = environment->GetObjectClass(activity);
   const jmethodID getWindow =
       environment->GetMethodID(activityClass, "getWindow",
                                "()Landroid/view/Window;");
   jobject window =
       getWindow == nullptr
           ? nullptr
-          : environment->CallObjectMethod(activity->clazz, getWindow);
+          : environment->CallObjectMethod(activity, getWindow);
   if (window != nullptr) {
     const jclass windowClass = environment->GetObjectClass(window);
     const jmethodID getDecorView = environment->GetMethodID(
@@ -91,22 +115,44 @@ SafeAreaInsets androidSafeArea() {
     environment->DeleteLocalRef(window);
   }
   environment->DeleteLocalRef(activityClass);
-  if (attached)
-    activity->vm->DetachCurrentThread();
   return result;
 }
 
 float androidLogicalDpi() {
-  ANativeActivity *activity = DemiGetNativeActivity();
-  if (activity == nullptr || activity->assetManager == nullptr)
+  JNIEnv *environment = androidEnvironment();
+  jobject activity = androidActivity();
+  if (environment == nullptr || activity == nullptr)
     return 0.0F;
-  AConfiguration *configuration = AConfiguration_new();
-  AConfiguration_fromAssetManager(configuration, activity->assetManager);
-  const int density = AConfiguration_getDensity(configuration);
-  AConfiguration_delete(configuration);
-  return density > 0 && density != ACONFIGURATION_DENSITY_NONE
-             ? static_cast<float>(density)
-             : 0.0F;
+  const jclass activityClass = environment->GetObjectClass(activity);
+  const jmethodID getResources = environment->GetMethodID(
+      activityClass, "getResources", "()Landroid/content/res/Resources;");
+  jobject resources = getResources == nullptr
+                          ? nullptr
+                          : environment->CallObjectMethod(activity, getResources);
+  float density = 0.0F;
+  if (resources != nullptr) {
+    const jclass resourcesClass = environment->GetObjectClass(resources);
+    const jmethodID getMetrics = environment->GetMethodID(
+        resourcesClass, "getDisplayMetrics",
+        "()Landroid/util/DisplayMetrics;");
+    jobject metrics = getMetrics == nullptr
+                          ? nullptr
+                          : environment->CallObjectMethod(resources, getMetrics);
+    if (metrics != nullptr) {
+      const jclass metricsClass = environment->GetObjectClass(metrics);
+      const jfieldID densityField =
+          environment->GetFieldID(metricsClass, "densityDpi", "I");
+      if (densityField != nullptr)
+        density = static_cast<float>(
+            environment->GetIntField(metrics, densityField));
+      environment->DeleteLocalRef(metricsClass);
+      environment->DeleteLocalRef(metrics);
+    }
+    environment->DeleteLocalRef(resourcesClass);
+    environment->DeleteLocalRef(resources);
+  }
+  environment->DeleteLocalRef(activityClass);
+  return density;
 }
 #endif
 
@@ -117,12 +163,8 @@ void ApplicationServices::configureStorage(
     const std::filesystem::path &projectDirectory) {
   const std::string folder = safeName(applicationName);
 #if defined(__ANDROID__)
-  if (ANativeActivity *activity = DemiGetNativeActivity();
-      activity != nullptr && activity->internalDataPath != nullptr) {
-    userDataPath_ = std::filesystem::path(activity->internalDataPath) / folder;
-    cachePath_ = std::filesystem::path(activity->internalDataPath) / "cache" /
-                 folder;
-  }
+  userDataPath_ = androidPath("getDemiDataPath") / folder;
+  cachePath_ = androidPath("getDemiCachePath") / folder;
 #else
   std::filesystem::path dataRoot = environmentPath("XDG_DATA_HOME");
   std::filesystem::path cacheRoot = environmentPath("XDG_CACHE_HOME");
@@ -218,32 +260,27 @@ void ApplicationServices::notifyBackRequested() {
 void ApplicationServices::setKeyboardVisible(const bool visible) {
   keyboardVisible_ = visible;
 #if defined(__ANDROID__)
-  if (ANativeActivity *activity = DemiGetNativeActivity(); activity != nullptr) {
-    if (visible)
-      ANativeActivity_showSoftInput(
-          activity, ANATIVEACTIVITY_SHOW_SOFT_INPUT_IMPLICIT);
-    else
-      ANativeActivity_hideSoftInput(
-          activity, ANATIVEACTIVITY_HIDE_SOFT_INPUT_NOT_ALWAYS);
+  JNIEnv *environment = androidEnvironment();
+  jobject activity = androidActivity();
+  if (environment != nullptr && activity != nullptr) {
+    const jclass activityClass = environment->GetObjectClass(activity);
+    const jmethodID method = environment->GetMethodID(
+        activityClass, "setDemiKeyboardVisible", "(Z)V");
+    if (method != nullptr)
+      environment->CallVoidMethod(activity, method,
+                                  visible ? JNI_TRUE : JNI_FALSE);
+    environment->DeleteLocalRef(activityClass);
   }
 #endif
 }
 void ApplicationServices::requestOrientation(const Orientation orientation) {
   requestedOrientation_ = orientation;
 #if defined(__ANDROID__)
-  ANativeActivity *activity = DemiGetNativeActivity();
-  if (activity == nullptr || activity->vm == nullptr ||
-      activity->clazz == nullptr)
+  JNIEnv *environment = androidEnvironment();
+  jobject activity = androidActivity();
+  if (environment == nullptr || activity == nullptr)
     return;
-  JNIEnv *environment = nullptr;
-  bool attached = false;
-  if (activity->vm->GetEnv(reinterpret_cast<void **>(&environment),
-                           JNI_VERSION_1_6) != JNI_OK) {
-    if (activity->vm->AttachCurrentThread(&environment, nullptr) != JNI_OK)
-      return;
-    attached = true;
-  }
-  const jclass activityClass = environment->GetObjectClass(activity->clazz);
+  const jclass activityClass = environment->GetObjectClass(activity);
   const jmethodID method = environment->GetMethodID(
       activityClass, "setRequestedOrientation", "(I)V");
   if (method != nullptr) {
@@ -251,11 +288,9 @@ void ApplicationServices::requestOrientation(const Orientation orientation) {
                                ? 1
                                : orientation == Orientation::Landscape ? 0
                                                                        : -1;
-    environment->CallVoidMethod(activity->clazz, method, requested);
+    environment->CallVoidMethod(activity, method, requested);
   }
   environment->DeleteLocalRef(activityClass);
-  if (attached)
-    activity->vm->DetachCurrentThread();
 #endif
 }
 void ApplicationServices::setClipboardHandlers(

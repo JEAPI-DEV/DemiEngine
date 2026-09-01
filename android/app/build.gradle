@@ -204,6 +204,7 @@ def demiAssetIndexTask = tasks.register("generateDemiAssetIndex") {
             include "certs/**"
             include "scenes/**"
             include "scripts/**"
+            include "packages/**"
         }.files
             .findAll { it.isFile() }
             .collect { demiProjectAssetsDir.toPath().relativize(it.toPath()).toString().replace(File.separatorChar, '/' as char) }

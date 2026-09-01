@@ -1,5 +1,6 @@
 #include "demi/runtime/platform/PlatformHost.h"
 
+#include "demi/runtime/diagnostics/DeviceLog.h"
 #include "demi/runtime/platform/PlatformInput.h"
 #include "demi/runtime/platform/SdlNativeWindow.h"
 
@@ -9,8 +10,10 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
@@ -308,7 +311,12 @@ public:
       SDL_Quit();
       return false;
     }
+    // Android pops the software keyboard whenever text input is active, so
+    // only desktop platforms start text input eagerly; Android games opt in
+    // through ApplicationServices::setKeyboardVisible instead.
+#if !defined(__ANDROID__)
     SDL_StartTextInput(window_);
+#endif
     SDL_AddEventWatch(&SdlPlatformHost::watchLifecycle, this);
     lastFrame_ = Clock::now();
     updateWindowState();
@@ -468,6 +476,17 @@ public:
     state_.deltaSeconds = std::clamp(
         std::chrono::duration<float>(now - lastFrame_).count(), 0.0F, 0.1F);
     lastFrame_ = now;
+    // Opt-in determinism for headless replay tests: a fixed delta seconds
+    // removes wall-clock sensitivity so scripted input sequences always
+    // advance the simulation by the same amount per frame.
+    if (const char *fixedDelta = std::getenv("DEMI_FIXED_DELTA_SECONDS");
+        fixedDelta != nullptr && *fixedDelta != '\0') {
+      try {
+        state_.deltaSeconds =
+            std::max(std::stof(fixedDelta), 0.0F);
+      } catch (...) {
+      }
+    }
   }
 
   void clearQuitRequest() override { state_.quitRequested = false; }
@@ -541,6 +560,9 @@ public:
   }
 
 private:
+#if defined(__ANDROID__)
+  static constexpr std::chrono::milliseconds kSurfaceSettleDelay{250};
+#endif
   static bool SDLCALL watchLifecycle(void *userdata, SDL_Event *event) {
     auto &host = *static_cast<SdlPlatformHost *>(userdata);
     switch (event->type) {
@@ -572,6 +594,39 @@ private:
     const SDL_WindowFlags flags = SDL_GetWindowFlags(window_);
     state_.focused = (flags & SDL_WINDOW_INPUT_FOCUS) != 0;
     state_.minimized = (flags & SDL_WINDOW_MINIMIZED) != 0;
+#if defined(__ANDROID__)
+    const void *nativeWindow = sdlNativeWindowHandle(window_).window;
+    const bool previousDrawable = state_.drawableAvailable;
+    state_.drawableAvailable = nativeWindow != nullptr &&
+                               (flags & SDL_WINDOW_HIDDEN) == 0 &&
+                               !state_.minimized;
+    if (nativeWindow != nativeWindow_) {
+      const void *previousWindow = nativeWindow_;
+      nativeWindow_ = nativeWindow;
+      ++state_.surfaceGeneration;
+      lastSurfaceChange_ = Clock::now();
+      if (nativeWindow != nullptr)
+        deviceLog(deviceLogMessage(
+            "surface",
+            "Native window " + devicePointerText(previousWindow) + " -> " +
+                devicePointerText(nativeWindow) + ", surface generation " +
+                std::to_string(state_.surfaceGeneration) + "."));
+    }
+    state_.surfaceSettled =
+        Clock::now() - lastSurfaceChange_ >= kSurfaceSettleDelay;
+    if (state_.drawableAvailable != previousDrawable)
+      deviceLog(deviceLogMessage(
+          "surface", state_.drawableAvailable
+                         ? "Drawable available."
+                         : "Drawable unavailable (native window " +
+                               devicePointerText(nativeWindow) + ", hidden " +
+                               std::to_string(
+                                   (flags & SDL_WINDOW_HIDDEN) != 0) +
+                               ", minimized " +
+                               std::to_string(state_.minimized) + ")."));
+#else
+    state_.drawableAvailable = true;
+#endif
 #if !defined(__ANDROID__)
     state_.suspended = state_.minimized;
 #endif
@@ -605,6 +660,10 @@ private:
   int windowHeight_ = 1;
   Clock::time_point lastFrame_;
   unsigned pendingLowMemorySignals_ = 0;
+#if defined(__ANDROID__)
+  const void *nativeWindow_ = nullptr;
+  Clock::time_point lastSurfaceChange_{};
+#endif
 };
 
 } // namespace

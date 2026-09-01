@@ -3,6 +3,7 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -36,6 +37,23 @@ int main() {
     std::cerr << "Failed to create Lua test project directory.\n";
     return 1;
   }
+
+  // Save persistence writes through XDG user-data paths, so redirect them at
+  // the per-run temporary directory. Without this, a run poisons the real
+  // home directory and later runs preload the stale "test" save slot.
+#if defined(_WIN32)
+  const std::filesystem::path storageRoot =
+      projectDirectory / "storage" / "data";
+  _putenv_s("XDG_DATA_HOME", storageRoot.string().c_str());
+  _putenv_s("XDG_CACHE_HOME",
+            (projectDirectory / "storage" / "cache").string().c_str());
+#else
+  const std::filesystem::path storageRoot =
+      projectDirectory / "storage" / "data";
+  setenv("XDG_DATA_HOME", storageRoot.c_str(), 1);
+  setenv("XDG_CACHE_HOME", (projectDirectory / "storage" / "cache").c_str(),
+         1);
+#endif
 
   if (!writeFile(projectDirectory / "scripts" / "probe.lua", R"lua(
 local Probe = {}
