@@ -660,6 +660,14 @@ int runProject(const RuntimeOptions &options) {
     bool running = true;
     bool renderFailed = false;
     bool pausedState = false;
+    // With vsync enabled the blocking present paces frames to the compositor;
+    // an additional CPU-side sleep drifts against the vsync phase and makes
+    // alternating frames miss their deadline, so pacing is CPU-only when the
+    // swapchain is not vsynced (or when there is no compositor at all).
+    const bool compositorPaced =
+        loaded.project.display.vsync && !isHeadless();
+    std::chrono::steady_clock::time_point nextFrameDeadline =
+        std::chrono::steady_clock::now();
     int frameCount = 0;
     while (running) {
       appHost.poll(input);
@@ -790,9 +798,20 @@ int runProject(const RuntimeOptions &options) {
       if (options.maxFrames > 0 && frameCount >= options.maxFrames)
         running = false;
       const int maxFps = luaHost.maxFps();
-      if (running && maxFps > 0) {
-        std::this_thread::sleep_until(
-            frameStart + std::chrono::duration<double>(1.0 / maxFps));
+      // The compositor paces frames when the swapchain is vsynced and the
+      // display refresh is at least the requested cap; otherwise the loop
+      // paces itself on a fixed-cadence deadline so a cap below the display
+      // refresh does not drift against the vsync phase.
+      const bool compositorPacesCap =
+          compositorPaced &&
+          frameState.displayRefreshHz >= static_cast<float>(maxFps);
+      if (running && maxFps > 0 && !compositorPacesCap) {
+        nextFrameDeadline +=
+            std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                std::chrono::duration<double>(1.0 / maxFps));
+        if (nextFrameDeadline < std::chrono::steady_clock::now())
+          nextFrameDeadline = std::chrono::steady_clock::now();
+        std::this_thread::sleep_until(nextFrameDeadline);
       }
     }
 
@@ -899,6 +918,14 @@ int runProject(const RuntimeOptions &options) {
     bool running = true;
     bool renderFailed = false;
     bool pausedState = false;
+    // With vsync enabled the blocking present paces frames to the compositor;
+    // an additional CPU-side sleep drifts against the vsync phase and makes
+    // alternating frames miss their deadline, so pacing is CPU-only when the
+    // swapchain is not vsynced (or when there is no compositor at all).
+    const bool compositorPaced =
+        loaded.project.display.vsync && !isHeadless();
+    std::chrono::steady_clock::time_point nextFrameDeadline =
+        std::chrono::steady_clock::now();
     int frameCount = 0;
     while (running) {
       appHost.poll(input);
@@ -1092,9 +1119,17 @@ int runProject(const RuntimeOptions &options) {
       if (options.maxFrames > 0 && frameCount >= options.maxFrames)
         running = false;
       const int maxFps = luaHost.maxFps();
-      if (running && maxFps > 0)
-        std::this_thread::sleep_until(
-            frameStart + std::chrono::duration<double>(1.0 / maxFps));
+      const bool compositorPacesCap =
+          compositorPaced &&
+          frameState.displayRefreshHz >= static_cast<float>(maxFps);
+      if (running && maxFps > 0 && !compositorPacesCap) {
+        nextFrameDeadline +=
+            std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                std::chrono::duration<double>(1.0 / maxFps));
+        if (nextFrameDeadline < std::chrono::steady_clock::now())
+          nextFrameDeadline = std::chrono::steady_clock::now();
+        std::this_thread::sleep_until(nextFrameDeadline);
+      }
     }
 
     luaHost.destroy();

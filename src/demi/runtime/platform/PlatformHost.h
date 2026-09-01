@@ -26,6 +26,8 @@ struct PlatformFrameState {
   int height = 0;
   float logicalDpi = 0.0F;
   float deltaSeconds = 0.0F;
+  // Refresh rate of the display the window is on, in Hz; 0 when unknown.
+  float displayRefreshHz = 0.0F;
   bool focused = false;
   bool minimized = false;
   bool suspended = false;

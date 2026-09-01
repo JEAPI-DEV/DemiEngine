@@ -472,6 +472,11 @@ public:
       }
     }
     updateWindowState();
+    if (const SDL_DisplayMode *mode =
+            SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window_));
+        mode != nullptr && mode->refresh_rate > 0) {
+      state_.displayRefreshHz = mode->refresh_rate;
+    }
     const Clock::time_point now = Clock::now();
     state_.deltaSeconds = std::clamp(
         std::chrono::duration<float>(now - lastFrame_).count(), 0.0F, 0.1F);
