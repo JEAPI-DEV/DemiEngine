@@ -4,6 +4,7 @@
 #include "cli/doctor/DoctorService.h"
 #include "cli/project/ProjectDiscovery.h"
 #include "demi/runtime/app/RuntimeApp.h"
+#include "demi/runtime/platform/RuntimeCapabilities.h"
 
 #include <filesystem>
 #include <iostream>
@@ -39,7 +40,8 @@ int runRuntimeCommand(const std::vector<std::string> &args,
   if (mode == RuntimeCommandMode::Develop) {
     std::vector<std::string> doctorArgs{"doctor", "--project",
                                         project.string()};
-    if (doctor::runDoctorCommand(doctorArgs, output, error) != 0)
+    if (doctor::runDoctorCommand(doctorArgs, output, error,
+                                 runtime::hostRuntimeFeatures()) != 0)
       return 1;
     output << "Development mode: " << project.string()
            << " (watching source files)\n";

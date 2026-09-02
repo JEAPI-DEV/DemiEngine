@@ -8,7 +8,9 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shlex
+import shutil
 import struct
 import subprocess
 import sys
@@ -68,6 +70,72 @@ def project_configuration(project_file: Path) -> tuple[str, str, str]:
     executable = build.get("executable_name", project_file.parent.name)
     activity = "dev.jeapi.demi.android.DemiActivity"
     return application_id, executable, f"{application_id}/{activity}"
+
+
+def project_main_hud(project: Path) -> Path:
+    document = json.loads(project.read_text(encoding="utf-8"))
+    main_scene = document.get("main_scene")
+    scene_path = next((entry.get("path") for entry in document.get("scenes", [])
+                       if entry.get("id") == main_scene), None)
+    if not scene_path:
+        raise ToolError(f"Project does not declare the main scene: {main_scene}")
+    scene_file = project.parent / scene_path
+    scene = json.loads(scene_file.read_text(encoding="utf-8"))
+    hud = scene.get("hud")
+    if not hud:
+        raise ToolError(f"Main scene does not declare a HUD: {scene_path}")
+    return scene_file.parent / hud
+
+
+def safe_area_samples(adb: Adb) -> tuple[int, tuple[float, float, float, float]]:
+    log = adb.run("logcat", "-d", "-s", "DemiEngine", check=False).stdout
+    count = 0
+    value = (0.0, 0.0, 0.0, 0.0)
+    for line in log.splitlines():
+        if "[ui] Safe area in canvas units:" not in line:
+            continue
+        count += 1
+        numbers = re.findall(r"-?\d+(?:\.\d+)?", line.rsplit(":", 1)[1])
+        if len(numbers) >= 4:
+            value = tuple(float(number) for number in numbers[:4])
+    return count, value
+
+
+def stable_safe_area(adb: Adb, timeout_seconds: float = 12.0
+                     ) -> tuple[float, float, float, float]:
+    """Waits until the runtime stops reporting new safe-area updates.
+
+    Android activities re-apply window insets while orientation and system
+    bars settle after a launch; taps must use the stabilized values.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    seen_count, seen_value = -1, (0.0, 0.0, 0.0, 0.0)
+    while time.monotonic() < deadline:
+        count, value = safe_area_samples(adb)
+        if count > 0 and count == seen_count and value == seen_value:
+            return value
+        seen_count, seen_value = count, value
+        time.sleep(0.5)
+    return seen_value
+
+
+def hud_button_centers(demi: Path, hud: Path,
+                       safe_area: tuple[float, float, float, float]
+                       ) -> dict[str, tuple[float, float]]:
+    result = command([str(demi), "hud", "inspect", str(hud), "--format", "json",
+                      "--reveal-hidden", "--safe-area",
+                      ",".join(str(value) for value in safe_area)])
+    document = json.loads(result.stdout)
+    width = document["canvas_size"]["width"]
+    height = document["canvas_size"]["height"]
+    centers: dict[str, tuple[float, float]] = {}
+    for node in document["nodes"]:
+        rect = node["resolved"]
+        if rect["width"] <= 0 or rect["height"] <= 0:
+            continue
+        centers[node["id"]] = ((rect["x"] + rect["width"] / 2) / width,
+                               (rect["y"] + rect["height"] / 2) / height)
+    return centers
 
 
 def build_apk(demi: Path, project: Path) -> Path:
@@ -302,13 +370,20 @@ def qualify_device(args: argparse.Namespace) -> int:
     image = screenshot.read_bytes()
     screen_width, screen_height = struct.unpack(">II", image[16:24])
     report["screen"] = {"width": screen_width, "height": screen_height}
-    qualification_step(report, "touch", lambda: adb.run(
-        "shell", "input", "tap", str(screen_width // 2),
-        str(int(screen_height * 0.40))).stdout.strip())
+    hud = project_main_hud(project)
+    hud_centers = hud_button_centers(demi, hud, stable_safe_area(adb))
+    levels_center = hud_centers.get("menu_button_levels")
+    level_center = hud_centers.get("menu_button_level_1")
+    if levels_center is None or level_center is None:
+        raise ToolError("Qualification HUD does not declare the "
+                        "menu_button_levels and menu_button_level_1 nodes.")
+    critical.append(qualification_step(report, "touch", lambda: adb.run(
+        "shell", "input", "tap", str(int(screen_width * levels_center[0])),
+        str(int(screen_height * levels_center[1]))).stdout.strip()))
     time.sleep(0.4)
-    qualification_step(report, "scene_load_input", lambda: adb.run(
-        "shell", "input", "tap", str(int(screen_width * 0.27)),
-        str(int(screen_height * 0.78))).stdout.strip())
+    critical.append(qualification_step(report, "scene_load_input", lambda: adb.run(
+        "shell", "input", "tap", str(int(screen_width * level_center[0])),
+        str(int(screen_height * level_center[1]))).stdout.strip()))
     time.sleep(args.settle_seconds)
     qualification_step(report, "ime_text", lambda: adb.run(
         "shell", "input", "text", "DemiEngine").stdout.strip())
@@ -397,9 +472,20 @@ def parser() -> argparse.ArgumentParser:
     return result
 
 
+def resolve_demi_executable(value: str) -> Path:
+    path = Path(value).expanduser()
+    if not path.is_file():
+        located = shutil.which(value)
+        if located:
+            return Path(located).resolve()
+        raise ToolError(f"demi executable was not found: {value}")
+    return path.resolve()
+
+
 def main() -> int:
     args = parser().parse_args()
     try:
+        args.demi_executable = resolve_demi_executable(args.demi_executable)
         return run_on_device(args) if args.mode == "run" else qualify_device(args)
     except ToolError as error:
         print(f"Android device error: {error}", file=sys.stderr)

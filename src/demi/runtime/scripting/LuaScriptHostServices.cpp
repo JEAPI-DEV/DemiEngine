@@ -1,6 +1,7 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
+#include "demi/runtime/diagnostics/DeviceLog.h"
 #include "demi/runtime/ui/TextEditingEngine.h"
 #include "demi/runtime/ui/TextLayoutEngine.h"
 #include "demi/runtime/ui/UiActionController.h"
@@ -10,7 +11,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <iomanip>
 #include <optional>
+#include <sstream>
 #include <utility>
 
 namespace demi::runtime {
@@ -35,6 +38,22 @@ void LuaScriptHost::setViewport(const int width, const int height) {
                            .top = safe.top * scaleY,
                            .right = safe.right * scaleX,
                            .bottom = safe.bottom * scaleY};
+    const ui::Insets &applied = world_->ui.safeArea;
+    if (applied.left != loggedSafeArea_.left ||
+        applied.top != loggedSafeArea_.top ||
+        applied.right != loggedSafeArea_.right ||
+        applied.bottom != loggedSafeArea_.bottom) {
+      loggedSafeArea_ = applied;
+      if (applied.left != 0.0F || applied.top != 0.0F ||
+          applied.right != 0.0F || applied.bottom != 0.0F) {
+        std::ostringstream text;
+        text << std::fixed << std::setprecision(1)
+             << "Safe area in canvas units: left " << applied.left
+             << ", top " << applied.top << ", right " << applied.right
+             << ", bottom " << applied.bottom << ".";
+        deviceLog(deviceLogMessage("ui", text.str()));
+      }
+    }
     ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
   }
 }

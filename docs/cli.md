@@ -7,10 +7,20 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
 - `demi --help`: print command help.
 - `demi version`: print engine version.
 - `demi validate [path]`: validate a project, scene, save, or directory.
+  Pass `--platform linux|linux_server|android` to also cross-check reachable
+  project features and declared Android permissions against what the target
+  platform's packaged runtime supports (see [Shipping](shipping.md)).
 - `demi schema export`: list schema files available in `schemas/`.
 - `demi scene list <project>`: list scene references from a project file.
 - `demi scene inspect <scene>`: validate and summarize a scene file.
 - `demi scene diff <old> <new>`: print a deterministic structural scene diff.
+- `demi hud inspect <hud.json> [--safe-area l,t,r,b] [--reveal-hidden]
+  [--format text|json]`: report the canvas size and every node's resolved
+  rectangle using the runtime layout engine. `--safe-area` applies insets in
+  canvas units the way the runtime does on device, and `--reveal-hidden` also
+  resolves nodes inside hidden containers. Automation such as
+  `demi test android` uses this to tap interactive nodes without hardcoding
+  screen coordinates.
 - `demi asset inspect <asset>`: validate and summarize an asset manifest.
   Model assets additionally expose normalized nodes, meshes, materials,
   textures, skeletons, animations, bounds, and stable JSON output.
@@ -77,7 +87,22 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
 - `demi package test [directory] [--format json]`: run declared Lua tests in a
   deterministic isolated package-test world with only declared dependencies.
 - `demi test`: run built-in scaffold checks.
+- `demi test android --project <project> [--serial device] [--adb adb]
+  [--apk apk] [--output directory]`: build, install, and exercise the
+  attached physical device with a deterministic qualification scenario.
+  It records device/API/ABI/GPU metadata, step timing, screenshots with
+  hashes, private files, logcat output, launched PIDs, and fatal markers,
+  then writes `qualification.json` under `<project>/build/android/qualification`
+  and fails when a required step, runtime marker, or crash check fails.
 - `demi run --project <project> [--max-frames count]`: launch the runtime preview. Use `--max-frames 1` for automation.
+- `demi run android [--project <project>] [--serial device] [--adb adb]
+  [--apk apk] [--watch]`: build a current debug APK, install it on the
+  attached device, launch the game, and stream filtered engine/SDL/crash
+  logs until stopped. APKs rebuild automatically when engine or project
+  sources are newer than the artifact. `--watch` enables the Android
+  runtime project watcher: changed project sources are cooked
+  incrementally and only changed cooked files are synchronized into the
+  debuggable application sandbox for hot reload without reinstalling.
 - `demi run linux --project <project> --profiler`: print slow-frame details,
   frame-time percentiles, and a sorted runtime scope report when the run ends.
 - `demi run ... --input-replay <fixture.replay.json>`: replay deterministic input frames; the project fixed timestep must match the fixture.

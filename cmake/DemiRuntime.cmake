@@ -37,6 +37,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/profiling/RuntimeProfiler.cpp
   src/demi/runtime/profiling/ProfilerHudLayout.cpp
   src/demi/runtime/platform/ProjectFileWatcher.cpp
+  src/demi/runtime/platform/RuntimeCapabilities.cpp
   src/demi/runtime/simulation/DeterministicRandom.cpp
   src/demi/runtime/scene/HudParser.cpp
   src/demi/runtime/scene/ProjectParser.cpp

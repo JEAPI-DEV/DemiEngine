@@ -1,6 +1,7 @@
 #include "cli/doctor/DoctorService.h"
 #include "cli/CliArguments.h"
 
+#include "demi/runtime/scene/ProjectBuildValidation.h"
 #include "demi/schema/Validation.h"
 
 #include <algorithm>
@@ -9,6 +10,7 @@
 #include <fstream>
 #include <ranges>
 #include <sstream>
+#include <utility>
 
 namespace demi::cli::doctor {
 namespace {
@@ -219,11 +221,40 @@ Diagnostics DoctorService::inspect(const DoctorRequest &request) const {
         "Cook output exists without a cook manifest.", generated,
         "Remove the directory and run `demi cook` again.");
 
+  const capabilities::RuntimeFeatures hostFeatures =
+      request.hostFeatures.value_or(capabilities::fullyConfiguredRuntimeFeatures());
+  const capabilities::TargetPlatform target =
+      request.platform == "android" ? capabilities::TargetPlatform::Android
+                                    : capabilities::TargetPlatform::Linux;
+  const capabilities::RuntimeFeatures features =
+      capabilities::targetRuntimeFeatures(target, hostFeatures);
+  const Diagnostics featureIssues =
+      runtime::validateProjectPlatformCapabilities(request.projectPath, target,
+                                                   hostFeatures);
+  diagnostics.insert(diagnostics.end(), featureIssues.begin(),
+                     featureIssues.end());
+  if (!hasErrors(featureIssues)) {
+    const std::array<std::pair<const char *, bool>, 3> optionalFeatures{{
+        {"networking", features.network},
+        {"media", features.media},
+        {"SVG", features.svg},
+    }};
+    for (const auto &[featureName, supported] : optionalFeatures) {
+      if (!supported)
+        add(diagnostics, Severity::Warning, "DOCTOR_OPTIONAL_FEATURE_MISSING",
+            "The " + request.platform +
+                " runtime was configured without optional " + featureName +
+                " support; project data does not require it.",
+            request.projectPath);
+    }
+  }
+
   return diagnostics;
 }
 
 int runDoctorCommand(const std::vector<std::string> &args, std::ostream &out,
-                     std::ostream &error) {
+                     std::ostream &error,
+                     std::optional<capabilities::RuntimeFeatures> hostFeatures) {
   const auto project = projectFileFrom(args);
   if (project.empty()) {
     error << "doctor requires --project <project> or a demi.project.json in "
@@ -234,7 +265,8 @@ int runDoctorCommand(const std::vector<std::string> &args, std::ostream &out,
   const std::string format = valueAfter(args, "--format");
   const Diagnostics diagnostics = DoctorService{}.inspect(
       {.projectPath = project,
-       .platform = platform.empty() ? "linux" : platform});
+       .platform = platform.empty() ? "linux" : platform,
+       .hostFeatures = std::move(hostFeatures)});
   if (format.empty() || format == "text")
     printDiagnosticsText(out, diagnostics);
   else if (format == "json")

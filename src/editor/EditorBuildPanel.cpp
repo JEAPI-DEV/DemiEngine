@@ -2,6 +2,7 @@
 
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorWorkspace.h"
+#include "demi/runtime/platform/RuntimeCapabilities.h"
 
 #include <imgui.h>
 
@@ -29,7 +30,8 @@ operationRequest(EditorWorkspace &workspace,
   return {.operation = operation,
           .projectFile = workspace.projectPath(),
           .engineRoot = DEMI_SOURCE_DIR,
-          .runtimeExecutable = editorRuntimeExecutable()};
+          .runtimeExecutable = editorRuntimeExecutable(),
+          .hostFeatures = runtime::hostRuntimeFeatures()};
 }
 
 bool saveBeforeOperation(EditorWorkspace &workspace, std::string &notice) {

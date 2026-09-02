@@ -5,6 +5,7 @@
 #include "demi/assets/AssetHash.h"
 #include "demi/core/Version.h"
 #include "demi/runtime/scene/ProjectBuildSettings.h"
+#include "demi/runtime/scene/ProjectBuildValidation.h"
 #include "demi/schema/Validation.h"
 
 #include <algorithm>
@@ -539,6 +540,36 @@ runProjectOperation(const ProjectOperationRequest &request) {
   report(request, ProjectOperationStage::Validate, 0.05F, "Validating project");
   const ValidationSummary validation = validatePath(request.projectFile);
   result.diagnostics = validation.diagnostics;
+  if (!hasErrors(result.diagnostics)) {
+    std::optional<capabilities::TargetPlatform> target;
+    switch (request.operation) {
+    case ProjectOperation::CookLinux:
+    case ProjectOperation::PackageLinux:
+      target = capabilities::TargetPlatform::Linux;
+      break;
+    case ProjectOperation::PackageLinuxServer:
+      target = capabilities::TargetPlatform::LinuxServer;
+      break;
+    case ProjectOperation::PackageAndroid:
+    case ProjectOperation::PackageAndroidRelease:
+    case ProjectOperation::BundleAndroidRelease:
+      target = capabilities::TargetPlatform::Android;
+      break;
+    case ProjectOperation::Validate:
+      break;
+    }
+    if (target) {
+      const capabilities::RuntimeFeatures hostFeatures =
+          request.hostFeatures.value_or(
+              capabilities::fullyConfiguredRuntimeFeatures());
+      const Diagnostics platformCapabilities =
+          runtime::validateProjectPlatformCapabilities(request.projectFile,
+                                                       *target, hostFeatures);
+      result.diagnostics.insert(result.diagnostics.end(),
+                                platformCapabilities.begin(),
+                                platformCapabilities.end());
+    }
+  }
   if (hasErrors(result.diagnostics)) {
     result.stage = ProjectOperationStage::Failed;
     return result;

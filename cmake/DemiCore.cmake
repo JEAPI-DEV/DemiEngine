@@ -1,6 +1,7 @@
 # Engine data, asset, scene, UI, input, physics, and navigation foundations.
 add_library(demi-core STATIC
   src/demi/capabilities/CapabilityManifest.cpp
+  src/demi/capabilities/PlatformCapabilities.cpp
   src/demi/assets/AssetRegistry.cpp
   src/demi/assets/AssetHash.cpp
   src/demi/assets/DataAsset.cpp
@@ -37,6 +38,7 @@ add_library(demi-core STATIC
   src/demi/schema/Validation.cpp
   src/demi/runtime/scene/composition/PrefabResolver.cpp
   src/demi/runtime/ui/UiLayoutEngine.cpp
+  src/demi/runtime/ui/HudLayoutReport.cpp
   src/demi/runtime/ui/TextLayoutEngine.cpp
   src/demi/runtime/ui/TextShaper.cpp
   src/demi/runtime/ui/TextEditingEngine.cpp

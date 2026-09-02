@@ -1,4 +1,5 @@
 #include "cli/doctor/DoctorService.h"
+#include "demi/capabilities/PlatformCapabilities.h"
 
 #include <cassert>
 #include <filesystem>
@@ -57,4 +58,28 @@ int main() {
   assert(hasCode(diagnostics, "DOCTOR_PLATFORM_UNKNOWN"));
   diagnostics = doctor.inspect({.projectPath = "does-not-exist"});
   assert(hasCode(diagnostics, "DOCTOR_PROJECT_NOT_FOUND"));
+
+  // Optional runtime feature support is reported against the requested
+  // platform. The reference project uses no optional feature, so a runtime
+  // configured without media, networking, or SVG only warns.
+  const demi::capabilities::RuntimeFeatures bareHost{
+      .graphicsRuntime = true, .network = false, .media = false, .svg = false};
+  diagnostics = doctor.inspect(
+      {.projectPath = project, .platform = "linux", .hostFeatures = bareHost});
+  assert(hasCode(diagnostics, "DOCTOR_OPTIONAL_FEATURE_MISSING"));
+  assert(!demi::hasErrors(diagnostics));
+
+  // The Android runtime never includes FFmpeg media or librsvg in v1, and
+  // the doctor reports them without failing a valid project.
+  diagnostics = doctor.inspect(
+      {.projectPath = project,
+       .platform = "android",
+       .hostFeatures = demi::capabilities::fullyConfiguredRuntimeFeatures()});
+  assert(hasCode(diagnostics, "DOCTOR_OPTIONAL_FEATURE_MISSING"));
+  for (const auto &diagnostic : diagnostics) {
+    const bool capabilityError =
+        diagnostic.severity == demi::Severity::Error &&
+        diagnostic.code.rfind("PROJECT_BUILD_FEATURE_", 0) == 0;
+    assert(!capabilityError);
+  }
 }

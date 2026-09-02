@@ -2206,10 +2206,12 @@ Packaging should cover the ordinary work between a successful debug run and a
 release artifact.
 
 **Status: in progress.** Build settings now have a shared value model, schema,
-parser, canonical inspection output, branding-asset validation, and regression
+parser, canonical inspection output, branding-asset validation, reachable
+feature-capability checks with stable diagnostic codes, and regression
 coverage. Android debug packages consume the validated settings; Linux release
 bundles and Android release signing/AAB output are operational. Capability
-cross-checks and device qualification remain pending.
+cross-checks run before packaging and during validation; device qualification
+remains pending.
 
 ### Ownership boundaries
 
@@ -2270,22 +2272,34 @@ errors before Gradle or packaging starts.
 
 #### 9A. Build settings and capability checks
 
-**Status: in progress.** The schema, parser, canonical serializer,
+**Status: complete.** The schema, parser, canonical serializer,
 `demi build inspect`, legacy-project defaults, field diagnostics, supported
 SDK/ABI checks, and branding asset type/format/dimension checks are present.
 The editor Build window exposes the same application, branding, desktop, and
-Android settings through one undoable project-document edit. Reachable-feature
-capability checks and explicit migration coverage beyond an absent legacy
-`build` block remain.
+Android settings through one undoable project-document edit. Migration
+behavior is covered explicitly: absent legacy `build` blocks keep per-field
+engine defaults and the Gradle default `android.permission.INTERNET`, and
+partial blocks inherit per-field defaults.
 
-Android Gradle packaging is launched through the multithread-safe
-`posix_spawn` path and reports the real Gradle task graph, completed-task count,
-and current task without imposing a duration limit. A tokenized Gradle
-completion marker allows the editor to reap a launcher that remains alive after
-a verified APK build, and the exact editor background-operation path has an
-Android packaging integration test. Successful APKs are transactionally
-published to `<project>/build/android/<executable>-debug.apk`, and the editor
-shows that artifact path after completion.
+Reachable-feature capability checks are also in place. `PlatformCapabilities`
+models the runtime features of each target platform from the toolchain
+configuration; a deterministic scan of the asset registry, authored
+scene/prefab/HUD documents, resident project assets, and Lua service calls
+produces reachable network/media/SVG feature evidence. Branding-only SVG
+icon/splash sources are excluded because packaging rasterizes or installs
+them outside the engine runtime. `demi validate --platform`, every `demi
+build` operation, and `demi doctor` report stable
+`PROJECT_BUILD_FEATURE_*` errors before packaging and the Gradle-default
+`android.permission.INTERNET` cross-check applies only to authored Android
+permission lists. Android Gradle packaging is launched through the
+multithread-safe `posix_spawn` path and reports the real Gradle task graph,
+completed-task count, and current task without imposing a duration limit. A
+tokenized Gradle completion marker allows the editor to reap a launcher that
+remains alive after a verified APK build, and the exact editor
+background-operation path has an Android packaging integration test.
+Successful APKs are transactionally published to
+`<project>/build/android/<executable>-debug.apk`, and the editor shows that
+artifact path after completion.
 
 1. Add schema, parser, canonical serializer, migration tests, and CLI inspect
    output for build settings.
@@ -2366,8 +2380,13 @@ screenshots and hashes, private files, logcat, launched PIDs, and fatal markers;
 and covers touch, scene selection, IME input, background/resume, low-memory,
 rotation/surface replacement, force-stop, and relaunch. Qualification on a
 Pixel 7/API 35 exposed and drove fixes for invalid Android activity ownership
-and surface lifecycle handling. The final runtime-frame/scene gate is being
-verified before this slice is marked complete.
+and surface lifecycle handling, same-event-batch touch taps being swallowed
+before the UI bridge observed the press, and the qualification gate itself.
+The runtime-frame/scene gate now passes end to end on the Pixel 7: the
+scenario resolves `menu_button_levels` and `menu_button_level_1` centers from
+`demi hud inspect` with the runtime-reported safe-area insets instead of
+hardcoded screen fractions, and the report verifies the platformer scene
+switch plus the frame-61 runtime marker with no fatal logcat entries.
 
 1. Create one deterministic automated smoke scene exercising text/fallback
    font, transparent texture, shader/material, audio, touch/IME, save path,
@@ -2380,6 +2399,21 @@ verified before this slice is marked complete.
    may supplement this later; an emulator is not required for local release.
 
 #### 9F. Attached-device development loop
+
+**Status: complete.** `demi run android` builds a current debug APK when
+engine or project sources are newer than the artifact, validates or selects
+the attached device, installs, launches, and streams filtered engine/SDL/
+crash logs until stopped. `--watch` cooks changed project sources
+incrementally and synchronizes only changed cooked files into the debuggable
+application sandbox for hot reload without reinstalling. Device selection
+fails clearly when no or multiple ready devices are attached unless
+`--serial` disambiguates. The loop is verified live on the Pixel 7: a
+PATH-launched `demi run android --watch` rebuilt and reinstalled after a
+native engine change, enabled on-device hot reload, and synchronized a Lua
+edit into the application sandbox with only the changed cooked files.
+Launcher argv[0] resolution now searches PATH so the tool receives a real
+executable path, and the Python tool validates the resolved executable
+before running.
 
 1. `demi run android` builds a debug APK, selects or validates the attached
    device, installs, launches, and streams filtered engine/SDL/crash logs until

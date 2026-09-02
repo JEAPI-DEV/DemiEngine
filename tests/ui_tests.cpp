@@ -1,10 +1,12 @@
 #include "demi/runtime/render/HudTextMetrics.h"
+#include "demi/runtime/ui/HudLayoutReport.h"
 #include "demi/runtime/ui/UiActionController.h"
 #include "demi/runtime/ui/UiDocumentParser.h"
 #include "demi/runtime/ui/UiInteractionController.h"
 #include "demi/runtime/ui/UiLayoutEngine.h"
 #include "demi/runtime/ui/UiPresentation.h"
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <nlohmann/json.hpp>
@@ -242,6 +244,73 @@ int main() {
       presentation[3].node->id != "front" || !presentation[3].visible) {
     std::cerr << "UI presentation did not resolve inherited visibility and "
                  "effective layers deterministically.\n";
+    return 1;
+  }
+
+  const nlohmann::json hudDocument = nlohmann::json::parse(R"({
+    "format_version": 1,
+    "canvas_size": [960, 540],
+    "root": {
+      "id": "panel",
+      "type": "container",
+      "anchor_min": [0, 0],
+      "anchor_max": [1, 1],
+      "children": [{
+        "id": "menu_button",
+        "type": "button",
+        "action": "menu_button_levels",
+        "position": [270, 190],
+        "size": [420, 48]
+      }, {
+        "id": "hidden_screen",
+        "type": "container",
+        "visible": false,
+        "anchor_min": [0, 0],
+        "anchor_max": [1, 1],
+        "children": [{
+          "id": "hidden_button",
+          "type": "button",
+          "position": [100, 200],
+          "size": [300, 44]
+        }]
+      }]
+    }
+  })");
+  const auto plain =
+      demi::runtime::ui::inspectHudLayout(hudDocument);
+  auto visibleButton = std::ranges::find_if(
+      plain.nodes, [](const demi::runtime::ui::HudNodeReport &node) {
+        return node.id == "menu_button";
+      });
+  auto hiddenButton = std::ranges::find_if(
+      plain.nodes, [](const demi::runtime::ui::HudNodeReport &node) {
+        return node.id == "hidden_button";
+      });
+  if (visibleButton == plain.nodes.end() ||
+      !near(visibleButton->resolved.x, 270.0F) ||
+      !near(visibleButton->resolved.y, 190.0F) ||
+      hiddenButton == plain.nodes.end() ||
+      hiddenButton->resolved.width != 0.0F) {
+    std::cerr << "HUD layout report did not resolve visible nodes and left "
+                 "hidden containers unresolved.\n";
+    return 1;
+  }
+
+  demi::runtime::ui::HudLayoutRequest revealed;
+  revealed.revealHidden = true;
+  revealed.safeArea = {.left = 54.0F, .top = 37.0F, .right = 0.0F,
+                       .bottom = 0.0F};
+  const auto shifted =
+      demi::runtime::ui::inspectHudLayout(hudDocument, revealed);
+  auto revealedButton = std::ranges::find_if(
+      shifted.nodes, [](const demi::runtime::ui::HudNodeReport &node) {
+        return node.id == "hidden_button";
+      });
+  if (revealedButton == shifted.nodes.end() ||
+      !near(revealedButton->resolved.x, 154.0F) ||
+      !near(revealedButton->resolved.y, 237.0F)) {
+    std::cerr << "HUD layout report did not reveal hidden containers or "
+                 "apply safe-area insets.\n";
     return 1;
   }
   return 0;

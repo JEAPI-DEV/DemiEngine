@@ -4,6 +4,36 @@ Project-owned release metadata belongs in the `build` object of
 `demi.project.json`. The editor Build window edits the same data used by the
 CLI and Gradle packager.
 
+## Platform capability checks
+
+`demi validate --platform linux|linux_server|android` cross-checks reachable
+project content against what the target runtime supports, and every
+`demi build` operation repeats the check before packaging. The Android
+runtime is compiled without FFmpeg media and without librsvg; networking and
+the graphics runtime are always present. The checks report stable errors for:
+
+- `PROJECT_BUILD_FEATURE_MEDIA_UNSUPPORTED`: the project reaches video
+  content (`VideoPlayer` components, `Video` Lua calls, or `VideoClip`
+  assets referenced from scenes, HUDs, prefabs, resident project assets, or
+  Lua) but the target runtime lacks FFmpeg media support.
+- `PROJECT_BUILD_FEATURE_NETWORK_UNSUPPORTED`: the project reaches networking
+  (`network_contract`, `NetworkContract` assets, `Network`/`NetworkSession`
+  Lua calls) but the target runtime lacks ENet support.
+- `PROJECT_BUILD_FEATURE_SVG_UNSUPPORTED`: the project references SVG
+  textures/icons (`SvgTexture2D`/`Icon2D` assets) from runtime content, but
+  the target runtime cannot decode SVG at run time. Rasterize the source or
+  use a runtime with librsvg support. Branding-only SVG `icon`/`splash`
+  sources never trigger this error because packaging rasterizes or installs
+  them outside the engine runtime.
+- `PROJECT_BUILD_PERMISSION_NETWORK_MISSING`: an authored Android
+  `build.android.permissions` list omits `android.permission.INTERNET` while
+  the project uses networking. Projects without an authored `build` block
+  keep the Gradle default permissions, which include `android.permission.INTERNET`.
+
+`demi doctor --platform <platform>` reports the same capability errors and
+adds `DOCTOR_OPTIONAL_FEATURE_MISSING` warnings when the configured runtime
+lacks an optional feature the project does not use.
+
 ## Android artifacts
 
 Build a directly installable debug APK:
@@ -43,7 +73,9 @@ distribution and cannot be installed directly on a device.
 
 Android packaging accepts PNG, JPEG, WebP, and SVG source assets for `icon` and
 `splash`. SVG sources are rasterized in generated build staging using
-`rsvg-convert`; source asset files are never modified.
+`rsvg-convert`; source asset files are never modified. Branding rasterization
+is host-side only: SVG textures referenced from scenes or HUDs still require a
+runtime with librsvg support at run time.
 
 ## Build progress
 

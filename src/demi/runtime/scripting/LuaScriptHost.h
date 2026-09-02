@@ -674,6 +674,7 @@ private:
   std::filesystem::path projectDirectory_;
   int viewportWidth_ = 1;
   int viewportHeight_ = 1;
+  ui::Insets loggedSafeArea_;
   bool quitRequested_ = false;
   std::string windowMode_ = "windowed";
   bool windowModeDirty_ = false;

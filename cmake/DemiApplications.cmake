@@ -30,6 +30,7 @@ else()
     src/cli/BuildCommands.cpp
     src/cli/CapabilityCommands.cpp
     src/cli/CookCommands.cpp
+    src/cli/HudCommands.cpp
     src/cli/RuntimeCommands.cpp
     src/cli/SceneCompositionCommands.cpp
     src/cli/main.cpp
@@ -45,6 +46,7 @@ else()
     src/cli/BuildCommands.cpp
     src/cli/CapabilityCommands.cpp
     src/cli/CookCommands.cpp
+    src/cli/HudCommands.cpp
     src/cli/RuntimeCommands.cpp
     src/cli/SceneCompositionCommands.cpp
     src/cli/main.cpp

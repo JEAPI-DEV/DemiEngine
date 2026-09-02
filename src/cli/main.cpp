@@ -3,6 +3,7 @@
 #include "cli/CapabilityCommands.h"
 #include "cli/CliArguments.h"
 #include "cli/CookCommands.h"
+#include "cli/HudCommands.h"
 #include "cli/RuntimeCommands.h"
 #include "cli/SceneCompositionCommands.h"
 #include "cli/doctor/DoctorService.h"
@@ -11,18 +12,24 @@
 #include "cli/project/ProjectTemplates.h"
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/capabilities/PlatformCapabilities.h"
 #include "demi/core/Version.h"
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/app/RuntimeApp.h"
+#include "demi/runtime/platform/RuntimeCapabilities.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/runtime/scene/ProjectBuildValidation.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/schema/Validation.h"
 
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <sstream>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #if defined(__linux__)
@@ -46,6 +53,37 @@ std::filesystem::path sourceRoot() {
 #endif
 }
 
+// argv[0] may be a bare command name when the binary is found through PATH.
+// Child tools need a real path, so resolve slash-relative names against the
+// working directory and bare names through PATH before handing them on.
+std::filesystem::path
+resolveSelfExecutable(const std::filesystem::path &argv0) {
+  std::error_code error;
+  if (!argv0.empty()) {
+    if (argv0.is_absolute()) {
+      if (std::filesystem::is_regular_file(argv0, error))
+        return argv0;
+    } else if (argv0.string().find('/') != std::string::npos) {
+      const std::filesystem::path absolute =
+          std::filesystem::absolute(argv0, error);
+      if (std::filesystem::is_regular_file(absolute, error))
+        return absolute;
+    } else if (const char *pathVariable = std::getenv("PATH")) {
+      std::istringstream directories(pathVariable);
+      std::string directory;
+      while (std::getline(directories, directory, ':')) {
+        if (directory.empty())
+          continue;
+        const std::filesystem::path candidate =
+            std::filesystem::path(directory) / argv0;
+        if (std::filesystem::is_regular_file(candidate, error))
+          return candidate;
+      }
+    }
+  }
+  return argv0;
+}
+
 int launchAndroidDeviceTool(const std::string &mode,
                             const std::vector<std::string> &args,
                             const std::size_t forwardedFrom,
@@ -62,7 +100,7 @@ int launchAndroidDeviceTool(const std::string &mode,
       (sourceRoot() / "scripts/android_device.py").string(),
       mode,
       "--demi-executable",
-      std::filesystem::absolute(demiExecutable).string(),
+      resolveSelfExecutable(demiExecutable).string(),
       "--project",
       std::filesystem::absolute(project).string()};
   for (std::size_t index = forwardedFrom; index < args.size(); ++index) {
@@ -101,12 +139,14 @@ void printHelp() {
       << "  demi new --list\n"
       << "  demi doctor --project <project> [--platform linux|android] "
          "[--format text|json]\n"
-      << "  demi validate [path] [--format text|json]\n"
+      << "  demi validate [path] [--platform linux|linux_server|android] "
+         "[--format text|json]\n"
       << "  demi schema export\n"
       << "  demi capabilities export [--output path]\n"
       << "  demi capabilities check [--baseline path] [--format text|json]\n"
       << "  demi capabilities verify-gates [--manifest path]\n"
       << "  demi prefab inspect <prefab>\n"
+      << "  demi hud inspect <hud.json> [--format text|json]\n"
       << "  demi scene list <project>\n"
       << "  demi scene inspect <scene>\n"
       << "  demi scene expand <scene>\n"
@@ -167,10 +207,16 @@ void printHelp() {
 int runValidate(const std::vector<std::string> &args) {
   std::filesystem::path target = ".";
   std::string format = "text";
+  std::string platform;
 
   for (std::size_t i = 1; i < args.size(); ++i) {
     if (args[i] == "--format" && i + 1 < args.size()) {
       format = args[i + 1];
+      ++i;
+      continue;
+    }
+    if (args[i] == "--platform" && i + 1 < args.size()) {
+      platform = args[i + 1];
       ++i;
       continue;
     }
@@ -180,15 +226,40 @@ int runValidate(const std::vector<std::string> &args) {
   }
 
   const demi::ValidationSummary summary = demi::validatePath(target);
-  if (format == "json") {
-    demi::printDiagnosticsJson(std::cout, summary.diagnostics);
-  } else {
-    std::cout << "Checked " << summary.checkedFiles << " file(s).\n";
-    demi::printDiagnosticsText(std::cout, summary.diagnostics);
+  demi::Diagnostics diagnostics = summary.diagnostics;
+  if (!platform.empty()) {
+    std::optional<demi::capabilities::TargetPlatform> platformTarget;
+    if (platform == "linux")
+      platformTarget = demi::capabilities::TargetPlatform::Linux;
+    else if (platform == "linux_server")
+      platformTarget = demi::capabilities::TargetPlatform::LinuxServer;
+    else if (platform == "android")
+      platformTarget = demi::capabilities::TargetPlatform::Android;
+    if (!platformTarget) {
+      std::cerr << "validate --platform must be linux, linux_server, or "
+                   "android.\n";
+      return ExitUsageError;
+    }
+    const std::filesystem::path project = std::filesystem::is_directory(target)
+                                              ? target / "demi.project.json"
+                                              : target;
+    if (std::filesystem::is_regular_file(project)) {
+      const demi::Diagnostics capabilities =
+          demi::runtime::validateProjectPlatformCapabilities(
+              project, *platformTarget, demi::runtime::hostRuntimeFeatures());
+      diagnostics.insert(diagnostics.end(), capabilities.begin(),
+                         capabilities.end());
+    }
   }
 
-  return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure
-                                              : ExitSuccess;
+  if (format == "json") {
+    demi::printDiagnosticsJson(std::cout, diagnostics);
+  } else {
+    std::cout << "Checked " << summary.checkedFiles << " file(s).\n";
+    demi::printDiagnosticsText(std::cout, diagnostics);
+  }
+
+  return demi::hasErrors(diagnostics) ? ExitValidationFailure : ExitSuccess;
 }
 
 int launchEditor(const std::vector<std::string> &args) {
@@ -368,7 +439,8 @@ int main(int argc, char **argv) {
   }
 
   if (args[0] == "doctor") {
-    return demi::cli::doctor::runDoctorCommand(args, std::cout, std::cerr);
+    return demi::cli::doctor::runDoctorCommand(
+        args, std::cout, std::cerr, demi::runtime::hostRuntimeFeatures());
   }
 
   if (args[0] == "validate") {
@@ -388,6 +460,10 @@ int main(int argc, char **argv) {
            << '\n';
     std::cout << "Wrote component schema: " << outputPath << '\n';
     return ExitSuccess;
+  }
+
+  if (args[0] == "hud") {
+    return demi::cli::runHudCommand(args, std::cout, std::cerr);
   }
 
   if (args[0] == "capabilities") {

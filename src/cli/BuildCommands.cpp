@@ -3,6 +3,7 @@
 #include "cli/CliArguments.h"
 #include "cli/build/BuildService.h"
 #include "cli/project/ProjectDiscovery.h"
+#include "demi/runtime/platform/RuntimeCapabilities.h"
 #include "demi/runtime/scene/ProjectBuildSettings.h"
 
 #include <filesystem>
@@ -112,7 +113,8 @@ int runBuildCommand(const std::vector<std::string> &args,
        .runtimeExecutable = std::filesystem::absolute(context.executablePath),
        .gradleExecutable = valueAfter(args, "--gradle").empty()
                                ? "gradle"
-                               : valueAfter(args, "--gradle")});
+                               : valueAfter(args, "--gradle"),
+       .hostFeatures = runtime::hostRuntimeFeatures()});
   if (!result.diagnostics.empty())
     printDiagnosticsText(std::cerr, result.diagnostics);
   if (!result.succeeded())

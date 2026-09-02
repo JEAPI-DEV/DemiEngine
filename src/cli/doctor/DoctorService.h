@@ -1,5 +1,6 @@
 #pragma once
 
+#include "demi/capabilities/PlatformCapabilities.h"
 #include "demi/diagnostics/Diagnostic.h"
 
 #include <filesystem>
@@ -14,6 +15,9 @@ namespace demi::cli::doctor {
 struct DoctorRequest {
   std::filesystem::path projectPath;
   std::string platform = "linux";
+  // Optional engine features of the host renderer runtime. When absent, the
+  // fully configured default toolchain is assumed.
+  std::optional<capabilities::RuntimeFeatures> hostFeatures;
 };
 
 struct DoctorEnvironment {
@@ -34,7 +38,10 @@ private:
   DoctorEnvironment environment_;
 };
 
-[[nodiscard]] int runDoctorCommand(const std::vector<std::string> &args,
-                                   std::ostream &out, std::ostream &error);
+[[nodiscard]] int
+runDoctorCommand(const std::vector<std::string> &args, std::ostream &out,
+                 std::ostream &error,
+                 std::optional<capabilities::RuntimeFeatures> hostFeatures =
+                     std::nullopt);
 
 } // namespace demi::cli::doctor
