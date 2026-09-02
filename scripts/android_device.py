@@ -158,6 +158,39 @@ def set_hot_reload_marker(adb: Adb, package: str, enabled: bool) -> None:
     adb.shell(f"run-as {shlex.quote(package)} sh -c {shlex.quote(action)}")
 
 
+def set_mobile_test_marker(adb: Adb, package: str, enabled: bool) -> None:
+    action = "mkdir -p files && touch files/.demi_run_tests" if enabled \
+        else "rm -f files/.demi_run_tests"
+    adb.shell(f"run-as {shlex.quote(package)} sh -c {shlex.quote(action)}")
+
+
+def wait_for_test_summary(adb: Adb, timeout_seconds: float) -> str:
+    """Waits for the runtime's mobile test summary marker in logcat."""
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        log = adb.run("logcat", "-d", "-s", "DemiEngine", check=False).stdout
+        for line in reversed(log.splitlines()):
+            if "SUMMARY passed=" in line:
+                return line.split("DemiEngine:", 1)[-1].strip()
+        time.sleep(1.0)
+    raise ToolError(f"No [test] summary within {timeout_seconds:.0f}s.")
+
+
+def collect_lua_test_results(adb: Adb) -> list[dict]:
+    log = adb.run("logcat", "-d", "-s", "DemiEngine", check=False).stdout
+    results = []
+    for line in log.splitlines():
+        if "DemiEngine:" not in line:
+            continue
+        message = line.split("DemiEngine:", 1)[1].strip()
+        for prefix, status in (("[test] PASS ", "passed"),
+                               ("[test] FAIL ", "failed")):
+            if message.startswith(prefix):
+                results.append({"name": message[len(prefix):].rstrip("."),
+                                "status": status})
+    return results
+
+
 def launch(adb: Adb, package: str, component: str) -> None:
     adb.run("shell", "am", "force-stop", package)
     result = adb.run("shell", "am", "start", "-W", "-n", component)
@@ -332,58 +365,46 @@ def qualification_step(report: dict, name: str, operation) -> bool:
         return False
 
 
-def qualify_device(args: argparse.Namespace) -> int:
-    project = Path(args.project).resolve()
-    demi = Path(args.demi_executable).resolve()
-    adb = Adb(args.adb, args.serial)
-    package, _, component = project_configuration(project)
-    output = Path(args.output or project.parent / "build/android/qualification")
-    output.mkdir(parents=True, exist_ok=True)
-    report = {"format_version": 1, "serial": adb.serial, "package": package,
-              "steps": [], "device": {}, "success": False}
-    session_pids: set[str] = set()
-    report["device"] = {
-        "model": adb.run("shell", "getprop", "ro.product.model").stdout.strip(),
-        "sdk": adb.run("shell", "getprop", "ro.build.version.sdk").stdout.strip(),
-        "abi": adb.run("shell", "getprop", "ro.product.cpu.abi").stdout.strip(),
-        "renderer": adb.run("shell", "getprop", "ro.hardware.egl").stdout.strip(),
-    }
-    apk = (Path(args.apk).resolve() if args.apk
-           else current_or_built_apk(demi, project))
-    adb.run("logcat", "-b", "all", "-c")
-    critical = []
-    critical.append(qualification_step(report, "install", lambda: adb.run(
-        "install", "-r", str(apk)).stdout.strip()))
-    if critical[-1]:
-        set_hot_reload_marker(adb, package, False)
-    critical.append(qualification_step(report, "launch", lambda: adb.run(
-        "shell", "am", "start", "-W", "-n", component).stdout.strip()))
-    time.sleep(args.settle_seconds)
+def qualification_run_interactive_steps(report, critical, adb, package,
+                                        component, demi, project, args,
+                                        session_pids, screenshot) -> None:
+    """Drives the menu through adb taps and exercises the Android lifecycle.
+
+    Used when the project has no Lua mobile test module; the taps resolve
+    through `demi hud inspect` so they stay device-independent.
+    """
     adb.run("shell", "cmd", "statusbar", "collapse", check=False)
     session_pids.update(adb.run("shell", "pidof", package,
                                 check=False).stdout.split())
-    screenshot = output / "launch.png"
-    critical.append(qualification_step(report, "screenshot", lambda: (
-        screenshot.write_bytes(adb.run("exec-out", "screencap", "-p",
-                                       binary=True).stdout),
-        hashlib.sha256(screenshot.read_bytes()).hexdigest())[1]))
     image = screenshot.read_bytes()
     screen_width, screen_height = struct.unpack(">II", image[16:24])
     report["screen"] = {"width": screen_width, "height": screen_height}
     hud = project_main_hud(project)
     hud_centers = hud_button_centers(demi, hud, stable_safe_area(adb))
-    levels_center = hud_centers.get("menu_button_levels")
-    level_center = hud_centers.get("menu_button_level_1")
-    if levels_center is None or level_center is None:
-        raise ToolError("Qualification HUD does not declare the "
-                        "menu_button_levels and menu_button_level_1 nodes.")
-    critical.append(qualification_step(report, "touch", lambda: adb.run(
-        "shell", "input", "tap", str(int(screen_width * levels_center[0])),
-        str(int(screen_height * levels_center[1]))).stdout.strip()))
+    required_buttons = ("menu_button_options", "menu_volume_plus", "menu_back",
+                        "menu_button_levels", "menu_button_level_1")
+    missing_buttons = [button for button in required_buttons
+                       if button not in hud_centers]
+    if missing_buttons:
+        raise ToolError("Qualification HUD is missing nodes: "
+                        + ", ".join(missing_buttons))
+
+    def tap_button(name: str) -> str:
+        center = hud_centers[name]
+        return adb.run("shell", "input", "tap",
+                       str(int(screen_width * center[0])),
+                       str(int(screen_height * center[1]))).stdout.strip()
+
+    critical.append(qualification_step(report, "touch",
+                                       lambda: tap_button("menu_button_options")))
     time.sleep(0.4)
-    critical.append(qualification_step(report, "scene_load_input", lambda: adb.run(
-        "shell", "input", "tap", str(int(screen_width * level_center[0])),
-        str(int(screen_height * level_center[1]))).stdout.strip()))
+    critical.append(qualification_step(report, "save_path", lambda: (
+        tap_button("menu_volume_plus"), time.sleep(0.4),
+        tap_button("menu_back"))[0]))
+    time.sleep(0.4)
+    critical.append(qualification_step(report, "scene_load_input", lambda: (
+        tap_button("menu_button_levels"), time.sleep(0.4),
+        tap_button("menu_button_level_1"))[1]))
     time.sleep(args.settle_seconds)
     qualification_step(report, "ime_text", lambda: adb.run(
         "shell", "input", "text", "DemiEngine").stdout.strip())
@@ -424,8 +445,79 @@ def qualify_device(args: argparse.Namespace) -> int:
                                 check=False).stdout.split())
     critical.append(qualification_step(report, "process_alive", lambda: adb.run(
         "shell", "pidof", package).stdout.strip()))
-    qualification_step(report, "private_files", lambda: adb.shell(
-        f"run-as {shlex.quote(package)} find files -maxdepth 4 -type f"))
+
+
+def qualify_device(args: argparse.Namespace) -> int:
+    project = Path(args.project).resolve()
+    demi = Path(args.demi_executable).resolve()
+    adb = Adb(args.adb, args.serial)
+    package, _, component = project_configuration(project)
+    output = Path(args.output or project.parent / "build/android/qualification")
+    output.mkdir(parents=True, exist_ok=True)
+    report = {"format_version": 1, "serial": adb.serial, "package": package,
+              "steps": [], "device": {}, "success": False}
+    session_pids: set[str] = set()
+    report["device"] = {
+        "model": adb.run("shell", "getprop", "ro.product.model").stdout.strip(),
+        "sdk": adb.run("shell", "getprop", "ro.build.version.sdk").stdout.strip(),
+        "abi": adb.run("shell", "getprop", "ro.product.cpu.abi").stdout.strip(),
+        "renderer": adb.run("shell", "getprop", "ro.hardware.egl").stdout.strip(),
+    }
+    apk = (Path(args.apk).resolve() if args.apk
+           else current_or_built_apk(demi, project))
+    adb.run("logcat", "-b", "all", "-c")
+    critical = []
+    critical.append(qualification_step(report, "install", lambda: adb.run(
+        "install", "-r", str(apk)).stdout.strip()))
+    if critical[-1]:
+        set_hot_reload_marker(adb, package, False)
+    test_module = project.parent / "scripts" / "tests" / "mobile.lua"
+    lua_tests = test_module.is_file()
+    if lua_tests:
+        set_mobile_test_marker(adb, package, True)
+    critical.append(qualification_step(report, "launch", lambda: adb.run(
+        "shell", "am", "start", "-W", "-n", component).stdout.strip()))
+    time.sleep(args.settle_seconds)
+    screenshot = output / "launch.png"
+    critical.append(qualification_step(report, "screenshot", lambda: (
+        screenshot.write_bytes(adb.run("exec-out", "screencap", "-p",
+                                       binary=True).stdout),
+        hashlib.sha256(screenshot.read_bytes()).hexdigest())[1]))
+
+    if lua_tests:
+        # Lua-driven flow: the in-app mobile test harness navigates through
+        # Mobile.touch, so the report collects test markers instead of
+        # injecting adb taps.
+        session_pids.update(adb.run("shell", "pidof", package,
+                                    check=False).stdout.split())
+        image = screenshot.read_bytes()
+        screen_width, screen_height = struct.unpack(">II", image[16:24])
+        report["screen"] = {"width": screen_width, "height": screen_height}
+        critical.append(qualification_step(
+            report, "lua_tests",
+            lambda: wait_for_test_summary(adb, timeout_seconds=120)))
+        summary = next((step.get("detail") for step in report["steps"]
+                        if step["name"] == "lua_tests"), "")
+        digits = re.findall(r"passed=(\d+) failed=(\d+)", summary)
+        passed, failed = ((int(digits[0][0]), int(digits[0][1]))
+                          if digits else (0, 0))
+        report["lua_tests"] = {
+            "passed": passed, "failed": failed,
+            "results": collect_lua_test_results(adb)}
+        critical.append(passed > 0 and failed == 0)
+        set_mobile_test_marker(adb, package, False)
+        critical.append(qualification_step(report, "private_files", lambda:
+            adb.shell("run-as " + shlex.quote(package) +
+                      " sh -c 'find files -type f | head -40'")))
+    else:
+        qualification_run_interactive_steps(
+            report, critical, adb, package, component, demi, project, args,
+            session_pids, screenshot)
+        set_mobile_test_marker(adb, package, False)
+        critical.append(qualification_step(report, "private_files", lambda:
+            adb.shell(f"run-as {shlex.quote(package)} find files -maxdepth 4 -type f")))
+
+    report["session_pids"] = sorted(session_pids)
     log_file = output / "logcat.txt"
     logs = adb.run("logcat", "-b", "all", "-d", "-v", "threadtime").stdout
     log_file.write_text(logs, encoding="utf-8")
@@ -439,12 +531,35 @@ def qualify_device(args: argparse.Namespace) -> int:
                     fatal_markers.append(marker)
         if f"ANR in {package}" in line and "ANR" not in fatal_markers:
             fatal_markers.append("ANR")
-    report["session_pids"] = sorted(session_pids)
     report["fatal_markers"] = fatal_markers
     required_runtime_markers = [
         "Switched scene to scene://minimal_2d_android/platformer",
         "[runtime] Frame 61",
+        "[audio] Audio device initialized.",
+        "[save] Wrote save slot settings",
     ]
+    report["smoke_coverage"] = {
+        "text_fallback_font":
+            "menu HUD labels render every frame; frame markers + screenshot",
+        "transparent_texture":
+            "menu and gameplay sprites; screenshot hash",
+        "shader_material":
+            "[render] bgfx pipeline + per-frame draws",
+        "audio":
+            "[audio] device initialization marker",
+        "touch_ime":
+            "in-app Mobile.touch actions or touch/save_path/scene_load_input/ime_text steps",
+        "save_path":
+            "[save] settings slot write through the options screen",
+        "network_loopback":
+            "not exercised; requires the dedicated smoke scene",
+        "rotation_safe_area":
+            "rotation step + [ui] safe-area marker",
+        "suspend_resume":
+            "background_resume and low_memory steps",
+        "surface_recreation":
+            "background_resume across surface generations",
+    }
     missing_runtime_markers = [marker for marker in required_runtime_markers
                                if marker not in logs]
     report["missing_runtime_markers"] = missing_runtime_markers

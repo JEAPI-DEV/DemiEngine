@@ -24,6 +24,7 @@
 #include "demi/runtime/scripting/bindings/media/LuaAudioBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaCutsceneBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaVideoBindings.h"
+#include "demi/runtime/scripting/bindings/mobile/LuaMobileTestBindings.h"
 #include "demi/runtime/scripting/bindings/navigation/LuaNavigation2DBindings.h"
 #include "demi/runtime/scripting/bindings/persistence/LuaSaveBindings.h"
 #include "demi/runtime/scripting/bindings/text/LuaRegexBindings.h"
@@ -81,6 +82,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaNavigation2DBindingModule navigation2D;
   const LuaTilemap2DBindingModule tilemap2D;
   const LuaDataBindingModule data;
+  const LuaMobileTestBindingModule mobileTests;
   const LuaBindingModule *modules[] = {&core,
                                        &entity,
                                        &transform2D,
@@ -107,7 +109,8 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
                                        &assets,
                                        &navigation2D,
                                        &tilemap2D,
-                                       &data};
+                                       &data,
+                                       &mobileTests};
   for (const LuaBindingModule *module : modules) {
     module->install(host, state);
   }

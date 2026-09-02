@@ -23,6 +23,7 @@
 #include "demi/runtime/ui/UiModel.h"
 
 #include <cstdint>
+#include <deque>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -549,6 +550,25 @@ public:
   [[nodiscard]] bool physicsEnabled() const;
   void setHotReloadEnabled(bool enabled);
   [[nodiscard]] bool hotReloadEnabled() const;
+  void startMobileTests(const std::string &moduleName);
+  void updateMobileTests(double deltaTime);
+  void drainSyntheticTouches(InputState &input);
+  [[nodiscard]] int mobileTestsPassed() const;
+  [[nodiscard]] int mobileTestsFailed() const;
+  [[nodiscard]] bool mobileTestsActive() const;
+  [[nodiscard]] std::optional<Vec2>
+  mobileNodeCenterCanvas(const std::string &nodeId) const;
+  [[nodiscard]] std::optional<Vec2>
+  mobileNodeCenterViewport(const std::string &nodeId) const;
+  [[nodiscard]] Vec2 mobileCanvasToViewport(Vec2 canvas) const;
+  void mobileEnqueueTap(Vec2 viewportPosition);
+  void mobileEnqueueSwipe(Vec2 from, Vec2 to, double seconds);
+  void mobileWaitFor(double seconds);
+  void mobileExpectSceneStart(const std::string &sceneId, double timeout);
+  void failActiveMobileTest(const std::string &message);
+  void passActiveMobileTest();
+  void finishActiveMobileTest();
+  void startNextMobileTest();
   void beginFrame(float unscaledDeltaTime);
   void advanceFixedTime(float fixedDeltaTime);
   void setPaused(bool paused);
@@ -692,6 +712,34 @@ private:
   bool applicationFocused_ = true;
   bool applicationMinimized_ = false;
   bool applicationSuspended_ = false;
+  // Mobile end-to-end test harness state. Tests run as coroutines that yield
+  // wait requests; synthetic touches drain one frame per runtime frame into
+  // the same input state real fingers use.
+  struct MobileSyntheticFrame {
+    TouchPhase phase = TouchPhase::Began;
+    Vec2 position;
+  };
+  struct MobileTestDefinition {
+    std::string name;
+    int functionRef = 0;
+  };
+  enum class MobileWaitKind { None, Frames, Seconds, Scene, Gesture };
+  std::vector<MobileTestDefinition> mobileTests_;
+  std::size_t mobileTestIndex_ = 0;
+  int mobileTestThread_ = 0;
+  std::string activeMobileTestName_;
+  MobileWaitKind mobileWait_ = MobileWaitKind::None;
+  int mobileWaitFrames_ = 0;
+  double mobileWaitSeconds_ = 0.0;
+  double mobileWaitElapsed_ = 0.0;
+  std::string mobileWaitScene_;
+  double mobileWaitTimeout_ = 0.0;
+  int pendingGestureFrames_ = 0;
+  std::deque<MobileSyntheticFrame> syntheticTouches_;
+  std::int64_t syntheticFingerId_ = 0x54455354LL;
+  int mobileTestsPassed_ = 0;
+  int mobileTestsFailed_ = 0;
+  bool mobileTestsEnabled_ = false;
   bool hotReloadEnabled_ = false;
   bool cutscenePaused_ = false;
   bool previousUiMouseDown_ = false;

@@ -367,9 +367,15 @@ int runProject(const RuntimeOptions &options) {
   generateTilemapColliders(loaded.world, assetRegistry);
   AudioSystem audioSystem;
   bool audioInitialized = false;
-  if (!isHeadless() && !options.serve && options.maxFrames == 0 &&
-      audioSystem.initialize())
-    audioInitialized = true;
+  const bool audioAttempted =
+      !isHeadless() && !options.serve && options.maxFrames == 0;
+  if (audioAttempted)
+    audioInitialized = audioSystem.initialize();
+  deviceLog(deviceLogMessage(
+      "audio", audioInitialized
+                   ? "Audio device initialized."
+                   : audioAttempted ? "Audio initialization failed."
+                                    : "Audio disabled for this run."));
   MediaSystem mediaSystem;
   {
     ProfileScope scope("Asset.media_load");
@@ -414,6 +420,8 @@ int runProject(const RuntimeOptions &options) {
     std::cerr << "Lua unavailable: " << luaError << '\n';
   }
   luaHost.setHotReloadEnabled(options.watch || luaHost.hotReloadEnabled());
+  if (options.mobileTests)
+    luaHost.startMobileTests("tests.mobile");
 
   const auto prepareStartupAssets = [&] {
     Diagnostics diagnostics;
@@ -721,6 +729,10 @@ int runProject(const RuntimeOptions &options) {
       RuntimeProfiler::beginFrame();
       const auto frameStart = std::chrono::steady_clock::now();
       const float dt = frameState.deltaSeconds;
+      if (options.mobileTests) {
+        luaHost.drainSyntheticTouches(input);
+        luaHost.updateMobileTests(frameState.deltaSeconds);
+      }
       double updateMs = 0.0;
       const auto updateStart = std::chrono::steady_clock::now();
       stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem,
@@ -975,6 +987,10 @@ int runProject(const RuntimeOptions &options) {
       RuntimeProfiler::beginFrame();
       const auto frameStart = std::chrono::steady_clock::now();
       const float dt = frameState.deltaSeconds;
+      if (options.mobileTests) {
+        luaHost.drainSyntheticTouches(input);
+        luaHost.updateMobileTests(frameState.deltaSeconds);
+      }
       double updateMs = 0.0;
       const auto updateStart = std::chrono::steady_clock::now();
       stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem,

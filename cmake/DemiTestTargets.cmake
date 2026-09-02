@@ -293,6 +293,8 @@
 
   add_executable(demi-lua-scripting-tests tests/lua_scripting_tests.cpp)
   target_link_libraries(demi-lua-scripting-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-lua-mobile-tests tests/lua_mobile_tests.cpp)
+  target_link_libraries(demi-lua-mobile-tests PRIVATE demi-runtime-lib)
   add_executable(demi-script-property-contract-tests
     tests/script_property_contract_tests.cpp)
   target_link_libraries(demi-script-property-contract-tests

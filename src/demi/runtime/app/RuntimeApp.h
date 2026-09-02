@@ -11,6 +11,7 @@ struct RuntimeOptions {
   bool serve = false;
   bool profiler = false;
   bool watch = false;
+  bool mobileTests = false;
   std::filesystem::path inputReplayPath;
   std::filesystem::path profileReportPath;
   std::string debugOverlays;

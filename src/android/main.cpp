@@ -230,13 +230,17 @@ int main(int argc, char **argv) {
   }
 
   const std::filesystem::path projectPath = prepareProject(assetManager);
-  const bool hotReload = std::filesystem::is_regular_file(
-      std::filesystem::path(storagePath) / ".demi_hot_reload");
+  const std::filesystem::path storage = std::filesystem::path(storagePath);
+  const bool hotReload = std::filesystem::is_regular_file(storage / ".demi_hot_reload");
+  const bool mobileTests = std::filesystem::is_regular_file(storage / ".demi_run_tests");
   logInfo("Launching " + std::string(ProjectFile));
   if (hotReload)
     logInfo("Physical-device hot reload enabled.");
+  if (mobileTests)
+    logInfo("Physical-device mobile tests enabled.");
   return demi::runtime::runProject(demi::runtime::RuntimeOptions{
       .projectPath = projectPath,
       .watch = hotReload,
+      .mobileTests = mobileTests,
   });
 }

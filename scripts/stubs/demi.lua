@@ -1473,6 +1473,47 @@ function Save.last_error() end
 ---@param slot string
 ---@return boolean
 function Save.exists(slot) end
+
+---Mobile end-to-end test API. Available when the runtime launches in test
+---mode (`demi run --mobile-tests` or the `.demi_run_tests` device marker).
+---Touches resolve HUD nodes by id through the live layout and flow through
+---the real input pipeline.
+---@class MobileTestService
+Mobile = {}
+---Taps the center of a HUD node by id. Yields until the tap completes.
+---@param node_id string
+function Mobile.touch(node_id) end
+---Taps a canvas-space position.
+---@param x number
+---@param y number
+function Mobile.tap(x, y) end
+---Swipes between two HUD node centers over `duration` seconds.
+---@param from_node_id string
+---@param to_node_id string
+---@param duration? number Defaults to 0.4
+function Mobile.swipe(from_node_id, to_node_id, duration) end
+---Swipes between two canvas-space positions over `duration` seconds.
+---@param from_x number
+---@param from_y number
+---@param to_x number
+---@param to_y number
+---@param duration? number Defaults to 0.4
+function Mobile.swipe_xy(from_x, from_y, to_x, to_y, duration) end
+---Waits `seconds` of game time before resuming the test.
+---@param seconds number
+function Mobile.wait(seconds) end
+---Waits until the active scene id matches, or fails the test on timeout.
+---@param scene_id string
+---@param timeout? number Defaults to 10
+function Mobile.expect_scene(scene_id, timeout) end
+---Fails the running test with `message` unless `condition` is truthy.
+---@param condition any
+---@param message string
+function Mobile.expect(condition, message) end
+---Returns the resolved center of a HUD node in canvas units, or nil.
+---@param node_id string
+---@return number[]?
+function Mobile.node_center(node_id) end
 ---@param slot string
 ---@return boolean
 function Save.delete(slot) end

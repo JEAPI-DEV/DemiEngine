@@ -1,5 +1,6 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
+#include "demi/runtime/diagnostics/DeviceLog.h"
 #include "demi/runtime/scripting/persistence/GameSaveDocument.h"
 #include "demi/runtime/scripting/persistence/LuaSaveCodec.h"
 
@@ -45,8 +46,14 @@ bool LuaScriptHost::writeSaveSlot(const std::string &slot) {
     return false;
   }
 
-  return atomicWriteText(savePath(applicationServices_.userDataPath(), safeSlot),
-                         serializeSaveSlotDocument(safeSlot, found->second));
+  if (atomicWriteText(
+          savePath(applicationServices_.userDataPath(), safeSlot),
+          serializeSaveSlotDocument(safeSlot, found->second))) {
+    deviceLog(deviceLogMessage("save", "Wrote save slot " + safeSlot + "."));
+    return true;
+  }
+  deviceLog(deviceLogMessage("save", "Failed to write save slot " + safeSlot + "."));
+  return false;
 }
 
 std::optional<float> LuaScriptHost::saveNumber(const std::string &slot,

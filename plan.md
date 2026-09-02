@@ -2382,11 +2382,20 @@ rotation/surface replacement, force-stop, and relaunch. Qualification on a
 Pixel 7/API 35 exposed and drove fixes for invalid Android activity ownership
 and surface lifecycle handling, same-event-batch touch taps being swallowed
 before the UI bridge observed the press, and the qualification gate itself.
-The runtime-frame/scene gate now passes end to end on the Pixel 7: the
-scenario resolves `menu_button_levels` and `menu_button_level_1` centers from
-`demi hud inspect` with the runtime-reported safe-area insets instead of
-hardcoded screen fractions, and the report verifies the platformer scene
-switch plus the frame-61 runtime marker with no fatal logcat entries.
+
+The gate now runs two complementary flows. The adb-tap flow resolves buttons
+through `demi hud inspect` with the runtime-reported safe-area insets and
+verifies the platformer scene switch plus the frame-61 runtime marker.
+Projects that declare `scripts/tests/mobile.lua` instead run Lua end-to-end
+tests in-app through the new `Mobile` API (`Mobile.touch`/`swipe`/`wait`/
+`expect_scene`/`expect`), which resolves nodes by id and injects synthetic
+touches through the real input pipeline; `[test]` markers are collected into
+`qualification.json` and the same harness runs on desktop via
+`demi run --mobile-tests`. Audio initialization, save-slot writes, and the
+smoke-coverage matrix are recorded per run, and qualified devices are tracked
+in docs/device-matrix.md. Both flows pass on the Pixel 7. Remaining before
+this slice closes: a network-loopback smoke assertion (needs the dedicated
+smoke scene) and at least one more device in the matrix.
 
 1. Create one deterministic automated smoke scene exercising text/fallback
    font, transparent texture, shader/material, audio, touch/IME, save path,
