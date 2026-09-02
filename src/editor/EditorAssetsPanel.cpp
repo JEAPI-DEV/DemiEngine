@@ -299,6 +299,8 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
                         EditorIcon::File, selectedSource_ == source)) {
         selectedSource_ = source;
         notice = "Selected project source: " + display;
+        if (isSceneFile(source) || isHudFile(source))
+          openRequest_ = source;
       }
       if (ImGui::IsItemHovered() &&
           ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))

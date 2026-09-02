@@ -1,5 +1,6 @@
 #include "cli/build/BuildService.h"
 #include "cli/build/LinuxPackaging.h"
+#include "cli/build/PackageContentAudit.h"
 
 #include "demi/assets/AssetCooker.h"
 #include "demi/assets/AssetHash.h"
@@ -287,6 +288,7 @@ bool writeAndroidPackageReport(
     const AndroidPackageVariant &variant,
     const runtime::ProjectBuildSettings &settings,
     const std::filesystem::path &cookedProject,
+    const PackagedContentAudit &packagedContent,
     const std::filesystem::path &artifact, Diagnostics &diagnostics) {
   const auto artifactHash = assets::hashFile(artifact);
   const auto projectHash = assets::hashFile(request.projectFile);
@@ -311,6 +313,13 @@ bool writeAndroidPackageReport(
       {"abis", settings.android.abis},
       {"permissions", settings.android.permissions},
       {"graphics_backends", {"vulkan", "opengles"}},
+      {"content_counts",
+       [&packagedContent] {
+         nlohmann::json counts = nlohmann::json::object();
+         for (const auto &[root, count] : packagedContent.fileCounts)
+           counts[root] = count;
+         return counts;
+       }()},
       {"artifact", artifact.filename().generic_string()},
       {"artifact_hash", *artifactHash},
       {"project_hash", *projectHash},
@@ -695,6 +704,18 @@ runProjectOperation(const ProjectOperationRequest &request) {
                                       : ProjectOperationStage::Failed;
     return result;
   }
+  stripCookCache(cookedProject);
+  const auto packagedContent = auditPackagedProject(cookedProject);
+  for (const std::filesystem::path &entry : packagedContent.unexpected) {
+    add(result.diagnostics, "BUILD_PACKAGE_CONTENT_UNEXPECTED",
+        "The cooked project contains content that is not packaged runtime "
+        "data.",
+        entry);
+  }
+  if (hasErrors(result.diagnostics)) {
+    result.stage = ProjectOperationStage::Failed;
+    return result;
+  }
   report(request, ProjectOperationStage::Package, 0.72F,
          "Running Android packaging");
 #if defined(__linux__)
@@ -734,9 +755,8 @@ runProjectOperation(const ProjectOperationRequest &request) {
     return result;
   }
   if (!writeAndroidPackageReport(
-          request, *androidVariant, *buildSettings,
-          cookedProject / request.projectFile.filename(), result.artifact,
-          result.diagnostics)) {
+          request, *androidVariant, *buildSettings, cookedProject,
+          packagedContent, result.artifact, result.diagnostics)) {
     result.stage = ProjectOperationStage::Failed;
     return result;
   }

@@ -124,11 +124,8 @@ int main() {
                            {"position", {8, 9}},
                            {"size", {100, 24}}}}}}}});
   EditorSpecializedDocument hud;
-  assert(hud.open(hudPath, index, error));
-  assert(hud.kind() == EditorSpecializedKind::Hud);
-  assert(hud.hudPreview());
-  assert(hud.hudPreview()->nodes.size() == 2);
-  assert(hud.hudPreview()->nodes[1].resolved.x == 8.0F);
+  assert(!hud.open(hudPath, index, error));
+  assert(error.find("integrated HUD viewport") != std::string::npos);
 
   const fs::path materialSource = root / "assets/materials/test.material.json";
   const fs::path materialManifest = root / "assets/materials/test.asset.json";

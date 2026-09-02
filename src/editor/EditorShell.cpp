@@ -22,15 +22,29 @@ namespace demi::editor {
 namespace {
 
 void drawStageTabs(const ImVec2 position, const ImVec2 size,
+                   EditorWorkspace &workspace, bool &showHudView,
                    bool &showGameView) {
   beginEditorPanel("StageTabs", position, size,
                    ImGuiWindowFlags_NoScrollbar |
                        ImGuiWindowFlags_NoScrollWithMouse);
-  if (editorStageTab("Viewport", !showGameView))
+  if (editorStageTab("Viewport", !showHudView && !showGameView)) {
+    showHudView = false;
     showGameView = false;
+    workspace.activateSceneDocument();
+  }
+  if (workspace.hasHudDocument()) {
+    ImGui::SameLine(0.0F, 2.0F);
+    if (editorStageTab("HUD", showHudView)) {
+      showHudView = true;
+      showGameView = false;
+      workspace.activateHudDocument();
+    }
+  }
   ImGui::SameLine(0.0F, 2.0F);
-  if (editorStageTab("Game View", showGameView))
+  if (editorStageTab("Game View", showGameView)) {
+    showHudView = false;
     showGameView = true;
+  }
   ImGui::SameLine(size.x - 22.0F);
   ImGui::TextDisabled("x");
   ImGui::End();
@@ -146,7 +160,7 @@ void drawStatus(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::SameLine();
   ImGui::TextDisabled("%s", target.c_str());
   ImGui::SameLine(size.x - 105.0F);
-  if (workspace.sceneDocument().isDirty())
+  if (workspace.activeDocumentDirty())
     ImGui::TextColored({0.95F, 0.67F, 0.28F, 1.0F}, "Modified");
   else
     ImGui::TextColored({0.32F, 0.86F, 0.49F, 1.0F}, "Ready");
@@ -188,16 +202,18 @@ EditorShell::EditorShell(EditorWorkspace &workspace)
 
 bool EditorShell::openDocument(const std::filesystem::path &path,
                                std::string &error) {
-  if (isHudFile(path) && workspace_.authoredHudPath() &&
-      std::filesystem::absolute(path).lexically_normal() ==
-          std::filesystem::absolute(*workspace_.authoredHudPath())
-              .lexically_normal()) {
-    const EditorHudDocument *hud = workspace_.hudDocument();
-    if (hud == nullptr || hud->preview().nodes.empty()) {
-      error = "The current HUD could not be opened in the viewport.";
+  if (isSceneFile(path)) {
+    if (!workspace_.openSceneDocument(path, error))
       return false;
-    }
-    workspace_.selectHudNode(hud->preview().nodes.front().id);
+    showHudView_ = false;
+    showGameView_ = false;
+    return true;
+  }
+  if (isHudFile(path)) {
+    if (!workspace_.openHudDocument(path, error))
+      return false;
+    showHudView_ = true;
+    showGameView_ = false;
     return true;
   }
   return specializedPanel_.open(path, workspace_.assetIndex(), error);
@@ -281,11 +297,11 @@ void EditorShell::draw(const int width, const int height,
                          {leftWidth, upperHeight}, selectedRuntimeEntityId_);
   else
     hierarchyPanel_.draw(workspace_, {0.0F, contentTop},
-                         {leftWidth, upperHeight}, notice_);
+                         {leftWidth, upperHeight}, showHudView_, notice_);
   if (runtimePanels)
     playSession_.setDebugFocus(selectedRuntimeEntityId_);
   drawStageTabs({leftWidth, contentTop}, {centerWidth, stageTabsHeight},
-                showGameView_);
+                workspace_, showHudView_, showGameView_);
   const ImVec2 stagePosition{leftWidth, contentTop + stageTabsHeight};
   const ImVec2 stageSize{centerWidth, upperHeight - stageTabsHeight};
   if (showGameView_) {
@@ -296,7 +312,7 @@ void EditorShell::draw(const int width, const int height,
     gameArea_ = {};
     gameViewFocused_ = false;
     drawEditorViewport(workspace_, stagePosition, stageSize, viewportArea_,
-                       hudViewportState_, notice_);
+                       hudViewportState_, showHudView_, notice_);
   }
   if (runtimePanels)
     drawRuntimeInspector(*runtimeWorld, {screenWidth - rightWidth, contentTop},

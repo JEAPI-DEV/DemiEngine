@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "demi/runtime/scene/model/SceneTypes.h"
+#include "demi/runtime/ui/UiModel.h"
 #include "editor/EditorGpuTiming.h"
 #include "editor/EditorSceneView2DState.h"
 #include "editor/EditorSceneViewState.h"
@@ -51,6 +52,9 @@ public:
   renderViewport2D(const runtime::World &world, EditorViewportArea area,
                    const EditorSceneView2DCamera &camera, bool showColliders,
                    std::string &error) = 0;
+  [[nodiscard]] virtual bool renderHud(const runtime::ui::UiDocument &document,
+                                       EditorViewportArea area,
+                                       std::string &error) = 0;
   [[nodiscard]] virtual bool
   configureGameRenderer(const std::filesystem::path &projectDirectory,
                         std::string &error) = 0;

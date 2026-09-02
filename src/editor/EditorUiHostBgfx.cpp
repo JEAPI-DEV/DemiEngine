@@ -258,6 +258,25 @@ public:
     return renderer2D_->endFrame(error);
   }
 
+  bool renderHud(const runtime::ui::UiDocument &document,
+                 const EditorViewportArea area, std::string &error) override {
+    const auto &frame = platform_->frameState();
+    if (frame.minimized || frame.width <= 0 || frame.height <= 0 ||
+        area.width == 0 || area.height == 0)
+      return true;
+    if (!renderer2D_->beginOverlayRegion(1, area.x, area.y, area.width,
+                                         area.height, frame.deltaSeconds,
+                                         error))
+      return false;
+    if (!renderer2D_->drawUi(document)) {
+      std::string ignored;
+      (void)renderer2D_->endFrame(ignored);
+      error = "Could not draw the authored HUD.";
+      return false;
+    }
+    return renderer2D_->endFrame(error);
+  }
+
   bool configureGameRenderer(const std::filesystem::path &projectDirectory,
                              std::string &error) override {
     return gameRenderer_->configure(projectDirectory, error);

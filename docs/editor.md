@@ -14,11 +14,17 @@ filesystem service used by `demi dev`.
 
 ## Current slice
 
-- The hierarchy displays entities from the loaded main scene and follows
+- The hierarchy displays entities from the active authored scene and follows
   authored 2D, 3D, and isometric transform parents. The scene's runtime HUD is
   also projected as a distinct nested `HUD` subtree with UI-specific icons and
   visibility state; selecting a HUD node shows its resolved properties, while
   prefab-expanded nodes remain visibly read-only.
+- Clicking a registered `*.scene.json` source in Assets switches the active
+  scene document and viewport without changing the project's `main_scene`.
+  Scene switching is rejected while the current scene or its attached HUD has
+  unsaved changes. Clicking a `*.hud.json` source opens the integrated HUD tab;
+  its canvas, hierarchy, selection, Inspector, Undo/Redo, and Save paths are
+  the same ones used by scene-attached UI.
 - The authored HUD is rendered through the runtime UI renderer over both 2D
   and 3D scene views. Visible elements can be picked, moved, and resized on the
   canvas; empty transparent containers do not steal scene selection. The same
@@ -467,12 +473,12 @@ classes before a second format needs shared behavior.
 
 - [x] Prefab editor: source/expanded view, nested stable IDs, override diff,
   apply/revert, missing references, and atomic multi-file failure handling.
-- [x] HUD editor: hierarchy, anchors/layout, safe-area, DPI, locale, and sample
-  data through the runtime layout engine without saving generated nodes. The
-  active scene HUD is also a first-class viewport document with visual
-  selection, move/resize handles, typed Inspector controls, and structural
-  add/delete commands; raw JSON is an advanced fallback rather than the main
-  workflow.
+- [x] HUD editor: an integrated HUD stage tab, the normal hierarchy and
+  Inspector, runtime-rendered canvas, visual selection, move/resize handles,
+  typed controls, and structural add/delete commands. Scene-attached HUDs stay
+  visible in the Scene viewport; independently opened HUD files retain their
+  own document state without replacing the scene's UI. The obsolete modal JSON
+  HUD editor has been removed.
 - [x] Material editor: reflected properties and runtime-backed preview.
 - [x] Animation editor: clip/state-machine editing and preview using existing
   animation assets and runtime playback rules.
@@ -569,7 +575,8 @@ world through `loadSceneDocument` after structural changes.
 `EditorHierarchyPanel` owns hierarchy filtering, menus, and drag/drop intent;
 it submits only stable IDs to `EditorWorkspace`. HUD rows are a read-only
 hierarchy projection of the parsed `UiDocument`, not synthetic scene entities;
-HUD mutations remain owned by the specialized document editor.
+HUD mutations remain owned by `EditorHudDocument` and are presented through
+the same hierarchy, viewport, and Inspector as scene content.
 `EditorUiHost` owns SDL3, bgfx, input forwarding, the authored 3D viewport, and
 the Dear ImGui frame lifecycle. The viewport reuses `BgfxRenderer3D`,
 `GpuResources`, and `RenderCommands` on a separate bgfx view. Runtime and
@@ -586,14 +593,16 @@ presentation state. No editor-only asset or project database exists.
 
 Milestone 8 adds `EditorJsonDocument` only for persistence/history shared by
 the now-proven specialized formats. `EditorSpecializedDocument` selects the
-real prefab, HUD, material, animation, data, and audio validator;
+real prefab, material, animation, data, and audio validator;
 `EditorSpecializedPanel` owns source/preview presentation; and
 `EditorAnimationMachinePanel` submits state-machine changes through the normal
 scene command path. SDL file drops cross `PlatformHost` and `EditorUiHost` as
 paths, then enter `EditorAssetDialogs`; they never bypass `AssetImporter`.
 `EditorHudDocument` owns nested authored-node operations and HUD history;
-`EditorHudCanvas` owns screen-independent bounds and picking; the hierarchy,
-viewport, and Inspector consume those services through `EditorWorkspace`.
+`EditorHudCanvas` owns screen-independent bounds and picking; the integrated
+HUD stage, hierarchy, viewport, and Inspector consume those services through
+`EditorWorkspace`. `EditorSpecializedPanel` remains responsible only for
+prefab, material, animation, data, and audio documents.
 
 Milestone 9A keeps profiling and diagnostics UI-free until presentation:
 `RuntimeProfiler` owns bounded rolling samples; `EditorProfilerModel`

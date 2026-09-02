@@ -4,11 +4,7 @@
 
 #include "demi/assets/DataAsset.h"
 #include "demi/filesystem/ProjectPaths.h"
-#include "demi/runtime/scene/HudParser.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
-#include "demi/runtime/ui/UiDocumentParser.h"
-#include "demi/runtime/ui/UiLayoutEngine.h"
-#include "demi/runtime/ui/UiLocalization.h"
 #include "demi/runtime/ui/UiPrefabResolver.h"
 
 #include <algorithm>
@@ -24,7 +20,8 @@ bool EditorSpecializedDocument::open(
   if (isPrefabFile(path)) {
     kind_ = EditorSpecializedKind::Prefab;
   } else if (isHudFile(path)) {
-    kind_ = EditorSpecializedKind::Hud;
+    error = "HUD documents open in the integrated HUD viewport.";
+    return false;
   } else {
     const EditorAssetRecord *record = assetIndex.findByManifest(path);
     if (record == nullptr)
@@ -100,12 +97,9 @@ std::string_view EditorSpecializedDocument::title() const {
   return "Document Editor";
 }
 
-void EditorSpecializedDocument::rebuildPreview(
-    const runtime::ui::Insets safeArea, std::string locale,
-    const float dpiScale) {
+void EditorSpecializedDocument::rebuildPreview() {
   expandedPrefab_ = nlohmann::json::object();
   prefabDiff_ = nlohmann::json::array();
-  hudPreview_.reset();
   if (kind_ == EditorSpecializedKind::Prefab) {
     nlohmann::json scene{
         {"format_version", 1},
@@ -120,38 +114,7 @@ void EditorSpecializedDocument::rebuildPreview(
       expandedPrefab_ = *expanded.document;
       prefabDiff_ = nlohmann::json::diff(scene, expandedPrefab_);
     }
-  } else if (kind_ == EditorSpecializedKind::Hud) {
-    std::string ignored;
-    auto parsed = runtime::scene_loading::parseHudDocument(
-        document_.path(), document_.json(), ignored);
-    if (!parsed)
-      return;
-    runtime::ui::UiDocument preview = std::move(*parsed);
-    preview.safeArea = safeArea;
-    if (!locale.empty()) {
-      std::string ignored;
-      (void)runtime::ui::UiLocalization{}.setLocale(preview, std::move(locale),
-                                                    ignored);
-    }
-    const runtime::Vec2 previewSize{
-        preview.canvasSize.x * std::max(dpiScale, 0.25F),
-        preview.canvasSize.y * std::max(dpiScale, 0.25F)};
-    runtime::ui::UiLayoutEngine{}.layout(preview, previewSize);
-    preview.canvasSize = previewSize;
-    hudPreview_ = std::move(preview);
   }
-}
-
-void EditorSpecializedDocument::applyHudSampleText(
-    const std::string_view text) {
-  if (!hudPreview_ || text.empty())
-    return;
-  const auto node = std::ranges::find_if(
-      hudPreview_->nodes, [](const runtime::ui::UiNode &candidate) {
-        return candidate.type == "label" || candidate.type == "button";
-      });
-  if (node != hudPreview_->nodes.end())
-    node->text = text;
 }
 
 bool EditorSpecializedDocument::revertPrefabOverrides(

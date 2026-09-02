@@ -1,4 +1,5 @@
 #include "cli/build/LinuxPackaging.h"
+#include "cli/build/PackageContentAudit.h"
 
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetRegistry.h"
@@ -190,6 +191,7 @@ bool writeNotices(const LinuxPackageRequest &request,
 bool writeReport(const LinuxPackageRequest &request,
                  const runtime::ProjectBuildSettings &settings,
                  const std::filesystem::path &runtime,
+                 const PackagedContentAudit &packagedContent,
                  Diagnostics &diagnostics) {
   const auto runtimeHash = assets::hashFile(runtime);
   const auto projectHash = assets::hashFile(request.projectFile);
@@ -212,7 +214,14 @@ bool writeReport(const LinuxPackageRequest &request,
       {"project_hash", *projectHash},
       {"cook_manifest_hash", *cookHash},
       {"shared_library_policy", "system"},
-      {"writable_paths", {"XDG_DATA_HOME", "XDG_CACHE_HOME"}}};
+      {"writable_paths", {"XDG_DATA_HOME", "XDG_CACHE_HOME"}},
+      {"content_counts",
+       [&packagedContent] {
+         nlohmann::json counts = nlohmann::json::object();
+         for (const auto &[root, count] : packagedContent.fileCounts)
+           counts[root] = count;
+         return counts;
+       }()}};
   std::ofstream output(request.stagingDirectory / "build-report.json");
   if (!output) {
     add(diagnostics, "BUILD_LINUX_REPORT_WRITE_FAILED",
@@ -269,7 +278,9 @@ Diagnostics stageLinuxPackage(const LinuxPackageRequest &request) {
   if (hasErrors(diagnostics) ||
       !writeDesktopEntry(request, settings, icon, diagnostics) ||
       !writeNotices(request, settings, diagnostics) ||
-      !writeReport(request, settings, runtime, diagnostics))
+      !writeReport(request, settings, runtime,
+                   auditPackagedProject(request.stagingDirectory / "project"),
+                   diagnostics))
     return diagnostics;
   return diagnostics;
 }

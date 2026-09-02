@@ -51,13 +51,14 @@ void drawOrientationGizmo(ImDrawList &draw, const ImVec2 center,
 
 void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                         const ImVec2 size, EditorViewportArea &viewportArea,
-                        EditorHudViewportState &hudState, std::string &notice) {
+                        EditorHudViewportState &hudState, const bool hudOnly,
+                        std::string &notice) {
   beginEditorPanel("Viewport", position, size,
                    ImGuiWindowFlags_NoScrollbar |
                        ImGuiWindowFlags_NoScrollWithMouse |
                        ImGuiWindowFlags_NoBackground);
-  const bool is2D =
-      workspace.viewDimension() == EditorSceneViewDimension::TwoDimensional;
+  const bool is2D = hudOnly || workspace.viewDimension() ==
+                                   EditorSceneViewDimension::TwoDimensional;
   const ImVec2 canvasMin = ImGui::GetCursorScreenPos();
   const ImVec2 available = ImGui::GetContentRegionAvail();
   const float canvasWidth = std::max(available.x, 0.0F);
@@ -77,7 +78,8 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
   }
   ImDrawList *draw = ImGui::GetWindowDrawList();
   const char *viewLabel =
-      is2D ? "2D"
+      hudOnly ? "HUD"
+      : is2D  ? "2D"
       : workspace.sceneView().projection() == EditorProjection::Perspective
           ? "Perspective"
           : "Orthographic";
@@ -89,7 +91,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
   draw->AddRect(badgeMin, badgeMax, IM_COL32(80, 88, 103, 255), 3.0F);
   draw->AddText({badgeMin.x + 9.0F, badgeMin.y + 5.0F},
                 IM_COL32(224, 227, 235, 255), viewLabel);
-  if (is2D) {
+  if (is2D && !hudOnly) {
     for (const EditorOverlayLine2D &line : buildEditorViewportOverlays2D(
              workspace.project().world, workspace.sceneView2D().camera(),
              {canvasWidth, canvasHeight}, workspace.tilemaps2D(),
@@ -99,13 +101,16 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
       draw->AddLine({canvasMin.x + line.start.x, canvasMin.y + line.start.y},
                     {canvasMin.x + line.end.x, canvasMin.y + line.end.y},
                     line.rgba, line.width);
-  } else {
+  } else if (!hudOnly) {
     const ImVec2 orientation{canvasMax.x - 66.0F, canvasMin.y + 66.0F};
     drawOrientationGizmo(*draw, orientation, workspace.sceneView().camera());
   }
   const runtime::Entity *selected = workspace.selectedEntity();
+  const runtime::ui::UiNode *selectedHudNode = workspace.selectedHudNode();
   const std::string label =
-      workspace.selectedIsoGridCell()
+      hudOnly ? selectedHudNode == nullptr ? "No HUD element selected"
+                                           : "Selected: " + selectedHudNode->id
+      : workspace.selectedIsoGridCell()
           ? "Selected: Cell " +
                 isoGridCellKey(workspace.selectedIsoGridCell()->x,
                                workspace.selectedIsoGridCell()->y)
@@ -118,7 +123,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
     const bool hovered = ImGui::IsItemHovered();
     const bool focused = ImGui::IsWindowFocused();
     ImGuiIO &io = ImGui::GetIO();
-    const runtime::ui::UiDocument &hud = workspace.project().world.ui;
+    const runtime::ui::UiDocument &hud = workspace.displayedHud();
     const float hudScaleX = canvasWidth / std::max(hud.canvasSize.x, 1.0F);
     const float hudScaleY = canvasHeight / std::max(hud.canvasSize.y, 1.0F);
     const runtime::Vec2 hudMouse{
@@ -175,7 +180,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
         hudState = {};
       }
     }
-    if (focused && !io.WantTextInput &&
+    if (!hudOnly && focused && !io.WantTextInput &&
         ImGui::IsKeyPressed(ImGuiKey_F, false)) {
       if (is2D)
         (void)workspace.sceneView2D().frameEntity(workspace.project().world,
@@ -206,10 +211,12 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
         .moveDown = ImGui::IsKeyDown(ImGuiKey_Q),
         .fast = io.KeyShift,
     };
-    if (is2D)
-      workspace.sceneView2D().update(viewportInput);
-    else
-      workspace.sceneView().update(viewportInput);
+    if (!hudOnly) {
+      if (is2D)
+        workspace.sceneView2D().update(viewportInput);
+      else
+        workspace.sceneView().update(viewportInput);
+    }
     std::string interactionError;
     const EditorViewportToolInput toolInput{
         .mousePosition = {io.MousePos.x - canvasMin.x,
@@ -225,14 +232,16 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
         .bypassSnapping = io.KeyShift,
         .cancelPressed = ImGui::IsKeyPressed(ImGuiKey_Escape, false)};
     const bool toolUpdated =
-        is2D ? workspace.updateViewportTool2D(toolInput, interactionError)
-             : workspace.updateViewportTool(toolInput, interactionError);
+        hudOnly ||
+        (is2D ? workspace.updateViewportTool2D(toolInput, interactionError)
+              : workspace.updateViewportTool(toolInput, interactionError));
     if (!toolUpdated)
       notice = std::move(interactionError);
 
     const EditorGizmoPresentation gizmo =
-        is2D ? workspace.gizmoPresentation2D({canvasWidth, canvasHeight})
-             : workspace.gizmoPresentation({canvasWidth, canvasHeight});
+        hudOnly ? EditorGizmoPresentation{}
+        : is2D  ? workspace.gizmoPresentation2D({canvasWidth, canvasHeight})
+                : workspace.gizmoPresentation({canvasWidth, canvasHeight});
     const EditorGizmoOperation drawnOperation =
         is2D ? workspace.viewportTool2D().operation()
              : workspace.viewportTool().operation();
@@ -293,10 +302,12 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
     }
     if (hovered)
       ImGui::SetTooltip(
-          is2D ? "Click select (repeat to cycle overlaps) | Middle pan | "
-                 "Wheel zoom | F frame | Shift bypass snap"
-               : "Alt+Left orbit | Middle pan | Wheel zoom | "
-                 "Right+WASDQE fly | F frame | Shift bypass snap");
+          hudOnly ? "Click an element to select | Drag to move | Drag the "
+                    "corner handle to resize"
+          : is2D  ? "Click select (repeat to cycle overlaps) | Middle pan | "
+                    "Wheel zoom | F frame | Shift bypass snap"
+                  : "Alt+Left orbit | Middle pan | Wheel zoom | "
+                    "Right+WASDQE fly | F frame | Shift bypass snap");
   } else {
     if (is2D)
       workspace.sceneView2D().update({});

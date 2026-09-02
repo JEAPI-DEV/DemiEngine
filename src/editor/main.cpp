@@ -160,6 +160,9 @@ int main(const int argc, char **argv) {
       rendered =
           ui->renderGame(*shell.playSession().runtimeWorld(), shell.gameArea(),
                          shell.playSession().interpolationAlpha(), error);
+    } else if (viewportReady && shell.showingHudView()) {
+      rendered =
+          ui->renderHud(workspace.displayedHud(), shell.viewportArea(), error);
     } else if (viewportReady &&
                workspace.viewDimension() ==
                    demi::editor::EditorSceneViewDimension::TwoDimensional) {

@@ -237,11 +237,11 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
 
 void drawHudHierarchy(EditorWorkspace &workspace, const std::string_view filter,
                       std::string &notice) {
-  const auto hudPath = workspace.authoredHudPath();
-  if (!hudPath)
+  const EditorHudDocument *hud = workspace.hudDocument();
+  if (hud == nullptr)
     return;
   const std::vector<EditorHudHierarchyNode> nodes =
-      editorHudHierarchy(workspace.project().world.ui);
+      editorHudHierarchy(hud->preview());
   const bool hasMatch =
       filter.empty() || std::ranges::any_of(nodes, [&](const auto &node) {
         return hudNodeMatches(nodes, node, filter);
@@ -364,18 +364,23 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
 
 void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
                                 const ImVec2 position, const ImVec2 size,
-                                std::string &notice) {
+                                const bool hudOnly, std::string &notice) {
   beginEditorPanel("Hierarchy", position, size);
-  editorSectionTitle("Scene", workspace.project().world.name.c_str());
+  const std::string documentName =
+      hudOnly && workspace.hudDocument()
+          ? workspace.hudDocument()->path().filename().string()
+          : workspace.project().world.name;
+  editorSectionTitle(hudOnly ? "HUD" : "Scene", documentName.c_str());
   std::optional<HierarchyAction> pending;
   ImGui::SetNextItemWidth(-1.0F);
   ImGui::InputTextWithHint("##hierarchy-search", "Search entities",
                            filter_.data(), filter_.size());
   ImGui::Spacing();
-  if (ImGui::SmallButton("+ Add Entity"))
+  if (!hudOnly && ImGui::SmallButton("+ Add Entity"))
     pending = HierarchyAction{.kind = HierarchyAction::Kind::Create};
   if (workspace.hudDocument()) {
-    ImGui::SameLine();
+    if (!hudOnly)
+      ImGui::SameLine();
     if (ImGui::SmallButton("+ UI Element"))
       ImGui::OpenPopup("add-hud-element");
     if (ImGui::BeginPopup("add-hud-element")) {
@@ -395,20 +400,24 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
   }
   ImGui::Spacing();
 
-  const bool sceneOpen =
-      ImGui::TreeNodeEx("Scene", ImGuiTreeNodeFlags_DefaultOpen |
-                                     ImGuiTreeNodeFlags_SpanAvailWidth);
-  acceptEntityDrop(pending, std::nullopt);
-  if (sceneOpen) {
-    for (const runtime::Entity &entity : workspace.project().world.entities)
-      if (entityParent(entity).empty())
-        drawEntityNode(workspace, entity, workspace.project().world,
-                       filter_.data(), pending, notice);
+  if (hudOnly) {
     drawHudHierarchy(workspace, filter_.data(), notice);
-    ImGui::TreePop();
+  } else {
+    const bool sceneOpen =
+        ImGui::TreeNodeEx("Scene", ImGuiTreeNodeFlags_DefaultOpen |
+                                       ImGuiTreeNodeFlags_SpanAvailWidth);
+    acceptEntityDrop(pending, std::nullopt);
+    if (sceneOpen) {
+      for (const runtime::Entity &entity : workspace.project().world.entities)
+        if (entityParent(entity).empty())
+          drawEntityNode(workspace, entity, workspace.project().world,
+                         filter_.data(), pending, notice);
+      drawHudHierarchy(workspace, filter_.data(), notice);
+      ImGui::TreePop();
+    }
   }
 
-  const bool handlesKeyboard = ImGui::IsWindowFocused() &&
+  const bool handlesKeyboard = !hudOnly && ImGui::IsWindowFocused() &&
                                !ImGui::GetIO().WantTextInput &&
                                !workspace.selectedEntityId().empty();
   if (handlesKeyboard) {

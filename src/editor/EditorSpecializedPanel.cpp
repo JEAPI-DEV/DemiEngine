@@ -59,7 +59,12 @@ void drawPrefabPreview(EditorSpecializedDocument &editor, std::string &notice) {
       ImGui::PushID(static_cast<int>(index));
       ImGui::Text("%s -> %s", instance.value("id", "").c_str(),
                   instance.value("prefab", "").c_str());
-      ImGui::SameLine(430.0F);
+      const float applyButtonWidth = ImGui::CalcTextSize("Apply to source").x +
+                                     ImGui::GetStyle().FramePadding.x * 2.0F;
+      ImGui::SameLine(std::max(ImGui::GetCursorPosX(),
+                               ImGui::GetCursorPosX() +
+                                   ImGui::GetContentRegionAvail().x -
+                                   applyButtonWidth));
       if (ImGui::SmallButton("Apply to source")) {
         std::string error;
         notice = editor.applyPrefabOverrides(index, error)
@@ -79,33 +84,6 @@ void drawPrefabPreview(EditorSpecializedDocument &editor, std::string &notice) {
       }
       ImGui::PopID();
     }
-  }
-}
-
-void drawHudPreview(const runtime::ui::UiDocument &hud) {
-  const ImVec2 available = ImGui::GetContentRegionAvail();
-  const float scale = std::min(available.x / std::max(hud.canvasSize.x, 1.0F),
-                               available.y / std::max(hud.canvasSize.y, 1.0F));
-  const ImVec2 origin = ImGui::GetCursorScreenPos();
-  const ImVec2 canvas{hud.canvasSize.x * scale, hud.canvasSize.y * scale};
-  ImGui::InvisibleButton("hud-preview", canvas);
-  ImDrawList *draw = ImGui::GetWindowDrawList();
-  draw->AddRectFilled(origin, {origin.x + canvas.x, origin.y + canvas.y},
-                      IM_COL32(18, 21, 27, 255));
-  for (const runtime::ui::UiNode &node : hud.nodes) {
-    if (!node.visible)
-      continue;
-    const ImVec2 min{origin.x + node.resolved.x * scale,
-                     origin.y + node.resolved.y * scale};
-    const ImVec2 max{min.x + node.resolved.width * scale,
-                     min.y + node.resolved.height * scale};
-    const ImU32 fill = ImGui::ColorConvertFloat4ToU32(
-        {node.backgroundColor.r, node.backgroundColor.g, node.backgroundColor.b,
-         std::max(node.backgroundColor.a, 0.08F)});
-    draw->AddRectFilled(min, max, fill);
-    draw->AddRect(min, max, IM_COL32(116, 94, 175, 210));
-    draw->AddText({min.x + 3.0F, min.y + 2.0F}, IM_COL32(220, 222, 230, 255),
-                  node.id.c_str());
   }
 }
 
@@ -326,19 +304,49 @@ void EditorSpecializedPanel::draw(EditorWorkspace &workspace,
   }
 
   EditorJsonDocument &document = active_->document();
+  // Measure the toolbar first so the title row is clipped to leave room for
+  // it regardless of window width or path length.
+  const ImGuiStyle &style = ImGui::GetStyle();
+  float toolbarWidth = 0.0F;
+  for (const char *label : {"Undo", "Redo", "Save", "Close"}) {
+    toolbarWidth += ImGui::CalcTextSize(label).x + style.FramePadding.x * 2.0F +
+                    style.ItemSpacing.x;
+  }
+  const float rowStartX = ImGui::GetCursorPosX();
+  const float rowWidth = ImGui::GetContentRegionAvail().x;
+  const ImVec2 rowStartScreen = ImGui::GetCursorScreenPos();
+  const float toolbarLeft =
+      rowStartX + std::max(rowWidth - toolbarWidth, ImGui::GetTextLineHeight());
+  const float titleWidth = ImGui::CalcTextSize(active_->title().data()).x;
+  const float badgeWidth =
+      document.isDirty()
+          ? ImGui::CalcTextSize("Modified").x + style.ItemSpacing.x
+          : 0.0F;
+  const float pathLeft = rowStartX + titleWidth + style.ItemSpacing.x;
+  const float pathRight = toolbarLeft - badgeWidth - style.ItemSpacing.x;
+
   ImGui::TextUnformatted(active_->title().data());
-  ImGui::SameLine();
-  ImGui::TextDisabled("%s", document.path().string().c_str());
+  ImGui::SameLine(pathLeft);
+  const std::string documentPath = document.path().string();
+  const float lineHeight = ImGui::GetTextLineHeight();
+  ImVec2 clipMin{rowStartScreen.x + (pathLeft - rowStartX), rowStartScreen.y};
+  ImVec2 clipMax{rowStartScreen.x + (pathRight - rowStartX),
+                 rowStartScreen.y + lineHeight};
+  ImGui::PushClipRect(clipMin, clipMax, true);
+  ImGui::TextDisabled("%s", documentPath.c_str());
+  ImGui::PopClipRect();
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("%s", documentPath.c_str());
   if (document.isDirty()) {
-    ImGui::SameLine();
+    ImGui::SameLine(toolbarLeft - badgeWidth);
     ImGui::TextColored({0.95F, 0.67F, 0.28F, 1.0F}, "Modified");
   }
-  ImGui::SameLine(790.0F);
+  ImGui::SameLine(toolbarLeft);
   ImGui::BeginDisabled(!document.canUndo());
   if (ImGui::Button("Undo")) {
     std::string error;
     if (document.undo(error)) {
-      active_->rebuildPreview(safeArea_, locale_.data(), hudDpiScale_);
+      active_->rebuildPreview();
       editBufferPointer_.clear();
       notice = "Undid document edit";
     } else
@@ -350,7 +358,7 @@ void EditorSpecializedPanel::draw(EditorWorkspace &workspace,
   if (ImGui::Button("Redo")) {
     std::string error;
     if (document.redo(error)) {
-      active_->rebuildPreview(safeArea_, locale_.data(), hudDpiScale_);
+      active_->rebuildPreview();
       editBufferPointer_.clear();
       notice = "Redid document edit";
     } else
@@ -386,32 +394,11 @@ void EditorSpecializedPanel::draw(EditorWorkspace &workspace,
   ImGui::Separator();
 
   if (ImGui::BeginTabBar("specialized-tabs")) {
-    const char *previewLabel =
-        active_->kind() == EditorSpecializedKind::Hud ? "Design" : "Preview";
-    if (ImGui::BeginTabItem(previewLabel)) {
-      active_->rebuildPreview(safeArea_, locale_.data(), hudDpiScale_);
+    if (ImGui::BeginTabItem("Preview")) {
+      active_->rebuildPreview();
       if (active_->kind() == EditorSpecializedKind::Prefab)
         drawPrefabPreview(*active_, notice);
-      else if (active_->kind() == EditorSpecializedKind::Hud) {
-        bool changed = false;
-        changed |= ImGui::InputFloat("Safe left", &safeArea_.left);
-        ImGui::SameLine();
-        changed |= ImGui::InputFloat("Safe top", &safeArea_.top);
-        changed |= ImGui::InputFloat("Safe right", &safeArea_.right);
-        ImGui::SameLine();
-        changed |= ImGui::InputFloat("Safe bottom", &safeArea_.bottom);
-        changed |= ImGui::InputText("Locale", locale_.data(), locale_.size(),
-                                    ImGuiInputTextFlags_EnterReturnsTrue);
-        ImGui::InputTextWithHint("Sample text", "Preview-only sample data",
-                                 hudSampleText_.data(), hudSampleText_.size());
-        changed |=
-            ImGui::InputFloat("DPI scale", &hudDpiScale_, 0.1F, 0.5F, "%.2f");
-        if (changed)
-          active_->rebuildPreview(safeArea_, locale_.data(), hudDpiScale_);
-        active_->applyHudSampleText(hudSampleText_.data());
-        if (active_->hudPreview())
-          drawHudPreview(*active_->hudPreview());
-      } else if (active_->kind() == EditorSpecializedKind::Material) {
+      else if (active_->kind() == EditorSpecializedKind::Material) {
         drawMaterialControls(*active_, notice);
         drawMaterialPreview(document);
       } else if (active_->kind() == EditorSpecializedKind::Animation) {
@@ -427,10 +414,7 @@ void EditorSpecializedPanel::draw(EditorWorkspace &workspace,
       }
       ImGui::EndTabItem();
     }
-    const char *sourceLabel = active_->kind() == EditorSpecializedKind::Hud
-                                  ? "Advanced JSON"
-                                  : "Source";
-    if (ImGui::BeginTabItem(sourceLabel)) {
+    if (ImGui::BeginTabItem("Source")) {
       drawEditorJsonSource(document, selectedPointer_, editBuffer_,
                            editBufferPointer_, notice);
       ImGui::EndTabItem();

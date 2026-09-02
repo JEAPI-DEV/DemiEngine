@@ -1,4 +1,5 @@
 #include "cli/build/BuildService.h"
+#include "cli/build/PackageContentAudit.h"
 
 #include <algorithm>
 #include <cassert>
@@ -58,6 +59,41 @@ int main() {
   assert(package.succeeded());
   assert(fs::is_regular_file(bundle / "bin/build_fixture"));
   assert(fs::is_regular_file(bundle / "build_fixture"));
+
+  // The package-content audit rejects non-runtime content and records
+  // deterministic per-root file counts for the archived build report.
+  const auto audit = demi::build::auditPackagedProject(cooked);
+  assert(audit.unexpected.empty());
+  assert(audit.fileCounts.contains("scenes") &&
+         audit.fileCounts.at("scenes") == 1);
+  assert(audit.fileCounts.contains("demi.project.json") &&
+         audit.fileCounts.at("demi.project.json") == 1);
+  assert(fs::is_regular_file(bundle / "build-report.json"));
+  demi::build::stripCookCache(cooked);
+
+  const fs::path leaky = root / "output/leaky-cooked";
+  fs::create_directories(leaky);
+  if (fs::exists(cooked / "assets"))
+    fs::copy(cooked / "assets", leaky / "assets",
+             fs::copy_options::recursive);
+  for (const char *allowed : {"scenes", "scripts", "certs", "packages"}) {
+    if (fs::exists(cooked / allowed))
+      fs::copy(cooked / allowed, leaky / allowed, fs::copy_options::recursive);
+  }
+  fs::copy_file(cooked / "demi.project.json", leaky / "demi.project.json",
+                fs::copy_options::overwrite_existing);
+  fs::copy_file(cooked / "cook.manifest.json", leaky / "cook.manifest.json",
+                fs::copy_options::overwrite_existing);
+  write(leaky / "saves/leaked.save.json", "{}");
+  write(leaky / ".cook-cache/junk.bin", "junk");
+  const auto leakAudit = demi::build::auditPackagedProject(leaky);
+  assert(leakAudit.unexpected.size() == 2);
+  assert(std::ranges::any_of(leakAudit.unexpected, [](const fs::path &path) {
+    return path.filename() == "saves";
+  }));
+  assert(std::ranges::any_of(leakAudit.unexpected, [](const fs::path &path) {
+    return path.filename() == ".cook-cache";
+  }));
   assert(fs::is_regular_file(bundle / "project/demi.project.json"));
   assert(fs::is_regular_file(bundle / "project/cook.manifest.json"));
   assert(fs::is_regular_file(

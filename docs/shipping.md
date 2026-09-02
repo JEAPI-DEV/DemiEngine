@@ -98,3 +98,33 @@ Game saves and writable data use `$XDG_DATA_HOME/<game>/`; caches use
 `$XDG_CACHE_HOME/<game>/`. When those variables are absent, the runtime follows
 the standard `$HOME/.local/share` and `$HOME/.cache` fallbacks. Packaged games
 never need to write beside their executable or cooked project.
+
+## Package content
+
+Every package ships only the cooked runtime data roots the packaged runtime
+reads: `assets/`, `certs/`, `packages/`, `scenes/`, `scripts/`, plus
+`demi.project.json`, `demi.packages.lock.json`, and `cook.manifest.json`.
+Packaging strips the cook cache and audits the staged tree before building;
+content outside those roots (`saves/`, editor state, build caches, tests)
+fails the build with `BUILD_PACKAGE_CONTENT_UNEXPECTED`. The archived
+`build-report.json` next to each artifact records the per-root file counts so
+content drift between builds is visible.
+
+## Save compatibility
+
+Save documents are JSON with a `format_version`. Loading an older save runs
+its registered migrations (`Save.register_migration`) before use; games must
+keep migrations registered for every released version of a slot. Save slots
+live in the platform user-data directory, so installing, upgrading, or
+rolling back a package never deletes or rewrites them; only uninstalling does.
+
+## Rollback policy
+
+Artifacts are published transactionally: a failed or interrupted package
+never replaces the previous artifact, so the last good build remains runnable
+and rollback is "reinstall the previous artifact". Because save data lives
+outside the package, rolling the application back keeps user progress; only
+revert gameplay migrations deliberately if a newer save format must be
+rejected, and register the rejecting migration explicitly. Never ship
+certificate or signing material inside the package; signing inputs stay in
+environment/CI secret references.

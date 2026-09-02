@@ -28,10 +28,16 @@
 
 namespace demi::editor {
 
+enum class EditorWorkspaceDocument { Scene, Hud };
+
 class EditorWorkspace {
 public:
   [[nodiscard]] bool open(std::filesystem::path projectPath,
                           std::string &error);
+  [[nodiscard]] bool openSceneDocument(const std::filesystem::path &path,
+                                       std::string &error);
+  [[nodiscard]] bool openHudDocument(const std::filesystem::path &path,
+                                     std::string &error);
   [[nodiscard]] bool refresh(std::string &error);
   [[nodiscard]] bool save(std::string &error);
   [[nodiscard]] bool saveProject(std::string &error);
@@ -141,30 +147,42 @@ public:
     return sources_;
   }
   [[nodiscard]] std::optional<std::filesystem::path> authoredHudPath() const;
-  [[nodiscard]] const EditorHudDocument *hudDocument() const {
-    return hudDocument_ ? &*hudDocument_ : nullptr;
+  [[nodiscard]] const EditorHudDocument *hudDocument() const;
+  [[nodiscard]] const runtime::ui::UiDocument &displayedHud() const;
+  [[nodiscard]] bool hasHudDocument() const {
+    return hudDocument_.has_value() || openedHudDocument_.has_value();
   }
+  [[nodiscard]] EditorWorkspaceDocument activeDocument() const {
+    return activeDocument_;
+  }
+  void activateSceneDocument();
+  void activateHudDocument();
   [[nodiscard]] bool activeDocumentDirty() const {
-    return !selectedHudNodeId_.empty() && hudDocument_
-               ? hudDocument_->isDirty()
+    const EditorHudDocument *hud = hudDocument();
+    return activeDocument_ == EditorWorkspaceDocument::Hud && hud
+               ? hud->isDirty()
                : sceneDocument_.isDirty();
   }
   [[nodiscard]] bool activeDocumentCanUndo() const {
-    return !selectedHudNodeId_.empty() && hudDocument_
-               ? hudDocument_->canUndo()
+    const EditorHudDocument *hud = hudDocument();
+    return activeDocument_ == EditorWorkspaceDocument::Hud && hud
+               ? hud->canUndo()
                : sceneDocument_.canUndo();
   }
   [[nodiscard]] bool activeDocumentCanRedo() const {
-    return !selectedHudNodeId_.empty() && hudDocument_
-               ? hudDocument_->canRedo()
+    const EditorHudDocument *hud = hudDocument();
+    return activeDocument_ == EditorWorkspaceDocument::Hud && hud
+               ? hud->canRedo()
                : sceneDocument_.canRedo();
   }
   [[nodiscard]] bool hasUnsavedChanges() const {
     return sceneDocument_.isDirty() || projectDocument_.isDirty() ||
-           (hudDocument_ && hudDocument_->isDirty());
+           (hudDocument_ && hudDocument_->isDirty()) ||
+           (openedHudDocument_ && openedHudDocument_->isDirty());
   }
   [[nodiscard]] bool hudDirty() const {
-    return hudDocument_ && hudDocument_->isDirty();
+    const EditorHudDocument *hud = hudDocument();
+    return hud && hud->isDirty();
   }
   [[nodiscard]] const auto &tilemaps2D() const { return tilemaps2D_; }
   [[nodiscard]] const Diagnostics &diagnostics() const { return diagnostics_; }
@@ -222,6 +240,7 @@ private:
   void reconcileIsoGridCellSelection();
   void syncEditorDiagnostic();
   [[nodiscard]] bool loadHudDocument(std::string &error);
+  [[nodiscard]] EditorHudDocument *activeHudDocument();
   void syncHudPreview();
   [[nodiscard]] bool mutateAndRebuild(
       const std::function<bool(EditorSceneDocument &, std::string &)> &mutation,
@@ -237,6 +256,9 @@ private:
   EditorSceneDocument sceneDocument_;
   EditorProjectDocument projectDocument_;
   std::optional<EditorHudDocument> hudDocument_;
+  std::optional<EditorHudDocument> openedHudDocument_;
+  EditorWorkspaceDocument activeDocument_ = EditorWorkspaceDocument::Scene;
+  bool usesOpenedHudDocument_ = false;
   EditorAssetIndex assetIndex_;
   EditorSceneViewState sceneView_;
   EditorSceneView2DState sceneView2D_;

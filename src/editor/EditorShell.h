@@ -35,6 +35,7 @@ public:
   [[nodiscard]] EditorViewportArea gameArea() const { return gameArea_; }
   [[nodiscard]] bool gameViewFocused() const { return gameViewFocused_; }
   [[nodiscard]] bool showingGameView() const { return showGameView_; }
+  [[nodiscard]] bool showingHudView() const { return showHudView_; }
   [[nodiscard]] EditorPlaySession &playSession() { return playSession_; }
   [[nodiscard]] bool takeStepRequest() {
     const bool requested = stepRequested_;
@@ -50,6 +51,8 @@ public:
   }
   [[nodiscard]] bool viewportInputCaptured() const {
     if (showGameView_)
+      return false;
+    if (showHudView_)
       return false;
     return workspace_.viewDimension() ==
                    EditorSceneViewDimension::TwoDimensional
@@ -92,6 +95,7 @@ private:
   bool recoverySyncBlocked_ = false;
   bool preferenceSyncBlocked_ = false;
   bool showGameView_ = false;
+  bool showHudView_ = false;
   bool gameViewFocused_ = false;
   bool stepRequested_ = false;
   std::uint16_t gameTextureIndex_ = UINT16_MAX;

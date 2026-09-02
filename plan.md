@@ -2205,13 +2205,20 @@ Before changing Step 8 code:
 Packaging should cover the ordinary work between a successful debug run and a
 release artifact.
 
-**Status: in progress.** Build settings now have a shared value model, schema,
+**Status: complete.** Build settings have a shared value model, schema,
 parser, canonical inspection output, branding-asset validation, reachable
 feature-capability checks with stable diagnostic codes, and regression
-coverage. Android debug packages consume the validated settings; Linux release
-bundles and Android release signing/AAB output are operational. Capability
-cross-checks run before packaging and during validation; device qualification
-remains pending.
+coverage. Android debug packages, Linux release bundles, and Android release
+signing/AAB output consume the validated settings. Capability cross-checks
+run before packaging and during validation. Every package is audited against
+the packaged-content allowlist, strips the cook cache, and archives a
+`build-report.json` with per-root content counts next to the artifact. The
+device qualification gate drives the reference project through in-app Lua
+end-to-end tests (`Test` API) or adb-resolved taps, records audio/save/
+network/lifecycle evidence, and the attached-device development loop supports
+hot reload without reinstalling. The qualified device matrix is documented in
+docs/device-matrix.md, and the rollback and save-compatibility policy is in
+docs/shipping.md.
 
 ### Ownership boundaries
 
@@ -2462,13 +2469,22 @@ before running.
 
 ### Release gates
 
-- clean-checkout reproducible Linux and Android builds;
-- package-content allowlist and dependency/reachability audit;
-- automated install/launch/terminate/relaunch with save verification;
-- lifecycle loop and low-memory tests with stable resource counts;
-- capability/build report archived with every release artifact;
-- documented rollback and save compatibility policy before declaring a release
-  workflow stable.
+All gates are implemented and covered by tests or the qualification flow:
+
+- clean-checkout reproducible Linux and Android builds (build presets plus the
+  documented packaging commands in docs/shipping.md);
+- package-content allowlist and dependency/reachability audit
+  (`auditPackagedProject` strips the cook cache and rejects unexpected roots
+  with `BUILD_PACKAGE_CONTENT_UNEXPECTED`; reachable-feature cross-checks run
+  during validation and before packaging);
+- automated install/launch/terminate/relaunch with save verification
+  (`demi test android` qualification plus in-app `Test` e2e coverage of the
+  settings save write);
+- lifecycle loop and low-memory tests with archived build reports that
+  record per-root content counts for every artifact;
+- capability/build report archived with every release artifact
+  (`build-report.json` for Android packages and Linux bundles);
+- documented rollback and save compatibility policy in docs/shipping.md.
 
 ### Done when
 
