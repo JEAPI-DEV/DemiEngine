@@ -51,12 +51,28 @@ int launchAndroidDeviceTool(const std::string &mode,
                             const std::size_t forwardedFrom,
                             const std::filesystem::path &demiExecutable) {
 #if defined(__linux__)
+  const std::filesystem::path project =
+      demi::cli::projectFileFromArgs(args, std::filesystem::current_path());
+  if (project.empty()) {
+    std::cerr << "No demi.project.json was found. Pass --project <project>.\n";
+    return ExitUsageError;
+  }
   std::vector<std::string> command{
-      "python3", (sourceRoot() / "scripts/android_device.py").string(), mode,
-      "--demi-executable", std::filesystem::absolute(demiExecutable).string()};
-  command.insert(command.end(), args.begin() +
-                                    static_cast<std::ptrdiff_t>(forwardedFrom),
-                 args.end());
+      "python3",
+      (sourceRoot() / "scripts/android_device.py").string(),
+      mode,
+      "--demi-executable",
+      std::filesystem::absolute(demiExecutable).string(),
+      "--project",
+      std::filesystem::absolute(project).string()};
+  for (std::size_t index = forwardedFrom; index < args.size(); ++index) {
+    if (args[index] == "--project") {
+      if (index + 1 < args.size())
+        ++index;
+      continue;
+    }
+    command.push_back(args[index]);
+  }
   std::vector<char *> native;
   native.reserve(command.size() + 1);
   for (std::string &argument : command)
@@ -139,7 +155,8 @@ void printHelp() {
       << "  demi run android [--project <project>] [--serial device] "
          "[--watch]\n"
       << "  demi serve --project <project>\n"
-      << "  demi build apk [--project <project>] [--configuration debug|release]\n"
+      << "  demi build apk [--project <project>] [--configuration "
+         "debug|release]\n"
       << "  demi build aab [--project <project>] [--gradle gradle]\n"
       << "  demi build inspect [--project <project>]\n"
       << "  demi build linux [--project <project>] [--output path]\n"

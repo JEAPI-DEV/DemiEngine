@@ -19,6 +19,7 @@
       {
         "id": "menu_base",
         "type": "container",
+        "respect_safe_area": false,
         "visible": true,
         "children": [
           {
@@ -407,6 +408,11 @@
       {
         "id": "menu_levels",
         "type": "container",
+        "respect_safe_area": false,
+        "position": [
+          0,
+          -24
+        ],
         "visible": false,
         "children": [
           {
@@ -414,9 +420,14 @@
             "id": "menu_levels_title",
             "text": "SELECT LEVEL",
             "position": [
-              356,
+              0,
               78
             ],
+            "size": [
+              960,
+              48
+            ],
+            "text_alignment": "center",
             "color": [
               0.86,
               0.96,
@@ -430,9 +441,14 @@
             "id": "menu_levels_hint",
             "text": "TAP PLAY TO BEGIN",
             "position": [
-              378,
-              504
+              0,
+              522
             ],
+            "size": [
+              960,
+              18
+            ],
+            "text_alignment": "center",
             "color": [
               0.86,
               0.86,

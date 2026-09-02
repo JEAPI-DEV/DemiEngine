@@ -96,7 +96,10 @@ def launch(adb: Adb, package: str, component: str) -> None:
     print(result.stdout.strip(), flush=True)
 
 
-IGNORED_DIRECTORIES = {".git", ".demi", "build", "generated", "saves"}
+IGNORED_DIRECTORIES = {
+    ".cxx", ".git", ".gradle", ".demi", "__pycache__", "build",
+    "generated", "saves"
+}
 
 
 def source_snapshot(project_root: Path) -> dict[str, tuple[int, int]]:
@@ -109,6 +112,64 @@ def source_snapshot(project_root: Path) -> dict[str, tuple[int, int]]:
             stat = path.stat()
             snapshot[relative.as_posix()] = (stat.st_mtime_ns, stat.st_size)
     return snapshot
+
+
+def apk_path(project: Path) -> Path:
+    _, executable, _ = project_configuration(project)
+    return project.parent / "build" / "android" / f"{executable}-debug.apk"
+
+
+def package_registry(project: Path) -> Path | None:
+    document = json.loads(project.read_text(encoding="utf-8"))
+    configured = document.get("package_registry")
+    if not isinstance(configured, str) or not configured:
+        return None
+    return (project.parent / configured).resolve()
+
+
+def build_input_paths(project: Path, demi: Path,
+                      engine_root: Path) -> list[Path]:
+    paths = [project.parent, demi]
+    registry = package_registry(project)
+    if registry is not None:
+        paths.append(registry)
+    for relative in ("src", "android", "cmake", "scripts",
+                     "CMakeLists.txt", "CMakePresets.json"):
+        candidate = engine_root / relative
+        if candidate.exists():
+            paths.append(candidate)
+    return paths
+
+
+def newest_source_mtime(paths: list[Path]) -> int:
+    newest = 0
+    for path in paths:
+        if path.is_file():
+            newest = max(newest, path.stat().st_mtime_ns)
+        elif path.is_dir():
+            snapshot = source_snapshot(path)
+            newest = max(newest,
+                         max((mtime for mtime, _ in snapshot.values()),
+                             default=0))
+    return newest
+
+
+def apk_needs_build(apk: Path, inputs: list[Path]) -> bool:
+    return (not apk.is_file() or
+            newest_source_mtime(inputs) > apk.stat().st_mtime_ns)
+
+
+def current_or_built_apk(demi: Path, project: Path) -> Path:
+    apk = apk_path(project)
+    engine_root = Path(__file__).resolve().parents[1]
+    inputs = build_input_paths(project, demi, engine_root)
+    if apk_needs_build(apk, inputs):
+        reason = ("does not exist" if not apk.exists()
+                  else "is older than its inputs")
+        print(f"Android APK {reason}; building it.", flush=True)
+        return build_apk(demi, project)
+    print(f"Using current Android APK: {apk}", flush=True)
+    return apk
 
 
 def file_hashes(root: Path) -> dict[str, str]:
@@ -150,7 +211,8 @@ def run_on_device(args: argparse.Namespace) -> int:
     demi = Path(args.demi_executable).resolve()
     adb = Adb(args.adb, args.serial)
     package, _, component = project_configuration(project)
-    apk = Path(args.apk).resolve() if args.apk else build_apk(demi, project)
+    apk = (Path(args.apk).resolve() if args.apk
+           else current_or_built_apk(demi, project))
     install(adb, apk)
     set_hot_reload_marker(adb, package, args.watch)
     adb.run("logcat", "-b", "all", "-c")
@@ -218,7 +280,8 @@ def qualify_device(args: argparse.Namespace) -> int:
         "abi": adb.run("shell", "getprop", "ro.product.cpu.abi").stdout.strip(),
         "renderer": adb.run("shell", "getprop", "ro.hardware.egl").stdout.strip(),
     }
-    apk = Path(args.apk).resolve() if args.apk else build_apk(demi, project)
+    apk = (Path(args.apk).resolve() if args.apk
+           else current_or_built_apk(demi, project))
     adb.run("logcat", "-b", "all", "-c")
     critical = []
     critical.append(qualification_step(report, "install", lambda: adb.run(

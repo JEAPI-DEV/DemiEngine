@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -42,6 +43,27 @@ class AndroidDeviceToolTests(unittest.TestCase):
             snapshot = android_device.source_snapshot(root)
             self.assertIn("scripts/game.lua", snapshot)
             self.assertNotIn("generated/output.bin", snapshot)
+
+    def test_apk_freshness_tracks_sources_but_ignores_generated_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "scripts" / "game.lua"
+            source.parent.mkdir()
+            source.write_text("return {}", encoding="utf-8")
+            generated = root / "generated" / "game.bin"
+            generated.parent.mkdir()
+            generated.write_bytes(b"generated")
+            apk = root / "game.apk"
+            self.assertTrue(android_device.apk_needs_build(apk, [root]))
+
+            apk.write_bytes(b"apk")
+            os.utime(source, ns=(1_000_000_000, 1_000_000_000))
+            os.utime(apk, ns=(2_000_000_000, 2_000_000_000))
+            os.utime(generated, ns=(3_000_000_000, 3_000_000_000))
+            self.assertFalse(android_device.apk_needs_build(apk, [root]))
+
+            os.utime(source, ns=(4_000_000_000, 4_000_000_000))
+            self.assertTrue(android_device.apk_needs_build(apk, [root]))
 
 
 if __name__ == "__main__":
