@@ -72,6 +72,16 @@ void drawEditorHudNodeInspector(EditorWorkspace &workspace,
                  ? "HUD visibility modified"
                  : error;
   }
+  bool respectsSafeArea = node.respectsSafeArea;
+  if (ImGui::Checkbox("Respect Safe Area", &respectsSafeArea)) {
+    std::string error;
+    notice = workspace.setHudNodeField(node.id, "respect_safe_area",
+                                       respectsSafeArea, error)
+                 ? "HUD safe-area behavior modified"
+                 : error;
+  }
+  if (!respectsSafeArea)
+    ImGui::TextDisabled("Layout uses the full screen behind cutouts.");
   ImGui::EndDisabled();
   ImGui::BeginDisabled(!authored);
   if (node.type == "label" || node.type == "button" ||

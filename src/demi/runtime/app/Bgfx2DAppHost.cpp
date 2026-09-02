@@ -110,15 +110,19 @@ bool Bgfx2DAppHost::setMouseCaptured(const bool captured, std::string &error) {
   return context_.setMouseCaptured(captured, error);
 }
 
+bool Bgfx2DAppHost::requestFrameRate(const float framesPerSecond) {
+  return context_.requestFrameRate(framesPerSecond);
+}
+
 std::string Bgfx2DAppHost::clipboard() const { return context_.clipboard(); }
 
 bool Bgfx2DAppHost::setClipboard(const std::string &text, std::string &error) {
   return context_.setClipboard(text, error);
 }
 
-bool Bgfx2DAppHost::requestPermission(
-    const std::string &permission, std::function<void(bool, bool)> result,
-    std::string &error) {
+bool Bgfx2DAppHost::requestPermission(const std::string &permission,
+                                      std::function<void(bool, bool)> result,
+                                      std::string &error) {
   return context_.requestPermission(permission, std::move(result), error);
 }
 

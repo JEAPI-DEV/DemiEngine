@@ -43,6 +43,7 @@ public:
   [[nodiscard]] const platform::PlatformFrameState &frameState() const;
   [[nodiscard]] bool setWindowMode(std::string_view mode, std::string &error);
   [[nodiscard]] bool setMouseCaptured(bool captured, std::string &error);
+  [[nodiscard]] bool requestFrameRate(float framesPerSecond);
   [[nodiscard]] std::string clipboard() const;
   [[nodiscard]] bool setClipboard(const std::string &text, std::string &error);
   [[nodiscard]] bool requestPermission(

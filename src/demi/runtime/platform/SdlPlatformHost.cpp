@@ -56,6 +56,27 @@ bool androidPermissionPermanentlyDenied(const char *permission) {
   return permanentlyDenied;
 }
 
+bool requestAndroidFrameRate(const float framesPerSecond) {
+  auto *environment = static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
+  auto activity = static_cast<jobject>(SDL_GetAndroidActivity());
+  if (environment == nullptr || activity == nullptr)
+    return false;
+  const jclass activityClass = environment->GetObjectClass(activity);
+  const jmethodID method = environment->GetMethodID(
+      activityClass, "setDemiPreferredFrameRate", "(F)Z");
+  const bool accepted =
+      method != nullptr &&
+      environment->CallBooleanMethod(activity, method, framesPerSecond);
+  if (environment->ExceptionCheck()) {
+    environment->ExceptionDescribe();
+    environment->ExceptionClear();
+    environment->DeleteLocalRef(activityClass);
+    return false;
+  }
+  environment->DeleteLocalRef(activityClass);
+  return accepted;
+}
+
 struct AndroidPermissionRequest {
   std::function<void(bool, bool)> result;
 };
@@ -487,8 +508,7 @@ public:
     if (const char *fixedDelta = std::getenv("DEMI_FIXED_DELTA_SECONDS");
         fixedDelta != nullptr && *fixedDelta != '\0') {
       try {
-        state_.deltaSeconds =
-            std::max(std::stof(fixedDelta), 0.0F);
+        state_.deltaSeconds = std::max(std::stof(fixedDelta), 0.0F);
       } catch (...) {
       }
     }
@@ -527,6 +547,15 @@ public:
     return false;
   }
 
+  bool requestFrameRate(const float framesPerSecond) override {
+#if defined(__ANDROID__)
+    return requestAndroidFrameRate(std::max(framesPerSecond, 0.0F));
+#else
+    (void)framesPerSecond;
+    return false;
+#endif
+  }
+
   std::string clipboard() const override {
     const char *text = SDL_GetClipboardText();
     const std::string result = text != nullptr ? text : "";
@@ -541,14 +570,12 @@ public:
     return false;
   }
 
-  bool requestPermission(
-      const std::string &permission,
-      std::function<void(bool, bool)> result,
-      std::string &error) override {
+  bool requestPermission(const std::string &permission,
+                         std::function<void(bool, bool)> result,
+                         std::string &error) override {
 #if defined(__ANDROID__)
-    auto request =
-        std::make_unique<AndroidPermissionRequest>(AndroidPermissionRequest{
-            .result = std::move(result)});
+    auto request = std::make_unique<AndroidPermissionRequest>(
+        AndroidPermissionRequest{.result = std::move(result)});
     if (!SDL_RequestAndroidPermission(permission.c_str(), permissionResult,
                                       request.get())) {
       error = SDL_GetError();
@@ -612,23 +639,22 @@ private:
       lastSurfaceChange_ = Clock::now();
       if (nativeWindow != nullptr)
         deviceLog(deviceLogMessage(
-            "surface",
-            "Native window " + devicePointerText(previousWindow) + " -> " +
-                devicePointerText(nativeWindow) + ", surface generation " +
-                std::to_string(state_.surfaceGeneration) + "."));
+            "surface", "Native window " + devicePointerText(previousWindow) +
+                           " -> " + devicePointerText(nativeWindow) +
+                           ", surface generation " +
+                           std::to_string(state_.surfaceGeneration) + "."));
     }
     state_.surfaceSettled =
         Clock::now() - lastSurfaceChange_ >= kSurfaceSettleDelay;
     if (state_.drawableAvailable != previousDrawable)
       deviceLog(deviceLogMessage(
-          "surface", state_.drawableAvailable
-                         ? "Drawable available."
-                         : "Drawable unavailable (native window " +
-                               devicePointerText(nativeWindow) + ", hidden " +
-                               std::to_string(
-                                   (flags & SDL_WINDOW_HIDDEN) != 0) +
-                               ", minimized " +
-                               std::to_string(state_.minimized) + ")."));
+          "surface",
+          state_.drawableAvailable
+              ? "Drawable available."
+              : "Drawable unavailable (native window " +
+                    devicePointerText(nativeWindow) + ", hidden " +
+                    std::to_string((flags & SDL_WINDOW_HIDDEN) != 0) +
+                    ", minimized " + std::to_string(state_.minimized) + ")."));
 #else
     state_.drawableAvailable = true;
 #endif

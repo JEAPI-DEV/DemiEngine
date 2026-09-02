@@ -54,6 +54,7 @@
         "accessibility_label": {"type": "string"},
         "accessibility_description": {"type": "string"},
         "accessibility_hidden": {"type": "boolean"},
+        "respect_safe_area": {"type": "boolean"},
         "action": {"type": "string"},
         "font": {"type": "string", "pattern": "^asset://"},
         "control": {"type": "string", "minLength": 1},

@@ -227,6 +227,7 @@
       {
         "id": "game_over",
         "type": "container",
+        "respect_safe_area": false,
         "visible": false,
         "children": [
           {
@@ -288,9 +289,14 @@
             "id": "game_over_title",
             "text": "GAME OVER",
             "position": [
-              318,
+              210,
               162
             ],
+            "size": [
+              540,
+              64
+            ],
+            "text_alignment": "center",
             "color": [
               0.94,
               0.98,
@@ -304,9 +310,14 @@
             "id": "game_over_points",
             "text": "POINTS: 0",
             "position": [
-              362,
+              210,
               252
             ],
+            "size": [
+              540,
+              40
+            ],
+            "text_alignment": "center",
             "color": [
               1,
               0.78,
@@ -319,7 +330,7 @@
             "type": "button",
             "id": "game_over_back",
             "position": [
-              300,
+              305,
               346
             ],
             "size": [
@@ -352,7 +363,7 @@
             "type": "button",
             "id": "game_retry",
             "position": [
-              500,
+              505,
               346
             ],
             "size": [

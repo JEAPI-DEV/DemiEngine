@@ -95,11 +95,10 @@ bool BgfxAppContext::initialize(const BgfxAppContextConfig &config,
   };
   if (!tryInitializeGraphics(config.graphicsApi, error)) {
 #if defined(__ANDROID__)
-    const bool canFallBack =
-        config.graphicsApi == render::GraphicsApi::Vulkan;
+    const bool canFallBack = config.graphicsApi == render::GraphicsApi::Vulkan;
     if (canFallBack) {
-      deviceLogError(deviceLogMessage(
-          "render", error + " Falling back to OpenGL ES."));
+      deviceLogError(
+          deviceLogMessage("render", error + " Falling back to OpenGL ES."));
       std::string fallbackError;
       if (!tryInitializeGraphics(render::GraphicsApi::OpenGLES,
                                  fallbackError)) {
@@ -168,10 +167,10 @@ bool BgfxAppContext::beginFrame(std::string &error) {
   const int height = drawableDimension(state.height);
   if ((width != renderWidth_ || height != renderHeight_)) {
     deviceLog(deviceLogMessage(
-        "render",
-        "Back buffer resize " + std::to_string(renderWidth_) + "x" +
-            std::to_string(renderHeight_) + " -> " + std::to_string(width) +
-            "x" + std::to_string(height) + "."));
+        "render", "Back buffer resize " + std::to_string(renderWidth_) + "x" +
+                      std::to_string(renderHeight_) + " -> " +
+                      std::to_string(width) + "x" + std::to_string(height) +
+                      "."));
     if (!graphics_.resize(static_cast<std::uint32_t>(width),
                           static_cast<std::uint32_t>(height), error)) {
       deviceLogError(deviceLogMessage("render", error));
@@ -213,15 +212,19 @@ bool BgfxAppContext::setMouseCaptured(const bool captured, std::string &error) {
   return platform_->setMouseCaptured(captured, error);
 }
 
+bool BgfxAppContext::requestFrameRate(const float framesPerSecond) {
+  return platform_->requestFrameRate(framesPerSecond);
+}
+
 std::string BgfxAppContext::clipboard() const { return platform_->clipboard(); }
 
 bool BgfxAppContext::setClipboard(const std::string &text, std::string &error) {
   return platform_->setClipboard(text, error);
 }
 
-bool BgfxAppContext::requestPermission(
-    const std::string &permission, std::function<void(bool, bool)> result,
-    std::string &error) {
+bool BgfxAppContext::requestPermission(const std::string &permission,
+                                       std::function<void(bool, bool)> result,
+                                       std::string &error) {
   return platform_->requestPermission(permission, std::move(result), error);
 }
 

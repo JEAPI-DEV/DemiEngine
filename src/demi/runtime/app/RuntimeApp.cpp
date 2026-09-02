@@ -1,5 +1,7 @@
 #include "demi/runtime/app/RuntimeApp.h"
 
+#include "demi/runtime/app/FramePacing.h"
+
 #include "demi/assets/AssetCooker.h"
 #include "demi/assets/AssetRegistry.h"
 #include "demi/core/Version.h"
@@ -142,15 +144,14 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
     std::string sceneError;
     if (!luaHost.applyPendingSceneLoad(sceneError)) {
       std::cerr << "Scene switch failed: " << sceneError << '\n';
-      deviceLogError(deviceLogMessage("runtime",
-                                      "Scene switch failed: " + sceneError));
+      deviceLogError(
+          deviceLogMessage("runtime", "Scene switch failed: " + sceneError));
     } else {
       generateTilemapColliders(loaded.world, assetRegistry);
       std::cout << "Switched scene to " << loaded.world.id << " ("
                 << loaded.world.name << ").\n";
-      deviceLog(deviceLogMessage("runtime", "Switched scene to " +
-                                                loaded.world.activeSceneId +
-                                                "."));
+      deviceLog(deviceLogMessage(
+          "runtime", "Switched scene to " + loaded.world.activeSceneId + "."));
     }
   }
 
@@ -584,9 +585,8 @@ int runProject(const RuntimeOptions &options) {
                           .diagnostics = {}},
             renderDiagnostics, error)) {
       std::cerr << "2D renderer initialization failed: " << error << '\n';
-      deviceLogError(deviceLogMessage("runtime",
-                                      "2D renderer initialization failed: " +
-                                          error));
+      deviceLogError(deviceLogMessage(
+          "runtime", "2D renderer initialization failed: " + error));
       luaHost.destroy();
       networkSystem.shutdown();
       mediaSystem.shutdown();
@@ -653,21 +653,18 @@ int runProject(const RuntimeOptions &options) {
 
     std::cout << "Using bgfx " << appHost.rendererName()
               << " through the SDL3 platform host.\n";
-    deviceLog(deviceLogMessage(
-        "render", std::string("Using bgfx ") + std::string(
-                                            appHost.rendererName()) +
-                      " through the SDL3 platform host."));
+    deviceLog(
+        deviceLogMessage("render", std::string("Using bgfx ") +
+                                       std::string(appHost.rendererName()) +
+                                       " through the SDL3 platform host."));
     bool running = true;
     bool renderFailed = false;
     bool pausedState = false;
-    // With vsync enabled the blocking present paces frames to the compositor;
-    // an additional CPU-side sleep drifts against the vsync phase and makes
-    // alternating frames miss their deadline, so pacing is CPU-only when the
-    // swapchain is not vsynced (or when there is no compositor at all).
-    const bool compositorPaced =
-        loaded.project.display.vsync && !isHeadless();
+    const bool compositorPaced = loaded.project.display.vsync && !isHeadless();
     std::chrono::steady_clock::time_point nextFrameDeadline =
         std::chrono::steady_clock::now();
+    int requestedFrameRate = -1;
+    bool platformPacesRequestedRate = false;
     int frameCount = 0;
     while (running) {
       appHost.poll(input);
@@ -702,19 +699,19 @@ int runProject(const RuntimeOptions &options) {
       luaHost.applicationServices().updateDisplay(
           frameState.width, frameState.height, frameState.logicalDpi);
       luaHost.setViewport(frameState.width, frameState.height);
-      const bool paused = frameState.suspended || !frameState.drawableAvailable ||
-                    !frameState.surfaceSettled;
+      const bool paused = frameState.suspended ||
+                          !frameState.drawableAvailable ||
+                          !frameState.surfaceSettled;
       if (paused != pausedState) {
         pausedState = paused;
         deviceLog(deviceLogMessage(
-            "runtime",
-            paused ? std::string("Frame loop paused (") +
-                           (frameState.suspended ? "suspended"
-                                                 : !frameState.drawableAvailable
-                                                       ? "drawable unavailable"
-                                                       : "surface settling") +
-                           ")."
-                   : "Frame loop resumed."));
+            "runtime", paused ? std::string("Frame loop paused (") +
+                                    (frameState.suspended ? "suspended"
+                                     : !frameState.drawableAvailable
+                                         ? "drawable unavailable"
+                                         : "surface settling") +
+                                    ")."
+                              : "Frame loop resumed."));
       }
       if (paused) {
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
@@ -731,12 +728,12 @@ int runProject(const RuntimeOptions &options) {
                      static_cast<float>(fixedStep), fixedAccumulator, running,
                      accessibility);
       if (frameCount == 0 || frameCount == 60)
-        deviceLog(deviceLogMessage(
-            "runtime", "Frame " + std::to_string(frameCount + 1) +
-                           ", Lua frame " +
-                           std::to_string(luaHost.frameCount()) + ", scene " +
-                           loaded.world.activeSceneId + ", dt " +
-                           std::to_string(dt) + "."));
+        deviceLog(deviceLogMessage("runtime",
+                                   "Frame " + std::to_string(frameCount + 1) +
+                                       ", Lua frame " +
+                                       std::to_string(luaHost.frameCount()) +
+                                       ", scene " + loaded.world.activeSceneId +
+                                       ", dt " + std::to_string(dt) + "."));
       if (profileRun) {
         updateMs = millisecondsSince(updateStart);
         profile.updateMs += updateMs;
@@ -769,9 +766,8 @@ int runProject(const RuntimeOptions &options) {
                 activeCameraPosition(loaded.world), dt, navigation, renderError,
                 fixedStepInterpolationAlpha(fixedAccumulator, fixedStep))) {
           std::cerr << "2D rendering failed: " << renderError << '\n';
-          deviceLogError(deviceLogMessage("runtime",
-                                          "2D rendering failed: " +
-                                              renderError));
+          deviceLogError(deviceLogMessage("runtime", "2D rendering failed: " +
+                                                         renderError));
           renderFailed = true;
           running = false;
         }
@@ -798,13 +794,14 @@ int runProject(const RuntimeOptions &options) {
       if (options.maxFrames > 0 && frameCount >= options.maxFrames)
         running = false;
       const int maxFps = luaHost.maxFps();
-      // The compositor paces frames when the swapchain is vsynced and the
-      // display refresh is at least the requested cap; otherwise the loop
-      // paces itself on a fixed-cadence deadline so a cap below the display
-      // refresh does not drift against the vsync phase.
-      const bool compositorPacesCap =
-          compositorPaced &&
-          frameState.displayRefreshHz >= static_cast<float>(maxFps);
+      if (maxFps != requestedFrameRate) {
+        platformPacesRequestedRate =
+            appHost.requestFrameRate(static_cast<float>(maxFps));
+        requestedFrameRate = maxFps;
+      }
+      const bool compositorPacesCap = compositorSatisfiesFrameCap(
+          compositorPaced, isHeadless(), maxFps, frameState.displayRefreshHz,
+          platformPacesRequestedRate);
       if (running && maxFps > 0 && !compositorPacesCap) {
         nextFrameDeadline +=
             std::chrono::duration_cast<std::chrono::steady_clock::duration>(
@@ -846,9 +843,8 @@ int runProject(const RuntimeOptions &options) {
                           .diagnostics = {}},
             renderDiagnostics, error)) {
       std::cerr << "3D renderer initialization failed: " << error << '\n';
-      deviceLogError(deviceLogMessage("runtime",
-                                      "3D renderer initialization failed: " +
-                                          error));
+      deviceLogError(deviceLogMessage(
+          "runtime", "3D renderer initialization failed: " + error));
       luaHost.destroy();
       networkSystem.shutdown();
       mediaSystem.shutdown();
@@ -918,14 +914,11 @@ int runProject(const RuntimeOptions &options) {
     bool running = true;
     bool renderFailed = false;
     bool pausedState = false;
-    // With vsync enabled the blocking present paces frames to the compositor;
-    // an additional CPU-side sleep drifts against the vsync phase and makes
-    // alternating frames miss their deadline, so pacing is CPU-only when the
-    // swapchain is not vsynced (or when there is no compositor at all).
-    const bool compositorPaced =
-        loaded.project.display.vsync && !isHeadless();
+    const bool compositorPaced = loaded.project.display.vsync && !isHeadless();
     std::chrono::steady_clock::time_point nextFrameDeadline =
         std::chrono::steady_clock::now();
+    int requestedFrameRate = -1;
+    bool platformPacesRequestedRate = false;
     int frameCount = 0;
     while (running) {
       appHost.poll(input);
@@ -960,19 +953,19 @@ int runProject(const RuntimeOptions &options) {
       luaHost.applicationServices().updateDisplay(
           frameState.width, frameState.height, frameState.logicalDpi);
       luaHost.setViewport(frameState.width, frameState.height);
-      const bool paused = frameState.suspended || !frameState.drawableAvailable ||
-                    !frameState.surfaceSettled;
+      const bool paused = frameState.suspended ||
+                          !frameState.drawableAvailable ||
+                          !frameState.surfaceSettled;
       if (paused != pausedState) {
         pausedState = paused;
         deviceLog(deviceLogMessage(
-            "runtime",
-            paused ? std::string("Frame loop paused (") +
-                           (frameState.suspended ? "suspended"
-                                                 : !frameState.drawableAvailable
-                                                       ? "drawable unavailable"
-                                                       : "surface settling") +
-                           ")."
-                   : "Frame loop resumed."));
+            "runtime", paused ? std::string("Frame loop paused (") +
+                                    (frameState.suspended ? "suspended"
+                                     : !frameState.drawableAvailable
+                                         ? "drawable unavailable"
+                                         : "surface settling") +
+                                    ")."
+                              : "Frame loop resumed."));
       }
       if (paused) {
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
@@ -989,12 +982,12 @@ int runProject(const RuntimeOptions &options) {
                      static_cast<float>(fixedStep), fixedAccumulator, running,
                      accessibility);
       if (frameCount == 0 || frameCount == 60)
-        deviceLog(deviceLogMessage(
-            "runtime", "Frame " + std::to_string(frameCount + 1) +
-                           ", Lua frame " +
-                           std::to_string(luaHost.frameCount()) + ", scene " +
-                           loaded.world.activeSceneId + ", dt " +
-                           std::to_string(dt) + "."));
+        deviceLog(deviceLogMessage("runtime",
+                                   "Frame " + std::to_string(frameCount + 1) +
+                                       ", Lua frame " +
+                                       std::to_string(luaHost.frameCount()) +
+                                       ", scene " + loaded.world.activeSceneId +
+                                       ", dt " + std::to_string(dt) + "."));
       if (profileRun) {
         updateMs = millisecondsSince(updateStart);
         profile.updateMs += updateMs;
@@ -1074,9 +1067,8 @@ int runProject(const RuntimeOptions &options) {
         if (!appHost.renderFrames(loaded.world, cameraFrames, dt,
                                   renderError)) {
           std::cerr << "3D rendering failed: " << renderError << '\n';
-          deviceLogError(deviceLogMessage("runtime",
-                                          "3D rendering failed: " +
-                                              renderError));
+          deviceLogError(deviceLogMessage("runtime", "3D rendering failed: " +
+                                                         renderError));
           renderFailed = true;
           running = false;
         }
@@ -1119,9 +1111,14 @@ int runProject(const RuntimeOptions &options) {
       if (options.maxFrames > 0 && frameCount >= options.maxFrames)
         running = false;
       const int maxFps = luaHost.maxFps();
-      const bool compositorPacesCap =
-          compositorPaced &&
-          frameState.displayRefreshHz >= static_cast<float>(maxFps);
+      if (maxFps != requestedFrameRate) {
+        platformPacesRequestedRate =
+            appHost.requestFrameRate(static_cast<float>(maxFps));
+        requestedFrameRate = maxFps;
+      }
+      const bool compositorPacesCap = compositorSatisfiesFrameCap(
+          compositorPaced, isHeadless(), maxFps, frameState.displayRefreshHz,
+          platformPacesRequestedRate);
       if (running && maxFps > 0 && !compositorPacesCap) {
         nextFrameDeadline +=
             std::chrono::duration_cast<std::chrono::steady_clock::duration>(

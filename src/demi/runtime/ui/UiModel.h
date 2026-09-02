@@ -98,6 +98,10 @@ struct UiNode {
   bool checked = false;
   bool hovered = false;
   bool accessibilityHidden = false;
+  // Safe-area layout is the default for readable and interactive content.
+  // Decorative nodes can opt out to draw behind display cutouts and system
+  // insets without forcing their siblings out of the safe area.
+  bool respectsSafeArea = true;
   TextEditState textEdit;
 };
 

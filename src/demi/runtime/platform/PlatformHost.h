@@ -63,6 +63,10 @@ public:
                                            std::string &error) = 0;
   [[nodiscard]] virtual bool setMouseCaptured(bool captured,
                                               std::string &error) = 0;
+  // Requests compositor pacing at this rate. Zero restores the platform
+  // default. Returns false when the platform cannot control presentation
+  // cadence and the runtime must enforce a cap itself.
+  [[nodiscard]] virtual bool requestFrameRate(float framesPerSecond) = 0;
   [[nodiscard]] virtual std::string clipboard() const = 0;
   [[nodiscard]] virtual bool setClipboard(const std::string &text,
                                           std::string &error) = 0;

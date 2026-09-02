@@ -126,9 +126,8 @@ int main() {
   demi::runtime::ui::UiInteractionController panelInteraction;
   const auto &nestedButton = panelDocument.nodes[2].resolved;
   if (!panelInteraction.capturePointer(
-          panelDocument,
-          {nestedButton.x + nestedButton.width * 0.5F,
-           nestedButton.y + nestedButton.height * 0.5F}) ||
+          panelDocument, {nestedButton.x + nestedButton.width * 0.5F,
+                          nestedButton.y + nestedButton.height * 0.5F}) ||
       panelDocument.pointerCaptures[0] != "anchored_button" ||
       panelInteraction.activateFocused(panelDocument) != "nested_action") {
     std::cerr << "Nested panel button did not receive pointer focus.\n";
@@ -138,15 +137,12 @@ int main() {
 
   demi::runtime::ui::UiLayoutEngine{}.layout(document, {960.0F, 540.0F});
   demi::runtime::ui::UiDocument safeAreaDocument;
-  safeAreaDocument.safeArea = {.left = 10.0F,
-                               .top = 20.0F,
-                               .right = 30.0F,
-                               .bottom = 40.0F};
+  safeAreaDocument.safeArea = {
+      .left = 10.0F, .top = 20.0F, .right = 30.0F, .bottom = 40.0F};
   safeAreaDocument.nodes.push_back(
       {.id = "safe_root",
        .type = "container",
-       .layout = {.anchorMin = {0.0F, 0.0F},
-                  .anchorMax = {1.0F, 1.0F}}});
+       .layout = {.anchorMin = {0.0F, 0.0F}, .anchorMax = {1.0F, 1.0F}}});
   demi::runtime::ui::UiLayoutEngine{}.layout(safeAreaDocument,
                                              {200.0F, 150.0F});
   if (!near(safeAreaDocument.nodes[0].resolved.x, 10.0F) ||
@@ -154,6 +150,22 @@ int main() {
       !near(safeAreaDocument.nodes[0].resolved.width, 160.0F) ||
       !near(safeAreaDocument.nodes[0].resolved.height, 90.0F)) {
     std::cerr << "UI roots did not respect application safe-area insets.\n";
+    return 1;
+  }
+  safeAreaDocument.nodes.push_back(
+      {.id = "edge_background",
+       .parent = "safe_root",
+       .type = "panel",
+       .layout = {.anchorMin = {0.0F, 0.0F}, .anchorMax = {1.0F, 1.0F}},
+       .respectsSafeArea = false});
+  demi::runtime::ui::UiLayoutEngine{}.layout(safeAreaDocument,
+                                             {200.0F, 150.0F});
+  const auto &edgeBackground = safeAreaDocument.nodes[1].resolved;
+  if (!near(edgeBackground.x, 0.0F) || !near(edgeBackground.y, 0.0F) ||
+      !near(edgeBackground.width, 200.0F) ||
+      !near(edgeBackground.height, 150.0F)) {
+    std::cerr << "A HUD node that ignores the safe area did not resolve "
+                 "against the full viewport.\n";
     return 1;
   }
   demi::runtime::ui::UiInteractionController interaction;
@@ -175,12 +187,10 @@ int main() {
     std::cerr << "UI pointer capture was not released.\n";
     return 1;
   }
-  const demi::runtime::Vec2 playPoint{
-      document.nodes[1].resolved.x + 1.0F,
-      document.nodes[1].resolved.y + 1.0F};
-  const demi::runtime::Vec2 musicPoint{
-      document.nodes[3].resolved.x + 1.0F,
-      document.nodes[3].resolved.y + 1.0F};
+  const demi::runtime::Vec2 playPoint{document.nodes[1].resolved.x + 1.0F,
+                                      document.nodes[1].resolved.y + 1.0F};
+  const demi::runtime::Vec2 musicPoint{document.nodes[3].resolved.x + 1.0F,
+                                       document.nodes[3].resolved.y + 1.0F};
   if (!interaction.capturePointer(document, 11, playPoint) ||
       !interaction.capturePointer(document, 12, musicPoint) ||
       !interaction.pointerCaptured(document, 11) ||

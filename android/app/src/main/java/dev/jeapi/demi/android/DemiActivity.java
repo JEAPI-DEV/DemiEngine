@@ -1,18 +1,20 @@
 package dev.jeapi.demi.android;
 
+import android.content.Context;
 import android.graphics.Rect;
 import android.hardware.Sensor;
-import android.content.Context;
-import android.os.Bundle;
 import android.os.Build;
-import android.view.View;
+import android.os.Bundle;
+import android.view.Display;
+import android.view.Surface;
 import android.view.SurfaceHolder;
+import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
-import android.view.inputmethod.InputMethodManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityNodeProvider;
+import android.view.inputmethod.InputMethodManager;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -27,6 +29,7 @@ public final class DemiActivity extends SDLActivity {
     private static native void nativeAccessibilityAction(
             int type, String nodeId, float value, String text);
     private static native void nativeSurfaceAvailable(boolean available);
+    private volatile float preferredFrameRate = 0.0f;
 
     @Override
     protected String[] getLibraries() {
@@ -40,14 +43,18 @@ public final class DemiActivity extends SDLActivity {
     }
 
     private static final class DemiSurface extends SDLSurface {
+        private final DemiActivity activity;
+
         DemiSurface(Context context) {
             super(context);
+            activity = (DemiActivity) context;
         }
 
         @Override
         public void surfaceCreated(SurfaceHolder holder) {
             super.surfaceCreated(holder);
             android.util.Log.i("DemiEngine", "[surface] Java surfaceCreated.");
+            activity.applyPreferredFrameRate(holder.getSurface());
             nativeSurfaceAvailable(true);
         }
 
@@ -63,6 +70,42 @@ public final class DemiActivity extends SDLActivity {
             if (sensorType != Sensor.TYPE_ACCELEROMETER)
                 super.enableSensor(sensorType, enabled);
         }
+    }
+
+    private void applyPreferredFrameRate(Surface surface) {
+        if (Build.VERSION.SDK_INT < 30 || surface == null || !surface.isValid())
+            return;
+        try {
+            surface.setFrameRate(preferredFrameRate,
+                    Surface.FRAME_RATE_COMPATIBILITY_DEFAULT);
+            android.util.Log.i("DemiEngine", "[render] Requested " +
+                    preferredFrameRate + " FPS from the Android compositor.");
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            android.util.Log.w("DemiEngine",
+                    "Could not request the preferred frame rate.", error);
+        }
+    }
+
+    public boolean setDemiPreferredFrameRate(float framesPerSecond) {
+        if (Build.VERSION.SDK_INT < 30)
+            return false;
+        preferredFrameRate = Math.max(framesPerSecond, 0.0f);
+        runOnUiThread(() -> {
+            if (mSurface != null)
+                applyPreferredFrameRate(mSurface.getHolder().getSurface());
+        });
+        if (preferredFrameRate == 0.0f)
+            return true;
+        Display display = mSurface == null ? null : mSurface.getDisplay();
+        if (display == null)
+            return false;
+        for (Display.Mode mode : display.getSupportedModes()) {
+            if (Math.abs(mode.getRefreshRate() - preferredFrameRate) < 0.5f)
+                return true;
+        }
+        // setFrameRate remains a useful compositor hint, but it does not
+        // throttle rendering when no matching display cadence exists.
+        return false;
     }
 
     public void setDemiKeyboardVisible(final boolean visible) {
