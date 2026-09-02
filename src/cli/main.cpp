@@ -5,6 +5,7 @@
 #include "cli/CookCommands.h"
 #include "cli/HudCommands.h"
 #include "cli/RuntimeCommands.h"
+#include "cli/TestCommands.h"
 #include "cli/SceneCompositionCommands.h"
 #include "cli/doctor/DoctorService.h"
 #include "cli/package/PackageCommands.h"
@@ -181,6 +182,7 @@ void printHelp() {
       << "  demi script check <script>\n"
       << "  demi lua-stubs generate [path]\n"
       << "  demi test [--project <project>]\n"
+      << "  demi test linux [path] [--timeout seconds]\n"
       << "  demi test android --project <project> [--serial device]\n"
       << "  demi dev [--project <project>] [--max-frames count] [--profiler]\n"
       << "  demi run --project <project> [--max-frames count]\n"
@@ -508,6 +510,9 @@ int main(int argc, char **argv) {
   if (args[0] == "test") {
     if (args.size() >= 2 && args[1] == "android")
       return launchAndroidDeviceTool("qualify", args, 2, argv[0]);
+    if (args.size() >= 2 && args[1] == "linux")
+      return demi::cli::runTestLinuxCommand(args, std::cout, std::cerr,
+                                            resolveSelfExecutable(argv[0]));
     const std::filesystem::path project = demi::cli::projectFileFromArgs(args);
     if (!project.empty()) {
       const demi::ValidationSummary validation =

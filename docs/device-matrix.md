@@ -9,7 +9,7 @@ stays visible.
 
 | Device  | Model | API | ABI      | GPU    | Last qualified | Result              |
 |---------|-------|-----|----------|--------|----------------|---------------------|
-| 33151FDH2005TS | Pixel 7 | 35 | arm64-v8a | mali (Mali-G715) | 2026-09-02 | pass (Lua test flow) |
+| 33151FDH2005TS | Pixel 7 | 35 | arm64-v8a | mali (Mali-G715) | 2026-09-02 | pass (Lua e2e flow) |
 
 ## Qualifying a new device
 
@@ -18,7 +18,7 @@ stays visible.
 2. Run `demi test android --project examples/minimal_2d_android`
    (`--serial <id>` as needed). The gate builds a current debug APK,
    installs, launches, and either drives the menu through in-app Lua tests
-   (`scripts/tests/mobile.lua`) or adb-resolved taps, then collects
+   (`scripts/tests/e2e.lua`) or adb-resolved taps, then collects
    screenshots, runtime markers, and crash checks.
 3. Confirm `qualification.json` reports `success: true` with
    `missing_runtime_markers: []` and `fatal_markers: []`, then append a row

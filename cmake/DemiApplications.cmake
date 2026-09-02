@@ -33,6 +33,7 @@ else()
     src/cli/HudCommands.cpp
     src/cli/RuntimeCommands.cpp
     src/cli/SceneCompositionCommands.cpp
+    src/cli/TestCommands.cpp
     src/cli/main.cpp
   )
   target_link_libraries(demi PRIVATE demi-core demi-cli-support demi-runtime-lib)
@@ -49,6 +50,7 @@ else()
     src/cli/HudCommands.cpp
     src/cli/RuntimeCommands.cpp
     src/cli/SceneCompositionCommands.cpp
+    src/cli/TestCommands.cpp
     src/cli/main.cpp
   )
   target_link_libraries(demi-server PRIVATE demi-core demi-cli-support demi-server-runtime-lib)

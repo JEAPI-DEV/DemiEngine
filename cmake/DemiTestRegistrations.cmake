@@ -196,7 +196,7 @@ add_test(NAME demi-iso-canvas-renderer-tests
   COMMAND demi-iso-canvas-renderer-tests)
 add_test(NAME demi-lua-stub-contract-tests COMMAND demi-lua-stub-contract-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
-add_test(NAME demi-lua-mobile-tests COMMAND demi-lua-mobile-tests)
+add_test(NAME demi-lua-e2e-tests COMMAND demi-lua-e2e-tests)
 add_test(NAME demi-script-property-contract-tests
   COMMAND demi-script-property-contract-tests)
 add_test(NAME demi-scene-loader-tests COMMAND demi-scene-loader-tests ${CMAKE_SOURCE_DIR})

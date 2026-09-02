@@ -2374,7 +2374,7 @@ manifest-declared permission path.
 
 #### 9E. Device qualification
 
-**Status: in progress.** `demi test android` now builds, installs, and exercises
+**Status: complete.** `demi test android` now builds, installs, and exercises
 the physical-device reference project; records device/API/ABI/GPU, step timing,
 screenshots and hashes, private files, logcat, launched PIDs, and fatal markers;
 and covers touch, scene selection, IME input, background/resume, low-memory,
@@ -2383,19 +2383,23 @@ Pixel 7/API 35 exposed and drove fixes for invalid Android activity ownership
 and surface lifecycle handling, same-event-batch touch taps being swallowed
 before the UI bridge observed the press, and the qualification gate itself.
 
-The gate now runs two complementary flows. The adb-tap flow resolves buttons
+The gate runs two complementary flows. The adb-tap flow resolves buttons
 through `demi hud inspect` with the runtime-reported safe-area insets and
 verifies the platformer scene switch plus the frame-61 runtime marker.
-Projects that declare `scripts/tests/mobile.lua` instead run Lua end-to-end
-tests in-app through the new `Mobile` API (`Mobile.touch`/`swipe`/`wait`/
+Projects that declare `scripts/tests/e2e.lua` instead run Lua end-to-end
+tests in-app through the new `Test` API (`Test.touch`/`swipe`/`wait`/
 `expect_scene`/`expect`), which resolves nodes by id and injects synthetic
 touches through the real input pipeline; `[test]` markers are collected into
 `qualification.json` and the same harness runs on desktop via
-`demi run --mobile-tests`. Audio initialization, save-slot writes, and the
-smoke-coverage matrix are recorded per run, and qualified devices are tracked
-in docs/device-matrix.md. Both flows pass on the Pixel 7. Remaining before
-this slice closes: a network-loopback smoke assertion (needs the dedicated
-smoke scene) and at least one more device in the matrix.
+`demi test linux`. The reference project's Lua tests cover the
+settings save write, scene navigation, the ENet host socket, and a TLS wire
+loopback echo (in-process `TlsServer` + `TlsClient` over 127.0.0.1 with the
+shared test certificate, including a new polled `TlsServer.client_connected`
+accessor so tests coexist with game modules that drain the TLS event
+stream). Audio initialization, save-slot writes, and the smoke-coverage
+matrix are recorded per run, and qualified devices are tracked in
+docs/device-matrix.md. All flows pass on the Pixel 7 and on desktop; the
+device matrix grows as additional hardware is qualified.
 
 1. Create one deterministic automated smoke scene exercising text/fallback
    font, transparent texture, shader/material, audio, touch/IME, save path,

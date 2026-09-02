@@ -94,13 +94,14 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
   hashes, private files, logcat output, launched PIDs, and fatal markers,
   then writes `qualification.json` under `<project>/build/android/qualification`
   and fails when a required step, runtime marker, or crash check fails.
-  Projects that declare `scripts/tests/mobile.lua` run their Lua end-to-end
-  tests in-app through the `Mobile` API instead of adb-driven taps (see
-  [Mobile Testing](mobile-testing.md)).
-- `demi run --project <project> [--max-frames count] [--mobile-tests]`: launch
-  the runtime preview. Use `--max-frames 1` for automation. `--mobile-tests`
-  runs the project's `scripts/tests/mobile.lua` harness (see
-  [Mobile Testing](mobile-testing.md)).
+  Projects that declare `scripts/tests/e2e.lua` run their Lua end-to-end
+  tests in-app through the `Test` API instead of adb-driven taps (see
+  [E2E Testing](e2e-testing.md)).
+- `demi run --project <project> [--max-frames count] [--e2e-tests]`: launch
+  the runtime preview. Use `--max-frames 1` for automation. `--e2e-tests`
+  runs the project's `scripts/tests/e2e.lua` harness (see
+  [E2E Testing](e2e-testing.md)). Alternatively use `demi test linux` for a
+  report-producing desktop run.
 - `demi run android [--project <project>] [--serial device] [--adb adb]
   [--apk apk] [--watch]`: build a current debug APK, install it on the
   attached device, launch the game, and stream filtered engine/SDL/crash

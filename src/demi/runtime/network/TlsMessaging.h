@@ -26,6 +26,7 @@ public:
   [[nodiscard]] bool send(std::uint32_t clientId, const std::string& message);
   void disconnect(std::uint32_t clientId);
   [[nodiscard]] std::vector<TlsEvent> drainEvents();
+  [[nodiscard]] bool isClientConnected(std::uint32_t clientId) const;
   [[nodiscard]] const std::string& lastError() const;
   void stop();
 private:

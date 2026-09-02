@@ -89,7 +89,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/media/LuaAudioBindings.cpp
   src/demi/runtime/scripting/bindings/media/LuaCutsceneBindings.cpp
   src/demi/runtime/scripting/bindings/media/LuaVideoBindings.cpp
-  src/demi/runtime/scripting/bindings/mobile/LuaMobileTestBindings.cpp
+  src/demi/runtime/scripting/bindings/test/LuaTestBindings.cpp
   src/demi/runtime/scripting/bindings/persistence/LuaSaveBindings.cpp
   src/demi/runtime/scripting/bindings/text/LuaRegexBindings.cpp
   src/demi/runtime/scripting/bindings/isometric/LuaIsoGridBindings.cpp
@@ -103,7 +103,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/persistence/LuaSaveCodec.cpp
   src/demi/runtime/scripting/persistence/GameSaveDocument.cpp
   src/demi/runtime/scripting/LuaScriptHostPersistence.cpp
-  src/demi/runtime/scripting/LuaScriptHostMobileTests.cpp
+  src/demi/runtime/scripting/LuaScriptHostE2ETests.cpp
   src/demi/runtime/scripting/LuaScriptHostServices.cpp
   src/demi/runtime/scripting/LuaScriptHostSimulationServices.cpp
 )

@@ -16,8 +16,8 @@ namespace {
 constexpr std::int64_t SyntheticFingerId = 0x54455354LL; // 'TEST'
 } // namespace
 
-void LuaScriptHost::startMobileTests(const std::string &moduleName) {
-  mobileTestsEnabled_ = true;
+void LuaScriptHost::startE2ETests(const std::string &moduleName) {
+  e2eTestsEnabled_ = true;
   auto *state = static_cast<lua_State *>(state_);
   if (state == nullptr) {
     return;
@@ -33,27 +33,27 @@ void LuaScriptHost::startMobileTests(const std::string &moduleName) {
   if (lua_pcall(state, 1, 1, 0) != LUA_OK) {
     const char *message = lua_tostring(state, -1);
     deviceLog(deviceLogMessage(
-        "test", "Failed to load mobile test module '" + moduleName +
+        "test", "Failed to load e2e test module '" + moduleName +
                     "': " + (message != nullptr ? message : "unknown error") +
                     "."));
     lua_pop(state, 1);
-    mobileTestsEnabled_ = false;
+    e2eTestsEnabled_ = false;
     return;
   }
   if (!lua_istable(state, -1)) {
     lua_pop(state, 1);
-    deviceLog(deviceLogMessage("test", "Mobile test module '" + moduleName +
+    deviceLog(deviceLogMessage("test", "E2e test module '" + moduleName +
                                            "' did not return a table."));
-    mobileTestsEnabled_ = false;
+    e2eTestsEnabled_ = false;
     return;
   }
 
   lua_getfield(state, -1, "tests");
   if (!lua_istable(state, -1)) {
     lua_pop(state, 2);
-    deviceLog(deviceLogMessage("test", "Mobile test module '" + moduleName +
+    deviceLog(deviceLogMessage("test", "E2e test module '" + moduleName +
                                            "' has no tests table."));
-    mobileTestsEnabled_ = false;
+    e2eTestsEnabled_ = false;
     return;
   }
 
@@ -71,7 +71,7 @@ void LuaScriptHost::startMobileTests(const std::string &moduleName) {
     lua_pop(state, 1);
     lua_getfield(state, -1, "func");
     if (lua_isfunction(state, -1)) {
-      mobileTests_.push_back(
+      e2eTests_.push_back(
           {testName, static_cast<int>(luaL_ref(state, LUA_REGISTRYINDEX))});
     } else {
       lua_pop(state, 2);
@@ -82,23 +82,23 @@ void LuaScriptHost::startMobileTests(const std::string &moduleName) {
   lua_pop(state, 2);
 
   deviceLog(deviceLogMessage(
-      "test", "Running " + std::to_string(mobileTests_.size()) +
-                  " mobile test(s) from '" + moduleName + "'."));
+      "test", "Running " + std::to_string(e2eTests_.size()) +
+                  " e2e test(s) from '" + moduleName + "'."));
 }
 
-bool LuaScriptHost::mobileTestsActive() const {
-  return mobileTestsEnabled_;
+bool LuaScriptHost::e2eTestsActive() const {
+  return e2eTestsEnabled_;
 }
 
-int LuaScriptHost::mobileTestsPassed() const {
-  return mobileTestsPassed_;
+int LuaScriptHost::e2eTestsPassed() const {
+  return e2eTestsPassed_;
 }
 
-int LuaScriptHost::mobileTestsFailed() const {
-  return mobileTestsFailed_;
+int LuaScriptHost::e2eTestsFailed() const {
+  return e2eTestsFailed_;
 }
 
-std::optional<Vec2> LuaScriptHost::mobileNodeCenterCanvas(
+std::optional<Vec2> LuaScriptHost::e2eNodeCenterCanvas(
     const std::string &nodeId) const {
   if (world_ == nullptr)
     return std::nullopt;
@@ -109,15 +109,15 @@ std::optional<Vec2> LuaScriptHost::mobileNodeCenterCanvas(
               found->resolved.y + found->resolved.height * 0.5F};
 }
 
-std::optional<Vec2> LuaScriptHost::mobileNodeCenterViewport(
+std::optional<Vec2> LuaScriptHost::e2eNodeCenterViewport(
     const std::string &nodeId) const {
-  const auto center = mobileNodeCenterCanvas(nodeId);
+  const auto center = e2eNodeCenterCanvas(nodeId);
   if (!center)
     return std::nullopt;
-  return mobileCanvasToViewport(*center);
+  return e2eCanvasToViewport(*center);
 }
 
-Vec2 LuaScriptHost::mobileCanvasToViewport(const Vec2 canvas) const {
+Vec2 LuaScriptHost::e2eCanvasToViewport(const Vec2 canvas) const {
   return Vec2{canvas.x * static_cast<float>(std::max(viewportWidth_, 1)) /
                   std::max(world_ != nullptr ? world_->ui.canvasSize.x : 960.0F,
                            1.0F),
@@ -126,14 +126,14 @@ Vec2 LuaScriptHost::mobileCanvasToViewport(const Vec2 canvas) const {
                            1.0F)};
 }
 
-void LuaScriptHost::mobileEnqueueTap(const Vec2 viewportPosition) {
+void LuaScriptHost::e2eEnqueueTap(const Vec2 viewportPosition) {
   syntheticTouches_.push_back({TouchPhase::Began, viewportPosition});
   syntheticTouches_.push_back({TouchPhase::Ended, viewportPosition});
-  mobileWait_ = MobileWaitKind::Gesture;
+  e2eWait_ = E2EWaitKind::Gesture;
   pendingGestureFrames_ = 2;
 }
 
-void LuaScriptHost::mobileEnqueueSwipe(const Vec2 from,
+void LuaScriptHost::e2eEnqueueSwipe(const Vec2 from,
                                        const Vec2 to, const double seconds) {
   const int frames = std::max(2, static_cast<int>(std::ceil(seconds * 60.0)));
   const Vec2 delta{(to.x - from.x) / static_cast<float>(frames - 1),
@@ -145,54 +145,54 @@ void LuaScriptHost::mobileEnqueueSwipe(const Vec2 from,
     syntheticTouches_.push_back({TouchPhase::Moved, position});
   }
   syntheticTouches_.push_back({TouchPhase::Ended, to});
-  mobileWait_ = MobileWaitKind::Gesture;
+  e2eWait_ = E2EWaitKind::Gesture;
   pendingGestureFrames_ = frames;
 }
 
-void LuaScriptHost::mobileWaitFor(const double seconds) {
-  mobileWait_ = MobileWaitKind::Seconds;
-  mobileWaitSeconds_ = std::max(seconds, 0.0);
-  mobileWaitElapsed_ = 0.0;
+void LuaScriptHost::e2eWaitFor(const double seconds) {
+  e2eWait_ = E2EWaitKind::Seconds;
+  e2eWaitSeconds_ = std::max(seconds, 0.0);
+  e2eWaitElapsed_ = 0.0;
 }
 
-void LuaScriptHost::mobileExpectSceneStart(const std::string &sceneId,
+void LuaScriptHost::e2eExpectSceneStart(const std::string &sceneId,
                                            const double timeout) {
-  mobileWait_ = MobileWaitKind::Scene;
-  mobileWaitScene_ = sceneId;
-  mobileWaitTimeout_ = std::max(timeout, 0.0);
-  mobileWaitElapsed_ = 0.0;
+  e2eWait_ = E2EWaitKind::Scene;
+  e2eWaitScene_ = sceneId;
+  e2eWaitTimeout_ = std::max(timeout, 0.0);
+  e2eWaitElapsed_ = 0.0;
 }
 
-void LuaScriptHost::failActiveMobileTest(const std::string &message) {
-  deviceLog(deviceLogMessage("test", "FAIL " + activeMobileTestName_ + ": " +
+void LuaScriptHost::failActiveE2ETest(const std::string &message) {
+  deviceLog(deviceLogMessage("test", "FAIL " + activeE2ETestName_ + ": " +
                                          message + "."));
-  ++mobileTestsFailed_;
-  finishActiveMobileTest();
+  ++e2eTestsFailed_;
+  finishActiveE2ETest();
 }
 
-void LuaScriptHost::passActiveMobileTest() {
-  deviceLog(deviceLogMessage("test", "PASS " + activeMobileTestName_ + "."));
-  ++mobileTestsPassed_;
-  finishActiveMobileTest();
+void LuaScriptHost::passActiveE2ETest() {
+  deviceLog(deviceLogMessage("test", "PASS " + activeE2ETestName_ + "."));
+  ++e2eTestsPassed_;
+  finishActiveE2ETest();
 }
 
-void LuaScriptHost::finishActiveMobileTest() {
-  if (mobileTestThread_ != 0) {
+void LuaScriptHost::finishActiveE2ETest() {
+  if (e2eTestThread_ != 0) {
     luaL_unref(static_cast<lua_State *>(state_), LUA_REGISTRYINDEX,
-               mobileTestThread_);
-    mobileTestThread_ = 0;
+               e2eTestThread_);
+    e2eTestThread_ = 0;
   }
-  activeMobileTestName_.clear();
-  mobileWait_ = MobileWaitKind::None;
+  activeE2ETestName_.clear();
+  e2eWait_ = E2EWaitKind::None;
   pendingGestureFrames_ = 0;
   syntheticTouches_.clear();
-  ++mobileTestIndex_;
+  ++e2eTestIndex_;
 }
 
 void LuaScriptHost::drainSyntheticTouches(InputState &input) {
   if (syntheticTouches_.empty())
     return;
-  const MobileSyntheticFrame frame = syntheticTouches_.front();
+  const E2ESyntheticFrame frame = syntheticTouches_.front();
   syntheticTouches_.pop_front();
   const auto existing = std::ranges::find(input.touches, syntheticFingerId_,
                                           &TouchPoint::id);
@@ -209,94 +209,94 @@ void LuaScriptHost::drainSyntheticTouches(InputState &input) {
     --pendingGestureFrames_;
 }
 
-void LuaScriptHost::startNextMobileTest() {
+void LuaScriptHost::startNextE2ETest() {
   auto *state = static_cast<lua_State *>(state_);
-  if (mobileTestIndex_ >= mobileTests_.size()) {
+  if (e2eTestIndex_ >= e2eTests_.size()) {
     deviceLog(deviceLogMessage(
-        "test", "SUMMARY passed=" + std::to_string(mobileTestsPassed_) +
-                    " failed=" + std::to_string(mobileTestsFailed_) + "."));
-    mobileTestsEnabled_ = false;
+        "test", "SUMMARY passed=" + std::to_string(e2eTestsPassed_) +
+                    " failed=" + std::to_string(e2eTestsFailed_) + "."));
+    e2eTestsEnabled_ = false;
     requestQuit();
     return;
   }
-  const MobileTestDefinition &definition = mobileTests_[mobileTestIndex_];
-  activeMobileTestName_ = definition.name;
+  const E2ETestDefinition &definition = e2eTests_[e2eTestIndex_];
+  activeE2ETestName_ = definition.name;
   lua_State *thread = lua_newthread(state);
-  mobileTestThread_ =
+  e2eTestThread_ =
       static_cast<int>(luaL_ref(state, LUA_REGISTRYINDEX));
   lua_rawgeti(thread, LUA_REGISTRYINDEX, definition.functionRef);
-  mobileWait_ = MobileWaitKind::None;
+  e2eWait_ = E2EWaitKind::None;
 }
 
-void LuaScriptHost::updateMobileTests(const double deltaTime) {
-  if (!mobileTestsEnabled_)
+void LuaScriptHost::updateE2ETests(const double deltaTime) {
+  if (!e2eTestsEnabled_)
     return;
   auto *state = static_cast<lua_State *>(state_);
   if (state == nullptr)
     return;
 
-  if (mobileTestThread_ == 0) {
-    startNextMobileTest();
-    if (mobileTestThread_ == 0)
+  if (e2eTestThread_ == 0) {
+    startNextE2ETest();
+    if (e2eTestThread_ == 0)
       return; // The summary ran and requested quit.
   } else {
-    switch (mobileWait_) {
-    case MobileWaitKind::Frames:
-      if (--mobileWaitFrames_ > 0)
+    switch (e2eWait_) {
+    case E2EWaitKind::Frames:
+      if (--e2eWaitFrames_ > 0)
         return;
       break;
-    case MobileWaitKind::Seconds:
-      mobileWaitElapsed_ += deltaTime;
-      if (mobileWaitElapsed_ < mobileWaitSeconds_)
+    case E2EWaitKind::Seconds:
+      e2eWaitElapsed_ += deltaTime;
+      if (e2eWaitElapsed_ < e2eWaitSeconds_)
         return;
       break;
-    case MobileWaitKind::Scene: {
+    case E2EWaitKind::Scene: {
       const std::string &active =
           world_ != nullptr ? world_->activeSceneId : std::string{};
-      if (active == mobileWaitScene_) {
+      if (active == e2eWaitScene_) {
         break;
       }
-      mobileWaitElapsed_ += deltaTime;
-      if (mobileWaitElapsed_ >= mobileWaitTimeout_) {
-        failActiveMobileTest("Timed out waiting for scene " +
-                             mobileWaitScene_ + " (active: " + active + ")");
+      e2eWaitElapsed_ += deltaTime;
+      if (e2eWaitElapsed_ >= e2eWaitTimeout_) {
+        failActiveE2ETest("Timed out waiting for scene " +
+                             e2eWaitScene_ + " (active: " + active + ")");
         return;
       }
       return;
     }
-    case MobileWaitKind::Gesture:
+    case E2EWaitKind::Gesture:
       if (pendingGestureFrames_ > 0)
         return;
       break;
-    case MobileWaitKind::None:
+    case E2EWaitKind::None:
       break;
     }
-    mobileWait_ = MobileWaitKind::None;
+    e2eWait_ = E2EWaitKind::None;
   }
 
-  lua_rawgeti(state, LUA_REGISTRYINDEX, mobileTestThread_);
+  lua_rawgeti(state, LUA_REGISTRYINDEX, e2eTestThread_);
   lua_State *thread = lua_tothread(state, -1);
   if (thread == nullptr) {
     lua_pop(state, 1);
-    failActiveMobileTest("Lost the mobile test coroutine.");
+    failActiveE2ETest("Lost the e2e test coroutine.");
     return;
   }
   int results = 0;
   const int status = lua_resume(thread, state, 0, &results);
   lua_pop(state, 1);
   if (status == LUA_YIELD) {
-    if (mobileWait_ == MobileWaitKind::None) {
-      failActiveMobileTest("Test yielded without a wait request.");
+    if (e2eWait_ == E2EWaitKind::None) {
+      failActiveE2ETest("Test yielded without a wait request.");
     }
     return;
   }
   if (status != LUA_OK) {
     const char *message = lua_tostring(thread, -1);
-    failActiveMobileTest(message != nullptr ? message : "unknown error");
+    failActiveE2ETest(message != nullptr ? message : "unknown error");
     lua_pop(thread, 1);
     return;
   }
-  passActiveMobileTest();
+  passActiveE2ETest();
 }
 
 } // namespace demi::runtime

@@ -43,7 +43,7 @@ int main() {
 local ActionModule = {}
 -- @HandleAction("mobile_probe_action")
 function ActionModule.handle_action(event)
-  Save.set_string("test", "mobile_action_fired", event.action .. ":" .. event.id)
+  Save.set_string("test", "e2e_action_fired", event.action .. ":" .. event.id)
 end
 return ActionModule
 )lua")) {
@@ -51,21 +51,21 @@ return ActionModule
     return 1;
   }
 
-  if (!writeFile(projectDirectory / "scripts" / "tests" / "mobile.lua",
+  if (!writeFile(projectDirectory / "scripts" / "tests" / "e2e.lua",
                  R"lua(
 return {tests = {
   {name = "tap reaches button by node id", func = function()
-    Mobile.wait(0.2)
-    Mobile.touch("probe_button")
-    Mobile.wait(0.2)
+    Test.wait(0.2)
+    Test.touch("probe_button")
+    Test.wait(0.2)
   end},
   {name = "node center and expect pass", func = function()
-    Mobile.wait(0.1)
-    Mobile.expect(Mobile.node_center("probe_button") ~= nil,
+    Test.wait(0.1)
+    Test.expect(Test.node_center("probe_button") ~= nil,
                   "probe_button center was nil")
   end},
   {name = "scene timeout fails the test", func = function()
-    Mobile.expect_scene("scene://never/loads", 0.05)
+    Test.expect_scene("scene://never/loads", 0.05)
   end},
 }}
 )lua")) {
@@ -110,55 +110,40 @@ return {tests = {
   }
   host.setViewport(960, 540);
 
-  if (!host.mobileNodeCenterCanvas("probe_button")) {
+  if (!host.e2eNodeCenterCanvas("probe_button")) {
     std::cerr << "Mobile node resolution failed for probe_button.\n";
     return 1;
   }
-  if (host.mobileNodeCenterCanvas("missing_button")) {
+  if (host.e2eNodeCenterCanvas("missing_button")) {
     std::cerr << "Mobile node resolution accepted an unknown node.\n";
     return 1;
   }
 
-  host.startMobileTests("tests.mobile");
-  if (!host.mobileTestsActive()) {
-    std::cerr << "Mobile test harness did not start.\n";
+  host.startE2ETests("tests.e2e");
+  if (!host.e2eTestsActive()) {
+    std::cerr << "E2E test harness did not start.\n";
     return 1;
   }
 
-  for (int frame = 0; frame < 600 && host.mobileTestsActive(); ++frame) {
+  for (int frame = 0; frame < 600 && host.e2eTestsActive(); ++frame) {
     host.drainSyntheticTouches(input);
-    host.updateMobileTests(1.0 / 60.0);
+    host.updateE2ETests(1.0 / 60.0);
     host.update(1.0 / 60.0);
-    if (!input.touches.empty())
-      std::cerr << "frame " << frame << " touches=" << input.touches.size()
-                << " phase="
-                << (input.touches.front().phase ==
-                            runtime::TouchPhase::Began
-                        ? "began"
-                        : input.touches.front().phase ==
-                                runtime::TouchPhase::Ended
-                            ? "ended"
-                            : "other")
-                << " captured="
-                << (world.ui.pointerCaptures.contains(0x54455354LL)
-                        ? world.ui.pointerCaptures.at(0x54455354LL)
-                        : std::string("none"))
-                << "\n";
   }
 
-  if (host.mobileTestsActive()) {
-    std::cerr << "Mobile tests did not finish within the frame budget.\n";
+  if (host.e2eTestsActive()) {
+    std::cerr << "E2E tests did not finish within the frame budget.\n";
     return 1;
   }
-  if (host.mobileTestsPassed() != 2 || host.mobileTestsFailed() != 1) {
-    std::cerr << "Mobile test summary expected 2 passed / 1 failed, got "
-              << host.mobileTestsPassed() << " passed / "
-              << host.mobileTestsFailed() << " failed.\n";
+  if (host.e2eTestsPassed() != 2 || host.e2eTestsFailed() != 1) {
+    std::cerr << "E2E test summary expected 2 passed / 1 failed, got "
+              << host.e2eTestsPassed() << " passed / "
+              << host.e2eTestsFailed() << " failed.\n";
     return 1;
   }
-  if (host.saveString("test", "mobile_action_fired") !=
+  if (host.saveString("test", "e2e_action_fired") !=
       "mobile_probe_action:probe_button") {
-    std::cerr << "Mobile.touch did not activate the HUD button action.\n";
+    std::cerr << "Test.touch did not activate the HUD button action.\n";
     return 1;
   }
 

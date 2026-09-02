@@ -420,8 +420,8 @@ int runProject(const RuntimeOptions &options) {
     std::cerr << "Lua unavailable: " << luaError << '\n';
   }
   luaHost.setHotReloadEnabled(options.watch || luaHost.hotReloadEnabled());
-  if (options.mobileTests)
-    luaHost.startMobileTests("tests.mobile");
+  if (options.e2eTests)
+    luaHost.startE2ETests("tests.e2e");
 
   const auto prepareStartupAssets = [&] {
     Diagnostics diagnostics;
@@ -729,9 +729,9 @@ int runProject(const RuntimeOptions &options) {
       RuntimeProfiler::beginFrame();
       const auto frameStart = std::chrono::steady_clock::now();
       const float dt = frameState.deltaSeconds;
-      if (options.mobileTests) {
+      if (options.e2eTests) {
         luaHost.drainSyntheticTouches(input);
-        luaHost.updateMobileTests(frameState.deltaSeconds);
+        luaHost.updateE2ETests(frameState.deltaSeconds);
       }
       double updateMs = 0.0;
       const auto updateStart = std::chrono::steady_clock::now();
@@ -987,9 +987,9 @@ int runProject(const RuntimeOptions &options) {
       RuntimeProfiler::beginFrame();
       const auto frameStart = std::chrono::steady_clock::now();
       const float dt = frameState.deltaSeconds;
-      if (options.mobileTests) {
+      if (options.e2eTests) {
         luaHost.drainSyntheticTouches(input);
-        luaHost.updateMobileTests(frameState.deltaSeconds);
+        luaHost.updateE2ETests(frameState.deltaSeconds);
       }
       double updateMs = 0.0;
       const auto updateStart = std::chrono::steady_clock::now();

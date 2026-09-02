@@ -471,7 +471,7 @@ def qualify_device(args: argparse.Namespace) -> int:
         "install", "-r", str(apk)).stdout.strip()))
     if critical[-1]:
         set_hot_reload_marker(adb, package, False)
-    test_module = project.parent / "scripts" / "tests" / "mobile.lua"
+    test_module = project.parent / "scripts" / "tests" / "e2e.lua"
     lua_tests = test_module.is_file()
     if lua_tests:
         set_mobile_test_marker(adb, package, True)
@@ -552,7 +552,8 @@ def qualify_device(args: argparse.Namespace) -> int:
         "save_path":
             "[save] settings slot write through the options screen",
         "network_loopback":
-            "not exercised; requires the dedicated smoke scene",
+            "in-app ENet host socket and TLS wire echo loopback via the "
+            "mobile test harness",
         "rotation_safe_area":
             "rotation step + [ui] safe-area marker",
         "suspend_resume":
