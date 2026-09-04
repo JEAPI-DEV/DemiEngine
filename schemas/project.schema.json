@@ -47,6 +47,11 @@
     "input": {
       "type": "object",
       "properties": {
+        "presets": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"enum": ["wasd_arrows", "confirm", "gamepad_confirm", "move_3d"]}
+        },
         "actions": {
           "type": "object",
           "additionalProperties": {
@@ -189,7 +194,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "path"],
+        "required": ["id"],
         "properties": {
           "id": {
             "type": "string",

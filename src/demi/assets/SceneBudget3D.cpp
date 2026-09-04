@@ -148,8 +148,22 @@ SceneBudget3DReport inspectSceneBudget3D(
          limit(budgets, "maximum_transparent_draws", mobile ? 128U : 1000U)}};
     Counts counts;
     for (const Json &scene : project.value("scenes", Json::array())) {
+      // Path may be omitted and inferred from the scene id
+      // (scene://ns/main -> scenes/main.scene.json).
+      std::string scenePath = scene.value("path", "");
+      const std::string sceneId = scene.value("id", "");
+      if (scenePath.empty() && sceneId.starts_with("scene://")) {
+        const std::string rest = sceneId.substr(8);
+        const std::size_t slash = rest.find('/');
+        const std::string leaf =
+            slash == std::string::npos ? rest : rest.substr(slash + 1);
+        if (!leaf.empty())
+          scenePath = "scenes/" + leaf + ".scene.json";
+      }
+      if (scenePath.empty())
+        continue;
       const std::filesystem::path path =
-          projectFile.parent_path() / scene.value("path", "");
+          projectFile.parent_path() / scenePath;
       const Json document = readJson(path);
       for (const Json &entity : document.value("entities", Json::array()))
         inspectEntity(entity, counts);

@@ -431,6 +431,19 @@ bool EditorWorkspace::createEntity(std::string &error,
   return true;
 }
 
+bool EditorWorkspace::createPresetEntity(std::string_view preset,
+                                         std::string &error) {
+  if (!mutateAndRebuild(
+          [preset = std::string(preset)](EditorSceneDocument &document,
+                                         std::string &mutationError) {
+            return document.createPresetEntity(preset, mutationError);
+          },
+          error))
+    return false;
+  selectEntity(std::string(sceneDocument_.lastChangedEntityId()));
+  return true;
+}
+
 bool EditorWorkspace::deleteEntity(const std::string_view id,
                                    std::string &error) {
   return deleteEntities({std::string(id)}, error);

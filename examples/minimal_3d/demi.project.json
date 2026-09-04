@@ -2,52 +2,13 @@
   "format_version": 1,
   "name": "Minimal 3D",
   "main_scene": "scene://minimal_3d/main",
-  "performance_budgets": {
-    "maximum_frame_ms": 16.67,
-    "maximum_draw_calls": 128,
-    "maximum_resident_assets": 64,
-    "maximum_visible_instances": 64,
-    "maximum_unique_meshes": 16,
-    "maximum_triangles": 50000,
-    "maximum_texture_memory_mb": 32,
-    "maximum_lights": 4,
-    "maximum_shadow_lights": 1,
-    "maximum_transparent_draws": 16
-  },
   "debug": {
     "colliders": true,
     "grid": true
   },
   "input": {
+    "presets": ["move_3d"],
     "actions": {
-      "move_right": {
-        "type": "axis1d",
-        "context": "gameplay",
-        "bindings": [
-          {
-            "input": "key:a",
-            "scale": -1.0
-          },
-          {
-            "input": "key:d",
-            "scale": 1.0
-          }
-        ]
-      },
-      "move_forward": {
-        "type": "axis1d",
-        "context": "gameplay",
-        "bindings": [
-          {
-            "input": "key:s",
-            "scale": -1.0
-          },
-          {
-            "input": "key:w",
-            "scale": 1.0
-          }
-        ]
-      },
       "rotate_left": {
         "type": "button",
         "context": "gameplay",
@@ -94,8 +55,7 @@
   },
   "scenes": [
     {
-      "id": "scene://minimal_3d/main",
-      "path": "scenes/main.scene.json"
+      "id": "scene://minimal_3d/main"
     }
   ],
   "scripting": {

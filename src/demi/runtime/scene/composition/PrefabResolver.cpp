@@ -13,6 +13,70 @@ namespace {
 
 using Json = nlohmann::json;
 
+// P5: dotted field helpers for flattened prefab overrides
+// ("body.Transform3D.position"). Intermediate objects are created on set.
+// A bare "Component.field" address (no components/ prefix) resolves inside
+// the entity's components block, matching the nested override shape
+// {entity: {components: {Component: ...}}}.
+std::string qualifyOverridePath(const std::string &path) {
+  const std::size_t dot = path.find('.');
+  if (dot == std::string::npos || path.starts_with("components.") ||
+      path.starts_with("id"))
+    return path;
+  return "components." + path;
+}
+Json *navigateDotted(Json &root, const std::string &path, bool create) {
+  if (path.empty() || !root.is_object())
+    return nullptr;
+  Json *cursor = &root;
+  std::size_t start = 0;
+  while (true) {
+    const std::size_t dot = path.find('.', start);
+    const std::string part = (dot == std::string::npos)
+                                 ? path.substr(start)
+                                 : path.substr(start, dot - start);
+    if (part.empty() || !cursor->is_object())
+      return nullptr;
+    if (!cursor->contains(part)) {
+      if (!create)
+        return nullptr;
+      (*cursor)[part] = Json::object();
+    }
+    cursor = &(*cursor)[part];
+    if (dot == std::string::npos)
+      return cursor->is_object() ? cursor : nullptr;
+    if (!cursor->is_object())
+      return nullptr;
+    start = dot + 1;
+  }
+}
+
+void setDottedField(Json &root, const std::string &path, const Json &value) {
+  const std::string effective = qualifyOverridePath(path);
+  const std::size_t last = effective.rfind('.');
+  if (last == std::string::npos) {
+    if (effective != "id")
+      root[effective] = value;
+    return;
+  }
+  Json *parent = navigateDotted(root, effective.substr(0, last), true);
+  if (parent != nullptr)
+    (*parent)[effective.substr(last + 1)] = value;
+}
+
+void removeDottedField(Json &root, const std::string &path) {
+  const std::string effective = qualifyOverridePath(path);
+  const std::size_t last = effective.rfind('.');
+  if (last == std::string::npos) {
+    if (effective != "id")
+      root.erase(effective);
+    return;
+  }
+  Json *parent = navigateDotted(root, effective.substr(0, last), false);
+  if (parent != nullptr)
+    parent->erase(effective.substr(last + 1));
+}
+
 std::optional<std::filesystem::path>
 findProjectRoot(const std::filesystem::path &sourcePath) {
   std::filesystem::path cursor = sourcePath.parent_path();
@@ -173,6 +237,28 @@ private:
       return;
     }
     for (const auto &[relativeId, overrideValue] : overrides.items()) {
+      // P5: flattened form "body.Transform3D.position": [...] alongside the
+      // nested {body: {components: ...}} form.
+      const std::size_t dot = relativeId.find('.');
+      if (dot != std::string::npos) {
+        const std::string entityPart = relativeId.substr(0, dot);
+        const std::string fieldPath = relativeId.substr(dot + 1);
+        const std::string targetId = prefix + "/" + entityPart;
+        auto target = std::ranges::find_if(entities, [&](const Json &entity) {
+          return entity.is_object() && entity.value("id", "") == targetId;
+        });
+        if (target == entities.end())
+          continue;
+        if (!overrideValue.is_null()) {
+          setDottedField(*target, fieldPath, overrideValue);
+          (*target)["id"] = targetId;
+        } else {
+          // Null flattened override removes the addressed field.
+          removeDottedField(*target, fieldPath);
+          (*target)["id"] = targetId;
+        }
+        continue;
+      }
       const std::string targetId = prefix + "/" + relativeId;
       auto target = std::ranges::find_if(entities, [&](const Json &entity) {
         return entity.is_object() && entity.value("id", "") == targetId;

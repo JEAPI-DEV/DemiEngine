@@ -45,8 +45,6 @@ function Collectibles.create_coin(game, x, y)
     components = {
       Transform2D = {
         position = { x, y },
-        rotation = 0.0,
-        scale = { 1.0, 1.0 },
       },
       Sprite = {
         texture = "asset://items/gold_coin",

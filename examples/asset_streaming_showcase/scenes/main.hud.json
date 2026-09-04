@@ -1,6 +1,5 @@
 {
   "format_version": 1,
-  "canvas_size": [960, 540],
   "root": {
     "id": "root",
     "type": "container",
@@ -9,106 +8,200 @@
         "id": "title",
         "type": "label",
         "text": "ASSET STREAMING SHOWCASE",
-        "position": [40, 34],
+        "position": [
+          40,
+          34
+        ],
         "font_size": 28,
-        "color": [0.38, 0.9, 1.0, 1.0]
+        "color": [
+          0.38,
+          0.9,
+          1.0,
+          1.0
+        ]
       },
       {
         "id": "explanation",
         "type": "label",
         "text": "The scene starts without the optional theme pack. Load displays two transitive SVG assets; Unload hides them and returns their memory.",
-        "position": [40, 82],
-        "size": [860, 54],
+        "position": [
+          40,
+          82
+        ],
+        "size": [
+          860,
+          54
+        ],
         "font_size": 14,
-        "color": [0.82, 0.86, 0.94, 1.0],
+        "color": [
+          0.82,
+          0.86,
+          0.94,
+          1.0
+        ],
         "wrap": true
       },
       {
         "id": "stage",
         "type": "label",
         "text": "Stage: idle",
-        "position": [40, 148],
+        "position": [
+          40,
+          148
+        ],
         "font_size": 18,
-        "color": [1.0, 0.78, 0.35, 1.0]
+        "color": [
+          1.0,
+          0.78,
+          0.35,
+          1.0
+        ]
       },
       {
         "id": "progress",
         "type": "progress",
-        "position": [40, 184],
-        "size": [620, 20],
+        "position": [
+          40,
+          184
+        ],
+        "size": [
+          620,
+          20
+        ],
         "value": 0.0
       },
       {
         "id": "counts",
         "type": "label",
         "text": "Assets: 0 / 0",
-        "position": [40, 218],
+        "position": [
+          40,
+          218
+        ],
         "font_size": 14
       },
       {
         "id": "memory",
         "type": "label",
         "text": "Resident: 0 bytes",
-        "position": [40, 248],
-        "size": [860, 90],
+        "position": [
+          40,
+          248
+        ],
+        "size": [
+          860,
+          90
+        ],
         "font_size": 14,
-        "color": [0.65, 0.94, 0.72, 1.0],
+        "color": [
+          0.65,
+          0.94,
+          0.72,
+          1.0
+        ],
         "wrap": true
       },
       {
         "id": "accent_preview",
         "type": "image",
         "visible": false,
-        "position": [720, 142],
-        "size": [160, 160]
+        "position": [
+          720,
+          142
+        ],
+        "size": [
+          160,
+          160
+        ]
       },
       {
         "id": "badge_preview",
         "type": "image",
         "visible": false,
-        "position": [830, 250],
-        "size": [80, 80]
+        "position": [
+          830,
+          250
+        ],
+        "size": [
+          80,
+          80
+        ]
       },
       {
         "id": "load",
         "type": "button",
         "text": "Load group",
         "action": "load",
-        "position": [40, 360],
-        "size": [190, 44]
+        "position": [
+          40,
+          360
+        ],
+        "size": [
+          190,
+          44
+        ]
       },
       {
         "id": "cancel",
         "type": "button",
         "text": "Cancel",
         "action": "cancel",
-        "position": [246, 360],
-        "size": [130, 44]
+        "position": [
+          246,
+          360
+        ],
+        "size": [
+          130,
+          44
+        ]
       },
       {
         "id": "reload",
         "type": "button",
         "text": "Reload root",
         "action": "reload",
-        "position": [392, 360],
-        "size": [150, 44]
+        "position": [
+          392,
+          360
+        ],
+        "size": [
+          150,
+          44
+        ]
       },
       {
         "id": "unload",
         "type": "button",
         "text": "Unload group",
         "action": "unload",
-        "position": [558, 360],
-        "size": [160, 44]
+        "position": [
+          558,
+          360
+        ],
+        "size": [
+          160,
+          44
+        ]
       },
       {
         "id": "hint",
         "type": "label",
         "text": "Reload root exercises explicit reload. With --watch, reimport an edited SVG and the watcher uses the same backend ownership path automatically.",
-        "position": [40, 432],
-        "size": [860, 48],
+        "position": [
+          40,
+          432
+        ],
+        "size": [
+          860,
+          48
+        ],
         "font_size": 13,
-        "color": [0.7, 0.72, 0.8, 1.0],
+        "color": [
+          0.7,
+          0.72,
+          0.8,
+          1.0
+        ],
         "wrap": true
       }
     ]

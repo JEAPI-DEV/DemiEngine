@@ -6,6 +6,7 @@
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/packages/PackageManifest.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/runtime/scene/SceneEntityParser.h"
 #include "demi/runtime/scene/ProjectBuildSettings.h"
 #include "demi/runtime/scene/ProjectBuildValidation.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
@@ -193,7 +194,25 @@ void validateSceneComponents(Diagnostics &diagnostics,
     return;
   }
   for (const auto &entity : document["entities"]) {
-    if (!entity.is_object() || !entity.contains("components") ||
+    if (!entity.is_object()) {
+      continue;
+    }
+    // P5: unknown preset names are validation errors with suggestions.
+    if (entity.contains("preset") && entity["preset"].is_string()) {
+      const std::string preset = entity["preset"].get<std::string>();
+      const auto known = runtime::scene_loading::knownEntityPresets();
+      if (std::ranges::find(known, preset) == known.end()) {
+        diagnostics.push_back(Diagnostic{
+            .severity = Severity::Error,
+            .code = "SCENE_UNKNOWN_PRESET",
+            .message = "Entity " + entity.value("id", "ent_unknown") +
+                       " uses unknown preset: " + preset,
+            .path = path.string(),
+            .suggestion = "Use one of: static_box_3d, trigger_sphere_3d, "
+                          "prop_2d, character_3d."});
+      }
+    }
+    if (!entity.contains("components") ||
         !entity["components"].is_object()) {
       continue;
     }
@@ -769,7 +788,9 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
     validateReferences(diagnostics, path, text);
     break;
   case SourceFileKind::Hud:
-    if (text.find("\"root\"") == std::string::npos) {
+    if (text.find("\"root\"") == std::string::npos &&
+        text.find("\"children\"") == std::string::npos &&
+        text.find("\"elements\"") == std::string::npos) {
       diagnostics.push_back(
           Diagnostic{.severity = Severity::Error,
                      .code = "HUD_MISSING_CONTENT",

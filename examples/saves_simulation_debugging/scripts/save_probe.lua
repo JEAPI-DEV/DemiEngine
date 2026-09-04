@@ -52,16 +52,16 @@ function Probe:on_start()
 end
 
 function Probe:on_update(dt)
-  local movement = Input.action_value("move")
+  local movement = Input.value("move")
   if movement ~= 0 then
     Transform.add_position(PLAYER, movement * dt * 3.0, 0.0)
     self.score = self.score + 1
   end
-  if Input.action_pressed("randomize") then
+  if Input.pressed("randomize") then
     self.roll = Random.integer(1, 100)
     update_status(self, "Deterministic roll")
   end
-  if Input.action_pressed("save") then
+  if Input.pressed("save") then
     save(self, "manual_checkpoint")
   end
 end

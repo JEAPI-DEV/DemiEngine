@@ -6,35 +6,10 @@
   },
   "main_scene": "scene://minimal_voxel/main",
   "input": {
+    "presets": [
+      "move_3d"
+    ],
     "actions": {
-      "move_right": {
-        "type": "axis1d",
-        "context": "gameplay",
-        "bindings": [
-          {
-            "input": "key:a",
-            "scale": -1.0
-          },
-          {
-            "input": "key:d",
-            "scale": 1.0
-          }
-        ]
-      },
-      "move_forward": {
-        "type": "axis1d",
-        "context": "gameplay",
-        "bindings": [
-          {
-            "input": "key:s",
-            "scale": -1.0
-          },
-          {
-            "input": "key:w",
-            "scale": 1.0
-          }
-        ]
-      },
       "move_vertical": {
         "type": "axis1d",
         "context": "gameplay",
@@ -98,8 +73,7 @@
   },
   "scenes": [
     {
-      "id": "scene://minimal_voxel/main",
-      "path": "scenes/main.scene.json"
+      "id": "scene://minimal_voxel/main"
     }
   ],
   "assets": [

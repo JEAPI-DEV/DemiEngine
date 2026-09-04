@@ -69,8 +69,8 @@ function Game:on_create()
 end
 
 function Game:on_update(dt)
-  if Input.action_pressed("reset") then self:reset() end
-  if Input.action_pressed("release") and self.next_ball <= BALL_COUNT then
+  if Input.pressed("reset") then self:reset() end
+  if Input.pressed("release") and self.next_ball <= BALL_COUNT then
     self.is_releasing = true
     print("Galton board release started")
   end

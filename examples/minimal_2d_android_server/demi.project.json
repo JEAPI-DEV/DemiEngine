@@ -4,8 +4,7 @@
   "main_scene": "scene://minimal_2d_android_server/main",
   "scenes": [
     {
-      "id": "scene://minimal_2d_android_server/main",
-      "path": "scenes/main.scene.json"
+      "id": "scene://minimal_2d_android_server/main"
     }
   ],
   "scripting": {

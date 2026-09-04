@@ -78,10 +78,10 @@ function Game:play_computer_move()
 end
 
 function Game:on_update(dt)
-  if Input.action_pressed("new_game") then self:new_game() end
-  if Input.action_pressed("difficulty_easy") then self:set_depth(1) end
-  if Input.action_pressed("difficulty_medium") then self:set_depth(2) end
-  if Input.action_pressed("difficulty_hard") then self:set_depth(3) end
+  if Input.pressed("new_game") then self:new_game() end
+  if Input.pressed("difficulty_easy") then self:set_depth(1) end
+  if Input.pressed("difficulty_medium") then self:set_depth(2) end
+  if Input.pressed("difficulty_hard") then self:set_depth(3) end
   if self.ai_pending then
     self.ai_delay = self.ai_delay - dt
     if self.ai_delay <= 0 then self:play_computer_move() end

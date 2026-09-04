@@ -16,7 +16,8 @@ namespace {
 bool near(float left, float right) { return std::abs(left - right) < 0.01F; }
 
 bool verifyAspect(demi::runtime::ui::UiDocument document,
-                  demi::runtime::Vec2 viewport) {
+                   demi::runtime::Vec2 viewport) {
+  document.safeArea = {};
   demi::runtime::ui::UiLayoutEngine{}.layout(document, viewport);
   const auto &root = document.nodes[0];
   const auto &first = document.nodes[1];
@@ -71,6 +72,7 @@ int main() {
     },
     "root": {
       "id": "menu", "type": "container", "style": "menu",
+      "respect_safe_area": false,
       "anchor_min": [0, 0], "anchor_max": [1, 1],
       "layout": "column", "alignment": "center",
       "children": [
@@ -84,6 +86,9 @@ int main() {
   })"));
 
   if (document.nodes.size() != 6 || document.nodes[1].text != "Play" ||
+      document.nodes[0].type != "container" ||
+      !near(document.nodes[0].layout.anchorMax.x, 1.0F) ||
+      !near(document.nodes[0].layout.anchorMax.y, 1.0F) ||
       document.nodes[5].placeholder != "Search" ||
       document.actionMap["submit"] != "ui_accept" ||
       !verifyAspect(document, {1920.0F, 1080.0F}) ||
@@ -160,14 +165,33 @@ int main() {
        .type = "panel",
        .layout = {.anchorMin = {0.0F, 0.0F}, .anchorMax = {1.0F, 1.0F}},
        .respectsSafeArea = false});
+  safeAreaDocument.nodes.push_back(
+      {.id = "safe_content",
+       .parent = "safe_root",
+       .type = "container",
+       .layout = {.anchorMin = {0.0F, 0.0F}, .anchorMax = {1.0F, 1.0F}},
+       .respectsSafeArea = true});
+  safeAreaDocument.nodes.push_back(
+      {.id = "safe_child",
+       .parent = "safe_content",
+       .type = "panel",
+       .layout = {.anchorMin = {0.0F, 0.0F},
+                  .anchorMax = {1.0F, 1.0F}}});
   demi::runtime::ui::UiLayoutEngine{}.layout(safeAreaDocument,
                                              {200.0F, 150.0F});
   const auto &edgeBackground = safeAreaDocument.nodes[1].resolved;
+  const auto &safeContent = safeAreaDocument.nodes[2].resolved;
+  const auto &safeChild = safeAreaDocument.nodes[3].resolved;
   if (!near(edgeBackground.x, 0.0F) || !near(edgeBackground.y, 0.0F) ||
       !near(edgeBackground.width, 200.0F) ||
-      !near(edgeBackground.height, 150.0F)) {
-    std::cerr << "A HUD node that ignores the safe area did not resolve "
-                 "against the full viewport.\n";
+      !near(edgeBackground.height, 150.0F) ||
+      !near(safeContent.x, 10.0F) || !near(safeContent.y, 20.0F) ||
+      !near(safeContent.width, 160.0F) ||
+      !near(safeContent.height, 90.0F) ||
+      !near(safeChild.x, safeContent.x) || !near(safeChild.y, safeContent.y) ||
+      !near(safeChild.width, safeContent.width) ||
+      !near(safeChild.height, safeContent.height)) {
+    std::cerr << "Safe-area containers or their children resolved incorrectly.\n";
     return 1;
   }
   demi::runtime::ui::UiInteractionController interaction;
@@ -253,6 +277,7 @@ int main() {
     "root": {
       "id": "panel",
       "type": "container",
+      "respect_safe_area": true,
       "anchor_min": [0, 0],
       "anchor_max": [1, 1],
       "children": [{

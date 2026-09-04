@@ -3,38 +3,11 @@
   "name": {{PROJECT_NAME_JSON}},
   "main_scene": "scene://{{TEMPLATE_ID}}/main",
   "scenes": [
-    { "id": "scene://{{TEMPLATE_ID}}/main", "path": "scenes/main.scene.json" }
+    { "id": "scene://{{TEMPLATE_ID}}/main" }
   ],
   "assets": [],
   "input": {
-    "actions": {
-      "move_x": {
-        "type": "axis1d", "context": "gameplay",
-        "bindings": [
-          { "input": "key:a", "scale": -1.0 },
-          { "input": "key:left", "scale": -1.0 },
-          { "input": "key:d", "scale": 1.0 },
-          { "input": "key:right", "scale": 1.0 }
-        ]
-      },
-      "move_y": {
-        "type": "axis1d", "context": "gameplay",
-        "bindings": [
-          { "input": "key:s", "scale": -1.0 },
-          { "input": "key:down", "scale": -1.0 },
-          { "input": "key:w", "scale": 1.0 },
-          { "input": "key:up", "scale": 1.0 }
-        ]
-      },
-      "confirm": {
-        "type": "button", "context": "gameplay",
-        "bindings": [
-          { "input": "key:space" },
-          { "input": "key:enter" },
-          { "input": "gamepad:south" }
-        ]
-      }
-    }
+    "presets": ["wasd_arrows", "confirm"]
   },
   "scripting": { "language": "lua54", "modules": [] }
 }

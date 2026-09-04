@@ -8,16 +8,13 @@
   "main_scene": "scene://minimal_2d_android/menu",
   "scenes": [
     {
-      "id": "scene://minimal_2d_android/menu",
-      "path": "scenes/menu.scene.json"
+      "id": "scene://minimal_2d_android/menu"
     },
     {
-      "id": "scene://minimal_2d_android/platformer",
-      "path": "scenes/platformer.scene.json"
+      "id": "scene://minimal_2d_android/platformer"
     },
     {
-      "id": "scene://minimal_2d_android/spiral",
-      "path": "scenes/spiral.scene.json"
+      "id": "scene://minimal_2d_android/spiral"
     }
   ],
   "assets": [
@@ -42,8 +39,12 @@
     "android": {
       "orientation": "landscape",
       "min_sdk": 26,
-      "abis": ["arm64-v8a"],
-      "permissions": ["android.permission.INTERNET"]
+      "abis": [
+        "arm64-v8a"
+      ],
+      "permissions": [
+        "android.permission.INTERNET"
+      ]
     }
   },
   "input": {

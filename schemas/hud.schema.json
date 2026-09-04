@@ -27,13 +27,26 @@
       "minItems": 2,
       "maxItems": 2
     },
+    "color": {
+      "anyOf": [
+        {
+          "type": "array",
+          "prefixItems": [{"type": "number"}, {"type": "number"}, {"type": "number"}, {"type": "number"}],
+          "minItems": 4,
+          "maxItems": 4
+        },
+        {"type": "string", "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"}
+      ]
+    },
+    "insets": {
+      "anyOf": [
+        {"type": "number"},
+        {"type": "array", "prefixItems": [{"type": "number"}, {"type": "number"}, {"type": "number"}, {"type": "number"}], "minItems": 4, "maxItems": 4}
+      ]
+    },
     "node": {
       "type": "object",
       "required": ["id"],
-      "oneOf": [
-        {"required": ["type"]},
-        {"required": ["prefab"]}
-      ],
       "properties": {
         "id": {"type": "string", "minLength": 1},
         "prefab": {"type": "string", "pattern": "^ui-prefab://"},
@@ -41,6 +54,19 @@
         "overrides": {"type": "object"},
         "type": {"enum": ["container", "panel", "label", "text", "image", "button", "toggle", "slider", "text_input", "scroll", "list", "progress", "modal", "virtual_button", "virtual_stick"]},
         "children": {"type": "array", "items": {"$ref": "#/$defs/node"}},
+        "dock": {"enum": ["fill", "top", "bottom", "left", "right", "center"]},
+        "stack": {"enum": ["row", "column", "grid"]},
+        "at": {"$ref": "#/$defs/vec2"},
+        "pad": {"$ref": "#/$defs/insets"},
+        "padding": {"$ref": "#/$defs/insets"},
+        "margin": {"$ref": "#/$defs/insets"},
+        "gap": {"type": "number", "minimum": 0},
+        "color": {"$ref": "#/$defs/color"},
+        "background_color": {"$ref": "#/$defs/color"},
+        "border_color": {"$ref": "#/$defs/color"},
+        "hover_color": {"$ref": "#/$defs/color"},
+        "text_color": {"$ref": "#/$defs/color"},
+        "font_size": {"type": "number", "minimum": 1},
         "layout": {"enum": ["row", "column", "grid"]},
         "alignment": {"enum": ["start", "center", "end", "stretch"]},
         "position": {"$ref": "#/$defs/vec2"},

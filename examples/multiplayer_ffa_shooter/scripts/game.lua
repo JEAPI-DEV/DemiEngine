@@ -123,17 +123,17 @@ function Game:on_update(dt)
   self:process_network()
 
   if self.mode == "menu" then
-    if Input.action_pressed("host_match") then
+    if Input.pressed("host_match") then
       self:host_match()
-    elseif Input.action_pressed("join_match") then
+    elseif Input.pressed("join_match") then
       self:join_match()
-    elseif Input.action_pressed("practice_match") then
+    elseif Input.pressed("practice_match") then
       self:practice_match()
     end
     return
   end
 
-  if Input.action_pressed("leave_match") then
+  if Input.pressed("leave_match") then
     self:leave_match()
     return
   end
@@ -144,7 +144,7 @@ function Game:on_update(dt)
   end
 
   local mouse_fire = Input.mouse_down("left") and not Input.ui_pointer_captured()
-  if Input.action_pressed("fire") or mouse_fire then
+  if Input.pressed("fire") or mouse_fire then
     self.combat:request_shot()
   end
   self.combat:update_tracer()

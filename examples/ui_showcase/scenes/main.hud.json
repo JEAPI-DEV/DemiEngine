@@ -1,9 +1,5 @@
 {
   "format_version": 1,
-  "canvas_size": [
-    960,
-    540
-  ],
   "theme": "../ui/default.theme.json",
   "localization_file": "../ui/en.localization.json",
   "action_effects": {
@@ -41,27 +37,11 @@
   "root": {
     "id": "ui_root",
     "type": "container",
-    "anchor_min": [
-      0,
-      0
-    ],
-    "anchor_max": [
-      1,
-      1
-    ],
     "children": [
       {
         "id": "main_screen",
         "type": "panel",
         "style": "screen",
-        "anchor_min": [
-          0,
-          0
-        ],
-        "anchor_max": [
-          1,
-          1
-        ],
         "margin": 20,
         "layout": "row",
         "alignment": "stretch",
@@ -272,7 +252,8 @@
               }
             ]
           }
-        ]
+        ],
+        "dock": "fill"
       },
       {
         "id": "confirm_modal",
@@ -312,6 +293,7 @@
           }
         ]
       }
-    ]
+    ],
+    "dock": "fill"
   }
 }

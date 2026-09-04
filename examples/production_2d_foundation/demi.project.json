@@ -4,8 +4,7 @@
   "main_scene": "scene://production_2d_foundation/main",
   "scenes": [
     {
-      "id": "scene://production_2d_foundation/main",
-      "path": "scenes/main.scene.json"
+      "id": "scene://production_2d_foundation/main"
     }
   ],
   "simulation": {
@@ -27,51 +26,10 @@
     }
   },
   "input": {
+    "presets": [
+      "wasd_arrows"
+    ],
     "actions": {
-      "move_x": {
-        "type": "axis1d",
-        "context": "gameplay",
-        "bindings": [
-          {
-            "input": "key:a",
-            "scale": -1
-          },
-          {
-            "input": "key:left",
-            "scale": -1
-          },
-          {
-            "input": "key:d",
-            "scale": 1
-          },
-          {
-            "input": "key:right",
-            "scale": 1
-          }
-        ]
-      },
-      "move_y": {
-        "type": "axis1d",
-        "context": "gameplay",
-        "bindings": [
-          {
-            "input": "key:s",
-            "scale": -1
-          },
-          {
-            "input": "key:down",
-            "scale": -1
-          },
-          {
-            "input": "key:w",
-            "scale": 1
-          },
-          {
-            "input": "key:up",
-            "scale": 1
-          }
-        ]
-      },
       "toggle_gate": {
         "type": "button",
         "context": "gameplay",

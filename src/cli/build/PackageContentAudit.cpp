@@ -8,9 +8,11 @@
 namespace demi::build {
 namespace {
 
-// Roots the packaged runtime reads from the project tree.
-constexpr std::array<std::string_view, 5> AllowedDirectories{
-    "assets", "certs", "packages", "scenes", "scripts"};
+// Roots the packaged runtime reads from the project tree: scene/HUD/prefab
+// resolvers load prefabs/ and ui/ at runtime (Prefab.instantiate,
+// ui-prefab:// expansion), alongside assets/certs/packages/scenes/scripts.
+constexpr std::array<std::string_view, 7> AllowedDirectories{
+    "assets", "certs", "packages", "prefabs", "scenes", "scripts", "ui"};
 constexpr std::array<std::string_view, 3> AllowedFiles{
     "cook.manifest.json", "demi.packages.lock.json", "demi.project.json"};
 

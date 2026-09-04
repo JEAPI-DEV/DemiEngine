@@ -119,6 +119,16 @@ struct UiStyle {
   Color backgroundColor{};
   Insets padding{};
   float gap = 0.0F;
+  float fontSize = 0.0F;
+  bool hasFontSize = false;
+  Color textColor{1.0F, 1.0F, 1.0F, 1.0F};
+  bool hasTextColor = false;
+  Vec2 minSize{};
+  bool hasMinSize = false;
+  float controlHeight = 0.0F;
+  bool hasControlHeight = false;
+  float rowHeight = 0.0F;
+  bool hasRowHeight = false;
 };
 
 struct UiActionEffect {

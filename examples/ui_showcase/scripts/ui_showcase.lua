@@ -1,21 +1,17 @@
+-- UI showcase: searchable virtualized list, scroll panel, dropdown, tabs.
+-- Uses require("demi.ui") helpers over the raw Hud/Events API: no per-frame
+-- polling, no manual scroll clamp math, no subscription bookkeeping.
+local Ui = require("demi.ui")
+local Script = require("demi.script")
 local UiShowcase = {}
 
 local inventory_items = {}
-local inventory_by_id = {}
 for index = 1, 10000 do
   inventory_items[index] = {
     id = "item_" .. index,
     label = (index % 3 == 1 and "Potion " or index % 3 == 2 and "Key " or "Sword ") .. index,
   }
-  inventory_by_id[inventory_items[index].id] = inventory_items[index]
 end
-
-local previous_pattern = nil
-local window_mode_dropdown_open = false
-local inventory_scroll = 0
-local inventory_scroll_subscription = nil
-local filtered_inventory_keys = {}
-local filtered_inventory_extents = {}
 
 local window_modes = {
   window_mode_windowed = { mode = "windowed", label = "Windowed" },
@@ -23,13 +19,18 @@ local window_modes = {
   window_mode_fullscreen = { mode = "fullscreen", label = "Fullscreen" },
 }
 
-local function show_window_mode(mode, label)
-  Hud.set_text("window_mode_dropdown", "Window: " .. label .. "  v")
-  Hud.set_visible("window_mode_options", false)
-  window_mode_dropdown_open = false
-  if mode then
-    Application.set_window_mode(mode)
-  end
+local ROW_EXTENT = 38
+local VIEWPORT = 300
+
+local function refresh(pattern)
+  Ui.filter_list("inventory_rows", "inventory_row_template", inventory_items,
+    pattern or "",
+    function(item) return item.id end,
+    function(item, wanted)
+      return wanted == "" or (Regex.is_valid(wanted) and Regex.matches(item.label, wanted))
+    end,
+    function(row, item) Hud.set_text(row.node.id, item.label) end,
+    ROW_EXTENT, VIEWPORT)
 end
 
 local function current_window_mode()
@@ -42,66 +43,40 @@ local function current_window_mode()
   return window_modes.window_mode_windowed
 end
 
-local function filter_inventory(pattern)
-  local valid = Regex.is_valid(pattern)
-  local keys = {}
-  local extents = {}
-  for _, item in ipairs(inventory_items) do
-    if pattern == "" or (valid and Regex.matches(item.label, pattern)) then
-      keys[#keys + 1] = item.id
-      extents[#extents + 1] = 38
-    end
-  end
-  filtered_inventory_keys = keys
-  filtered_inventory_extents = extents
-  local maximum_scroll = math.max(#keys * 38 - 300, 0)
-  inventory_scroll = math.max(0, math.min(inventory_scroll, maximum_scroll))
-  local template = assert(Hud.find("inventory_row_template"))
-  local rows, error = Hud.recycle_rows(
-    "inventory_rows", template, keys, extents, inventory_scroll, 300, 2
-  )
-  assert(error == "", error)
-  for _, row in ipairs(rows) do
-    local item = inventory_by_id[row.key]
-    Hud.set_text(row.node.id, item and item.label or row.key)
-  end
-end
-
 function UiShowcase:on_start()
-  previous_pattern = ""
-  filter_inventory("")
+  Script.bind(self)
+  refresh("")
   local choice = current_window_mode()
-  show_window_mode(nil, choice.label)
-  inventory_scroll_subscription = Events.subscribe("ui_scroll", function(event)
-    if event.id ~= "inventory_panel" then
-      return
+  Ui.dropdown("window_mode_dropdown", "window_mode_options", false, "Window: " .. choice.label .. "  v")
+  -- Poll-free search: refresh only when the text input changes.
+  self:on("ui_value_changed", function(event)
+    if event.id == "inventory_search" then
+      refresh(event.text)
     end
-    local scale = event.source == "touch" and 1 or 38
-    local maximum_scroll = math.max(#filtered_inventory_keys * 38 - 300, 0)
-    inventory_scroll = math.max(
-      0,
-      math.min(inventory_scroll + event.delta_y * scale, maximum_scroll)
-    )
-    filter_inventory(previous_pattern or "")
   end)
+  -- Scroll panel owns clamp math + ui_scroll subscription.
+  self.scroll = Ui.scroll_panel("inventory_panel", ROW_EXTENT, VIEWPORT,
+    function()
+      return #inventory_items
+    end,
+    function(_scroll)
+      refresh("")
+    end)
 end
 
 function UiShowcase:on_destroy()
-  if inventory_scroll_subscription then
-    Events.unsubscribe(inventory_scroll_subscription)
-    inventory_scroll_subscription = nil
+  Script.release(self)
+  if self.scroll then
+    self.scroll:release()
   end
   Hud.clear_recycled_rows("inventory_rows")
 end
 
-function UiShowcase:on_update(_dt)
-  local pattern = Hud.get_text("inventory_search") or ""
-  if pattern == previous_pattern then
-    return
+-- Re-export Script helper methods so self:on/self:after work.
+for key, value in pairs(Script) do
+  if UiShowcase[key] == nil then
+    UiShowcase[key] = value
   end
-
-  previous_pattern = pattern
-  filter_inventory(pattern)
 end
 
 -- @HandleAction("window_mode_dropdown")
@@ -110,18 +85,19 @@ end
 -- @HandleAction("window_mode_fullscreen")
 function UiShowcase:on_window_mode_action(event)
   if event.action == "window_mode_dropdown" then
-    window_mode_dropdown_open = not window_mode_dropdown_open
-    Hud.set_visible("window_mode_options", window_mode_dropdown_open)
-    Hud.set_text(
-      "window_mode_dropdown",
-      "Window: " .. current_window_mode().label .. (window_mode_dropdown_open and "  ^" or "  v")
-    )
+    local open = not UiShowcase.dropdown_open
+    UiShowcase.dropdown_open = open
+    Ui.dropdown("window_mode_dropdown", "window_mode_options", open,
+      "Window: " .. current_window_mode().label .. (open and "  ^" or "  v"))
     return
   end
 
   local choice = window_modes[event.action]
   if choice then
-    show_window_mode(choice.mode, choice.label)
+    UiShowcase.dropdown_open = false
+    Ui.dropdown("window_mode_dropdown", "window_mode_options", false,
+      "Window: " .. choice.label .. "  v")
+    Application.set_window_mode(choice.mode)
   end
 end
 

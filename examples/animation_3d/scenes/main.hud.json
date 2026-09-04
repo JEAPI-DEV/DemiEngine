@@ -1,20 +1,8 @@
 {
   "format_version": 1,
-  "canvas_size": [
-    960.0,
-    540.0
-  ],
   "root": {
     "id": "ui_root",
     "type": "container",
-    "anchor_min": [
-      0.0,
-      0.0
-    ],
-    "anchor_max": [
-      1.0,
-      1.0
-    ],
     "children": [
       {
         "type": "label",
@@ -219,6 +207,7 @@
           0.92
         ]
       }
-    ]
+    ],
+    "dock": "fill"
   }
 }

@@ -8,16 +8,13 @@
   "main_scene": "scene://minimal_2d_networking/menu",
   "scenes": [
     {
-      "id": "scene://minimal_2d_networking/menu",
-      "path": "scenes/menu.scene.json"
+      "id": "scene://minimal_2d_networking/menu"
     },
     {
-      "id": "scene://minimal_2d_networking/platformer",
-      "path": "scenes/platformer.scene.json"
+      "id": "scene://minimal_2d_networking/platformer"
     },
     {
-      "id": "scene://minimal_2d_networking/spiral",
-      "path": "scenes/spiral.scene.json"
+      "id": "scene://minimal_2d_networking/spiral"
     }
   ],
   "assets": [

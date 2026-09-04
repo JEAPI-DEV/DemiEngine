@@ -9,8 +9,7 @@
   "main_scene": "scene://multiplayer_ffa_shooter/arena",
   "scenes": [
     {
-      "id": "scene://multiplayer_ffa_shooter/arena",
-      "path": "scenes/arena.scene.json"
+      "id": "scene://multiplayer_ffa_shooter/arena"
     }
   ],
   "input": {

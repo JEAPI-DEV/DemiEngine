@@ -1,9 +1,5 @@
 {
   "format_version": 1,
-  "canvas_size": [
-    960,
-    540
-  ],
   "root": {
     "id": "root",
     "type": "container",

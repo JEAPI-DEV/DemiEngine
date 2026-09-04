@@ -4,6 +4,7 @@
 
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/runtime/scene/SceneEntityParser.h"
 #include "demi/schema/Validation.h"
 
 #include <algorithm>
@@ -370,6 +371,29 @@ bool EditorSceneDocument::createEntity(std::string &error,
     childTransform["parent"] = *parent;
     entity["components"][transform] = std::move(childTransform);
   }
+  return stageAndCommit(InsertEntityCommand{.index = entities->size(),
+                                            .entity = std::move(entity)},
+                        error);
+}
+
+bool EditorSceneDocument::createPresetEntity(std::string_view preset,
+                                             std::string &error) {
+  const auto known = runtime::scene_loading::knownEntityPresets();
+  if (std::ranges::find(known, preset) == known.end()) {
+    error = "Unknown entity preset.";
+    return false;
+  }
+  nlohmann::json *entities = entitiesArray(document_);
+  if (entities == nullptr) {
+    error = "The scene has no entities array.";
+    reject({}, error);
+    return false;
+  }
+  const std::string id = uniqueEntityId(document_, "ent_new");
+  nlohmann::json entity{{"id", id},
+                        {"name", std::string(preset) + " Entity"},
+                        {"preset", std::string(preset)},
+                        {"components", nlohmann::json::object()}};
   return stageAndCommit(InsertEntityCommand{.index = entities->size(),
                                             .entity = std::move(entity)},
                         error);

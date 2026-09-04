@@ -4,8 +4,7 @@
   "main_scene": "scene://asset_streaming_showcase/main",
   "scenes": [
     {
-      "id": "scene://asset_streaming_showcase/main",
-      "path": "scenes/main.scene.json"
+      "id": "scene://asset_streaming_showcase/main"
     }
   ],
   "assets": [],

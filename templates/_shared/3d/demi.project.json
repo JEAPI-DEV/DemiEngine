@@ -2,38 +2,13 @@
   "format_version": 1,
   "name": {{PROJECT_NAME_JSON}},
   "main_scene": "scene://{{TEMPLATE_ID}}/main",
-  "performance_budgets": {
-    "maximum_frame_ms": 16.67,
-    "maximum_draw_calls": 250,
-    "maximum_resident_assets": 128,
-    "maximum_visible_instances": 750,
-    "maximum_unique_meshes": 96,
-    "maximum_triangles": 200000,
-    "maximum_texture_memory_mb": 96,
-    "maximum_lights": 8,
-    "maximum_shadow_lights": 1,
-    "maximum_transparent_draws": 96
-  },
   "scenes": [
-    { "id": "scene://{{TEMPLATE_ID}}/main", "path": "scenes/main.scene.json" }
+    { "id": "scene://{{TEMPLATE_ID}}/main" }
   ],
   "assets": [],
   "input": {
+    "presets": ["move_3d"],
     "actions": {
-      "move_x": {
-        "type": "axis1d", "context": "gameplay",
-        "bindings": [
-          {"input": "key:a", "scale": -1.0},
-          {"input": "key:d", "scale": 1.0}
-        ]
-      },
-      "move_z": {
-        "type": "axis1d", "context": "gameplay",
-        "bindings": [
-          {"input": "key:s", "scale": -1.0},
-          {"input": "key:w", "scale": 1.0}
-        ]
-      },
       "jump": {
         "type": "button", "context": "gameplay",
         "bindings": [{"input": "key:space"}]

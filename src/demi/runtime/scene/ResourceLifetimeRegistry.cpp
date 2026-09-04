@@ -19,6 +19,17 @@ std::unordered_set<std::string> ResourceLifetimeRegistry::collect(
   for (const Entity &entity : entities) {
     if (entity.sceneOwner != owner)
       continue;
+    // Authored component JSON is the source of truth for scene-loaded
+    // entities; serializedComponents is only populated for prefab-instantiated
+    // and runtime-created entities (see RuntimePrefabService,
+    // RuntimeObjectModel). serializedComponents is the fallback.
+    for (const std::shared_ptr<const Component> &authored :
+         entity.authoredComponents) {
+      if (authored == nullptr)
+        continue;
+      const auto references = extractAssetReferences(std::string(authored->json()));
+      assets.insert(references.begin(), references.end());
+    }
     for (const auto &descriptor :
          scene_loading::componentDescriptors()) {
       const auto serialized =

@@ -14,16 +14,6 @@
             0.0,
             5.5,
             9.0
-          ],
-          "rotation": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "scale": [
-            1.0,
-            1.0,
-            1.0
           ]
         },
         "Camera3D": {
@@ -85,22 +75,14 @@
     {
       "id": "ent_ground",
       "name": "Ground Plane",
+      "preset": "static_box_3d",
+      "size": [40.0, 0.2, 40.0],
       "components": {
         "Transform3D": {
           "position": [
             0.0,
             0.0,
             0.0
-          ],
-          "rotation": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "scale": [
-            1.0,
-            1.0,
-            1.0
           ]
         },
         "MeshRenderer": {
@@ -115,54 +97,29 @@
             0.22,
             0.20,
             1.0
-          ],
-          "wireframe": false
+          ]
         },
         "BoxCollider3D": {
-          "size": [
-            40.0,
-            0.2,
-            40.0
-          ],
           "offset": [
             0.0,
             -0.1,
             0.0
           ],
-          "is_trigger": false,
           "layer": "ground"
-        },
-        "Rigidbody3D": {
-          "body_type": "static",
-          "velocity": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "use_gravity": false,
-          "gravity_scale": 0.0
         }
       }
     },
     {
       "id": "ent_hyena_model",
       "name": "Hyena Model",
+      "preset": "static_box_3d",
+      "size": [0.5, 1.5, 2.3],
       "components": {
         "Transform3D": {
           "position": [
             0.0,
             0,
             -6.0
-          ],
-          "rotation": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "scale": [
-            1.0,
-            1.0,
-            1.0
           ]
         },
         "MeshRenderer": {
@@ -177,24 +134,11 @@
             1.0,
             1.0,
             1.0
-          ],
-          "wireframe": false
+          ]
         },
         "BoxCollider3D": {
-          "size": [0.5, 1.5, 2.3],
           "offset": [0.0, 0, -0.1],
-          "is_trigger": false,
           "layer": "obstacle"
-        },
-        "Rigidbody3D": {
-          "body_type": "static",
-          "velocity": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "use_gravity": false,
-          "gravity_scale": 0.0
         }
       }
     },
@@ -207,16 +151,6 @@
             -3.0,
             0.75,
             -3.0
-          ],
-          "rotation": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "scale": [
-            1.0,
-            1.0,
-            1.0
           ]
         },
         "MeshRenderer": {
@@ -231,28 +165,15 @@
             0.78,
             0.36,
             1.0
-          ],
-          "wireframe": false
+          ]
         },
         "SphereCollider3D": {
           "radius": 0.75,
-          "offset": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "is_trigger": false,
           "layer": "obstacle"
         },
         "Rigidbody3D": {
           "body_type": "static",
-          "velocity": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "use_gravity": false,
-          "gravity_scale": 0.0
+          "use_gravity": false
         }
       }
     },
@@ -261,27 +182,20 @@
       "name": "Moving Platform",
       "components": {
         "Transform3D": {
-          "position": [0.0, 0.35, 3.0],
-          "rotation": [0.0, 0.0, 0.0],
-          "scale": [1.0, 1.0, 1.0]
+          "position": [0.0, 0.35, 3.0]
         },
         "MeshRenderer": {
           "shape": "cube",
           "size": [3.0, 0.4, 2.0],
-          "color": [0.25, 0.72, 0.68, 1.0],
-          "wireframe": false
+          "color": [0.25, 0.72, 0.68, 1.0]
         },
         "BoxCollider3D": {
           "size": [3.0, 0.4, 2.0],
-          "offset": [0.0, 0.0, 0.0],
-          "is_trigger": false,
           "layer": "platform"
         },
         "Rigidbody3D": {
           "body_type": "kinematic",
-          "velocity": [0.0, 0.0, 0.0],
           "use_gravity": false,
-          "gravity_scale": 0.0,
           "interpolate": true
         }
       }
@@ -289,29 +203,19 @@
     {
       "id": "ent_pickup",
       "name": "Trigger Pickup",
+      "preset": "trigger_sphere_3d",
+      "radius": 0.4,
       "components": {
         "Transform3D": {
-          "position": [0.0, 1.0, -2.0],
-          "rotation": [0.0, 0.0, 0.0],
-          "scale": [1.0, 1.0, 1.0]
+          "position": [0.0, 1.0, -2.0]
         },
         "MeshRenderer": {
           "shape": "sphere",
           "size": [0.5, 0.5, 0.5],
-          "color": [0.35, 1.0, 0.55, 1.0],
-          "wireframe": false
+          "color": [0.35, 1.0, 0.55, 1.0]
         },
         "SphereCollider3D": {
-          "radius": 0.4,
-          "offset": [0.0, 0.0, 0.0],
-          "is_trigger": true,
           "layer": "pickup"
-        },
-        "Rigidbody3D": {
-          "body_type": "static",
-          "velocity": [0.0, 0.0, 0.0],
-          "use_gravity": false,
-          "gravity_scale": 0.0
         }
       }
     }
@@ -325,17 +229,11 @@
       "id": "obstacle_1",
       "prefab": "prefab://obstacle",
       "overrides": {
-        "body": {
-          "components": {
-            "Transform3D": {
-              "position": [
-                4.0,
-                1.0,
-                0.0
-              ]
-            }
-          }
-        }
+        "body.Transform3D.position": [
+          4.0,
+          1.0,
+          0.0
+        ]
       }
     }
   ]

@@ -1,20 +1,8 @@
 {
   "format_version": 1,
-  "canvas_size": [
-    960,
-    540
-  ],
   "root": {
     "id": "ui_root",
     "type": "container",
-    "anchor_min": [
-      0,
-      0
-    ],
-    "anchor_max": [
-      1,
-      1
-    ],
     "children": [
       {
         "id": "menu_base",
@@ -436,14 +424,7 @@
             ]
           }
         ],
-        "anchor_min": [
-          0,
-          0
-        ],
-        "anchor_max": [
-          1,
-          1
-        ]
+        "dock": "fill"
       },
       {
         "id": "menu_main",
@@ -647,14 +628,7 @@
             "font_size": 20
           }
         ],
-        "anchor_min": [
-          0,
-          0
-        ],
-        "anchor_max": [
-          1,
-          1
-        ]
+        "dock": "fill"
       },
       {
         "id": "menu_network",
@@ -875,14 +849,7 @@
             ]
           }
         ],
-        "anchor_min": [
-          0,
-          0
-        ],
-        "anchor_max": [
-          1,
-          1
-        ]
+        "dock": "fill"
       },
       {
         "id": "menu_levels",
@@ -1441,14 +1408,7 @@
             ]
           }
         ],
-        "anchor_min": [
-          0,
-          0
-        ],
-        "anchor_max": [
-          1,
-          1
-        ]
+        "dock": "fill"
       },
       {
         "id": "menu_options",
@@ -1571,14 +1531,7 @@
             ]
           }
         ],
-        "anchor_min": [
-          0,
-          0
-        ],
-        "anchor_max": [
-          1,
-          1
-        ]
+        "dock": "fill"
       },
       {
         "id": "menu_sound",
@@ -1738,14 +1691,7 @@
             "font_size": 24
           }
         ],
-        "anchor_min": [
-          0,
-          0
-        ],
-        "anchor_max": [
-          1,
-          1
-        ]
+        "dock": "fill"
       },
       {
         "id": "menu_video",
@@ -1965,14 +1911,7 @@
             ]
           }
         ],
-        "anchor_min": [
-          0,
-          0
-        ],
-        "anchor_max": [
-          1,
-          1
-        ]
+        "dock": "fill"
       },
       {
         "id": "menu_dropdown",
@@ -2079,15 +2018,9 @@
             ]
           }
         ],
-        "anchor_min": [
-          0,
-          0
-        ],
-        "anchor_max": [
-          1,
-          1
-        ]
+        "dock": "fill"
       }
-    ]
+    ],
+    "dock": "fill"
   }
 }

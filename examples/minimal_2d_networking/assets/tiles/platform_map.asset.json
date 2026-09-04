@@ -1,5 +1,7 @@
 {
-  "dependencies": [],
+  "dependencies": [
+    "asset://tiles/platform"
+  ],
   "format_version": 1,
   "id": "asset://tilemaps/platform",
   "importer": "tilemap2d",

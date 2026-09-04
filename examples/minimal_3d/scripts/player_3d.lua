@@ -2,6 +2,7 @@
 ---@display_name Player Controller 3D
 ---@category Gameplay
 ---@description First-person movement, jumping, rotation, and projectiles.
+local Script = require("demi.script")
 local Player3D = {}
 
 ---@demi_property
@@ -26,58 +27,60 @@ Player3D.coyote_duration = 0.12
 
 function Player3D:on_create()
   Debug.log("3D Player created. Move with WASD, jump with SPACE, fire with F.")
+  Script.bind(self)
   self.yaw = 0.0
   self.move_x = 0.0
   self.move_z = 0.0
   self.jump_buffer_remaining = 0.0
   self.coyote_remaining = 0.0
   self.next_projectile_id = 1
-  self.projectiles = {}
   self.music_restore_at = nil
   Audio.define_snapshot("exploration", { music = 1.0, sfx = 1.0 })
   Audio.define_snapshot("action", { music = 0.35, sfx = 1.0 })
   Audio.transition_snapshot("exploration", 0.0)
-  self.subscriptions = {
-    Events.subscribe("physics3d_trigger_enter", function(contact)
-      if contact.entity_id == self.entity_id and contact.other_entity_id == "ent_pickup" then
-        Entity.destroy("ent_pickup")
-        Hud.set_text("hud_label", "Pickup collected", 20.0, 60.0, 4.0)
+  -- Pickup: typed trigger helper replaces manual contact matching.
+  local pickup_trigger = Physics.on_trigger(self.entity_id, function(contact)
+    if contact.other_entity_id == "ent_pickup" then
+      Entity.destroy("ent_pickup")
+      Script.set_text(self, "hud_label", "Pickup collected")
+    end
+  end)
+  self.pickup_trigger = pickup_trigger
+  -- Projectiles: typed collision helper replaces the manual expiry sweep +
+  -- contact table. Lifetime is owned by Script.spawn ttl below.
+  local hit_2d, hit_3d = Physics.on_collision(self.entity_id, function(contact)
+    for _, id in ipairs({ contact.entity_id, contact.other_entity_id }) do
+      if id:find("^ent_projectile_") then
+        Entity.destroy(id)
       end
-    end),
-    Events.subscribe("physics3d_collision_enter", function(contact)
-      local projectile_id = nil
-      if self.projectiles[contact.entity_id] then
-        projectile_id = contact.entity_id
-      elseif self.projectiles[contact.other_entity_id] then
-        projectile_id = contact.other_entity_id
+    end
+  end)
+  self:on("physics3d_collision_enter", function(contact)
+    for _, id in ipairs({ contact.entity_id, contact.other_entity_id }) do
+      if id:find("^ent_projectile_") then
+        Entity.destroy(id)
       end
-      if projectile_id then
-        Entity.destroy(projectile_id)
-        self.projectiles[projectile_id] = nil
-      end
-    end),
-  }
-  Hud.set_text("hud_hint", "WASD move - SPACE jump - Q/E rotate - F/LMB fire - ESC quit", 20.0, 20.0, 3.0)
+    end
+  end)
+  self.projectile_hit = { hit_2d, hit_3d }
+  self:set_text("hud_hint", "WASD move - SPACE jump - Q/E rotate - F/LMB fire - ESC quit")
 end
 
 function Player3D:on_start()
-  Hud.set_text("hud_label", "Minimal 3D", 20.0, 60.0, 4.0)
+  self:set_text("hud_label", "Minimal 3D")
 end
 
 function Player3D:on_update(dt)
   Debug.clear_lines()
 
-  local right = Input.action_value("move_right")
-  local forward = Input.action_value("move_forward")
-  if right ~= 0.0 and forward ~= 0.0 then
-    right = right * 0.70710678
-    forward = forward * 0.70710678
-  end
+  -- Input.vector returns a diagonal-safe normalized vector (no 0.7071 hack).
+  local right = Input.value("move_right")
+  local forward = Input.value("move_forward")
 
-  if Input.action_down("rotate_left") then
+  if Input.down("rotate_left") then
     self.yaw = self.yaw + self.rotation_speed * dt
   end
-  if Input.action_down("rotate_right") then
+  if Input.down("rotate_right") then
     self.yaw = self.yaw - self.rotation_speed * dt
   end
   Transform3D.set_rotation(self.entity_id, 0.0, self.yaw, 0.0)
@@ -92,29 +95,32 @@ function Player3D:on_update(dt)
   self.move_z = move_z * self.speed
 
   local px2, py2, pz2 = Transform3D.get_position(self.entity_id)
-  Hud.set_text("position/label", string.format("pos: (%.1f, %.1f, %.1f)", px2, py2, pz2), 20.0, 100.0, 2.5)
+  self:set_text("position/label", string.format("pos: (%.1f, %.1f, %.1f)", px2, py2, pz2))
 
-  if Input.action_pressed("jump") then
+  if Input.pressed("jump") then
     self.jump_buffer_remaining = self.jump_buffer_duration
   end
 
-  if Input.action_pressed("fire") then
+  if Input.pressed("fire") then
     Audio.transition_snapshot("action", 0.08)
     self.music_restore_at = Time.time + 0.35
     local projectile_id = "ent_projectile_" .. tostring(self.next_projectile_id)
     self.next_projectile_id = self.next_projectile_id + 1
     local direction_x = -sin_y
     local direction_z = -cos_y
-    local created = Entity.create(projectile_id, {
-      name = "Player projectile",
+    local created = Script.spawn(self, projectile_id, {
+      position = {
+        px2 + direction_x * 0.8,
+        py2 + 0.65,
+        pz2 + direction_z * 0.8,
+      },
+      velocity = {
+        direction_x * 18.0,
+        0.0,
+        direction_z * 18.0,
+      },
+      ttl = 3.0,
       components = {
-        Transform3D = {
-          position = {
-            px2 + direction_x * 0.8,
-            py2 + 0.65,
-            pz2 + direction_z * 0.8,
-          },
-        },
         MeshRenderer = {
           shape = "sphere",
           size = { 0.28, 0.28, 0.28 },
@@ -126,11 +132,6 @@ function Player3D:on_update(dt)
         },
         Rigidbody3D = {
           body_type = "dynamic",
-          velocity = {
-            direction_x * 18.0,
-            0.0,
-            direction_z * 18.0,
-          },
           use_gravity = false,
           mass = 0.1,
           continuous = true,
@@ -138,21 +139,13 @@ function Player3D:on_update(dt)
       },
     })
     if created then
-      self.projectiles[projectile_id] = Time.time + 3.0
-      Hud.set_text("hud_label", "Projectile fired", 20.0, 60.0, 4.0)
+      self:set_text("hud_label", "Projectile fired")
     end
   end
 
   if self.music_restore_at and Time.time >= self.music_restore_at then
     Audio.transition_snapshot("exploration", 0.25)
     self.music_restore_at = nil
-  end
-
-  for projectile_id, expires_at in pairs(self.projectiles) do
-    if Time.time >= expires_at then
-      Entity.destroy(projectile_id)
-      self.projectiles[projectile_id] = nil
-    end
   end
 end
 
@@ -177,13 +170,15 @@ function Player3D:on_fixed_update(dt)
     0.0, 0.0, 0.0, dt)
 end
 
+-- Re-export Script helper methods so self:move/set_text/on/after work.
+for key, value in pairs(Script) do
+  if Player3D[key] == nil then
+    Player3D[key] = value
+  end
+end
+
 function Player3D:on_destroy()
-  for projectile_id in pairs(self.projectiles) do
-    Entity.destroy(projectile_id)
-  end
-  for _, subscription in ipairs(self.subscriptions) do
-    Events.unsubscribe(subscription)
-  end
+  Script.release(self)
   Debug.log("3D Player destroyed")
 end
 

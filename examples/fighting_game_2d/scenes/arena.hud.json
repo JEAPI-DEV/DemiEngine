@@ -1,9 +1,5 @@
 {
   "format_version": 1,
-  "canvas_size": [
-    960,
-    540
-  ],
   "root": {
     "id": "root",
     "type": "container",
@@ -20,7 +16,7 @@
           26
         ],
         "background_color": [
-          0.20,
+          0.2,
           0.05,
           0.07,
           1
@@ -38,7 +34,7 @@
           26
         ],
         "background_color": [
-          0.20,
+          0.2,
           0.05,
           0.07,
           1

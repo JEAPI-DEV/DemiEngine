@@ -116,13 +116,34 @@ bool EditorProjectDocument::addScene(std::string id, std::filesystem::path path,
 }
 
 bool EditorProjectDocument::setInputActions(nlohmann::json actions,
-                                            std::string &error) {
+                                             std::string &error) {
   if (!actions.is_object()) {
     error = "Input actions must be an object keyed by action name.";
     return false;
   }
   nlohmann::json replacement = document_;
   replacement["input"]["actions"] = std::move(actions);
+  return commit(std::move(replacement), error);
+}
+
+bool EditorProjectDocument::setInputPresets(std::vector<std::string> presets,
+                                            std::string &error) {
+  std::ranges::sort(presets);
+  if (std::ranges::adjacent_find(presets) != presets.end()) {
+    error = "Input presets must be unique.";
+    return false;
+  }
+  const auto known = runtime::input::knownInputPresets();
+  for (const std::string &preset : presets)
+    if (std::ranges::find(known, preset) == known.end()) {
+      error = "Unknown input preset: " + preset + ".";
+      return false;
+    }
+  nlohmann::json replacement = document_;
+  if (presets.empty())
+    replacement["input"].erase("presets");
+  else
+    replacement["input"]["presets"] = presets;
   return commit(std::move(replacement), error);
 }
 
@@ -223,14 +244,24 @@ std::vector<std::string> EditorProjectDocument::preloadedAssets() const {
   return {};
 }
 
-std::vector<runtime::SceneEntry> EditorProjectDocument::scenes() const {
+  std::vector<runtime::SceneEntry> EditorProjectDocument::scenes() const {
   std::vector<runtime::SceneEntry> result;
   if (const auto found = document_.find("scenes");
       found != document_.end() && found->is_array())
     for (const nlohmann::json &scene : *found)
-      if (scene.is_object())
-        result.push_back(
-            {.id = scene.value("id", ""), .path = scene.value("path", "")});
+      if (scene.is_object()) {
+        std::string id = scene.value("id", "");
+        std::string path = scene.value("path", "");
+        if (path.empty() && id.starts_with("scene://")) {
+          const std::string rest = id.substr(8);
+          const std::size_t slash = rest.find('/');
+          const std::string leaf =
+              slash == std::string::npos ? rest : rest.substr(slash + 1);
+          if (!leaf.empty())
+            path = "scenes/" + leaf + ".scene.json";
+        }
+        result.push_back({.id = std::move(id), .path = std::move(path)});
+      }
   return result;
 }
 
@@ -241,6 +272,15 @@ nlohmann::json EditorProjectDocument::inputActions() const {
         actions != input->end() && actions->is_object())
       return *actions;
   return nlohmann::json::object();
+}
+
+std::vector<std::string> EditorProjectDocument::inputPresets() const {
+  if (const auto input = document_.find("input");
+      input != document_.end() && input->is_object())
+    if (const auto presets = input->find("presets");
+        presets != input->end() && presets->is_array())
+      return presets->get<std::vector<std::string>>();
+  return {};
 }
 
 runtime::ProjectBuildSettings EditorProjectDocument::buildSettings() const {
@@ -272,7 +312,18 @@ bool EditorProjectDocument::validate(const nlohmann::json &document,
   std::set<std::string> paths;
   for (const nlohmann::json &scene : *scenes) {
     const std::string id = scene.value("id", "");
-    const std::string path = scene.value("path", "");
+    std::string path = scene.value("path", "");
+    // Path may be omitted and inferred from the scene id
+    // (scene://ns/main -> scenes/main.scene.json), mirroring
+    // ProjectParser inference so uniqueness checks see effective paths.
+    if (path.empty() && id.starts_with("scene://")) {
+      const std::string rest = id.substr(8);
+      const std::size_t slash = rest.find('/');
+      const std::string leaf =
+          slash == std::string::npos ? rest : rest.substr(slash + 1);
+      if (!leaf.empty())
+        path = "scenes/" + leaf + ".scene.json";
+    }
     if (!ids.insert(id).second || !paths.insert(path).second) {
       error = "Project scene IDs and paths must be unique.";
       return false;
@@ -299,10 +350,24 @@ bool EditorProjectDocument::validate(const nlohmann::json &document,
   }
   if (const auto input = document.find("input"); input != document.end()) {
     if (!input->is_object() ||
-        (input->contains("actions") && !(*input)["actions"].is_object())) {
+        (input->contains("actions") && !(*input)["actions"].is_object()) ||
+        (input->contains("presets") && !(*input)["presets"].is_array())) {
       error = "Project input actions must be an object.";
       return false;
     }
+    if (input->contains("presets"))
+      for (const auto &preset : (*input)["presets"]) {
+        if (!preset.is_string()) {
+          error = "Input presets must be an array of preset names.";
+          return false;
+        }
+        const auto known = runtime::input::knownInputPresets();
+        if (std::ranges::find(known, preset.get<std::string>()) ==
+            known.end()) {
+          error = "Unknown input preset: " + preset.get<std::string>() + ".";
+          return false;
+        }
+      }
     if (input->contains("actions"))
       for (const auto &[name, action] : (*input)["actions"].items()) {
         const std::string type =
@@ -319,7 +384,7 @@ bool EditorProjectDocument::validate(const nlohmann::json &document,
         }
       }
     if (input->contains("actions") &&
-        runtime::input::parseInputActions(document).size() !=
+        runtime::input::parseInputActions(document).size() <
             (*input)["actions"].size()) {
       error = "Input actions must be accepted by the runtime action parser.";
       return false;

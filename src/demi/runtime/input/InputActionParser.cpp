@@ -57,9 +57,55 @@ InputActionType actionType(const Json &definition) {
 InputActionMap parseInputActions(const nlohmann::json &projectDocument) {
   InputActionMap result;
   const Json *input = scene_loading::objectField(projectDocument, "input");
-  const Json *actions = input == nullptr
-                            ? nullptr
-                            : scene_loading::objectField(*input, "actions");
+  if (input == nullptr)
+    return result;
+
+  // P8: named input presets expanded before explicit actions.
+  // Explicit actions merge over (replace) preset actions with the same name.
+  if (const Json *presets = scene_loading::arrayField(*input, "presets")) {
+    for (const Json &preset : *presets) {
+      if (!preset.is_string())
+        continue;
+      const std::string name = normalized(preset.get<std::string>());
+      if (name == "wasd_arrows") {
+        InputAction moveX{.type = InputActionType::Axis1D,
+                          .context = "gameplay"};
+        moveX.bindings = {{.input = "key:a", .scale = -1.0F},
+                          {.input = "key:left", .scale = -1.0F},
+                          {.input = "key:d", .scale = 1.0F},
+                          {.input = "key:right", .scale = 1.0F}};
+        InputAction moveY{.type = InputActionType::Axis1D,
+                          .context = "gameplay"};
+        moveY.bindings = {{.input = "key:s", .scale = -1.0F},
+                          {.input = "key:down", .scale = -1.0F},
+                          {.input = "key:w", .scale = 1.0F},
+                          {.input = "key:up", .scale = 1.0F}};
+        result.emplace("move_x", moveX);
+        result.emplace("move_y", moveY);
+      } else if (name == "confirm" || name == "gamepad_confirm") {
+        InputAction confirm{.type = InputActionType::Button,
+                            .context = "gameplay"};
+        confirm.bindings = {{.input = "key:space"},
+                            {.input = "key:enter"},
+                            {.input = "gamepad:south"}};
+        result.emplace("confirm", confirm);
+      } else if (name == "move_3d") {
+        InputAction right{.type = InputActionType::Axis1D,
+                          .context = "gameplay"};
+        right.bindings = {{.input = "key:a", .scale = -1.0F},
+                          {.input = "key:d", .scale = 1.0F}};
+        InputAction forward{.type = InputActionType::Axis1D,
+                            .context = "gameplay"};
+        forward.bindings = {{.input = "key:s", .scale = -1.0F},
+                            {.input = "key:w", .scale = 1.0F}};
+        result.emplace("move_right", right);
+        result.emplace("move_forward", forward);
+      }
+      // Unknown preset names are ignored here; validation reports them.
+    }
+  }
+
+  const Json *actions = scene_loading::objectField(*input, "actions");
   if (actions == nullptr)
     return result;
 
@@ -84,6 +130,10 @@ InputActionMap parseInputActions(const nlohmann::json &projectDocument) {
       result[normalized(name)] = std::move(action);
   }
   return result;
+}
+
+std::vector<std::string> knownInputPresets() {
+  return {"wasd_arrows", "confirm", "gamepad_confirm", "move_3d"};
 }
 
 } // namespace demi::runtime::input

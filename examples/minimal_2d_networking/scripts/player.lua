@@ -93,7 +93,7 @@ function Player:on_update(dt)
     self.can_slingshot = false
   end
 
-  self.jump_was_down = Input.action_down("jump")
+  self.jump_was_down = Input.down("jump")
   self.mouse_was_down = mouse_down
 end
 

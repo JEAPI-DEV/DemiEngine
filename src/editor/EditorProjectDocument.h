@@ -30,6 +30,8 @@ public:
                               std::string &error);
   [[nodiscard]] bool setInputActions(nlohmann::json actions,
                                      std::string &error);
+  [[nodiscard]] bool setInputPresets(std::vector<std::string> presets,
+                                     std::string &error);
   [[nodiscard]] bool setInputBinding(std::string_view action,
                                      std::size_t bindingIndex,
                                      std::string input, std::string &error);
@@ -49,6 +51,7 @@ public:
   [[nodiscard]] std::vector<std::string> preloadedAssets() const;
   [[nodiscard]] std::vector<runtime::SceneEntry> scenes() const;
   [[nodiscard]] nlohmann::json inputActions() const;
+  [[nodiscard]] std::vector<std::string> inputPresets() const;
   [[nodiscard]] runtime::ProjectBuildSettings buildSettings() const;
   [[nodiscard]] const std::filesystem::path &path() const { return path_; }
 

@@ -4,8 +4,7 @@
   "main_scene": "scene://ui_showcase/main",
   "scenes": [
     {
-      "id": "scene://ui_showcase/main",
-      "path": "scenes/main.scene.json"
+      "id": "scene://ui_showcase/main"
     }
   ],
   "scripting": {

@@ -293,7 +293,7 @@ bool writeAndroidPackageReport(
   const auto artifactHash = assets::hashFile(artifact);
   const auto projectHash = assets::hashFile(request.projectFile);
   const auto cookManifestHash =
-      assets::hashFile(cookedProject.parent_path() / "cook.manifest.json");
+      assets::hashFile(cookedProject / "cook.manifest.json");
   if (!artifactHash || !projectHash || !cookManifestHash) {
     add(diagnostics, "BUILD_ANDROID_REPORT_HASH_FAILED",
         "Could not hash all Android build report inputs.", artifact);

@@ -134,6 +134,29 @@ void EditorProjectPanel::draw(EditorWorkspace &workspace, std::string &notice) {
       ImGui::Separator();
       if (ImGui::CollapsingHeader("Input Actions",
                                   ImGuiTreeNodeFlags_DefaultOpen)) {
+        // Presets expand into actions at runtime (wasd_arrows, confirm,
+        // gamepad_confirm, move_3d). Explicit actions below override presets.
+        const std::vector<std::string> activePresets =
+            workspace.projectDocument().inputPresets();
+        ImGui::TextDisabled("Presets");
+        for (const char *preset :
+             {"wasd_arrows", "confirm", "gamepad_confirm", "move_3d"}) {
+          bool enabled = std::ranges::find(activePresets, preset) !=
+                         activePresets.end();
+          if (ImGui::Checkbox(preset, &enabled)) {
+            std::vector<std::string> updated = activePresets;
+            if (enabled)
+              updated.push_back(preset);
+            else
+              std::erase(updated, preset);
+            std::string error;
+            notice = workspace.setProjectInputPresets(std::move(updated), error)
+                         ? "Input presets updated"
+                         : error;
+          }
+          ImGui::SameLine();
+        }
+        ImGui::NewLine();
         nlohmann::json actions = workspace.projectDocument().inputActions();
         std::optional<std::string> removeAction;
         for (const auto &[name, action] : actions.items()) {

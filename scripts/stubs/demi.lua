@@ -102,6 +102,23 @@ function Input.action_value(action, player) end
 ---@return number x
 ---@return number y
 function Input.action_vector(action, player) end
+---@param action string Vector2 action; result normalized to length <= 1 (diagonal-safe).
+---@param player? integer
+---@return number x
+---@return number y
+function Input.vector(action, player) end
+---@param action string
+---@param player? integer
+---@return boolean
+function Input.pressed(action, player) end
+---@param action string
+---@param player? integer
+---@return boolean
+function Input.down(action, player) end
+---@param action string
+---@param player? integer
+---@return number
+function Input.value(action, player) end
 ---@param action string
 ---@param player? integer
 ---@return string
@@ -292,6 +309,17 @@ function Entity.exists(entity_id) end
 ---@param spec table
 ---@return boolean
 function Entity.create(entity_id, spec) end
+---@class EntitySpawnOptions
+---@field prefab? string prefab:// reference expanded by RuntimeObjectModel
+---@field position? number[] [x,y] or [x,y,z] flattened into Transform2D/3D
+---@field velocity? number[] flattened into Rigidbody2D/3D
+---@field ttl? number seconds until auto-destroy via Timer.after (use Script.after or Entity.spawn_ttl)
+---@field components? table explicit component blocks; shorthand never overwrites these
+---@param entity_id string
+---@param options EntitySpawnOptions
+---@return boolean ok
+---@return integer timer_id ttl timer when ttl > 0, else 0
+function Entity.spawn(entity_id, options) end
 ---@param entity_id string
 ---@param spec table
 ---@return boolean
@@ -604,6 +632,10 @@ Timer = {}
 ---@param callback fun(timer_id: integer)
 ---@return integer timer_id
 function Timer.delay(seconds, callback) end
+---@param seconds number One-shot timer; intent-revealing alias of delay. Bind lifetime via Script.after.
+---@param callback fun(timer_id: integer)
+---@return integer timer_id
+function Timer.after(seconds, callback) end
 ---@param seconds number
 ---@param callback fun(timer_id: integer)
 ---@return integer timer_id
@@ -734,6 +766,16 @@ Physics = {}
 function Physics.set_enabled(enabled) end
 ---@return boolean
 function Physics.enabled() end
+---@param entity_id string entity to match on either side of the contact
+---@param callback fun(contact: table) receives enter-phase trigger payloads (2D + 3D)
+---@return integer sub_2d
+---@return integer sub_3d
+function Physics.on_trigger(entity_id, callback) end
+---@param entity_id string entity to match on either side of the contact
+---@param callback fun(contact: table) receives enter-phase collision payloads (2D + 3D)
+---@return integer sub_2d
+---@return integer sub_3d
+function Physics.on_collision(entity_id, callback) end
 
 ---@class Rigidbody2DService
 Rigidbody2D = {}
@@ -2127,3 +2169,23 @@ function DemiScript:on_ui_scroll(event) end
 ---@field speed? number
 ---@field root_motion? boolean
 ---@field pause_policy? string
+
+---@class DemiScriptModule
+---@field bind fun(self: table): table Wrap a script table; enables self:on/self:after/self:move helpers.
+---@field release fun(self: table) Release subscriptions/timers created via self:on/self:after. Call from on_destroy.
+---@field on fun(self: table, event_name: string, callback: fun(payload: table)): integer
+---@field after fun(self: table, seconds: number, callback: fun(timer_id: integer)): integer
+---@field move fun(self: table, dx: number, dy: number): boolean
+---@field teleport fun(self: table, x: number, y: number): boolean
+---@field move3d fun(self: table, dx: number, dy: number, dz: number): boolean
+---@field set_text fun(self: table, node_id: string, text: string): boolean
+---@field input_vector fun(self: table, action: string, player?: integer): number, number
+
+---@class DemiUiModule
+---@field bind_list fun(collection_id: string, template_id: string, keys: string[], extents: number[], scroll_offset: number, viewport_extent: number, overscan?: integer, render_fn?: fun(row: table, key: string)): table
+---@field filter_list fun(collection_id: string, template_id: string, items: table[], pattern: string, key_fn: fun(item: table): string, match_fn: fun(item: table, pattern: string): boolean, render_fn: fun(row: table, item: table), row_extent?: number, viewport_extent?: number, overscan?: integer): table
+---@field scroll_panel fun(panel_id: string, row_extent: number, viewport_extent: number, item_count_fn: fun(): integer, apply_fn?: fun(scroll: number)): table
+---@field tabs fun(tabs: table<string,string>, focus?: table<string,string>)
+---@field show_only fun(visible_id: string, hidden_ids?: string[])
+---@field dropdown fun(button_id: string, options_id: string, open: boolean, label?: string)
+---@field modal fun(modal_id: string, visible: boolean)

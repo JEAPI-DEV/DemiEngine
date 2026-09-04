@@ -57,6 +57,10 @@ public:
                                             std::string &error) {
     return projectDocument_.setInputActions(std::move(actions), error);
   }
+  [[nodiscard]] bool setProjectInputPresets(std::vector<std::string> presets,
+                                            std::string &error) {
+    return projectDocument_.setInputPresets(std::move(presets), error);
+  }
   [[nodiscard]] bool setProjectInputBinding(std::string_view action,
                                             std::size_t bindingIndex,
                                             std::string input,
@@ -87,6 +91,8 @@ public:
   [[nodiscard]] bool removeValue(SceneValueTarget target, std::string &error);
   [[nodiscard]] bool createEntity(std::string &error,
                                   std::optional<std::string> parent = {});
+  [[nodiscard]] bool createPresetEntity(std::string_view preset,
+                                        std::string &error);
   [[nodiscard]] bool deleteEntity(std::string_view id, std::string &error);
   [[nodiscard]] bool deleteEntities(std::vector<std::string> ids,
                                     std::string &error);

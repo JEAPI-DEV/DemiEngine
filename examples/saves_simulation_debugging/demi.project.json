@@ -4,8 +4,7 @@
   "main_scene": "scene://saves_simulation_debugging/main",
   "scenes": [
     {
-      "id": "scene://saves_simulation_debugging/main",
-      "path": "scenes/main.scene.json"
+      "id": "scene://saves_simulation_debugging/main"
     }
   ],
   "simulation": {

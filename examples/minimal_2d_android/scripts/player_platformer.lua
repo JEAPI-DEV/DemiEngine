@@ -20,11 +20,11 @@ local function has_platform_overlap(entity_id, probe_y, probe_height)
 end
 
 function Platformer.horizontal_axis()
-  return Input.action_value("move")
+  return Input.value("move")
 end
 
 function Platformer.wants_jump()
-  return Input.action_down("jump")
+  return Input.down("jump")
 end
 
 function Platformer.is_grounded(entity_id)

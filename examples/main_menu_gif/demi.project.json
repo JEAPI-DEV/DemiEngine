@@ -4,8 +4,7 @@
   "main_scene": "scene://main_menu_gif/main",
   "scenes": [
     {
-      "id": "scene://main_menu_gif/main",
-      "path": "scenes/main.scene.json"
+      "id": "scene://main_menu_gif/main"
     }
   ]
 }

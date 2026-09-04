@@ -19,17 +19,13 @@ end
 function Demo:on_create()
   self.gate_open = true
   self.message = "Move with WASD/arrows. SPACE closes the tile gate."
-  self.subscriptions = {
-    Events.subscribe("physics_trigger_enter", function(contact)
-      if is_player_goal(contact) then self.message = "Trigger ENTER: goal reached!" end
-    end),
-    Events.subscribe("physics_trigger_stay", function(contact)
-      if is_player_goal(contact) then self.message = "Trigger STAY: standing on goal." end
-    end),
-    Events.subscribe("physics_trigger_exit", function(contact)
-      if is_player_goal(contact) then self.message = "Trigger EXIT: left the goal." end
-    end),
-  }
+  -- Typed trigger helper: entity matching built in, returns both 2D/3D
+  -- subscription ids for a single cleanup call in on_destroy.
+  self.goal_trigger = { Physics.on_trigger(PLAYER, function(contact)
+    if contact.other_entity_id == GOAL then
+      self.message = "Trigger ENTER: goal reached!"
+    end
+  end) }
 end
 
 function Demo:on_start()
@@ -50,15 +46,14 @@ function Demo:on_start()
 end
 
 function Demo:on_fixed_update(dt)
-  local x = Input.action_value("move_x")
-  local y = Input.action_value("move_y")
-  local length = math.sqrt(x * x + y * y)
-  if length > 1 then x, y = x / length, y / length end
+  -- Input.value aliases action_value; wasd_arrows preset normalizes diagonals.
+  local x = Input.value("move_x")
+  local y = Input.value("move_y")
   Rigidbody2D.move_and_slide(PLAYER, x * SPEED * dt, y * SPEED * dt)
 end
 
 function Demo:on_update()
-  if Input.action_pressed("toggle_gate") then
+  if Input.pressed("toggle_gate") then
     self:set_gate(not self.gate_open)
     self.message = self.gate_open and "Gate opened; navigation refreshed."
       or "Gate closed; navigation refreshed."
@@ -75,8 +70,10 @@ function Demo:on_update()
 end
 
 function Demo:on_destroy()
-  for _, subscription in ipairs(self.subscriptions) do
-    Events.unsubscribe(subscription)
+  if self.goal_trigger then
+    for _, subscription in ipairs(self.goal_trigger) do
+      Events.unsubscribe(subscription)
+    end
   end
 end
 

@@ -46,13 +46,13 @@ local function draw_hud(self)
 end
 
 local function attack_if_ready(self, id, fighter)
-  if Input.action_pressed(fighter.down) then
+  if Input.pressed(fighter.down) then
     fighter.buffer:push("down", self.clock)
   end
-  if Input.action_pressed(fighter.attack) then
+  if Input.pressed(fighter.attack) then
     fighter.buffer:push("attack", self.clock)
   end
-  if Input.action_pressed(fighter.special) then
+  if Input.pressed(fighter.special) then
     fighter.buffer:push("special", self.clock)
   end
   local state = Animation.state(id)
@@ -76,8 +76,8 @@ end
 local function update_fighter(self, id, fighter, opponent_id, dt)
   if attack_if_ready(self, id, fighter) then return end
   local move = 0
-  if Input.action_down(fighter.left) then move = move - 1 end
-  if Input.action_down(fighter.right) then move = move + 1 end
+  if Input.down(fighter.left) then move = move - 1 end
+  if Input.down(fighter.right) then move = move + 1 end
   local x, y = Transform.get_position(id)
   local opponent_x = Transform.get_position(opponent_id)
   fighter.facing = opponent_x >= x and 1 or -1

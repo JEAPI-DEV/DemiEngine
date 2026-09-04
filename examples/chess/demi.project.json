@@ -4,8 +4,7 @@
   "main_scene": "scene://chess/main",
   "scenes": [
     {
-      "id": "scene://chess/main",
-      "path": "scenes/main.scene.json"
+      "id": "scene://chess/main"
     }
   ],
   "assets": [
@@ -31,22 +30,38 @@
       "new_game": {
         "type": "button",
         "context": "gameplay",
-        "bindings": [{ "input": "key:n" }]
+        "bindings": [
+          {
+            "input": "key:n"
+          }
+        ]
       },
       "difficulty_easy": {
         "type": "button",
         "context": "gameplay",
-        "bindings": [{ "input": "key:1" }]
+        "bindings": [
+          {
+            "input": "key:1"
+          }
+        ]
       },
       "difficulty_medium": {
         "type": "button",
         "context": "gameplay",
-        "bindings": [{ "input": "key:2" }]
+        "bindings": [
+          {
+            "input": "key:2"
+          }
+        ]
       },
       "difficulty_hard": {
         "type": "button",
         "context": "gameplay",
-        "bindings": [{ "input": "key:3" }]
+        "bindings": [
+          {
+            "input": "key:3"
+          }
+        ]
       }
     }
   }

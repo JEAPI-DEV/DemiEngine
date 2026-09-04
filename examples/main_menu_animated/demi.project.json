@@ -4,8 +4,7 @@
   "main_scene": "scene://main_menu_animated/main",
   "scenes": [
     {
-      "id": "scene://main_menu_animated/main",
-      "path": "scenes/main.scene.json"
+      "id": "scene://main_menu_animated/main"
     }
   ],
   "assets": [

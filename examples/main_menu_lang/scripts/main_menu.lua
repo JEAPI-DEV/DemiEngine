@@ -33,9 +33,9 @@ function MainMenu:on_start()
 end
 
 function MainMenu:on_update()
-  if Input.action_pressed("language_english") then
+  if Input.pressed("language_english") then
     self:request_language("en")
-  elseif Input.action_pressed("language_german") then
+  elseif Input.pressed("language_german") then
     self:request_language("de")
   end
   if self.pending_locale then

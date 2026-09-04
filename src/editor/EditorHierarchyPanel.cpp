@@ -376,8 +376,27 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
   ImGui::InputTextWithHint("##hierarchy-search", "Search entities",
                            filter_.data(), filter_.size());
   ImGui::Spacing();
-  if (!hudOnly && ImGui::SmallButton("+ Add Entity"))
-    pending = HierarchyAction{.kind = HierarchyAction::Kind::Create};
+  if (!hudOnly) {
+    if (ImGui::SmallButton("+ Add Entity"))
+      pending = HierarchyAction{.kind = HierarchyAction::Kind::Create};
+    ImGui::SameLine();
+    if (ImGui::SmallButton("+ Preset Entity"))
+      ImGui::OpenPopup("add-preset-entity");
+    if (ImGui::BeginPopup("add-preset-entity")) {
+      ImGui::TextDisabled("Entity preset");
+      ImGui::Separator();
+      for (const char *preset :
+           {"static_box_3d", "trigger_sphere_3d", "prop_2d", "character_3d"}) {
+        if (!ImGui::MenuItem(preset))
+          continue;
+        std::string error;
+        notice = workspace.createPresetEntity(preset, error)
+                     ? std::string(preset) + " added"
+                     : error;
+      }
+      ImGui::EndPopup();
+    }
+  }
   if (workspace.hudDocument()) {
     if (!hudOnly)
       ImGui::SameLine();

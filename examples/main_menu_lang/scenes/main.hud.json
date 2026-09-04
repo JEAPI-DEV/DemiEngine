@@ -1,36 +1,66 @@
 {
   "format_version": 1,
-  "canvas_size": [960.0, 540.0],
   "root": {
     "id": "ui_root",
     "type": "container",
-    "anchor_min": [0.0, 0.0],
-    "anchor_max": [1.0, 1.0],
     "children": [
       {
         "id": "menu_panel",
         "type": "panel",
-        "position": [230.0, 92.0],
-        "size": [500.0, 356.0],
-        "background_color": [0.055, 0.075, 0.14, 0.96],
-        "border_color": [0.38, 0.26, 0.72, 1.0],
+        "position": [
+          230.0,
+          92.0
+        ],
+        "size": [
+          500.0,
+          356.0
+        ],
+        "background_color": [
+          0.055,
+          0.075,
+          0.14,
+          0.96
+        ],
+        "border_color": [
+          0.38,
+          0.26,
+          0.72,
+          1.0
+        ],
         "border_width": 2.0
       },
       {
         "id": "title",
         "type": "label",
-        "position": [316.0, 130.0],
-        "size": [328.0, 48.0],
+        "position": [
+          316.0,
+          130.0
+        ],
+        "size": [
+          328.0,
+          48.0
+        ],
         "font_size": 34.0,
         "text_alignment": "center",
         "text": "${title}",
-        "color": [0.62, 0.43, 1.0, 1.0]
+        "color": [
+          0.62,
+          0.43,
+          1.0,
+          1.0
+        ]
       },
       {
         "id": "subtitle",
         "type": "label",
-        "position": [280.0, 184.0],
-        "size": [400.0, 42.0],
+        "position": [
+          280.0,
+          184.0
+        ],
+        "size": [
+          400.0,
+          42.0
+        ],
         "font_size": 17.0,
         "text_alignment": "center",
         "text_wrap": "word",
@@ -39,30 +69,68 @@
       {
         "id": "play",
         "type": "button",
-        "position": [330.0, 248.0],
-        "size": [300.0, 52.0],
+        "position": [
+          330.0,
+          248.0
+        ],
+        "size": [
+          300.0,
+          52.0
+        ],
         "font_size": 21.0,
         "text_alignment": "center",
-        "background_color": [0.30, 0.20, 0.56, 1.0],
-        "hover_color": [0.43, 0.30, 0.76, 1.0],
+        "background_color": [
+          0.3,
+          0.2,
+          0.56,
+          1.0
+        ],
+        "hover_color": [
+          0.43,
+          0.3,
+          0.76,
+          1.0
+        ],
         "text": "${play}"
       },
       {
         "id": "settings",
         "type": "button",
-        "position": [330.0, 312.0],
-        "size": [300.0, 52.0],
+        "position": [
+          330.0,
+          312.0
+        ],
+        "size": [
+          300.0,
+          52.0
+        ],
         "font_size": 21.0,
         "text_alignment": "center",
-        "background_color": [0.13, 0.16, 0.26, 1.0],
-        "hover_color": [0.21, 0.24, 0.38, 1.0],
+        "background_color": [
+          0.13,
+          0.16,
+          0.26,
+          1.0
+        ],
+        "hover_color": [
+          0.21,
+          0.24,
+          0.38,
+          1.0
+        ],
         "text": "${settings}"
       },
       {
         "id": "language_hint",
         "type": "label",
-        "position": [330.0, 382.0],
-        "size": [300.0, 24.0],
+        "position": [
+          330.0,
+          382.0
+        ],
+        "size": [
+          300.0,
+          24.0
+        ],
         "font_size": 16.0,
         "text_alignment": "center",
         "text": "${language_hint}"
@@ -70,13 +138,25 @@
       {
         "id": "load_status",
         "type": "label",
-        "position": [270.0, 414.0],
-        "size": [420.0, 22.0],
+        "position": [
+          270.0,
+          414.0
+        ],
+        "size": [
+          420.0,
+          22.0
+        ],
         "font_size": 14.0,
         "text_alignment": "center",
-        "color": [0.48, 0.83, 0.68, 1.0],
+        "color": [
+          0.48,
+          0.83,
+          0.68,
+          1.0
+        ],
         "text": "${load_status}"
       }
-    ]
+    ],
+    "dock": "fill"
   }
 }

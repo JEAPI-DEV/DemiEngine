@@ -8,8 +8,7 @@
   "main_scene": "scene://main_menu_lang/main",
   "scenes": [
     {
-      "id": "scene://main_menu_lang/main",
-      "path": "scenes/main.scene.json"
+      "id": "scene://main_menu_lang/main"
     }
   ],
   "assets": [
@@ -29,7 +28,9 @@
     "android": {
       "orientation": "landscape",
       "min_sdk": 26,
-      "abis": ["arm64-v8a"],
+      "abis": [
+        "arm64-v8a"
+      ],
       "permissions": []
     }
   },
@@ -46,12 +47,20 @@
       "language_english": {
         "type": "button",
         "context": "menu",
-        "bindings": [{"input": "key:1"}]
+        "bindings": [
+          {
+            "input": "key:1"
+          }
+        ]
       },
       "language_german": {
         "type": "button",
         "context": "menu",
-        "bindings": [{"input": "key:2"}]
+        "bindings": [
+          {
+            "input": "key:2"
+          }
+        ]
       }
     }
   },
