@@ -269,7 +269,8 @@ void drawEditorToolbar(const ImVec2 position, const ImVec2 size,
                        EditorWorkspace &workspace,
                        EditorPlaySession &playSession, bool &showGameView,
                        bool &stepRequested, std::string &notice) {
-  beginEditorPanel("Toolbar", position, size, ImGuiWindowFlags_NoScrollbar);
+  beginEditorShellPanel("Toolbar", position, size,
+                        ImGuiWindowFlags_NoScrollbar);
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {4.0F, 4.0F});
   drawDocumentGroup(workspace, notice);
 

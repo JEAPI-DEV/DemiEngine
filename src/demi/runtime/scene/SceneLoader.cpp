@@ -2,8 +2,8 @@
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/diagnostics/Diagnostic.h"
-#include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/network/NetworkContract.h"
+#include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/scene/HudParser.h"
 #include "demi/runtime/scene/ProjectParser.h"
 #include "demi/runtime/scene/SceneEntityParser.h"
@@ -54,12 +54,17 @@ buildSceneWorld(const ProjectData &project, const std::string &sceneId,
     return std::nullopt;
   }
 
-  World world =
-      scene_loading::parseSceneWorld(scenePath, *expansion.document);
+  World world = scene_loading::parseSceneWorld(scenePath, *expansion.document);
   world.activeSceneId = sceneId;
   world.loadedSceneIds.insert(sceneId);
-  for (Entity &entity : world.entities)
+  for (Entity &entity : world.entities) {
     entity.sceneOwner = sceneId;
+    if (const auto origin =
+            composition::prefabEntityOrigin(sceneJson, entity.id)) {
+      entity.prefabInstance = origin->instanceId;
+      entity.prefabLocalId = origin->localEntityId;
+    }
+  }
   if (const auto issues = validateTransform3DHierarchy(world);
       !issues.empty()) {
     const auto &issue = issues.front();
@@ -177,9 +182,10 @@ std::optional<World> loadScene(const ProjectData &project,
   return buildSceneWorld(project, sceneId, scenePath, *sceneJson, error);
 }
 
-std::optional<World>
-loadSceneDocument(const ProjectData &project, const std::string &sceneId,
-                  const nlohmann::json &document, std::string &error) {
+std::optional<World> loadSceneDocument(const ProjectData &project,
+                                       const std::string &sceneId,
+                                       const nlohmann::json &document,
+                                       std::string &error) {
   const SceneEntry *scene = findSceneEntry(project, sceneId);
   if (scene == nullptr) {
     error = "No scene registered with id: " + sceneId;

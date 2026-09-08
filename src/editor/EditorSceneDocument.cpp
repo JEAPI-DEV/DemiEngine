@@ -270,8 +270,10 @@ bool EditorSceneDocument::setValues(std::vector<SceneValueTarget> targets,
   }
   std::ranges::sort(
       targets, [](const SceneValueTarget &left, const SceneValueTarget &right) {
-        return std::tie(left.entityId, left.component, left.field) <
-               std::tie(right.entityId, right.component, right.field);
+        return std::tie(left.entityId, left.component, left.field,
+                        left.prefabInstanceId, left.prefabEntityId) <
+               std::tie(right.entityId, right.component, right.field,
+                        right.prefabInstanceId, right.prefabEntityId);
       });
   if (std::ranges::adjacent_find(targets) != targets.end()) {
     error = "A multi-edit cannot contain the same field twice.";
@@ -638,8 +640,11 @@ EditorSceneDocument::component(const std::string_view entityId,
 
 const std::string *
 EditorSceneDocument::issueFor(const SceneValueTarget &target) const {
-  return issue_.has_value() && issue_->target == target ? &issue_->message
-                                                        : nullptr;
+  return issue_.has_value() && issue_->target.entityId == target.entityId &&
+                 issue_->target.component == target.component &&
+                 issue_->target.field == target.field
+             ? &issue_->message
+             : nullptr;
 }
 
 nlohmann::json *EditorSceneDocument::value(const SceneValueTarget &target) {

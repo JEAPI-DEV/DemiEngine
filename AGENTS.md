@@ -216,6 +216,16 @@ consolidated. Do not create a parallel editor-only component model.
   state must not silently mutate authored scene data.
 - Keep editor presentation in ImGui adapters. Runtime, document, validation,
   and command code must remain UI-free and testable without opening a window.
+- Docking uses the pinned official Dear ImGui docking branch in the main native
+  window only. `EditorDockingWorkspace` owns the dock graph/default layout;
+  panels use stable window IDs and derive rendering/input rectangles from their
+  live content region rather than global screen coordinates.
+- Authored Scene/HUD and embedded Game views render to GPU targets displayed as
+  ImGui images. Do not return docked viewports to direct backbuffer regions:
+  dock-node backgrounds are composited later and will cover them.
+- Dock layout and panel visibility are per-user state below the platform data
+  directory. They must never enter a project, generated content, packages,
+  authored undo history, or runtime state.
 - Preserve source formatting and atomic/conflict-aware save behavior. Never
   trade small reviewable diffs for convenient whole-document serialization.
 

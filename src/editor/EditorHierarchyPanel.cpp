@@ -364,8 +364,12 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
 
 void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
                                 const ImVec2 position, const ImVec2 size,
-                                const bool hudOnly, std::string &notice) {
-  beginEditorPanel("Hierarchy", position, size);
+                                const bool hudOnly, std::string &notice,
+                                bool *open) {
+  if (!beginEditorPanel("Hierarchy", position, size, open)) {
+    ImGui::End();
+    return;
+  }
   const std::string documentName =
       hudOnly && workspace.hudDocument()
           ? workspace.hudDocument()->path().filename().string()

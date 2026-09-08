@@ -35,6 +35,16 @@ int main() {
     std::cerr << "Could not load prefab test project: " << error << '\n';
     return 1;
   }
+  const Entity *authoredPlayer = findEntity(minimal3D->world, "player/body");
+  const Entity *authoredObstacle =
+      findEntity(minimal3D->world, "obstacle_1/body");
+  if (authoredPlayer == nullptr || authoredPlayer->prefabInstance != "player" ||
+      authoredPlayer->prefabLocalId != "body" || authoredObstacle == nullptr ||
+      authoredObstacle->prefabInstance != "obstacle_1" ||
+      authoredObstacle->prefabLocalId != "body") {
+    std::cerr << "Scene-expanded prefab entities lost their authored origin.\n";
+    return 1;
+  }
 
   RuntimePrefabService prefabs;
   prefabs.configure(minimal3D->project.projectDirectory);

@@ -248,6 +248,21 @@ FetchContent_MakeAvailable(bgfx)
 # libraries are not runtime dependencies and otherwise inflate every build.
 set_target_properties(bimg_decode bimg_encode PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
+# The editor uses Dear ImGui's official docking branch (MIT; LICENSE.txt in the
+# populated source). This commit matches the 1.92.8 texture API used by the
+# pinned bgfx wrapper. Keep it desktop-only: shipped games do not depend on
+# editor UI or docking.
+if(NOT ANDROID)
+  FetchContent_Declare(imgui_docking
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG c51f1a6e47b8b5b11ca13490c461842c96bc4ca2
+  )
+  FetchContent_GetProperties(imgui_docking)
+  if(NOT imgui_docking_POPULATED)
+    FetchContent_Populate(imgui_docking)
+  endif()
+endif()
+
 option(DEMI_ENABLE_NETWORK "Enable optional ENet networking module" OFF)
 option(DEMI_ENABLE_MEDIA "Enable FFmpeg-backed media module" ON)
 

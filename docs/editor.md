@@ -17,8 +17,10 @@ filesystem service used by `demi dev`.
 - The hierarchy displays entities from the active authored scene and follows
   authored 2D, 3D, and isometric transform parents. The scene's runtime HUD is
   also projected as a distinct nested `HUD` subtree with UI-specific icons and
-  visibility state; selecting a HUD node shows its resolved properties, while
-  prefab-expanded nodes remain visibly read-only.
+  visibility state. Selecting a scene-prefab child shows its effective values;
+  Inspector edits and gizmo drags create reversible overrides on the owning
+  scene instance without modifying the prefab source. Expanded UI-prefab nodes
+  remain visibly read-only until their source prefab is opened.
 - Clicking a registered `*.scene.json` source in Assets switches the active
   scene document and viewport without changing the project's `main_scene`.
   Scene switching is rejected while the current scene or its attached HUD has
@@ -197,7 +199,46 @@ controls.
 
 The shared visual-alignment checkpoint is implemented in `EditorTheme`,
 `EditorPanelStyle`, `EditorChrome`, `EditorToolbar`, `EditorAssetsPanel`, and
-`EditorShell`. Asset thumbnails still belong to their owning later milestone.
+`EditorShell`. `EditorDesignTokens` owns shared rhythm/control measurements;
+`EditorDefaultLayout` owns only the initial dock relationships and ratios.
+Asset thumbnails still belong to their owning later milestone.
+
+## Dockable workspace
+
+The editor uses one full-window Dear ImGui dockspace between its fixed menu,
+command bar, and status bar. Hierarchy, Stage, Inspector, Console, Assets, and
+specialized document windows can be resized, moved, tabbed, docked, undocked,
+closed, and reopened from the View menu. Scene, HUD, and Game remain focused
+document modes inside the Stage so their render/input origin always comes from
+the current docked content region.
+
+Both the authored Scene/HUD viewport and embedded Game view render into owned
+GPU targets which Stage presents as ImGui images. Direct backbuffer-region
+rendering is intentionally not used inside docked windows because dock-node
+backgrounds are composited after the scene and would cover it. ImGui overlays,
+picking, gizmos, and HUD handles are then drawn over the target image using the
+same live content rectangle.
+
+Layout is per-user state at
+`$XDG_DATA_HOME/demi-editor/workspace/docking-layout-v1.ini` (falling back to
+`~/.local/share`). Panel visibility is stored separately in `panels-v1.json`.
+Neither file is project-authored or packaged. Invalid layouts are renamed to a
+`.corrupt` sibling, reported non-fatally, and replaced by the default workbench.
+`View -> Reset Workspace` restores and immediately saves the standard hierarchy
+left, Stage center, Inspector right, Console/Assets lower arrangement.
+
+`EditorDockingWorkspace` owns the live dock graph and View menu;
+`EditorDockingStateStore` owns versioned paths, atomic visibility persistence,
+and corruption recovery. `EditorUiHost` owns ImGui docking enablement and the
+`.ini` lifetime. Panels own only their content and visibility flag.
+
+Dear ImGui's official docking branch is pinned in `DemiDependencies.cmake` at
+`c51f1a6e47b8b5b11ca13490c461842c96bc4ca2`. When updating bgfx, select a
+docking commit with the same `IMGUI_VERSION` and dynamic-texture API, rebuild
+the editor adapter, run the docking/input/render-target tests, and perform a
+visible first-launch/reset/restart smoke before changing the pin. Dear ImGui is
+MIT-licensed; the authoritative `LICENSE.txt` is retained in its populated
+FetchContent source.
 
 ## Implementation roadmap
 
@@ -614,7 +655,8 @@ renders that value and can submit only runtime overlay configuration.
 `EditorRecoveryStore` owns cache-only atomic snapshots keyed by project path;
 `EditorPreferencesStore` owns only editor presentation settings. Restoration
 enters normal dirty document state through `EditorWorkspace` validation.
-`EditorWorkspaceLayout` is the responsive Shell geometry and DPI policy; the
+`EditorWorkspaceLayout` now owns only fixed Shell chrome and DPI policy;
+`EditorDockingWorkspace` and Dear ImGui own panel geometry. The
 release-workflow test composes public scaffold, workspace, Play, BuildService,
 Cook, and Package contracts without ImGui-only shortcuts.
 `DebugLabelLayout2D` owns debug-callout compaction and placement independently

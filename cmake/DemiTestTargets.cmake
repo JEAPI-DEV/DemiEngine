@@ -67,10 +67,15 @@
   add_executable(demi-editor-imgui-input-tests
     tests/editor_imgui_input_tests.cpp)
   target_include_directories(demi-editor-imgui-input-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}"
+    "${imgui_docking_SOURCE_DIR}"
     "${bgfx_SOURCE_DIR}/bgfx/examples/common/imgui"
     "${bgfx_SOURCE_DIR}/bgfx/examples/common"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui"
     "${bgfx_SOURCE_DIR}/bgfx/3rdparty"
     "${bgfx_SOURCE_DIR}/bgfx/include")
+  target_compile_definitions(demi-editor-imgui-input-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
   target_link_libraries(demi-editor-imgui-input-tests PRIVATE demi-editor-ui)
   add_executable(demi-editor-diagnostics-profiler-tests
     tests/editor_diagnostics_profiler_tests.cpp)
@@ -86,6 +91,21 @@
     tests/editor_workspace_layout_tests.cpp)
   target_link_libraries(demi-editor-workspace-layout-tests
     PRIVATE demi-editor-model)
+  add_executable(demi-editor-docking-state-tests
+    tests/editor_docking_state_tests.cpp)
+  target_link_libraries(demi-editor-docking-state-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-docking-workspace-tests
+    tests/editor_docking_workspace_tests.cpp)
+  target_include_directories(demi-editor-docking-workspace-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}"
+    "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-docking-workspace-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
+  target_link_libraries(demi-editor-docking-workspace-tests
+    PRIVATE demi-editor-ui)
   add_executable(demi-editor-lua-component-metadata-tests
     tests/editor_lua_component_metadata_tests.cpp)
   target_link_libraries(demi-editor-lua-component-metadata-tests

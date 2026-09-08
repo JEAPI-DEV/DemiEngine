@@ -18,7 +18,7 @@ class EditorWorkspace;
 class EditorHierarchyPanel {
 public:
   void draw(EditorWorkspace &workspace, ImVec2 position, ImVec2 size,
-            bool hudOnly, std::string &notice);
+            bool hudOnly, std::string &notice, bool *open = nullptr);
 
 private:
   std::array<char, 128> filter_{};

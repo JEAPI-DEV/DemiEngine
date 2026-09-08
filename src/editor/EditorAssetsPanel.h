@@ -17,7 +17,7 @@ class EditorWorkspace;
 class EditorAssetsPanel {
 public:
   void draw(EditorWorkspace &workspace, ImVec2 position, ImVec2 size,
-            std::string &notice);
+            std::string &notice, bool *open = nullptr);
   void queueImport(std::filesystem::path source) {
     dialogs_.queueImport(std::move(source));
   }

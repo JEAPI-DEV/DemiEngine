@@ -68,11 +68,16 @@ The current source layout reflects those boundaries:
 - **mbedTLS 3.6.2:** TLS and DTLS security support.
 - **ENet 1.3.18:** optional reliable UDP transport.
 - **librsvg:** optional SVG rasterization when available.
-- **Dear ImGui:** editor-presentation UI only, compiled from the version pinned
-  by the existing bgfx dependency and isolated behind `EditorUiHost`.
+- **Dear ImGui docking:** editor-presentation UI only. The official docking
+  branch is pinned separately at `c51f1a6e47b8b5b11ca13490c461842c96bc4ca2`
+  because it matches bgfx's 1.92.8 dynamic-texture adapter. It remains isolated
+  behind `EditorUiHost`; game/runtime targets do not compile it.
 
 There is no EnTT or ImGuizmo dependency in the current implementation. Runtime
 data, component metadata, validation, and commands do not depend on Dear ImGui.
+`EditorViewportRenderer` and `EditorGameRenderer` are the only editor owners of
+offscreen scene targets; dock panels consume their texture handles without
+calling bgfx directly.
 
 ## Data And Composition
 

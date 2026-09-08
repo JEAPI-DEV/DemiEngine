@@ -40,8 +40,7 @@ void setOptionalString(EditorWorkspace &workspace,
 // stay terse and copy-paste friendly.
 std::string colorToHex(const runtime::Color &color) {
   const auto byte = [](float v) {
-    return static_cast<int>(
-        std::round(std::clamp(v, 0.0F, 1.0F) * 255.0F));
+    return static_cast<int>(std::round(std::clamp(v, 0.0F, 1.0F) * 255.0F));
   };
   char buffer[10];
   const int r = byte(color.r);
@@ -69,13 +68,13 @@ void editColorHex(EditorWorkspace &workspace, const runtime::ui::UiNode &node,
   float swatch[4]{color.r, color.g, color.b, color.a};
   if (ImGui::ColorEdit4(label, swatch)) {
     std::string error;
-    notice = workspace.setHudNodeField(
-                 node.id, field,
-                 nlohmann::json::array({swatch[0], swatch[1], swatch[2],
-                                        swatch[3]}),
-                 error)
-                 ? successMessage
-                 : error;
+    notice =
+        workspace.setHudNodeField(
+            node.id, field,
+            nlohmann::json::array({swatch[0], swatch[1], swatch[2], swatch[3]}),
+            error)
+            ? successMessage
+            : error;
     if (notice == successMessage) {
       const std::string hex =
           colorToHex({swatch[0], swatch[1], swatch[2], swatch[3]});
@@ -91,12 +90,11 @@ void editColorHex(EditorWorkspace &workspace, const runtime::ui::UiNode &node,
                        ImGuiInputTextFlags_EnterReturnsTrue |
                            ImGuiInputTextFlags_CharsUppercase)) {
     std::string error;
-    notice = workspace
-                 .setHudNodeField(node.id, field,
-                                  nlohmann::json(std::string(buffer.data())),
-                                  error)
-                 ? successMessage
-                 : error;
+    notice =
+        workspace.setHudNodeField(
+            node.id, field, nlohmann::json(std::string(buffer.data())), error)
+            ? successMessage
+            : error;
   }
 }
 
@@ -119,14 +117,11 @@ const char *dockLabel(const runtime::ui::UiNode &node,
 void drawEditorHudNodeInspector(EditorWorkspace &workspace,
                                 const ImVec2 position, const ImVec2 size,
                                 EditorHudInspectorState &state,
-                                std::string &notice) {
-  beginEditorPanel("HudNodeInspector", position, size);
-  if (ImGui::BeginTabBar("hud-inspector-tabs")) {
-    if (ImGui::BeginTabItem("Inspector"))
-      ImGui::EndTabItem();
-    ImGui::EndTabBar();
+                                std::string &notice, bool *open) {
+  if (!beginEditorPanel("Inspector", position, size, open)) {
+    ImGui::End();
+    return;
   }
-
   const runtime::ui::UiNode *selectedNode = workspace.selectedHudNode();
   if (selectedNode == nullptr) {
     ImGui::TextDisabled("The selected HUD element no longer exists.");
@@ -238,13 +233,11 @@ void drawEditorHudNodeInspector(EditorWorkspace &workspace,
                        ImGuiInputTextFlags_EnterReturnsTrue |
                            ImGuiInputTextFlags_CharsUppercase)) {
     std::string error;
-    notice =
-        workspace
-            .setHudNodeField(node.id, "background_color",
-                             nlohmann::json(std::string(state.backgroundHex.data())),
-                             error)
-            ? "HUD background modified"
-            : error;
+    notice = workspace.setHudNodeField(
+                 node.id, "background_color",
+                 nlohmann::json(std::string(state.backgroundHex.data())), error)
+                 ? "HUD background modified"
+                 : error;
   }
   if (ImGui::IsItemHovered())
     ImGui::SetTooltip("Hex color, e.g. #RRGGBB or #RRGGBBAA");
@@ -268,7 +261,7 @@ void drawEditorHudNodeInspector(EditorWorkspace &workspace,
   ImGui::SameLine(105.0F);
   ImGui::TextUnformatted(dockLabel(node, authoredNode));
   if (authored) {
-    const char *docks[] = {"fill", "top", "bottom", "left",
+    const char *docks[] = {"fill",  "top",    "bottom", "left",
                            "right", "center", "custom"};
     int current = 6;
     if (authoredNode != nullptr) {
@@ -286,15 +279,13 @@ void drawEditorHudNodeInspector(EditorWorkspace &workspace,
       if (current < 6) {
         // Write dock preset; explicit anchors are removed by the parser
         // expansion, so drop them from the authored JSON to keep it terse.
-        nlohmann::json patch = authoredNode != nullptr
-                                   ? *authoredNode
-                                   : nlohmann::json::object();
+        nlohmann::json patch =
+            authoredNode != nullptr ? *authoredNode : nlohmann::json::object();
         patch["dock"] = docks[current];
         patch.erase("anchor_min");
         patch.erase("anchor_max");
-        notice = workspace.setHudNodeField(node.id, "dock",
-                                           nlohmann::json(docks[current]),
-                                           error)
+        notice = workspace.setHudNodeField(
+                     node.id, "dock", nlohmann::json(docks[current]), error)
                      ? "HUD dock preset modified"
                      : error;
         if (notice == "HUD dock preset modified") {
@@ -321,9 +312,9 @@ void drawEditorHudNodeInspector(EditorWorkspace &workspace,
         const std::string name =
             (stack != authoredNode->end() && stack->is_string())
                 ? stack->get<std::string>()
-                : (layout != authoredNode->end() && layout->is_string())
-                      ? layout->get<std::string>()
-                      : "";
+            : (layout != authoredNode->end() && layout->is_string())
+                ? layout->get<std::string>()
+                : "";
         for (int i = 1; i < 4; ++i)
           if (name == stacks[i])
             stackCurrent = i;
@@ -372,8 +363,7 @@ void drawEditorHudNodeInspector(EditorWorkspace &workspace,
   // through padding directly.
   if (!state.uniformPadInitialized) {
     const auto &pad = node.layout.padding;
-    if (pad.left == pad.top && pad.left == pad.right &&
-        pad.left == pad.bottom)
+    if (pad.left == pad.top && pad.left == pad.right && pad.left == pad.bottom)
       state.uniformPad = pad.left;
     state.uniformPadInitialized = true;
   }
@@ -382,10 +372,9 @@ void drawEditorHudNodeInspector(EditorWorkspace &workspace,
     uniformPad = std::max(uniformPad, 0.0F);
     state.uniformPad = uniformPad;
     std::string error;
-    notice =
-        workspace.setHudNodeField(node.id, "pad", uniformPad, error)
-            ? "HUD padding modified"
-            : error;
+    notice = workspace.setHudNodeField(node.id, "pad", uniformPad, error)
+                 ? "HUD padding modified"
+                 : error;
     if (notice == "HUD padding modified") {
       std::string clearError;
       (void)workspace.setHudNodeField(node.id, "padding",
@@ -397,17 +386,18 @@ void drawEditorHudNodeInspector(EditorWorkspace &workspace,
   float gap = node.layout.gap;
   if (ImGui::InputFloat("Gap", &gap, 1.0F, 4.0F, "%.1f")) {
     std::string error;
-    notice = workspace.setHudNodeField(node.id, "gap", std::max(gap, 0.0F),
-                                       error)
-                 ? "HUD gap modified"
-                 : error;
+    notice =
+        workspace.setHudNodeField(node.id, "gap", std::max(gap, 0.0F), error)
+            ? "HUD gap modified"
+            : error;
   }
   ImGui::EndDisabled();
   ImGui::TextDisabled("Resolved: %.1f, %.1f  %.1f x %.1f", node.resolved.x,
                       node.resolved.y, node.resolved.width,
                       node.resolved.height);
 
-  ImGui::SetCursorPosY(std::max(ImGui::GetCursorPosY(), size.y - 78.0F));
+  ImGui::SetCursorPosY(
+      std::max(ImGui::GetCursorPosY(), ImGui::GetWindowHeight() - 78.0F));
   ImGui::BeginDisabled(!authored);
   if (ImGui::Button("Delete UI Element", {-1.0F, 28.0F})) {
     std::string error;

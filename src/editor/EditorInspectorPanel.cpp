@@ -1,10 +1,10 @@
 #include "editor/EditorInspectorPanel.h"
 
-#include "editor/EditorChrome.h"
 #include "editor/EditorInspectorModel.h"
 #include "editor/EditorIsoGridInspector.h"
 #include "editor/EditorLuaComponentMetadata.h"
 #include "editor/EditorPanelStyle.h"
+#include "editor/EditorScenePreview.h"
 #include "editor/EditorWorkspace.h"
 
 #include "demi/runtime/scene/ComponentRegistry.h"
@@ -349,7 +349,7 @@ void drawComponentFields(EditorWorkspace &workspace,
                          const std::string &componentName,
                          const nlohmann::json &component,
                          const ComponentDescriptor &descriptor,
-                         std::string &notice) {
+                         std::string &notice, const bool prefabEntity) {
   for (const ComponentFieldDescriptor &field : descriptor.fields) {
     if (!field.editorVisible)
       continue;
@@ -362,10 +362,11 @@ void drawComponentFields(EditorWorkspace &workspace,
         ImGui::PushID(field.name.data());
         const std::string label =
             runtime::scene_loading::componentFieldEditorLabel(field);
-        ImGui::TextDisabled("%s (default)", label.c_str());
+        ImGui::TextDisabled("%s (%s)", label.c_str(),
+                            prefabEntity ? "inherited default" : "default");
         drawFieldHelp(field);
         ImGui::SameLine(180.0F);
-        if (ImGui::SmallButton("Author"))
+        if (ImGui::SmallButton(prefabEntity ? "Override" : "Author"))
           (void)commit(workspace, target, defaultValue(descriptor, field),
                        notice);
         drawInlineIssue(workspace, target);
@@ -380,14 +381,17 @@ void drawComponentFields(EditorWorkspace &workspace,
     ImGui::TextDisabled("%s", label.c_str());
     drawFieldHelp(field);
     ImGui::SameLine(112.0F);
-    ImGui::SetNextItemWidth(field.required ? -1.0F : -52.0F);
+    const bool canReset =
+        prefabEntity ? workspace.hasExplicitValue(target) : !field.required;
+    ImGui::SetNextItemWidth(canReset ? -52.0F : -1.0F);
     (void)drawFieldValue(workspace, target, field, *value, notice);
-    if (!field.required) {
+    if (canReset) {
       ImGui::SameLine();
       if (ImGui::SmallButton("Reset")) {
         std::string error;
         notice = workspace.removeValue(target, error)
-                     ? "Optional field reset to its default"
+                     ? prefabEntity ? "Prefab override removed"
+                                    : "Optional field reset to its default"
                      : error;
       }
     }
@@ -446,23 +450,40 @@ void drawGenericComponent(const nlohmann::json &component) {
 }
 
 void drawEntityHeader(EditorWorkspace &workspace, const nlohmann::json &entity,
-                      std::string &notice) {
+                      std::string &notice, const bool prefabEntity) {
   const std::string id = entity.value("id", std::string{});
   std::string name = entity.value("name", id);
-  ImGui::SetNextItemWidth(-1.0F);
+  const bool nameCanReset =
+      prefabEntity &&
+      workspace.hasExplicitValue({.entityId = id, .field = "name"});
+  ImGui::SetNextItemWidth(nameCanReset ? -116.0F : -1.0F);
   if (inputString("##entity-name", name))
     (void)commit(workspace, {.entityId = id, .field = "name"}, name, notice);
   finishEdit(workspace);
+  if (nameCanReset) {
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Reset override##name")) {
+      std::string error;
+      notice = workspace.removeValue({.entityId = id, .field = "name"}, error)
+                   ? "Prefab name override removed"
+                   : error;
+    }
+  }
   drawInlineIssue(workspace, {.entityId = id, .field = "name"});
   ImGui::TextDisabled("%s", id.c_str());
 
   bool enabled = entity.value("enabled", true);
-  if (entity.contains("enabled")) {
+  if (prefabEntity || entity.contains("enabled")) {
     if (ImGui::Checkbox("Enabled", &enabled))
       (void)commit(workspace, {.entityId = id, .field = "enabled"}, enabled,
                    notice);
-    ImGui::SameLine();
-    if (ImGui::SmallButton("Use default##enabled")) {
+    const bool canReset =
+        !prefabEntity ||
+        workspace.hasExplicitValue({.entityId = id, .field = "enabled"});
+    if (canReset)
+      ImGui::SameLine();
+    if (canReset && ImGui::SmallButton(prefabEntity ? "Reset override##enabled"
+                                                    : "Use default##enabled")) {
       std::string error;
       notice =
           workspace.removeValue({.entityId = id, .field = "enabled"}, error)
@@ -478,15 +499,20 @@ void drawEntityHeader(EditorWorkspace &workspace, const nlohmann::json &entity,
   }
   drawInlineIssue(workspace, {.entityId = id, .field = "enabled"});
 
-  if (entity.contains("layer")) {
+  if (prefabEntity || entity.contains("layer")) {
     std::string layer = entity.value("layer", std::string{});
-    ImGui::SetNextItemWidth(-1.0F);
+    const bool canReset =
+        !prefabEntity ||
+        workspace.hasExplicitValue({.entityId = id, .field = "layer"});
+    ImGui::SetNextItemWidth(canReset ? -116.0F : -1.0F);
     if (inputString("Layer", layer))
       (void)commit(workspace, {.entityId = id, .field = "layer"}, layer,
                    notice);
     finishEdit(workspace);
-    ImGui::SameLine();
-    if (ImGui::SmallButton("Use default##layer")) {
+    if (canReset)
+      ImGui::SameLine();
+    if (canReset && ImGui::SmallButton(prefabEntity ? "Reset override##layer"
+                                                    : "Use default##layer")) {
       std::string error;
       notice = workspace.removeValue({.entityId = id, .field = "layer"}, error)
                    ? "Layer reset to its default"
@@ -512,11 +538,14 @@ void drawEntityHeader(EditorWorkspace &workspace, const nlohmann::json &entity,
 
 void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
                         const ImVec2 size, EditorInspectorPanelState &state,
-                        std::string &notice) {
-  beginEditorPanel("Inspector", position, size);
-  (void)editorStageTab("Inspector", true, {76.0F, 25.0F});
+                        std::string &notice, bool *open) {
+  if (!beginEditorPanel("Inspector", position, size, open)) {
+    ImGui::End();
+    return;
+  }
+  const float panelWidth = ImGui::GetContentRegionAvail().x;
   if (workspace.sceneDocument().isDirty()) {
-    ImGui::SameLine(size.x - 68.0F);
+    ImGui::SetCursorPosX(std::max(panelWidth - 68.0F, 0.0F));
     ImGui::TextColored({0.95F, 0.67F, 0.28F, 1.0F}, "Unsaved");
   }
   ImGui::Separator();
@@ -537,13 +566,25 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
   }
 
   const nlohmann::json *entity = workspace.sceneDocument().entity(selected->id);
+  const bool prefabEntity =
+      entity == nullptr && !selected->prefabInstance.empty();
+  nlohmann::json effectiveEntity;
+  if (prefabEntity) {
+    effectiveEntity = editorPreviewEntityJson(*selected);
+    entity = &effectiveEntity;
+    ImGui::TextColored({0.64F, 0.51F, 0.94F, 1.0F}, "Prefab instance: %s",
+                       selected->prefabInstance.c_str());
+    ImGui::SameLine();
+    ImGui::TextDisabled("· %s", selected->prefabLocalId.c_str());
+    ImGui::TextDisabled("Edits below are stored as scene overrides.");
+    ImGui::Separator();
+  }
   if (entity == nullptr) {
-    ImGui::TextDisabled("This entity comes from an expanded prefab.");
-    ImGui::TextWrapped("Open the prefab source to edit its authored fields.");
+    ImGui::TextDisabled("The selected entity has no authored source.");
     ImGui::End();
     return;
   }
-  drawEntityHeader(workspace, *entity, notice);
+  drawEntityHeader(workspace, *entity, notice, prefabEntity);
   const EditorLuaComponentCatalog luaComponents = discoverEditorLuaComponents(
       workspace.project().project.projectDirectory, workspace.sources());
 
@@ -569,11 +610,13 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
       const bool componentOpen =
           ImGui::CollapsingHeader(title, ImGuiTreeNodeFlags_DefaultOpen);
       ImGui::PopStyleColor(3);
-      ImGui::SameLine(ImGui::GetWindowWidth() - 36.0F);
-      if (ImGui::SmallButton("..."))
-        ImGui::OpenPopup("component-menu");
+      if (!prefabEntity) {
+        ImGui::SameLine(ImGui::GetWindowWidth() - 36.0F);
+        if (ImGui::SmallButton("..."))
+          ImGui::OpenPopup("component-menu");
+      }
       bool removeRequested = false;
-      if (ImGui::BeginPopup("component-menu")) {
+      if (!prefabEntity && ImGui::BeginPopup("component-menu")) {
         removeRequested = ImGui::MenuItem("Remove component");
         ImGui::EndPopup();
       }
@@ -598,9 +641,18 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         drawGenericComponent(component);
       else
         drawComponentFields(workspace, selected->id, name, component,
-                            *descriptor, notice);
+                            *descriptor, notice, prefabEntity);
       ImGui::PopID();
     }
+  }
+
+  if (prefabEntity) {
+    ImGui::Spacing();
+    ImGui::TextDisabled(
+        "Add or remove components in the prefab source. Scene instances can "
+        "override component values.");
+    ImGui::End();
+    return;
   }
 
   ImGui::Spacing();

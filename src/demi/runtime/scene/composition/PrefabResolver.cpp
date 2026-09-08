@@ -214,8 +214,7 @@ public:
 
     if (prefab->contains("instances") && (*prefab)["instances"].is_array()) {
       for (const Json &nested : (*prefab)["instances"]) {
-        for (Json &item :
-             expandInstance(canonical, nested, prefix)) {
+        for (Json &item : expandInstance(canonical, nested, prefix)) {
           items.push_back(std::move(item));
         }
       }
@@ -294,6 +293,35 @@ private:
 };
 
 } // namespace
+
+std::optional<PrefabEntityOrigin>
+prefabEntityOrigin(const Json &ownerDocument,
+                   const std::string_view expandedEntityId) {
+  const auto instances = ownerDocument.find("instances");
+  if (instances == ownerDocument.end() || !instances->is_array())
+    return std::nullopt;
+
+  std::optional<PrefabEntityOrigin> result;
+  for (const Json &instance : *instances) {
+    if (!instance.is_object())
+      continue;
+    const auto id = instance.find("id");
+    if (id == instance.end() || !id->is_string())
+      continue;
+    const std::string &instanceId = id->get_ref<const std::string &>();
+    if (instanceId.empty() || expandedEntityId.size() <= instanceId.size() ||
+        !expandedEntityId.starts_with(instanceId) ||
+        expandedEntityId[instanceId.size()] != '/')
+      continue;
+    if (result && result->instanceId.size() >= instanceId.size())
+      continue;
+    result =
+        PrefabEntityOrigin{.instanceId = instanceId,
+                           .localEntityId = std::string(
+                               expandedEntityId.substr(instanceId.size() + 1))};
+  }
+  return result;
+}
 
 std::optional<std::filesystem::path>
 resolvePrefabReference(const std::filesystem::path &sourcePath,

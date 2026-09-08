@@ -5,6 +5,7 @@
 #include <SDL3/SDL.h>
 #include <bgfx/bgfx.h>
 #include <imgui.h>
+#include <imgui/imgui.h>
 
 #include <algorithm>
 

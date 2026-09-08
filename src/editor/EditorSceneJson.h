@@ -15,9 +15,19 @@ namespace demi::editor {
 // `component` addresses an entity-level field; otherwise `field` lives inside
 // the named component object.
 struct SceneValueTarget {
+  // The expanded runtime id. For an authored entity this is also its source
+  // id; for a prefab child it remains the stable selection/diagnostic id.
   std::string entityId;
   std::string component;
   std::string field;
+  // Filled by EditorWorkspace when the runtime entity came from a scene
+  // prefab instance. The document then reads/writes that instance's overrides.
+  std::string prefabInstanceId;
+  std::string prefabEntityId;
+
+  [[nodiscard]] bool isPrefabOverride() const {
+    return !prefabInstanceId.empty();
+  }
 
   friend bool operator==(const SceneValueTarget &,
                          const SceneValueTarget &) = default;

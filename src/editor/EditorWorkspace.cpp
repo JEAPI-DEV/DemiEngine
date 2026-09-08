@@ -2,11 +2,13 @@
 
 #include "editor/EditorIsoGridCell.h"
 #include "editor/EditorIsoGridCellDocument.h"
+#include "editor/EditorScenePreview.h"
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/scene/SceneEntityParser.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/IsoGridComponent.h"
+#include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/schema/Validation.h"
 
 #include <algorithm>
@@ -387,6 +389,27 @@ bool EditorWorkspace::redo(std::string &error) {
 
 bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
                                 const bool continuous, std::string &error) {
+  target = resolveSceneTarget(std::move(target));
+  if (target.isPrefabOverride()) {
+    EditorSceneDocument before = sceneDocument_;
+    if (!sceneDocument_.setValue(target, std::move(value), continuous, error)) {
+      syncEditorDiagnostic();
+      return false;
+    }
+    const nlohmann::json *authoredValue =
+        valueInDocument(sceneDocument_.json(), target);
+    if (authoredValue == nullptr ||
+        !applyEditorPreviewValue(project_->world, target, *authoredValue,
+                                 error)) {
+      sceneDocument_ = std::move(before);
+      workspaceOperationError_ = error;
+      syncEditorDiagnostic();
+      return false;
+    }
+    workspaceOperationError_.clear();
+    syncEditorDiagnostic();
+    return true;
+  }
   if (!sceneDocument_.setValue(std::move(target), std::move(value), continuous,
                                error)) {
     syncEditorDiagnostic();
@@ -400,6 +423,8 @@ bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
 
 bool EditorWorkspace::editValues(std::vector<SceneValueTarget> targets,
                                  nlohmann::json value, std::string &error) {
+  for (SceneValueTarget &target : targets)
+    target = resolveSceneTarget(std::move(target));
   return mutateAndRebuild(
       [targets = std::move(targets), value = std::move(value)](
           EditorSceneDocument &document, std::string &mutationError) mutable {
@@ -410,12 +435,23 @@ bool EditorWorkspace::editValues(std::vector<SceneValueTarget> targets,
 }
 
 bool EditorWorkspace::removeValue(SceneValueTarget target, std::string &error) {
+  target = resolveSceneTarget(std::move(target));
   return mutateAndRebuild(
       [target = std::move(target)](EditorSceneDocument &document,
                                    std::string &mutationError) mutable {
         return document.removeValue(std::move(target), mutationError);
       },
       error);
+}
+
+SceneValueTarget
+EditorWorkspace::authoredTarget(SceneValueTarget target) const {
+  return resolveSceneTarget(std::move(target));
+}
+
+bool EditorWorkspace::hasExplicitValue(SceneValueTarget target) const {
+  return valueInDocument(sceneDocument_.json(),
+                         resolveSceneTarget(std::move(target))) != nullptr;
 }
 
 bool EditorWorkspace::createEntity(std::string &error,
@@ -788,6 +824,26 @@ bool EditorWorkspace::rebuildWorld(std::string &error) {
   syncHudPreview();
   updateSceneDomain(false);
   return true;
+}
+
+SceneValueTarget
+EditorWorkspace::resolveSceneTarget(SceneValueTarget target) const {
+  if (target.isPrefabOverride() || !project_)
+    return target;
+  const runtime::Entity *entity =
+      runtime::findEntity(project_->world, target.entityId);
+  if (entity != nullptr && !entity->prefabInstance.empty() &&
+      !entity->prefabLocalId.empty()) {
+    target.prefabInstanceId = entity->prefabInstance;
+    target.prefabEntityId = entity->prefabLocalId;
+    return target;
+  }
+  if (const auto origin = runtime::composition::prefabEntityOrigin(
+          sceneDocument_.json(), target.entityId)) {
+    target.prefabInstanceId = origin->instanceId;
+    target.prefabEntityId = origin->localEntityId;
+  }
+  return target;
 }
 
 void EditorWorkspace::setViewDimension(

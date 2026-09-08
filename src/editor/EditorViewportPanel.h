@@ -22,8 +22,9 @@ struct EditorHudViewportState {
 };
 
 void drawEditorViewport(EditorWorkspace &workspace, ImVec2 position,
-                        ImVec2 size, EditorViewportArea &viewportArea,
+                        ImVec2 size, std::uint16_t textureIndex,
+                        EditorViewportArea &viewportArea,
                         EditorHudViewportState &hudState, bool hudOnly,
-                        std::string &notice);
+                        std::string &notice, bool embedded = false);
 
 } // namespace demi::editor

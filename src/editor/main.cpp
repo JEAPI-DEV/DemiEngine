@@ -85,6 +85,9 @@ int main(const int argc, char **argv) {
 
   demi::editor::applyEditorTheme();
   demi::editor::EditorShell shell(workspace);
+  if (std::string diagnostic = ui->takeWorkspaceDiagnostic();
+      !diagnostic.empty())
+    shell.setNotice(std::move(diagnostic));
   if (!ui->loadBranding(error))
     shell.setNotice("About logo unavailable: " + error);
   else
@@ -115,6 +118,11 @@ int main(const int argc, char **argv) {
     }
     for (std::filesystem::path &dropped : ui->takeDroppedFiles())
       shell.queueAssetImport(std::move(dropped));
+    if (viewportReady &&
+        !ui->prepareViewportTarget(shell.viewportArea(), error)) {
+      viewportReady = false;
+      shell.setNotice("Viewport target stopped: " + error);
+    }
     if (gameRendererReady && !ui->prepareGameTarget(shell.gameArea(), error)) {
       shell.playSession().reportFailure(error);
       ui->releaseGameRenderer();
@@ -122,6 +130,7 @@ int main(const int argc, char **argv) {
       shell.setNotice("Game target stopped: " + error);
     }
     shell.setGameTextureIndex(ui->gameTextureIndex());
+    shell.setViewportTextureIndex(ui->viewportTextureIndex());
     shell.playSession().setGpuTiming(ui->gpuTimingSample());
     shell.draw(ui->width(), ui->height(), ui->rendererName());
     if (shell.playSession().isEmbedded() && !gameRendererReady) {

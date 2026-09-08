@@ -6,6 +6,7 @@
 #include "editor/EditorBuildPanel.h"
 #include "editor/EditorConflictPanel.h"
 #include "editor/EditorConsolePanel.h"
+#include "editor/EditorDockingWorkspace.h"
 #include "editor/EditorGameViewPanel.h"
 #include "editor/EditorHierarchyPanel.h"
 #include "editor/EditorHudNodeInspector.h"
@@ -43,6 +44,9 @@ public:
     return requested;
   }
   void setGameTextureIndex(std::uint16_t value) { gameTextureIndex_ = value; }
+  void setViewportTextureIndex(std::uint16_t value) {
+    viewportTextureIndex_ = value;
+  }
   void setBrandingTextureIndex(std::uint16_t value) {
     brandingTextureIndex_ = value;
   }
@@ -67,6 +71,7 @@ public:
 
 private:
   EditorWorkspace &workspace_;
+  EditorDockingWorkspace dockingWorkspace_;
   EditorPlaySession playSession_;
   EditorViewportArea viewportArea_;
   EditorHudViewportState hudViewportState_;
@@ -99,6 +104,7 @@ private:
   bool gameViewFocused_ = false;
   bool stepRequested_ = false;
   std::uint16_t gameTextureIndex_ = UINT16_MAX;
+  std::uint16_t viewportTextureIndex_ = UINT16_MAX;
   std::uint16_t brandingTextureIndex_ = UINT16_MAX;
 };
 

@@ -213,13 +213,13 @@ void drawAssetDetails(EditorWorkspace &workspace,
 } // namespace
 
 void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
-                             const ImVec2 size, std::string &notice) {
-  beginEditorPanel("Assets", position, size);
-  (void)editorStageTab("Assets", true, {67.0F, 25.0F});
-  ImGui::SameLine(size.x - 27.0F);
-  ImGui::TextDisabled("x");
-  ImGui::Separator();
-
+                             const ImVec2 size, std::string &notice,
+                             bool *open) {
+  if (!beginEditorPanel("Assets", position, size, open)) {
+    ImGui::End();
+    return;
+  }
+  const float panelWidth = ImGui::GetContentRegionAvail().x;
   if (ImGui::Button("+ Import", {76.0F, 28.0F}))
     dialogs_.openImport();
   ImGui::SameLine();
@@ -233,7 +233,7 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::SameLine();
   ImGui::TextDisabled("Assets%s%s", directory_.empty() ? "" : " / ",
                       directory_.generic_string().c_str());
-  ImGui::SameLine(std::max(300.0F, size.x - 430.0F));
+  ImGui::SameLine(std::max(300.0F, panelWidth - 430.0F));
   ImGui::SetNextItemWidth(135.0F);
   if (ImGui::BeginCombo("##asset-type-filter", typeFilter_.empty()
                                                    ? "All types"

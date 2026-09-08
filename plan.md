@@ -2049,6 +2049,9 @@ hierarchy/canvas selection is synchronized, visible elements support direct
 move and resize, the Inspector exposes typed layout and presentation fields,
 and reversible add/delete operations modify the real HUD document. Expanded UI
 prefab nodes are deliberately read-only until their source prefab is opened.
+Expanded scene-prefab entities retain their scene-instance origin in the live
+world; Inspector and gizmo value edits author reversible instance overrides,
+and Reset removes only the selected override to reveal the prefab value again.
 
 Acceptance: saving from a specialized editor produces the same canonical source
 and validation result as direct text authoring; no specialized document keeps a
@@ -2596,16 +2599,16 @@ evaluated sequence always repair divergence after loss or reordering.
 
 ## Step 12 — Dockable and Persistent Editor Workspace
 
-The editor should eventually support a Unity-style workspace in which the
+The editor supports a Unity-style workspace in which the
 Hierarchy, Scene/Game view, Inspector, Console, Assets, and specialized panels
 can be moved, resized, tabbed, and docked. The arrangement must survive an
 editor restart without becoming project-authored state.
 
-**Status: explicitly deferred.** The current fixed layout remains the supported
-workspace while Steps 9 and 10 close shipping and reliability gaps. Do not
-approximate this step by merely removing `NoMove`/`NoResize`: floating panels
-without a dockspace would overlap, lose the current coherent default, and fail
-the requested workflow.
+**Status: complete.** The editor uses the official pinned Dear ImGui docking
+branch, one main-window dockspace, a polished default workbench, per-user
+layout and panel-visibility persistence, corruption recovery, and an explicit
+Reset Workspace command. Viewport/game input and rendering derive from live
+docked content bounds rather than the old global panel rectangles.
 
 ### Architectural boundaries
 
@@ -2634,83 +2637,84 @@ the requested workflow.
 
 #### 12A. Docking dependency gate
 
-1. Pin the official docking branch at a revision matching the bundled ImGui
+1. [x] Pin the official docking branch at a revision matching the bundled ImGui
    API used by bgfx; document the dependency and license through CMake.
-2. Enable docking only inside the main editor window initially. Native
+2. [x] Enable docking only inside the main editor window initially. Native
    multi-viewport OS windows are a separate, optional follow-up because Linux
    X11/Wayland window management adds another input and lifecycle boundary.
-3. Prove mouse/keyboard input, fonts, dynamic texture IDs, viewport/game render
+3. [x] Prove mouse/keyboard input, fonts, dynamic texture IDs, viewport/game render
    targets, menus, popups, modals, drag-and-drop, and shutdown on the candidate
    dependency before migrating panels.
-4. Stop this step if the bgfx adapter requires an unsafe fork or loses input or
-   texture behavior; do not hide a failed dependency spike behind floating
-   windows.
+4. [x] Confirm the bgfx adapter requires no unsafe fork and retains input and
+   texture behavior rather than hiding a failed dependency spike behind
+   floating windows.
 
 #### 12B. Dockspace shell migration
 
-1. Keep the application menu, primary toolbar, and status bar as intentional
+1. [x] Keep the application menu, primary toolbar, and status bar as intentional
    shell chrome; place one dockspace in the remaining main-window work area.
-2. Convert Hierarchy, Scene/Game, Inspector, Console/Profiler/Debug, Assets, and
+2. [x] Convert Hierarchy, Scene/Game, Inspector, Console/Profiler/Debug, Assets, and
    specialized editors into ordinary dockable windows with stable IDs.
-3. Build the current visual arrangement as a first-run default: hierarchy left,
+3. [x] Build the current visual arrangement as a first-run default: hierarchy left,
    scene/game center, inspector right, console and assets below.
-4. Retire the per-frame global rectangles in `EditorWorkspaceLayout`. Viewport
+4. [x] Retire the per-frame global rectangles in `EditorWorkspaceLayout`. Viewport
    and Game render targets must derive their size and input origin from the
    actual docked content region every frame.
-5. Preserve selection, gizmos, HUD manipulation, scrolling, drag-and-drop, and
+5. [x] Preserve selection, gizmos, HUD manipulation, scrolling, drag-and-drop, and
    runtime input focus while panels move, resize, tab, hide, and reappear.
 
 #### 12C. Persistence and recovery
 
-1. Load and save workspace layout below the user-data directory with a stable
+1. [x] Load and save workspace layout below the user-data directory with a stable
    editor-specific filename. Missing state creates the default layout.
-2. Treat corrupt or incompatible layout data as recoverable user state: retain
+2. [x] Treat corrupt or incompatible layout data as recoverable user state: retain
    a diagnostic, fall back to the default, and never block project opening.
-3. Implement `View -> Reset Workspace` as an explicit layout reset that rebuilds
+3. [x] Implement `View -> Reset Workspace` as an explicit layout reset that rebuilds
    the default dock tree and replaces the saved workspace state.
-4. Save panel visibility and layout only. Never serialize selection, authored
+4. [x] Save panel visibility and layout only. Never serialize selection, authored
    content, runtime state, modal state, or transient Play data into the layout.
-5. Verify independent layouts do not leak between users and do not modify a
+5. [x] Verify independent layouts do not leak between users and do not modify a
    clean project worktree.
 
 #### 12D. Design-token and hardcoded-layout cleanup
 
-1. Inventory editor presentation literals and classify them as shared design
+1. [x] Inventory editor presentation literals and classify them as shared design
    tokens, default-layout policy, responsive calculations, or genuinely local
    widget measurements.
-2. Move shared colors, spacing, toolbar/control dimensions, panel minimums, and
+2. [x] Move shared colors, spacing, toolbar/control dimensions, panel minimums, and
    default dock ratios into cohesive configuration owners.
-3. Replace absolute `SameLine` and cursor offsets in responsive property rows
+3. [x] Replace absolute `SameLine` and cursor offsets in responsive property rows
    with tables, available-region calculations, or reusable property-grid
    helpers where practical.
-4. Do not turn `EditorDesignTokens` into a god configuration object and do not
-   move gameplay, renderer, schema, or authored-data constants into UI config.
+4. [x] Keep `EditorDesignTokens` narrowly focused rather than turning it into a
+   god configuration object or moving gameplay, renderer, schema, or
+   authored-data constants into UI config.
 
 ### Verification and release gate
 
-- clean first launch produces the documented default workspace;
-- panels can move, resize, dock, undock, tab, close, and reopen;
-- restart restores the previous arrangement and Reset Workspace restores the
+- [x] clean first launch produces the documented default workspace;
+- [x] panels can move, resize, dock, undock, tab, close, and reopen;
+- [x] restart restores the previous arrangement and Reset Workspace restores the
   default;
-- layout persistence changes no project/source file;
-- viewport picking, gizmo dragging, HUD editing, mouse capture, and Game input
+- [x] layout persistence changes no project/source file;
+- [x] viewport picking, gizmo dragging, HUD editing, mouse capture, and Game input
   remain correct after arbitrary dock changes and DPI/window resize;
-- menus, popups, modal recovery, asset drops, and build progress remain usable
+- [x] menus, popups, modal recovery, asset drops, and build progress remain usable
   above docked windows;
-- narrow-window, high-DPI, corrupted-layout, missing-layout, and repeated
+- [x] narrow-window, high-DPI, corrupted-layout, missing-layout, and repeated
   device/editor lifetime tests pass;
-- the bgfx/ImGui docking revision and its update procedure are documented and
+- [x] the bgfx/ImGui docking revision and its update procedure are documented and
   reproducible.
 
 ### Done when
 
-- A developer can arrange a practical workspace without editing configuration
+- [x] A developer can arrange a practical workspace without editing configuration
   files, restart the editor, and receive the same layout.
-- The default remains polished and usable for developers who never customize
+- [x] The default remains polished and usable for developers who never customize
   it.
-- Global layout policy and shared design constants have clear owners instead of
+- [x] Global layout policy and shared design constants have clear owners instead of
   being spread through panel implementations.
-- The migration introduces no editor-only project state and no second UI or
+- [x] The migration introduces no editor-only project state and no second UI or
   rendering implementation.
 
 ## Scenario Paths

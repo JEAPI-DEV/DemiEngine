@@ -35,7 +35,7 @@ void drawEditorGlyph(ImDrawList &draw, const EditorIcon icon,
   switch (icon) {
   case EditorIcon::Refresh: {
     draw.PathArcTo(center, 7.0F * scale, -2.7F, 2.1F, 18);
-    draw.PathStroke(color, 0, thickness);
+    draw.PathStroke(color, thickness, ImDrawFlags_None);
     arrowHead(draw, point(center, -6.3F, -3.0F, scale), {-1.0F, 0.0F}, color,
               scale);
     break;
@@ -49,17 +49,20 @@ void drawEditorGlyph(ImDrawList &draw, const EditorIcon icon,
     draw.PathBezierCubicCurveTo(point(center, -5.5F * direction, -7.0F, scale),
                                 point(center, -7.0F * direction, -1.0F, scale),
                                 point(center, -7.0F * direction, 6.0F, scale));
-    draw.PathStroke(color, 0, thickness);
+    draw.PathStroke(color, thickness, ImDrawFlags_None);
     arrowHead(draw, tip, {direction, 0.0F}, color, scale * 0.9F);
     break;
   }
   case EditorIcon::Save:
     draw.AddRect(point(center, -7.0F, -7.0F, scale),
-                 point(center, 7.0F, 7.0F, scale), color, 1.0F, 0, thickness);
+                 point(center, 7.0F, 7.0F, scale), color, 1.0F, thickness,
+                 ImDrawFlags_None);
     draw.AddRect(point(center, -3.5F, -7.0F, scale),
-                 point(center, 4.0F, -1.5F, scale), color, 0.0F, 0, thickness);
+                 point(center, 4.0F, -1.5F, scale), color, 0.0F, thickness,
+                 ImDrawFlags_None);
     draw.AddRect(point(center, -4.0F, 2.0F, scale),
-                 point(center, 4.0F, 7.0F, scale), color, 0.0F, 0, thickness);
+                 point(center, 4.0F, 7.0F, scale), color, 0.0F, thickness,
+                 ImDrawFlags_None);
     break;
   case EditorIcon::Play:
     draw.AddTriangleFilled(point(center, -4.5F, -7.0F, scale),
@@ -98,7 +101,7 @@ void drawEditorGlyph(ImDrawList &draw, const EditorIcon icon,
     break;
   case EditorIcon::Rotate:
     draw.PathArcTo(center, 7.0F * scale, -2.6F, 2.4F, 22);
-    draw.PathStroke(color, 0, thickness);
+    draw.PathStroke(color, thickness, ImDrawFlags_None);
     arrowHead(draw, point(center, -6.0F, -3.5F, scale), {-0.8F, -0.5F}, color,
               scale);
     break;
@@ -106,9 +109,11 @@ void drawEditorGlyph(ImDrawList &draw, const EditorIcon icon,
     draw.AddLine(point(center, -5.0F, 5.0F, scale),
                  point(center, 5.0F, -5.0F, scale), color, thickness);
     draw.AddRect(point(center, -8.0F, 3.0F, scale),
-                 point(center, -3.0F, 8.0F, scale), color, 0.0F, 0, thickness);
+                 point(center, -3.0F, 8.0F, scale), color, 0.0F, thickness,
+                 ImDrawFlags_None);
     draw.AddRect(point(center, 3.0F, -8.0F, scale),
-                 point(center, 8.0F, -3.0F, scale), color, 0.0F, 0, thickness);
+                 point(center, 8.0F, -3.0F, scale), color, 0.0F, thickness,
+                 ImDrawFlags_None);
     break;
   case EditorIcon::Frame:
     for (const float sx : {-1.0F, 1.0F})
@@ -122,7 +127,8 @@ void drawEditorGlyph(ImDrawList &draw, const EditorIcon icon,
     break;
   case EditorIcon::Camera:
     draw.AddRect(point(center, -7.0F, -5.0F, scale),
-                 point(center, 4.0F, 6.0F, scale), color, 1.0F, 0, thickness);
+                 point(center, 4.0F, 6.0F, scale), color, 1.0F, thickness,
+                 ImDrawFlags_None);
     draw.AddTriangle(point(center, 4.0F, -3.0F, scale),
                      point(center, 8.0F, -6.0F, scale),
                      point(center, 8.0F, 5.0F, scale), color, thickness);
@@ -148,13 +154,15 @@ void drawEditorGlyph(ImDrawList &draw, const EditorIcon icon,
     break;
   case EditorIcon::Hud:
     draw.AddRect(point(center, -7.5F, -6.5F, scale),
-                 point(center, 7.5F, 6.5F, scale), color, 1.5F, 0, thickness);
+                 point(center, 7.5F, 6.5F, scale), color, 1.5F, thickness,
+                 ImDrawFlags_None);
     draw.AddLine(point(center, -7.5F, -2.5F, scale),
                  point(center, 7.5F, -2.5F, scale), color, thickness);
     draw.AddCircleFilled(point(center, -4.8F, -4.5F, scale), 0.9F * scale,
                          color);
     draw.AddRect(point(center, -4.5F, 0.0F, scale),
-                 point(center, 4.5F, 3.5F, scale), color, 0.5F, 0, thickness);
+                 point(center, 4.5F, 3.5F, scale), color, 0.5F, thickness,
+                 ImDrawFlags_None);
     break;
   case EditorIcon::Folder:
     draw.AddRectFilled(point(center, -8.0F, -3.0F, scale),
@@ -164,7 +172,8 @@ void drawEditorGlyph(ImDrawList &draw, const EditorIcon icon,
     break;
   case EditorIcon::File:
     draw.AddRect(point(center, -6.0F, -8.0F, scale),
-                 point(center, 6.0F, 8.0F, scale), color, 1.0F, 0, thickness);
+                 point(center, 6.0F, 8.0F, scale), color, 1.0F, thickness,
+                 ImDrawFlags_None);
     draw.AddLine(point(center, 1.0F, -8.0F, scale),
                  point(center, 6.0F, -3.0F, scale), color, thickness);
     draw.AddLine(point(center, 1.0F, -8.0F, scale),

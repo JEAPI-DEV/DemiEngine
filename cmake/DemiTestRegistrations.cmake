@@ -47,6 +47,10 @@ add_test(NAME demi-editor-recovery-preferences-tests
   COMMAND demi-editor-recovery-preferences-tests)
 add_test(NAME demi-editor-workspace-layout-tests
   COMMAND demi-editor-workspace-layout-tests)
+add_test(NAME demi-editor-docking-state-tests
+  COMMAND demi-editor-docking-state-tests)
+add_test(NAME demi-editor-docking-workspace-tests
+  COMMAND demi-editor-docking-workspace-tests)
 add_test(NAME demi-editor-lua-component-metadata-tests
   COMMAND demi-editor-lua-component-metadata-tests)
 add_test(NAME demi-editor-authored-json-tests

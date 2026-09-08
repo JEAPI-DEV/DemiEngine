@@ -1,12 +1,12 @@
+#include "editor/EditorDockingState.h"
 #include "editor/EditorGameRenderer.h"
 #include "editor/EditorImGuiInput.h"
+#include "editor/EditorRecoveryStore.h"
 #include "editor/EditorUiHost.h"
+#include "editor/EditorViewportRenderer.h"
 #include "editor/EditorWorkspaceLayout.h"
 
-#include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/platform/PlatformHost.h"
-#include "demi/runtime/render/BgfxRenderer2D.h"
-#include "demi/runtime/render/BgfxRenderer3D.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/render/backend/BgfxResourceLookup.h"
 #include "demi/runtime/render/backend/GpuResources.h"
@@ -14,12 +14,14 @@
 #include "demi/runtime/render/backend/RenderCommands.h"
 
 #include <imgui.h>
+#include <imgui/imgui.h>
 
 #include <algorithm>
 #include <cstdint>
 #include <fstream>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace demi::editor {
@@ -28,25 +30,6 @@ namespace {
 using demi::runtime::InputState;
 using demi::runtime::platform::PlatformHost;
 using demi::runtime::render::BgfxGraphicsDevice;
-
-runtime::render::BgfxCameraFrame3D
-editorCamera(const EditorSceneViewCamera &camera,
-             const EditorViewportArea area) {
-  runtime::render::BgfxCameraFrame3D frame;
-  frame.cameraId = "editor-camera";
-  frame.camera = camera.projection;
-  frame.position = camera.position;
-  frame.forward = camera.forward;
-  frame.up = camera.up;
-  frame.debugGeometry = camera.debugGeometry;
-  frame.viewportX = area.x;
-  frame.viewportY = area.y;
-  frame.viewportWidth = area.width;
-  frame.viewportHeight = area.height;
-  frame.viewId = 1;
-
-  return frame;
-}
 
 bool readBytes(const std::filesystem::path &path, std::vector<std::byte> &bytes,
                std::string &error) {
@@ -97,7 +80,21 @@ public:
 
     const float fontSize = editorFontSize(frame.logicalDpi);
     imguiCreate(fontSize);
-    ImGui::GetIO().IniFilename = nullptr;
+    ImGuiIO &io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    const EditorLayoutPreparation layout = dockingState_.prepareLayout();
+    workspaceDiagnostic_ = layout.diagnostic;
+    std::error_code directoryError;
+    std::filesystem::create_directories(
+        dockingState_.layoutPath().parent_path(), directoryError);
+    if (directoryError) {
+      workspaceDiagnostic_ = "Workspace layout persistence is unavailable: " +
+                             directoryError.message();
+      io.IniFilename = nullptr;
+    } else {
+      imguiIniPath_ = dockingState_.layoutPath().string();
+      io.IniFilename = imguiIniPath_.c_str();
+    }
     resources_ = demi::runtime::render::createBgfxGpuResources();
     commands_ = demi::runtime::render::createBgfxRenderCommands(*resources_);
     if (commands_ == nullptr) {
@@ -105,16 +102,10 @@ public:
       shutdownGraphics();
       return false;
     }
-    renderer3D_ = std::make_unique<demi::runtime::render::BgfxRenderer3D>(
-        *resources_, *commands_);
-    renderer2D_ = std::make_unique<demi::runtime::render::BgfxRenderer2D>(
-        *resources_, *commands_);
+    viewportRenderer_ =
+        std::make_unique<EditorViewportRenderer>(*resources_, *commands_);
     gameRenderer_ =
         std::make_unique<EditorGameRenderer>(*resources_, *commands_);
-    if (!renderer3D_->initialize(error) || !renderer2D_->initialize(error)) {
-      shutdownGraphics();
-      return false;
-    }
     initialized_ = true;
     return true;
   }
@@ -158,14 +149,15 @@ public:
       return;
     releaseGameRenderer();
     gameRenderer_.reset();
-    renderer2D_->shutdown();
-    renderer3D_->shutdown();
-    renderer2D_.reset();
-    renderer3D_.reset();
+    viewportRenderer_->release();
+    viewportRenderer_.reset();
     commands_.reset();
     resources_->clear();
     brandingTexture_ = {};
     resources_.reset();
+    if (ImGui::GetCurrentContext() != nullptr &&
+        ImGui::GetIO().IniFilename != nullptr)
+      ImGui::SaveIniSettingsToDisk(ImGui::GetIO().IniFilename);
     imguiDestroy();
     graphics_.shutdown();
     platform_->shutdown();
@@ -205,22 +197,22 @@ public:
     return platform_->takeDroppedFiles();
   }
 
+  std::string takeWorkspaceDiagnostic() override {
+    return std::exchange(workspaceDiagnostic_, {});
+  }
+
   bool configureViewport(const std::filesystem::path &projectDirectory,
                          std::string &error) override {
-    const AssetRegistry assets = loadAssetRegistry(projectDirectory);
-    if (hasErrors(assets.diagnostics)) {
-      error = assets.diagnostics.front().message;
-      return false;
-    }
-    std::vector<std::string> diagnostics;
-    const bool loaded3D = renderer3D_->loadAssets(assets, diagnostics);
-    const bool loaded2D = renderer2D_->loadAssets(assets, diagnostics);
-    if (!loaded3D || !loaded2D) {
-      error = diagnostics.empty() ? "Could not load viewport assets."
-                                  : diagnostics.front();
-      return false;
-    }
-    return true;
+    return viewportRenderer_->configure(projectDirectory, error);
+  }
+
+  bool prepareViewportTarget(const EditorViewportArea area,
+                             std::string &error) override {
+    return viewportRenderer_->prepareTarget(area, error);
+  }
+
+  std::uint16_t viewportTextureIndex() const override {
+    return viewportRenderer_->textureIndex();
   }
 
   bool renderViewport(const runtime::World &world,
@@ -231,9 +223,8 @@ public:
     if (platformFrame.minimized || platformFrame.width <= 0 ||
         platformFrame.height <= 0 || area.width == 0 || area.height == 0)
       return true;
-    return renderer3D_->renderFrame(world, editorCamera(camera, area),
-                                    platform_->frameState().deltaSeconds,
-                                    error);
+    return viewportRenderer_->render3D(
+        world, area, camera, platform_->frameState().deltaSeconds, error);
   }
 
   bool renderViewport2D(const runtime::World &world,
@@ -244,18 +235,8 @@ public:
     if (frame.minimized || frame.width <= 0 || frame.height <= 0 ||
         area.width == 0 || area.height == 0)
       return true;
-    if (!renderer2D_->beginFrameRegion(camera.projection, camera.position, 1,
-                                       area.x, area.y, area.width, area.height,
-                                       frame.deltaSeconds, error))
-      return false;
-    if (!renderer2D_->drawWorld(world, showColliders) ||
-        !renderer2D_->drawHud(world)) {
-      std::string ignored;
-      (void)renderer2D_->endFrame(ignored);
-      error = "Could not draw the authored 2D scene and HUD.";
-      return false;
-    }
-    return renderer2D_->endFrame(error);
+    return viewportRenderer_->render2D(world, area, camera, showColliders,
+                                       frame.deltaSeconds, error);
   }
 
   bool renderHud(const runtime::ui::UiDocument &document,
@@ -264,17 +245,8 @@ public:
     if (frame.minimized || frame.width <= 0 || frame.height <= 0 ||
         area.width == 0 || area.height == 0)
       return true;
-    if (!renderer2D_->beginOverlayRegion(1, area.x, area.y, area.width,
-                                         area.height, frame.deltaSeconds,
-                                         error))
-      return false;
-    if (!renderer2D_->drawUi(document)) {
-      std::string ignored;
-      (void)renderer2D_->endFrame(ignored);
-      error = "Could not draw the authored HUD.";
-      return false;
-    }
-    return renderer2D_->endFrame(error);
+    return viewportRenderer_->renderHud(document, area, frame.deltaSeconds,
+                                        error);
   }
 
   bool configureGameRenderer(const std::filesystem::path &projectDirectory,
@@ -359,8 +331,7 @@ public:
 
 private:
   void shutdownGraphics() {
-    renderer2D_.reset();
-    renderer3D_.reset();
+    viewportRenderer_.reset();
     commands_.reset();
     if (resources_ != nullptr)
       resources_->clear();
@@ -372,15 +343,17 @@ private:
   }
 
   std::unique_ptr<PlatformHost> platform_;
+  EditorDockingStateStore dockingState_{defaultEditorDataDirectory()};
   BgfxGraphicsDevice graphics_;
   std::unique_ptr<demi::runtime::render::GpuResources> resources_;
   std::unique_ptr<demi::runtime::render::RenderCommands> commands_;
-  std::unique_ptr<demi::runtime::render::BgfxRenderer3D> renderer3D_;
-  std::unique_ptr<demi::runtime::render::BgfxRenderer2D> renderer2D_;
+  std::unique_ptr<EditorViewportRenderer> viewportRenderer_;
   std::unique_ptr<EditorGameRenderer> gameRenderer_;
   runtime::render::TextureHandle brandingTexture_;
   EditorGpuTimingSample gpuTimingSample_;
   InputState input_;
+  std::string imguiIniPath_;
+  std::string workspaceDiagnostic_;
   bool initialized_ = false;
   bool mouseCaptured_ = false;
 };

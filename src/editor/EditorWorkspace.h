@@ -89,6 +89,8 @@ public:
   [[nodiscard]] bool editValues(std::vector<SceneValueTarget> targets,
                                 nlohmann::json value, std::string &error);
   [[nodiscard]] bool removeValue(SceneValueTarget target, std::string &error);
+  [[nodiscard]] SceneValueTarget authoredTarget(SceneValueTarget target) const;
+  [[nodiscard]] bool hasExplicitValue(SceneValueTarget target) const;
   [[nodiscard]] bool createEntity(std::string &error,
                                   std::optional<std::string> parent = {});
   [[nodiscard]] bool createPresetEntity(std::string_view preset,
@@ -256,6 +258,8 @@ private:
                                          const std::function<void()> &cancel,
                                          std::string &error);
   void updateSceneDomain(bool openingProject);
+  [[nodiscard]] SceneValueTarget
+  resolveSceneTarget(SceneValueTarget target) const;
 
   std::filesystem::path projectPath_;
   std::optional<runtime::LoadedProject> project_;

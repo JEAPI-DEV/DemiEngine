@@ -41,9 +41,13 @@ public:
   [[nodiscard]] virtual bool beginFrame(std::string &error) = 0;
   [[nodiscard]] virtual std::vector<std::filesystem::path>
   takeDroppedFiles() = 0;
+  [[nodiscard]] virtual std::string takeWorkspaceDiagnostic() = 0;
   [[nodiscard]] virtual bool
   configureViewport(const std::filesystem::path &projectDirectory,
                     std::string &error) = 0;
+  [[nodiscard]] virtual bool prepareViewportTarget(EditorViewportArea area,
+                                                   std::string &error) = 0;
+  [[nodiscard]] virtual std::uint16_t viewportTextureIndex() const = 0;
   [[nodiscard]] virtual bool renderViewport(const runtime::World &world,
                                             EditorViewportArea area,
                                             const EditorSceneViewCamera &camera,

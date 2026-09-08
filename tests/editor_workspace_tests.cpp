@@ -64,6 +64,45 @@ int main() {
         return diagnostic.code == "EDITOR_SCENE_EDIT_REJECTED";
       }));
 
+  // Expanded prefab children edit the owning scene instance override while
+  // retaining their expanded id for selection and live preview updates.
+  demi::editor::EditorWorkspace prefabWorkspace;
+  error.clear();
+  assert(prefabWorkspace.open(root / "examples/minimal_3d", error));
+  prefabWorkspace.selectEntity("player/body");
+  assert(prefabWorkspace.selectedEntity() != nullptr);
+  assert(prefabWorkspace.selectedEntity()->prefabInstance == "player");
+  const nlohmann::json originalPosition =
+      nlohmann::json::parse(
+          prefabWorkspace.selectedEntity()->serializedComponents.at(
+              "Transform3D"))
+          .at("position");
+  const demi::editor::SceneValueTarget prefabPosition{.entityId = "player/body",
+                                                      .component =
+                                                          "Transform3D",
+                                                      .field = "position"};
+  assert(!prefabWorkspace.hasExplicitValue(prefabPosition));
+  for (int frame = 0; frame < 60; ++frame) {
+    assert(prefabWorkspace.editValue(
+        prefabPosition, {3.0 + frame * 0.01, 2.0, 1.0}, true, error));
+  }
+  prefabWorkspace.endContinuousEdit();
+  assert(prefabWorkspace.hasExplicitValue(prefabPosition));
+  const nlohmann::json &instances =
+      prefabWorkspace.sceneDocument().json().at("instances");
+  assert(instances[0]["overrides"]["body"]["components"]["Transform3D"]
+                  ["position"] == nlohmann::json({3.59, 2.0, 1.0}));
+  assert(nlohmann::json::parse(
+             prefabWorkspace.selectedEntity()->serializedComponents.at(
+                 "Transform3D"))
+             .at("position") == nlohmann::json({3.59, 2.0, 1.0}));
+  assert(prefabWorkspace.undo(error));
+  assert(!prefabWorkspace.hasExplicitValue(prefabPosition));
+  assert(nlohmann::json::parse(
+             prefabWorkspace.selectedEntity()->serializedComponents.at(
+                 "Transform3D"))
+             .at("position") == originalPosition);
+
   // Scene assets replace the authored scene document, while independently
   // opened HUDs retain their own tab and do not replace the scene's HUD.
   demi::editor::EditorWorkspace androidWorkspace;

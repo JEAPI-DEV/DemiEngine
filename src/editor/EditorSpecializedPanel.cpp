@@ -294,11 +294,8 @@ void EditorSpecializedPanel::draw(EditorWorkspace &workspace,
                                   std::string &notice) {
   if (!active_)
     return;
-  ImGui::SetNextWindowSize({1120.0F, 760.0F}, ImGuiCond_Appearing);
-  ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(),
-                          ImGuiCond_Appearing, {0.5F, 0.5F});
-  if (!ImGui::Begin("Specialized Document", nullptr,
-                    ImGuiWindowFlags_NoSavedSettings)) {
+  ImGui::SetNextWindowSize({1120.0F, 760.0F}, ImGuiCond_FirstUseEver);
+  if (!ImGui::Begin("Specialized Document")) {
     ImGui::End();
     return;
   }

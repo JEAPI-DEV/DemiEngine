@@ -14,11 +14,17 @@ namespace demi::editor {
 
 void drawEditorGameView(const EditorPlaySession &session, const ImVec2 position,
                         const ImVec2 size, const std::uint16_t textureIndex,
-                        EditorViewportArea &area, bool &focused) {
-  beginEditorPanel("GameView", position, size,
-                   ImGuiWindowFlags_NoScrollbar |
-                       ImGuiWindowFlags_NoScrollWithMouse |
-                       ImGuiWindowFlags_NoBackground);
+                        EditorViewportArea &area, bool &focused,
+                        const bool embedded) {
+  if (!embedded && !beginEditorPanel("Stage", position, size, nullptr,
+                                     ImGuiWindowFlags_NoScrollbar |
+                                         ImGuiWindowFlags_NoScrollWithMouse |
+                                         ImGuiWindowFlags_NoBackground)) {
+    area = {};
+    focused = false;
+    ImGui::End();
+    return;
+  }
   const ImVec4 stateColor = session.state() == EditorPlayState::Failed
                                 ? ImVec4{0.95F, 0.34F, 0.38F, 1.0F}
                             : session.state() == EditorPlayState::Paused
@@ -70,12 +76,17 @@ void drawEditorGameView(const EditorPlaySession &session, const ImVec2 position,
                     "Start embedded Play to render the game here.");
     }
   }
-  ImGui::End();
+  if (!embedded)
+    ImGui::End();
 }
 
 void drawRuntimeHierarchy(const runtime::World &world, const ImVec2 position,
-                          const ImVec2 size, std::string &selectedEntityId) {
-  beginEditorPanel("RuntimeHierarchy", position, size);
+                          const ImVec2 size, std::string &selectedEntityId,
+                          bool *open) {
+  if (!beginEditorPanel("Hierarchy", position, size, open)) {
+    ImGui::End();
+    return;
+  }
   editorSectionTitle("RUNTIME", "read-only entities");
   if (!selectedEntityId.empty() &&
       runtime::findEntity(world, selectedEntityId) == nullptr)
@@ -91,8 +102,11 @@ void drawRuntimeHierarchy(const runtime::World &world, const ImVec2 position,
 
 void drawRuntimeInspector(const runtime::World &world, const ImVec2 position,
                           const ImVec2 size,
-                          const std::string &selectedEntityId) {
-  beginEditorPanel("RuntimeInspector", position, size);
+                          const std::string &selectedEntityId, bool *open) {
+  if (!beginEditorPanel("Inspector", position, size, open)) {
+    ImGui::End();
+    return;
+  }
   editorSectionTitle("RUNTIME INSPECTOR", "read-only");
   const runtime::Entity *entity = runtime::findEntity(world, selectedEntityId);
   if (entity == nullptr) {

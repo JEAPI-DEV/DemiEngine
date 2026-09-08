@@ -117,15 +117,19 @@ void EditorConsolePanel::draw(EditorWorkspace &workspace,
                               EditorPlaySession &playSession,
                               const ImVec2 position, const ImVec2 size,
                               const EditorProjectOperationSnapshot &operation,
-                              std::string &notice) {
-  beginEditorPanel("Console", position, size);
+                              std::string &notice, bool *open) {
+  if (!beginEditorPanel("Console", position, size, open)) {
+    ImGui::End();
+    return;
+  }
+  const float panelWidth = ImGui::GetContentRegionAvail().x;
   if (!ImGui::BeginTabBar("diagnostic-tabs")) {
     ImGui::End();
     return;
   }
 
   if (ImGui::BeginTabItem("Console")) {
-    ImGui::SetNextItemWidth(std::max(120.0F, size.x - 235.0F));
+    ImGui::SetNextItemWidth(std::max(120.0F, panelWidth - 235.0F));
     ImGui::InputTextWithHint("##diagnostic-filter", "Search diagnostics",
                              diagnosticFilter_.data(),
                              diagnosticFilter_.size());
@@ -280,7 +284,7 @@ void EditorConsolePanel::draw(EditorWorkspace &workspace,
       ImGui::SameLine(245.0F);
       metric("Render submit", scope(snapshot, "Render.submit"));
 
-      ImGui::SetNextItemWidth(std::max(120.0F, size.x - 190.0F));
+      ImGui::SetNextItemWidth(std::max(120.0F, panelWidth - 190.0F));
       ImGui::InputTextWithHint("##profiler-filter", "Search scopes",
                                profilerFilter_.data(), profilerFilter_.size());
       ImGui::SameLine();

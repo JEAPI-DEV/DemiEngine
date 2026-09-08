@@ -23,6 +23,6 @@ struct EditorHudInspectorState {
 
 void drawEditorHudNodeInspector(EditorWorkspace &workspace, ImVec2 position,
                                 ImVec2 size, EditorHudInspectorState &state,
-                                std::string &notice);
+                                std::string &notice, bool *open = nullptr);
 
 } // namespace demi::editor

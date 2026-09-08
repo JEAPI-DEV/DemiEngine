@@ -80,6 +80,42 @@ int main() {
   cyclic["entities"][0]["components"]["Transform3D"]["parent"] = "child";
   assert(demi::editor::collectSubtreeIds(cyclic, "root").size() == 2);
 
+  // Prefab value targets preserve whichever override shape was authored.
+  nlohmann::json prefabScene = {
+      {"entities", nlohmann::json::array()},
+      {"instances",
+       {{{"id", "player"},
+         {"prefab", "prefab://player"},
+         {"overrides",
+          {{"body",
+            {{"components",
+              {{"Transform3D", {{"position", {1.0, 2.0, 3.0}}}}}}}}}}}}}};
+  const demi::editor::SceneValueTarget prefabPosition{
+      .entityId = "player/body",
+      .component = "Transform3D",
+      .field = "position",
+      .prefabInstanceId = "player",
+      .prefabEntityId = "body"};
+  assert(*demi::editor::valueInDocument(prefabScene, prefabPosition) ==
+         nlohmann::json({1.0, 2.0, 3.0}));
+  assert(demi::editor::assignValueInDocument(prefabScene, prefabPosition,
+                                             nlohmann::json({4.0, 5.0, 6.0})));
+  assert(prefabScene["instances"][0]["overrides"]["body"]["components"]
+                    ["Transform3D"]["position"] ==
+         nlohmann::json({4.0, 5.0, 6.0}));
+  assert(demi::editor::assignValueInDocument(prefabScene, prefabPosition,
+                                             std::nullopt));
+  assert(!prefabScene["instances"][0].contains("overrides"));
+
+  prefabScene["instances"][0]["overrides"] = {
+      {"body.Transform3D.position", {7.0, 8.0, 9.0}}};
+  assert(demi::editor::assignValueInDocument(prefabScene, prefabPosition,
+                                             nlohmann::json({2.0, 3.0, 4.0})));
+  assert(
+      prefabScene["instances"][0]["overrides"]["body.Transform3D.position"] ==
+      nlohmann::json({2.0, 3.0, 4.0}));
+  assert(!prefabScene["instances"][0]["overrides"].contains("body"));
+
   assert(document.open(scene, error));
 
   // Create: unique id, undo/redo round-trip.

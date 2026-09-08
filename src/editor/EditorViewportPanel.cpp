@@ -7,7 +7,9 @@
 #include "editor/EditorViewportProjection.h"
 #include "editor/EditorWorkspace.h"
 
+#include <bgfx/bgfx.h>
 #include <imgui.h>
+#include <imgui/imgui.h>
 
 #include <algorithm>
 #include <array>
@@ -50,13 +52,18 @@ void drawOrientationGizmo(ImDrawList &draw, const ImVec2 center,
 } // namespace
 
 void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
-                        const ImVec2 size, EditorViewportArea &viewportArea,
+                        const ImVec2 size, const std::uint16_t textureIndex,
+                        EditorViewportArea &viewportArea,
                         EditorHudViewportState &hudState, const bool hudOnly,
-                        std::string &notice) {
-  beginEditorPanel("Viewport", position, size,
-                   ImGuiWindowFlags_NoScrollbar |
-                       ImGuiWindowFlags_NoScrollWithMouse |
-                       ImGuiWindowFlags_NoBackground);
+                        std::string &notice, const bool embedded) {
+  if (!embedded && !beginEditorPanel("Stage", position, size, nullptr,
+                                     ImGuiWindowFlags_NoScrollbar |
+                                         ImGuiWindowFlags_NoScrollWithMouse |
+                                         ImGuiWindowFlags_NoBackground)) {
+    viewportArea = {};
+    ImGui::End();
+    return;
+  }
   const bool is2D = hudOnly || workspace.viewDimension() ==
                                    EditorSceneViewDimension::TwoDimensional;
   const ImVec2 canvasMin = ImGui::GetCursorScreenPos();
@@ -75,6 +82,15 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
             static_cast<std::uint16_t>(std::clamp(canvasWidth, 1.0F, 65535.0F)),
         .height = static_cast<std::uint16_t>(
             std::clamp(canvasHeight, 1.0F, 65535.0F))};
+    if (textureIndex != UINT16_MAX) {
+      const bgfx::Caps *caps = bgfx::getCaps();
+      const bool flipVertically = caps != nullptr && caps->originBottomLeft;
+      ImGui::Image(bgfx::TextureHandle{textureIndex}, available,
+                   flipVertically ? ImVec2{0.0F, 1.0F} : ImVec2{0.0F, 0.0F},
+                   flipVertically ? ImVec2{1.0F, 0.0F} : ImVec2{1.0F, 1.0F});
+    } else {
+      ImGui::InvisibleButton("viewport-canvas", {canvasWidth, canvasHeight});
+    }
   }
   ImDrawList *draw = ImGui::GetWindowDrawList();
   const char *viewLabel =
@@ -119,7 +135,6 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
   draw->AddText({canvasMin.x + 14.0F, badgeMax.y + 10.0F},
                 IM_COL32(205, 209, 218, 255), label.c_str());
   if (canvasWidth >= 1.0F && canvasHeight >= 1.0F) {
-    ImGui::InvisibleButton("viewport-canvas", {canvasWidth, canvasHeight});
     const bool hovered = ImGui::IsItemHovered();
     const bool focused = ImGui::IsWindowFocused();
     ImGuiIO &io = ImGui::GetIO();
@@ -292,8 +307,8 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                            canvasMin.y + rect.y * hudScaleY};
       const ImVec2 rectMax{rectMin.x + rect.width * hudScaleX,
                            rectMin.y + rect.height * hudScaleY};
-      draw->AddRect(rectMin, rectMax, IM_COL32(180, 147, 255, 255), 1.0F, 0,
-                    2.0F);
+      draw->AddRect(rectMin, rectMax, IM_COL32(180, 147, 255, 255), 1.0F, 2.0F,
+                    ImDrawFlags_None);
       draw->AddRectFilled({rectMax.x - 5.0F, rectMax.y - 5.0F},
                           {rectMax.x + 5.0F, rectMax.y + 5.0F},
                           IM_COL32(180, 147, 255, 255));
@@ -325,7 +340,8 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
         notice = std::move(interactionError);
     }
   }
-  ImGui::End();
+  if (!embedded)
+    ImGui::End();
 }
 
 } // namespace demi::editor
