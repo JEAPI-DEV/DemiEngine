@@ -53,11 +53,11 @@
   "gates": [
     {
       "id": "2d-platformer",
-      "project": "examples/minimal_2d_networking/demi.project.json",
+      "project": "examples/minimal_2d_android/demi.project.json",
       "platforms": ["linux"],
       "required_tests": [
-        "demi-validate-minimal-2d-networking",
-        "demi-runtime-networking-minimal-frame"
+        "demi-validate-minimal-2d-android",
+        "demi-runtime-minimal-frame"
       ],
       "gap_ids": ["runtime-object-model", "production-2d"]
     },
@@ -67,7 +67,9 @@
       "platforms": ["linux"],
       "required_tests": [
         "demi-validate-multiplayer-ffa-shooter",
-        "demi-runtime-multiplayer-ffa-shooter-replay"
+        "demi-runtime-multiplayer-ffa-shooter-replay",
+        "demi-runtime-multiplayer-ffa-shooter-host-prediction",
+        "demi-network-prediction-tests"
       ],
       "gap_ids": ["runtime-object-model", "cross-platform-input"]
     },

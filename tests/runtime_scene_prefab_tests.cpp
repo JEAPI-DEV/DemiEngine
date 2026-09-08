@@ -97,7 +97,7 @@ int main() {
   (void)commands.flush(minimal3D->world);
 
   auto networking = loadProject(
-      root / "examples/minimal_2d_networking/demi.project.json", error);
+      root / "examples/minimal_2d_android/demi.project.json", error);
   if (!networking) {
     std::cerr << "Could not load scene-flow test project: " << error << '\n';
     return 1;
@@ -118,7 +118,7 @@ int main() {
   // before probing a successful gameplay overlay.
   networking->world.ui.nodes.clear();
   if (!scenes.setPersistent(networking->world, persistentId, true) ||
-      !scenes.prepare("scene://minimal_2d_networking/platformer", true) ||
+      !scenes.prepare("scene://minimal_2d_android/platformer", true) ||
       !waitUntilPrepared(scenes) || scenes.progress() != 1.0F) {
     std::cerr << "Asynchronous additive scene preparation failed: "
               << scenes.error() << '\n';
@@ -127,39 +127,38 @@ int main() {
   const auto additive = scenes.activate(networking->world, resources);
   if (!additive || !additive->additive ||
       !networking->world.loadedSceneIds.contains(
-          "scene://minimal_2d_networking/platformer")) {
+          "scene://minimal_2d_android/platformer")) {
     std::cerr << "Prepared additive scene activation failed.\n";
     return 1;
   }
   const auto unloaded = scenes.unload(
-      networking->world, "scene://minimal_2d_networking/platformer", resources);
+      networking->world, "scene://minimal_2d_android/platformer", resources);
   if (!unloaded ||
       networking->world.loadedSceneIds.contains(
-          "scene://minimal_2d_networking/platformer") ||
+          "scene://minimal_2d_android/platformer") ||
       findEntity(networking->world, persistentId) == nullptr) {
     std::cerr << "Additive unload removed persistent state or leaked scene.\n";
     return 1;
   }
 
-  if (!scenes.prepare("scene://minimal_2d_networking/spiral", false) ||
+  if (!scenes.prepare("scene://minimal_2d_android/spiral", false) ||
       !waitUntilPrepared(scenes) ||
       !scenes.activate(networking->world, resources) ||
-      networking->world.activeSceneId !=
-          "scene://minimal_2d_networking/spiral" ||
+      networking->world.activeSceneId != "scene://minimal_2d_android/spiral" ||
       findEntity(networking->world, persistentId) == nullptr) {
     std::cerr << "Full scene activation did not preserve persistent entity.\n";
     return 1;
   }
 
   auto collisionFixture = loadScene(
-      networking->project, "scene://minimal_2d_networking/platformer", error);
+      networking->project, "scene://minimal_2d_android/platformer", error);
   if (!collisionFixture || collisionFixture->entities.empty()) {
     std::cerr << "Could not load additive collision fixture.\n";
     return 1;
   }
   const std::string collisionId = collisionFixture->entities.front().id;
   networking->world.entities.push_back(collisionFixture->entities.front());
-  if (!scenes.prepare("scene://minimal_2d_networking/platformer", true) ||
+  if (!scenes.prepare("scene://minimal_2d_android/platformer", true) ||
       !waitUntilPrepared(scenes) ||
       scenes.activationError(networking->world).find(collisionId) ==
           std::string::npos ||

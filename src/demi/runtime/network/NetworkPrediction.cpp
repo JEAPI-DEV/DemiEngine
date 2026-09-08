@@ -153,7 +153,7 @@ NetworkOwnerInputQueue::submit(const std::uint64_t sequence,
                                     NetworkInputRejectCode::Old))};
     return NetworkInputRejectCode::Old;
   }
-  if (pending_.contains(sequence)) {
+  if (pending_.contains(sequence) || rejected_.contains(sequence)) {
     ++counters_.rejectedDuplicate;
     lastRejection_ = {sequence, std::string(networkInputRejectCodeName(
                                     NetworkInputRejectCode::Duplicate))};
@@ -172,6 +172,10 @@ NetworkOwnerInputQueue::submit(const std::uint64_t sequence,
     ++counters_.rejectedCapacity;
     lastRejection_ = {sequence, std::string(networkInputRejectCodeName(
                                     NetworkInputRejectCode::Capacity))};
+    // The future window bounds this set independently from the payload queue.
+    // Remember the rejected sequence so the authoritative acknowledgment can
+    // eventually advance past it even if the rejection notice is lost.
+    rejected_.emplace(sequence, nowSeconds);
     return NetworkInputRejectCode::Capacity;
   }
   pending_.emplace(sequence, NetworkQueuedInput{.sequence = sequence,
@@ -188,6 +192,15 @@ NetworkOwnerInputQueue::evaluate(const double nowSeconds,
   if (maximumCommands == 0)
     return commands;
   while (commands.size() < maximumCommands) {
+    const std::uint64_t expected = lastEvaluated_ + 1;
+    if (rejected_.erase(expected) != 0) {
+      lastEvaluated_ = expected;
+      ++counters_.discardedRejected;
+      ++counters_.evaluated;
+      commands.push_back(NetworkEvaluatedInput{
+          .sequence = expected, .payload = nullptr, .discarded = true});
+      continue;
+    }
     const auto next = pending_.begin();
     if (next != pending_.end() && next->first == lastEvaluated_ + 1) {
       NetworkEvaluatedInput command{.sequence = next->first,
@@ -199,16 +212,22 @@ NetworkOwnerInputQueue::evaluate(const double nowSeconds,
       commands.push_back(std::move(command));
       continue;
     }
-    if (next == pending_.end())
+    const auto rejected = rejected_.begin();
+    if (next == pending_.end() && rejected == rejected_.end())
       break;
     // A gap blocks the queue only until the oldest pending input has waited
     // past the head-of-line timeout. Missing sequences are then discarded
     // (advancing the acknowledgment) so the client stops replaying them.
-    if (nowSeconds - next->second.receivedAtSeconds <
-        config_.headOfLineTimeoutSeconds)
+    const bool rejectedIsOldest =
+        rejected != rejected_.end() &&
+        (next == pending_.end() || rejected->first < next->first);
+    const std::uint64_t oldestSequence =
+        rejectedIsOldest ? rejected->first : next->first;
+    const double oldestReceivedAt =
+        rejectedIsOldest ? rejected->second : next->second.receivedAtSeconds;
+    if (nowSeconds - oldestReceivedAt < config_.headOfLineTimeoutSeconds)
       break;
-    const std::uint64_t oldestPending = next->first;
-    while (lastEvaluated_ + 1 < oldestPending &&
+    while (lastEvaluated_ + 1 < oldestSequence &&
            commands.size() < maximumCommands) {
       ++lastEvaluated_;
       ++counters_.discardedGaps;
@@ -222,6 +241,7 @@ NetworkOwnerInputQueue::evaluate(const double nowSeconds,
 
 void NetworkOwnerInputQueue::clear() {
   pending_.clear();
+  rejected_.clear();
   lastEvaluated_ = 0;
   counters_ = {};
   lastRejection_.reset();
@@ -261,13 +281,21 @@ bool NetworkSnapshotInterpolator::push(
     ++counters_.droppedOverflow;
     return false;
   }
-  if (!buffer_.empty() && snapshot.ownershipGeneration != generation_) {
-    // An ownership-generation change is a discontinuity: buffered history
-    // from the previous authority must not be interpolated across.
-    buffer_.clear();
-    ++counters_.clearedForGeneration;
-    generation_ = snapshot.ownershipGeneration;
-  } else if (buffer_.empty()) {
+  if (!buffer_.empty()) {
+    const bool epochChanged = snapshot.sessionEpoch != epoch_;
+    const bool generationChanged = snapshot.ownershipGeneration != generation_;
+    if (epochChanged || generationChanged) {
+      // Reconnects and ownership transfers are discontinuities. Never blend
+      // buffered state across either authority boundary.
+      buffer_.clear();
+      if (epochChanged)
+        ++counters_.clearedForEpoch;
+      if (generationChanged)
+        ++counters_.clearedForGeneration;
+    }
+  }
+  if (buffer_.empty()) {
+    epoch_ = snapshot.sessionEpoch;
     generation_ = snapshot.ownershipGeneration;
   }
   if (!buffer_.empty() && snapshot.serverTick <= buffer_.back().serverTick) {
@@ -292,6 +320,10 @@ NetworkSnapshotInterpolator::sample(const double nowSeconds) {
   const NetworkAuthoritySnapshot &oldest = buffer_.front();
   const NetworkAuthoritySnapshot &newest = buffer_.back();
   if (renderTime <= oldest.receivedAtSeconds + kSnapEpsilonSeconds) {
+    if (oldest.marker != NetworkCorrectionMarker::Normal) {
+      ++counters_.snapped;
+      return NetworkInterpolatedSample{.state = oldest.state, .snapped = true};
+    }
     // Buffer underrun: hold the oldest authoritative state.
     NetworkInterpolatedSample held{.state = oldest.state};
     ++counters_.interpolated;
@@ -342,6 +374,7 @@ NetworkSnapshotInterpolator::sample(const double nowSeconds) {
 
 void NetworkSnapshotInterpolator::clear() {
   buffer_.clear();
+  epoch_ = 0;
   generation_ = 0;
   counters_ = {};
 }
@@ -374,6 +407,7 @@ void NetworkPredictedController::enable(const std::uint64_t sessionEpoch,
   acknowledged_ = 0;
   lastTick_ = 0;
   history_.clear();
+  historyFloor_ = 0;
   visualOffset_.clear();
   stateBeforeReconcile_ = nlohmann::json::object();
   pendingVisualCorrection_ = false;
@@ -381,6 +415,7 @@ void NetworkPredictedController::enable(const std::uint64_t sessionEpoch,
 
 void NetworkPredictedController::rebaseState(nlohmann::json state) {
   history_.clear();
+  historyFloor_ = 0;
   visualOffset_.clear();
   pendingVisualCorrection_ = false;
   state_ = std::move(state);
@@ -391,6 +426,7 @@ void NetworkPredictedController::rebaseState(nlohmann::json state) {
 void NetworkPredictedController::disable() {
   enabled_ = false;
   history_.clear();
+  historyFloor_ = 0;
   visualOffset_.clear();
   pendingVisualCorrection_ = false;
 }
@@ -406,6 +442,7 @@ NetworkPredictedController::recordLocalInput(nlohmann::json payload) {
                                           .payload = std::move(payload)});
   ++counters_.localInputs;
   if (history_.size() > config_.inputHistoryLimit) {
+    historyFloor_ = history_.front().sequence;
     history_.pop_front();
     ++counters_.droppedHistory;
     ++counters_.discardedInputs;
@@ -425,6 +462,7 @@ NetworkReconciliation NetworkPredictedController::reconcile(
     // can never be reused. Clear history and restart the sequence space.
     const bool ownershipChanged = snapshot.ownershipGeneration != generation_;
     history_.clear();
+    historyFloor_ = 0;
     visualOffset_.clear();
     pendingVisualCorrection_ = false;
     epoch_ = snapshot.sessionEpoch;
@@ -445,7 +483,7 @@ NetworkReconciliation NetworkPredictedController::reconcile(
     return result;
   }
 
-  if (snapshot.serverTick < lastTick_) {
+  if (snapshot.serverTick <= lastTick_) {
     // Reordered or duplicated snapshot: the acknowledgment never moves
     // backward and stale corrections are ignored.
     ++counters_.staleSnapshots;
@@ -462,6 +500,7 @@ NetworkReconciliation NetworkPredictedController::reconcile(
     // Teleport/reset: clear history instead of replaying through the
     // discontinuity.
     history_.clear();
+    historyFloor_ = 0;
     visualOffset_.clear();
     pendingVisualCorrection_ = false;
     state_ = snapshot.state;
@@ -473,6 +512,27 @@ NetworkReconciliation NetworkPredictedController::reconcile(
     result.snapped = true;
     return result;
   }
+
+  if (historyFloor_ != 0 && acknowledged < historyFloor_) {
+    // At least one unacknowledged command fell out of the bounded history.
+    // Replaying only the remaining suffix would invent a state neither peer
+    // simulated, so snap to authority and restart from that known state.
+    counters_.discardedInputs += history_.size();
+    history_.clear();
+    historyFloor_ = 0;
+    visualOffset_.clear();
+    pendingVisualCorrection_ = false;
+    state_ = snapshot.state;
+    if (!state_.is_object())
+      state_ = nlohmann::json::object();
+    acknowledged_ = acknowledged;
+    nextSequence_ = std::max(nextSequence_, acknowledged + 1);
+    ++counters_.snaps;
+    result.snapped = true;
+    return result;
+  }
+  if (historyFloor_ != 0 && acknowledged >= historyFloor_)
+    historyFloor_ = 0;
 
   // Discard acknowledged inputs; they are evaluated and never replayed.
   while (!history_.empty() && history_.front().sequence <= acknowledged) {

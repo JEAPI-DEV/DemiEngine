@@ -3,12 +3,14 @@
 #include "demi/runtime/network/NetworkMessageGateway.h"
 #include "demi/runtime/network/NetworkOwnershipRegistry.h"
 #include "demi/runtime/network/NetworkPrediction.h"
+#include "demi/runtime/network/NetworkQueryHistory2D.h"
 #include "demi/runtime/network/NetworkSessionLifecycle.h"
 #include "demi/runtime/network/ReplicatedState.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 
 #include "demi/runtime/scripting/bindings/LuaBindingHelpers.h"
 #include "demi/runtime/scripting/bindings/LuaJsonBridge.h"
+#include "demi/runtime/scripting/bindings/LuaNetworkQueryHistoryBindings.h"
 
 #include <sol/sol.hpp>
 
@@ -58,7 +60,7 @@ struct NetworkPredictionChannel {
   std::string inputMessage;
   sol::function applyInput;
   std::uint64_t serverTick = 0;
-  std::uint64_t lastSnapshotTick = 0;
+  double lastVisualUpdateSeconds = 0.0;
 };
 
 struct NetworkSessionState {
@@ -95,6 +97,7 @@ struct NetworkSessionState {
   NetworkSnapshotInterpolator::Config interpolatorConfig;
   NetworkPredictedController::Config controllerConfig;
   std::size_t inputMaxPerTick = 0;
+  NetworkQueryHistory2D queryHistory{{}};
 };
 
 std::string networkSessionSenderId(LuaScriptHost &host,
@@ -146,6 +149,7 @@ void networkSessionReset(LuaScriptHost &host, NetworkSessionState &session,
   session.localNetworkEntities.clear();
   session.gameEvents.clear();
   session.predictionChannels.clear();
+  session.queryHistory.clear();
   session.sessionMetadata = sol::object{};
 }
 
@@ -546,6 +550,8 @@ networkSessionParseSnapshot(const NetworkEnvelope &envelope) {
   snapshot.ownershipGeneration = envelope.ownershipGeneration;
   snapshot.serverTick = data["tick"].get<std::uint64_t>();
   snapshot.acknowledgedSequence = data["ack"].get<std::uint64_t>();
+  if (snapshot.serverTick == 0)
+    return std::nullopt;
   snapshot.state = data["state"];
   const std::string marker = data.value("marker", std::string{"normal"});
   if (marker == "teleport")
@@ -596,6 +602,14 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
         std::max(options.get_or("prediction_history_limit", 0), 0));
     session->controllerConfig.visualOffsetDecayPerSecond =
         options.get_or("prediction_visual_decay", 0.0);
+    session->queryHistory = NetworkQueryHistory2D({
+        .snapshotCapacity = static_cast<std::size_t>(
+            std::max(options.get_or("query_history_capacity", 0), 0)),
+        .maximumCirclesPerSnapshot = static_cast<std::size_t>(
+            std::max(options.get_or("query_history_max_entities", 0), 0)),
+        .maximumRewindTicks = static_cast<std::uint64_t>(
+            std::max(options.get_or("query_history_rewind_ticks", 0), 0)),
+    });
     session->channel = static_cast<std::uint8_t>(std::max(
         options.get_or("channel", static_cast<int>(session->channel)), 0));
     session->defaultPort = static_cast<std::uint16_t>(std::max(
@@ -612,6 +626,8 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
       session->remotePrefab = remotePrefab.as<sol::table>();
     }
   });
+  installNetworkQueryHistoryBindings(host, state, session->game,
+                                     session->queryHistory);
   networkSession.set_function("sender_id", [&host, session] {
     return networkSessionSenderId(host, *session);
   });
@@ -822,6 +838,24 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
                networkSessionSendGameMessage(
                    state, host, *session, "entity_spawn",
                    sol::make_object(state, payload), true);
+      });
+  networkSession.set_function(
+      "bind_local_entity",
+      [&host, session](const std::string &networkId,
+                       const std::string &entityId) {
+        const NetworkOwnedEntity *owned = session->ownership.find(networkId);
+        if (owned == nullptr ||
+            owned->ownerPeerId != networkSessionSenderId(host, *session)) {
+          session->game.reject(
+              "only the owning peer may bind a local network entity");
+          return false;
+        }
+        if (!host.findEntityId(entityId).has_value()) {
+          session->game.reject("cannot bind missing local entity: " + entityId);
+          return false;
+        }
+        session->localNetworkEntities[networkId] = entityId;
+        return true;
       });
   networkSession.set_function("despawn", [state, &host, session](
                                              const std::string &networkId) {
@@ -1186,16 +1220,29 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
         NetworkPredictionChannel &channel =
             networkSessionPredictionChannel(*session, networkId);
         channel.inputMessage = options.get_or("input_message", std::string{});
-        if (const NetworkContract *contract = host.networkContract();
-            contract != nullptr && !channel.inputMessage.empty() &&
-            !contract->messages.contains(channel.inputMessage)) {
-          session->game.reject("prediction input message is not declared: " +
-                               channel.inputMessage);
-          channel.inputMessage.clear();
-          return false;
+        if (const NetworkContract *contract = host.networkContract()) {
+          const auto message = contract->messages.find(channel.inputMessage);
+          if (channel.inputMessage.empty() ||
+              message == contract->messages.end()) {
+            session->game.reject(
+                "prediction requires a declared input_message");
+            channel.inputMessage.clear();
+            return false;
+          }
+          if (message->second.from != NetworkActor::Owner ||
+              message->second.target != "owned_entity" ||
+              (message->second.to != NetworkActor::Server &&
+               message->second.to != NetworkActor::All)) {
+            session->game.reject(
+                "prediction input_message must be an owner-to-server "
+                "owned_entity intent");
+            channel.inputMessage.clear();
+            return false;
+          }
         }
         channel.predictionEnabled = true;
         channel.applyInput = applyObject.as<sol::function>();
+        channel.lastVisualUpdateSeconds = host.gameTime();
         channel.controller.enable(
             session->ownership.sessionEpoch(),
             entity != nullptr ? entity->ownershipGeneration : 0ULL,
@@ -1239,6 +1286,17 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
           return sol::make_object(state, sol::nil);
         }
         NetworkPredictionChannel &channel = iterator->second;
+        if (host.networkContract() != nullptr) {
+          const NetworkOwnedEntity *entity = session->ownership.find(networkId);
+          if (entity == nullptr ||
+              entity->ownerPeerId != networkSessionSenderId(host, *session)) {
+            channel.predictionEnabled = false;
+            channel.controller.disable();
+            session->game.reject(
+                "prediction stopped because local ownership was lost");
+            return sol::make_object(state, sol::nil);
+          }
+        }
         const nlohmann::json inputJson = luaObjectToJson(inputObject);
         const std::uint64_t sequence =
             channel.controller.recordLocalInput(inputJson);
@@ -1295,13 +1353,18 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
       });
   networkSession.set_function(
       "prediction_visual_offset",
-      [state, session](const std::string &networkId) {
+      [state, &host, session](const std::string &networkId) {
         auto iterator = session->predictionChannels.find(networkId);
         if (iterator == session->predictionChannels.end() ||
             !iterator->second.predictionEnabled)
           return sol::make_object(state, sol::nil);
+        NetworkPredictionChannel &channel = iterator->second;
+        const double now = host.gameTime();
+        channel.controller.updateVisualOffset(
+            std::max(now - channel.lastVisualUpdateSeconds, 0.0));
+        channel.lastVisualUpdateSeconds = now;
         const std::map<std::string, double> &offset =
-            iterator->second.controller.visualOffset();
+            channel.controller.visualOffset();
         if (offset.empty())
           return sol::make_object(state, sol::nil);
         sol::state_view lua(state);
@@ -1357,6 +1420,7 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
       server["rejected_capacity"] = queue.rejectedCapacity;
       server["rejected_malformed"] = queue.rejectedMalformed;
       server["discarded_gaps"] = queue.discardedGaps;
+      server["discarded_rejected"] = queue.discardedRejected;
       entry["server"] = server;
       sol::table interpolation = lua.create_table();
       interpolation["buffer_depth"] = channel.interpolator.depth();
@@ -1365,6 +1429,7 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
       interpolation["accepted"] = buffer.accepted;
       interpolation["dropped_stale"] = buffer.droppedStale;
       interpolation["dropped_overflow"] = buffer.droppedOverflow;
+      interpolation["cleared_for_epoch"] = buffer.clearedForEpoch;
       interpolation["cleared_for_generation"] = buffer.clearedForGeneration;
       interpolation["interpolated"] = buffer.interpolated;
       interpolation["extrapolated"] = buffer.extrapolated;
@@ -1685,10 +1750,6 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
             }
             NetworkPredictionChannel &predictionChannel =
                 networkSessionPredictionChannel(*session, envelope.target);
-            if (snapshot->serverTick < predictionChannel.lastSnapshotTick)
-              continue;
-            predictionChannel.lastSnapshotTick = std::max(
-                predictionChannel.lastSnapshotTick, snapshot->serverTick);
             const NetworkOwnedEntity *entity =
                 session->ownership.find(envelope.target);
             const bool ownedByUs =
@@ -1701,13 +1762,15 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
               if (reconciliation.applied) {
                 const bool corrected = networkSessionApplyReplay(
                     state, *session, predictionChannel, reconciliation);
-                if (corrected)
+                if (corrected) {
+                  predictionChannel.lastVisualUpdateSeconds = host.gameTime();
                   networkSessionQueuePredictionEvent(
                       *session, "prediction_corrected", envelope.target,
                       {{"distance", predictionChannel.controller.counters()
                                         .lastCorrectionDistance},
                        {"replayed", reconciliation.replay.size()},
                        {"acknowledged", reconciliation.acknowledgedSequence}});
+                }
                 if (reconciliation.snapped)
                   networkSessionQueuePredictionEvent(
                       *session, "prediction_snapped", envelope.target,
@@ -1880,6 +1943,24 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
       gameEvents[eventIndex++] = jsonToLuaObject(state, event);
     session->gameEvents.clear();
     summary["events"] = gameEvents;
+    for (auto &[networkId, channel] : session->predictionChannels) {
+      const NetworkOwnedEntity *entity = session->ownership.find(networkId);
+      if (entity == nullptr ||
+          entity->ownerPeerId == networkSessionSenderId(host, *session))
+        continue;
+      const auto sample = channel.interpolator.sample(host.gameTime());
+      if (!sample || !sample->state.is_object() ||
+          !sample->state.contains("x") || !sample->state.contains("y"))
+        continue;
+      sol::table snapshot = lua.create_table();
+      snapshot["sender_id"] = entity->ownerPeerId;
+      snapshot["entity_id"] = networkId;
+      snapshot["x"] = sample->state.value("x", 0.0);
+      snapshot["y"] = sample->state.value("y", 0.0);
+      snapshot["vx"] = sample->state.value("vx", 0.0);
+      snapshot["vy"] = sample->state.value("vy", 0.0);
+      networkSessionApplySnapshot(host, *session, snapshot);
+    }
     return summary;
   });
   networkSession.set_function("update_entity", [state, &host, session](

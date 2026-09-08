@@ -83,6 +83,7 @@ struct NetworkInputQueueCounters {
   std::uint64_t rejectedFuture = 0;
   std::uint64_t rejectedCapacity = 0;
   std::uint64_t discardedGaps = 0;
+  std::uint64_t discardedRejected = 0;
   std::uint64_t evaluated = 0;
 };
 
@@ -112,6 +113,9 @@ public:
 private:
   Config config_;
   std::map<std::uint64_t, NetworkQueuedInput> pending_;
+  // Capacity-rejected sequences remain as bounded discard markers so the
+  // authoritative acknowledgment can eventually advance past them.
+  std::map<std::uint64_t, double> rejected_;
   std::uint64_t lastEvaluated_ = 0;
   NetworkInputQueueCounters counters_;
   std::optional<std::pair<std::uint64_t, std::string>> lastRejection_;
@@ -132,6 +136,7 @@ struct NetworkSnapshotBufferCounters {
   std::uint64_t accepted = 0;
   std::uint64_t droppedStale = 0;
   std::uint64_t droppedOverflow = 0;
+  std::uint64_t clearedForEpoch = 0;
   std::uint64_t clearedForGeneration = 0;
   std::uint64_t interpolated = 0;
   std::uint64_t extrapolated = 0;
@@ -161,6 +166,7 @@ public:
 private:
   Config config_;
   std::deque<NetworkAuthoritySnapshot> buffer_;
+  std::uint64_t epoch_ = 0;
   std::uint64_t generation_ = 0;
   NetworkSnapshotBufferCounters counters_;
 };
@@ -267,6 +273,7 @@ private:
   nlohmann::json stateBeforeReconcile_ = nlohmann::json::object();
   bool pendingVisualCorrection_ = false;
   std::deque<NetworkReplayCommand> history_;
+  std::uint64_t historyFloor_ = 0;
   std::map<std::string, double> visualOffset_;
   NetworkPredictionCounters counters_;
 };

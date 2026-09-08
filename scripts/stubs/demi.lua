@@ -1962,7 +1962,7 @@ NetworkSession = {}
 ---@field rotation? number
 ---@field scale? number[]
 ---@field color? number[]
----@param options {send_interval?: number, extrapolation_limit?: number, initial_prediction?: number, interpolation_delay?: number, snapshot_buffer?: integer, input_queue_capacity?: integer, input_future_window?: integer, input_head_of_line_timeout?: number, input_max_per_tick?: integer, prediction_history_limit?: integer, prediction_visual_decay?: number, channel?: integer, port?: integer, max_peers?: integer, remote_prefab?: NetworkRemotePrefab, certificate?: string, private_key?: string, trusted_certificate?: string, server_name?: string}
+---@param options {send_interval?: number, extrapolation_limit?: number, initial_prediction?: number, interpolation_delay?: number, snapshot_buffer?: integer, input_queue_capacity?: integer, input_future_window?: integer, input_head_of_line_timeout?: number, input_max_per_tick?: integer, prediction_history_limit?: integer, prediction_visual_decay?: number, query_history_capacity?: integer, query_history_max_entities?: integer, query_history_rewind_ticks?: integer, channel?: integer, port?: integer, max_peers?: integer, remote_prefab?: NetworkRemotePrefab, certificate?: string, private_key?: string, trusted_certificate?: string, server_name?: string}
 function NetworkSession.configure(options) end
 ---@return string
 function NetworkSession.sender_id() end
@@ -2061,6 +2061,12 @@ function NetworkSession.process_events() end
 ---@param dt number
 ---@return boolean
 function NetworkSession.update_entity(network_id, dt) end
+---Associates an authoritative spawn owned by this peer with its local scene
+---entity. Ownership and entity existence are validated by the runtime.
+---@param network_id string
+---@param entity_id string
+---@return boolean
+function NetworkSession.bind_local_entity(network_id, entity_id) end
 
 ---@class NetworkPredictionOptions
 ---@field network_id string Network entity the local peer owns and predicts.
@@ -2079,11 +2085,13 @@ function NetworkSession.update_entity(network_id, dt) end
 ---@field rejected_capacity integer
 ---@field rejected_malformed integer
 ---@field discarded_gaps integer
+---@field discarded_rejected integer
 ---@class NetworkInterpolationDiagnostics
 ---@field buffer_depth integer
 ---@field accepted integer
 ---@field dropped_stale integer
 ---@field dropped_overflow integer
+---@field cleared_for_epoch integer
 ---@field cleared_for_generation integer
 ---@field interpolated integer
 ---@field extrapolated integer
@@ -2155,6 +2163,53 @@ function NetworkSession.prediction_visual_offset(network_id) end
 function NetworkSession.remote_state(network_id) end
 ---@return NetworkPredictionDiagnostics
 function NetworkSession.prediction_diagnostics() end
+
+---@class NetworkHistoricalCircle2D
+---@field entity_id string Stable network entity ID.
+---@field layer? string Optional query layer.
+---@field x number
+---@field y number
+---@field radius number
+---@class NetworkHistoricalRaycastHit2D
+---@field entity_id string
+---@field layer string
+---@field sampled_tick integer
+---@field x number
+---@field y number
+---@field normal_x number
+---@field normal_y number
+---@field distance number
+---@class NetworkQueryHistoryDiagnostics2D
+---@field depth integer
+---@field latest_tick integer
+---@field recorded integer
+---@field rejected integer
+---@field dropped integer
+---@field queries integer
+---@field clamped_queries integer
+---@field misses integer
+---Records selected authoritative collision circles without mutating the live
+---world. Host with a network contract only; bounds are configured explicitly.
+---@param server_tick integer
+---@param circles NetworkHistoricalCircle2D[]
+---@return boolean
+function NetworkSession.record_query_snapshot(server_tick, circles) end
+---Raycasts a bounded historical snapshot for server-side lag compensation.
+---@param requested_tick integer
+---@param origin_x number
+---@param origin_y number
+---@param direction_x number
+---@param direction_y number
+---@param maximum_distance number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return NetworkHistoricalRaycastHit2D|nil
+function NetworkSession.historical_raycast(requested_tick, origin_x, origin_y, direction_x, direction_y, maximum_distance, layer, ignored_entity_id) end
+---@return NetworkQueryHistoryDiagnostics2D
+function NetworkSession.query_history_diagnostics() end
+---Clears detached query history during an authoritative scene/reset boundary.
+---@return boolean
+function NetworkSession.clear_query_history() end
 
 ---@class DemiScript
 ---@field entity_id? string

@@ -92,10 +92,9 @@ int main(int argc, char **argv) {
 
   std::string error;
   const std::optional<runtime::LoadedProject> loaded = runtime::loadProject(
-      root / "examples" / "minimal_2d_networking" / "demi.project.json", error);
+      root / "examples" / "minimal_2d_android" / "demi.project.json", error);
   if (!loaded.has_value()) {
-    std::cerr << "Failed to load minimal_2d_networking project: " << error
-              << '\n';
+    std::cerr << "Failed to load minimal_2d_android project: " << error << '\n';
     return 1;
   }
 

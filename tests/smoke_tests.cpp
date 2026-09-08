@@ -82,8 +82,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  if (!verifyGameplayHudContract(root / "examples/minimal_2d_android") ||
-      !verifyGameplayHudContract(root / "examples/minimal_2d_networking"))
+  if (!verifyGameplayHudContract(root / "examples/minimal_2d_android"))
     return 1;
 
   std::cout << "Smoke validation checked " << summary.checkedFiles

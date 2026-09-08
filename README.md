@@ -212,8 +212,8 @@ Lua receives an event or the world changes.
 
 ```lua
 NetworkSession.send("move_intent", player_network_id, {
-  x = Input.action_value("move_x"),
-  y = Input.action_value("move_y"),
+  x = Input.value("move_x"),
+  y = Input.value("move_y"),
 })
 ```
 
@@ -228,10 +228,11 @@ demi serve --project demi.project.json
 demi build linux_server --project demi.project.json
 ```
 
-Prediction, reconciliation, snapshot interpolation, delta baselines, lag
-compensation, accounts, matchmaking, and host migration are not included in
-the current networking layer. See [game-facing networking](docs/networking.md)
-for the trust model and migration rules.
+Sequenced owner inputs, prediction/reconciliation, bounded snapshot
+interpolation, and detached historical 2D hit queries are available for
+latency-sensitive action controllers. Delta-compression baselines, accounts,
+matchmaking, and host migration are not included. See
+[game-facing networking](docs/networking.md) for the trust model and APIs.
 
 ## Build, Test, and Package a Game
 
@@ -272,7 +273,6 @@ Examples are executable engine probes, not throwaway snippets:
 | Example | Purpose |
 |---|---|
 | `minimal_2d_android` | Shared Linux/Android 2D platform gameplay and virtual controls ![Minimal 2D networking menu](images/minimal_2d_networking.png)  |
-| `minimal_2d_networking` | Menu flow, saves, scenes, platformer/slingshot gameplay, and networking integration |
 | `production_2d_foundation` | Physics shapes, contacts, navigation, animation, and production 2D APIs |
 | `isometric_base_builder` | Tower defense, placement, pathfinding, combat, targeting, and persistence ![Isometric_base_builder](images/isometric_base_builder.png) |
 | `fighting_game_2d` | Local 2D fighting-game systems and animation-driven gameplay ![fighting_game_2d](images/fighting_game_2d.png) |

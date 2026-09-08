@@ -1,6 +1,7 @@
 #include "demi/runtime/network/NetworkFaultSimulator.h"
 
 #include <algorithm>
+#include <limits>
 
 namespace demi::runtime {
 
@@ -29,10 +30,22 @@ bool NetworkFaultSimulator::submit(const std::uint64_t packetId,
     return false;
   }
   for (std::size_t copy = 0; copy < copies; ++copy) {
-    queue_.push_back({.packet = {.id = packetId,
-                                .bytes = {bytes.begin(), bytes.end()}},
-                      .deliverAt = nowTick + config_.delayTicks,
-                      .order = nextOrder_++});
+    const std::uint64_t jitter =
+        config_.jitterTicks == std::numeric_limits<std::uint64_t>::max()
+            ? packetId
+            : packetId % (config_.jitterTicks + 1);
+    const std::uint64_t totalDelay =
+        config_.delayTicks > std::numeric_limits<std::uint64_t>::max() - jitter
+            ? std::numeric_limits<std::uint64_t>::max()
+            : config_.delayTicks + jitter;
+    const std::uint64_t deliverAt =
+        nowTick > std::numeric_limits<std::uint64_t>::max() - totalDelay
+            ? std::numeric_limits<std::uint64_t>::max()
+            : nowTick + totalDelay;
+    queue_.push_back(
+        {.packet = {.id = packetId, .bytes = {bytes.begin(), bytes.end()}},
+         .deliverAt = deliverAt,
+         .order = nextOrder_++});
   }
   if (copies == 2)
     ++stats_.duplicated;
@@ -51,8 +64,7 @@ NetworkFaultSimulator::drain(const std::uint64_t nowTick) {
   std::ranges::sort(due, {}, &QueuedPacket::order);
   for (std::size_t start = 0; start < due.size();
        start += config_.reorderWindow) {
-    const std::size_t end =
-        std::min(due.size(), start + config_.reorderWindow);
+    const std::size_t end = std::min(due.size(), start + config_.reorderWindow);
     std::reverse(due.begin() + static_cast<std::ptrdiff_t>(start),
                  due.begin() + static_cast<std::ptrdiff_t>(end));
   }
@@ -71,8 +83,6 @@ void NetworkFaultSimulator::reset() {
 
 std::size_t NetworkFaultSimulator::queued() const { return queue_.size(); }
 
-const NetworkFaultStats &NetworkFaultSimulator::stats() const {
-  return stats_;
-}
+const NetworkFaultStats &NetworkFaultSimulator::stats() const { return stats_; }
 
 } // namespace demi::runtime

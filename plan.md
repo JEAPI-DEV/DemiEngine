@@ -2502,8 +2502,12 @@ messages, authoritative state, fixed simulation ticks, and deterministic test
 infrastructure. It must not introduce a second authority model or let predicted
 client state become trusted replicated state.
 
-**Status: deferred.** Implement only after Step 6 is stable and a reference
-action game demonstrates which controller states and query history are needed.
+**Status: complete.** The multiplayer FFA shooter is the reference action game:
+clients send declared movement intents and predict immediately, while the host
+evaluates ordered inputs, publishes authoritative snapshots, interpolates
+non-owners, and resolves delayed hitscan against detached historical circles.
+The deterministic action-movement test drives the same primitives through the
+fault simulator and verifies authority against the accepted input log.
 
 ### Prediction and correction protocol
 
@@ -2538,22 +2542,22 @@ evaluated sequence always repair divergence after loss or reordering.
 
 ### Scope
 
-1. Add sequenced, timestamped owner-input queues with duplicate, old, and
+1. [x] Add sequenced, timestamped owner-input queues with duplicate, old, and
    excessive-future rejection at the authoritative fixed tick. Rejected inputs
    still advance the server's last-evaluated acknowledgment so the client does
    not replay them forever.
-2. Add snapshot interpolation with bounded buffering, bounded extrapolation,
+2. [x] Add snapshot interpolation with bounded buffering, bounded extrapolation,
    teleport/reset markers, ownership-generation changes, and scene transitions.
-3. Add opt-in local prediction and reconciliation over explicit serializable
+3. [x] Add opt-in local prediction and reconciliation over explicit serializable
    controller state, acknowledged input sequences, and authoritative snapshots;
    gameplay callbacks define replayable state rather than exposing
    physics-backend internals.
-4. Add reconciliation diagnostics for correction distance, replayed commands,
+4. [x] Add reconciliation diagnostics for correction distance, replayed commands,
    discarded inputs, buffer depth, extrapolation, and ownership changes.
-5. Add bounded historical query snapshots for selected hit/visibility tests if
+5. [x] Add bounded historical query snapshots for selected hit/visibility tests if
    the shooter demonstrates the requirement. Never rewind or mutate the live
    world during an active simulation step.
-6. Test every helper under deterministic latency, jitter, loss, duplication,
+6. [x] Test every helper under deterministic latency, jitter, loss, duplication,
    reordering, tick drift, pause/resume, Android backgrounding, reconnect,
    despawn, and ownership transfer.
 
@@ -2583,11 +2587,11 @@ evaluated sequence always repair divergence after loss or reordering.
 
 ### Done when
 
-- A reference action game remains responsive under declared latency/loss while
+- [x] A reference action game remains responsive under declared latency/loss while
   the authority produces the same final state for the same accepted input log.
-- Prediction cannot bypass Step 6 ownership, message, rate, sequence, or
+- [x] Prediction cannot bypass Step 6 ownership, message, rate, sequence, or
   payload rules.
-- Despawn, reconnect, scene change, and ownership transfer clear or rebase all
+- [x] Despawn, reconnect, scene change, and ownership transfer clear or rebase all
   input and snapshot history without stale corrections or retained memory.
 
 ## Step 12 — Dockable and Persistent Editor Workspace

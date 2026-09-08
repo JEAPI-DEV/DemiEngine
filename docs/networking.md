@@ -101,19 +101,101 @@ epoch. Reconnect leases are single-use, expire, and are bound to the session
 epoch plus every leased entity's ownership generation. A transfer, despawn, or
 reset therefore invalidates an older lease.
 
-Prediction, reconciliation, interpolation, and lag compensation are separate
-latency-hiding features planned after this secure authority foundation. An
-owner-writable transform works for prototypes but is intentionally a weaker
-trust boundary than server-validated intent.
+## Predicted authoritative movement
+
+Prediction is opt-in and disabled when its explicit bounds are zero. A game
+configures bounded input, snapshot, replay, and optional query history before
+enabling a controller:
+
+```lua
+NetworkSession.configure({
+  input_queue_capacity = 64,
+  input_future_window = 32,
+  input_head_of_line_timeout = 0.10,
+  input_max_per_tick = 8,
+  snapshot_buffer = 32,
+  interpolation_delay = 0.10,
+  extrapolation_limit = 0.05,
+  prediction_history_limit = 64,
+  prediction_visual_decay = 12.0,
+})
+
+NetworkSession.enable_prediction({
+  network_id = player_network_id,
+  input_message = "move_input",
+  state = { x = 0.0, y = 0.0 },
+  apply = function(state, input)
+    return {
+      x = state.x + input.x * input.dt,
+      y = state.y + input.y * input.dt,
+    }
+  end,
+})
+```
+
+`input_message` must be a declared owner-to-server `owned_entity` intent.
+`predict_input` applies it immediately, assigns `seq`, stores the replayable
+input, and sends it through the normal contract gateway. The authoritative
+fixed tick consumes `take_inputs(network_id)` in sequence order and publishes
+the resulting controller state with `publish_snapshot`. The client restores
+that state immediately and deterministically replays only unacknowledged
+inputs. `prediction_visual_offset` is render-only smoothing and must never be
+fed back into simulation.
+
+Capacity-rejected and timed-out inputs become ordered discard markers, so a
+later snapshot acknowledgment removes them even if the immediate rejection is
+lost. Duplicate/same-tick snapshots are ignored. Session epochs, ownership
+generations, teleports, resets, disconnects, and despawns clear incompatible
+history. `reset_prediction` is the explicit same-session scene rebase.
+
+Non-owning clients use `remote_state(network_id)`, which interpolates a bounded
+authoritative snapshot buffer and extrapolates only through the configured
+limit. `prediction_diagnostics()` reports queue rejection/discard counts,
+acknowledgments, replay depth, corrections, visual offsets, stale snapshots,
+epoch/generation clears, interpolation, extrapolation, and clamps.
+
+## Historical authoritative queries
+
+The host may record a small selected set of collision circles for hitscan lag
+compensation without rewinding the live world:
+
+```lua
+NetworkSession.configure({
+  query_history_capacity = 32,
+  query_history_max_entities = 16,
+  query_history_rewind_ticks = 12,
+})
+
+NetworkSession.record_query_snapshot(server_tick, {
+  { entity_id = target_id, layer = "players", x = x, y = y, radius = 0.45 },
+})
+
+local hit = NetworkSession.historical_raycast(
+  client_tick, origin_x, origin_y, aim_x, aim_y, 24.0, "players", shooter_id
+)
+```
+
+Snapshots are detached, sorted by stable entity ID, monotonically ticked, and
+bounded by both count and entities per snapshot. Queries clamp to the declared
+rewind window and report the actual `sampled_tick`. Invalid, duplicate, stale,
+non-finite, or oversized snapshots are rejected atomically. This mechanism is
+for selected server-side hit/visibility tests; it never grants authority and
+never mutates Box2D, Jolt, or authored entities.
+
+Call `clear_query_history()` before the authoritative simulation changes scene
+or otherwise resets its tick space.
 
 ## Testing transport failures
 
 `NetworkFaultSimulator` is a deterministic C++ test utility below the protocol
-gateway. It can inject bounded loss, duplication, delay, and reordering without
-opening sockets. Secure-session tests cover malformed/truncated packets,
+gateway. It can inject bounded loss, duplication, delay, jitter, and reordering
+without opening sockets. Secure-session tests cover malformed/truncated packets,
 oversized/deep payloads, schema violations, replay and rate limits, forged
 ownership, stale epochs/generations, transfer/disconnect/reset, reconnect
-expiry, queue capacity, and lifecycle ordering.
+expiry, queue capacity, and lifecycle ordering. The reference action-movement
+test runs predicted input and authoritative correction through deterministic
+loss, duplication, delay, reordering, and tick gaps, then verifies the final
+authority state against the accepted input log.
 
 ## Legacy compatibility
 

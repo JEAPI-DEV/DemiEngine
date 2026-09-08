@@ -27,12 +27,16 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/network/NetworkFaultSimulator.cpp
   src/demi/runtime/network/NetworkOwnershipRegistry.cpp
   src/demi/runtime/network/NetworkPrediction.cpp
+  src/demi/runtime/network/NetworkQueryHistory2D.cpp
   src/demi/runtime/network/NetworkSessionLifecycle.cpp
   src/demi/runtime/network/NetworkSystem.cpp
   src/demi/runtime/network/ReplicatedState.cpp
   src/demi/runtime/network/TlsMessaging.cpp
   src/demi/runtime/physics/Box2DWorldState.cpp
   src/demi/runtime/physics/Physics2D.cpp
+  src/demi/runtime/physics/PhysicsBody2D.cpp
+  src/demi/runtime/physics/PhysicsGeometry2D.cpp
+  src/demi/runtime/physics/PhysicsQueries2D.cpp
   src/demi/runtime/physics/Physics3D.cpp
   src/demi/runtime/physics/PhysicsWorld3D.cpp
   src/demi/runtime/profiling/RuntimeProfiler.cpp
@@ -98,6 +102,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/text/RegexMatcher.cpp
   src/demi/runtime/scripting/bindings/LuaJsonBridge.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkBindings.cpp
+  src/demi/runtime/scripting/bindings/LuaNetworkQueryHistoryBindings.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkSessionBindings.cpp
   src/demi/runtime/scripting/bindings/LuaRandomBindings.cpp
   src/demi/runtime/scripting/bindings/LuaTlsBindings.cpp

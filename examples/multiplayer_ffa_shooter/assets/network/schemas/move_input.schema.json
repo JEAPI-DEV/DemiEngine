@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "type": "object",
+  "required": ["dx", "dy", "dt", "seq", "tick"],
+  "properties": {
+    "dx": {"type": "number", "minimum": -1.0, "maximum": 1.0},
+    "dy": {"type": "number", "minimum": -1.0, "maximum": 1.0},
+    "dt": {"type": "number", "minimum": 0.0, "maximum": 0.05},
+    "seq": {"type": "integer", "minimum": 1},
+    "tick": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
+}

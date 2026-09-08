@@ -96,6 +96,14 @@ function Probe:on_start()
     "predicted input sequence was not assigned")
   assert_true(NetworkSession.prediction_state("player_client").x == 2.0,
     "predicted input was not applied immediately")
+  local query_diagnostics = NetworkSession.query_history_diagnostics()
+  assert_true(query_diagnostics.depth == 0 and query_diagnostics.latest_tick == 0,
+    "query history diagnostics were not installed")
+  assert_true(not NetworkSession.record_query_snapshot(1, {}),
+    "offline peers unexpectedly recorded authoritative query history")
+  assert_true(NetworkSession.historical_raycast(
+    1, 0, 0, 1, 0, 10, "players") == nil,
+    "offline peers unexpectedly queried authoritative history")
 
   local diagnostics = NetworkSession.diagnostics()
   assert_true(diagnostics.mode == "offline", "wrong offline diagnostics mode")

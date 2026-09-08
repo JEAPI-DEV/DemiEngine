@@ -21,13 +21,13 @@
       "components": {
         "Transform2D": {
           "position": {
-            "write_by": "owner",
+            "write_by": "server",
             "visible_to": "all",
             "rate": 30,
             "reliability": "unreliable"
           },
           "rotation": {
-            "write_by": "owner",
+            "write_by": "server",
             "visible_to": "all",
             "rate": 15,
             "reliability": "unreliable"
@@ -40,7 +40,7 @@
         },
         "Rigidbody2D": {
           "velocity": {
-            "write_by": "owner",
+            "write_by": "server",
             "visible_to": "all",
             "rate": 30,
             "reliability": "unreliable"
@@ -67,6 +67,15 @@
     }
   },
   "messages": {
+    "move_input": {
+      "from": "owner",
+      "to": "server",
+      "target": "owned_entity",
+      "schema": "asset://network/schemas/move_input",
+      "reliability": "unreliable",
+      "rate_limit": 60,
+      "maximum_bytes": 256
+    },
     "player_join": {
       "from": "all",
       "to": "all",
