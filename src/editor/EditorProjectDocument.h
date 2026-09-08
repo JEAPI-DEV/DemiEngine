@@ -35,8 +35,8 @@ public:
   [[nodiscard]] bool setInputBinding(std::string_view action,
                                      std::size_t bindingIndex,
                                      std::string input, std::string &error);
-  [[nodiscard]] bool
-  setBuildSettings(runtime::ProjectBuildSettings settings, std::string &error);
+  [[nodiscard]] bool setBuildSettings(runtime::ProjectBuildSettings settings,
+                                      std::string &error);
   [[nodiscard]] bool removeScene(std::string_view id, std::string &error);
   [[nodiscard]] bool undo(std::string &error);
   [[nodiscard]] bool redo(std::string &error);
@@ -69,6 +69,8 @@ private:
   std::filesystem::path path_;
   FileRevision revision_;
   nlohmann::json document_;
+  nlohmann::json savedDocument_;
+  std::string originalText_;
   std::string savedCanonical_;
   std::vector<Change> undo_;
   std::vector<Change> redo_;

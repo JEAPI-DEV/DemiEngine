@@ -67,3 +67,6 @@ The gate writes `build/android/qualification/qualification.json`, `launch.png`,
 and `logcat.txt` beneath the project. It scopes crash detection to processes
 launched by that qualification session because Android can retain protected
 crash-buffer entries from older installations.
+Qualification also requires the Java surface-created marker and the requested
+60 FPS compositor marker, preventing surface lifecycle or frame-pacing
+regressions from passing on screenshot evidence alone.

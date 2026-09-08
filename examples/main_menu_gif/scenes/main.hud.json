@@ -7,6 +7,14 @@
   "root": {
     "id": "ui_root",
     "type": "container",
+    "anchor_min": [
+      0,
+      0
+    ],
+    "anchor_max": [
+      1,
+      1
+    ],
     "children": [
       {
         "type": "image",
@@ -758,7 +766,6 @@
         ],
         "font_size": 10
       }
-    ],
-    "dock": "fill"
+    ]
   }
 }

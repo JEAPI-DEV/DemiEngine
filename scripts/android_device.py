@@ -202,6 +202,15 @@ IGNORED_DIRECTORIES = {
     "generated", "saves"
 }
 
+REQUIRED_RUNTIME_MARKERS = (
+    "Switched scene to scene://minimal_2d_android/platformer",
+    "[runtime] Frame 61",
+    "[surface] Java surfaceCreated.",
+    "[render] Requested 60.0 FPS from the Android compositor.",
+    "[audio] Audio device initialized.",
+    "[save] Wrote save slot settings",
+)
+
 
 def source_snapshot(project_root: Path) -> dict[str, tuple[int, int]]:
     snapshot = {}
@@ -532,12 +541,6 @@ def qualify_device(args: argparse.Namespace) -> int:
         if f"ANR in {package}" in line and "ANR" not in fatal_markers:
             fatal_markers.append("ANR")
     report["fatal_markers"] = fatal_markers
-    required_runtime_markers = [
-        "Switched scene to scene://minimal_2d_android/platformer",
-        "[runtime] Frame 61",
-        "[audio] Audio device initialized.",
-        "[save] Wrote save slot settings",
-    ]
     report["smoke_coverage"] = {
         "text_fallback_font":
             "menu HUD labels render every frame; frame markers + screenshot",
@@ -561,7 +564,7 @@ def qualify_device(args: argparse.Namespace) -> int:
         "surface_recreation":
             "background_resume across surface generations",
     }
-    missing_runtime_markers = [marker for marker in required_runtime_markers
+    missing_runtime_markers = [marker for marker in REQUIRED_RUNTIME_MARKERS
                                if marker not in logs]
     report["missing_runtime_markers"] = missing_runtime_markers
     critical.append(not missing_runtime_markers)

@@ -5,8 +5,8 @@
 #include "cli/CookCommands.h"
 #include "cli/HudCommands.h"
 #include "cli/RuntimeCommands.h"
-#include "cli/TestCommands.h"
 #include "cli/SceneCompositionCommands.h"
+#include "cli/TestCommands.h"
 #include "cli/doctor/DoctorService.h"
 #include "cli/package/PackageCommands.h"
 #include "cli/project/ProjectDiscovery.h"
@@ -227,7 +227,10 @@ int runValidate(const std::vector<std::string> &args) {
     }
   }
 
-  const demi::ValidationSummary summary = demi::validatePath(target);
+  const demi::ValidationSummary summary =
+      demi::classifySourceFile(target) == demi::SourceFileKind::Project
+          ? demi::validateProjectPath(target)
+          : demi::validatePath(target);
   demi::Diagnostics diagnostics = summary.diagnostics;
   if (!platform.empty()) {
     std::optional<demi::capabilities::TargetPlatform> platformTarget;
@@ -516,7 +519,7 @@ int main(int argc, char **argv) {
     const std::filesystem::path project = demi::cli::projectFileFromArgs(args);
     if (!project.empty()) {
       const demi::ValidationSummary validation =
-          demi::validatePath(project.parent_path());
+          demi::validateProjectPath(project);
       demi::printDiagnosticsText(std::cout, validation.diagnostics);
       if (demi::hasErrors(validation.diagnostics))
         return ExitValidationFailure;

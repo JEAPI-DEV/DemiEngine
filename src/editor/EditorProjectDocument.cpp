@@ -1,5 +1,7 @@
 #include "editor/EditorProjectDocument.h"
 
+#include "editor/EditorAuthoredJson.h"
+
 #include "demi/runtime/input/InputActionParser.h"
 #include "demi/runtime/scene/ProjectParser.h"
 
@@ -29,6 +31,8 @@ bool EditorProjectDocument::open(const std::filesystem::path &path,
       return false;
     revision_ = revision;
     document_ = std::move(document);
+    originalText_ = std::move(text);
+    savedDocument_ = document_;
     savedCanonical_ = document_.dump();
     undo_.clear();
     redo_.clear();
@@ -45,7 +49,9 @@ bool EditorProjectDocument::reload(std::string &error) {
 }
 
 bool EditorProjectDocument::save(std::string &error) {
-  const std::string text = document_.dump(2) + '\n';
+  const std::string text =
+      patchEditorJsonSource(originalText_, savedDocument_, document_)
+          .value_or(document_.dump(2) + '\n');
   FileRevision replacement;
   const DocumentWriteStatus status =
       store_.writeIfUnchanged(path_, text, revision_, replacement, error);
@@ -56,6 +62,8 @@ bool EditorProjectDocument::save(std::string &error) {
   if (status != DocumentWriteStatus::Written)
     return false;
   revision_ = replacement;
+  originalText_ = text;
+  savedDocument_ = document_;
   savedCanonical_ = document_.dump();
   hasExternalConflict_ = false;
   return true;
@@ -116,7 +124,7 @@ bool EditorProjectDocument::addScene(std::string id, std::filesystem::path path,
 }
 
 bool EditorProjectDocument::setInputActions(nlohmann::json actions,
-                                             std::string &error) {
+                                            std::string &error) {
   if (!actions.is_object()) {
     error = "Input actions must be an object keyed by action name.";
     return false;
@@ -244,7 +252,7 @@ std::vector<std::string> EditorProjectDocument::preloadedAssets() const {
   return {};
 }
 
-  std::vector<runtime::SceneEntry> EditorProjectDocument::scenes() const {
+std::vector<runtime::SceneEntry> EditorProjectDocument::scenes() const {
   std::vector<runtime::SceneEntry> result;
   if (const auto found = document_.find("scenes");
       found != document_.end() && found->is_array())

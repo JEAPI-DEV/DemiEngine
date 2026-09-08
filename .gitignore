@@ -45,3 +45,5 @@ docs/html
 # Un-ignore your custom LaTeX source files
 !docs/latex/*.tex
 !docs/latex/sty/
+
+examples/souls_boss_arena/assets/animation/*

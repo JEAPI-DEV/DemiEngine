@@ -4,7 +4,8 @@
   "main_scene": "scene://physics_2d_galton_board/main",
   "scenes": [
     {
-      "id": "scene://physics_2d_galton_board/main"
+      "id": "scene://physics_2d_galton_board/main",
+      "path": "scenes/main.scene.json"
     }
   ],
   "gameplay_model": {
@@ -20,20 +21,12 @@
       "release": {
         "type": "button",
         "context": "gameplay",
-        "bindings": [
-          {
-            "input": "key:space"
-          }
-        ]
+        "bindings": [{ "input": "key:space" }]
       },
       "reset": {
         "type": "button",
         "context": "gameplay",
-        "bindings": [
-          {
-            "input": "key:r"
-          }
-        ]
+        "bindings": [{ "input": "key:r" }]
       }
     }
   }

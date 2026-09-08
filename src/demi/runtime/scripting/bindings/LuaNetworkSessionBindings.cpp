@@ -2,6 +2,7 @@
 #include "demi/runtime/network/GameNetworkSession.h"
 #include "demi/runtime/network/NetworkMessageGateway.h"
 #include "demi/runtime/network/NetworkOwnershipRegistry.h"
+#include "demi/runtime/network/NetworkPrediction.h"
 #include "demi/runtime/network/NetworkSessionLifecycle.h"
 #include "demi/runtime/network/ReplicatedState.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
@@ -12,6 +13,7 @@
 #include <sol/sol.hpp>
 
 #include <algorithm>
+#include <map>
 #include <memory>
 #include <optional>
 #include <tuple>
@@ -36,6 +38,27 @@ struct NetworkSessionRemote {
   float vx = 0.0F;
   float vy = 0.0F;
   float age = 0.0F;
+};
+
+// Per-entity Step 11 latency-hiding state. The server queue is used by the
+// authoritative host, the interpolator by non-owning clients, and the
+// predicted controller by the owning client when the game opts in.
+struct NetworkPredictionChannel {
+  NetworkPredictionChannel(
+      const NetworkOwnerInputQueue::Config &queueConfig,
+      const NetworkSnapshotInterpolator::Config &interpolatorConfig,
+      const NetworkPredictedController::Config &controllerConfig)
+      : serverQueue(queueConfig), interpolator(interpolatorConfig),
+        controller(controllerConfig) {}
+
+  NetworkOwnerInputQueue serverQueue;
+  NetworkSnapshotInterpolator interpolator;
+  NetworkPredictedController controller;
+  bool predictionEnabled = false;
+  std::string inputMessage;
+  sol::function applyInput;
+  std::uint64_t serverTick = 0;
+  std::uint64_t lastSnapshotTick = 0;
 };
 
 struct NetworkSessionState {
@@ -67,6 +90,11 @@ struct NetworkSessionState {
   std::unordered_map<std::string, std::string> claimedObjects;
   std::unordered_map<std::string, std::string> localNetworkEntities;
   std::vector<nlohmann::json> gameEvents;
+  std::unordered_map<std::string, NetworkPredictionChannel> predictionChannels;
+  NetworkOwnerInputQueue::Config inputQueueConfig;
+  NetworkSnapshotInterpolator::Config interpolatorConfig;
+  NetworkPredictedController::Config controllerConfig;
+  std::size_t inputMaxPerTick = 0;
 };
 
 std::string networkSessionSenderId(LuaScriptHost &host,
@@ -117,6 +145,7 @@ void networkSessionReset(LuaScriptHost &host, NetworkSessionState &session,
   session.claimedObjects.clear();
   session.localNetworkEntities.clear();
   session.gameEvents.clear();
+  session.predictionChannels.clear();
   session.sessionMetadata = sol::object{};
 }
 
@@ -456,6 +485,83 @@ void networkSessionQueueSecureEvent(NetworkSessionState &session,
                                 {"data", envelope.data}});
 }
 
+NetworkPredictionChannel &
+networkSessionPredictionChannel(NetworkSessionState &session,
+                                const std::string &networkId) {
+  const auto inserted = session.predictionChannels.try_emplace(
+      networkId, session.inputQueueConfig, session.interpolatorConfig,
+      session.controllerConfig);
+  return inserted.first->second;
+}
+
+void networkSessionQueuePredictionEvent(NetworkSessionState &session,
+                                        const std::string &name,
+                                        const std::string &networkId,
+                                        nlohmann::json data) {
+  session.gameEvents.push_back({{"name", name},
+                                {"sender_id", "server"},
+                                {"target", networkId},
+                                {"data", std::move(data)}});
+}
+
+// Applies reconciliation replay commands through the gameplay-defined
+// apply(state, input) callback. A failing callback disables prediction
+// instead of leaving a partially replayed history in place. Returns whether
+// the replay outcome diverged from the prediction (a visible correction).
+bool networkSessionApplyReplay(lua_State *state, NetworkSessionState &session,
+                               NetworkPredictionChannel &channel,
+                               const NetworkReconciliation &reconciliation) {
+  for (const NetworkReplayCommand &command : reconciliation.replay) {
+    if (!channel.applyInput.valid()) {
+      break;
+    }
+    sol::object stateObject =
+        jsonToLuaObject(state, channel.controller.state());
+    sol::object inputObject = jsonToLuaObject(state, command.payload);
+    const sol::protected_function apply = channel.applyInput;
+    const sol::protected_function_result result =
+        apply(stateObject, inputObject);
+    if (!result.valid() || !result.get<sol::object>().is<sol::table>()) {
+      session.game.reject(
+          "prediction replay callback failed; prediction disabled");
+      channel.predictionEnabled = false;
+      channel.controller.disable();
+      return false;
+    }
+    channel.controller.setPredictedState(
+        luaObjectToJson(result.get<sol::object>()));
+  }
+  return channel.controller.commitReplay();
+}
+
+std::optional<NetworkAuthoritySnapshot>
+networkSessionParseSnapshot(const NetworkEnvelope &envelope) {
+  const nlohmann::json &data = envelope.data;
+  if (!data.is_object() || !data.contains("tick") || !data.contains("ack") ||
+      !data.contains("state") || !data["state"].is_object() ||
+      !data["tick"].is_number_unsigned() || !data["ack"].is_number_unsigned())
+    return std::nullopt;
+  NetworkAuthoritySnapshot snapshot;
+  snapshot.sessionEpoch = envelope.sessionEpoch;
+  snapshot.ownershipGeneration = envelope.ownershipGeneration;
+  snapshot.serverTick = data["tick"].get<std::uint64_t>();
+  snapshot.acknowledgedSequence = data["ack"].get<std::uint64_t>();
+  snapshot.state = data["state"];
+  const std::string marker = data.value("marker", std::string{"normal"});
+  if (marker == "teleport")
+    snapshot.marker = NetworkCorrectionMarker::Teleport;
+  else if (marker == "reset")
+    snapshot.marker = NetworkCorrectionMarker::Reset;
+  else if (marker != "normal")
+    return std::nullopt;
+  if (data.contains("rejected_sequence") &&
+      data["rejected_sequence"].is_number_unsigned())
+    snapshot.rejectedSequence = data["rejected_sequence"].get<std::uint64_t>();
+  if (data.contains("rejection") && data["rejection"].is_string())
+    snapshot.rejectionCode = data["rejection"].get<std::string>();
+  return snapshot;
+}
+
 } // namespace
 
 void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
@@ -472,6 +578,24 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
         options.get_or("extrapolation_limit", session->extrapolationLimit);
     session->initialPrediction =
         options.get_or("initial_prediction", session->initialPrediction);
+    session->interpolatorConfig.interpolationDelaySeconds =
+        options.get_or("interpolation_delay", 0.0);
+    session->interpolatorConfig.extrapolationLimitSeconds =
+        static_cast<double>(session->extrapolationLimit);
+    session->interpolatorConfig.capacity = static_cast<std::size_t>(
+        std::max(options.get_or("snapshot_buffer", 0), 0));
+    session->inputQueueConfig.capacity = static_cast<std::size_t>(
+        std::max(options.get_or("input_queue_capacity", 0), 0));
+    session->inputQueueConfig.futureWindow = static_cast<std::uint64_t>(
+        std::max(options.get_or("input_future_window", 0), 0));
+    session->inputQueueConfig.headOfLineTimeoutSeconds =
+        options.get_or("input_head_of_line_timeout", 0.0);
+    session->inputMaxPerTick = static_cast<std::size_t>(
+        std::max(options.get_or("input_max_per_tick", 0), 0));
+    session->controllerConfig.inputHistoryLimit = static_cast<std::size_t>(
+        std::max(options.get_or("prediction_history_limit", 0), 0));
+    session->controllerConfig.visualOffsetDecayPerSecond =
+        options.get_or("prediction_visual_decay", 0.0);
     session->channel = static_cast<std::uint8_t>(std::max(
         options.get_or("channel", static_cast<int>(session->channel)), 0));
     session->defaultPort = static_cast<std::uint16_t>(std::max(
@@ -651,6 +775,16 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
       session->retainedSpawns[networkId]["ownership_generation"] =
           transfer.entity->ownershipGeneration;
     }
+    // An ownership transfer restarts the input sequence space; queued inputs
+    // from the previous owner and any prediction state become invalid.
+    if (auto iterator = session->predictionChannels.find(networkId);
+        iterator != session->predictionChannels.end()) {
+      iterator->second.serverQueue.clear();
+      if (iterator->second.predictionEnabled) {
+        iterator->second.predictionEnabled = false;
+        iterator->second.controller.disable();
+      }
+    }
     NetworkEnvelope envelope{.kind = NetworkEnvelopeKind::Ownership,
                              .ownershipGeneration =
                                  transfer.entity->ownershipGeneration,
@@ -705,6 +839,7 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
       }
       session->retainedSpawns.erase(networkId);
       session->localNetworkEntities.erase(networkId);
+      session->predictionChannels.erase(networkId);
       (void)session->game.removeEntity(networkId);
       NetworkEnvelope envelope{.kind = NetworkEnvelopeKind::Despawn,
                                .ownershipGeneration =
@@ -923,6 +1058,324 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
                                          sol::make_object(state, payload), true,
                                          0, 0);
       });
+  networkSession.set_function("take_inputs", [state, &host, session](
+                                                 const std::string &networkId) {
+    sol::state_view lua(state);
+    sol::table result = lua.create_table();
+    if (!host.networkIsHost() || host.networkContract() == nullptr) {
+      session->game.reject(
+          "only the authoritative host with a contract may take inputs");
+      return result;
+    }
+    NetworkPredictionChannel &channel =
+        networkSessionPredictionChannel(*session, networkId);
+    const std::vector<NetworkEvaluatedInput> commands =
+        channel.serverQueue.evaluate(host.gameTime(), session->inputMaxPerTick);
+    int index = 1;
+    for (const NetworkEvaluatedInput &command : commands) {
+      if (command.discarded || !command.payload.is_object())
+        continue;
+      sol::table input = jsonToLuaObject(state, command.payload);
+      input["seq"] = command.sequence;
+      result[index++] = input;
+    }
+    return result;
+  });
+  networkSession.set_function(
+      "publish_snapshot",
+      [state, &host, session](const std::string &networkId,
+                              const sol::object stateObject,
+                              const sol::optional<sol::table> options) {
+        const NetworkContract *contract = host.networkContract();
+        if (contract == nullptr || !host.networkIsHost()) {
+          session->game.reject("only the authoritative host with a contract "
+                               "may publish snapshots");
+          return false;
+        }
+        const NetworkOwnedEntity *entity = session->ownership.find(networkId);
+        if (entity == nullptr) {
+          session->game.reject("cannot publish a snapshot for an unknown "
+                               "entity: " +
+                               networkId);
+          return false;
+        }
+        if (!stateObject.is<sol::table>()) {
+          session->game.reject("snapshot state must be a table");
+          return false;
+        }
+        NetworkCorrectionMarker marker = NetworkCorrectionMarker::Normal;
+        if (options.has_value()) {
+          const std::string requested =
+              options->get_or("marker", std::string{"normal"});
+          if (requested == "teleport")
+            marker = NetworkCorrectionMarker::Teleport;
+          else if (requested == "reset")
+            marker = NetworkCorrectionMarker::Reset;
+          else if (requested != "normal") {
+            session->game.reject("unknown snapshot marker: " + requested);
+            return false;
+          }
+        }
+        NetworkPredictionChannel &channel =
+            networkSessionPredictionChannel(*session, networkId);
+        nlohmann::json data;
+        data["tick"] = ++channel.serverTick;
+        data["ack"] = channel.serverQueue.acknowledgedSequence();
+        data["marker"] = std::string(networkCorrectionMarkerName(marker));
+        data["state"] = luaObjectToJson(stateObject);
+        if (const auto &rejection = channel.serverQueue.lastRejection()) {
+          data["rejected_sequence"] = rejection->first;
+          data["rejection"] = rejection->second;
+          channel.serverQueue.clearRejection();
+        }
+        if (data.dump().size() > contract->limits.maximumMessageBytes) {
+          session->game.reject("snapshot state exceeds the declared message "
+                               "byte limit");
+          return false;
+        }
+        NetworkEnvelope envelope{.kind = NetworkEnvelopeKind::Snapshot,
+                                 .ownershipGeneration =
+                                     entity->ownershipGeneration,
+                                 .name = "snapshot",
+                                 .target = networkId,
+                                 .data = std::move(data)};
+        return networkSessionSendEnvelope(host, *session, std::move(envelope));
+      });
+  networkSession.set_function(
+      "enable_prediction", [state, &host, session](const sol::table options) {
+        const std::string networkId =
+            options.get_or("network_id", std::string{});
+        if (networkId.empty()) {
+          session->game.reject("prediction requires a network_id");
+          return false;
+        }
+        if (host.networkIsHost()) {
+          session->game.reject("the authoritative host applies inputs "
+                               "directly and does not predict");
+          return false;
+        }
+        const sol::object stateObject = options["state"];
+        if (!stateObject.is<sol::table>()) {
+          session->game.reject("prediction requires an initial serializable "
+                               "state table");
+          return false;
+        }
+        const sol::object applyObject = options["apply"];
+        if (!applyObject.is<sol::function>()) {
+          session->game.reject("prediction requires an apply(state, input) "
+                               "callback");
+          return false;
+        }
+        if (session->controllerConfig.inputHistoryLimit == 0) {
+          session->game.reject(
+              "prediction requires prediction_history_limit greater than zero");
+          return false;
+        }
+        const NetworkOwnedEntity *entity = session->ownership.find(networkId);
+        if (entity != nullptr) {
+          if (entity->ownerPeerId != networkSessionSenderId(host, *session)) {
+            session->game.reject(
+                "prediction is only available to the owning peer");
+            return false;
+          }
+        } else if (host.networkIsConnected()) {
+          session->game.reject("cannot predict an unknown network entity: " +
+                               networkId);
+          return false;
+        }
+        NetworkPredictionChannel &channel =
+            networkSessionPredictionChannel(*session, networkId);
+        channel.inputMessage = options.get_or("input_message", std::string{});
+        if (const NetworkContract *contract = host.networkContract();
+            contract != nullptr && !channel.inputMessage.empty() &&
+            !contract->messages.contains(channel.inputMessage)) {
+          session->game.reject("prediction input message is not declared: " +
+                               channel.inputMessage);
+          channel.inputMessage.clear();
+          return false;
+        }
+        channel.predictionEnabled = true;
+        channel.applyInput = applyObject.as<sol::function>();
+        channel.controller.enable(
+            session->ownership.sessionEpoch(),
+            entity != nullptr ? entity->ownershipGeneration : 0ULL,
+            luaObjectToJson(stateObject));
+        return true;
+      });
+  networkSession.set_function(
+      "disable_prediction", [session](const std::string &networkId) {
+        auto iterator = session->predictionChannels.find(networkId);
+        if (iterator == session->predictionChannels.end() ||
+            !iterator->second.predictionEnabled)
+          return false;
+        iterator->second.predictionEnabled = false;
+        iterator->second.controller.disable();
+        return true;
+      });
+  networkSession.set_function(
+      "reset_prediction", [state, session](const std::string &networkId,
+                                           const sol::object stateObject) {
+        auto iterator = session->predictionChannels.find(networkId);
+        if (iterator == session->predictionChannels.end() ||
+            !iterator->second.predictionEnabled ||
+            !stateObject.is<sol::table>())
+          return false;
+        // Scene transitions keep the sequence space so the server input
+        // queue stays contiguous; only history and state are re-based.
+        iterator->second.controller.rebaseState(luaObjectToJson(stateObject));
+        return true;
+      });
+  networkSession.set_function(
+      "predict_input", [state, &host, session](const std::string &networkId,
+                                               const sol::object inputObject) {
+        auto iterator = session->predictionChannels.find(networkId);
+        if (iterator == session->predictionChannels.end() ||
+            !iterator->second.predictionEnabled) {
+          session->game.reject("prediction is not enabled for " + networkId);
+          return sol::make_object(state, sol::nil);
+        }
+        if (!inputObject.is<sol::table>()) {
+          session->game.reject("predicted input must be a table");
+          return sol::make_object(state, sol::nil);
+        }
+        NetworkPredictionChannel &channel = iterator->second;
+        const nlohmann::json inputJson = luaObjectToJson(inputObject);
+        const std::uint64_t sequence =
+            channel.controller.recordLocalInput(inputJson);
+        if (sequence == 0) {
+          session->game.reject("prediction input history is not configured");
+          return sol::make_object(state, sol::nil);
+        }
+        const sol::protected_function apply = channel.applyInput;
+        const sol::protected_function_result applied = apply(
+            jsonToLuaObject(state, channel.controller.state()), inputObject);
+        if (!applied.valid()) {
+          const sol::error error = applied;
+          session->game.reject("prediction callback failed: " +
+                               std::string(error.what()));
+          channel.predictionEnabled = false;
+          channel.controller.disable();
+          return sol::make_object(state, sol::nil);
+        }
+        const sol::object predicted = applied.get<sol::object>();
+        if (!predicted.is<sol::table>()) {
+          session->game.reject("prediction callback must return a state table");
+          channel.predictionEnabled = false;
+          channel.controller.disable();
+          return sol::make_object(state, sol::nil);
+        }
+        channel.controller.setPredictedState(luaObjectToJson(predicted));
+        if (host.networkContract() != nullptr &&
+            !channel.inputMessage.empty() && host.networkAvailable() &&
+            host.networkIsConnected()) {
+          nlohmann::json payload =
+              inputJson.is_object() ? inputJson : nlohmann::json::object();
+          payload["seq"] = sequence;
+          NetworkEnvelope envelope;
+          envelope.kind = NetworkEnvelopeKind::Message;
+          envelope.name = channel.inputMessage;
+          envelope.target = networkId;
+          envelope.data = std::move(payload);
+          if (const NetworkOwnedEntity *entity =
+                  session->ownership.find(networkId))
+            envelope.ownershipGeneration = entity->ownershipGeneration;
+          if (!networkSessionSendEnvelope(host, *session, std::move(envelope)))
+            session->game.reject("failed to send predicted input; it stays "
+                                 "local until a server correction");
+        }
+        return sol::make_object(state, sequence);
+      });
+  networkSession.set_function(
+      "prediction_state", [state, session](const std::string &networkId) {
+        auto iterator = session->predictionChannels.find(networkId);
+        if (iterator == session->predictionChannels.end() ||
+            !iterator->second.predictionEnabled)
+          return sol::make_object(state, sol::nil);
+        return jsonToLuaObject(state, iterator->second.controller.state());
+      });
+  networkSession.set_function(
+      "prediction_visual_offset",
+      [state, session](const std::string &networkId) {
+        auto iterator = session->predictionChannels.find(networkId);
+        if (iterator == session->predictionChannels.end() ||
+            !iterator->second.predictionEnabled)
+          return sol::make_object(state, sol::nil);
+        const std::map<std::string, double> &offset =
+            iterator->second.controller.visualOffset();
+        if (offset.empty())
+          return sol::make_object(state, sol::nil);
+        sol::state_view lua(state);
+        sol::table result = lua.create_table();
+        for (const auto &[axis, value] : offset)
+          result[axis] = value;
+        return sol::make_object(state, result);
+      });
+  networkSession.set_function(
+      "remote_state", [state, &host, session](const std::string &networkId) {
+        auto iterator = session->predictionChannels.find(networkId);
+        if (iterator == session->predictionChannels.end())
+          return sol::make_object(state, sol::nil);
+        const auto sample =
+            iterator->second.interpolator.sample(host.gameTime());
+        if (!sample.has_value())
+          return sol::make_object(state, sol::nil);
+        return jsonToLuaObject(state, sample->state);
+      });
+  networkSession.set_function("prediction_diagnostics", [state, session] {
+    sol::state_view lua(state);
+    sol::table result = lua.create_table();
+    sol::table channels = lua.create_table();
+    for (const auto &[networkId, channel] : session->predictionChannels) {
+      sol::table entry = lua.create_table();
+      entry["prediction_enabled"] = channel.predictionEnabled;
+      entry["input_message"] = channel.inputMessage;
+      entry["next_sequence"] = channel.controller.nextSequence();
+      entry["pending_replay"] = channel.controller.pendingReplayCount();
+      const NetworkPredictionCounters &counters = channel.controller.counters();
+      entry["corrections"] = counters.corrections;
+      entry["replayed_commands"] = counters.replayedCommands;
+      entry["discarded_inputs"] = counters.discardedInputs;
+      entry["dropped_history"] = counters.droppedHistory;
+      entry["snaps"] = counters.snaps;
+      entry["rebases"] = counters.rebases;
+      entry["ownership_changes"] = counters.ownershipChanges;
+      entry["stale_snapshots"] = counters.staleSnapshots;
+      entry["last_correction_distance"] = counters.lastCorrectionDistance;
+      entry["last_divergence"] = counters.lastDivergence;
+      sol::table offset = lua.create_table();
+      for (const auto &[axis, value] : channel.controller.visualOffset())
+        offset[axis] = value;
+      entry["visual_offset"] = offset;
+      sol::table server = lua.create_table();
+      server["last_acked"] = channel.serverQueue.acknowledgedSequence();
+      server["pending"] = channel.serverQueue.pending();
+      const NetworkInputQueueCounters &queue = channel.serverQueue.counters();
+      server["accepted"] = queue.accepted;
+      server["rejected_old"] = queue.rejectedOld;
+      server["rejected_duplicate"] = queue.rejectedDuplicate;
+      server["rejected_future"] = queue.rejectedFuture;
+      server["rejected_capacity"] = queue.rejectedCapacity;
+      server["rejected_malformed"] = queue.rejectedMalformed;
+      server["discarded_gaps"] = queue.discardedGaps;
+      entry["server"] = server;
+      sol::table interpolation = lua.create_table();
+      interpolation["buffer_depth"] = channel.interpolator.depth();
+      const NetworkSnapshotBufferCounters &buffer =
+          channel.interpolator.counters();
+      interpolation["accepted"] = buffer.accepted;
+      interpolation["dropped_stale"] = buffer.droppedStale;
+      interpolation["dropped_overflow"] = buffer.droppedOverflow;
+      interpolation["cleared_for_generation"] = buffer.clearedForGeneration;
+      interpolation["interpolated"] = buffer.interpolated;
+      interpolation["extrapolated"] = buffer.extrapolated;
+      interpolation["clamped"] = buffer.clamped;
+      interpolation["snapped"] = buffer.snapped;
+      entry["interpolation"] = interpolation;
+      channels[networkId] = entry;
+    }
+    result["channels"] = channels;
+    return result;
+  });
   networkSession.set_function("process_events", [state, &host, session] {
     sol::state_view lua(state);
     sol::table summary = lua.create_table();
@@ -992,6 +1445,7 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
               session->ownership.disconnectPeer(*host.networkContract(), peer);
           for (const NetworkOwnedEntity &entity : actions.despawned) {
             session->retainedSpawns.erase(entity.networkId);
+            session->predictionChannels.erase(entity.networkId);
             NetworkEnvelope envelope{.kind = NetworkEnvelopeKind::Despawn,
                                      .ownershipGeneration =
                                          entity.ownershipGeneration,
@@ -1007,6 +1461,17 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
               session
                   ->retainedSpawns[entity.networkId]["ownership_generation"] =
                   entity.ownershipGeneration;
+            }
+            // Ownership returned to the server: stale queued inputs and
+            // prediction history must not survive the ownership change.
+            if (auto iterator =
+                    session->predictionChannels.find(entity.networkId);
+                iterator != session->predictionChannels.end()) {
+              iterator->second.serverQueue.clear();
+              if (iterator->second.predictionEnabled) {
+                iterator->second.predictionEnabled = false;
+                iterator->second.controller.disable();
+              }
             }
             NetworkEnvelope envelope{.kind = NetworkEnvelopeKind::Ownership,
                                      .ownershipGeneration =
@@ -1087,6 +1552,30 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
             summary["session_started"] = true;
             summary["session"] = payloadObject;
           } else if (envelope.kind == NetworkEnvelopeKind::Message) {
+            if (host.networkIsHost() &&
+                session->inputQueueConfig.capacity > 0 &&
+                !envelope.target.empty() && envelope.data.is_object() &&
+                envelope.data.contains("seq") &&
+                envelope.data["seq"].is_number_unsigned()) {
+              NetworkPredictionChannel &predictionChannel =
+                  networkSessionPredictionChannel(*session, envelope.target);
+              if (predictionChannel.inputMessage.empty())
+                predictionChannel.inputMessage = envelope.name;
+              if (predictionChannel.inputMessage == envelope.name) {
+                const std::uint64_t inputSequence =
+                    envelope.data["seq"].get<std::uint64_t>();
+                nlohmann::json input = envelope.data;
+                input.erase("seq");
+                const NetworkInputRejectCode accepted =
+                    predictionChannel.serverQueue.submit(
+                        inputSequence, host.gameTime(), std::move(input));
+                if (accepted != NetworkInputRejectCode::None)
+                  session->game.reject(
+                      "predicted input rejected: " +
+                      std::string(networkInputRejectCodeName(accepted)));
+                continue;
+              }
+            }
             if (envelope.name == "state_update") {
               const NetworkOwnedEntity *entity =
                   session->ownership.find(envelope.target);
@@ -1160,10 +1649,22 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
               (void)networkSessionCreateOrApplyRemote(
                   state, host, *session, payloadObject.as<sol::table>());
           } else if (envelope.kind == NetworkEnvelopeKind::Ownership) {
+            auto predictionIterator =
+                session->predictionChannels.find(envelope.target);
+            if (predictionIterator != session->predictionChannels.end()) {
+              // An ownership transfer restarts the input sequence space and
+              // stops the former owner from predicting or replaying.
+              predictionIterator->second.serverQueue.clear();
+              if (predictionIterator->second.predictionEnabled) {
+                predictionIterator->second.predictionEnabled = false;
+                predictionIterator->second.controller.disable();
+              }
+            }
             (void)session->ownership.applyAuthoritativeTransfer(
                 envelope.target, envelope.data.value("owner", "server"),
                 envelope.sessionEpoch, envelope.ownershipGeneration);
           } else if (envelope.kind == NetworkEnvelopeKind::Despawn) {
+            session->predictionChannels.erase(envelope.target);
             const NetworkOwnedEntity *owned =
                 session->ownership.find(envelope.target);
             const std::string owner =
@@ -1175,6 +1676,46 @@ void LuaNetworkSessionBindingModule::install(LuaScriptHost &host,
             if (applied.accepted && !owner.empty())
               (void)host.destroyEntity(
                   networkSessionRemoteId(owner, envelope.target));
+          } else if (envelope.kind == NetworkEnvelopeKind::Snapshot) {
+            const std::optional<NetworkAuthoritySnapshot> snapshot =
+                networkSessionParseSnapshot(envelope);
+            if (!snapshot.has_value()) {
+              session->game.reject("authoritative snapshot payload is invalid");
+              continue;
+            }
+            NetworkPredictionChannel &predictionChannel =
+                networkSessionPredictionChannel(*session, envelope.target);
+            if (snapshot->serverTick < predictionChannel.lastSnapshotTick)
+              continue;
+            predictionChannel.lastSnapshotTick = std::max(
+                predictionChannel.lastSnapshotTick, snapshot->serverTick);
+            const NetworkOwnedEntity *entity =
+                session->ownership.find(envelope.target);
+            const bool ownedByUs =
+                entity != nullptr &&
+                entity->ownerPeerId == networkSessionSenderId(host, *session);
+            if (!host.networkIsHost() && ownedByUs &&
+                predictionChannel.predictionEnabled) {
+              const NetworkReconciliation reconciliation =
+                  predictionChannel.controller.reconcile(*snapshot);
+              if (reconciliation.applied) {
+                const bool corrected = networkSessionApplyReplay(
+                    state, *session, predictionChannel, reconciliation);
+                if (corrected)
+                  networkSessionQueuePredictionEvent(
+                      *session, "prediction_corrected", envelope.target,
+                      {{"distance", predictionChannel.controller.counters()
+                                        .lastCorrectionDistance},
+                       {"replayed", reconciliation.replay.size()},
+                       {"acknowledged", reconciliation.acknowledgedSequence}});
+                if (reconciliation.snapped)
+                  networkSessionQueuePredictionEvent(
+                      *session, "prediction_snapped", envelope.target,
+                      {{"rebased", reconciliation.rebased}});
+              }
+            } else {
+              (void)predictionChannel.interpolator.push(*snapshot);
+            }
           }
           continue;
         }

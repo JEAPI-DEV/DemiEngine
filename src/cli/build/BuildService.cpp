@@ -198,9 +198,8 @@ loadProjectBuildSettings(const std::filesystem::path &projectFile) {
     const auto document = nlohmann::json::parse(input);
     const auto parsed =
         runtime::parseProjectBuildSettings(document, projectFile);
-    return hasErrors(parsed.diagnostics)
-               ? std::nullopt
-               : std::make_optional(parsed.settings);
+    return hasErrors(parsed.diagnostics) ? std::nullopt
+                                         : std::make_optional(parsed.settings);
   } catch (const nlohmann::json::exception &) {
     return std::nullopt;
   }
@@ -250,10 +249,9 @@ bool validateAndroidSigningEnvironment(const AndroidPackageVariant &variant,
                                        Diagnostics &diagnostics) {
   if (!variant.requiresSigning)
     return true;
-  constexpr std::array Names{"DEMI_ANDROID_KEYSTORE",
-                             "DEMI_ANDROID_KEYSTORE_PASSWORD",
-                             "DEMI_ANDROID_KEY_ALIAS",
-                             "DEMI_ANDROID_KEY_PASSWORD"};
+  constexpr std::array Names{
+      "DEMI_ANDROID_KEYSTORE", "DEMI_ANDROID_KEYSTORE_PASSWORD",
+      "DEMI_ANDROID_KEY_ALIAS", "DEMI_ANDROID_KEY_PASSWORD"};
   std::vector<std::string> missing;
   for (const char *name : Names) {
     const char *value = std::getenv(name);
@@ -272,8 +270,7 @@ bool validateAndroidSigningEnvironment(const AndroidPackageVariant &variant,
         std::move(message));
     return false;
   }
-  const std::filesystem::path keystore =
-      std::getenv("DEMI_ANDROID_KEYSTORE");
+  const std::filesystem::path keystore = std::getenv("DEMI_ANDROID_KEYSTORE");
   if (!std::filesystem::is_regular_file(keystore)) {
     add(diagnostics, "BUILD_ANDROID_KEYSTORE_NOT_FOUND",
         "The keystore referenced by DEMI_ANDROID_KEYSTORE does not exist.",
@@ -283,13 +280,13 @@ bool validateAndroidSigningEnvironment(const AndroidPackageVariant &variant,
   return true;
 }
 
-bool writeAndroidPackageReport(
-    const ProjectOperationRequest &request,
-    const AndroidPackageVariant &variant,
-    const runtime::ProjectBuildSettings &settings,
-    const std::filesystem::path &cookedProject,
-    const PackagedContentAudit &packagedContent,
-    const std::filesystem::path &artifact, Diagnostics &diagnostics) {
+bool writeAndroidPackageReport(const ProjectOperationRequest &request,
+                               const AndroidPackageVariant &variant,
+                               const runtime::ProjectBuildSettings &settings,
+                               const std::filesystem::path &cookedProject,
+                               const PackagedContentAudit &packagedContent,
+                               const std::filesystem::path &artifact,
+                               Diagnostics &diagnostics) {
   const auto artifactHash = assets::hashFile(artifact);
   const auto projectHash = assets::hashFile(request.projectFile);
   const auto cookManifestHash =
@@ -363,10 +360,10 @@ bool runAndroidGradle(const ProjectOperationRequest &request,
                       const AndroidPackageVariant &variant,
                       Diagnostics &issues) {
   const auto androidRoot = request.engineRoot / "android";
-  const auto completionMarker = androidRoot / "app/build/generated/demi" /
-                                (variant.configuration == "debug"
-                                     ? "package-debug-complete.txt"
-                                     : "package-complete.txt");
+  const auto completionMarker =
+      androidRoot / "app/build/generated/demi" /
+      (variant.configuration == "debug" ? "package-debug-complete.txt"
+                                        : "package-complete.txt");
   const auto progressFile =
       androidRoot / "app/build/generated/demi/package-progress.json";
   const std::string buildToken = std::to_string(
@@ -474,8 +471,8 @@ bool runAndroidGradle(const ProjectOperationRequest &request,
       } else if (std::chrono::steady_clock::now() - *markerObserved >=
                  std::chrono::seconds(2)) {
         (void)kill(-child, SIGTERM);
-        const auto stopDeadline = std::chrono::steady_clock::now() +
-                                  std::chrono::seconds(2);
+        const auto stopDeadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds(2);
         while (std::chrono::steady_clock::now() < stopDeadline) {
           const pid_t stopped = waitpid(child, &status, WNOHANG);
           if (stopped == child)
@@ -511,13 +508,12 @@ bool runAndroidGradle(const ProjectOperationRequest &request,
             reportedCompleted = completed;
             reportedTask = current;
             const float taskFraction = std::clamp(
-                static_cast<float>(completed) / static_cast<float>(total),
-                0.0F, 1.0F);
+                static_cast<float>(completed) / static_cast<float>(total), 0.0F,
+                1.0F);
             report(request, ProjectOperationStage::Package,
                    0.72F + taskFraction * 0.23F,
-                   "Gradle " + current + " (" +
-                       std::to_string(completed) + "/" +
-                       std::to_string(total) + ")");
+                   "Gradle " + current + " (" + std::to_string(completed) +
+                       "/" + std::to_string(total) + ")");
           }
         }
       }
@@ -532,8 +528,8 @@ bool runAndroidGradle(const ProjectOperationRequest &request,
     return true;
   if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
     add(issues, "BUILD_ANDROID_GRADLE_FAILED",
-        "Gradle did not produce a successful Android " +
-            variant.configuration + " package.",
+        "Gradle did not produce a successful Android " + variant.configuration +
+            " package.",
         androidRoot);
     return false;
   }
@@ -547,7 +543,7 @@ ProjectOperationResult
 runProjectOperation(const ProjectOperationRequest &request) {
   ProjectOperationResult result;
   report(request, ProjectOperationStage::Validate, 0.05F, "Validating project");
-  const ValidationSummary validation = validatePath(request.projectFile);
+  const ValidationSummary validation = validateProjectPath(request.projectFile);
   result.diagnostics = validation.diagnostics;
   if (!hasErrors(result.diagnostics)) {
     std::optional<capabilities::TargetPlatform> target;
@@ -645,11 +641,11 @@ runProjectOperation(const ProjectOperationRequest &request) {
     const std::filesystem::path runtime =
         server ? request.runtimeExecutable.parent_path() / "demi-server"
                : request.runtimeExecutable;
-    const Diagnostics staged = stageLinuxPackage(
-        {.projectFile = request.projectFile,
-         .runtimeExecutable = runtime,
-         .stagingDirectory = staging,
-         .server = server});
+    const Diagnostics staged =
+        stageLinuxPackage({.projectFile = request.projectFile,
+                           .runtimeExecutable = runtime,
+                           .stagingDirectory = staging,
+                           .server = server});
     result.diagnostics.insert(result.diagnostics.end(), staged.begin(),
                               staged.end());
     if (hasErrors(result.diagnostics)) {
@@ -679,8 +675,7 @@ runProjectOperation(const ProjectOperationRequest &request) {
     result.stage = ProjectOperationStage::Failed;
     return result;
   }
-  if (!validateAndroidSigningEnvironment(*androidVariant,
-                                         result.diagnostics)) {
+  if (!validateAndroidSigningEnvironment(*androidVariant, result.diagnostics)) {
     result.stage = ProjectOperationStage::Failed;
     return result;
   }
@@ -745,18 +740,17 @@ runProjectOperation(const ProjectOperationRequest &request) {
       request.outputDirectory.empty()
           ? request.projectFile.parent_path() / "build/android"
           : request.outputDirectory;
-  result.artifact = outputDirectory /
-                    (buildSettings->executableName +
-                     androidVariant->outputSuffix);
+  result.artifact = outputDirectory / (buildSettings->executableName +
+                                       androidVariant->outputSuffix);
   report(request, ProjectOperationStage::Package, 0.98F,
          "Publishing Android package");
   if (!publishFile(gradleArtifact, result.artifact, result.diagnostics)) {
     result.stage = ProjectOperationStage::Failed;
     return result;
   }
-  if (!writeAndroidPackageReport(
-          request, *androidVariant, *buildSettings, cookedProject,
-          packagedContent, result.artifact, result.diagnostics)) {
+  if (!writeAndroidPackageReport(request, *androidVariant, *buildSettings,
+                                 cookedProject, packagedContent,
+                                 result.artifact, result.diagnostics)) {
     result.stage = ProjectOperationStage::Failed;
     return result;
   }

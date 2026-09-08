@@ -1,8 +1,20 @@
 {
   "format_version": 1,
+  "canvas_size": [
+    960,
+    540
+  ],
   "root": {
     "id": "ui_root",
     "type": "container",
+    "anchor_min": [
+      0,
+      0
+    ],
+    "anchor_max": [
+      1,
+      1
+    ],
     "children": [
       {
         "id": "game_hud",
@@ -150,7 +162,14 @@
             ]
           }
         ],
-        "dock": "fill"
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
       },
       {
         "id": "game_over",
@@ -310,9 +329,15 @@
             ]
           }
         ],
-        "dock": "fill"
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
       }
-    ],
-    "dock": "fill"
+    ]
   }
 }

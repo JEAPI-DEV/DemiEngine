@@ -235,6 +235,7 @@ add_test(NAME demi-scene-diff-cli
 add_test(NAME demi-network-session-lua-tests COMMAND demi-network-session-lua-tests)
 add_test(NAME demi-game-network-session-tests COMMAND demi-game-network-session-tests)
 add_test(NAME demi-secure-network-session-tests COMMAND demi-secure-network-session-tests)
+add_test(NAME demi-network-prediction-tests COMMAND demi-network-prediction-tests)
 if(DEMI_ENABLE_NETWORK)
   add_test(NAME demi-server-headless-ffa-smoke
     COMMAND demi-server run --project

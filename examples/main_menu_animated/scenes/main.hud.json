@@ -1,8 +1,20 @@
 {
   "format_version": 1,
+  "canvas_size": [
+    960,
+    540
+  ],
   "root": {
     "id": "ui_root",
     "type": "container",
+    "anchor_min": [
+      0,
+      0
+    ],
+    "anchor_max": [
+      1,
+      1
+    ],
     "children": [
       {
         "type": "panel",
@@ -274,7 +286,6 @@
         ],
         "font_size": 12
       }
-    ],
-    "dock": "fill"
+    ]
   }
 }

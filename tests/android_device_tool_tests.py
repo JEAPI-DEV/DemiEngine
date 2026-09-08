@@ -13,6 +13,12 @@ SPEC.loader.exec_module(android_device)
 
 
 class AndroidDeviceToolTests(unittest.TestCase):
+    def test_qualification_requires_surface_and_frame_pacing_markers(self):
+        markers = android_device.REQUIRED_RUNTIME_MARKERS
+        self.assertIn("[surface] Java surfaceCreated.", markers)
+        self.assertIn("[render] Requested 60.0 FPS from the Android compositor.",
+                      markers)
+
     def test_device_parser_uses_only_ready_devices(self):
         output = "List of devices attached\nready\tdevice model:Pixel\noffline\toffline\n"
         self.assertEqual(android_device.parse_devices(output), ["ready"])

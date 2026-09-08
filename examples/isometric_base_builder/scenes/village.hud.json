@@ -1,6 +1,18 @@
 {
+  "canvas_size": [
+    960.0,
+    540.0
+  ],
   "format_version": 1,
   "root": {
+    "anchor_max": [
+      1.0,
+      1.0
+    ],
+    "anchor_min": [
+      0.0,
+      0.0
+    ],
     "children": [
       {
         "background_color": [
@@ -139,7 +151,7 @@
         ],
         "id": "build_arrow",
         "position": [
-          759.4663696289062,
+          759.4663696289063,
           154.0
         ],
         "size": [
@@ -270,6 +282,14 @@
         "type": "label"
       },
       {
+        "anchor_max": [
+          1,
+          1
+        ],
+        "anchor_min": [
+          0,
+          0
+        ],
         "children": [
           {
             "background_color": [
@@ -498,10 +518,17 @@
         ],
         "id": "tower_menu",
         "type": "container",
-        "visible": false,
-        "dock": "fill"
+        "visible": false
       },
       {
+        "anchor_max": [
+          1,
+          1
+        ],
+        "anchor_min": [
+          0,
+          0
+        ],
         "children": [
           {
             "background_color": [
@@ -594,12 +621,10 @@
         ],
         "id": "upgrade_choice_menu",
         "type": "container",
-        "visible": false,
-        "dock": "fill"
+        "visible": false
       }
     ],
     "id": "ui_root",
-    "type": "container",
-    "dock": "fill"
+    "type": "container"
   }
 }

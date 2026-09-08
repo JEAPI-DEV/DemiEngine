@@ -1,8 +1,20 @@
 {
   "format_version": 1,
+  "canvas_size": [
+    960,
+    540
+  ],
   "root": {
     "id": "ui_root",
     "type": "container",
+    "anchor_min": [
+      0,
+      0
+    ],
+    "anchor_max": [
+      1,
+      1
+    ],
     "children": [
       {
         "id": "menu_base",
@@ -173,7 +185,14 @@
             ]
           }
         ],
-        "dock": "fill"
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
       },
       {
         "id": "menu_main",
@@ -377,7 +396,14 @@
             "font_size": 20
           }
         ],
-        "dock": "fill"
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
       },
       {
         "id": "menu_levels",
@@ -735,7 +761,14 @@
             ]
           }
         ],
-        "dock": "fill"
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
       },
       {
         "id": "menu_network",
@@ -826,7 +859,14 @@
             ]
           }
         ],
-        "dock": "fill"
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
       },
       {
         "id": "network_browser",
@@ -1146,7 +1186,14 @@
             ]
           }
         ],
-        "dock": "fill"
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
       },
       {
         "id": "network_empty",
@@ -1222,7 +1269,14 @@
             "font_size": 13.6
           }
         ],
-        "dock": "fill"
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
       },
       {
         "id": "network_create",
@@ -1411,7 +1465,14 @@
             ]
           }
         ],
-        "dock": "fill"
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
       },
       {
         "id": "network_password",
@@ -1534,7 +1595,14 @@
             ]
           }
         ],
-        "dock": "fill"
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
       },
       {
         "id": "menu_options",
@@ -1591,7 +1659,14 @@
             ]
           }
         ],
-        "dock": "fill"
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
       },
       {
         "id": "menu_sound",
@@ -1751,9 +1826,15 @@
             "font_size": 24
           }
         ],
-        "dock": "fill"
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          1
+        ]
       }
-    ],
-    "dock": "fill"
+    ]
   }
 }

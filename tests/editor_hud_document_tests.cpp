@@ -4,6 +4,17 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
+
+namespace {
+
+std::string read(const std::filesystem::path &path) {
+  std::ifstream input(path);
+  return {std::istreambuf_iterator<char>(input),
+          std::istreambuf_iterator<char>()};
+}
+
+} // namespace
 
 int main() {
   namespace fs = std::filesystem;
@@ -40,5 +51,6 @@ int main() {
   assert(document.undo(error));
   assert(document.preview().nodes.size() == 2);
   assert(document.save(error));
+  assert(read(path).find("{\"format_version\":1,") == 0);
   fs::remove_all(root, ignored);
 }

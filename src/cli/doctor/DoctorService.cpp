@@ -121,8 +121,7 @@ Diagnostics DoctorService::inspect(const DoctorRequest &request) const {
     return diagnostics;
   }
 
-  const ValidationSummary validation =
-      validatePath(request.projectPath.parent_path());
+  const ValidationSummary validation = validateProjectPath(request.projectPath);
   diagnostics.insert(diagnostics.end(), validation.diagnostics.begin(),
                      validation.diagnostics.end());
   if (!hasErrors(validation.diagnostics))
@@ -222,7 +221,8 @@ Diagnostics DoctorService::inspect(const DoctorRequest &request) const {
         "Remove the directory and run `demi cook` again.");
 
   const capabilities::RuntimeFeatures hostFeatures =
-      request.hostFeatures.value_or(capabilities::fullyConfiguredRuntimeFeatures());
+      request.hostFeatures.value_or(
+          capabilities::fullyConfiguredRuntimeFeatures());
   const capabilities::TargetPlatform target =
       request.platform == "android" ? capabilities::TargetPlatform::Android
                                     : capabilities::TargetPlatform::Linux;
@@ -252,9 +252,10 @@ Diagnostics DoctorService::inspect(const DoctorRequest &request) const {
   return diagnostics;
 }
 
-int runDoctorCommand(const std::vector<std::string> &args, std::ostream &out,
-                     std::ostream &error,
-                     std::optional<capabilities::RuntimeFeatures> hostFeatures) {
+int runDoctorCommand(
+    const std::vector<std::string> &args, std::ostream &out,
+    std::ostream &error,
+    std::optional<capabilities::RuntimeFeatures> hostFeatures) {
   const auto project = projectFileFrom(args);
   if (project.empty()) {
     error << "doctor requires --project <project> or a demi.project.json in "

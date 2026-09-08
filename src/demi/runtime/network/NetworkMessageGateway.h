@@ -23,6 +23,7 @@ enum class NetworkEnvelopeKind : std::uint8_t {
   Despawn = 3,
   Ownership = 4,
   Session = 5,
+  Snapshot = 6,
 };
 
 enum class NetworkGatewayRejectCode {

@@ -358,6 +358,9 @@
   add_executable(demi-secure-network-session-tests
     tests/secure_network_session_tests.cpp)
   target_link_libraries(demi-secure-network-session-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-network-prediction-tests
+    tests/network_prediction_tests.cpp)
+  target_link_libraries(demi-network-prediction-tests PRIVATE demi-runtime-lib)
 
   if(DEMI_ENABLE_NETWORK)
     add_executable(demi-network-tests tests/network_tests.cpp)

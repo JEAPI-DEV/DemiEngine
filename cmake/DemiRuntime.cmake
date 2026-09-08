@@ -26,6 +26,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/network/NetworkMessageGateway.cpp
   src/demi/runtime/network/NetworkFaultSimulator.cpp
   src/demi/runtime/network/NetworkOwnershipRegistry.cpp
+  src/demi/runtime/network/NetworkPrediction.cpp
   src/demi/runtime/network/NetworkSessionLifecycle.cpp
   src/demi/runtime/network/NetworkSystem.cpp
   src/demi/runtime/network/ReplicatedState.cpp

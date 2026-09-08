@@ -73,6 +73,14 @@ int main(int argc, char **argv) {
     demi::printDiagnosticsText(std::cerr, summary.diagnostics);
     return 1;
   }
+  const demi::ValidationSummary projectSummary =
+      demi::validateProjectPath(root / "examples/minimal_3d/demi.project.json");
+  if (projectSummary.checkedFiles <= 1 ||
+      demi::hasErrors(projectSummary.diagnostics)) {
+    std::cerr
+        << "Project validation did not inspect the complete source tree.\n";
+    return 1;
+  }
 
   if (!verifyGameplayHudContract(root / "examples/minimal_2d_android") ||
       !verifyGameplayHudContract(root / "examples/minimal_2d_networking"))

@@ -810,7 +810,7 @@ void EditorWorkspace::updateSceneDomain(const bool openingProject) {
 }
 
 void EditorWorkspace::refreshDiagnostics() {
-  const ValidationSummary summary = validatePath(projectPath_.parent_path());
+  const ValidationSummary summary = validateProjectPath(projectPath_);
   diagnostics_ = summary.diagnostics;
   EditorLuaComponentCatalog scripts =
       discoverEditorLuaComponents(project_->project.projectDirectory, sources_);

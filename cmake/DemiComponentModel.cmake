@@ -18,10 +18,15 @@ foreach(component_header IN LISTS DEMI_COMPONENT_HEADERS)
   string(APPEND DEMI_COMPONENT_DESCRIPTORS
     "    makeComponentDescriptor<${component_class}>(),\n")
 endforeach()
-file(WRITE "${DEMI_GENERATED_INCLUDE_DIR}/demi/generated/ComponentIncludes.h"
-  "${DEMI_COMPONENT_INCLUDES}")
-file(WRITE "${DEMI_GENERATED_INCLUDE_DIR}/demi/generated/ComponentDescriptors.inc"
-  "${DEMI_COMPONENT_DESCRIPTORS}")
+# file(GENERATE) updates an output only when its content changes. Using
+# file(WRITE) here touched these widely included files on every configure and
+# forced an otherwise unchanged build to recompile most of the engine.
+file(GENERATE
+  OUTPUT "${DEMI_GENERATED_INCLUDE_DIR}/demi/generated/ComponentIncludes.h"
+  CONTENT "${DEMI_COMPONENT_INCLUDES}")
+file(GENERATE
+  OUTPUT "${DEMI_GENERATED_INCLUDE_DIR}/demi/generated/ComponentDescriptors.inc"
+  CONTENT "${DEMI_COMPONENT_DESCRIPTORS}")
 
 set(DEMI_COMPONENT_MODEL_SOURCES
   src/demi/runtime/scene/ComponentRegistry.cpp

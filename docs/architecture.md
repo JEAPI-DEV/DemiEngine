@@ -101,6 +101,9 @@ Supported lifecycle functions are `on_create`, `on_start`, `on_update`,
 ## Validation And Editor Direction
 
 `demi validate` is the diagnostics contract shared by the CLI and editor.
+Project workflows normalize a `demi.project.json` path to the complete authored
+project tree, so CLI validation, the editor, cooking, and packaging inspect the
+same scope rather than validating only the project header.
 The graphical editor consumes the existing project loader, component metadata,
 authored component JSON, source discovery, and validation path. Its UI-free
 scene document owns reversible stable-ID field commands, while a document store

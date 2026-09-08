@@ -3,6 +3,7 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 
 namespace {
 
@@ -10,6 +11,12 @@ void write(const std::filesystem::path &path, const std::string &text) {
   std::filesystem::create_directories(path.parent_path());
   std::ofstream output(path);
   output << text;
+}
+
+std::string read(const std::filesystem::path &path) {
+  std::ifstream input(path);
+  return {std::istreambuf_iterator<char>(input),
+          std::istreambuf_iterator<char>()};
 }
 
 } // namespace
@@ -89,6 +96,7 @@ int main() {
   assert(document.json().dump() == beforeInvalidInput);
   assert(document.save(error));
   assert(!document.isDirty());
+  assert(read(root / "demi.project.json").find("{\"format_version\":1,") == 0);
 
   std::filesystem::remove_all(root, ignored);
 }

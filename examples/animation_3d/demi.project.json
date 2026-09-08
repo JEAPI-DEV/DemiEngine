@@ -61,7 +61,8 @@
   },
   "scenes": [
     {
-      "id": "scene://animation_3d/main"
+      "id": "scene://animation_3d/main",
+      "path": "scenes/main.scene.json"
     }
   ],
   "scripting": {

@@ -294,6 +294,11 @@ NetworkMessageGateway::accept(const std::span<const std::uint8_t> bytes,
            envelope.ownershipGeneration <= entity->ownershipGeneration))
         return reject(NetworkGatewayRejectCode::StaleGeneration,
                       "lifecycle operation uses a stale generation");
+      if (envelope.kind == NetworkEnvelopeKind::Snapshot &&
+          (entity == nullptr ||
+           envelope.ownershipGeneration != entity->ownershipGeneration))
+        return reject(NetworkGatewayRejectCode::StaleGeneration,
+                      "authoritative snapshot target or generation is stale");
       lastSequences_[sequenceKey] = sequence;
       ++counters_.accepted;
       return {.accepted = true,

@@ -1962,7 +1962,7 @@ NetworkSession = {}
 ---@field rotation? number
 ---@field scale? number[]
 ---@field color? number[]
----@param options {send_interval?: number, extrapolation_limit?: number, initial_prediction?: number, channel?: integer, port?: integer, max_peers?: integer, remote_prefab?: NetworkRemotePrefab, certificate?: string, private_key?: string, trusted_certificate?: string, server_name?: string}
+---@param options {send_interval?: number, extrapolation_limit?: number, initial_prediction?: number, interpolation_delay?: number, snapshot_buffer?: integer, input_queue_capacity?: integer, input_future_window?: integer, input_head_of_line_timeout?: number, input_max_per_tick?: integer, prediction_history_limit?: integer, prediction_visual_decay?: number, channel?: integer, port?: integer, max_peers?: integer, remote_prefab?: NetworkRemotePrefab, certificate?: string, private_key?: string, trusted_certificate?: string, server_name?: string}
 function NetworkSession.configure(options) end
 ---@return string
 function NetworkSession.sender_id() end
@@ -2061,6 +2061,100 @@ function NetworkSession.process_events() end
 ---@param dt number
 ---@return boolean
 function NetworkSession.update_entity(network_id, dt) end
+
+---@class NetworkPredictionOptions
+---@field network_id string Network entity the local peer owns and predicts.
+---@field state table Serializable initial controller state; gameplay-defined.
+---@field apply fun(state: table, input: table): table Deterministic replay callback returning the new state.
+---@field input_message? string Declared contract message used to carry inputs to the server.
+---@class NetworkSnapshotPublishOptions
+---@field marker? "normal"|"teleport"|"reset" Correction marker; reset and teleport clear client history.
+---@class NetworkPredictionServerDiagnostics
+---@field last_acked integer
+---@field pending integer
+---@field accepted integer
+---@field rejected_old integer
+---@field rejected_duplicate integer
+---@field rejected_future integer
+---@field rejected_capacity integer
+---@field rejected_malformed integer
+---@field discarded_gaps integer
+---@class NetworkInterpolationDiagnostics
+---@field buffer_depth integer
+---@field accepted integer
+---@field dropped_stale integer
+---@field dropped_overflow integer
+---@field cleared_for_generation integer
+---@field interpolated integer
+---@field extrapolated integer
+---@field clamped integer
+---@field snapped integer
+---@class NetworkPredictionChannelDiagnostics
+---@field prediction_enabled boolean
+---@field input_message string
+---@field next_sequence integer
+---@field pending_replay integer
+---@field corrections integer
+---@field replayed_commands integer
+---@field discarded_inputs integer
+---@field dropped_history integer
+---@field snaps integer
+---@field rebases integer
+---@field ownership_changes integer
+---@field stale_snapshots integer
+---@field last_correction_distance number
+---@field last_divergence number
+---@field visual_offset table<string, number>
+---@field server NetworkPredictionServerDiagnostics
+---@field interpolation NetworkInterpolationDiagnostics
+---@class NetworkPredictionDiagnostics
+---@field channels table<string, NetworkPredictionChannelDiagnostics>
+---Evaluates queued owner inputs in sequence order at the authoritative fixed
+---tick. Rejected, duplicate, stale, and discarded-gap inputs advance the
+---acknowledgment without reaching gameplay. Host with a network contract only.
+---@param network_id string
+---@return table inputs Ordered accepted inputs, each carrying its seq field.
+function NetworkSession.take_inputs(network_id) end
+---Publishes an authoritative controller-state snapshot carrying the session
+---epoch, ownership generation, server tick, last-evaluated input sequence,
+---and a bounded sanitized rejection code. Host with a network contract only.
+---@param network_id string
+---@param state table Serializable authoritative controller state.
+---@param options? NetworkSnapshotPublishOptions
+---@return boolean
+function NetworkSession.publish_snapshot(network_id, state, options) end
+---Enables opt-in local prediction for an owned entity. The apply callback
+---must be deterministic and define the replayable controller state.
+---@param options NetworkPredictionOptions
+---@return boolean
+function NetworkSession.enable_prediction(options) end
+---@param network_id string
+---@return boolean
+function NetworkSession.disable_prediction(network_id) end
+---Re-bases predicted state after a scene transition without restarting the
+---input sequence space within the current session epoch.
+---@param network_id string
+---@param state table
+---@return boolean
+function NetworkSession.reset_prediction(network_id, state) end
+---Applies one input immediately to the predicted state, records it for
+---replay, and sends it through the declared input message when connected.
+---@param network_id string
+---@param input table
+---@return integer|nil sequence
+function NetworkSession.predict_input(network_id, input) end
+---@param network_id string
+---@return table|nil state Current reconciled and replayed controller state.
+function NetworkSession.prediction_state(network_id) end
+---@param network_id string
+---@return table<string, number>|nil offset Render-only decaying visual offset.
+function NetworkSession.prediction_visual_offset(network_id) end
+---Returns the interpolated authoritative state for a non-owned entity.
+---@param network_id string
+---@return table|nil state
+function NetworkSession.remote_state(network_id) end
+---@return NetworkPredictionDiagnostics
+function NetworkSession.prediction_diagnostics() end
 
 ---@class DemiScript
 ---@field entity_id? string

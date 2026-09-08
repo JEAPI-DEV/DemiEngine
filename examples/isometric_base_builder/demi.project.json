@@ -8,7 +8,8 @@
   "main_scene": "scene://isometric_base_builder/village",
   "scenes": [
     {
-      "id": "scene://isometric_base_builder/village"
+      "id": "scene://isometric_base_builder/village",
+      "path": "scenes/village.scene.json"
     }
   ],
   "assets": [

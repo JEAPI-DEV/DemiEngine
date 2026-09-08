@@ -6,9 +6,9 @@
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/packages/PackageManifest.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
-#include "demi/runtime/scene/SceneEntityParser.h"
 #include "demi/runtime/scene/ProjectBuildSettings.h"
 #include "demi/runtime/scene/ProjectBuildValidation.h"
+#include "demi/runtime/scene/SceneEntityParser.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/runtime/ui/UiPrefabResolver.h"
 
@@ -212,8 +212,7 @@ void validateSceneComponents(Diagnostics &diagnostics,
                           "prop_2d, character_3d."});
       }
     }
-    if (!entity.contains("components") ||
-        !entity["components"].is_object()) {
+    if (!entity.contains("components") || !entity["components"].is_object()) {
       continue;
     }
     const std::string entityId = entity.value("id", "ent_unknown");
@@ -603,6 +602,17 @@ ValidationSummary validatePath(const std::filesystem::path &path) {
   return summary;
 }
 
+ValidationSummary
+validateProjectPath(const std::filesystem::path &projectPath) {
+  std::error_code error;
+  if (std::filesystem::is_regular_file(projectPath, error) && !error &&
+      isProjectFile(projectPath)) {
+    const std::filesystem::path parent = projectPath.parent_path();
+    return validatePath(parent.empty() ? std::filesystem::path{"."} : parent);
+  }
+  return validatePath(projectPath);
+}
+
 Diagnostics validateTextFile(const std::filesystem::path &path,
                              const SourceFileKind kind) {
   Diagnostics diagnostics;
@@ -652,8 +662,8 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
                          build.diagnostics.end());
       if (!hasErrors(build.diagnostics)) {
         const AssetRegistry registry = loadAssetRegistry(path.parent_path());
-        const Diagnostics branding = runtime::validateProjectBuildAssets(
-            build.settings, registry, path);
+        const Diagnostics branding =
+            runtime::validateProjectBuildAssets(build.settings, registry, path);
         diagnostics.insert(diagnostics.end(), branding.begin(), branding.end());
       }
       if (const auto declared = project.find("packages");

@@ -300,7 +300,7 @@ function Inventory.drop_for(block)
 end
 
 function Inventory.update_input(inventory)
-  if Input.pressed("inventory") then
+  if Input.action_pressed("inventory") then
     set_inventory_open(inventory, not inventory.open)
   end
 
