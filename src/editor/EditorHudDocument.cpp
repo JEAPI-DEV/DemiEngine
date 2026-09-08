@@ -1,5 +1,6 @@
 #include "editor/EditorHudDocument.h"
 
+#include "editor/EditorAuthoredJson.h"
 #include "editor/EditorSpecializedDocument.h"
 
 #include "demi/runtime/scene/HudParser.h"
@@ -11,6 +12,18 @@ namespace demi::editor {
 namespace {
 
 using Json = nlohmann::json;
+
+int authoredDecimalPlaces(const std::string_view field) {
+  if (field == "anchor_min" || field == "anchor_max")
+    return 2;
+  if (field == "position" || field == "size" || field == "min_size" ||
+      field == "max_size" || field == "margin" || field == "padding" ||
+      field == "pad" || field == "gap" || field == "font_size" ||
+      field == "line_spacing" || field == "corner_radius" ||
+      field == "border_width" || field == "radius")
+    return 1;
+  return 3;
+}
 
 Json *findNode(Json &node, const std::string_view id) {
   if (!node.is_object())
@@ -175,8 +188,13 @@ bool EditorHudDocument::setNodeField(const std::string_view id,
   // explicit form they replace instead of leaving both behind.
   if (value.is_null())
     node->erase(std::string(field));
-  else
+  else {
+    const auto previous = node->find(field);
+    value = normalizeEditorAuthoredValue(
+        std::move(value), previous == node->end() ? nullptr : &*previous,
+        authoredDecimalPlaces(field));
     (*node)[std::string(field)] = std::move(value);
+  }
   if (!document_.replace(std::move(replacement), error))
     return false;
   return rebuild(error);

@@ -75,7 +75,11 @@ bool EditorViewportRenderer::render3D(const runtime::World &world,
   runtime::render::BgfxCameraFrame3D frame;
   frame.cameraId = "editor-camera";
   frame.camera = camera.projection;
-  frame.camera.renderHudToTarget = false;
+  // The editor scene is rendered into a texture rather than directly to the
+  // swapchain. Keep the authored HUD in that same texture so the docked scene
+  // viewport matches the runtime composition and HUD picking coordinates.
+  frame.camera.renderHud = true;
+  frame.camera.renderHudToTarget = true;
   frame.position = camera.position;
   frame.forward = camera.forward;
   frame.up = camera.up;

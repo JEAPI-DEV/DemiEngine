@@ -81,23 +81,26 @@ int main() {
                                                       .component =
                                                           "Transform3D",
                                                       .field = "position"};
-  assert(!prefabWorkspace.hasExplicitValue(prefabPosition));
+  const std::string prefabDocumentBeforeEdit =
+      prefabWorkspace.sceneDocument().json().dump();
   for (int frame = 0; frame < 60; ++frame) {
     assert(prefabWorkspace.editValue(
         prefabPosition, {3.0 + frame * 0.01, 2.0, 1.0}, true, error));
   }
   prefabWorkspace.endContinuousEdit();
   assert(prefabWorkspace.hasExplicitValue(prefabPosition));
-  const nlohmann::json &instances =
-      prefabWorkspace.sceneDocument().json().at("instances");
-  assert(instances[0]["overrides"]["body"]["components"]["Transform3D"]
-                  ["position"] == nlohmann::json({3.59, 2.0, 1.0}));
+  const demi::editor::SceneValueTarget authoredPrefabPosition =
+      prefabWorkspace.authoredTarget(prefabPosition);
+  assert(*demi::editor::valueInDocument(prefabWorkspace.sceneDocument().json(),
+                                        authoredPrefabPosition) ==
+         nlohmann::json({3.59, 2.0, 1.0}));
   assert(nlohmann::json::parse(
              prefabWorkspace.selectedEntity()->serializedComponents.at(
                  "Transform3D"))
              .at("position") == nlohmann::json({3.59, 2.0, 1.0}));
   assert(prefabWorkspace.undo(error));
-  assert(!prefabWorkspace.hasExplicitValue(prefabPosition));
+  assert(prefabWorkspace.sceneDocument().json().dump() ==
+         prefabDocumentBeforeEdit);
   assert(nlohmann::json::parse(
              prefabWorkspace.selectedEntity()->serializedComponents.at(
                  "Transform3D"))

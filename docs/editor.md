@@ -59,11 +59,12 @@ filesystem service used by `demi dev`.
 - Inspector changes are reversible commands. Continuous edits collapse into a
   single undo step, and optional fields can be explicitly authored or reset
   without losing their original presence through Undo. Numeric authoring uses
-  the Inspector's three-decimal precision, so binary floating-point noise is
-  not persisted. Scene, project, HUD, and specialized JSON saves patch changed
-  values and structures into the original source text, preserving untouched
-  whitespace, key order, compact arrays, and neighboring multiline style;
-  replacement remains same-directory and atomic.
+  the precision visible in the Inspector: scene values use three decimals, HUD
+  positions/sizes/spacing use one, and HUD anchors use two. Binary
+  floating-point noise is therefore not persisted. Scene, project, HUD, and
+  specialized JSON saves patch changed values and structures into the original
+  source text, preserving untouched whitespace, key order, compact arrays, and
+  neighboring multiline style; replacement remains same-directory and atomic.
 - When the scene changes externally, a modal offers Reload from disk, Keep
   editing, Save Copy, and Cancel. The editor never overwrites the external
   version, and a failed preview rebuild restores the document and both history
