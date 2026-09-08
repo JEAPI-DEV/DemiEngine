@@ -530,6 +530,120 @@ function Sprite2D.set_material(entity_id, material) end
 ---@class AnimationService
 Animation = {}
 
+---@class Vector2Service
+Vector2 = {}
+---@param left number[]
+---@param right number[]
+---@return number[]
+function Vector2.add(left, right) end
+---@param left number[]
+---@param right number[]
+---@return number[]
+function Vector2.subtract(left, right) end
+---@param value number[]
+---@param amount number
+---@return number[]
+function Vector2.scale(value, amount) end
+---@param value number[]
+---@return number
+function Vector2.length(value) end
+---@param value number[]
+---@return number[]
+function Vector2.normalized(value) end
+---@param left number[]
+---@param right number[]
+---@return number
+function Vector2.dot(left, right) end
+---@param from number[]
+---@param to number[]
+---@param amount number
+---@return number[]
+function Vector2.lerp(from, to, amount) end
+
+---@class Vector3Service
+Vector3 = {}
+---@param left number[]
+---@param right number[]
+---@return number[]
+function Vector3.add(left, right) end
+---@param left number[]
+---@param right number[]
+---@return number[]
+function Vector3.subtract(left, right) end
+---@param value number[]
+---@param amount number
+---@return number[]
+function Vector3.scale(value, amount) end
+---@param value number[]
+---@return number
+function Vector3.length(value) end
+---@param value number[]
+---@return number[]
+function Vector3.normalized(value) end
+---@param left number[]
+---@param right number[]
+---@return number
+function Vector3.dot(left, right) end
+---@param left number[]
+---@param right number[]
+---@return number[]
+function Vector3.cross(left, right) end
+---@param from number[]
+---@param to number[]
+---@param amount number
+---@return number[]
+function Vector3.lerp(from, to, amount) end
+
+---@class MathfService
+Mathf = {}
+---@param minimum number
+---@param maximum number
+---@param value number
+---@return number
+function Mathf.smoothstep(minimum, maximum, value) end
+
+---@class TwoBoneIkOptions2D
+---@field root number[]
+---@field target number[]
+---@field pole number[]
+---@field upper_length number
+---@field lower_length number
+---@class TwoBoneIkResult2D
+---@field joint number[]
+---@field end_position number[]
+---@field reached boolean
+---@param options TwoBoneIkOptions2D
+---@return TwoBoneIkResult2D|nil
+function Animation.solve_two_bone_2d(options) end
+
+---@class TwoBoneIkOptions3D
+---@field root number[]
+---@field target number[]
+---@field pole number[]
+---@field upper_length number
+---@field lower_length number
+---@class TwoBoneIkResult3D
+---@field joint number[]
+---@field end_position number[]
+---@field reached boolean
+---@param options TwoBoneIkOptions3D
+---@return TwoBoneIkResult3D|nil
+function Animation.solve_two_bone_3d(options) end
+
+---@class BoneSegment3D
+---@field start number[] World-space bone head.
+---@field tail number[] World-space bone tail.
+---@field pole number[] World-space roll hint.
+---@param entity_id string
+---@param bone string
+---@param segment BoneSegment3D
+---@return boolean
+function Animation.set_bone_segment(entity_id, bone, segment) end
+
+---@param entity_id string
+---@return boolean
+function Animation.clear_bone_segments(entity_id) end
+
 ---Returns the active named state, or an empty string when unavailable.
 ---@param entity_id string
 ---@return string

@@ -1,0 +1,33 @@
+{
+  "format_version": 1,
+  "name": "Procedural Spider 3D",
+  "main_scene": "scene://procedural_spider_3d/main",
+  "assets": [
+    "asset://procedural_spider/spider"
+  ],
+  "performance_budgets": {
+    "maximum_frame_ms": 16.67,
+    "maximum_draw_calls": 64,
+    "maximum_resident_assets": 16,
+    "maximum_visible_instances": 64,
+    "maximum_unique_meshes": 8,
+    "maximum_triangles": 20000,
+    "maximum_texture_memory_mb": 8,
+    "maximum_lights": 4,
+    "maximum_shadow_lights": 1,
+    "maximum_transparent_draws": 4
+  },
+  "debug": {
+    "grid": true
+  },
+  "scenes": [
+    {
+      "id": "scene://procedural_spider_3d/main",
+      "path": "scenes/main.scene.json"
+    }
+  ],
+  "scripting": {
+    "language": "lua54",
+    "modules": []
+  }
+}

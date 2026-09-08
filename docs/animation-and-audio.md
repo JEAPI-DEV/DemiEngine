@@ -82,6 +82,34 @@ local footstep = Events.subscribe("animation_event", function(event)
 end)
 ```
 
+Procedural rigs can solve a two-segment chain in either 2D or 3D. The target is
+clamped when it lies outside the chain's reach, and the pole selects the bend
+side or plane. This is suitable for planted feet, aiming arms, tentacles, and
+mechanical linkages; terrain contact remains a gameplay decision made with the
+normal physics queries.
+
+```lua
+local leg = Animation.solve_two_bone_3d({
+  root = hip,
+  target = foot_contact,
+  pole = knee_hint,
+  upper_length = 0.72,
+  lower_length = 0.78,
+})
+Animation.set_bone_segment("creature", "front_left_upper", {
+  start = hip,
+  tail = leg.joint,
+  pole = knee_hint,
+})
+```
+
+`examples/procedural_spider_3d` combines this solver with 3D raycasts,
+alternating planted-foot groups, generated steps and rocks, and a floor-to-wall
+transition. Its Blender-authored skinned model contains named upper/lower leg
+bones; runtime segment overrides deform that imported mesh without exposing
+renderer handles or inverse-bind matrices to Lua. `Vector2`, `Vector3`, and
+`Mathf.smoothstep` provide shared vector/interpolation math to gameplay code.
+
 Root motion is disabled unless scene data or
 `Animation.set_root_motion(entity, true)` explicitly enables it. State
 `root_motion_track` data contains evenly spaced local-space positions over the

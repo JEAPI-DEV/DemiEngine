@@ -125,6 +125,14 @@ add_test(NAME demi-runtime-animation-3d-frame
 )
 set_tests_properties(demi-runtime-animation-3d-frame PROPERTIES
   ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-procedural-spider-3d-frame
+  COMMAND demi run
+    --project ${CMAKE_SOURCE_DIR}/examples/procedural_spider_3d/demi.project.json
+    --max-frames 120
+)
+set_tests_properties(demi-runtime-procedural-spider-3d-frame PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1"
+  PASS_REGULAR_EXPRESSION "Procedural spider created")
 add_test(NAME demi-runtime-animation-3d-selection-replay
   COMMAND demi run
     --project ${CMAKE_SOURCE_DIR}/examples/animation_3d/demi.project.json
@@ -315,6 +323,14 @@ add_test(NAME demi-validate-minimal-3d
 )
 add_test(NAME demi-validate-animation-3d
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/animation_3d/demi.project.json
+)
+add_test(NAME demi-validate-procedural-spider-3d
+  COMMAND demi validate
+    ${CMAKE_SOURCE_DIR}/examples/procedural_spider_3d/demi.project.json
+)
+add_test(NAME demi-script-check-procedural-spider-3d
+  COMMAND demi script check
+    ${CMAKE_SOURCE_DIR}/examples/procedural_spider_3d/scripts/procedural_spider.lua
 )
 add_test(NAME demi-validate-minimal-voxel
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/demi.project.json

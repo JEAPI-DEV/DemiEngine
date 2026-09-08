@@ -233,6 +233,11 @@ public:
                                              float weight);
   [[nodiscard]] bool setAnimationRootMotion(const std::string &entityId,
                                             bool enabled);
+  [[nodiscard]] bool setAnimationBoneSegment(const std::string &entityId,
+                                             const std::string &bone,
+                                             Vec3 start, Vec3 end, Vec3 pole);
+  [[nodiscard]] bool clearAnimationBoneSegments(
+      const std::string &entityId);
   [[nodiscard]] std::optional<Vec2>
   getRigidbodyVelocity(const std::string &entityId) const;
   [[nodiscard]] bool setRigidbodyVelocity(const std::string &entityId, float x,

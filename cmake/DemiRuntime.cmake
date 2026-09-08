@@ -1,6 +1,7 @@
 # Shared runtime sources and graphical/headless runtime library variants.
 set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/animation/AnimationRuntime.cpp
+  src/demi/runtime/animation/ProceduralIk.cpp
   src/demi/runtime/animation/AnimationStateMachineSystem.cpp
   src/demi/runtime/animation/AnimationCollision2DSystem.cpp
   src/demi/runtime/animation/SpriteAnimationSystem.cpp
@@ -20,6 +21,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/audio/AudioSystem.cpp
   src/demi/runtime/audio/MiniaudioAudioBackend.cpp
   src/demi/runtime/media/MediaSystem.cpp
+  src/demi/runtime/math/VectorMath.cpp
   src/demi/runtime/network/DtlsTransport.cpp
   src/demi/runtime/network/GameNetworkSession.cpp
   src/demi/runtime/network/HttpClient.cpp
@@ -98,6 +100,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/persistence/LuaSaveBindings.cpp
   src/demi/runtime/scripting/bindings/text/LuaRegexBindings.cpp
   src/demi/runtime/scripting/bindings/isometric/LuaIsoGridBindings.cpp
+  src/demi/runtime/scripting/bindings/math/LuaVectorMathBindings.cpp
   src/demi/runtime/scripting/bindings/navigation/LuaNavigation2DBindings.cpp
   src/demi/runtime/scripting/text/RegexMatcher.cpp
   src/demi/runtime/scripting/bindings/LuaJsonBridge.cpp

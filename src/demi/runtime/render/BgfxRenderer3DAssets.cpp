@@ -142,7 +142,7 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
         std::vector<std::byte> embeddedAlbedo =
             animated ? std::move(animated->albedoImage)
                      : std::vector<std::byte>{};
-        if (animated && !animated->clips.empty())
+        if (animated && (!animated->clips.empty() || !animated->skins.empty()))
           animatedModels_.emplace(asset.id, std::move(*animated));
         if (profile->materialPolicy != "ignore" &&
             (asset.texturePath || !embeddedAlbedo.empty())) {

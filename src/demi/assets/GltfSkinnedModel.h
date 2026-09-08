@@ -9,6 +9,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace demi::assets {
@@ -25,6 +26,7 @@ struct GltfSkinnedVertex3D {
 
 struct GltfSkinnedModel3D {
   struct Node {
+    std::string name;
     std::array<float, 16> localMatrix{};
     runtime::Vec3 translation{};
     std::array<float, 4> rotation{0.0F, 0.0F, 0.0F, 1.0F};
@@ -53,23 +55,31 @@ struct GltfSkinnedModel3D {
     std::vector<Channel> channels;
   };
 
+  struct BoneSegment {
+    runtime::Vec3 start;
+    runtime::Vec3 end;
+    runtime::Vec3 pole;
+  };
+  using BoneSegments = std::unordered_map<std::string, BoneSegment>;
+
   std::vector<GltfSkinnedVertex3D> vertices;
   std::vector<std::uint32_t> indices;
   std::vector<Node> nodes;
   std::vector<Skin> skins;
   std::vector<Clip> clips;
   std::vector<std::byte> albedoImage;
-  std::array<float, 16> importTransform{1.0F, 0.0F, 0.0F, 0.0F,
-                                         0.0F, 1.0F, 0.0F, 0.0F,
-                                         0.0F, 0.0F, 1.0F, 0.0F,
-                                         0.0F, 0.0F, 0.0F, 1.0F};
+  std::array<float, 16> importTransform{1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F,
+                                        0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F,
+                                        0.0F, 0.0F, 0.0F, 1.0F};
 
   [[nodiscard]] int clipIndex(std::string_view name, int fallback = 0) const;
   [[nodiscard]] bool bindPosePositions(std::vector<runtime::Vec3> &out,
-                                       std::string &error) const;
+                                       std::string &error,
+                                       const BoneSegments &segments = {}) const;
   [[nodiscard]] bool samplePositions(int clip, float time, bool loop,
                                      std::vector<runtime::Vec3> &out,
-                                     std::string &error) const;
+                                     std::string &error,
+                                     const BoneSegments &segments = {}) const;
 };
 
 [[nodiscard]] std::optional<GltfSkinnedModel3D>

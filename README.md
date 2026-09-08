@@ -284,6 +284,7 @@ Examples are executable engine probes, not throwaway snippets:
 | `asset_streaming_showcase` | Optional group load, progress, cancellation, reload, unload, transitive dependencies, and backend memory ownership |
 | `minimal_3d` | Lightweight 3D movement, queries, collisions, materials, and debug overlays ![minimal_3d](images/minimal_3d.png) |
 | `animation_3d` | glTF skeletal animation selection and playback ![animation_3d](images/animation_3d.png) |
+| `procedural_spider_3d` | Terrain-aware eight-legged locomotion using raycast foot placement and runtime two-bone IK |
 | `minimal_voxel` | Chunked voxel-style terrain, editing, particles, lighting, and profiling ![minimal_voxel](images/minimal_voxel.png) |
 | `saves_simulation_debugging` | Versioned saves, simulation, replay, and diagnostics |
 | `minimal_2d_android_server` | Headless/server-oriented networking companion project |

@@ -4,9 +4,11 @@
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/SpriteAnimator2DComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/SpriteComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
 #include "demi/runtime/scene/components/animation/AnimationStateMachineComponent.h"
 
 #include <algorithm>
+#include <cmath>
 
 extern "C" {
 #include <lua.h>
@@ -19,8 +21,9 @@ LuaScriptHost::animationState(const std::string &entityId) const {
   const Entity *entity =
       world_ == nullptr ? nullptr : findEntity(*world_, entityId);
   const auto *machine =
-      entity == nullptr ? nullptr
-                        : entity->component<AnimationStateMachineComponent>();
+      entity == nullptr
+          ? nullptr
+          : entity->component<AnimationStateMachineComponent>();
   return machine == nullptr ? std::nullopt : std::make_optional(machine->state);
 }
 
@@ -83,9 +86,8 @@ float LuaScriptHost::animationNormalizedTime(
   const Entity *entity =
       world_ == nullptr ? nullptr : findEntity(*world_, entityId);
   const auto *machine =
-      entity == nullptr
-          ? nullptr
-          : entity->component<AnimationStateMachineComponent>();
+      entity == nullptr ? nullptr
+                        : entity->component<AnimationStateMachineComponent>();
   return machine == nullptr ? 0.0F : machine->normalizedTime;
 }
 
@@ -157,6 +159,43 @@ bool LuaScriptHost::setAnimationRootMotion(const std::string &entityId,
   if (machine == nullptr)
     return false;
   machine->rootMotion = enabled;
+  return true;
+}
+
+bool LuaScriptHost::setAnimationBoneSegment(const std::string &entityId,
+                                            const std::string &bone,
+                                            const Vec3 start, const Vec3 end,
+                                            const Vec3 pole) {
+  Entity *entity = world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  auto *player = entity == nullptr
+                     ? nullptr
+                     : entity->component<AnimationPlayer3DComponent>();
+  const auto finite = [](const Vec3 value) {
+    return std::isfinite(value.x) && std::isfinite(value.y) &&
+           std::isfinite(value.z);
+  };
+  const Vec3 extent{end.x - start.x, end.y - start.y, end.z - start.z};
+  if (player == nullptr || bone.empty() || !finite(start) || !finite(end) ||
+      !finite(pole) ||
+      extent.x * extent.x + extent.y * extent.y + extent.z * extent.z <=
+          0.000000000001F)
+    return false;
+  player->boneSegments[bone] = {.start = start, .end = end, .pole = pole};
+  ++player->proceduralPoseRevision;
+  return true;
+}
+
+bool LuaScriptHost::clearAnimationBoneSegments(const std::string &entityId) {
+  Entity *entity = world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  auto *player = entity == nullptr
+                     ? nullptr
+                     : entity->component<AnimationPlayer3DComponent>();
+  if (player == nullptr)
+    return false;
+  if (!player->boneSegments.empty()) {
+    player->boneSegments.clear();
+    ++player->proceduralPoseRevision;
+  }
   return true;
 }
 

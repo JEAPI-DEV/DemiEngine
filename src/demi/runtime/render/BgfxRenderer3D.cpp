@@ -433,13 +433,17 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         if (player != nullptr) {
           const auto source = animatedModels_.find(mesh->model);
           if (source == animatedModels_.end()) {
-            error = "No animation clips are loaded for " + mesh->model + ".";
+            error = "No skinned model data is loaded for " + mesh->model + ".";
             return false;
           }
           const int clip = source->second.clipIndex(player->clipName, 0);
           std::uint64_t signature = 14695981039346656037ULL;
           hashValue(signature, static_cast<std::uint32_t>(clip));
           hashValue(signature, std::bit_cast<std::uint32_t>(player->time));
+          hashValue(signature,
+                    static_cast<std::uint32_t>(player->proceduralPoseRevision));
+          hashValue(signature, static_cast<std::uint32_t>(
+                                   player->proceduralPoseRevision >> 32U));
           hashValue(signature, color);
           auto &animatedMesh = dynamicMeshes_[entity.id];
           if (!animatedMesh)
@@ -447,8 +451,28 @@ bool BgfxRenderer3D::renderFrame(const World &world,
           if (animatedMesh->signature != signature ||
               !animatedMesh->gpu.valid()) {
             std::vector<Vec3> positions;
-            if (!source->second.samplePositions(
-                    clip, player->time, player->loop, positions, error)) {
+            assets::GltfSkinnedModel3D::BoneSegments segments;
+            WorldTransform3D modelTransform = transform;
+            modelTransform.scale = {transform.scale.x * mesh->size.x,
+                                    transform.scale.y * mesh->size.y,
+                                    transform.scale.z * mesh->size.z};
+            for (const auto &[bone, target] : player->boneSegments) {
+              segments.emplace(bone, assets::GltfSkinnedModel3D::BoneSegment{
+                                         .start = inverseTransformPoint3D(
+                                             modelTransform, target.start),
+                                         .end = inverseTransformPoint3D(
+                                             modelTransform, target.end),
+                                         .pole = inverseTransformPoint3D(
+                                             modelTransform, target.pole)});
+            }
+            const bool sampled =
+                clip >= 0
+                    ? source->second.samplePositions(clip, player->time,
+                                                     player->loop, positions,
+                                                     error, segments)
+                    : source->second.bindPosePositions(positions, error,
+                                                       segments);
+            if (!sampled) {
               error = entity.id + ": " + error;
               return false;
             }

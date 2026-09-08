@@ -6,6 +6,7 @@
 #include <cmath>
 #include <filesystem>
 #include <iostream>
+#include <ranges>
 #include <string>
 #include <vector>
 
@@ -165,6 +166,25 @@ int main() {
   assert(distanceSquared(bindPose.front(), {14.0F, 0.0F, 0.0F}) <
          0.000001F);
 
+  demi::assets::GltfSkinnedModel3D procedural;
+  procedural.nodes.push_back({.name = "leg_upper"});
+  procedural.skins.push_back(
+      {.joints = {0},
+       .inverseBindMatrices = {
+           {{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}}}});
+  procedural.vertices.push_back({.position = {0, 1, 0},
+                                 .joints = {0, 0, 0, 0},
+                                 .weights = {1, 0, 0, 0},
+                                 .skin = 0});
+  const demi::assets::GltfSkinnedModel3D::BoneSegments proceduralPose{
+      {"leg_upper", {.start = {2, 0, 0}, .end = {2, 1, 0}, .pole = {2, 0, 1}}}};
+  assert(procedural.bindPosePositions(bindPose, error, proceduralPose));
+  assert(distanceSquared(bindPose.front(), {2, 1, 0}) < 0.000001F);
+  auto missingBone = proceduralPose;
+  missingBone["missing"] = missingBone.at("leg_upper");
+  assert(!procedural.bindPosePositions(bindPose, error, missingBone));
+  assert(error.find("missing bone") != std::string::npos);
+
   auto malformed = hierarchy;
   malformed.nodes[0].parent = 99;
   assert(!malformed.bindPosePositions(bindPose, error));
@@ -216,6 +236,35 @@ int main() {
   // Y, so examples must not retain the old raylib-specific +90 degree tilt.
   assert(hyenaMaximum.z - hyenaMinimum.z >
          hyenaMaximum.y - hyenaMinimum.y);
+
+  error.clear();
+  const auto spider = demi::assets::loadGltfSkinnedModel3D(
+      std::filesystem::path(DEMI_SOURCE_DIR) /
+          "examples/procedural_spider_3d/assets/procedural_spider/spider/"
+          "spider_rig.glb",
+      error);
+  assert(spider && error.empty());
+  assert(spider->clips.empty());
+  assert(!spider->skins.empty());
+  for (const std::string_view bone : {"body_root", "leg_1_l_upper",
+                                      "leg_1_l_lower", "leg_4_r_upper",
+                                      "leg_4_r_lower"})
+    assert(std::ranges::find(spider->nodes, bone,
+                             &demi::assets::GltfSkinnedModel3D::Node::name) !=
+           spider->nodes.end());
+  std::vector<demi::runtime::Vec3> spiderBind;
+  std::vector<demi::runtime::Vec3> spiderPosed;
+  assert(spider->bindPosePositions(spiderBind, error));
+  assert(spider->bindPosePositions(
+      spiderPosed, error,
+      {{"leg_1_l_upper",
+        {.start = {0, 0, 0}, .end = {0, 1, 0}, .pole = {1, 0, 0}}}}));
+  assert(std::ranges::any_of(
+      std::views::iota(std::size_t{0}, spiderBind.size()),
+      [&](const std::size_t index) {
+        return distanceSquared(spiderBind[index], spiderPosed[index]) >
+               0.0001F;
+      }));
 
   std::cout << "gltf skinned model tests passed\n";
   return 0;

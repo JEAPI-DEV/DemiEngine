@@ -21,6 +21,7 @@
 #include "demi/runtime/scripting/bindings/data/LuaDataBindings.h"
 #include "demi/runtime/scripting/bindings/hud/LuaHudBindings.h"
 #include "demi/runtime/scripting/bindings/isometric/LuaIsoGridBindings.h"
+#include "demi/runtime/scripting/bindings/math/LuaVectorMathBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaAudioBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaCutsceneBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaVideoBindings.h"
@@ -77,6 +78,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaRegexBindingModule regex;
   const LuaRandomBindingModule random;
   const LuaIsoGridBindingModule isoGrid;
+  const LuaVectorMathBindingModule vectorMath;
   const LuaAnimationBindingModule animation;
   const LuaAssetsBindingModule assets;
   const LuaNavigation2DBindingModule navigation2D;
@@ -105,6 +107,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
                                        &regex,
                                        &random,
                                        &isoGrid,
+                                       &vectorMath,
                                        &animation,
                                        &assets,
                                        &navigation2D,

@@ -1,5 +1,7 @@
 #include "demi/runtime/animation/AnimationCollision2DSystem.h"
 #include "demi/runtime/animation/AnimationStateMachineSystem.h"
+#include "demi/runtime/animation/ProceduralIk.h"
+#include "demi/runtime/math/VectorMath.h"
 #include "demi/runtime/scene/components/2dcomponents/SpriteAnimator2DComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/SpriteComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/Transform2DComponent.h"
@@ -7,12 +9,42 @@
 #include "demi/runtime/scene/components/animation/AnimationCollision2DComponent.h"
 #include "demi/runtime/scene/components/animation/AnimationStateMachineComponent.h"
 
+#include <cmath>
 #include <iostream>
 #include <nlohmann/json.hpp>
 
 using namespace demi::runtime;
 
 int main() {
+  const Vec3 interpolated = math::lerp(Vec3{}, {2, 4, 6}, 0.25F);
+  if (interpolated.x != 0.5F || interpolated.y != 1.0F ||
+      interpolated.z != 1.5F ||
+      std::abs(math::smoothstep(0.0F, 1.0F, 0.5F) - 0.5F) > 0.0001F) {
+    std::cerr << "Shared vector interpolation helpers failed.\n";
+    return 1;
+  }
+  const auto ik2D = solveTwoBoneIk2D({0, 0}, {1, 1}, {0, 2}, 1.0F, 1.0F);
+  if (!ik2D || !ik2D->reached || std::abs(ik2D->joint.x) > 0.0001F ||
+      std::abs(ik2D->joint.y - 1.0F) > 0.0001F) {
+    std::cerr << "Two-bone 2D IK did not bend toward its pole.\n";
+    return 1;
+  }
+  const auto ik3D =
+      solveTwoBoneIk3D({0, 0, 0}, {1, 0, 0}, {0, 1, 0}, 1.0F, 1.0F);
+  if (!ik3D || !ik3D->reached || std::abs(ik3D->joint.x - 0.5F) > 0.0001F ||
+      ik3D->joint.y < 0.8F || std::abs(ik3D->joint.z) > 0.0001F) {
+    std::cerr << "Two-bone 3D IK did not solve in the pole plane.\n";
+    return 1;
+  }
+  const auto clamped =
+      solveTwoBoneIk3D({0, 0, 0}, {4, 0, 0}, {0, 1, 0}, 1.0F, 1.0F);
+  if (!clamped || clamped->reached ||
+      std::abs(clamped->end.x - 2.0F) > 0.0001F ||
+      solveTwoBoneIk3D({}, {}, {}, 0.0F, 1.0F)) {
+    std::cerr << "Two-bone IK reach clamping was not deterministic.\n";
+    return 1;
+  }
+
   Entity source;
   source.id = "source";
   Transform2DComponent::parse(nlohmann::json::parse(R"({"position":[0,0]})"),

@@ -1,0 +1,35 @@
+{
+  "format_version": 1,
+  "canvas_size": [960, 540],
+  "root": {
+    "id": "ui_root",
+    "type": "container",
+    "dock": "fill",
+    "children": [
+      {
+        "id": "title",
+        "type": "label",
+        "text": "PROCEDURAL SPIDER IK",
+        "position": [24, 22],
+        "font_size": 28,
+        "text_color": "#E9D5B9"
+      },
+      {
+        "id": "mode",
+        "type": "label",
+        "text": "Generating terrain...",
+        "position": [25, 58],
+        "font_size": 19,
+        "text_color": "#9ED7C7"
+      },
+      {
+        "id": "help",
+        "type": "label",
+        "text": "Feet are planted by physics raycasts; every knee is solved at runtime.",
+        "position": [25, 492],
+        "font_size": 17,
+        "text_color": "#B8C1D1"
+      }
+    ]
+  }
+}
