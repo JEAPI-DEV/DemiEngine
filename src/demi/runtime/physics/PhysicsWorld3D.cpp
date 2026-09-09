@@ -12,7 +12,7 @@
 #include <Jolt/Jolt.h>
 
 #include <Jolt/Core/Factory.h>
-#include <Jolt/Core/JobSystemSingleThreaded.h>
+#include <Jolt/Core/JobSystemThreadPool.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Geometry/Triangle.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
@@ -38,6 +38,7 @@
 #include <cmath>
 #include <cstdint>
 #include <mutex>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -46,6 +47,13 @@ namespace {
 
 constexpr JPH::ObjectLayer StaticLayer = 0;
 constexpr JPH::ObjectLayer MovingLayer = 1;
+
+[[nodiscard]] int physicsWorkerCount() {
+  const unsigned available = std::thread::hardware_concurrency();
+  if (available <= 1)
+    return 0;
+  return static_cast<int>(std::min(available - 1U, 8U));
+}
 
 class BroadPhaseLayers final : public JPH::BroadPhaseLayerInterface {
 public:
@@ -134,6 +142,11 @@ struct JoltLifetime {
          entity.hasComponent<CapsuleCollider3DComponent>() ||
          entity.hasComponent<ConvexCollider3DComponent>() ||
          entity.hasComponent<ModelCollider3DComponent>();
+}
+
+[[nodiscard]] bool reportsContacts(const Entity &entity) {
+  const auto *body = entity.component<Rigidbody3DComponent>();
+  return body == nullptr || body->reportContacts;
 }
 
 [[nodiscard]] bool hasCharacterCollider(const Entity &entity) {
@@ -280,7 +293,6 @@ void mix(std::uint64_t &hash, const bool value) {
     for (float value : {body->mass, body->linearDamping, body->angularDamping,
                         body->friction, body->restitution, body->gravityScale})
       mix(hash, value);
-    mix(hash, body->continuous);
     mix(hash, body->allowSleep);
   }
   return hash;
@@ -390,6 +402,7 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
     Vec3 currentPosition;
     Vec3 lastAuthoredPosition;
     Vec3 lastAuthoredRotation;
+    bool continuous = false;
     bool added = true;
   };
   struct RawContact {
@@ -412,13 +425,16 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
   ObjectVsBroadPhaseFilter objectVsBroadPhase;
   ObjectLayerPairFilter layerPairs;
   JPH::TempAllocatorMalloc allocator;
-  JPH::JobSystemSingleThreaded jobs{JPH::cMaxPhysicsJobs};
+  JPH::JobSystemThreadPool jobs{JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers,
+                                physicsWorkerCount()};
   JPH::PhysicsSystem physics;
   World *world = nullptr;
   std::unordered_map<std::string, BodyRecord> bodies;
   std::unordered_map<std::string, CharacterRecord> characters;
   std::unordered_map<std::uint32_t, std::string> ids;
+  std::unordered_map<std::uint32_t, Entity *> entitiesByBodyId;
   std::unordered_map<std::string, RawContact> contacts;
+  std::mutex contactsMutex;
 
   Impl() {
     physics.Init(65536, 0, 65536, 10240, broadPhaseLayers, objectVsBroadPhase,
@@ -440,13 +456,18 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
     return found == ids.end() ? std::string{} : found->second;
   }
 
+  [[nodiscard]] Entity *entityFor(const JPH::BodyID body) const {
+    const auto found = entitiesByBodyId.find(body.GetIndexAndSequenceNumber());
+    return found == entitiesByBodyId.end() ? nullptr : found->second;
+  }
+
   JPH::ValidateResult
   OnContactValidate(const JPH::Body &first, const JPH::Body &second,
                     JPH::RVec3Arg, const JPH::CollideShapeResult &) override {
     if (world == nullptr)
       return JPH::ValidateResult::RejectAllContactsForThisBodyPair;
-    const Entity *firstEntity = findEntity(*world, idFor(first.GetID()));
-    const Entity *secondEntity = findEntity(*world, idFor(second.GetID()));
+    const Entity *firstEntity = entityFor(first.GetID());
+    const Entity *secondEntity = entityFor(second.GetID());
     return firstEntity != nullptr && secondEntity != nullptr &&
                    layersCollide(*world, *firstEntity, *secondEntity)
                ? JPH::ValidateResult::AcceptAllContactsForThisBodyPair
@@ -459,10 +480,20 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
     const std::string secondId = idFor(second.GetID());
     if (firstId.empty() || secondId.empty())
       return;
+    const Entity *firstEntity = entityFor(first.GetID());
+    const Entity *secondEntity = entityFor(second.GetID());
+    const std::string key = pairKey(firstId, secondId);
+    if (firstEntity == nullptr || secondEntity == nullptr ||
+        (!reportsContacts(*firstEntity) && !reportsContacts(*secondEntity))) {
+      std::scoped_lock lock(contactsMutex);
+      contacts.erase(key);
+      return;
+    }
     const JPH::RVec3 point = manifold.mRelativeContactPointsOn1.empty()
                                  ? manifold.mBaseOffset
                                  : manifold.GetWorldSpaceContactPointOn1(0);
-    contacts[pairKey(firstId, secondId)] = {
+    std::scoped_lock lock(contactsMutex);
+    contacts[key] = {
         .first = firstId,
         .second = secondId,
         .point = demi(point),
@@ -485,8 +516,10 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
   void OnContactRemoved(const JPH::SubShapeIDPair &pair) override {
     const std::string first = idFor(pair.GetBody1ID());
     const std::string second = idFor(pair.GetBody2ID());
-    if (!first.empty() && !second.empty())
+    if (!first.empty() && !second.empty()) {
+      std::scoped_lock lock(contactsMutex);
       contacts.erase(pairKey(first, second));
+    }
   }
 };
 
@@ -508,160 +541,186 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
   impl_->physics.SetGravity(jolt(gravity));
   auto &interface = impl_->physics.GetBodyInterface();
   std::unordered_set<std::string> live;
+  impl_->entitiesByBodyId.clear();
+  impl_->entitiesByBodyId.reserve(impl_->bodies.size() + 1);
 
-  for (Entity &entity : world.entities) {
-    if (!entity.enabled || !entity.hasComponent<Transform3DComponent>() ||
-        !hasCollider(entity) ||
-        entity.hasComponent<CharacterController3DComponent>())
-      continue;
-    live.insert(entity.id);
-    auto *body = entity.component<Rigidbody3DComponent>();
-    const std::uint64_t signature = shapeSignature(world, entity);
-    auto found = impl_->bodies.find(entity.id);
-    if (found != impl_->bodies.end() && found->second.signature != signature) {
-      interface.RemoveBody(found->second.body);
-      interface.DestroyBody(found->second.body);
-      impl_->ids.erase(found->second.body.GetIndexAndSequenceNumber());
-      impl_->bodies.erase(found);
-      found = impl_->bodies.end();
-    }
+  {
+    ProfileScope scope("Physics3D.sync_bodies");
+    for (Entity &entity : world.entities) {
+      if (!entity.enabled || !entity.hasComponent<Transform3DComponent>() ||
+          !hasCollider(entity) ||
+          entity.hasComponent<CharacterController3DComponent>())
+        continue;
+      live.insert(entity.id);
+      auto *body = entity.component<Rigidbody3DComponent>();
+      const std::uint64_t signature = shapeSignature(world, entity);
+      auto found = impl_->bodies.find(entity.id);
+      if (found != impl_->bodies.end() &&
+          found->second.signature != signature) {
+        interface.RemoveBody(found->second.body);
+        interface.DestroyBody(found->second.body);
+        impl_->ids.erase(found->second.body.GetIndexAndSequenceNumber());
+        impl_->bodies.erase(found);
+        found = impl_->bodies.end();
+      }
 
-    const Transform3DComponent &local =
-        *entity.component<Transform3DComponent>();
-    const auto resolved = resolveWorldTransform3D(world, entity);
-    if (!resolved)
-      continue;
-    if (found == impl_->bodies.end()) {
-      JPH::ShapeRefC shape;
-      {
-        ProfileScope scope("Physics3D.create_shape");
-        shape = shapeFor(world, entity);
-      }
-      if (shape == nullptr)
+      const Transform3DComponent &local =
+          *entity.component<Transform3DComponent>();
+      const auto resolved = resolveWorldTransform3D(world, entity);
+      if (!resolved)
         continue;
-      JPH::BodyCreationSettings settings(
-          shape,
-          JPH::RVec3(resolved->position.x, resolved->position.y,
-                     resolved->position.z),
-          joltRotation(resolved->rotation), motionType(body),
-          motionType(body) == JPH::EMotionType::Static ? StaticLayer
-                                                       : MovingLayer);
-      if (body != nullptr) {
-        settings.mLinearVelocity = jolt(body->velocity);
-        settings.mAngularVelocity = jolt(body->angularVelocity);
-        settings.mLinearDamping = body->linearDamping;
-        settings.mAngularDamping = body->angularDamping;
-        settings.mGravityFactor = body->useGravity ? body->gravityScale : 0.0F;
-        settings.mFriction = body->friction;
-        settings.mRestitution = body->restitution;
-        settings.mAllowSleeping = body->allowSleep;
-        settings.mMotionQuality = body->continuous
-                                      ? JPH::EMotionQuality::LinearCast
-                                      : JPH::EMotionQuality::Discrete;
-        settings.mAllowedDOFs = allowedDofs(*body);
-        settings.mOverrideMassProperties =
-            JPH::EOverrideMassProperties::CalculateInertia;
-        settings.mMassPropertiesOverride.mMass = body->mass;
-      }
-      settings.mIsSensor = isTrigger(entity);
-      JPH::Body *created = interface.CreateBody(settings);
-      if (created == nullptr)
-        continue;
-      const JPH::BodyID bodyId = created->GetID();
-      interface.AddBody(bodyId, body != nullptr && body->awake
-                                    ? JPH::EActivation::Activate
-                                    : JPH::EActivation::DontActivate);
-      if (body != nullptr && !body->bodyEnabled)
-        interface.RemoveBody(bodyId);
-      impl_->ids[bodyId.GetIndexAndSequenceNumber()] = entity.id;
-      found = impl_->bodies
-                  .emplace(entity.id,
-                           Impl::BodyRecord{
-                               .body = bodyId,
-                               .signature = signature,
-                               .previousPosition = resolved->position,
-                               .currentPosition = resolved->position,
-                               .lastAuthoredPosition = local.position,
-                               .lastAuthoredRotation = local.rotation,
-                               .added = body == nullptr || body->bodyEnabled})
-                  .first;
-    } else {
-      Impl::BodyRecord &record = found->second;
-      const bool authoredTransformChanged =
-          local.position.x != record.lastAuthoredPosition.x ||
-          local.position.y != record.lastAuthoredPosition.y ||
-          local.position.z != record.lastAuthoredPosition.z ||
-          local.rotation.x != record.lastAuthoredRotation.x ||
-          local.rotation.y != record.lastAuthoredRotation.y ||
-          local.rotation.z != record.lastAuthoredRotation.z;
-      if (authoredTransformChanged ||
-          motionType(body) != JPH::EMotionType::Dynamic) {
-        interface.SetPositionAndRotationWhenChanged(
-            record.body,
+      if (found == impl_->bodies.end()) {
+        JPH::ShapeRefC shape;
+        {
+          ProfileScope scope("Physics3D.create_shape");
+          shape = shapeFor(world, entity);
+        }
+        if (shape == nullptr)
+          continue;
+        JPH::BodyCreationSettings settings(
+            shape,
             JPH::RVec3(resolved->position.x, resolved->position.y,
                        resolved->position.z),
-            joltRotation(resolved->rotation), JPH::EActivation::Activate);
-      }
-      if (body != nullptr) {
-        if (body->bodyEnabled != record.added) {
-          if (body->bodyEnabled)
-            interface.AddBody(record.body, JPH::EActivation::Activate);
-          else
-            interface.RemoveBody(record.body);
-          record.added = body->bodyEnabled;
+            joltRotation(resolved->rotation), motionType(body),
+            motionType(body) == JPH::EMotionType::Static ? StaticLayer
+                                                         : MovingLayer);
+        if (body != nullptr) {
+          settings.mLinearVelocity = jolt(body->velocity);
+          settings.mAngularVelocity = jolt(body->angularVelocity);
+          settings.mLinearDamping = body->linearDamping;
+          settings.mAngularDamping = body->angularDamping;
+          settings.mGravityFactor =
+              body->useGravity ? body->gravityScale : 0.0F;
+          settings.mFriction = body->friction;
+          settings.mRestitution = body->restitution;
+          settings.mAllowSleeping = body->allowSleep;
+          settings.mMotionQuality = body->continuous
+                                        ? JPH::EMotionQuality::LinearCast
+                                        : JPH::EMotionQuality::Discrete;
+          settings.mAllowedDOFs = allowedDofs(*body);
+          settings.mOverrideMassProperties =
+              JPH::EOverrideMassProperties::CalculateInertia;
+          settings.mMassPropertiesOverride.mMass = body->mass;
         }
-        interface.SetLinearAndAngularVelocity(record.body, jolt(body->velocity),
-                                              jolt(body->angularVelocity));
-        interface.SetGravityFactor(
-            record.body, body->useGravity ? body->gravityScale : 0.0F);
-        if (body->awake)
-          interface.ActivateBody(record.body);
-        else
-          interface.DeactivateBody(record.body);
+        settings.mIsSensor = isTrigger(entity);
+        JPH::Body *created = interface.CreateBody(settings);
+        if (created == nullptr)
+          continue;
+        const JPH::BodyID bodyId = created->GetID();
+        interface.AddBody(bodyId, body != nullptr && body->awake
+                                      ? JPH::EActivation::Activate
+                                      : JPH::EActivation::DontActivate);
+        if (body != nullptr && !body->bodyEnabled)
+          interface.RemoveBody(bodyId);
+        impl_->ids[bodyId.GetIndexAndSequenceNumber()] = entity.id;
+        found =
+            impl_->bodies
+                .emplace(entity.id,
+                         Impl::BodyRecord{
+                             .body = bodyId,
+                             .signature = signature,
+                             .previousPosition = resolved->position,
+                             .currentPosition = resolved->position,
+                             .lastAuthoredPosition = local.position,
+                             .lastAuthoredRotation = local.rotation,
+                             .continuous = body != nullptr && body->continuous,
+                             .added = body == nullptr || body->bodyEnabled})
+                .first;
+      } else {
+        Impl::BodyRecord &record = found->second;
+        const bool authoredTransformChanged =
+            local.position.x != record.lastAuthoredPosition.x ||
+            local.position.y != record.lastAuthoredPosition.y ||
+            local.position.z != record.lastAuthoredPosition.z ||
+            local.rotation.x != record.lastAuthoredRotation.x ||
+            local.rotation.y != record.lastAuthoredRotation.y ||
+            local.rotation.z != record.lastAuthoredRotation.z;
+        if (authoredTransformChanged ||
+            motionType(body) == JPH::EMotionType::Kinematic) {
+          interface.SetPositionAndRotationWhenChanged(
+              record.body,
+              JPH::RVec3(resolved->position.x, resolved->position.y,
+                         resolved->position.z),
+              joltRotation(resolved->rotation), JPH::EActivation::Activate);
+        }
+        if (body != nullptr) {
+          if (body->bodyEnabled != record.added) {
+            if (body->bodyEnabled)
+              interface.AddBody(record.body, JPH::EActivation::Activate);
+            else
+              interface.RemoveBody(record.body);
+            record.added = body->bodyEnabled;
+          }
+          if (motionType(body) != JPH::EMotionType::Static) {
+            interface.SetLinearAndAngularVelocity(
+                record.body, jolt(body->velocity), jolt(body->angularVelocity));
+            interface.SetGravityFactor(
+                record.body, body->useGravity ? body->gravityScale : 0.0F);
+            if (body->continuous != record.continuous) {
+              interface.SetMotionQuality(record.body,
+                                         body->continuous
+                                             ? JPH::EMotionQuality::LinearCast
+                                             : JPH::EMotionQuality::Discrete);
+              record.continuous = body->continuous;
+            }
+            if (body->awake)
+              interface.ActivateBody(record.body);
+            else
+              interface.DeactivateBody(record.body);
+          }
+        }
+        record.lastAuthoredPosition = local.position;
+        record.lastAuthoredRotation = local.rotation;
       }
-      record.lastAuthoredPosition = local.position;
-      record.lastAuthoredRotation = local.rotation;
-    }
-    if (body != nullptr && found != impl_->bodies.end()) {
-      Impl::BodyRecord &record = found->second;
-      if (body->hasKinematicTarget && body->bodyType == "kinematic" &&
-          body->kinematicTargetDt > 0.0F) {
-        interface.MoveKinematic(record.body,
-                                JPH::RVec3(body->kinematicTargetPosition.x,
-                                           body->kinematicTargetPosition.y,
-                                           body->kinematicTargetPosition.z),
-                                joltRotation(body->kinematicTargetRotation),
-                                body->kinematicTargetDt);
+      if (body != nullptr && found != impl_->bodies.end()) {
+        Impl::BodyRecord &record = found->second;
+        if (body->hasKinematicTarget && body->bodyType == "kinematic" &&
+            body->kinematicTargetDt > 0.0F) {
+          interface.MoveKinematic(record.body,
+                                  JPH::RVec3(body->kinematicTargetPosition.x,
+                                             body->kinematicTargetPosition.y,
+                                             body->kinematicTargetPosition.z),
+                                  joltRotation(body->kinematicTargetRotation),
+                                  body->kinematicTargetDt);
+        }
+        if (body->accumulatedForce.x != 0.0F ||
+            body->accumulatedForce.y != 0.0F ||
+            body->accumulatedForce.z != 0.0F)
+          interface.AddForce(record.body, jolt(body->accumulatedForce));
+        if (body->accumulatedImpulse.x != 0.0F ||
+            body->accumulatedImpulse.y != 0.0F ||
+            body->accumulatedImpulse.z != 0.0F)
+          interface.AddImpulse(record.body, jolt(body->accumulatedImpulse));
+        if (body->accumulatedTorque.x != 0.0F ||
+            body->accumulatedTorque.y != 0.0F ||
+            body->accumulatedTorque.z != 0.0F)
+          interface.AddTorque(record.body, jolt(body->accumulatedTorque));
+        body->accumulatedForce = {};
+        body->accumulatedImpulse = {};
+        body->accumulatedTorque = {};
+        body->hasKinematicTarget = false;
+        body->kinematicTargetDt = 0.0F;
       }
-      if (body->accumulatedForce.x != 0.0F ||
-          body->accumulatedForce.y != 0.0F || body->accumulatedForce.z != 0.0F)
-        interface.AddForce(record.body, jolt(body->accumulatedForce));
-      if (body->accumulatedImpulse.x != 0.0F ||
-          body->accumulatedImpulse.y != 0.0F ||
-          body->accumulatedImpulse.z != 0.0F)
-        interface.AddImpulse(record.body, jolt(body->accumulatedImpulse));
-      if (body->accumulatedTorque.x != 0.0F ||
-          body->accumulatedTorque.y != 0.0F ||
-          body->accumulatedTorque.z != 0.0F)
-        interface.AddTorque(record.body, jolt(body->accumulatedTorque));
-      body->accumulatedForce = {};
-      body->accumulatedImpulse = {};
-      body->accumulatedTorque = {};
-      body->hasKinematicTarget = false;
-      body->kinematicTargetDt = 0.0F;
+      if (found != impl_->bodies.end())
+        impl_
+            ->entitiesByBodyId[found->second.body.GetIndexAndSequenceNumber()] =
+            &entity;
     }
   }
 
-  for (auto iterator = impl_->bodies.begin();
-       iterator != impl_->bodies.end();) {
-    if (live.contains(iterator->first)) {
-      ++iterator;
-      continue;
+  {
+    ProfileScope scope("Physics3D.remove_bodies");
+    for (auto iterator = impl_->bodies.begin();
+         iterator != impl_->bodies.end();) {
+      if (live.contains(iterator->first)) {
+        ++iterator;
+        continue;
+      }
+      interface.RemoveBody(iterator->second.body);
+      interface.DestroyBody(iterator->second.body);
+      impl_->ids.erase(iterator->second.body.GetIndexAndSequenceNumber());
+      iterator = impl_->bodies.erase(iterator);
     }
-    interface.RemoveBody(iterator->second.body);
-    interface.DestroyBody(iterator->second.body);
-    impl_->ids.erase(iterator->second.body.GetIndexAndSequenceNumber());
-    iterator = impl_->bodies.erase(iterator);
   }
 
   {
@@ -671,208 +730,247 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
 
   std::unordered_set<std::string> liveCharacters;
   std::vector<PhysicsContact3D> characterContacts;
-  for (Entity &entity : world.entities) {
-    auto *transform = entity.component<Transform3DComponent>();
-    auto *controller = entity.component<CharacterController3DComponent>();
-    if (!entity.enabled || transform == nullptr || controller == nullptr)
-      continue;
-    liveCharacters.insert(entity.id);
-    if (!hasCharacterCollider(entity)) {
-      impl_->characters.erase(entity.id);
-      controller->grounded = false;
-      controller->groundEntity.clear();
+  {
+    ProfileScope scope("Physics3D.update_characters");
+    for (Entity &entity : world.entities) {
+      auto *transform = entity.component<Transform3DComponent>();
+      auto *controller = entity.component<CharacterController3DComponent>();
+      if (!entity.enabled || transform == nullptr || controller == nullptr)
+        continue;
+      liveCharacters.insert(entity.id);
+      if (!hasCharacterCollider(entity)) {
+        impl_->characters.erase(entity.id);
+        controller->grounded = false;
+        controller->groundEntity.clear();
+        controller->desiredVelocity = {};
+        controller->requestedJumpSpeed = 0.0F;
+        continue;
+      }
+      auto found = impl_->characters.find(entity.id);
+      const std::uint64_t signature = shapeSignature(world, entity);
+      const bool settingsChanged =
+          found != impl_->characters.end() &&
+          (found->second.shapeSignature != signature ||
+           found->second.padding != controller->skinWidth ||
+           found->second.slopeLimit != controller->slopeLimit);
+      if (settingsChanged) {
+        impl_->characters.erase(found);
+        found = impl_->characters.end();
+      }
+      if (found == impl_->characters.end()) {
+        const JPH::ShapeRefC shape = shapeFor(world, entity);
+        if (shape == nullptr)
+          continue;
+        JPH::Ref<JPH::CharacterVirtualSettings> settings =
+            new JPH::CharacterVirtualSettings();
+        settings->mShape = shape;
+        settings->mMaxSlopeAngle =
+            JPH::DegreesToRadians(controller->slopeLimit);
+        settings->mCharacterPadding = controller->skinWidth;
+        // Controller transforms use their visual origin as the collider center.
+        // Contacts on the lower half of any supported shape may support it.
+        settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), 0.0F);
+        JPH::Ref<JPH::CharacterVirtual> character = new JPH::CharacterVirtual(
+            settings,
+            JPH::RVec3(transform->position.x, transform->position.y,
+                       transform->position.z),
+            joltRotation(transform->rotation), 0, &impl_->physics);
+        found = impl_->characters
+                    .emplace(entity.id,
+                             Impl::CharacterRecord{
+                                 .character = std::move(character),
+                                 .shapeSignature = signature,
+                                 .padding = controller->skinWidth,
+                                 .slopeLimit = controller->slopeLimit})
+                    .first;
+      }
+
+      JPH::CharacterVirtual &character = *found->second.character;
+      character.SetPosition(JPH::RVec3(
+          transform->position.x, transform->position.y, transform->position.z));
+      character.SetRotation(joltRotation(transform->rotation));
+      character.UpdateGroundVelocity();
+      const bool grounded = character.GetGroundState() ==
+                            JPH::CharacterBase::EGroundState::OnGround;
+      JPH::Vec3 velocity = character.GetLinearVelocity();
+      const JPH::Vec3 groundVelocity = character.GetGroundVelocity();
+      velocity.SetX(controller->desiredVelocity.x +
+                    (grounded ? groundVelocity.GetX() : 0.0F));
+      velocity.SetZ(controller->desiredVelocity.z +
+                    (grounded ? groundVelocity.GetZ() : 0.0F));
+      if (grounded && velocity.GetY() < 0.1F)
+        velocity.SetY(groundVelocity.GetY());
+      if (grounded && controller->requestedJumpSpeed > 0.0F)
+        velocity.SetY(controller->requestedJumpSpeed);
+      else
+        velocity.SetY(velocity.GetY() + controller->gravity * fixedDt);
+      character.SetLinearVelocity(velocity);
+
+      JPH::CharacterVirtual::ExtendedUpdateSettings update;
+      update.mWalkStairsStepUp = JPH::Vec3(0.0F, controller->stepHeight, 0.0F);
+      update.mStickToFloorStepDown =
+          JPH::Vec3(0.0F, -controller->stepHeight, 0.0F);
+      {
+        ProfileScope scope("Physics3D.character_update");
+        const CharacterBodyFilter bodyFilter(world, entity, impl_->ids);
+        character.ExtendedUpdate(
+            fixedDt, JPH::Vec3(0.0F, controller->gravity, 0.0F), update,
+            impl_->physics.GetDefaultBroadPhaseLayerFilter(MovingLayer),
+            impl_->physics.GetDefaultLayerFilter(MovingLayer), bodyFilter, {},
+            impl_->allocator);
+      }
+
+      const JPH::RVec3 position = character.GetPosition();
+      transform->position = demi(position);
+      controller->velocity = demi(character.GetLinearVelocity());
+      controller->grounded = character.GetGroundState() ==
+                             JPH::CharacterBase::EGroundState::OnGround;
+      controller->groundEntity = controller->grounded
+                                     ? impl_->idFor(character.GetGroundBodyID())
+                                     : std::string{};
+      const std::vector<PhysicsQueryHit3D> triggerHits = overlapCollider(
+          world, entity, transform->position, transform->rotation, entity.id);
+      for (const PhysicsQueryHit3D &hit : triggerHits) {
+        const Entity *other = findEntity(world, hit.entityId);
+        if (!hit.isTrigger || other == nullptr ||
+            !layersCollide(world, entity, *other))
+          continue;
+        characterContacts.push_back({.entityId = entity.id,
+                                     .otherEntityId = hit.entityId,
+                                     .otherLayer = hit.layer,
+                                     .point = hit.point,
+                                     .normal = hit.normal,
+                                     .isTrigger = true});
+        characterContacts.push_back(
+            {.entityId = hit.entityId,
+             .otherEntityId = entity.id,
+             .otherLayer = colliderLayer(entity),
+             .point = hit.point,
+             .normal = {-hit.normal.x, -hit.normal.y, -hit.normal.z},
+             .isTrigger = true});
+      }
       controller->desiredVelocity = {};
       controller->requestedJumpSpeed = 0.0F;
-      continue;
     }
-    auto found = impl_->characters.find(entity.id);
-    const std::uint64_t signature = shapeSignature(world, entity);
-    const bool settingsChanged =
-        found != impl_->characters.end() &&
-        (found->second.shapeSignature != signature ||
-         found->second.padding != controller->skinWidth ||
-         found->second.slopeLimit != controller->slopeLimit);
-    if (settingsChanged) {
-      impl_->characters.erase(found);
-      found = impl_->characters.end();
+    for (auto iterator = impl_->characters.begin();
+         iterator != impl_->characters.end();) {
+      if (liveCharacters.contains(iterator->first))
+        ++iterator;
+      else
+        iterator = impl_->characters.erase(iterator);
     }
-    if (found == impl_->characters.end()) {
-      const JPH::ShapeRefC shape = shapeFor(world, entity);
-      if (shape == nullptr)
+  }
+
+  {
+    ProfileScope scope("Physics3D.sync_components");
+    for (auto &[id, record] : impl_->bodies) {
+      const auto entityFound =
+          impl_->entitiesByBodyId.find(record.body.GetIndexAndSequenceNumber());
+      Entity *entity = entityFound == impl_->entitiesByBodyId.end()
+                           ? nullptr
+                           : entityFound->second;
+      auto *transform = entity != nullptr
+                            ? entity->component<Transform3DComponent>()
+                            : nullptr;
+      auto *body = entity != nullptr ? entity->component<Rigidbody3DComponent>()
+                                     : nullptr;
+      if (transform == nullptr || motionType(body) == JPH::EMotionType::Static)
         continue;
-      JPH::Ref<JPH::CharacterVirtualSettings> settings =
-          new JPH::CharacterVirtualSettings();
-      settings->mShape = shape;
-      settings->mMaxSlopeAngle = JPH::DegreesToRadians(controller->slopeLimit);
-      settings->mCharacterPadding = controller->skinWidth;
-      // Controller transforms use their visual origin as the collider center.
-      // Contacts on the lower half of any supported shape may support it.
-      settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), 0.0F);
-      JPH::Ref<JPH::CharacterVirtual> character = new JPH::CharacterVirtual(
-          settings,
-          JPH::RVec3(transform->position.x, transform->position.y,
-                     transform->position.z),
-          joltRotation(transform->rotation), 0, &impl_->physics);
-      found = impl_->characters
-                  .emplace(entity.id,
-                           Impl::CharacterRecord{
-                               .character = std::move(character),
-                               .shapeSignature = signature,
-                               .padding = controller->skinWidth,
-                               .slopeLimit = controller->slopeLimit})
-                  .first;
+      record.previousPosition = record.currentPosition;
+      const JPH::RVec3 position = interface.GetPosition(record.body);
+      const JPH::Quat rotation = interface.GetRotation(record.body);
+      record.currentPosition = demi(position);
+      if (transform->parent.empty())
+        transform->position = record.currentPosition;
+      if (transform->parent.empty())
+        transform->rotation = demi(rotation.GetEulerAngles());
+      record.lastAuthoredPosition = transform->position;
+      record.lastAuthoredRotation = transform->rotation;
+      if (body != nullptr) {
+        body->velocity = demi(interface.GetLinearVelocity(record.body));
+        body->angularVelocity = demi(interface.GetAngularVelocity(record.body));
+        body->awake = interface.IsActive(record.body);
+      }
     }
+  }
 
-    JPH::CharacterVirtual &character = *found->second.character;
-    character.SetPosition(JPH::RVec3(
-        transform->position.x, transform->position.y, transform->position.z));
-    character.SetRotation(joltRotation(transform->rotation));
-    character.UpdateGroundVelocity();
-    const bool grounded = character.GetGroundState() ==
-                          JPH::CharacterBase::EGroundState::OnGround;
-    JPH::Vec3 velocity = character.GetLinearVelocity();
-    const JPH::Vec3 groundVelocity = character.GetGroundVelocity();
-    velocity.SetX(controller->desiredVelocity.x +
-                  (grounded ? groundVelocity.GetX() : 0.0F));
-    velocity.SetZ(controller->desiredVelocity.z +
-                  (grounded ? groundVelocity.GetZ() : 0.0F));
-    if (grounded && velocity.GetY() < 0.1F)
-      velocity.SetY(groundVelocity.GetY());
-    if (grounded && controller->requestedJumpSpeed > 0.0F)
-      velocity.SetY(controller->requestedJumpSpeed);
-    else
-      velocity.SetY(velocity.GetY() + controller->gravity * fixedDt);
-    character.SetLinearVelocity(velocity);
-
-    JPH::CharacterVirtual::ExtendedUpdateSettings update;
-    update.mWalkStairsStepUp = JPH::Vec3(0.0F, controller->stepHeight, 0.0F);
-    update.mStickToFloorStepDown =
-        JPH::Vec3(0.0F, -controller->stepHeight, 0.0F);
-    {
-      ProfileScope scope("Physics3D.character_update");
-      const CharacterBodyFilter bodyFilter(world, entity, impl_->ids);
-      character.ExtendedUpdate(
-          fixedDt, JPH::Vec3(0.0F, controller->gravity, 0.0F), update,
-          impl_->physics.GetDefaultBroadPhaseLayerFilter(MovingLayer),
-          impl_->physics.GetDefaultLayerFilter(MovingLayer), bodyFilter, {},
-          impl_->allocator);
+  {
+    ProfileScope scope("Physics3D.contact_phases");
+    world.previousPhysicsContacts3D = world.physicsContacts3D;
+    world.physicsContacts3D.clear();
+    std::erase_if(impl_->contacts, [&](const auto &entry) {
+      const auto &raw = entry.second;
+      const auto firstBody = impl_->bodies.find(raw.first);
+      const auto secondBody = impl_->bodies.find(raw.second);
+      if (firstBody == impl_->bodies.end() || secondBody == impl_->bodies.end())
+        return true;
+      const Entity *first = impl_->entityFor(firstBody->second.body);
+      const Entity *second = impl_->entityFor(secondBody->second.body);
+      return first == nullptr || second == nullptr ||
+             (!reportsContacts(*first) && !reportsContacts(*second));
+    });
+    std::unordered_set<std::string> previousPairs;
+    previousPairs.reserve(world.previousPhysicsContacts3D.size());
+    for (const PhysicsContact3D &contact : world.previousPhysicsContacts3D) {
+      if (contact.phase != "exit")
+        previousPairs.insert(pairKey(contact.entityId, contact.otherEntityId));
     }
-
-    const JPH::RVec3 position = character.GetPosition();
-    transform->position = demi(position);
-    controller->velocity = demi(character.GetLinearVelocity());
-    controller->grounded = character.GetGroundState() ==
-                           JPH::CharacterBase::EGroundState::OnGround;
-    controller->groundEntity = controller->grounded
-                                   ? impl_->idFor(character.GetGroundBodyID())
-                                   : std::string{};
-    const std::vector<PhysicsQueryHit3D> triggerHits = overlapCollider(
-        world, entity, transform->position, transform->rotation, entity.id);
-    for (const PhysicsQueryHit3D &hit : triggerHits) {
-      const Entity *other = findEntity(world, hit.entityId);
-      if (!hit.isTrigger || other == nullptr ||
-          !layersCollide(world, entity, *other))
+    std::unordered_set<std::string> currentPairs;
+    currentPairs.reserve(impl_->contacts.size() + characterContacts.size());
+    std::vector<const std::pair<const std::string, Impl::RawContact> *>
+        sortedContacts;
+    sortedContacts.reserve(impl_->contacts.size());
+    for (const auto &contact : impl_->contacts)
+      sortedContacts.push_back(&contact);
+    std::ranges::sort(sortedContacts, {}, [](const auto *contact) {
+      return std::string_view(contact->first);
+    });
+    for (const auto *contact : sortedContacts) {
+      const auto &[key, raw] = *contact;
+      if (!impl_->bodies.contains(raw.first) ||
+          !impl_->bodies.contains(raw.second))
         continue;
-      characterContacts.push_back({.entityId = entity.id,
-                                   .otherEntityId = hit.entityId,
-                                   .otherLayer = hit.layer,
-                                   .point = hit.point,
-                                   .normal = hit.normal,
-                                   .isTrigger = true});
-      characterContacts.push_back(
-          {.entityId = hit.entityId,
-           .otherEntityId = entity.id,
-           .otherLayer = colliderLayer(entity),
-           .point = hit.point,
-           .normal = {-hit.normal.x, -hit.normal.y, -hit.normal.z},
-           .isTrigger = true});
+      currentPairs.insert(key);
+      const Entity *first = impl_->entityFor(impl_->bodies.at(raw.first).body);
+      const Entity *second =
+          impl_->entityFor(impl_->bodies.at(raw.second).body);
+      if (first == nullptr || second == nullptr)
+        continue;
+      const auto append =
+          [&](const std::string &entity, const std::string &other,
+              const std::string &otherLayer, const Vec3 normal) {
+            world.physicsContacts3D.push_back(
+                {.entityId = entity,
+                 .otherEntityId = other,
+                 .otherLayer = otherLayer,
+                 .phase = previousPairs.contains(key) ? "stay" : "enter",
+                 .point = raw.point,
+                 .normal = normal,
+                 .penetration = raw.penetration,
+                 .isTrigger = raw.trigger});
+          };
+      if (reportsContacts(*first))
+        append(raw.first, raw.second, colliderLayer(*second),
+               {-raw.normal.x, -raw.normal.y, -raw.normal.z});
+      if (reportsContacts(*second))
+        append(raw.second, raw.first, colliderLayer(*first), raw.normal);
     }
-    controller->desiredVelocity = {};
-    controller->requestedJumpSpeed = 0.0F;
-  }
-  for (auto iterator = impl_->characters.begin();
-       iterator != impl_->characters.end();) {
-    if (liveCharacters.contains(iterator->first))
-      ++iterator;
-    else
-      iterator = impl_->characters.erase(iterator);
-  }
-
-  for (auto &[id, record] : impl_->bodies) {
-    Entity *entity = findEntity(world, id);
-    auto *transform =
-        entity != nullptr ? entity->component<Transform3DComponent>() : nullptr;
-    auto *body =
-        entity != nullptr ? entity->component<Rigidbody3DComponent>() : nullptr;
-    if (transform == nullptr)
-      continue;
-    record.previousPosition = record.currentPosition;
-    const JPH::RVec3 position = interface.GetPosition(record.body);
-    const JPH::Quat rotation = interface.GetRotation(record.body);
-    record.currentPosition = demi(position);
-    if (transform->parent.empty())
-      transform->position = record.currentPosition;
-    if (transform->parent.empty())
-      transform->rotation = demi(rotation.GetEulerAngles());
-    record.lastAuthoredPosition = transform->position;
-    record.lastAuthoredRotation = transform->rotation;
-    if (body != nullptr) {
-      body->velocity = demi(interface.GetLinearVelocity(record.body));
-      body->angularVelocity = demi(interface.GetAngularVelocity(record.body));
-      body->awake = interface.IsActive(record.body);
+    for (PhysicsContact3D contact : characterContacts) {
+      const std::string key = pairKey(contact.entityId, contact.otherEntityId);
+      currentPairs.insert(key);
+      contact.phase = previousPairs.contains(key) ? "stay" : "enter";
+      world.physicsContacts3D.push_back(std::move(contact));
     }
-  }
-
-  world.previousPhysicsContacts3D = world.physicsContacts3D;
-  world.physicsContacts3D.clear();
-  const auto previousContains = [&](const std::string &entity,
-                                    const std::string &other) {
-    return std::ranges::any_of(
-        world.previousPhysicsContacts3D, [&](const PhysicsContact3D &contact) {
-          return contact.entityId == entity && contact.otherEntityId == other &&
-                 contact.phase != "exit";
-        });
-  };
-  for (const auto &[key, raw] : impl_->contacts) {
-    (void)key;
-    const Entity *first = findEntity(world, raw.first);
-    const Entity *second = findEntity(world, raw.second);
-    if (first == nullptr || second == nullptr)
-      continue;
-    const auto append = [&](const std::string &entity, const std::string &other,
-                            const std::string &otherLayer, const Vec3 normal) {
-      world.physicsContacts3D.push_back(
-          {.entityId = entity,
-           .otherEntityId = other,
-           .otherLayer = otherLayer,
-           .phase = previousContains(entity, other) ? "stay" : "enter",
-           .point = raw.point,
-           .normal = normal,
-           .penetration = raw.penetration,
-           .isTrigger = raw.trigger});
-    };
-    append(raw.first, raw.second, colliderLayer(*second),
-           {-raw.normal.x, -raw.normal.y, -raw.normal.z});
-    append(raw.second, raw.first, colliderLayer(*first), raw.normal);
-  }
-  for (PhysicsContact3D contact : characterContacts) {
-    contact.phase = previousContains(contact.entityId, contact.otherEntityId)
-                        ? "stay"
-                        : "enter";
-    world.physicsContacts3D.push_back(std::move(contact));
-  }
-  for (const PhysicsContact3D &previous : world.previousPhysicsContacts3D) {
-    if (previous.phase == "exit" ||
-        std::ranges::any_of(
-            world.physicsContacts3D, [&](const PhysicsContact3D &current) {
-              return current.entityId == previous.entityId &&
-                     current.otherEntityId == previous.otherEntityId;
-            }))
-      continue;
-    PhysicsContact3D exited = previous;
-    exited.phase = "exit";
-    exited.penetration = 0.0F;
-    world.physicsContacts3D.push_back(std::move(exited));
+    for (const PhysicsContact3D &previous : world.previousPhysicsContacts3D) {
+      if (previous.phase == "exit" ||
+          currentPairs.contains(
+              pairKey(previous.entityId, previous.otherEntityId)))
+        continue;
+      PhysicsContact3D exited = previous;
+      exited.phase = "exit";
+      exited.penetration = 0.0F;
+      world.physicsContacts3D.push_back(std::move(exited));
+    }
   }
 }
 
@@ -944,6 +1042,18 @@ bool PhysicsWorld3D::setEnabled(const std::string &entityId,
   else
     interface.RemoveBody(found->second.body);
   found->second.added = enabled;
+  return true;
+}
+
+bool PhysicsWorld3D::setContinuous(const std::string &entityId,
+                                   const bool continuous) {
+  const auto found = impl_->bodies.find(entityId);
+  if (found == impl_->bodies.end())
+    return false;
+  impl_->physics.GetBodyInterface().SetMotionQuality(
+      found->second.body, continuous ? JPH::EMotionQuality::LinearCast
+                                     : JPH::EMotionQuality::Discrete);
+  found->second.continuous = continuous;
   return true;
 }
 

@@ -24,29 +24,31 @@ void stepPhysics3D(World &world, float fixedDt,
 rigidbodyVelocity3D(const World &world, const std::string &entityId);
 [[nodiscard]] bool addRigidbodyForce3D(World &world,
                                        const std::string &entityId, Vec3 force);
-[[nodiscard]] bool addRigidbodyImpulse3D(World &world,
-                                         const std::string &entityId,
-                                         Vec3 impulse);
-[[nodiscard]] bool addRigidbodyTorque3D(World &world,
-                                        const std::string &entityId,
-                                        Vec3 torque);
+[[nodiscard]] bool
+addRigidbodyImpulse3D(World &world, const std::string &entityId, Vec3 impulse);
+[[nodiscard]] bool
+addRigidbodyTorque3D(World &world, const std::string &entityId, Vec3 torque);
 [[nodiscard]] bool setRigidbodyAwake3D(World &world,
                                        const std::string &entityId, bool awake);
-[[nodiscard]] bool setRigidbodyEnabled3D(World &world,
-                                         const std::string &entityId,
-                                         bool enabled);
+[[nodiscard]] bool
+setRigidbodyEnabled3D(World &world, const std::string &entityId, bool enabled);
+[[nodiscard]] bool setRigidbodyContinuous3D(World &world,
+                                            const std::string &entityId,
+                                            bool continuous);
+[[nodiscard]] bool setRigidbodyReportContacts3D(World &world,
+                                                const std::string &entityId,
+                                                bool reportContacts);
 [[nodiscard]] bool moveKinematicBody3D(World &world,
                                        const std::string &entityId,
-                                       Vec3 targetPosition,
-                                       Vec3 targetRotation, float fixedDt);
+                                       Vec3 targetPosition, Vec3 targetRotation,
+                                       float fixedDt);
 [[nodiscard]] std::vector<PhysicsContact3D>
 contactsForEntity3D(const World &world, const std::string &entityId);
 [[nodiscard]] bool setCharacterVelocity3D(World &world,
                                           const std::string &entityId,
                                           Vec3 velocity);
-[[nodiscard]] bool requestCharacterJump3D(World &world,
-                                          const std::string &entityId,
-                                          float speed);
+[[nodiscard]] bool
+requestCharacterJump3D(World &world, const std::string &entityId, float speed);
 [[nodiscard]] std::optional<CharacterMoveResult3D>
 characterState3D(const World &world, const std::string &entityId);
 

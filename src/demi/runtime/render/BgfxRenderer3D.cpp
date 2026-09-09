@@ -148,6 +148,7 @@ bool BgfxRenderer3D::initialize(std::string &error) {
 
 void BgfxRenderer3D::shutdown() {
   dynamicMeshes_.clear();
+  primitiveMeshes_.clear();
   modelMeshes_.clear();
   animatedModels_.clear();
   modelTextures_.clear();
@@ -293,7 +294,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     const auto *mesh = entity.component<MeshRendererComponent>();
     if (mesh == nullptr)
       continue;
-    if (!mesh->vertices.empty() || mesh->model.empty() ||
+    if (!mesh->vertices.empty() ||
         entity.component<AnimationPlayer3DComponent>() != nullptr)
       liveDynamicMeshes.insert(entity.id);
   }
@@ -529,11 +530,10 @@ bool BgfxRenderer3D::renderFrame(const World &world,
           }
         }
       } else {
-        const std::uint64_t signature = meshCacheRevision(*mesh);
-        auto &cached = dynamicMeshes_[entity.id];
+        auto &cached = primitiveMeshes_[mesh->shape];
         if (!cached)
           cached = std::make_unique<CachedMesh>(resources_);
-        if (cached->signature != signature || !cached->gpu.valid()) {
+        if (!cached->gpu.valid()) {
           PrimitiveMeshData3D primitive;
           if (!createPrimitiveMesh3D(mesh->shape, primitive)) {
             error = entity.id + ": unsupported primitive shape '" +
@@ -546,20 +546,35 @@ bool BgfxRenderer3D::renderFrame(const World &world,
             error = entity.id + ": " + error;
             return false;
           }
-          cached->signature = signature;
         }
         std::string textureId = mesh->texture;
         if (textureId.empty() && material != nullptr)
           textureId = material->albedoTexture;
         const TextureView2D texture = textures_.find(textureId);
-        queued = cached->gpu.draw(
-            commands_, frame.viewId, program,
-            texture.handle ? texture.handle : whiteTexture_, meshSampler_,
-            composeMeshTransform3D(transform, mesh->size), state, error,
-            drawUniforms);
-        if (queued) {
-          ++bufferedDraws;
-          bufferedTriangles += cached->gpu.indexCount() / 3U;
+        const TextureHandle resolvedTexture =
+            texture.handle ? texture.handle : whiteTexture_;
+        if (material == nullptr) {
+          const std::string groupKey =
+              "primitive\n" + mesh->shape + "\n" + std::to_string(color) +
+              "\n" + std::to_string(resolvedTexture.index) + ":" +
+              std::to_string(resolvedTexture.generation);
+          auto &[groupMesh, groupTexture, groupTint, groupUnlit, transforms] =
+              instanceGroups[groupKey];
+          groupMesh = &cached->gpu;
+          groupTexture = resolvedTexture;
+          groupTint = entityTint;
+          groupUnlit = false;
+          transforms.push_back(composeMeshTransform3D(transform, mesh->size));
+          queued = true;
+        } else {
+          queued = cached->gpu.draw(
+              commands_, frame.viewId, program, resolvedTexture, meshSampler_,
+              composeMeshTransform3D(transform, mesh->size), state, error,
+              drawUniforms);
+          if (queued) {
+            ++bufferedDraws;
+            bufferedTriangles += cached->gpu.indexCount() / 3U;
+          }
         }
       }
       if (!queued) {

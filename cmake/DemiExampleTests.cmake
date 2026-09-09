@@ -57,6 +57,17 @@ set_tests_properties(demi-runtime-physics-2d-galton-board-replay PROPERTIES
   ENVIRONMENT "DEMI_HEADLESS=1;DEMI_FIXED_DELTA_SECONDS=0.01666667"
   PASS_REGULAR_EXPRESSION "Galton distribution valid"
   TIMEOUT 60)
+add_test(NAME demi-runtime-physics-3d-galton-board-replay
+  COMMAND demi run
+    --project ${CMAKE_SOURCE_DIR}/examples/physics_3d_galton_board/demi.project.json
+    --input-replay
+      ${CMAKE_SOURCE_DIR}/examples/physics_3d_galton_board/replays/release.replay.json
+    --max-frames 4800
+)
+set_tests_properties(demi-runtime-physics-3d-galton-board-replay PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1;DEMI_FIXED_DELTA_SECONDS=0.01666667"
+  PASS_REGULAR_EXPRESSION "3D Galton distribution valid"
+  TIMEOUT 180)
 add_test(NAME demi-cook-fighting-game-2d
   COMMAND demi cook
     --project ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/demi.project.json
@@ -271,6 +282,14 @@ foreach(script_name board game)
       ${CMAKE_SOURCE_DIR}/examples/physics_2d_galton_board/scripts/${script_name}.lua
   )
 endforeach()
+add_test(NAME demi-validate-physics-3d-galton-board
+  COMMAND demi validate
+    ${CMAKE_SOURCE_DIR}/examples/physics_3d_galton_board/demi.project.json
+)
+add_test(NAME demi-script-check-physics-3d-galton-board-game
+  COMMAND demi script check
+    ${CMAKE_SOURCE_DIR}/examples/physics_3d_galton_board/scripts/game.lua
+)
 add_test(NAME demi-script-check-production-2d-foundation
   COMMAND demi script check
     ${CMAKE_SOURCE_DIR}/examples/production_2d_foundation/scripts/demo.lua

@@ -29,6 +29,8 @@ public:
   [[nodiscard]] bool addTorque(const std::string &entityId, Vec3 torque);
   [[nodiscard]] bool setAwake(const std::string &entityId, bool awake);
   [[nodiscard]] bool setEnabled(const std::string &entityId, bool enabled);
+  [[nodiscard]] bool setContinuous(const std::string &entityId,
+                                   bool continuous);
   [[nodiscard]] bool setKinematicTarget(const std::string &entityId,
                                         Vec3 position, Vec3 rotation,
                                         float fixedDt);

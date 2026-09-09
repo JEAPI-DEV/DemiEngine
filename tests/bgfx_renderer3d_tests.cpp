@@ -92,6 +92,14 @@ int main() {
   const std::uint32_t batchesWithoutDebugGeometry =
       renderer.statistics().batches;
   static_cast<void>(graphics.endFrame());
+  for (int index = 0; index < 64; ++index) {
+    world.entities.push_back(shape("sphere_copy_" + std::to_string(index),
+                                   "sphere", {0.0F, 0.0F, 0.0F}));
+  }
+  assert(renderer.renderFrame(world, frame, 0.016F, error));
+  assert(renderer.statistics().visibleMeshes == 69U);
+  assert(renderer.statistics().batches == batchesWithoutDebugGeometry);
+  static_cast<void>(graphics.endFrame());
   // The second frame reuses the resident procedural buffers. Changing the
   // revision replaces them, and removing the owner releases the cache entry.
   assert(renderer.renderFrame(world, frame, 0.016F, error));

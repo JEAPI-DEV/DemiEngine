@@ -236,8 +236,7 @@ public:
   [[nodiscard]] bool setAnimationBoneSegment(const std::string &entityId,
                                              const std::string &bone,
                                              Vec3 start, Vec3 end, Vec3 pole);
-  [[nodiscard]] bool clearAnimationBoneSegments(
-      const std::string &entityId);
+  [[nodiscard]] bool clearAnimationBoneSegments(const std::string &entityId);
   [[nodiscard]] std::optional<Vec2>
   getRigidbodyVelocity(const std::string &entityId) const;
   [[nodiscard]] bool setRigidbodyVelocity(const std::string &entityId, float x,
@@ -277,6 +276,10 @@ public:
                                          bool awake);
   [[nodiscard]] bool setRigidbodyEnabled3D(const std::string &entityId,
                                            bool enabled);
+  [[nodiscard]] bool setRigidbodyContinuous3D(const std::string &entityId,
+                                              bool continuous);
+  [[nodiscard]] bool setRigidbodyReportContacts3D(const std::string &entityId,
+                                                  bool reportContacts);
   [[nodiscard]] bool moveKinematicBody3D(const std::string &entityId, float x,
                                          float y, float z, float rotationX,
                                          float rotationY, float rotationZ,

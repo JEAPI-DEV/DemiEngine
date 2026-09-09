@@ -1,0 +1,37 @@
+{
+  "format_version": 1,
+  "name": "3D Physics Galton Board",
+  "main_scene": "scene://physics_3d_galton_board/main",
+  "scenes": [
+    {
+      "id": "scene://physics_3d_galton_board/main",
+      "path": "scenes/main.scene.json"
+    }
+  ],
+  "gameplay_model": {
+    "projection": "3d",
+    "physics": "jolt"
+  },
+  "assets": [
+    "asset://materials/glass"
+  ],
+  "simulation": {
+    "fixed_timestep": 0.016666667,
+    "random_seed": 314159,
+    "maximum_fixed_steps_per_frame": 2
+  },
+  "input": {
+    "actions": {
+      "release": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [{ "input": "key:space" }]
+      },
+      "reset": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [{ "input": "key:r" }]
+      }
+    }
+  }
+}

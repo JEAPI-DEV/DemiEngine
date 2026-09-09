@@ -6,6 +6,10 @@ components and services on Linux and Android. The dependency is pinned in
 CMake, cross-platform deterministic mode is enabled, and unrelated Jolt
 samples, viewers, shader backends, and tests are disabled.
 
+Rigid-body simulation uses a capped Jolt worker pool on multicore systems.
+Contact callbacks are collected safely and sorted by stable entity-pair key
+before gameplay dispatch so worker scheduling does not define Lua event order.
+
 ## Bodies and colliders
 
 `Rigidbody3D` supports static, kinematic, and dynamic motion, gravity, mass,
@@ -14,6 +18,12 @@ torque, continuous collision, sleep, runtime enable, translation/rotation
 locks, kinematic targets, and render interpolation. Use `Rigidbody3D` from Lua
 to issue runtime commands. Do not move dynamic bodies by repeatedly writing
 `Transform3D`; physics owns their simulated transform.
+
+Lua can switch continuous detection with `Rigidbody3D.set_continuous` once a
+fast body has slowed down. `report_contacts` and
+`Rigidbody3D.set_report_contacts` control contact extraction and callbacks
+without changing physical collision; disable reporting for bodies whose
+contacts are no longer observed, such as settled objects in a large pile.
 
 One entity may have one explicit collider:
 

@@ -95,6 +95,17 @@ bool testFixedStepSimulation() {
     std::cerr << "Settled body did not expose its floor contact.\n";
     return false;
   }
+  if (!setRigidbodyReportContacts3D(world, "crate", false) ||
+      !setRigidbodyReportContacts3D(world, "floor", false)) {
+    std::cerr << "Could not disable 3D contact reporting.\n";
+    return false;
+  }
+  stepPhysics3D(world, 1.0F / 60.0F);
+  stepPhysics3D(world, 1.0F / 60.0F);
+  if (!world.physicsContacts3D.empty()) {
+    std::cerr << "Opted-out 3D bodies retained reported contacts.\n";
+    return false;
+  }
   return true;
 }
 
@@ -135,6 +146,13 @@ bool testContinuousCollisionAndCommands() {
   const Entity *projectile = findEntity(world, "projectile");
   if (projectile->component<Transform3DComponent>()->position.x > 0.2F) {
     std::cerr << "Continuous 3D body tunneled through a thin wall.\n";
+    return false;
+  }
+  if (!setRigidbodyContinuous3D(world, "projectile", false) ||
+      projectile->component<Rigidbody3DComponent>()->continuous ||
+      !setRigidbodyContinuous3D(world, "projectile", true) ||
+      !projectile->component<Rigidbody3DComponent>()->continuous) {
+    std::cerr << "Runtime 3D continuous collision switching failed.\n";
     return false;
   }
 

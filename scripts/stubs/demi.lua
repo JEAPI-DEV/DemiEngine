@@ -996,6 +996,14 @@ function Rigidbody3D.set_awake(entity_id, awake) end
 ---@return boolean
 function Rigidbody3D.set_enabled(entity_id, enabled) end
 ---@param entity_id string
+---@param continuous boolean
+---@return boolean
+function Rigidbody3D.set_continuous(entity_id, continuous) end
+---@param entity_id string
+---@param report_contacts boolean
+---@return boolean
+function Rigidbody3D.set_report_contacts(entity_id, report_contacts) end
+---@param entity_id string
 ---@param x number
 ---@param y number
 ---@param z number

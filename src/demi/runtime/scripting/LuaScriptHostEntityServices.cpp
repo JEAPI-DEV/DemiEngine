@@ -514,8 +514,8 @@ bool LuaScriptHost::setRigidbodyContinuous(const std::string &entityId,
          demi::runtime::setRigidbodyContinuous(*world_, entityId, continuous);
 }
 
-bool LuaScriptHost::setRigidbodyReportContacts(
-    const std::string &entityId, const bool reportContacts) {
+bool LuaScriptHost::setRigidbodyReportContacts(const std::string &entityId,
+                                               const bool reportContacts) {
   return world_ != nullptr && demi::runtime::setRigidbodyReportContacts(
                                   *world_, entityId, reportContacts);
 }
@@ -571,6 +571,18 @@ bool LuaScriptHost::setRigidbodyEnabled3D(const std::string &entityId,
                                           const bool enabled) {
   return world_ != nullptr &&
          demi::runtime::setRigidbodyEnabled3D(*world_, entityId, enabled);
+}
+
+bool LuaScriptHost::setRigidbodyContinuous3D(const std::string &entityId,
+                                             const bool continuous) {
+  return world_ != nullptr &&
+         demi::runtime::setRigidbodyContinuous3D(*world_, entityId, continuous);
+}
+
+bool LuaScriptHost::setRigidbodyReportContacts3D(const std::string &entityId,
+                                                 const bool reportContacts) {
+  return world_ != nullptr && demi::runtime::setRigidbodyReportContacts3D(
+                                  *world_, entityId, reportContacts);
 }
 
 bool LuaScriptHost::moveKinematicBody3D(const std::string &entityId,
