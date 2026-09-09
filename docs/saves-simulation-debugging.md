@@ -13,9 +13,16 @@ Projects can configure reproducible simulation:
 ```json
 "simulation": {
   "fixed_timestep": 0.016666667,
-  "random_seed": 2026
+  "random_seed": 2026,
+  "maximum_fixed_steps_per_frame": 4
 }
 ```
+
+`maximum_fixed_steps_per_frame` bounds catch-up work after a slow rendered
+frame. Excess whole steps are reported as `Simulation.dropped_fixed_ms` and
+discarded, leaving the interpolation remainder intact. This prevents a slow
+physics frame from creating an unbounded catch-up spiral while every executed
+simulation step still uses the authored fixed timestep.
 
 Lua gameplay uses `Random.seed`, `Random.value`, `Random.range`, and
 `Random.integer`. `Random.state` and `Random.restore` allow a save or test to

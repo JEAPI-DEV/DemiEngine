@@ -138,6 +138,24 @@ bool setRigidbodyEnabled(World &world, const std::string &entityId,
   return true;
 }
 
+bool setRigidbodyContinuous(World &world, const std::string &entityId,
+                            const bool continuous) {
+  Entity *entity = findEntity(world, entityId);
+  if (entity == nullptr || !entity->hasComponent<Rigidbody2DComponent>())
+    return false;
+  entity->component<Rigidbody2DComponent>()->continuous = continuous;
+  return true;
+}
+
+bool setRigidbodyReportContacts(World &world, const std::string &entityId,
+                                const bool reportContacts) {
+  Entity *entity = findEntity(world, entityId);
+  if (entity == nullptr || !entity->hasComponent<Rigidbody2DComponent>())
+    return false;
+  entity->component<Rigidbody2DComponent>()->reportContacts = reportContacts;
+  return true;
+}
+
 bool moveKinematicBody(World &world, const std::string &entityId,
                        const Vec2 target, const float fixedDt) {
   Entity *entity = findEntity(world, entityId);

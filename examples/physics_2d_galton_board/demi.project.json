@@ -14,7 +14,8 @@
   },
   "simulation": {
     "fixed_timestep": 0.016666667,
-    "random_seed": 314159
+    "random_seed": 314159,
+    "maximum_fixed_steps_per_frame": 2
   },
   "input": {
     "actions": {

@@ -291,6 +291,23 @@ int LuaScriptHost::emitEvent(const std::string &eventName,
   return delivered;
 }
 
+bool LuaScriptHost::hasEventListener(const std::string_view eventName) const {
+  if (eventName.empty())
+    return false;
+  for (const EventSubscription &subscription : eventSubscriptions_)
+    if (!subscription.cancelled && subscription.eventName == eventName)
+      return true;
+  for (const ScriptInstance &script : scripts_)
+    for (const LuaEventHandler &handler : script.eventHandlers)
+      if (handler.eventName == eventName)
+        return true;
+  for (const ModuleActionHandler &module : moduleActionHandlers_)
+    for (const LuaEventHandler &handler : module.eventHandlers)
+      if (handler.eventName == eventName)
+        return true;
+  return false;
+}
+
 void LuaScriptHost::dispatchHudEvents() {
   auto *state = static_cast<lua_State *>(state_);
   if (state == nullptr || world_ == nullptr || input_ == nullptr) {

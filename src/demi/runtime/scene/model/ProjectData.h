@@ -33,6 +33,7 @@ struct PhysicsLayer2D {
 struct SimulationConfig {
   float fixedTimestep = 1.0F / 60.0F;
   std::uint64_t randomSeed = 1;
+  int maximumFixedStepsPerFrame = 4;
 };
 
 struct DisplayConfig {

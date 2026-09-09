@@ -296,6 +296,11 @@ end
 function Probe:handle_script_event(event)
   Save.set_string("test", "script_event", event.value)
 end
+-- @OnEvent("physics_collision_enter")
+function Probe:handle_physics_event(event)
+  Save.set_string("test", "physics_event",
+    event.entity_id .. ":" .. event.other_entity_id .. ":" .. event.phase)
+end
 function Probe:on_update(dt)
   if Input.ui_pointer_captured() then
     Save.set_string("test", "ui_pointer_capture", "captured")
@@ -775,7 +780,15 @@ return PropProbe
                  "transform.\n";
     return 1;
   }
+  world.physicsContacts.push_back({.entityId = "probe",
+                                   .otherEntityId = "floor",
+                                   .phase = "enter"});
   host.update(1.0F / 60.0F);
+  world.physicsContacts.clear();
+  if (host.saveString("test", "physics_event") != "probe:floor:enter") {
+    std::cerr << "Subscribed physics event was skipped by Lua dispatch.\n";
+    return 1;
+  }
   if (host.saveString("test", "space") != "up") {
     std::cerr << "Input.is_down returned true for an unpressed key.\n";
     return 1;

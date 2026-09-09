@@ -257,6 +257,10 @@ public:
   [[nodiscard]] bool setRigidbodyAwake(const std::string &entityId, bool awake);
   [[nodiscard]] bool setRigidbodyEnabled(const std::string &entityId,
                                          bool enabled);
+  [[nodiscard]] bool setRigidbodyContinuous(const std::string &entityId,
+                                            bool continuous);
+  [[nodiscard]] bool setRigidbodyReportContacts(const std::string &entityId,
+                                                bool reportContacts);
   [[nodiscard]] bool moveKinematicBody(const std::string &entityId, float x,
                                        float y, float fixedDt);
   [[nodiscard]] std::optional<Vec3>
@@ -615,6 +619,8 @@ public:
   }
 
 private:
+  [[nodiscard]] bool hasEventListener(std::string_view eventName) const;
+
   struct ScriptInstance {
     std::string entityId;
     std::string module;

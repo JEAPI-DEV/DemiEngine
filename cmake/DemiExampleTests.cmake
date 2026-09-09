@@ -51,11 +51,12 @@ add_test(NAME demi-runtime-physics-2d-galton-board-replay
     --project ${CMAKE_SOURCE_DIR}/examples/physics_2d_galton_board/demi.project.json
     --input-replay
       ${CMAKE_SOURCE_DIR}/examples/physics_2d_galton_board/replays/release.replay.json
-    --max-frames 1560
+    --max-frames 4200
 )
 set_tests_properties(demi-runtime-physics-2d-galton-board-replay PROPERTIES
   ENVIRONMENT "DEMI_HEADLESS=1;DEMI_FIXED_DELTA_SECONDS=0.01666667"
-  PASS_REGULAR_EXPRESSION "Galton board release complete: 250 balls")
+  PASS_REGULAR_EXPRESSION "Galton distribution valid"
+  TIMEOUT 60)
 add_test(NAME demi-cook-fighting-game-2d
   COMMAND demi cook
     --project ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/demi.project.json

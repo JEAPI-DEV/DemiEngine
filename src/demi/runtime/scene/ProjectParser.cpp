@@ -40,6 +40,10 @@ parseProjectData(const std::filesystem::path &projectPath, const Json &document,
         1.0F / 1000.0F, 1.0F);
     project.simulation.randomSeed = static_cast<std::uint64_t>(
         std::max(numberField(*simulation, "random_seed").value_or(1.0F), 1.0F));
+    project.simulation.maximumFixedStepsPerFrame = static_cast<int>(std::clamp(
+        numberField(*simulation, "maximum_fixed_steps_per_frame")
+            .value_or(4.0F),
+        1.0F, 16.0F));
   }
 
   if (const Json *display = objectField(document, "display"))

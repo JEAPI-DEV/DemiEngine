@@ -84,7 +84,10 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
   luaHost.beginFrame(dt);
   const float scaledDt = luaHost.deltaTime();
   fixedAccumulator += scaledDt;
-  while (fixedAccumulator >= fixedStep) {
+  int fixedSteps = 0;
+  const int maximumFixedSteps =
+      loaded.project.simulation.maximumFixedStepsPerFrame;
+  while (fixedAccumulator >= fixedStep && fixedSteps < maximumFixedSteps) {
     {
       ProfileScope scope("Lua.fixed_update");
       luaHost.fixedUpdate(static_cast<float>(fixedStep));
@@ -101,7 +104,17 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
     }
     luaHost.advanceFixedTime(fixedStep);
     fixedAccumulator -= fixedStep;
+    ++fixedSteps;
   }
+  double droppedFixedSeconds = 0.0;
+  if (fixedAccumulator >= fixedStep) {
+    const double retained = std::fmod(fixedAccumulator, fixedStep);
+    droppedFixedSeconds = fixedAccumulator - retained;
+    fixedAccumulator = retained;
+  }
+  RuntimeProfiler::setGauge("Simulation.fixed_steps", fixedSteps);
+  RuntimeProfiler::setGauge("Simulation.dropped_fixed_ms",
+                            droppedFixedSeconds * 1000.0);
 
   {
     ProfileScope scope("Network.update");
