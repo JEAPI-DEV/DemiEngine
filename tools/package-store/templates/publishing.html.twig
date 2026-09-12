@@ -1,8 +1,31 @@
 {% extends 'base.html.twig' %}
-{% block title %}Publishing guide — DemiEngine Store{% endblock %}
+{% block title %}Publish a package — DemiEngine{% endblock %}
 {% block body %}
-<article class="guide"><a class="back" href="/packages/">← Explore packages</a><div class="eyebrow muted">SHARE YOUR BUILDING BLOCKS</div><h1>A home for<br>useful packages.</h1><p class="lead">The store currently publishes free packages through a curated release process. Public uploads and paid listings are not enabled.</p>
-<h2>Every listing starts with a clear identity.</h2><p>Provide a title, description, publisher, license, category, and package type. Asset packages can include a cover and up to seven additional images. Without a cover, the DemiEngine Asset logo appears automatically.</p>
-<h2>Package once. Install anywhere.</h2><p>Releases use the engine’s versioned <code>.demipkg</code> archive format, with checksums and declared dependencies. The catalog API is available at <a href="/v1/catalog">/v1/catalog</a>; the engine uses <code>/v1/packages/{name}</code>.</p>
-<h2>Publishing for maintainers</h2><p>Build your package with the engine, then import its archive and listing metadata over SSH using the store’s console command. Publication validates checksums and is immutable: updates require a new version. See the deployment README for the exact commands and metadata example.</p><a class="button" href="/packages/">Explore the collection →</a></article>
+<article class="guide publish-page"><a class="back" href="{{ path('catalog') }}">← Explore packages</a>
+<div class="eyebrow muted">SHARE YOUR BUILDING BLOCKS</div><h1>Publish your<br>next package.</h1>
+<p class="lead">Publish a new release or update how your existing packages appear in the store.</p>
+<section id="publish-unlock" class="publish-box"><h2>Publisher access</h2><p>A private publishing key is required. It is used for this page only and is not saved in your browser.</p>
+<form id="key-form"><label for="publishing-key">Publishing key</label><input id="publishing-key" type="password" autocomplete="off" spellcheck="false" required placeholder="Paste your publishing key">
+<label for="publishing-key-file">Or load your key file</label><input id="publishing-key-file" type="file"><button class="button" type="submit">Unlock publishing →</button></form></section>
+<form id="publish-form" class="publish-box" hidden>
+<div class="publish-heading"><h2 id="publish-heading">New release</h2><button type="button" class="apply" id="lock-publishing">Lock publishing</button></div>
+<label for="publish-mode">Action</label><select id="publish-mode"><option value="new">New release</option><option value="edit">Edit listing</option></select>
+<div id="listing-picker" hidden><label for="listing-package">Existing package</label><select id="listing-package"><option value="">Choose a package…</option></select><p id="listing-identity" class="install-hint"></p></div>
+<div id="archive-field"><label for="archive">Package archive</label><input id="archive" name="archive" type="file" accept=".demipkg" required><small>A DemiEngine .demipkg archive, up to 512 MB.</small></div>
+<label for="publish-title">Title</label><input id="publish-title" name="title" maxlength="100" required>
+<label for="publish-description">Description</label><textarea id="publish-description" name="description" rows="5" maxlength="6000" required></textarea>
+<div class="publish-grid"><div><label for="publish-publisher">Publisher</label><input id="publish-publisher" name="publisher" maxlength="100" required></div>
+<div><label for="publish-license">License</label><select id="publish-license" name="license">{% for id,name in licenses %}<option value="{{ id }}">{{ id }}</option>{% endfor %}</select></div>
+<div><label for="publish-kind">Type</label><select id="publish-kind" name="kind"><option value="code">Code &amp; systems</option><option value="asset">Assets</option></select></div>
+<div><label for="publish-category">Category</label><select id="publish-category" name="category">{% for category in categories %}<option>{{ category }}</option>{% endfor %}</select></div></div>
+<label for="publish-tags">Tags</label><input id="publish-tags" name="tags" placeholder="combat, gameplay, 3d"><small>Up to 12 tags, separated by commas.</small>
+<fieldset id="existing-previews" hidden><legend>Keep existing previews</legend><div id="existing-preview-options"></div><small>Uncheck an image to remove it from the listing. Kept images stay first, followed by new uploads and links.</small></fieldset>
+<label for="publish-images">Preview images</label><input id="publish-images" type="file" multiple accept="image/png,image/jpeg,image/webp"><small>First image is the cover. Up to eight previews in total, 10 MB each. Optional; the DemiEngine Asset logo is used when none are supplied.</small>
+<label for="publish-image-links">Additional image links</label><textarea id="publish-image-links" rows="2" placeholder="https://example.org/preview.png"></textarea><small>One HTTPS URL per line, shown after uploaded images.</small>
+<p class="install-hint">All packages are free. Each version can be published once. The package name and version come from the archive.</p>
+<button class="button" id="publish-submit" type="submit">Publish package ↑</button>
+</form>
+<p id="publish-status" role="status" aria-live="polite"></p>
+<noscript><p>Enable JavaScript to use the publishing form, or use the command-line uploader.</p></noscript>
+</article>
 {% endblock %}

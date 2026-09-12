@@ -1,0 +1,60 @@
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+
+(async () => {
+  // Run only against an isolated, disposable server configured with this test key.
+  const base = 'http://127.0.0.1:8087';
+  const browser = await chromium.launch();
+  const page = await browser.newPage({viewport:{width:390,height:844}});
+  await page.goto(base+'/publishing');
+  await page.getByLabel('Publishing key',{exact:true}).fill('b'.repeat(64));
+  await page.getByRole('button',{name:'Unlock publishing'}).click();
+  await page.waitForFunction(()=>document.getElementById('publish-status').textContent.includes('valid publishing key'));
+  assert.equal(await page.locator('#publish-form').isVisible(),false);
+  await page.getByLabel('Publishing key',{exact:true}).fill('a'.repeat(64));
+  await page.getByRole('button',{name:'Unlock publishing'}).click();
+  await page.locator('#archive').waitFor({state:'visible'});
+  const payload = Buffer.from('A browser publication fixture.');
+  const manifest = {format_version:1,name:'test.browser',version:'1.0.0',engine:'*',
+    dependencies:{},files:['README.md'],public_modules:[],exported_events:[]};
+  const header = Buffer.from(JSON.stringify({format_version:1,package_type:'DemiProjectPackage',manifest,
+    files:[{path:'README.md',size:payload.length,hash:'sha256:'+crypto.createHash('sha256').update(payload).digest('hex')}]}));
+  const size = Buffer.alloc(8); size.writeBigUInt64LE(BigInt(header.length));
+  const archive = Buffer.concat([Buffer.from('DEMI-PROJECT-PACKAGE\n'),size,header,payload]);
+  await page.locator('#archive').setInputFiles({name:'test.demipkg',mimeType:'application/octet-stream',buffer:archive});
+  await page.getByLabel('Title',{exact:true}).fill('Browser publication');
+  await page.getByLabel('Description',{exact:true}).fill('A test upload from the protected publishing form.');
+  await page.getByLabel('Publisher',{exact:true}).fill('Test Publisher');
+  await page.getByLabel('Tags',{exact:true}).fill('test, browser');
+  await page.getByRole('button',{name:'Publish package'}).click();
+  await page.getByRole('link',{name:'View package'}).waitFor();
+  assert.equal(await page.locator('#publish-form').isVisible(),false);
+  assert.equal(await page.getByLabel('Publishing key',{exact:true}).inputValue(),'');
+  await page.getByRole('link',{name:'View package'}).click();
+  assert.equal(await page.locator('h1').textContent(),'Browser publication');
+  const before = await (await page.request.get(base+'/v1/packages/test.browser/1.0.0/archive')).body();
+  await page.goto(base+'/publishing');
+  await page.getByLabel('Publishing key',{exact:true}).fill('a'.repeat(64));
+  await page.getByRole('button',{name:'Unlock publishing'}).click();
+  await page.locator('#publish-form').waitFor({state:'visible'});
+  await page.getByLabel('Action',{exact:true}).selectOption('edit');
+  await page.getByLabel('Existing package',{exact:true}).selectOption('test.browser');
+  await page.waitForFunction(()=>document.getElementById('publish-status').textContent.includes('Listing loaded'));
+  assert.equal(await page.getByLabel('Title',{exact:true}).inputValue(),'Browser publication');
+  assert.equal(await page.locator('#archive').isVisible(),false);
+  await page.getByLabel('Title',{exact:true}).fill('Edited browser listing');
+  await page.getByLabel('Tags',{exact:true}).fill('edited, browser');
+  await page.locator('#publish-images').setInputFiles({name:'cover.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6R9sAAAAASUVORK5CYII=','base64')});
+  await page.getByRole('button',{name:'Save listing'}).click();
+  await page.getByRole('link',{name:'View package'}).waitFor();
+  assert.equal(await page.getByLabel('Publishing key',{exact:true}).inputValue(),'');
+  await page.getByRole('link',{name:'View package'}).click();
+  assert.equal(await page.locator('h1').textContent(),'Edited browser listing');
+  const after = await (await page.request.get(base+'/v1/packages/test.browser/1.0.0/archive')).body();
+  assert.deepEqual(after,before);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
+  await browser.close();
+  console.log('Protected publish/edit: wrong key rejected, publication and edit succeeded, archive unchanged, key cleared, mobile layout passed.');
+})().catch(error=>{console.error(error);process.exitCode=1;});

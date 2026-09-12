@@ -53,6 +53,7 @@ $fixture = sys_get_temp_dir().'/demi-store-import-'.bin2hex(random_bytes(8));
 $filesystem = new Symfony\Component\Filesystem\Filesystem();
 $filesystem->mkdir($fixture);
 $oldData = getenv('DEMI_STORE_DATA');
+$oldKeyHash = getenv('DEMI_PUBLISH_TOKEN_HASH');
 try {
     putenv('DEMI_STORE_DATA='.$fixture.'/catalog');
     file_put_contents($fixture.'/package.demipkg', $make());
@@ -77,7 +78,7 @@ try {
     check($command->run($input,$output) === 0, 'gallery import succeeds');
     $record = (new Catalog())->find('test.asset');
     check(count($record['images']) === 2, 'gallery preserves two images');
-    check(is_file((new Catalog())->directory($record).'/image-0.png'), 'local image copied into release');
+    check(is_file((new Catalog())->directory($record).'/'.basename($record['images'][0])), 'local image copied into release');
     $hashBefore = hash_file('sha256',(new Catalog())->directory($record).'/package.demipkg');
     $imagesBefore = $record['images'];
     $metadata['tags'] = ['updated'];
@@ -99,8 +100,71 @@ try {
     check(str_contains($response->getContent(),'readme.txt') && !str_contains($response->getContent(),'hello'), 'content shows filename, not payload');
     $galleryKernel->terminate($request,$response);
     $galleryKernel->shutdown();
+    putenv('DEMI_STORE_DATA='.$fixture.'/http-catalog');
+    $testKey = str_repeat('a',64);
+    putenv('DEMI_PUBLISH_TOKEN_HASH='.hash('sha256',$testKey));
+    $httpKernel = new App\Kernel('test',false);
+    $request = Request::create('/api/publishing/check','POST');
+    $response = $httpKernel->handle($request);
+    check($response->getStatusCode() === 401,'missing key denied');
+    check($response->headers->get('Cache-Control') === 'no-store, private','auth response not cached');
+    $httpKernel->terminate($request,$response);
+    $request = Request::create('/api/publishing/releases','POST',[],[],[],['HTTP_AUTHORIZATION'=>'Bearer '.str_repeat('b',64)]);
+    $response = $httpKernel->handle($request);
+    check($response->getStatusCode() === 401,'wrong key denied before parsing upload');
+    $httpKernel->terminate($request,$response);
+    check((new Catalog())->all() === [],'unauthorized uploads create no releases');
+    $httpMetadata = $base + ['format_version'=>1];
+    $publish = function(array $data) use ($httpKernel,$fixture,$testKey) {
+        $file = new Symfony\Component\HttpFoundation\File\UploadedFile($fixture.'/package.demipkg','test.demipkg',null,null,true);
+        $request = Request::create('/api/publishing/releases','POST',['metadata'=>json_encode($data)],[],['archive'=>$file],['HTTP_AUTHORIZATION'=>'Bearer '.$testKey]);
+        $response = $httpKernel->handle($request);
+        $httpKernel->terminate($request,$response);
+        return $response;
+    };
+    check($publish($httpMetadata+['images'=>['../cover.png']])->getStatusCode() === 422,'HTTP images cannot read server files');
+    check($publish($httpMetadata)->getStatusCode() === 201,'authorized HTTP publication succeeds');
+    check($publish($httpMetadata)->getStatusCode() === 409,'HTTP release overwrite rejected');
+    $original = (new Catalog())->find('test.asset');
+    $archiveHash = hash_file('sha256',(new Catalog())->directory($original).'/package.demipkg');
+    $revision = App\ListingEditor::revision($original);
+    $edit = function(array $data, string $rev, string $key, array $files = [], string $name = 'test.asset') use ($httpKernel) {
+        $request = Request::create('/api/publishing/listings','POST',[
+            'name'=>$name,'version'=>'1.0.0','revision'=>$rev,'metadata'=>json_encode($data)
+        ],[],$files,['HTTP_AUTHORIZATION'=>'Bearer '.$key]);
+        $response = $httpKernel->handle($request);
+        $httpKernel->terminate($request,$response);
+        return $response;
+    };
+    $edited = array_replace($httpMetadata,['title'=>'Edited listing','tags'=>['edited'],'images'=>['cover.png']]);
+    $imageUpload = new Symfony\Component\HttpFoundation\File\UploadedFile($fixture.'/cover.png','cover.png',null,null,true);
+    check($edit($edited,$revision,'')->getStatusCode() === 401,'unauthenticated edit denied');
+    check($edit($edited,$revision,$testKey,[],'missing')->getStatusCode() === 404,'unknown edit target rejected');
+    check($edit($edited+['archive_hash'=>'changed'],$revision,$testKey)->getStatusCode() === 422,'immutable metadata fields rejected');
+    check($edit(array_replace($edited,['images'=>['/etc/passwd']]),$revision,$testKey)->getStatusCode() === 422,'edit cannot reference arbitrary server files');
+    check($edit($edited,$revision,$testKey,['images'=>[$imageUpload]])->getStatusCode() === 200,'edit with preview upload succeeds');
+    $updated = (new Catalog())->find('test.asset');
+    check($updated['title']==='Edited listing' && $updated['tags']===['edited'],'listing details persisted');
+    check(json_encode($updated['manifest'])===json_encode($original['manifest']) && $updated['archive_hash']===$original['archive_hash'] &&
+        $updated['published_at']===$original['published_at'] && $updated['bytes']===$original['bytes'],'release contract unchanged');
+    check(hash_file('sha256',(new Catalog())->directory($updated).'/package.demipkg')===$archiveHash,'archive bytes unchanged');
+    $request = Request::create($updated['images'][0]);
+    $response = $httpKernel->handle($request);
+    check($response->getStatusCode()===200,'new preview is served');
+    $httpKernel->terminate($request,$response);
+    check($edit($edited,$revision,$testKey)->getStatusCode() === 409,'stale listing edit rejected');
+    $edited['images'] = $updated['images'];
+    check($edit($edited,App\ListingEditor::revision($updated),$testKey)->getStatusCode()===200,'existing preview retained');
+    $edited['images'] = [];
+    $updated = (new Catalog())->find('test.asset');
+    check($edit($edited,App\ListingEditor::revision($updated),$testKey)->getStatusCode()===200,'all previews can be removed');
+    check((new Catalog())->find('test.asset')['images']===['/images/demi-asset.svg'],'removed previews use fallback');
+    putenv('DEMI_PUBLISH_TOKEN_HASH='.hash('sha256',str_repeat('c',64)));
+    check($publish($httpMetadata)->getStatusCode() === 401,'rotating key revokes old key');
+    $httpKernel->shutdown();
 } finally {
     putenv($oldData === false ? 'DEMI_STORE_DATA' : 'DEMI_STORE_DATA='.$oldData);
+    putenv($oldKeyHash === false ? 'DEMI_PUBLISH_TOKEN_HASH' : 'DEMI_PUBLISH_TOKEN_HASH='.$oldKeyHash);
     $filesystem->remove($fixture);
 }
 

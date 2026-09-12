@@ -52,6 +52,8 @@ hyphens; maximum 40 characters). They are searchable, filterable, and determine
 related packages. Title/description and tags can be updated without replacing
 archives: php bin/console store:update-listing package.name metadata.json.
 This command preserves existing images, archive bytes, hashes and release dates.
+It applies the listing details to all existing versions. Browser editing below
+targets the latest version shown in the storefront instead.
 
 License IDs reference the shared Licenses service and licenses/*.txt pool.
 BSD-3-Clause, MIT, Apache-2.0 and CC0-1.0 are included from SPDX license-list-data
@@ -67,15 +69,51 @@ Publisher info displays the listing's publisher. Reviews are not implemented.
 
 ## Publish
 
-Publishing is currently restricted to maintainers with SSH access; no anonymous
-upload or unauthenticated PUT/reset endpoint is exposed.
+Maintainers publish at https://demiengine.de/publishing using a private publishing
+key. Load the key file or paste its contents, unlock the form, then upload the
+archive and listing details. The browser keeps the key only in memory and clears
+it after publication or when locked. Visitors without a valid key cannot upload.
+
+To change an existing listing, unlock the page, choose **Edit listing**, and
+select the package. Its current details are filled in automatically. Edit the
+title, description, publisher, license label, type, category or tags; keep or
+remove existing previews and upload replacements. Saving updates the listing
+without uploading an archive. An empty gallery uses the DemiEngine Asset logo.
+Changing the license label does not change license files inside the archive.
+Package identity, version, manifest, archive hash/bytes and release date remain
+unchanged. Concurrent edits are rejected until the listing is reloaded. Old
+preview files remain available for previously loaded pages; they are not deleted.
 
 1. Build a .demipkg using the engine's local registry publish command:
    demi package publish path/to/package --registry /path/to/staging-registry
-2. Transfer the resulting package.demipkg, metadata JSON and local preview images
-   to the server.
-3. Run the store console with access to the persistent data directory:
-   DEMI_STORE_DATA=/var/lib/demi-store/catalog php bin/console store:import package.demipkg metadata.json
+2. Upload the resulting archive through the publishing page, or use the uploader:
+   python3 tools/package-store/bin/publish.py package.demipkg metadata.json
+
+The uploader reads ~/.config/demi-store/publish-token by default (override with
+--key-file or DEMI_PUBLISH_KEY), and uses https://demiengine.de (override with
+--registry). Local preview paths in metadata are relative to the metadata file.
+The key is sent over HTTPS in an Authorization header, not in command arguments.
+The server-side store:import console command remains available for operators.
+
+Operators store only the SHA-256 digest of the 64-character lowercase hex key
+(without its trailing newline) in /etc/demi-store/publish-token.sha256, readable
+by www-data but not public. DEMI_PUBLISH_KEY_FILE overrides this location;
+DEMI_PUBLISH_TOKEN_HASH can instead supply the digest through the environment.
+Replace the digest to revoke the old key. Keep the actual key outside the repo.
+
+POST /api/publishing/check verifies a Bearer key. POST /api/publishing/releases
+accepts authenticated multipart fields archive, metadata (JSON), and optional
+images[] whose filenames match metadata image entries. Responses are 201 for
+publication, 401 for unauthorized access, 409 for an existing version, and 422
+for invalid input. Publishing without a configured key is disabled.
+
+GET /api/publishing/listings/{name} requires the same Bearer key and returns
+the latest record plus its revision token. POST /api/publishing/listings accepts
+name, version, revision, metadata (complete JSON listing), and optional images[].
+Only listing fields are accepted; archive uploads are rejected. Existing image
+references may be retained only from that release. Successful edits return 200;
+a stale revision returns 409 and a missing package/version returns 404. This
+endpoint uses the same Nginx authentication and upload limits as new releases.
 
 The import command checks identity, archive file checksums, paths, file sizes,
 declared contents and trailing data before publication. Existing versions cannot
@@ -111,6 +149,10 @@ pagination, release history, image gallery and a copyable CLI command.
 - deploy/nginx.conf and deploy/fpm-pool.conf define the dedicated virtual host/pool.
 - APP_ENV=prod; debugging and display_errors disabled.
 - Nginx rate-limits dynamic requests. PHP-FPM workers run as www-data.
+- The catalog directories must be writable by www-data; application source must
+  remain read-only. Uploads allow a 512 MiB archive plus previews (600 MiB request
+  limit), with five publishing requests per minute and a burst of three. Nginx
+  checks authentication before passing the upload body to PHP.
 - TLS is provisioned with Certbot for demiengine.de after its A record resolves.
 
 Before switching current, install locked dependencies, warm the Symfony production

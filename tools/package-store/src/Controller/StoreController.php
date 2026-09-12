@@ -126,17 +126,25 @@ final class StoreController extends AbstractController
         return $response;
     }
 
-    #[Route('/media/{name}/{version}/{file}', name: 'media', requirements: ['file' => 'image-[0-7]\.(png|jpg|webp)'], methods: ['GET'])]
+    #[Route('/media/{name}/{version}/{file}', name: 'media', requirements: ['file' => 'image-([0-7]|[a-f0-9]{64})\.(png|jpg|webp)'], methods: ['GET'])]
     public function media(string $name, string $version, string $file): BinaryFileResponse
     {
         $record = $this->catalog->find($name, $version);
         if (!$record || !is_file($this->catalog->directory($record).'/'.$file)) { throw $this->createNotFoundException(); }
-        return new BinaryFileResponse($this->catalog->directory($record).'/'.$file);
+        $mime = match (pathinfo($file, PATHINFO_EXTENSION)) {
+            'png' => 'image/png', 'jpg' => 'image/jpeg', 'webp' => 'image/webp',
+        };
+        return new BinaryFileResponse($this->catalog->directory($record).'/'.$file, 200, ['Content-Type' => $mime]);
     }
 
     #[Route('/health', name: 'health', methods: ['GET'])]
     public function health(): JsonResponse { return $this->json(['status' => 'ok', 'format_version' => 1]); }
 
     #[Route('/publishing', name: 'publishing', methods: ['GET'])]
-    public function publishing(): Response { return $this->render('publishing.html.twig'); }
+    public function publishing(): Response
+    {
+        return $this->render('publishing.html.twig', [
+            'categories' => Catalog::CATEGORIES, 'licenses' => Licenses::NAMES,
+        ]);
+    }
 }
