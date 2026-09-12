@@ -29,7 +29,7 @@ using UniformHandle = ResourceHandle<UniformTag>;
 enum class TextureFormat { R8, RGBA8, BGRA8 };
 enum class TextureFilter { Linear, Nearest };
 enum class TextureWrap { Clamp, Repeat, Mirror };
-enum class BufferKind { Vertex, Index16, Index32 };
+enum class BufferKind { Vertex, DynamicVertex, Index16, Index32 };
 enum class BuiltinProgram {
   Textured2D,
   VertexColor3D,
@@ -128,9 +128,8 @@ public:
 
   [[nodiscard]] virtual TextureHandle
   createTexture(const TextureCreateInfo &info, std::string &error) = 0;
-  [[nodiscard]] virtual bool updateTexture(TextureHandle,
-                                           const TextureUpdateInfo &,
-                                           std::string &error) {
+  [[nodiscard]] virtual bool
+  updateTexture(TextureHandle, const TextureUpdateInfo &, std::string &error) {
     error = "This graphics resource backend cannot update textures.";
     return false;
   }
@@ -142,6 +141,11 @@ public:
                                                     std::string &error) = 0;
   [[nodiscard]] virtual BufferHandle createBuffer(const BufferCreateInfo &info,
                                                   std::string &error) = 0;
+  [[nodiscard]] virtual bool
+  updateBuffer(BufferHandle, std::span<const std::byte>, std::string &error) {
+    error = "This graphics resource backend cannot update buffers.";
+    return false;
+  }
   [[nodiscard]] virtual ProgramHandle
   createProgram(const ProgramCreateInfo &info, std::string &error) = 0;
   [[nodiscard]] virtual ProgramHandle

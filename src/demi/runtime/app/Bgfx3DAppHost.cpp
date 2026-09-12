@@ -166,6 +166,8 @@ bool Bgfx3DAppHost::renderFrames(
     frameStatistics_.consideredMeshes += cameraStatistics.consideredMeshes;
     frameStatistics_.visibleMeshes += cameraStatistics.visibleMeshes;
     frameStatistics_.culledMeshes += cameraStatistics.culledMeshes;
+    frameStatistics_.mediumLodMeshes += cameraStatistics.mediumLodMeshes;
+    frameStatistics_.lowLodMeshes += cameraStatistics.lowLodMeshes;
     frameExtractionMilliseconds_ +=
         renderer_->renderer.lastExtractionMilliseconds();
   }

@@ -1,5 +1,13 @@
 # Lightweight 3D Gameplay
 
+For a download-free third-person starting point, use
+`examples/third_person_foundation`. Its editable room and fighter prefab exercise
+the `demi.gameplay.third_person` package: mouse orbit, collision, movement,
+directional rolls, stamina and melee windup/active/recovery. See the example
+README for setup and controls. The room uses simple pose cues for mechanics
+testing; model retargeting, animation events and GPU skinning remain separate
+experimental 3D work.
+
 DemiEngine uses Jolt Physics 5.6.0 behind `PhysicsWorld3D`. Jolt types do not
 cross the engine boundary, so scenes and Lua code use stable DemiEngine
 components and services on Linux and Android. The dependency is pinned in

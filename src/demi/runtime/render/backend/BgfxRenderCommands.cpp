@@ -149,7 +149,8 @@ bool validateBufferedSlices(const BufferSlice vertices,
   nativeVertices = resources.bgfxBuffer(vertices.handle);
   nativeIndices = resources.bgfxBuffer(indices.handle);
   if (nativeVertices.index == UINT16_MAX ||
-      nativeVertices.kind != BufferKind::Vertex) {
+      (nativeVertices.kind != BufferKind::Vertex &&
+       nativeVertices.kind != BufferKind::DynamicVertex)) {
     error = std::string(drawName) + " references a stale or non-vertex buffer.";
     return false;
   }
@@ -313,8 +314,12 @@ public:
                                resources_, program, error, "Buffered draw"))
       return false;
 
-    bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle{vertices.index},
-                          draw.vertices.first, draw.vertices.count);
+    if (vertices.kind == BufferKind::DynamicVertex)
+      bgfx::setVertexBuffer(0, bgfx::DynamicVertexBufferHandle{vertices.index},
+                            draw.vertices.first, draw.vertices.count);
+    else
+      bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle{vertices.index},
+                            draw.vertices.first, draw.vertices.count);
     bgfx::setIndexBuffer(bgfx::IndexBufferHandle{indices.index},
                          draw.indices.first, draw.indices.count);
     bgfx::setTransform(draw.transform.data());
@@ -358,8 +363,12 @@ public:
     bgfx::allocInstanceDataBuffer(&instances, instanceCount, TransformStride);
     std::memcpy(instances.data, draw.transforms.data(),
                 draw.transforms.size_bytes());
-    bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle{vertices.index},
-                          draw.vertices.first, draw.vertices.count);
+    if (vertices.kind == BufferKind::DynamicVertex)
+      bgfx::setVertexBuffer(0, bgfx::DynamicVertexBufferHandle{vertices.index},
+                            draw.vertices.first, draw.vertices.count);
+    else
+      bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle{vertices.index},
+                            draw.vertices.first, draw.vertices.count);
     bgfx::setIndexBuffer(bgfx::IndexBufferHandle{indices.index},
                          draw.indices.first, draw.indices.count);
     bgfx::setInstanceDataBuffer(&instances);

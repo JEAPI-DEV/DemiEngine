@@ -50,6 +50,16 @@ int main() {
        .sourcePath = std::filesystem::path(DEMI_SOURCE_DIR) /
                      "examples/animation_3d/assets/AnimationLib/"
                      "UAL1_Standard.glb"});
+  for (const std::string id :
+       {"asset://models/lod_high", "asset://models/lod_medium",
+        "asset://models/lod_low"}) {
+    registry.assets.push_back(
+        {.id = id,
+         .type = "Model3D",
+         .sourcePath = std::filesystem::path(DEMI_SOURCE_DIR) /
+                       "examples/animation_3d/assets/AnimationLib/"
+                       "UAL1_Standard.glb"});
+  }
   registry.assets.push_back(
       {.id = "asset://targets/test",
        .type = "RenderTarget",
@@ -78,6 +88,17 @@ int main() {
   procedural.component<MeshRendererComponent>()->uvs = {
       {0.0F, 0.0F}, {1.0F, 0.0F}, {0.5F, 1.0F}};
   world.entities.push_back(std::move(procedural));
+  Entity lodModel;
+  lodModel.id = "lod_model";
+  lodModel.setComponent(Transform3DComponent{});
+  lodModel.setComponent(MeshRendererComponent{
+      .model = "asset://models/lod_high",
+      .mediumLodModel = "asset://models/lod_medium",
+      .mediumLodDistance = 4.0F,
+      .lowLodModel = "asset://models/lod_low",
+      .lowLodDistance = 10.0F,
+  });
+  world.entities.push_back(std::move(lodModel));
 
   const BgfxCameraFrame3D frame{
       .camera = {.clearColor = {0.05F, 0.06F, 0.09F, 1.0F}},
@@ -87,6 +108,8 @@ int main() {
       .viewportHeight = 180,
   };
   assert(renderer.renderFrame(world, frame, 0.016F, error));
+  assert(renderer.statistics().mediumLodMeshes == 1U);
+  assert(renderer.statistics().lowLodMeshes == 0U);
   assert(renderer.statistics().batches >= 1);
   assert(renderer.statistics().triangles > 12);
   const std::uint32_t batchesWithoutDebugGeometry =
@@ -97,7 +120,7 @@ int main() {
                                    "sphere", {0.0F, 0.0F, 0.0F}));
   }
   assert(renderer.renderFrame(world, frame, 0.016F, error));
-  assert(renderer.statistics().visibleMeshes == 69U);
+  assert(renderer.statistics().visibleMeshes == 70U);
   assert(renderer.statistics().batches == batchesWithoutDebugGeometry);
   static_cast<void>(graphics.endFrame());
   // The second frame reuses the resident procedural buffers. Changing the

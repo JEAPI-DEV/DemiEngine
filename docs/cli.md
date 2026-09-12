@@ -70,17 +70,21 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
   environment checks, and launch it with last-known-good source watching.
   Runtime flags such as `--profiler`, `--debug-overlays`, and `--max-frames`
   remain available.
-- `demi package add <name>@<constraint> --project <project>`: resolve the full
+- `demi package add <name>@<constraint> [--project <project>]`: resolve the full
   dependency graph, verify archives, and atomically update the project,
   `demi.packages.lock.json`, and `.demi/packages/`.
-- `demi package remove <name> --project <project>`: remove a direct dependency
+  Without `--project`, package commands use `./demi.project.json`.
+  Registry priority is `--registry`, nonempty `DEMI_PACKAGE_REGISTRY`,
+  project `package_registry`, then `https://demiengine.de`.
+  A locked install retains its recorded registry unless `--registry` is supplied.
+- `demi package remove <name> [--project <project>]`: remove a direct dependency
   and atomically reinstall the remaining resolved graph.
-- `demi package install --project <project> [--locked] [--offline] [--dry-run]`:
+- `demi package install [--project <project>] [--locked] [--offline] [--dry-run]`:
   restore installed packages. `--locked` performs no version solving and
   `--offline` permits only already verified cache entries.
-- `demi package update [name] --project <project>`: update every package, or
+- `demi package update [name] [--project <project>]`: update every package, or
   one direct package while preserving all other locked versions.
-- `demi package list|outdated --project <project> [--format json]`: inspect the
+- `demi package list|outdated [--project <project>] [--format json]`: inspect the
   installed graph or compatible updates with deterministic machine output.
 - `demi package publish [directory] --registry <url-or-path>`: publish one
   immutable package version to an HTTP or directory registry.

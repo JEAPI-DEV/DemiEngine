@@ -63,6 +63,32 @@ float debugModeValue(const std::string &mode) {
   return 0.0F;
 }
 
+struct ModelLodSelection {
+  const std::string *model = nullptr;
+  bool isCulled = false;
+  int level = 0;
+};
+
+ModelLodSelection selectModelLod(const MeshRendererComponent &mesh,
+                                 const Vec3 position, const Vec3 camera,
+                                 const bool isAnimated) {
+  const float x = position.x - camera.x;
+  const float y = position.y - camera.y;
+  const float z = position.z - camera.z;
+  const float distanceSquared = x * x + y * y + z * z;
+  const auto reached = [distanceSquared](const float distance) {
+    return distance > 0.0F && distanceSquared >= distance * distance;
+  };
+  if (reached(mesh.cullDistance))
+    return {.model = &mesh.model, .isCulled = true};
+  if (!isAnimated && !mesh.lowLodModel.empty() && reached(mesh.lowLodDistance))
+    return {.model = &mesh.lowLodModel, .level = 2};
+  if (!isAnimated && !mesh.mediumLodModel.empty() &&
+      reached(mesh.mediumLodDistance))
+    return {.model = &mesh.mediumLodModel, .level = 1};
+  return {.model = &mesh.model};
+}
+
 } // namespace
 
 BgfxRenderer3D::BgfxRenderer3D(GpuResources &resources,
@@ -339,6 +365,9 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   std::unordered_map<std::string, InstanceGroup> instanceGroups;
   std::uint32_t bufferedDraws = 0;
   std::uint32_t bufferedTriangles = 0;
+  std::uint32_t distanceCulled = 0;
+  std::uint32_t mediumLodMeshes = 0;
+  std::uint32_t lowLodMeshes = 0;
   SceneVisibility3D visibility;
   if (frame.updateContent) {
     const auto extractionStarted = std::chrono::steady_clock::now();
@@ -355,6 +384,16 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       const Entity &entity = *visible.entity;
       const auto *mesh = entity.component<MeshRendererComponent>();
       const WorldTransform3D &transform = visible.transform;
+      const auto *player = entity.component<AnimationPlayer3DComponent>();
+      const ModelLodSelection lod = selectModelLod(
+          *mesh, transform.position, frame.position, player != nullptr);
+      if (lod.isCulled) {
+        ++distanceCulled;
+        continue;
+      }
+      const std::string &selectedModel = *lod.model;
+      mediumLodMeshes += lod.level == 1 ? 1U : 0U;
+      lowLodMeshes += lod.level == 2 ? 1U : 0U;
       const std::uint32_t color = packVertexColorRgba8(mesh->color);
       const std::array<float, 4> entityTint{mesh->color.r, mesh->color.g,
                                             mesh->color.b, mesh->color.a};
@@ -381,7 +420,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       const std::array<float, 4> alphaCutoff{
           material == nullptr ? 0.0F : material->alphaCutoff, 0.0F, 0.0F, 0.0F};
       drawUniforms[1].values = alphaCutoff;
-      const auto modelLighting = modelUnlit_.find(mesh->model);
+      const auto modelLighting = modelUnlit_.find(selectedModel);
       const bool modelUnlit =
           modelLighting != modelUnlit_.end() && modelLighting->second;
       const std::array<float, 4> unlitAmbient{1.0F, 1.0F, 1.0F, 1.0F};
@@ -423,18 +462,18 @@ bool BgfxRenderer3D::renderFrame(const World &world,
           ++bufferedDraws;
           bufferedTriangles += cached->gpu.indexCount() / 3U;
         }
-      } else if (!mesh->model.empty()) {
-        const auto cached = modelMeshes_.find(mesh->model);
+      } else if (!selectedModel.empty()) {
+        const auto cached = modelMeshes_.find(selectedModel);
         if (cached == modelMeshes_.end()) {
-          error = "No migrated GPU model is loaded for " + mesh->model + ".";
+          error = "No migrated GPU model is loaded for " + selectedModel + ".";
           return false;
         }
         const CachedMesh *drawMesh = cached->second.get();
-        const auto *player = entity.component<AnimationPlayer3DComponent>();
         if (player != nullptr) {
-          const auto source = animatedModels_.find(mesh->model);
+          const auto source = animatedModels_.find(selectedModel);
           if (source == animatedModels_.end()) {
-            error = "No skinned model data is loaded for " + mesh->model + ".";
+            error =
+                "No skinned model data is loaded for " + selectedModel + ".";
             return false;
           }
           const int clip = source->second.clipIndex(player->clipName, 0);
@@ -488,7 +527,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
             }
             if (!animatedMesh->gpu.upload(positions, textureCoordinates,
                                           source->second.indices, 0xffffffffU,
-                                          error, {}, vertexColors)) {
+                                          error, {}, vertexColors, true)) {
               error = entity.id + ": " + error;
               return false;
             }
@@ -496,7 +535,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
           }
           drawMesh = animatedMesh.get();
         }
-        const auto modelTexture = modelTextures_.find(mesh->model);
+        const auto modelTexture = modelTextures_.find(selectedModel);
         const std::string textureId =
             material != nullptr && !material->albedoTexture.empty()
                 ? material->albedoTexture
@@ -507,7 +546,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
             texture.handle ? texture.handle : whiteTexture_;
         if (player == nullptr && material == nullptr) {
           const std::string groupKey =
-              mesh->model + "\n" + mesh->material + "\n" +
+              selectedModel + "\n" + mesh->material + "\n" +
               std::to_string(color) + "\n" +
               std::to_string(resolvedTexture.index) + ":" +
               std::to_string(resolvedTexture.generation);
@@ -780,8 +819,10 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       particleRenderer_.statistics().triangles + overlayTriangles;
   statistics_.particles = static_cast<std::uint32_t>(particleData.size());
   statistics_.consideredMeshes = visibility.considered;
-  statistics_.visibleMeshes = visibility.meshes.size();
-  statistics_.culledMeshes = visibility.culled;
+  statistics_.visibleMeshes = visibility.meshes.size() - distanceCulled;
+  statistics_.culledMeshes = visibility.culled + distanceCulled;
+  statistics_.mediumLodMeshes = mediumLodMeshes;
+  statistics_.lowLodMeshes = lowLodMeshes;
   return true;
 }
 

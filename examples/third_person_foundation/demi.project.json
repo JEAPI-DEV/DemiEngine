@@ -1,0 +1,108 @@
+{
+  "format_version": 1,
+  "name": "Third Person Foundation",
+  "package_registry": "../../packages",
+  "packages": {
+    "demi.gameplay.third_person": "^1.0.0"
+  },
+  "main_scene": "scene://third_person_foundation/main",
+  "simulation": {
+    "fixed_timestep": 0.016666667,
+    "random_seed": 123
+  },
+  "input": {
+    "actions": {
+      "right": {
+        "type": "axis1d",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:a",
+            "scale": -1
+          },
+          {
+            "input": "key:d",
+            "scale": 1
+          }
+        ]
+      },
+      "forward": {
+        "type": "axis1d",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:s",
+            "scale": -1
+          },
+          {
+            "input": "key:w",
+            "scale": 1
+          }
+        ]
+      },
+      "attack": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "mouse:left",
+            "scale": 1
+          },
+          {
+            "input": "key:f",
+            "scale": 1
+          }
+        ]
+      },
+      "roll": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:left shift",
+            "scale": 1
+          },
+          {
+            "input": "key:space",
+            "scale": 1
+          }
+        ]
+      },
+      "lock": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:tab",
+            "scale": 1
+          }
+        ]
+      },
+      "reset": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:r",
+            "scale": 1
+          }
+        ]
+      },
+      "cursor": {
+        "type": "button",
+        "context": "gameplay",
+        "bindings": [
+          {
+            "input": "key:escape",
+            "scale": 1
+          }
+        ]
+      }
+    }
+  },
+  "scenes": [
+    {
+      "id": "scene://third_person_foundation/main"
+    }
+  ]
+}

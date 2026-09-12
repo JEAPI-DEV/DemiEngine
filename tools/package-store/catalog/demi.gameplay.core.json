@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "title": "Gameplay Events",
+  "description": "Deterministic, instance-owned event queues for decoupling gameplay systems. Subscribe, emit and flush events without global state.",
+  "publisher": "DemiEngine",
+  "license": "BSD-3-Clause",
+  "kind": "code",
+  "category": "Gameplay",
+  "price": 0,
+  "images": [],
+  "tags": ["events","gameplay"]
+}

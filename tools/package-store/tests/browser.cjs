@@ -1,0 +1,60 @@
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const assert = require('node:assert/strict');
+
+(async () => {
+  const origin = process.env.STORE_URL || 'http://127.0.0.1:8086';
+  const browser = await chromium.launch({headless:true});
+  const page = await browser.newPage({viewport:{width:1440,height:1000}});
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto(origin);
+  assert.match(await page.locator('h1').textContent(),/Your ideas/);
+  await page.goto(origin+'/packages/');
+  assert.equal(await page.locator('.card').count(),12);
+  await page.getByRole('searchbox').fill('health');
+  await page.getByRole('button',{name:'Search',exact:false}).click();
+  assert.equal(await page.locator('.card').count(),1);
+  await page.locator('.card').click();
+  assert.match(await page.locator('h1').textContent(),/Health/);
+  assert.equal((await page.locator('#install-command').textContent()).trim(),'demi package add demi.gameplay.health@1.0.0');
+  assert.equal(await page.locator('.command-block .copy-icon').count(),1);
+  await page.context().grantPermissions(['clipboard-read','clipboard-write']);
+  await page.getByRole('button',{name:'Copy install command',exact:true}).click();
+  await page.waitForFunction(()=>document.getElementById('copy-status').textContent === 'Copied.');
+  assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),'demi package add demi.gameplay.health@1.0.0');
+  await page.getByRole('link',{name:'Package Content',exact:true}).click();
+  assert.ok(await page.locator('.content-viewer .file-name').count()>0);
+  assert.equal(await page.locator('.content-viewer a').count(),0);
+  assert.equal(await page.getByRole('link',{name:'Package Content',exact:true}).getAttribute('aria-current'),'page');
+  await page.getByRole('link',{name:'Releases',exact:true}).click();
+  assert.ok(await page.locator('.release-row').count()>0);
+  await page.getByRole('link',{name:'Publisher info',exact:true}).click();
+  assert.equal(await page.locator('.tab-content h2').textContent(),'DemiEngine');
+  await page.locator('.install-panel .license-link').click();
+  assert.equal(await page.locator('h1').textContent(),'BSD-3-Clause');
+  assert.match(await page.locator('.license-text').textContent(),/Redistribution and use/);
+  await page.goto(origin+'/packages/demi.gameplay.health');
+  await page.locator('.tag-links a').filter({hasText:'combat'}).click();
+  assert.ok(await page.locator('.card').count()>1);
+  assert.match(page.url(),/tag=combat/);
+  await page.goto(origin+'/packages/demi.gameplay.health');
+  const download = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('link',{name:'Download package',exact:false}).click()
+  ]);
+  assert.match(download[0].suggestedFilename(),/demi.gameplay.health-1.0.0.demipkg/);
+  await page.goto(origin+'/packages/?q=notarealpackage');
+  assert.equal(await page.locator('.empty').count(),1);
+  await page.goto(origin+'/packages/?category=UI');
+  assert.equal(await page.locator('.card').count(),1);
+  await page.setViewportSize({width:390,height:844});
+  await page.goto(origin+'/packages/');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth > innerWidth),false);
+  await page.goto(origin+'/packages/demi.gameplay.third_person');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth > innerWidth),false);
+  await page.getByRole('link',{name:'Package Content',exact:true}).click();
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth > innerWidth),false);
+  assert.deepEqual(errors,[]);
+  await browser.close();
+  console.log('Browser homepage, catalog, tags, copy icon, sections, licenses, download and mobile checks passed.');
+})().catch(error => { console.error(error); process.exitCode = 1; });

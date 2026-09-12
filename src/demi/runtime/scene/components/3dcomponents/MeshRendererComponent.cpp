@@ -1,10 +1,21 @@
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/SceneJson.h"
 #include "demi/runtime/scene/model/Entity.h"
+#include <algorithm>
 namespace demi::runtime {
 void MeshRendererComponent::parse(const nlohmann::json &json, Entity &entity) {
   MeshRendererComponent component;
   component.model = scene_loading::stringOr(json, "model");
+  component.mediumLodModel = scene_loading::stringOr(json, "medium_lod_model");
+  component.mediumLodDistance = std::max(
+      scene_loading::numberField(json, "medium_lod_distance").value_or(0.0F),
+      0.0F);
+  component.lowLodModel = scene_loading::stringOr(json, "low_lod_model");
+  component.lowLodDistance = std::max(
+      scene_loading::numberField(json, "low_lod_distance").value_or(0.0F),
+      0.0F);
+  component.cullDistance = std::max(
+      scene_loading::numberField(json, "cull_distance").value_or(0.0F), 0.0F);
   component.shape = scene_loading::stringOr(json, "shape", "cube");
   if (auto value = scene_loading::vec3Field(json, "size"))
     component.size = *value;

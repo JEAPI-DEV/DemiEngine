@@ -41,6 +41,7 @@ GpuMesh3D &GpuMesh3D::operator=(GpuMesh3D &&other) noexcept {
   indices_ = std::exchange(other.indices_, {});
   vertexCount_ = std::exchange(other.vertexCount_, 0);
   indexCount_ = std::exchange(other.indexCount_, 0);
+  dynamicVertices_ = std::exchange(other.dynamicVertices_, false);
   return *this;
 }
 
@@ -49,7 +50,8 @@ bool GpuMesh3D::upload(const std::span<const Vec3> positions,
                        const std::span<const std::uint32_t> sourceIndices,
                        const std::uint32_t rgba, std::string &error,
                        const std::span<const Vec3> sourceNormals,
-                       const std::span<const std::uint32_t> colors) {
+                       const std::span<const std::uint32_t> colors,
+                       const bool dynamicVertices) {
   if (resources_ == nullptr) {
     error = "GPU mesh has no resource owner.";
     return false;
@@ -132,13 +134,19 @@ bool GpuMesh3D::upload(const std::span<const Vec3> positions,
                         .v = uv.y});
   }
 
+  if (dynamicVertices && dynamicVertices_ && vertexCount_ == vertices.size() &&
+      indexCount_ == indices.size()) {
+    return resources_->updateBuffer(vertices_,
+                                    std::as_bytes(std::span(vertices)), error);
+  }
+
   clear();
-  vertices_ =
-      resources_->createBuffer({.kind = BufferKind::Vertex,
-                                .data = std::as_bytes(std::span(vertices)),
-                                .vertexLayout = gpuMeshVertexLayout3D(),
-                                .debugName = "3D mesh vertices"},
-                               error);
+  vertices_ = resources_->createBuffer(
+      {.kind = dynamicVertices ? BufferKind::DynamicVertex : BufferKind::Vertex,
+       .data = std::as_bytes(std::span(vertices)),
+       .vertexLayout = gpuMeshVertexLayout3D(),
+       .debugName = "3D mesh vertices"},
+      error);
   if (!vertices_)
     return false;
 
@@ -170,6 +178,7 @@ bool GpuMesh3D::upload(const std::span<const Vec3> positions,
   }
   vertexCount_ = static_cast<std::uint32_t>(positions.size());
   indexCount_ = static_cast<std::uint32_t>(indices.size());
+  dynamicVertices_ = dynamicVertices;
   return true;
 }
 
@@ -217,10 +226,10 @@ bool GpuMesh3D::drawInstanced(
           .indices = {.handle = indices_, .count = indexCount_},
           .program = program,
           .texture = texture,
-      .sampler = sampler,
-      .state = state,
-      .scissor = {},
-      .transforms = transforms,
+          .sampler = sampler,
+          .state = state,
+          .scissor = {},
+          .transforms = transforms,
           .uniforms = uniforms,
       },
       error);
@@ -237,6 +246,7 @@ void GpuMesh3D::clear() {
   indices_ = {};
   vertexCount_ = 0;
   indexCount_ = 0;
+  dynamicVertices_ = false;
 }
 
 } // namespace demi::runtime::render

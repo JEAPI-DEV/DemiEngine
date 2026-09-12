@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}DemiEngine — Package Store{% endblock %}</title>
+<meta name="description" content="{% block description %}Free packages, tools and assets for building games with DemiEngine.{% endblock %}">
+<link rel="icon" href="/images/demi-mark.svg?v=2" type="image/svg+xml">
+<link rel="stylesheet" href="/store.css?v=3">
+<script src="/store.js?v=3" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="header">
+<a class="brand" href="/"><img src="/images/demi-mark.svg?v=2" alt="" width="34" height="44"><span>DEMI<span class="brand-light">ENGINE</span><small>{{ app.request.attributes.get('_route') == 'home' ? 'GAME ENGINE' : 'PACKAGE STORE' }}</small></span></a>
+<nav aria-label="Main navigation"><a href="/" class="nav-link">Home</a><a href="/packages/" class="nav-link">Explore packages</a><a href="/packages/?kind=asset" class="nav-link">Assets</a><a href="/publishing" class="nav-link">Publish a package <span aria-hidden="true">↗</span></a></nav>
+<span class="free-pill"><span aria-hidden="true">●</span> Everything is free</span>
+</header>
+<main id="main">{% block body %}{% endblock %}</main>
+<footer><a class="footer-brand" href="/">DEMIENGINE<span> / PACKAGE STORE</span></a><p>Less setup. More game.</p><a href="/publishing">Publishing guide</a><span>Built for the DemiEngine community.</span></footer>
+</body>
+</html>

@@ -60,6 +60,8 @@ Built-in 3D cube, sphere, cylinder, and plane meshes share resident geometry
 and are automatically instanced when shape, texture, and color match. Large
 collections of primitive entities therefore keep normal entity authoring and
 individual transforms without requiring one draw call or mesh upload each.
+CPU-skinned models retain dynamic vertex buffers across poses; animation
+updates buffer contents while immutable index data remains resident.
 
 ## Cameras and render targets
 

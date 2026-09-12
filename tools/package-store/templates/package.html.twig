@@ -1,0 +1,46 @@
+{% extends 'base.html.twig' %}
+{% macro files(node) %}
+<ul class="file-tree">
+{% for name, directory in node.directories %}<li><details open><summary><span aria-hidden="true">▱</span> {{ name }}</summary>{{ _self.files(directory) }}</details></li>{% endfor %}
+{% for name in node.files %}<li class="file-name"><span aria-hidden="true">▤</span> {{ name }}</li>{% endfor %}
+</ul>
+{% endmacro %}
+{% block title %}{{ package.title }} — DemiEngine Store{% endblock %}
+{% block description %}{{ package.description|slice(0, 160) }}{% endblock %}
+{% block body %}
+<div class="detail-wrap"><a class="back" href="{{ path('catalog') }}">← Explore packages</a>
+<div class="detail-heading"><div class="eyebrow muted">{{ package.category }}</div><h1>{{ package.title }}</h1><p>Published by <strong>{{ package.publisher }}</strong> · Version {{ package.manifest.version }}</p></div>
+<div class="detail-layout"><div>
+<div class="gallery-main category-{{ package.category|lower }}"><img id="gallery-image" src="{{ package.images[0] }}" alt="{{ package.title }} preview" data-fallback="/images/demi-asset.svg"></div>
+{% if package.images|length > 1 %}<div class="thumbnails" aria-label="Asset gallery">{% for image in package.images %}<button type="button" data-gallery="{{ image }}" aria-label="Show preview {{ loop.index }}"><img src="{{ image }}" alt="" data-fallback="/images/demi-asset.svg"></button>{% endfor %}</div>{% endif %}
+<nav class="detail-tabs" aria-label="Package sections">
+{% for id, label in {overview:'Overview', content:'Package Content', releases:'Releases', publisher:'Publisher info'} %}
+<a href="{{ path('package', {name:package.manifest.name, tab:id}) }}" {{ tab == id ? 'aria-current="page"' : '' }}>{{ label }}</a>
+{% endfor %}
+</nav>
+<section class="description tab-content">
+{% if tab == 'overview' %}
+<h2>About this package</h2><p>{{ package.description }}</p>
+{% if package.tags %}<h3>Tags</h3><div class="tag-links">{% for tag in package.tags %}<a href="{{ path('catalog', {tag:tag}) }}">{{ tag }}</a>{% endfor %}</div>{% endif %}
+<h3>Dependencies</h3>{% for name, constraint in package.manifest.dependencies %}<p><a href="{{ path('package', {name:name}) }}">{{ name }}</a> <code>{{ constraint }}</code></p>{% else %}<p>No additional package dependencies.</p>{% endfor %}
+{% if related %}<h3>Related packages</h3><div class="related">{% for item in related %}<a href="{{ path('package', {name:item.manifest.name}) }}"><strong>{{ item.title }}</strong><span>{{ item.category }} · Free ↗</span></a>{% endfor %}</div>{% endif %}
+{% elseif tab == 'content' %}
+<h2>Package Content <span class="file-count">{{ package.manifest.files|length }} files</span></h2>
+<p>Browse the folders and files included in version {{ package.manifest.version }}.</p>
+<div class="content-viewer" tabindex="0" role="region" aria-label="Included files">{{ _self.files(tree) }}</div>
+{% elseif tab == 'releases' %}
+<h2>Releases</h2>
+{% for release in releases %}<article class="release-row"><div><h3>Version {{ release.manifest.version }}</h3><p>{{ release.published_at|date('j F Y') }} · {{ (release.bytes / 1024)|number_format(1) }} KB</p></div><a class="button" href="{{ path('archive', {name:package.manifest.name, version:release.manifest.version}) }}">Download ↓</a><code class="checksum">{{ release.archive_hash }}</code></article>{% endfor %}
+{% elseif tab == 'publisher' %}
+<h2>{{ package.publisher }}</h2><p>Publisher of {{ package.title }}.</p><p>Released under <a href="{{ path('license', {id:package.license}) }}">{{ package.license }}</a>.</p>
+{% endif %}
+</section></div>
+<aside class="install-panel"><h2>Free</h2>
+<a class="button download" href="{{ path('archive', {name:package.manifest.name, version:package.manifest.version}) }}">Download package <span>↓</span></a>
+<dl><div><dt>Version</dt><dd>{{ package.manifest.version }}</dd></div><div><dt>Engine</dt><dd>{{ package.manifest.engine|default('*') }}</dd></div><div><dt>Download size</dt><dd>{{ (package.bytes / 1024)|number_format(1) }} KB</dd></div><div><dt>License</dt><dd><a class="license-link" href="{{ path('license', {id:package.license}) }}">{{ package.license }} ↗</a></dd></div></dl>
+<h3>Install in your project folder</h3>
+<div class="command-block"><pre><code id="install-command">demi package add {{ package.manifest.name }}@{{ package.manifest.version }}</code></pre><button class="copy-icon" data-copy="install-command" aria-label="Copy install command" title="Copy install command"><svg aria-hidden="true" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></button></div>
+<span id="copy-status" role="status"></span>
+<p class="install-hint">Run beside demi.project.json.</p>
+</aside></div></div>
+{% endblock %}

@@ -60,6 +60,30 @@ instanced submission and red geometry does not. The overdraw view is an
 additive approximation intended for comparisons, not an exact GPU fragment
 counter.
 
+## Mesh level of detail
+
+Static `MeshRenderer` entities can select progressively cheaper model assets
+by camera distance. Distances are measured from the camera to the resolved
+entity origin; animated models retain their authored model because skeletal
+LOD requires compatible skeleton data.
+
+```json
+"MeshRenderer": {
+  "model": "asset://models/landscape_lod0",
+  "medium_lod_model": "asset://models/landscape_lod1",
+  "medium_lod_distance": 35.0,
+  "low_lod_model": "asset://models/landscape_lod2",
+  "low_lod_distance": 90.0,
+  "cull_distance": 260.0
+}
+```
+
+All referenced tiers use normal asset manifests and preload/streaming rules.
+The profiler exposes `Renderer3D.lod_medium` and `Renderer3D.lod_low` gauges.
+Use separate spatial chunks for large landscapes so each chunk can choose a
+tier independently; a single world-sized mesh has only one origin and cannot
+provide useful regional LOD.
+
 ## Mobile cost gates
 
 Declare limits in `performance_budgets` and inspect them without opening a

@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "title": "Character Controllers",
+  "description": "Movement intent helpers for platformers, top-down games and isometric scenes. Includes a reusable 2D character controller.",
+  "publisher": "DemiEngine",
+  "license": "BSD-3-Clause",
+  "kind": "code",
+  "category": "Gameplay",
+  "price": 0,
+  "images": [],
+  "tags": ["movement","2d","platformer"]
+}

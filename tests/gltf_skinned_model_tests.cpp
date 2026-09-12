@@ -266,6 +266,56 @@ int main() {
                0.0001F;
       }));
 
+  // Imported locomotion must remain in place when a character controller owns
+  // translation. Raw Mixamo hip motion previously moved this visual several
+  // metres away from its entity as soon as any gameplay animation started.
+  error.clear();
+  auto knightProfile =
+      demi::assets::modelImportPreset("animated_character");
+  knightProfile.sourceUp = "+z";
+  knightProfile.sourceForward = "-y";
+  const auto knight = demi::assets::loadGltfSkinnedModel3D(
+      std::filesystem::path(DEMI_SOURCE_DIR) /
+          "examples/souls_boss_arena/assets/models/cyberpunk_character/"
+          "cyberpunk_character.glb",
+      knightProfile, error);
+  assert(knight && error.empty());
+  std::vector<demi::runtime::Vec3> knightBind;
+  assert(knight->bindPosePositions(knightBind, error));
+  demi::runtime::Vec3 knightMinimum = knightBind.front();
+  demi::runtime::Vec3 knightMaximum = knightBind.front();
+  for (const auto position : knightBind) {
+    knightMinimum.x = std::min(knightMinimum.x, position.x);
+    knightMinimum.y = std::min(knightMinimum.y, position.y);
+    knightMinimum.z = std::min(knightMinimum.z, position.z);
+    knightMaximum.x = std::max(knightMaximum.x, position.x);
+    knightMaximum.y = std::max(knightMaximum.y, position.y);
+    knightMaximum.z = std::max(knightMaximum.z, position.z);
+  }
+  const float knightHeight = knightMaximum.y - knightMinimum.y;
+  if (knightHeight <= knightMaximum.x - knightMinimum.x ||
+      knightHeight <= knightMaximum.z - knightMinimum.z)
+    std::cerr << "Cyberpunk character bind extents: "
+              << knightMaximum.x - knightMinimum.x << ", " << knightHeight
+              << ", " << knightMaximum.z - knightMinimum.z << '\n';
+  assert(knightHeight > knightMaximum.x - knightMinimum.x);
+  assert(knightHeight > knightMaximum.z - knightMinimum.z);
+  for (const std::string_view clipName : {"Idle", "CombatRun", "DodgeRoll",
+                                          "SwordAttack", "ShieldBlock"}) {
+    const int clip = knight->clipIndex(clipName, -1);
+    assert(clip >= 0);
+    const float duration = knight->clips[static_cast<std::size_t>(clip)].duration;
+    for (const float time : {0.0F, duration * 0.5F, duration}) {
+      std::vector<demi::runtime::Vec3> pose;
+      assert(knight->samplePositions(clip, time, false, pose, error));
+      assert(largestExtent(pose) < 5.0F);
+      assert(std::ranges::all_of(pose, [](const demi::runtime::Vec3 position) {
+        return finite(position) && std::abs(position.x) < 5.0F &&
+               std::abs(position.y) < 5.0F && std::abs(position.z) < 5.0F;
+      }));
+    }
+  }
+
   std::cout << "gltf skinned model tests passed\n";
   return 0;
 }

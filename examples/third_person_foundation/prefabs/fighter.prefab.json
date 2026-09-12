@@ -1,0 +1,75 @@
+{
+  "format_version": 1,
+  "id": "prefab://fighter",
+  "entities": [
+    {
+      "id": "body",
+      "components": {
+        "Transform3D": {
+          "position": [
+            0,
+            1,
+            0
+          ]
+        },
+        "CapsuleCollider3D": {
+          "radius": 0.4,
+          "height": 2,
+          "layer": "fighter"
+        },
+        "CharacterController3D": {
+          "gravity": -24
+        }
+      }
+    },
+    {
+      "id": "visual",
+      "components": {
+        "Transform3D": {
+          "parent": "body"
+        },
+        "MeshRenderer": {
+          "shape": "cube",
+          "size": [
+            0.7,
+            1.7,
+            0.5
+          ],
+          "color": [
+            0.2,
+            0.65,
+            1,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "id": "hand",
+      "components": {
+        "Transform3D": {
+          "parent": "body",
+          "position": [
+            0.55,
+            0.2,
+            0.65
+          ]
+        },
+        "MeshRenderer": {
+          "shape": "cube",
+          "size": [
+            0.2,
+            0.2,
+            1.1
+          ],
+          "color": [
+            0.85,
+            0.9,
+            1,
+            1
+          ]
+        }
+      }
+    }
+  ]
+}

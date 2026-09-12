@@ -108,8 +108,11 @@ add_test(NAME demi-editor-play-session-tests
 add_test(NAME demi-editor-help COMMAND demi-editor --help)
 add_test(NAME demi-doctor-service-tests COMMAND demi-doctor-service-tests)
 add_test(NAME demi-package-manager-tests COMMAND demi-package-manager-tests)
+add_test(NAME demi-package-cli-defaults
+  COMMAND ${CMAKE_COMMAND} -DDEMI=$<TARGET_FILE:demi>
+    -P ${CMAKE_SOURCE_DIR}/tests/package_cli_defaults.cmake)
 foreach(package_name IN ITEMS
-    core controllers health projectiles interactions traversal camera inventory encounters)
+    core controllers health projectiles interactions traversal camera inventory encounters third_person)
   add_test(NAME demi-gameplay-package-${package_name}
     COMMAND demi package test
       ${CMAKE_SOURCE_DIR}/packages/sources/demi.gameplay.${package_name})

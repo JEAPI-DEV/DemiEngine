@@ -243,6 +243,12 @@ int main(int argc, char **argv) {
             "position": [0.0, 0.0, 0.0]
           },
           "MeshRenderer": {
+            "model": "high",
+            "medium_lod_model": "medium",
+            "medium_lod_distance": 35.0,
+            "low_lod_model": "low",
+            "low_lod_distance": 90.0,
+            "cull_distance": 220.0,
             "vertices": [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
             "normals": [[0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]],
             "uvs": [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]
@@ -268,6 +274,11 @@ int main(int argc, char **argv) {
       mesh->component<MeshRendererComponent>()->vertices.size() != 3 ||
       mesh->component<MeshRendererComponent>()->normals.size() != 3 ||
       mesh->component<MeshRendererComponent>()->uvs.size() != 3 ||
+      mesh->component<MeshRendererComponent>()->mediumLodModel != "medium" ||
+      mesh->component<MeshRendererComponent>()->mediumLodDistance != 35.0F ||
+      mesh->component<MeshRendererComponent>()->lowLodModel != "low" ||
+      mesh->component<MeshRendererComponent>()->lowLodDistance != 90.0F ||
+      mesh->component<MeshRendererComponent>()->cullDistance != 220.0F ||
       mesh->component<MeshRendererComponent>()->vertices[1].x != 1.0F ||
       mesh->component<MeshRendererComponent>()->uvs[2].y != 1.0F) {
     std::cerr << "Scene loader did not read dynamic MeshRenderer data.\n";

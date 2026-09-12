@@ -385,10 +385,9 @@ int runProject(const RuntimeOptions &options) {
   if (audioAttempted)
     audioInitialized = audioSystem.initialize();
   deviceLog(deviceLogMessage(
-      "audio", audioInitialized
-                   ? "Audio device initialized."
-                   : audioAttempted ? "Audio initialization failed."
-                                    : "Audio disabled for this run."));
+      "audio", audioInitialized ? "Audio device initialized."
+               : audioAttempted ? "Audio initialization failed."
+                                : "Audio disabled for this run."));
   MediaSystem mediaSystem;
   {
     ProfileScope scope("Asset.media_load");
@@ -1115,6 +1114,12 @@ int runProject(const RuntimeOptions &options) {
         RuntimeProfiler::setGauge(
             "Renderer3D.meshes_culled",
             static_cast<double>(renderStats.culledMeshes));
+        RuntimeProfiler::setGauge(
+            "Renderer3D.lod_medium",
+            static_cast<double>(renderStats.mediumLodMeshes));
+        RuntimeProfiler::setGauge(
+            "Renderer3D.lod_low",
+            static_cast<double>(renderStats.lowLodMeshes));
         RuntimeProfiler::setGauge("Renderer3D.batches",
                                   static_cast<double>(renderStats.batches));
         RuntimeProfiler::setGauge("Renderer3D.triangles",

@@ -36,7 +36,7 @@ __pycache__/
 *.crt
 todoplan.md
 .vscode/
-
+examples/souls_boss_arena
 
 # Ignore all build output in docs/latex/
 docs/latex/*

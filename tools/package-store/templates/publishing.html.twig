@@ -1,0 +1,8 @@
+{% extends 'base.html.twig' %}
+{% block title %}Publishing guide — DemiEngine Store{% endblock %}
+{% block body %}
+<article class="guide"><a class="back" href="/packages/">← Explore packages</a><div class="eyebrow muted">SHARE YOUR BUILDING BLOCKS</div><h1>A home for<br>useful packages.</h1><p class="lead">The store currently publishes free packages through a curated release process. Public uploads and paid listings are not enabled.</p>
+<h2>Every listing starts with a clear identity.</h2><p>Provide a title, description, publisher, license, category, and package type. Asset packages can include a cover and up to seven additional images. Without a cover, the DemiEngine Asset logo appears automatically.</p>
+<h2>Package once. Install anywhere.</h2><p>Releases use the engine’s versioned <code>.demipkg</code> archive format, with checksums and declared dependencies. The catalog API is available at <a href="/v1/catalog">/v1/catalog</a>; the engine uses <code>/v1/packages/{name}</code>.</p>
+<h2>Publishing for maintainers</h2><p>Build your package with the engine, then import its archive and listing metadata over SSH using the store’s console command. Publication validates checksums and is immutable: updates require a new version. See the deployment README for the exact commands and metadata example.</p><a class="button" href="/packages/">Explore the collection →</a></article>
+{% endblock %}

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 220" role="img" aria-labelledby="title">
+  <title id="title">DemiEngine</title>
+  <defs>
+    <linearGradient id="purple" x1="0" y1="0" x2="0.25" y2="1">
+      <stop stop-color="#7043e9"/>
+      <stop offset="1" stop-color="#5030ad"/>
+    </linearGradient>
+  </defs>
+  <g fill="url(#purple)">
+    <path d="M53 10 140 64V153L53 207 21 187 109 133V85L21 30Z"/>
+    <path d="M10 44 41 64V155L10 172Z"/>
+  </g>
+</svg>

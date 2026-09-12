@@ -39,7 +39,8 @@ public:
                             std::span<const std::uint32_t> indices,
                             std::uint32_t rgba, std::string &error,
                             std::span<const Vec3> normals = {},
-                            std::span<const std::uint32_t> colors = {});
+                            std::span<const std::uint32_t> colors = {},
+                            bool dynamicVertices = false);
   [[nodiscard]] bool
   draw(RenderCommands &commands, std::uint16_t viewId, ProgramHandle program,
        TextureHandle texture, SamplerHandle sampler,
@@ -67,6 +68,7 @@ private:
   BufferHandle indices_;
   std::uint32_t vertexCount_ = 0;
   std::uint32_t indexCount_ = 0;
+  bool dynamicVertices_ = false;
 };
 
 [[nodiscard]] VertexLayout gpuMeshVertexLayout3D();

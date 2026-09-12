@@ -170,13 +170,12 @@ public:
     return textures_.insert(texture.idx);
   }
 
-  bool updateTexture(const TextureHandle handle,
-                     const TextureUpdateInfo &info,
+  bool updateTexture(const TextureHandle handle, const TextureUpdateInfo &info,
                      std::string &error) override {
     const std::uint16_t *texture = textures_.find(handle);
     if (texture == nullptr || info.width == 0 || info.height == 0 ||
-        info.data.size() != static_cast<std::size_t>(info.width) *
-                                info.height * 4U) {
+        info.data.size() !=
+            static_cast<std::size_t>(info.width) * info.height * 4U) {
       error = "Texture update handle, dimensions, or RGBA8 data are invalid.";
       return false;
     }
@@ -229,7 +228,8 @@ public:
       return {};
     }
     BufferValue value{.kind = info.kind};
-    if (info.kind == BufferKind::Vertex) {
+    if (info.kind == BufferKind::Vertex ||
+        info.kind == BufferKind::DynamicVertex) {
       bgfx::VertexLayout layout;
       if (!buildBgfxVertexLayout(info.vertexLayout, layout, error))
         return {};
@@ -238,10 +238,21 @@ public:
                 "stride.";
         return {};
       }
-      const bgfx::VertexBufferHandle buffer =
-          bgfx::createVertexBuffer(copy(info.data), layout);
-      if (bgfx::isValid(buffer))
-        value.index = buffer.idx;
+      if (info.kind == BufferKind::DynamicVertex) {
+        const auto count =
+            static_cast<std::uint32_t>(info.data.size() / layout.getStride());
+        const bgfx::DynamicVertexBufferHandle buffer =
+            bgfx::createDynamicVertexBuffer(count, layout);
+        if (bgfx::isValid(buffer)) {
+          bgfx::update(buffer, 0, copy(info.data));
+          value.index = buffer.idx;
+        }
+      } else {
+        const bgfx::VertexBufferHandle buffer =
+            bgfx::createVertexBuffer(copy(info.data), layout);
+        if (bgfx::isValid(buffer))
+          value.index = buffer.idx;
+      }
     } else {
       const std::uint16_t flags =
           info.kind == BufferKind::Index32 ? BGFX_BUFFER_INDEX32 : 0;
@@ -255,6 +266,20 @@ public:
       return {};
     }
     return buffers_.insert(value);
+  }
+
+  bool updateBuffer(const BufferHandle handle,
+                    const std::span<const std::byte> data,
+                    std::string &error) override {
+    const BufferValue *value = buffers_.find(handle);
+    if (value == nullptr || value->kind != BufferKind::DynamicVertex ||
+        data.empty()) {
+      error = "Dynamic vertex buffer update is invalid.";
+      return false;
+    }
+    bgfx::update(bgfx::DynamicVertexBufferHandle{value->index}, 0, copy(data));
+    error.clear();
+    return true;
   }
 
   ProgramHandle createProgram(const ProgramCreateInfo &info,
@@ -409,6 +434,8 @@ public:
       return false;
     if (value.kind == BufferKind::Vertex)
       bgfx::destroy(bgfx::VertexBufferHandle{value.index});
+    else if (value.kind == BufferKind::DynamicVertex)
+      bgfx::destroy(bgfx::DynamicVertexBufferHandle{value.index});
     else
       bgfx::destroy(bgfx::IndexBufferHandle{value.index});
     return true;
@@ -437,6 +464,8 @@ public:
     buffers_.clear([](const BufferValue &value) {
       if (value.kind == BufferKind::Vertex)
         bgfx::destroy(bgfx::VertexBufferHandle{value.index});
+      else if (value.kind == BufferKind::DynamicVertex)
+        bgfx::destroy(bgfx::DynamicVertexBufferHandle{value.index});
       else
         bgfx::destroy(bgfx::IndexBufferHandle{value.index});
     });
