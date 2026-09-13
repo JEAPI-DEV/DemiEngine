@@ -251,20 +251,30 @@ streaming, saving/loading, and stress runs within declared performance budgets.
 
 #### Graphics test hardware
 
-The user currently has UEFI configured for **dedicated GPU only**. Continue
-development and visible profiling on the GeForce RTX 3070 Ti Laptop GPU; do not
-request a firmware change or retry Radeon selection during this configuration.
-The Radeon startup timeout observed while forcing its Vulkan driver is not a
-valid iGPU performance/compatibility result under that firmware setting.
+The user enabled **hybrid graphics** on 2026-09-13. Default Demi Vulkan launches
+still select the GeForce RTX 3070 Ti Laptop GPU (`10de:24a0`); bgfx prefers a
+discrete GPU even when the Radeon drives the desktop. Explicit Radeon ICD
+selection now renders successfully on the Radeon 680M (`1002:1681`). The earlier
+Radeon startup timeout in dedicated-only mode was not a valid iGPU qualification.
 
-- [ ] After the user switches UEFI to hybrid mode at a convenient reboot, verify
+- [x] After the user switches UEFI to hybrid mode at a convenient reboot, verify
   that the Radeon 680M is usable and explicitly selected in the recorded GPU IDs.
-- [ ] Repeat the same 1080p active-body and pile captures on the iGPU, with real
+- [x] Repeat the same 1080p active-body and pile captures on the iGPU, with real
   deltas, VSync on/off, warmup exclusion, GPU timestamps, and lost-time checks.
 - [ ] Record hybrid-mode startup, surface/resize behavior and sustained performance;
   compare CPU/GPU costs without extrapolating the dedicated-GPU results.
 
-Non-NVIDIA/iGPU qualification remains pending until those tests actually run.
+The [controlled hybrid rerun](docs/3d-hybrid-graphics.md) completed 24 valid
+1080p/165 Hz captures across Radeon and NVIDIA, with no post-warmup fixed-time
+discard. Radeon worst per-run p95 was 17.037 ms (one pile run misses 16.7 ms);
+NVIDIA worst p95 was 15.757 ms. Radeon rendering and short-run measurements are
+verified. The subsequent [physics-overhead optimization](docs/3d-physics-overhead.md)
+reduced headless pile CPU-frame p95 by 15.6% and physics-step p95 by 20.5%.
+Its 24 visible reruns meet p95 ≤16.7 ms / p99 ≤25 ms on both GPUs with no
+post-warmup simulation-time discard: worst p95 is 14.362 ms on Radeon and
+15.411 ms on NVIDIA. The tighter all-runs 14 ms goal, longer thermal soak,
+systematic surface-lifecycle tests, and representative game-content qualification
+remain open; occasional hitches persist.
 
 Start Milestone 1. Produce the performance baseline and CPU-only Blast/Jolt
 integration result before committing to detailed optimization or fracture scale.

@@ -49,29 +49,37 @@ bool pairsSorted(const std::vector<PhysicsContact3D> &contacts,
 void assignSortedPhases(std::vector<PhysicsContact3D> &current,
                         const std::vector<PhysicsContact3D> &previous) {
   const auto currentCount = current.size();
-  std::size_t oldIndex = 0;
-  for (auto &contact : current) {
-    const auto pair = key(contact);
-    while (oldIndex < previous.size() && (previous[oldIndex].phase == "exit" ||
-                                          key(previous[oldIndex]) < pair))
-      ++oldIndex;
-    contact.phase =
-        oldIndex < previous.size() && key(previous[oldIndex]) == pair ? "stay"
-                                                                      : "enter";
-  }
   std::size_t newIndex = 0;
-  for (const auto &contact : previous) {
-    if (contact.phase == "exit")
+  std::size_t oldIndex = 0;
+  // Walk each pair group once. Both reporting directions share a phase, and
+  // exits append in previous order without disturbing the current event order.
+  while (newIndex < currentCount || oldIndex < previous.size()) {
+    if (oldIndex < previous.size() && previous[oldIndex].phase == "exit") {
+      ++oldIndex;
       continue;
-    const auto pair = key(contact);
-    while (newIndex < currentCount && key(current[newIndex]) < pair)
-      ++newIndex;
-    if (newIndex < currentCount && key(current[newIndex]) == pair)
+    }
+    if (newIndex == currentCount ||
+        (oldIndex < previous.size() &&
+         key(previous[oldIndex]) < key(current[newIndex]))) {
+      auto exited = previous[oldIndex++];
+      exited.phase = "exit";
+      exited.penetration = 0.0F;
+      current.push_back(std::move(exited));
       continue;
-    auto exited = contact;
-    exited.phase = "exit";
-    exited.penetration = 0.0F;
-    current.push_back(std::move(exited));
+    }
+    const auto pair = key(current[newIndex]);
+    const bool stayed =
+        oldIndex < previous.size() && key(previous[oldIndex]) == pair;
+    do {
+      current[newIndex++].phase = stayed ? "stay" : "enter";
+    } while (newIndex < currentCount && key(current[newIndex]) == pair);
+    if (stayed) {
+      do {
+        ++oldIndex;
+      } while (oldIndex < previous.size() &&
+               (previous[oldIndex].phase == "exit" ||
+                key(previous[oldIndex]) == pair));
+    }
   }
 }
 } // namespace

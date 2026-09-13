@@ -224,6 +224,61 @@ bool testSleepingEditsAndReusedBodySlots() {
   return true;
 }
 
+bool testContactIdentityAndEntityLifetime() {
+  World world;
+  const std::string prefix(48, 'a');
+  const std::string triggerId = prefix + "_trigger";
+  world.entities.push_back(
+      box(triggerId, {0, 0, 0}, {20, 2, 2}, "static", {}, true));
+  // Native allocation order deliberately differs from authored-ID order.
+  const std::vector<std::string> ids{prefix + "9", prefix + "10", prefix + "1"};
+  for (std::size_t i = 0; i < ids.size(); ++i) {
+    world.entities.push_back(box(ids[i], {float(i) * 3, 0, 0}, {1, 1, 1},
+                                 "dynamic"));
+    world.entities.back().component<Rigidbody3DComponent>()->allowSleep = false;
+  }
+  const auto canonicalPair = [](const PhysicsContact3D &contact) {
+    return std::pair{std::min(contact.entityId, contact.otherEntityId),
+                     std::max(contact.entityId, contact.otherEntityId)};
+  };
+  for (int step = 0; step < 2; ++step) {
+    stepPhysics3D(world, 1.0F / 60.0F);
+    if (world.physicsContacts3D.size() != 6 ||
+        !std::ranges::is_sorted(world.physicsContacts3D, {}, canonicalPair))
+      return false;
+    for (const auto &id : ids) {
+      const auto contacts = contactsForEntity3D(world, id);
+      if (contacts.size() != 1 || contacts[0].otherEntityId != triggerId ||
+          contacts[0].phase != (step == 0 ? "enter" : "stay") ||
+          !contacts[0].isTrigger)
+        return false;
+    }
+  }
+  // Entity disabling removes its native body; enabling recreates it with a new
+  // generation. Old contacts must exit once, then the recreated pair enters.
+  findEntity(world, ids[0])->enabled = false;
+  stepPhysics3D(world, 1.0F / 60.0F);
+  auto contacts = contactsForEntity3D(world, ids[0]);
+  if (contacts.size() != 1 || contacts[0].phase != "exit")
+    return false;
+  stepPhysics3D(world, 1.0F / 60.0F);
+  if (!contactsForEntity3D(world, ids[0]).empty())
+    return false;
+  findEntity(world, ids[0])->enabled = true;
+  stepPhysics3D(world, 1.0F / 60.0F);
+  contacts = contactsForEntity3D(world, ids[0]);
+  if (contacts.size() != 1 || contacts[0].phase != "enter")
+    return false;
+  // Losing the collider must also retire the native body and its contacts.
+  findEntity(world, ids[0])->removeComponent<BoxCollider3DComponent>();
+  stepPhysics3D(world, 1.0F / 60.0F);
+  contacts = contactsForEntity3D(world, ids[0]);
+  if (contacts.size() != 1 || contacts[0].phase != "exit")
+    return false;
+  stepPhysics3D(world, 1.0F / 60.0F);
+  return contactsForEntity3D(world, ids[0]).empty();
+}
+
 bool testFixedStepSimulation() {
   World world;
   world.entities.push_back(
@@ -888,7 +943,8 @@ int main() {
   }
 
   if (!testSleepingAndWakeCommands() || !testSleepingSupportChanges() ||
-      !testSleepingEditsAndReusedBodySlots() || !testFixedStepSimulation() ||
+      !testSleepingEditsAndReusedBodySlots() ||
+      !testContactIdentityAndEntityLifetime() || !testFixedStepSimulation() ||
       !testCollisionFromEverySide() || !testContinuousCollisionAndCommands() ||
       !testTriggersAndFiltering() || !testCharacterAndCameraMath() ||
       !testCharacterUsesSelectedBoxCollider() ||

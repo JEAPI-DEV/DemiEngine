@@ -40,6 +40,7 @@
 #include <cmath>
 #include <cstdint>
 #include <mutex>
+#include <string_view>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
@@ -388,10 +389,11 @@ void mix(std::uint64_t &hash, const bool value) {
   return shape;
 }
 
-[[nodiscard]] std::string pairKey(std::string first, std::string second) {
+[[nodiscard]] std::uint64_t pairKey(std::uint32_t first, std::uint32_t second) {
   if (second < first)
     std::swap(first, second);
-  return first + '\0' + second;
+  // Include Jolt's sequence numbers so recycled body slots cannot alias contacts.
+  return (std::uint64_t{first} << 32U) | second;
 }
 
 } // namespace
@@ -413,8 +415,6 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
     bool added = true;
   };
   struct RawContact {
-    std::string first;
-    std::string second;
     Vec3 point;
     Vec3 normal;
     float penetration = 0.0F;
@@ -453,7 +453,7 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
   std::unordered_map<std::uint32_t, std::string> ids;
   std::vector<BodyFrame> bodyFrames;
   std::uint64_t frameEpoch = 0;
-  std::unordered_map<std::string, RawContact> contacts;
+  std::unordered_map<std::uint64_t, RawContact> contacts;
   std::mutex contactsMutex;
   std::vector<std::pair<JPH::BodyID, JPH::BodyID>> removedContacts;
 
@@ -476,13 +476,18 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
     auto &interface = physics.GetBodyInterface();
     // Solver workers have joined. Body access is forbidden in OnContactRemoved.
     for (const auto &[first, second] : removedContacts) {
-      const auto firstId = idFor(first);
-      const auto secondId = idFor(second);
-      if (firstId.empty() || secondId.empty())
-        continue;
-      const auto found = contacts.find(pairKey(firstId, secondId));
+      const auto found = contacts.find(
+          pairKey(first.GetIndexAndSequenceNumber(),
+                  second.GetIndexAndSequenceNumber()));
       if (found == contacts.end())
         continue;
+      // Removal callbacks may refer to bodies already destroyed or recycled
+      // during synchronization. Never query Jolt with those stale handles.
+      if (!frameFor(first.GetIndexAndSequenceNumber()) ||
+          !frameFor(second.GetIndexAndSequenceNumber())) {
+        contacts.erase(found);
+        continue;
+      }
       auto &raw = found->second;
       if (raw.firstBody != first.GetIndexAndSequenceNumber() ||
           raw.secondBody != second.GetIndexAndSequenceNumber())
@@ -552,9 +557,8 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
         frameFor(second.GetID().GetIndexAndSequenceNumber());
     if (!firstFrame || !secondFrame)
       return;
-    const std::string &firstId = firstFrame->entity->id;
-    const std::string &secondId = secondFrame->entity->id;
-    const std::string key = pairKey(firstId, secondId);
+    const auto key = pairKey(first.GetID().GetIndexAndSequenceNumber(),
+                            second.GetID().GetIndexAndSequenceNumber());
     if (!firstFrame->reports && !secondFrame->reports) {
       std::scoped_lock lock(contactsMutex);
       contacts.erase(key);
@@ -565,8 +569,6 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
                                  : manifold.GetWorldSpaceContactPointOn1(0);
     std::scoped_lock lock(contactsMutex);
     contacts[key] = {
-        .first = firstId,
-        .second = secondId,
         .point = demi(point),
         .normal = demi(manifold.mWorldSpaceNormal),
         .penetration = std::max(manifold.mPenetrationDepth, 0.0F),
@@ -609,7 +611,6 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
   impl_->world = &world;
   impl_->physics.SetGravity(jolt(gravity));
   auto &interface = impl_->physics.GetBodyInterface();
-  std::unordered_set<std::string> live;
   // Native slots may be reused; validate the generation and current step before
   // reading each snapshot. Contacts never retain entity/component pointers.
   ++impl_->frameEpoch;
@@ -621,7 +622,6 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
           !hasCollider(entity) ||
           entity.hasComponent<CharacterController3DComponent>())
         continue;
-      live.insert(entity.id);
       auto *body = entity.component<Rigidbody3DComponent>();
       const std::uint64_t signature = shapeSignature(world, entity);
       auto found = impl_->bodies.find(entity.id);
@@ -833,7 +833,7 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
     ProfileScope scope("Physics3D.remove_bodies");
     for (auto iterator = impl_->bodies.begin();
          iterator != impl_->bodies.end();) {
-      if (live.contains(iterator->first)) {
+      if (impl_->frameFor(iterator->second.body.GetIndexAndSequenceNumber())) {
         ++iterator;
         continue;
       }
@@ -1046,21 +1046,32 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
                (!first->reports && !second->reports);
       });
     }
-    std::vector<const std::pair<const std::string, Impl::RawContact> *>
-        sortedContacts;
+    struct SortedContact {
+      std::pair<std::string_view, std::string_view> key;
+      const Impl::RawContact *raw;
+    };
+    std::vector<SortedContact> sortedContacts;
     {
       ProfileScope sortScope("Physics3D.contacts.sort");
       sortedContacts.reserve(impl_->contacts.size());
-      for (const auto &contact : impl_->contacts)
-        sortedContacts.push_back(&contact);
-      std::ranges::sort(sortedContacts, {}, [](const auto *contact) {
-        return std::string_view(contact->first);
-      });
+      // Publish stable entity-ID order, independent of native slot allocation.
+      // Views live only until this joined, non-mutating publication phase ends.
+      for (const auto &[bodyPair, raw] : impl_->contacts) {
+        const auto *first = impl_->frameFor(raw.firstBody);
+        const auto *second = impl_->frameFor(raw.secondBody);
+        if (!first || !second)
+          continue;
+        const std::string_view firstId = first->entity->id;
+        const std::string_view secondId = second->entity->id;
+        sortedContacts.push_back(
+            {{std::min(firstId, secondId), std::max(firstId, secondId)}, &raw});
+      }
+      std::ranges::sort(sortedContacts, {}, &SortedContact::key);
     }
     {
       ProfileScope emitScope("Physics3D.contacts.emit");
-      for (const auto *contact : sortedContacts) {
-        const auto &[key, raw] = *contact;
+      for (const auto &contact : sortedContacts) {
+        const auto &raw = *contact.raw;
         const auto *first = impl_->frameFor(raw.firstBody);
         const auto *second = impl_->frameFor(raw.secondBody);
         if (!first || !second)
@@ -1077,10 +1088,10 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
                                                  .isTrigger = raw.trigger});
             };
         if (first->reports)
-          append(raw.first, raw.second, second->layer,
+          append(first->entity->id, second->entity->id, second->layer,
                  {-raw.normal.x, -raw.normal.y, -raw.normal.z});
         if (second->reports)
-          append(raw.second, raw.first, first->layer, raw.normal);
+          append(second->entity->id, first->entity->id, first->layer, raw.normal);
       }
       for (auto &contact : characterContacts)
         world.physicsContacts3D.push_back(std::move(contact));

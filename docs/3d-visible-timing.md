@@ -2,7 +2,7 @@
 
 ## Hardware scope and pending iGPU gate
 
-The user reports UEFI is configured for **dedicated GPU only**. Current testing
+These captures used UEFI configured for **dedicated GPU only**. That testing
 uses the GeForce RTX 3070 Ti Laptop GPU, PCI `10de:24a0`, on the Ryzen 7 6800H
 development machine. The renderer reports those selected PCI IDs in every
 measured window. The display reports 144 Hz, not 60 Hz.
@@ -10,9 +10,9 @@ measured window. The display reports 144 Hz, not 60 Hz.
 An earlier attempt to force the Radeon Vulkan driver initialized Vulkan but
 timed out before completing a capture. Under the dedicated-only firmware setting
 this is not valid evidence of Radeon performance or an engine/driver defect.
-Do not retry it until the user enables hybrid mode at a convenient reboot.
-After that, verify Radeon selection, repeat the same captures, and qualify startup,
-resizing/surface behavior and sustained performance. The checklist is in
+The user enabled hybrid mode on 2026-09-13; Radeon rendering now works. See
+[hybrid graphics testing](3d-hybrid-graphics.md) for selection and new measurements.
+The remaining startup, resizing/surface and sustained-performance checklist is in
 [plan.md](../plan.md). No firmware changes were made by the agent.
 
 ## Diagnostics implemented
