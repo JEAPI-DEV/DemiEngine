@@ -1,5 +1,11 @@
 # Lightweight 3D Gameplay
 
+## Visual mesh damage
+
+Native, per-instance impact dents are available through `MeshDeformation.dent`
+and `MeshDeformation.reset`. See [mesh denting](mesh-denting.md) for the API,
+interactive barrel demo, collision limitations, and rendering costs.
+
 ## Per-body solver quality
 
 `Rigidbody3D.solver_velocity_steps` and `solver_position_steps` are optional

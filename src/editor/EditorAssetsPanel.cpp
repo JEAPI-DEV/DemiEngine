@@ -34,24 +34,11 @@ bool containsCaseInsensitive(const std::string_view value,
 
 std::filesystem::path relativeSource(const EditorWorkspace &workspace,
                                      const std::filesystem::path &source) {
-  std::error_code error;
-  const std::filesystem::path relative = std::filesystem::relative(
-      source, workspace.project().project.projectDirectory, error);
-  return error ? source.filename() : relative;
-}
-
-std::set<std::filesystem::path>
-allDirectories(const EditorWorkspace &workspace) {
-  std::set<std::filesystem::path> directories;
-  for (const std::filesystem::path &source : workspace.sources()) {
-    std::filesystem::path parent =
-        relativeSource(workspace, source).parent_path();
-    while (!parent.empty() && parent != ".") {
-      directories.insert(parent);
-      parent = parent.parent_path();
-    }
-  }
-  return directories;
+  // Keep file aliases in their authored folder, without filesystem queries
+  // during drawing. Directory discovery uses the same lexical paths.
+  const auto relative = source.lexically_relative(
+      workspace.project().project.projectDirectory);
+  return relative.empty() ? source.filename() : relative;
 }
 
 std::vector<std::filesystem::path>
@@ -66,7 +53,7 @@ childDirectories(const std::set<std::filesystem::path> &directories,
 
 void drawFolderTree(const std::set<std::filesystem::path> &directories,
                     const std::filesystem::path &parent,
-                    std::filesystem::path &selected) {
+                    std::filesystem::path &selected, bool reveal) {
   for (const std::filesystem::path &directory :
        childDirectories(directories, parent)) {
     const bool hasChildren = !childDirectories(directories, directory).empty();
@@ -76,13 +63,19 @@ void drawFolderTree(const std::set<std::filesystem::path> &directories,
       flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
     if (selected == directory)
       flags |= ImGuiTreeNodeFlags_Selected;
+    if (reveal && hasChildren) {
+      const auto [end, ignored] = std::mismatch(
+          directory.begin(), directory.end(), selected.begin(), selected.end());
+      if (end == directory.end())
+        ImGui::SetNextItemOpen(true);
+    }
     const bool open =
         ImGui::TreeNodeEx(directory.generic_string().c_str(), flags, "%s",
                           directory.filename().string().c_str());
     if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
       selected = directory;
     if (hasChildren && open) {
-      drawFolderTree(directories, directory, selected);
+      drawFolderTree(directories, directory, selected, reveal);
       ImGui::TreePop();
     }
   }
@@ -226,6 +219,8 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
   if (ImGui::Button("+ Create", {76.0F, 28.0F}))
     ImGui::OpenPopup("asset-create-menu");
   if (ImGui::BeginPopup("asset-create-menu")) {
+    if (ImGui::MenuItem("New Folder..."))
+      dialogs_.openNewFolder(directory_);
     if (ImGui::MenuItem("Asset group..."))
       dialogs_.openCreateGroup();
     ImGui::EndPopup();
@@ -251,7 +246,7 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
                            filter_.size());
   ImGui::Separator();
 
-  const std::set<std::filesystem::path> directories = allDirectories(workspace);
+  const auto &directories = workspace.sourceDirectories();
   if (!directory_.empty() && !directories.contains(directory_))
     directory_.clear();
   constexpr float TreeWidth = 145.0F;
@@ -261,7 +256,8 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::Spacing();
   if (ImGui::Selectable("Assets", directory_.empty()))
     directory_.clear();
-  drawFolderTree(directories, {}, directory_);
+  drawFolderTree(directories, {}, directory_, revealDirectory_);
+  revealDirectory_ = false;
   ImGui::Spacing();
   ImGui::TextDisabled("Packages");
   ImGui::EndChild();
@@ -271,10 +267,12 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
                     ImGuiChildFlags_Borders);
   const float available = ImGui::GetContentRegionAvail().x;
   const int columns = std::max(1, static_cast<int>(available / 112.0F));
+  bool hasEntries = false;
   if (ImGui::BeginTable("asset-tiles", columns)) {
     if (filter_[0] == '\0' && typeFilter_.empty()) {
       for (const std::filesystem::path &child :
            childDirectories(directories, directory_)) {
+        hasEntries = true;
         ImGui::TableNextColumn();
         const std::string id = child.generic_string();
         if (drawAssetTile(id.c_str(), child.filename().string(),
@@ -294,6 +292,7 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
         continue;
       if (filter_[0] == '\0' && relative.parent_path() != directory_)
         continue;
+      hasEntries = true;
       ImGui::TableNextColumn();
       if (drawAssetTile(display.c_str(), relative.filename().string(),
                         EditorIcon::File, selectedSource_ == source)) {
@@ -322,6 +321,10 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
     }
     ImGui::EndTable();
   }
+  if (!hasEntries)
+    ImGui::TextDisabled(filter_[0] == '\0' && typeFilter_.empty()
+                            ? "This folder is empty."
+                            : "No matching files.");
   ImGui::EndChild();
   ImGui::SameLine();
   ImGui::BeginChild("asset-details", {0.0F, 0.0F}, ImGuiChildFlags_Borders);
@@ -344,6 +347,13 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::EndChild();
   ImGui::End();
   dialogs_.draw(workspace, notice);
+  if (auto created = dialogs_.takeCreatedFolder()) {
+    directory_ = std::move(*created);
+    selectedSource_.clear();
+    filter_.fill('\0');
+    typeFilter_.clear();
+    revealDirectory_ = true;
+  }
 }
 
 } // namespace demi::editor

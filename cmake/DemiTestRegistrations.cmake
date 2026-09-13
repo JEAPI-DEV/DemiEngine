@@ -15,6 +15,7 @@ add_test(NAME demi-editor-project-document-tests
   COMMAND demi-editor-project-document-tests)
 add_test(NAME demi-editor-asset-workflow-tests
   COMMAND demi-editor-asset-workflow-tests)
+add_test(NAME demi-editor-folder-dialog-tests COMMAND demi-editor-folder-dialog-tests)
 add_test(NAME demi-editor-asset-drop-tests
   COMMAND demi-editor-asset-drop-tests)
 add_test(NAME demi-editor-specialized-document-tests
@@ -191,6 +192,7 @@ add_test(NAME demi-material-library-tests COMMAND demi-material-library-tests)
 add_test(NAME demi-primitive-canvas3d-tests COMMAND demi-primitive-canvas3d-tests)
 add_test(NAME demi-debug-geometry3d-tests COMMAND demi-debug-geometry3d-tests)
 add_test(NAME demi-gpu-mesh3d-tests COMMAND demi-gpu-mesh3d-tests)
+add_test(NAME demi-mesh-deformation3d-tests COMMAND demi-mesh-deformation3d-tests)
 add_test(NAME demi-mesh-geometry3d-tests COMMAND demi-mesh-geometry3d-tests)
 add_test(NAME demi-bgfx-renderer3d-tests COMMAND demi-bgfx-renderer3d-tests)
 add_test(NAME demi-bgfx-scene-extraction-tests

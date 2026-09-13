@@ -21,6 +21,12 @@ into logical editor space so picking and gizmos remain aligned.
 
 ## Current slice
 
+- **Dentable 3D** is an optional reflected component for entities and scene
+  prefabs. Add it to enable the native mesh-denting APIs; its Inspector fields
+  configure material response without custom asset variants. New components
+  preserve implicit defaults (`"Dentable3D": {}`), and ordinary meshes reject
+  dent requests. See [mesh denting](mesh-denting.md).
+
 - The hierarchy displays entities from the active authored scene and follows
   authored 2D, 3D, and isometric transform parents. The scene's runtime HUD is
   also projected as a distinct nested `HUD` subtree with UI-specific icons and
@@ -78,6 +84,14 @@ into logical editor space so picking and gizmos remain aligned.
   stacks.
 - The Assets panel presents authored project files in a folder tree and compact
   file grid while excluding generated, build, package-cache, and Git internals.
+  **+ Create → New Folder** creates a directory beneath the selected folder
+  (or the project root), opens it, and reveals it in the tree. Enter confirms
+  the name; Cancel/Escape leaves the filesystem unchanged. Empty folders are
+  visible without placeholder files, including after reopening the project;
+  externally created folders appear on refresh. Creation writes directly to
+  disk without saving or changing scene/project documents. Duplicate names,
+  path traversal, internal directories, and symbolic-link parents are rejected.
+  Empty directories are not tracked by Git until they contain a file.
   Generic file glyphs remain intentionally honest until preview generation is
   implemented by the relevant specialized-document preview milestone.
 - Asset workflows are operational: type filtering, manifest metadata,
@@ -134,6 +148,9 @@ into logical editor space so picking and gizmos remain aligned.
   world in the Game view. Pause/Resume, exact fixed-tick Step, and Stop control
   that world; an owned external `demi-runtime` window remains available from
   the transport options.
+  Offline projects also work when optional networking is compiled out
+  (`DEMI_ENABLE_NETWORK=OFF`). If a compiled-in network backend fails to
+  initialize, Play still reports that failure instead of silently continuing.
 - The central scene view renders authored 2D and 3D entities through the
   engine's existing bgfx renderers on the editor graphics device. It does not
   maintain a second editor-only rendering implementation.

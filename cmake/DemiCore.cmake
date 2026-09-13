@@ -1,5 +1,8 @@
 # Engine data, asset, scene, UI, input, physics, and navigation foundations.
 add_library(demi-core STATIC
+  src/demi/runtime/geometry/MeshDeformation3D.cpp
+  src/demi/runtime/geometry/MeshRefinement3D.cpp
+  src/demi/runtime/geometry/MeshImpact3D.cpp
   src/demi/capabilities/CapabilityManifest.cpp
   src/demi/capabilities/PlatformCapabilities.cpp
   src/demi/assets/AssetRegistry.cpp

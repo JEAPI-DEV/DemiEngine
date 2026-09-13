@@ -81,12 +81,18 @@ function Lab:on_fixed_update(dt)
 end
 
 function Lab:on_update()
+  if Input.pressed("dent_demo") then self:on_open_denting() end
   if Input.pressed("tower") then Scene.load("scene://performance_3d_lab/tower") end
 end
 
 -- @HandleAction("open_tower")
 function Lab:on_open_tower()
   Scene.load("scene://performance_3d_lab/tower")
+end
+
+-- @HandleAction("open_denting")
+function Lab:on_open_denting()
+  Scene.load("scene://performance_3d_lab/denting")
 end
 
 return Lab

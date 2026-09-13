@@ -28,6 +28,7 @@ public:
 private:
   std::array<char, 128> filter_{};
   std::filesystem::path directory_;
+  bool revealDirectory_ = false;
   std::filesystem::path selectedSource_;
   std::string typeFilter_;
   EditorAssetDialogs dialogs_;

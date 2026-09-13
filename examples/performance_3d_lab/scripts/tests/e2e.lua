@@ -1,6 +1,52 @@
 local tests = {}
 
 tests[#tests + 1] = {
+  name = "native mesh dent API and demo preserve rigid collision",
+  func = function()
+    Test.touch("open_denting")
+    Test.expect_scene("scene://performance_3d_lab/denting", 10)
+    Test.wait(0.2)
+    local denied = MeshDeformation.dent("reference_barrel", {
+      point = {-0.7, 0.475, 0.35}, direction = {0,0,-1}, radius = 0.32, depth = 0.12,
+    })
+    Test.expect(not denied, "Unmarked reference barrel must reject dent requests")
+    local before = Physics3D.raycast(0.7, 0.475, 2, 0, 0, -1, 4)
+    Test.expect(before and before.entity_id == "dent_barrel", "Barrel proxy must be present")
+    local ok, err = MeshDeformation.dent("dent_barrel", {
+      point = {0.7, 0.475, 0.35}, direction = {0, 0, -1}, radius = 0.32, depth = 0.12,
+    })
+    Test.expect(ok, err)
+    Test.wait(0.2)
+    local after = Physics3D.raycast(0.7, 0.475, 2, 0, 0, -1, 4)
+    Test.expect(after and math.abs(before.distance - after.distance) < 0.0001,
+      "Visual damage must not silently alter collision")
+    Test.expect(MeshDeformation.reset("dent_barrel"), "Reset must succeed")
+    Test.touch("dent_hit")
+    Test.wait(0.8)
+    local status = Hud.get_text("dent_status")
+    Test.expect(status ~= nil and status:find("Impact 64.0 J", 1, true) ~= nil,
+      "A real 2 kg projectile at 8 m/s must report pre-solver kinetic energy")
+    Test.touch("dent_reset")
+    Test.touch("dent_speed")
+    Test.touch("dent_hit")
+    Test.wait(0.8)
+    status = Hud.get_text("dent_status")
+    Test.expect(status ~= nil and status:find("Impact 256.0 J", 1, true) ~= nil,
+      "Doubling real projectile speed must quadruple normal impact energy")
+    Test.touch("dent_reset")
+    Test.touch("dent_mass")
+    Test.touch("dent_hit")
+    Test.wait(0.8)
+    status = Hud.get_text("dent_status")
+    Test.expect(status ~= nil and status:find("Impact 1024.0 J", 1, true) ~= nil,
+      "Quadrupling projectile mass must quadruple measured energy")
+    Test.touch("dent_reset")
+    Test.touch("dent_back")
+    Test.expect_scene("scene://performance_3d_lab/main", 10)
+  end,
+}
+
+tests[#tests + 1] = {
   name = "barrel convex proxy rests upright and on its side",
   func = function()
     for _, case in ipairs({

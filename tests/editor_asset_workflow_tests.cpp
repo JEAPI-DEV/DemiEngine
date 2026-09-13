@@ -2,6 +2,9 @@
 
 #include "demi/schema/Validation.h"
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <filesystem>
 #include <fstream>
@@ -32,6 +35,46 @@ int main() {
   demi::editor::EditorWorkspace workspace;
   std::string error;
   assert(workspace.open(root / "project", error));
+  const auto sourceCount = workspace.sources().size();
+  assert(workspace.createFolder({}, "assets", error));
+  assert(workspace.createFolder("assets", "Props", error));
+  assert(workspace.createFolder("assets/Props", "Empty folder", error));
+  assert(workspace.sourceDirectories().contains("assets/Props/Empty folder"));
+  assert(fs::is_empty(root / "project/assets/Props/Empty folder"));
+  assert(workspace.sources().size() == sourceCount);
+  assert(!workspace.hasUnsavedChanges());
+  assert(!workspace.createFolder("assets", "Props", error));
+  for (const std::string name :
+       {"", ".", "..", "../escape", "nested/child", "back\\slash", "   ",
+        ".git", ".demi", "build", "generated"})
+    assert(!workspace.createFolder("assets", name, error));
+  assert(!workspace.createFolder("..", "escape", error));
+  assert(!workspace.createFolder(root / "external", "escape", error));
+  assert(!workspace.createFolder("assets/missing", "child", error));
+  assert(!workspace.createFolder("assets", std::string("bad\0name", 8), error));
+  fs::create_directory_symlink(root / "external",
+                               root / "project/assets/linked");
+  assert(!workspace.createFolder("assets/linked", "escape", error));
+  assert(!fs::exists(root / "external/escape"));
+  write(root / "project/assets/file.txt", "fixture");
+  assert(!workspace.createFolder("assets", "file.txt", error));
+  assert(!workspace.createFolder("assets/file.txt", "child", error));
+  fs::create_directories(root / "project/generated/hidden");
+  assert(!workspace.createFolder("generated", "child", error));
+  fs::create_directories(root / "project/external_empty/nested");
+  workspace.refreshAssetMetadata();
+  assert(workspace.sourceDirectories().contains("external_empty/nested"));
+  assert(!workspace.sourceDirectories().contains("generated"));
+  assert(!workspace.sourceDirectories().contains("assets/linked"));
+  assert(workspace.createEntity(error));
+  const auto dirtyScene = workspace.sceneDocument().json();
+  assert(workspace.createFolder("assets", "While editing", error));
+  assert(workspace.sceneDocument().json() == dirtyScene);
+  assert(workspace.sceneDocument().isDirty());
+  assert(workspace.undo(error));
+  demi::editor::EditorWorkspace reopened;
+  assert(reopened.open(root / "project", error));
+  assert(reopened.sourceDirectories().contains("assets/Props/Empty folder"));
   assert(workspace.importAsset(
       {.source = root / "external/logo.png", .id = "asset://ui/logo"}, error));
   assert(workspace.assetIndex().assets().size() == 1);

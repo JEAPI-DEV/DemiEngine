@@ -4,11 +4,15 @@
   "main_scene": "scene://performance_3d_lab/main",
   "scenes": [
     { "id": "scene://performance_3d_lab/main", "path": "scenes/main.scene.json" },
-    { "id": "scene://performance_3d_lab/tower" }
+    { "id": "scene://performance_3d_lab/tower" },
+    { "id": "scene://performance_3d_lab/denting" }
   ],
   "assets": ["asset://models/barrel", "asset://colliders/barrel"],
   "input": {
     "actions": {
+      "dent_demo": { "type": "button", "bindings": [{ "input": "key:d" }] },
+      "dent_mass": { "type": "button", "bindings": [{ "input": "key:m" }] },
+      "dent_speed": { "type": "button", "bindings": [{ "input": "key:v" }] },
       "tower": { "type": "button", "bindings": [{ "input": "key:t" }] },
       "fire": { "type": "button", "bindings": [{ "input": "key:space" }] },
       "reset": { "type": "button", "bindings": [{ "input": "key:r" }] },

@@ -1,6 +1,7 @@
 #include "editor/EditorWorkspace.h"
 
 #include "editor/EditorDocumentStore.h"
+#include "editor/EditorProjectFolders.h"
 
 #include "demi/assets/AssetImporter.h"
 
@@ -12,6 +13,7 @@ namespace demi::editor {
 
 void EditorWorkspace::discoverSources() {
   sources_.clear();
+  sourceDirectories_.clear();
   std::error_code filesystemError;
   std::filesystem::recursive_directory_iterator iterator(
       project_->project.projectDirectory,
@@ -20,17 +22,34 @@ void EditorWorkspace::discoverSources() {
   const std::filesystem::recursive_directory_iterator end;
   for (; !filesystemError && iterator != end;
        iterator.increment(filesystemError)) {
-    if (iterator->is_directory()) {
+    std::error_code entryError;
+    if (iterator->is_directory(entryError)) {
       const std::string name = iterator->path().filename().string();
-      if (name == "generated" || name == "build" || name == ".demi" ||
-          name == ".git")
+      if (isEditorInternalDirectory(name) || iterator->is_symlink(entryError)) {
         iterator.disable_recursion_pending();
+      } else {
+        sourceDirectories_.insert(iterator->path().lexically_relative(
+            project_->project.projectDirectory));
+      }
       continue;
     }
-    if (iterator->is_regular_file())
+    if (!entryError && iterator->is_regular_file(entryError))
       sources_.push_back(iterator->path());
   }
   std::ranges::sort(sources_);
+}
+
+bool EditorWorkspace::createFolder(const std::filesystem::path &relativeParent,
+                                   std::string_view name, std::string &error) {
+  if (!project_) {
+    error = "Open a project before creating folders.";
+    return false;
+  }
+  if (!createEditorProjectFolder(project_->project.projectDirectory,
+                                 relativeParent, name, error))
+    return false;
+  refreshAssetMetadata();
+  return true;
 }
 
 void EditorWorkspace::refreshAssetIndex() {

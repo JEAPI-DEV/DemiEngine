@@ -96,7 +96,7 @@ BgfxRenderer3D::BgfxRenderer3D(GpuResources &resources,
     : resources_(resources), commands_(commands),
       primitives_(resources, commands), postProcess_(resources, commands),
       particleRenderer_(resources, commands), overlay_(resources, commands),
-      textures_(resources), materials_(resources) {}
+      textures_(resources), materials_(resources), deformedMeshes_(resources) {}
 
 BgfxRenderer3D::~BgfxRenderer3D() { shutdown(); }
 
@@ -173,6 +173,7 @@ bool BgfxRenderer3D::initialize(std::string &error) {
 }
 
 void BgfxRenderer3D::shutdown() {
+  deformedMeshes_.clear();
   dynamicMeshes_.clear();
   primitiveMeshes_.clear();
   modelMeshes_.clear();
@@ -313,6 +314,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     return false;
 
   std::unordered_set<std::string> liveDynamicMeshes;
+  std::unordered_set<std::string> liveDeformedMeshes;
   // Cache ownership follows entity lifetime, not camera visibility. Otherwise
   // leaving and re-entering the frustum would destroy and re-upload chunk
   // meshes, turning culling into a camera-movement hitch.
@@ -320,6 +322,8 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     const auto *mesh = entity.component<MeshRendererComponent>();
     if (mesh == nullptr)
       continue;
+    if (!entityMeshDents3D(entity).empty())
+      liveDeformedMeshes.insert(entity.id);
     if (!mesh->vertices.empty() ||
         entity.component<AnimationPlayer3DComponent>() != nullptr)
       liveDynamicMeshes.insert(entity.id);
@@ -385,10 +389,12 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     for (const VisibleMesh3D &visible : visibility.meshes) {
       const Entity &entity = *visible.entity;
       const auto *mesh = entity.component<MeshRendererComponent>();
+      const auto dents = entityMeshDents3D(entity);
       const WorldTransform3D &transform = visible.transform;
       const auto *player = entity.component<AnimationPlayer3DComponent>();
-      const ModelLodSelection lod = selectModelLod(
-          *mesh, transform.position, frame.position, player != nullptr);
+      const ModelLodSelection lod =
+          selectModelLod(*mesh, transform.position, frame.position,
+                         player != nullptr || !dents.empty());
       if (lod.isCulled) {
         ++distanceCulled;
         continue;
@@ -443,9 +449,10 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         auto &cached = dynamicMeshes_[entity.id];
         if (!cached)
           cached = std::make_unique<CachedMesh>(resources_);
-        if (cached->signature != signature || !cached->gpu.valid()) {
+        if (dents.empty() &&
+            (cached->signature != signature || !cached->gpu.valid())) {
           if (!cached->gpu.upload(mesh->vertices, mesh->uvs, {}, 0xffffffffU,
-                                  error)) {
+                                  error, mesh->normals)) {
             error = entity.id + ": " + error;
             return false;
           }
@@ -455,14 +462,22 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         if (textureId.empty() && material != nullptr)
           textureId = material->albedoTexture;
         const TextureView2D texture = textures_.find(textureId);
-        queued = cached->gpu.draw(
-            commands_, frame.viewId, program,
-            texture.handle ? texture.handle : whiteTexture_, meshSampler_,
-            composeMeshTransform3D(transform, mesh->size), state, error,
-            drawUniforms);
+        const GpuMesh3D *drawMesh = &cached->gpu;
+        if (!dents.empty()) {
+          drawMesh = deformedMeshes_.get(entity.id, "inline", signature,
+                                         mesh->vertices, mesh->uvs, {}, {},
+                                         dents, error);
+          if (!drawMesh)
+            return false;
+        }
+        queued = drawMesh->draw(commands_, frame.viewId, program,
+                                texture.handle ? texture.handle : whiteTexture_,
+                                meshSampler_,
+                                composeMeshTransform3D(transform, mesh->size),
+                                state, error, drawUniforms);
         if (queued) {
           ++bufferedDraws;
-          bufferedTriangles += cached->gpu.indexCount() / 3U;
+          bufferedTriangles += drawMesh->indexCount() / 3U;
         }
       } else if (!selectedModel.empty()) {
         const auto cached = modelMeshes_.find(selectedModel);
@@ -537,6 +552,15 @@ bool BgfxRenderer3D::renderFrame(const World &world,
           }
           drawMesh = animatedMesh.get();
         }
+        const GpuMesh3D *drawGpu = &drawMesh->gpu;
+        if (!dents.empty() && player == nullptr) {
+          const auto &rest = cached->second->restGeometry;
+          drawGpu = deformedMeshes_.get(entity.id, selectedModel, 0,
+                                        rest.positions, rest.uvs, rest.indices,
+                                        rest.colors, dents, error);
+          if (!drawGpu)
+            return false;
+        }
         const auto modelTexture = modelTextures_.find(selectedModel);
         const std::string textureId =
             material != nullptr && !material->albedoTexture.empty()
@@ -546,7 +570,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         const TextureView2D texture = textures_.find(textureId);
         const TextureHandle resolvedTexture =
             texture.handle ? texture.handle : whiteTexture_;
-        if (player == nullptr && material == nullptr) {
+        if (player == nullptr && material == nullptr && dents.empty()) {
           const std::string groupKey =
               selectedModel + "\n" + mesh->material + "\n" +
               std::to_string(color) + "\n" +
@@ -554,20 +578,20 @@ bool BgfxRenderer3D::renderFrame(const World &world,
               std::to_string(resolvedTexture.generation);
           auto &[groupMesh, groupTexture, groupTint, groupUnlit, transforms] =
               instanceGroups[groupKey];
-          groupMesh = &drawMesh->gpu;
+          groupMesh = drawGpu;
           groupTexture = resolvedTexture;
           groupTint = entityTint;
           groupUnlit = modelUnlit;
           transforms.push_back(composeMeshTransform3D(transform, mesh->size));
           queued = true;
         } else {
-          queued = drawMesh->gpu.draw(
-              commands_, frame.viewId, program, resolvedTexture, meshSampler_,
-              composeMeshTransform3D(transform, mesh->size), state, error,
-              drawUniforms);
+          queued = drawGpu->draw(commands_, frame.viewId, program,
+                                 resolvedTexture, meshSampler_,
+                                 composeMeshTransform3D(transform, mesh->size),
+                                 state, error, drawUniforms);
           if (queued) {
             ++bufferedDraws;
-            bufferedTriangles += drawMesh->gpu.indexCount() / 3U;
+            bufferedTriangles += drawGpu->indexCount() / 3U;
           }
         }
       } else {
@@ -702,6 +726,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
                distanceSquared(right.particle.position);
       });
   if (frame.updateContent) {
+    deformedMeshes_.retain(liveDeformedMeshes);
     std::erase_if(dynamicMeshes_, [&liveDynamicMeshes](const auto &entry) {
       return !liveDynamicMeshes.contains(entry.first);
     });

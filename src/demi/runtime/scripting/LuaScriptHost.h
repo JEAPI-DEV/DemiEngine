@@ -1,4 +1,5 @@
 #pragma once
+#include "demi/runtime/geometry/MeshImpact3D.h"
 
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/data/DataAssetStore.h"
@@ -385,6 +386,13 @@ public:
                         std::vector<Vec3> vertices, std::vector<Vec3> normals,
                         std::vector<Vec2> uvs);
   [[nodiscard]] bool setHudText(const std::string &id, const std::string &text);
+  [[nodiscard]] std::string dentMesh(const std::string &entityId, Vec3 point,
+                                     Vec3 direction, float radius, float depth);
+  [[nodiscard]] bool resetMeshDents(const std::string &entityId);
+  [[nodiscard]] MeshImpactMaterial3D meshImpactMaterial(const std::string &entityId) const;
+  [[nodiscard]] MeshImpactResult3D
+  impactMesh(const std::string &entityId, Vec3 point, Vec3 direction,
+             float energy, const MeshImpactMaterial3D &material);
   [[nodiscard]] bool setHudFont(const std::string &id, std::string font);
   [[nodiscard]] bool setHudFontSize(const std::string &id, float fontSize);
   [[nodiscard]] bool setHudRect(const std::string &id, float x, float y,

@@ -87,7 +87,7 @@ bool EmbeddedRuntimeSession::start(const std::filesystem::path &projectPath,
   generateTilemapColliders(state->loaded.world, state->assetRegistry);
   state->audioInitialized = state->audio.initialize();
   state->media.loadVideoAssets(state->assetRegistry);
-  if (!state->network.initialize()) {
+  if (state->network.available() && !state->network.initialize()) {
     error = "The embedded runtime network service could not initialize.";
     return false;
   }

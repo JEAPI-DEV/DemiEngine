@@ -3,6 +3,7 @@
   "canvas_size": [960, 540],
   "root": { "id": "root", "type": "container", "children": [
     { "id": "lab_title", "type": "label", "text": "3D PERFORMANCE LAB", "position": [24, 18], "font_size": 18 },
-    { "id": "open_tower", "type": "button", "text": "TOWER TEST (T)", "action": "open_tower", "position": [24, 50], "size": [180, 38] }
+    { "id": "open_tower", "type": "button", "text": "TOWER TEST (T)", "action": "open_tower", "position": [24, 50], "size": [180, 38] },
+    { "id": "open_denting", "type": "button", "text": "MESH DENTING (D)", "action": "open_denting", "position": [214, 50], "size": [180, 38] }
   ] }
 }

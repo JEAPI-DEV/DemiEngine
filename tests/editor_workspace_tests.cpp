@@ -1,4 +1,5 @@
 #include "editor/EditorWorkspace.h"
+#include "demi/runtime/scene/components/3dcomponents/Dentable3DComponent.h"
 
 #include <algorithm>
 #include <cassert>
@@ -158,6 +159,11 @@ int main() {
   const auto barrelSource =
       root / "examples/performance_3d_lab/prefabs/barrel.prefab.json";
   assert(barrelWorkspace.openPrefabDocument(barrelSource, error));
+  assert(barrelWorkspace.addComponent("body", "Dentable3D", error));
+  assert(barrelWorkspace.sceneDocument().component("body", "Dentable3D")->empty());
+  assert(barrelWorkspace.selectedEntity()->hasComponent<demi::runtime::Dentable3DComponent>());
+  assert(barrelWorkspace.undo(error));
+  assert(!barrelWorkspace.selectedEntity()->hasComponent<demi::runtime::Dentable3DComponent>());
   assert(barrelWorkspace.isPrefabDocument());
   assert(barrelWorkspace.project().world.entities.size() == 1);
   assert(barrelWorkspace.selectedEntityId() == "body");
@@ -193,6 +199,8 @@ int main() {
         << R"({"format_version":1,"id":"prefab://test","entities":[{"id":"body","components":{"Transform3D":{}}}]})";
   }
   assert(barrelWorkspace.openPrefabDocument(temporaryPrefab, error));
+  assert(barrelWorkspace.addComponent("body", "MeshRenderer", error));
+  assert(barrelWorkspace.addComponent("body", "Dentable3D", error));
   assert(barrelWorkspace.editValue(barrelName, "Saved name", false, error));
   assert(barrelWorkspace.save(error));
   assert(barrelWorkspace.sceneDocument().reload(error));
@@ -200,6 +208,7 @@ int main() {
   assert(barrelWorkspace.sceneDocument().entity("body")->at("name") ==
          "Saved name");
   assert(!barrelWorkspace.sceneDocument().json().contains("hud"));
+  assert(barrelWorkspace.sceneDocument().component("body", "Dentable3D") != nullptr);
   std::filesystem::remove(temporaryPrefab);
 
   const std::string documentBeforeFailure =

@@ -184,11 +184,16 @@ Available first-party packages are documented in
 
 ## Secure Multiplayer
 
-Networking is optional at build time and experimental at the product level:
+Networking is included by default and remains experimental at the product level.
+Including it does not host a server or connect automatically. To intentionally
+build without it, configure with `-DDEMI_ENABLE_NETWORK=OFF`.
+
+Existing build directories retain their cached setting; enable it explicitly
+when updating a previously offline build:
 
 ```sh
-cmake --preset linux-debug -DDEMI_ENABLE_NETWORK=ON
-cmake --build --preset linux-debug
+cmake --preset linux-release -DDEMI_ENABLE_NETWORK=ON
+cmake --build --preset linux-release
 ```
 
 A multiplayer project declares a versioned `NetworkContract` asset:

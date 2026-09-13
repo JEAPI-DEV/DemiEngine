@@ -9,6 +9,14 @@
 
 namespace demi::editor {
 
+void EditorAssetDialogs::openNewFolder(std::filesystem::path relativeParent) {
+  folderParent_ = std::move(relativeParent);
+  folderName_.fill('\0');
+  folderError_.clear();
+  showNewFolder_ = true;
+  focusFolderName_ = true;
+}
+
 void EditorAssetDialogs::queueImport(std::filesystem::path source) {
   droppedSources_.push_back(std::move(source));
 }
@@ -24,6 +32,44 @@ bool EditorAssetDialogs::openEditGroup(const std::filesystem::path &path,
 }
 
 void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
+  if (showNewFolder_) {
+    ImGui::SetNextWindowSize({440.0F, 200.0F}, ImGuiCond_Appearing);
+    if (ImGui::Begin("New Folder", &showNewFolder_,
+                     ImGuiWindowFlags_NoSavedSettings)) {
+      const std::string parent = folderParent_.empty()
+                                     ? "Project root"
+                                     : folderParent_.generic_string();
+      ImGui::TextWrapped("Create in: %s", parent.c_str());
+      ImGui::SetNextItemWidth(-1.0F);
+      if (focusFolderName_) {
+        ImGui::SetKeyboardFocusHere();
+        focusFolderName_ = false;
+      }
+      const bool entered = ImGui::InputTextWithHint(
+          "##folder-name", "Folder name", folderName_.data(),
+          folderName_.size(), ImGuiInputTextFlags_EnterReturnsTrue);
+      ImGui::BeginDisabled(folderName_[0] == '\0');
+      const bool create = ImGui::Button("Create", {100.0F, 30.0F});
+      ImGui::EndDisabled();
+      if ((create || entered) && folderName_[0] != '\0') {
+        if (workspace.createFolder(folderParent_, folderName_.data(),
+                                   folderError_)) {
+          createdFolder_ = folderParent_ / folderName_.data();
+          notice = "Created folder: " + createdFolder_->generic_string();
+          showNewFolder_ = false;
+        } else {
+          notice = folderError_;
+        }
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("Cancel", {90.0F, 30.0F}) ||
+          (ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_Escape)))
+        showNewFolder_ = false;
+      if (!folderError_.empty())
+        ImGui::TextWrapped("%s", folderError_.c_str());
+    }
+    ImGui::End();
+  }
   if (!showImport_ && importSource_[0] == '\0' && !droppedSources_.empty()) {
     std::string error;
     auto suggestion = suggestAssetImport(droppedSources_.front(), error);

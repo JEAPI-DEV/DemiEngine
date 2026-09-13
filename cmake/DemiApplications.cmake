@@ -69,6 +69,7 @@ else()
     src/editor/EditorAssetGroupDocument.cpp
     src/editor/EditorAssetDrop.cpp
     src/editor/EditorAssetIndex.cpp
+    src/editor/EditorProjectFolders.cpp
     src/editor/EditorAuthoredJson.cpp
     src/editor/EditorDocumentStore.cpp
     src/editor/EditorDiagnosticsModel.cpp

@@ -21,6 +21,7 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -48,6 +49,12 @@ public:
   [[nodiscard]] bool openHudDocument(const std::filesystem::path &path,
                                      std::string &error);
   [[nodiscard]] bool refresh(std::string &error);
+  [[nodiscard]] bool createFolder(const std::filesystem::path &relativeParent,
+                                  std::string_view name, std::string &error);
+  [[nodiscard]] const std::set<std::filesystem::path> &
+  sourceDirectories() const {
+    return sourceDirectories_;
+  }
   [[nodiscard]] bool save(std::string &error);
   [[nodiscard]] bool saveProject(std::string &error);
   [[nodiscard]] bool saveAll(std::string &error);
@@ -295,6 +302,7 @@ private:
   EditorSceneViewDimension viewDimension_ =
       EditorSceneViewDimension::ThreeDimensional;
   std::vector<std::filesystem::path> sources_;
+  std::set<std::filesystem::path> sourceDirectories_;
   std::unordered_map<std::string, runtime::TilemapAsset2D> tilemaps2D_;
   Diagnostics diagnostics_;
   std::vector<std::string> selectedEntityIds_;

@@ -1,6 +1,11 @@
 # Game-Facing Networking
 
-Networking is experimental and is enabled with `DEMI_ENABLE_NETWORK=ON`.
+Networking is experimental and enabled by default (`DEMI_ENABLE_NETWORK=ON`).
+Use `-DDEMI_ENABLE_NETWORK=OFF` only for an intentionally offline build. Existing
+CMake build directories retain cached values; reconfigure an older offline
+build with `-DDEMI_ENABLE_NETWORK=ON` and rebuild. Including the module does not
+open a listening port or connect automatically; hosting/connecting remains an
+explicit gameplay action.
 Games use `NetworkSession`; the lower-level `Network` service is reserved for
 transport tools. A multiplayer project should declare one validated network
 contract so trust rules remain source data rather than Lua conventions.

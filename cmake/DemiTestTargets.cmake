@@ -141,6 +141,15 @@
     PRIVATE demi-editor-model)
   add_executable(demi-editor-asset-workflow-tests
     tests/editor_asset_workflow_tests.cpp)
+  add_executable(demi-editor-folder-dialog-tests tests/editor_folder_dialog_tests.cpp)
+  target_include_directories(demi-editor-folder-dialog-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}"
+    "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-folder-dialog-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
+  target_link_libraries(demi-editor-folder-dialog-tests PRIVATE demi-editor-ui)
   target_link_libraries(demi-editor-asset-workflow-tests
     PRIVATE demi-editor-model)
   add_executable(demi-editor-asset-drop-tests
@@ -282,6 +291,8 @@
   target_link_libraries(demi-debug-geometry3d-tests
     PRIVATE demi-render3d-bgfx)
   add_executable(demi-gpu-mesh3d-tests tests/gpu_mesh3d_tests.cpp)
+  add_executable(demi-mesh-deformation3d-tests tests/mesh_deformation3d_tests.cpp)
+  target_link_libraries(demi-mesh-deformation3d-tests PRIVATE demi-render3d-bgfx)
   target_link_libraries(demi-gpu-mesh3d-tests PRIVATE demi-render3d-bgfx)
   add_executable(demi-mesh-geometry3d-tests tests/mesh_geometry3d_tests.cpp)
   target_link_libraries(demi-mesh-geometry3d-tests PRIVATE demi-render3d-bgfx)

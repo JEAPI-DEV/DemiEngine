@@ -1,5 +1,13 @@
 # 3D performance lab
 
+Press **D** or choose **Mesh Denting** for the native deformation probe:
+click the right barrel or press Space to fire at it, M to change mass, V to change
+speed, R to restore, B to return. Dent depth is calculated natively from actual
+pre-solver contact energy. The engine refines the existing barrel mesh at runtime.
+The left barrel shares its model but remains unchanged. This is visual damage;
+only the right barrel opts in with `Dentable3D` (also available on prefabs).
+Collision remains the original hull. See [mesh denting](../../docs/mesh-denting.md).
+
 An executable scaling probe, not a visual showcase or a claim of 2,000-entity
 support. The environment, camera, and lab settings are editable in
 `scenes/main.scene.json`. Lua creates the measured population using normal

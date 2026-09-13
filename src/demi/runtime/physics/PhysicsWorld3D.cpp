@@ -1,4 +1,5 @@
 #include "demi/runtime/physics/PhysicsWorld3D.h"
+#include "demi/runtime/geometry/MeshImpact3D.h"
 
 #include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/physics/PhysicsContactPhases3D.h"
@@ -431,6 +432,8 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
     std::uint32_t firstBody = 0;
     std::uint32_t secondBody = 0;
     bool sleeping = false;
+    float impactEnergy = 0.0F;
+    std::uint64_t impactEpoch = 0;
   };
   struct CharacterRecord {
     JPH::Ref<JPH::CharacterVirtual> character;
@@ -563,7 +566,7 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
   }
 
   void record(const JPH::Body &first, const JPH::Body &second,
-              const JPH::ContactManifold &manifold) {
+              const JPH::ContactManifold &manifold, bool entering) {
     const auto *firstFrame =
         frameFor(first.GetID().GetIndexAndSequenceNumber());
     const auto *secondFrame =
@@ -580,26 +583,44 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
     const JPH::RVec3 point = manifold.mRelativeContactPointsOn1.empty()
                                  ? manifold.mBaseOffset
                                  : manifold.GetWorldSpaceContactPointOn1(0);
+    const bool trigger = first.IsSensor() || second.IsSensor();
+    float impactEnergy = 0.0F;
+    if (entering && !trigger) {
+      const float inverseMassSum =
+          (first.IsDynamic() ? first.GetMotionProperties()->GetInverseMass()
+                             : 0.0F) +
+          (second.IsDynamic() ? second.GetMotionProperties()->GetInverseMass()
+                              : 0.0F);
+      impactEnergy = normalImpactEnergy3D(
+          demi(first.GetPointVelocity(point) - second.GetPointVelocity(point)),
+          demi(manifold.mWorldSpaceNormal), inverseMassSum);
+    }
     std::scoped_lock lock(contactsMutex);
-    contacts[key] = {
+    auto &contact = contacts[key];
+    if (contact.impactEpoch == frameEpoch &&
+        contact.impactEnergy > impactEnergy)
+      return;
+    contact = {
         .point = demi(point),
         .normal = demi(manifold.mWorldSpaceNormal),
         .penetration = std::max(manifold.mPenetrationDepth, 0.0F),
         .trigger = first.IsSensor() || second.IsSensor(),
         .firstBody = first.GetID().GetIndexAndSequenceNumber(),
         .secondBody = second.GetID().GetIndexAndSequenceNumber(),
+        .impactEnergy = impactEnergy,
+        .impactEpoch = frameEpoch,
     };
   }
 
   void OnContactAdded(const JPH::Body &first, const JPH::Body &second,
                       const JPH::ContactManifold &manifold,
                       JPH::ContactSettings &) override {
-    record(first, second, manifold);
+    record(first, second, manifold, true);
   }
   void OnContactPersisted(const JPH::Body &first, const JPH::Body &second,
                           const JPH::ContactManifold &manifold,
                           JPH::ContactSettings &) override {
-    record(first, second, manifold);
+    record(first, second, manifold, false);
   }
   void OnContactRemoved(const JPH::SubShapeIDPair &pair) override {
     std::scoped_lock lock(contactsMutex);
@@ -1110,13 +1131,15 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
         const auto append =
             [&](const std::string &entity, const std::string &other,
                 const std::string &otherLayer, const Vec3 normal) {
-              world.physicsContacts3D.push_back({.entityId = entity,
-                                                 .otherEntityId = other,
-                                                 .otherLayer = otherLayer,
-                                                 .point = raw.point,
-                                                 .normal = normal,
-                                                 .penetration = raw.penetration,
-                                                 .isTrigger = raw.trigger});
+              world.physicsContacts3D.push_back(
+                  {.entityId = entity,
+                   .otherEntityId = other,
+                   .otherLayer = otherLayer,
+                   .point = raw.point,
+                   .normal = normal,
+                   .penetration = raw.penetration,
+                   .isTrigger = raw.trigger,
+                   .impactEnergy = raw.sleeping ? 0.0F : raw.impactEnergy});
             };
         if (first->reports)
           append(first->entity->id, second->entity->id, second->layer,

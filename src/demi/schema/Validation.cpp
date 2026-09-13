@@ -393,6 +393,16 @@ void validatePhysics3D(Diagnostics &diagnostics,
     const std::string id = entity.value("id", "ent_unknown");
     const auto &components = entity["components"];
     const auto body = components.find("Rigidbody3D");
+    if (components.contains("Dentable3D") && !components.contains("MeshRenderer"))
+      diagnostics.push_back({.severity = Severity::Error,
+        .code = "DENTABLE3D_MESH_REQUIRED",
+        .message = "Entity " + id + " requires MeshRenderer for Dentable3D.",
+        .path = path.string()});
+    if (components.contains("Dentable3D") && components.contains("AnimationPlayer3D"))
+      diagnostics.push_back({.severity = Severity::Error,
+        .code = "DENTABLE3D_ANIMATION_UNSUPPORTED",
+        .message = "Entity " + id + " cannot combine Dentable3D and AnimationPlayer3D yet.",
+        .path = path.string()});
     const auto character = components.find("CharacterController3D");
     const std::string bodyType = body != components.end() && body->is_object()
                                      ? body->value("body_type", "static")

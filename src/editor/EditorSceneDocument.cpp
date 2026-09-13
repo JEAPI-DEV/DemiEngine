@@ -544,11 +544,15 @@ bool EditorSceneDocument::addComponent(const std::string_view id,
         error);
     return false;
   }
+  auto authoredDefaults = runtime::scene_loading::componentDefaults(*descriptor);
+  for (const auto &field : descriptor->fields)
+    if (!field.required)
+      authoredDefaults.erase(std::string(field.name));
   return stageAndCommit(
       AddComponentCommand{
           .entityId = std::string(id),
           .componentName = std::string(componentName),
-          .component = runtime::scene_loading::componentDefaults(*descriptor)},
+          .component = std::move(authoredDefaults)},
       error);
 }
 

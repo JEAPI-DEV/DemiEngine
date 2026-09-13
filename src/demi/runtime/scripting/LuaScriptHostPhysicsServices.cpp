@@ -97,6 +97,8 @@ void LuaScriptHost::dispatchPhysicsEvents() {
     lua_setfield(state, -2, "normal_z");
     lua_pushnumber(state, contact.penetration);
     lua_setfield(state, -2, "penetration");
+    lua_pushnumber(state, contact.impactEnergy);
+    lua_setfield(state, -2, "impact_energy");
     lua_pushboolean(state, contact.isTrigger);
     lua_setfield(state, -2, "is_trigger");
     if (phaseListener) {
