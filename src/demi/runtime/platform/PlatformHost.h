@@ -40,6 +40,8 @@ struct PlatformFrameState {
   // that is about to be replaced again.
   bool surfaceSettled = true;
   unsigned surfaceGeneration = 0;
+  double wallDeltaSeconds = 0.0;
+  bool deltaOverridden = false;
 };
 
 class PlatformHost {

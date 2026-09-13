@@ -499,8 +499,11 @@ public:
       state_.displayRefreshHz = mode->refresh_rate;
     }
     const Clock::time_point now = Clock::now();
-    state_.deltaSeconds = std::clamp(
-        std::chrono::duration<float>(now - lastFrame_).count(), 0.0F, 0.1F);
+    state_.wallDeltaSeconds =
+        std::chrono::duration<double>(now - lastFrame_).count();
+    state_.deltaSeconds =
+        std::clamp(static_cast<float>(state_.wallDeltaSeconds), 0.0F, 0.1F);
+    state_.deltaOverridden = false;
     lastFrame_ = now;
     // Opt-in determinism for headless replay tests: a fixed delta seconds
     // removes wall-clock sensitivity so scripted input sequences always
@@ -509,6 +512,7 @@ public:
         fixedDelta != nullptr && *fixedDelta != '\0') {
       try {
         state_.deltaSeconds = std::max(std::stof(fixedDelta), 0.0F);
+        state_.deltaOverridden = true;
       } catch (...) {
       }
     }

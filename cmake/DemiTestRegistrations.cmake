@@ -135,6 +135,7 @@ add_test(NAME demi-capability-manifest-tests
   COMMAND demi-capability-manifest-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-runtime-object-model-tests
   COMMAND demi-runtime-object-model-tests)
+add_test(NAME demi-entity-lookup-tests COMMAND demi-entity-lookup-tests)
 add_test(NAME demi-runtime-scene-prefab-tests
   COMMAND demi-runtime-scene-prefab-tests)
 add_test(NAME demi-runtime-lifetime-failure-tests
@@ -152,6 +153,7 @@ add_test(NAME demi-capabilities-reference-gates
   COMMAND demi capabilities verify-gates)
 add_test(NAME demi-physics2d-tests COMMAND demi-physics2d-tests)
 add_test(NAME demi-physics3d-tests COMMAND demi-physics3d-tests)
+add_test(NAME demi-physics-contact-phases3d-tests COMMAND demi-physics-contact-phases3d-tests)
 add_test(NAME demi-transform3d-hierarchy-tests
   COMMAND demi-transform3d-hierarchy-tests)
 add_test(NAME demi-validation-3d-tests COMMAND demi-validation-3d-tests)
@@ -230,6 +232,9 @@ add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)
 
   add_test(NAME demi-game-save-document-tests COMMAND demi-game-save-document-tests)
   add_test(NAME demi-runtime-profiler-tests COMMAND demi-runtime-profiler-tests)
+  add_test(NAME demi-frame-timing-tests COMMAND demi-frame-timing-tests)
+  add_test(NAME demi-visible-timing-summary-tests
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/visible_timing_summary_tests.py")
   add_test(NAME demi-profiler-hud-layout-tests COMMAND demi-profiler-hud-layout-tests)
   add_test(NAME demi-isometric-grid-tests COMMAND demi-isometric-grid-tests)
   add_test(NAME demi-navigation2d-tests COMMAND demi-navigation2d-tests)

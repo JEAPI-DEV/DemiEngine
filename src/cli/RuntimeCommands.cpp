@@ -48,6 +48,22 @@ int runRuntimeCommand(const std::vector<std::string> &args,
   }
 
   bool serve = mode == RuntimeCommandMode::Serve;
+  std::pair<int, int> windowSize{0, 0};
+  if (hasArg(args, "--window-size")) {
+    const auto parsed = parseWindowSize(valueAfter(args, "--window-size"));
+    if (!parsed) {
+      error
+          << "--window-size requires WIDTHxHEIGHT, each between 1 and 65535.\n";
+      return 2;
+    }
+    windowSize = *parsed;
+  }
+  if (hasArg(args, "--profile-frames") &&
+      (valueAfter(args, "--profile-frames").empty() ||
+       valueAfter(args, "--profile-frames").starts_with("--"))) {
+    error << "--profile-frames requires an output CSV path.\n";
+    return 2;
+  }
 #ifdef DEMI_SERVER_CLI
   serve = true;
 #endif
@@ -61,6 +77,9 @@ int runRuntimeCommand(const std::vector<std::string> &args,
       .inputReplayPath = valueAfter(args, "--input-replay"),
       .profileReportPath = valueAfter(args, "--profile-report"),
       .debugOverlays = valueAfter(args, "--debug-overlays"),
+      .windowWidth = windowSize.first,
+      .windowHeight = windowSize.second,
+      .profileFramesPath = valueAfter(args, "--profile-frames"),
   });
 }
 

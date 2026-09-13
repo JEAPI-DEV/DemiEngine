@@ -839,6 +839,38 @@ return PropProbe
     return 1;
   }
 
+  // The Lua service index must observe structural edits made outside the VM.
+  WorldCommandBuffer lookupCommands;
+  Entity lookupProbe;
+  lookupProbe.id = "lookup_probe";
+  lookupProbe.setComponent<Transform3DComponent>(Transform3DComponent{});
+  if (!lookupCommands.create(world, std::move(lookupProbe)))
+    return 1;
+  (void)lookupCommands.flush(world);
+  if (!host.setEntityPosition3D("lookup_probe", 4, 5, 6) ||
+      host.entityPosition3D("lookup_probe")->y != 5) {
+    std::cerr << "Lua lookup missed appended entity\n";
+    return 1;
+  }
+  Entity replacement;
+  replacement.id = "lookup_probe";
+  replacement.setComponent<Transform2DComponent>(Transform2DComponent{});
+  if (!lookupCommands.create(world, std::move(replacement), true))
+    return 1;
+  (void)lookupCommands.flush(world);
+  if (host.setEntityPosition3D("lookup_probe", 1, 2, 3) ||
+      !host.setEntityPosition("lookup_probe", 7, 8)) {
+    std::cerr << "Lua lookup retained replaced component storage\n";
+    return 1;
+  }
+  if (!lookupCommands.destroy(world, "lookup_probe"))
+    return 1;
+  (void)lookupCommands.flush(world);
+  if (host.entityPosition("lookup_probe")) {
+    std::cerr << "Lua lookup retained destroyed entity\n";
+    return 1;
+  }
+
   host.destroy();
   std::filesystem::remove_all(projectDirectory, error);
   return 0;

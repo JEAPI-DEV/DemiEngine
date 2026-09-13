@@ -191,6 +191,7 @@ void printHelp() {
       << "           [--watch]\n"
       << "           [--input-replay <fixture.replay.json>]\n"
       << "           [--profile-report <report.csv>]\n"
+      << "           [--profile-frames <frames.csv>] [--window-size WIDTHxHEIGHT]\n"
       << "           [--debug-overlays <colliders,contacts,grid,entity_ids,"
          "draw_order,ui_bounds,profiler>]\n"
       << "  demi run linux [--project <project>] [--max-frames count] "

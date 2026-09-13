@@ -3,6 +3,7 @@
 #include "demi/runtime/platform/PlatformHost.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 
+#include <chrono>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -67,6 +68,7 @@ private:
   unsigned surfaceGeneration_ = 0;
   bool frameOpen_ = false;
   bool initialized_ = false;
+  std::chrono::steady_clock::time_point frameBuildStart_;
 };
 
 [[nodiscard]] render::GraphicsApi configuredGraphicsApi();

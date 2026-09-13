@@ -1,6 +1,7 @@
 #include "demi/runtime/physics/PhysicsWorld3D.h"
 
 #include "demi/runtime/physics/ColliderAsset3D.h"
+#include "demi/runtime/physics/PhysicsContactPhases3D.h"
 #include "demi/runtime/physics/SpatialQuery3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/Transform3DHierarchy.h"
@@ -16,6 +17,7 @@
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Geometry/Triangle.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
+#include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Collision/CastResult.h>
 #include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
@@ -402,6 +404,11 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
     Vec3 currentPosition;
     Vec3 lastAuthoredPosition;
     Vec3 lastAuthoredRotation;
+    Vec3 publishedVelocity;
+    Vec3 publishedAngularVelocity;
+    bool publishedAwake = true;
+    float gravityFactor = 1.0F;
+    bool reportContacts = true;
     bool continuous = false;
     bool added = true;
   };
@@ -412,12 +419,24 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
     Vec3 normal;
     float penetration = 0.0F;
     bool trigger = false;
+    std::uint32_t firstBody = 0;
+    std::uint32_t secondBody = 0;
+    bool sleeping = false;
   };
   struct CharacterRecord {
     JPH::Ref<JPH::CharacterVirtual> character;
     std::uint64_t shapeSignature = 0;
     float padding = 0.0F;
     float slopeLimit = 0.0F;
+  };
+  struct BodyFrame {
+    std::uint64_t epoch = 0;
+    std::uint32_t bodyKey = 0;
+    Entity *entity = nullptr;
+    std::string layer;
+    bool reports = true;
+    bool added = true;
+    bool active = false;
   };
 
   JoltLifetime lifetime;
@@ -432,9 +451,52 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
   std::unordered_map<std::string, BodyRecord> bodies;
   std::unordered_map<std::string, CharacterRecord> characters;
   std::unordered_map<std::uint32_t, std::string> ids;
-  std::unordered_map<std::uint32_t, Entity *> entitiesByBodyId;
+  std::vector<BodyFrame> bodyFrames;
+  std::uint64_t frameEpoch = 0;
   std::unordered_map<std::string, RawContact> contacts;
   std::mutex contactsMutex;
+  std::vector<std::pair<JPH::BodyID, JPH::BodyID>> removedContacts;
+
+  void wakeNearBody(JPH::BodyID body) {
+    auto &interface = physics.GetBodyInterface();
+    JPH::AABox bounds;
+    {
+      JPH::BodyLockRead lock(physics.GetBodyLockInterface(), body);
+      if (!lock.Succeeded() || !lock.GetBody().IsInBroadPhase())
+        return;
+      bounds = lock.GetBody().GetWorldSpaceBounds();
+    }
+    bounds.ExpandBy(JPH::Vec3::sReplicate(0.1F));
+    interface.ActivateBodiesInAABox(
+        bounds, JPH::BroadPhaseLayerFilter{},
+        JPH::SpecifiedObjectLayerFilter(MovingLayer));
+  }
+
+  void finishContactRemovals() {
+    auto &interface = physics.GetBodyInterface();
+    // Solver workers have joined. Body access is forbidden in OnContactRemoved.
+    for (const auto &[first, second] : removedContacts) {
+      const auto firstId = idFor(first);
+      const auto secondId = idFor(second);
+      if (firstId.empty() || secondId.empty())
+        continue;
+      const auto found = contacts.find(pairKey(firstId, secondId));
+      if (found == contacts.end())
+        continue;
+      auto &raw = found->second;
+      if (raw.firstBody != first.GetIndexAndSequenceNumber() ||
+          raw.secondBody != second.GetIndexAndSequenceNumber())
+        continue;
+      if (physics.WereBodiesInContact(first, second))
+        continue;
+      if (interface.IsAdded(first) && interface.IsAdded(second) &&
+          !interface.IsActive(first) && !interface.IsActive(second))
+        raw.sleeping = true;
+      else
+        contacts.erase(found);
+    }
+    removedContacts.clear();
+  }
 
   Impl() {
     physics.Init(65536, 0, 65536, 10240, broadPhaseLayers, objectVsBroadPhase,
@@ -457,8 +519,16 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
   }
 
   [[nodiscard]] Entity *entityFor(const JPH::BodyID body) const {
-    const auto found = entitiesByBodyId.find(body.GetIndexAndSequenceNumber());
-    return found == entitiesByBodyId.end() ? nullptr : found->second;
+    const auto *frame = frameFor(body.GetIndexAndSequenceNumber());
+    return frame ? frame->entity : nullptr;
+  }
+
+  [[nodiscard]] const BodyFrame *frameFor(std::uint32_t id) const {
+    const auto index = JPH::BodyID(id).GetIndex();
+    if (index >= bodyFrames.size())
+      return nullptr;
+    const auto &frame = bodyFrames[index];
+    return frame.epoch == frameEpoch && frame.bodyKey == id ? &frame : nullptr;
   }
 
   JPH::ValidateResult
@@ -476,15 +546,16 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
 
   void record(const JPH::Body &first, const JPH::Body &second,
               const JPH::ContactManifold &manifold) {
-    const std::string firstId = idFor(first.GetID());
-    const std::string secondId = idFor(second.GetID());
-    if (firstId.empty() || secondId.empty())
+    const auto *firstFrame =
+        frameFor(first.GetID().GetIndexAndSequenceNumber());
+    const auto *secondFrame =
+        frameFor(second.GetID().GetIndexAndSequenceNumber());
+    if (!firstFrame || !secondFrame)
       return;
-    const Entity *firstEntity = entityFor(first.GetID());
-    const Entity *secondEntity = entityFor(second.GetID());
+    const std::string &firstId = firstFrame->entity->id;
+    const std::string &secondId = secondFrame->entity->id;
     const std::string key = pairKey(firstId, secondId);
-    if (firstEntity == nullptr || secondEntity == nullptr ||
-        (!reportsContacts(*firstEntity) && !reportsContacts(*secondEntity))) {
+    if (!firstFrame->reports && !secondFrame->reports) {
       std::scoped_lock lock(contactsMutex);
       contacts.erase(key);
       return;
@@ -500,6 +571,8 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
         .normal = demi(manifold.mWorldSpaceNormal),
         .penetration = std::max(manifold.mPenetrationDepth, 0.0F),
         .trigger = first.IsSensor() || second.IsSensor(),
+        .firstBody = first.GetID().GetIndexAndSequenceNumber(),
+        .secondBody = second.GetID().GetIndexAndSequenceNumber(),
     };
   }
 
@@ -514,12 +587,8 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
     record(first, second, manifold);
   }
   void OnContactRemoved(const JPH::SubShapeIDPair &pair) override {
-    const std::string first = idFor(pair.GetBody1ID());
-    const std::string second = idFor(pair.GetBody2ID());
-    if (!first.empty() && !second.empty()) {
-      std::scoped_lock lock(contactsMutex);
-      contacts.erase(pairKey(first, second));
-    }
+    std::scoped_lock lock(contactsMutex);
+    removedContacts.emplace_back(pair.GetBody1ID(), pair.GetBody2ID());
   }
 };
 
@@ -541,8 +610,9 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
   impl_->physics.SetGravity(jolt(gravity));
   auto &interface = impl_->physics.GetBodyInterface();
   std::unordered_set<std::string> live;
-  impl_->entitiesByBodyId.clear();
-  impl_->entitiesByBodyId.reserve(impl_->bodies.size() + 1);
+  // Native slots may be reused; validate the generation and current step before
+  // reading each snapshot. Contacts never retain entity/component pointers.
+  ++impl_->frameEpoch;
 
   {
     ProfileScope scope("Physics3D.sync_bodies");
@@ -555,8 +625,11 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
       auto *body = entity.component<Rigidbody3DComponent>();
       const std::uint64_t signature = shapeSignature(world, entity);
       auto found = impl_->bodies.find(entity.id);
+      const bool shapeRebuilt =
+          found != impl_->bodies.end() && found->second.signature != signature;
       if (found != impl_->bodies.end() &&
           found->second.signature != signature) {
+        impl_->wakeNearBody(found->second.body);
         interface.RemoveBody(found->second.body);
         interface.DestroyBody(found->second.body);
         impl_->ids.erase(found->second.body.GetIndexAndSequenceNumber());
@@ -607,25 +680,37 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
         if (created == nullptr)
           continue;
         const JPH::BodyID bodyId = created->GetID();
-        interface.AddBody(bodyId, body != nullptr && body->awake
-                                      ? JPH::EActivation::Activate
-                                      : JPH::EActivation::DontActivate);
+        interface.AddBody(bodyId,
+                          body != nullptr && (body->awake || shapeRebuilt)
+                              ? JPH::EActivation::Activate
+                              : JPH::EActivation::DontActivate);
+        if (motionType(body) == JPH::EMotionType::Static)
+          impl_->wakeNearBody(bodyId);
         if (body != nullptr && !body->bodyEnabled)
           interface.RemoveBody(bodyId);
         impl_->ids[bodyId.GetIndexAndSequenceNumber()] = entity.id;
-        found =
-            impl_->bodies
-                .emplace(entity.id,
-                         Impl::BodyRecord{
-                             .body = bodyId,
-                             .signature = signature,
-                             .previousPosition = resolved->position,
-                             .currentPosition = resolved->position,
-                             .lastAuthoredPosition = local.position,
-                             .lastAuthoredRotation = local.rotation,
-                             .continuous = body != nullptr && body->continuous,
-                             .added = body == nullptr || body->bodyEnabled})
-                .first;
+        found = impl_->bodies
+                    .emplace(
+                        entity.id,
+                        Impl::BodyRecord{
+                            .body = bodyId,
+                            .signature = signature,
+                            .previousPosition = resolved->position,
+                            .currentPosition = resolved->position,
+                            .lastAuthoredPosition = local.position,
+                            .lastAuthoredRotation = local.rotation,
+                            .publishedVelocity = body ? body->velocity : Vec3{},
+                            .publishedAngularVelocity =
+                                body ? body->angularVelocity : Vec3{},
+                            .publishedAwake = body && body->awake,
+                            .gravityFactor = body && body->useGravity
+                                                 ? body->gravityScale
+                                                 : 0.0F,
+                            .reportContacts =
+                                body == nullptr || body->reportContacts,
+                            .continuous = body != nullptr && body->continuous,
+                            .added = body == nullptr || body->bodyEnabled})
+                    .first;
       } else {
         Impl::BodyRecord &record = found->second;
         const bool authoredTransformChanged =
@@ -637,25 +722,51 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
             local.rotation.z != record.lastAuthoredRotation.z;
         if (authoredTransformChanged ||
             motionType(body) == JPH::EMotionType::Kinematic) {
+          if (authoredTransformChanged)
+            impl_->wakeNearBody(record.body);
           interface.SetPositionAndRotationWhenChanged(
               record.body,
               JPH::RVec3(resolved->position.x, resolved->position.y,
                          resolved->position.z),
               joltRotation(resolved->rotation), JPH::EActivation::Activate);
+          if (authoredTransformChanged)
+            impl_->wakeNearBody(record.body);
         }
         if (body != nullptr) {
           if (body->bodyEnabled != record.added) {
+            impl_->wakeNearBody(record.body);
             if (body->bodyEnabled)
               interface.AddBody(record.body, JPH::EActivation::Activate);
             else
               interface.RemoveBody(record.body);
             record.added = body->bodyEnabled;
+            if (record.added)
+              impl_->wakeNearBody(record.body);
+          }
+          if (body->reportContacts != record.reportContacts) {
+            impl_->wakeNearBody(record.body);
+            record.reportContacts = body->reportContacts;
           }
           if (motionType(body) != JPH::EMotionType::Static) {
-            interface.SetLinearAndAngularVelocity(
-                record.body, jolt(body->velocity), jolt(body->angularVelocity));
-            interface.SetGravityFactor(
-                record.body, body->useGravity ? body->gravityScale : 0.0F);
+            const auto changed = [](Vec3 a, Vec3 b) {
+              return a.x != b.x || a.y != b.y || a.z != b.z;
+            };
+            // Components contain last step's published state, not a fresh
+            // velocity/wake command every frame. Replaying it prevents sleep
+            // and can overwrite commands already applied through BodyInterface.
+            if (changed(body->velocity, record.publishedVelocity) ||
+                changed(body->angularVelocity, record.publishedAngularVelocity))
+              interface.SetLinearAndAngularVelocity(
+                  record.body, jolt(body->velocity),
+                  jolt(body->angularVelocity));
+            const float gravityFactor =
+                body->useGravity ? body->gravityScale : 0.0F;
+            if (gravityFactor != record.gravityFactor) {
+              interface.SetGravityFactor(record.body, gravityFactor);
+              record.gravityFactor = gravityFactor;
+              if (record.added)
+                interface.ActivateBody(record.body);
+            }
             if (body->continuous != record.continuous) {
               interface.SetMotionQuality(record.body,
                                          body->continuous
@@ -663,10 +774,12 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
                                              : JPH::EMotionQuality::Discrete);
               record.continuous = body->continuous;
             }
-            if (body->awake)
-              interface.ActivateBody(record.body);
-            else
-              interface.DeactivateBody(record.body);
+            if (record.added && body->awake != record.publishedAwake) {
+              if (body->awake)
+                interface.ActivateBody(record.body);
+              else
+                interface.DeactivateBody(record.body);
+            }
           }
         }
         record.lastAuthoredPosition = local.position;
@@ -701,10 +814,18 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
         body->hasKinematicTarget = false;
         body->kinematicTargetDt = 0.0F;
       }
-      if (found != impl_->bodies.end())
-        impl_
-            ->entitiesByBodyId[found->second.body.GetIndexAndSequenceNumber()] =
-            &entity;
+      if (found != impl_->bodies.end()) {
+        const auto nativeId = found->second.body;
+        if (nativeId.GetIndex() >= impl_->bodyFrames.size())
+          impl_->bodyFrames.resize(nativeId.GetIndex() + 1);
+        impl_->bodyFrames[nativeId.GetIndex()] = {
+            .epoch = impl_->frameEpoch,
+            .bodyKey = nativeId.GetIndexAndSequenceNumber(),
+            .entity = &entity,
+            .layer = colliderLayer(entity),
+            .reports = reportsContacts(entity),
+            .added = found->second.added};
+      }
     }
   }
 
@@ -716,6 +837,7 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
         ++iterator;
         continue;
       }
+      impl_->wakeNearBody(iterator->second.body);
       interface.RemoveBody(iterator->second.body);
       interface.DestroyBody(iterator->second.body);
       impl_->ids.erase(iterator->second.body.GetIndexAndSequenceNumber());
@@ -727,6 +849,10 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
     ProfileScope scope("Physics3D.simulate");
     impl_->physics.Update(fixedDt, 1, &impl_->allocator, &impl_->jobs);
   }
+  RuntimeProfiler::setGauge("Physics3D.bodies", impl_->physics.GetNumBodies());
+  RuntimeProfiler::setGauge(
+      "Physics3D.active_bodies",
+      impl_->physics.GetNumActiveBodies(JPH::EBodyType::RigidBody));
 
   std::unordered_set<std::string> liveCharacters;
   std::vector<PhysicsContact3D> characterContacts;
@@ -864,11 +990,9 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
   {
     ProfileScope scope("Physics3D.sync_components");
     for (auto &[id, record] : impl_->bodies) {
-      const auto entityFound =
-          impl_->entitiesByBodyId.find(record.body.GetIndexAndSequenceNumber());
-      Entity *entity = entityFound == impl_->entitiesByBodyId.end()
-                           ? nullptr
-                           : entityFound->second;
+      const auto *frame =
+          impl_->frameFor(record.body.GetIndexAndSequenceNumber());
+      Entity *entity = frame ? frame->entity : nullptr;
       auto *transform = entity != nullptr
                             ? entity->component<Transform3DComponent>()
                             : nullptr;
@@ -876,9 +1000,15 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
                                      : nullptr;
       if (transform == nullptr || motionType(body) == JPH::EMotionType::Static)
         continue;
+      JPH::BodyLockRead bodyLock(impl_->physics.GetBodyLockInterface(),
+                                 record.body);
+      if (!bodyLock.Succeeded())
+        continue;
+      const JPH::Body &simulated = bodyLock.GetBody();
+      impl_->bodyFrames[record.body.GetIndex()].active = simulated.IsActive();
       record.previousPosition = record.currentPosition;
-      const JPH::RVec3 position = interface.GetPosition(record.body);
-      const JPH::Quat rotation = interface.GetRotation(record.body);
+      const JPH::RVec3 position = simulated.GetPosition();
+      const JPH::Quat rotation = simulated.GetRotation();
       record.currentPosition = demi(position);
       if (transform->parent.empty())
         transform->position = record.currentPosition;
@@ -887,90 +1017,83 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
       record.lastAuthoredPosition = transform->position;
       record.lastAuthoredRotation = transform->rotation;
       if (body != nullptr) {
-        body->velocity = demi(interface.GetLinearVelocity(record.body));
-        body->angularVelocity = demi(interface.GetAngularVelocity(record.body));
-        body->awake = interface.IsActive(record.body);
+        body->velocity = demi(simulated.GetLinearVelocity());
+        body->angularVelocity = demi(simulated.GetAngularVelocity());
+        body->awake = simulated.IsActive();
+        record.publishedVelocity = body->velocity;
+        record.publishedAngularVelocity = body->angularVelocity;
+        record.publishedAwake = body->awake;
       }
     }
   }
 
   {
     ProfileScope scope("Physics3D.contact_phases");
-    world.previousPhysicsContacts3D = world.physicsContacts3D;
-    world.physicsContacts3D.clear();
-    std::erase_if(impl_->contacts, [&](const auto &entry) {
-      const auto &raw = entry.second;
-      const auto firstBody = impl_->bodies.find(raw.first);
-      const auto secondBody = impl_->bodies.find(raw.second);
-      if (firstBody == impl_->bodies.end() || secondBody == impl_->bodies.end())
-        return true;
-      const Entity *first = impl_->entityFor(firstBody->second.body);
-      const Entity *second = impl_->entityFor(secondBody->second.body);
-      return first == nullptr || second == nullptr ||
-             (!reportsContacts(*first) && !reportsContacts(*second));
-    });
-    std::unordered_set<std::string> previousPairs;
-    previousPairs.reserve(world.previousPhysicsContacts3D.size());
-    for (const PhysicsContact3D &contact : world.previousPhysicsContacts3D) {
-      if (contact.phase != "exit")
-        previousPairs.insert(pairKey(contact.entityId, contact.otherEntityId));
+    {
+      ProfileScope removalScope("Physics3D.contacts.remove");
+      impl_->finishContactRemovals();
     }
-    std::unordered_set<std::string> currentPairs;
-    currentPairs.reserve(impl_->contacts.size() + characterContacts.size());
+    world.previousPhysicsContacts3D.swap(world.physicsContacts3D);
+    world.physicsContacts3D.clear();
+    {
+      ProfileScope filterScope("Physics3D.contacts.filter");
+      std::erase_if(impl_->contacts, [&](const auto &entry) {
+        const auto &raw = entry.second;
+        const auto *first = impl_->frameFor(raw.firstBody);
+        const auto *second = impl_->frameFor(raw.secondBody);
+        return !first || !second || !first->added || !second->added ||
+               (raw.sleeping && (first->active || second->active)) ||
+               (!first->reports && !second->reports);
+      });
+    }
     std::vector<const std::pair<const std::string, Impl::RawContact> *>
         sortedContacts;
-    sortedContacts.reserve(impl_->contacts.size());
-    for (const auto &contact : impl_->contacts)
-      sortedContacts.push_back(&contact);
-    std::ranges::sort(sortedContacts, {}, [](const auto *contact) {
-      return std::string_view(contact->first);
-    });
-    for (const auto *contact : sortedContacts) {
-      const auto &[key, raw] = *contact;
-      if (!impl_->bodies.contains(raw.first) ||
-          !impl_->bodies.contains(raw.second))
-        continue;
-      currentPairs.insert(key);
-      const Entity *first = impl_->entityFor(impl_->bodies.at(raw.first).body);
-      const Entity *second =
-          impl_->entityFor(impl_->bodies.at(raw.second).body);
-      if (first == nullptr || second == nullptr)
-        continue;
-      const auto append =
-          [&](const std::string &entity, const std::string &other,
-              const std::string &otherLayer, const Vec3 normal) {
-            world.physicsContacts3D.push_back(
-                {.entityId = entity,
-                 .otherEntityId = other,
-                 .otherLayer = otherLayer,
-                 .phase = previousPairs.contains(key) ? "stay" : "enter",
-                 .point = raw.point,
-                 .normal = normal,
-                 .penetration = raw.penetration,
-                 .isTrigger = raw.trigger});
-          };
-      if (reportsContacts(*first))
-        append(raw.first, raw.second, colliderLayer(*second),
-               {-raw.normal.x, -raw.normal.y, -raw.normal.z});
-      if (reportsContacts(*second))
-        append(raw.second, raw.first, colliderLayer(*first), raw.normal);
+    {
+      ProfileScope sortScope("Physics3D.contacts.sort");
+      sortedContacts.reserve(impl_->contacts.size());
+      for (const auto &contact : impl_->contacts)
+        sortedContacts.push_back(&contact);
+      std::ranges::sort(sortedContacts, {}, [](const auto *contact) {
+        return std::string_view(contact->first);
+      });
     }
-    for (PhysicsContact3D contact : characterContacts) {
-      const std::string key = pairKey(contact.entityId, contact.otherEntityId);
-      currentPairs.insert(key);
-      contact.phase = previousPairs.contains(key) ? "stay" : "enter";
-      world.physicsContacts3D.push_back(std::move(contact));
+    {
+      ProfileScope emitScope("Physics3D.contacts.emit");
+      for (const auto *contact : sortedContacts) {
+        const auto &[key, raw] = *contact;
+        const auto *first = impl_->frameFor(raw.firstBody);
+        const auto *second = impl_->frameFor(raw.secondBody);
+        if (!first || !second)
+          continue;
+        const auto append =
+            [&](const std::string &entity, const std::string &other,
+                const std::string &otherLayer, const Vec3 normal) {
+              world.physicsContacts3D.push_back({.entityId = entity,
+                                                 .otherEntityId = other,
+                                                 .otherLayer = otherLayer,
+                                                 .point = raw.point,
+                                                 .normal = normal,
+                                                 .penetration = raw.penetration,
+                                                 .isTrigger = raw.trigger});
+            };
+        if (first->reports)
+          append(raw.first, raw.second, second->layer,
+                 {-raw.normal.x, -raw.normal.y, -raw.normal.z});
+        if (second->reports)
+          append(raw.second, raw.first, first->layer, raw.normal);
+      }
+      for (auto &contact : characterContacts)
+        world.physicsContacts3D.push_back(std::move(contact));
     }
-    for (const PhysicsContact3D &previous : world.previousPhysicsContacts3D) {
-      if (previous.phase == "exit" ||
-          currentPairs.contains(
-              pairKey(previous.entityId, previous.otherEntityId)))
-        continue;
-      PhysicsContact3D exited = previous;
-      exited.phase = "exit";
-      exited.penetration = 0.0F;
-      world.physicsContacts3D.push_back(std::move(exited));
+    {
+      ProfileScope phaseScope("Physics3D.contacts.assign_phases");
+      assignContactPhases3D(world.physicsContacts3D,
+                            world.previousPhysicsContacts3D);
     }
+    RuntimeProfiler::setGauge("Physics3D.contact_pairs",
+                              impl_->contacts.size());
+    RuntimeProfiler::setGauge("Physics3D.contact_events",
+                              world.physicsContacts3D.size());
   }
 }
 
@@ -1037,10 +1160,13 @@ bool PhysicsWorld3D::setEnabled(const std::string &entityId,
   if (found == impl_->bodies.end())
     return false;
   auto &interface = impl_->physics.GetBodyInterface();
+  impl_->wakeNearBody(found->second.body);
   if (enabled)
     interface.AddBody(found->second.body, JPH::EActivation::Activate);
   else
     interface.RemoveBody(found->second.body);
+  if (enabled)
+    impl_->wakeNearBody(found->second.body);
   found->second.added = enabled;
   return true;
 }

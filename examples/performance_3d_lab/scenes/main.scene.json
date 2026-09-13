@@ -1,0 +1,36 @@
+{
+  "format_version": 1,
+  "id": "scene://performance_3d_lab/main",
+  "name": "3D Performance Lab",
+  "entities": [
+    {
+      "id": "camera",
+      "components": {
+        "Transform3D": { "position": [0, 25, 65] },
+        "Camera3D": { "target_offset": [0, -18, -65], "far_clip": 200, "fov": 60 }
+      }
+    },
+    {
+      "id": "sun",
+      "components": { "DirectionalLight": { "direction": [-0.4, -1, -0.4], "intensity": 1.2 } }
+    },
+    {
+      "id": "floor",
+      "components": {
+        "Transform3D": { "position": [0, -1, 0] },
+        "MeshRenderer": { "shape": "cube", "size": [60, 1, 45], "color": [0.15, 0.18, 0.23, 1] },
+        "BoxCollider3D": { "size": [60, 1, 45] },
+        "Rigidbody3D": { "body_type": "static" }
+      }
+    },
+    {
+      "id": "lab",
+      "components": {
+        "LuaScript": {
+          "module": "script://scripts/lab.lua",
+          "properties": { "count": 250, "workload": "rigid", "varied": false }
+        }
+      }
+    }
+  ]
+}

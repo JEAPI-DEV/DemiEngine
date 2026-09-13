@@ -18,6 +18,16 @@ Rigid-body simulation uses a capped Jolt worker pool on multicore systems.
 Contact callbacks are collected safely and sorted by stable entity-pair key
 before gameplay dispatch so worker scheduling does not define Lua event order.
 
+Awake/velocity component values published by physics are state, not commands to
+repeat every frame. Unchanged state does not reset Jolt's sleep timer. Sleeping
+bodies retain collision and resting contact reports; edits to nearby supports
+wake affected bodies. Explicit velocity, impulse, wake, shape, and gravity edits
+continue to take effect. Contact removals are resolved after solver workers join,
+with native body generations checked before retaining a resting contact.
+
+See [physics optimization measurements](3d-physics-optimization.md) for the
+Release comparison and the distinction between active and sleeping workloads.
+
 ## Bodies and colliders
 
 `Rigidbody3D` supports static, kinematic, and dynamic motion, gravity, mass,

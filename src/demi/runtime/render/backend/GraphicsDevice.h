@@ -1,4 +1,5 @@
 #pragma once
+#include "demi/runtime/render/backend/GraphicsFrameTimings.h"
 
 #include <cstdint>
 #include <string>
@@ -35,6 +36,7 @@ struct GraphicsDeviceConfig {
   std::uint32_t height = 1;
   bool vsync = true;
   bool debug = false;
+  bool profile = false;
 };
 
 class GraphicsDevice {
@@ -51,6 +53,7 @@ public:
                                     std::string &error) = 0;
   virtual void beginFrame(std::uint32_t rgba) = 0;
   [[nodiscard]] virtual std::uint32_t endFrame() = 0;
+  [[nodiscard]] virtual GraphicsFrameTimings frameTimings() const { return {}; }
 
   [[nodiscard]] virtual bool initialized() const = 0;
   [[nodiscard]] virtual std::string_view rendererName() const = 0;

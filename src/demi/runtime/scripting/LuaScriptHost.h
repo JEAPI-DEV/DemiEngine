@@ -12,6 +12,7 @@
 #include "demi/runtime/physics/SpatialQuery3D.h"
 #include "demi/runtime/platform/ApplicationServices.h"
 #include "demi/runtime/scene/RuntimeObjectModel.h"
+#include "demi/runtime/scene/EntityLookup.h"
 #include "demi/runtime/scene/RuntimePrefabService.h"
 #include "demi/runtime/scene/SceneFlow.h"
 #include "demi/runtime/scene/WorldCommandBuffer.h"
@@ -622,6 +623,8 @@ public:
   }
 
 private:
+  [[nodiscard]] Entity *lookupServiceEntity(const std::string &id) const;
+  mutable EntityLookup serviceEntityLookup_;
   [[nodiscard]] bool hasEventListener(std::string_view eventName) const;
 
   struct ScriptInstance {

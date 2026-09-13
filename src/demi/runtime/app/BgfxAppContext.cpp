@@ -1,6 +1,7 @@
 #include "demi/runtime/app/BgfxAppContext.h"
 
 #include "demi/runtime/diagnostics/DeviceLog.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/backend/GpuResources.h"
 #include "demi/runtime/render/backend/RenderCommands.h"
 
@@ -90,7 +91,8 @@ bool BgfxAppContext::initialize(const BgfxAppContextConfig &config,
          .width = static_cast<std::uint32_t>(renderWidth_),
          .height = static_cast<std::uint32_t>(renderHeight_),
          .vsync = config.vsync,
-         .debug = config.debugGraphics},
+         .debug = config.debugGraphics,
+         .profile = RuntimeProfiler::enabled()},
         failure);
   };
   if (!tryInitializeGraphics(config.graphicsApi, error)) {
@@ -180,6 +182,7 @@ bool BgfxAppContext::beginFrame(std::string &error) {
   renderWidth_ = width;
   renderHeight_ = height;
   graphics_.beginFrame(0x000000ffU);
+  frameBuildStart_ = std::chrono::steady_clock::now();
   frameOpen_ = true;
   return true;
 }
@@ -187,7 +190,39 @@ bool BgfxAppContext::beginFrame(std::string &error) {
 void BgfxAppContext::endFrame() {
   if (!frameOpen_)
     return;
+  if (RuntimeProfiler::enabled())
+    RuntimeProfiler::record(
+        "Render.prepare_cpu",
+        std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - frameBuildStart_)
+            .count());
   static_cast<void>(graphics_.endFrame());
+  if (RuntimeProfiler::enabled()) {
+    const auto timings = graphics_.frameTimings();
+    RuntimeProfiler::record("Graphics.frame_advance",
+                            timings.advanceMilliseconds);
+    if (timings.renderThreadMilliseconds)
+      RuntimeProfiler::record("Graphics.render_thread",
+                              *timings.renderThreadMilliseconds);
+    if (timings.waitRenderMilliseconds)
+      RuntimeProfiler::record("Graphics.wait_render",
+                              *timings.waitRenderMilliseconds);
+    if (timings.waitSubmitMilliseconds)
+      RuntimeProfiler::record("Graphics.wait_submit",
+                              *timings.waitSubmitMilliseconds);
+    if (timings.gpuMilliseconds) {
+      RuntimeProfiler::record("Graphics.gpu", *timings.gpuMilliseconds);
+      RuntimeProfiler::setGauge("Graphics.gpu_frame", timings.gpuFrame);
+    }
+    RuntimeProfiler::setGauge("Graphics.submitted_frame",
+                              timings.submittedFrame);
+    RuntimeProfiler::setGauge("Graphics.gpu_timer_available",
+                              timings.gpuTimerAvailable ? 1 : 0);
+    RuntimeProfiler::setGauge("Graphics.vendor_id", timings.vendorId);
+    RuntimeProfiler::setGauge("Graphics.device_id", timings.deviceId);
+    RuntimeProfiler::setGauge("Graphics.backbuffer_width", timings.width);
+    RuntimeProfiler::setGauge("Graphics.backbuffer_height", timings.height);
+  }
   frameOpen_ = false;
 }
 

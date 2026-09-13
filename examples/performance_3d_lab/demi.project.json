@@ -1,0 +1,8 @@
+{
+  "format_version": 1,
+  "name": "3D Performance Lab",
+  "main_scene": "scene://performance_3d_lab/main",
+  "scenes": [{ "id": "scene://performance_3d_lab/main", "path": "scenes/main.scene.json" }],
+  "gameplay_model": { "projection": "3d", "physics": "jolt" },
+  "simulation": { "fixed_timestep": 0.016666667, "random_seed": 314159, "maximum_fixed_steps_per_frame": 2 }
+}

@@ -159,6 +159,12 @@ std::optional<WorldTransform3D> resolveWorldTransform3D(const World &world,
 std::optional<WorldTransform3D>
 resolveWorldTransform3D(const World &world, const Entity &entity,
                         const Transform3DComponent &localOverride) {
+  // Root transforms are already in world space; no cycle set or quaternion
+  // composition is needed for this common physics/rendering case.
+  if (localOverride.parent.empty())
+    return WorldTransform3D{.position = localOverride.position,
+                            .rotation = localOverride.rotation,
+                            .scale = localOverride.scale};
   std::unordered_set<std::string> visiting;
   const auto result = resolve(world, entity, localOverride, visiting);
   return result ? std::make_optional(result->transform) : std::nullopt;

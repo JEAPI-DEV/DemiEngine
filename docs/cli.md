@@ -120,6 +120,14 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
 - `demi run ... --profile-report <report.csv>`: write the same aggregate
   runtime scopes to a report file. It also enables collection when
   `--profiler` is omitted.
+- `demi run ... --profile-frames <frames.csv>`: write per-frame scope totals and
+  gauges, enabling profiling without the HUD. Use a different path from the
+  aggregate report. The trace supports warmup exclusion and cumulative simulation
+  drop analysis; failed writes make the runtime command fail.
+- `demi run ... --window-size WIDTHxHEIGHT`: request the desktop window's initial
+  size, e.g. `1920x1080`, without modifying the project. Both dimensions must be
+  1..65535. DPI/compositor constraints can change actual drawable pixels; check
+  the reported backbuffer dimensions. Defaults remain 960x540.
 - `demi run ... --debug-overlays <names>`: override project overlays with a comma-separated list of `colliders`, `contacts`, `grid`, `entity_ids`, `draw_order`, `ui_bounds`, and `profiler`.
 - `demi editor [--project <project>]`: launch the native editor. Without an
   explicit path, it discovers the nearest parent `demi.project.json`.

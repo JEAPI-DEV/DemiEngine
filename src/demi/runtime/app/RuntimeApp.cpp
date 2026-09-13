@@ -25,6 +25,7 @@
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/Physics3D.h"
 #include "demi/runtime/platform/ProjectFileWatcher.h"
+#include "demi/runtime/profiling/PlatformFrameProfiling.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/scene/WorldQueries.h"
@@ -84,6 +85,9 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
   luaHost.beginFrame(dt);
   const float scaledDt = luaHost.deltaTime();
   fixedAccumulator += scaledDt;
+  RuntimeProfiler::setGauge("Simulation.scaled_input_ms", scaledDt * 1000.0);
+  RuntimeProfiler::setGauge("Simulation.backlog_before_steps_ms",
+                            fixedAccumulator * 1000.0);
   int fixedSteps = 0;
   const int maximumFixedSteps =
       loaded.project.simulation.maximumFixedStepsPerFrame;
@@ -107,12 +111,16 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
     ++fixedSteps;
   }
   double droppedFixedSeconds = 0.0;
+  RuntimeProfiler::setGauge("Simulation.backlog_before_drop_ms",
+                            fixedAccumulator * 1000.0);
   if (fixedAccumulator >= fixedStep) {
     const double retained = std::fmod(fixedAccumulator, fixedStep);
     droppedFixedSeconds = fixedAccumulator - retained;
     fixedAccumulator = retained;
   }
   RuntimeProfiler::setGauge("Simulation.fixed_steps", fixedSteps);
+  RuntimeProfiler::setGauge("Simulation.advanced_ms",
+                            fixedSteps * fixedStep * 1000.0);
   RuntimeProfiler::setGauge("Simulation.dropped_fixed_ms",
                             droppedFixedSeconds * 1000.0);
 
@@ -314,11 +322,73 @@ void reportReload(const ReloadResult &result) {
 } // namespace
 
 int runProject(const RuntimeOptions &options) {
+  if ((options.windowWidth != 0 || options.windowHeight != 0) &&
+      (options.windowWidth < 1 || options.windowWidth > 65535 ||
+       options.windowHeight < 1 || options.windowHeight > 65535)) {
+    std::cerr << "Invalid runtime window dimensions.\n";
+    return 1;
+  }
   bool profileRun = options.profiler || profilingEnabled() ||
-                    !options.profileReportPath.empty();
+                    !options.profileReportPath.empty() ||
+                    !options.profileFramesPath.empty();
   RuntimeProfiler::setEnabled(profileRun);
   RuntimeProfiler::resetSession();
   std::string error;
+  std::ofstream frameTrace;
+  bool traceFailed = false;
+  if (!options.profileFramesPath.empty() &&
+      !options.profileReportPath.empty()) {
+    std::error_code pathError;
+    const auto traceAbsolute =
+        std::filesystem::absolute(options.profileFramesPath, pathError);
+    if (pathError) {
+      std::cerr << "Invalid frame trace path.\n";
+      return 1;
+    }
+    const auto tracePath =
+        std::filesystem::weakly_canonical(traceAbsolute, pathError);
+    if (pathError) {
+      std::cerr << "Invalid frame trace path.\n";
+      return 1;
+    }
+    const auto reportAbsolute =
+        std::filesystem::absolute(options.profileReportPath, pathError);
+    if (pathError) {
+      std::cerr << "Invalid profile report path.\n";
+      return 1;
+    }
+    const auto reportPath =
+        std::filesystem::weakly_canonical(reportAbsolute, pathError);
+    if (pathError) {
+      std::cerr << "Invalid profile report path.\n";
+      return 1;
+    }
+    const bool sameFile =
+        std::filesystem::equivalent(tracePath, reportPath, pathError);
+    if (tracePath == reportPath || (!pathError && sameFile)) {
+      std::cerr
+          << "Aggregate report and frame trace paths must be different.\n";
+      return 1;
+    }
+  }
+  if (!options.profileFramesPath.empty()) {
+    frameTrace.open(options.profileFramesPath);
+    if (!frameTrace) {
+      std::cerr << "Cannot open per-frame profile: "
+                << options.profileFramesPath << '\n';
+      return 1;
+    }
+  }
+  const auto writeFrameTrace = [&](int frame) {
+    if (!frameTrace.is_open())
+      return true;
+    if (RuntimeProfiler::writeFrame(frameTrace, frame))
+      return true;
+    std::cerr << "Failed writing per-frame profile: "
+              << options.profileFramesPath << '\n';
+    traceFailed = true;
+    return false;
+  };
   std::optional<LoadedProject> loadedProject =
       loadProject(options.projectPath, error);
   if (!loadedProject.has_value()) {
@@ -554,6 +624,8 @@ int runProject(const RuntimeOptions &options) {
                             slowProfileThresholdMs);
         ++profile.frames;
       }
+      if (!writeFrameTrace(frameCount))
+        running = false;
       ++frameCount;
       if (options.serve) {
         std::this_thread::sleep_until(nextFrame);
@@ -564,13 +636,21 @@ int runProject(const RuntimeOptions &options) {
     }
     if (options.profiler)
       std::cout << RuntimeProfiler::sessionReport();
+    if (frameTrace.is_open()) {
+      frameTrace.flush();
+      if (!frameTrace) {
+        traceFailed = true;
+        std::cerr << "Failed flushing per-frame profile: "
+                  << options.profileFramesPath << '\n';
+      }
+    }
     writeProfileReport(options.profileReportPath);
     luaHost.destroy();
     runtimeAssets.shutdown();
     networkSystem.shutdown();
     mediaSystem.shutdown();
     audioSystem.shutdown();
-    return 0;
+    return traceFailed ? RuntimeFailure : 0;
   }
 
 #if !DEMI_ENABLE_GRAPHICS_RUNTIME
@@ -594,8 +674,8 @@ int runProject(const RuntimeOptions &options) {
     if (!appHost.initialize(
             Bgfx2DAppHostConfig{
                 .title = title,
-                .width = 960,
-                .height = 540,
+                .width = options.windowWidth > 0 ? options.windowWidth : 960,
+                .height = options.windowHeight > 0 ? options.windowHeight : 540,
                 .graphicsApi = configuredGraphicsApi(),
                 .vsync = loaded.project.display.vsync,
                 .debugGraphics = false,
@@ -680,6 +760,7 @@ int runProject(const RuntimeOptions &options) {
     bool running = true;
     bool renderFailed = false;
     bool pausedState = false;
+    bool timingInterrupted = false;
     const bool compositorPaced = loaded.project.display.vsync && !isHeadless();
     std::chrono::steady_clock::time_point nextFrameDeadline =
         std::chrono::steady_clock::now();
@@ -734,11 +815,16 @@ int runProject(const RuntimeOptions &options) {
                               : "Frame loop resumed."));
       }
       if (paused) {
+        if (frameCount > 0)
+          timingInterrupted = true;
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
         continue;
       }
 
       RuntimeProfiler::beginFrame();
+      recordPlatformFrameTiming(frameState, frameCount == 0);
+      RuntimeProfiler::setGauge("Window.capture_interrupted",
+                                timingInterrupted ? 1 : 0);
       const auto frameStart = std::chrono::steady_clock::now();
       const float dt = frameState.deltaSeconds;
       if (options.e2eTests) {
@@ -814,6 +900,8 @@ int runProject(const RuntimeOptions &options) {
         ++profile.frames;
       }
 
+      if (!writeFrameTrace(frameCount))
+        running = false;
       ++frameCount;
       if (options.maxFrames > 0 && frameCount >= options.maxFrames)
         running = false;
@@ -846,8 +934,16 @@ int runProject(const RuntimeOptions &options) {
       printProfile(profile);
     if (options.profiler)
       std::cout << RuntimeProfiler::sessionReport();
+    if (frameTrace.is_open()) {
+      frameTrace.flush();
+      if (!frameTrace) {
+        traceFailed = true;
+        std::cerr << "Failed flushing per-frame profile: "
+                  << options.profileFramesPath << '\n';
+      }
+    }
     writeProfileReport(options.profileReportPath);
-    return renderFailed ? RuntimeFailure : 0;
+    return renderFailed || traceFailed ? RuntimeFailure : 0;
   }
 
   {
@@ -856,12 +952,13 @@ int runProject(const RuntimeOptions &options) {
     const std::string title = std::string(EngineName) + " - " +
                               loaded.project.name + " - " + loaded.world.name;
     if (!appHost.initialize(
-            Bgfx3DAppHostConfig{.title = title,
-                                .width = 960,
-                                .height = 540,
-                                .graphicsApi = configuredGraphicsApi(),
-                                .vsync = loaded.project.display.vsync,
-                                .debugGraphics = false},
+            Bgfx3DAppHostConfig{
+                .title = title,
+                .width = options.windowWidth > 0 ? options.windowWidth : 960,
+                .height = options.windowHeight > 0 ? options.windowHeight : 540,
+                .graphicsApi = configuredGraphicsApi(),
+                .vsync = loaded.project.display.vsync,
+                .debugGraphics = false},
             AssetRegistry{.projectDirectory = assetRegistry.projectDirectory,
                           .assets = {},
                           .diagnostics = {}},
@@ -938,6 +1035,7 @@ int runProject(const RuntimeOptions &options) {
     bool running = true;
     bool renderFailed = false;
     bool pausedState = false;
+    bool timingInterrupted = false;
     const bool compositorPaced = loaded.project.display.vsync && !isHeadless();
     std::chrono::steady_clock::time_point nextFrameDeadline =
         std::chrono::steady_clock::now();
@@ -992,11 +1090,16 @@ int runProject(const RuntimeOptions &options) {
                               : "Frame loop resumed."));
       }
       if (paused) {
+        if (frameCount > 0)
+          timingInterrupted = true;
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
         continue;
       }
 
       RuntimeProfiler::beginFrame();
+      recordPlatformFrameTiming(frameState, frameCount == 0);
+      RuntimeProfiler::setGauge("Window.capture_interrupted",
+                                timingInterrupted ? 1 : 0);
       const auto frameStart = std::chrono::steady_clock::now();
       const float dt = frameState.deltaSeconds;
       if (options.e2eTests) {
@@ -1141,6 +1244,8 @@ int runProject(const RuntimeOptions &options) {
                             slowProfileThresholdMs);
         ++profile.frames;
       }
+      if (!writeFrameTrace(frameCount))
+        running = false;
       ++frameCount;
       if (options.maxFrames > 0 && frameCount >= options.maxFrames)
         running = false;
@@ -1173,8 +1278,16 @@ int runProject(const RuntimeOptions &options) {
       printProfile(profile);
     if (options.profiler)
       std::cout << RuntimeProfiler::sessionReport();
+    if (frameTrace.is_open()) {
+      frameTrace.flush();
+      if (!frameTrace) {
+        traceFailed = true;
+        std::cerr << "Failed flushing per-frame profile: "
+                  << options.profileFramesPath << '\n';
+      }
+    }
     writeProfileReport(options.profileReportPath);
-    return renderFailed ? RuntimeFailure : 0;
+    return renderFailed || traceFailed ? RuntimeFailure : 0;
   }
 
 #endif

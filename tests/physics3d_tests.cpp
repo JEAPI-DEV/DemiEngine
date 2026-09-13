@@ -72,6 +72,158 @@ Entity box(std::string id, const Vec3 position, const Vec3 size,
   return entity;
 }
 
+bool testSleepingAndWakeCommands() {
+  World world;
+  world.entities.push_back(box("floor", {0, -0.5F, 0}, {20, 1, 20}, "static"));
+  world.entities.push_back(
+      box("sleeper", {0, 0.5F, 0}, {1, 1, 1}, "dynamic", {}, false, true));
+  world.entities.push_back(
+      box("always_awake", {3, 0.5F, 0}, {1, 1, 1}, "dynamic", {}, false, true));
+  world.entities.back().component<Rigidbody3DComponent>()->allowSleep = false;
+  for (int step = 0; step < 240; ++step)
+    stepPhysics3D(world, 1.0F / 60.0F);
+  auto *sleeper =
+      findEntity(world, "sleeper")->component<Rigidbody3DComponent>();
+  if (sleeper->awake || !findEntity(world, "always_awake")
+                             ->component<Rigidbody3DComponent>()
+                             ->awake) {
+    std::cerr << "Natural sleeping or allow_sleep=false failed\n";
+    return false;
+  }
+  if (!setRigidbodyVelocity3D(world, "sleeper", {2, 0, 0}))
+    return false;
+  stepPhysics3D(world, 1.0F / 60.0F);
+  if (!sleeper->awake || sleeper->velocity.x < 1.0F) {
+    std::cerr << "Velocity command was overwritten by stale sleeping state\n";
+    return false;
+  }
+  if (!setRigidbodyAwake3D(world, "sleeper", false))
+    return false;
+  stepPhysics3D(world, 1.0F / 60.0F);
+  if (sleeper->awake)
+    return false;
+  if (!addRigidbodyImpulse3D(world, "sleeper", {0, 3, 0}))
+    return false;
+  stepPhysics3D(world, 1.0F / 60.0F);
+  if (!sleeper->awake || sleeper->velocity.y < 2.0F)
+    return false;
+  // Authored component edits remain supported, independently of Lua helpers.
+  sleeper->awake = false;
+  stepPhysics3D(world, 1.0F / 60.0F);
+  if (sleeper->awake)
+    return false;
+  sleeper->awake = true;
+  sleeper->velocity = {0, 4, 0};
+  stepPhysics3D(world, 1.0F / 60.0F);
+  if (!sleeper->awake || sleeper->velocity.y < 3.0F)
+    return false;
+  return true;
+}
+
+bool testSleepingSupportChanges() {
+  for (int change = 0; change < 4; ++change) {
+    World world;
+    world.entities.push_back(
+        box("support", {0, -0.5F, 0}, {4, 1, 4}, "static"));
+    for (int i = 0; i < 3; ++i)
+      world.entities.push_back(box("stack_" + std::to_string(i),
+                                   {0, 0.5F + i, 0}, {1, 1, 1}, "dynamic", {},
+                                   false, true));
+    for (int step = 0; step < 360; ++step)
+      stepPhysics3D(world, 1.0F / 60.0F);
+    for (int i = 0; i < 3; ++i) {
+      const auto *body = findEntity(world, "stack_" + std::to_string(i))
+                             ->component<Rigidbody3DComponent>();
+      if (body->awake) {
+        std::cerr << "Resting stack did not sleep\n";
+        return false;
+      }
+    }
+    if (change == 0)
+      world.entities.erase(world.entities.begin());
+    if (change == 1 && !setRigidbodyEnabled3D(world, "support", false))
+      return false;
+    if (change == 2)
+      findEntity(world, "support")
+          ->component<Transform3DComponent>()
+          ->position.x = 20;
+    if (change == 3)
+      findEntity(world, "support")
+          ->component<BoxCollider3DComponent>()
+          ->offset.x = 20;
+    for (int step = 0; step < 120; ++step)
+      stepPhysics3D(world, 1.0F / 60.0F);
+    for (int i = 0; i < 3; ++i) {
+      const auto *entity = findEntity(world, "stack_" + std::to_string(i));
+      if (entity->component<Transform3DComponent>()->position.y > -3) {
+        std::cerr << "Sleeping body floated after support change " << change
+                  << '\n';
+        return false;
+      }
+    }
+    for (const auto &contact : world.physicsContacts3D)
+      if (contact.entityId == "support" || contact.otherEntityId == "support") {
+        std::cerr << "Stale sleeping support contact\n";
+        return false;
+      }
+  }
+  return true;
+}
+
+bool testSleepingEditsAndReusedBodySlots() {
+  World world;
+  world.entities.push_back(box("floor", {0, -0.5F, 0}, {20, 1, 20}, "static"));
+  world.entities.push_back(
+      box("crate", {0, 0.5F, 0}, {1, 1, 1}, "dynamic", {}, false, true));
+  for (int step = 0; step < 240; ++step)
+    stepPhysics3D(world, 1.0F / 60.0F);
+  if (!setRigidbodyReportContacts3D(world, "crate", false) ||
+      !setRigidbodyReportContacts3D(world, "floor", false))
+    return false;
+  for (int step = 0; step < 120; ++step)
+    stepPhysics3D(world, 1.0F / 60.0F);
+  if (!world.physicsContacts3D.empty())
+    return false;
+  if (!setRigidbodyReportContacts3D(world, "crate", true))
+    return false;
+  stepPhysics3D(world, 1.0F / 60.0F);
+  if (contactsForEntity3D(world, "crate").empty())
+    return false;
+  for (int step = 0; step < 120; ++step)
+    stepPhysics3D(world, 1.0F / 60.0F);
+  findEntity(world, "crate")->component<BoxCollider3DComponent>()->size.y =
+      2.0F;
+  for (int step = 0; step < 120; ++step)
+    stepPhysics3D(world, 1.0F / 60.0F);
+  if (findEntity(world, "crate")
+          ->component<Transform3DComponent>()
+          ->position.y < 0.9F)
+    return false;
+  // Remove a sleeping body, then force native slot reuse on a following step.
+  world.entities.erase(world.entities.begin() + 1);
+  stepPhysics3D(world, 1.0F / 60.0F);
+  world.entities.push_back(
+      box("replacement", {7, 4, 0}, {1, 1, 1}, "dynamic", {}, false, false));
+  for (int step = 0; step < 120; ++step)
+    stepPhysics3D(world, 1.0F / 60.0F);
+  auto *body =
+      findEntity(world, "replacement")->component<Rigidbody3DComponent>();
+  if (body->awake)
+    return false;
+  body->useGravity = true;
+  for (int step = 0; step < 120; ++step)
+    stepPhysics3D(world, 1.0F / 60.0F);
+  if (!near(findEntity(world, "replacement")
+                ->component<Transform3DComponent>()
+                ->position.y,
+            0.5F, 0.08F))
+    return false;
+  for (const auto &contact : world.physicsContacts3D)
+    if (contact.entityId == "crate" || contact.otherEntityId == "crate")
+      return false;
+  return true;
+}
+
 bool testFixedStepSimulation() {
   World world;
   world.entities.push_back(
@@ -735,9 +887,10 @@ int main() {
     return 1;
   }
 
-  if (!testFixedStepSimulation() || !testCollisionFromEverySide() ||
-      !testContinuousCollisionAndCommands() || !testTriggersAndFiltering() ||
-      !testCharacterAndCameraMath() ||
+  if (!testSleepingAndWakeCommands() || !testSleepingSupportChanges() ||
+      !testSleepingEditsAndReusedBodySlots() || !testFixedStepSimulation() ||
+      !testCollisionFromEverySide() || !testContinuousCollisionAndCommands() ||
+      !testTriggersAndFiltering() || !testCharacterAndCameraMath() ||
       !testCharacterUsesSelectedBoxCollider() ||
       !testAirborneJumpRequestIsNotBufferedByPhysics() ||
       !testShapeQueriesAndColliderKinds() ||

@@ -171,6 +171,8 @@
   add_executable(demi-runtime-object-model-tests
     tests/runtime_object_model_tests.cpp)
   target_link_libraries(demi-runtime-object-model-tests PRIVATE demi-core)
+  add_executable(demi-entity-lookup-tests tests/entity_lookup_tests.cpp)
+  target_link_libraries(demi-entity-lookup-tests PRIVATE demi-core)
   add_executable(demi-runtime-scene-prefab-tests
     tests/runtime_scene_prefab_tests.cpp)
   target_link_libraries(demi-runtime-scene-prefab-tests PRIVATE demi-runtime-lib)
@@ -192,6 +194,9 @@
 
   add_executable(demi-physics3d-tests tests/physics3d_tests.cpp)
   target_link_libraries(demi-physics3d-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-physics-contact-phases3d-tests
+    tests/physics_contact_phases3d_tests.cpp)
+  target_link_libraries(demi-physics-contact-phases3d-tests PRIVATE demi-runtime-lib)
   add_executable(demi-transform3d-hierarchy-tests
     tests/transform3d_hierarchy_tests.cpp)
   target_link_libraries(demi-transform3d-hierarchy-tests PRIVATE demi-core)
@@ -399,6 +404,8 @@
   add_executable(demi-game-save-document-tests tests/game_save_document_tests.cpp)
   target_link_libraries(demi-game-save-document-tests PRIVATE demi-runtime-lib)
   add_executable(demi-runtime-profiler-tests tests/runtime_profiler_tests.cpp)
+  add_executable(demi-frame-timing-tests tests/frame_timing_tests.cpp)
+  target_link_libraries(demi-frame-timing-tests PRIVATE demi-runtime-lib)
   target_link_libraries(demi-runtime-profiler-tests PRIVATE demi-runtime-lib)
   add_executable(demi-profiler-hud-layout-tests tests/profiler_hud_layout_tests.cpp)
   target_link_libraries(demi-profiler-hud-layout-tests PRIVATE demi-runtime-lib)

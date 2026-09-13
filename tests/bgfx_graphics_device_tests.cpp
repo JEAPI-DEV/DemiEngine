@@ -60,7 +60,8 @@ bool noopLifecycleIsSafe() {
     if (!device.initialize(GraphicsDeviceConfig{.api = GraphicsApi::Noop,
                                                 .width = 64,
                                                 .height = 32,
-                                                .vsync = false},
+                                                .vsync = false,
+                                                .profile = true},
                            error) ||
         !device.initialized() || device.rendererName() != "Noop")
       return false;
@@ -73,6 +74,11 @@ bool noopLifecycleIsSafe() {
 
     device.beginFrame(0x102030ffU);
     (void)device.endFrame();
+    const auto timing = device.frameTimings();
+    if (timing.gpuTimerAvailable || timing.gpuMilliseconds ||
+        timing.width != 64 || timing.height != 32 ||
+        timing.advanceMilliseconds < 0)
+      return false;
     if (!device.resize(128, 72, error))
       return false;
     device.beginFrame(0x000000ffU);
@@ -83,6 +89,9 @@ bool noopLifecycleIsSafe() {
       return false;
 
     device.shutdown();
+    if (device.frameTimings().gpuMilliseconds ||
+        device.frameTimings().width != 0)
+      return false;
     device.shutdown();
     error.clear();
     if (device.initialized() || !device.rendererName().empty() ||

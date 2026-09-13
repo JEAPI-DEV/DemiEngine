@@ -40,8 +40,10 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/physics/PhysicsGeometry2D.cpp
   src/demi/runtime/physics/PhysicsQueries2D.cpp
   src/demi/runtime/physics/Physics3D.cpp
+  src/demi/runtime/physics/PhysicsContactPhases3D.cpp
   src/demi/runtime/physics/PhysicsWorld3D.cpp
   src/demi/runtime/profiling/RuntimeProfiler.cpp
+  src/demi/runtime/profiling/PlatformFrameProfiling.cpp
   src/demi/runtime/profiling/ProfilerHudLayout.cpp
   src/demi/runtime/platform/ProjectFileWatcher.cpp
   src/demi/runtime/platform/RuntimeCapabilities.cpp
