@@ -9,7 +9,7 @@ from benchmark_3d_visible import summarize, distribution
 
 
 class SummaryTests(unittest.TestCase):
-    def capture(self, gpu=True, width=1920, interrupted=False):
+    def capture(self, gpu=True, width=1920, interrupted=False, errors=0, startup_only=False):
         with tempfile.TemporaryDirectory(prefix='demi-timing-test-') as folder:
             path = Path(folder) / 'frames.csv'
             with path.open('w', newline='') as output:
@@ -25,6 +25,9 @@ class SummaryTests(unittest.TestCase):
                         writer.writerow([frame, scope, 0, 0, value])
                     if frame % 2 == 0:
                         writer.writerow([frame, 'Physics3D.step', 5, 1, ''])
+                    if errors is not None:
+                        writer.writerow([frame, 'Physics3D.update_error_steps', 0, 0,
+                                         errors if not startup_only or frame == 0 else 0])
                     if gpu:
                         writer.writerow([frame, 'Graphics.gpu', 1, 1, ''])
                         writer.writerow([frame, 'Graphics.gpu_frame', 0, 0, frame + 9])
@@ -52,6 +55,17 @@ class SummaryTests(unittest.TestCase):
     def test_percentiles(self):
         self.assertIsNone(distribution([]))
         self.assertEqual(distribution(list(range(1, 101)))['p95_ms'], 95)
+
+    def test_physics_capacity_errors_and_missing_telemetry(self):
+        result = self.capture(errors=1)
+        self.assertEqual(result['physics_update_error_steps'], 1)
+        self.assertFalse(result['valid_capture'])
+        result = self.capture(errors=None)
+        self.assertIsNone(result['physics_update_error_steps'])
+        self.assertFalse(result['valid_capture'])
+        # Even a subsequently replaced world's startup failure invalidates the
+        # run; warmup exclusion is only for timing, not simulation correctness.
+        self.assertFalse(self.capture(errors=1, startup_only=True)['valid_capture'])
 
 
 if __name__ == '__main__':

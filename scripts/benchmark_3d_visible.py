@@ -64,6 +64,11 @@ def summarize(path, warmup_seconds, width, height):
     result['unfocused_frames'] = sum(metric(f, 'Window.focused', 'gauge') == 0 for f in warm)
     result['overridden_delta_frames'] = sum(metric(f, 'Frame.delta_override', 'gauge') == 1 for f in warm)
     result['interrupted_frames'] = sum(metric(f, 'Window.capture_interrupted', 'gauge') == 1 for f in warm)
+    # Cumulative per-world count includes startup and every catch-up step.
+    # Missing telemetry is unknown, not evidence of a complete simulation.
+    errors = [v for f in frames.values()
+              if (v := metric(f, 'Physics3D.update_error_steps', 'gauge')) is not None]
+    result['physics_update_error_steps'] = max(errors) if errors else None
     for scope in ['Simulation.fixed_steps', 'Renderer3D.meshes_visible', 'Renderer3D.meshes_culled',
                   'Renderer3D.batches', 'Physics3D.active_bodies']:
         values = [v for f in warm if (v := metric(f, scope, 'gauge')) is not None]
@@ -71,7 +76,8 @@ def summarize(path, warmup_seconds, width, height):
     result['valid_capture'] = bool(warm and result['widths'] == [width] and result['heights'] == [height]
                                    and result['metrics']['Graphics.gpu'] is not None
                                    and not result['minimized_frames'] and not result['overridden_delta_frames']
-                                   and not result['interrupted_frames'])
+                                   and not result['interrupted_frames']
+                                   and result['physics_update_error_steps'] == 0)
     return result
 
 
@@ -90,8 +96,8 @@ def main():
     args = parser.parse_args()
     if not (0 <= args.warmup_seconds < args.seconds <= 600) or args.repeats < 1:
         parser.error('Require 0 <= warmup < seconds <= 600 and positive repeats')
-    if any(n < 1 or n > 2000 for n in args.counts) or not (1 <= args.width <= 65535 and 1 <= args.height <= 65535):
-        parser.error('Counts must be 1..2000 and dimensions 1..65535')
+    if any(n < 1 or n > 5000 for n in args.counts) or not (1 <= args.width <= 65535 and 1 <= args.height <= 65535):
+        parser.error('Counts must be 1..5000 and dimensions 1..65535')
     binary = args.binary.resolve(strict=True)
     root = Path(__file__).resolve().parents[1]
     output = args.output.resolve()

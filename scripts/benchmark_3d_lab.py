@@ -23,8 +23,8 @@ def main():
     parser.add_argument('--repeats', type=int, default=3)
     parser.add_argument('--varied', action='store_true')
     args = parser.parse_args()
-    if args.frames < 1 or args.repeats < 1 or any(n < 1 or n > 2000 for n in args.counts):
-        parser.error('Frames/repeats must be positive and counts between 1 and 2000')
+    if args.frames < 1 or args.repeats < 1 or any(n < 1 or n > 5000 for n in args.counts):
+        parser.error('Frames/repeats must be positive and counts between 1 and 5000')
     binary = args.binary.resolve(strict=True)
     root = Path(__file__).resolve().parents[1]
     output = args.output.resolve()

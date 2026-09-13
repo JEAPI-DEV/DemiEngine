@@ -7,9 +7,10 @@ engine APIs; there is no engine-specific benchmark fast path.
 
 Edit the lab's script properties:
 
-- `count`: 1–2,000; standard sweep 250, 500, 1,000, 2,000.
+- `count`: 1–5,000; standard sweep 250, 500, 1,000, 2,000. Extended stress
+  sweep: 2,000, 3,000, 5,000. The upper bound is a test size, not a performance claim.
 - `workload`: `mesh` moves visual primitives with `Transform3D.set_position`;
-  `rigid` creates gravity-free moving bodies with collisions and sleeping
+  `rigid` creates gravity-free moving bodies with collisions enabled and sleeping
   disabled; `pile` drops bodies under gravity and permits sleeping.
 - `varied`: alternate spheres/cubes and eight colors, instead of one shared
   primitive/color. This is not yet an imported-model/material diversity test.
@@ -34,6 +35,13 @@ python3 scripts/benchmark_3d_visible.py --binary build/linux-release/demi \
 This runner uses normal wall-clock deltas, removing headless/fixed-delta overrides
 from the child environment. It requests 1920x1080 and checks actual backbuffer
 pixels, GPU timing availability, minimization/interruption, and run duration.
+It also requires `Physics3D.update_error_steps` telemetry and rejects any capture
+with a physics update error, including errors during startup. This cumulative
+per-physics-world counter exposes Jolt capacity failures that can omit contacts.
+Old binaries without the counter cannot qualify through the current runner.
+Native contact capacity is now 32,768 per world (previously 10,240, which
+overflowed in the 5,000-body pile). This raises memory requirements, does not
+guarantee capacity for arbitrary arrangements, and does not lower solver quality.
 It saves raw per-frame traces, aggregate reports, machine/executable identity and
 per-run JSON summaries. No authored example files are modified.
 
@@ -49,6 +57,11 @@ VSync-off does not guarantee unrestricted presentation on a composited desktop.
 Report the measured cadence, GPU identity and refresh rate rather than assuming
 VSync means 60 Hz. `valid_capture` describes usable evidence, not a performance
 pass: inspect frame intervals, lost time, visible population and GPU costs.
+
+For the larger stress sweep, use `--counts 2000 3000 5000`. Keep the same camera,
+resolution, refresh rate, and background applications across counts. A smooth
+video or acceptable render FPS does not qualify a run that drops simulation time.
+These are spheres/cubes, not a recreation of the Crysis barrel model or scene.
 
 ```sh
 ./build/linux-debug/demi validate examples/performance_3d_lab

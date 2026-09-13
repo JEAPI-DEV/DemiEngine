@@ -453,6 +453,7 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
   std::unordered_map<std::uint32_t, std::string> ids;
   std::vector<BodyFrame> bodyFrames;
   std::uint64_t frameEpoch = 0;
+  std::uint64_t updateErrorSteps = 0;
   std::unordered_map<std::uint64_t, RawContact> contacts;
   std::mutex contactsMutex;
   std::vector<std::pair<JPH::BodyID, JPH::BodyID>> removedContacts;
@@ -504,7 +505,10 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
   }
 
   Impl() {
-    physics.Init(65536, 0, 65536, 10240, broadPhaseLayers, objectVsBroadPhase,
+    // Dense piles need several contacts per body. The previous 10,240-contact
+    // allocation overflowed in the 5,000-body lab; keep errors observable for
+    // workloads that exceed this larger, still bounded per-world allocation.
+    physics.Init(65536, 0, 65536, 32768, broadPhaseLayers, objectVsBroadPhase,
                  layerPairs);
     physics.SetContactListener(this);
   }
@@ -847,8 +851,13 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
 
   {
     ProfileScope scope("Physics3D.simulate");
-    impl_->physics.Update(fixedDt, 1, &impl_->allocator, &impl_->jobs);
+    const auto error =
+        impl_->physics.Update(fixedDt, 1, &impl_->allocator, &impl_->jobs);
+    if (error != JPH::EPhysicsUpdateError::None)
+      ++impl_->updateErrorSteps;
   }
+  RuntimeProfiler::setGauge("Physics3D.update_error_steps",
+                            impl_->updateErrorSteps);
   RuntimeProfiler::setGauge("Physics3D.bodies", impl_->physics.GetNumBodies());
   RuntimeProfiler::setGauge(
       "Physics3D.active_bodies",

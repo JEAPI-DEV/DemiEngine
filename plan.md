@@ -276,6 +276,17 @@ post-warmup simulation-time discard: worst p95 is 14.362 ms on Radeon and
 systematic surface-lifecycle tests, and representative game-content qualification
 remain open; occasional hitches persist.
 
+The [5,000-body stress sweep](docs/3d-5000-body-scaling.md) now covers 2,000,
+3,000, and 5,000 bodies on both GPUs with Blender open. It exposed a native
+contact-capacity overflow; capacity is now 32,768 and the profiler/visible runner
+detect and reject physics update errors. All 36 corrected captures have zero
+such errors. Moving 3,000-body cases keep up, but 3,000-body piles lose roughly
+6–7% of simulation time and 5,000-body piles lose roughly 50–56%. These do not
+qualify as real-time throughput despite successful rendering. Next scaling work
+should reduce per-step contact/synchronization and simulation costs; do not hide
+the deficit by changing the fixed timestep or catch-up policy. Larger-allocation
+Android memory impact, asset-heavy content, and sustained tests remain pending.
+
 Start Milestone 1. Produce the performance baseline and CPU-only Blast/Jolt
 integration result before committing to detailed optimization or fracture scale.
 

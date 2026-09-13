@@ -801,6 +801,15 @@ bool testColliderShapeCachingAndInvalidation() {
   stepPhysics3D(world, 1.0F / 60.0F, {});
   stepPhysics3D(world, 1.0F / 60.0F, {});
 
+  const auto entries = RuntimeProfiler::sessionEntries();
+  const auto errors = std::ranges::find(entries, "Physics3D.update_error_steps",
+                                       &RuntimeProfiler::Entry::name);
+  if (errors == entries.end() || !errors->hasGauge || errors->gauge != 0) {
+    std::cerr << "Missing or nonzero physics update error telemetry\n";
+    RuntimeProfiler::setEnabled(false);
+    return false;
+  }
+
   const auto shapeBuildCalls = [] {
     const auto entries = RuntimeProfiler::sessionEntries();
     const auto found = std::ranges::find(entries, "Physics3D.create_shape",

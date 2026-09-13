@@ -2,7 +2,7 @@
 local Lab = {}
 
 ---@demi_property integer
----@range 1 2000
+---@range 1 5000
 Lab.count = 250
 ---@demi_property
 ---@options mesh, rigid, pile
