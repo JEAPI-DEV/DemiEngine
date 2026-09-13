@@ -7,6 +7,8 @@ struct BlastFixtureOptions {
   std::uint32_t rowWidth = 0; // Zero makes a chain; otherwise a 2D grid.
   std::uint32_t damageBatch = UINT32_MAX;
   float damage = 2.0F;
+  // Zero damages every bond. Otherwise only damage bonds crossing ID groups.
+  std::uint32_t groupSize = 0;
 };
 
 struct BlastFixtureResult {

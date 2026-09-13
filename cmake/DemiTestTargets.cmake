@@ -426,3 +426,13 @@
   target_link_libraries(demi-isometric-grid-tests PRIVATE demi-core)
   add_executable(demi-navigation2d-tests tests/navigation2d_tests.cpp)
   target_link_libraries(demi-navigation2d-tests PRIVATE demi-core)
+
+  # These tests use assert for checks and fixture setup. Keep those calls in
+  # optimized test executables; the linked engine libraries remain Release.
+  foreach(target demi-bgfx-renderer3d-tests demi-gltf-skinned-model-tests demi-runtime-profiler-tests)
+    if(MSVC)
+      target_compile_options(${target} PRIVATE /UNDEBUG)
+    else()
+      target_compile_options(${target} PRIVATE -UNDEBUG)
+    endif()
+  endforeach()

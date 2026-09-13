@@ -38,12 +38,21 @@ function AnimationSelector:on_start()
 end
 
 function AnimationSelector:on_update(_dt)
+  if Input.pressed("animation_crowd") then
+    self:on_open_crowd()
+    return
+  end
   for _, choice in ipairs(choices) do
     if Input.action_pressed(choice.action) then
       self:select(choice)
       return
     end
   end
+end
+
+-- @HandleAction("animation_crowd")
+function AnimationSelector:on_open_crowd()
+  Scene.load("scene://animation_3d/crowd")
 end
 
 -- HUD buttons dispatch actions; keyboard shortcuts are polled in on_update.

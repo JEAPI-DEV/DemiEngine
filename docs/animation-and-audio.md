@@ -140,6 +140,20 @@ IDs; validation rejects missing names, duplicate names, and mixed skeletons.
 Scene validation rejects missing state references in initial states,
 transitions, blend spaces, and layers.
 
+### Animation performance evidence
+
+The crowd scene in `examples/animation_3d` provides matched live/frozen visual
+animation workloads. See its README for the visible benchmark command. Runtime
+profiling exposes `Renderer3D.animation_rebuild` (inclusive), `Renderer3D.skin_cpu`
+(pose evaluation and vertex skinning), and `Renderer3D.skin_upload_cpu` (normal
+reconstruction, vertex packing and upload submission, not GPU transfer timing).
+Per-frame CSV totals aggregate all rebuilt characters; session percentiles of
+these scopes describe individual calls, not whole-frame animation totals.
+Frozen cached poses do not emit rebuild scopes. UVs, packed vertex colors and
+topology are reused from the model-owned cache and invalidated by asset reload;
+positions and normals still update per animated pose. GPU skinning is not yet
+implemented by this optimization.
+
 ## Audio
 
 The built-in bus tree is:

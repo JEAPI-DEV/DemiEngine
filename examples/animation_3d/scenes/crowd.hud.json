@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "canvas_size": [960, 540],
+  "root": { "id": "crowd_root", "type": "container", "anchor_max": [1, 1], "children": [
+    { "id": "crowd_back", "type": "button", "action": "animation_back", "text": "[B] BACK", "position": [790, 26], "size": [140, 36] },
+    { "id": "crowd_title", "type": "label", "text": "3D ANIMATION SCALING", "position": [28, 26], "font_size": 18 },
+    { "id": "crowd_status", "type": "label", "text": "LOADING", "position": [28, 52], "font_size": 12 }
+  ] }
+}

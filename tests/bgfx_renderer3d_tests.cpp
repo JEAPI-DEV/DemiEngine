@@ -1,4 +1,5 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/BoxCollider3DComponent.h"
@@ -237,11 +238,35 @@ int main() {
   world.entities.push_back(std::move(animated));
   diagnostics.clear();
   assert(diagnostics.empty());
+  RuntimeProfiler::setEnabled(true);
+  RuntimeProfiler::beginFrame();
   assert(renderer.renderFrame(world, frame, 0.016F, error));
   static_cast<void>(graphics.endFrame());
+  const auto rebuilt = RuntimeProfiler::frameEntries();
+  for (const std::string name :
+       {"Renderer3D.animation_rebuild", "Renderer3D.skin_cpu",
+        "Renderer3D.skin_upload_cpu"}) {
+    assert(std::any_of(rebuilt.begin(), rebuilt.end(), [&](const auto &entry) {
+      return entry.name == name && entry.calls == 1;
+    }));
+  }
+  RuntimeProfiler::beginFrame();
+  assert(renderer.renderFrame(world, frame, 0.016F, error));
+  static_cast<void>(graphics.endFrame());
+  const auto unchanged = RuntimeProfiler::frameEntries();
+  assert(
+      std::none_of(unchanged.begin(), unchanged.end(), [](const auto &entry) {
+        return entry.name == "Renderer3D.animation_rebuild" && entry.calls > 0;
+      }));
   world.entities.back().component<AnimationPlayer3DComponent>()->time = 0.4F;
+  RuntimeProfiler::beginFrame();
   assert(renderer.renderFrame(world, frame, 0.016F, error));
   static_cast<void>(graphics.endFrame());
+  const auto advanced = RuntimeProfiler::frameEntries();
+  assert(std::any_of(advanced.begin(), advanced.end(), [](const auto &entry) {
+    return entry.name == "Renderer3D.animation_rebuild" && entry.calls == 1;
+  }));
+  RuntimeProfiler::setEnabled(false);
 
   renderer.shutdown();
   renderer.shutdown();

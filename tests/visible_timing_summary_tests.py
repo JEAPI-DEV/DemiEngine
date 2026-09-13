@@ -4,13 +4,49 @@ import sys
 import tempfile
 import unittest
 import subprocess
+import json
+import shutil
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from benchmark_3d_visible import summarize, distribution
 from benchmark_barrel_tower import phase_frames, impact_burst_end
+import animation_crowd_workload as crowd
 
 
 class SummaryTests(unittest.TestCase):
+    def test_crowd_configuration_preserves_source_and_matches_control(self):
+        source = Path(__file__).resolve().parents[1] / 'examples/animation_3d/scenes/crowd.scene.json'
+        original = source.read_bytes()
+        with tempfile.TemporaryDirectory(prefix='demi-crowd-test-') as folder:
+            project = Path(folder)
+            (project / 'scenes').mkdir()
+            shutil.copy2(source, project / 'scenes/crowd.scene.json')
+            settings = {}
+            configurations = []
+            for workload in crowd.WORKLOADS:
+                crowd.configure(project, settings, 64, workload, 6)
+                configurations.append(json.loads((project / 'scenes/crowd.scene.json').read_text()))
+            self.assertEqual(settings['main_scene'], 'scene://animation_3d/crowd')
+            live, frozen = configurations
+            self.assertEqual(live['entities'][:3], frozen['entities'][:3])
+            props = frozen['entities'][3]['components']['LuaScript']['properties']
+            self.assertEqual(props, {'count': 64, 'frozen': True, 'duration_seconds': 6})
+            with self.assertRaises(ValueError):
+                crowd.configure(project, settings, 2001, 'animated', 6)
+        self.assertEqual(source.read_bytes(), original)
+
+    def test_crowd_requires_visible_population_and_playback(self):
+        def result(visible=65, calls=64):
+            return {'valid_capture': True, 'Renderer3D.meshes_visible': {'min': visible},
+                    'Renderer3D.animation_rebuild.calls': {'min': calls, 'max': calls}}
+        for workload, calls in [('animated', 64), ('frozen', 0)]:
+            capture = result(calls=calls)
+            crowd.qualify(capture, 64, workload)
+            self.assertTrue(capture['valid_capture'])
+        for capture in [result(visible=64), result(calls=0)]:
+            crowd.qualify(capture, 64, 'animated')
+            self.assertFalse(capture['valid_capture'])
+
     def capture(self, gpu=True, width=1920, interrupted=False, errors=0, startup_only=False):
         with tempfile.TemporaryDirectory(prefix='demi-timing-test-') as folder:
             path = Path(folder) / 'frames.csv'

@@ -91,10 +91,13 @@ BlastFixtureResult runBlastFixture(const BlastFixtureOptions &options) {
   }
   std::vector<NvBlastBondFractureData> fractures;
   for (const auto &bond : bonds)
-    fractures.push_back({0, nodes[bond.chunkIndices[0]],
-                         nodes[bond.chunkIndices[1]], options.damage});
-  for (std::uint32_t offset = 0; offset < result.bonds;) {
-    const auto count = std::min(options.damageBatch, result.bonds - offset);
+    if (options.groupSize == 0 ||
+        bond.chunkIndices[0] / options.groupSize != bond.chunkIndices[1] / options.groupSize)
+      fractures.push_back({0, nodes[bond.chunkIndices[0]],
+                           nodes[bond.chunkIndices[1]], options.damage});
+  const auto fractureCount = static_cast<std::uint32_t>(fractures.size());
+  for (std::uint32_t offset = 0; offset < fractureCount;) {
+    const auto count = std::min(options.damageBatch, fractureCount - offset);
     NvBlastFractureBuffers commands{count, 0, fractures.data() + offset,
                                     nullptr};
     const auto start = std::chrono::steady_clock::now();

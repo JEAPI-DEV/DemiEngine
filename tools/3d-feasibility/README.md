@@ -96,3 +96,39 @@ cmake --build build/blast-android-feasibility
 
 ARM64 cross-compilation is not Android runtime qualification. Run on a connected
 physical device before enabling this in Android engine builds.
+
+## Intact compound transition probe
+
+`demi-blast-compound-probe` links directly to Jolt and the audited Blast subset.
+It is not a production Demi collider component or the existing singleton bridge.
+Selective damage preserves connected chunk groups; an intact compound is replaced
+by one rigid body per resulting group. The fixture checks mass, native inertia,
+inherited linear/angular motion, stable chunk ray queries, gravity/floor collision,
+body-capacity rollback, cancellation before commit, and native body cleanup over
+80 world lifetimes. Assertions remain active in Release through explicit checks.
+
+```sh
+cmake --preset linux-release -DDEMI_BUILD_3D_FEASIBILITY=ON
+cmake --build --preset linux-release --target demi-blast-compound-probe
+python3 scripts/benchmark_compound_transition.py \
+  --binary build/linux-release/tools/3d-feasibility/demi-blast-compound-probe \
+  --output build/compound-transition-linux
+```
+
+For the compound probe, configure the **root engine project**, not this standalone
+directory, with the Android toolchain/ABI/platform flags above and
+`-DDEMI_BUILD_3D_FEASIBILITY=ON`. Build only `demi-blast-compound-probe`, then pass
+its ARM64 executable to the same runner with `--adb-serial <authorized-device>`.
+The runner stages a checksummed executable in a unique `/data/local/tmp` directory
+and removes that executable and empty directory after completion. A timed-out run
+leaves the staging path in its report for investigation. No APK is installed.
+
+Use a fresh output directory per run and run host/device measurements sequentially.
+The runner retains correctness logs, raw CSV, source/binary hashes, and percentile
+summaries. Cases contain 16/64/256 chunks in groups of one/four, with two warmups
+and ten measured repetitions each. Physics uses one Jolt worker and 120 fixed
+steps per sample; no rendering or GPU work is included. `blast_total_ms` includes
+the nested damage/split measurements: do not add them together.
+
+The [compound transition report](../../docs/3d-compound-transition-feasibility.md)
+records Linux and physical Pixel 7 evidence and the remaining production gaps.

@@ -51,6 +51,12 @@ if(NOT ANDROID)
 endif()
 
 if(TARGET demi-runtime-lib)
+  add_executable(demi-blast-compound-probe
+    compound_probe.cpp CompoundTransitionProbe.cpp BlastFixture.cpp)
+  target_link_libraries(demi-blast-compound-probe PRIVATE Jolt demi-blast-lowlevel)
+  if(NOT ANDROID)
+    add_test(NAME demi-blast-compound-probe COMMAND demi-blast-compound-probe)
+  endif()
   add_executable(demi-blast-jolt-probe jolt_probe.cpp BlastFixture.cpp)
   target_link_libraries(demi-blast-jolt-probe PRIVATE demi-runtime-lib demi-blast-lowlevel)
   if(NOT ANDROID)

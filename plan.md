@@ -15,6 +15,23 @@ Expand the experimental 3D foundation into a polished, responsive workflow for
 This is a planned direction, not a claim that the capabilities below already
 exist or that Demi matches an established AAA engine.
 
+### Status Audit — source snapshot `fef9c67`
+
+Checked items below have an implementation and supporting tests or recorded
+evidence. Partial items are split into delivered work and remaining scope rather
+than marking an entire milestone complete. Benchmark results apply to their
+recorded builds, workloads, hardware, and settings; this documentation audit did
+not rerun benchmarks or qualify every feature at the current revision.
+
+| Milestone | Current status |
+| --- | --- |
+| 1 — Baselines/feasibility | Complete: baseline evidence and portable Blast/Jolt integration proof, including physical Android CPU execution. Production and expanded-workload qualification belongs to later milestones. |
+| 2 — Scaling | Measured lookup/contact/sleeping improvements and scoped desktop qualifications delivered; GPU skinning, animation budgets, and broader game workloads remain open. |
+| 3 — Localized destruction | Collider-asset prerequisites delivered; production fracture assets, scheduler, and compound-body transitions are not implemented. |
+| 4 — Visual/gameplay quality | Third-person mechanics foundation and native visual denting delivered; production animation/visual qualification remains open. |
+| 5 — Structural collapse | Impact-energy telemetry exists; structural connections, stress, fracture-driven collapse, and debris/character policy remain open. |
+| 6 — Landscape/workflow | Asset-service and static distance-LOD foundations plus editor workflow improvements exist; landscape-scale and destruction-specific qualification remain open. |
+
 The reference outcome is a playable demolition environment: accurate player
 movement, good materials and lighting, localized hammer/rocket damage, collapsing
 structures, and physical debris. Scenes stay editable in `main.scene.json`;
@@ -50,6 +67,9 @@ See the [official Blast SDK documentation](https://docs.omniverse.nvidia.com/kit
 
 The initial objective is approximately 2,000 moving entities at responsive frame
 rates, measured against declared workloads rather than an arbitrary scene count.
+For the barrel impact tower specifically, the accepted near-term target is about
+1,000 bodies (the 1,024-body fixture), with 2,000 as a stretch target. Neither
+target implies the same throughput for animated characters or destructible buildings.
 
 - Select and record a reference CPU/GPU/RAM configuration, optimized build,
   resolution, graphics settings, physics timestep, and solver/CCD settings.
@@ -124,28 +144,67 @@ work is pending. Faster hardware is headroom, not a substitute for bounded work.
 
 ### Milestone 1: Baselines and Dependency Feasibility
 
-- [ ] Add `performance_3d_lab` with the workloads above; retain the existing 3D
-  Galton board as a regression probe, not the sole performance benchmark.
-- [ ] Extend existing profiling only where metrics are missing; retain reproducible
-  reports and distinguish measured bottlenecks from code-review hypotheses.
+Complete for the baseline/dependency-feasibility scope. This is not full engine
+or Android game qualification; follow-on requirements are tracked below.
+
+- [x] Add `performance_3d_lab` with moving-mesh, active-rigidbody, and pile
+  workloads, primitive/imported-barrel variants, and a projectile tower. Retain
+  the existing 3D Galton board as a separate regression probe.
+- [x] Extend profiling and reproducible runners with CPU/GPU/frame percentiles,
+  render preparation/backend waits, physics simulation versus integration costs,
+  active/contact counts, lost simulation time, and physics-capacity errors.
 - [x] Compile the pinned Blast subset without PhysX/CUDA/Omniverse and audit the
   dependency closure. Run a headless damage/split smoke test.
-- [ ] Spike a small Blast asset splitting into Jolt bodies. Verify mass, pose,
-  collision, lifetime cleanup, and stable chunk-to-body identity.
-- [ ] Record the desktop reference machine and Android feasibility result.
-- [ ] Measure Blast work-unit boundaries and worst-case call durations; establish
-  separate provisional analysis, transition, physics, and response-latency budgets.
+- [x] Spike a small Blast asset splitting into singleton Jolt box bodies. Verify
+  assigned mass/impulse response, settling pose, floor collision, cleanup over
+  repeated world lifetimes, and stable chunk IDs. This is not compound splitting
+  or intact-body replacement.
+- [x] Record the Ryzen 7 6800H / Radeon 680M / RTX 3070 Ti Laptop reference
+  machine and successful standalone Blast Android ARM64/API 23 cross-compilation.
+- [x] Extend the tool-level probe to intact Jolt compounds splitting into connected
+  groups; verify mass/inertia, inherited motion, stable chunk queries, collision,
+  cancellation, body-capacity rollback and native body cleanup.
+- [x] Run that native Blast/Jolt compound probe and CPU measurements on a physical
+  Pixel 7 (Android 15, ARM64). This does not qualify Demi runtime integration,
+  rendered gameplay, sustained thermals or memory behavior on Android.
+- [x] Measure Blast damage-array batching and synchronous whole-actor split
+  calls on synthetic chains/grids. Retain sampled maxima and the explicit
+  exclusions from those timings.
+
+Evidence: [initial feasibility](docs/3d-milestone-1-baseline.md),
+[Blast dependency/probe audit](tools/3d-feasibility/README.md),
+[Release scaling/work boundaries](docs/3d-release-scaling.md),
+[compound transitions / physical Android CPU](docs/3d-compound-transition-feasibility.md), and the later
+desktop reports below. The baseline/feasibility exit gate is complete.
 
 Exit gate: baseline evidence and a portable integration proof. Do not replace
 Jolt or rewrite unrelated subsystems based on entity counts alone.
 
 ### Milestone 2: Engine Scaling
 
-- [ ] Optimize the measured hot paths one at a time with before/after reports.
-- [ ] Review material-compatible instancing for imported meshes, redundant
-  transform/world scans, per-frame allocation, and repeated string lookups.
-- [ ] Review physics synchronization and contact extraction separately from Jolt
-  solver time. Avoid unused reports without changing collision behavior.
+- [ ] Complete animated-character and richer mixed-content performance coverage,
+  including sustained runs. Streaming and destruction workloads are tracked in
+  Milestones 6 and 3 respectively.
+- [x] Add matched independent-animation/frozen crowd probes, per-frame CPU
+  skinning/rebuild/upload scopes, full-population/playback capture checks, and
+  reuse immutable model attributes instead of rebuilding them every pose.
+  [Initial animation scaling](docs/3d-animation-scaling.md) records scoped
+  16/64-character desktop results; GPU skinning and larger-crowd targets remain open.
+
+- [x] Optimize measured hot paths with before/after reports: Lua entity lookup,
+  accidental body reactivation, body/contact bookkeeping, and sorted contact
+  phase merging. Further optimization remains workload-driven.
+- [x] Review imported-model instancing and measured lookup/allocation paths.
+  The reference barrel captures render the full population in two batches;
+  arbitrary explicit-material overrides and animated meshes are not thereby
+  qualified or guaranteed to share an instanced submission.
+- [x] Profile physics synchronization/contact extraction separately from the
+  simulation scope, remove callback string work and redundant tracking, and
+  retain reporting opt-outs without disabling collision. The simulation scope
+  includes Jolt callbacks; it is not pure solver timing.
+- [x] Record short-run 1080p qualification on both GPUs for the covered
+  2,000-body/barrel workloads and the 1,024-barrel impact tower. Reject larger
+  cases that discard fixed-step time rather than calling them real-time passes.
 - [ ] Introduce GPU skinning and animation LOD/update budgets when validated by
   the character benchmark. Existing CPU skinning and static-only model LOD are
   explicit limitations to address, not capabilities to assume solved.
@@ -154,9 +213,24 @@ Jolt or rewrite unrelated subsystems based on entity counts alone.
 
 Exit gate: declared scaling workloads meet agreed budgets with collisions intact;
 focused regression tests and existing 2D/3D probes remain valid.
+The recorded reference cases pass within their scope; this is not completion of
+the animated/mixed-content, sustained, or mobile parts of the full contract.
 
 ### Milestone 3: Localized Destruction and Asset Pipeline
 
+- [ ] Establish production analysis, body-transition, physics and response-latency
+  budgets using destruction-burst/topology workloads; sampled SDK timings are
+  not worst-case guarantees or a resumable scheduler.
+- [ ] Qualify repeated-destruction memory/recovery and the production Demi
+  destruction path on Android, including lifecycle, sustained performance and
+  rendered gameplay, once integrated.
+
+- [x] Provide reusable convex `*.collider.json` assets with shared validation,
+  import/cook, residency/reload/lifetime handling, and a collider-filtered editor
+  picker. Basic model-to-collider CLI generation for static/trigger bodies and
+  collider recommendations also exist.
+  These are prerequisites, not a fracture-asset pipeline; dynamic recommendations
+  currently use a bounds-derived hull, not general mesh-fitted convex decomposition.
 - [ ] Build `destruction_3d_lab`: a concrete wall, hammer, rocket, and steel door.
 - [ ] Author pre-fractured chunks, interior surfaces, collision hulls, materials,
   bonds, and anchors through Blender/import tooling. Start with offline fracture;
@@ -182,6 +256,17 @@ Simultaneous-hit tests must also meet the scheduling acceptance criteria above.
 
 ### Milestone 4: Visual and Gameplay Quality
 
+- [x] Provide the `demi.gameplay.third_person` mechanics foundation and editable
+  `third_person_foundation` room: camera-relative motion, orbit/obstruction,
+  stamina, directional rolls/i-frames, and windup/active/recovery melee rules.
+  Package tests exist; the room uses procedural pose cues, not qualified
+  production animation or bone-attached hit volumes.
+- [x] Add opt-in native visual mesh denting (`Dentable3D`, `MeshDeformation`):
+  impact-energy/material response, bounded runtime subdivision of existing
+  models, per-instance damage/reset, and cached private GPU geometry. The
+  performance lab's denting scene and tests exercise real projectile mass/speed.
+  Collision remains unchanged; this is not fracture, soft-body simulation, or
+  persistent/replicated structural damage. See [mesh denting](docs/mesh-denting.md).
 - [ ] Create a compact visual reference environment using good source assets.
   Audit material import, metallic/roughness PBR, normal maps, color spaces,
   mipmaps, ambient/environment lighting, shadows, exposure, and anti-aliasing.
@@ -197,6 +282,9 @@ frame budget. Retain visual captures and interaction regression tests.
 
 ### Milestone 5: Structural Collapse
 
+- [x] Expose pre-solver normal impact-energy estimates in native 3D collision
+  events for gameplay/material response. This supplies neutral impact data,
+  not a completed falling-debris/character-damage system.
 - [ ] Add foundations, support-loss behavior, and breakable connections between
   structural members and attached props.
 - [ ] Author density, fracture resistance, and bond strength separately. Distinguish
@@ -219,17 +307,33 @@ Test chained impacts, dense rubble, repeated collapses, and bounded recovery cos
 
 ### Milestone 6: Landscape Scale and Production Workflow
 
-- [ ] Extend current asset streaming with spatial activation and memory/upload
-  budgets. Add screen-size LOD with hysteresis, distant geometry grouping, and
-  separate shadow budgets as justified by traversal measurements.
+- [ ] Complete workload-level allocation/residency and loading/upload-hitch
+  qualification with representative streaming/traversal; existing asset-service
+  accounting is a foundation, not the complete measurement gate.
+
+- [x] Provide the existing asset-service foundation: explicit residency/groups,
+  readiness, ownership, and upload budgets; provide static distance-based model
+  LOD/culling with normal asset references. Screen-size LOD, hysteresis, spatial
+  activation, and representative traversal qualification are still below.
+- [x] Integrate visual scene-prefab and HUD authoring with the shared hierarchy,
+  Inspector, validated commands, Undo/Redo, and source-preserving saves. Add
+  per-user UI scaling plus project-folder creation and empty-folder browsing.
+- [x] Make networking enabled by default with an explicit build-time opt-out;
+  allow embedded Play in intentionally offline builds. Verify the Release
+  networking and embedded-Play paths. These do not complete multiplayer destruction.
+- [ ] Extend current asset streaming with spatial activation and workload-tested
+  memory/upload limits. Add screen-size LOD with hysteresis, distant geometry
+  grouping, and separate shadow budgets as justified by traversal measurements.
 - [ ] Keep rendering LOD separate from simulation relevance. Offscreen destruction
   must not lose gameplay state or leave invisible collision behind.
 - [ ] Provide editor inspection/debug views for fracture chunks, anchors, bonds,
   damage, active bodies, LOD selection, and resource/performance budgets.
 - [ ] Add save/load for damaged structures and retained debris using versioned
   data, stable IDs, and tested migrations; verify reload after streaming/unload.
-- [ ] Update component metadata, schemas, validators, editor, Lua bindings/stubs,
-  documentation, cooking/packaging, and tests together for every public contract.
+- [ ] Carry upcoming destruction/landscape contracts through component metadata,
+  schemas, validators, editor, Lua bindings/stubs, documentation, cooking/packaging,
+  and tests together. Existing collider/denting/editor contracts already have
+  their corresponding implementation and tests; this item concerns the new work.
 - [ ] Package reusable hammer/rocket/damage/effect behavior without embedding game
   rules in the engine. New destructible props should not need custom engine code.
 - [ ] Qualify selected graphics vendors and supported platforms with explicit
@@ -248,6 +352,24 @@ streaming, saving/loading, and stress runs within declared performance budgets.
 - General AAA-engine feature parity or a physics-backend replacement.
 
 ### Immediate Next Work
+
+Do not restart the already delivered primitive/barrel baselines. The native
+compound-transition probe now covers mass/inertia, inherited motion, collision,
+chunk identity, cancellation and body-capacity rollback on Linux and a Pixel 7.
+The active Milestone 2 step is character scaling: measure independent animation
+against an otherwise identical frozen crowd, separating CPU skinning, mesh upload,
+draw submission and GPU time before choosing GPU skinning/update budgets.
+Milestone 3 then brings compounds into Demi's shared physics/asset/entity ownership
+model, with an authored collider contract and persistent topology ownership.
+Use realistic workloads to set preparation/commit/response budgets before the
+affected-structure scheduler and minimal `destruction_3d_lab` wall/hammer/rocket
+scene. Landscape traversal, sustained desktop
+runs, and full Android game qualification remain explicit roadmap gaps. The
+tool-level probe does not complete production compound/destruction support.
+
+Use an optimized build for performance qualification and run measurements
+sequentially, without simultaneous builds or other test windows. Debug remains
+useful for correctness/debugging but is not a performance reference.
 
 #### Graphics test hardware
 
@@ -282,9 +404,9 @@ contact-capacity overflow; capacity is now 32,768 and the profiler/visible runne
 detect and reject physics update errors. All 36 corrected captures have zero
 such errors. Moving 3,000-body cases keep up, but 3,000-body piles lose roughly
 6–7% of simulation time and 5,000-body piles lose roughly 50–56%. These do not
-qualify as real-time throughput despite successful rendering. Next scaling work
-should reduce per-step contact/synchronization and simulation costs; do not hide
-the deficit by changing the fixed timestep or catch-up policy. Larger-allocation
+qualify as real-time throughput despite successful rendering. Revisiting those
+stretch workloads should reduce per-step contact/synchronization and simulation
+costs; do not hide the deficit by changing the fixed timestep or catch-up policy. Larger-allocation
 Android memory impact, asset-heavy content, and sustained tests remain pending.
 
 The [imported-barrel probe](docs/3d-barrel-scaling.md) adds an editable Blender
@@ -301,14 +423,16 @@ same-ID shape reload, and live-user-safe unloading. `ModelCollider3D` attaches t
 asset in scenes/scripts; the barrel lab no longer needs prefab instantiation or
 duplicated point arrays. See [collider assets](docs/collider-assets.md).
 
-The lab's **T** tower scene adds a 256-barrel stack and a real CCD projectile
+The lab's **T** tower scene originally used 256 barrels and now defaults to
+**1,024 (8 × 8 × 16)**, with a real CCD projectile
 aimed at its base (**Space**, **R** reset, **B** back). All barrels remain dynamic;
 collapse comes from contact response and gravity. The initial stack proved
 unstable at default solver quality, so per-body velocity/position iteration
 overrides were added with unchanged zero/default settings elsewhere. The tower
 uses 64/16, passed a corrected 30-second simulated pre-shot support check, and
 passes desktop E2E checks for pre-shot support, collapse, reset, and scene reuse.
-This does not qualify larger towers or Android performance.
+The initial support check did not qualify larger towers or Android performance;
+the later 1,024-barrel desktop evidence follows.
 
 The current acceptance target is now **roughly 1,000 barrels with stable real-time
 1080p performance**, with around 2,000 a stretch requirement. The
@@ -319,25 +443,39 @@ with unchanged collider/model and 64/16 solver quality. Worst burst p95 is
 after warmup, no capacity errors occurred, every barrel remained visible, and
 all 64 top barrels fell. The interactive tower now defaults to 8 × 8 × 16.
 This is a short desktop percentile-budget pass, not a long thermal soak,
-Android qualification, or a 2,000-barrel impact-tower claim. Native cylinder
-assets and automatic collider generation remain separate authoring work.
+Android qualification, or a 2,000-barrel impact-tower claim. Basic CLI collider
+generation already exists; native cylinder assets and general mesh-fitted/editor
+collider generation remain open.
 
-Start Milestone 1. Produce the performance baseline and CPU-only Blast/Jolt
-integration result before committing to detailed optimization or fracture scale.
+A subsequent same-workload, single-run Debug/Release comparison at **1280×720
+on NVIDIA**, rather than a new 1080p qualification, recorded collapse-frame p95
+of 297.494 ms in Debug versus 10.495 ms in Release. Release discarded no fixed
+time; Debug did. This diagnosed the sluggish unoptimized test build, not an
+algorithmic optimization. Local evidence is retained in
+`build/tower-dentable-debug-check/` and `build/tower-dentable-release-check/`.
 
-Milestone 1 is in progress. The initial implementation provides three primitive
-lab workloads, a reproducible headless runner, profiler CSV percentiles and active
-body counts, a pinned CPU-only Blast smoke test, and a singleton-chunk handoff to
-the existing Jolt wrapper. Android ARM64 cross-compiles, but has not run on a
-device. Compound splitting, complete performance instrumentation, animated/imported
-asset and streaming workloads, and GPU qualification
-remain pending. Do not mark the full integration or 2,000-entity target complete.
-See [the initial evidence and next steps](docs/3d-milestone-1-baseline.md).
+#### Historical measurement trail
+
+The reports below document individual implementation stages. Their older
+"pending" lists are historical: imported-barrel probes and scoped NVIDIA/Radeon
+qualification subsequently landed, as recorded above. Remaining gaps are listed
+in the milestone checkboxes, not inferred from an earlier report's conclusion.
+
+The [initial Milestone 1 slice](docs/3d-milestone-1-baseline.md) established three
+primitive workloads, a reproducible headless runner, CPU profiler reports, the
+pinned Blast smoke test, and singleton-chunk Jolt handoff. Android ARM64
+cross-compilation succeeded at that stage. The subsequent
+[compound-transition probe](docs/3d-compound-transition-feasibility.md) now adds
+physical Pixel 7 CPU execution and native compound splitting. Production engine
+compound integration, complete workload/memory qualification, animated-character
+scaling, and streaming traversal remain open. The broader 2,000-entity game
+contract is not completed by passing the simple-body/barrel cases.
 
 Repeated Release/headless primitive baselines and a tested Lua entity-service
 lookup optimization are now recorded in [Release scaling](docs/3d-release-scaling.md).
 The moving-mesh result improved substantially; physics controls did not improve
-and dense piles remain over the provisional frame budget. Blast chain/grid
+in that initial comparison, and dense piles then exceeded the provisional frame
+budget. Blast chain/grid
 benchmarks distinguish bounded damage arrays from whole-actor split calls;
 production stress/transition budgets and the scheduler itself remain pending.
 
@@ -345,7 +483,8 @@ The subsequent [physics optimization](docs/3d-physics-optimization.md) fixes a
 per-step activation bug that prevented natural sleep, preserves resting contacts
 and support-change wakeups, and reduces contact/synchronization overhead. Matched
 Release runs reduced 2,000-body physics-step p95 by roughly one third; the dense
-pile's complete CPU frame remains over budget and GPU qualification is still open.
+pile's CPU frame was still over budget at that stage, before the later contact
+and visible-rendering work above.
 
 A follow-up [sorted contact-phase merge](docs/3d-contact-merge.md) removes hash
 construction for ordered streams while preserving the general unsorted path.
@@ -357,5 +496,6 @@ The [visible 1080p dedicated-GPU captures](docs/3d-visible-timing.md) now separa
 CPU update/render preparation, graphics advancement/backend waits, and delayed
 GPU timestamps. All 12 recorded primitive-body runs met the provisional frame
 interval targets after warmup, with no discarded simulation time. This qualifies
-only the tested reference workload on the dedicated GPU, not richer 3D content
-or other hardware. Hybrid/iGPU and physical Android checks remain pending.
+only the tested reference workload on the dedicated GPU, not richer 3D content.
+Hybrid/iGPU follow-up is recorded above; full rendered Android qualification
+remains pending despite the subsequent native CPU probe passing on a Pixel 7.

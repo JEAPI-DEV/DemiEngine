@@ -25,3 +25,37 @@ Lua controls as 2D animation states.
 
 The project declares a 16.67 ms frame budget, 64 draw calls, and 32 resident
 assets. These numbers are reference-scene limits, not engine-wide defaults.
+
+## Character scaling probe
+
+Press **C** (or the Character Scaling button) to open `scenes/crowd.scene.json`;
+**B** returns. The camera, light, floor and HUD stay editable scene documents.
+The `crowd` script component exposes `count` (default 64), `frozen`, and optional
+`duration_seconds`. Increase the camera distance when manually increasing count.
+The automated runner fits the camera for each population.
+
+This reuses the existing licensed UAL1 character, with independent walk phases
+and speeds. No new model downloads/copies are needed in the repository. The
+frozen control keeps the same skin, poses, materials, draw path and placement;
+it only stops playback. This isolates visual animation cost, **not** animated
+AI, collisions, blend trees, root motion or gameplay input latency. Neither
+mode disables collision in an existing gameplay scene; this dedicated probe
+does not create physics bodies.
+
+```sh
+SDL_VIDEO_DRIVER=x11 python3 scripts/benchmark_3d_visible.py \
+  --binary build/linux-release/demi --output build/animation-crowd-run \
+  --counts 16 64 --workloads animated frozen --vsync off \
+  --seconds 8 --warmup-seconds 2 --width 1280 --height 720
+```
+
+Run from the repository root, with a new output directory. X11 avoids the
+fractional-scaling size changes observed on the reference Wayland desktop; it
+does not change the Vulkan renderer. The runner retains raw per-frame CPU/GPU
+timing, verifies the full crowd is visible and checks live/frozen mesh-rebuild
+counts. Run captures sequentially and leave their windows untouched. A valid
+capture is not automatically a frame-budget pass: inspect dropped simulation
+time and frame tails too.
+
+Run scene-transition/cleanup checks with:
+`demi test linux examples/animation_3d --timeout 60`.

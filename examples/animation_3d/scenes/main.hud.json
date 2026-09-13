@@ -17,6 +17,10 @@
     ],
     "children": [
       {
+        "id": "open_crowd", "type": "button", "action": "animation_crowd",
+        "text": "[C] CHARACTER SCALING", "position": [680, 26], "size": [250, 36]
+      },
+      {
         "type": "label",
         "id": "title",
         "text": "GLB SKELETAL ANIMATION",
