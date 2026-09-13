@@ -42,6 +42,7 @@ struct EditorSceneViewCamera {
   runtime::Vec3 forward{0.0F, 0.0F, 1.0F};
   runtime::Vec3 up{0.0F, 1.0F, 0.0F};
   runtime::render::DebugGeometry3DRequest debugGeometry;
+  bool studioLighting = false;
 };
 
 // Owns transient scene-view navigation. Nothing in this type is serialized
@@ -73,6 +74,7 @@ public:
   bool showColliders = false;
   bool showLights = true;
   bool showCameras = true;
+  bool studioLighting = false;
 
 private:
   void updateOrientation();

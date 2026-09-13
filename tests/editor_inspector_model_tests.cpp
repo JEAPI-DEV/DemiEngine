@@ -24,6 +24,18 @@ int main() {
   assert(entities[0].id == "a");
   assert(entities[1].id == "b");
 
+  const auto project = std::filesystem::path(__FILE__).parent_path().parent_path() /
+                       "examples/performance_3d_lab";
+  const auto colliders = editorReferenceChoices(
+      runtime::ComponentReferenceKind::Asset, project, {}, {}, {}, "ModelCollider3D");
+  assert(colliders.size() == 1);
+  assert(colliders.front().id == "asset://colliders/barrel");
+  const auto assets = editorReferenceChoices(
+      runtime::ComponentReferenceKind::Asset, project, {}, {}, {});
+  assert(std::ranges::any_of(assets, [](const auto &choice) {
+    return choice.id == "asset://models/barrel";
+  }));
+
   const std::vector<std::string> selection{"a", "b"};
   const auto common = editorCommonFields(scene, selection);
   const auto position = std::ranges::find_if(common, [](const auto &field) {

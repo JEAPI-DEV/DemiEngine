@@ -22,6 +22,7 @@ enum class SourceFileKind {
   InputReplay,
   Package,
   AssetGroup,
+  ColliderShape,
 };
 
 struct ValidationSummary {

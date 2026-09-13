@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 
@@ -151,6 +152,56 @@ int main() {
   assert(androidWorkspace.hudDocument()->path().filename() == "menu.hud.json");
 
   // A preview rebuild failure restores the complete document and its history.
+  demi::editor::EditorWorkspace barrelWorkspace;
+  error.clear();
+  assert(barrelWorkspace.open(root / "examples/performance_3d_lab", error));
+  const auto barrelSource =
+      root / "examples/performance_3d_lab/prefabs/barrel.prefab.json";
+  assert(barrelWorkspace.openPrefabDocument(barrelSource, error));
+  assert(barrelWorkspace.isPrefabDocument());
+  assert(barrelWorkspace.project().world.entities.size() == 1);
+  assert(barrelWorkspace.selectedEntityId() == "body");
+  assert(barrelWorkspace.sceneDocument().json()["id"] == "prefab://barrel");
+  assert(barrelWorkspace.project().project.mainScene ==
+         "scene://performance_3d_lab/main");
+  const demi::editor::SceneValueTarget barrelName{.entityId = "body",
+                                                  .field = "name"};
+  assert(barrelWorkspace.editValue(barrelName, "Preview edit", false, error));
+  assert(barrelWorkspace.selectedEntity()->name == "Preview edit");
+  assert(!barrelWorkspace.openSceneDocument(barrelWorkspace.lastScenePath(),
+                                            error));
+  assert(barrelWorkspace.dirtyDocuments().front().kind == "prefab");
+  assert(barrelWorkspace.undo(error));
+  assert(barrelWorkspace.redo(error));
+  assert(barrelWorkspace.undo(error));
+  assert(barrelWorkspace.createEntity(error));
+  assert(barrelWorkspace.project().world.entities.size() == 2);
+  assert(barrelWorkspace.undo(error));
+  assert(barrelWorkspace.refresh(error));
+  assert(barrelWorkspace.isPrefabDocument());
+  assert(barrelWorkspace.project().world.entities.size() == 1);
+  assert(barrelWorkspace.openSceneDocument(barrelWorkspace.lastScenePath(),
+                                           error));
+  assert(!barrelWorkspace.isPrefabDocument());
+
+  // Save only a temporary source; preview fields must never leak into it.
+  const auto temporaryPrefab = std::filesystem::temp_directory_path() /
+                               "demi-editor-workspace-save.prefab.json";
+  {
+    std::ofstream output(temporaryPrefab);
+    output
+        << R"({"format_version":1,"id":"prefab://test","entities":[{"id":"body","components":{"Transform3D":{}}}]})";
+  }
+  assert(barrelWorkspace.openPrefabDocument(temporaryPrefab, error));
+  assert(barrelWorkspace.editValue(barrelName, "Saved name", false, error));
+  assert(barrelWorkspace.save(error));
+  assert(barrelWorkspace.sceneDocument().reload(error));
+  assert(barrelWorkspace.sceneDocument().json()["id"] == "prefab://test");
+  assert(barrelWorkspace.sceneDocument().entity("body")->at("name") ==
+         "Saved name");
+  assert(!barrelWorkspace.sceneDocument().json().contains("hud"));
+  std::filesystem::remove(temporaryPrefab);
+
   const std::string documentBeforeFailure =
       workspace.sceneDocument().json().dump();
   const bool couldUndoBeforeFailure = workspace.sceneDocument().canUndo();

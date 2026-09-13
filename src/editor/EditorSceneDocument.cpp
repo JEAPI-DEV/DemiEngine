@@ -1,6 +1,8 @@
 #include "editor/EditorSceneDocument.h"
 
+#include "demi/filesystem/ProjectPaths.h"
 #include "editor/EditorAuthoredJson.h"
+#include "editor/EditorSpecializedDocument.h"
 
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
@@ -29,7 +31,10 @@ std::string validationMessage(
 
 bool stagedHasErrors(const std::filesystem::path &path,
                      const nlohmann::json &document, std::string &error) {
-  const Diagnostics diagnostics = demi::validateSceneDocument(path, document);
+  const Diagnostics diagnostics =
+      isPrefabFile(path) ? validateSpecializedDocument(
+                               EditorSpecializedKind::Prefab, path, document)
+                         : demi::validateSceneDocument(path, document);
   for (const Diagnostic &diagnostic : diagnostics) {
     if (diagnostic.severity == Severity::Error) {
       error = diagnostic.code + ": " + diagnostic.message;
@@ -65,6 +70,9 @@ bool EditorSceneDocument::open(const std::filesystem::path &path,
     return false;
   try {
     nlohmann::json parsed = nlohmann::json::parse(text);
+    if (isPrefabFile(resolvedPath) &&
+        stagedHasErrors(resolvedPath, parsed, error))
+      return false;
     if (!parsed.is_object() || !parsed.contains("format_version") ||
         !parsed.contains("entities") || !parsed["entities"].is_array()) {
       error = "The active scene is not an editable scene document.";

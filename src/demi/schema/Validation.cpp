@@ -2,6 +2,7 @@
 
 #include "demi/assets/AssetGroup.h"
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/ColliderShapeAsset.h"
 #include "demi/assets/SceneBudget3D.h"
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/packages/PackageManifest.h"
@@ -20,6 +21,7 @@
 #include <optional>
 #include <set>
 #include <sstream>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace demi {
@@ -359,6 +361,31 @@ void validatePhysics3D(Diagnostics &diagnostics,
   constexpr std::array colliderNames{"BoxCollider3D", "SphereCollider3D",
                                      "CapsuleCollider3D", "ConvexCollider3D",
                                      "ModelCollider3D"};
+  std::optional<AssetRegistry> colliderRegistry;
+  std::unordered_map<std::string, bool> convexAssets;
+  const auto isConvexAsset = [&](const nlohmann::json &component) {
+    if (!component.is_object() || !component.contains("asset") ||
+        !component["asset"].is_string())
+      return false;
+    const std::string id = component["asset"].get<std::string>();
+    if (const auto found = convexAssets.find(id); found != convexAssets.end())
+      return found->second;
+    bool valid = false;
+    if (!colliderRegistry) {
+      const auto project = findProjectDirectory(path);
+      colliderRegistry =
+          project ? loadAssetRegistry(*project) : AssetRegistry{};
+    }
+    if (const auto *asset = findAsset(*colliderRegistry, id);
+        asset && asset->type == "Collider3D" &&
+        asset->importer == "collider-shape") {
+      std::string error;
+      valid =
+          assets::loadColliderShapeAsset(asset->sourcePath, error).has_value();
+    }
+    convexAssets.emplace(id, valid);
+    return valid;
+  };
   for (const auto &entity : document["entities"]) {
     if (!entity.is_object() || !entity.contains("components") ||
         !entity["components"].is_object())
@@ -429,7 +456,8 @@ void validatePhysics3D(Diagnostics &diagnostics,
                              "for trigger volumes."});
       }
     }
-    if (components.contains("ModelCollider3D") && bodyType != "static")
+    if (components.contains("ModelCollider3D") && bodyType != "static" &&
+        !isConvexAsset(components["ModelCollider3D"]))
       diagnostics.push_back(
           {.severity = Severity::Error,
            .code = "PHYSICS3D_MESH_REQUIRES_STATIC_BODY",
@@ -511,6 +539,8 @@ Diagnostics validateSceneDocument(const std::filesystem::path &scenePath,
 }
 
 SourceFileKind classifySourceFile(const std::filesystem::path &path) {
+  if (isColliderShapeFile(path))
+    return SourceFileKind::ColliderShape;
   if (isAssetGroupFile(path)) {
     return SourceFileKind::AssetGroup;
   }
@@ -648,6 +678,15 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
                "Add an integer format_version field at the top level.");
 
   switch (kind) {
+  case SourceFileKind::ColliderShape: {
+    std::string error;
+    if (!assets::loadColliderShapeAsset(path, error))
+      diagnostics.push_back({.severity = Severity::Error,
+                             .code = "COLLIDER_SHAPE_INVALID",
+                             .message = error,
+                             .path = path.string()});
+    break;
+  }
   case SourceFileKind::Project:
     requireToken(diagnostics, text, path, "\"name\"", "PROJECT_MISSING_NAME",
                  "Project file is missing name.",

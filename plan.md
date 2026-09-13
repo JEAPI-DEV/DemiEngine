@@ -287,6 +287,41 @@ should reduce per-step contact/synchronization and simulation costs; do not hide
 the deficit by changing the fixed timestep or catch-up policy. Larger-allocation
 Android memory impact, asset-heavy content, and sustained tests remain pending.
 
+The [imported-barrel probe](docs/3d-barrel-scaling.md) adds an editable Blender
+model and convex physics prefab to the same lab. All 24 1080p captures keep the
+full population visible in two batches with zero physics capacity errors.
+2,000-barrel moving/pile tests keep up with real time; 5,000 full-detail barrels
+average about 21 FPS moving and 12–13 FPS piled, with substantial simulation
+time discarded. This is not a 5,000-body real-time qualification. Keep model LOD,
+convex contact costs, and per-step integration overhead as separate future probes.
+
+Reusable convex `.collider.json` sources now import as `Collider3D` assets, with
+shared parsing, source/schema validation, inspection, cooking, runtime residency,
+same-ID shape reload, and live-user-safe unloading. `ModelCollider3D` attaches the
+asset in scenes/scripts; the barrel lab no longer needs prefab instantiation or
+duplicated point arrays. See [collider assets](docs/collider-assets.md).
+
+The lab's **T** tower scene adds a 256-barrel stack and a real CCD projectile
+aimed at its base (**Space**, **R** reset, **B** back). All barrels remain dynamic;
+collapse comes from contact response and gravity. The initial stack proved
+unstable at default solver quality, so per-body velocity/position iteration
+overrides were added with unchanged zero/default settings elsewhere. The tower
+uses 64/16, passed a corrected 30-second simulated pre-shot support check, and
+passes desktop E2E checks for pre-shot support, collapse, reset, and scene reuse.
+This does not qualify larger towers or Android performance.
+
+The current acceptance target is now **roughly 1,000 barrels with stable real-time
+1080p performance**, with around 2,000 a stretch requirement. The
+[1,024-barrel tower qualification](docs/3d-1024-tower-qualification.md) passes
+three Release runs on each GPU, including a separate active-collapse window,
+with unchanged collider/model and 64/16 solver quality. Worst burst p95 is
+10.936 ms on NVIDIA and 11.783 ms on Radeon; no simulation time was discarded
+after warmup, no capacity errors occurred, every barrel remained visible, and
+all 64 top barrels fell. The interactive tower now defaults to 8 × 8 × 16.
+This is a short desktop percentile-budget pass, not a long thermal soak,
+Android qualification, or a 2,000-barrel impact-tower claim. Native cylinder
+assets and automatic collider generation remain separate authoring work.
+
 Start Milestone 1. Produce the performance baseline and CPU-only Blast/Jolt
 integration result before committing to detailed optimization or fracture scale.
 

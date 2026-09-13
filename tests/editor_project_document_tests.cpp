@@ -49,11 +49,11 @@ int main() {
   assert(document.setInputActions(
       {{"jump",
         {{"type", "button"},
-         {"context", "gameplay"},
          {"bindings",
           nlohmann::json::array({{{"input", "key:space"}, {"player", 1}}})}}}},
       error));
   assert(document.inputActions().contains("jump"));
+  assert(!document.inputActions()["jump"].contains("context"));
   assert(document.setInputBinding("jump", 0, "key:j", error));
   assert(document.inputActions()["jump"]["bindings"][0]["input"] == "key:j");
   assert(document.inputActions()["jump"]["bindings"][0]["player"] == 1);
@@ -94,9 +94,25 @@ int main() {
   assert(!document.setInputActions(
       {{"broken", {{"type", "unknown"}, {"context", "gameplay"}}}}, error));
   assert(document.json().dump() == beforeInvalidInput);
+  for (const auto &context : nlohmann::json::array({"", 42, nullptr})) {
+    auto actions = document.inputActions();
+    actions["jump"]["context"] = context;
+    assert(!document.setInputActions(actions, error));
+    assert(document.json().dump() == beforeInvalidInput);
+  }
+  auto actions = document.inputActions();
+  actions["jump"]["context"] = "menu";
+  assert(document.setInputActions(actions, error));
+  assert(document.undo(error));
   assert(document.save(error));
   assert(!document.isDirty());
   assert(read(root / "demi.project.json").find("{\"format_version\":1,") == 0);
+  assert(document.open(root / "demi.project.json", error));
+  assert(!document.inputActions()["jump"].contains("context"));
+
+  const auto repository = std::filesystem::path(__FILE__).parent_path().parent_path();
+  assert(document.open(repository / "examples/performance_3d_lab/demi.project.json",
+                       error));
 
   std::filesystem::remove_all(root, ignored);
 }

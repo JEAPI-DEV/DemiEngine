@@ -164,7 +164,7 @@ void EditorProjectPanel::draw(EditorWorkspace &workspace, std::string &notice) {
           ImGui::Text("%s", name.c_str());
           ImGui::SameLine(220.0F);
           ImGui::TextDisabled("%s / %s", action.value("type", "").c_str(),
-                              action.value("context", "").c_str());
+                              action.value("context", "gameplay").c_str());
           ImGui::SameLine(565.0F);
           if (ImGui::SmallButton("Remove"))
             removeAction = name;
@@ -239,7 +239,6 @@ void EditorProjectPanel::draw(EditorWorkspace &workspace, std::string &notice) {
                                  actionBinding_.data(), actionBinding_.size());
         ImGui::SameLine();
         const bool canAddAction = actionName_[0] != '\0' &&
-                                  actionContext_[0] != '\0' &&
                                   actionBinding_[0] != '\0';
         ImGui::BeginDisabled(!canAddAction);
         if (ImGui::Button("Add##action")) {
@@ -248,9 +247,10 @@ void EditorProjectPanel::draw(EditorWorkspace &workspace, std::string &notice) {
           } else {
             actions[actionName_.data()] = {
                 {"type", actionType_},
-                {"context", actionContext_.data()},
                 {"bindings",
                  nlohmann::json::array({{{"input", actionBinding_.data()}}})}};
+            if (actionContext_[0] != '\0')
+              actions[actionName_.data()]["context"] = actionContext_.data();
             std::string error;
             if (workspace.setProjectInputActions(std::move(actions), error)) {
               notice = "Input action added";

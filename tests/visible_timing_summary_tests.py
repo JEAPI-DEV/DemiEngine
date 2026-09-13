@@ -3,9 +3,11 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+import subprocess
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from benchmark_3d_visible import summarize, distribution
+from benchmark_barrel_tower import phase_frames, impact_burst_end
 
 
 class SummaryTests(unittest.TestCase):
@@ -66,6 +68,31 @@ class SummaryTests(unittest.TestCase):
         # Even a subsequently replaced world's startup failure invalidates the
         # run; warmup exclusion is only for timing, not simulation correctness.
         self.assertFalse(self.capture(errors=1, startup_only=True)['valid_capture'])
+
+    def test_tower_phase_boundary_survives_projectile_cleanup(self):
+        with tempfile.TemporaryDirectory(prefix='demi-tower-phase-test-') as folder:
+            path = Path(folder) / 'frames.csv'
+            with path.open('w', newline='') as stream:
+                writer = csv.writer(stream)
+                writer.writerow(['frame', 'scope', 'total_ms', 'calls', 'gauge'])
+                for frame, bodies, active in [(0, 3, 2), (1, 3, 0), (2, 4, 3), (3, 3, 1), (4, 3, 0)]:
+                    writer.writerow([frame, 'Physics3D.bodies', 0, 0, bodies])
+                    writer.writerow([frame, 'Physics3D.active_bodies', 0, 0, active])
+            _, rows, shot = phase_frames(path, 2)
+            self.assertEqual(shot, 2)
+            self.assertEqual(impact_burst_end(rows, shot, 2), 4)
+            self.assertIsNone(phase_frames(path, 5)[2])
+            self.assertIsNone(impact_burst_end(rows, None, 2))
+
+    def test_tower_rejects_invalid_window_size_before_creating_output(self):
+        with tempfile.TemporaryDirectory(prefix='demi-tower-cli-test-') as folder:
+            output = Path(folder) / 'capture'
+            script = Path(__file__).resolve().parents[1] / 'scripts/benchmark_barrel_tower.py'
+            result = subprocess.run([sys.executable, str(script), '--binary', sys.executable,
+                                     '--output', str(output), '--window-width', '0'],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 2)
+            self.assertFalse(output.exists())
 
 
 if __name__ == '__main__':

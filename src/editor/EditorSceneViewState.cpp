@@ -36,6 +36,7 @@ runtime::Vec3 multiply(const runtime::Vec3 value, const float scalar) {
 } // namespace
 
 void EditorSceneViewState::reset(const runtime::World &world) {
+  studioLighting = false;
   cameraSettings_ = {};
   cameraSettings_.clearColor = {0.055F, 0.07F, 0.09F, 1.0F};
   cameraSettings_.renderHud = false;
@@ -182,7 +183,8 @@ EditorSceneViewCamera EditorSceneViewState::camera() const {
           .debugGeometry = {.forceColliders = showColliders,
                             .bounds = showBounds,
                             .lights = showLights,
-                            .cameras = showCameras}};
+                            .cameras = showCameras},
+          .studioLighting = studioLighting};
 }
 
 void EditorSceneViewState::setProjection(const EditorProjection projection) {

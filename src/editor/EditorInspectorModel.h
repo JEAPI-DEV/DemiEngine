@@ -38,7 +38,8 @@ editorReferenceChoices(runtime::ComponentReferenceKind kind,
                        const std::filesystem::path &projectDirectory,
                        const std::filesystem::path &scenePath,
                        const nlohmann::json &scene,
-                       std::span<const std::filesystem::path> sources);
+                       std::span<const std::filesystem::path> sources,
+                       std::string_view componentName = {});
 
 [[nodiscard]] std::vector<EditorComponentChoice>
 editorComponentChoices(const nlohmann::json &entity);

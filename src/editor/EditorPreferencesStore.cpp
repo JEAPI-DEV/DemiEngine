@@ -4,6 +4,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cmath>
 #include <fstream>
 
 namespace demi::editor {
@@ -23,6 +24,12 @@ bool EditorPreferencesStore::load(EditorPreferences &preferences,
       error = "Editor preferences use an unsupported format version.";
       return false;
     }
+    const float uiScale = document.value("ui_scale", 1.0F);
+    if (!std::isfinite(uiScale) || uiScale < 1.0F || uiScale > 2.5F) {
+      error = "Editor UI scale must be between 1.0 and 2.5.";
+      return false;
+    }
+    preferences.uiScale = uiScale;
     preferences.translationSnap = document.value("translation_snap", 1.0F);
     preferences.rotationSnapDegrees =
         document.value("rotation_snap_degrees", 15.0F);
@@ -44,6 +51,11 @@ bool EditorPreferencesStore::load(EditorPreferences &preferences,
 
 bool EditorPreferencesStore::save(const EditorPreferences &preferences,
                                   std::string &error) const {
+  if (!std::isfinite(preferences.uiScale) || preferences.uiScale < 1.0F ||
+      preferences.uiScale > 2.5F) {
+    error = "Editor UI scale must be between 1.0 and 2.5.";
+    return false;
+  }
   std::error_code directoryError;
   std::filesystem::create_directories(path_.parent_path(), directoryError);
   if (directoryError) {
@@ -53,6 +65,7 @@ bool EditorPreferencesStore::save(const EditorPreferences &preferences,
   }
   const nlohmann::json document{
       {"format_version", 1},
+      {"ui_scale", preferences.uiScale},
       {"translation_snap", preferences.translationSnap},
       {"rotation_snap_degrees", preferences.rotationSnapDegrees},
       {"scale_snap", preferences.scaleSnap},

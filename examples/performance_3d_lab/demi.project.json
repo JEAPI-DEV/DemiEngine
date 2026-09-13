@@ -2,7 +2,19 @@
   "format_version": 1,
   "name": "3D Performance Lab",
   "main_scene": "scene://performance_3d_lab/main",
-  "scenes": [{ "id": "scene://performance_3d_lab/main", "path": "scenes/main.scene.json" }],
+  "scenes": [
+    { "id": "scene://performance_3d_lab/main", "path": "scenes/main.scene.json" },
+    { "id": "scene://performance_3d_lab/tower" }
+  ],
+  "assets": ["asset://models/barrel", "asset://colliders/barrel"],
+  "input": {
+    "actions": {
+      "tower": { "type": "button", "bindings": [{ "input": "key:t" }] },
+      "fire": { "type": "button", "bindings": [{ "input": "key:space" }] },
+      "reset": { "type": "button", "bindings": [{ "input": "key:r" }] },
+      "back": { "type": "button", "bindings": [{ "input": "key:b" }] }
+    }
+  },
   "gameplay_model": { "projection": "3d", "physics": "jolt" },
   "simulation": { "fixed_timestep": 0.016666667, "random_seed": 314159, "maximum_fixed_steps_per_frame": 2 }
 }

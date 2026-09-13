@@ -22,6 +22,7 @@
 #include "demi/runtime/input/replay/InputReplay.h"
 #include "demi/runtime/media/MediaSystem.h"
 #include "demi/runtime/network/NetworkSystem.h"
+#include "demi/runtime/physics/ColliderAssetLoader3D.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/Physics3D.h"
 #include "demi/runtime/platform/ProjectFileWatcher.h"
@@ -482,6 +483,7 @@ int runProject(const RuntimeOptions &options) {
     printDiagnosticsText(std::cerr, runtimeAssetDiagnostics);
     return RuntimeFailure;
   }
+  runtimeAssets.registerLoader(createColliderAssetLoader3D(loaded.world));
   if (audioInitialized)
     runtimeAssets.registerLoader(audioSystem.createAssetLoader(assetRegistry));
 

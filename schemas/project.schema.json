@@ -56,11 +56,11 @@
           "type": "object",
           "additionalProperties": {
             "type": "object",
-            "required": ["type", "context", "bindings"],
+            "required": ["type", "bindings"],
             "additionalProperties": false,
             "properties": {
               "type": {"enum": ["button", "axis1d", "vector2"]},
-              "context": {"type": "string", "minLength": 1},
+              "context": {"type": "string", "minLength": 1, "default": "gameplay"},
               "player": {"type": "integer", "minimum": 0},
               "bindings": {"$ref": "#/$defs/input_bindings"}
             }

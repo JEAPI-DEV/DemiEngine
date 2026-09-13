@@ -379,20 +379,22 @@ bool EditorProjectDocument::validate(const nlohmann::json &document,
     if (input->contains("actions"))
       for (const auto &[name, action] : (*input)["actions"].items()) {
         const std::string type =
-            action.is_object() ? action.value("type", "") : "";
-        const std::string context =
-            action.is_object() ? action.value("context", "") : "";
+            action.is_object() && action.contains("type") &&
+                    action["type"].is_string()
+                ? action["type"].get<std::string>()
+                : "";
         if (name.empty() || !action.is_object() ||
             (type != "button" && type != "axis1d" && type != "vector2") ||
-            context.empty() || !action.contains("bindings") ||
+            !action.contains("bindings") ||
             !action["bindings"].is_array() || action["bindings"].empty()) {
           error = "Every input action requires a name, supported type, "
-                  "context, and binding.";
+                  "and binding.";
           return false;
         }
       }
     if (input->contains("actions") &&
-        runtime::input::parseInputActions(document).size() <
+        runtime::input::parseInputActions(
+            {{"input", {{"actions", (*input)["actions"]}}}}).size() <
             (*input)["actions"].size()) {
       error = "Input actions must be accepted by the runtime action parser.";
       return false;

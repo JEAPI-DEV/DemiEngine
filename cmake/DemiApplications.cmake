@@ -104,6 +104,7 @@ else()
     src/editor/EditorViewportTool.cpp
     src/editor/EditorViewportTool2D.cpp
     src/editor/EditorWorkspace.cpp
+    src/editor/EditorWorkspacePrefab.cpp
     src/editor/EditorWorkspaceLayout.cpp
     src/editor/EditorWorkspaceAssets.cpp)
   target_include_directories(demi-editor-model PUBLIC src)
@@ -146,6 +147,7 @@ else()
     src/editor/EditorSpecializedPanel.cpp
     src/editor/EditorStbRectPack.cpp
     src/editor/EditorTheme.cpp
+    src/editor/EditorSettingsPanel.cpp
     src/editor/EditorToolbar.cpp
     src/editor/EditorUiHostBgfx.cpp
     src/editor/EditorViewportPanel.cpp

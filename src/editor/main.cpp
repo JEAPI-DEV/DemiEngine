@@ -111,6 +111,7 @@ int main(const int argc, char **argv) {
       shell.requestExit();
       ui->acknowledgeCloseRequest();
     }
+    ui->setUiScale(shell.uiScale());
     if (!ui->beginFrame(error)) {
       std::cerr << "Editor frame failed: " << error << '\n';
       ui->shutdown();

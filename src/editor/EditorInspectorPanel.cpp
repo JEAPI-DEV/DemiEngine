@@ -210,7 +210,7 @@ bool drawReferenceString(EditorWorkspace &workspace,
     const auto choices = editorReferenceChoices(
         field.referenceKind, workspace.project().project.projectDirectory,
         workspace.sceneDocument().path(), workspace.sceneDocument().json(),
-        workspace.sources());
+        workspace.sources(), target.component);
     if (field.nullable && ImGui::Selectable("None", selected.empty())) {
       selected.clear();
       changed = true;

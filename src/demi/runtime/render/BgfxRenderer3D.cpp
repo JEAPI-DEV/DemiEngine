@@ -325,7 +325,9 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       liveDynamicMeshes.insert(entity.id);
   }
   const SceneLighting3D lighting =
-      collectSceneLighting3D(world, frame.camera.renderMask);
+      frame.lightingOverride
+          ? *frame.lightingOverride
+          : collectSceneLighting3D(world, frame.camera.renderMask);
   const std::array<float, 4> whiteTint{1.0F, 1.0F, 1.0F, 1.0F};
   const std::array<float, 4> noAlphaCutoff{};
   const std::array<float, 4> debugMode{debugModeValue(frame.camera.debugMode),

@@ -22,6 +22,7 @@ def main():
     parser.add_argument('--frames', type=int, default=720, help='Last 600 scope calls form the percentile window')
     parser.add_argument('--repeats', type=int, default=3)
     parser.add_argument('--varied', action='store_true')
+    parser.add_argument('--geometry', choices=['primitives', 'barrel'], default='primitives')
     args = parser.parse_args()
     if args.frames < 1 or args.repeats < 1 or any(n < 1 or n > 5000 for n in args.counts):
         parser.error('Frames/repeats must be positive and counts between 1 and 5000')
@@ -42,7 +43,7 @@ def main():
         'build_type': build_type, 'binary': str(binary),
         'binary_sha256': executable_hash,
         'headless': True, 'gpu_measured': False, 'frames': args.frames,
-        'repeats': args.repeats, 'varied': args.varied,
+        'repeats': args.repeats, 'varied': args.varied, 'geometry': args.geometry,
         'fixed_timestep': 0.016666667, 'percentile_window_calls': 600,
         'cpu_info': subprocess.run(['lscpu'], capture_output=True, text=True, check=True).stdout,
     }
@@ -60,7 +61,7 @@ def main():
                         scene_path = project / 'scenes/main.scene.json'
                         scene = json.loads(scene_path.read_text())
                         lab = next(entity for entity in scene['entities'] if entity['id'] == 'lab')
-                        lab['components']['LuaScript']['properties'] = {'count': count, 'workload': workload, 'varied': args.varied}
+                        lab['components']['LuaScript']['properties'] = {'count': count, 'workload': workload, 'varied': args.varied, 'geometry': args.geometry}
                         scene_path.write_text(json.dumps(scene, indent=2) + '\n')
                         report = output / f'{name}.csv'
                         start = time.perf_counter()

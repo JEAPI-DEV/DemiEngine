@@ -41,6 +41,9 @@ bool EditorWorkspace::open(std::filesystem::path projectPath,
   projectPath_ = std::move(projectPath);
   project_ = std::move(loaded);
   openedHudDocument_.reset();
+  editingPrefab_ = false;
+  lastPrefabPath_.clear();
+  lastScenePath_ = project_->world.scenePath;
   activeDocument_ = EditorWorkspaceDocument::Scene;
   usesOpenedHudDocument_ = false;
   if (!projectDocument_.open(projectPath_, error)) {
@@ -71,6 +74,11 @@ bool EditorWorkspace::open(std::filesystem::path projectPath,
 
 bool EditorWorkspace::openSceneDocument(const std::filesystem::path &path,
                                         std::string &error) {
+  return openEntityDocument(path, false, error);
+}
+
+bool EditorWorkspace::openEntityDocument(const std::filesystem::path &path,
+                                         bool prefab, std::string &error) {
   if (!project_) {
     error = "Open a project before opening a scene.";
     return false;
@@ -90,18 +98,18 @@ bool EditorWorkspace::openSceneDocument(const std::filesystem::path &path,
         return samePath(project_->project.projectDirectory / candidate.path,
                         path);
       });
-  if (entry == project_->project.scenes.end()) {
+  if (!prefab && entry == project_->project.scenes.end()) {
     error =
         "This scene is not registered in demi.project.json: " + path.string();
     return false;
   }
 
   const std::filesystem::path scenePath =
-      project_->project.projectDirectory / entry->path;
+      prefab ? path : project_->project.projectDirectory / entry->path;
   EditorSceneDocument scene;
   if (!scene.open(scenePath, error))
     return false;
-  auto world = runtime::loadScene(project_->project, entry->id, error);
+  auto world = loadEntityPreview(scene, prefab, error);
   if (!world)
     return false;
 
@@ -118,6 +126,11 @@ bool EditorWorkspace::openSceneDocument(const std::filesystem::path &path,
   }
 
   sceneDocument_ = std::move(scene);
+  editingPrefab_ = prefab;
+  if (prefab)
+    lastPrefabPath_ = sceneDocument_.path();
+  else
+    lastScenePath_ = sceneDocument_.path();
   hudDocument_ = std::move(hud);
   project_->world = std::move(*world);
   activeDocument_ = EditorWorkspaceDocument::Scene;
@@ -132,6 +145,9 @@ bool EditorWorkspace::openSceneDocument(const std::filesystem::path &path,
   updateSceneDomain(true);
   if (!project_->world.entities.empty())
     selectEntity(project_->world.entities.front().id);
+  if (prefab && !selectedEntityId().empty())
+    (void)sceneView_.frameEntity(project_->world, selectedEntityId());
+  sceneView_.studioLighting = prefab;
   workspaceOperationError_.clear();
   refreshDiagnostics();
   return true;
@@ -192,7 +208,8 @@ bool EditorWorkspace::refresh(std::string &error) {
   if (!loaded)
     return false;
   const std::string activeSceneId = project_->world.activeSceneId;
-  if (!activeSceneId.empty() && activeSceneId != loaded->project.mainScene) {
+  if (!editingPrefab_ && !activeSceneId.empty() &&
+      activeSceneId != loaded->project.mainScene) {
     auto activeWorld =
         runtime::loadScene(loaded->project, activeSceneId, error);
     if (!activeWorld)
@@ -204,6 +221,8 @@ bool EditorWorkspace::refresh(std::string &error) {
   if (!projectDocument_.reload(error))
     return false;
   project_ = std::move(loaded);
+  if (editingPrefab_ && !rebuildWorld(error))
+    return false;
   if (!loadHudDocument(error))
     return false;
   viewportTool_.cancelDrag();
@@ -249,7 +268,7 @@ std::vector<EditorRecoveryDocument> EditorWorkspace::dirtyDocuments() const {
   std::vector<EditorRecoveryDocument> documents;
   if (sceneDocument_.isDirty())
     documents.push_back({.path = sceneDocument_.path(),
-                         .kind = "scene",
+                         .kind = editingPrefab_ ? "prefab" : "scene",
                          .content = sceneDocument_.json()});
   if (projectDocument_.isDirty())
     documents.push_back({.path = projectDocument_.path(),
@@ -268,6 +287,26 @@ std::vector<EditorRecoveryDocument> EditorWorkspace::dirtyDocuments() const {
 
 bool EditorWorkspace::applyRecovery(const EditorRecoverySnapshot &snapshot,
                                     std::string &error) {
+  const auto prefab = std::ranges::find(snapshot.documents, "prefab",
+                                        &EditorRecoveryDocument::kind);
+  if (prefab != snapshot.documents.end()) {
+    if (hasUnsavedChanges()) {
+      error = "Save or undo current changes before restoring a prefab session.";
+      return false;
+    }
+    EditorWorkspace recovered;
+    if (!recovered.open(projectPath_, error) ||
+        !recovered.openPrefabDocument(prefab->path, error))
+      return false;
+    auto staged = snapshot;
+    for (auto &document : staged.documents)
+      if (document.kind == "prefab")
+        document.kind = "scene";
+    if (!recovered.applyRecovery(staged, error))
+      return false;
+    *this = std::move(recovered);
+    return true;
+  }
   EditorSceneDocument sceneBefore = sceneDocument_;
   EditorProjectDocument projectBefore = projectDocument_;
   std::optional<EditorHudDocument> hudBefore = hudDocument_;
@@ -813,11 +852,13 @@ void EditorWorkspace::reconcileIsoGridCellSelection() {
 
 bool EditorWorkspace::rebuildWorld(std::string &error) {
   error.clear();
-  const std::string &sceneId = project_->world.activeSceneId.empty()
-                                   ? project_->project.mainScene
-                                   : project_->world.activeSceneId;
-  auto world = runtime::loadSceneDocument(project_->project, sceneId,
-                                          sceneDocument_.json(), error);
+  const std::string sceneId = project_->world.activeSceneId.empty()
+                                  ? project_->project.mainScene
+                                  : project_->world.activeSceneId;
+  auto world = editingPrefab_
+                   ? loadEntityPreview(sceneDocument_, true, error)
+                   : runtime::loadSceneDocument(project_->project, sceneId,
+                                                sceneDocument_.json(), error);
   if (!world)
     return false;
   project_->world = std::move(*world);

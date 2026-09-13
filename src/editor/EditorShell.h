@@ -28,6 +28,7 @@ public:
   explicit EditorShell(EditorWorkspace &workspace);
 
   void draw(int width, int height, std::string_view rendererName);
+  [[nodiscard]] float uiScale() const { return uiScale_; }
   [[nodiscard]] bool wantsExit() const { return wantsExit_; }
   void requestExit() { exitRequested_ = true; }
   [[nodiscard]] EditorViewportArea viewportArea() const {
@@ -90,6 +91,8 @@ private:
   EditorRecoveryStore recoveryStore_;
   EditorPreferencesStore preferencesStore_;
   EditorPreferences preferences_;
+  float uiScale_ = 1.0F;
+  bool showSettings_ = false;
   std::optional<EditorRecoverySnapshot> pendingRecovery_;
   std::string recoveryFingerprint_;
   std::string notice_;

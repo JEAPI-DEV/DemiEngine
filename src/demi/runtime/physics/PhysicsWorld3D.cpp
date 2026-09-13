@@ -286,6 +286,9 @@ void mix(std::uint64_t &hash, const bool value) {
     mix(hash, std::uint64_t{5});
     mix(hash, std::hash<std::string>{}(value->asset));
     mix(hash, value->isTrigger);
+    if (const auto asset = world.colliderAssets3D.find(value->asset);
+        asset != world.colliderAssets3D.end())
+      mix(hash, asset->second.revision);
   }
   if (const auto *body = entity.component<Rigidbody3DComponent>()) {
     mix(hash, std::hash<std::string>{}(body->bodyType));
@@ -297,6 +300,8 @@ void mix(std::uint64_t &hash, const bool value) {
                         body->friction, body->restitution, body->gravityScale})
       mix(hash, value);
     mix(hash, body->allowSleep);
+    mix(hash, static_cast<std::uint64_t>(body->solverVelocitySteps));
+    mix(hash, static_cast<std::uint64_t>(body->solverPositionSteps));
   }
   return hash;
 }
@@ -332,10 +337,13 @@ void mix(std::uint64_t &hash, const bool value) {
     offset = {capsule->offset.x * scale.x, capsule->offset.y * scale.y,
               capsule->offset.z * scale.z};
   } else if (const auto *convex = entity.component<ConvexCollider3DComponent>();
-             convex != nullptr && convex->points.size() >= 4) {
+             (convex != nullptr && convex->points.size() >= 4) ||
+             resolvedConvexCollider3D(world, entity) != nullptr) {
+    const auto &sourcePoints =
+        convex ? convex->points : *resolvedConvexCollider3D(world, entity);
     JPH::Array<JPH::Vec3> points;
-    points.reserve(convex->points.size());
-    for (const Vec3 point : convex->points)
+    points.reserve(sourcePoints.size());
+    for (const Vec3 point : sourcePoints)
       points.emplace_back(point.x * scale.x, point.y * scale.y,
                           point.z * scale.z);
     JPH::ConvexHullShapeSettings settings(points);
@@ -343,8 +351,9 @@ void mix(std::uint64_t &hash, const bool value) {
     if (result.HasError())
       return {};
     shape = result.Get();
-    offset = {convex->offset.x * scale.x, convex->offset.y * scale.y,
-              convex->offset.z * scale.z};
+    if (convex)
+      offset = {convex->offset.x * scale.x, convex->offset.y * scale.y,
+                convex->offset.z * scale.z};
   } else if (const auto *model = entity.component<ModelCollider3DComponent>()) {
     const auto triangles = resolvedTriangleCollider3D(world, entity);
     if (triangles != nullptr && !triangles->empty()) {
@@ -627,6 +636,11 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
           entity.hasComponent<CharacterController3DComponent>())
         continue;
       auto *body = entity.component<Rigidbody3DComponent>();
+      if (const auto *model = entity.component<ModelCollider3DComponent>()) {
+        if (auto asset = world.colliderAssets3D.find(model->asset);
+            asset != world.colliderAssets3D.end())
+          asset->second.lastUsedEpoch = impl_->frameEpoch;
+      }
       const std::uint64_t signature = shapeSignature(world, entity);
       auto found = impl_->bodies.find(entity.id);
       const bool shapeRebuilt =
@@ -671,6 +685,10 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
           settings.mFriction = body->friction;
           settings.mRestitution = body->restitution;
           settings.mAllowSleeping = body->allowSleep;
+          settings.mNumVelocityStepsOverride =
+              std::clamp(body->solverVelocitySteps, 0, 128);
+          settings.mNumPositionStepsOverride =
+              std::clamp(body->solverPositionSteps, 0, 128);
           settings.mMotionQuality = body->continuous
                                         ? JPH::EMotionQuality::LinearCast
                                         : JPH::EMotionQuality::Discrete;
@@ -849,6 +867,10 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
     }
   }
 
+  std::erase_if(world.colliderAssets3D, [&](const auto &entry) {
+    return !entry.second.resident &&
+           entry.second.lastUsedEpoch != impl_->frameEpoch;
+  });
   {
     ProfileScope scope("Physics3D.simulate");
     const auto error =

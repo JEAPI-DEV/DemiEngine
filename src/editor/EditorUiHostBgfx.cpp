@@ -165,6 +165,10 @@ public:
     initialized_ = false;
   }
 
+  void setUiScale(const float scale) override {
+    uiScale_ = std::clamp(scale, 1.0F, 2.5F);
+  }
+
   bool beginFrame(std::string &error) override {
     platform_->poll(input_);
     const auto &frame = platform_->frameState();
@@ -185,11 +189,13 @@ public:
     // Demi's platform input is a per-frame float delta, so submit it through
     // ImGui's native queue and keep the legacy wrapper channel fixed at zero.
     submitEditorImGuiInput(input_);
+    ImGui::GetIO().DisplayFramebufferScale = {uiScale_, uiScale_};
     imguiBeginFrame(
-        static_cast<std::int32_t>(input_.mousePosition.x),
-        static_cast<std::int32_t>(input_.mousePosition.y), buttons, 0,
-        static_cast<std::uint16_t>(std::clamp(frame.width, 1, 65535)),
-        static_cast<std::uint16_t>(std::clamp(frame.height, 1, 65535)));
+        static_cast<std::int32_t>(input_.mousePosition.x / uiScale_),
+        static_cast<std::int32_t>(input_.mousePosition.y / uiScale_), buttons,
+        0, static_cast<std::uint16_t>(std::clamp(width(), 1, 65535)),
+        static_cast<std::uint16_t>(std::clamp(height(), 1, 65535)), -1,
+        ImGuiViewId);
     return true;
   }
 
@@ -208,7 +214,7 @@ public:
 
   bool prepareViewportTarget(const EditorViewportArea area,
                              std::string &error) override {
-    return viewportRenderer_->prepareTarget(area, error);
+    return viewportRenderer_->prepareTarget(framebufferArea(area), error);
   }
 
   std::uint16_t viewportTextureIndex() const override {
@@ -223,8 +229,9 @@ public:
     if (platformFrame.minimized || platformFrame.width <= 0 ||
         platformFrame.height <= 0 || area.width == 0 || area.height == 0)
       return true;
-    return viewportRenderer_->render3D(
-        world, area, camera, platform_->frameState().deltaSeconds, error);
+    return viewportRenderer_->render3D(world, framebufferArea(area), camera,
+                                       platform_->frameState().deltaSeconds,
+                                       error);
   }
 
   bool renderViewport2D(const runtime::World &world,
@@ -235,8 +242,9 @@ public:
     if (frame.minimized || frame.width <= 0 || frame.height <= 0 ||
         area.width == 0 || area.height == 0)
       return true;
-    return viewportRenderer_->render2D(world, area, camera, showColliders,
-                                       frame.deltaSeconds, error);
+    return viewportRenderer_->render2D(world, framebufferArea(area), camera,
+                                       showColliders, frame.deltaSeconds,
+                                       error);
   }
 
   bool renderHud(const runtime::ui::UiDocument &document,
@@ -245,8 +253,8 @@ public:
     if (frame.minimized || frame.width <= 0 || frame.height <= 0 ||
         area.width == 0 || area.height == 0)
       return true;
-    return viewportRenderer_->renderHud(document, area, frame.deltaSeconds,
-                                        error);
+    return viewportRenderer_->renderHud(document, framebufferArea(area),
+                                        frame.deltaSeconds, error);
   }
 
   bool configureGameRenderer(const std::filesystem::path &projectDirectory,
@@ -258,12 +266,12 @@ public:
 
   bool prepareGameTarget(const EditorViewportArea area,
                          std::string &error) override {
-    return gameRenderer_->prepareTarget(area, error);
+    return gameRenderer_->prepareTarget(framebufferArea(area), error);
   }
 
   bool renderGame(const runtime::World &world, const EditorViewportArea area,
                   const float interpolationAlpha, std::string &error) override {
-    return gameRenderer_->render(world, area, deltaSeconds(),
+    return gameRenderer_->render(world, framebufferArea(area), deltaSeconds(),
                                  interpolationAlpha, error);
   }
 
@@ -272,8 +280,10 @@ public:
     if (!focused)
       return {};
     runtime::InputState result = input_;
-    result.mousePosition.x -= static_cast<float>(area.x);
-    result.mousePosition.y -= static_cast<float>(area.y);
+    result.mousePosition.x = result.mousePosition.x / uiScale_ - area.x;
+    result.mousePosition.y = result.mousePosition.y / uiScale_ - area.y;
+    result.mouseDelta.x /= uiScale_;
+    result.mouseDelta.y /= uiScale_;
     return result;
   }
 
@@ -297,6 +307,14 @@ public:
 
   void endFrame() override {
     imguiEndFrame();
+    // The bgfx sample adapter scales scissors for framebuffer density but
+    // still uses logical DisplaySize for its view rectangle. Match the
+    // physical swapchain here without modifying the pinned dependency.
+    const auto &frame = platform_->frameState();
+    bgfx::setViewRect(
+        ImGuiViewId, 0, 0,
+        static_cast<std::uint16_t>(std::clamp(frame.width, 1, 65535)),
+        static_cast<std::uint16_t>(std::clamp(frame.height, 1, 65535)));
     (void)graphics_.endFrame();
     const bgfx::Stats *stats = bgfx::getStats();
     std::vector<EditorGpuViewCounters> views;
@@ -323,13 +341,29 @@ public:
       platform_->clearQuitRequest();
   }
 
-  int width() const override { return platform_->frameState().width; }
-  int height() const override { return platform_->frameState().height; }
+  int width() const override {
+    return static_cast<int>(platform_->frameState().width / uiScale_);
+  }
+  int height() const override {
+    return static_cast<int>(platform_->frameState().height / uiScale_);
+  }
   std::string rendererName() const override {
     return std::string(graphics_.rendererName());
   }
 
 private:
+  static constexpr bgfx::ViewId ImGuiViewId = 255;
+  EditorViewportArea framebufferArea(const EditorViewportArea area) const {
+    const auto scaled = [this](std::uint16_t value) {
+      return static_cast<std::uint16_t>(
+          std::clamp(value * uiScale_, 0.0F, 65535.0F));
+    };
+    return {.x = scaled(area.x),
+            .y = scaled(area.y),
+            .width = scaled(area.width),
+            .height = scaled(area.height)};
+  }
+  float uiScale_ = 1.0F;
   void shutdownGraphics() {
     viewportRenderer_.reset();
     commands_.reset();

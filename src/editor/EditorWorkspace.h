@@ -36,6 +36,15 @@ public:
                           std::string &error);
   [[nodiscard]] bool openSceneDocument(const std::filesystem::path &path,
                                        std::string &error);
+  [[nodiscard]] bool openPrefabDocument(const std::filesystem::path &path,
+                                        std::string &error);
+  [[nodiscard]] bool isPrefabDocument() const { return editingPrefab_; }
+  [[nodiscard]] const std::filesystem::path &lastScenePath() const {
+    return lastScenePath_;
+  }
+  [[nodiscard]] const std::filesystem::path &lastPrefabPath() const {
+    return lastPrefabPath_;
+  }
   [[nodiscard]] bool openHudDocument(const std::filesystem::path &path,
                                      std::string &error);
   [[nodiscard]] bool refresh(std::string &error);
@@ -241,6 +250,14 @@ public:
   }
 
 private:
+  [[nodiscard]] bool openEntityDocument(const std::filesystem::path &path,
+                                        bool prefab, std::string &error);
+  [[nodiscard]] std::optional<runtime::World>
+  loadEntityPreview(const EditorSceneDocument &document, bool prefab,
+                    std::string &error) const;
+  bool editingPrefab_ = false;
+  std::filesystem::path lastScenePath_;
+  std::filesystem::path lastPrefabPath_;
   void discoverSources();
   void refreshAssetIndex();
   void loadPreviewTilemaps();

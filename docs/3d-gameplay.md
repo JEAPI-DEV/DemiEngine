@@ -1,5 +1,18 @@
 # Lightweight 3D Gameplay
 
+## Per-body solver quality
+
+`Rigidbody3D.solver_velocity_steps` and `solver_position_steps` are optional
+integers from 0 to 128. Their canonical defaults are zero, meaning use the
+physics backend defaults. Nonzero values override solver iterations for the
+connected contact/constraint island; they do not change the fixed timestep or
+catch-up policy. Higher values can stabilize tall stacks at a CPU cost.
+
+These authoring fields work through scenes, prefabs, `Entity.create`, and the
+Inspector. Changing them refreshes the native body using the normal body-settings
+invalidation path. The barrel-tower probe uses 64/16 locally, leaving other
+examples and ordinary rigidbodies unchanged.
+
 For a download-free third-person starting point, use
 `examples/third_person_foundation`. Its editable room and fighter prefab exercise
 the `demi.gameplay.third_person` package: mouse orbit, collision, movement,
@@ -51,7 +64,9 @@ One entity may have one explicit collider:
 - `ConvexCollider3D`
 - `ModelCollider3D`
 
-Triangle-mesh `ModelCollider3D` is static-only. Moving objects use a primitive,
+Triangle-mesh `ModelCollider3D` is static-only. A self-contained convex
+[collider asset](collider-assets.md) can also be attached through `ModelCollider3D`
+on a moving rigidbody. Otherwise, moving objects use a primitive,
 capsule, or convex hull. Validation rejects moving meshes, multiple colliders,
 invalid capsule proportions, underspecified convex hulls, parented moving
 bodies, and moving bodies without a collider. Complex compound objects use

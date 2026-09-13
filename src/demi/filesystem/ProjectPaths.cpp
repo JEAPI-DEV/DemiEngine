@@ -30,6 +30,10 @@ bool isAssetFile(const std::filesystem::path &path) {
   return path.filename().string().ends_with(".asset.json");
 }
 
+bool isColliderShapeFile(const std::filesystem::path &path) {
+  return path.filename().string().ends_with(".collider.json");
+}
+
 bool isPrefabFile(const std::filesystem::path &path) {
   return path.filename().string().ends_with(".prefab.json") &&
          !isUiPrefabFile(path);
@@ -60,8 +64,8 @@ collectKnownSourceFiles(const std::filesystem::path &root) {
 
   if (std::filesystem::is_regular_file(root)) {
     if (isProjectFile(root) || isSceneFile(root) || isHudFile(root) ||
-        isSaveFile(root) || isAssetFile(root) || isPrefabFile(root) ||
-        isUiPrefabFile(root) || isInputReplayFile(root) ||
+        isSaveFile(root) || isAssetFile(root) || isColliderShapeFile(root) ||
+        isPrefabFile(root) || isUiPrefabFile(root) || isInputReplayFile(root) ||
         isPackageManifestFile(root) || isAssetGroupFile(root)) {
       files.push_back(root);
     }
@@ -76,8 +80,8 @@ collectKnownSourceFiles(const std::filesystem::path &root) {
 
     const std::filesystem::path path = entry.path();
     if (isProjectFile(path) || isSceneFile(path) || isHudFile(path) ||
-        isSaveFile(path) || isAssetFile(path) || isPrefabFile(path) ||
-        isUiPrefabFile(path) || isInputReplayFile(path) ||
+        isSaveFile(path) || isAssetFile(path) || isColliderShapeFile(path) ||
+        isPrefabFile(path) || isUiPrefabFile(path) || isInputReplayFile(path) ||
         isPackageManifestFile(path) || isAssetGroupFile(path)) {
       files.push_back(path);
     }

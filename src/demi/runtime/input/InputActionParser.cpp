@@ -111,8 +111,7 @@ InputActionMap parseInputActions(const nlohmann::json &projectDocument) {
 
   for (const auto &[name, definition] : actions->items()) {
     InputAction action;
-    if (!definition.is_object() || !definition.contains("type") ||
-        !definition.contains("context"))
+    if (!definition.is_object() || !definition.contains("type"))
       continue;
     const std::string typeName =
         normalized(scene_loading::stringOr(definition, "type"));
@@ -120,7 +119,15 @@ InputActionMap parseInputActions(const nlohmann::json &projectDocument) {
         typeName != "vector2")
       continue;
     action.type = actionType(definition);
-    action.context = normalized(scene_loading::stringOr(definition, "context"));
+    // ponytail: keep InputAction's canonical default unless explicitly overridden.
+    if (const auto context = definition.find("context");
+        context != definition.end()) {
+      if (!context->is_string())
+        continue;
+      action.context = normalized(context->get<std::string>());
+      if (action.context.empty())
+        continue;
+    }
     action.player = definition.value("player", -1);
     const Json *bindings = scene_loading::arrayField(definition, "bindings");
     if (bindings != nullptr)

@@ -15,7 +15,7 @@ struct ModelCollider3DComponent {
       ComponentFieldDescriptor{"is_trigger", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"layer", ComponentFieldType::String}};
   static constexpr ComponentEditorMetadata editor{"Physics 3D",
-                                                  "Model Collider 3D"};
+                                                  "Collider Asset 3D"};
   static void parse(const nlohmann::json &json, Entity &entity);
 
   std::string asset;

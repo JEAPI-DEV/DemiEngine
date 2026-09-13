@@ -16,7 +16,7 @@
     },
     "type": {
       "type": "string",
-      "enum": ["Texture2D", "TextureAtlas2D", "SpriteMetadata2D", "Font2D", "FontAtlas2D", "Model3D", "AudioClip", "VideoClip", "DataAsset", "DataSchema", "NetworkContract", "Material", "Shader", "RenderTarget", "Tilemap2D", "Icon2D", "SvgTexture2D", "GifAnimation2D", "ImageAnimation2D"]
+      "enum": ["Texture2D", "TextureAtlas2D", "SpriteMetadata2D", "Font2D", "FontAtlas2D", "Model3D", "Collider3D", "AudioClip", "VideoClip", "DataAsset", "DataSchema", "NetworkContract", "Material", "Shader", "RenderTarget", "Tilemap2D", "Icon2D", "SvgTexture2D", "GifAnimation2D", "ImageAnimation2D"]
     },
     "source": {
       "type": "string"

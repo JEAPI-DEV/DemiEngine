@@ -88,6 +88,12 @@ bool EditorViewportRenderer::render3D(const runtime::World &world,
   frame.viewportHeight = area.height;
   frame.viewId = 1;
   frame.frameBuffer = target_->frameBuffer;
+  if (camera.studioLighting) {
+    runtime::render::SceneLighting3D lighting;
+    lighting.direction = {-0.4F, -0.8F, -0.5F, 1.0F};
+    lighting.ambient = {0.3F, 0.32F, 0.36F, 1.0F};
+    frame.lightingOverride = lighting;
+  }
   return renderer3D_->renderFrame(world, frame, deltaSeconds, error);
 }
 

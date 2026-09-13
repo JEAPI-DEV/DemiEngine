@@ -1,4 +1,5 @@
 #include "demi/assets/AssetImporterRegistry.h"
+#include "demi/assets/ColliderShapeAsset.h"
 
 #include <algorithm>
 #include <cctype>
@@ -31,6 +32,17 @@ class CopyImporter final : public AssetImporter {
 public:
   ImportExecutionResult import(const ImportExecutionRequest &request) override {
     ImportExecutionResult result;
+    if (request.assetType == "Collider3D" &&
+        lower(request.source.extension().string()) == ".json") {
+      std::string error;
+      if (!loadColliderShapeAsset(request.source, error)) {
+        result.diagnostics.push_back({.severity = Severity::Error,
+                                      .code = "COLLIDER_SHAPE_INVALID",
+                                      .message = error,
+                                      .path = request.source.string()});
+        return result;
+      }
+    }
     if (!std::filesystem::is_regular_file(request.source)) {
       result.diagnostics.push_back({.severity = Severity::Error,
                                     .code = "ASSET_IMPORT_SOURCE_NOT_FOUND",
@@ -187,6 +199,7 @@ AssetImporterRegistry createBuiltinImporterRegistry() {
   text.copyToGeneratedOnImport = false;
   add(std::move(text));
   add(descriptor("json_data", {".json"}, {"DataAsset"}));
+  add(descriptor("collider-shape", {".json"}, {"Collider3D"}));
   add(descriptor("json_schema", {".json"}, {"DataSchema"}));
   add(descriptor("network_contract", {".json"}, {"NetworkContract"}));
   add(descriptor("material", {".json"}, {"Material"}));

@@ -24,6 +24,11 @@ external dependencies.
 
 ## Choose a collider deliberately
 
+For hand-authored reusable convex geometry, use a
+[`.collider.json` asset](collider-assets.md) and attach its asset ID through
+`ModelCollider3D`. Scripts can create bodies directly from that asset without
+a prefab or repeated point arrays.
+
 ```sh
 demi asset collider character.asset.json --recommend --body character
 demi asset collider wall.asset.json --recommend --body static \

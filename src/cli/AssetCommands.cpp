@@ -6,6 +6,7 @@
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/AssetSourceFiles.h"
 #include "demi/assets/ColliderAssetGenerator.h"
+#include "demi/assets/ColliderShapeAsset.h"
 #include "demi/assets/ModelImportProfile.h"
 #include "demi/assets/ModelInspector.h"
 #include "demi/assets/SceneBudget3D.h"
@@ -318,6 +319,31 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
     return ExitValidationFailure;
   }
   if (command == "inspect") {
+    if (manifest->type == "Collider3D" &&
+        manifest->importer == "collider-shape") {
+      std::string issue;
+      const auto collider =
+          assets::loadColliderShapeAsset(manifest->sourcePath, issue);
+      if (!collider) {
+        error << issue << '\n';
+        return ExitValidationFailure;
+      }
+      const nlohmann::json report{
+          {"id", manifest->id},
+          {"shape", "convex_hull"},
+          {"points", collider->points.size()},
+          {"dynamic_supported", true},
+          {"bounds",
+           {{"minimum", collider->minimum}, {"maximum", collider->maximum}}}};
+      if (valueAfter(args, "--format") == "json")
+        output << nlohmann::json{{"report", report},
+                                 {"diagnostics", nlohmann::json::array()}}
+                      .dump(2)
+               << '\n';
+      else
+        output << "collider: " << report.dump() << '\n';
+      return ExitSuccess;
+    }
     if (manifest->type == "Model3D") {
       const auto report = assets::inspectModel(
           {.asset = &*manifest, .sections = sectionsAfter(args)});

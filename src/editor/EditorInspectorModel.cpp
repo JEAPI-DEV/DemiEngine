@@ -71,12 +71,16 @@ editorReferenceChoices(const runtime::ComponentReferenceKind kind,
                        const std::filesystem::path &projectDirectory,
                        const std::filesystem::path &scenePath,
                        const nlohmann::json &scene,
-                       const std::span<const std::filesystem::path> sources) {
+                       const std::span<const std::filesystem::path> sources,
+                       const std::string_view componentName) {
   std::vector<EditorReferenceChoice> choices;
   if (kind == runtime::ComponentReferenceKind::Asset) {
     for (const AssetManifest &asset :
-         loadAssetRegistry(projectDirectory).assets)
+         loadAssetRegistry(projectDirectory).assets) {
+      if (componentName == "ModelCollider3D" && asset.type != "Collider3D")
+        continue;
       choices.push_back({.id = asset.id, .label = asset.id});
+    }
   } else if (kind == runtime::ComponentReferenceKind::Entity) {
     const nlohmann::json *entities = entitiesArray(scene);
     if (entities != nullptr) {

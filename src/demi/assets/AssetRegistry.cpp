@@ -1,4 +1,5 @@
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/ColliderShapeAsset.h"
 
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetImporter.h"
@@ -374,6 +375,14 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
           &diagnostics, asset.manifestPath.string()));
     }
     if (asset.type == "Collider3D") {
+      if (asset.importer == "collider-shape") {
+        std::string error;
+        if (!assets::loadColliderShapeAsset(asset.sourcePath, error))
+          diagnostics.push_back({.severity = Severity::Error,
+                                 .code = "COLLIDER_SHAPE_INVALID",
+                                 .message = error,
+                                 .path = asset.sourcePath.string()});
+      }
       try {
         const nlohmann::json collider =
             nlohmann::json::parse(readFile(asset.manifestPath));

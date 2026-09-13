@@ -59,6 +59,32 @@ struct Rigidbody3DComponent {
                                1.0,
                                true},
       ComponentFieldDescriptor{"continuous", ComponentFieldType::Boolean},
+      ComponentFieldDescriptor{"solver_velocity_steps",
+                               ComponentFieldType::Integer,
+                               false,
+                               true,
+                               {},
+                               0.0,
+                               true,
+                               false,
+                               true,
+                               true,
+                               false,
+                               128.0,
+                               true},
+      ComponentFieldDescriptor{"solver_position_steps",
+                               ComponentFieldType::Integer,
+                               false,
+                               true,
+                               {},
+                               0.0,
+                               true,
+                               false,
+                               true,
+                               true,
+                               false,
+                               128.0,
+                               true},
       ComponentFieldDescriptor{"report_contacts", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"allow_sleep", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"awake", ComponentFieldType::Boolean},
@@ -81,6 +107,8 @@ struct Rigidbody3DComponent {
   float mass = 1.0F;
   float linearDamping = 0.05F;
   float angularDamping = 0.05F;
+  int solverVelocitySteps = 0;
+  int solverPositionSteps = 0;
   float friction = 0.5F;
   float restitution = 0.0F;
   bool continuous = false;

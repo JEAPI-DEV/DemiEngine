@@ -957,6 +957,9 @@ function Rigidbody2D.move_kinematic(entity_id, x, y, fixed_dt) end
 function Rigidbody2D.move_and_slide(entity_id, motion_x, motion_y) end
 
 ---@class Rigidbody3DService
+-- Entity.create Rigidbody3D definitions accept solver_velocity_steps and
+-- solver_position_steps (integers 0..128). Zero retains backend defaults;
+-- higher values increase contact-solving work for the connected body island.
 Rigidbody3D = {}
 ---@param entity_id string
 ---@return number|nil x

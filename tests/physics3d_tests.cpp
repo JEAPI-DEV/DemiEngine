@@ -832,6 +832,16 @@ bool testColliderShapeCachingAndInvalidation() {
     return false;
   }
 
+  findEntity(world, "body")
+      ->component<Rigidbody3DComponent>()
+      ->solverVelocitySteps = 32;
+  stepPhysics3D(world, 1.0F / 60.0F, {});
+  if (shapeBuildCalls() != 4) {
+    std::cerr << "Solver quality change did not refresh its native body\n";
+    RuntimeProfiler::setEnabled(false);
+    return false;
+  }
+
   RuntimeProfiler::setEnabled(false);
   return true;
 }

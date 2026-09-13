@@ -1,5 +1,6 @@
 # Shared runtime sources and graphical/headless runtime library variants.
 set(DEMI_RUNTIME_COMMON_SOURCES
+  src/demi/runtime/physics/ColliderAssetLoader3D.cpp
   src/demi/runtime/animation/AnimationRuntime.cpp
   src/demi/runtime/animation/ProceduralIk.cpp
   src/demi/runtime/animation/AnimationStateMachineSystem.cpp

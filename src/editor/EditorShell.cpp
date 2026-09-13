@@ -1,4 +1,5 @@
 #include "editor/EditorShell.h"
+#include "editor/EditorSettingsPanel.h"
 
 #include "editor/EditorChrome.h"
 #include "editor/EditorDefaultLayout.h"
@@ -23,11 +24,29 @@ namespace demi::editor {
 namespace {
 
 void drawStageTabs(EditorWorkspace &workspace, bool &showHudView,
-                   bool &showGameView) {
-  if (editorStageTab("Viewport", !showHudView && !showGameView)) {
+                   bool &showGameView, std::string &notice) {
+  if (editorStageTab("Viewport", !showHudView && !showGameView &&
+                                     !workspace.isPrefabDocument())) {
+    if (workspace.isPrefabDocument() &&
+        !workspace.openSceneDocument(workspace.lastScenePath(), notice))
+      return;
     showHudView = false;
     showGameView = false;
     workspace.activateSceneDocument();
+  }
+  if (!workspace.lastPrefabPath().empty()) {
+    ImGui::SameLine(0.0F, 2.0F);
+    const std::string label =
+        "Prefab: " + workspace.lastPrefabPath().filename().string();
+    if (editorStageTab(label.c_str(),
+                       workspace.isPrefabDocument() && !showHudView &&
+                           !showGameView,
+                       {ImGui::CalcTextSize(label.c_str()).x + 20.0F, 27.0F})) {
+      if (!workspace.openPrefabDocument(workspace.lastPrefabPath(), notice))
+        return;
+      showHudView = false;
+      showGameView = false;
+    }
   }
   if (workspace.hasHudDocument()) {
     ImGui::SameLine(0.0F, 2.0F);
@@ -48,7 +67,8 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size,
               bool &exitRequested, EditorProjectPanel &projectPanel,
               EditorAnimationMachinePanel &animationPanel,
               EditorBuildPanel &buildPanel, EditorAboutPanel &aboutPanel,
-              EditorDockingWorkspace &dockingWorkspace, std::string &notice) {
+              EditorDockingWorkspace &dockingWorkspace, bool &showSettings,
+              std::string &notice) {
   beginEditorShellPanel("MainMenu", {0.0F, 0.0F}, size,
                         ImGuiWindowFlags_MenuBar |
                             ImGuiWindowFlags_NoScrollbar);
@@ -79,6 +99,9 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size,
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Edit")) {
+      if (ImGui::MenuItem("Editor Settings..."))
+        showSettings = true;
+      ImGui::Separator();
       if (ImGui::MenuItem("Undo", "Ctrl+Z", false,
                           workspace.activeDocumentCanUndo())) {
         std::string error;
@@ -180,6 +203,7 @@ EditorShell::EditorShell(EditorWorkspace &workspace)
     notice_ = "Editor preferences: " + error;
     preferenceSyncBlocked_ = true;
   }
+  uiScale_ = preferences_.uiScale;
   workspace_.sceneView().translationSnap = preferences_.translationSnap;
   workspace_.sceneView().rotationSnapDegrees = preferences_.rotationSnapDegrees;
   workspace_.sceneView().scaleSnap = preferences_.scaleSnap;
@@ -202,6 +226,13 @@ EditorShell::EditorShell(EditorWorkspace &workspace)
 
 bool EditorShell::openDocument(const std::filesystem::path &path,
                                std::string &error) {
+  if (isPrefabFile(path)) {
+    if (!workspace_.openPrefabDocument(path, error))
+      return false;
+    showHudView_ = false;
+    showGameView_ = false;
+    return true;
+  }
   if (isSceneFile(path)) {
     if (!workspace_.openSceneDocument(path, error))
       return false;
@@ -289,7 +320,8 @@ void EditorShell::draw(const int width, const int height,
       buildPanel_.operation();
   drawMenu(workspace_, {screenWidth, menuHeight}, exitRequested_, projectPanel_,
            animationMachinePanel_, buildPanel_, aboutPanel_, dockingWorkspace_,
-           notice_);
+           showSettings_, notice_);
+  drawEditorSettingsPanel(showSettings_, uiScale_);
   drawEditorToolbar({0.0F, menuHeight}, {screenWidth, toolbarHeight},
                     workspace_, playSession_, showGameView_, stepRequested_,
                     notice_);
@@ -316,7 +348,7 @@ void EditorShell::draw(const int width, const int height,
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
             ImGuiWindowFlags_NoBackground);
     if (stageContent) {
-      drawStageTabs(workspace_, showHudView_, showGameView_);
+      drawStageTabs(workspace_, showHudView_, showGameView_, notice_);
       ImGui::Separator();
       if (showGameView_) {
         viewportArea_ = {};
@@ -491,6 +523,7 @@ void EditorShell::draw(const int width, const int height,
     }
   }
   const EditorPreferences currentPreferences{
+      .uiScale = uiScale_,
       .translationSnap =
           workspace_.viewDimension() == EditorSceneViewDimension::TwoDimensional
               ? workspace_.sceneView2D().translationSnap

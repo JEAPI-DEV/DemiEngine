@@ -2065,6 +2065,20 @@
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
+        "solver_position_steps": {
+          "maximum": 128.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "solver_velocity_steps": {
+          "maximum": 128.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "use_gravity": {
           "type": "boolean",
           "x-demi-lua-readable": true,

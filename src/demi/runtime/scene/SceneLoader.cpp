@@ -9,6 +9,7 @@
 #include "demi/runtime/scene/SceneEntityParser.h"
 #include "demi/runtime/scene/SceneJson.h"
 #include "demi/runtime/scene/Transform3DHierarchy.h"
+#include "demi/runtime/scene/components/3dcomponents/ModelCollider3DComponent.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/schema/Validation.h"
 
@@ -106,6 +107,15 @@ buildSceneWorld(const ProjectData &project, const std::string &sceneId,
   for (ui::UiNode &node : world.ui.nodes)
     node.sceneOwner = sceneId;
 
+  if (std::ranges::any_of(
+          world.entities,
+          [](const Entity &entity) {
+            return entity.hasComponent<ModelCollider3DComponent>();
+          }) &&
+      !resolveColliderAssets3D(
+          world, loadAssetRegistry(project.projectDirectory), error))
+    return std::nullopt;
+
   return world;
 }
 
@@ -152,10 +162,6 @@ loadProject(const std::filesystem::path &projectPath, std::string &error) {
       return std::nullopt;
     }
   }
-  if (!resolveColliderAssets3D(*world, assetRegistry, error)) {
-    return std::nullopt;
-  }
-
   return LoadedProject{.project = *project, .world = std::move(*world)};
 }
 

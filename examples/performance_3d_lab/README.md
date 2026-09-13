@@ -5,6 +5,10 @@ support. The environment, camera, and lab settings are editable in
 `scenes/main.scene.json`. Lua creates the measured population using normal
 engine APIs; there is no engine-specific benchmark fast path.
 
+The interactive scene opens with 250 falling barrels. The benchmark scripts
+still default to `--geometry primitives` and explicitly override scene settings;
+choose `--geometry barrel` when comparing the imported-model workload.
+
 Edit the lab's script properties:
 
 - `count`: 1–5,000; standard sweep 250, 500, 1,000, 2,000. Extended stress
@@ -14,6 +18,10 @@ Edit the lab's script properties:
   disabled; `pile` drops bodies under gravity and permits sleeping.
 - `varied`: alternate spheres/cubes and eight colors, instead of one shared
   primitive/color. This is not yet an imported-model/material diversity test.
+- `geometry`: `primitives` retains the sphere/cube baseline; `barrel` uses the
+  imported Blender steel barrel and its shared collider asset. In barrel mode,
+  `varied` changes tint only, not shape. `mesh` mode renders barrels without
+  physics; rigid/pile modes use the convex collider.
 - `duration_seconds`: optional auto-quit using the normal game timer API. Zero
   leaves the lab running until its window is closed.
 
@@ -61,7 +69,75 @@ pass: inspect frame intervals, lost time, visible population and GPU costs.
 For the larger stress sweep, use `--counts 2000 3000 5000`. Keep the same camera,
 resolution, refresh rate, and background applications across counts. A smooth
 video or acceptable render FPS does not qualify a run that drops simulation time.
-These are spheres/cubes, not a recreation of the Crysis barrel model or scene.
+The default benchmark geometry is spheres/cubes. Add `--geometry barrel` to
+either runner for the barrel variant; metadata records the choice. The original
+Blender model is in `assets/models/barrel/barrel.blend`, and the collider is in
+`assets/colliders/barrel/barrel.collider.json`. Scripts attach it through
+`ModelCollider3D = { asset = "asset://colliders/barrel" }`; no prefab or point
+array is required in the spawning script. The optional prefab references the
+same collider file. The project explicitly preloads the model and collider;
+it does not load every project asset automatically.
+
+Barrels are 0.70 m across and 0.95 m tall, versus the baseline's 0.70 m sphere
+diameter. Spawn spacing and camera remain unchanged. Barrel piles receive small
+deterministic initial tilts to exercise tipping/rolling; no forces or positional
+corrections are applied afterward. Consequently, this compares useful workloads,
+not identical physics problems. No model LOD is applied during the stress test.
+
+```sh
+python3 scripts/benchmark_3d_visible.py --binary build/linux-release/demi \
+  --output build/barrel-test --geometry barrel --counts 2000 5000 \
+  --workloads rigid pile --vsync on --seconds 12 --warmup-seconds 2 --repeats 3
+./build/linux-release/demi test linux --project examples/performance_3d_lab
+```
+
+The desktop E2E test checks a directly created asset-backed barrel falling and resting upright and
+on its side at the heights implied by its convex proxy, plus ray hits at its
+center and misses outside its round hull. Run it visibly: the
+ordinary headless launcher has a short default frame limit unsuitable for its
+waits. Geometry, imported-asset metadata, and shader appearance can also be
+inspected with the ordinary asset tools and the editable Blender source.
+
+## Tower impact test
+
+Run the project and press **T**, or click **Tower Test**. In the tower scene:
+
+- **Space / Fire:** launch a heavy physical sphere at the base.
+- **R / Reset:** rebuild the tower.
+- **B / Lab:** return to the population benchmark scene.
+
+`scenes/tower.scene.json` owns the camera, light, floor, and editable script
+properties: columns, levels, projectile mass, and projectile speed. The default
+is 8 × 8 × 16 = 1,024 barrels. Larger configurations need camera adjustment and
+their own performance checks. The launcher is fixed at the base; this is a
+collision test, not a first-person weapon/controller example.
+
+Every barrel is a dynamic rigidbody under gravity. The projectile uses a sphere
+collider, mass 60, initial speed 35 m/s, and continuous collision. The only timed
+cleanup removes spent projectiles after eight seconds; barrels are not deleted,
+teleported, frozen, or given scripted collapse impulses. Reset cancels old shot
+timers so they cannot remove a new scene's projectile.
+
+Tall stacks need higher solver quality: tower barrels explicitly use
+`solver_velocity_steps: 64` and `solver_position_steps: 16`, with moderate
+damping and friction. These are iterations inside each fixed step, not a slower
+simulation rate. Zero is the engine-wide default for both fields and retains
+the backend's default settings. Higher settings affect the connected contact
+island and cost more CPU; the ordinary population tests do not enable them.
+
+The initial 256-barrel headless stability check kept every top barrel supported
+for 30 simulated seconds with the tower settings; the default-quality control
+did not. The larger default passed repeated visible impact tests on both GPUs
+(see `docs/3d-1024-tower-qualification.md` at the repository root).
+The desktop E2E test checks all tagged top barrels before the shot, then checks
+that upper barrels fall, reset works, and shared collider assets survive scene
+transitions. This is not a qualification of a 5,000-barrel tower.
+
+`scripts/benchmark_barrel_tower.py` qualifies standing, full-collapse, and
+active-burst timings separately. It uses the real test/UI path to fire, verifies
+pre-shot support and post-shot falling, and checks simulation time and native
+capacity errors. Its `--velocity-steps` / `--position-steps` options override only
+the temporary fixture. The native defaults remain unchanged.
 
 ```sh
 ./build/linux-debug/demi validate examples/performance_3d_lab

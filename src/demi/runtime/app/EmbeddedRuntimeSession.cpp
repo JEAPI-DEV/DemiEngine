@@ -12,6 +12,7 @@
 #include "demi/runtime/camera/Camera2DSystem.h"
 #include "demi/runtime/media/MediaSystem.h"
 #include "demi/runtime/network/NetworkSystem.h"
+#include "demi/runtime/physics/ColliderAssetLoader3D.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/Physics3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
@@ -97,6 +98,8 @@ bool EmbeddedRuntimeSession::start(const std::filesystem::path &projectPath,
                        "The embedded runtime assets could not initialize.");
     return false;
   }
+  state->assets.registerLoader(
+      createColliderAssetLoader3D(state->loaded.world));
   if (state->audioInitialized)
     state->assets.registerLoader(
         state->audio.createAssetLoader(state->assetRegistry));

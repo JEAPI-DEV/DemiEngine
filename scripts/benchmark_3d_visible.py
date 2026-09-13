@@ -86,6 +86,7 @@ def main():
     parser.add_argument('--binary', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--counts', type=int, nargs='+', default=[250, 2000])
+    parser.add_argument('--geometry', choices=['primitives', 'barrel'], default='primitives')
     parser.add_argument('--workloads', choices=['mesh', 'rigid', 'pile'], nargs='+', default=['rigid', 'pile'])
     parser.add_argument('--vsync', choices=['on', 'off'], nargs='+', default=['on', 'off'])
     parser.add_argument('--seconds', type=float, default=12)
@@ -112,6 +113,7 @@ def main():
         'format_version': 1, 'platform': platform.platform(), 'binary': str(binary),
         'binary_sha256': digest, 'seconds': args.seconds, 'warmup_seconds': args.warmup_seconds,
         'requested_pixels': [args.width, args.height],
+        'geometry': args.geometry,
         'cpu': subprocess.run(['lscpu'], capture_output=True, text=True, check=True).stdout,
     }, indent=2) + '\n')
     for count in args.counts:
@@ -130,7 +132,7 @@ def main():
                         scene = json.loads(scene_path.read_text())
                         lab = next(entity for entity in scene['entities'] if entity['id'] == 'lab')
                         lab['components']['LuaScript']['properties'] = {'count': count, 'workload': workload,
-                            'varied': False, 'duration_seconds': args.seconds}
+                            'varied': False, 'geometry': args.geometry, 'duration_seconds': args.seconds}
                         scene_path.write_text(json.dumps(scene, indent=2) + '\n')
                         trace = output / f'{name}.frames.csv'
                         with (output / f'{name}.log').open('w') as log:
@@ -142,7 +144,7 @@ def main():
                         result = summarize(trace, args.warmup_seconds, args.width, args.height)
                         result['completed_duration'] = result['measured_wall_seconds'] >= (args.seconds - args.warmup_seconds) * .9
                         result['valid_capture'] &= result['completed_duration']
-                        result.update(workload=workload, count=count, vsync=vsync, repeat=repeat)
+                        result.update(workload=workload, count=count, geometry=args.geometry, vsync=vsync, repeat=repeat)
                         (output / f'{name}.json').write_text(json.dumps(result, indent=2) + '\n')
                         print(name + ': ' + json.dumps(result['metrics']) + f' valid={result["valid_capture"]} dropped_ms={result["dropped_fixed_ms"]:.3f}', flush=True)
 

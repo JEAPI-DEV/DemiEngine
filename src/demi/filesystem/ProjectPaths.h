@@ -12,6 +12,7 @@ namespace demi {
 [[nodiscard]] bool isHudFile(const std::filesystem::path &path);
 [[nodiscard]] bool isSaveFile(const std::filesystem::path &path);
 [[nodiscard]] bool isAssetFile(const std::filesystem::path &path);
+[[nodiscard]] bool isColliderShapeFile(const std::filesystem::path &path);
 [[nodiscard]] bool isPrefabFile(const std::filesystem::path &path);
 [[nodiscard]] bool isUiPrefabFile(const std::filesystem::path &path);
 [[nodiscard]] bool isInputReplayFile(const std::filesystem::path &path);

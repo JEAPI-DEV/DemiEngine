@@ -12,6 +12,13 @@ When run inside a project directory, `--project` may be omitted. The editor
 discovers the nearest parent `demi.project.json` through the same shared
 filesystem service used by `demi dev`.
 
+Use **Edit → Editor Settings → UI scale** to enlarge the entire editor from
+100% to 250%, with quick 150% and 200% buttons. Changes apply live and persist
+in the per-user editor `preferences.json`, never in a project or package.
+Text, icons, controls, and panel spacing share the same scale. Viewport render
+targets stay at framebuffer resolution; pointer coordinates are mapped back
+into logical editor space so picking and gizmos remain aligned.
+
 ## Current slice
 
 - The hierarchy displays entities from the active authored scene and follows
@@ -516,6 +523,14 @@ classes before a second format needs shared behavior.
 
 - [x] Prefab editor: source/expanded view, nested stable IDs, override diff,
   apply/revert, missing references, and atomic multi-file failure handling.
+  Scene prefabs (`*.prefab.json`) now open in a named **Prefab** stage tab
+  from the Assets browser. The normal rendered viewport, hierarchy, reflected
+  Inspector, transform tools, structural commands, Undo/Redo, and Save edit the
+  prefab source directly. Nested instances retain their override behavior.
+  Preview scene identity is transient and is never saved into the prefab or
+  project. Use the Viewport tab to return to the scene; save or undo pending
+  scene/prefab edits before switching. One scene prefab is open at a time.
+  This visual workflow is for scene prefabs, not UI-prefab documents.
 - [x] HUD editor: an integrated HUD stage tab, the normal hierarchy and
   Inspector, runtime-rendered canvas, visual selection, move/resize handles,
   typed controls, and structural add/delete commands. Scene-attached HUDs stay
