@@ -39,13 +39,13 @@ void updateEntry(ProfileEntry &entry, const double milliseconds) {
     entry.samples.pop_front();
 }
 
-double percentile95(const ProfileEntry &entry) {
+double percentile(const ProfileEntry &entry, double quantile) {
   if (entry.samples.empty())
     return 0.0;
   std::vector<double> sorted(entry.samples.begin(), entry.samples.end());
   std::ranges::sort(sorted);
   const std::size_t index = static_cast<std::size_t>(
-      std::ceil(0.95 * static_cast<double>(sorted.size())) - 1.0);
+      std::ceil(quantile * static_cast<double>(sorted.size())) - 1.0);
   return sorted[std::min(index, sorted.size() - 1)];
 }
 
@@ -55,11 +55,14 @@ RuntimeProfiler::Entry publicEntry(const std::string &name,
           .totalMilliseconds = entry.totalMilliseconds,
           .latestMilliseconds = entry.latestMilliseconds,
           .maxMilliseconds = entry.maxMilliseconds,
-          .p95Milliseconds = percentile95(entry),
+          .p95Milliseconds = percentile(entry, 0.95),
           .calls = entry.calls,
           .bytes = entry.bytes,
           .gauge = entry.gauge,
-          .hasGauge = entry.hasGauge};
+          .hasGauge = entry.hasGauge,
+          .p50Milliseconds = percentile(entry, 0.50),
+          .p99Milliseconds = percentile(entry, 0.99),
+          .sampleCount = entry.samples.size()};
 }
 
 } // namespace
@@ -146,10 +149,27 @@ std::vector<RuntimeProfiler::Entry> RuntimeProfiler::frameEntries() {
 
 std::size_t RuntimeProfiler::frameCount() { return sessionFrames; }
 
+bool RuntimeProfiler::writeFrame(std::ostream &output, std::size_t frame) {
+  if (frame == 0) output << "frame,scope,total_ms,calls,gauge\n";
+  output << std::fixed << std::setprecision(6);
+  for (const auto &entry : frameEntries()) {
+    output << frame << ",\"";
+    for (char character : entry.name) {
+      if (character == '"') output << '"';
+      output << character;
+    }
+    output << "\"," << entry.totalMilliseconds << ',' << entry.calls << ',';
+    if (entry.hasGauge) output << entry.gauge;
+    output << '\n';
+  }
+  return static_cast<bool>(output);
+}
+
 std::string RuntimeProfiler::sessionReport() {
   std::ostringstream output;
   output << "DemiEngine runtime profile\n"
-         << "scope,total_ms,max_ms,calls,bytes,gauge\n"
+         << "scope,total_ms,max_ms,calls,bytes,gauge,p50_ms,p95_ms,p99_ms,"
+            "samples\n"
          << std::fixed << std::setprecision(3);
   for (const Entry &entry : sessionEntries()) {
     output << entry.name << ',' << entry.totalMilliseconds << ','
@@ -157,7 +177,8 @@ std::string RuntimeProfiler::sessionReport() {
            << ',';
     if (entry.hasGauge)
       output << entry.gauge;
-    output << '\n';
+    output << ',' << entry.p50Milliseconds << ',' << entry.p95Milliseconds
+           << ',' << entry.p99Milliseconds << ',' << entry.sampleCount << '\n';
   }
   return output.str();
 }

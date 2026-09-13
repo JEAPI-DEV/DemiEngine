@@ -1,5 +1,15 @@
 # Demi gameplay packages
 
+Browse the free package catalog at https://demiengine.de/packages/.
+Inside a project directory, run `demi package add demi.ui.language_file@1.0.0`.
+Package commands find `./demi.project.json` when `--project` is omitted.
+Registry selection is `--registry`, then nonempty `DEMI_PACKAGE_REGISTRY`,
+then the project's `package_registry`, then `https://demiengine.de`.
+Locked installs retain the lockfile's registry unless explicitly overridden.
+The local source registry below remains available for
+engine development. Store application and publishing instructions live in
+`tools/package-store/README.md`.
+
 These are optional Lua packages, not engine singletons. They depend only on
 public Demi APIs or explicitly declared packages and keep game policy in Lua.
 
@@ -14,6 +24,7 @@ public Demi APIs or explicitly declared packages and keep game policy in Lua.
 | `demi.gameplay.inventory` | stacks and equipment state |
 | `demi.gameplay.encounters` | waves, spawn failures, objectives |
 | `demi.gameplay.controllers` | platform/top-down/click/isometric intents |
+| `demi.gameplay.third_person` | 3D orbit camera, movement/rolls, melee attack phases |
 | `demi.network.lobby` | optional contract-backed lobby/ready/team/map state |
 | `demi.ui.language_file` | cached YAML languages applied to native HUD variables |
 

@@ -24,6 +24,7 @@ LuaScriptHost::~LuaScriptHost() {
 bool LuaScriptHost::initialize(World &world, InputState &input,
                                AudioSystem *audio, std::string &error) {
   world_ = &world;
+  serviceEntityLookup_.clear();
   isoGridApi_.attach(&world);
   tilemapRuntime_.attach(&world, nullptr, &navigationGrid2D_);
   input_ = &input;

@@ -15,6 +15,8 @@ struct PhysicsContact3D {
   Vec3 normal;
   float penetration = 0.0F;
   bool isTrigger = false;
+  // Pre-solver normal closing kinetic energy using reduced translational mass.
+  float impactEnergy = 0.0F;
 };
 
 struct PhysicsQueryHit3D {

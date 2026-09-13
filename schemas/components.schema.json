@@ -801,6 +801,58 @@
       ],
       "type": "object"
     },
+    "Dentable3D": {
+      "additionalProperties": false,
+      "properties": {
+        "absorption": {
+          "default": 0.699999988079071,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-label": "Absorption",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "max_depth": {
+          "default": 0.15000000596046448,
+          "minimum": 0.000001,
+          "type": "number",
+          "x-demi-editor-label": "Max Depth",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "radius": {
+          "default": 0.3199999928474426,
+          "minimum": 0.000001,
+          "type": "number",
+          "x-demi-editor-label": "Radius",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "stiffness": {
+          "default": 4000.0,
+          "minimum": 0.000001,
+          "type": "number",
+          "x-demi-editor-label": "Stiffness",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "yield_energy": {
+          "default": 4.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-label": "Yield Energy",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        }
+      },
+      "type": "object"
+    },
     "DirectionalLight": {
       "additionalProperties": false,
       "properties": {
@@ -2062,6 +2114,20 @@
           "maximum": 1.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "solver_position_steps": {
+          "maximum": 128.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "solver_velocity_steps": {
+          "maximum": 128.0,
+          "minimum": 0.0,
+          "type": "integer",
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },

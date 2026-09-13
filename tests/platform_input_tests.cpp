@@ -104,6 +104,45 @@ void touchTerminalStateSurvivesOneFrame() {
   assert(state.touches.empty());
 }
 
+void sameBatchTapDeliversPressFrameBeforeRelease() {
+  InputState state;
+  PlatformInput input(state);
+  input.beginFrame();
+  // A fast tap delivers began and ended within one event batch.
+  input.touch(3, TouchPhase::Began, Vec2{5.0F, 6.0F}, {}, 1.0F);
+  input.touch(3, TouchPhase::Ended, Vec2{7.0F, 8.0F}, {}, 0.0F);
+  assert(state.touches.size() == 1);
+  assert(state.touches.front().phase == TouchPhase::Began);
+  assert(state.touches.front().position.x == 5.0F);
+  assert(state.touches.front().position.y == 6.0F);
+
+  input.beginFrame();
+  assert(state.touches.size() == 1);
+  assert(state.touches.front().phase == TouchPhase::Ended);
+  assert(state.touches.front().position.x == 7.0F);
+  assert(state.touches.front().position.y == 8.0F);
+
+  input.beginFrame();
+  assert(state.touches.empty());
+}
+
+void sameBatchTapCancellationAlsoDefersRelease() {
+  InputState state;
+  PlatformInput input(state);
+  input.beginFrame();
+  input.touch(4, TouchPhase::Began, Vec2{1.0F, 2.0F}, {}, 1.0F);
+  input.touch(4, TouchPhase::Cancelled, Vec2{1.0F, 2.0F}, {}, 0.0F);
+  assert(state.touches.size() == 1);
+  assert(state.touches.front().phase == TouchPhase::Began);
+
+  input.beginFrame();
+  assert(state.touches.size() == 1);
+  assert(state.touches.front().phase == TouchPhase::Cancelled);
+
+  input.beginFrame();
+  assert(state.touches.empty());
+}
+
 void gamepadDisconnectAndUiMirroringAreStable() {
   InputState state;
   state.gamepadAssignments[42] = 2;
@@ -167,6 +206,8 @@ int main() {
   pointerScrollAccumulatesWithinFrame();
   windowPointerCoordinatesMatchDrawablePixels();
   touchTerminalStateSurvivesOneFrame();
+  sameBatchTapDeliversPressFrameBeforeRelease();
+  sameBatchTapCancellationAlsoDefersRelease();
   gamepadDisconnectAndUiMirroringAreStable();
   textInputPreservesUtf8();
   compositionPersistsUntilChangedOrCommitted();

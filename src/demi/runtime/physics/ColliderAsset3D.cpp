@@ -1,5 +1,6 @@
 #include "demi/runtime/physics/ColliderAsset3D.h"
 
+#include "demi/assets/ColliderShapeAsset.h"
 #include "demi/assets/GltfSkinnedModel.h"
 #include "demi/assets/ModelImportProfile.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
@@ -10,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <fstream>
+#include <functional>
 
 namespace demi::runtime {
 namespace {
@@ -23,11 +25,29 @@ std::optional<Vec3> vec3(const nlohmann::json &document, const char *key) {
               .z = (*value)[2].get<float>()};
 }
 
+} // namespace
+
 std::optional<ColliderAsset3D> loadColliderAsset3D(const AssetManifest &asset,
                                                    std::string &error) {
   if (asset.type != "Collider3D") {
     error = "Asset is not a Collider3D asset: " + asset.id;
     return std::nullopt;
+  }
+  if (asset.importer == "collider-shape") {
+    const auto source = assets::loadColliderShapeAsset(asset.sourcePath, error);
+    if (!source)
+      return std::nullopt;
+    ColliderAsset3D collider;
+    collider.size = {source->maximum[0] - source->minimum[0],
+                     source->maximum[1] - source->minimum[1],
+                     source->maximum[2] - source->minimum[2]};
+    collider.offset = {source->minimum[0] + collider.size.x * 0.5F,
+                       source->minimum[1] + collider.size.y * 0.5F,
+                       source->minimum[2] + collider.size.z * 0.5F};
+    for (const auto &point : source->points)
+      collider.points.push_back({point[0], point[1], point[2]});
+    collider.revision = std::hash<std::string>{}(asset.sourceHash);
+    return collider;
   }
   try {
     std::ifstream input(asset.manifestPath);
@@ -45,8 +65,13 @@ std::optional<ColliderAsset3D> loadColliderAsset3D(const AssetManifest &asset,
               asset.manifestPath.string();
       return std::nullopt;
     }
-    ColliderAsset3D collider{
-        .size = *size, .offset = offset, .detail = detail, .triangles = {}};
+    ColliderAsset3D collider{.size = *size,
+                             .offset = offset,
+                             .detail = detail,
+                             .triangles = {},
+                             .points = {}};
+    collider.revision =
+        std::hash<std::string>{}(document.dump() + asset.sourceHash);
     if (detail > 0.0F) {
       std::string geometryError;
       const nlohmann::json settings =
@@ -92,14 +117,14 @@ std::optional<ColliderAsset3D> loadColliderAsset3D(const AssetManifest &asset,
   }
 }
 
-} // namespace
-
 bool resolveColliderAssets3D(World &world, const AssetRegistry &registry,
                              std::string &error) {
   world.colliderAssets3D.clear();
   for (const Entity &entity : world.entities) {
     const auto *collider = entity.component<ModelCollider3DComponent>();
     if (collider == nullptr)
+      continue;
+    if (world.colliderAssets3D.contains(collider->asset))
       continue;
     const AssetManifest *asset = findAsset(registry, collider->asset);
     if (asset == nullptr) {
@@ -142,6 +167,17 @@ resolvedTriangleCollider3D(const World &world, const Entity &entity) {
                  asset->second.triangles.empty()
              ? nullptr
              : &asset->second.triangles;
+}
+
+const std::vector<Vec3> *resolvedConvexCollider3D(const World &world,
+                                                  const Entity &entity) {
+  const auto *model = entity.component<ModelCollider3DComponent>();
+  if (!model)
+    return nullptr;
+  const auto found = world.colliderAssets3D.find(model->asset);
+  return found == world.colliderAssets3D.end() || found->second.points.empty()
+             ? nullptr
+             : &found->second.points;
 }
 
 } // namespace demi::runtime

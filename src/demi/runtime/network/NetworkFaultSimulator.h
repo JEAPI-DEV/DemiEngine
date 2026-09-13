@@ -14,6 +14,7 @@ struct NetworkFaultConfig {
   std::uint32_t dropEvery = 0;
   std::uint32_t duplicateEvery = 0;
   std::uint64_t delayTicks = 0;
+  std::uint64_t jitterTicks = 0;
   std::size_t reorderWindow = 1;
   std::size_t maximumQueuedPackets = 1024;
 };

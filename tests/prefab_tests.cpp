@@ -66,6 +66,38 @@ int main() {
     return 1;
   }
 
+  // Flattened override form: "entity.Component.field" alongside nesting.
+  // Uses a fresh instance so earlier deep overrides cannot interfere.
+  write(root / "prefabs/flat.prefab.json", R"({
+    "format_version":1,"id":"prefab://flat","entities":[
+      {"id":"wall","name":"Wall","components":{"Transform3D":{"position":[0,1,0]},"MeshRenderer":{"shape":"cube","size":[1,2,4]}}}
+    ]
+  })");
+  const nlohmann::json flatScene = nlohmann::json::parse(R"({
+    "format_version": 1,
+    "id": "scene://flat",
+    "entities": [],
+    "instances": [{
+      "id": "prop",
+      "prefab": "prefab://flat",
+      "overrides": {
+        "wall.Transform3D.position": [4.0, 1.0, 0.0]
+      }
+    }]
+  })");
+  const auto flat = expandScene(root / "scenes/main.scene.json", flatScene);
+  if (!flat.document || (*flat.document)["entities"].size() != 1) {
+    std::cerr << "Flattened prefab overrides failed to expand.\n";
+    return 1;
+  }
+  const auto &flatWall = (*flat.document)["entities"][0];
+  if (flatWall["id"] != "prop/wall" ||
+      flatWall["components"]["Transform3D"]["position"] !=
+          nlohmann::json::array({4.0, 1.0, 0.0})) {
+    std::cerr << "Flattened prefab overrides resolved incorrectly.\n";
+    return 1;
+  }
+
   write(
       root / "prefabs/cycle_a.prefab.json",
       R"({"format_version":1,"id":"prefab://cycle_a","entities":[],"instances":[{"id":"b","prefab":"prefab://cycle_b"}]})");

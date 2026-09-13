@@ -143,6 +143,10 @@ bool EditorGameRenderer::render(const runtime::World &world,
                                      statistics.visibleMeshes);
   runtime::RuntimeProfiler::setGauge("Renderer3D.culled_meshes",
                                      statistics.culledMeshes);
+  runtime::RuntimeProfiler::setGauge("Renderer3D.lod_medium",
+                                     statistics.mediumLodMeshes);
+  runtime::RuntimeProfiler::setGauge("Renderer3D.lod_low",
+                                     statistics.lowLodMeshes);
   runtime::RuntimeProfiler::setGauge("Renderer3D.render_target_bytes",
                                      statistics.renderTargetBytes);
   return rendered;

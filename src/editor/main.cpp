@@ -85,6 +85,9 @@ int main(const int argc, char **argv) {
 
   demi::editor::applyEditorTheme();
   demi::editor::EditorShell shell(workspace);
+  if (std::string diagnostic = ui->takeWorkspaceDiagnostic();
+      !diagnostic.empty())
+    shell.setNotice(std::move(diagnostic));
   if (!ui->loadBranding(error))
     shell.setNotice("About logo unavailable: " + error);
   else
@@ -108,6 +111,7 @@ int main(const int argc, char **argv) {
       shell.requestExit();
       ui->acknowledgeCloseRequest();
     }
+    ui->setUiScale(shell.uiScale());
     if (!ui->beginFrame(error)) {
       std::cerr << "Editor frame failed: " << error << '\n';
       ui->shutdown();
@@ -115,6 +119,11 @@ int main(const int argc, char **argv) {
     }
     for (std::filesystem::path &dropped : ui->takeDroppedFiles())
       shell.queueAssetImport(std::move(dropped));
+    if (viewportReady &&
+        !ui->prepareViewportTarget(shell.viewportArea(), error)) {
+      viewportReady = false;
+      shell.setNotice("Viewport target stopped: " + error);
+    }
     if (gameRendererReady && !ui->prepareGameTarget(shell.gameArea(), error)) {
       shell.playSession().reportFailure(error);
       ui->releaseGameRenderer();
@@ -122,6 +131,7 @@ int main(const int argc, char **argv) {
       shell.setNotice("Game target stopped: " + error);
     }
     shell.setGameTextureIndex(ui->gameTextureIndex());
+    shell.setViewportTextureIndex(ui->viewportTextureIndex());
     shell.playSession().setGpuTiming(ui->gpuTimingSample());
     shell.draw(ui->width(), ui->height(), ui->rendererName());
     if (shell.playSession().isEmbedded() && !gameRendererReady) {
@@ -160,6 +170,9 @@ int main(const int argc, char **argv) {
       rendered =
           ui->renderGame(*shell.playSession().runtimeWorld(), shell.gameArea(),
                          shell.playSession().interpolationAlpha(), error);
+    } else if (viewportReady && shell.showingHudView()) {
+      rendered =
+          ui->renderHud(workspace.displayedHud(), shell.viewportArea(), error);
     } else if (viewportReady &&
                workspace.viewDimension() ==
                    demi::editor::EditorSceneViewDimension::TwoDimensional) {

@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "title": "Health & Damage",
+  "description": "Health, damage policies and defeat events for game entities. Use team rules and invulnerability to keep combat behavior consistent.",
+  "publisher": "DemiEngine",
+  "license": "BSD-3-Clause",
+  "kind": "code",
+  "category": "Gameplay",
+  "price": 0,
+  "images": [],
+  "tags": ["combat","health","gameplay"]
+}

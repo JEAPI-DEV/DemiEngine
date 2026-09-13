@@ -23,9 +23,9 @@ gamepad, touch-driven virtual controls, and multiple local players:
       "fire": {
         "type": "button",
         "bindings": [
-          "mouse:left",
-          "gamepad:south",
-          "virtual:fire"
+          {"input": "mouse:left"},
+          {"input": "gamepad:south"},
+          {"input": "virtual:fire"}
         ]
       }
     }
@@ -33,7 +33,11 @@ gamepad, touch-driven virtual controls, and multiple local players:
 }
 ```
 
-Legacy string arrays and scaled one-dimensional bindings remain valid. Inputs
+Explicit actions require `type` and object-form `bindings`, as shown above.
+Omitted `context` uses the canonical `"gameplay"` default. Specify it only when
+an action belongs to another context, such as `"menu"`; existing explicit
+gameplay contexts remain valid. Empty or non-string contexts are invalid.
+Legacy string-array bindings are not supported. Inputs
 and action names are case-insensitive. Supported device names include
 `key:<key>`, `mouse:<button>`, `gamepad:<button>`,
 `gamepad:axis:<axis>`, `gamepad:stick:left`, `gamepad:stick:right`, and

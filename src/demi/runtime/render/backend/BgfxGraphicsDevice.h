@@ -20,8 +20,13 @@ public:
   void shutdown() override;
   [[nodiscard]] bool resize(std::uint32_t width, std::uint32_t height,
                             std::string &error) override;
+  [[nodiscard]] bool updateNativeWindow(NativeWindowHandle handle,
+                                        std::string &error);
   void beginFrame(std::uint32_t rgba) override;
   [[nodiscard]] std::uint32_t endFrame() override;
+  [[nodiscard]] GraphicsFrameTimings frameTimings() const override {
+    return timings_;
+  }
 
   [[nodiscard]] bool initialized() const override { return initialized_; }
   [[nodiscard]] std::string_view rendererName() const override {
@@ -37,6 +42,10 @@ private:
   std::uint32_t width_ = 1;
   std::uint32_t height_ = 1;
   std::string rendererName_;
+  bool profile_ = false;
+  GraphicsFrameTimings timings_;
+  GpuFrameSampleFilter gpuSamples_;
+  std::int64_t lastCpuEnd_ = 0;
 };
 
 } // namespace demi::runtime::render

@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "title": "Camera Toolkit",
+  "description": "Follow targets with look-ahead, camera zones and timed screen shake. Stable zone selection keeps overlapping camera regions predictable.",
+  "publisher": "DemiEngine",
+  "license": "BSD-3-Clause",
+  "kind": "code",
+  "category": "Tools",
+  "price": 0,
+  "images": [],
+  "tags": ["camera","2d","screen-shake"]
+}

@@ -35,6 +35,21 @@ int main() {
     std::cerr << "session profiler report lost cross-frame category data\n";
     return 1;
   }
+  RuntimeProfiler::resetSession();
+  for (int sample = 1; sample <= 700; ++sample)
+    RuntimeProfiler::record("Percentile.test", static_cast<double>(sample));
+  const auto quantiles = RuntimeProfiler::sessionEntries();
+  const auto measured = std::ranges::find(quantiles, "Percentile.test",
+                                          &RuntimeProfiler::Entry::name);
+  if (measured == quantiles.end() || measured->sampleCount != 600 ||
+      measured->p50Milliseconds != 400 || measured->p95Milliseconds != 670 ||
+      measured->p99Milliseconds != 694 || measured->calls != 700 ||
+      measured->maxMilliseconds != 700 ||
+      RuntimeProfiler::sessionReport().find("p50_ms,p95_ms,p99_ms,samples") ==
+          std::string::npos) {
+    std::cerr << "profiler percentile window or CSV columns incorrect\n";
+    return 1;
+  }
   RuntimeProfiler::setEnabled(false);
 
   demi::runtime::RuntimeLogBuffer logs(2);

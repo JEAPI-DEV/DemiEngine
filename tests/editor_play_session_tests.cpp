@@ -4,6 +4,11 @@
 #include "demi/runtime/input/replay/InputReplay.h"
 #include "demi/runtime/scene/model/World.h"
 
+// Exercise lifecycle calls in optimized/offline builds too: assertions here
+// intentionally execute the operations being tested.
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <filesystem>
 #include <fstream>
@@ -84,6 +89,16 @@ int main() {
   }
 
   demi::editor::EditorPlaySession isometric;
+  {
+    demi::editor::EditorPlaySession performance;
+    std::string error;
+    assert(performance.startEmbedded(
+        source / "examples/performance_3d_lab/demi.project.json", error));
+    assert(performance.update({}, 1.0F / 60.0F, 960, 540, error));
+    assert(performance.runtimeWorld()->entities.size() >= 250);
+    performance.stop();
+    assert(demi::runtime::EmbeddedRuntimeSession::liveSessionCount() == baseline);
+  }
   std::string isometricError;
   assert(isometric.startEmbedded(
       source / "examples/isometric_base_builder/demi.project.json",

@@ -165,6 +165,30 @@ bool setRigidbodyEnabled3D(World &world, const std::string &entityId,
   return true;
 }
 
+bool setRigidbodyContinuous3D(World &world, const std::string &entityId,
+                              const bool continuous) {
+  Entity *entity = findEntity(world, entityId);
+  auto *body =
+      entity != nullptr ? entity->component<Rigidbody3DComponent>() : nullptr;
+  if (body == nullptr || body->bodyType != "dynamic")
+    return false;
+  body->continuous = continuous;
+  if (world.physicsWorld3D != nullptr)
+    (void)world.physicsWorld3D->setContinuous(entityId, continuous);
+  return true;
+}
+
+bool setRigidbodyReportContacts3D(World &world, const std::string &entityId,
+                                  const bool reportContacts) {
+  Entity *entity = findEntity(world, entityId);
+  auto *body =
+      entity != nullptr ? entity->component<Rigidbody3DComponent>() : nullptr;
+  if (body == nullptr)
+    return false;
+  body->reportContacts = reportContacts;
+  return true;
+}
+
 bool moveKinematicBody3D(World &world, const std::string &entityId,
                          const Vec3 targetPosition, const Vec3 targetRotation,
                          const float fixedDt) {
@@ -180,8 +204,8 @@ bool moveKinematicBody3D(World &world, const std::string &entityId,
   return true;
 }
 
-std::vector<PhysicsContact3D>
-contactsForEntity3D(const World &world, const std::string &entityId) {
+std::vector<PhysicsContact3D> contactsForEntity3D(const World &world,
+                                                  const std::string &entityId) {
   std::vector<PhysicsContact3D> result;
   std::ranges::copy_if(world.physicsContacts3D, std::back_inserter(result),
                        [&](const PhysicsContact3D &contact) {
@@ -193,10 +217,9 @@ contactsForEntity3D(const World &world, const std::string &entityId) {
 bool setCharacterVelocity3D(World &world, const std::string &entityId,
                             const Vec3 velocity) {
   Entity *entity = findEntity(world, entityId);
-  auto *controller =
-      entity != nullptr
-          ? entity->component<CharacterController3DComponent>()
-          : nullptr;
+  auto *controller = entity != nullptr
+                         ? entity->component<CharacterController3DComponent>()
+                         : nullptr;
   if (controller == nullptr)
     return false;
   controller->desiredVelocity = velocity;
@@ -206,10 +229,9 @@ bool setCharacterVelocity3D(World &world, const std::string &entityId,
 bool requestCharacterJump3D(World &world, const std::string &entityId,
                             const float speed) {
   Entity *entity = findEntity(world, entityId);
-  auto *controller =
-      entity != nullptr
-          ? entity->component<CharacterController3DComponent>()
-          : nullptr;
+  auto *controller = entity != nullptr
+                         ? entity->component<CharacterController3DComponent>()
+                         : nullptr;
   if (controller == nullptr || speed <= 0.0F)
     return false;
   controller->requestedJumpSpeed =
@@ -221,9 +243,8 @@ std::optional<CharacterMoveResult3D>
 characterState3D(const World &world, const std::string &entityId) {
   const Entity *entity = findEntity(world, entityId);
   const auto *controller =
-      entity != nullptr
-          ? entity->component<CharacterController3DComponent>()
-          : nullptr;
+      entity != nullptr ? entity->component<CharacterController3DComponent>()
+                        : nullptr;
   if (controller == nullptr)
     return std::nullopt;
   return CharacterMoveResult3D{

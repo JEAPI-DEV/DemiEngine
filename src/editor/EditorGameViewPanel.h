@@ -15,10 +15,13 @@ namespace demi::editor {
 
 void drawEditorGameView(const EditorPlaySession &session, ImVec2 position,
                         ImVec2 size, std::uint16_t textureIndex,
-                        EditorViewportArea &area, bool &focused);
+                        EditorViewportArea &area, bool &focused,
+                        bool embedded = false);
 void drawRuntimeHierarchy(const runtime::World &world, ImVec2 position,
-                          ImVec2 size, std::string &selectedEntityId);
+                          ImVec2 size, std::string &selectedEntityId,
+                          bool *open = nullptr);
 void drawRuntimeInspector(const runtime::World &world, ImVec2 position,
-                          ImVec2 size, const std::string &selectedEntityId);
+                          ImVec2 size, const std::string &selectedEntityId,
+                          bool *open = nullptr);
 
 } // namespace demi::editor

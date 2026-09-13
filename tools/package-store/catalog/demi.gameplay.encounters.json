@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "title": "Encounter Director",
+  "description": "Build encounters from waves and objectives, with explicit spawn failure handling. Keep encounter state independent from rendering.",
+  "publisher": "DemiEngine",
+  "license": "BSD-3-Clause",
+  "kind": "code",
+  "category": "Gameplay",
+  "price": 0,
+  "images": [],
+  "tags": ["enemies","combat","gameplay"]
+}

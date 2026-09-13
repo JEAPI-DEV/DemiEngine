@@ -238,13 +238,32 @@ FetchContent_Declare(bgfx
   GIT_REPOSITORY https://github.com/bkaradzic/bgfx.cmake.git
   GIT_TAG cc51d430dff56872f61df760e2d6dfa6ace095c1
   GIT_SUBMODULES_RECURSE TRUE
+  # Android can destroy the native window between the WSI capability query and
+  # swapchain creation; bgfx then aborts the process on VK_ERROR_SURFACE_LOST_KHR.
+  # Patch swapchain recreation to retry on the next frame instead.
+  PATCH_COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${FETCHCONTENT_BASE_DIR}/bgfx-src -P ${CMAKE_SOURCE_DIR}/cmake/patches/apply_bgfx_vk_surface_loss_retry.cmake
 )
 FetchContent_MakeAvailable(bgfx)
 # bgfx itself needs bimg, but its optional offline image encoder/decoder
 # libraries are not runtime dependencies and otherwise inflate every build.
 set_target_properties(bimg_decode bimg_encode PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
-option(DEMI_ENABLE_NETWORK "Enable optional ENet networking module" OFF)
+# The editor uses Dear ImGui's official docking branch (MIT; LICENSE.txt in the
+# populated source). This commit matches the 1.92.8 texture API used by the
+# pinned bgfx wrapper. Keep it desktop-only: shipped games do not depend on
+# editor UI or docking.
+if(NOT ANDROID)
+  FetchContent_Declare(imgui_docking
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG c51f1a6e47b8b5b11ca13490c461842c96bc4ca2
+  )
+  FetchContent_GetProperties(imgui_docking)
+  if(NOT imgui_docking_POPULATED)
+    FetchContent_Populate(imgui_docking)
+  endif()
+endif()
+
+option(DEMI_ENABLE_NETWORK "Enable optional ENet networking module" ON)
 option(DEMI_ENABLE_MEDIA "Enable FFmpeg-backed media module" ON)
 
 if(DEMI_ENABLE_NETWORK)

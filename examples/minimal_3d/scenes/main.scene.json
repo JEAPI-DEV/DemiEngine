@@ -151,7 +151,7 @@
         "Transform3D": {
           "position": [
             0.0,
-            0,
+            0.0,
             -6.0
           ],
           "rotation": [
@@ -181,8 +181,8 @@
           "wireframe": false
         },
         "BoxCollider3D": {
-          "size": [0.5, 1.5, 2.3],
-          "offset": [0.0, 0, -0.1],
+          "size": [0.5, 1.0, 1.5],
+          "offset": [0.0, 0.7, 0.2],
           "is_trigger": false,
           "layer": "obstacle"
         },
@@ -319,7 +319,20 @@
   "instances": [
     {
       "id": "player",
-      "prefab": "prefab://player"
+      "prefab": "prefab://player",
+      "overrides": {
+        "body": {
+          "components": {
+            "Transform3D": {
+              "position": [
+                0.0,
+                0.5,
+                0.0
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "id": "obstacle_1",

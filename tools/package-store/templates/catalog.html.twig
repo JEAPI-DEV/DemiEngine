@@ -1,0 +1,39 @@
+{% extends 'base.html.twig' %}
+{% block body %}
+<section class="hero">
+<div class="hero-content"><div class="eyebrow"><span></span> YOUR NEXT GAME STARTS HERE</div>
+<h1>Make something<br><em>worth playing.</em></h1>
+<p>Find the tools, gameplay systems and assets that move your project forward. Ready to use. Free to download.</p>
+<form action="/packages/" class="hero-search" role="search"><label class="sr-only" for="search">Search packages</label><span aria-hidden="true">⌕</span><input id="search" type="search" name="q" value="{{ q }}" placeholder="Search packages, tools, assets…" maxlength="200"><button>Search <span aria-hidden="true">→</span></button></form>
+<div class="hero-meta"><span>{{ total }} packages to build with</span><span>No checkout. No paywalls.</span></div></div>
+<div class="hero-art" aria-hidden="true"><div class="art-grid"></div><div class="cube cube-one"></div><div class="cube cube-two"></div><div class="cube cube-three"></div><span class="art-label">BUILD / PLAY / REPEAT</span><span class="art-coordinate">D / 001</span></div>
+</section>
+<section class="browse" aria-labelledby="browse-heading">
+<div class="section-heading"><div><div class="eyebrow muted">THE COLLECTION</div><h2 id="browse-heading">{% if q %}Results for “{{ q }}”{% else %}Find your next building block{% endif %}</h2></div><span class="count">{{ count }} packages</span></div>
+<div class="browse-layout">
+<aside>
+<form action="/packages/" id="filters"><input type="hidden" name="q" value="{{ q }}">
+<div class="filter-heading">REFINE YOUR SEARCH <a href="/packages/">Reset</a></div>
+<label class="field-label" for="kind">Package type</label><select id="kind" name="kind"><option value="">All packages</option><option value="code" {{ kind == 'code' ? 'selected' : '' }}>Code &amp; systems</option><option value="asset" {{ kind == 'asset' ? 'selected' : '' }}>Assets</option></select>
+<label class="field-label" for="category">Category</label><select id="category" name="category"><option value="">All categories</option>{% for item in categories %}<option {{ category == item ? 'selected' : '' }}>{{ item }}</option>{% endfor %}</select>
+<label class="field-label" for="sort">Sort by</label><select id="sort" name="sort"><option value="name" {{ sort == 'name' ? 'selected' : '' }}>Name: A to Z</option><option value="newest" {{ sort == 'newest' ? 'selected' : '' }}>Recently published</option></select>
+<label class="field-label" for="tag">Tag</label><select id="tag" name="tag"><option value="">All tags</option>{% for label, uses in tags %}<option value="{{ label }}" {{ tag == label ? 'selected' : '' }}>{{ label }} ({{ uses }})</option>{% endfor %}</select>
+<button class="apply">Apply filters</button>
+</form><div class="sidebar-note"><span class="note-icon">↗</span><h3>Made to work together.</h3><p>Versioned packages with declared dependencies. Install what you need and get back to building.</p><a href="/publishing">How packages work →</a></div>
+</aside>
+<div class="results">
+<div class="category-tabs"><a href="/packages/" class="{{ not category ? 'selected' : '' }}">All packages</a>{% for item in ['Gameplay','Tools','UI','3D'] %}<a href="/packages/?category={{ item|url_encode }}" class="{{ category == item ? 'selected' : '' }}">{{ item }}</a>{% endfor %}</div>
+{% if tag %}<div class="active-tag">Tagged: <strong>{{ tag }}</strong> <a href="{{ path('catalog', {q:q, kind:kind, category:category, sort:sort}) }}" aria-label="Remove tag filter">×</a></div>{% endif %}
+<div class="cards">
+{% for package in items %}
+<a class="card" href="{{ path('package', {name: package.manifest.name}) }}">
+<div class="card-image category-{{ package.category|lower }}"><img src="{{ package.images[0] }}" alt="{{ package.title }} preview" loading="lazy" data-fallback="/images/demi-asset.svg"></div>
+<div class="card-body"><div class="card-category">{{ package.category }}</div><h3>{{ package.title }}</h3><p>{{ package.description|slice(0, 115) }}{{ package.description|length > 115 ? '…' : '' }}</p><div class="card-footer"><span>{{ package.publisher }}</span><strong>Free</strong></div><div class="card-version">v{{ package.manifest.version }} <span>View package ↗</span></div></div>
+</a>
+{% else %}<div class="empty"><div>⌕</div><h3>No packages found</h3><p>Try another search or remove a filter.</p><a class="button" href="/packages/">Explore all packages</a></div>{% endfor %}
+</div>
+{% if pages > 1 %}<nav class="pagination" aria-label="Results pages">{% for number in 1..pages %}<a href="{{ path('catalog', {q:q, kind:kind, category:category, tag:tag, sort:sort, page:number}) }}" {{ page == number ? 'aria-current="page"' : '' }}>{{ number }}</a>{% endfor %}</nav>{% endif %}
+</div></div>
+</section>
+<section class="contribute"><div><div class="eyebrow">BUILD SOMETHING. SHARE SOMETHING.</div><h2>Your next package could<br>be someone’s head start.</h2></div><a class="button light" href="/publishing">Publishing guide ↗</a></section>
+{% endblock %}

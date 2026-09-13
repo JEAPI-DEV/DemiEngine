@@ -34,9 +34,25 @@ bool skippedRoot(const std::filesystem::path &relative) {
   if (relative.empty())
     return false;
   const std::string first = relative.begin()->string();
+  // Cooked output answers "what belongs in a runtime package?", not "what
+  // belongs to the project?". Test fixtures and authoring artifacts are
+  // excluded: replays/ are CLI fixtures passed via --input-replay; tools/
+  // and report.csv are authoring artifacts, not runtime data.
   return first == "assets" || first == "build" || first == "generated" ||
          first == ".git" || first == ".demi" || first == "saves" ||
-         first == "tests";
+         first == "tests" || first == "replays" || first == "tools";
+}
+
+bool skippedFile(const std::filesystem::path &relative) {
+  if (relative.empty())
+    return false;
+  const std::string name = relative.filename().string();
+  if (name == "README.md" || name == "report.csv")
+    return true;
+  if (name.size() > 4 && name.compare(name.size() - 4, 4, ".csv") == 0 &&
+      relative.parent_path().empty())
+    return true;
+  return false;
 }
 
 std::filesystem::path
@@ -71,6 +87,8 @@ void addProjectFiles(const std::filesystem::path &projectDirectory,
         iterator.disable_recursion_pending();
       continue;
     }
+    if (skippedFile(relative))
+      continue;
     if (iterator->is_regular_file())
       files.insert(iterator->path());
   }

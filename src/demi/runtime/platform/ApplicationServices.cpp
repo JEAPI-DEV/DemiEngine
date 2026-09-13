@@ -3,12 +3,12 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <utility>
 
 #if defined(__ANDROID__)
-#include <android/configuration.h>
-#include <android/native_activity.h>
 #include <jni.h>
-extern "C" ANativeActivity *DemiGetNativeActivity(void);
+extern "C" void *SDL_GetAndroidJNIEnv(void);
+extern "C" void *SDL_GetAndroidActivity(void);
 #endif
 
 namespace demi::runtime::platform {
@@ -29,28 +29,53 @@ std::filesystem::path environmentPath(const char *name) {
 #endif
 
 #if defined(__ANDROID__)
-SafeAreaInsets androidSafeArea() {
-  ANativeActivity *activity = DemiGetNativeActivity();
-  if (activity == nullptr || activity->vm == nullptr ||
-      activity->clazz == nullptr)
+JNIEnv *androidEnvironment() {
+  return static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
+}
+
+jobject androidActivity() {
+  return static_cast<jobject>(SDL_GetAndroidActivity());
+}
+
+std::filesystem::path androidPath(const char *methodName) {
+  JNIEnv *environment = androidEnvironment();
+  jobject activity = androidActivity();
+  if (environment == nullptr || activity == nullptr)
     return {};
-  JNIEnv *environment = nullptr;
-  bool attached = false;
-  if (activity->vm->GetEnv(reinterpret_cast<void **>(&environment),
-                           JNI_VERSION_1_6) != JNI_OK) {
-    if (activity->vm->AttachCurrentThread(&environment, nullptr) != JNI_OK)
-      return {};
-    attached = true;
+  const jclass activityClass = environment->GetObjectClass(activity);
+  const jmethodID method = environment->GetMethodID(
+      activityClass, methodName, "()Ljava/lang/String;");
+  auto value = method == nullptr
+                   ? nullptr
+                   : static_cast<jstring>(
+                         environment->CallObjectMethod(activity, method));
+  std::filesystem::path result;
+  if (value != nullptr) {
+    const char *text = environment->GetStringUTFChars(value, nullptr);
+    if (text != nullptr) {
+      result = text;
+      environment->ReleaseStringUTFChars(value, text);
+    }
+    environment->DeleteLocalRef(value);
   }
+  environment->DeleteLocalRef(activityClass);
+  return result;
+}
+
+SafeAreaInsets androidSafeArea() {
+  JNIEnv *environment = androidEnvironment();
+  jobject activity = androidActivity();
+  if (environment == nullptr || activity == nullptr)
+    return {};
   SafeAreaInsets result;
-  const jclass activityClass = environment->GetObjectClass(activity->clazz);
+  const jclass activityClass = environment->GetObjectClass(activity);
   const jmethodID getWindow =
       environment->GetMethodID(activityClass, "getWindow",
                                "()Landroid/view/Window;");
   jobject window =
       getWindow == nullptr
           ? nullptr
-          : environment->CallObjectMethod(activity->clazz, getWindow);
+          : environment->CallObjectMethod(activity, getWindow);
   if (window != nullptr) {
     const jclass windowClass = environment->GetObjectClass(window);
     const jmethodID getDecorView = environment->GetMethodID(
@@ -90,22 +115,44 @@ SafeAreaInsets androidSafeArea() {
     environment->DeleteLocalRef(window);
   }
   environment->DeleteLocalRef(activityClass);
-  if (attached)
-    activity->vm->DetachCurrentThread();
   return result;
 }
 
 float androidLogicalDpi() {
-  ANativeActivity *activity = DemiGetNativeActivity();
-  if (activity == nullptr || activity->assetManager == nullptr)
+  JNIEnv *environment = androidEnvironment();
+  jobject activity = androidActivity();
+  if (environment == nullptr || activity == nullptr)
     return 0.0F;
-  AConfiguration *configuration = AConfiguration_new();
-  AConfiguration_fromAssetManager(configuration, activity->assetManager);
-  const int density = AConfiguration_getDensity(configuration);
-  AConfiguration_delete(configuration);
-  return density > 0 && density != ACONFIGURATION_DENSITY_NONE
-             ? static_cast<float>(density)
-             : 0.0F;
+  const jclass activityClass = environment->GetObjectClass(activity);
+  const jmethodID getResources = environment->GetMethodID(
+      activityClass, "getResources", "()Landroid/content/res/Resources;");
+  jobject resources = getResources == nullptr
+                          ? nullptr
+                          : environment->CallObjectMethod(activity, getResources);
+  float density = 0.0F;
+  if (resources != nullptr) {
+    const jclass resourcesClass = environment->GetObjectClass(resources);
+    const jmethodID getMetrics = environment->GetMethodID(
+        resourcesClass, "getDisplayMetrics",
+        "()Landroid/util/DisplayMetrics;");
+    jobject metrics = getMetrics == nullptr
+                          ? nullptr
+                          : environment->CallObjectMethod(resources, getMetrics);
+    if (metrics != nullptr) {
+      const jclass metricsClass = environment->GetObjectClass(metrics);
+      const jfieldID densityField =
+          environment->GetFieldID(metricsClass, "densityDpi", "I");
+      if (densityField != nullptr)
+        density = static_cast<float>(
+            environment->GetIntField(metrics, densityField));
+      environment->DeleteLocalRef(metricsClass);
+      environment->DeleteLocalRef(metrics);
+    }
+    environment->DeleteLocalRef(resourcesClass);
+    environment->DeleteLocalRef(resources);
+  }
+  environment->DeleteLocalRef(activityClass);
+  return density;
 }
 #endif
 
@@ -116,14 +163,8 @@ void ApplicationServices::configureStorage(
     const std::filesystem::path &projectDirectory) {
   const std::string folder = safeName(applicationName);
 #if defined(__ANDROID__)
-  if (ANativeActivity *activity = DemiGetNativeActivity();
-      activity != nullptr && activity->internalDataPath != nullptr) {
-    userDataPath_ = std::filesystem::path(activity->internalDataPath) / folder;
-    cachePath_ =
-        activity->externalDataPath != nullptr
-            ? std::filesystem::path(activity->externalDataPath) / "cache"
-            : userDataPath_ / "cache";
-  }
+  userDataPath_ = androidPath("getDemiDataPath") / folder;
+  cachePath_ = androidPath("getDemiCachePath") / folder;
 #else
   std::filesystem::path dataRoot = environmentPath("XDG_DATA_HOME");
   std::filesystem::path cacheRoot = environmentPath("XDG_CACHE_HOME");
@@ -160,43 +201,86 @@ void ApplicationServices::updateDisplay(const int width, const int height,
 #else
   const float platformDpi = 0.0F;
 #endif
-  width_ = std::max(width, 1);
-  height_ = std::max(height, 1);
+  const int nextWidth = std::max(width, 1);
+  const int nextHeight = std::max(height, 1);
+  const bool displayChanged = nextWidth != width_ || nextHeight != height_;
+  const bool safeAreaChanged = safeArea.left != safeArea_.left ||
+                               safeArea.top != safeArea_.top ||
+                               safeArea.right != safeArea_.right ||
+                               safeArea.bottom != safeArea_.bottom;
+  width_ = nextWidth;
+  height_ = nextHeight;
   logicalDpi_ =
       std::max(platformDpi > 0.0F ? platformDpi : logicalDpi, 1.0F);
   uiScale_ = std::clamp(logicalDpi_ / 96.0F, 0.5F, 4.0F);
   safeArea_ = safeArea;
   orientation_ = width_ >= height_ ? Orientation::Landscape
                                     : Orientation::Portrait;
+  if (displayChanged)
+    lifecycleEvents_.push_back(
+        {.type = "display_changed", .generation = ++lifecycleGeneration_});
+  if (safeAreaChanged)
+    lifecycleEvents_.push_back(
+        {.type = "safe_area_changed", .generation = ++lifecycleGeneration_});
 }
 
-void ApplicationServices::setFocused(const bool focused) { focused_ = focused; }
+void ApplicationServices::setFocused(const bool focused) {
+  if (focused_ == focused)
+    return;
+  focused_ = focused;
+  lifecycleEvents_.push_back(
+      {.type = focused ? "focus_gained" : "focus_lost",
+       .generation = ++lifecycleGeneration_});
+}
 void ApplicationServices::setMinimized(const bool minimized) {
+  if (minimized_ == minimized)
+    return;
   minimized_ = minimized;
+  lifecycleEvents_.push_back(
+      {.type = minimized ? "minimized" : "restored",
+       .generation = ++lifecycleGeneration_});
 }
 void ApplicationServices::setSuspended(const bool suspended) {
+  if (suspended_ == suspended)
+    return;
   suspended_ = suspended;
+  lifecycleEvents_.push_back(
+      {.type = suspended ? "suspended" : "resumed",
+       .generation = ++lifecycleGeneration_});
 }
-void ApplicationServices::notifyLowMemory() { ++lowMemoryGeneration_; }
+void ApplicationServices::notifyLowMemory() {
+  ++lowMemoryGeneration_;
+  lifecycleEvents_.push_back(
+      {.type = "low_memory", .generation = ++lifecycleGeneration_});
+}
+void ApplicationServices::notifyBackRequested() {
+  lifecycleEvents_.push_back(
+      {.type = "back_requested", .generation = ++lifecycleGeneration_});
+}
 void ApplicationServices::setKeyboardVisible(const bool visible) {
   keyboardVisible_ = visible;
+#if defined(__ANDROID__)
+  JNIEnv *environment = androidEnvironment();
+  jobject activity = androidActivity();
+  if (environment != nullptr && activity != nullptr) {
+    const jclass activityClass = environment->GetObjectClass(activity);
+    const jmethodID method = environment->GetMethodID(
+        activityClass, "setDemiKeyboardVisible", "(Z)V");
+    if (method != nullptr)
+      environment->CallVoidMethod(activity, method,
+                                  visible ? JNI_TRUE : JNI_FALSE);
+    environment->DeleteLocalRef(activityClass);
+  }
+#endif
 }
 void ApplicationServices::requestOrientation(const Orientation orientation) {
   requestedOrientation_ = orientation;
 #if defined(__ANDROID__)
-  ANativeActivity *activity = DemiGetNativeActivity();
-  if (activity == nullptr || activity->vm == nullptr ||
-      activity->clazz == nullptr)
+  JNIEnv *environment = androidEnvironment();
+  jobject activity = androidActivity();
+  if (environment == nullptr || activity == nullptr)
     return;
-  JNIEnv *environment = nullptr;
-  bool attached = false;
-  if (activity->vm->GetEnv(reinterpret_cast<void **>(&environment),
-                           JNI_VERSION_1_6) != JNI_OK) {
-    if (activity->vm->AttachCurrentThread(&environment, nullptr) != JNI_OK)
-      return;
-    attached = true;
-  }
-  const jclass activityClass = environment->GetObjectClass(activity->clazz);
+  const jclass activityClass = environment->GetObjectClass(activity);
   const jmethodID method = environment->GetMethodID(
       activityClass, "setRequestedOrientation", "(I)V");
   if (method != nullptr) {
@@ -204,11 +288,9 @@ void ApplicationServices::requestOrientation(const Orientation orientation) {
                                ? 1
                                : orientation == Orientation::Landscape ? 0
                                                                        : -1;
-    environment->CallVoidMethod(activity->clazz, method, requested);
+    environment->CallVoidMethod(activity, method, requested);
   }
   environment->DeleteLocalRef(activityClass);
-  if (attached)
-    activity->vm->DetachCurrentThread();
 #endif
 }
 void ApplicationServices::setClipboardHandlers(
@@ -224,6 +306,29 @@ void ApplicationServices::setClipboard(const std::string &text) {
   clipboardFallback_ = text;
   if (clipboardWriter_)
     clipboardWriter_(text);
+}
+void ApplicationServices::configurePermissions(
+    std::vector<std::string> declaredPermissions) {
+  permissions_.configure(std::move(declaredPermissions));
+}
+void ApplicationServices::setPermissionRequester(
+    PermissionRequester requester) {
+  permissions_.setRequester(std::move(requester));
+}
+PermissionState
+ApplicationServices::permissionState(const std::string_view permission) const {
+  return permissions_.state(permission);
+}
+bool ApplicationServices::requestPermission(std::string permission,
+                                            std::string &error) {
+  return permissions_.request(std::move(permission), error);
+}
+std::vector<PermissionEvent> ApplicationServices::takePermissionEvents() {
+  return permissions_.takeEvents();
+}
+std::vector<ApplicationLifecycleEvent>
+ApplicationServices::takeLifecycleEvents() {
+  return std::exchange(lifecycleEvents_, {});
 }
 int ApplicationServices::width() const { return width_; }
 int ApplicationServices::height() const { return height_; }

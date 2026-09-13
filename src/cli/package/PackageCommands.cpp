@@ -94,16 +94,17 @@ requirementsFrom(const nlohmann::json &project, Diagnostics &diagnostics,
 
 std::string registrySource(const std::vector<std::string> &args,
                            const nlohmann::json &project,
-                           const PackageCommandContext &context) {
+                           const PackageCommandContext &) {
   if (const std::string value = valueAfter(args, "--registry"); !value.empty())
     return value;
   if (const char *value = std::getenv("DEMI_PACKAGE_REGISTRY");
-      value != nullptr)
+      value != nullptr && *value != '\0')
     return value;
   if (const auto value = project.find("package_registry");
-      value != project.end() && value->is_string())
+      value != project.end() && value->is_string() &&
+      !value->get_ref<const std::string &>().empty())
     return value->get<std::string>();
-  return (context.engineRoot / "packages").string();
+  return "https://demiengine.de";
 }
 
 void print(const Diagnostics &diagnostics, const bool json,
@@ -357,8 +358,8 @@ int runPackageCommand(const std::vector<std::string> &args,
   }
   if (command == "add") {
     if (args.size() < 3 || args[2].starts_with("--")) {
-      error << "Usage: demi package add <name>@<constraint> --project "
-               "<project>\n";
+      error << "Usage: demi package add <name>@<constraint> [--project "
+               "<project>] [--registry <registry>]\n";
       return ExitUsage;
     }
     const auto spec = parseSpec(args[2]);
@@ -376,7 +377,7 @@ int runPackageCommand(const std::vector<std::string> &args,
   }
   if (command == "remove") {
     if (args.size() < 3 || !packages::validPackageName(args[2])) {
-      error << "Usage: demi package remove <name> --project <project>\n";
+      error << "Usage: demi package remove <name> [--project <project>]\n";
       return ExitUsage;
     }
     const Diagnostics removalDiagnostics =

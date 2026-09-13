@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstddef>
 #include <string>
+#include <iosfwd>
 #include <vector>
 
 namespace demi::runtime {
@@ -19,6 +20,9 @@ public:
     std::size_t bytes = 0;
     double gauge = 0.0;
     bool hasGauge = false;
+    double p50Milliseconds = 0.0;
+    double p99Milliseconds = 0.0;
+    std::size_t sampleCount = 0;
   };
 
   static void setEnabled(bool enabled);
@@ -34,6 +38,7 @@ public:
   [[nodiscard]] static std::vector<Entry> frameEntries();
   [[nodiscard]] static std::size_t frameCount();
   [[nodiscard]] static std::string sessionReport();
+  [[nodiscard]] static bool writeFrame(std::ostream &output, std::size_t frame);
 };
 
 class ProfileScope {

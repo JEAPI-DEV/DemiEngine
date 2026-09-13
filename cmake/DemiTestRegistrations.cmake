@@ -1,5 +1,13 @@
 # Unit, subsystem, CLI, and networking test registration.
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME demi-android-device-tool-tests
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/tests/android_device_tool_tests.py")
 add_test(NAME demi-smoke-tests COMMAND demi-smoke-tests ${CMAKE_SOURCE_DIR})
+add_test(NAME demi-project-build-settings-tests
+  COMMAND demi-project-build-settings-tests)
+add_test(NAME demi-application-permissions-tests
+  COMMAND demi-application-permissions-tests)
 add_test(NAME demi-project-templates-tests COMMAND demi-project-templates-tests)
 add_test(NAME demi-build-service-tests COMMAND demi-build-service-tests)
 add_test(NAME demi-editor-workspace-tests COMMAND demi-editor-workspace-tests)
@@ -7,6 +15,7 @@ add_test(NAME demi-editor-project-document-tests
   COMMAND demi-editor-project-document-tests)
 add_test(NAME demi-editor-asset-workflow-tests
   COMMAND demi-editor-asset-workflow-tests)
+add_test(NAME demi-editor-folder-dialog-tests COMMAND demi-editor-folder-dialog-tests)
 add_test(NAME demi-editor-asset-drop-tests
   COMMAND demi-editor-asset-drop-tests)
 add_test(NAME demi-editor-specialized-document-tests
@@ -39,19 +48,72 @@ add_test(NAME demi-editor-recovery-preferences-tests
   COMMAND demi-editor-recovery-preferences-tests)
 add_test(NAME demi-editor-workspace-layout-tests
   COMMAND demi-editor-workspace-layout-tests)
+add_test(NAME demi-editor-docking-state-tests
+  COMMAND demi-editor-docking-state-tests)
+add_test(NAME demi-editor-docking-workspace-tests
+  COMMAND demi-editor-docking-workspace-tests)
 add_test(NAME demi-editor-lua-component-metadata-tests
   COMMAND demi-editor-lua-component-metadata-tests)
 add_test(NAME demi-editor-authored-json-tests
   COMMAND demi-editor-authored-json-tests)
 add_test(NAME demi-editor-release-workflow-tests
   COMMAND demi-editor-release-workflow-tests)
+add_test(NAME demi-editor-android-packaging-tests
+  COMMAND demi-editor-android-packaging-tests)
+set_tests_properties(demi-editor-android-packaging-tests PROPERTIES
+  RUN_SERIAL TRUE
+  LABELS "editor;packaging;android;capability-gate")
+find_program(DEMI_AAPT_EXECUTABLE NAMES aapt)
+if(DEMI_AAPT_EXECUTABLE)
+  set(DEMI_EDITOR_ANDROID_APK
+    "${CMAKE_SOURCE_DIR}/examples/minimal_2d_android/build/android/minimal_2d_android-debug.apk")
+  add_test(NAME demi-editor-android-package-identity
+    COMMAND "${DEMI_AAPT_EXECUTABLE}" dump badging "${DEMI_EDITOR_ANDROID_APK}")
+  set_tests_properties(demi-editor-android-package-identity PROPERTIES
+    DEPENDS demi-editor-android-packaging-tests
+    PASS_REGULAR_EXPRESSION
+      "package: name='dev.jeapi.demi.minimal_2d_android' versionCode='1' versionName='1.0.0'")
+  add_test(NAME demi-editor-android-package-sdk
+    COMMAND "${DEMI_AAPT_EXECUTABLE}" dump badging "${DEMI_EDITOR_ANDROID_APK}")
+  set_tests_properties(demi-editor-android-package-sdk PROPERTIES
+    DEPENDS demi-editor-android-packaging-tests
+    PASS_REGULAR_EXPRESSION "sdkVersion:'26'")
+  add_test(NAME demi-editor-android-package-label
+    COMMAND "${DEMI_AAPT_EXECUTABLE}" dump badging "${DEMI_EDITOR_ANDROID_APK}")
+  set_tests_properties(demi-editor-android-package-label PROPERTIES
+    DEPENDS demi-editor-android-packaging-tests
+    PASS_REGULAR_EXPRESSION "application-label:'Minimal 2D Android'")
+  add_test(NAME demi-editor-android-package-abi
+    COMMAND "${DEMI_AAPT_EXECUTABLE}" dump badging "${DEMI_EDITOR_ANDROID_APK}")
+  set_tests_properties(demi-editor-android-package-abi PROPERTIES
+    DEPENDS demi-editor-android-packaging-tests
+    PASS_REGULAR_EXPRESSION "native-code: 'arm64-v8a'")
+  add_test(NAME demi-editor-android-package-permission
+    COMMAND "${DEMI_AAPT_EXECUTABLE}" dump permissions "${DEMI_EDITOR_ANDROID_APK}")
+  set_tests_properties(demi-editor-android-package-permission PROPERTIES
+    DEPENDS demi-editor-android-packaging-tests
+    PASS_REGULAR_EXPRESSION "uses-permission: name='android.permission.INTERNET'")
+  add_test(NAME demi-editor-android-package-branding
+    COMMAND "${DEMI_AAPT_EXECUTABLE}" list "${DEMI_EDITOR_ANDROID_APK}")
+  set_tests_properties(demi-editor-android-package-branding PROPERTIES
+    DEPENDS demi-editor-android-packaging-tests
+    PASS_REGULAR_EXPRESSION "res/drawable-nodpi-v4/demi_splash.png")
+  add_test(NAME demi-editor-android-package-icon
+    COMMAND "${DEMI_AAPT_EXECUTABLE}" list "${DEMI_EDITOR_ANDROID_APK}")
+  set_tests_properties(demi-editor-android-package-icon PROPERTIES
+    DEPENDS demi-editor-android-packaging-tests
+    PASS_REGULAR_EXPRESSION "res/drawable-nodpi-v4/demi_app_icon.png")
+endif()
 add_test(NAME demi-editor-play-session-tests
   COMMAND demi-editor-play-session-tests)
 add_test(NAME demi-editor-help COMMAND demi-editor --help)
 add_test(NAME demi-doctor-service-tests COMMAND demi-doctor-service-tests)
 add_test(NAME demi-package-manager-tests COMMAND demi-package-manager-tests)
+add_test(NAME demi-package-cli-defaults
+  COMMAND ${CMAKE_COMMAND} -DDEMI=$<TARGET_FILE:demi>
+    -P ${CMAKE_SOURCE_DIR}/tests/package_cli_defaults.cmake)
 foreach(package_name IN ITEMS
-    core controllers health projectiles interactions traversal camera inventory encounters)
+    core controllers health projectiles interactions traversal camera inventory encounters third_person)
   add_test(NAME demi-gameplay-package-${package_name}
     COMMAND demi package test
       ${CMAKE_SOURCE_DIR}/packages/sources/demi.gameplay.${package_name})
@@ -74,6 +136,7 @@ add_test(NAME demi-capability-manifest-tests
   COMMAND demi-capability-manifest-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-runtime-object-model-tests
   COMMAND demi-runtime-object-model-tests)
+add_test(NAME demi-entity-lookup-tests COMMAND demi-entity-lookup-tests)
 add_test(NAME demi-runtime-scene-prefab-tests
   COMMAND demi-runtime-scene-prefab-tests)
 add_test(NAME demi-runtime-lifetime-failure-tests
@@ -91,6 +154,8 @@ add_test(NAME demi-capabilities-reference-gates
   COMMAND demi capabilities verify-gates)
 add_test(NAME demi-physics2d-tests COMMAND demi-physics2d-tests)
 add_test(NAME demi-physics3d-tests COMMAND demi-physics3d-tests)
+add_test(NAME demi-collider-shape-asset-tests COMMAND demi-collider-shape-asset-tests)
+add_test(NAME demi-physics-contact-phases3d-tests COMMAND demi-physics-contact-phases3d-tests)
 add_test(NAME demi-transform3d-hierarchy-tests
   COMMAND demi-transform3d-hierarchy-tests)
 add_test(NAME demi-validation-3d-tests COMMAND demi-validation-3d-tests)
@@ -127,6 +192,7 @@ add_test(NAME demi-material-library-tests COMMAND demi-material-library-tests)
 add_test(NAME demi-primitive-canvas3d-tests COMMAND demi-primitive-canvas3d-tests)
 add_test(NAME demi-debug-geometry3d-tests COMMAND demi-debug-geometry3d-tests)
 add_test(NAME demi-gpu-mesh3d-tests COMMAND demi-gpu-mesh3d-tests)
+add_test(NAME demi-mesh-deformation3d-tests COMMAND demi-mesh-deformation3d-tests)
 add_test(NAME demi-mesh-geometry3d-tests COMMAND demi-mesh-geometry3d-tests)
 add_test(NAME demi-bgfx-renderer3d-tests COMMAND demi-bgfx-renderer3d-tests)
 add_test(NAME demi-bgfx-scene-extraction-tests
@@ -142,6 +208,7 @@ add_test(NAME demi-iso-canvas-renderer-tests
   COMMAND demi-iso-canvas-renderer-tests)
 add_test(NAME demi-lua-stub-contract-tests COMMAND demi-lua-stub-contract-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
+add_test(NAME demi-lua-e2e-tests COMMAND demi-lua-e2e-tests)
 add_test(NAME demi-script-property-contract-tests
   COMMAND demi-script-property-contract-tests)
 add_test(NAME demi-scene-loader-tests COMMAND demi-scene-loader-tests ${CMAKE_SOURCE_DIR})
@@ -168,6 +235,9 @@ add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)
 
   add_test(NAME demi-game-save-document-tests COMMAND demi-game-save-document-tests)
   add_test(NAME demi-runtime-profiler-tests COMMAND demi-runtime-profiler-tests)
+  add_test(NAME demi-frame-timing-tests COMMAND demi-frame-timing-tests)
+  add_test(NAME demi-visible-timing-summary-tests
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/visible_timing_summary_tests.py")
   add_test(NAME demi-profiler-hud-layout-tests COMMAND demi-profiler-hud-layout-tests)
   add_test(NAME demi-isometric-grid-tests COMMAND demi-isometric-grid-tests)
   add_test(NAME demi-navigation2d-tests COMMAND demi-navigation2d-tests)
@@ -180,6 +250,7 @@ add_test(NAME demi-scene-diff-cli
 add_test(NAME demi-network-session-lua-tests COMMAND demi-network-session-lua-tests)
 add_test(NAME demi-game-network-session-tests COMMAND demi-game-network-session-tests)
 add_test(NAME demi-secure-network-session-tests COMMAND demi-secure-network-session-tests)
+add_test(NAME demi-network-prediction-tests COMMAND demi-network-prediction-tests)
 if(DEMI_ENABLE_NETWORK)
   add_test(NAME demi-server-headless-ffa-smoke
     COMMAND demi-server run --project

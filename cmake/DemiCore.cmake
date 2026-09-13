@@ -1,12 +1,19 @@
 # Engine data, asset, scene, UI, input, physics, and navigation foundations.
 add_library(demi-core STATIC
+  # Shared instrumentation must be usable without linking the application loop.
+  src/demi/runtime/profiling/RuntimeProfiler.cpp
+  src/demi/runtime/geometry/MeshDeformation3D.cpp
+  src/demi/runtime/geometry/MeshRefinement3D.cpp
+  src/demi/runtime/geometry/MeshImpact3D.cpp
   src/demi/capabilities/CapabilityManifest.cpp
+  src/demi/capabilities/PlatformCapabilities.cpp
   src/demi/assets/AssetRegistry.cpp
   src/demi/assets/AssetHash.cpp
   src/demi/assets/DataAsset.cpp
   src/demi/assets/DataDocument.cpp
   src/demi/assets/YamlDataDocument.cpp
   src/demi/assets/ColliderAssetGenerator.cpp
+  src/demi/assets/ColliderShapeAsset.cpp
   src/demi/assets/ModelImportProfile.cpp
   src/demi/assets/ModelInspector.cpp
   src/demi/assets/SceneBudget3D.cpp
@@ -29,12 +36,15 @@ add_library(demi-core STATIC
   src/demi/filesystem/ProjectDiscovery.cpp
   src/demi/filesystem/ProjectPaths.cpp
   src/demi/packages/SemanticVersion.cpp
+  src/demi/runtime/scene/ProjectBuildSettings.cpp
+  src/demi/runtime/scene/ProjectBuildValidation.cpp
   src/demi/packages/PackageManifest.cpp
   src/demi/packages/PackageHash.cpp
   src/demi/packages/PackageLock.cpp
   src/demi/schema/Validation.cpp
   src/demi/runtime/scene/composition/PrefabResolver.cpp
   src/demi/runtime/ui/UiLayoutEngine.cpp
+  src/demi/runtime/ui/HudLayoutReport.cpp
   src/demi/runtime/ui/TextLayoutEngine.cpp
   src/demi/runtime/ui/TextShaper.cpp
   src/demi/runtime/ui/TextEditingEngine.cpp
@@ -59,6 +69,7 @@ add_library(demi-core STATIC
   src/demi/runtime/input/InputRebinding.cpp
   src/demi/runtime/input/TouchGestureRecognizer.cpp
   src/demi/runtime/platform/ApplicationServices.cpp
+  src/demi/runtime/platform/ApplicationPermissions.cpp
   src/demi/runtime/input/replay/InputReplay.cpp
   src/demi/runtime/input/InputActionParser.cpp
   src/demi/runtime/isometric/GridTypes.cpp

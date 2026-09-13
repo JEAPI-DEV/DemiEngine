@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "demi/runtime/scene/model/SceneTypes.h"
+#include "demi/runtime/ui/UiModel.h"
 #include "editor/EditorGpuTiming.h"
 #include "editor/EditorSceneView2DState.h"
 #include "editor/EditorSceneViewState.h"
@@ -38,11 +39,16 @@ public:
   [[nodiscard]] virtual EditorGpuTimingSample gpuTimingSample() const = 0;
   virtual void shutdown() = 0;
   [[nodiscard]] virtual bool beginFrame(std::string &error) = 0;
+  virtual void setUiScale(float scale) = 0;
   [[nodiscard]] virtual std::vector<std::filesystem::path>
   takeDroppedFiles() = 0;
+  [[nodiscard]] virtual std::string takeWorkspaceDiagnostic() = 0;
   [[nodiscard]] virtual bool
   configureViewport(const std::filesystem::path &projectDirectory,
                     std::string &error) = 0;
+  [[nodiscard]] virtual bool prepareViewportTarget(EditorViewportArea area,
+                                                   std::string &error) = 0;
+  [[nodiscard]] virtual std::uint16_t viewportTextureIndex() const = 0;
   [[nodiscard]] virtual bool renderViewport(const runtime::World &world,
                                             EditorViewportArea area,
                                             const EditorSceneViewCamera &camera,
@@ -51,6 +57,9 @@ public:
   renderViewport2D(const runtime::World &world, EditorViewportArea area,
                    const EditorSceneView2DCamera &camera, bool showColliders,
                    std::string &error) = 0;
+  [[nodiscard]] virtual bool renderHud(const runtime::ui::UiDocument &document,
+                                       EditorViewportArea area,
+                                       std::string &error) = 0;
   [[nodiscard]] virtual bool
   configureGameRenderer(const std::filesystem::path &projectDirectory,
                         std::string &error) = 0;

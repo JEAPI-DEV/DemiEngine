@@ -14,6 +14,7 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
                                 std::vector<std::string> &diagnostics) {
   textures_.clear();
   modelMeshes_.clear();
+  deformedMeshes_.clear();
   animatedModels_.clear();
   modelTextures_.clear();
   modelUnlit_.clear();
@@ -138,11 +139,15 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
         diagnostics.push_back(asset.id + ": " + error);
         success = false;
       } else {
+        cached->restGeometry = {.positions = std::move(positions),
+                                .uvs = std::move(textureCoordinates),
+                                .indices = std::move(indices),
+                                .colors = std::move(vertexColors)};
         modelMeshes_.emplace(asset.id, std::move(cached));
         std::vector<std::byte> embeddedAlbedo =
             animated ? std::move(animated->albedoImage)
                      : std::vector<std::byte>{};
-        if (animated && !animated->clips.empty())
+        if (animated && (!animated->clips.empty() || !animated->skins.empty()))
           animatedModels_.emplace(asset.id, std::move(*animated));
         if (profile->materialPolicy != "ignore" &&
             (asset.texturePath || !embeddedAlbedo.empty())) {

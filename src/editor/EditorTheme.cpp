@@ -1,12 +1,14 @@
 #include "editor/EditorTheme.h"
 
+#include "editor/EditorDesignTokens.h"
+
 #include <imgui.h>
 
 namespace demi::editor {
 
 void applyEditorTheme() {
   ImGuiStyle &style = ImGui::GetStyle();
-  style.WindowPadding = {8.0F, 7.0F};
+  style.WindowPadding = {EditorDesignTokens::Space2, 7.0F};
   style.FramePadding = {7.0F, 4.0F};
   style.CellPadding = {6.0F, 4.0F};
   style.ItemSpacing = {5.0F, 4.0F};
@@ -18,6 +20,9 @@ void applyEditorTheme() {
   style.PopupBorderSize = 1.0F;
   style.FrameBorderSize = 1.0F;
   style.TabBorderSize = 0.0F;
+  style.TabBarBorderSize = 1.0F;
+  style.DockingSeparatorSize = 2.0F;
+  style.WindowMenuButtonPosition = ImGuiDir_Left;
   style.WindowRounding = 1.0F;
   style.ChildRounding = 1.0F;
   style.FrameRounding = 2.0F;
@@ -53,11 +58,19 @@ void applyEditorTheme() {
   colors[ImGuiCol_HeaderHovered] = {0.29F, 0.225F, 0.43F, 1.00F};
   colors[ImGuiCol_HeaderActive] = {0.37F, 0.275F, 0.56F, 1.00F};
   colors[ImGuiCol_Separator] = {0.145F, 0.153F, 0.175F, 1.00F};
+  colors[ImGuiCol_SeparatorHovered] = {0.42F, 0.30F, 0.64F, 0.85F};
+  colors[ImGuiCol_SeparatorActive] = {0.60F, 0.43F, 0.95F, 1.00F};
   colors[ImGuiCol_ResizeGrip] = {0.42F, 0.30F, 0.64F, 0.25F};
   colors[ImGuiCol_ResizeGripHovered] = {0.54F, 0.38F, 0.82F, 0.65F};
   colors[ImGuiCol_Tab] = {0.075F, 0.079F, 0.092F, 1.00F};
   colors[ImGuiCol_TabHovered] = {0.19F, 0.16F, 0.27F, 1.00F};
   colors[ImGuiCol_TabSelected] = {0.16F, 0.14F, 0.22F, 1.00F};
+  colors[ImGuiCol_TabSelectedOverline] = {0.60F, 0.43F, 0.95F, 1.00F};
+  colors[ImGuiCol_TabDimmed] = {0.060F, 0.064F, 0.075F, 1.00F};
+  colors[ImGuiCol_TabDimmedSelected] = {0.11F, 0.10F, 0.15F, 1.00F};
+  colors[ImGuiCol_TabDimmedSelectedOverline] = {0.38F, 0.28F, 0.58F, 1.00F};
+  colors[ImGuiCol_DockingPreview] = {0.48F, 0.32F, 0.82F, 0.62F};
+  colors[ImGuiCol_DockingEmptyBg] = {0.045F, 0.048F, 0.057F, 1.00F};
   colors[ImGuiCol_NavCursor] = {0.64F, 0.46F, 0.96F, 1.00F};
 }
 

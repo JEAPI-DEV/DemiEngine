@@ -6,6 +6,7 @@
 #include <cmath>
 #include <filesystem>
 #include <iostream>
+#include <ranges>
 #include <string>
 #include <vector>
 
@@ -165,6 +166,25 @@ int main() {
   assert(distanceSquared(bindPose.front(), {14.0F, 0.0F, 0.0F}) <
          0.000001F);
 
+  demi::assets::GltfSkinnedModel3D procedural;
+  procedural.nodes.push_back({.name = "leg_upper"});
+  procedural.skins.push_back(
+      {.joints = {0},
+       .inverseBindMatrices = {
+           {{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}}}});
+  procedural.vertices.push_back({.position = {0, 1, 0},
+                                 .joints = {0, 0, 0, 0},
+                                 .weights = {1, 0, 0, 0},
+                                 .skin = 0});
+  const demi::assets::GltfSkinnedModel3D::BoneSegments proceduralPose{
+      {"leg_upper", {.start = {2, 0, 0}, .end = {2, 1, 0}, .pole = {2, 0, 1}}}};
+  assert(procedural.bindPosePositions(bindPose, error, proceduralPose));
+  assert(distanceSquared(bindPose.front(), {2, 1, 0}) < 0.000001F);
+  auto missingBone = proceduralPose;
+  missingBone["missing"] = missingBone.at("leg_upper");
+  assert(!procedural.bindPosePositions(bindPose, error, missingBone));
+  assert(error.find("missing bone") != std::string::npos);
+
   auto malformed = hierarchy;
   malformed.nodes[0].parent = 99;
   assert(!malformed.bindPosePositions(bindPose, error));
@@ -216,6 +236,85 @@ int main() {
   // Y, so examples must not retain the old raylib-specific +90 degree tilt.
   assert(hyenaMaximum.z - hyenaMinimum.z >
          hyenaMaximum.y - hyenaMinimum.y);
+
+  error.clear();
+  const auto spider = demi::assets::loadGltfSkinnedModel3D(
+      std::filesystem::path(DEMI_SOURCE_DIR) /
+          "examples/procedural_spider_3d/assets/procedural_spider/spider/"
+          "spider_rig.glb",
+      error);
+  assert(spider && error.empty());
+  assert(spider->clips.empty());
+  assert(!spider->skins.empty());
+  for (const std::string_view bone : {"body_root", "leg_1_l_upper",
+                                      "leg_1_l_lower", "leg_4_r_upper",
+                                      "leg_4_r_lower"})
+    assert(std::ranges::find(spider->nodes, bone,
+                             &demi::assets::GltfSkinnedModel3D::Node::name) !=
+           spider->nodes.end());
+  std::vector<demi::runtime::Vec3> spiderBind;
+  std::vector<demi::runtime::Vec3> spiderPosed;
+  assert(spider->bindPosePositions(spiderBind, error));
+  assert(spider->bindPosePositions(
+      spiderPosed, error,
+      {{"leg_1_l_upper",
+        {.start = {0, 0, 0}, .end = {0, 1, 0}, .pole = {1, 0, 0}}}}));
+  assert(std::ranges::any_of(
+      std::views::iota(std::size_t{0}, spiderBind.size()),
+      [&](const std::size_t index) {
+        return distanceSquared(spiderBind[index], spiderPosed[index]) >
+               0.0001F;
+      }));
+
+  // Imported locomotion must remain in place when a character controller owns
+  // translation. Raw Mixamo hip motion previously moved this visual several
+  // metres away from its entity as soon as any gameplay animation started.
+  error.clear();
+  auto knightProfile =
+      demi::assets::modelImportPreset("animated_character");
+  knightProfile.sourceUp = "+z";
+  knightProfile.sourceForward = "-y";
+  const auto knight = demi::assets::loadGltfSkinnedModel3D(
+      std::filesystem::path(DEMI_SOURCE_DIR) /
+          "examples/souls_boss_arena/assets/models/cyberpunk_character/"
+          "cyberpunk_character.glb",
+      knightProfile, error);
+  assert(knight && error.empty());
+  std::vector<demi::runtime::Vec3> knightBind;
+  assert(knight->bindPosePositions(knightBind, error));
+  demi::runtime::Vec3 knightMinimum = knightBind.front();
+  demi::runtime::Vec3 knightMaximum = knightBind.front();
+  for (const auto position : knightBind) {
+    knightMinimum.x = std::min(knightMinimum.x, position.x);
+    knightMinimum.y = std::min(knightMinimum.y, position.y);
+    knightMinimum.z = std::min(knightMinimum.z, position.z);
+    knightMaximum.x = std::max(knightMaximum.x, position.x);
+    knightMaximum.y = std::max(knightMaximum.y, position.y);
+    knightMaximum.z = std::max(knightMaximum.z, position.z);
+  }
+  const float knightHeight = knightMaximum.y - knightMinimum.y;
+  if (knightHeight <= knightMaximum.x - knightMinimum.x ||
+      knightHeight <= knightMaximum.z - knightMinimum.z)
+    std::cerr << "Cyberpunk character bind extents: "
+              << knightMaximum.x - knightMinimum.x << ", " << knightHeight
+              << ", " << knightMaximum.z - knightMinimum.z << '\n';
+  assert(knightHeight > knightMaximum.x - knightMinimum.x);
+  assert(knightHeight > knightMaximum.z - knightMinimum.z);
+  for (const std::string_view clipName : {"Idle", "CombatRun", "DodgeRoll",
+                                          "SwordAttack", "ShieldBlock"}) {
+    const int clip = knight->clipIndex(clipName, -1);
+    assert(clip >= 0);
+    const float duration = knight->clips[static_cast<std::size_t>(clip)].duration;
+    for (const float time : {0.0F, duration * 0.5F, duration}) {
+      std::vector<demi::runtime::Vec3> pose;
+      assert(knight->samplePositions(clip, time, false, pose, error));
+      assert(largestExtent(pose) < 5.0F);
+      assert(std::ranges::all_of(pose, [](const demi::runtime::Vec3 position) {
+        return finite(position) && std::abs(position.x) < 5.0F &&
+               std::abs(position.y) < 5.0F && std::abs(position.z) < 5.0F;
+      }));
+    }
+  }
 
   std::cout << "gltf skinned model tests passed\n";
   return 0;

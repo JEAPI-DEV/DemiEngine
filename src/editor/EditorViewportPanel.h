@@ -6,8 +6,6 @@
 
 #include <string>
 
-#include <string>
-
 struct ImVec2;
 
 namespace demi::editor {
@@ -24,7 +22,9 @@ struct EditorHudViewportState {
 };
 
 void drawEditorViewport(EditorWorkspace &workspace, ImVec2 position,
-                        ImVec2 size, EditorViewportArea &viewportArea,
-                        EditorHudViewportState &hudState, std::string &notice);
+                        ImVec2 size, std::uint16_t textureIndex,
+                        EditorViewportArea &viewportArea,
+                        EditorHudViewportState &hudState, bool hudOnly,
+                        std::string &notice, bool embedded = false);
 
 } // namespace demi::editor

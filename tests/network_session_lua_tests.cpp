@@ -1,5 +1,5 @@
-#include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/runtime/scene/components/2dcomponents/Transform2DComponent.h"
+#include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include <filesystem>
 #include <fstream>
@@ -22,13 +22,11 @@ int main() {
   namespace runtime = demi::runtime;
 
   const std::filesystem::path projectDirectory =
-      std::filesystem::temp_directory_path() /
-      "demi_network_session_lua_tests";
+      std::filesystem::temp_directory_path() / "demi_network_session_lua_tests";
   std::error_code error;
   std::filesystem::remove_all(projectDirectory, error);
   std::filesystem::create_directories(projectDirectory / "scripts", error);
-  if (error ||
-      !writeFile(projectDirectory / "scripts" / "probe.lua", R"lua(
+  if (error || !writeFile(projectDirectory / "scripts" / "probe.lua", R"lua(
 local Probe = {}
 
 local function assert_true(condition, message)
@@ -75,6 +73,37 @@ function Probe:on_start()
     "local entity did not grant local authority")
   assert_true(NetworkSession.update_entity("player_client", 1.0),
     "offline entity update should be a no-op success")
+
+  assert_true(not NetworkSession.enable_prediction({
+    network_id = "player_client",
+    state = { x = 0.0 },
+    apply = function(state, input)
+      return { x = state.x + input.x }
+    end,
+  }), "prediction unexpectedly invented a history default")
+  NetworkSession.configure({
+    port = 40000,
+    prediction_history_limit = 8,
+  })
+  assert_true(NetworkSession.enable_prediction({
+    network_id = "player_client",
+    state = { x = 0.0 },
+    apply = function(state, input)
+      return { x = state.x + input.x }
+    end,
+  }), "explicit prediction configuration was rejected")
+  assert_true(NetworkSession.predict_input("player_client", { x = 2.0 }) == 1,
+    "predicted input sequence was not assigned")
+  assert_true(NetworkSession.prediction_state("player_client").x == 2.0,
+    "predicted input was not applied immediately")
+  local query_diagnostics = NetworkSession.query_history_diagnostics()
+  assert_true(query_diagnostics.depth == 0 and query_diagnostics.latest_tick == 0,
+    "query history diagnostics were not installed")
+  assert_true(not NetworkSession.record_query_snapshot(1, {}),
+    "offline peers unexpectedly recorded authoritative query history")
+  assert_true(NetworkSession.historical_raycast(
+    1, 0, 0, 1, 0, 10, "players") == nil,
+    "offline peers unexpectedly queried authoritative history")
 
   local diagnostics = NetworkSession.diagnostics()
   assert_true(diagnostics.mode == "offline", "wrong offline diagnostics mode")

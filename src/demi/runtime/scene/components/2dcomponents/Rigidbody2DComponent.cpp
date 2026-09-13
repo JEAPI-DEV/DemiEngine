@@ -22,6 +22,8 @@ void Rigidbody2DComponent::parse(const nlohmann::json &json, Entity &entity) {
       scene_loading::numberField(json, "angular_damping").value_or(0.0F), 0.0F);
   component.continuous =
       scene_loading::boolField(json, "continuous").value_or(false);
+  component.reportContacts =
+      scene_loading::boolField(json, "report_contacts").value_or(true);
   component.allowSleep =
       scene_loading::boolField(json, "allow_sleep").value_or(true);
   component.awake = scene_loading::boolField(json, "awake").value_or(true);

@@ -3,8 +3,6 @@
 #include "editor/EditorAssetIndex.h"
 #include "editor/EditorJsonDocument.h"
 
-#include "demi/runtime/ui/UiModel.h"
-
 #include <filesystem>
 #include <optional>
 #include <string_view>
@@ -33,17 +31,11 @@ public:
     return expandedPrefab_;
   }
   [[nodiscard]] const nlohmann::json &prefabDiff() const { return prefabDiff_; }
-  [[nodiscard]] const std::optional<runtime::ui::UiDocument> &
-  hudPreview() const {
-    return hudPreview_;
-  }
   [[nodiscard]] const std::optional<std::filesystem::path> &
   associatedManifest() const {
     return associatedManifest_;
   }
-  void rebuildPreview(runtime::ui::Insets safeArea = {},
-                      std::string locale = {}, float dpiScale = 1.0F);
-  void applyHudSampleText(std::string_view text);
+  void rebuildPreview();
   [[nodiscard]] bool applyPrefabOverrides(std::size_t instanceIndex,
                                           std::string &error);
   [[nodiscard]] bool revertPrefabOverrides(std::size_t instanceIndex,
@@ -54,7 +46,6 @@ private:
   EditorSpecializedKind kind_ = EditorSpecializedKind::Data;
   nlohmann::json expandedPrefab_ = nlohmann::json::object();
   nlohmann::json prefabDiff_ = nlohmann::json::array();
-  std::optional<runtime::ui::UiDocument> hudPreview_;
   std::optional<std::filesystem::path> associatedManifest_;
 };
 

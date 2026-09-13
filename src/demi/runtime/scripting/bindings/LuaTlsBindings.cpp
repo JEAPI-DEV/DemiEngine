@@ -77,6 +77,7 @@ void LuaTlsBindingModule::install(LuaScriptHost& host, lua_State* state) const {
   tlsServer.set_function("events", [state, server] { server->update(); return eventsTable(state, server->drainEvents()); });
   tlsServer.set_function("send", [server](int id, const std::string& message) { return server->send(static_cast<std::uint32_t>(std::max(id, 0)), message); });
   tlsServer.set_function("disconnect", [server](int id) { server->disconnect(static_cast<std::uint32_t>(std::max(id, 0))); });
+  tlsServer.set_function("client_connected", [server](int id) { return server->isClientConnected(static_cast<std::uint32_t>(std::max(id, 0))); });
   tlsServer.set_function("error", [server] { return server->lastError(); });
 
   sol::table tlsClient = lua.create_named_table("TlsClient");

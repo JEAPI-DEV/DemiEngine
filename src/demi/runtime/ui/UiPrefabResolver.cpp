@@ -185,6 +185,14 @@ public:
     }
     if (node.contains("prefab"))
       return expandInstance(ownerPath, node);
+    // Shorthand-only forms (dock/stack/at/pad) carry no id/type yet; default
+    // them here so terse HUD files validate: containers default the type,
+    // ids are synthesized from the sibling position by the caller below.
+    if (!node.contains("type") || !node["type"].is_string()) {
+      if (node.contains("children") || node.contains("dock") ||
+          node.contains("stack"))
+        node["type"] = "container";
+    }
     if (!node.contains("id") || !node["id"].is_string() ||
         node["id"].get<std::string>().empty() || !node.contains("type") ||
         !node["type"].is_string()) {

@@ -102,6 +102,23 @@ function Input.action_value(action, player) end
 ---@return number x
 ---@return number y
 function Input.action_vector(action, player) end
+---@param action string Vector2 action; result normalized to length <= 1 (diagonal-safe).
+---@param player? integer
+---@return number x
+---@return number y
+function Input.vector(action, player) end
+---@param action string
+---@param player? integer
+---@return boolean
+function Input.pressed(action, player) end
+---@param action string
+---@param player? integer
+---@return boolean
+function Input.down(action, player) end
+---@param action string
+---@param player? integer
+---@return number
+function Input.value(action, player) end
 ---@param action string
 ---@param player? integer
 ---@return string
@@ -228,6 +245,19 @@ function Application.low_memory_generation() end
 function Application.user_data_path() end
 ---@return string
 function Application.cache_path() end
+---@alias PermissionState "unknown"|"not_requested"|"requesting"|"granted"|"denied"|"denied_permanently"
+---@param permission string
+---@return PermissionState
+function Application.permission_state(permission) end
+---@param permission string Must be declared in project build.android.permissions.
+---@return boolean requested
+---@return string error
+function Application.request_permission(permission) end
+---@return {permission: string, state: PermissionState}[]
+function Application.take_permission_events() end
+---@alias ApplicationLifecycleEventType "focus_gained"|"focus_lost"|"minimized"|"restored"|"suspended"|"resumed"|"low_memory"|"display_changed"|"safe_area_changed"|"back_requested"
+---@return {type: ApplicationLifecycleEventType, generation: integer}[]
+function Application.take_lifecycle_events() end
 
 ---@class ProceduralMeshBuilder
 ---@field clear fun(self: ProceduralMeshBuilder)
@@ -240,6 +270,49 @@ function Application.cache_path() end
 
 ---@class ProceduralMeshService
 ProceduralMesh = {}
+
+---@class MeshDentImpact
+---@field point number[] World-space impact point (x, y, z).
+---@field direction number[] World-space inward displacement direction.
+---@field radius number Positive world-space brush radius in meters.
+---@field depth number Positive dent depth in meters, at most radius / 2.
+
+---@class MeshDeformationService
+---Requires Dentable3D on the target entity; absent components reject requests.
+MeshDeformation = {}
+---Apply a permanent visual dent to one static-model/procedural mesh instance.
+---Does not modify collision, source assets, or other instances. Maximum 32 dents.
+---@param entity_id string
+---@param impact MeshDentImpact
+---@return boolean accepted
+---@return string error Empty when accepted.
+function MeshDeformation.dent(entity_id, impact) end
+---@param entity_id string
+---@return boolean success
+function MeshDeformation.reset(entity_id) end
+
+---@class MeshImpactMaterial
+---Optional per-call overrides of the target Dentable3D component's settings.
+---@field radius? number Brush radius in meters (default 0.32).
+---@field yield_energy? number Joules required before permanent damage (default 4).
+---@field stiffness? number Effective stiffness in N/m (default 4000).
+---@field absorption? number Absorbed fraction from 0 to 1 (default 0.7).
+---@field max_depth? number Maximum dent depth in meters (default 0.15).
+---@class MeshImpactContact
+---@field point_x number
+---@field point_y number
+---@field point_z number
+---@field normal_x number Body contact-force direction, not raycast outward normal.
+---@field normal_y number
+---@field normal_z number
+---@field impact_energy number Pre-solver normal closing energy in joules, supplied by physics3d collision events.
+---@param entity_id string
+---@param contact MeshImpactContact
+---@param material? MeshImpactMaterial
+---@return boolean accepted
+---@return string error
+---@return number depth
+function MeshDeformation.impact(entity_id, contact, material) end
 ---@param capacity? integer
 ---@return ProceduralMeshBuilder
 function ProceduralMesh.create(capacity) end
@@ -279,6 +352,17 @@ function Entity.exists(entity_id) end
 ---@param spec table
 ---@return boolean
 function Entity.create(entity_id, spec) end
+---@class EntitySpawnOptions
+---@field prefab? string prefab:// reference expanded by RuntimeObjectModel
+---@field position? number[] [x,y] or [x,y,z] flattened into Transform2D/3D
+---@field velocity? number[] flattened into Rigidbody2D/3D
+---@field ttl? number seconds until auto-destroy via Timer.after (use Script.after or Entity.spawn_ttl)
+---@field components? table explicit component blocks; shorthand never overwrites these
+---@param entity_id string
+---@param options EntitySpawnOptions
+---@return boolean ok
+---@return integer timer_id ttl timer when ttl > 0, else 0
+function Entity.spawn(entity_id, options) end
 ---@param entity_id string
 ---@param spec table
 ---@return boolean
@@ -489,6 +573,120 @@ function Sprite2D.set_material(entity_id, material) end
 ---@class AnimationService
 Animation = {}
 
+---@class Vector2Service
+Vector2 = {}
+---@param left number[]
+---@param right number[]
+---@return number[]
+function Vector2.add(left, right) end
+---@param left number[]
+---@param right number[]
+---@return number[]
+function Vector2.subtract(left, right) end
+---@param value number[]
+---@param amount number
+---@return number[]
+function Vector2.scale(value, amount) end
+---@param value number[]
+---@return number
+function Vector2.length(value) end
+---@param value number[]
+---@return number[]
+function Vector2.normalized(value) end
+---@param left number[]
+---@param right number[]
+---@return number
+function Vector2.dot(left, right) end
+---@param from number[]
+---@param to number[]
+---@param amount number
+---@return number[]
+function Vector2.lerp(from, to, amount) end
+
+---@class Vector3Service
+Vector3 = {}
+---@param left number[]
+---@param right number[]
+---@return number[]
+function Vector3.add(left, right) end
+---@param left number[]
+---@param right number[]
+---@return number[]
+function Vector3.subtract(left, right) end
+---@param value number[]
+---@param amount number
+---@return number[]
+function Vector3.scale(value, amount) end
+---@param value number[]
+---@return number
+function Vector3.length(value) end
+---@param value number[]
+---@return number[]
+function Vector3.normalized(value) end
+---@param left number[]
+---@param right number[]
+---@return number
+function Vector3.dot(left, right) end
+---@param left number[]
+---@param right number[]
+---@return number[]
+function Vector3.cross(left, right) end
+---@param from number[]
+---@param to number[]
+---@param amount number
+---@return number[]
+function Vector3.lerp(from, to, amount) end
+
+---@class MathfService
+Mathf = {}
+---@param minimum number
+---@param maximum number
+---@param value number
+---@return number
+function Mathf.smoothstep(minimum, maximum, value) end
+
+---@class TwoBoneIkOptions2D
+---@field root number[]
+---@field target number[]
+---@field pole number[]
+---@field upper_length number
+---@field lower_length number
+---@class TwoBoneIkResult2D
+---@field joint number[]
+---@field end_position number[]
+---@field reached boolean
+---@param options TwoBoneIkOptions2D
+---@return TwoBoneIkResult2D|nil
+function Animation.solve_two_bone_2d(options) end
+
+---@class TwoBoneIkOptions3D
+---@field root number[]
+---@field target number[]
+---@field pole number[]
+---@field upper_length number
+---@field lower_length number
+---@class TwoBoneIkResult3D
+---@field joint number[]
+---@field end_position number[]
+---@field reached boolean
+---@param options TwoBoneIkOptions3D
+---@return TwoBoneIkResult3D|nil
+function Animation.solve_two_bone_3d(options) end
+
+---@class BoneSegment3D
+---@field start number[] World-space bone head.
+---@field tail number[] World-space bone tail.
+---@field pole number[] World-space roll hint.
+---@param entity_id string
+---@param bone string
+---@param segment BoneSegment3D
+---@return boolean
+function Animation.set_bone_segment(entity_id, bone, segment) end
+
+---@param entity_id string
+---@return boolean
+function Animation.clear_bone_segments(entity_id) end
+
 ---Returns the active named state, or an empty string when unavailable.
 ---@param entity_id string
 ---@return string
@@ -591,6 +789,10 @@ Timer = {}
 ---@param callback fun(timer_id: integer)
 ---@return integer timer_id
 function Timer.delay(seconds, callback) end
+---@param seconds number One-shot timer; intent-revealing alias of delay. Bind lifetime via Script.after.
+---@param callback fun(timer_id: integer)
+---@return integer timer_id
+function Timer.after(seconds, callback) end
 ---@param seconds number
 ---@param callback fun(timer_id: integer)
 ---@return integer timer_id
@@ -721,6 +923,16 @@ Physics = {}
 function Physics.set_enabled(enabled) end
 ---@return boolean
 function Physics.enabled() end
+---@param entity_id string entity to match on either side of the contact
+---@param callback fun(contact: table) receives enter-phase trigger payloads (2D + 3D)
+---@return integer sub_2d
+---@return integer sub_3d
+function Physics.on_trigger(entity_id, callback) end
+---@param entity_id string entity to match on either side of the contact
+---@param callback fun(contact: table) receives enter-phase collision payloads (2D + 3D)
+---@return integer sub_2d
+---@return integer sub_3d
+function Physics.on_collision(entity_id, callback) end
 
 ---@class Rigidbody2DService
 Rigidbody2D = {}
@@ -768,6 +980,14 @@ function Rigidbody2D.set_awake(entity_id, awake) end
 ---@return boolean
 function Rigidbody2D.set_enabled(entity_id, enabled) end
 ---@param entity_id string
+---@param continuous boolean
+---@return boolean
+function Rigidbody2D.set_continuous(entity_id, continuous) end
+---@param entity_id string
+---@param report_contacts boolean
+---@return boolean
+function Rigidbody2D.set_report_contacts(entity_id, report_contacts) end
+---@param entity_id string
 ---@param x number
 ---@param y number
 ---@param fixed_dt? number
@@ -780,6 +1000,9 @@ function Rigidbody2D.move_kinematic(entity_id, x, y, fixed_dt) end
 function Rigidbody2D.move_and_slide(entity_id, motion_x, motion_y) end
 
 ---@class Rigidbody3DService
+-- Entity.create Rigidbody3D definitions accept solver_velocity_steps and
+-- solver_position_steps (integers 0..128). Zero retains backend defaults;
+-- higher values increase contact-solving work for the connected body island.
 Rigidbody3D = {}
 ---@param entity_id string
 ---@return number|nil x
@@ -818,6 +1041,14 @@ function Rigidbody3D.set_awake(entity_id, awake) end
 ---@param enabled boolean
 ---@return boolean
 function Rigidbody3D.set_enabled(entity_id, enabled) end
+---@param entity_id string
+---@param continuous boolean
+---@return boolean
+function Rigidbody3D.set_continuous(entity_id, continuous) end
+---@param entity_id string
+---@param report_contacts boolean
+---@return boolean
+function Rigidbody3D.set_report_contacts(entity_id, report_contacts) end
 ---@param entity_id string
 ---@param x number
 ---@param y number
@@ -1460,6 +1691,47 @@ function Save.last_error() end
 ---@param slot string
 ---@return boolean
 function Save.exists(slot) end
+
+---End-to-end test API. Available when the runtime launches in test mode
+---(`demi test linux`, `demi run --e2e-tests`, or the `.demi_run_tests`
+---device marker). Touches resolve HUD nodes by id through the live layout
+---and flow through the real input pipeline.
+---@class TestService
+Test = {}
+---Taps the center of a HUD node by id. Yields until the tap completes.
+---@param node_id string
+function Test.touch(node_id) end
+---Taps a canvas-space position.
+---@param x number
+---@param y number
+function Test.tap(x, y) end
+---Swipes between two HUD node centers over `duration` seconds.
+---@param from_node_id string
+---@param to_node_id string
+---@param duration? number Defaults to 0.4
+function Test.swipe(from_node_id, to_node_id, duration) end
+---Swipes between two canvas-space positions over `duration` seconds.
+---@param from_x number
+---@param from_y number
+---@param to_x number
+---@param to_y number
+---@param duration? number Defaults to 0.4
+function Test.swipe_xy(from_x, from_y, to_x, to_y, duration) end
+---Waits `seconds` of game time before resuming the test.
+---@param seconds number
+function Test.wait(seconds) end
+---Waits until the active scene id matches, or fails the test on timeout.
+---@param scene_id string
+---@param timeout? number Defaults to 10
+function Test.expect_scene(scene_id, timeout) end
+---Fails the running test with `message` unless `condition` is truthy.
+---@param condition any
+---@param message string
+function Test.expect(condition, message) end
+---Returns the resolved center of a HUD node in canvas units, or nil.
+---@param node_id string
+---@return number[]?
+function Test.node_center(node_id) end
 ---@param slot string
 ---@return boolean
 function Save.delete(slot) end
@@ -1778,6 +2050,9 @@ function TlsServer.events() end
 function TlsServer.send(client_id, message) end
 ---@param client_id integer
 function TlsServer.disconnect(client_id) end
+---@param client_id integer
+---@return boolean
+function TlsServer.client_connected(client_id) end
 ---@return string
 function TlsServer.error() end
 
@@ -1863,7 +2138,7 @@ NetworkSession = {}
 ---@field rotation? number
 ---@field scale? number[]
 ---@field color? number[]
----@param options {send_interval?: number, extrapolation_limit?: number, initial_prediction?: number, channel?: integer, port?: integer, max_peers?: integer, remote_prefab?: NetworkRemotePrefab, certificate?: string, private_key?: string, trusted_certificate?: string, server_name?: string}
+---@param options {send_interval?: number, extrapolation_limit?: number, initial_prediction?: number, interpolation_delay?: number, snapshot_buffer?: integer, input_queue_capacity?: integer, input_future_window?: integer, input_head_of_line_timeout?: number, input_max_per_tick?: integer, prediction_history_limit?: integer, prediction_visual_decay?: number, query_history_capacity?: integer, query_history_max_entities?: integer, query_history_rewind_ticks?: integer, channel?: integer, port?: integer, max_peers?: integer, remote_prefab?: NetworkRemotePrefab, certificate?: string, private_key?: string, trusted_certificate?: string, server_name?: string}
 function NetworkSession.configure(options) end
 ---@return string
 function NetworkSession.sender_id() end
@@ -1962,6 +2237,155 @@ function NetworkSession.process_events() end
 ---@param dt number
 ---@return boolean
 function NetworkSession.update_entity(network_id, dt) end
+---Associates an authoritative spawn owned by this peer with its local scene
+---entity. Ownership and entity existence are validated by the runtime.
+---@param network_id string
+---@param entity_id string
+---@return boolean
+function NetworkSession.bind_local_entity(network_id, entity_id) end
+
+---@class NetworkPredictionOptions
+---@field network_id string Network entity the local peer owns and predicts.
+---@field state table Serializable initial controller state; gameplay-defined.
+---@field apply fun(state: table, input: table): table Deterministic replay callback returning the new state.
+---@field input_message? string Declared contract message used to carry inputs to the server.
+---@class NetworkSnapshotPublishOptions
+---@field marker? "normal"|"teleport"|"reset" Correction marker; reset and teleport clear client history.
+---@class NetworkPredictionServerDiagnostics
+---@field last_acked integer
+---@field pending integer
+---@field accepted integer
+---@field rejected_old integer
+---@field rejected_duplicate integer
+---@field rejected_future integer
+---@field rejected_capacity integer
+---@field rejected_malformed integer
+---@field discarded_gaps integer
+---@field discarded_rejected integer
+---@class NetworkInterpolationDiagnostics
+---@field buffer_depth integer
+---@field accepted integer
+---@field dropped_stale integer
+---@field dropped_overflow integer
+---@field cleared_for_epoch integer
+---@field cleared_for_generation integer
+---@field interpolated integer
+---@field extrapolated integer
+---@field clamped integer
+---@field snapped integer
+---@class NetworkPredictionChannelDiagnostics
+---@field prediction_enabled boolean
+---@field input_message string
+---@field next_sequence integer
+---@field pending_replay integer
+---@field corrections integer
+---@field replayed_commands integer
+---@field discarded_inputs integer
+---@field dropped_history integer
+---@field snaps integer
+---@field rebases integer
+---@field ownership_changes integer
+---@field stale_snapshots integer
+---@field last_correction_distance number
+---@field last_divergence number
+---@field visual_offset table<string, number>
+---@field server NetworkPredictionServerDiagnostics
+---@field interpolation NetworkInterpolationDiagnostics
+---@class NetworkPredictionDiagnostics
+---@field channels table<string, NetworkPredictionChannelDiagnostics>
+---Evaluates queued owner inputs in sequence order at the authoritative fixed
+---tick. Rejected, duplicate, stale, and discarded-gap inputs advance the
+---acknowledgment without reaching gameplay. Host with a network contract only.
+---@param network_id string
+---@return table inputs Ordered accepted inputs, each carrying its seq field.
+function NetworkSession.take_inputs(network_id) end
+---Publishes an authoritative controller-state snapshot carrying the session
+---epoch, ownership generation, server tick, last-evaluated input sequence,
+---and a bounded sanitized rejection code. Host with a network contract only.
+---@param network_id string
+---@param state table Serializable authoritative controller state.
+---@param options? NetworkSnapshotPublishOptions
+---@return boolean
+function NetworkSession.publish_snapshot(network_id, state, options) end
+---Enables opt-in local prediction for an owned entity. The apply callback
+---must be deterministic and define the replayable controller state.
+---@param options NetworkPredictionOptions
+---@return boolean
+function NetworkSession.enable_prediction(options) end
+---@param network_id string
+---@return boolean
+function NetworkSession.disable_prediction(network_id) end
+---Re-bases predicted state after a scene transition without restarting the
+---input sequence space within the current session epoch.
+---@param network_id string
+---@param state table
+---@return boolean
+function NetworkSession.reset_prediction(network_id, state) end
+---Applies one input immediately to the predicted state, records it for
+---replay, and sends it through the declared input message when connected.
+---@param network_id string
+---@param input table
+---@return integer|nil sequence
+function NetworkSession.predict_input(network_id, input) end
+---@param network_id string
+---@return table|nil state Current reconciled and replayed controller state.
+function NetworkSession.prediction_state(network_id) end
+---@param network_id string
+---@return table<string, number>|nil offset Render-only decaying visual offset.
+function NetworkSession.prediction_visual_offset(network_id) end
+---Returns the interpolated authoritative state for a non-owned entity.
+---@param network_id string
+---@return table|nil state
+function NetworkSession.remote_state(network_id) end
+---@return NetworkPredictionDiagnostics
+function NetworkSession.prediction_diagnostics() end
+
+---@class NetworkHistoricalCircle2D
+---@field entity_id string Stable network entity ID.
+---@field layer? string Optional query layer.
+---@field x number
+---@field y number
+---@field radius number
+---@class NetworkHistoricalRaycastHit2D
+---@field entity_id string
+---@field layer string
+---@field sampled_tick integer
+---@field x number
+---@field y number
+---@field normal_x number
+---@field normal_y number
+---@field distance number
+---@class NetworkQueryHistoryDiagnostics2D
+---@field depth integer
+---@field latest_tick integer
+---@field recorded integer
+---@field rejected integer
+---@field dropped integer
+---@field queries integer
+---@field clamped_queries integer
+---@field misses integer
+---Records selected authoritative collision circles without mutating the live
+---world. Host with a network contract only; bounds are configured explicitly.
+---@param server_tick integer
+---@param circles NetworkHistoricalCircle2D[]
+---@return boolean
+function NetworkSession.record_query_snapshot(server_tick, circles) end
+---Raycasts a bounded historical snapshot for server-side lag compensation.
+---@param requested_tick integer
+---@param origin_x number
+---@param origin_y number
+---@param direction_x number
+---@param direction_y number
+---@param maximum_distance number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return NetworkHistoricalRaycastHit2D|nil
+function NetworkSession.historical_raycast(requested_tick, origin_x, origin_y, direction_x, direction_y, maximum_distance, layer, ignored_entity_id) end
+---@return NetworkQueryHistoryDiagnostics2D
+function NetworkSession.query_history_diagnostics() end
+---Clears detached query history during an authoritative scene/reset boundary.
+---@return boolean
+function NetworkSession.clear_query_history() end
 
 ---@class DemiScript
 ---@field entity_id? string
@@ -2070,3 +2494,23 @@ function DemiScript:on_ui_scroll(event) end
 ---@field speed? number
 ---@field root_motion? boolean
 ---@field pause_policy? string
+
+---@class DemiScriptModule
+---@field bind fun(self: table): table Wrap a script table; enables self:on/self:after/self:move helpers.
+---@field release fun(self: table) Release subscriptions/timers created via self:on/self:after. Call from on_destroy.
+---@field on fun(self: table, event_name: string, callback: fun(payload: table)): integer
+---@field after fun(self: table, seconds: number, callback: fun(timer_id: integer)): integer
+---@field move fun(self: table, dx: number, dy: number): boolean
+---@field teleport fun(self: table, x: number, y: number): boolean
+---@field move3d fun(self: table, dx: number, dy: number, dz: number): boolean
+---@field set_text fun(self: table, node_id: string, text: string): boolean
+---@field input_vector fun(self: table, action: string, player?: integer): number, number
+
+---@class DemiUiModule
+---@field bind_list fun(collection_id: string, template_id: string, keys: string[], extents: number[], scroll_offset: number, viewport_extent: number, overscan?: integer, render_fn?: fun(row: table, key: string)): table
+---@field filter_list fun(collection_id: string, template_id: string, items: table[], pattern: string, key_fn: fun(item: table): string, match_fn: fun(item: table, pattern: string): boolean, render_fn: fun(row: table, item: table), row_extent?: number, viewport_extent?: number, overscan?: integer): table
+---@field scroll_panel fun(panel_id: string, row_extent: number, viewport_extent: number, item_count_fn: fun(): integer, apply_fn?: fun(scroll: number)): table
+---@field tabs fun(tabs: table<string,string>, focus?: table<string,string>)
+---@field show_only fun(visible_id: string, hidden_ids?: string[])
+---@field dropdown fun(button_id: string, options_id: string, open: boolean, label?: string)
+---@field modal fun(modal_id: string, visible: boolean)

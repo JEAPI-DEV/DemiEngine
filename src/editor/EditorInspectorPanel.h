@@ -15,6 +15,6 @@ struct EditorInspectorPanelState {
 
 void drawInspectorPanel(EditorWorkspace &workspace, ImVec2 position,
                         ImVec2 size, EditorInspectorPanelState &state,
-                        std::string &notice);
+                        std::string &notice, bool *open = nullptr);
 
 } // namespace demi::editor

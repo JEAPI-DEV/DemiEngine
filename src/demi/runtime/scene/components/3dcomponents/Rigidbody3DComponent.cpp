@@ -26,6 +26,14 @@ void Rigidbody3DComponent::parse(const nlohmann::json &json, Entity &entity) {
     component.restitution = std::clamp(*value, 0.0F, 1.0F);
   component.continuous =
       scene_loading::boolField(json, "continuous").value_or(false);
+  if (auto value = scene_loading::numberField(json, "solver_velocity_steps"))
+    component.solverVelocitySteps =
+        static_cast<int>(std::clamp(*value, 0.0F, 128.0F));
+  if (auto value = scene_loading::numberField(json, "solver_position_steps"))
+    component.solverPositionSteps =
+        static_cast<int>(std::clamp(*value, 0.0F, 128.0F));
+  component.reportContacts =
+      scene_loading::boolField(json, "report_contacts").value_or(true);
   component.allowSleep =
       scene_loading::boolField(json, "allow_sleep").value_or(true);
   component.awake = scene_loading::boolField(json, "awake").value_or(true);

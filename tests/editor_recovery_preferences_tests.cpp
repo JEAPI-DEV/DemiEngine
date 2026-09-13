@@ -4,6 +4,8 @@
 
 #include <cassert>
 #include <filesystem>
+#include <fstream>
+#include <limits>
 
 int main() {
   namespace fs = std::filesystem;
@@ -32,7 +34,8 @@ int main() {
   assert(!recovery.load(project, error));
 
   EditorPreferencesStore preferencesStore(temporary / "data");
-  EditorPreferences preferences{.translationSnap = 0.25F,
+  EditorPreferences preferences{.uiScale = 1.5F,
+                                .translationSnap = 0.25F,
                                 .rotationSnapDegrees = 5.0F,
                                 .scaleSnap = 0.05F,
                                 .showBounds3D = true,
@@ -41,6 +44,39 @@ int main() {
   EditorPreferences restored;
   assert(preferencesStore.load(restored, error));
   assert(restored == preferences);
+  for (const float invalid :
+       {0.0F, 3.0F, std::numeric_limits<float>::infinity()}) {
+    auto invalidPreferences = preferences;
+    invalidPreferences.uiScale = invalid;
+    assert(!preferencesStore.save(invalidPreferences, error));
+    assert(preferencesStore.load(restored, error));
+    assert(restored == preferences);
+  }
+  {
+    std::ofstream output(temporary / "data/preferences.json");
+    output << R"({"format_version":1})";
+  }
+  assert(preferencesStore.load(restored, error));
+  assert(restored.uiScale == 1.0F);
+
+  EditorWorkspace prefabEdited;
+  error.clear();
+  const fs::path prefabProject =
+      fs::path(DEMI_SOURCE_DIR) / "examples/performance_3d_lab";
+  assert(prefabEdited.open(prefabProject, error));
+  assert(prefabEdited.openPrefabDocument(
+      prefabProject / "prefabs/barrel.prefab.json", error));
+  assert(prefabEdited.editValue({.entityId = "body", .field = "name"},
+                                "Recovered barrel", false, error));
+  EditorWorkspace prefabRecovered;
+  assert(prefabRecovered.open(prefabProject, error));
+  assert(prefabRecovered.applyRecovery(
+      {.projectPath = prefabRecovered.projectPath(),
+       .documents = prefabEdited.dirtyDocuments()},
+      error));
+  assert(prefabRecovered.isPrefabDocument());
+  assert(prefabRecovered.selectedEntity()->name == "Recovered barrel");
+  assert(prefabRecovered.sceneDocument().isDirty());
 
   const fs::path source = DEMI_SOURCE_DIR;
   EditorWorkspace edited;

@@ -160,6 +160,46 @@ parseScriptComponentMetadata(const std::filesystem::path &path,
       propertyOptions.clear();
       continue;
     }
+    // Compact form: ---@prop number(0,20) Move Speed desugars to the
+    // demi_property/label/range triple. ---@prop Type Label... with an
+    // optional (min,max) range; label is everything after the type token.
+    if (const auto value = annotation(line, "prop")) {
+      pendingProperty = true;
+      propertyLabel.clear();
+      propertyDescription.clear();
+      propertyRange.reset();
+      propertyOptions.clear();
+      std::string rest = trim(*value);
+      std::string typeToken;
+      const std::size_t space = rest.find_first_of(" \t");
+      if (space == std::string::npos) {
+        typeToken = rest;
+        rest.clear();
+      } else {
+        typeToken = rest.substr(0, space);
+        rest = trim(rest.substr(space + 1));
+      }
+      const std::size_t paren = typeToken.find('(');
+      if (paren != std::string::npos) {
+        const std::size_t close = typeToken.find(')', paren);
+        if (close != std::string::npos) {
+          std::string rangeText = typeToken.substr(paren + 1, close - paren - 1);
+          std::replace(rangeText.begin(), rangeText.end(), ',', ' ');
+          std::stringstream range(rangeText);
+          double minimum = 0.0;
+          double maximum = 0.0;
+          if (!(range >> minimum >> maximum)) {
+            error = "@prop expects (min max) numbers.";
+            return std::nullopt;
+          }
+          propertyRange = {minimum, maximum};
+        }
+        typeToken = typeToken.substr(0, paren);
+      }
+      propertyType = trim(typeToken);
+      propertyLabel = rest;
+      continue;
+    }
     if (const auto value = annotation(line, "type"); value && pendingProperty) {
       propertyType = *value;
       continue;

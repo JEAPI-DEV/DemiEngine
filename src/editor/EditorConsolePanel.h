@@ -23,7 +23,7 @@ public:
   void draw(EditorWorkspace &workspace, EditorPlaySession &playSession,
             ImVec2 position, ImVec2 size,
             const EditorProjectOperationSnapshot &operation,
-            std::string &notice);
+            std::string &notice, bool *open = nullptr);
   [[nodiscard]] std::optional<std::filesystem::path> takeOpenRequest();
 
 private:

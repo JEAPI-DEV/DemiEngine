@@ -1,5 +1,6 @@
 #include "demi/runtime/platform/PlatformHost.h"
 
+#include "demi/runtime/diagnostics/DeviceLog.h"
 #include "demi/runtime/platform/PlatformInput.h"
 #include "demi/runtime/platform/SdlNativeWindow.h"
 
@@ -9,18 +10,85 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+#if defined(__ANDROID__)
+#include <jni.h>
+#endif
 
 namespace demi::runtime::platform {
 
 namespace {
 
 using Clock = std::chrono::steady_clock;
+
+#if defined(__ANDROID__)
+bool androidPermissionPermanentlyDenied(const char *permission) {
+  auto *environment = static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
+  auto activity = static_cast<jobject>(SDL_GetAndroidActivity());
+  if (environment == nullptr || activity == nullptr)
+    return false;
+  const jclass activityClass = environment->GetObjectClass(activity);
+  const jmethodID method = environment->GetMethodID(
+      activityClass, "shouldShowRequestPermissionRationale",
+      "(Ljava/lang/String;)Z");
+  const jstring name = environment->NewStringUTF(permission);
+  const bool permanentlyDenied =
+      method != nullptr && name != nullptr &&
+      !environment->CallBooleanMethod(activity, method, name);
+  if (environment->ExceptionCheck()) {
+    environment->ExceptionClear();
+    environment->DeleteLocalRef(activityClass);
+    if (name != nullptr)
+      environment->DeleteLocalRef(name);
+    return false;
+  }
+  if (name != nullptr)
+    environment->DeleteLocalRef(name);
+  environment->DeleteLocalRef(activityClass);
+  return permanentlyDenied;
+}
+
+bool requestAndroidFrameRate(const float framesPerSecond) {
+  auto *environment = static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
+  auto activity = static_cast<jobject>(SDL_GetAndroidActivity());
+  if (environment == nullptr || activity == nullptr)
+    return false;
+  const jclass activityClass = environment->GetObjectClass(activity);
+  const jmethodID method = environment->GetMethodID(
+      activityClass, "setDemiPreferredFrameRate", "(F)Z");
+  const bool accepted =
+      method != nullptr &&
+      environment->CallBooleanMethod(activity, method, framesPerSecond);
+  if (environment->ExceptionCheck()) {
+    environment->ExceptionDescribe();
+    environment->ExceptionClear();
+    environment->DeleteLocalRef(activityClass);
+    return false;
+  }
+  environment->DeleteLocalRef(activityClass);
+  return accepted;
+}
+
+struct AndroidPermissionRequest {
+  std::function<void(bool, bool)> result;
+};
+
+void SDLCALL permissionResult(void *userdata, const char *permission,
+                              const bool granted) {
+  std::unique_ptr<AndroidPermissionRequest> request(
+      static_cast<AndroidPermissionRequest *>(userdata));
+  request->result(granted,
+                  !granted && androidPermissionPermanentlyDenied(permission));
+}
+#endif
 
 std::string_view keyName(const SDL_Scancode key) {
   switch (key) {
@@ -102,6 +170,8 @@ std::string_view keyName(const SDL_Scancode key) {
     return "return";
   case SDL_SCANCODE_ESCAPE:
     return "escape";
+  case SDL_SCANCODE_AC_BACK:
+    return "back";
   case SDL_SCANCODE_TAB:
     return "tab";
   case SDL_SCANCODE_BACKSPACE:
@@ -262,7 +332,12 @@ public:
       SDL_Quit();
       return false;
     }
+    // Android pops the software keyboard whenever text input is active, so
+    // only desktop platforms start text input eagerly; Android games opt in
+    // through ApplicationServices::setKeyboardVisible instead.
+#if !defined(__ANDROID__)
     SDL_StartTextInput(window_);
+#endif
     SDL_AddEventWatch(&SdlPlatformHost::watchLifecycle, this);
     lastFrame_ = Clock::now();
     updateWindowState();
@@ -292,6 +367,7 @@ public:
     updateWindowState();
     state_.lowMemorySignals = pendingLowMemorySignals_;
     pendingLowMemorySignals_ = 0;
+    state_.backRequests = 0;
 
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -301,6 +377,9 @@ public:
         break;
       case SDL_EVENT_KEY_DOWN:
       case SDL_EVENT_KEY_UP:
+        if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat &&
+            event.key.scancode == SDL_SCANCODE_AC_BACK)
+          ++state_.backRequests;
         if (const std::string_view name = keyName(event.key.scancode);
             !name.empty())
           input.key(name, event.key.down, event.key.repeat);
@@ -414,10 +493,29 @@ public:
       }
     }
     updateWindowState();
+    if (const SDL_DisplayMode *mode =
+            SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window_));
+        mode != nullptr && mode->refresh_rate > 0) {
+      state_.displayRefreshHz = mode->refresh_rate;
+    }
     const Clock::time_point now = Clock::now();
-    state_.deltaSeconds = std::clamp(
-        std::chrono::duration<float>(now - lastFrame_).count(), 0.0F, 0.1F);
+    state_.wallDeltaSeconds =
+        std::chrono::duration<double>(now - lastFrame_).count();
+    state_.deltaSeconds =
+        std::clamp(static_cast<float>(state_.wallDeltaSeconds), 0.0F, 0.1F);
+    state_.deltaOverridden = false;
     lastFrame_ = now;
+    // Opt-in determinism for headless replay tests: a fixed delta seconds
+    // removes wall-clock sensitivity so scripted input sequences always
+    // advance the simulation by the same amount per frame.
+    if (const char *fixedDelta = std::getenv("DEMI_FIXED_DELTA_SECONDS");
+        fixedDelta != nullptr && *fixedDelta != '\0') {
+      try {
+        state_.deltaSeconds = std::max(std::stof(fixedDelta), 0.0F);
+        state_.deltaOverridden = true;
+      } catch (...) {
+      }
+    }
   }
 
   void clearQuitRequest() override { state_.quitRequested = false; }
@@ -453,6 +551,15 @@ public:
     return false;
   }
 
+  bool requestFrameRate(const float framesPerSecond) override {
+#if defined(__ANDROID__)
+    return requestAndroidFrameRate(std::max(framesPerSecond, 0.0F));
+#else
+    (void)framesPerSecond;
+    return false;
+#endif
+  }
+
   std::string clipboard() const override {
     const char *text = SDL_GetClipboardText();
     const std::string result = text != nullptr ? text : "";
@@ -467,7 +574,31 @@ public:
     return false;
   }
 
+  bool requestPermission(const std::string &permission,
+                         std::function<void(bool, bool)> result,
+                         std::string &error) override {
+#if defined(__ANDROID__)
+    auto request = std::make_unique<AndroidPermissionRequest>(
+        AndroidPermissionRequest{.result = std::move(result)});
+    if (!SDL_RequestAndroidPermission(permission.c_str(), permissionResult,
+                                      request.get())) {
+      error = SDL_GetError();
+      return false;
+    }
+    (void)request.release();
+    return true;
+#else
+    (void)permission;
+    (void)error;
+    result(true, false);
+    return true;
+#endif
+  }
+
 private:
+#if defined(__ANDROID__)
+  static constexpr std::chrono::milliseconds kSurfaceSettleDelay{250};
+#endif
   static bool SDLCALL watchLifecycle(void *userdata, SDL_Event *event) {
     auto &host = *static_cast<SdlPlatformHost *>(userdata);
     switch (event->type) {
@@ -499,6 +630,38 @@ private:
     const SDL_WindowFlags flags = SDL_GetWindowFlags(window_);
     state_.focused = (flags & SDL_WINDOW_INPUT_FOCUS) != 0;
     state_.minimized = (flags & SDL_WINDOW_MINIMIZED) != 0;
+#if defined(__ANDROID__)
+    const void *nativeWindow = sdlNativeWindowHandle(window_).window;
+    const bool previousDrawable = state_.drawableAvailable;
+    state_.drawableAvailable = nativeWindow != nullptr &&
+                               (flags & SDL_WINDOW_HIDDEN) == 0 &&
+                               !state_.minimized;
+    if (nativeWindow != nativeWindow_) {
+      const void *previousWindow = nativeWindow_;
+      nativeWindow_ = nativeWindow;
+      ++state_.surfaceGeneration;
+      lastSurfaceChange_ = Clock::now();
+      if (nativeWindow != nullptr)
+        deviceLog(deviceLogMessage(
+            "surface", "Native window " + devicePointerText(previousWindow) +
+                           " -> " + devicePointerText(nativeWindow) +
+                           ", surface generation " +
+                           std::to_string(state_.surfaceGeneration) + "."));
+    }
+    state_.surfaceSettled =
+        Clock::now() - lastSurfaceChange_ >= kSurfaceSettleDelay;
+    if (state_.drawableAvailable != previousDrawable)
+      deviceLog(deviceLogMessage(
+          "surface",
+          state_.drawableAvailable
+              ? "Drawable available."
+              : "Drawable unavailable (native window " +
+                    devicePointerText(nativeWindow) + ", hidden " +
+                    std::to_string((flags & SDL_WINDOW_HIDDEN) != 0) +
+                    ", minimized " + std::to_string(state_.minimized) + ")."));
+#else
+    state_.drawableAvailable = true;
+#endif
 #if !defined(__ANDROID__)
     state_.suspended = state_.minimized;
 #endif
@@ -532,6 +695,10 @@ private:
   int windowHeight_ = 1;
   Clock::time_point lastFrame_;
   unsigned pendingLowMemorySignals_ = 0;
+#if defined(__ANDROID__)
+  const void *nativeWindow_ = nullptr;
+  Clock::time_point lastSurfaceChange_{};
+#endif
 };
 
 } // namespace

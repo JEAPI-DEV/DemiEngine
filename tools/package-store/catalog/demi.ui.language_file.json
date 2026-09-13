@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "title": "UI Localization",
+  "description": "Load YAML language files and apply translations to native HUD variables. Cache language data and keep copy outside gameplay code.",
+  "publisher": "DemiEngine",
+  "license": "BSD-3-Clause",
+  "kind": "code",
+  "category": "UI",
+  "price": 0,
+  "images": [],
+  "tags": ["ui","localization"]
+}

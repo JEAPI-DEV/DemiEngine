@@ -1,0 +1,30 @@
+{
+  "format_version": 1,
+  "id": "scene://performance_3d_lab/denting",
+  "name": "Native Mesh Denting",
+  "hud": "denting.hud.json",
+  "entities": [
+    { "id": "camera", "components": {
+      "Transform3D": { "position": [0, 1.1, 4] },
+      "Camera3D": { "target_offset": [0, -0.55, -4], "fov": 38 }
+    } },
+    { "id": "sun", "components": { "DirectionalLight": { "direction": [-0.5, -0.7, -1], "intensity": 1.5 } } },
+    { "id": "floor", "components": {
+      "Transform3D": { "position": [0, -0.05, 0] },
+      "MeshRenderer": { "shape": "cube", "size": [8, 0.1, 8], "color": [0.12, 0.14, 0.18, 1] },
+      "BoxCollider3D": { "size": [8, 0.1, 8] }
+    } },
+    { "id": "reference_barrel", "components": {
+      "Transform3D": { "position": [-0.7, 0.475, 0] },
+      "MeshRenderer": { "model": "asset://models/barrel", "color": [1, 1, 1, 1] },
+      "ModelCollider3D": { "asset": "asset://colliders/barrel" }
+    } },
+    { "id": "dent_barrel", "components": {
+      "Dentable3D": {},
+      "Transform3D": { "position": [0.7, 0.475, 0] },
+      "MeshRenderer": { "model": "asset://models/barrel", "color": [1, 1, 1, 1] },
+      "ModelCollider3D": { "asset": "asset://colliders/barrel" }
+    } },
+    { "id": "dent_demo", "components": { "LuaScript": { "module": "script://scripts/denting.lua" } } }
+  ]
+}

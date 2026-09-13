@@ -1,6 +1,7 @@
 #include "demi/runtime/scene/SceneAssetReferences.h"
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/runtime/scene/ComponentRegistry.h"
 
 #include <set>
 
@@ -13,6 +14,26 @@ collectSceneAssetReferences(const World &world,
   for (const Entity &entity : world.entities) {
     if (!sceneOwner.empty() && entity.sceneOwner != sceneOwner)
       continue;
+    // Prefer authored component JSON (the exact authored payload) and fall
+    // back to serializedComponents (populated for prefab-instantiated and
+    // runtime-created entities). Scene-loaded entities only carry authored
+    // components, so without this the implicit scene asset group resolves
+    // empty and referenced assets never become resident.
+    for (const std::shared_ptr<const Component> &authored :
+         entity.authoredComponents) {
+      if (authored == nullptr)
+        continue;
+      try {
+        const auto values =
+            nlohmann::json::parse(authored->json(), nullptr, false);
+        if (!values.is_object())
+          continue;
+        const auto assets = extractAssetReferences(values.dump());
+        references.insert(assets.begin(), assets.end());
+      } catch (const nlohmann::json::exception &) {
+        continue;
+      }
+    }
     for (const auto &[unused, serialized] : entity.serializedComponents) {
       (void)unused;
       const auto assets = extractAssetReferences(serialized);

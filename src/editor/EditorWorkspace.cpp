@@ -2,17 +2,31 @@
 
 #include "editor/EditorIsoGridCell.h"
 #include "editor/EditorIsoGridCellDocument.h"
+#include "editor/EditorScenePreview.h"
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/scene/SceneEntityParser.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/IsoGridComponent.h"
+#include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/schema/Validation.h"
 
 #include <algorithm>
 #include <iterator>
 
 namespace demi::editor {
+namespace {
+
+std::filesystem::path normalized(const std::filesystem::path &path) {
+  return std::filesystem::absolute(path).lexically_normal();
+}
+
+bool samePath(const std::filesystem::path &left,
+              const std::filesystem::path &right) {
+  return normalized(left) == normalized(right);
+}
+
+} // namespace
 
 bool EditorWorkspace::open(std::filesystem::path projectPath,
                            std::string &error) {
@@ -26,6 +40,12 @@ bool EditorWorkspace::open(std::filesystem::path projectPath,
 
   projectPath_ = std::move(projectPath);
   project_ = std::move(loaded);
+  openedHudDocument_.reset();
+  editingPrefab_ = false;
+  lastPrefabPath_.clear();
+  lastScenePath_ = project_->world.scenePath;
+  activeDocument_ = EditorWorkspaceDocument::Scene;
+  usesOpenedHudDocument_ = false;
   if (!projectDocument_.open(projectPath_, error)) {
     project_.reset();
     return false;
@@ -52,6 +72,116 @@ bool EditorWorkspace::open(std::filesystem::path projectPath,
   return true;
 }
 
+bool EditorWorkspace::openSceneDocument(const std::filesystem::path &path,
+                                        std::string &error) {
+  return openEntityDocument(path, false, error);
+}
+
+bool EditorWorkspace::openEntityDocument(const std::filesystem::path &path,
+                                         bool prefab, std::string &error) {
+  if (!project_) {
+    error = "Open a project before opening a scene.";
+    return false;
+  }
+  if (samePath(path, sceneDocument_.path())) {
+    activateSceneDocument();
+    return true;
+  }
+  if (sceneDocument_.isDirty() || (hudDocument_ && hudDocument_->isDirty())) {
+    error =
+        "Save or undo the active scene and its HUD before switching scenes.";
+    return false;
+  }
+
+  const auto entry = std::ranges::find_if(
+      project_->project.scenes, [&](const runtime::SceneEntry &candidate) {
+        return samePath(project_->project.projectDirectory / candidate.path,
+                        path);
+      });
+  if (!prefab && entry == project_->project.scenes.end()) {
+    error =
+        "This scene is not registered in demi.project.json: " + path.string();
+    return false;
+  }
+
+  const std::filesystem::path scenePath =
+      prefab ? path : project_->project.projectDirectory / entry->path;
+  EditorSceneDocument scene;
+  if (!scene.open(scenePath, error))
+    return false;
+  auto world = loadEntityPreview(scene, prefab, error);
+  if (!world)
+    return false;
+
+  std::optional<EditorHudDocument> hud;
+  const auto authoredHud = scene.json().find("hud");
+  if (authoredHud != scene.json().end() && authoredHud->is_string() &&
+      !authoredHud->get_ref<const std::string &>().empty()) {
+    EditorHudDocument candidate;
+    if (!candidate.open(scene.path().parent_path() /
+                            authoredHud->get_ref<const std::string &>(),
+                        error))
+      return false;
+    hud = std::move(candidate);
+  }
+
+  sceneDocument_ = std::move(scene);
+  editingPrefab_ = prefab;
+  if (prefab)
+    lastPrefabPath_ = sceneDocument_.path();
+  else
+    lastScenePath_ = sceneDocument_.path();
+  hudDocument_ = std::move(hud);
+  project_->world = std::move(*world);
+  activeDocument_ = EditorWorkspaceDocument::Scene;
+  usesOpenedHudDocument_ = false;
+  selectedHudNodeId_.clear();
+  selectedEntityIds_.clear();
+  selectedIsoGridCell_.reset();
+  viewportTool_.cancelDrag();
+  viewportTool2D_.cancelDrag();
+  sceneView_.reset(project_->world);
+  sceneView2D_.reset(project_->world);
+  updateSceneDomain(true);
+  if (!project_->world.entities.empty())
+    selectEntity(project_->world.entities.front().id);
+  if (prefab && !selectedEntityId().empty())
+    (void)sceneView_.frameEntity(project_->world, selectedEntityId());
+  sceneView_.studioLighting = prefab;
+  workspaceOperationError_.clear();
+  refreshDiagnostics();
+  return true;
+}
+
+bool EditorWorkspace::openHudDocument(const std::filesystem::path &path,
+                                      std::string &error) {
+  if (hudDocument_ && samePath(path, hudDocument_->path())) {
+    if (openedHudDocument_ && openedHudDocument_->isDirty()) {
+      error = "Save or undo the open HUD before switching HUD documents.";
+      return false;
+    }
+    openedHudDocument_.reset();
+    usesOpenedHudDocument_ = false;
+    activateHudDocument();
+    return true;
+  }
+  if (openedHudDocument_ && samePath(path, openedHudDocument_->path())) {
+    activateHudDocument();
+    return true;
+  }
+  if (openedHudDocument_ && openedHudDocument_->isDirty()) {
+    error = "Save or undo the open HUD before switching HUD documents.";
+    return false;
+  }
+  EditorHudDocument document;
+  if (!document.open(path, error))
+    return false;
+  openedHudDocument_ = std::move(document);
+  usesOpenedHudDocument_ = true;
+  activateHudDocument();
+  return true;
+}
+
 void EditorWorkspace::loadPreviewTilemaps() {
   tilemaps2D_.clear();
   const AssetRegistry registry =
@@ -67,7 +197,8 @@ void EditorWorkspace::loadPreviewTilemaps() {
 
 bool EditorWorkspace::refresh(std::string &error) {
   if (sceneDocument_.isDirty() || projectDocument_.isDirty() ||
-      (hudDocument_ && hudDocument_->isDirty())) {
+      (hudDocument_ && hudDocument_->isDirty()) ||
+      (openedHudDocument_ && openedHudDocument_->isDirty())) {
     error =
         "The scene or project has unsaved changes. Save or undo them before "
         "refreshing.";
@@ -76,11 +207,22 @@ bool EditorWorkspace::refresh(std::string &error) {
   auto loaded = runtime::loadProject(projectPath_, error);
   if (!loaded)
     return false;
+  const std::string activeSceneId = project_->world.activeSceneId;
+  if (!editingPrefab_ && !activeSceneId.empty() &&
+      activeSceneId != loaded->project.mainScene) {
+    auto activeWorld =
+        runtime::loadScene(loaded->project, activeSceneId, error);
+    if (!activeWorld)
+      return false;
+    loaded->world = std::move(*activeWorld);
+  }
   if (!sceneDocument_.reload(error))
     return false;
   if (!projectDocument_.reload(error))
     return false;
   project_ = std::move(loaded);
+  if (editingPrefab_ && !rebuildWorld(error))
+    return false;
   if (!loadHudDocument(error))
     return false;
   viewportTool_.cancelDrag();
@@ -99,22 +241,21 @@ bool EditorWorkspace::refresh(std::string &error) {
 }
 
 bool EditorWorkspace::save(std::string &error) {
-  if (!selectedHudNodeId_.empty() && hudDocument_ && hudDocument_->isDirty())
+  if (activeDocument_ == EditorWorkspaceDocument::Hud && hudDirty())
     return saveHud(error);
   if (!sceneDocument_.save(error)) {
     syncEditorDiagnostic();
     return false;
   }
-  auto loaded = runtime::loadProject(projectPath_, error);
-  if (!loaded)
-    return false;
-  project_ = std::move(loaded);
   refreshDiagnostics();
   return true;
 }
 
 bool EditorWorkspace::saveAll(std::string &error) {
-  if (hudDirty() && !saveHud(error))
+  if (hudDocument_ && hudDocument_->isDirty() && !hudDocument_->save(error))
+    return false;
+  if (openedHudDocument_ && openedHudDocument_->isDirty() &&
+      !openedHudDocument_->save(error))
     return false;
   if (sceneDocument_.isDirty() && !save(error))
     return false;
@@ -127,7 +268,7 @@ std::vector<EditorRecoveryDocument> EditorWorkspace::dirtyDocuments() const {
   std::vector<EditorRecoveryDocument> documents;
   if (sceneDocument_.isDirty())
     documents.push_back({.path = sceneDocument_.path(),
-                         .kind = "scene",
+                         .kind = editingPrefab_ ? "prefab" : "scene",
                          .content = sceneDocument_.json()});
   if (projectDocument_.isDirty())
     documents.push_back({.path = projectDocument_.path(),
@@ -137,19 +278,39 @@ std::vector<EditorRecoveryDocument> EditorWorkspace::dirtyDocuments() const {
     documents.push_back({.path = hudDocument_->path(),
                          .kind = "hud",
                          .content = hudDocument_->json()});
+  if (openedHudDocument_ && openedHudDocument_->isDirty())
+    documents.push_back({.path = openedHudDocument_->path(),
+                         .kind = "hud",
+                         .content = openedHudDocument_->json()});
   return documents;
 }
 
 bool EditorWorkspace::applyRecovery(const EditorRecoverySnapshot &snapshot,
                                     std::string &error) {
+  const auto prefab = std::ranges::find(snapshot.documents, "prefab",
+                                        &EditorRecoveryDocument::kind);
+  if (prefab != snapshot.documents.end()) {
+    if (hasUnsavedChanges()) {
+      error = "Save or undo current changes before restoring a prefab session.";
+      return false;
+    }
+    EditorWorkspace recovered;
+    if (!recovered.open(projectPath_, error) ||
+        !recovered.openPrefabDocument(prefab->path, error))
+      return false;
+    auto staged = snapshot;
+    for (auto &document : staged.documents)
+      if (document.kind == "prefab")
+        document.kind = "scene";
+    if (!recovered.applyRecovery(staged, error))
+      return false;
+    *this = std::move(recovered);
+    return true;
+  }
   EditorSceneDocument sceneBefore = sceneDocument_;
   EditorProjectDocument projectBefore = projectDocument_;
   std::optional<EditorHudDocument> hudBefore = hudDocument_;
-  const auto samePath = [](const std::filesystem::path &left,
-                           const std::filesystem::path &right) {
-    return std::filesystem::absolute(left).lexically_normal() ==
-           std::filesystem::absolute(right).lexically_normal();
-  };
+  std::optional<EditorHudDocument> openedHudBefore = openedHudDocument_;
   for (const EditorRecoveryDocument &document : snapshot.documents) {
     bool restored = false;
     if (document.kind == "scene" &&
@@ -161,12 +322,23 @@ bool EditorWorkspace::applyRecovery(const EditorRecoverySnapshot &snapshot,
     else if (document.kind == "hud" && hudDocument_ &&
              samePath(document.path, hudDocument_->path()))
       restored = hudDocument_->restore(document.content, error);
-    else
+    else if (document.kind == "hud" && openedHudDocument_ &&
+             samePath(document.path, openedHudDocument_->path()))
+      restored = openedHudDocument_->restore(document.content, error);
+    else if (document.kind == "hud") {
+      EditorHudDocument recovered;
+      if (recovered.open(document.path, error) &&
+          recovered.restore(document.content, error)) {
+        openedHudDocument_ = std::move(recovered);
+        restored = true;
+      }
+    } else
       continue;
     if (!restored) {
       sceneDocument_ = std::move(sceneBefore);
       projectDocument_ = std::move(projectBefore);
       hudDocument_ = std::move(hudBefore);
+      openedHudDocument_ = std::move(openedHudBefore);
       return false;
     }
   }
@@ -174,6 +346,7 @@ bool EditorWorkspace::applyRecovery(const EditorRecoverySnapshot &snapshot,
     sceneDocument_ = std::move(sceneBefore);
     projectDocument_ = std::move(projectBefore);
     hudDocument_ = std::move(hudBefore);
+    openedHudDocument_ = std::move(openedHudBefore);
     return false;
   }
   syncHudPreview();
@@ -212,8 +385,10 @@ bool EditorWorkspace::resolveExternalChange(
 }
 
 bool EditorWorkspace::undo(std::string &error) {
-  if (!selectedHudNodeId_.empty() && hudDocument_ && hudDocument_->canUndo()) {
-    if (!hudDocument_->undo(error))
+  EditorHudDocument *hud = activeHudDocument();
+  if (activeDocument_ == EditorWorkspaceDocument::Hud && hud &&
+      hud->canUndo()) {
+    if (!hud->undo(error))
       return false;
     syncHudPreview();
     return true;
@@ -231,8 +406,10 @@ bool EditorWorkspace::undo(std::string &error) {
 }
 
 bool EditorWorkspace::redo(std::string &error) {
-  if (!selectedHudNodeId_.empty() && hudDocument_ && hudDocument_->canRedo()) {
-    if (!hudDocument_->redo(error))
+  EditorHudDocument *hud = activeHudDocument();
+  if (activeDocument_ == EditorWorkspaceDocument::Hud && hud &&
+      hud->canRedo()) {
+    if (!hud->redo(error))
       return false;
     syncHudPreview();
     return true;
@@ -251,6 +428,27 @@ bool EditorWorkspace::redo(std::string &error) {
 
 bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
                                 const bool continuous, std::string &error) {
+  target = resolveSceneTarget(std::move(target));
+  if (target.isPrefabOverride()) {
+    EditorSceneDocument before = sceneDocument_;
+    if (!sceneDocument_.setValue(target, std::move(value), continuous, error)) {
+      syncEditorDiagnostic();
+      return false;
+    }
+    const nlohmann::json *authoredValue =
+        valueInDocument(sceneDocument_.json(), target);
+    if (authoredValue == nullptr ||
+        !applyEditorPreviewValue(project_->world, target, *authoredValue,
+                                 error)) {
+      sceneDocument_ = std::move(before);
+      workspaceOperationError_ = error;
+      syncEditorDiagnostic();
+      return false;
+    }
+    workspaceOperationError_.clear();
+    syncEditorDiagnostic();
+    return true;
+  }
   if (!sceneDocument_.setValue(std::move(target), std::move(value), continuous,
                                error)) {
     syncEditorDiagnostic();
@@ -264,6 +462,8 @@ bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
 
 bool EditorWorkspace::editValues(std::vector<SceneValueTarget> targets,
                                  nlohmann::json value, std::string &error) {
+  for (SceneValueTarget &target : targets)
+    target = resolveSceneTarget(std::move(target));
   return mutateAndRebuild(
       [targets = std::move(targets), value = std::move(value)](
           EditorSceneDocument &document, std::string &mutationError) mutable {
@@ -274,6 +474,7 @@ bool EditorWorkspace::editValues(std::vector<SceneValueTarget> targets,
 }
 
 bool EditorWorkspace::removeValue(SceneValueTarget target, std::string &error) {
+  target = resolveSceneTarget(std::move(target));
   return mutateAndRebuild(
       [target = std::move(target)](EditorSceneDocument &document,
                                    std::string &mutationError) mutable {
@@ -282,12 +483,35 @@ bool EditorWorkspace::removeValue(SceneValueTarget target, std::string &error) {
       error);
 }
 
+SceneValueTarget
+EditorWorkspace::authoredTarget(SceneValueTarget target) const {
+  return resolveSceneTarget(std::move(target));
+}
+
+bool EditorWorkspace::hasExplicitValue(SceneValueTarget target) const {
+  return valueInDocument(sceneDocument_.json(),
+                         resolveSceneTarget(std::move(target))) != nullptr;
+}
+
 bool EditorWorkspace::createEntity(std::string &error,
                                    std::optional<std::string> parent) {
   if (!mutateAndRebuild(
           [parent = std::move(parent)](EditorSceneDocument &document,
                                        std::string &mutationError) mutable {
             return document.createEntity(mutationError, std::move(parent));
+          },
+          error))
+    return false;
+  selectEntity(std::string(sceneDocument_.lastChangedEntityId()));
+  return true;
+}
+
+bool EditorWorkspace::createPresetEntity(std::string_view preset,
+                                         std::string &error) {
+  if (!mutateAndRebuild(
+          [preset = std::string(preset)](EditorSceneDocument &document,
+                                         std::string &mutationError) {
+            return document.createPresetEntity(preset, mutationError);
           },
           error))
     return false;
@@ -458,15 +682,16 @@ bool EditorWorkspace::deleteSelectedIsoGridCell(std::string &error) {
 
 bool EditorWorkspace::createHudNode(const std::string_view type,
                                     std::string &error) {
-  if (!hudDocument_) {
+  EditorHudDocument *hud = activeHudDocument();
+  if (hud == nullptr) {
     error = "The current scene has no authored HUD document.";
     return false;
   }
   std::string parent(selectedHudNodeId_);
-  if (parent.empty() && !hudDocument_->preview().nodes.empty())
-    parent = hudDocument_->preview().nodes.front().id;
+  if (parent.empty() && !hud->preview().nodes.empty())
+    parent = hud->preview().nodes.front().id;
   std::string created;
-  if (!hudDocument_->createNode(type, parent, created, error))
+  if (!hud->createNode(type, parent, created, error))
     return false;
   syncHudPreview();
   selectHudNode(std::move(created));
@@ -474,11 +699,12 @@ bool EditorWorkspace::createHudNode(const std::string_view type,
 }
 
 bool EditorWorkspace::deleteSelectedHudNode(std::string &error) {
-  if (!hudDocument_ || selectedHudNodeId_.empty()) {
+  EditorHudDocument *hud = activeHudDocument();
+  if (hud == nullptr || selectedHudNodeId_.empty()) {
     error = "Select an authored HUD element first.";
     return false;
   }
-  if (!hudDocument_->deleteNode(selectedHudNodeId_, error))
+  if (!hud->deleteNode(selectedHudNodeId_, error))
     return false;
   selectedHudNodeId_.clear();
   syncHudPreview();
@@ -489,20 +715,22 @@ bool EditorWorkspace::setHudNodeField(const std::string_view id,
                                       const std::string_view field,
                                       nlohmann::json value,
                                       std::string &error) {
-  if (!hudDocument_) {
+  EditorHudDocument *hud = activeHudDocument();
+  if (hud == nullptr) {
     error = "The current scene has no authored HUD document.";
     return false;
   }
-  if (!hudDocument_->setNodeField(id, field, std::move(value), error))
+  if (!hud->setNodeField(id, field, std::move(value), error))
     return false;
   syncHudPreview();
   return true;
 }
 
 bool EditorWorkspace::saveHud(std::string &error) {
-  if (!hudDocument_)
+  EditorHudDocument *hud = activeHudDocument();
+  if (hud == nullptr)
     return true;
-  if (!hudDocument_->save(error))
+  if (!hud->save(error))
     return false;
   refreshDiagnostics();
   return true;
@@ -624,15 +852,39 @@ void EditorWorkspace::reconcileIsoGridCellSelection() {
 
 bool EditorWorkspace::rebuildWorld(std::string &error) {
   error.clear();
-  auto world =
-      runtime::loadSceneDocument(project_->project, project_->project.mainScene,
-                                 sceneDocument_.json(), error);
+  const std::string sceneId = project_->world.activeSceneId.empty()
+                                  ? project_->project.mainScene
+                                  : project_->world.activeSceneId;
+  auto world = editingPrefab_
+                   ? loadEntityPreview(sceneDocument_, true, error)
+                   : runtime::loadSceneDocument(project_->project, sceneId,
+                                                sceneDocument_.json(), error);
   if (!world)
     return false;
   project_->world = std::move(*world);
   syncHudPreview();
   updateSceneDomain(false);
   return true;
+}
+
+SceneValueTarget
+EditorWorkspace::resolveSceneTarget(SceneValueTarget target) const {
+  if (target.isPrefabOverride() || !project_)
+    return target;
+  const runtime::Entity *entity =
+      runtime::findEntity(project_->world, target.entityId);
+  if (entity != nullptr && !entity->prefabInstance.empty() &&
+      !entity->prefabLocalId.empty()) {
+    target.prefabInstanceId = entity->prefabInstance;
+    target.prefabEntityId = entity->prefabLocalId;
+    return target;
+  }
+  if (const auto origin = runtime::composition::prefabEntityOrigin(
+          sceneDocument_.json(), target.entityId)) {
+    target.prefabInstanceId = origin->instanceId;
+    target.prefabEntityId = origin->localEntityId;
+  }
+  return target;
 }
 
 void EditorWorkspace::setViewDimension(
@@ -655,7 +907,7 @@ void EditorWorkspace::updateSceneDomain(const bool openingProject) {
 }
 
 void EditorWorkspace::refreshDiagnostics() {
-  const ValidationSummary summary = validatePath(projectPath_.parent_path());
+  const ValidationSummary summary = validateProjectPath(projectPath_);
   diagnostics_ = summary.diagnostics;
   EditorLuaComponentCatalog scripts =
       discoverEditorLuaComponents(project_->project.projectDirectory, sources_);
@@ -695,9 +947,51 @@ const runtime::Entity *EditorWorkspace::selectedEntity() const {
 const runtime::ui::UiNode *EditorWorkspace::selectedHudNode() const {
   if (!project_ || selectedHudNodeId_.empty())
     return nullptr;
-  const auto found = std::ranges::find(
-      project_->world.ui.nodes, selectedHudNodeId_, &runtime::ui::UiNode::id);
-  return found == project_->world.ui.nodes.end() ? nullptr : &*found;
+  const auto found = std::ranges::find(displayedHud().nodes, selectedHudNodeId_,
+                                       &runtime::ui::UiNode::id);
+  return found == displayedHud().nodes.end() ? nullptr : &*found;
+}
+
+const EditorHudDocument *EditorWorkspace::hudDocument() const {
+  if (usesOpenedHudDocument_ && openedHudDocument_)
+    return &*openedHudDocument_;
+  return hudDocument_ ? &*hudDocument_ : nullptr;
+}
+
+EditorHudDocument *EditorWorkspace::activeHudDocument() {
+  if (usesOpenedHudDocument_ && openedHudDocument_)
+    return &*openedHudDocument_;
+  return hudDocument_ ? &*hudDocument_ : nullptr;
+}
+
+const runtime::ui::UiDocument &EditorWorkspace::displayedHud() const {
+  if (const EditorHudDocument *hud = hudDocument();
+      activeDocument_ == EditorWorkspaceDocument::Hud && hud != nullptr)
+    return hud->preview();
+  return project_->world.ui;
+}
+
+void EditorWorkspace::activateSceneDocument() {
+  activeDocument_ = EditorWorkspaceDocument::Scene;
+  usesOpenedHudDocument_ = false;
+  selectedHudNodeId_.clear();
+  if (selectedEntityIds_.empty() && !project_->world.entities.empty())
+    selectEntity(project_->world.entities.front().id);
+}
+
+void EditorWorkspace::activateHudDocument() {
+  if (!hasHudDocument())
+    return;
+  activeDocument_ = EditorWorkspaceDocument::Hud;
+  usesOpenedHudDocument_ = openedHudDocument_.has_value();
+  selectedEntityIds_.clear();
+  selectedIsoGridCell_.reset();
+  const EditorHudDocument *hud = hudDocument();
+  if (hud != nullptr &&
+      (selectedHudNodeId_.empty() || selectedHudNode() == nullptr))
+    selectedHudNodeId_ = hud->preview().nodes.empty()
+                             ? std::string{}
+                             : hud->preview().nodes.front().id;
 }
 
 std::optional<std::filesystem::path> EditorWorkspace::authoredHudPath() const {
@@ -726,13 +1020,17 @@ bool EditorWorkspace::loadHudDocument(std::string &error) {
 void EditorWorkspace::syncHudPreview() {
   if (!project_ || !hudDocument_)
     return;
-  project_->world.ui = hudDocument_->preview();
+  EditorHudDocument *active = activeHudDocument();
+  if (active != &*hudDocument_)
+    return;
+  project_->world.ui = active->preview();
   project_->world.hudCanvasSize = project_->world.ui.canvasSize;
   if (!selectedHudNodeId_.empty() && selectedHudNode() == nullptr)
     selectedHudNodeId_.clear();
 }
 
 void EditorWorkspace::selectEntity(std::string id) {
+  activeDocument_ = EditorWorkspaceDocument::Scene;
   selectedIsoGridCell_.reset();
   selectedHudNodeId_.clear();
   selectedEntityIds_.clear();
@@ -741,6 +1039,7 @@ void EditorWorkspace::selectEntity(std::string id) {
 }
 
 void EditorWorkspace::selectHudNode(std::string id) {
+  activeDocument_ = EditorWorkspaceDocument::Hud;
   selectedIsoGridCell_.reset();
   selectedEntityIds_.clear();
   selectedHudNodeId_ = std::move(id);

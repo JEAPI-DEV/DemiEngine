@@ -2,6 +2,14 @@
   add_executable(demi-smoke-tests tests/smoke_tests.cpp)
   target_link_libraries(demi-smoke-tests PRIVATE demi-core)
 
+  add_executable(demi-project-build-settings-tests
+    tests/project_build_settings_tests.cpp)
+  target_link_libraries(demi-project-build-settings-tests PRIVATE demi-core)
+
+  add_executable(demi-application-permissions-tests
+    tests/application_permissions_tests.cpp)
+  target_link_libraries(demi-application-permissions-tests PRIVATE demi-core)
+
   add_executable(demi-project-templates-tests tests/project_templates_tests.cpp)
   target_link_libraries(demi-project-templates-tests PRIVATE demi-cli-support)
   target_compile_definitions(demi-project-templates-tests PRIVATE
@@ -59,10 +67,15 @@
   add_executable(demi-editor-imgui-input-tests
     tests/editor_imgui_input_tests.cpp)
   target_include_directories(demi-editor-imgui-input-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}"
+    "${imgui_docking_SOURCE_DIR}"
     "${bgfx_SOURCE_DIR}/bgfx/examples/common/imgui"
     "${bgfx_SOURCE_DIR}/bgfx/examples/common"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui"
     "${bgfx_SOURCE_DIR}/bgfx/3rdparty"
     "${bgfx_SOURCE_DIR}/bgfx/include")
+  target_compile_definitions(demi-editor-imgui-input-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
   target_link_libraries(demi-editor-imgui-input-tests PRIVATE demi-editor-ui)
   add_executable(demi-editor-diagnostics-profiler-tests
     tests/editor_diagnostics_profiler_tests.cpp)
@@ -78,6 +91,21 @@
     tests/editor_workspace_layout_tests.cpp)
   target_link_libraries(demi-editor-workspace-layout-tests
     PRIVATE demi-editor-model)
+  add_executable(demi-editor-docking-state-tests
+    tests/editor_docking_state_tests.cpp)
+  target_link_libraries(demi-editor-docking-state-tests
+    PRIVATE demi-editor-model)
+  add_executable(demi-editor-docking-workspace-tests
+    tests/editor_docking_workspace_tests.cpp)
+  target_include_directories(demi-editor-docking-workspace-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}"
+    "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-docking-workspace-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
+  target_link_libraries(demi-editor-docking-workspace-tests
+    PRIVATE demi-editor-ui)
   add_executable(demi-editor-lua-component-metadata-tests
     tests/editor_lua_component_metadata_tests.cpp)
   target_link_libraries(demi-editor-lua-component-metadata-tests
@@ -96,6 +124,12 @@
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
     DEMI_RUNTIME_PATH="$<TARGET_FILE:demi-runtime>")
   add_dependencies(demi-editor-release-workflow-tests demi-runtime)
+  add_executable(demi-editor-android-packaging-tests
+    tests/editor_android_packaging_tests.cpp)
+  target_link_libraries(demi-editor-android-packaging-tests
+    PRIVATE demi-editor-model demi-cli-support)
+  target_compile_definitions(demi-editor-android-packaging-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-editor-play-session-tests
     tests/editor_play_session_tests.cpp)
   target_link_libraries(demi-editor-play-session-tests PRIVATE demi-editor-model)
@@ -107,6 +141,15 @@
     PRIVATE demi-editor-model)
   add_executable(demi-editor-asset-workflow-tests
     tests/editor_asset_workflow_tests.cpp)
+  add_executable(demi-editor-folder-dialog-tests tests/editor_folder_dialog_tests.cpp)
+  target_include_directories(demi-editor-folder-dialog-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}"
+    "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-folder-dialog-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
+  target_link_libraries(demi-editor-folder-dialog-tests PRIVATE demi-editor-ui)
   target_link_libraries(demi-editor-asset-workflow-tests
     PRIVATE demi-editor-model)
   add_executable(demi-editor-asset-drop-tests
@@ -137,6 +180,8 @@
   add_executable(demi-runtime-object-model-tests
     tests/runtime_object_model_tests.cpp)
   target_link_libraries(demi-runtime-object-model-tests PRIVATE demi-core)
+  add_executable(demi-entity-lookup-tests tests/entity_lookup_tests.cpp)
+  target_link_libraries(demi-entity-lookup-tests PRIVATE demi-core)
   add_executable(demi-runtime-scene-prefab-tests
     tests/runtime_scene_prefab_tests.cpp)
   target_link_libraries(demi-runtime-scene-prefab-tests PRIVATE demi-runtime-lib)
@@ -158,6 +203,11 @@
 
   add_executable(demi-physics3d-tests tests/physics3d_tests.cpp)
   target_link_libraries(demi-physics3d-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-collider-shape-asset-tests tests/collider_shape_asset_tests.cpp)
+  target_link_libraries(demi-collider-shape-asset-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-physics-contact-phases3d-tests
+    tests/physics_contact_phases3d_tests.cpp)
+  target_link_libraries(demi-physics-contact-phases3d-tests PRIVATE demi-runtime-lib)
   add_executable(demi-transform3d-hierarchy-tests
     tests/transform3d_hierarchy_tests.cpp)
   target_link_libraries(demi-transform3d-hierarchy-tests PRIVATE demi-core)
@@ -241,6 +291,8 @@
   target_link_libraries(demi-debug-geometry3d-tests
     PRIVATE demi-render3d-bgfx)
   add_executable(demi-gpu-mesh3d-tests tests/gpu_mesh3d_tests.cpp)
+  add_executable(demi-mesh-deformation3d-tests tests/mesh_deformation3d_tests.cpp)
+  target_link_libraries(demi-mesh-deformation3d-tests PRIVATE demi-render3d-bgfx)
   target_link_libraries(demi-gpu-mesh3d-tests PRIVATE demi-render3d-bgfx)
   add_executable(demi-mesh-geometry3d-tests tests/mesh_geometry3d_tests.cpp)
   target_link_libraries(demi-mesh-geometry3d-tests PRIVATE demi-render3d-bgfx)
@@ -279,6 +331,8 @@
 
   add_executable(demi-lua-scripting-tests tests/lua_scripting_tests.cpp)
   target_link_libraries(demi-lua-scripting-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-lua-e2e-tests tests/lua_e2e_tests.cpp)
+  target_link_libraries(demi-lua-e2e-tests PRIVATE demi-runtime-lib)
   add_executable(demi-script-property-contract-tests
     tests/script_property_contract_tests.cpp)
   target_link_libraries(demi-script-property-contract-tests
@@ -342,6 +396,9 @@
   add_executable(demi-secure-network-session-tests
     tests/secure_network_session_tests.cpp)
   target_link_libraries(demi-secure-network-session-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-network-prediction-tests
+    tests/network_prediction_tests.cpp)
+  target_link_libraries(demi-network-prediction-tests PRIVATE demi-runtime-lib)
 
   if(DEMI_ENABLE_NETWORK)
     add_executable(demi-network-tests tests/network_tests.cpp)
@@ -360,6 +417,8 @@
   add_executable(demi-game-save-document-tests tests/game_save_document_tests.cpp)
   target_link_libraries(demi-game-save-document-tests PRIVATE demi-runtime-lib)
   add_executable(demi-runtime-profiler-tests tests/runtime_profiler_tests.cpp)
+  add_executable(demi-frame-timing-tests tests/frame_timing_tests.cpp)
+  target_link_libraries(demi-frame-timing-tests PRIVATE demi-runtime-lib)
   target_link_libraries(demi-runtime-profiler-tests PRIVATE demi-runtime-lib)
   add_executable(demi-profiler-hud-layout-tests tests/profiler_hud_layout_tests.cpp)
   target_link_libraries(demi-profiler-hud-layout-tests PRIVATE demi-runtime-lib)
@@ -367,3 +426,13 @@
   target_link_libraries(demi-isometric-grid-tests PRIVATE demi-core)
   add_executable(demi-navigation2d-tests tests/navigation2d_tests.cpp)
   target_link_libraries(demi-navigation2d-tests PRIVATE demi-core)
+
+  # These tests use assert for checks and fixture setup. Keep those calls in
+  # optimized test executables; the linked engine libraries remain Release.
+  foreach(target demi-bgfx-renderer3d-tests demi-gltf-skinned-model-tests demi-runtime-profiler-tests)
+    if(MSVC)
+      target_compile_options(${target} PRIVATE /UNDEBUG)
+    else()
+      target_compile_options(${target} PRIVATE -UNDEBUG)
+    endif()
+  endforeach()

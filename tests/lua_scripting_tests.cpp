@@ -3,6 +3,7 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -36,6 +37,23 @@ int main() {
     std::cerr << "Failed to create Lua test project directory.\n";
     return 1;
   }
+
+  // Save persistence writes through XDG user-data paths, so redirect them at
+  // the per-run temporary directory. Without this, a run poisons the real
+  // home directory and later runs preload the stale "test" save slot.
+#if defined(_WIN32)
+  const std::filesystem::path storageRoot =
+      projectDirectory / "storage" / "data";
+  _putenv_s("XDG_DATA_HOME", storageRoot.string().c_str());
+  _putenv_s("XDG_CACHE_HOME",
+            (projectDirectory / "storage" / "cache").string().c_str());
+#else
+  const std::filesystem::path storageRoot =
+      projectDirectory / "storage" / "data";
+  setenv("XDG_DATA_HOME", storageRoot.c_str(), 1);
+  setenv("XDG_CACHE_HOME", (projectDirectory / "storage" / "cache").c_str(),
+         1);
+#endif
 
   if (!writeFile(projectDirectory / "scripts" / "probe.lua", R"lua(
 local Probe = {}
@@ -277,6 +295,11 @@ end
 -- @OnEvent("test.script_event")
 function Probe:handle_script_event(event)
   Save.set_string("test", "script_event", event.value)
+end
+-- @OnEvent("physics_collision_enter")
+function Probe:handle_physics_event(event)
+  Save.set_string("test", "physics_event",
+    event.entity_id .. ":" .. event.other_entity_id .. ":" .. event.phase)
 end
 function Probe:on_update(dt)
   if Input.ui_pointer_captured() then
@@ -757,7 +780,15 @@ return PropProbe
                  "transform.\n";
     return 1;
   }
+  world.physicsContacts.push_back({.entityId = "probe",
+                                   .otherEntityId = "floor",
+                                   .phase = "enter"});
   host.update(1.0F / 60.0F);
+  world.physicsContacts.clear();
+  if (host.saveString("test", "physics_event") != "probe:floor:enter") {
+    std::cerr << "Subscribed physics event was skipped by Lua dispatch.\n";
+    return 1;
+  }
   if (host.saveString("test", "space") != "up") {
     std::cerr << "Input.is_down returned true for an unpressed key.\n";
     return 1;
@@ -805,6 +836,38 @@ return PropProbe
   host.update(1.0F / 60.0F);
   if (host.saveString("test", "module_action") != "test.module:button_module") {
     std::cerr << "Project-listed Lua module @HandleAction did not dispatch.\n";
+    return 1;
+  }
+
+  // The Lua service index must observe structural edits made outside the VM.
+  WorldCommandBuffer lookupCommands;
+  Entity lookupProbe;
+  lookupProbe.id = "lookup_probe";
+  lookupProbe.setComponent<Transform3DComponent>(Transform3DComponent{});
+  if (!lookupCommands.create(world, std::move(lookupProbe)))
+    return 1;
+  (void)lookupCommands.flush(world);
+  if (!host.setEntityPosition3D("lookup_probe", 4, 5, 6) ||
+      host.entityPosition3D("lookup_probe")->y != 5) {
+    std::cerr << "Lua lookup missed appended entity\n";
+    return 1;
+  }
+  Entity replacement;
+  replacement.id = "lookup_probe";
+  replacement.setComponent<Transform2DComponent>(Transform2DComponent{});
+  if (!lookupCommands.create(world, std::move(replacement), true))
+    return 1;
+  (void)lookupCommands.flush(world);
+  if (host.setEntityPosition3D("lookup_probe", 1, 2, 3) ||
+      !host.setEntityPosition("lookup_probe", 7, 8)) {
+    std::cerr << "Lua lookup retained replaced component storage\n";
+    return 1;
+  }
+  if (!lookupCommands.destroy(world, "lookup_probe"))
+    return 1;
+  (void)lookupCommands.flush(world);
+  if (host.entityPosition("lookup_probe")) {
+    std::cerr << "Lua lookup retained destroyed entity\n";
     return 1;
   }
 

@@ -6,6 +6,7 @@
 #include "editor/EditorBuildPanel.h"
 #include "editor/EditorConflictPanel.h"
 #include "editor/EditorConsolePanel.h"
+#include "editor/EditorDockingWorkspace.h"
 #include "editor/EditorGameViewPanel.h"
 #include "editor/EditorHierarchyPanel.h"
 #include "editor/EditorHudNodeInspector.h"
@@ -27,6 +28,7 @@ public:
   explicit EditorShell(EditorWorkspace &workspace);
 
   void draw(int width, int height, std::string_view rendererName);
+  [[nodiscard]] float uiScale() const { return uiScale_; }
   [[nodiscard]] bool wantsExit() const { return wantsExit_; }
   void requestExit() { exitRequested_ = true; }
   [[nodiscard]] EditorViewportArea viewportArea() const {
@@ -35,6 +37,7 @@ public:
   [[nodiscard]] EditorViewportArea gameArea() const { return gameArea_; }
   [[nodiscard]] bool gameViewFocused() const { return gameViewFocused_; }
   [[nodiscard]] bool showingGameView() const { return showGameView_; }
+  [[nodiscard]] bool showingHudView() const { return showHudView_; }
   [[nodiscard]] EditorPlaySession &playSession() { return playSession_; }
   [[nodiscard]] bool takeStepRequest() {
     const bool requested = stepRequested_;
@@ -42,6 +45,9 @@ public:
     return requested;
   }
   void setGameTextureIndex(std::uint16_t value) { gameTextureIndex_ = value; }
+  void setViewportTextureIndex(std::uint16_t value) {
+    viewportTextureIndex_ = value;
+  }
   void setBrandingTextureIndex(std::uint16_t value) {
     brandingTextureIndex_ = value;
   }
@@ -50,6 +56,8 @@ public:
   }
   [[nodiscard]] bool viewportInputCaptured() const {
     if (showGameView_)
+      return false;
+    if (showHudView_)
       return false;
     return workspace_.viewDimension() ==
                    EditorSceneViewDimension::TwoDimensional
@@ -64,6 +72,7 @@ public:
 
 private:
   EditorWorkspace &workspace_;
+  EditorDockingWorkspace dockingWorkspace_;
   EditorPlaySession playSession_;
   EditorViewportArea viewportArea_;
   EditorHudViewportState hudViewportState_;
@@ -82,6 +91,8 @@ private:
   EditorRecoveryStore recoveryStore_;
   EditorPreferencesStore preferencesStore_;
   EditorPreferences preferences_;
+  float uiScale_ = 1.0F;
+  bool showSettings_ = false;
   std::optional<EditorRecoverySnapshot> pendingRecovery_;
   std::string recoveryFingerprint_;
   std::string notice_;
@@ -92,9 +103,11 @@ private:
   bool recoverySyncBlocked_ = false;
   bool preferenceSyncBlocked_ = false;
   bool showGameView_ = false;
+  bool showHudView_ = false;
   bool gameViewFocused_ = false;
   bool stepRequested_ = false;
   std::uint16_t gameTextureIndex_ = UINT16_MAX;
+  std::uint16_t viewportTextureIndex_ = UINT16_MAX;
   std::uint16_t brandingTextureIndex_ = UINT16_MAX;
 };
 

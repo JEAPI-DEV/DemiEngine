@@ -136,7 +136,12 @@ friction, restitution, density, and lower-level
 `Rigidbody2D` supports dynamic, kinematic, and static bodies, continuous
 collision, linear/angular damping, angular velocity, rotation locking,
 sleeping, and runtime enable. Lua exposes velocity, impulse, force, torque,
-angular velocity, awake/enable state, and kinematic target movement.
+angular velocity, awake/enable state, continuous-detection switching, and
+kinematic target movement. Continuous detection should be retained for fast
+bodies and disabled after they become slow when discrete collision is enough.
+`report_contacts` controls contact extraction and Lua callbacks without
+changing physical collision; disable it for bodies whose contacts are not
+observed, especially large sleeping piles.
 `Rigidbody2D.move_and_slide` applies a motion vector to a kinematic collider,
 stops on static colliders, preserves tangent motion, and returns the applied
 vector.
@@ -152,6 +157,13 @@ the corresponding `physics_trigger_*` event. `physics_contact` receives both
 kinds. Payloads contain participant IDs/layers, phase, contact point, normal,
 normal impulse, and `is_trigger`. Exit events preserve the final known contact
 geometry.
+
+Physics synchronization is incremental: unchanged bodies retain their Box2D
+transforms, broadphase proxies, and sleep state. Contact extraction uses direct
+body/entity indexing while preserving deterministic enter/stay/exit ordering.
+Lua contact payloads are constructed only when the matching event has a
+subscriber or annotated handler; `Physics2D.contacts` and `has_contact` still
+read the complete current contact set.
 
 ## Navigation and controllers
 

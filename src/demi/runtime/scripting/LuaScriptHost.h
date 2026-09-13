@@ -1,4 +1,5 @@
 #pragma once
+#include "demi/runtime/geometry/MeshImpact3D.h"
 
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/data/DataAssetStore.h"
@@ -12,6 +13,7 @@
 #include "demi/runtime/physics/SpatialQuery3D.h"
 #include "demi/runtime/platform/ApplicationServices.h"
 #include "demi/runtime/scene/RuntimeObjectModel.h"
+#include "demi/runtime/scene/EntityLookup.h"
 #include "demi/runtime/scene/RuntimePrefabService.h"
 #include "demi/runtime/scene/SceneFlow.h"
 #include "demi/runtime/scene/WorldCommandBuffer.h"
@@ -23,6 +25,7 @@
 #include "demi/runtime/ui/UiModel.h"
 
 #include <cstdint>
+#include <deque>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -232,6 +235,10 @@ public:
                                              float weight);
   [[nodiscard]] bool setAnimationRootMotion(const std::string &entityId,
                                             bool enabled);
+  [[nodiscard]] bool setAnimationBoneSegment(const std::string &entityId,
+                                             const std::string &bone,
+                                             Vec3 start, Vec3 end, Vec3 pole);
+  [[nodiscard]] bool clearAnimationBoneSegments(const std::string &entityId);
   [[nodiscard]] std::optional<Vec2>
   getRigidbodyVelocity(const std::string &entityId) const;
   [[nodiscard]] bool setRigidbodyVelocity(const std::string &entityId, float x,
@@ -251,6 +258,10 @@ public:
   [[nodiscard]] bool setRigidbodyAwake(const std::string &entityId, bool awake);
   [[nodiscard]] bool setRigidbodyEnabled(const std::string &entityId,
                                          bool enabled);
+  [[nodiscard]] bool setRigidbodyContinuous(const std::string &entityId,
+                                            bool continuous);
+  [[nodiscard]] bool setRigidbodyReportContacts(const std::string &entityId,
+                                                bool reportContacts);
   [[nodiscard]] bool moveKinematicBody(const std::string &entityId, float x,
                                        float y, float fixedDt);
   [[nodiscard]] std::optional<Vec3>
@@ -267,6 +278,10 @@ public:
                                          bool awake);
   [[nodiscard]] bool setRigidbodyEnabled3D(const std::string &entityId,
                                            bool enabled);
+  [[nodiscard]] bool setRigidbodyContinuous3D(const std::string &entityId,
+                                              bool continuous);
+  [[nodiscard]] bool setRigidbodyReportContacts3D(const std::string &entityId,
+                                                  bool reportContacts);
   [[nodiscard]] bool moveKinematicBody3D(const std::string &entityId, float x,
                                          float y, float z, float rotationX,
                                          float rotationY, float rotationZ,
@@ -371,6 +386,13 @@ public:
                         std::vector<Vec3> vertices, std::vector<Vec3> normals,
                         std::vector<Vec2> uvs);
   [[nodiscard]] bool setHudText(const std::string &id, const std::string &text);
+  [[nodiscard]] std::string dentMesh(const std::string &entityId, Vec3 point,
+                                     Vec3 direction, float radius, float depth);
+  [[nodiscard]] bool resetMeshDents(const std::string &entityId);
+  [[nodiscard]] MeshImpactMaterial3D meshImpactMaterial(const std::string &entityId) const;
+  [[nodiscard]] MeshImpactResult3D
+  impactMesh(const std::string &entityId, Vec3 point, Vec3 direction,
+             float energy, const MeshImpactMaterial3D &material);
   [[nodiscard]] bool setHudFont(const std::string &id, std::string font);
   [[nodiscard]] bool setHudFontSize(const std::string &id, float fontSize);
   [[nodiscard]] bool setHudRect(const std::string &id, float x, float y,
@@ -549,6 +571,25 @@ public:
   [[nodiscard]] bool physicsEnabled() const;
   void setHotReloadEnabled(bool enabled);
   [[nodiscard]] bool hotReloadEnabled() const;
+  void startE2ETests(const std::string &moduleName);
+  void updateE2ETests(double deltaTime);
+  void drainSyntheticTouches(InputState &input);
+  [[nodiscard]] int e2eTestsPassed() const;
+  [[nodiscard]] int e2eTestsFailed() const;
+  [[nodiscard]] bool e2eTestsActive() const;
+  [[nodiscard]] std::optional<Vec2>
+  e2eNodeCenterCanvas(const std::string &nodeId) const;
+  [[nodiscard]] std::optional<Vec2>
+  e2eNodeCenterViewport(const std::string &nodeId) const;
+  [[nodiscard]] Vec2 e2eCanvasToViewport(Vec2 canvas) const;
+  void e2eEnqueueTap(Vec2 viewportPosition);
+  void e2eEnqueueSwipe(Vec2 from, Vec2 to, double seconds);
+  void e2eWaitFor(double seconds);
+  void e2eExpectSceneStart(const std::string &sceneId, double timeout);
+  void failActiveE2ETest(const std::string &message);
+  void passActiveE2ETest();
+  void finishActiveE2ETest();
+  void startNextE2ETest();
   void beginFrame(float unscaledDeltaTime);
   void advanceFixedTime(float fixedDeltaTime);
   void setPaused(bool paused);
@@ -590,6 +631,10 @@ public:
   }
 
 private:
+  [[nodiscard]] Entity *lookupServiceEntity(const std::string &id) const;
+  mutable EntityLookup serviceEntityLookup_;
+  [[nodiscard]] bool hasEventListener(std::string_view eventName) const;
+
   struct ScriptInstance {
     std::string entityId;
     std::string module;
@@ -674,6 +719,7 @@ private:
   std::filesystem::path projectDirectory_;
   int viewportWidth_ = 1;
   int viewportHeight_ = 1;
+  ui::Insets loggedSafeArea_;
   bool quitRequested_ = false;
   std::string windowMode_ = "windowed";
   bool windowModeDirty_ = false;
@@ -691,6 +737,34 @@ private:
   bool applicationFocused_ = true;
   bool applicationMinimized_ = false;
   bool applicationSuspended_ = false;
+  // End-to-end test harness state. Tests run as coroutines that yield
+  // wait requests; synthetic touches drain one frame per runtime frame into
+  // the same input state real fingers use.
+  struct E2ESyntheticFrame {
+    TouchPhase phase = TouchPhase::Began;
+    Vec2 position;
+  };
+  struct E2ETestDefinition {
+    std::string name;
+    int functionRef = 0;
+  };
+  enum class E2EWaitKind { None, Frames, Seconds, Scene, Gesture };
+  std::vector<E2ETestDefinition> e2eTests_;
+  std::size_t e2eTestIndex_ = 0;
+  int e2eTestThread_ = 0;
+  std::string activeE2ETestName_;
+  E2EWaitKind e2eWait_ = E2EWaitKind::None;
+  int e2eWaitFrames_ = 0;
+  double e2eWaitSeconds_ = 0.0;
+  double e2eWaitElapsed_ = 0.0;
+  std::string e2eWaitScene_;
+  double e2eWaitTimeout_ = 0.0;
+  int pendingGestureFrames_ = 0;
+  std::deque<E2ESyntheticFrame> syntheticTouches_;
+  std::int64_t syntheticFingerId_ = 0x54455354LL;
+  int e2eTestsPassed_ = 0;
+  int e2eTestsFailed_ = 0;
+  bool e2eTestsEnabled_ = false;
   bool hotReloadEnabled_ = false;
   bool cutscenePaused_ = false;
   bool previousUiMouseDown_ = false;

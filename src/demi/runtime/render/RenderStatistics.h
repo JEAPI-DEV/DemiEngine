@@ -14,6 +14,8 @@ struct RenderStatistics {
   std::size_t consideredMeshes = 0;
   std::size_t visibleMeshes = 0;
   std::size_t culledMeshes = 0;
+  std::size_t mediumLodMeshes = 0;
+  std::size_t lowLodMeshes = 0;
 
   void reset() { *this = {}; }
 };

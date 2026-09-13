@@ -7,6 +7,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace demi::editor {
@@ -18,11 +19,21 @@ public:
   void openImport() { showImport_ = true; }
   void queueImport(std::filesystem::path source);
   void openCreateGroup() { showCreateGroup_ = true; }
+  void openNewFolder(std::filesystem::path relativeParent);
+  [[nodiscard]] std::optional<std::filesystem::path> takeCreatedFolder() {
+    return std::exchange(createdFolder_, std::nullopt);
+  }
   [[nodiscard]] bool openEditGroup(const std::filesystem::path &path,
                                    std::string &error);
   void draw(EditorWorkspace &workspace, std::string &notice);
 
 private:
+  std::array<char, 256> folderName_{};
+  std::filesystem::path folderParent_;
+  std::optional<std::filesystem::path> createdFolder_;
+  std::string folderError_;
+  bool showNewFolder_ = false;
+  bool focusFolderName_ = false;
   std::array<char, 240> importSource_{};
   std::array<char, 160> importId_{};
   std::array<char, 80> importType_{};

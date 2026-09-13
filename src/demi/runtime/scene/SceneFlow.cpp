@@ -135,6 +135,7 @@ SceneFlow::activate(World &world, ResourceLifetimeRegistry &resources) {
   }
 
   if (prepared_->additive) {
+    world.colliderAssets3D.merge(incoming.colliderAssets3D);
     for (Entity &entity : incoming.entities)
       world.entities.push_back(std::move(entity));
     for (ui::UiNode &node : incoming.ui.nodes)
@@ -154,6 +155,9 @@ SceneFlow::activate(World &world, ResourceLifetimeRegistry &resources) {
     }
     for (const ui::UiNode &node : world.ui.nodes)
       transition.unloadingUiNodes.push_back(node.id);
+    // Asset loaders publish into this stable World address before transition
+    // commit. Keep resident/preloaded shapes and persistent users' snapshots.
+    incoming.colliderAssets3D.merge(world.colliderAssets3D);
     world = std::move(incoming);
     world.activeSceneId = sceneId;
     world.loadedSceneIds = {sceneId};

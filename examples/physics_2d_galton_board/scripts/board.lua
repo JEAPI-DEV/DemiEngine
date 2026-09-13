@@ -6,11 +6,12 @@ Board.spacing = 1.05
 Board.release_x = 0.0
 Board.release_y = 8.0
 
-local function static_body()
+local function static_body(report_contacts)
   return {
     body_type = "static",
     gravity_scale = 0.0,
     lock_rotation = true,
+    report_contacts = report_contacts == true,
   }
 end
 
@@ -27,7 +28,7 @@ local function create_box(id, x, y, width, height, rotation, color)
         color = color,
         layer = "board",
       },
-      Rigidbody2D = static_body(),
+      Rigidbody2D = static_body(false),
       BoxCollider2D = {
         size = { width, height },
         friction = 0.22,
@@ -50,11 +51,11 @@ local function create_peg(id, x, y)
         layer = "pegs",
         sorting_order = 2,
       },
-      Rigidbody2D = static_body(),
+      Rigidbody2D = static_body(true),
       CircleCollider2D = {
         radius = 0.14,
-        friction = 0.04,
-        restitution = 0.32,
+        friction = 0.65,
+        restitution = 0.02,
         layer = "peg",
         debug_visible = false,
       },
@@ -66,9 +67,9 @@ function Board.create()
   local wall_color = { 0.25, 0.48, 0.62, 1.0 }
   local divider_color = { 0.18, 0.36, 0.5, 1.0 }
 
-  create_box("board_floor", 0.0, -8.65, 15.0, 0.35, 0.0, wall_color)
-  create_box("board_left_wall", -7.35, -0.3, 0.3, 16.4, 0.0, wall_color)
-  create_box("board_right_wall", 7.35, -0.3, 0.3, 16.4, 0.0, wall_color)
+  create_box("board_floor", 0.0, -11.2, 15.0, 0.35, 0.0, wall_color)
+  create_box("board_left_wall", -7.35, -1.2, 0.3, 20.0, 0.0, wall_color)
+  create_box("board_right_wall", 7.35, -1.2, 0.3, 20.0, 0.0, wall_color)
   create_box("board_funnel_left", -2.65, 7.65, 5.5, 0.22, -0.78, wall_color)
   create_box("board_funnel_right", 2.65, 7.65, 5.5, 0.22, 0.78, wall_color)
 
@@ -84,8 +85,8 @@ function Board.create()
   local first_divider = -Board.bin_count * Board.spacing * 0.5
   for divider = 0, Board.bin_count do
     create_box("bin_divider_" .. divider,
-      first_divider + divider * Board.spacing, -7.15,
-      0.11, 2.65, 0.0, divider_color)
+      first_divider + divider * Board.spacing, -8.2,
+      0.11, 5.5, 0.0, divider_color)
   end
 end
 

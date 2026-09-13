@@ -50,6 +50,8 @@ private:
   std::filesystem::path path_;
   FileRevision revision_;
   nlohmann::json document_;
+  nlohmann::json savedDocument_;
+  std::string originalText_;
   std::string savedCanonical_;
   Diagnostics diagnostics_;
   std::vector<Change> undo_;

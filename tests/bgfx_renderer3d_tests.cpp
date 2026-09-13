@@ -1,4 +1,5 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/BoxCollider3DComponent.h"
@@ -50,6 +51,16 @@ int main() {
        .sourcePath = std::filesystem::path(DEMI_SOURCE_DIR) /
                      "examples/animation_3d/assets/AnimationLib/"
                      "UAL1_Standard.glb"});
+  for (const std::string id :
+       {"asset://models/lod_high", "asset://models/lod_medium",
+        "asset://models/lod_low"}) {
+    registry.assets.push_back(
+        {.id = id,
+         .type = "Model3D",
+         .sourcePath = std::filesystem::path(DEMI_SOURCE_DIR) /
+                       "examples/animation_3d/assets/AnimationLib/"
+                       "UAL1_Standard.glb"});
+  }
   registry.assets.push_back(
       {.id = "asset://targets/test",
        .type = "RenderTarget",
@@ -78,6 +89,17 @@ int main() {
   procedural.component<MeshRendererComponent>()->uvs = {
       {0.0F, 0.0F}, {1.0F, 0.0F}, {0.5F, 1.0F}};
   world.entities.push_back(std::move(procedural));
+  Entity lodModel;
+  lodModel.id = "lod_model";
+  lodModel.setComponent(Transform3DComponent{});
+  lodModel.setComponent(MeshRendererComponent{
+      .model = "asset://models/lod_high",
+      .mediumLodModel = "asset://models/lod_medium",
+      .mediumLodDistance = 4.0F,
+      .lowLodModel = "asset://models/lod_low",
+      .lowLodDistance = 10.0F,
+  });
+  world.entities.push_back(std::move(lodModel));
 
   const BgfxCameraFrame3D frame{
       .camera = {.clearColor = {0.05F, 0.06F, 0.09F, 1.0F}},
@@ -87,10 +109,20 @@ int main() {
       .viewportHeight = 180,
   };
   assert(renderer.renderFrame(world, frame, 0.016F, error));
+  assert(renderer.statistics().mediumLodMeshes == 1U);
+  assert(renderer.statistics().lowLodMeshes == 0U);
   assert(renderer.statistics().batches >= 1);
   assert(renderer.statistics().triangles > 12);
   const std::uint32_t batchesWithoutDebugGeometry =
       renderer.statistics().batches;
+  static_cast<void>(graphics.endFrame());
+  for (int index = 0; index < 64; ++index) {
+    world.entities.push_back(shape("sphere_copy_" + std::to_string(index),
+                                   "sphere", {0.0F, 0.0F, 0.0F}));
+  }
+  assert(renderer.renderFrame(world, frame, 0.016F, error));
+  assert(renderer.statistics().visibleMeshes == 70U);
+  assert(renderer.statistics().batches == batchesWithoutDebugGeometry);
   static_cast<void>(graphics.endFrame());
   // The second frame reuses the resident procedural buffers. Changing the
   // revision replaces them, and removing the owner releases the cache entry.
@@ -206,11 +238,35 @@ int main() {
   world.entities.push_back(std::move(animated));
   diagnostics.clear();
   assert(diagnostics.empty());
+  RuntimeProfiler::setEnabled(true);
+  RuntimeProfiler::beginFrame();
   assert(renderer.renderFrame(world, frame, 0.016F, error));
   static_cast<void>(graphics.endFrame());
+  const auto rebuilt = RuntimeProfiler::frameEntries();
+  for (const std::string name :
+       {"Renderer3D.animation_rebuild", "Renderer3D.skin_cpu",
+        "Renderer3D.skin_upload_cpu"}) {
+    assert(std::any_of(rebuilt.begin(), rebuilt.end(), [&](const auto &entry) {
+      return entry.name == name && entry.calls == 1;
+    }));
+  }
+  RuntimeProfiler::beginFrame();
+  assert(renderer.renderFrame(world, frame, 0.016F, error));
+  static_cast<void>(graphics.endFrame());
+  const auto unchanged = RuntimeProfiler::frameEntries();
+  assert(
+      std::none_of(unchanged.begin(), unchanged.end(), [](const auto &entry) {
+        return entry.name == "Renderer3D.animation_rebuild" && entry.calls > 0;
+      }));
   world.entities.back().component<AnimationPlayer3DComponent>()->time = 0.4F;
+  RuntimeProfiler::beginFrame();
   assert(renderer.renderFrame(world, frame, 0.016F, error));
   static_cast<void>(graphics.endFrame());
+  const auto advanced = RuntimeProfiler::frameEntries();
+  assert(std::any_of(advanced.begin(), advanced.end(), [](const auto &entry) {
+    return entry.name == "Renderer3D.animation_rebuild" && entry.calls == 1;
+  }));
+  RuntimeProfiler::setEnabled(false);
 
   renderer.shutdown();
   renderer.shutdown();

@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "id": "scene://animation_3d/crowd",
+  "name": "Animated Character Scaling",
+  "hud": "crowd.hud.json",
+  "entities": [
+    { "id": "camera", "components": {
+      "Transform3D": { "position": [0, 22, 28] },
+      "Camera3D": { "target_offset": [0, -22, -28], "far_clip": 500, "fov": 50,
+        "clear_color": [0.035, 0.045, 0.075, 1] }
+    } },
+    { "id": "light", "components": {
+      "DirectionalLight": { "direction": [-0.5, -1, -0.35], "intensity": 1 }
+    } },
+    { "id": "floor", "components": {
+      "Transform3D": { "position": [0, -0.02, 0] },
+      "MeshRenderer": { "shape": "plane", "size": [200, 1, 200], "color": [0.08, 0.13, 0.20, 1] }
+    } },
+    { "id": "crowd", "components": {
+      "LuaScript": { "module": "script://scripts/crowd.lua", "properties": { "count": 64 } }
+    } }
+  ]
+}

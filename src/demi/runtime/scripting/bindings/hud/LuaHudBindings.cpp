@@ -61,6 +61,7 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
     node.accessibilityDescription =
         definition.get_or("accessibility_description", std::string{});
     node.accessibilityHidden = definition.get_or("accessibility_hidden", false);
+    node.respectsSafeArea = definition.get_or("respect_safe_area", true);
     node.visible = definition.get_or("visible", true);
     node.disabled = definition.get_or("disabled", false);
     node.focusable = definition.get_or(

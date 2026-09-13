@@ -30,13 +30,15 @@ int main() {
     "name": "Simulation Test",
     "main_scene": "scene://main",
     "scenes": [{"id": "scene://main", "path": "main.scene.json"}],
-    "simulation": {"fixed_timestep": 0.02, "random_seed": 99}
+    "simulation": {"fixed_timestep": 0.02, "random_seed": 99,
+                   "maximum_fixed_steps_per_frame": 3}
   })");
   const auto project = demi::runtime::scene_loading::parseProjectData(
       "demi.project.json", projectJson, error);
   if (!project ||
       std::abs(project->simulation.fixedTimestep - 0.02F) > 0.000001F ||
-      project->simulation.randomSeed != 99) {
+      project->simulation.randomSeed != 99 ||
+      project->simulation.maximumFixedStepsPerFrame != 3) {
     std::cerr << "Simulation configuration parsing failed: " << error << '\n';
     return 1;
   }

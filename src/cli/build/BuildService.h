@@ -1,9 +1,11 @@
 #pragma once
 
+#include "demi/capabilities/PlatformCapabilities.h"
 #include "demi/diagnostics/Diagnostic.h"
 
 #include <filesystem>
 #include <functional>
+#include <optional>
 #include <string>
 
 namespace demi::build {
@@ -13,7 +15,9 @@ enum class ProjectOperation {
   CookLinux,
   PackageLinux,
   PackageLinuxServer,
-  PackageAndroid
+  PackageAndroid,
+  PackageAndroidRelease,
+  BundleAndroidRelease
 };
 
 enum class ProjectOperationStage {
@@ -38,6 +42,10 @@ struct ProjectOperationRequest {
   std::filesystem::path engineRoot;
   std::filesystem::path runtimeExecutable;
   std::string gradleExecutable = "gradle";
+  // Optional engine features of the host renderer runtime; used for
+  // build-time platform capability checks. When absent, the fully
+  // configured default toolchain is assumed.
+  std::optional<capabilities::RuntimeFeatures> hostFeatures;
   std::function<bool()> isCancelled;
   std::function<void(const ProjectOperationProgress &)> reportProgress;
 };

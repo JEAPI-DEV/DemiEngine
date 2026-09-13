@@ -3,6 +3,7 @@
 #include "demi/runtime/platform/PlatformHost.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 
+#include <chrono>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -43,8 +44,13 @@ public:
   [[nodiscard]] const platform::PlatformFrameState &frameState() const;
   [[nodiscard]] bool setWindowMode(std::string_view mode, std::string &error);
   [[nodiscard]] bool setMouseCaptured(bool captured, std::string &error);
+  [[nodiscard]] bool requestFrameRate(float framesPerSecond);
   [[nodiscard]] std::string clipboard() const;
   [[nodiscard]] bool setClipboard(const std::string &text, std::string &error);
+  [[nodiscard]] bool requestPermission(
+      const std::string &permission,
+      std::function<void(bool granted, bool deniedPermanently)> result,
+      std::string &error);
   [[nodiscard]] std::string_view rendererName() const;
   [[nodiscard]] render::GpuResources *resources() const;
   [[nodiscard]] render::RenderCommands *commands() const;
@@ -59,8 +65,10 @@ private:
   std::unique_ptr<render::RenderCommands> commands_;
   int renderWidth_ = 0;
   int renderHeight_ = 0;
+  unsigned surfaceGeneration_ = 0;
   bool frameOpen_ = false;
   bool initialized_ = false;
+  std::chrono::steady_clock::time_point frameBuildStart_;
 };
 
 [[nodiscard]] render::GraphicsApi configuredGraphicsApi();

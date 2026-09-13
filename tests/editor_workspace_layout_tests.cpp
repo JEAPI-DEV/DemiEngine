@@ -11,16 +11,10 @@ bool near(const float left, const float right) {
 
 void verify(const float width, const float height) {
   const auto layout = demi::editor::editorWorkspaceLayout(width, height);
-  assert(layout.leftWidth > 0 && layout.centerWidth > 0 &&
-         layout.rightWidth > 0);
-  assert(near(layout.leftWidth + layout.centerWidth + layout.rightWidth,
-              std::max(width, 320.0F)));
-  assert(layout.upperHeight > 0 && layout.bottomHeight > 0);
-  assert(near(layout.contentTop + layout.upperHeight + layout.bottomHeight,
-              layout.contentBottom));
-  assert(layout.consoleWidth > 0 && layout.assetsWidth > 0);
-  assert(near(layout.consoleWidth + layout.assetsWidth + layout.rightWidth,
-              std::max(width, 320.0F)));
+  assert(layout.menuHeight > 0 && layout.toolbarHeight > 0 &&
+         layout.statusHeight > 0 && layout.dockspaceHeight > 0);
+  assert(
+      near(layout.contentTop + layout.dockspaceHeight, layout.contentBottom));
 }
 
 } // namespace

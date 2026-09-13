@@ -42,19 +42,21 @@ void UiLayoutEngine::layout(UiDocument &document,
     children[document.nodes[index].parent].push_back(index);
   }
 
-  const Rect viewport{
-      document.safeArea.left,
-      document.safeArea.top,
-      std::max(viewportSize.x - document.safeArea.left -
-                   document.safeArea.right,
-               1.0F),
-      std::max(viewportSize.y - document.safeArea.top -
-                   document.safeArea.bottom,
-               1.0F)};
+  const Rect fullViewport{0.0F, 0.0F, std::max(viewportSize.x, 1.0F),
+                          std::max(viewportSize.y, 1.0F)};
+  const Rect safeViewport{document.safeArea.left, document.safeArea.top,
+                          std::max(viewportSize.x - document.safeArea.left -
+                                       document.safeArea.right,
+                                   1.0F),
+                          std::max(viewportSize.y - document.safeArea.top -
+                                       document.safeArea.bottom,
+                                   1.0F)};
   std::function<void(std::size_t, const Rect &)> resolve =
       [&](const std::size_t index, const Rect &parentRect) {
         UiNode &node = document.nodes[index];
-        node.resolved = anchoredRect(node, parentRect);
+        const Rect &layoutBounds =
+            node.respectsSafeArea ? parentRect : fullViewport;
+        node.resolved = anchoredRect(node, layoutBounds);
         auto found = children.find(node.id);
         if (found == children.end()) {
           return;
@@ -117,7 +119,7 @@ void UiLayoutEngine::layout(UiDocument &document,
       };
 
   for (const std::size_t rootIndex : children[""]) {
-    resolve(rootIndex, viewport);
+    resolve(rootIndex, safeViewport);
   }
 }
 

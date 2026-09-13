@@ -1,0 +1,33 @@
+{
+  "format_version": 1,
+  "canvas_size": [
+    960,
+    540
+  ],
+  "root": {
+  "id": "root",
+  "type": "container",
+  "children": [
+    {
+      "id": "help",
+      "type": "label",
+      "position": [
+        20,
+        20
+      ],
+      "text": "WASD move | Mouse look | F attack | Shift roll | Tab lock | R reset | Esc cursor",
+      "font_size": 13
+    },
+    {
+      "id": "status",
+      "type": "label",
+      "position": [
+        20,
+        50
+      ],
+      "text": "",
+      "font_size": 16
+    }
+  ]
+  }
+}

@@ -1,4 +1,5 @@
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
+#include "demi/runtime/geometry/MeshDeformation3D.h"
 
 #include "demi/runtime/concurrency/JobSystem.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
@@ -39,16 +40,20 @@ struct Sphere {
 };
 
 Sphere worldBounds(const MeshRendererComponent &mesh,
-                   WorldTransform3D transform) {
+                   WorldTransform3D transform, std::span<const MeshDent3D> dents) {
   transform.scale = {transform.scale.x * mesh.size.x,
                      transform.scale.y * mesh.size.y,
                      transform.scale.z * mesh.size.z};
   Vec3 minimum;
   Vec3 maximum;
   bool first = true;
-  for (const float x : {mesh.boundsMin.x, mesh.boundsMax.x})
-    for (const float y : {mesh.boundsMin.y, mesh.boundsMax.y})
-      for (const float z : {mesh.boundsMin.z, mesh.boundsMax.z}) {
+  const Vec3 expansion = meshDentBoundsExpansion3D(dents);
+  for (const float x :
+       {mesh.boundsMin.x - expansion.x, mesh.boundsMax.x + expansion.x})
+    for (const float y :
+         {mesh.boundsMin.y - expansion.y, mesh.boundsMax.y + expansion.y})
+      for (const float z :
+           {mesh.boundsMin.z - expansion.z, mesh.boundsMax.z + expansion.z}) {
         const Vec3 point = transformPoint3D(transform, {x, y, z});
         if (first) {
           minimum = maximum = point;
@@ -131,7 +136,7 @@ SceneVisibility3D extractVisibleMeshes3D(const World &world,
     const auto transform = resolveWorldTransform3D(world, entity);
     if (!transform)
       return;
-    if (mesh->hasBounds && !visible(worldBounds(*mesh, *transform), frame)) {
+    if (mesh->hasBounds && !visible(worldBounds(*mesh, *transform, entityMeshDents3D(entity)), frame)) {
       culled[index] = 1;
       return;
     }

@@ -345,8 +345,14 @@ buildDebugGeometry3D(const World &world, const DebugGeometry3DRequest request) {
       if (convex->points.size() >= 4)
         addConvex(lines, *transform, *convex, color);
     } else if (entity.hasComponent<ModelCollider3DComponent>()) {
-      if (const auto *triangles = resolvedTriangleCollider3D(world, entity))
+      if (const auto *points = resolvedConvexCollider3D(world, entity))
+        addConvex(lines, *transform,
+                  ConvexCollider3DComponent{.points = *points}, color);
+      else if (const auto *triangles =
+                   resolvedTriangleCollider3D(world, entity))
         addModel(lines, *transform, *triangles, color);
+      else if (const auto box = resolvedBoxCollider3D(world, entity))
+        addBox(lines, *transform, *box, color);
     } else if (const auto box = resolvedBoxCollider3D(world, entity)) {
       addBox(lines, *transform, *box, color);
     }

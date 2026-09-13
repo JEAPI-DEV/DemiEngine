@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "title": "Multiplayer Lobby",
+  "description": "Ready states, teams and map selection for multiplayer lobbies. Works with the engine network session contract.",
+  "publisher": "DemiEngine",
+  "license": "BSD-3-Clause",
+  "kind": "code",
+  "category": "Networking",
+  "price": 0,
+  "images": [],
+  "tags": ["multiplayer","networking"]
+}

@@ -15,6 +15,24 @@
   "assets": [
     "asset://language/en"
   ],
+  "build": {
+    "application_id": "dev.jeapi.demi.main_menu_lang",
+    "display_name": "Main Menu Languages",
+    "executable_name": "main_menu_lang",
+    "version_name": "1.0.0",
+    "version_code": 1,
+    "window": {
+      "width": 960,
+      "height": 540,
+      "mode": "windowed"
+    },
+    "android": {
+      "orientation": "landscape",
+      "min_sdk": 26,
+      "abis": ["arm64-v8a"],
+      "permissions": []
+    }
+  },
   "gameplay_model": {
     "projection": "2d",
     "physics": "box2d"

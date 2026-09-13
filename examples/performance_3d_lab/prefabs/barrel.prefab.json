@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "id": "prefab://barrel",
+  "name": "Steel Barrel",
+  "entities": [{
+    "id": "body",
+    "components": {
+      "Transform3D": {},
+      "MeshRenderer": { "model": "asset://models/barrel", "color": [1, 1, 1, 1] },
+      "Rigidbody3D": { "body_type": "dynamic" },
+      "ModelCollider3D": { "asset": "asset://colliders/barrel" }
+    }
+  }]
+}

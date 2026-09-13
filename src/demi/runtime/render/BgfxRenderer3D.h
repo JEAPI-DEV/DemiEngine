@@ -2,21 +2,22 @@
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/GltfSkinnedModel.h"
+#include "demi/runtime/concurrency/JobSystem.h"
 #include "demi/runtime/render/BgfxRenderer2D.h"
 #include "demi/runtime/render/MaterialLibrary.h"
 #include "demi/runtime/render/ParticleSimulation3D.h"
 #include "demi/runtime/render/RenderStatistics.h"
 #include "demi/runtime/render/backend/TextureLibrary2D.h"
 #include "demi/runtime/render/bgfx3d/BgfxCameraFrame3D.h"
+#include "demi/runtime/render/bgfx3d/DeformedMeshCache3D.h"
 #include "demi/runtime/render/bgfx3d/GpuMesh3D.h"
 #include "demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PostProcessRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveCanvas3D.h"
-#include "demi/runtime/concurrency/JobSystem.h"
 #include "demi/runtime/scene/model/World.h"
 
-#include <cstdint>
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -61,6 +62,7 @@ private:
     explicit CachedMesh(GpuResources &resources) : gpu(resources) {}
     GpuMesh3D gpu;
     std::uint64_t signature = 0;
+    MeshGeometry3D restGeometry;
   };
 
   GpuResources &resources_;
@@ -88,7 +90,9 @@ private:
   UniformHandle spotInnerUniform_;
   TextureHandle whiteTexture_;
   std::unordered_map<std::string, std::unique_ptr<CachedMesh>> dynamicMeshes_;
+  std::unordered_map<std::string, std::unique_ptr<CachedMesh>> primitiveMeshes_;
   std::unordered_map<std::string, std::unique_ptr<CachedMesh>> modelMeshes_;
+  DeformedMeshCache3D deformedMeshes_;
   std::unordered_map<std::string, assets::GltfSkinnedModel3D> animatedModels_;
   std::unordered_map<std::string, std::string> modelTextures_;
   std::unordered_map<std::string, bool> modelUnlit_;

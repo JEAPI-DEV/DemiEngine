@@ -23,6 +23,13 @@ parseProjectData(const std::filesystem::path &projectPath, const Json &document,
 
   project.name = *name;
   project.mainScene = *mainScene;
+  const ProjectBuildSettingsResult build =
+      parseProjectBuildSettings(document, projectPath);
+  if (hasErrors(build.diagnostics)) {
+    error = build.diagnostics.front().message;
+    return std::nullopt;
+  }
+  project.build = build.settings;
   project.inputActions = input::parseInputActions(document);
   project.scriptEntry = stringOr(document, "entry");
   project.networkContract = stringOr(document, "network_contract");
@@ -33,11 +40,17 @@ parseProjectData(const std::filesystem::path &projectPath, const Json &document,
         1.0F / 1000.0F, 1.0F);
     project.simulation.randomSeed = static_cast<std::uint64_t>(
         std::max(numberField(*simulation, "random_seed").value_or(1.0F), 1.0F));
+    project.simulation.maximumFixedStepsPerFrame = static_cast<int>(std::clamp(
+        numberField(*simulation, "maximum_fixed_steps_per_frame")
+            .value_or(4.0F),
+        1.0F, 16.0F));
   }
 
   if (const Json *display = objectField(document, "display"))
     project.display.vsync = boolField(*display, "vsync").value_or(true);
 
+  // P8: performance budgets are optional; omitted block keeps the struct
+  // defaults (the documented baseline). Present keys override individually.
   if (const Json *budgets = objectField(document, "performance_budgets")) {
     project.performanceBudgets.maximumFrameMilliseconds = std::max(
         numberField(*budgets, "maximum_frame_ms").value_or(16.67F), 0.1F);
@@ -108,8 +121,19 @@ parseProjectData(const std::filesystem::path &projectPath, const Json &document,
   }
 
   for (const Json &scene : *scenes) {
+    // P8: path may be omitted and inferred from the scene id:
+    // scene://ns/main -> scenes/main.scene.json.
     const std::optional<std::string> id = stringField(scene, "id");
-    const std::optional<std::string> path = stringField(scene, "path");
+    std::optional<std::string> path = stringField(scene, "path");
+    if (id.has_value() && !path.has_value() &&
+        id->starts_with("scene://")) {
+      const std::string rest = id->substr(std::string("scene://").size());
+      const std::size_t slash = rest.find('/');
+      const std::string leaf =
+          slash == std::string::npos ? rest : rest.substr(slash + 1);
+      if (!leaf.empty())
+        path = "scenes/" + leaf + ".scene.json";
+    }
     if (id.has_value() && path.has_value()) {
       project.scenes.push_back(SceneEntry{.id = *id, .path = *path});
     }

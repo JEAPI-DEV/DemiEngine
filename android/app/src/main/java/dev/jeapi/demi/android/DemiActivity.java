@@ -1,15 +1,25 @@
 package dev.jeapi.demi.android;
 
+import android.content.Context;
 import android.graphics.Rect;
+import android.hardware.Sensor;
+import android.os.Build;
 import android.os.Bundle;
+import android.view.Display;
+import android.view.Surface;
+import android.view.SurfaceHolder;
 import android.view.View;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityNodeProvider;
+import android.view.inputmethod.InputMethodManager;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.libsdl.app.SDLActivity;
+import org.libsdl.app.SDLSurface;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -18,6 +28,8 @@ public final class DemiActivity extends SDLActivity {
     private static native String nativeAccessibilitySnapshot();
     private static native void nativeAccessibilityAction(
             int type, String nodeId, float value, String text);
+    private static native void nativeSurfaceAvailable(boolean available);
+    private volatile float preferredFrameRate = 0.0f;
 
     @Override
     protected String[] getLibraries() {
@@ -26,8 +38,143 @@ public final class DemiActivity extends SDLActivity {
     }
 
     @Override
+    protected SDLSurface createSDLSurface(Context context) {
+        return new DemiSurface(context);
+    }
+
+    private static final class DemiSurface extends SDLSurface {
+        private final DemiActivity activity;
+
+        DemiSurface(Context context) {
+            super(context);
+            activity = (DemiActivity) context;
+        }
+
+        @Override
+        public void surfaceCreated(SurfaceHolder holder) {
+            super.surfaceCreated(holder);
+            android.util.Log.i("DemiEngine", "[surface] Java surfaceCreated.");
+            activity.applyPreferredFrameRate(holder.getSurface());
+            nativeSurfaceAvailable(true);
+        }
+
+        @Override
+        public void surfaceDestroyed(SurfaceHolder holder) {
+            android.util.Log.i("DemiEngine", "[surface] Java surfaceDestroyed.");
+            nativeSurfaceAvailable(false);
+            super.surfaceDestroyed(holder);
+        }
+
+        @Override
+        protected void enableSensor(int sensorType, boolean enabled) {
+            if (sensorType != Sensor.TYPE_ACCELEROMETER)
+                super.enableSensor(sensorType, enabled);
+        }
+    }
+
+    private void applyPreferredFrameRate(Surface surface) {
+        if (Build.VERSION.SDK_INT < 30 || surface == null || !surface.isValid())
+            return;
+        try {
+            surface.setFrameRate(preferredFrameRate,
+                    Surface.FRAME_RATE_COMPATIBILITY_DEFAULT);
+            android.util.Log.i("DemiEngine", "[render] Requested " +
+                    preferredFrameRate + " FPS from the Android compositor.");
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            android.util.Log.w("DemiEngine",
+                    "Could not request the preferred frame rate.", error);
+        }
+    }
+
+    public boolean setDemiPreferredFrameRate(float framesPerSecond) {
+        if (Build.VERSION.SDK_INT < 30)
+            return false;
+        preferredFrameRate = Math.max(framesPerSecond, 0.0f);
+        runOnUiThread(() -> {
+            if (mSurface != null)
+                applyPreferredFrameRate(mSurface.getHolder().getSurface());
+        });
+        if (preferredFrameRate == 0.0f)
+            return true;
+        Display display = mSurface == null ? null : mSurface.getDisplay();
+        if (display == null)
+            return false;
+        for (Display.Mode mode : display.getSupportedModes()) {
+            if (Math.abs(mode.getRefreshRate() - preferredFrameRate) < 0.5f)
+                return true;
+        }
+        // setFrameRate remains a useful compositor hint, but it does not
+        // throttle rendering when no matching display cadence exists.
+        return false;
+    }
+
+    public void setDemiKeyboardVisible(final boolean visible) {
+        runOnUiThread(() -> {
+            View content = getWindow().getDecorView();
+            InputMethodManager manager = (InputMethodManager)
+                    getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (manager == null) return;
+            if (visible) manager.showSoftInput(content, InputMethodManager.SHOW_IMPLICIT);
+            else manager.hideSoftInputFromWindow(content.getWindowToken(), 0);
+        });
+    }
+
+    public String getDemiDataPath() {
+        return getFilesDir().getAbsolutePath();
+    }
+
+    public String getDemiCachePath() {
+        return getCacheDir().getAbsolutePath();
+    }
+
+    private void applyImmersiveMode() {
+        View decor = getWindow().getDecorView();
+        decor.setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
+                View.SYSTEM_UI_FLAG_FULLSCREEN |
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        if (Build.VERSION.SDK_INT >= 30) {
+            WindowInsetsController controller = decor.getWindowInsetsController();
+            if (controller != null) {
+                controller.hide(WindowInsets.Type.systemBars());
+                controller.setSystemBarsBehavior(
+                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            }
+        }
+    }
+
+    private void scheduleImmersiveMode() {
+        View decor = getWindow().getDecorView();
+        decor.post(() -> {
+            SDLActivity.setWindowStyle(true);
+            applyImmersiveMode();
+        });
+        decor.postDelayed(() -> {
+            SDLActivity.setWindowStyle(true);
+            applyImmersiveMode();
+        }, 300);
+        decor.postDelayed(this::applyImmersiveMode, 1000);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) scheduleImmersiveMode();
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getWindow().getDecorView().setOnSystemUiVisibilityChangeListener(
+                visibility -> {
+                    if ((visibility & View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0)
+                        getWindow().getDecorView().postDelayed(
+                                this::applyImmersiveMode, 150);
+                });
+        scheduleImmersiveMode();
         final View content = getWindow().getDecorView();
         content.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
         content.setAccessibilityDelegate(new View.AccessibilityDelegate() {

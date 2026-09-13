@@ -31,9 +31,8 @@ void EditorAnimationMachinePanel::draw(EditorWorkspace &workspace,
                                        std::string &notice) {
   if (entityId_.empty())
     return;
-  ImGui::SetNextWindowSize({760.0F, 610.0F}, ImGuiCond_Appearing);
-  if (!ImGui::Begin("Animation State Machine", nullptr,
-                    ImGuiWindowFlags_NoSavedSettings)) {
+  ImGui::SetNextWindowSize({760.0F, 610.0F}, ImGuiCond_FirstUseEver);
+  if (!ImGui::Begin("Animation State Machine")) {
     ImGui::End();
     return;
   }

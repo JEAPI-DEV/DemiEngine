@@ -1,0 +1,345 @@
+{
+  "format_version": 1,
+  "id": "scene://third_person_foundation/main",
+  "hud": "main.hud.json",
+  "entities": [
+    {
+      "id": "camera",
+      "components": {
+        "Transform3D": {
+          "position": [
+            0,
+            4,
+            10
+          ]
+        },
+        "Camera3D": {
+          "primary": true,
+          "target_offset": [
+            0,
+            0,
+            1
+          ],
+          "far_clip": 60
+        }
+      }
+    },
+    {
+      "id": "light",
+      "components": {
+        "DirectionalLight": {
+          "direction": [
+            -0.4,
+            -1,
+            -0.3
+          ],
+          "intensity": 1.5
+        }
+      }
+    },
+    {
+      "id": "environment",
+      "components": {
+        "Environment3D": {
+          "ambient_color": [
+            0.65,
+            0.7,
+            0.8,
+            1
+          ],
+          "ambient_intensity": 0.7
+        }
+      }
+    },
+    {
+      "id": "director",
+      "components": {
+        "LuaScript": {
+          "module": "script://scripts/room.lua"
+        }
+      }
+    },
+    {
+      "id": "floor",
+      "components": {
+        "Transform3D": {
+          "position": [
+            0,
+            -0.5,
+            0
+          ]
+        },
+        "MeshRenderer": {
+          "shape": "cube",
+          "size": [
+            24,
+            1,
+            24
+          ],
+          "color": [
+            0.25,
+            0.32,
+            0.4,
+            1
+          ]
+        },
+        "Rigidbody3D": {
+          "body_type": "static",
+          "use_gravity": false,
+          "report_contacts": false
+        },
+        "BoxCollider3D": {
+          "size": [
+            24,
+            1,
+            24
+          ],
+          "layer": "world"
+        }
+      }
+    },
+    {
+      "id": "back",
+      "components": {
+        "Transform3D": {
+          "position": [
+            0,
+            2,
+            12
+          ]
+        },
+        "MeshRenderer": {
+          "shape": "cube",
+          "size": [
+            24,
+            4,
+            0.5
+          ],
+          "color": [
+            0.25,
+            0.32,
+            0.4,
+            1
+          ]
+        },
+        "Rigidbody3D": {
+          "body_type": "static",
+          "use_gravity": false,
+          "report_contacts": false
+        },
+        "BoxCollider3D": {
+          "size": [
+            24,
+            4,
+            0.5
+          ],
+          "layer": "world"
+        }
+      }
+    },
+    {
+      "id": "front",
+      "components": {
+        "Transform3D": {
+          "position": [
+            0,
+            2,
+            -12
+          ]
+        },
+        "MeshRenderer": {
+          "shape": "cube",
+          "size": [
+            24,
+            4,
+            0.5
+          ],
+          "color": [
+            0.25,
+            0.32,
+            0.4,
+            1
+          ]
+        },
+        "Rigidbody3D": {
+          "body_type": "static",
+          "use_gravity": false,
+          "report_contacts": false
+        },
+        "BoxCollider3D": {
+          "size": [
+            24,
+            4,
+            0.5
+          ],
+          "layer": "world"
+        }
+      }
+    },
+    {
+      "id": "left",
+      "components": {
+        "Transform3D": {
+          "position": [
+            -12,
+            2,
+            0
+          ]
+        },
+        "MeshRenderer": {
+          "shape": "cube",
+          "size": [
+            0.5,
+            4,
+            24
+          ],
+          "color": [
+            0.25,
+            0.32,
+            0.4,
+            1
+          ]
+        },
+        "Rigidbody3D": {
+          "body_type": "static",
+          "use_gravity": false,
+          "report_contacts": false
+        },
+        "BoxCollider3D": {
+          "size": [
+            0.5,
+            4,
+            24
+          ],
+          "layer": "world"
+        }
+      }
+    },
+    {
+      "id": "right",
+      "components": {
+        "Transform3D": {
+          "position": [
+            12,
+            2,
+            0
+          ]
+        },
+        "MeshRenderer": {
+          "shape": "cube",
+          "size": [
+            0.5,
+            4,
+            24
+          ],
+          "color": [
+            0.25,
+            0.32,
+            0.4,
+            1
+          ]
+        },
+        "Rigidbody3D": {
+          "body_type": "static",
+          "use_gravity": false,
+          "report_contacts": false
+        },
+        "BoxCollider3D": {
+          "size": [
+            0.5,
+            4,
+            24
+          ],
+          "layer": "world"
+        }
+      }
+    },
+    {
+      "id": "pillar",
+      "components": {
+        "Transform3D": {
+          "position": [
+            4,
+            1.5,
+            4
+          ]
+        },
+        "MeshRenderer": {
+          "shape": "cube",
+          "size": [
+            2,
+            3,
+            2
+          ],
+          "color": [
+            0.25,
+            0.32,
+            0.4,
+            1
+          ]
+        },
+        "Rigidbody3D": {
+          "body_type": "static",
+          "use_gravity": false,
+          "report_contacts": false
+        },
+        "BoxCollider3D": {
+          "size": [
+            2,
+            3,
+            2
+          ],
+          "layer": "world"
+        }
+      }
+    }
+  ],
+  "instances": [
+    {
+      "id": "player",
+      "prefab": "prefab://fighter",
+      "overrides": {
+        "body": {
+          "components": {
+            "Transform3D": {
+              "position": [
+                0,
+                1,
+                6
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "enemy",
+      "prefab": "prefab://fighter",
+      "overrides": {
+        "body": {
+          "components": {
+            "Transform3D": {
+              "position": [
+                0,
+                1,
+                0
+              ]
+            }
+          }
+        },
+        "visual": {
+          "components": {
+            "MeshRenderer": {
+              "color": [
+                0.9,
+                0.25,
+                0.15,
+                1
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/materials/glass/glass.material.json",
+  "id": "asset://materials/glass",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "glass.material.json",
+  "source_hash": "fnv1a64:4611d9b83b53ad11",
+  "type": "Material"
+}

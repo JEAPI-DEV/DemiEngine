@@ -19,6 +19,10 @@
 
 namespace demi::runtime {
 
+Entity *LuaScriptHost::lookupServiceEntity(const std::string &id) const {
+  return world_ ? serviceEntityLookup_.find(world_->entities, id) : nullptr;
+}
+
 bool LuaScriptHost::isKeyDown(const std::string &key) const {
   return input_ != nullptr && input_->keysDown.contains(normalizedKey(key));
 }
@@ -146,7 +150,7 @@ bool LuaScriptHost::addEntityPosition(const std::string &entityId,
   if (world_ == nullptr) {
     return false;
   }
-  Entity *entity = findEntity(*world_, entityId);
+  Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<Transform2DComponent>()) {
     return false;
   }
@@ -160,7 +164,7 @@ bool LuaScriptHost::setEntityPosition(const std::string &entityId,
   if (world_ == nullptr) {
     return false;
   }
-  Entity *entity = findEntity(*world_, entityId);
+  Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<Transform2DComponent>()) {
     return false;
   }
@@ -173,7 +177,7 @@ LuaScriptHost::entityPosition(const std::string &entityId) const {
   if (world_ == nullptr) {
     return std::nullopt;
   }
-  const Entity *entity = findEntity(*world_, entityId);
+  const Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<Transform2DComponent>()) {
     return std::nullopt;
   }
@@ -185,7 +189,7 @@ LuaScriptHost::entityRotation(const std::string &entityId) const {
   if (world_ == nullptr) {
     return std::nullopt;
   }
-  const Entity *entity = findEntity(*world_, entityId);
+  const Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<Transform2DComponent>()) {
     return std::nullopt;
   }
@@ -197,7 +201,7 @@ bool LuaScriptHost::setEntityRotation(const std::string &entityId,
   if (world_ == nullptr) {
     return false;
   }
-  Entity *entity = findEntity(*world_, entityId);
+  Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<Transform2DComponent>()) {
     return false;
   }
@@ -210,7 +214,7 @@ LuaScriptHost::entityScale(const std::string &entityId) const {
   if (world_ == nullptr) {
     return std::nullopt;
   }
-  const Entity *entity = findEntity(*world_, entityId);
+  const Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<Transform2DComponent>()) {
     return std::nullopt;
   }
@@ -222,7 +226,7 @@ bool LuaScriptHost::setEntityScale(const std::string &entityId, const float x,
   if (world_ == nullptr) {
     return false;
   }
-  Entity *entity = findEntity(*world_, entityId);
+  Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<Transform2DComponent>()) {
     return false;
   }
@@ -236,7 +240,7 @@ bool LuaScriptHost::addEntityPosition3D(const std::string &entityId,
   if (world_ == nullptr) {
     return false;
   }
-  Entity *entity = findEntity(*world_, entityId);
+  Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<Transform3DComponent>()) {
     return false;
   }
@@ -251,7 +255,7 @@ bool LuaScriptHost::setEntityPosition3D(const std::string &entityId,
   if (world_ == nullptr) {
     return false;
   }
-  Entity *entity = findEntity(*world_, entityId);
+  Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<Transform3DComponent>()) {
     return false;
   }
@@ -264,7 +268,7 @@ LuaScriptHost::entityPosition3D(const std::string &entityId) const {
   if (world_ == nullptr) {
     return std::nullopt;
   }
-  const Entity *entity = findEntity(*world_, entityId);
+  const Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<Transform3DComponent>()) {
     return std::nullopt;
   }
@@ -276,7 +280,7 @@ LuaScriptHost::entityRotation3D(const std::string &entityId) const {
   if (world_ == nullptr) {
     return std::nullopt;
   }
-  const Entity *entity = findEntity(*world_, entityId);
+  const Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<Transform3DComponent>()) {
     return std::nullopt;
   }
@@ -289,7 +293,7 @@ bool LuaScriptHost::setEntityRotation3D(const std::string &entityId,
   if (world_ == nullptr) {
     return false;
   }
-  Entity *entity = findEntity(*world_, entityId);
+  Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<Transform3DComponent>()) {
     return false;
   }
@@ -303,7 +307,7 @@ LuaScriptHost::entityScale3D(const std::string &entityId) const {
   if (world_ == nullptr) {
     return std::nullopt;
   }
-  const Entity *entity = findEntity(*world_, entityId);
+  const Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<Transform3DComponent>()) {
     return std::nullopt;
   }
@@ -315,7 +319,7 @@ bool LuaScriptHost::setEntityScale3D(const std::string &entityId, const float x,
   if (world_ == nullptr) {
     return false;
   }
-  Entity *entity = findEntity(*world_, entityId);
+  Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<Transform3DComponent>()) {
     return false;
   }
@@ -327,7 +331,7 @@ bool LuaScriptHost::setEntityScale3D(const std::string &entityId, const float x,
 std::optional<Vec3>
 LuaScriptHost::entityForward3D(const std::string &entityId) const {
   const Entity *entity =
-      world_ != nullptr ? findEntity(*world_, entityId) : nullptr;
+      world_ != nullptr ? lookupServiceEntity(entityId) : nullptr;
   const auto transform = entity != nullptr
                              ? resolveWorldTransform3D(*world_, *entity)
                              : std::nullopt;
@@ -338,7 +342,7 @@ LuaScriptHost::entityForward3D(const std::string &entityId) const {
 std::optional<Vec3>
 LuaScriptHost::entityRight3D(const std::string &entityId) const {
   const Entity *entity =
-      world_ != nullptr ? findEntity(*world_, entityId) : nullptr;
+      world_ != nullptr ? lookupServiceEntity(entityId) : nullptr;
   const auto transform = entity != nullptr
                              ? resolveWorldTransform3D(*world_, *entity)
                              : std::nullopt;
@@ -348,7 +352,7 @@ LuaScriptHost::entityRight3D(const std::string &entityId) const {
 std::optional<Vec3>
 LuaScriptHost::entityUp3D(const std::string &entityId) const {
   const Entity *entity =
-      world_ != nullptr ? findEntity(*world_, entityId) : nullptr;
+      world_ != nullptr ? lookupServiceEntity(entityId) : nullptr;
   const auto transform = entity != nullptr
                              ? resolveWorldTransform3D(*world_, *entity)
                              : std::nullopt;
@@ -357,7 +361,7 @@ LuaScriptHost::entityUp3D(const std::string &entityId) const {
 
 bool LuaScriptHost::lookAtEntity3D(const std::string &entityId, const float x,
                                    const float y, const float z) {
-  Entity *entity = world_ != nullptr ? findEntity(*world_, entityId) : nullptr;
+  Entity *entity = world_ != nullptr ? lookupServiceEntity(entityId) : nullptr;
   auto *transform =
       entity != nullptr ? entity->component<Transform3DComponent>() : nullptr;
   if (transform == nullptr)
@@ -371,7 +375,7 @@ LuaScriptHost::cameraRay3D(const std::string &entityId, const float screenX,
                            const float screenY, const float viewportWidth,
                            const float viewportHeight) const {
   const Entity *entity =
-      world_ != nullptr ? findEntity(*world_, entityId) : nullptr;
+      world_ != nullptr ? lookupServiceEntity(entityId) : nullptr;
   const auto *camera =
       entity != nullptr ? entity->component<Camera3DComponent>() : nullptr;
   const auto transform = entity != nullptr
@@ -388,7 +392,7 @@ std::optional<Vec2> LuaScriptHost::cameraWorldToScreen3D(
     const float worldZ, const float viewportWidth,
     const float viewportHeight) const {
   const Entity *entity =
-      world_ != nullptr ? findEntity(*world_, entityId) : nullptr;
+      world_ != nullptr ? lookupServiceEntity(entityId) : nullptr;
   const auto *camera =
       entity != nullptr ? entity->component<Camera3DComponent>() : nullptr;
   const auto transform = entity != nullptr
@@ -405,7 +409,7 @@ std::optional<Vec3> LuaScriptHost::cameraScreenToWorld3D(
     const float viewportWidth, const float viewportHeight,
     const float distance) const {
   const Entity *entity =
-      world_ != nullptr ? findEntity(*world_, entityId) : nullptr;
+      world_ != nullptr ? lookupServiceEntity(entityId) : nullptr;
   const auto *camera =
       entity != nullptr ? entity->component<Camera3DComponent>() : nullptr;
   const auto transform = entity != nullptr
@@ -436,7 +440,7 @@ bool LuaScriptHost::setEntitySpriteColor(const std::string &entityId,
   if (world_ == nullptr) {
     return false;
   }
-  Entity *entity = findEntity(*world_, entityId);
+  Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr)
     entity = worldCommands_.pendingEntity(entityId);
   if (entity == nullptr || !entity->hasComponent<SpriteComponent>()) {
@@ -508,6 +512,18 @@ bool LuaScriptHost::setRigidbodyEnabled(const std::string &entityId,
          demi::runtime::setRigidbodyEnabled(*world_, entityId, enabled);
 }
 
+bool LuaScriptHost::setRigidbodyContinuous(const std::string &entityId,
+                                           const bool continuous) {
+  return world_ != nullptr &&
+         demi::runtime::setRigidbodyContinuous(*world_, entityId, continuous);
+}
+
+bool LuaScriptHost::setRigidbodyReportContacts(const std::string &entityId,
+                                               const bool reportContacts) {
+  return world_ != nullptr && demi::runtime::setRigidbodyReportContacts(
+                                  *world_, entityId, reportContacts);
+}
+
 bool LuaScriptHost::moveKinematicBody(const std::string &entityId,
                                       const float x, const float y,
                                       const float fixedDt) {
@@ -559,6 +575,18 @@ bool LuaScriptHost::setRigidbodyEnabled3D(const std::string &entityId,
                                           const bool enabled) {
   return world_ != nullptr &&
          demi::runtime::setRigidbodyEnabled3D(*world_, entityId, enabled);
+}
+
+bool LuaScriptHost::setRigidbodyContinuous3D(const std::string &entityId,
+                                             const bool continuous) {
+  return world_ != nullptr &&
+         demi::runtime::setRigidbodyContinuous3D(*world_, entityId, continuous);
+}
+
+bool LuaScriptHost::setRigidbodyReportContacts3D(const std::string &entityId,
+                                                 const bool reportContacts) {
+  return world_ != nullptr && demi::runtime::setRigidbodyReportContacts3D(
+                                  *world_, entityId, reportContacts);
 }
 
 bool LuaScriptHost::moveKinematicBody3D(const std::string &entityId,
@@ -707,7 +735,7 @@ std::optional<std::string>
 LuaScriptHost::captureEntityReplicatedState(const std::string &entityId) const {
   if (world_ == nullptr)
     return std::nullopt;
-  const Entity *entity = findEntity(*world_, entityId);
+  const Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr)
     return std::nullopt;
   return captureReplicatedState(*entity).dump();
@@ -718,7 +746,7 @@ std::optional<std::string> LuaScriptHost::captureEntityReplicatedState(
     const std::string_view prefabKey, const NetworkActor writer) const {
   if (world_ == nullptr)
     return std::nullopt;
-  const Entity *entity = findEntity(*world_, entityId);
+  const Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr)
     return std::nullopt;
   return captureContractReplicatedState(*entity, contract, prefabKey, writer)
@@ -730,7 +758,7 @@ LuaScriptHost::applyEntityReplicatedState(const std::string &entityId,
                                           const std::string &stateJson) {
   if (world_ == nullptr)
     return "world is not loaded";
-  Entity *entity = findEntity(*world_, entityId);
+  Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr)
     return "entity not found: " + entityId;
   try {
@@ -749,7 +777,7 @@ bool LuaScriptHost::setEntityMeshRenderer(
   if (world_ == nullptr || entityId.empty()) {
     return false;
   }
-  Entity *entity = findEntity(*world_, entityId);
+  Entity *entity = lookupServiceEntity(entityId);
   if (entity == nullptr)
     entity = worldCommands_.pendingEntity(entityId);
   if (entity == nullptr) {

@@ -31,6 +31,7 @@ struct Rigidbody2DComponent {
       ComponentFieldDescriptor{"linear_damping", ComponentFieldType::Number},
       ComponentFieldDescriptor{"angular_damping", ComponentFieldType::Number},
       ComponentFieldDescriptor{"continuous", ComponentFieldType::Boolean},
+      ComponentFieldDescriptor{"report_contacts", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"allow_sleep", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"awake", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"body_enabled", ComponentFieldType::Boolean}};
@@ -46,6 +47,7 @@ struct Rigidbody2DComponent {
   float linearDamping = 0.0F;
   float angularDamping = 0.0F;
   bool continuous = false;
+  bool reportContacts = true;
   bool allowSleep = true;
   bool awake = true;
   bool bodyEnabled = true;

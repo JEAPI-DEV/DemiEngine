@@ -5,6 +5,7 @@
 #include "demi/runtime/platform/ApplicationServices.h"
 
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <unordered_set>
@@ -17,7 +18,7 @@ int main() {
             {"input": "key:A", "scale": -1},
             {"input": "key:d", "scale": 1}
           ]},
-          "jump": {"type":"button","context":"gameplay","bindings": [
+          "jump": {"type":"button","bindings": [
             {"input":"key:space"},{"input":"key:up"}]},
           "fire": {"type":"button","context":"gameplay","bindings":[
             {"input":"mouse:left"}]},
@@ -54,7 +55,10 @@ int main() {
           "string_binding":{"type":"button","context":"gameplay","bindings":["space"]},
           "key_alias":{"type":"button","context":"gameplay","bindings":[{"key":"space"}]},
           "unqualified":{"type":"button","context":"gameplay","bindings":[{"input":"space"}]},
-          "type_alias":{"type":"axis","context":"gameplay","bindings":[{"input":"key:a"}]}
+          "type_alias":{"type":"axis","context":"gameplay","bindings":[{"input":"key:a"}]},
+          "empty_context":{"type":"button","context":"","bindings":[{"input":"key:space"}]},
+          "numeric_context":{"type":"button","context":12,"bindings":[{"input":"key:space"}]},
+          "null_context":{"type":"button","context":null,"bindings":[{"input":"key:space"}]}
         }}
       })"));
   if (!legacyActions.empty()) {
@@ -76,7 +80,31 @@ int main() {
   });
   state.virtualAxes["move"] = {.x = 0.4F, .y = 0.6F};
   const demi::runtime::input::InputActionResolver resolver;
-  if (actions.size() != 7 || resolver.value(actions, state, "MOVE") != -1.0F ||
+  // Read the actual example configuration: HUD-action tests do not exercise
+  // these bindings; omitted contexts must retain the canonical gameplay default.
+  const auto labProject = std::filesystem::path(__FILE__).parent_path().parent_path() /
+                          "examples/performance_3d_lab/demi.project.json";
+  std::ifstream labInput(labProject);
+  const auto labDocument = nlohmann::json::parse(labInput, nullptr, false);
+  if (labDocument.is_discarded()) {
+    std::cerr << "Could not read the performance lab input fixture\n";
+    return 1;
+  }
+  const auto labActions = demi::runtime::input::parseInputActions(labDocument);
+  const std::unordered_set<std::string> labGameplay{"gameplay"};
+  for (const auto &[action, key] :
+       {std::pair{"tower", "t"}, std::pair{"fire", "space"},
+        std::pair{"reset", "r"}, std::pair{"back", "b"}}) {
+    demi::runtime::InputState keyboard;
+    keyboard.keysDown = {key};
+    keyboard.keysPressed = {key};
+    if (!resolver.pressed(labActions, keyboard, action, 0, &labGameplay)) {
+      std::cerr << "Performance lab keyboard action failed: " << action << '\n';
+      return 1;
+    }
+  }
+  if (actions.size() != 7 || actions.at("jump").context != "gameplay" ||
+      resolver.value(actions, state, "MOVE") != -1.0F ||
       !resolver.down(actions, state, "jump") ||
       !resolver.pressed(actions, state, "jump") ||
       !resolver.down(actions, state, "fire") ||
@@ -96,6 +124,10 @@ int main() {
       resolver.vector(actions, state, "move2", 1);
   const std::unordered_set<std::string> gameplay{"gameplay"};
   const std::unordered_set<std::string> menu{"menu"};
+  if (resolver.pressed(actions, state, "jump", 0, &menu)) {
+    std::cerr << "Implicit gameplay context bypassed the active context filter\n";
+    return 1;
+  }
   if (gamepadMove.x != -0.25F || gamepadMove.y != -0.5F ||
       resolver.down(actions, state, "menu_accept", 1, &gameplay) ||
       !resolver.pressed(actions, state, "menu_accept", 1, &menu) ||

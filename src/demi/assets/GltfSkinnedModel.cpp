@@ -77,6 +77,88 @@ runtime::Vec3 transformPoint(const Matrix &matrix, const runtime::Vec3 point) {
                matrix[10] * point.z + matrix[14]};
 }
 
+std::optional<runtime::Vec3> inverseTransformPoint(const Matrix &matrix,
+                                                   const runtime::Vec3 point) {
+  const float determinant =
+      matrix[0] * (matrix[5] * matrix[10] - matrix[9] * matrix[6]) -
+      matrix[4] * (matrix[1] * matrix[10] - matrix[9] * matrix[2]) +
+      matrix[8] * (matrix[1] * matrix[6] - matrix[5] * matrix[2]);
+  if (std::abs(determinant) <= 0.000001F)
+    return std::nullopt;
+  const float inverse = 1.0F / determinant;
+  const runtime::Vec3 value{point.x - matrix[12], point.y - matrix[13],
+                            point.z - matrix[14]};
+  return runtime::Vec3{
+      .x = ((matrix[5] * matrix[10] - matrix[9] * matrix[6]) * value.x +
+            (matrix[8] * matrix[6] - matrix[4] * matrix[10]) * value.y +
+            (matrix[4] * matrix[9] - matrix[8] * matrix[5]) * value.z) *
+           inverse,
+      .y = ((matrix[9] * matrix[2] - matrix[1] * matrix[10]) * value.x +
+            (matrix[0] * matrix[10] - matrix[8] * matrix[2]) * value.y +
+            (matrix[8] * matrix[1] - matrix[0] * matrix[9]) * value.z) *
+           inverse,
+      .z = ((matrix[1] * matrix[6] - matrix[5] * matrix[2]) * value.x +
+            (matrix[4] * matrix[2] - matrix[0] * matrix[6]) * value.y +
+            (matrix[0] * matrix[5] - matrix[4] * matrix[1]) * value.z) *
+           inverse};
+}
+
+float dot(const runtime::Vec3 left, const runtime::Vec3 right) {
+  return left.x * right.x + left.y * right.y + left.z * right.z;
+}
+
+runtime::Vec3 subtract(const runtime::Vec3 left, const runtime::Vec3 right) {
+  return {left.x - right.x, left.y - right.y, left.z - right.z};
+}
+
+runtime::Vec3 scale(const runtime::Vec3 value, const float amount) {
+  return {value.x * amount, value.y * amount, value.z * amount};
+}
+
+runtime::Vec3 cross(const runtime::Vec3 left, const runtime::Vec3 right) {
+  return {left.y * right.z - left.z * right.y,
+          left.z * right.x - left.x * right.z,
+          left.x * right.y - left.y * right.x};
+}
+
+runtime::Vec3 normalized(const runtime::Vec3 value) {
+  const float magnitude = std::sqrt(dot(value, value));
+  return magnitude > 0.000001F ? scale(value, 1.0F / magnitude)
+                               : runtime::Vec3{};
+}
+
+std::optional<Matrix>
+segmentMatrix(const GltfSkinnedModel3D::BoneSegment &segment) {
+  const runtime::Vec3 y = normalized(subtract(segment.end, segment.start));
+  if (dot(y, y) <= 0.000001F)
+    return std::nullopt;
+  runtime::Vec3 pole = subtract(segment.pole, segment.start);
+  pole = subtract(pole, scale(y, dot(pole, y)));
+  if (dot(pole, pole) <= 0.000001F) {
+    const runtime::Vec3 fallback =
+        std::abs(y.y) < 0.9F ? runtime::Vec3{0, 1, 0} : runtime::Vec3{1, 0, 0};
+    pole = subtract(fallback, scale(y, dot(fallback, y)));
+  }
+  const runtime::Vec3 x = normalized(cross(y, normalized(pole)));
+  const runtime::Vec3 z = normalized(cross(x, y));
+  return Matrix{x.x,
+                x.y,
+                x.z,
+                0.0F,
+                y.x,
+                y.y,
+                y.z,
+                0.0F,
+                z.x,
+                z.y,
+                z.z,
+                0.0F,
+                segment.start.x,
+                segment.start.y,
+                segment.start.z,
+                1.0F};
+}
+
 Matrix trs(const runtime::Vec3 translation, std::array<float, 4> rotation,
            const runtime::Vec3 scale) {
   const float length =
@@ -174,13 +256,13 @@ std::array<float, 4> sampleChannel(const GltfSkinnedModel3D::Channel &channel,
   return result;
 }
 
-bool resolvePosePositions(
-    const GltfSkinnedModel3D &model,
-    const std::vector<runtime::Vec3> &translations,
-    const std::vector<std::array<float, 4>> &rotations,
-    const std::vector<runtime::Vec3> &scales,
-    const std::vector<bool> &animated, std::vector<runtime::Vec3> &out,
-    std::string &error) {
+bool resolvePosePositions(const GltfSkinnedModel3D &model,
+                          const std::vector<runtime::Vec3> &translations,
+                          const std::vector<std::array<float, 4>> &rotations,
+                          const std::vector<runtime::Vec3> &scales,
+                          const std::vector<bool> &animated,
+                          const GltfSkinnedModel3D::BoneSegments &segments,
+                          std::vector<runtime::Vec3> &out, std::string &error) {
   if (translations.size() != model.nodes.size() ||
       rotations.size() != model.nodes.size() ||
       scales.size() != model.nodes.size() ||
@@ -190,6 +272,32 @@ bool resolvePosePositions(
   }
 
   std::vector<Matrix> globals(model.nodes.size());
+  std::unordered_map<int, Matrix> segmentMatrices;
+  for (const auto &[name, segment] : segments) {
+    const auto found =
+        std::ranges::find(model.nodes, name, &GltfSkinnedModel3D::Node::name);
+    if (found == model.nodes.end()) {
+      error = "GLB procedural pose references missing bone '" + name + "'.";
+      return false;
+    }
+    const auto start =
+        inverseTransformPoint(model.importTransform, segment.start);
+    const auto end = inverseTransformPoint(model.importTransform, segment.end);
+    const auto pole =
+        inverseTransformPoint(model.importTransform, segment.pole);
+    if (!start || !end || !pole) {
+      error = "GLB import transform cannot be inverted for procedural posing.";
+      return false;
+    }
+    const auto matrix =
+        segmentMatrix({.start = *start, .end = *end, .pole = *pole});
+    if (!matrix) {
+      error = "GLB procedural bone segment has zero length: " + name + ".";
+      return false;
+    }
+    segmentMatrices.emplace(
+        static_cast<int>(std::distance(model.nodes.begin(), found)), *matrix);
+  }
   // 0 = unresolved, 1 = resolving, 2 = resolved. The middle state catches
   // malformed parent cycles before they recurse indefinitely.
   std::vector<std::uint8_t> state(model.nodes.size(), 0U);
@@ -205,6 +313,12 @@ bool resolvePosePositions(
       return false;
     }
     state[index] = 1U;
+    if (const auto override = segmentMatrices.find(index);
+        override != segmentMatrices.end()) {
+      globals[index] = override->second;
+      state[index] = 2U;
+      return true;
+    }
     const GltfSkinnedModel3D::Node &node = model.nodes[index];
     const Matrix local =
         node.matrixAuthored && !animated[index]
@@ -303,8 +417,9 @@ int GltfSkinnedModel3D::clipIndex(const std::string_view name,
              : std::clamp(fallback, 0, static_cast<int>(clips.size() - 1U));
 }
 
-bool GltfSkinnedModel3D::bindPosePositions(
-    std::vector<runtime::Vec3> &out, std::string &error) const {
+bool GltfSkinnedModel3D::bindPosePositions(std::vector<runtime::Vec3> &out,
+                                           std::string &error,
+                                           const BoneSegments &segments) const {
   std::vector<runtime::Vec3> translations;
   std::vector<std::array<float, 4>> rotations;
   std::vector<runtime::Vec3> scales;
@@ -317,14 +432,15 @@ bool GltfSkinnedModel3D::bindPosePositions(
     scales.push_back(node.scale);
   }
   return resolvePosePositions(*this, translations, rotations, scales,
-                              std::vector<bool>(nodes.size(), false), out,
-                              error);
+                              std::vector<bool>(nodes.size(), false), segments,
+                              out, error);
 }
 
 bool GltfSkinnedModel3D::samplePositions(const int clipIndex, float time,
                                          const bool loop,
                                          std::vector<runtime::Vec3> &out,
-                                         std::string &error) const {
+                                         std::string &error,
+                                         const BoneSegments &segments) const {
   if (clipIndex < 0 || static_cast<std::size_t>(clipIndex) >= clips.size()) {
     error = "GLB animation clip index is out of range.";
     return false;
@@ -361,7 +477,7 @@ bool GltfSkinnedModel3D::samplePositions(const int clipIndex, float time,
   }
 
   return resolvePosePositions(*this, translations, rotations, scales, animated,
-                              out, error);
+                              segments, out, error);
 }
 
 std::optional<GltfSkinnedModel3D>
@@ -398,6 +514,7 @@ loadGltfSkinnedModel3D(const std::filesystem::path &path,
   for (cgltf_size index = 0; index < raw->nodes_count; ++index) {
     const cgltf_node &source = raw->nodes[index];
     GltfSkinnedModel3D::Node node;
+    node.name = source.name != nullptr ? source.name : "";
     cgltf_node_transform_local(&source, node.localMatrix.data());
     node.translation =
         source.has_translation

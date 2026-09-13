@@ -1,0 +1,12 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/colliders/barrel/barrel.collider.json",
+  "id": "asset://colliders/barrel",
+  "importer": "collider-shape",
+  "importer_version": 1,
+  "settings": {},
+  "source": "barrel.collider.json",
+  "source_hash": "fnv1a64:841e62d55733c9a7",
+  "type": "Collider3D"
+}

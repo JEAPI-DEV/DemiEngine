@@ -82,6 +82,34 @@ local footstep = Events.subscribe("animation_event", function(event)
 end)
 ```
 
+Procedural rigs can solve a two-segment chain in either 2D or 3D. The target is
+clamped when it lies outside the chain's reach, and the pole selects the bend
+side or plane. This is suitable for planted feet, aiming arms, tentacles, and
+mechanical linkages; terrain contact remains a gameplay decision made with the
+normal physics queries.
+
+```lua
+local leg = Animation.solve_two_bone_3d({
+  root = hip,
+  target = foot_contact,
+  pole = knee_hint,
+  upper_length = 0.72,
+  lower_length = 0.78,
+})
+Animation.set_bone_segment("creature", "front_left_upper", {
+  start = hip,
+  tail = leg.joint,
+  pole = knee_hint,
+})
+```
+
+`examples/procedural_spider_3d` combines this solver with 3D raycasts,
+alternating planted-foot groups, generated steps and rocks, and a floor-to-wall
+transition. Its Blender-authored skinned model contains named upper/lower leg
+bones; runtime segment overrides deform that imported mesh without exposing
+renderer handles or inverse-bind matrices to Lua. `Vector2`, `Vector3`, and
+`Mathf.smoothstep` provide shared vector/interpolation math to gameplay code.
+
 Root motion is disabled unless scene data or
 `Animation.set_root_motion(entity, true)` explicitly enables it. State
 `root_motion_track` data contains evenly spaced local-space positions over the
@@ -111,6 +139,20 @@ frame ranges. Model import settings may declare stable clip names and skeleton
 IDs; validation rejects missing names, duplicate names, and mixed skeletons.
 Scene validation rejects missing state references in initial states,
 transitions, blend spaces, and layers.
+
+### Animation performance evidence
+
+The crowd scene in `examples/animation_3d` provides matched live/frozen visual
+animation workloads. See its README for the visible benchmark command. Runtime
+profiling exposes `Renderer3D.animation_rebuild` (inclusive), `Renderer3D.skin_cpu`
+(pose evaluation and vertex skinning), and `Renderer3D.skin_upload_cpu` (normal
+reconstruction, vertex packing and upload submission, not GPU transfer timing).
+Per-frame CSV totals aggregate all rebuilt characters; session percentiles of
+these scopes describe individual calls, not whole-frame animation totals.
+Frozen cached poses do not emit rebuild scopes. UVs, packed vertex colors and
+topology are reused from the model-owned cache and invalidated by asset reload;
+positions and normals still update per animated pose. GPU skinning is not yet
+implemented by this optimization.
 
 ## Audio
 

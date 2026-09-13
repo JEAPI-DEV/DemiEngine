@@ -3,6 +3,7 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 
 namespace {
 
@@ -10,6 +11,12 @@ void write(const std::filesystem::path &path, const std::string &text) {
   std::filesystem::create_directories(path.parent_path());
   std::ofstream output(path);
   output << text;
+}
+
+std::string read(const std::filesystem::path &path) {
+  std::ifstream input(path);
+  return {std::istreambuf_iterator<char>(input),
+          std::istreambuf_iterator<char>()};
 }
 
 } // namespace
@@ -42,11 +49,11 @@ int main() {
   assert(document.setInputActions(
       {{"jump",
         {{"type", "button"},
-         {"context", "gameplay"},
          {"bindings",
           nlohmann::json::array({{{"input", "key:space"}, {"player", 1}}})}}}},
       error));
   assert(document.inputActions().contains("jump"));
+  assert(!document.inputActions()["jump"].contains("context"));
   assert(document.setInputBinding("jump", 0, "key:j", error));
   assert(document.inputActions()["jump"]["bindings"][0]["input"] == "key:j");
   assert(document.inputActions()["jump"]["bindings"][0]["player"] == 1);
@@ -58,12 +65,54 @@ int main() {
          "key:space");
   assert(document.redo(error));
   assert(document.inputActions()["jump"]["bindings"][0]["input"] == "key:j");
+
+  demi::runtime::ProjectBuildSettings build;
+  build.applicationId = "dev.jeapi.editor_test";
+  build.displayName = "Editor Test";
+  build.executableName = "editor_test";
+  build.versionName = "1.2.0";
+  build.versionCode = 12;
+  build.window = {.width = 1600, .height = 900, .mode = "borderless"};
+  build.android = {.orientation = "landscape",
+                   .minimumSdk = 28,
+                   .abis = {"arm64-v8a"},
+                   .permissions = {"android.permission.INTERNET"}};
+  assert(document.setBuildSettings(build, error));
+  assert(document.buildSettings().applicationId == "dev.jeapi.editor_test");
+  assert(document.buildSettings().window.width == 1600);
+  assert(document.undo(error));
+  assert(!document.buildSettings().authored);
+  assert(document.redo(error));
+  assert(document.buildSettings().android.minimumSdk == 28);
+
+  build.applicationId = "Invalid ID";
+  const std::string beforeInvalidBuild = document.json().dump();
+  assert(!document.setBuildSettings(build, error));
+  assert(document.json().dump() == beforeInvalidBuild);
+
   const std::string beforeInvalidInput = document.json().dump();
   assert(!document.setInputActions(
       {{"broken", {{"type", "unknown"}, {"context", "gameplay"}}}}, error));
   assert(document.json().dump() == beforeInvalidInput);
+  for (const auto &context : nlohmann::json::array({"", 42, nullptr})) {
+    auto actions = document.inputActions();
+    actions["jump"]["context"] = context;
+    assert(!document.setInputActions(actions, error));
+    assert(document.json().dump() == beforeInvalidInput);
+  }
+  auto actions = document.inputActions();
+  actions["jump"]["context"] = "menu";
+  assert(document.setInputActions(actions, error));
+  assert(document.undo(error));
   assert(document.save(error));
   assert(!document.isDirty());
+  assert(read(root / "demi.project.json").find("{\"format_version\":1,") == 0);
+  assert(document.open(root / "demi.project.json", error));
+  assert(!document.inputActions()["jump"].contains("context"));
+
+  const auto repository = std::filesystem::path(__FILE__).parent_path().parent_path();
+  assert(document.open(repository / "examples/performance_3d_lab/demi.project.json",
+                       error));
 
   std::filesystem::remove_all(root, ignored);
 }

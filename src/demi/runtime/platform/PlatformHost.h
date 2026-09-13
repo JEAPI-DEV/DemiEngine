@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -21,15 +22,26 @@ struct PlatformHostConfig {
 };
 
 struct PlatformFrameState {
-  int width = 1;
-  int height = 1;
-  float logicalDpi = 96.0F;
+  int width = 0;
+  int height = 0;
+  float logicalDpi = 0.0F;
   float deltaSeconds = 0.0F;
-  bool focused = true;
+  // Refresh rate of the display the window is on, in Hz; 0 when unknown.
+  float displayRefreshHz = 0.0F;
+  bool focused = false;
   bool minimized = false;
   bool suspended = false;
   bool quitRequested = false;
   unsigned lowMemorySignals = 0;
+  unsigned backRequests = 0;
+  bool drawableAvailable = true;
+  // False while the native surface churns after an Android destroy/recreate;
+  // rendering stays paused until it settles to avoid swapping on a window
+  // that is about to be replaced again.
+  bool surfaceSettled = true;
+  unsigned surfaceGeneration = 0;
+  double wallDeltaSeconds = 0.0;
+  bool deltaOverridden = false;
 };
 
 class PlatformHost {
@@ -53,9 +65,17 @@ public:
                                            std::string &error) = 0;
   [[nodiscard]] virtual bool setMouseCaptured(bool captured,
                                               std::string &error) = 0;
+  // Requests compositor pacing at this rate. Zero restores the platform
+  // default. Returns false when the platform cannot control presentation
+  // cadence and the runtime must enforce a cap itself.
+  [[nodiscard]] virtual bool requestFrameRate(float framesPerSecond) = 0;
   [[nodiscard]] virtual std::string clipboard() const = 0;
   [[nodiscard]] virtual bool setClipboard(const std::string &text,
                                           std::string &error) = 0;
+  [[nodiscard]] virtual bool requestPermission(
+      const std::string &permission,
+      std::function<void(bool granted, bool deniedPermanently)> result,
+      std::string &error) = 0;
 
 protected:
   PlatformHost() = default;

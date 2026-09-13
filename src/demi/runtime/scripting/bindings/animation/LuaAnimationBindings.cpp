@@ -1,8 +1,34 @@
 #include "demi/runtime/scripting/bindings/animation/LuaAnimationBindings.h"
 
+#include "demi/runtime/animation/ProceduralIk.h"
+#include "demi/runtime/scripting/bindings/LuaBindingHelpers.h"
+
 #include <sol/sol.hpp>
 
 namespace demi::runtime {
+namespace {
+
+sol::table resultTable(lua_State *state, const TwoBoneIkResult2D &result) {
+  sol::table table = sol::state_view(state).create_table();
+  table["joint"] =
+      sol::as_table(std::vector<float>{result.joint.x, result.joint.y});
+  table["end_position"] =
+      sol::as_table(std::vector<float>{result.end.x, result.end.y});
+  table["reached"] = result.reached;
+  return table;
+}
+
+sol::table resultTable(lua_State *state, const TwoBoneIkResult3D &result) {
+  sol::table table = sol::state_view(state).create_table();
+  table["joint"] = sol::as_table(
+      std::vector<float>{result.joint.x, result.joint.y, result.joint.z});
+  table["end_position"] = sol::as_table(
+      std::vector<float>{result.end.x, result.end.y, result.end.z});
+  table["reached"] = result.reached;
+  return table;
+}
+
+} // namespace
 
 void LuaAnimationBindingModule::install(LuaScriptHost &host,
                                         lua_State *state) const {
@@ -59,6 +85,36 @@ void LuaAnimationBindingModule::install(LuaScriptHost &host,
                          [&host](const std::string &entityId, bool enabled) {
                            return host.setAnimationRootMotion(entityId,
                                                               enabled);
+                         });
+  animation.set_function(
+      "solve_two_bone_2d", [state](const sol::table options) -> sol::object {
+        const auto result = solveTwoBoneIk2D(
+            luaVec2Field(options, "root"), luaVec2Field(options, "target"),
+            luaVec2Field(options, "pole"), options.get_or("upper_length", 0.0F),
+            options.get_or("lower_length", 0.0F));
+        return result ? sol::make_object(state, resultTable(state, *result))
+                      : sol::make_object(state, sol::nil);
+      });
+  animation.set_function(
+      "solve_two_bone_3d", [state](const sol::table options) -> sol::object {
+        const auto result = solveTwoBoneIk3D(
+            luaVec3Field(options, "root"), luaVec3Field(options, "target"),
+            luaVec3Field(options, "pole"), options.get_or("upper_length", 0.0F),
+            options.get_or("lower_length", 0.0F));
+        return result ? sol::make_object(state, resultTable(state, *result))
+                      : sol::make_object(state, sol::nil);
+      });
+  animation.set_function(
+      "set_bone_segment",
+      [&host](const std::string &entityId, const std::string &bone,
+              const sol::table options) {
+        return host.setAnimationBoneSegment(
+            entityId, bone, luaVec3Field(options, "start"),
+            luaVec3Field(options, "tail"), luaVec3Field(options, "pole"));
+      });
+  animation.set_function("clear_bone_segments",
+                         [&host](const std::string &entityId) {
+                           return host.clearAnimationBoneSegments(entityId);
                          });
 }
 

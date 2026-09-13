@@ -1,4 +1,5 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 
 #include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
@@ -63,6 +64,32 @@ float debugModeValue(const std::string &mode) {
   return 0.0F;
 }
 
+struct ModelLodSelection {
+  const std::string *model = nullptr;
+  bool isCulled = false;
+  int level = 0;
+};
+
+ModelLodSelection selectModelLod(const MeshRendererComponent &mesh,
+                                 const Vec3 position, const Vec3 camera,
+                                 const bool isAnimated) {
+  const float x = position.x - camera.x;
+  const float y = position.y - camera.y;
+  const float z = position.z - camera.z;
+  const float distanceSquared = x * x + y * y + z * z;
+  const auto reached = [distanceSquared](const float distance) {
+    return distance > 0.0F && distanceSquared >= distance * distance;
+  };
+  if (reached(mesh.cullDistance))
+    return {.model = &mesh.model, .isCulled = true};
+  if (!isAnimated && !mesh.lowLodModel.empty() && reached(mesh.lowLodDistance))
+    return {.model = &mesh.lowLodModel, .level = 2};
+  if (!isAnimated && !mesh.mediumLodModel.empty() &&
+      reached(mesh.mediumLodDistance))
+    return {.model = &mesh.mediumLodModel, .level = 1};
+  return {.model = &mesh.model};
+}
+
 } // namespace
 
 BgfxRenderer3D::BgfxRenderer3D(GpuResources &resources,
@@ -70,7 +97,7 @@ BgfxRenderer3D::BgfxRenderer3D(GpuResources &resources,
     : resources_(resources), commands_(commands),
       primitives_(resources, commands), postProcess_(resources, commands),
       particleRenderer_(resources, commands), overlay_(resources, commands),
-      textures_(resources), materials_(resources) {}
+      textures_(resources), materials_(resources), deformedMeshes_(resources) {}
 
 BgfxRenderer3D::~BgfxRenderer3D() { shutdown(); }
 
@@ -147,7 +174,9 @@ bool BgfxRenderer3D::initialize(std::string &error) {
 }
 
 void BgfxRenderer3D::shutdown() {
+  deformedMeshes_.clear();
   dynamicMeshes_.clear();
+  primitiveMeshes_.clear();
   modelMeshes_.clear();
   animatedModels_.clear();
   modelTextures_.clear();
@@ -286,6 +315,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     return false;
 
   std::unordered_set<std::string> liveDynamicMeshes;
+  std::unordered_set<std::string> liveDeformedMeshes;
   // Cache ownership follows entity lifetime, not camera visibility. Otherwise
   // leaving and re-entering the frustum would destroy and re-upload chunk
   // meshes, turning culling into a camera-movement hitch.
@@ -293,12 +323,16 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     const auto *mesh = entity.component<MeshRendererComponent>();
     if (mesh == nullptr)
       continue;
-    if (!mesh->vertices.empty() || mesh->model.empty() ||
+    if (!entityMeshDents3D(entity).empty())
+      liveDeformedMeshes.insert(entity.id);
+    if (!mesh->vertices.empty() ||
         entity.component<AnimationPlayer3DComponent>() != nullptr)
       liveDynamicMeshes.insert(entity.id);
   }
   const SceneLighting3D lighting =
-      collectSceneLighting3D(world, frame.camera.renderMask);
+      frame.lightingOverride
+          ? *frame.lightingOverride
+          : collectSceneLighting3D(world, frame.camera.renderMask);
   const std::array<float, 4> whiteTint{1.0F, 1.0F, 1.0F, 1.0F};
   const std::array<float, 4> noAlphaCutoff{};
   const std::array<float, 4> debugMode{debugModeValue(frame.camera.debugMode),
@@ -338,6 +372,9 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   std::unordered_map<std::string, InstanceGroup> instanceGroups;
   std::uint32_t bufferedDraws = 0;
   std::uint32_t bufferedTriangles = 0;
+  std::uint32_t distanceCulled = 0;
+  std::uint32_t mediumLodMeshes = 0;
+  std::uint32_t lowLodMeshes = 0;
   SceneVisibility3D visibility;
   if (frame.updateContent) {
     const auto extractionStarted = std::chrono::steady_clock::now();
@@ -353,7 +390,19 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     for (const VisibleMesh3D &visible : visibility.meshes) {
       const Entity &entity = *visible.entity;
       const auto *mesh = entity.component<MeshRendererComponent>();
+      const auto dents = entityMeshDents3D(entity);
       const WorldTransform3D &transform = visible.transform;
+      const auto *player = entity.component<AnimationPlayer3DComponent>();
+      const ModelLodSelection lod =
+          selectModelLod(*mesh, transform.position, frame.position,
+                         player != nullptr || !dents.empty());
+      if (lod.isCulled) {
+        ++distanceCulled;
+        continue;
+      }
+      const std::string &selectedModel = *lod.model;
+      mediumLodMeshes += lod.level == 1 ? 1U : 0U;
+      lowLodMeshes += lod.level == 2 ? 1U : 0U;
       const std::uint32_t color = packVertexColorRgba8(mesh->color);
       const std::array<float, 4> entityTint{mesh->color.r, mesh->color.g,
                                             mesh->color.b, mesh->color.a};
@@ -380,7 +429,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       const std::array<float, 4> alphaCutoff{
           material == nullptr ? 0.0F : material->alphaCutoff, 0.0F, 0.0F, 0.0F};
       drawUniforms[1].values = alphaCutoff;
-      const auto modelLighting = modelUnlit_.find(mesh->model);
+      const auto modelLighting = modelUnlit_.find(selectedModel);
       const bool modelUnlit =
           modelLighting != modelUnlit_.end() && modelLighting->second;
       const std::array<float, 4> unlitAmbient{1.0F, 1.0F, 1.0F, 1.0F};
@@ -401,9 +450,10 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         auto &cached = dynamicMeshes_[entity.id];
         if (!cached)
           cached = std::make_unique<CachedMesh>(resources_);
-        if (cached->signature != signature || !cached->gpu.valid()) {
+        if (dents.empty() &&
+            (cached->signature != signature || !cached->gpu.valid())) {
           if (!cached->gpu.upload(mesh->vertices, mesh->uvs, {}, 0xffffffffU,
-                                  error)) {
+                                  error, mesh->normals)) {
             error = entity.id + ": " + error;
             return false;
           }
@@ -413,57 +463,91 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         if (textureId.empty() && material != nullptr)
           textureId = material->albedoTexture;
         const TextureView2D texture = textures_.find(textureId);
-        queued = cached->gpu.draw(
-            commands_, frame.viewId, program,
-            texture.handle ? texture.handle : whiteTexture_, meshSampler_,
-            composeMeshTransform3D(transform, mesh->size), state, error,
-            drawUniforms);
+        const GpuMesh3D *drawMesh = &cached->gpu;
+        if (!dents.empty()) {
+          drawMesh = deformedMeshes_.get(entity.id, "inline", signature,
+                                         mesh->vertices, mesh->uvs, {}, {},
+                                         dents, error);
+          if (!drawMesh)
+            return false;
+        }
+        queued = drawMesh->draw(commands_, frame.viewId, program,
+                                texture.handle ? texture.handle : whiteTexture_,
+                                meshSampler_,
+                                composeMeshTransform3D(transform, mesh->size),
+                                state, error, drawUniforms);
         if (queued) {
           ++bufferedDraws;
-          bufferedTriangles += cached->gpu.indexCount() / 3U;
+          bufferedTriangles += drawMesh->indexCount() / 3U;
         }
-      } else if (!mesh->model.empty()) {
-        const auto cached = modelMeshes_.find(mesh->model);
+      } else if (!selectedModel.empty()) {
+        const auto cached = modelMeshes_.find(selectedModel);
         if (cached == modelMeshes_.end()) {
-          error = "No migrated GPU model is loaded for " + mesh->model + ".";
+          error = "No migrated GPU model is loaded for " + selectedModel + ".";
           return false;
         }
         const CachedMesh *drawMesh = cached->second.get();
-        const auto *player = entity.component<AnimationPlayer3DComponent>();
         if (player != nullptr) {
-          const auto source = animatedModels_.find(mesh->model);
+          const auto source = animatedModels_.find(selectedModel);
           if (source == animatedModels_.end()) {
-            error = "No animation clips are loaded for " + mesh->model + ".";
+            error =
+                "No skinned model data is loaded for " + selectedModel + ".";
             return false;
           }
           const int clip = source->second.clipIndex(player->clipName, 0);
           std::uint64_t signature = 14695981039346656037ULL;
           hashValue(signature, static_cast<std::uint32_t>(clip));
           hashValue(signature, std::bit_cast<std::uint32_t>(player->time));
+          hashValue(signature,
+                    static_cast<std::uint32_t>(player->proceduralPoseRevision));
+          hashValue(signature, static_cast<std::uint32_t>(
+                                   player->proceduralPoseRevision >> 32U));
           hashValue(signature, color);
           auto &animatedMesh = dynamicMeshes_[entity.id];
           if (!animatedMesh)
             animatedMesh = std::make_unique<CachedMesh>(resources_);
           if (animatedMesh->signature != signature ||
               !animatedMesh->gpu.valid()) {
+            ProfileScope animationScope("Renderer3D.animation_rebuild");
             std::vector<Vec3> positions;
-            if (!source->second.samplePositions(
-                    clip, player->time, player->loop, positions, error)) {
+            assets::GltfSkinnedModel3D::BoneSegments segments;
+            WorldTransform3D modelTransform = transform;
+            modelTransform.scale = {transform.scale.x * mesh->size.x,
+                                    transform.scale.y * mesh->size.y,
+                                    transform.scale.z * mesh->size.z};
+            for (const auto &[bone, target] : player->boneSegments) {
+              segments.emplace(bone, assets::GltfSkinnedModel3D::BoneSegment{
+                                         .start = inverseTransformPoint3D(
+                                             modelTransform, target.start),
+                                         .end = inverseTransformPoint3D(
+                                             modelTransform, target.end),
+                                         .pole = inverseTransformPoint3D(
+                                             modelTransform, target.pole)});
+            }
+            bool sampled = false;
+            {
+              ProfileScope skinScope("Renderer3D.skin_cpu");
+              sampled = clip >= 0 ? source->second.samplePositions(
+                                        clip, player->time, player->loop,
+                                        positions, error, segments)
+                                  : source->second.bindPosePositions(
+                                        positions, error, segments);
+            }
+            if (!sampled) {
               error = entity.id + ": " + error;
               return false;
             }
-            std::vector<Vec2> textureCoordinates;
-            std::vector<std::uint32_t> vertexColors;
-            textureCoordinates.reserve(source->second.vertices.size());
-            vertexColors.reserve(source->second.vertices.size());
-            for (const assets::GltfSkinnedVertex3D &vertex :
-                 source->second.vertices) {
-              textureCoordinates.push_back(vertex.uv);
-              vertexColors.push_back(packVertexColorRgba8(vertex.color));
+            // UVs, packed colors and topology are model-owned, not pose-owned.
+            // Asset reload replaces this cache together with the skin source.
+            const auto &rest = cached->second->restGeometry;
+            bool uploaded = false;
+            {
+              ProfileScope uploadScope("Renderer3D.skin_upload_cpu");
+              uploaded = animatedMesh->gpu.upload(positions, rest.uvs,
+                                                  rest.indices, 0xffffffffU,
+                                                  error, {}, rest.colors, true);
             }
-            if (!animatedMesh->gpu.upload(positions, textureCoordinates,
-                                          source->second.indices, 0xffffffffU,
-                                          error, {}, vertexColors)) {
+            if (!uploaded) {
               error = entity.id + ": " + error;
               return false;
             }
@@ -471,7 +555,16 @@ bool BgfxRenderer3D::renderFrame(const World &world,
           }
           drawMesh = animatedMesh.get();
         }
-        const auto modelTexture = modelTextures_.find(mesh->model);
+        const GpuMesh3D *drawGpu = &drawMesh->gpu;
+        if (!dents.empty() && player == nullptr) {
+          const auto &rest = cached->second->restGeometry;
+          drawGpu = deformedMeshes_.get(entity.id, selectedModel, 0,
+                                        rest.positions, rest.uvs, rest.indices,
+                                        rest.colors, dents, error);
+          if (!drawGpu)
+            return false;
+        }
+        const auto modelTexture = modelTextures_.find(selectedModel);
         const std::string textureId =
             material != nullptr && !material->albedoTexture.empty()
                 ? material->albedoTexture
@@ -480,36 +573,35 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         const TextureView2D texture = textures_.find(textureId);
         const TextureHandle resolvedTexture =
             texture.handle ? texture.handle : whiteTexture_;
-        if (player == nullptr && material == nullptr) {
+        if (player == nullptr && material == nullptr && dents.empty()) {
           const std::string groupKey =
-              mesh->model + "\n" + mesh->material + "\n" +
+              selectedModel + "\n" + mesh->material + "\n" +
               std::to_string(color) + "\n" +
               std::to_string(resolvedTexture.index) + ":" +
               std::to_string(resolvedTexture.generation);
           auto &[groupMesh, groupTexture, groupTint, groupUnlit, transforms] =
               instanceGroups[groupKey];
-          groupMesh = &drawMesh->gpu;
+          groupMesh = drawGpu;
           groupTexture = resolvedTexture;
           groupTint = entityTint;
           groupUnlit = modelUnlit;
           transforms.push_back(composeMeshTransform3D(transform, mesh->size));
           queued = true;
         } else {
-          queued = drawMesh->gpu.draw(
-              commands_, frame.viewId, program, resolvedTexture, meshSampler_,
-              composeMeshTransform3D(transform, mesh->size), state, error,
-              drawUniforms);
+          queued = drawGpu->draw(commands_, frame.viewId, program,
+                                 resolvedTexture, meshSampler_,
+                                 composeMeshTransform3D(transform, mesh->size),
+                                 state, error, drawUniforms);
           if (queued) {
             ++bufferedDraws;
-            bufferedTriangles += drawMesh->gpu.indexCount() / 3U;
+            bufferedTriangles += drawGpu->indexCount() / 3U;
           }
         }
       } else {
-        const std::uint64_t signature = meshCacheRevision(*mesh);
-        auto &cached = dynamicMeshes_[entity.id];
+        auto &cached = primitiveMeshes_[mesh->shape];
         if (!cached)
           cached = std::make_unique<CachedMesh>(resources_);
-        if (cached->signature != signature || !cached->gpu.valid()) {
+        if (!cached->gpu.valid()) {
           PrimitiveMeshData3D primitive;
           if (!createPrimitiveMesh3D(mesh->shape, primitive)) {
             error = entity.id + ": unsupported primitive shape '" +
@@ -522,20 +614,35 @@ bool BgfxRenderer3D::renderFrame(const World &world,
             error = entity.id + ": " + error;
             return false;
           }
-          cached->signature = signature;
         }
         std::string textureId = mesh->texture;
         if (textureId.empty() && material != nullptr)
           textureId = material->albedoTexture;
         const TextureView2D texture = textures_.find(textureId);
-        queued = cached->gpu.draw(
-            commands_, frame.viewId, program,
-            texture.handle ? texture.handle : whiteTexture_, meshSampler_,
-            composeMeshTransform3D(transform, mesh->size), state, error,
-            drawUniforms);
-        if (queued) {
-          ++bufferedDraws;
-          bufferedTriangles += cached->gpu.indexCount() / 3U;
+        const TextureHandle resolvedTexture =
+            texture.handle ? texture.handle : whiteTexture_;
+        if (material == nullptr) {
+          const std::string groupKey =
+              "primitive\n" + mesh->shape + "\n" + std::to_string(color) +
+              "\n" + std::to_string(resolvedTexture.index) + ":" +
+              std::to_string(resolvedTexture.generation);
+          auto &[groupMesh, groupTexture, groupTint, groupUnlit, transforms] =
+              instanceGroups[groupKey];
+          groupMesh = &cached->gpu;
+          groupTexture = resolvedTexture;
+          groupTint = entityTint;
+          groupUnlit = false;
+          transforms.push_back(composeMeshTransform3D(transform, mesh->size));
+          queued = true;
+        } else {
+          queued = cached->gpu.draw(
+              commands_, frame.viewId, program, resolvedTexture, meshSampler_,
+              composeMeshTransform3D(transform, mesh->size), state, error,
+              drawUniforms);
+          if (queued) {
+            ++bufferedDraws;
+            bufferedTriangles += cached->gpu.indexCount() / 3U;
+          }
         }
       }
       if (!queued) {
@@ -622,6 +729,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
                distanceSquared(right.particle.position);
       });
   if (frame.updateContent) {
+    deformedMeshes_.retain(liveDeformedMeshes);
     std::erase_if(dynamicMeshes_, [&liveDynamicMeshes](const auto &entry) {
       return !liveDynamicMeshes.contains(entry.first);
     });
@@ -741,8 +849,10 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       particleRenderer_.statistics().triangles + overlayTriangles;
   statistics_.particles = static_cast<std::uint32_t>(particleData.size());
   statistics_.consideredMeshes = visibility.considered;
-  statistics_.visibleMeshes = visibility.meshes.size();
-  statistics_.culledMeshes = visibility.culled;
+  statistics_.visibleMeshes = visibility.meshes.size() - distanceCulled;
+  statistics_.culledMeshes = visibility.culled + distanceCulled;
+  statistics_.mediumLodMeshes = mediumLodMeshes;
+  statistics_.lowLodMeshes = lowLodMeshes;
   return true;
 }
 

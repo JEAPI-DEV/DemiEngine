@@ -1,6 +1,7 @@
 #include "demi/runtime/scripting/bindings/LuaCoreBindings.h"
 
 #include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/diagnostics/DeviceLog.h"
 #include "demi/runtime/scripting/bindings/LuaBindingHelpers.h"
 
 #include <sol/sol.hpp>
@@ -12,18 +13,15 @@
 #include <iostream>
 #include <tuple>
 
-#if defined(__ANDROID__)
-#include <android/native_activity.h>
-extern "C" ANativeActivity* DemiGetNativeActivity(void);
-#endif
-
 namespace demi::runtime {
 
 void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const {
   sol::state_view lua(state);
 
   sol::table debug = lua.create_named_table("Debug");
-  debug.set_function("log", [](const std::string& message) { std::cout << "[lua] " << message << '\n'; });
+  debug.set_function("log", [](const std::string& message) {
+    deviceLog(deviceLogMessage("lua", message));
+  });
   debug.set_function("line", [&host](float x1, float y1, float x2, float y2, sol::optional<float> r, sol::optional<float> g, sol::optional<float> b, sol::optional<float> a, sol::optional<float> width) {
       host.addDebugLine(x1, y1, x2, y2, r.value_or(1.0F), g.value_or(1.0F), b.value_or(1.0F), a.value_or(1.0F), width.value_or(1.0F));
     });
@@ -54,6 +52,18 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
       const Vec2 value = host.actionVector(action, player.value_or(-1));
       return std::tuple{value.x, value.y};
     });
+  input.set_function("vector", [&host](const std::string& action, sol::optional<int> player) {
+      Vec2 value = host.actionVector(action, player.value_or(-1));
+      const float length = std::sqrt(value.x * value.x + value.y * value.y);
+      if (length > 1.0F && length > 0.0F) {
+        value.x /= length;
+        value.y /= length;
+      }
+      return std::tuple{value.x, value.y};
+    });
+  input.set_function("pressed", [&host](const std::string& action, sol::optional<int> player) { return host.isActionPressed(action, player.value_or(-1)); });
+  input.set_function("down", [&host](const std::string& action, sol::optional<int> player) { return host.isActionDown(action, player.value_or(-1)); });
+  input.set_function("value", [&host](const std::string& action, sol::optional<int> player) { return host.actionValue(action, player.value_or(-1)); });
   input.set_function("action_source", [&host](const std::string& action, sol::optional<int> player) { return host.actionSource(action, player.value_or(-1)); });
   input.set_function("enable_context", [&host](const std::string& context) { host.enableInputContext(context); });
   input.set_function("disable_context", [&host](const std::string& context) { host.disableInputContext(context); });
@@ -136,15 +146,6 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
   input.set_function("text_entered", [&host] { return host.textEntered(); });
   input.set_function("set_text_input_active", [&host](const bool active) {
       host.applicationServices().setKeyboardVisible(active);
-#if defined(__ANDROID__)
-      ANativeActivity* activity = DemiGetNativeActivity();
-      if (activity != nullptr) {
-        if (active) ANativeActivity_showSoftInput(activity, ANATIVEACTIVITY_SHOW_SOFT_INPUT_IMPLICIT);
-        else ANativeActivity_hideSoftInput(activity, ANATIVEACTIVITY_HIDE_SOFT_INPUT_NOT_ALWAYS);
-      }
-#else
-      (void)active;
-#endif
     });
   input.set_function("mouse_down", [&host](const std::string& button) { return host.isMouseDown(button); });
   input.set_function("mouse_position", [&host] { const Vec2 value = host.mousePosition(); return std::tuple{value.x, value.y}; });
@@ -170,6 +171,10 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
   timer.set_function("delay", [state, &host](float seconds, const sol::function callback) { return luaAddTimer(state, host, seconds, false, callback); });
   timer.set_function("every", [state, &host](float seconds, const sol::function callback) { return luaAddTimer(state, host, seconds, true, callback); });
   timer.set_function("cancel", [&host](std::uint64_t id) { return host.cancelTimer(id); });
+  // P6: documented lifetime-bound alias. Timers are already owned by the
+  // script host and cancelled on unload; Script.after() in demi.script binds
+  // them to an instance. after() == delay() with intent in the name.
+  timer.set_function("after", [state, &host](float seconds, const sol::function callback) { return luaAddTimer(state, host, seconds, false, callback); });
 
   sol::table events = lua.create_named_table("Events");
   events.set_function("subscribe", [state, &host](const std::string& eventName, const sol::function callback) { return luaAddEventSubscription(state, host, eventName, callback); });
@@ -194,6 +199,38 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
     host.setPhysicsEnabled(enabled);
   });
   physics.set_function("enabled", [&host] { return host.physicsEnabled(); });
+  // P6: typed contact helpers. The engine emits physics_trigger_enter/exit +
+  // physics_collision_enter/exit (2D) and physics3d_* (3D); these subscribe
+  // with automatic entity matching so scripts stop comparing
+  // contact.entity_id/other_entity_id by hand. Returns subscription ids.
+  // Implemented via a small Lua closure installed per call: the filter runs
+  // in Lua space, so no C++-constructed sol::function is needed.
+  physics.set_function("on_trigger", [state, &host](const std::string &entityId, const sol::function callback) {
+    sol::state_view lua(state);
+    const std::string chunk =
+        "local filter, cb = ...\n"
+        "return function(payload)\n"
+        "  if payload.entity_id ~= filter and payload.other_entity_id ~= filter then return end\n"
+        "  cb(payload)\n"
+        "end";
+    sol::function wrapped = lua.load(chunk)(entityId, callback);
+    const std::uint64_t first = luaAddEventSubscription(state, host, "physics_trigger_enter", wrapped);
+    const std::uint64_t second = luaAddEventSubscription(state, host, "physics3d_trigger_enter", wrapped);
+    return std::tuple{first, second};
+  });
+  physics.set_function("on_collision", [state, &host](const std::string &entityId, const sol::function callback) {
+    sol::state_view lua(state);
+    const std::string chunk =
+        "local filter, cb = ...\n"
+        "return function(payload)\n"
+        "  if payload.entity_id ~= filter and payload.other_entity_id ~= filter then return end\n"
+        "  cb(payload)\n"
+        "end";
+    sol::function wrapped = lua.load(chunk)(entityId, callback);
+    const std::uint64_t first = luaAddEventSubscription(state, host, "physics_collision_enter", wrapped);
+    const std::uint64_t second = luaAddEventSubscription(state, host, "physics3d_collision_enter", wrapped);
+    return std::tuple{first, second};
+  });
 
   sol::table application = lua.create_named_table("Application");
   application.set_function("quit", [&host] { host.requestQuit(); });
@@ -245,6 +282,40 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
   application.set_function("low_memory_generation", [&host] { return host.applicationServices().lowMemoryGeneration(); });
   application.set_function("user_data_path", [&host] { return host.applicationServices().userDataPath().string(); });
   application.set_function("cache_path", [&host] { return host.applicationServices().cachePath().string(); });
+  application.set_function("permission_state", [&host](const std::string& permission) {
+    return platform::permissionStateName(
+        host.applicationServices().permissionState(permission));
+  });
+  application.set_function("request_permission", [&host](const std::string& permission) {
+    std::string error;
+    const bool requested =
+        host.applicationServices().requestPermission(permission, error);
+    return std::tuple{requested, error};
+  });
+  application.set_function("take_permission_events", [&host, &lua] {
+    sol::table result = lua.create_table();
+    int index = 1;
+    for (const platform::PermissionEvent& event :
+         host.applicationServices().takePermissionEvents()) {
+      sol::table item = lua.create_table();
+      item["permission"] = event.permission;
+      item["state"] = platform::permissionStateName(event.state);
+      result[index++] = item;
+    }
+    return result;
+  });
+  application.set_function("take_lifecycle_events", [&host, &lua] {
+    sol::table result = lua.create_table();
+    int index = 1;
+    for (const platform::ApplicationLifecycleEvent& event :
+         host.applicationServices().takeLifecycleEvents()) {
+      sol::table item = lua.create_table();
+      item["type"] = event.type;
+      item["generation"] = event.generation;
+      result[index++] = item;
+    }
+    return result;
+  });
 }
 
 } // namespace demi::runtime

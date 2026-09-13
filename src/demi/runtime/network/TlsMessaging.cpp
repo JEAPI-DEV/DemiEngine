@@ -248,6 +248,10 @@ bool TlsServer::send(const std::uint32_t clientId, const std::string& message) {
 void TlsServer::disconnect(const std::uint32_t clientId) {
   if (impl_->clients.erase(clientId) > 0) impl_->events.push_back({TlsEventType::Disconnected, clientId, {}});
 }
+bool TlsServer::isClientConnected(const std::uint32_t clientId) const {
+  const auto found = impl_->clients.find(clientId);
+  return found != impl_->clients.end() && found->second->handshakeComplete;
+}
 std::vector<TlsEvent> TlsServer::drainEvents() { return std::exchange(impl_->events, {}); }
 const std::string& TlsServer::lastError() const { return impl_->error; }
 void TlsServer::stop() {

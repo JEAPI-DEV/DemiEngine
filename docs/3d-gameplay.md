@@ -1,10 +1,51 @@
 # Lightweight 3D Gameplay
 
+## Visual mesh damage
+
+Native, per-instance impact dents are available through `MeshDeformation.dent`
+and `MeshDeformation.reset`. See [mesh denting](mesh-denting.md) for the API,
+interactive barrel demo, collision limitations, and rendering costs.
+
+## Per-body solver quality
+
+`Rigidbody3D.solver_velocity_steps` and `solver_position_steps` are optional
+integers from 0 to 128. Their canonical defaults are zero, meaning use the
+physics backend defaults. Nonzero values override solver iterations for the
+connected contact/constraint island; they do not change the fixed timestep or
+catch-up policy. Higher values can stabilize tall stacks at a CPU cost.
+
+These authoring fields work through scenes, prefabs, `Entity.create`, and the
+Inspector. Changing them refreshes the native body using the normal body-settings
+invalidation path. The barrel-tower probe uses 64/16 locally, leaving other
+examples and ordinary rigidbodies unchanged.
+
+For a download-free third-person starting point, use
+`examples/third_person_foundation`. Its editable room and fighter prefab exercise
+the `demi.gameplay.third_person` package: mouse orbit, collision, movement,
+directional rolls, stamina and melee windup/active/recovery. See the example
+README for setup and controls. The room uses simple pose cues for mechanics
+testing; model retargeting, animation events and GPU skinning remain separate
+experimental 3D work.
+
 DemiEngine uses Jolt Physics 5.6.0 behind `PhysicsWorld3D`. Jolt types do not
 cross the engine boundary, so scenes and Lua code use stable DemiEngine
 components and services on Linux and Android. The dependency is pinned in
 CMake, cross-platform deterministic mode is enabled, and unrelated Jolt
 samples, viewers, shader backends, and tests are disabled.
+
+Rigid-body simulation uses a capped Jolt worker pool on multicore systems.
+Contact callbacks are collected safely and sorted by stable entity-pair key
+before gameplay dispatch so worker scheduling does not define Lua event order.
+
+Awake/velocity component values published by physics are state, not commands to
+repeat every frame. Unchanged state does not reset Jolt's sleep timer. Sleeping
+bodies retain collision and resting contact reports; edits to nearby supports
+wake affected bodies. Explicit velocity, impulse, wake, shape, and gravity edits
+continue to take effect. Contact removals are resolved after solver workers join,
+with native body generations checked before retaining a resting contact.
+
+See [physics optimization measurements](3d-physics-optimization.md) for the
+Release comparison and the distinction between active and sleeping workloads.
 
 ## Bodies and colliders
 
@@ -15,6 +56,12 @@ locks, kinematic targets, and render interpolation. Use `Rigidbody3D` from Lua
 to issue runtime commands. Do not move dynamic bodies by repeatedly writing
 `Transform3D`; physics owns their simulated transform.
 
+Lua can switch continuous detection with `Rigidbody3D.set_continuous` once a
+fast body has slowed down. `report_contacts` and
+`Rigidbody3D.set_report_contacts` control contact extraction and callbacks
+without changing physical collision; disable reporting for bodies whose
+contacts are no longer observed, such as settled objects in a large pile.
+
 One entity may have one explicit collider:
 
 - `BoxCollider3D`
@@ -23,7 +70,9 @@ One entity may have one explicit collider:
 - `ConvexCollider3D`
 - `ModelCollider3D`
 
-Triangle-mesh `ModelCollider3D` is static-only. Moving objects use a primitive,
+Triangle-mesh `ModelCollider3D` is static-only. A self-contained convex
+[collider asset](collider-assets.md) can also be attached through `ModelCollider3D`
+on a moving rigidbody. Otherwise, moving objects use a primitive,
 capsule, or convex hull. Validation rejects moving meshes, multiple colliders,
 invalid capsule proportions, underspecified convex hulls, parented moving
 bodies, and moving bodies without a collider. Complex compound objects use

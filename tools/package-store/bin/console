@@ -1,0 +1,6 @@
+#!/usr/bin/env php
+<?php
+require dirname(__DIR__).'/vendor/autoload.php';
+$kernel = new App\Kernel(getenv('APP_ENV') ?: 'prod', false);
+exit((new Symfony\Bundle\FrameworkBundle\Console\Application($kernel))->run());
+

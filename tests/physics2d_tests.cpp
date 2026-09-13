@@ -117,6 +117,16 @@ int main() {
     std::cerr << "Player was not available after physics step.\n";
     return 1;
   }
+  if (!demi::runtime::setRigidbodyContinuous(world, "player", true) ||
+      !player->component<Rigidbody2DComponent>()->continuous ||
+      !demi::runtime::setRigidbodyContinuous(world, "player", false) ||
+      player->component<Rigidbody2DComponent>()->continuous ||
+      !demi::runtime::setRigidbodyReportContacts(world, "player", false) ||
+      player->component<Rigidbody2DComponent>()->reportContacts ||
+      !demi::runtime::setRigidbodyReportContacts(world, "player", true)) {
+    std::cerr << "Runtime collision mode switching failed.\n";
+    return 1;
+  }
 
   if (player->component<Transform2DComponent>()->position.x < 1.5F) {
     std::cerr << "Right-edge top contact snapped player across platform to x="
@@ -144,6 +154,19 @@ int main() {
                                                 .normalYMin = 0.5F})) {
     std::cerr << "Expected player to cache an upward platform contact after "
                  "physics step.\n";
+    return 1;
+  }
+  if (!setRigidbodyReportContacts(world, "player", false) ||
+      !setRigidbodyReportContacts(world, "platform", false)) {
+    std::cerr << "Could not disable contact reporting.\n";
+    return 1;
+  }
+  stepPhysics2D(world, 1.0F / 60.0F,
+                PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
+  stepPhysics2D(world, 1.0F / 60.0F,
+                PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
+  if (!world.physicsContacts.empty()) {
+    std::cerr << "Opted-out bodies retained reported contacts.\n";
     return 1;
   }
 

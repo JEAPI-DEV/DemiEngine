@@ -2,6 +2,7 @@
   "format_version": 1,
   "name": "3D Animation",
   "main_scene": "scene://animation_3d/main",
+  "assets": ["asset://animation_lib/ual1_standard"],
   "performance_budgets": {
     "maximum_frame_ms": 16.67,
     "maximum_draw_calls": 64,
@@ -12,6 +13,8 @@
   },
   "input": {
     "actions": {
+      "animation_crowd": { "type": "button", "bindings": [{ "input": "key:c" }] },
+      "animation_back": { "type": "button", "bindings": [{ "input": "key:b" }] },
       "animation_idle": {
         "type": "button",
         "context": "gameplay",
@@ -63,7 +66,8 @@
     {
       "id": "scene://animation_3d/main",
       "path": "scenes/main.scene.json"
-    }
+    },
+    { "id": "scene://animation_3d/crowd" }
   ],
   "scripting": {
     "language": "lua54",

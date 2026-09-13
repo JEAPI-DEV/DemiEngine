@@ -506,6 +506,71 @@ void LuaEntityBindingModule::install(LuaScriptHost &host,
   entity.set_function("destroy", [&host](const std::string &entityId) {
     return host.destroyEntity(entityId);
   });
+  // P6: positional shorthand for the Transform3D.position + Rigidbody.velocity
+  // boilerplate plus optional ttl auto-destroy. Prefab-or-spec form:
+  // Entity.spawn(id, {prefab="prefab://x", position={...}, velocity={...}, ttl=2}).
+  entity.set_function("spawn", [state, &host](const std::string &entityId, const sol::table options) {
+    sol::state_view lua(state);
+    (void)lua;
+    nlohmann::json json = luaObjectToJson(options);
+    json["id"] = entityId;
+    // Flatten position/velocity shorthand into component blocks.
+    const auto takeVec = [&](const char *key) -> std::optional<nlohmann::json> {
+      const auto it = json.find(key);
+      if (it == json.end() || (!it->is_array() && !it->is_object()))
+        return std::nullopt;
+      nlohmann::json value = *it;
+      json.erase(key);
+      return value;
+    };
+    if (!json.contains("components") || !json["components"].is_object())
+      json["components"] = nlohmann::json::object();
+    // Flatten position/velocity shorthand into component blocks. Only the
+    // matching dimensionality is populated (2-array -> 2D, 3-array -> 3D)
+    // so spawned entities never carry both Transform2D and Transform3D.
+    const auto dims = [](const nlohmann::json &value) -> std::size_t {
+      return value.is_array() ? value.size() : 0;
+    };
+    if (auto position = takeVec("position")) {
+      if (dims(*position) == 2) {
+        if (!json["components"].contains("Transform2D"))
+          json["components"]["Transform2D"] = nlohmann::json::object();
+        if (!json["components"]["Transform2D"].contains("position"))
+          json["components"]["Transform2D"]["position"] = *position;
+      } else {
+        if (!json["components"].contains("Transform3D"))
+          json["components"]["Transform3D"] = nlohmann::json::object();
+        if (!json["components"]["Transform3D"].contains("position"))
+          json["components"]["Transform3D"]["position"] = *position;
+      }
+    }
+    std::optional<float> ttl;
+    if (const auto it = json.find("ttl"); it != json.end() && it->is_number()) {
+      ttl = it->get<float>();
+      json.erase("ttl");
+    }
+    if (auto velocity = takeVec("velocity")) {
+      if (dims(*velocity) == 2) {
+        if (!json["components"].contains("Rigidbody2D"))
+          json["components"]["Rigidbody2D"] = nlohmann::json::object();
+        if (!json["components"]["Rigidbody2D"].contains("velocity"))
+          json["components"]["Rigidbody2D"]["velocity"] = *velocity;
+      } else {
+        if (!json["components"].contains("Rigidbody3D"))
+          json["components"]["Rigidbody3D"] = nlohmann::json::object();
+        if (!json["components"]["Rigidbody3D"].contains("velocity"))
+          json["components"]["Rigidbody3D"]["velocity"] = *velocity;
+      }
+    }
+    std::string error;
+    std::optional<Entity> created = RuntimeObjectModel::buildEntity(json, error);
+    if (!created.has_value()) {
+      std::cerr << "Entity.spawn failed for '" << entityId << "': " << error << '\n';
+      return std::tuple{false, std::uint64_t{0}};
+    }
+    const bool ok = host.createEntity(std::move(*created));
+    return std::tuple{ok, std::uint64_t{0}};
+  });
   entity.set_function("destroy_many", [&host](const sol::table entityIds) {
     std::vector<std::string> ids;
     ids.reserve(entityIds.size());

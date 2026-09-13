@@ -1,18 +1,29 @@
 # Example validation, headless runtime, packaging, replay, and script checks.
+add_test(NAME demi-performance-3d-lab-validate
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/performance_3d_lab)
+add_test(NAME demi-performance-3d-lab-smoke
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/performance_3d_lab/demi.project.json --max-frames 3)
+set_tests_properties(demi-performance-3d-lab-smoke PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1"
+  PASS_REGULAR_EXPRESSION "PERF_LAB workload=rigid count=250"
+  TIMEOUT 30)
 add_test(NAME demi-runtime-minimal-frame
-  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json --max-frames 1
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_android/demi.project.json --max-frames 1
 )
 set_tests_properties(demi-runtime-minimal-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
-add_test(NAME demi-runtime-networking-minimal-frame
-  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json --max-frames 1
-)
-set_tests_properties(demi-runtime-networking-minimal-frame PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-runtime-multiplayer-ffa-shooter-replay
   COMMAND demi run
     --project ${CMAKE_SOURCE_DIR}/examples/multiplayer_ffa_shooter/demi.project.json
     --input-replay ${CMAKE_SOURCE_DIR}/examples/multiplayer_ffa_shooter/replays/practice_match.replay.json
 )
 set_tests_properties(demi-runtime-multiplayer-ffa-shooter-replay PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-multiplayer-ffa-shooter-host-prediction
+  COMMAND demi run
+    --project ${CMAKE_SOURCE_DIR}/examples/multiplayer_ffa_shooter/demi.project.json
+    --input-replay ${CMAKE_SOURCE_DIR}/examples/multiplayer_ffa_shooter/replays/host_prediction.replay.json
+)
+set_tests_properties(demi-runtime-multiplayer-ffa-shooter-host-prediction
+  PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1")
 add_test(NAME demi-runtime-saves-simulation-debugging-replay
   COMMAND demi run
     --project ${CMAKE_SOURCE_DIR}/examples/saves_simulation_debugging/demi.project.json
@@ -48,11 +59,23 @@ add_test(NAME demi-runtime-physics-2d-galton-board-replay
     --project ${CMAKE_SOURCE_DIR}/examples/physics_2d_galton_board/demi.project.json
     --input-replay
       ${CMAKE_SOURCE_DIR}/examples/physics_2d_galton_board/replays/release.replay.json
-    --max-frames 360
+    --max-frames 4200
 )
 set_tests_properties(demi-runtime-physics-2d-galton-board-replay PROPERTIES
-  ENVIRONMENT "DEMI_HEADLESS=1"
-  PASS_REGULAR_EXPRESSION "Galton board release complete: 60 balls")
+  ENVIRONMENT "DEMI_HEADLESS=1;DEMI_FIXED_DELTA_SECONDS=0.01666667"
+  PASS_REGULAR_EXPRESSION "Galton distribution valid"
+  TIMEOUT 60)
+add_test(NAME demi-runtime-physics-3d-galton-board-replay
+  COMMAND demi run
+    --project ${CMAKE_SOURCE_DIR}/examples/physics_3d_galton_board/demi.project.json
+    --input-replay
+      ${CMAKE_SOURCE_DIR}/examples/physics_3d_galton_board/replays/release.replay.json
+    --max-frames 4800
+)
+set_tests_properties(demi-runtime-physics-3d-galton-board-replay PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1;DEMI_FIXED_DELTA_SECONDS=0.01666667"
+  PASS_REGULAR_EXPRESSION "3D Galton distribution valid"
+  TIMEOUT 180)
 add_test(NAME demi-cook-fighting-game-2d
   COMMAND demi cook
     --project ${CMAKE_SOURCE_DIR}/examples/fighting_game_2d/demi.project.json
@@ -79,7 +102,8 @@ add_test(NAME demi-runtime-packaged-fighting-game-2d
 )
 set_tests_properties(demi-runtime-packaged-fighting-game-2d PROPERTIES
   DEPENDS demi-package-linux-fighting-game-2d
-  ENVIRONMENT "DEMI_HEADLESS=1"
+  ENVIRONMENT
+    "DEMI_HEADLESS=1;HOME=${CMAKE_BINARY_DIR}/generated/ctest-linux-home;XDG_DATA_HOME=${CMAKE_BINARY_DIR}/generated/ctest-linux-data;XDG_CACHE_HOME=${CMAKE_BINARY_DIR}/generated/ctest-linux-cache;LD_LIBRARY_PATH="
 )
 add_test(NAME demi-runtime-minimal-3d-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_3d/demi.project.json --max-frames 1
@@ -121,6 +145,37 @@ add_test(NAME demi-runtime-animation-3d-frame
 )
 set_tests_properties(demi-runtime-animation-3d-frame PROPERTIES
   ENVIRONMENT "DEMI_HEADLESS=1")
+add_test(NAME demi-runtime-procedural-spider-3d-frame
+  COMMAND demi run
+    --project ${CMAKE_SOURCE_DIR}/examples/procedural_spider_3d/demi.project.json
+    --max-frames 120
+)
+set_tests_properties(demi-runtime-procedural-spider-3d-frame PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1"
+  PASS_REGULAR_EXPRESSION "Procedural spider created")
+add_test(NAME demi-runtime-souls-boss-arena-replay
+  COMMAND demi run
+    --project ${CMAKE_SOURCE_DIR}/examples/souls_boss_arena/demi.project.json
+    --input-replay
+      ${CMAKE_SOURCE_DIR}/examples/souls_boss_arena/replays/combat_smoke.replay.json
+    --max-frames 240
+)
+add_test(NAME demi-install-third-person-foundation
+  COMMAND demi package install --project ${CMAKE_SOURCE_DIR}/examples/third_person_foundation --locked --offline)
+add_test(NAME demi-validate-third-person-foundation
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/third_person_foundation)
+add_test(NAME demi-runtime-third-person-foundation
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/third_person_foundation --max-frames 360)
+set_tests_properties(demi-validate-third-person-foundation demi-runtime-third-person-foundation
+  PROPERTIES DEPENDS demi-install-third-person-foundation)
+set_tests_properties(demi-runtime-third-person-foundation PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1;DEMI_FIXED_DELTA_SECONDS=0.016666667"
+  PASS_REGULAR_EXPRESSION "Third person foundation ready" TIMEOUT 30)
+set_tests_properties(demi-runtime-souls-boss-arena-replay PROPERTIES
+  DEPENDS demi-install-souls-boss-arena-packages
+  ENVIRONMENT "DEMI_HEADLESS=1;DEMI_FIXED_DELTA_SECONDS=0.01666667"
+  PASS_REGULAR_EXPRESSION "Cage Spider encounter started"
+  TIMEOUT 60)
 add_test(NAME demi-runtime-animation-3d-selection-replay
   COMMAND demi run
     --project ${CMAKE_SOURCE_DIR}/examples/animation_3d/demi.project.json
@@ -210,9 +265,6 @@ set_tests_properties(demi-runtime-cooked-asset-streaming-showcase PROPERTIES
   DEPENDS demi-cook-asset-streaming-showcase
   ENVIRONMENT "DEMI_HEADLESS=1"
   PASS_REGULAR_EXPRESSION "Asset streaming showcase loaded optional theme group")
-add_test(NAME demi-validate-minimal-2d-networking
-  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/demi.project.json
-)
 add_test(NAME demi-validate-multiplayer-ffa-shooter
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/multiplayer_ffa_shooter/demi.project.json
 )
@@ -261,6 +313,33 @@ foreach(script_name board game)
       ${CMAKE_SOURCE_DIR}/examples/physics_2d_galton_board/scripts/${script_name}.lua
   )
 endforeach()
+add_test(NAME demi-validate-physics-3d-galton-board
+  COMMAND demi validate
+    ${CMAKE_SOURCE_DIR}/examples/physics_3d_galton_board/demi.project.json
+)
+add_test(NAME demi-install-souls-boss-arena-packages
+  COMMAND demi package install
+    --project ${CMAKE_SOURCE_DIR}/examples/souls_boss_arena/demi.project.json
+    --locked --offline
+)
+add_test(NAME demi-validate-souls-boss-arena
+  COMMAND demi validate
+    ${CMAKE_SOURCE_DIR}/examples/souls_boss_arena/demi.project.json
+)
+set_tests_properties(demi-validate-souls-boss-arena PROPERTIES
+  DEPENDS demi-install-souls-boss-arena-packages)
+foreach(script_name combat player camera boss boss_attacks encounter)
+  add_test(NAME demi-script-check-souls-boss-arena-${script_name}
+    COMMAND demi script check
+      ${CMAKE_SOURCE_DIR}/examples/souls_boss_arena/scripts/${script_name}.lua
+  )
+  set_tests_properties(demi-script-check-souls-boss-arena-${script_name}
+    PROPERTIES DEPENDS demi-install-souls-boss-arena-packages)
+endforeach()
+add_test(NAME demi-script-check-physics-3d-galton-board-game
+  COMMAND demi script check
+    ${CMAKE_SOURCE_DIR}/examples/physics_3d_galton_board/scripts/game.lua
+)
 add_test(NAME demi-script-check-production-2d-foundation
   COMMAND demi script check
     ${CMAKE_SOURCE_DIR}/examples/production_2d_foundation/scripts/demo.lua
@@ -315,6 +394,14 @@ add_test(NAME demi-validate-minimal-3d
 add_test(NAME demi-validate-animation-3d
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/animation_3d/demi.project.json
 )
+add_test(NAME demi-validate-procedural-spider-3d
+  COMMAND demi validate
+    ${CMAKE_SOURCE_DIR}/examples/procedural_spider_3d/demi.project.json
+)
+add_test(NAME demi-script-check-procedural-spider-3d
+  COMMAND demi script check
+    ${CMAKE_SOURCE_DIR}/examples/procedural_spider_3d/scripts/procedural_spider.lua
+)
 add_test(NAME demi-validate-minimal-voxel
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/demi.project.json
 )
@@ -336,9 +423,6 @@ set_tests_properties(demi-runtime-cooked-data-driven-main-menu PROPERTIES
   PASS_REGULAR_EXPRESSION "Loaded data-driven menu copy revision 1")
 add_test(NAME demi-validate-gif-main-menu
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/main_menu_gif/demi.project.json
-)
-add_test(NAME demi-script-check-minimal-player
-  COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/scripts/player.lua
 )
 add_test(NAME demi-script-check-minimal-voxel-fly-camera
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/scripts/fly_camera.lua
@@ -370,32 +454,6 @@ endforeach()
 add_test(NAME demi-script-check-minimal-voxel-import-pack
   COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_voxel/tools/import_pack.lua
 )
-set(DEMI_NETWORKING_EXAMPLE_SCRIPTS
-  game
-  game/collectibles
-  game/hud
-  game/score
-  game/world
-  game_state
-  levels/platformer
-  levels/spiral
-  main_menu
-  menu/actions
-  menu/network
-  menu/settings
-  menu/view
-  menu_scene
-  network_replication
-  player
-  player_config
-  player_platformer
-  player_slingshot
-)
-foreach(script_name IN LISTS DEMI_NETWORKING_EXAMPLE_SCRIPTS)
-  add_test(NAME demi-script-check-networking-${script_name}
-    COMMAND demi script check ${CMAKE_SOURCE_DIR}/examples/minimal_2d_networking/scripts/${script_name}.lua
-  )
-endforeach()
 set(DEMI_MULTIPLAYER_FFA_SHOOTER_SCRIPTS
   game
   shooter/actions

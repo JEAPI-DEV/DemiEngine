@@ -10,7 +10,7 @@ local function normalized(x, y)
   return x, y
 end
 
-function Movement.update(game)
+function Movement.sample(game)
   local keyboard_x = Input.action_value("move_x")
   local keyboard_y = Input.action_value("move_y")
   local x = keyboard_x
@@ -23,11 +23,20 @@ function Movement.update(game)
     Transform.set_rotation(Config.player_entity, math.atan(y, x))
   end
 
+  return x, y
+end
+
+function Movement.apply(entity_id, x, y)
   Rigidbody2D.set_velocity(
-    Config.player_entity,
+    entity_id,
     x * Config.player_speed,
     y * Config.player_speed
   )
+end
+
+function Movement.update(game)
+  local x, y = Movement.sample(game)
+  Movement.apply(Config.player_entity, x, y)
 end
 
 return Movement

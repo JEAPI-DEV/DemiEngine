@@ -66,9 +66,9 @@ bool testTransactionalResources() {
         return true;
       },
       [&](const std::string_view asset) { released.emplace_back(asset); }};
-  const std::vector entities{
-      assetEntity("ent_assets", "scene://fault", "asset://textures/first",
-                  "asset://textures/second")};
+  const std::vector entities{assetEntity("ent_assets", "scene://fault",
+                                         "asset://textures/first",
+                                         "asset://textures/second")};
   std::string error;
   if (resources.tryCapture("scene://fault", entities, error) ||
       error != "injected second-asset load failure" ||
@@ -113,7 +113,7 @@ bool testPreparationFailures(const ProjectData &project) {
   const std::size_t entityCount = world.entities.size();
   const std::string activeScene = world.activeSceneId;
 
-  if (!flow.prepare("scene://minimal_2d_networking/platformer", false) ||
+  if (!flow.prepare("scene://minimal_2d_android/platformer", false) ||
       flow.state() != ScenePreparationState::Loading || !flow.cancel() ||
       flow.state() != ScenePreparationState::Cancelled ||
       flow.activate(world, resources).has_value() ||
@@ -125,8 +125,8 @@ bool testPreparationFailures(const ProjectData &project) {
 
   if (!flow.prepare("scene://missing/fails_after_lookup", false) ||
       !waitUntilSettled(flow) ||
-      flow.state() != ScenePreparationState::Failed ||
-      flow.error().empty() || flow.activate(world, resources).has_value() ||
+      flow.state() != ScenePreparationState::Failed || flow.error().empty() ||
+      flow.activate(world, resources).has_value() ||
       world.entities.size() != entityCount ||
       world.activeSceneId != activeScene) {
     std::cerr << "Failed preparation did not preserve the active scene.\n";
@@ -147,12 +147,11 @@ bool testPersistentReplacement(const ProjectData &project) {
   ResourceLifetimeRegistry resources;
   SceneFlow flow;
   flow.configure(project);
-  if (!flow.prepare("scene://minimal_2d_networking/spiral", false) ||
+  if (!flow.prepare("scene://minimal_2d_android/spiral", false) ||
       !waitUntilSettled(flow) || !flow.activate(world, resources) ||
       findEntity(world, persistentId) == nullptr ||
       findEntity(world, persistentId)->sceneOwner != "persistent" ||
-      !world.loadedSceneIds.contains(
-          "scene://minimal_2d_networking/spiral")) {
+      !world.loadedSceneIds.contains("scene://minimal_2d_android/spiral")) {
     std::cerr << "Full replacement lost a persistent entity.\n";
     return false;
   }
@@ -162,7 +161,7 @@ bool testPersistentReplacement(const ProjectData &project) {
 bool testPreparedDuplicate(const ProjectData &project) {
   std::string error;
   auto incoming =
-      loadScene(project, "scene://minimal_2d_networking/platformer", error);
+      loadScene(project, "scene://minimal_2d_android/platformer", error);
   if (!incoming || incoming->entities.empty())
     return false;
   auto loaded = freshWorld(project);
@@ -175,7 +174,7 @@ bool testPreparedDuplicate(const ProjectData &project) {
   SceneFlow flow;
   ResourceLifetimeRegistry resources;
   flow.configure(project);
-  if (!flow.prepare("scene://minimal_2d_networking/platformer", true) ||
+  if (!flow.prepare("scene://minimal_2d_android/platformer", true) ||
       !waitUntilSettled(flow) ||
       flow.activationError(world).find(incoming->entities.front().id) ==
           std::string::npos ||
@@ -195,9 +194,9 @@ bool testPooledSceneOwnership(const LoadedProject &project) {
   WorldCommandBuffer commands;
   RuntimePrefabService prefabs;
   prefabs.configure(project.project.projectDirectory);
-  const auto instance = prefabs.instantiate(
-      world, commands, "prefab://player",
-      {.id = "pooled_scene_player", .pooled = true});
+  const auto instance =
+      prefabs.instantiate(world, commands, "prefab://player",
+                          {.id = "pooled_scene_player", .pooled = true});
   if (!instance)
     return false;
   (void)commands.flush(world);
@@ -219,15 +218,16 @@ bool testPooledSceneOwnership(const LoadedProject &project) {
   prefabs.prune(world);
   if (prefabs.pooledCount("prefab://player") != 0 ||
       resources.groupCount() != 0) {
-    std::cerr << "Scene unload retained a stale pooled prefab/resource owner.\n";
+    std::cerr
+        << "Scene unload retained a stale pooled prefab/resource owner.\n";
     return false;
   }
   return true;
 }
 
 bool testScriptFailureAndTeardownCommands() {
-  const auto directory = std::filesystem::temp_directory_path() /
-                         "demi_lifetime_failure_scripts";
+  const auto directory =
+      std::filesystem::temp_directory_path() / "demi_lifetime_failure_scripts";
   std::error_code filesystemError;
   std::filesystem::remove_all(directory, filesystemError);
   if (!writeFile(directory / "scripts/outgoing.lua", R"lua(
@@ -268,8 +268,7 @@ return Failing
   auto outgoing = RuntimeObjectModel::buildEntity(
       {{"id", "ent_outgoing"},
        {"components",
-        {{"LuaScript",
-          {{"module", "script://scripts/outgoing.lua"}}}}}},
+        {{"LuaScript", {{"module", "script://scripts/outgoing.lua"}}}}}},
       error);
   if (!outgoing)
     return false;
@@ -312,9 +311,9 @@ bool testRepeatedCycles(const ProjectData &project) {
     SceneFlow flow;
     ResourceLifetimeRegistry resources;
     flow.configure(project);
-    if (!flow.prepare("scene://minimal_2d_networking/platformer", true) ||
+    if (!flow.prepare("scene://minimal_2d_android/platformer", true) ||
         !waitUntilSettled(flow) || !flow.activate(world, resources) ||
-        !flow.unload(world, "scene://minimal_2d_networking/platformer",
+        !flow.unload(world, "scene://minimal_2d_android/platformer",
                      resources) ||
         world.loadedSceneIds.size() != 1 || resources.groupCount() != 0) {
       std::cerr << "Repeated lifecycle failed at iteration " << iteration
@@ -331,7 +330,7 @@ int main() {
   const std::filesystem::path root = std::filesystem::path(DEMI_SOURCE_DIR);
   std::string error;
   auto networking = loadProject(
-      root / "examples/minimal_2d_networking/demi.project.json", error);
+      root / "examples/minimal_2d_android/demi.project.json", error);
   auto minimal3D =
       loadProject(root / "examples/minimal_3d/demi.project.json", error);
   if (!networking || !minimal3D) {

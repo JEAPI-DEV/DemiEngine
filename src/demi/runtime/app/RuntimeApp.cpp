@@ -1,5 +1,7 @@
 #include "demi/runtime/app/RuntimeApp.h"
 
+#include "demi/runtime/app/FramePacing.h"
+
 #include "demi/assets/AssetCooker.h"
 #include "demi/assets/AssetRegistry.h"
 #include "demi/core/Version.h"
@@ -16,12 +18,15 @@
 #include "demi/runtime/audio/AudioSceneSystem.h"
 #include "demi/runtime/audio/AudioSystem.h"
 #include "demi/runtime/camera/Camera2DSystem.h"
+#include "demi/runtime/diagnostics/DeviceLog.h"
 #include "demi/runtime/input/replay/InputReplay.h"
 #include "demi/runtime/media/MediaSystem.h"
 #include "demi/runtime/network/NetworkSystem.h"
+#include "demi/runtime/physics/ColliderAssetLoader3D.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/Physics3D.h"
 #include "demi/runtime/platform/ProjectFileWatcher.h"
+#include "demi/runtime/profiling/PlatformFrameProfiling.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/scene/WorldQueries.h"
@@ -81,7 +86,13 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
   luaHost.beginFrame(dt);
   const float scaledDt = luaHost.deltaTime();
   fixedAccumulator += scaledDt;
-  while (fixedAccumulator >= fixedStep) {
+  RuntimeProfiler::setGauge("Simulation.scaled_input_ms", scaledDt * 1000.0);
+  RuntimeProfiler::setGauge("Simulation.backlog_before_steps_ms",
+                            fixedAccumulator * 1000.0);
+  int fixedSteps = 0;
+  const int maximumFixedSteps =
+      loaded.project.simulation.maximumFixedStepsPerFrame;
+  while (fixedAccumulator >= fixedStep && fixedSteps < maximumFixedSteps) {
     {
       ProfileScope scope("Lua.fixed_update");
       luaHost.fixedUpdate(static_cast<float>(fixedStep));
@@ -98,7 +109,21 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
     }
     luaHost.advanceFixedTime(fixedStep);
     fixedAccumulator -= fixedStep;
+    ++fixedSteps;
   }
+  double droppedFixedSeconds = 0.0;
+  RuntimeProfiler::setGauge("Simulation.backlog_before_drop_ms",
+                            fixedAccumulator * 1000.0);
+  if (fixedAccumulator >= fixedStep) {
+    const double retained = std::fmod(fixedAccumulator, fixedStep);
+    droppedFixedSeconds = fixedAccumulator - retained;
+    fixedAccumulator = retained;
+  }
+  RuntimeProfiler::setGauge("Simulation.fixed_steps", fixedSteps);
+  RuntimeProfiler::setGauge("Simulation.advanced_ms",
+                            fixedSteps * fixedStep * 1000.0);
+  RuntimeProfiler::setGauge("Simulation.dropped_fixed_ms",
+                            droppedFixedSeconds * 1000.0);
 
   {
     ProfileScope scope("Network.update");
@@ -141,10 +166,14 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
     std::string sceneError;
     if (!luaHost.applyPendingSceneLoad(sceneError)) {
       std::cerr << "Scene switch failed: " << sceneError << '\n';
+      deviceLogError(
+          deviceLogMessage("runtime", "Scene switch failed: " + sceneError));
     } else {
       generateTilemapColliders(loaded.world, assetRegistry);
       std::cout << "Switched scene to " << loaded.world.id << " ("
                 << loaded.world.name << ").\n";
+      deviceLog(deviceLogMessage(
+          "runtime", "Switched scene to " + loaded.world.activeSceneId + "."));
     }
   }
 
@@ -294,11 +323,73 @@ void reportReload(const ReloadResult &result) {
 } // namespace
 
 int runProject(const RuntimeOptions &options) {
+  if ((options.windowWidth != 0 || options.windowHeight != 0) &&
+      (options.windowWidth < 1 || options.windowWidth > 65535 ||
+       options.windowHeight < 1 || options.windowHeight > 65535)) {
+    std::cerr << "Invalid runtime window dimensions.\n";
+    return 1;
+  }
   bool profileRun = options.profiler || profilingEnabled() ||
-                    !options.profileReportPath.empty();
+                    !options.profileReportPath.empty() ||
+                    !options.profileFramesPath.empty();
   RuntimeProfiler::setEnabled(profileRun);
   RuntimeProfiler::resetSession();
   std::string error;
+  std::ofstream frameTrace;
+  bool traceFailed = false;
+  if (!options.profileFramesPath.empty() &&
+      !options.profileReportPath.empty()) {
+    std::error_code pathError;
+    const auto traceAbsolute =
+        std::filesystem::absolute(options.profileFramesPath, pathError);
+    if (pathError) {
+      std::cerr << "Invalid frame trace path.\n";
+      return 1;
+    }
+    const auto tracePath =
+        std::filesystem::weakly_canonical(traceAbsolute, pathError);
+    if (pathError) {
+      std::cerr << "Invalid frame trace path.\n";
+      return 1;
+    }
+    const auto reportAbsolute =
+        std::filesystem::absolute(options.profileReportPath, pathError);
+    if (pathError) {
+      std::cerr << "Invalid profile report path.\n";
+      return 1;
+    }
+    const auto reportPath =
+        std::filesystem::weakly_canonical(reportAbsolute, pathError);
+    if (pathError) {
+      std::cerr << "Invalid profile report path.\n";
+      return 1;
+    }
+    const bool sameFile =
+        std::filesystem::equivalent(tracePath, reportPath, pathError);
+    if (tracePath == reportPath || (!pathError && sameFile)) {
+      std::cerr
+          << "Aggregate report and frame trace paths must be different.\n";
+      return 1;
+    }
+  }
+  if (!options.profileFramesPath.empty()) {
+    frameTrace.open(options.profileFramesPath);
+    if (!frameTrace) {
+      std::cerr << "Cannot open per-frame profile: "
+                << options.profileFramesPath << '\n';
+      return 1;
+    }
+  }
+  const auto writeFrameTrace = [&](int frame) {
+    if (!frameTrace.is_open())
+      return true;
+    if (RuntimeProfiler::writeFrame(frameTrace, frame))
+      return true;
+    std::cerr << "Failed writing per-frame profile: "
+              << options.profileFramesPath << '\n';
+    traceFailed = true;
+    return false;
+  };
   std::optional<LoadedProject> loadedProject =
       loadProject(options.projectPath, error);
   if (!loadedProject.has_value()) {
@@ -360,9 +451,14 @@ int runProject(const RuntimeOptions &options) {
   generateTilemapColliders(loaded.world, assetRegistry);
   AudioSystem audioSystem;
   bool audioInitialized = false;
-  if (!isHeadless() && !options.serve && options.maxFrames == 0 &&
-      audioSystem.initialize())
-    audioInitialized = true;
+  const bool audioAttempted =
+      !isHeadless() && !options.serve && options.maxFrames == 0;
+  if (audioAttempted)
+    audioInitialized = audioSystem.initialize();
+  deviceLog(deviceLogMessage(
+      "audio", audioInitialized ? "Audio device initialized."
+               : audioAttempted ? "Audio initialization failed."
+                                : "Audio disabled for this run."));
   MediaSystem mediaSystem;
   {
     ProfileScope scope("Asset.media_load");
@@ -387,6 +483,7 @@ int runProject(const RuntimeOptions &options) {
     printDiagnosticsText(std::cerr, runtimeAssetDiagnostics);
     return RuntimeFailure;
   }
+  runtimeAssets.registerLoader(createColliderAssetLoader3D(loaded.world));
   if (audioInitialized)
     runtimeAssets.registerLoader(audioSystem.createAssetLoader(assetRegistry));
 
@@ -407,6 +504,8 @@ int runProject(const RuntimeOptions &options) {
     std::cerr << "Lua unavailable: " << luaError << '\n';
   }
   luaHost.setHotReloadEnabled(options.watch || luaHost.hotReloadEnabled());
+  if (options.e2eTests)
+    luaHost.startE2ETests("tests.e2e");
 
   const auto prepareStartupAssets = [&] {
     Diagnostics diagnostics;
@@ -527,6 +626,8 @@ int runProject(const RuntimeOptions &options) {
                             slowProfileThresholdMs);
         ++profile.frames;
       }
+      if (!writeFrameTrace(frameCount))
+        running = false;
       ++frameCount;
       if (options.serve) {
         std::this_thread::sleep_until(nextFrame);
@@ -537,13 +638,21 @@ int runProject(const RuntimeOptions &options) {
     }
     if (options.profiler)
       std::cout << RuntimeProfiler::sessionReport();
+    if (frameTrace.is_open()) {
+      frameTrace.flush();
+      if (!frameTrace) {
+        traceFailed = true;
+        std::cerr << "Failed flushing per-frame profile: "
+                  << options.profileFramesPath << '\n';
+      }
+    }
     writeProfileReport(options.profileReportPath);
     luaHost.destroy();
     runtimeAssets.shutdown();
     networkSystem.shutdown();
     mediaSystem.shutdown();
     audioSystem.shutdown();
-    return 0;
+    return traceFailed ? RuntimeFailure : 0;
   }
 
 #if !DEMI_ENABLE_GRAPHICS_RUNTIME
@@ -567,8 +676,8 @@ int runProject(const RuntimeOptions &options) {
     if (!appHost.initialize(
             Bgfx2DAppHostConfig{
                 .title = title,
-                .width = 960,
-                .height = 540,
+                .width = options.windowWidth > 0 ? options.windowWidth : 960,
+                .height = options.windowHeight > 0 ? options.windowHeight : 540,
                 .graphicsApi = configuredGraphicsApi(),
                 .vsync = loaded.project.display.vsync,
                 .debugGraphics = false,
@@ -578,6 +687,8 @@ int runProject(const RuntimeOptions &options) {
                           .diagnostics = {}},
             renderDiagnostics, error)) {
       std::cerr << "2D renderer initialization failed: " << error << '\n';
+      deviceLogError(deviceLogMessage(
+          "runtime", "2D renderer initialization failed: " + error));
       luaHost.destroy();
       networkSystem.shutdown();
       mediaSystem.shutdown();
@@ -635,11 +746,28 @@ int runProject(const RuntimeOptions &options) {
           if (!appHost.setClipboard(text, clipboardError))
             std::cerr << "Clipboard update failed: " << clipboardError << '\n';
         });
+    luaHost.applicationServices().setPermissionRequester(
+        [&appHost](const std::string &permission,
+                   platform::PermissionResult result, std::string &error) {
+          return appHost.requestPermission(permission, std::move(result),
+                                           error);
+        });
 
     std::cout << "Using bgfx " << appHost.rendererName()
               << " through the SDL3 platform host.\n";
+    deviceLog(
+        deviceLogMessage("render", std::string("Using bgfx ") +
+                                       std::string(appHost.rendererName()) +
+                                       " through the SDL3 platform host."));
     bool running = true;
     bool renderFailed = false;
+    bool pausedState = false;
+    bool timingInterrupted = false;
+    const bool compositorPaced = loaded.project.display.vsync && !isHeadless();
+    std::chrono::steady_clock::time_point nextFrameDeadline =
+        std::chrono::steady_clock::now();
+    int requestedFrameRate = -1;
+    bool platformPacesRequestedRate = false;
     int frameCount = 0;
     while (running) {
       appHost.poll(input);
@@ -669,19 +797,55 @@ int runProject(const RuntimeOptions &options) {
         runtimeAssets.handleLowMemory();
         luaHost.notifyApplicationLowMemory();
       }
+      for (unsigned request = 0; request < frameState.backRequests; ++request)
+        luaHost.applicationServices().notifyBackRequested();
       luaHost.applicationServices().updateDisplay(
           frameState.width, frameState.height, frameState.logicalDpi);
       luaHost.setViewport(frameState.width, frameState.height);
+      const bool paused = frameState.suspended ||
+                          !frameState.drawableAvailable ||
+                          !frameState.surfaceSettled;
+      if (paused != pausedState) {
+        pausedState = paused;
+        deviceLog(deviceLogMessage(
+            "runtime", paused ? std::string("Frame loop paused (") +
+                                    (frameState.suspended ? "suspended"
+                                     : !frameState.drawableAvailable
+                                         ? "drawable unavailable"
+                                         : "surface settling") +
+                                    ")."
+                              : "Frame loop resumed."));
+      }
+      if (paused) {
+        if (frameCount > 0)
+          timingInterrupted = true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        continue;
+      }
 
       RuntimeProfiler::beginFrame();
+      recordPlatformFrameTiming(frameState, frameCount == 0);
+      RuntimeProfiler::setGauge("Window.capture_interrupted",
+                                timingInterrupted ? 1 : 0);
       const auto frameStart = std::chrono::steady_clock::now();
       const float dt = frameState.deltaSeconds;
+      if (options.e2eTests) {
+        luaHost.drainSyntheticTouches(input);
+        luaHost.updateE2ETests(frameState.deltaSeconds);
+      }
       double updateMs = 0.0;
       const auto updateStart = std::chrono::steady_clock::now();
       stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem,
                      networkSystem, assetRegistry, dt,
                      static_cast<float>(fixedStep), fixedAccumulator, running,
                      accessibility);
+      if (frameCount == 0 || frameCount == 60)
+        deviceLog(deviceLogMessage("runtime",
+                                   "Frame " + std::to_string(frameCount + 1) +
+                                       ", Lua frame " +
+                                       std::to_string(luaHost.frameCount()) +
+                                       ", scene " + loaded.world.activeSceneId +
+                                       ", dt " + std::to_string(dt) + "."));
       if (profileRun) {
         updateMs = millisecondsSince(updateStart);
         profile.updateMs += updateMs;
@@ -714,6 +878,8 @@ int runProject(const RuntimeOptions &options) {
                 activeCameraPosition(loaded.world), dt, navigation, renderError,
                 fixedStepInterpolationAlpha(fixedAccumulator, fixedStep))) {
           std::cerr << "2D rendering failed: " << renderError << '\n';
+          deviceLogError(deviceLogMessage("runtime", "2D rendering failed: " +
+                                                         renderError));
           renderFailed = true;
           running = false;
         }
@@ -736,13 +902,27 @@ int runProject(const RuntimeOptions &options) {
         ++profile.frames;
       }
 
+      if (!writeFrameTrace(frameCount))
+        running = false;
       ++frameCount;
       if (options.maxFrames > 0 && frameCount >= options.maxFrames)
         running = false;
       const int maxFps = luaHost.maxFps();
-      if (running && maxFps > 0) {
-        std::this_thread::sleep_until(
-            frameStart + std::chrono::duration<double>(1.0 / maxFps));
+      if (maxFps != requestedFrameRate) {
+        platformPacesRequestedRate =
+            appHost.requestFrameRate(static_cast<float>(maxFps));
+        requestedFrameRate = maxFps;
+      }
+      const bool compositorPacesCap = compositorSatisfiesFrameCap(
+          compositorPaced, isHeadless(), maxFps, frameState.displayRefreshHz,
+          platformPacesRequestedRate);
+      if (running && maxFps > 0 && !compositorPacesCap) {
+        nextFrameDeadline +=
+            std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                std::chrono::duration<double>(1.0 / maxFps));
+        if (nextFrameDeadline < std::chrono::steady_clock::now())
+          nextFrameDeadline = std::chrono::steady_clock::now();
+        std::this_thread::sleep_until(nextFrameDeadline);
       }
     }
 
@@ -756,8 +936,16 @@ int runProject(const RuntimeOptions &options) {
       printProfile(profile);
     if (options.profiler)
       std::cout << RuntimeProfiler::sessionReport();
+    if (frameTrace.is_open()) {
+      frameTrace.flush();
+      if (!frameTrace) {
+        traceFailed = true;
+        std::cerr << "Failed flushing per-frame profile: "
+                  << options.profileFramesPath << '\n';
+      }
+    }
     writeProfileReport(options.profileReportPath);
-    return renderFailed ? RuntimeFailure : 0;
+    return renderFailed || traceFailed ? RuntimeFailure : 0;
   }
 
   {
@@ -766,17 +954,20 @@ int runProject(const RuntimeOptions &options) {
     const std::string title = std::string(EngineName) + " - " +
                               loaded.project.name + " - " + loaded.world.name;
     if (!appHost.initialize(
-            Bgfx3DAppHostConfig{.title = title,
-                                .width = 960,
-                                .height = 540,
-                                .graphicsApi = configuredGraphicsApi(),
-                                .vsync = loaded.project.display.vsync,
-                                .debugGraphics = false},
+            Bgfx3DAppHostConfig{
+                .title = title,
+                .width = options.windowWidth > 0 ? options.windowWidth : 960,
+                .height = options.windowHeight > 0 ? options.windowHeight : 540,
+                .graphicsApi = configuredGraphicsApi(),
+                .vsync = loaded.project.display.vsync,
+                .debugGraphics = false},
             AssetRegistry{.projectDirectory = assetRegistry.projectDirectory,
                           .assets = {},
                           .diagnostics = {}},
             renderDiagnostics, error)) {
       std::cerr << "3D renderer initialization failed: " << error << '\n';
+      deviceLogError(deviceLogMessage(
+          "runtime", "3D renderer initialization failed: " + error));
       luaHost.destroy();
       networkSystem.shutdown();
       mediaSystem.shutdown();
@@ -834,11 +1025,24 @@ int runProject(const RuntimeOptions &options) {
           if (!appHost.setClipboard(text, clipboardError))
             std::cerr << "Clipboard update failed: " << clipboardError << '\n';
         });
+    luaHost.applicationServices().setPermissionRequester(
+        [&appHost](const std::string &permission,
+                   platform::PermissionResult result, std::string &error) {
+          return appHost.requestPermission(permission, std::move(result),
+                                           error);
+        });
     std::cout << "Using bgfx " << appHost.rendererName()
               << " through the SDL3 3D platform host.\n";
 
     bool running = true;
     bool renderFailed = false;
+    bool pausedState = false;
+    bool timingInterrupted = false;
+    const bool compositorPaced = loaded.project.display.vsync && !isHeadless();
+    std::chrono::steady_clock::time_point nextFrameDeadline =
+        std::chrono::steady_clock::now();
+    int requestedFrameRate = -1;
+    bool platformPacesRequestedRate = false;
     int frameCount = 0;
     while (running) {
       appHost.poll(input);
@@ -868,19 +1072,55 @@ int runProject(const RuntimeOptions &options) {
         runtimeAssets.handleLowMemory();
         luaHost.notifyApplicationLowMemory();
       }
+      for (unsigned request = 0; request < frameState.backRequests; ++request)
+        luaHost.applicationServices().notifyBackRequested();
       luaHost.applicationServices().updateDisplay(
           frameState.width, frameState.height, frameState.logicalDpi);
       luaHost.setViewport(frameState.width, frameState.height);
+      const bool paused = frameState.suspended ||
+                          !frameState.drawableAvailable ||
+                          !frameState.surfaceSettled;
+      if (paused != pausedState) {
+        pausedState = paused;
+        deviceLog(deviceLogMessage(
+            "runtime", paused ? std::string("Frame loop paused (") +
+                                    (frameState.suspended ? "suspended"
+                                     : !frameState.drawableAvailable
+                                         ? "drawable unavailable"
+                                         : "surface settling") +
+                                    ")."
+                              : "Frame loop resumed."));
+      }
+      if (paused) {
+        if (frameCount > 0)
+          timingInterrupted = true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        continue;
+      }
 
       RuntimeProfiler::beginFrame();
+      recordPlatformFrameTiming(frameState, frameCount == 0);
+      RuntimeProfiler::setGauge("Window.capture_interrupted",
+                                timingInterrupted ? 1 : 0);
       const auto frameStart = std::chrono::steady_clock::now();
       const float dt = frameState.deltaSeconds;
+      if (options.e2eTests) {
+        luaHost.drainSyntheticTouches(input);
+        luaHost.updateE2ETests(frameState.deltaSeconds);
+      }
       double updateMs = 0.0;
       const auto updateStart = std::chrono::steady_clock::now();
       stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem,
                      networkSystem, assetRegistry, dt,
                      static_cast<float>(fixedStep), fixedAccumulator, running,
                      accessibility);
+      if (frameCount == 0 || frameCount == 60)
+        deviceLog(deviceLogMessage("runtime",
+                                   "Frame " + std::to_string(frameCount + 1) +
+                                       ", Lua frame " +
+                                       std::to_string(luaHost.frameCount()) +
+                                       ", scene " + loaded.world.activeSceneId +
+                                       ", dt " + std::to_string(dt) + "."));
       if (profileRun) {
         updateMs = millisecondsSince(updateStart);
         profile.updateMs += updateMs;
@@ -960,6 +1200,8 @@ int runProject(const RuntimeOptions &options) {
         if (!appHost.renderFrames(loaded.world, cameraFrames, dt,
                                   renderError)) {
           std::cerr << "3D rendering failed: " << renderError << '\n';
+          deviceLogError(deviceLogMessage("runtime", "3D rendering failed: " +
+                                                         renderError));
           renderFailed = true;
           running = false;
         }
@@ -977,6 +1219,12 @@ int runProject(const RuntimeOptions &options) {
         RuntimeProfiler::setGauge(
             "Renderer3D.meshes_culled",
             static_cast<double>(renderStats.culledMeshes));
+        RuntimeProfiler::setGauge(
+            "Renderer3D.lod_medium",
+            static_cast<double>(renderStats.mediumLodMeshes));
+        RuntimeProfiler::setGauge(
+            "Renderer3D.lod_low",
+            static_cast<double>(renderStats.lowLodMeshes));
         RuntimeProfiler::setGauge("Renderer3D.batches",
                                   static_cast<double>(renderStats.batches));
         RuntimeProfiler::setGauge("Renderer3D.triangles",
@@ -998,13 +1246,28 @@ int runProject(const RuntimeOptions &options) {
                             slowProfileThresholdMs);
         ++profile.frames;
       }
+      if (!writeFrameTrace(frameCount))
+        running = false;
       ++frameCount;
       if (options.maxFrames > 0 && frameCount >= options.maxFrames)
         running = false;
       const int maxFps = luaHost.maxFps();
-      if (running && maxFps > 0)
-        std::this_thread::sleep_until(
-            frameStart + std::chrono::duration<double>(1.0 / maxFps));
+      if (maxFps != requestedFrameRate) {
+        platformPacesRequestedRate =
+            appHost.requestFrameRate(static_cast<float>(maxFps));
+        requestedFrameRate = maxFps;
+      }
+      const bool compositorPacesCap = compositorSatisfiesFrameCap(
+          compositorPaced, isHeadless(), maxFps, frameState.displayRefreshHz,
+          platformPacesRequestedRate);
+      if (running && maxFps > 0 && !compositorPacesCap) {
+        nextFrameDeadline +=
+            std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                std::chrono::duration<double>(1.0 / maxFps));
+        if (nextFrameDeadline < std::chrono::steady_clock::now())
+          nextFrameDeadline = std::chrono::steady_clock::now();
+        std::this_thread::sleep_until(nextFrameDeadline);
+      }
     }
 
     luaHost.destroy();
@@ -1017,8 +1280,16 @@ int runProject(const RuntimeOptions &options) {
       printProfile(profile);
     if (options.profiler)
       std::cout << RuntimeProfiler::sessionReport();
+    if (frameTrace.is_open()) {
+      frameTrace.flush();
+      if (!frameTrace) {
+        traceFailed = true;
+        std::cerr << "Failed flushing per-frame profile: "
+                  << options.profileFramesPath << '\n';
+      }
+    }
     writeProfileReport(options.profileReportPath);
-    return renderFailed ? RuntimeFailure : 0;
+    return renderFailed || traceFailed ? RuntimeFailure : 0;
   }
 
 #endif

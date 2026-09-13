@@ -57,7 +57,9 @@ importerFor(const std::filesystem::path &source, const std::string &type) {
   std::string defaultImporter;
   if (type.empty()) {
     const std::string extension = source.extension().string();
-    if (extension == ".json")
+    if (source.filename().string().ends_with(".collider.json"))
+      defaultImporter = "collider-shape";
+    else if (extension == ".json")
       defaultImporter = "json_data";
     else if (extension == ".gltf" || extension == ".glb")
       defaultImporter = "gltf-model";

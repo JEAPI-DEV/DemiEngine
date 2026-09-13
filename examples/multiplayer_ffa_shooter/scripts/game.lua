@@ -81,6 +81,7 @@ function Game:leave_match(message)
   if self.mode == "host" or self.mode == "client" or self.join_pending then
     NetworkSession.disconnect()
   end
+  Session.reset()
   self.mode = "menu"
   self.local_id = nil
   self.join_pending = false
@@ -138,17 +139,29 @@ function Game:on_update(dt)
     return
   end
 
-  Movement.update(self, dt)
-  if self.mode ~= "practice" then
-    Session.update_local(self.local_id, dt)
-  end
-
   local mouse_fire = Input.mouse_down("left") and not Input.ui_pointer_captured()
   if Input.action_pressed("fire") or mouse_fire then
     self.combat:request_shot()
   end
   self.combat:update_tracer()
   HudView.update(self)
+end
+
+function Game:on_fixed_update(dt)
+  if self.mode == "menu" then
+    return
+  end
+  local x, y = Movement.sample(self)
+  if self.mode == "client" then
+    if not Session.predict_local(self.local_id, x, y, dt) then
+      Rigidbody2D.set_velocity(Config.player_entity, 0.0, 0.0)
+    end
+  else
+    Movement.apply(Config.player_entity, x, y)
+  end
+  if self.mode == "host" then
+    Session.step_authority()
+  end
 end
 
 function Game:on_destroy()

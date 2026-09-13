@@ -184,11 +184,16 @@ Available first-party packages are documented in
 
 ## Secure Multiplayer
 
-Networking is optional at build time and experimental at the product level:
+Networking is included by default and remains experimental at the product level.
+Including it does not host a server or connect automatically. To intentionally
+build without it, configure with `-DDEMI_ENABLE_NETWORK=OFF`.
+
+Existing build directories retain their cached setting; enable it explicitly
+when updating a previously offline build:
 
 ```sh
-cmake --preset linux-debug -DDEMI_ENABLE_NETWORK=ON
-cmake --build --preset linux-debug
+cmake --preset linux-release -DDEMI_ENABLE_NETWORK=ON
+cmake --build --preset linux-release
 ```
 
 A multiplayer project declares a versioned `NetworkContract` asset:
@@ -212,8 +217,8 @@ Lua receives an event or the world changes.
 
 ```lua
 NetworkSession.send("move_intent", player_network_id, {
-  x = Input.action_value("move_x"),
-  y = Input.action_value("move_y"),
+  x = Input.value("move_x"),
+  y = Input.value("move_y"),
 })
 ```
 
@@ -228,10 +233,11 @@ demi serve --project demi.project.json
 demi build linux_server --project demi.project.json
 ```
 
-Prediction, reconciliation, snapshot interpolation, delta baselines, lag
-compensation, accounts, matchmaking, and host migration are not included in
-the current networking layer. See [game-facing networking](docs/networking.md)
-for the trust model and migration rules.
+Sequenced owner inputs, prediction/reconciliation, bounded snapshot
+interpolation, and detached historical 2D hit queries are available for
+latency-sensitive action controllers. Delta-compression baselines, accounts,
+matchmaking, and host migration are not included. See
+[game-facing networking](docs/networking.md) for the trust model and APIs.
 
 ## Build, Test, and Package a Game
 
@@ -272,7 +278,6 @@ Examples are executable engine probes, not throwaway snippets:
 | Example | Purpose |
 |---|---|
 | `minimal_2d_android` | Shared Linux/Android 2D platform gameplay and virtual controls ![Minimal 2D networking menu](images/minimal_2d_networking.png)  |
-| `minimal_2d_networking` | Menu flow, saves, scenes, platformer/slingshot gameplay, and networking integration |
 | `production_2d_foundation` | Physics shapes, contacts, navigation, animation, and production 2D APIs |
 | `isometric_base_builder` | Tower defense, placement, pathfinding, combat, targeting, and persistence ![Isometric_base_builder](images/isometric_base_builder.png) |
 | `fighting_game_2d` | Local 2D fighting-game systems and animation-driven gameplay ![fighting_game_2d](images/fighting_game_2d.png) |
@@ -284,6 +289,7 @@ Examples are executable engine probes, not throwaway snippets:
 | `asset_streaming_showcase` | Optional group load, progress, cancellation, reload, unload, transitive dependencies, and backend memory ownership |
 | `minimal_3d` | Lightweight 3D movement, queries, collisions, materials, and debug overlays ![minimal_3d](images/minimal_3d.png) |
 | `animation_3d` | glTF skeletal animation selection and playback ![animation_3d](images/animation_3d.png) |
+| `procedural_spider_3d` | Terrain-aware eight-legged locomotion using raycast foot placement and runtime two-bone IK |
 | `minimal_voxel` | Chunked voxel-style terrain, editing, particles, lighting, and profiling ![minimal_voxel](images/minimal_voxel.png) |
 | `saves_simulation_debugging` | Versioned saves, simulation, replay, and diagnostics |
 | `minimal_2d_android_server` | Headless/server-oriented networking companion project |

@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "name": "demi.gameplay.third_person",
+  "version": "1.0.0",
+  "engine": "^0.1.0",
+  "dependencies": {},
+  "public_modules": [
+    "demi.gameplay.orbit_camera",
+    "demi.gameplay.melee",
+    "demi.gameplay.third_person"
+  ],
+  "files": [
+    "README.md",
+    "scripts/demi/gameplay/orbit_camera.lua",
+    "scripts/demi/gameplay/melee.lua",
+    "scripts/demi/gameplay/third_person.lua",
+    "tests/foundation_test.lua"
+  ],
+  "exported_events": []
+}

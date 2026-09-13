@@ -1,0 +1,6 @@
+{% extends 'base.html.twig' %}
+{% block title %}{{ license.id }} — DemiEngine licenses{% endblock %}
+{% block body %}
+<article class="guide license-page"><a class="back" href="{{ path('catalog') }}">← Explore packages</a><div class="eyebrow muted">SHARED LICENSE LIBRARY</div><h1>{{ license.id }}</h1><p class="lead">{{ license.name }}</p><p>This is the standard license text. Package-specific copyright notices are included by the publisher with the package.</p><a class="license-link" href="{{ license.source }}">View the SPDX reference ↗</a><pre class="license-text">{{ license.text }}</pre></article>
+{% endblock %}
+

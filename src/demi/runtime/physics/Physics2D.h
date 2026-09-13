@@ -53,6 +53,12 @@ addRigidbodyImpulse(World &world, const std::string &entityId, Vec2 impulse);
                                      bool awake);
 [[nodiscard]] bool
 setRigidbodyEnabled(World &world, const std::string &entityId, bool enabled);
+[[nodiscard]] bool setRigidbodyContinuous(World &world,
+                                          const std::string &entityId,
+                                          bool continuous);
+[[nodiscard]] bool setRigidbodyReportContacts(World &world,
+                                              const std::string &entityId,
+                                              bool reportContacts);
 [[nodiscard]] bool moveKinematicBody(World &world, const std::string &entityId,
                                      Vec2 target, float fixedDt);
 [[nodiscard]] std::optional<Vec2>

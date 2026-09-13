@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "canvas_size": [960, 540],
+  "root": { "id": "root", "type": "container", "children": [
+    { "id": "tower_title", "type": "label", "text": "BARREL TOWER IMPACT", "position": [24, 18], "font_size": 18 },
+    { "id": "tower_help", "type": "label", "text": "SPACE fire at base | R reset | B lab", "position": [24, 45], "font_size": 12 },
+    { "id": "tower_status", "type": "label", "text": "Building tower...", "position": [24, 67], "font_size": 12 },
+    { "id": "tower_fire", "type": "button", "text": "FIRE", "action": "tower_fire", "position": [24, 98], "size": [110, 36] },
+    { "id": "tower_reset", "type": "button", "text": "RESET", "action": "tower_reset", "position": [144, 98], "size": [110, 36] },
+    { "id": "tower_back", "type": "button", "text": "LAB", "action": "tower_back", "position": [264, 98], "size": [110, 36] }
+  ] }
+}

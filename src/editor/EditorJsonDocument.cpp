@@ -1,5 +1,7 @@
 #include "editor/EditorJsonDocument.h"
 
+#include "editor/EditorAuthoredJson.h"
+
 #include <utility>
 
 namespace demi::editor {
@@ -34,6 +36,8 @@ bool EditorJsonDocument::open(std::filesystem::path path,
     validator_ = std::move(validator);
     revision_ = revision;
     document_ = std::move(document);
+    originalText_ = std::move(text);
+    savedDocument_ = document_;
     savedCanonical_ = document_.dump();
     diagnostics_ = std::move(diagnostics);
     undo_.clear();
@@ -123,12 +127,16 @@ bool EditorJsonDocument::redo(std::string &error) {
 }
 
 bool EditorJsonDocument::save(std::string &error) {
+  const std::string serialized =
+      patchEditorJsonSource(originalText_, savedDocument_, document_)
+          .value_or(document_.dump(2) + '\n');
   FileRevision replacement;
-  if (store_.writeIfUnchanged(path_, document_.dump(2) + '\n', revision_,
-                              replacement,
+  if (store_.writeIfUnchanged(path_, serialized, revision_, replacement,
                               error) != DocumentWriteStatus::Written)
     return false;
   revision_ = replacement;
+  originalText_ = serialized;
+  savedDocument_ = document_;
   savedCanonical_ = document_.dump();
   return true;
 }

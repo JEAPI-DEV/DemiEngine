@@ -1,3 +1,4 @@
+#include "demi/runtime/app/FramePacing.h"
 #include "demi/runtime/platform/PlatformHost.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 
@@ -28,6 +29,16 @@ void invalidConfigurationIsRejected() {
   host->shutdown();
 }
 
+void framePacingPolicyHandlesHighRefreshDisplays() {
+  using demi::runtime::compositorSatisfiesFrameCap;
+  assert(compositorSatisfiesFrameCap(true, false, 0, 90.0F, false));
+  assert(!compositorSatisfiesFrameCap(true, false, 60, 90.0F, false));
+  assert(compositorSatisfiesFrameCap(true, false, 60, 60.0F, false));
+  assert(compositorSatisfiesFrameCap(true, false, 60, 90.0F, true));
+  assert(!compositorSatisfiesFrameCap(false, false, 60, 60.0F, true));
+  assert(!compositorSatisfiesFrameCap(true, true, 60, 60.0F, true));
+}
+
 void lifecycleAndEventTranslationWorkWithoutAGpu() {
   assert(setenv("SDL_VIDEODRIVER", "dummy", 1) == 0);
   auto host = createSdlPlatformHost();
@@ -39,6 +50,7 @@ void lifecycleAndEventTranslationWorkWithoutAGpu() {
   assert(host->frameState().width == 320);
   assert(host->frameState().height == 180);
   assert(!host->initialize(PlatformHostConfig{}, error));
+  assert(!host->requestFrameRate(60.0F));
 
   SDL_Event event{};
   event.type = SDL_EVENT_KEY_DOWN;
@@ -101,6 +113,7 @@ void lifecycleAndEventTranslationWorkWithoutAGpu() {
 } // namespace
 
 int main() {
+  framePacingPolicyHandlesHighRefreshDisplays();
   invalidConfigurationIsRejected();
   lifecycleAndEventTranslationWorkWithoutAGpu();
   return 0;

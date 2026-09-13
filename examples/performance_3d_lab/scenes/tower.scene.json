@@ -1,0 +1,37 @@
+{
+  "format_version": 1,
+  "id": "scene://performance_3d_lab/tower",
+  "name": "Barrel Tower Impact",
+  "hud": "tower.hud.json",
+  "entities": [
+    {
+      "id": "camera",
+      "components": {
+        "Transform3D": { "position": [9, 9, 23] },
+        "Camera3D": { "target_offset": [-9, -2, -23], "far_clip": 200, "fov": 52 }
+      }
+    },
+    {
+      "id": "sun",
+      "components": { "DirectionalLight": { "direction": [-0.4, -1, -0.4], "intensity": 1.2 } }
+    },
+    {
+      "id": "floor",
+      "components": {
+        "Transform3D": { "position": [0, -1, 0] },
+        "MeshRenderer": { "shape": "cube", "size": [60, 1, 60], "color": [0.15, 0.18, 0.23, 1] },
+        "BoxCollider3D": { "size": [60, 1, 60] },
+        "Rigidbody3D": { "body_type": "static" }
+      }
+    },
+    {
+      "id": "tower",
+      "components": {
+        "LuaScript": {
+          "module": "script://scripts/tower.lua",
+          "properties": { "columns": 8, "levels": 16, "projectile_mass": 60, "projectile_speed": 35 }
+        }
+      }
+    }
+  ]
+}

@@ -59,6 +59,8 @@ template <typename ComponentClass>
 
 template <typename ComponentClass>
 [[nodiscard]] nlohmann::json defaultComponentJson() {
+  if constexpr (requires { ComponentClass::defaults(); })
+    return ComponentClass::defaults();
   Entity entity;
   parseComponent<ComponentClass>(nlohmann::json::object(), entity);
   return serializeComponent<ComponentClass>(entity);

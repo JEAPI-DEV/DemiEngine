@@ -3,6 +3,93 @@
 #include <algorithm>
 
 namespace demi::editor {
+namespace {
+
+nlohmann::json *findInstance(nlohmann::json &document,
+                             const std::string_view id) {
+  auto instances = document.find("instances");
+  if (instances == document.end() || !instances->is_array())
+    return nullptr;
+  const auto found = std::ranges::find_if(*instances, [&](auto &instance) {
+    return instance.is_object() && instance.value("id", std::string{}) == id;
+  });
+  return found == instances->end() ? nullptr : &*found;
+}
+
+const nlohmann::json *findInstance(const nlohmann::json &document,
+                                   const std::string_view id) {
+  auto instances = document.find("instances");
+  if (instances == document.end() || !instances->is_array())
+    return nullptr;
+  const auto found =
+      std::ranges::find_if(*instances, [&](const auto &instance) {
+        return instance.is_object() &&
+               instance.value("id", std::string{}) == id;
+      });
+  return found == instances->end() ? nullptr : &*found;
+}
+
+std::string flattenedOverrideKey(const SceneValueTarget &target) {
+  std::string key = target.prefabEntityId;
+  if (!target.component.empty())
+    key += "." + target.component;
+  return key + "." + target.field;
+}
+
+template <typename Json>
+Json *prefabOverrideValue(Json &document, const SceneValueTarget &target) {
+  Json *instance = findInstance(document, target.prefabInstanceId);
+  if (instance == nullptr)
+    return nullptr;
+  auto overrides = instance->find("overrides");
+  if (overrides == instance->end() || !overrides->is_object())
+    return nullptr;
+  const std::string flattened = flattenedOverrideKey(target);
+  if (auto value = overrides->find(flattened); value != overrides->end())
+    return &*value;
+  auto local = overrides->find(target.prefabEntityId);
+  if (local == overrides->end() || !local->is_object())
+    return nullptr;
+  Json *container = &*local;
+  if (!target.component.empty()) {
+    auto components = container->find("components");
+    if (components == container->end() || !components->is_object())
+      return nullptr;
+    auto component = components->find(target.component);
+    if (component == components->end() || !component->is_object())
+      return nullptr;
+    container = &*component;
+  }
+  const auto value = container->find(target.field);
+  return value == container->end() ? nullptr : &*value;
+}
+
+void pruneEmptyPrefabOverride(nlohmann::json &instance,
+                              const SceneValueTarget &target) {
+  auto overrides = instance.find("overrides");
+  if (overrides == instance.end() || !overrides->is_object())
+    return;
+  auto local = overrides->find(target.prefabEntityId);
+  if (local != overrides->end() && local->is_object() &&
+      !target.component.empty()) {
+    auto components = local->find("components");
+    if (components != local->end() && components->is_object()) {
+      auto component = components->find(target.component);
+      if (component != components->end() && component->is_object() &&
+          component->empty())
+        components->erase(component);
+      if (components->empty())
+        local->erase(components);
+    }
+  }
+  local = overrides->find(target.prefabEntityId);
+  if (local != overrides->end() && local->is_object() && local->empty())
+    overrides->erase(local);
+  if (overrides->empty())
+    instance.erase(overrides);
+}
+
+} // namespace
 
 nlohmann::json *findEntity(nlohmann::json &document,
                            const std::string_view id) {
@@ -75,6 +162,8 @@ const nlohmann::json *findComponent(const nlohmann::json &entity,
 
 nlohmann::json *valueInDocument(nlohmann::json &document,
                                 const SceneValueTarget &target) {
+  if (target.isPrefabOverride())
+    return prefabOverrideValue(document, target);
   nlohmann::json *authoredEntity = findEntity(document, target.entityId);
   if (authoredEntity == nullptr)
     return nullptr;
@@ -90,6 +179,8 @@ nlohmann::json *valueInDocument(nlohmann::json &document,
 
 const nlohmann::json *valueInDocument(const nlohmann::json &document,
                                       const SceneValueTarget &target) {
+  if (target.isPrefabOverride())
+    return prefabOverrideValue(document, target);
   const nlohmann::json *authoredEntity = findEntity(document, target.entityId);
   if (authoredEntity == nullptr)
     return nullptr;
@@ -106,6 +197,47 @@ const nlohmann::json *valueInDocument(const nlohmann::json &document,
 bool assignValueInDocument(nlohmann::json &document,
                            const SceneValueTarget &target,
                            const std::optional<nlohmann::json> &value) {
+  if (target.isPrefabOverride()) {
+    nlohmann::json *instance = findInstance(document, target.prefabInstanceId);
+    if (instance == nullptr || target.prefabEntityId.empty())
+      return false;
+    nlohmann::json &overrides = (*instance)["overrides"];
+    if (!overrides.is_object())
+      overrides = nlohmann::json::object();
+    const std::string flattened = flattenedOverrideKey(target);
+    if (overrides.contains(flattened)) {
+      if (value)
+        overrides[flattened] = *value;
+      else
+        overrides.erase(flattened);
+    } else if (value) {
+      nlohmann::json &local = overrides[target.prefabEntityId];
+      if (!local.is_object())
+        local = nlohmann::json::object();
+      nlohmann::json *container = &local;
+      if (!target.component.empty()) {
+        nlohmann::json &components = local["components"];
+        if (!components.is_object())
+          components = nlohmann::json::object();
+        nlohmann::json &component = components[target.component];
+        if (!component.is_object())
+          component = nlohmann::json::object();
+        container = &component;
+      }
+      (*container)[target.field] = *value;
+    } else {
+      nlohmann::json *current = prefabOverrideValue(document, target);
+      if (current == nullptr)
+        return false;
+      nlohmann::json &local = overrides[target.prefabEntityId];
+      nlohmann::json *container = &local;
+      if (!target.component.empty())
+        container = &local["components"][target.component];
+      container->erase(target.field);
+    }
+    pruneEmptyPrefabOverride(*instance, target);
+    return true;
+  }
   nlohmann::json *container = findEntity(document, target.entityId);
   if (container == nullptr)
     return false;

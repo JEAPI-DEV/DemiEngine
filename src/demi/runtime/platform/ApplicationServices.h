@@ -1,8 +1,12 @@
 #pragma once
 
+#include "demi/runtime/platform/ApplicationPermissions.h"
+
 #include <filesystem>
 #include <functional>
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace demi::runtime::platform {
 
@@ -11,6 +15,11 @@ struct SafeAreaInsets {
   float top = 0.0F;
   float right = 0.0F;
   float bottom = 0.0F;
+};
+
+struct ApplicationLifecycleEvent {
+  std::string type;
+  unsigned generation = 0;
 };
 
 enum class Orientation { Unspecified, Portrait, Landscape };
@@ -25,12 +34,21 @@ public:
   void setMinimized(bool minimized);
   void setSuspended(bool suspended);
   void notifyLowMemory();
+  void notifyBackRequested();
   void setKeyboardVisible(bool visible);
   void requestOrientation(Orientation orientation);
   void setClipboardHandlers(std::function<std::string()> reader,
                             std::function<void(const std::string &)> writer);
   [[nodiscard]] std::string clipboard() const;
   void setClipboard(const std::string &text);
+  void configurePermissions(std::vector<std::string> declaredPermissions);
+  void setPermissionRequester(PermissionRequester requester);
+  [[nodiscard]] PermissionState permissionState(
+      std::string_view permission) const;
+  [[nodiscard]] bool requestPermission(std::string permission,
+                                       std::string &error);
+  [[nodiscard]] std::vector<PermissionEvent> takePermissionEvents();
+  [[nodiscard]] std::vector<ApplicationLifecycleEvent> takeLifecycleEvents();
 
   [[nodiscard]] int width() const;
   [[nodiscard]] int height() const;
@@ -60,11 +78,14 @@ private:
   bool suspended_ = false;
   bool keyboardVisible_ = false;
   unsigned lowMemoryGeneration_ = 0;
+  unsigned lifecycleGeneration_ = 0;
+  std::vector<ApplicationLifecycleEvent> lifecycleEvents_;
   std::filesystem::path userDataPath_;
   std::filesystem::path cachePath_;
   mutable std::string clipboardFallback_;
   std::function<std::string()> clipboardReader_;
   std::function<void(const std::string &)> clipboardWriter_;
+  ApplicationPermissions permissions_;
 };
 
 [[nodiscard]] const char *orientationName(Orientation orientation);

@@ -40,6 +40,15 @@ void LuaRigidbody2DBindingModule::install(LuaScriptHost &host,
                     [&host](const std::string &id, bool enabled) {
                       return host.setRigidbodyEnabled(id, enabled);
                     });
+  body.set_function("set_continuous",
+                    [&host](const std::string &id, bool continuous) {
+                      return host.setRigidbodyContinuous(id, continuous);
+                    });
+  body.set_function("set_report_contacts",
+                    [&host](const std::string &id, bool reportContacts) {
+                      return host.setRigidbodyReportContacts(id,
+                                                             reportContacts);
+                    });
   body.set_function("move_kinematic", [&host](const std::string &id, float x,
                                               float y,
                                               sol::optional<float> fixedDt) {

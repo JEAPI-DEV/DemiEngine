@@ -22,6 +22,7 @@ enum class SourceFileKind {
   InputReplay,
   Package,
   AssetGroup,
+  ColliderShape,
 };
 
 struct ValidationSummary {
@@ -32,6 +33,11 @@ struct ValidationSummary {
 [[nodiscard]] SourceFileKind
 classifySourceFile(const std::filesystem::path &path);
 [[nodiscard]] ValidationSummary validatePath(const std::filesystem::path &path);
+// Project workflows validate the complete authored project tree even when the
+// caller supplies demi.project.json directly. This is the shared CLI, editor,
+// cook, and package validation scope.
+[[nodiscard]] ValidationSummary
+validateProjectPath(const std::filesystem::path &projectPath);
 [[nodiscard]] Diagnostics validateTextFile(const std::filesystem::path &path,
                                            SourceFileKind kind);
 // Validates an in-memory scene document with the same checks `demi validate`

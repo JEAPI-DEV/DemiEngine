@@ -98,6 +98,10 @@ struct UiNode {
   bool checked = false;
   bool hovered = false;
   bool accessibilityHidden = false;
+  // Safe-area layout is the default for readable and interactive content.
+  // Decorative nodes can opt out to draw behind display cutouts and system
+  // insets without forcing their siblings out of the safe area.
+  bool respectsSafeArea = true;
   TextEditState textEdit;
 };
 
@@ -115,6 +119,16 @@ struct UiStyle {
   Color backgroundColor{};
   Insets padding{};
   float gap = 0.0F;
+  float fontSize = 0.0F;
+  bool hasFontSize = false;
+  Color textColor{1.0F, 1.0F, 1.0F, 1.0F};
+  bool hasTextColor = false;
+  Vec2 minSize{};
+  bool hasMinSize = false;
+  float controlHeight = 0.0F;
+  bool hasControlHeight = false;
+  float rowHeight = 0.0F;
+  bool hasRowHeight = false;
 };
 
 struct UiActionEffect {

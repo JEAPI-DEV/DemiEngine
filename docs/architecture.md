@@ -49,6 +49,9 @@ The current source layout reflects those boundaries:
   `NetworkMessageGateway` services own policy and authority;
   `GameNetworkSession` retains compatibility identity/diagnostics, while
   `ReplicatedState` gates snapshots through contract and component metadata.
+  `NetworkPrediction` owns bounded input ordering, interpolation, and
+  reconciliation; `NetworkQueryHistory2D` owns detached historical hit-query
+  snapshots and never rewinds the live physics world.
 
 ## Current Technology
 
@@ -65,11 +68,16 @@ The current source layout reflects those boundaries:
 - **mbedTLS 3.6.2:** TLS and DTLS security support.
 - **ENet 1.3.18:** optional reliable UDP transport.
 - **librsvg:** optional SVG rasterization when available.
-- **Dear ImGui:** editor-presentation UI only, compiled from the version pinned
-  by the existing bgfx dependency and isolated behind `EditorUiHost`.
+- **Dear ImGui docking:** editor-presentation UI only. The official docking
+  branch is pinned separately at `c51f1a6e47b8b5b11ca13490c461842c96bc4ca2`
+  because it matches bgfx's 1.92.8 dynamic-texture adapter. It remains isolated
+  behind `EditorUiHost`; game/runtime targets do not compile it.
 
 There is no EnTT or ImGuizmo dependency in the current implementation. Runtime
 data, component metadata, validation, and commands do not depend on Dear ImGui.
+`EditorViewportRenderer` and `EditorGameRenderer` are the only editor owners of
+offscreen scene targets; dock panels consume their texture handles without
+calling bgfx directly.
 
 ## Data And Composition
 
@@ -101,6 +109,9 @@ Supported lifecycle functions are `on_create`, `on_start`, `on_update`,
 ## Validation And Editor Direction
 
 `demi validate` is the diagnostics contract shared by the CLI and editor.
+Project workflows normalize a `demi.project.json` path to the complete authored
+project tree, so CLI validation, the editor, cooking, and packaging inspect the
+same scope rather than validating only the project header.
 The graphical editor consumes the existing project loader, component metadata,
 authored component JSON, source discovery, and validation path. Its UI-free
 scene document owns reversible stable-ID field commands, while a document store
@@ -128,9 +139,11 @@ The current refactoring order is:
    sampling live in `RenderAssetLoading`. Render-pass assembly is the next
    boundary if frame extraction grows. `Bgfx3DAppHost` remains the native
    lifetime owner; the renderer must not gain application or scene-flow policy.
-3. `Physics2D.cpp` and `PhysicsWorld3D.cpp`: separate body/shape construction,
-   simulation synchronization, contacts, and queries along existing domain
-   seams. Do not split individual collision algorithms merely to reduce lines.
+3. `Physics2D.cpp` now owns simulation synchronization while body commands,
+   collider geometry, and queries live in `PhysicsBody2D`,
+   `PhysicsGeometry2D`, and `PhysicsQueries2D`. Apply the same responsibility
+   seams to `PhysicsWorld3D.cpp`; do not split individual collision algorithms
+   merely to reduce lines.
 4. `LuaNetworkSessionBindings.cpp`: move session policy into runtime network
    services and leave topic-based binding installers as thin Lua adapters.
 5. `Validation.cpp`: separate format-specific validators behind the existing

@@ -22,7 +22,18 @@ void error(Diagnostics &diagnostics, std::string code, std::string message,
   diagnostics.push_back({.severity = Severity::Error,
                          .code = std::move(code),
                          .message = std::move(message),
-                         .path = path.string()});
+                         .path = path.string(),
+                         .suggestion = {}});
+}
+
+bool isRuntimePackageFile(const std::string &relative) {
+  const std::filesystem::path path(relative);
+  if (path.filename() == "README.md")
+    return false;
+  return std::ranges::none_of(path, [](const auto &component) {
+    return component == "tests" || component == "examples" ||
+           component == "docs";
+  });
 }
 
 bool supportsPlatform(const std::vector<std::string> &platforms,
@@ -93,7 +104,8 @@ loadLockedPackageContent(const std::filesystem::path &projectDirectory,
         continue;
       }
       packageFiles.push_back(file);
-      result.files.push_back(file);
+      if (isRuntimePackageFile(relative))
+        result.files.push_back(file);
     }
     const auto contentHash = packageContentHash(root, packageFiles);
     if (!contentHash) {
@@ -133,7 +145,8 @@ loadLockedPackageContent(const std::filesystem::path &projectDirectory,
             .kind = document.value("kind", ""),
             .entry = root / entryPath,
             .platforms =
-                document.value("platforms", std::vector<std::string>{})};
+                document.value("platforms", std::vector<std::string>{}),
+            .importer = std::nullopt};
         const bool declaredEntry =
             std::ranges::find(installed.manifest->files, entryPath) !=
             installed.manifest->files.end();
@@ -158,6 +171,7 @@ loadLockedPackageContent(const std::filesystem::path &projectDirectory,
         if (extension.kind == "asset_importer") {
           ImporterDescriptor importer{
               .name = extension.id,
+              .assetType = {},
               .version = document.value("version", 0),
               .settingsSchemaVersion =
                   document.value("settings_schema_version", 0),

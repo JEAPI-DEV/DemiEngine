@@ -1,10 +1,12 @@
 #include "demi/runtime/render/HudTextMetrics.h"
+#include "demi/runtime/ui/HudLayoutReport.h"
 #include "demi/runtime/ui/UiActionController.h"
 #include "demi/runtime/ui/UiDocumentParser.h"
 #include "demi/runtime/ui/UiInteractionController.h"
 #include "demi/runtime/ui/UiLayoutEngine.h"
 #include "demi/runtime/ui/UiPresentation.h"
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <nlohmann/json.hpp>
@@ -14,7 +16,8 @@ namespace {
 bool near(float left, float right) { return std::abs(left - right) < 0.01F; }
 
 bool verifyAspect(demi::runtime::ui::UiDocument document,
-                  demi::runtime::Vec2 viewport) {
+                   demi::runtime::Vec2 viewport) {
+  document.safeArea = {};
   demi::runtime::ui::UiLayoutEngine{}.layout(document, viewport);
   const auto &root = document.nodes[0];
   const auto &first = document.nodes[1];
@@ -69,6 +72,7 @@ int main() {
     },
     "root": {
       "id": "menu", "type": "container", "style": "menu",
+      "respect_safe_area": false,
       "anchor_min": [0, 0], "anchor_max": [1, 1],
       "layout": "column", "alignment": "center",
       "children": [
@@ -82,6 +86,9 @@ int main() {
   })"));
 
   if (document.nodes.size() != 6 || document.nodes[1].text != "Play" ||
+      document.nodes[0].type != "container" ||
+      !near(document.nodes[0].layout.anchorMax.x, 1.0F) ||
+      !near(document.nodes[0].layout.anchorMax.y, 1.0F) ||
       document.nodes[5].placeholder != "Search" ||
       document.actionMap["submit"] != "ui_accept" ||
       !verifyAspect(document, {1920.0F, 1080.0F}) ||
@@ -126,9 +133,8 @@ int main() {
   demi::runtime::ui::UiInteractionController panelInteraction;
   const auto &nestedButton = panelDocument.nodes[2].resolved;
   if (!panelInteraction.capturePointer(
-          panelDocument,
-          {nestedButton.x + nestedButton.width * 0.5F,
-           nestedButton.y + nestedButton.height * 0.5F}) ||
+          panelDocument, {nestedButton.x + nestedButton.width * 0.5F,
+                          nestedButton.y + nestedButton.height * 0.5F}) ||
       panelDocument.pointerCaptures[0] != "anchored_button" ||
       panelInteraction.activateFocused(panelDocument) != "nested_action") {
     std::cerr << "Nested panel button did not receive pointer focus.\n";
@@ -138,15 +144,12 @@ int main() {
 
   demi::runtime::ui::UiLayoutEngine{}.layout(document, {960.0F, 540.0F});
   demi::runtime::ui::UiDocument safeAreaDocument;
-  safeAreaDocument.safeArea = {.left = 10.0F,
-                               .top = 20.0F,
-                               .right = 30.0F,
-                               .bottom = 40.0F};
+  safeAreaDocument.safeArea = {
+      .left = 10.0F, .top = 20.0F, .right = 30.0F, .bottom = 40.0F};
   safeAreaDocument.nodes.push_back(
       {.id = "safe_root",
        .type = "container",
-       .layout = {.anchorMin = {0.0F, 0.0F},
-                  .anchorMax = {1.0F, 1.0F}}});
+       .layout = {.anchorMin = {0.0F, 0.0F}, .anchorMax = {1.0F, 1.0F}}});
   demi::runtime::ui::UiLayoutEngine{}.layout(safeAreaDocument,
                                              {200.0F, 150.0F});
   if (!near(safeAreaDocument.nodes[0].resolved.x, 10.0F) ||
@@ -154,6 +157,41 @@ int main() {
       !near(safeAreaDocument.nodes[0].resolved.width, 160.0F) ||
       !near(safeAreaDocument.nodes[0].resolved.height, 90.0F)) {
     std::cerr << "UI roots did not respect application safe-area insets.\n";
+    return 1;
+  }
+  safeAreaDocument.nodes.push_back(
+      {.id = "edge_background",
+       .parent = "safe_root",
+       .type = "panel",
+       .layout = {.anchorMin = {0.0F, 0.0F}, .anchorMax = {1.0F, 1.0F}},
+       .respectsSafeArea = false});
+  safeAreaDocument.nodes.push_back(
+      {.id = "safe_content",
+       .parent = "safe_root",
+       .type = "container",
+       .layout = {.anchorMin = {0.0F, 0.0F}, .anchorMax = {1.0F, 1.0F}},
+       .respectsSafeArea = true});
+  safeAreaDocument.nodes.push_back(
+      {.id = "safe_child",
+       .parent = "safe_content",
+       .type = "panel",
+       .layout = {.anchorMin = {0.0F, 0.0F},
+                  .anchorMax = {1.0F, 1.0F}}});
+  demi::runtime::ui::UiLayoutEngine{}.layout(safeAreaDocument,
+                                             {200.0F, 150.0F});
+  const auto &edgeBackground = safeAreaDocument.nodes[1].resolved;
+  const auto &safeContent = safeAreaDocument.nodes[2].resolved;
+  const auto &safeChild = safeAreaDocument.nodes[3].resolved;
+  if (!near(edgeBackground.x, 0.0F) || !near(edgeBackground.y, 0.0F) ||
+      !near(edgeBackground.width, 200.0F) ||
+      !near(edgeBackground.height, 150.0F) ||
+      !near(safeContent.x, 10.0F) || !near(safeContent.y, 20.0F) ||
+      !near(safeContent.width, 160.0F) ||
+      !near(safeContent.height, 90.0F) ||
+      !near(safeChild.x, safeContent.x) || !near(safeChild.y, safeContent.y) ||
+      !near(safeChild.width, safeContent.width) ||
+      !near(safeChild.height, safeContent.height)) {
+    std::cerr << "Safe-area containers or their children resolved incorrectly.\n";
     return 1;
   }
   demi::runtime::ui::UiInteractionController interaction;
@@ -175,12 +213,10 @@ int main() {
     std::cerr << "UI pointer capture was not released.\n";
     return 1;
   }
-  const demi::runtime::Vec2 playPoint{
-      document.nodes[1].resolved.x + 1.0F,
-      document.nodes[1].resolved.y + 1.0F};
-  const demi::runtime::Vec2 musicPoint{
-      document.nodes[3].resolved.x + 1.0F,
-      document.nodes[3].resolved.y + 1.0F};
+  const demi::runtime::Vec2 playPoint{document.nodes[1].resolved.x + 1.0F,
+                                      document.nodes[1].resolved.y + 1.0F};
+  const demi::runtime::Vec2 musicPoint{document.nodes[3].resolved.x + 1.0F,
+                                       document.nodes[3].resolved.y + 1.0F};
   if (!interaction.capturePointer(document, 11, playPoint) ||
       !interaction.capturePointer(document, 12, musicPoint) ||
       !interaction.pointerCaptured(document, 11) ||
@@ -232,6 +268,74 @@ int main() {
       presentation[3].node->id != "front" || !presentation[3].visible) {
     std::cerr << "UI presentation did not resolve inherited visibility and "
                  "effective layers deterministically.\n";
+    return 1;
+  }
+
+  const nlohmann::json hudDocument = nlohmann::json::parse(R"({
+    "format_version": 1,
+    "canvas_size": [960, 540],
+    "root": {
+      "id": "panel",
+      "type": "container",
+      "respect_safe_area": true,
+      "anchor_min": [0, 0],
+      "anchor_max": [1, 1],
+      "children": [{
+        "id": "menu_button",
+        "type": "button",
+        "action": "menu_button_levels",
+        "position": [270, 190],
+        "size": [420, 48]
+      }, {
+        "id": "hidden_screen",
+        "type": "container",
+        "visible": false,
+        "anchor_min": [0, 0],
+        "anchor_max": [1, 1],
+        "children": [{
+          "id": "hidden_button",
+          "type": "button",
+          "position": [100, 200],
+          "size": [300, 44]
+        }]
+      }]
+    }
+  })");
+  const auto plain =
+      demi::runtime::ui::inspectHudLayout(hudDocument);
+  auto visibleButton = std::ranges::find_if(
+      plain.nodes, [](const demi::runtime::ui::HudNodeReport &node) {
+        return node.id == "menu_button";
+      });
+  auto hiddenButton = std::ranges::find_if(
+      plain.nodes, [](const demi::runtime::ui::HudNodeReport &node) {
+        return node.id == "hidden_button";
+      });
+  if (visibleButton == plain.nodes.end() ||
+      !near(visibleButton->resolved.x, 270.0F) ||
+      !near(visibleButton->resolved.y, 190.0F) ||
+      hiddenButton == plain.nodes.end() ||
+      hiddenButton->resolved.width != 0.0F) {
+    std::cerr << "HUD layout report did not resolve visible nodes and left "
+                 "hidden containers unresolved.\n";
+    return 1;
+  }
+
+  demi::runtime::ui::HudLayoutRequest revealed;
+  revealed.revealHidden = true;
+  revealed.safeArea = {.left = 54.0F, .top = 37.0F, .right = 0.0F,
+                       .bottom = 0.0F};
+  const auto shifted =
+      demi::runtime::ui::inspectHudLayout(hudDocument, revealed);
+  auto revealedButton = std::ranges::find_if(
+      shifted.nodes, [](const demi::runtime::ui::HudNodeReport &node) {
+        return node.id == "hidden_button";
+      });
+  if (revealedButton == shifted.nodes.end() ||
+      !near(revealedButton->resolved.x, 154.0F) ||
+      !near(revealedButton->resolved.y, 237.0F)) {
+    std::cerr << "HUD layout report did not reveal hidden containers or "
+                 "apply safe-area insets.\n";
     return 1;
   }
   return 0;

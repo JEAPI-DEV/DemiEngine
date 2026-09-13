@@ -21,6 +21,7 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -28,11 +29,32 @@
 
 namespace demi::editor {
 
+enum class EditorWorkspaceDocument { Scene, Hud };
+
 class EditorWorkspace {
 public:
   [[nodiscard]] bool open(std::filesystem::path projectPath,
                           std::string &error);
+  [[nodiscard]] bool openSceneDocument(const std::filesystem::path &path,
+                                       std::string &error);
+  [[nodiscard]] bool openPrefabDocument(const std::filesystem::path &path,
+                                        std::string &error);
+  [[nodiscard]] bool isPrefabDocument() const { return editingPrefab_; }
+  [[nodiscard]] const std::filesystem::path &lastScenePath() const {
+    return lastScenePath_;
+  }
+  [[nodiscard]] const std::filesystem::path &lastPrefabPath() const {
+    return lastPrefabPath_;
+  }
+  [[nodiscard]] bool openHudDocument(const std::filesystem::path &path,
+                                     std::string &error);
   [[nodiscard]] bool refresh(std::string &error);
+  [[nodiscard]] bool createFolder(const std::filesystem::path &relativeParent,
+                                  std::string_view name, std::string &error);
+  [[nodiscard]] const std::set<std::filesystem::path> &
+  sourceDirectories() const {
+    return sourceDirectories_;
+  }
   [[nodiscard]] bool save(std::string &error);
   [[nodiscard]] bool saveProject(std::string &error);
   [[nodiscard]] bool saveAll(std::string &error);
@@ -51,6 +73,10 @@ public:
                                             std::string &error) {
     return projectDocument_.setInputActions(std::move(actions), error);
   }
+  [[nodiscard]] bool setProjectInputPresets(std::vector<std::string> presets,
+                                            std::string &error) {
+    return projectDocument_.setInputPresets(std::move(presets), error);
+  }
   [[nodiscard]] bool setProjectInputBinding(std::string_view action,
                                             std::size_t bindingIndex,
                                             std::string input,
@@ -58,6 +84,9 @@ public:
     return projectDocument_.setInputBinding(action, bindingIndex,
                                             std::move(input), error);
   }
+  [[nodiscard]] bool
+  setProjectBuildSettings(runtime::ProjectBuildSettings settings,
+                          std::string &error);
   [[nodiscard]] bool importAsset(const assets::AssetImportRequest &request,
                                  std::string &error);
   [[nodiscard]] bool reimportAsset(const std::filesystem::path &manifest,
@@ -76,8 +105,12 @@ public:
   [[nodiscard]] bool editValues(std::vector<SceneValueTarget> targets,
                                 nlohmann::json value, std::string &error);
   [[nodiscard]] bool removeValue(SceneValueTarget target, std::string &error);
+  [[nodiscard]] SceneValueTarget authoredTarget(SceneValueTarget target) const;
+  [[nodiscard]] bool hasExplicitValue(SceneValueTarget target) const;
   [[nodiscard]] bool createEntity(std::string &error,
                                   std::optional<std::string> parent = {});
+  [[nodiscard]] bool createPresetEntity(std::string_view preset,
+                                        std::string &error);
   [[nodiscard]] bool deleteEntity(std::string_view id, std::string &error);
   [[nodiscard]] bool deleteEntities(std::vector<std::string> ids,
                                     std::string &error);
@@ -138,30 +171,42 @@ public:
     return sources_;
   }
   [[nodiscard]] std::optional<std::filesystem::path> authoredHudPath() const;
-  [[nodiscard]] const EditorHudDocument *hudDocument() const {
-    return hudDocument_ ? &*hudDocument_ : nullptr;
+  [[nodiscard]] const EditorHudDocument *hudDocument() const;
+  [[nodiscard]] const runtime::ui::UiDocument &displayedHud() const;
+  [[nodiscard]] bool hasHudDocument() const {
+    return hudDocument_.has_value() || openedHudDocument_.has_value();
   }
+  [[nodiscard]] EditorWorkspaceDocument activeDocument() const {
+    return activeDocument_;
+  }
+  void activateSceneDocument();
+  void activateHudDocument();
   [[nodiscard]] bool activeDocumentDirty() const {
-    return !selectedHudNodeId_.empty() && hudDocument_
-               ? hudDocument_->isDirty()
+    const EditorHudDocument *hud = hudDocument();
+    return activeDocument_ == EditorWorkspaceDocument::Hud && hud
+               ? hud->isDirty()
                : sceneDocument_.isDirty();
   }
   [[nodiscard]] bool activeDocumentCanUndo() const {
-    return !selectedHudNodeId_.empty() && hudDocument_
-               ? hudDocument_->canUndo()
+    const EditorHudDocument *hud = hudDocument();
+    return activeDocument_ == EditorWorkspaceDocument::Hud && hud
+               ? hud->canUndo()
                : sceneDocument_.canUndo();
   }
   [[nodiscard]] bool activeDocumentCanRedo() const {
-    return !selectedHudNodeId_.empty() && hudDocument_
-               ? hudDocument_->canRedo()
+    const EditorHudDocument *hud = hudDocument();
+    return activeDocument_ == EditorWorkspaceDocument::Hud && hud
+               ? hud->canRedo()
                : sceneDocument_.canRedo();
   }
   [[nodiscard]] bool hasUnsavedChanges() const {
     return sceneDocument_.isDirty() || projectDocument_.isDirty() ||
-           (hudDocument_ && hudDocument_->isDirty());
+           (hudDocument_ && hudDocument_->isDirty()) ||
+           (openedHudDocument_ && openedHudDocument_->isDirty());
   }
   [[nodiscard]] bool hudDirty() const {
-    return hudDocument_ && hudDocument_->isDirty();
+    const EditorHudDocument *hud = hudDocument();
+    return hud && hud->isDirty();
   }
   [[nodiscard]] const auto &tilemaps2D() const { return tilemaps2D_; }
   [[nodiscard]] const Diagnostics &diagnostics() const { return diagnostics_; }
@@ -212,6 +257,14 @@ public:
   }
 
 private:
+  [[nodiscard]] bool openEntityDocument(const std::filesystem::path &path,
+                                        bool prefab, std::string &error);
+  [[nodiscard]] std::optional<runtime::World>
+  loadEntityPreview(const EditorSceneDocument &document, bool prefab,
+                    std::string &error) const;
+  bool editingPrefab_ = false;
+  std::filesystem::path lastScenePath_;
+  std::filesystem::path lastPrefabPath_;
   void discoverSources();
   void refreshAssetIndex();
   void loadPreviewTilemaps();
@@ -219,6 +272,7 @@ private:
   void reconcileIsoGridCellSelection();
   void syncEditorDiagnostic();
   [[nodiscard]] bool loadHudDocument(std::string &error);
+  [[nodiscard]] EditorHudDocument *activeHudDocument();
   void syncHudPreview();
   [[nodiscard]] bool mutateAndRebuild(
       const std::function<bool(EditorSceneDocument &, std::string &)> &mutation,
@@ -228,12 +282,17 @@ private:
                                          const std::function<void()> &cancel,
                                          std::string &error);
   void updateSceneDomain(bool openingProject);
+  [[nodiscard]] SceneValueTarget
+  resolveSceneTarget(SceneValueTarget target) const;
 
   std::filesystem::path projectPath_;
   std::optional<runtime::LoadedProject> project_;
   EditorSceneDocument sceneDocument_;
   EditorProjectDocument projectDocument_;
   std::optional<EditorHudDocument> hudDocument_;
+  std::optional<EditorHudDocument> openedHudDocument_;
+  EditorWorkspaceDocument activeDocument_ = EditorWorkspaceDocument::Scene;
+  bool usesOpenedHudDocument_ = false;
   EditorAssetIndex assetIndex_;
   EditorSceneViewState sceneView_;
   EditorSceneView2DState sceneView2D_;
@@ -243,6 +302,7 @@ private:
   EditorSceneViewDimension viewDimension_ =
       EditorSceneViewDimension::ThreeDimensional;
   std::vector<std::filesystem::path> sources_;
+  std::set<std::filesystem::path> sourceDirectories_;
   std::unordered_map<std::string, runtime::TilemapAsset2D> tilemaps2D_;
   Diagnostics diagnostics_;
   std::vector<std::string> selectedEntityIds_;

@@ -1,9 +1,12 @@
 #include "editor/EditorSceneDocument.h"
 
+#include "demi/filesystem/ProjectPaths.h"
 #include "editor/EditorAuthoredJson.h"
+#include "editor/EditorSpecializedDocument.h"
 
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/runtime/scene/SceneEntityParser.h"
 #include "demi/schema/Validation.h"
 
 #include <algorithm>
@@ -28,7 +31,10 @@ std::string validationMessage(
 
 bool stagedHasErrors(const std::filesystem::path &path,
                      const nlohmann::json &document, std::string &error) {
-  const Diagnostics diagnostics = demi::validateSceneDocument(path, document);
+  const Diagnostics diagnostics =
+      isPrefabFile(path) ? validateSpecializedDocument(
+                               EditorSpecializedKind::Prefab, path, document)
+                         : demi::validateSceneDocument(path, document);
   for (const Diagnostic &diagnostic : diagnostics) {
     if (diagnostic.severity == Severity::Error) {
       error = diagnostic.code + ": " + diagnostic.message;
@@ -64,6 +70,9 @@ bool EditorSceneDocument::open(const std::filesystem::path &path,
     return false;
   try {
     nlohmann::json parsed = nlohmann::json::parse(text);
+    if (isPrefabFile(resolvedPath) &&
+        stagedHasErrors(resolvedPath, parsed, error))
+      return false;
     if (!parsed.is_object() || !parsed.contains("format_version") ||
         !parsed.contains("entities") || !parsed["entities"].is_array()) {
       error = "The active scene is not an editable scene document.";
@@ -269,8 +278,10 @@ bool EditorSceneDocument::setValues(std::vector<SceneValueTarget> targets,
   }
   std::ranges::sort(
       targets, [](const SceneValueTarget &left, const SceneValueTarget &right) {
-        return std::tie(left.entityId, left.component, left.field) <
-               std::tie(right.entityId, right.component, right.field);
+        return std::tie(left.entityId, left.component, left.field,
+                        left.prefabInstanceId, left.prefabEntityId) <
+               std::tie(right.entityId, right.component, right.field,
+                        right.prefabInstanceId, right.prefabEntityId);
       });
   if (std::ranges::adjacent_find(targets) != targets.end()) {
     error = "A multi-edit cannot contain the same field twice.";
@@ -370,6 +381,29 @@ bool EditorSceneDocument::createEntity(std::string &error,
     childTransform["parent"] = *parent;
     entity["components"][transform] = std::move(childTransform);
   }
+  return stageAndCommit(InsertEntityCommand{.index = entities->size(),
+                                            .entity = std::move(entity)},
+                        error);
+}
+
+bool EditorSceneDocument::createPresetEntity(std::string_view preset,
+                                             std::string &error) {
+  const auto known = runtime::scene_loading::knownEntityPresets();
+  if (std::ranges::find(known, preset) == known.end()) {
+    error = "Unknown entity preset.";
+    return false;
+  }
+  nlohmann::json *entities = entitiesArray(document_);
+  if (entities == nullptr) {
+    error = "The scene has no entities array.";
+    reject({}, error);
+    return false;
+  }
+  const std::string id = uniqueEntityId(document_, "ent_new");
+  nlohmann::json entity{{"id", id},
+                        {"name", std::string(preset) + " Entity"},
+                        {"preset", std::string(preset)},
+                        {"components", nlohmann::json::object()}};
   return stageAndCommit(InsertEntityCommand{.index = entities->size(),
                                             .entity = std::move(entity)},
                         error);
@@ -510,11 +544,15 @@ bool EditorSceneDocument::addComponent(const std::string_view id,
         error);
     return false;
   }
+  auto authoredDefaults = runtime::scene_loading::componentDefaults(*descriptor);
+  for (const auto &field : descriptor->fields)
+    if (!field.required)
+      authoredDefaults.erase(std::string(field.name));
   return stageAndCommit(
       AddComponentCommand{
           .entityId = std::string(id),
           .componentName = std::string(componentName),
-          .component = runtime::scene_loading::componentDefaults(*descriptor)},
+          .component = std::move(authoredDefaults)},
       error);
 }
 
@@ -614,8 +652,11 @@ EditorSceneDocument::component(const std::string_view entityId,
 
 const std::string *
 EditorSceneDocument::issueFor(const SceneValueTarget &target) const {
-  return issue_.has_value() && issue_->target == target ? &issue_->message
-                                                        : nullptr;
+  return issue_.has_value() && issue_->target.entityId == target.entityId &&
+                 issue_->target.component == target.component &&
+                 issue_->target.field == target.field
+             ? &issue_->message
+             : nullptr;
 }
 
 nlohmann::json *EditorSceneDocument::value(const SceneValueTarget &target) {

@@ -22,7 +22,7 @@ Status meanings:
 | CLI validation and smoke tests | Stable | Project/example validation and headless runtime probes |
 | Lightweight 3D | Experimental | Cycle-safe transform hierarchies, CLI-generated glTF colliders, spatial queries, versioned materials/shaders, directional/point/spot lighting, bounded shadow passes, multi-camera targets/viewports/masks, post effects, deterministic particles, world text/UI targets, batching, culling, resource ownership, and profiler-visible render budgets |
 | Video/cutscenes | Experimental | FFmpeg-backed playback when enabled |
-| Networking | Experimental | Versioned network contracts, bounded declared messages and schemas, server-issued IDs, ownership generations and disconnect policy, reflected replicated fields, late-join state, reconnect/fault-test primitives, dedicated-server startup, optional lobby package, ENet, and TLS/DTLS transport; prediction and reconciliation are deferred |
+| Networking | Experimental | Versioned network contracts, bounded declared messages and schemas, server-issued IDs, ownership generations and disconnect policy, reflected replicated fields, late-join state, reconnect/fault-test primitives, sequenced owner inputs, authoritative snapshots, opt-in prediction/reconciliation, bounded interpolation/extrapolation, detached historical 2D queries, dedicated-server startup, optional lobby package, ENet, and TLS/DTLS transport |
 | Android | Experimental | Shared action/touch controls, lifecycle/display services, and debug APK packaging; release workflow remains incomplete |
 | Component metadata as sole source | Stable | Generated registry drives parsing, validation, schema export, Lua policy, and editor placeholders |
 | Prefabs | Stable | Versioned entity/UI files, nesting, overrides, cycle diagnostics, CLI expansion/diff |
@@ -41,7 +41,8 @@ Status meanings:
 | Linux cooking and packaging | Stable | Runtime-only deterministic cook output, manifest, Linux runtime bundle, and headless smoke coverage |
 | Android cooking integration | Planned | Deferred until the Android runtime path has equivalent automated coverage |
 | Functional editor | Experimental | Native project shell, hierarchy, metadata-driven field editors, coalesced undo/redo, conflict-safe atomic saves, authored 3D preview, asset/source browser, shared diagnostics, and owned runtime play controls are available; structural commands, 2D preview, and an embedded game view remain planned |
-| High-end Unity-style 3D | Deferred | Not a product target |
+| Professional desktop 3D expansion | Planned | Measured entity scaling, improved rendering/animation, and CPU-side Blast destruction integrated with Jolt; milestone gates in [the roadmap](../plan.md), not currently supported capabilities |
+| General AAA-engine feature parity | Deferred | Outside the bounded desktop 3D roadmap |
 
 The machine-readable status and compatibility workflow is documented in
 [Capability Manifest and Reference Gates](capability-gates.md). The matrix

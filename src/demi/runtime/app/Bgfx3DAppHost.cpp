@@ -2,6 +2,8 @@
 
 #include "demi/runtime/assets/RegistryAssetResourceLoader.h"
 
+#include <utility>
+
 namespace demi::runtime {
 
 class Bgfx3DAppHost::RendererOwner {
@@ -101,10 +103,20 @@ bool Bgfx3DAppHost::setMouseCaptured(const bool captured, std::string &error) {
   return context_.setMouseCaptured(captured, error);
 }
 
+bool Bgfx3DAppHost::requestFrameRate(const float framesPerSecond) {
+  return context_.requestFrameRate(framesPerSecond);
+}
+
 std::string Bgfx3DAppHost::clipboard() const { return context_.clipboard(); }
 
 bool Bgfx3DAppHost::setClipboard(const std::string &text, std::string &error) {
   return context_.setClipboard(text, error);
+}
+
+bool Bgfx3DAppHost::requestPermission(const std::string &permission,
+                                      std::function<void(bool, bool)> result,
+                                      std::string &error) {
+  return context_.requestPermission(permission, std::move(result), error);
 }
 
 bool Bgfx3DAppHost::renderFrame(const World &world,
@@ -154,6 +166,8 @@ bool Bgfx3DAppHost::renderFrames(
     frameStatistics_.consideredMeshes += cameraStatistics.consideredMeshes;
     frameStatistics_.visibleMeshes += cameraStatistics.visibleMeshes;
     frameStatistics_.culledMeshes += cameraStatistics.culledMeshes;
+    frameStatistics_.mediumLodMeshes += cameraStatistics.mediumLodMeshes;
+    frameStatistics_.lowLodMeshes += cameraStatistics.lowLodMeshes;
     frameExtractionMilliseconds_ +=
         renderer_->renderer.lastExtractionMilliseconds();
   }

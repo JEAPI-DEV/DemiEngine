@@ -76,7 +76,7 @@ int main() {
        .outputDirectory = package,
        .runtimeExecutable = DEMI_RUNTIME_PATH});
   assert(packaged.succeeded());
-  assert(fs::is_regular_file(package / "bin/demi"));
+  assert(fs::is_regular_file(package / "bin/editor_release_gate"));
   assert(fs::is_regular_file(package / "project/cook.manifest.json"));
 
   fs::remove_all(root, ignored);

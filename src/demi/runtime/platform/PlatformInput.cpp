@@ -57,6 +57,20 @@ void PlatformInput::beginFrame() {
     touch.phase = TouchPhase::Stationary;
     touch.delta = {};
   }
+  // Deliver deferred same-batch tap releases so consumers observe one full
+  // press frame before the release frame.
+  for (const DeferredTouchRelease &release : deferredReleases_) {
+    const auto existing =
+        std::ranges::find(state_.touches, release.id, &TouchPoint::id);
+    if (existing == state_.touches.end())
+      continue;
+    existing->phase = release.cancelled ? TouchPhase::Cancelled
+                                        : TouchPhase::Ended;
+    existing->position = release.position;
+    existing->pressure = release.pressure;
+    existing->delta = {};
+  }
+  deferredReleases_.clear();
   for (GamepadState &gamepad : state_.gamepads) {
     gamepad.buttonsPressed.clear();
     gamepad.buttonsReleased.clear();
@@ -117,6 +131,19 @@ void PlatformInput::touch(const std::int64_t id, const TouchPhase phase,
                          .position = position,
                          .delta = delta,
                          .pressure = pressure};
+  const bool terminal = phase == TouchPhase::Ended ||
+                        phase == TouchPhase::Cancelled;
+  if (terminal && existing != state_.touches.end() &&
+      existing->phase == TouchPhase::Began) {
+    // The begin and release arrived in the same event batch. Keep the press
+    // visible for this frame and defer the release to the next frame so a
+    // fast tap still produces a complete click.
+    deferredReleases_.push_back({.id = id,
+                                 .position = position,
+                                 .pressure = pressure,
+                                 .cancelled = phase == TouchPhase::Cancelled});
+    return;
+  }
   if (existing == state_.touches.end())
     state_.touches.push_back(value);
   else

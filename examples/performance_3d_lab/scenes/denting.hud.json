@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "canvas_size": [960, 540],
+  "root": { "id": "root", "type": "container", "children": [
+    { "id": "dent_title", "type": "label", "text": "NATIVE MESH DENTING", "position": [24, 18], "font_size": 18 },
+    { "id": "dent_help", "type": "label", "text": "Left: reference | Click right barrel / SPACE fire | M mass | V speed | R restore | B lab", "position": [24, 46], "font_size": 11 },
+    { "id": "dent_status", "type": "label", "text": "Visual dents only - collision remains the original convex hull", "position": [24, 67], "font_size": 11 },
+    { "id": "dent_hit", "type": "button", "text": "FIRE", "action": "dent_hit", "position": [24, 94], "size": [105, 34] },
+    { "id": "dent_reset", "type": "button", "text": "RESTORE", "action": "dent_reset", "position": [139, 94], "size": [105, 34] },
+    { "id": "dent_back", "type": "button", "text": "LAB", "action": "dent_back", "position": [254, 94], "size": [105, 34] },
+    { "id": "dent_mass", "type": "button", "text": "MASS", "action": "dent_mass", "position": [379, 94], "size": [150, 34] },
+    { "id": "dent_speed", "type": "button", "text": "SPEED", "action": "dent_speed", "position": [539, 94], "size": [175, 34] }
+  ] }
+}

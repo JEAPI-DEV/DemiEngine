@@ -4,6 +4,7 @@
 #include "cli/doctor/DoctorService.h"
 #include "cli/project/ProjectDiscovery.h"
 #include "demi/runtime/app/RuntimeApp.h"
+#include "demi/runtime/platform/RuntimeCapabilities.h"
 
 #include <filesystem>
 #include <iostream>
@@ -39,13 +40,30 @@ int runRuntimeCommand(const std::vector<std::string> &args,
   if (mode == RuntimeCommandMode::Develop) {
     std::vector<std::string> doctorArgs{"doctor", "--project",
                                         project.string()};
-    if (doctor::runDoctorCommand(doctorArgs, output, error) != 0)
+    if (doctor::runDoctorCommand(doctorArgs, output, error,
+                                 runtime::hostRuntimeFeatures()) != 0)
       return 1;
     output << "Development mode: " << project.string()
            << " (watching source files)\n";
   }
 
   bool serve = mode == RuntimeCommandMode::Serve;
+  std::pair<int, int> windowSize{0, 0};
+  if (hasArg(args, "--window-size")) {
+    const auto parsed = parseWindowSize(valueAfter(args, "--window-size"));
+    if (!parsed) {
+      error
+          << "--window-size requires WIDTHxHEIGHT, each between 1 and 65535.\n";
+      return 2;
+    }
+    windowSize = *parsed;
+  }
+  if (hasArg(args, "--profile-frames") &&
+      (valueAfter(args, "--profile-frames").empty() ||
+       valueAfter(args, "--profile-frames").starts_with("--"))) {
+    error << "--profile-frames requires an output CSV path.\n";
+    return 2;
+  }
 #ifdef DEMI_SERVER_CLI
   serve = true;
 #endif
@@ -55,9 +73,13 @@ int runRuntimeCommand(const std::vector<std::string> &args,
       .serve = serve,
       .profiler = hasArg(args, "--profiler"),
       .watch = mode == RuntimeCommandMode::Develop || hasArg(args, "--watch"),
+      .e2eTests = hasArg(args, "--e2e-tests"),
       .inputReplayPath = valueAfter(args, "--input-replay"),
       .profileReportPath = valueAfter(args, "--profile-report"),
       .debugOverlays = valueAfter(args, "--debug-overlays"),
+      .windowWidth = windowSize.first,
+      .windowHeight = windowSize.second,
+      .profileFramesPath = valueAfter(args, "--profile-frames"),
   });
 }
 

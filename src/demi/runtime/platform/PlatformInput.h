@@ -5,12 +5,23 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace demi::runtime::platform {
 
 struct PointerMotion {
   Vec2 position;
   Vec2 delta;
+};
+
+// A touch release whose begin arrived in the same event batch. Fast taps
+// deliver both within one poll, so the release is deferred one frame to keep
+// the press observable by per-frame consumers.
+struct DeferredTouchRelease {
+  std::int64_t id = 0;
+  Vec2 position;
+  float pressure = 0.0F;
+  bool cancelled = false;
 };
 
 // Window systems report pointer coordinates in window points, while render
@@ -47,6 +58,7 @@ private:
                       std::string_view key, bool down);
 
   InputState &state_;
+  std::vector<DeferredTouchRelease> deferredReleases_;
 };
 
 } // namespace demi::runtime::platform

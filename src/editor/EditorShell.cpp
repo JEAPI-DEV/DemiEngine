@@ -1,6 +1,8 @@
 #include "editor/EditorShell.h"
+#include "editor/EditorSettingsPanel.h"
 
 #include "editor/EditorChrome.h"
+#include "editor/EditorDefaultLayout.h"
 #include "editor/EditorHudNodeInspector.h"
 #include "editor/EditorInspectorPanel.h"
 #include "editor/EditorPanelStyle.h"
@@ -21,28 +23,55 @@
 namespace demi::editor {
 namespace {
 
-void drawStageTabs(const ImVec2 position, const ImVec2 size,
-                   bool &showGameView) {
-  beginEditorPanel("StageTabs", position, size,
-                   ImGuiWindowFlags_NoScrollbar |
-                       ImGuiWindowFlags_NoScrollWithMouse);
-  if (editorStageTab("Viewport", !showGameView))
+void drawStageTabs(EditorWorkspace &workspace, bool &showHudView,
+                   bool &showGameView, std::string &notice) {
+  if (editorStageTab("Viewport", !showHudView && !showGameView &&
+                                     !workspace.isPrefabDocument())) {
+    if (workspace.isPrefabDocument() &&
+        !workspace.openSceneDocument(workspace.lastScenePath(), notice))
+      return;
+    showHudView = false;
     showGameView = false;
+    workspace.activateSceneDocument();
+  }
+  if (!workspace.lastPrefabPath().empty()) {
+    ImGui::SameLine(0.0F, 2.0F);
+    const std::string label =
+        "Prefab: " + workspace.lastPrefabPath().filename().string();
+    if (editorStageTab(label.c_str(),
+                       workspace.isPrefabDocument() && !showHudView &&
+                           !showGameView,
+                       {ImGui::CalcTextSize(label.c_str()).x + 20.0F, 27.0F})) {
+      if (!workspace.openPrefabDocument(workspace.lastPrefabPath(), notice))
+        return;
+      showHudView = false;
+      showGameView = false;
+    }
+  }
+  if (workspace.hasHudDocument()) {
+    ImGui::SameLine(0.0F, 2.0F);
+    if (editorStageTab("HUD", showHudView)) {
+      showHudView = true;
+      showGameView = false;
+      workspace.activateHudDocument();
+    }
+  }
   ImGui::SameLine(0.0F, 2.0F);
-  if (editorStageTab("Game View", showGameView))
+  if (editorStageTab("Game View", showGameView)) {
+    showHudView = false;
     showGameView = true;
-  ImGui::SameLine(size.x - 22.0F);
-  ImGui::TextDisabled("x");
-  ImGui::End();
+  }
 }
 
 void drawMenu(EditorWorkspace &workspace, const ImVec2 size,
               bool &exitRequested, EditorProjectPanel &projectPanel,
               EditorAnimationMachinePanel &animationPanel,
               EditorBuildPanel &buildPanel, EditorAboutPanel &aboutPanel,
+              EditorDockingWorkspace &dockingWorkspace, bool &showSettings,
               std::string &notice) {
-  beginEditorPanel("MainMenu", {0.0F, 0.0F}, size,
-                   ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar);
+  beginEditorShellPanel("MainMenu", {0.0F, 0.0F}, size,
+                        ImGuiWindowFlags_MenuBar |
+                            ImGuiWindowFlags_NoScrollbar);
   if (ImGui::BeginMenuBar()) {
     if (ImGui::BeginMenu("File")) {
       if (ImGui::MenuItem("New project..."))
@@ -70,6 +99,9 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size,
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Edit")) {
+      if (ImGui::MenuItem("Editor Settings..."))
+        showSettings = true;
+      ImGui::Separator();
       if (ImGui::MenuItem("Undo", "Ctrl+Z", false,
                           workspace.activeDocumentCanUndo())) {
         std::string error;
@@ -83,7 +115,7 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size,
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("View")) {
-      ImGui::MenuItem("Reset workspace", nullptr, false, false);
+      dockingWorkspace.drawViewMenu();
       ImGui::EndMenu();
     }
     ImGui::MenuItem("Scene");
@@ -117,8 +149,9 @@ void drawStatus(EditorWorkspace &workspace, const ImVec2 position,
                 const ImVec2 size, const std::string_view renderer,
                 const std::string &notice, const bool linuxTarget,
                 const bool androidTarget) {
-  beginEditorPanel("Status", position, size,
-                   ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs);
+  beginEditorShellPanel("Status", position, size,
+                        ImGuiWindowFlags_NoScrollbar |
+                            ImGuiWindowFlags_NoInputs);
   ImDrawList *draw = ImGui::GetWindowDrawList();
   const ImVec2 cursor = ImGui::GetCursorScreenPos();
   draw->AddCircleFilled({cursor.x + 3.0F, cursor.y + 7.0F}, 4.0F, EditorAccent);
@@ -146,7 +179,7 @@ void drawStatus(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::SameLine();
   ImGui::TextDisabled("%s", target.c_str());
   ImGui::SameLine(size.x - 105.0F);
-  if (workspace.sceneDocument().isDirty())
+  if (workspace.activeDocumentDirty())
     ImGui::TextColored({0.95F, 0.67F, 0.28F, 1.0F}, "Modified");
   else
     ImGui::TextColored({0.32F, 0.86F, 0.49F, 1.0F}, "Ready");
@@ -156,7 +189,8 @@ void drawStatus(EditorWorkspace &workspace, const ImVec2 position,
 } // namespace
 
 EditorShell::EditorShell(EditorWorkspace &workspace)
-    : workspace_(workspace), recoveryStore_(defaultEditorCacheDirectory()),
+    : workspace_(workspace), dockingWorkspace_(defaultEditorDataDirectory()),
+      recoveryStore_(defaultEditorCacheDirectory()),
       preferencesStore_(defaultEditorDataDirectory()) {
   std::string error;
   pendingRecovery_ = recoveryStore_.load(workspace_.projectPath(), error);
@@ -169,6 +203,7 @@ EditorShell::EditorShell(EditorWorkspace &workspace)
     notice_ = "Editor preferences: " + error;
     preferenceSyncBlocked_ = true;
   }
+  uiScale_ = preferences_.uiScale;
   workspace_.sceneView().translationSnap = preferences_.translationSnap;
   workspace_.sceneView().rotationSnapDegrees = preferences_.rotationSnapDegrees;
   workspace_.sceneView().scaleSnap = preferences_.scaleSnap;
@@ -184,20 +219,32 @@ EditorShell::EditorShell(EditorWorkspace &workspace)
   workspace_.sceneView2D().showBounds = preferences_.showBounds2D;
   workspace_.sceneView2D().showColliders = preferences_.showColliders2D;
   workspace_.sceneView2D().showCameras = preferences_.showCameras2D;
+  if (std::string diagnostic = dockingWorkspace_.takeDiagnostic();
+      !diagnostic.empty())
+    notice_ = std::move(diagnostic);
 }
 
 bool EditorShell::openDocument(const std::filesystem::path &path,
                                std::string &error) {
-  if (isHudFile(path) && workspace_.authoredHudPath() &&
-      std::filesystem::absolute(path).lexically_normal() ==
-          std::filesystem::absolute(*workspace_.authoredHudPath())
-              .lexically_normal()) {
-    const EditorHudDocument *hud = workspace_.hudDocument();
-    if (hud == nullptr || hud->preview().nodes.empty()) {
-      error = "The current HUD could not be opened in the viewport.";
+  if (isPrefabFile(path)) {
+    if (!workspace_.openPrefabDocument(path, error))
       return false;
-    }
-    workspace_.selectHudNode(hud->preview().nodes.front().id);
+    showHudView_ = false;
+    showGameView_ = false;
+    return true;
+  }
+  if (isSceneFile(path)) {
+    if (!workspace_.openSceneDocument(path, error))
+      return false;
+    showHudView_ = false;
+    showGameView_ = false;
+    return true;
+  }
+  if (isHudFile(path)) {
+    if (!workspace_.openHudDocument(path, error))
+      return false;
+    showHudView_ = true;
+    showGameView_ = false;
     return true;
   }
   return specializedPanel_.open(path, workspace_.assetIndex(), error);
@@ -255,70 +302,98 @@ void EditorShell::draw(const int width, const int height,
       editorWorkspaceLayout(screenWidth, screenHeight);
   const float menuHeight = layout.menuHeight;
   const float toolbarHeight = layout.toolbarHeight;
-  const float stageTabsHeight = layout.stageTabsHeight;
   const float statusHeight = layout.statusHeight;
-  const float leftWidth = layout.leftWidth;
-  const float rightWidth = layout.rightWidth;
-  const float bottomHeight = layout.bottomHeight;
   const float contentTop = layout.contentTop;
   const float contentBottom = layout.contentBottom;
-  const float upperHeight = layout.upperHeight;
-  const float centerWidth = layout.centerWidth;
-  const float consoleWidth = layout.consoleWidth;
-  const float assetsWidth = layout.assetsWidth;
+  const float leftWidth = EditorDefaultLayout::HierarchyWidth;
+  const float rightWidth = EditorDefaultLayout::InspectorWidth;
+  const float bottomHeight = EditorDefaultLayout::BottomHeight;
+  const float upperHeight =
+      std::max(layout.dockspaceHeight - bottomHeight, 1.0F);
+  const float centerWidth =
+      std::max(screenWidth - leftWidth - rightWidth, 1.0F);
+  const float consoleWidth = EditorDefaultLayout::ConsoleWidth;
+  const float assetsWidth =
+      std::max(screenWidth - rightWidth - consoleWidth, 1.0F);
 
   const EditorProjectOperationSnapshot projectOperation =
       buildPanel_.operation();
   drawMenu(workspace_, {screenWidth, menuHeight}, exitRequested_, projectPanel_,
-           animationMachinePanel_, buildPanel_, aboutPanel_, notice_);
+           animationMachinePanel_, buildPanel_, aboutPanel_, dockingWorkspace_,
+           showSettings_, notice_);
+  drawEditorSettingsPanel(showSettings_, uiScale_);
   drawEditorToolbar({0.0F, menuHeight}, {screenWidth, toolbarHeight},
                     workspace_, playSession_, showGameView_, stepRequested_,
                     notice_);
+  dockingWorkspace_.drawDockspace({0.0F, contentTop},
+                                  {screenWidth, contentBottom - contentTop});
+  EditorPanelVisibility &panels = dockingWorkspace_.visibility();
   const runtime::World *runtimeWorld = playSession_.runtimeWorld();
   const bool runtimePanels = showGameView_ && runtimeWorld != nullptr;
-  if (runtimePanels)
+  if (panels.hierarchy && runtimePanels)
     drawRuntimeHierarchy(*runtimeWorld, {0.0F, contentTop},
-                         {leftWidth, upperHeight}, selectedRuntimeEntityId_);
-  else
+                         {leftWidth, upperHeight}, selectedRuntimeEntityId_,
+                         &panels.hierarchy);
+  else if (panels.hierarchy)
     hierarchyPanel_.draw(workspace_, {0.0F, contentTop},
-                         {leftWidth, upperHeight}, notice_);
+                         {leftWidth, upperHeight}, showHudView_, notice_,
+                         &panels.hierarchy);
   if (runtimePanels)
     playSession_.setDebugFocus(selectedRuntimeEntityId_);
-  drawStageTabs({leftWidth, contentTop}, {centerWidth, stageTabsHeight},
-                showGameView_);
-  const ImVec2 stagePosition{leftWidth, contentTop + stageTabsHeight};
-  const ImVec2 stageSize{centerWidth, upperHeight - stageTabsHeight};
-  if (showGameView_) {
-    viewportArea_ = {};
-    drawEditorGameView(playSession_, stagePosition, stageSize,
-                       gameTextureIndex_, gameArea_, gameViewFocused_);
+  const ImVec2 stagePosition{leftWidth, contentTop};
+  const ImVec2 stageSize{centerWidth, upperHeight};
+  if (panels.stage) {
+    const bool stageContent = beginEditorPanel(
+        "Stage", stagePosition, stageSize, &panels.stage,
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+            ImGuiWindowFlags_NoBackground);
+    if (stageContent) {
+      drawStageTabs(workspace_, showHudView_, showGameView_, notice_);
+      ImGui::Separator();
+      if (showGameView_) {
+        viewportArea_ = {};
+        drawEditorGameView(playSession_, {}, {}, gameTextureIndex_, gameArea_,
+                           gameViewFocused_, true);
+      } else {
+        gameArea_ = {};
+        gameViewFocused_ = false;
+        drawEditorViewport(workspace_, {}, {}, viewportTextureIndex_,
+                           viewportArea_, hudViewportState_, showHudView_,
+                           notice_, true);
+      }
+    }
+    ImGui::End();
   } else {
+    viewportArea_ = {};
     gameArea_ = {};
     gameViewFocused_ = false;
-    drawEditorViewport(workspace_, stagePosition, stageSize, viewportArea_,
-                       hudViewportState_, notice_);
   }
-  if (runtimePanels)
+  if (panels.inspector && runtimePanels)
     drawRuntimeInspector(*runtimeWorld, {screenWidth - rightWidth, contentTop},
                          {rightWidth, contentBottom - contentTop},
-                         selectedRuntimeEntityId_);
-  else if (!workspace_.selectedHudNodeId().empty())
-    drawEditorHudNodeInspector(
-        workspace_, {screenWidth - rightWidth, contentTop},
-        {rightWidth, contentBottom - contentTop}, hudInspectorState_, notice_);
-  else
+                         selectedRuntimeEntityId_, &panels.inspector);
+  else if (panels.inspector && !workspace_.selectedHudNodeId().empty())
+    drawEditorHudNodeInspector(workspace_,
+                               {screenWidth - rightWidth, contentTop},
+                               {rightWidth, contentBottom - contentTop},
+                               hudInspectorState_, notice_, &panels.inspector);
+  else if (panels.inspector)
     drawInspectorPanel(workspace_, {screenWidth - rightWidth, contentTop},
                        {rightWidth, contentBottom - contentTop},
-                       inspectorState_, notice_);
-  consolePanel_.draw(workspace_, playSession_, {0.0F, contentTop + upperHeight},
-                     {consoleWidth, bottomHeight}, projectOperation, notice_);
+                       inspectorState_, notice_, &panels.inspector);
+  if (panels.console)
+    consolePanel_.draw(workspace_, playSession_,
+                       {0.0F, contentTop + upperHeight},
+                       {consoleWidth, bottomHeight}, projectOperation, notice_,
+                       &panels.console);
   if (auto source = consolePanel_.takeOpenRequest()) {
     std::string error;
     if (!openDocument(*source, error))
       notice_ = "Diagnostic source: " + source->string();
   }
-  assetsPanel_.draw(workspace_, {consoleWidth, contentTop + upperHeight},
-                    {assetsWidth, bottomHeight}, notice_);
+  if (panels.assets)
+    assetsPanel_.draw(workspace_, {consoleWidth, contentTop + upperHeight},
+                      {assetsWidth, bottomHeight}, notice_, &panels.assets);
   if (auto source = assetsPanel_.takeOpenRequest()) {
     std::string error;
     if (!openDocument(*source, error))
@@ -333,6 +408,10 @@ void EditorShell::draw(const int width, const int height,
   specializedPanel_.draw(workspace_, notice_);
   animationMachinePanel_.draw(workspace_, notice_);
   aboutPanel_.draw(brandingTextureIndex_, notice_);
+  dockingWorkspace_.persistVisibilityIfChanged();
+  if (std::string diagnostic = dockingWorkspace_.takeDiagnostic();
+      !diagnostic.empty())
+    notice_ = std::move(diagnostic);
 
   ImGui::SetNextWindowPos({0.0F, 0.0F}, ImGuiCond_Always);
   ImGui::SetNextWindowSize({1.0F, 1.0F}, ImGuiCond_Always);
@@ -444,6 +523,7 @@ void EditorShell::draw(const int width, const int height,
     }
   }
   const EditorPreferences currentPreferences{
+      .uiScale = uiScale_,
       .translationSnap =
           workspace_.viewDimension() == EditorSceneViewDimension::TwoDimensional
               ? workspace_.sceneView2D().translationSnap

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-labelledby="title">
+  <title id="title">DemiEngine Asset</title>
+  <defs>
+    <radialGradient id="background"><stop stop-color="#141026"/><stop offset="1" stop-color="#060910"/></radialGradient>
+    <linearGradient id="purple" x1="0" y1="0" x2="0.25" y2="1"><stop stop-color="#7043e9"/><stop offset="1" stop-color="#5030ad"/></linearGradient>
+  </defs>
+  <path fill="url(#background)" d="M0 0H720V420H0Z"/>
+  <g transform="translate(288 42) scale(.9)" fill="url(#purple)">
+    <path d="M53 10 140 64V153L53 207 21 187 109 133V85L21 30Z"/>
+    <path d="M10 44 41 64V155L10 172Z"/>
+  </g>
+  <text x="360" y="290" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="32" letter-spacing="4" font-weight="700" fill="#f5f5f8">DEMI<tspan fill="#7043e9">ENGINE</tspan></text>
+  <text x="360" y="329" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="12" letter-spacing="6" fill="#aeb3c2">ASSET</text>
+</svg>

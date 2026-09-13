@@ -1,0 +1,24 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/models/barrel/barrel.glb",
+  "id": "asset://models/barrel",
+  "importer": "gltf-model",
+  "importer_version": 1,
+  "settings": {
+    "model_import": {
+      "format_version": 1,
+      "import_animations": false,
+      "material_policy": "import",
+      "meters_per_unit": 1.0,
+      "optimize_meshes": true,
+      "preset": "static_prop",
+      "root_node": "preserve",
+      "source_forward": "+z",
+      "source_up": "+y"
+    }
+  },
+  "source": "barrel.glb",
+  "source_hash": "fnv1a64:32a000e75a035237",
+  "type": "Model3D"
+}

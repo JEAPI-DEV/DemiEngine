@@ -1,0 +1,24 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/procedural_spider/spider/spider_rig.glb",
+  "id": "asset://procedural_spider/spider",
+  "importer": "gltf-model",
+  "importer_version": 1,
+  "settings": {
+    "model_import": {
+      "format_version": 1,
+      "import_animations": true,
+      "material_policy": "import",
+      "meters_per_unit": 1.0,
+      "optimize_meshes": false,
+      "preset": "animated_character",
+      "root_node": "preserve",
+      "source_forward": "+z",
+      "source_up": "+y"
+    }
+  },
+  "source": "spider_rig.glb",
+  "source_hash": "fnv1a64:58c659102ce9d071",
+  "type": "Model3D"
+}

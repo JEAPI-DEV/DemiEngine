@@ -12,13 +12,34 @@ When run inside a project directory, `--project` may be omitted. The editor
 discovers the nearest parent `demi.project.json` through the same shared
 filesystem service used by `demi dev`.
 
+Use **Edit → Editor Settings → UI scale** to enlarge the entire editor from
+100% to 250%, with quick 150% and 200% buttons. Changes apply live and persist
+in the per-user editor `preferences.json`, never in a project or package.
+Text, icons, controls, and panel spacing share the same scale. Viewport render
+targets stay at framebuffer resolution; pointer coordinates are mapped back
+into logical editor space so picking and gizmos remain aligned.
+
 ## Current slice
 
-- The hierarchy displays entities from the loaded main scene and follows
+- **Dentable 3D** is an optional reflected component for entities and scene
+  prefabs. Add it to enable the native mesh-denting APIs; its Inspector fields
+  configure material response without custom asset variants. New components
+  preserve implicit defaults (`"Dentable3D": {}`), and ordinary meshes reject
+  dent requests. See [mesh denting](mesh-denting.md).
+
+- The hierarchy displays entities from the active authored scene and follows
   authored 2D, 3D, and isometric transform parents. The scene's runtime HUD is
   also projected as a distinct nested `HUD` subtree with UI-specific icons and
-  visibility state; selecting a HUD node shows its resolved properties, while
-  prefab-expanded nodes remain visibly read-only.
+  visibility state. Selecting a scene-prefab child shows its effective values;
+  Inspector edits and gizmo drags create reversible overrides on the owning
+  scene instance without modifying the prefab source. Expanded UI-prefab nodes
+  remain visibly read-only until their source prefab is opened.
+- Clicking a registered `*.scene.json` source in Assets switches the active
+  scene document and viewport without changing the project's `main_scene`.
+  Scene switching is rejected while the current scene or its attached HUD has
+  unsaved changes. Clicking a `*.hud.json` source opens the integrated HUD tab;
+  its canvas, hierarchy, selection, Inspector, Undo/Redo, and Save paths are
+  the same ones used by scene-attached UI.
 - The authored HUD is rendered through the runtime UI renderer over both 2D
   and 3D scene views. Visible elements can be picked, moved, and resized on the
   canvas; empty transparent containers do not steal scene selection. The same
@@ -51,16 +72,26 @@ filesystem service used by `demi dev`.
 - Inspector changes are reversible commands. Continuous edits collapse into a
   single undo step, and optional fields can be explicitly authored or reset
   without losing their original presence through Undo. Numeric authoring uses
-  the Inspector's three-decimal precision, so binary floating-point noise is
-  not persisted. Save patches changed values and structures into the original
+  the precision visible in the Inspector: scene values use three decimals, HUD
+  positions/sizes/spacing use one, and HUD anchors use two. Binary
+  floating-point noise is therefore not persisted. Scene, project, HUD, and
+  specialized JSON saves patch changed values and structures into the original
   source text, preserving untouched whitespace, key order, compact arrays, and
-  neighboring multiline style; it then uses same-directory atomic replacement.
+  neighboring multiline style; replacement remains same-directory and atomic.
 - When the scene changes externally, a modal offers Reload from disk, Keep
   editing, Save Copy, and Cancel. The editor never overwrites the external
   version, and a failed preview rebuild restores the document and both history
   stacks.
 - The Assets panel presents authored project files in a folder tree and compact
   file grid while excluding generated, build, package-cache, and Git internals.
+  **+ Create → New Folder** creates a directory beneath the selected folder
+  (or the project root), opens it, and reveals it in the tree. Enter confirms
+  the name; Cancel/Escape leaves the filesystem unchanged. Empty folders are
+  visible without placeholder files, including after reopening the project;
+  externally created folders appear on refresh. Creation writes directly to
+  disk without saving or changing scene/project documents. Duplicate names,
+  path traversal, internal directories, and symbolic-link parents are rejected.
+  Empty directories are not tracked by Git until they contain a file.
   Generic file glyphs remain intentionally honest until preview generation is
   implemented by the relevant specialized-document preview milestone.
 - Asset workflows are operational: type filtering, manifest metadata,
@@ -117,6 +148,9 @@ filesystem service used by `demi dev`.
   world in the Game view. Pause/Resume, exact fixed-tick Step, and Stop control
   that world; an owned external `demi-runtime` window remains available from
   the transport options.
+  Offline projects also work when optional networking is compiled out
+  (`DEMI_ENABLE_NETWORK=OFF`). If a compiled-in network backend fails to
+  initialize, Play still reports that failure instead of silently continuing.
 - The central scene view renders authored 2D and 3D entities through the
   engine's existing bgfx renderers on the editor graphics device. It does not
   maintain a second editor-only rendering implementation.
@@ -190,7 +224,46 @@ controls.
 
 The shared visual-alignment checkpoint is implemented in `EditorTheme`,
 `EditorPanelStyle`, `EditorChrome`, `EditorToolbar`, `EditorAssetsPanel`, and
-`EditorShell`. Asset thumbnails still belong to their owning later milestone.
+`EditorShell`. `EditorDesignTokens` owns shared rhythm/control measurements;
+`EditorDefaultLayout` owns only the initial dock relationships and ratios.
+Asset thumbnails still belong to their owning later milestone.
+
+## Dockable workspace
+
+The editor uses one full-window Dear ImGui dockspace between its fixed menu,
+command bar, and status bar. Hierarchy, Stage, Inspector, Console, Assets, and
+specialized document windows can be resized, moved, tabbed, docked, undocked,
+closed, and reopened from the View menu. Scene, HUD, and Game remain focused
+document modes inside the Stage so their render/input origin always comes from
+the current docked content region.
+
+Both the authored Scene/HUD viewport and embedded Game view render into owned
+GPU targets which Stage presents as ImGui images. Direct backbuffer-region
+rendering is intentionally not used inside docked windows because dock-node
+backgrounds are composited after the scene and would cover it. ImGui overlays,
+picking, gizmos, and HUD handles are then drawn over the target image using the
+same live content rectangle.
+
+Layout is per-user state at
+`$XDG_DATA_HOME/demi-editor/workspace/docking-layout-v1.ini` (falling back to
+`~/.local/share`). Panel visibility is stored separately in `panels-v1.json`.
+Neither file is project-authored or packaged. Invalid layouts are renamed to a
+`.corrupt` sibling, reported non-fatally, and replaced by the default workbench.
+`View -> Reset Workspace` restores and immediately saves the standard hierarchy
+left, Stage center, Inspector right, Console/Assets lower arrangement.
+
+`EditorDockingWorkspace` owns the live dock graph and View menu;
+`EditorDockingStateStore` owns versioned paths, atomic visibility persistence,
+and corruption recovery. `EditorUiHost` owns ImGui docking enablement and the
+`.ini` lifetime. Panels own only their content and visibility flag.
+
+Dear ImGui's official docking branch is pinned in `DemiDependencies.cmake` at
+`c51f1a6e47b8b5b11ca13490c461842c96bc4ca2`. When updating bgfx, select a
+docking commit with the same `IMGUI_VERSION` and dynamic-texture API, rebuild
+the editor adapter, run the docking/input/render-target tests, and perform a
+visible first-launch/reset/restart smoke before changing the pin. Dear ImGui is
+MIT-licensed; the authoritative `LICENSE.txt` is retained in its populated
+FetchContent source.
 
 ## Implementation roadmap
 
@@ -467,12 +540,20 @@ classes before a second format needs shared behavior.
 
 - [x] Prefab editor: source/expanded view, nested stable IDs, override diff,
   apply/revert, missing references, and atomic multi-file failure handling.
-- [x] HUD editor: hierarchy, anchors/layout, safe-area, DPI, locale, and sample
-  data through the runtime layout engine without saving generated nodes. The
-  active scene HUD is also a first-class viewport document with visual
-  selection, move/resize handles, typed Inspector controls, and structural
-  add/delete commands; raw JSON is an advanced fallback rather than the main
-  workflow.
+  Scene prefabs (`*.prefab.json`) now open in a named **Prefab** stage tab
+  from the Assets browser. The normal rendered viewport, hierarchy, reflected
+  Inspector, transform tools, structural commands, Undo/Redo, and Save edit the
+  prefab source directly. Nested instances retain their override behavior.
+  Preview scene identity is transient and is never saved into the prefab or
+  project. Use the Viewport tab to return to the scene; save or undo pending
+  scene/prefab edits before switching. One scene prefab is open at a time.
+  This visual workflow is for scene prefabs, not UI-prefab documents.
+- [x] HUD editor: an integrated HUD stage tab, the normal hierarchy and
+  Inspector, runtime-rendered canvas, visual selection, move/resize handles,
+  typed controls, and structural add/delete commands. Scene-attached HUDs stay
+  visible in the Scene viewport; independently opened HUD files retain their
+  own document state without replacing the scene's UI. The obsolete modal JSON
+  HUD editor has been removed.
 - [x] Material editor: reflected properties and runtime-backed preview.
 - [x] Animation editor: clip/state-machine editing and preview using existing
   animation assets and runtime playback rules.
@@ -569,7 +650,8 @@ world through `loadSceneDocument` after structural changes.
 `EditorHierarchyPanel` owns hierarchy filtering, menus, and drag/drop intent;
 it submits only stable IDs to `EditorWorkspace`. HUD rows are a read-only
 hierarchy projection of the parsed `UiDocument`, not synthetic scene entities;
-HUD mutations remain owned by the specialized document editor.
+HUD mutations remain owned by `EditorHudDocument` and are presented through
+the same hierarchy, viewport, and Inspector as scene content.
 `EditorUiHost` owns SDL3, bgfx, input forwarding, the authored 3D viewport, and
 the Dear ImGui frame lifecycle. The viewport reuses `BgfxRenderer3D`,
 `GpuResources`, and `RenderCommands` on a separate bgfx view. Runtime and
@@ -586,14 +668,16 @@ presentation state. No editor-only asset or project database exists.
 
 Milestone 8 adds `EditorJsonDocument` only for persistence/history shared by
 the now-proven specialized formats. `EditorSpecializedDocument` selects the
-real prefab, HUD, material, animation, data, and audio validator;
+real prefab, material, animation, data, and audio validator;
 `EditorSpecializedPanel` owns source/preview presentation; and
 `EditorAnimationMachinePanel` submits state-machine changes through the normal
 scene command path. SDL file drops cross `PlatformHost` and `EditorUiHost` as
 paths, then enter `EditorAssetDialogs`; they never bypass `AssetImporter`.
 `EditorHudDocument` owns nested authored-node operations and HUD history;
-`EditorHudCanvas` owns screen-independent bounds and picking; the hierarchy,
-viewport, and Inspector consume those services through `EditorWorkspace`.
+`EditorHudCanvas` owns screen-independent bounds and picking; the integrated
+HUD stage, hierarchy, viewport, and Inspector consume those services through
+`EditorWorkspace`. `EditorSpecializedPanel` remains responsible only for
+prefab, material, animation, data, and audio documents.
 
 Milestone 9A keeps profiling and diagnostics UI-free until presentation:
 `RuntimeProfiler` owns bounded rolling samples; `EditorProfilerModel`
@@ -604,7 +688,8 @@ renders that value and can submit only runtime overlay configuration.
 `EditorRecoveryStore` owns cache-only atomic snapshots keyed by project path;
 `EditorPreferencesStore` owns only editor presentation settings. Restoration
 enters normal dirty document state through `EditorWorkspace` validation.
-`EditorWorkspaceLayout` is the responsive Shell geometry and DPI policy; the
+`EditorWorkspaceLayout` now owns only fixed Shell chrome and DPI policy;
+`EditorDockingWorkspace` and Dear ImGui own panel geometry. The
 release-workflow test composes public scaffold, workspace, Play, BuildService,
 Cook, and Package contracts without ImGui-only shortcuts.
 `DebugLabelLayout2D` owns debug-callout compaction and placement independently

@@ -1,0 +1,14 @@
+{% extends 'base.html.twig' %}
+{% block title %}DemiEngine — Build your next game{% endblock %}
+{% block description %}An open-source, Linux-first game engine with JSON scenes, Lua gameplay, and reusable packages.{% endblock %}
+{% block body %}
+<section class="hero home-hero"><div class="hero-content"><div class="eyebrow"><span></span> OPEN SOURCE. YOUR GAME.</div>
+<h1>Your ideas.<br><em>Your engine.</em></h1>
+<p>DemiEngine brings JSON scenes, Lua gameplay and reusable packages together. Build 2D and isometric games, and explore experimental 3D.</p>
+<div class="home-actions"><a class="button" href="{{ path('catalog') }}">Explore packages →</a><a class="button secondary" href="https://github.com/JEAPI-DEV/DemiEngine">Get the engine ↗</a></div>
+<div class="hero-meta"><span>Linux-first · C++20 · Lua</span><span>{{ total }} free packages</span></div></div>
+<div class="hero-art logo-art" aria-hidden="true"><div class="art-grid"></div><img src="/images/demi-mark.svg?v=2" alt=""><span class="art-label">BUILD / PLAY / REPEAT</span></div>
+</section>
+<section class="home-features"><div><div class="eyebrow muted">START WITH WHAT YOU NEED</div><h2>More time for the game.</h2></div><article><span>01 / AUTHOR</span><h3>Scenes you can read.</h3><p>Describe scenes and prefabs in JSON. Keep gameplay behavior in Lua.</p></article><article><span>02 / REUSE</span><h3>Build on shared systems.</h3><p>Add controllers, cameras, inventory and networking packages as your game needs them.</p><a href="{{ path('catalog') }}">Browse the collection →</a></article><article><span>03 / CONTRIBUTE</span><h3>Shape the engine.</h3><p>Read the source, experiment with the examples, and help improve the tools.</p><a href="https://github.com/JEAPI-DEV/DemiEngine">View on GitHub ↗</a></article></section>
+{% endblock %}
+

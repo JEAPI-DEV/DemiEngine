@@ -1,0 +1,24 @@
+--- a/bgfx/src/renderer_vk.cpp
++++ b/bgfx/src/renderer_vk.cpp
+@@ -7632,7 +7632,20 @@
+ 					return;
+ 				}
+ 
+-				VK_CHECK(createSwapChain() );
++				const VkResult swapChainResult = createSwapChain();
++				if (VK_SUCCESS != swapChainResult)
++				{
++					// The native window can be destroyed between the capability query
++					// and swapchain creation (Android surface lifecycle). Leave the
++					// swapchain invalid; acquire() skips frames until a later update
++					// recreates it against the live window.
++					m_needToRecreateSurface = true;
++					m_needToRecreateSwapchain = true;
++					m_sci.oldSwapchain = VK_NULL_HANDLE;
++					releaseSwapChain();
++					s_renderVK->kick(true);
++					return;
++				}
+ 			}
+ 
+ 			VK_CHECK(createAttachments(_commandBuffer) );

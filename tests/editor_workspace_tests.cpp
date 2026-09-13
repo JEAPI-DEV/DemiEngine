@@ -1,8 +1,11 @@
 #include "editor/EditorWorkspace.h"
+#include "demi/runtime/scene/components/3dcomponents/Dentable3DComponent.h"
 
 #include <algorithm>
 #include <cassert>
 #include <filesystem>
+#include <fstream>
+#include <iostream>
 #include <string>
 
 int main() {
@@ -58,22 +61,169 @@ int main() {
   assert(workspace.sceneDocument().json().dump() == beforeInvalidEdit);
   assert(workspace.sceneDocument().issueFor(
              {.entityId = selectedId, .field = "name"}) != nullptr);
-  assert(std::ranges::any_of(workspace.diagnostics(), [](const auto &diagnostic) {
-    return diagnostic.code == "EDITOR_SCENE_EDIT_REJECTED";
-  }));
+  assert(
+      std::ranges::any_of(workspace.diagnostics(), [](const auto &diagnostic) {
+        return diagnostic.code == "EDITOR_SCENE_EDIT_REJECTED";
+      }));
+
+  // Expanded prefab children edit the owning scene instance override while
+  // retaining their expanded id for selection and live preview updates.
+  demi::editor::EditorWorkspace prefabWorkspace;
+  error.clear();
+  assert(prefabWorkspace.open(root / "examples/minimal_3d", error));
+  prefabWorkspace.selectEntity("player/body");
+  assert(prefabWorkspace.selectedEntity() != nullptr);
+  assert(prefabWorkspace.selectedEntity()->prefabInstance == "player");
+  const nlohmann::json originalPosition =
+      nlohmann::json::parse(
+          prefabWorkspace.selectedEntity()->serializedComponents.at(
+              "Transform3D"))
+          .at("position");
+  const demi::editor::SceneValueTarget prefabPosition{.entityId = "player/body",
+                                                      .component =
+                                                          "Transform3D",
+                                                      .field = "position"};
+  const std::string prefabDocumentBeforeEdit =
+      prefabWorkspace.sceneDocument().json().dump();
+  for (int frame = 0; frame < 60; ++frame) {
+    assert(prefabWorkspace.editValue(
+        prefabPosition, {3.0 + frame * 0.01, 2.0, 1.0}, true, error));
+  }
+  prefabWorkspace.endContinuousEdit();
+  assert(prefabWorkspace.hasExplicitValue(prefabPosition));
+  const demi::editor::SceneValueTarget authoredPrefabPosition =
+      prefabWorkspace.authoredTarget(prefabPosition);
+  assert(*demi::editor::valueInDocument(prefabWorkspace.sceneDocument().json(),
+                                        authoredPrefabPosition) ==
+         nlohmann::json({3.59, 2.0, 1.0}));
+  assert(nlohmann::json::parse(
+             prefabWorkspace.selectedEntity()->serializedComponents.at(
+                 "Transform3D"))
+             .at("position") == nlohmann::json({3.59, 2.0, 1.0}));
+  assert(prefabWorkspace.undo(error));
+  assert(prefabWorkspace.sceneDocument().json().dump() ==
+         prefabDocumentBeforeEdit);
+  assert(nlohmann::json::parse(
+             prefabWorkspace.selectedEntity()->serializedComponents.at(
+                 "Transform3D"))
+             .at("position") == originalPosition);
+
+  // Scene assets replace the authored scene document, while independently
+  // opened HUDs retain their own tab and do not replace the scene's HUD.
+  demi::editor::EditorWorkspace androidWorkspace;
+  error.clear();
+  if (!androidWorkspace.open(root / "examples/minimal_2d_android", error)) {
+    std::cerr << "Could not open Android editor fixture: " << error << '\n';
+    return 1;
+  }
+  assert(androidWorkspace.openSceneDocument(
+      root / "examples/minimal_2d_android/scenes/spiral.scene.json", error));
+  assert(androidWorkspace.project().world.activeSceneId ==
+         "scene://minimal_2d_android/spiral");
+  assert(androidWorkspace.sceneDocument().path().filename() ==
+         "spiral.scene.json");
+  assert(androidWorkspace.createEntity(error));
+  assert(androidWorkspace.project().world.activeSceneId ==
+         "scene://minimal_2d_android/spiral");
+  assert(!androidWorkspace.openSceneDocument(
+      root / "examples/minimal_2d_android/scenes/menu.scene.json", error));
+  assert(error.find("Save or undo") != std::string::npos);
+  error.clear();
+  assert(androidWorkspace.undo(error));
+
+  const std::size_t sceneHudNodes =
+      androidWorkspace.project().world.ui.nodes.size();
+  assert(androidWorkspace.openHudDocument(
+      root / "examples/minimal_2d_android/scenes/menu.hud.json", error));
+  assert(androidWorkspace.activeDocument() ==
+         demi::editor::EditorWorkspaceDocument::Hud);
+  assert(androidWorkspace.hudDocument()->path().filename() == "menu.hud.json");
+  assert(!androidWorkspace.displayedHud().nodes.empty());
+  const std::size_t openedHudNodes =
+      androidWorkspace.displayedHud().nodes.size();
+  assert(androidWorkspace.createHudNode("label", error));
+  assert(androidWorkspace.displayedHud().nodes.size() == openedHudNodes + 1);
+  assert(androidWorkspace.project().world.ui.nodes.size() == sceneHudNodes);
+  assert(androidWorkspace.undo(error));
+  androidWorkspace.activateSceneDocument();
+  assert(androidWorkspace.activeDocument() ==
+         demi::editor::EditorWorkspaceDocument::Scene);
+  assert(androidWorkspace.hudDocument()->path().filename() == "game.hud.json");
+  androidWorkspace.activateHudDocument();
+  assert(androidWorkspace.hudDocument()->path().filename() == "menu.hud.json");
 
   // A preview rebuild failure restores the complete document and its history.
-  const std::string documentBeforeFailure = workspace.sceneDocument().json().dump();
+  demi::editor::EditorWorkspace barrelWorkspace;
+  error.clear();
+  assert(barrelWorkspace.open(root / "examples/performance_3d_lab", error));
+  const auto barrelSource =
+      root / "examples/performance_3d_lab/prefabs/barrel.prefab.json";
+  assert(barrelWorkspace.openPrefabDocument(barrelSource, error));
+  assert(barrelWorkspace.addComponent("body", "Dentable3D", error));
+  assert(barrelWorkspace.sceneDocument().component("body", "Dentable3D")->empty());
+  assert(barrelWorkspace.selectedEntity()->hasComponent<demi::runtime::Dentable3DComponent>());
+  assert(barrelWorkspace.undo(error));
+  assert(!barrelWorkspace.selectedEntity()->hasComponent<demi::runtime::Dentable3DComponent>());
+  assert(barrelWorkspace.isPrefabDocument());
+  assert(barrelWorkspace.project().world.entities.size() == 1);
+  assert(barrelWorkspace.selectedEntityId() == "body");
+  assert(barrelWorkspace.sceneDocument().json()["id"] == "prefab://barrel");
+  assert(barrelWorkspace.project().project.mainScene ==
+         "scene://performance_3d_lab/main");
+  const demi::editor::SceneValueTarget barrelName{.entityId = "body",
+                                                  .field = "name"};
+  assert(barrelWorkspace.editValue(barrelName, "Preview edit", false, error));
+  assert(barrelWorkspace.selectedEntity()->name == "Preview edit");
+  assert(!barrelWorkspace.openSceneDocument(barrelWorkspace.lastScenePath(),
+                                            error));
+  assert(barrelWorkspace.dirtyDocuments().front().kind == "prefab");
+  assert(barrelWorkspace.undo(error));
+  assert(barrelWorkspace.redo(error));
+  assert(barrelWorkspace.undo(error));
+  assert(barrelWorkspace.createEntity(error));
+  assert(barrelWorkspace.project().world.entities.size() == 2);
+  assert(barrelWorkspace.undo(error));
+  assert(barrelWorkspace.refresh(error));
+  assert(barrelWorkspace.isPrefabDocument());
+  assert(barrelWorkspace.project().world.entities.size() == 1);
+  assert(barrelWorkspace.openSceneDocument(barrelWorkspace.lastScenePath(),
+                                           error));
+  assert(!barrelWorkspace.isPrefabDocument());
+
+  // Save only a temporary source; preview fields must never leak into it.
+  const auto temporaryPrefab = std::filesystem::temp_directory_path() /
+                               "demi-editor-workspace-save.prefab.json";
+  {
+    std::ofstream output(temporaryPrefab);
+    output
+        << R"({"format_version":1,"id":"prefab://test","entities":[{"id":"body","components":{"Transform3D":{}}}]})";
+  }
+  assert(barrelWorkspace.openPrefabDocument(temporaryPrefab, error));
+  assert(barrelWorkspace.addComponent("body", "MeshRenderer", error));
+  assert(barrelWorkspace.addComponent("body", "Dentable3D", error));
+  assert(barrelWorkspace.editValue(barrelName, "Saved name", false, error));
+  assert(barrelWorkspace.save(error));
+  assert(barrelWorkspace.sceneDocument().reload(error));
+  assert(barrelWorkspace.sceneDocument().json()["id"] == "prefab://test");
+  assert(barrelWorkspace.sceneDocument().entity("body")->at("name") ==
+         "Saved name");
+  assert(!barrelWorkspace.sceneDocument().json().contains("hud"));
+  assert(barrelWorkspace.sceneDocument().component("body", "Dentable3D") != nullptr);
+  std::filesystem::remove(temporaryPrefab);
+
+  const std::string documentBeforeFailure =
+      workspace.sceneDocument().json().dump();
   const bool couldUndoBeforeFailure = workspace.sceneDocument().canUndo();
   const bool couldRedoBeforeFailure = workspace.sceneDocument().canRedo();
-  workspace.project().project.mainScene = "scene://missing";
+  workspace.project().world.activeSceneId = "scene://missing";
   assert(!workspace.createEntity(error));
   assert(error.find("No scene registered") != std::string::npos);
   assert(workspace.sceneDocument().json().dump() == documentBeforeFailure);
   assert(workspace.sceneDocument().canUndo() == couldUndoBeforeFailure);
   assert(workspace.sceneDocument().canRedo() == couldRedoBeforeFailure);
-  assert(std::ranges::any_of(workspace.diagnostics(), [](const auto &diagnostic) {
-    return diagnostic.code == "EDITOR_PREVIEW_REBUILD_FAILED";
-  }));
+  assert(
+      std::ranges::any_of(workspace.diagnostics(), [](const auto &diagnostic) {
+        return diagnostic.code == "EDITOR_PREVIEW_REBUILD_FAILED";
+      }));
   return 0;
 }

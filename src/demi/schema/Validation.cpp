@@ -2,10 +2,14 @@
 
 #include "demi/assets/AssetGroup.h"
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/ColliderShapeAsset.h"
 #include "demi/assets/SceneBudget3D.h"
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/packages/PackageManifest.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/runtime/scene/ProjectBuildSettings.h"
+#include "demi/runtime/scene/ProjectBuildValidation.h"
+#include "demi/runtime/scene/SceneEntityParser.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/runtime/ui/UiPrefabResolver.h"
 
@@ -17,6 +21,7 @@
 #include <optional>
 #include <set>
 #include <sstream>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace demi {
@@ -191,8 +196,25 @@ void validateSceneComponents(Diagnostics &diagnostics,
     return;
   }
   for (const auto &entity : document["entities"]) {
-    if (!entity.is_object() || !entity.contains("components") ||
-        !entity["components"].is_object()) {
+    if (!entity.is_object()) {
+      continue;
+    }
+    // P5: unknown preset names are validation errors with suggestions.
+    if (entity.contains("preset") && entity["preset"].is_string()) {
+      const std::string preset = entity["preset"].get<std::string>();
+      const auto known = runtime::scene_loading::knownEntityPresets();
+      if (std::ranges::find(known, preset) == known.end()) {
+        diagnostics.push_back(Diagnostic{
+            .severity = Severity::Error,
+            .code = "SCENE_UNKNOWN_PRESET",
+            .message = "Entity " + entity.value("id", "ent_unknown") +
+                       " uses unknown preset: " + preset,
+            .path = path.string(),
+            .suggestion = "Use one of: static_box_3d, trigger_sphere_3d, "
+                          "prop_2d, character_3d."});
+      }
+    }
+    if (!entity.contains("components") || !entity["components"].is_object()) {
       continue;
     }
     const std::string entityId = entity.value("id", "ent_unknown");
@@ -339,6 +361,31 @@ void validatePhysics3D(Diagnostics &diagnostics,
   constexpr std::array colliderNames{"BoxCollider3D", "SphereCollider3D",
                                      "CapsuleCollider3D", "ConvexCollider3D",
                                      "ModelCollider3D"};
+  std::optional<AssetRegistry> colliderRegistry;
+  std::unordered_map<std::string, bool> convexAssets;
+  const auto isConvexAsset = [&](const nlohmann::json &component) {
+    if (!component.is_object() || !component.contains("asset") ||
+        !component["asset"].is_string())
+      return false;
+    const std::string id = component["asset"].get<std::string>();
+    if (const auto found = convexAssets.find(id); found != convexAssets.end())
+      return found->second;
+    bool valid = false;
+    if (!colliderRegistry) {
+      const auto project = findProjectDirectory(path);
+      colliderRegistry =
+          project ? loadAssetRegistry(*project) : AssetRegistry{};
+    }
+    if (const auto *asset = findAsset(*colliderRegistry, id);
+        asset && asset->type == "Collider3D" &&
+        asset->importer == "collider-shape") {
+      std::string error;
+      valid =
+          assets::loadColliderShapeAsset(asset->sourcePath, error).has_value();
+    }
+    convexAssets.emplace(id, valid);
+    return valid;
+  };
   for (const auto &entity : document["entities"]) {
     if (!entity.is_object() || !entity.contains("components") ||
         !entity["components"].is_object())
@@ -346,6 +393,16 @@ void validatePhysics3D(Diagnostics &diagnostics,
     const std::string id = entity.value("id", "ent_unknown");
     const auto &components = entity["components"];
     const auto body = components.find("Rigidbody3D");
+    if (components.contains("Dentable3D") && !components.contains("MeshRenderer"))
+      diagnostics.push_back({.severity = Severity::Error,
+        .code = "DENTABLE3D_MESH_REQUIRED",
+        .message = "Entity " + id + " requires MeshRenderer for Dentable3D.",
+        .path = path.string()});
+    if (components.contains("Dentable3D") && components.contains("AnimationPlayer3D"))
+      diagnostics.push_back({.severity = Severity::Error,
+        .code = "DENTABLE3D_ANIMATION_UNSUPPORTED",
+        .message = "Entity " + id + " cannot combine Dentable3D and AnimationPlayer3D yet.",
+        .path = path.string()});
     const auto character = components.find("CharacterController3D");
     const std::string bodyType = body != components.end() && body->is_object()
                                      ? body->value("body_type", "static")
@@ -409,7 +466,8 @@ void validatePhysics3D(Diagnostics &diagnostics,
                              "for trigger volumes."});
       }
     }
-    if (components.contains("ModelCollider3D") && bodyType != "static")
+    if (components.contains("ModelCollider3D") && bodyType != "static" &&
+        !isConvexAsset(components["ModelCollider3D"]))
       diagnostics.push_back(
           {.severity = Severity::Error,
            .code = "PHYSICS3D_MESH_REQUIRES_STATIC_BODY",
@@ -491,6 +549,8 @@ Diagnostics validateSceneDocument(const std::filesystem::path &scenePath,
 }
 
 SourceFileKind classifySourceFile(const std::filesystem::path &path) {
+  if (isColliderShapeFile(path))
+    return SourceFileKind::ColliderShape;
   if (isAssetGroupFile(path)) {
     return SourceFileKind::AssetGroup;
   }
@@ -582,6 +642,17 @@ ValidationSummary validatePath(const std::filesystem::path &path) {
   return summary;
 }
 
+ValidationSummary
+validateProjectPath(const std::filesystem::path &projectPath) {
+  std::error_code error;
+  if (std::filesystem::is_regular_file(projectPath, error) && !error &&
+      isProjectFile(projectPath)) {
+    const std::filesystem::path parent = projectPath.parent_path();
+    return validatePath(parent.empty() ? std::filesystem::path{"."} : parent);
+  }
+  return validatePath(projectPath);
+}
+
 Diagnostics validateTextFile(const std::filesystem::path &path,
                              const SourceFileKind kind) {
   Diagnostics diagnostics;
@@ -617,6 +688,15 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
                "Add an integer format_version field at the top level.");
 
   switch (kind) {
+  case SourceFileKind::ColliderShape: {
+    std::string error;
+    if (!assets::loadColliderShapeAsset(path, error))
+      diagnostics.push_back({.severity = Severity::Error,
+                             .code = "COLLIDER_SHAPE_INVALID",
+                             .message = error,
+                             .path = path.string()});
+    break;
+  }
   case SourceFileKind::Project:
     requireToken(diagnostics, text, path, "\"name\"", "PROJECT_MISSING_NAME",
                  "Project file is missing name.",
@@ -626,6 +706,15 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
                  "Add a scenes array with scene:// references.");
     try {
       const auto project = nlohmann::json::parse(text);
+      const auto build = runtime::parseProjectBuildSettings(project, path);
+      diagnostics.insert(diagnostics.end(), build.diagnostics.begin(),
+                         build.diagnostics.end());
+      if (!hasErrors(build.diagnostics)) {
+        const AssetRegistry registry = loadAssetRegistry(path.parent_path());
+        const Diagnostics branding =
+            runtime::validateProjectBuildAssets(build.settings, registry, path);
+        diagnostics.insert(diagnostics.end(), branding.begin(), branding.end());
+      }
       if (const auto declared = project.find("packages");
           declared != project.end()) {
         if (!declared->is_object()) {
@@ -758,7 +847,9 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
     validateReferences(diagnostics, path, text);
     break;
   case SourceFileKind::Hud:
-    if (text.find("\"root\"") == std::string::npos) {
+    if (text.find("\"root\"") == std::string::npos &&
+        text.find("\"children\"") == std::string::npos &&
+        text.find("\"elements\"") == std::string::npos) {
       diagnostics.push_back(
           Diagnostic{.severity = Severity::Error,
                      .code = "HUD_MISSING_CONTENT",

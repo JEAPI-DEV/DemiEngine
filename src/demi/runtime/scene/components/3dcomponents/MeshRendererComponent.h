@@ -16,6 +16,29 @@ struct MeshRendererComponent {
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
   static constexpr std::array fields{
       ComponentFieldDescriptor::assetReference("model"),
+      ComponentFieldDescriptor::assetReference("medium_lod_model"),
+      ComponentFieldDescriptor{"medium_lod_distance",
+                               ComponentFieldType::Number,
+                               false,
+                               true,
+                               {},
+                               0.0,
+                               true},
+      ComponentFieldDescriptor::assetReference("low_lod_model"),
+      ComponentFieldDescriptor{"low_lod_distance",
+                               ComponentFieldType::Number,
+                               false,
+                               true,
+                               {},
+                               0.0,
+                               true},
+      ComponentFieldDescriptor{"cull_distance",
+                               ComponentFieldType::Number,
+                               false,
+                               true,
+                               {},
+                               0.0,
+                               true},
       ComponentFieldDescriptor{"shape", ComponentFieldType::String},
       ComponentFieldDescriptor{"size", ComponentFieldType::Vec3},
       ComponentFieldDescriptor{"color", ComponentFieldType::Color},
@@ -32,6 +55,11 @@ struct MeshRendererComponent {
   static void parse(const nlohmann::json &json, Entity &entity);
 
   std::string model;
+  std::string mediumLodModel;
+  float mediumLodDistance = 0.0F;
+  std::string lowLodModel;
+  float lowLodDistance = 0.0F;
+  float cullDistance = 0.0F;
   std::string shape = "cube";
   Vec3 size = {1.0F, 1.0F, 1.0F};
   Color color = {0.8F, 0.8F, 0.8F, 1.0F};

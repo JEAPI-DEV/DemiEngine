@@ -2,6 +2,7 @@
 
 #include "demi/runtime/debug/DebugOverlayConfig.h"
 #include "demi/runtime/input/InputActionMap.h"
+#include "demi/runtime/scene/ProjectBuildSettings.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -32,6 +33,7 @@ struct PhysicsLayer2D {
 struct SimulationConfig {
   float fixedTimestep = 1.0F / 60.0F;
   std::uint64_t randomSeed = 1;
+  int maximumFixedStepsPerFrame = 4;
 };
 
 struct DisplayConfig {
@@ -67,6 +69,7 @@ struct ProjectData {
   DisplayConfig display;
   PerformanceBudgets performanceBudgets;
   DebugOverlayConfig debug;
+  ProjectBuildSettings build;
 };
 
 } // namespace demi::runtime

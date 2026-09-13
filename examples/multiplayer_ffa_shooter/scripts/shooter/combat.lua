@@ -1,6 +1,7 @@
 local Config = require("shooter.config")
 local GameplayEvents = require("demi.gameplay.events")
 local Health = require("demi.gameplay.health")
+local Session = require("shooter.session")
 
 local Combat = {}
 Combat.__index = Combat
@@ -161,7 +162,7 @@ function Combat:request_shot()
     return
   end
   local dx, dy = self:aim_direction(x, y)
-  local data = {x = x, y = y, dx = dx, dy = dy}
+  local data = {x = x, y = y, dx = dx, dy = dy, tick = Session.current_tick()}
   self:show_tracer(data)
 
   if self.game.mode == "host" then
@@ -173,6 +174,11 @@ function Combat:request_shot()
 end
 
 function Combat:closest_hit(shooter_id, data)
+  local historical = Session.historical_hit(shooter_id, data)
+  if historical ~= nil and historical ~= shooter_id
+    and self.players[historical] ~= nil then
+    return historical
+  end
   local shot_distance = data.distance or Config.shot_range
   local best_id, best_along = nil, shot_distance + 1
   for id, player in pairs(self.players) do
@@ -275,7 +281,6 @@ end
 function Combat:on_join(sender_id)
   self:ensure_player(sender_id)
   if self.game.mode == "host" then
-    local Session = require("shooter.session")
     Session.spawn_remote(sender_id)
     self:broadcast_state(nil)
   end

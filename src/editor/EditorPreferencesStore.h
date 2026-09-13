@@ -6,6 +6,7 @@
 namespace demi::editor {
 
 struct EditorPreferences {
+  float uiScale = 1.0F;
   float translationSnap = 1.0F;
   float rotationSnapDegrees = 15.0F;
   float scaleSnap = 0.1F;

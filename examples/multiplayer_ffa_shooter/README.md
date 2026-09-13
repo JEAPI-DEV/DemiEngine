@@ -1,9 +1,11 @@
 # Multiplayer FFA Shooter
 
 A shared Linux and Android top-down shooter example. One player hosts the
-authoritative match; the others join its LAN address. Movement replication,
-player identity, host-validated hits, health, respawning, and scoring all use
-the game-facing `NetworkSession` API.
+authoritative match; the others join its LAN address. Movement uses sequenced
+owner input intents, immediate local prediction, authoritative fixed-tick
+snapshots, correction/replay, and bounded interpolation for other players.
+Player identity, lag-compensated host-validated hits, health, respawning, and
+scoring all use the game-facing `NetworkSession` API.
 
 ## Linux
 
@@ -29,3 +31,18 @@ The safe-area-aware virtual stick and `FIRE` button feed the same `move_x`,
 Linux must be on a network where UDP port `39420` is reachable.
 
 `OFFLINE PRACTICE` starts the arena without a network connection.
+
+## Authority and latency
+
+Clients never replicate transforms directly. `move_input` is an
+owner-to-server `owned_entity` message validated by the network contract. The
+server applies the same deterministic controller function used for client
+prediction, acknowledges evaluated or discarded sequences, and publishes
+authoritative state. Missing history, reconnects, ownership changes, and
+teleports snap safely instead of replaying incomplete state.
+
+The host retains only 32 selected player-circle snapshots and rewinds queries
+by at most 12 fixed ticks for hitscan validation. The live Box2D world is never
+rewound. The `demi-network-prediction-tests` target drives this controller
+through deterministic latency, jitter, loss, duplication, reordering, and tick
+gaps and verifies the authority against the accepted input log.
