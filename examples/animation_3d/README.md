@@ -59,3 +59,10 @@ time and frame tails too.
 
 Run scene-transition/cleanup checks with:
 `demi test linux examples/animation_3d --timeout 60`.
+
+GPU skinning is automatic on Vulkan for this model; no new asset or component
+is required. Add `--skinning gpu` to the benchmark to require the entire crowd
+to use it, or `--skinning cpu` for the CPU reference. The runner records and
+checks actual path populations rather than assuming the requested path worked.
+From the project directory, `DEMI_GPU_SKINNING=0 demi run` forces CPU skinning.
+See [GPU skinning support and measurements](../../docs/3d-gpu-skinning.md).

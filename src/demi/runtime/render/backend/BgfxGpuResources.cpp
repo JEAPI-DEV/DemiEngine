@@ -20,6 +20,7 @@
 #include <vs_demi_lit_instanced_glsl.h>
 #include <vs_demi_lit_instanced_spv.h>
 #include <vs_demi_lit_spv.h>
+#include <vs_demi_skinned_spv.h>
 #include <vs_demi_post_process_essl.h>
 #include <vs_demi_post_process_glsl.h>
 #include <vs_demi_post_process_spv.h>
@@ -36,6 +37,11 @@ namespace {
 constexpr std::uint16_t Invalid = std::numeric_limits<std::uint16_t>::max();
 
 const bgfx::EmbeddedShader EmbeddedShaders[] = {
+    {"vs_demi_skinned",
+     {{bgfx::RendererType::Vulkan, vs_demi_skinned_spv, sizeof(vs_demi_skinned_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("VSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
     BGFX_EMBEDDED_SHADER(vs_ocornut_imgui),
     BGFX_EMBEDDED_SHADER(fs_ocornut_imgui),
     BGFX_EMBEDDED_SHADER(vs_drawstress),
@@ -332,6 +338,10 @@ public:
       break;
     case BuiltinProgram::Lit3DInstanced:
       vertexName = "vs_demi_lit_instanced";
+      fragmentName = "fs_demi_lit";
+      break;
+    case BuiltinProgram::Lit3DSkinned:
+      vertexName = "vs_demi_skinned";
       fragmentName = "fs_demi_lit";
       break;
     case BuiltinProgram::PostProcess2D:

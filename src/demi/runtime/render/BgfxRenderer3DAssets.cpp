@@ -147,6 +147,18 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
                                 .uvs = std::move(textureCoordinates),
                                 .indices = std::move(indices),
                                 .colors = std::move(vertexColors)};
+        if (gpuSkinningEnabled_ && animated) {
+          std::vector<GpuSkinnedVertex3D> skinVertices;
+          std::string reason;
+          if (buildGpuSkinVertices(*animated, skinVertices, reason)) {
+            cached->gpuSkin = std::make_unique<GpuSkinnedMesh3D>(resources_);
+            if (!cached->gpuSkin->upload(skinVertices, animated->indices, error)) {
+              diagnostics.push_back(asset.id + ": " + error);
+              success = false;
+              cached->gpuSkin.reset();
+            }
+          }
+        }
         modelMeshes_.emplace(asset.id, std::move(cached));
         std::vector<std::byte> embeddedAlbedo =
             animated ? std::move(animated->albedoImage)

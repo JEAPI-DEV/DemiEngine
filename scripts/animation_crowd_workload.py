@@ -30,3 +30,13 @@ def qualify(result, count, workload):
     result['playback_verified'] = bool(
         calls and (calls['min'] == count if workload == 'animated' else calls['max'] == 0))
     result['valid_capture'] &= result['complete_crowd_visible'] and result['playback_verified']
+
+
+def qualify_skinning(result, count, mode):
+    result['skinning'] = mode
+    if mode == 'auto':
+        return
+    scope = 'Renderer3D.gpu_skinned_meshes' if mode == 'gpu' else 'Renderer3D.cpu_skinned_meshes'
+    population = result.get(scope)
+    result['skinning_verified'] = bool(population and population['min'] == population['max'] == count)
+    result['valid_capture'] &= result['skinning_verified']

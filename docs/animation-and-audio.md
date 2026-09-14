@@ -158,11 +158,31 @@ calls, not whole-frame animation totals. Batch gauges expose peak staged vertex
 and mesh counts per camera and the available worker count.
 Frozen cached poses do not emit rebuild scopes. UVs, packed vertex colors and
 topology are reused from the model-owned cache and invalidated by asset reload;
-positions and normals still update per animated pose. GPU skinning is not yet
-implemented by this optimization.
+positions and normals still update per animated pose on the CPU fallback.
+
+Vulkan now automatically uses GPU skinning for supported `AnimationPlayer3D`
+models: one skin, at most 128 joints, valid weights and authored vertex normals,
+with the built-in material and no procedural override or active layer/blend.
+The original model buffers remain resident; only bone matrices are updated.
+`GltfSkinnedModel3D::samplePose`/`bindPose` provide the shared engine-owned pose,
+and `posePositions` is the CPU reference. Gameplay timing, root motion and
+animation events remain CPU-owned and are not reduced in frequency.
+
+Other models/materials and OpenGL/OpenGLES keep the CPU path. Set
+`DEMI_GPU_SKINNING=0` before launch to force the CPU reference for diagnosis.
+`Renderer3D.gpu_skinned_meshes` and `cpu_skinned_meshes` identify which path was
+used; `skin_palette_cpu` measures CPU palette evaluation. GPU mode produces no
+per-pose CPU vertex-rebuild/upload scopes. `animation_rebuild` counts a changed
+pose on either path, not necessarily rebuilt vertices.
+
+GPU lighting transforms the model's authored normals with the inverse-transpose
+of the blended skin/import/model transform. CPU fallback still reconstructs
+geometric normals. Shading can therefore differ; GPU skinning does not claim
+pixel-identical lighting to the older reconstruction heuristic.
 
 See [parallel character preparation](3d-parallel-character-preparation.md) for
 the matched desktop measurements and remaining qualification limits.
+See [GPU skinning](3d-gpu-skinning.md) for the subsequent GPU results and limits.
 
 ## Audio
 

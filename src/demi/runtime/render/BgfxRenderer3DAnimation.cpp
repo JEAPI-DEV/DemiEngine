@@ -7,6 +7,7 @@
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 
 #include <bit>
+#include <cmath>
 
 namespace demi::runtime::render {
 namespace {
@@ -53,22 +54,49 @@ bool BgfxRenderer3D::prepareAnimatedMeshes(
     std::string error;
     bool success = false;
     double skinMs = 0, verticesMs = 0;
+    bool useGpu = false;
+    std::vector<float> palette;
   };
   // Bound temporary vertex storage independently of crowd population. An
   // individually oversized model is processed alone; nothing is decimated.
   constexpr std::size_t VertexBudget = 256 * 1024;
   constexpr std::size_t MaximumBatch = 16;
+  constexpr std::size_t MaximumPaletteBatch = 128;
   std::vector<Work> batch;
-  batch.reserve(MaximumBatch);
+  batch.reserve(MaximumPaletteBatch);
   std::size_t verticesInBatch = 0;
+  bool batchHasCpu = false;
   std::size_t peakVertices = 0;
   std::size_t peakBatch = 0;
+  std::size_t gpuCount = 0, cpuCount = 0;
   const auto flush = [&]() -> bool {
     if (batch.empty())
       return true;
     try {
       extractionJobs_.parallelFor(batch.size(), 1, [&](std::size_t index) {
         Work &work = batch[index];
+        if (work.useGpu) {
+          const auto start = Clock::now();
+          assets::GltfSkinnedModel3D::Pose pose;
+          work.success = work.clip >= 0
+              ? work.source->samplePose(work.clip, work.player->time, work.player->loop, pose, work.error)
+              : work.source->bindPose(pose, work.error);
+          if (work.success) {
+            work.success = pose.skins.size() == 1 && !pose.skins[0].empty() &&
+                pose.skins[0].size() <= MaximumGpuSkinJoints;
+            if (work.success) {
+              work.palette.reserve(pose.skins[0].size() * 16);
+              for (const auto &matrix : pose.skins[0])
+                for (float value : matrix) {
+                  if (!std::isfinite(value)) work.success = false;
+                  work.palette.push_back(value);
+                }
+            }
+            if (!work.success) work.error = "Invalid GPU skin palette.";
+          }
+          work.skinMs = elapsed(start);
+          return;
+        }
         std::vector<Vec3> positions;
         assets::GltfSkinnedModel3D::BoneSegments segments;
         WorldTransform3D modelTransform = work.visible->transform;
@@ -118,6 +146,15 @@ bool BgfxRenderer3D::prepareAnimatedMeshes(
       }
     }
     for (Work &work : batch) {
+      if (work.useGpu) {
+        work.target->gpu.clear();
+        work.target->skinPalette = std::move(work.palette);
+        work.target->signature = work.signature;
+        work.target->animationModel = work.mesh->model;
+        RuntimeProfiler::record("Renderer3D.skin_palette_cpu", work.skinMs);
+        RuntimeProfiler::record("Renderer3D.animation_rebuild", work.skinMs);
+        continue;
+      }
       const auto start = Clock::now();
       if (work.target->animationModel != work.mesh->model)
         work.target->gpu.clear();
@@ -136,9 +173,11 @@ bool BgfxRenderer3D::prepareAnimatedMeshes(
                               work.skinMs + work.verticesMs + uploadMs);
       work.target->signature = work.signature;
       work.target->animationModel = work.mesh->model;
+      work.target->skinPalette.clear();
     }
     batch.clear();
     verticesInBatch = 0;
+    batchHasCpu = false;
     return true;
   };
 
@@ -166,12 +205,20 @@ bool BgfxRenderer3D::prepareAnimatedMeshes(
     const int clip = source->second.clipIndex(player->clipName, 0);
     const auto signature =
         poseRevision(*player, clip, item.transform, mesh->size);
-    if (cached->gpu.valid() && cached->animationModel == mesh->model &&
+    const bool useGpu = rest->second->gpuSkin && mesh->material.empty() &&
+        player->boneSegments.empty() && player->layers.empty() && player->blendWeight == 1;
+    if (useGpu) ++gpuCount; else ++cpuCount;
+    const bool ready = useGpu ? !cached->skinPalette.empty()
+                             : cached->skinPalette.empty() && cached->gpu.valid();
+    if (ready && cached->animationModel == mesh->model &&
         cached->signature == signature)
       continue;
-    const auto count = source->second.vertices.size();
+    const auto count = useGpu ? 0 : source->second.vertices.size();
+    // Palette-only jobs have tiny output. Mixed/CPU batches retain the old
+    // limit so heavy vertex work stays evenly distributed across workers.
+    const auto batchLimit = useGpu && !batchHasCpu ? MaximumPaletteBatch : MaximumBatch;
     if (!batch.empty() &&
-        (batch.size() == MaximumBatch ||
+        (batch.size() >= batchLimit || verticesInBatch > VertexBudget ||
          count > VertexBudget - std::min(verticesInBatch, VertexBudget)))
       if (!flush())
         return false;
@@ -184,8 +231,9 @@ bool BgfxRenderer3D::prepareAnimatedMeshes(
                      .clip = clip,
                      .signature = signature,
                      .vertices = {},
-                     .error = {}});
+                     .error = {}, .useGpu = useGpu, .palette = {}});
     verticesInBatch += count;
+    batchHasCpu = batchHasCpu || !useGpu;
     peakVertices = std::max(peakVertices, verticesInBatch);
     peakBatch = std::max(peakBatch, batch.size());
   }
@@ -195,6 +243,8 @@ bool BgfxRenderer3D::prepareAnimatedMeshes(
   RuntimeProfiler::setGauge("Renderer3D.animation_batch_meshes", peakBatch);
   RuntimeProfiler::setGauge("Renderer3D.animation_workers_available",
                             extractionJobs_.workerCount());
+  RuntimeProfiler::setGauge("Renderer3D.gpu_skinned_meshes", gpuCount);
+  RuntimeProfiler::setGauge("Renderer3D.cpu_skinned_meshes", cpuCount);
   return success;
 }
 

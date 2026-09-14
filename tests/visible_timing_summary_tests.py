@@ -14,6 +14,13 @@ import animation_crowd_workload as crowd
 
 
 class SummaryTests(unittest.TestCase):
+    def test_skinning_mode_requires_explicit_population_evidence(self):
+        for mode, scope in [('gpu', 'Renderer3D.gpu_skinned_meshes'), ('cpu', 'Renderer3D.cpu_skinned_meshes')]:
+            for population, valid in [(None, False), ({'min':63, 'max':64}, False), ({'min':64, 'max':64}, True)]:
+                result = {'valid_capture':True, scope:population}
+                crowd.qualify_skinning(result, 64, mode)
+                self.assertEqual(result['valid_capture'], valid)
+
     def test_crowd_configuration_preserves_source_and_matches_control(self):
         source = Path(__file__).resolve().parents[1] / 'examples/animation_3d/scenes/crowd.scene.json'
         original = source.read_bytes()

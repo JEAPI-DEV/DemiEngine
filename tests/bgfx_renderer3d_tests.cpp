@@ -40,7 +40,7 @@ int main() {
                              error));
   auto resources = createBgfxGpuResources();
   auto commands = createBgfxRenderCommands(*resources);
-  BgfxRenderer3D renderer(*resources, *commands);
+  BgfxRenderer3D renderer(*resources, *commands, false); // CPU fallback reference.
   assert(renderer.initialize(error));
   assert(renderer.initialize(error));
   std::vector<std::string> diagnostics;

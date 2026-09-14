@@ -256,13 +256,13 @@ std::array<float, 4> sampleChannel(const GltfSkinnedModel3D::Channel &channel,
   return result;
 }
 
-bool resolvePosePositions(const GltfSkinnedModel3D &model,
+bool resolvePose(const GltfSkinnedModel3D &model,
                           const std::vector<runtime::Vec3> &translations,
                           const std::vector<std::array<float, 4>> &rotations,
                           const std::vector<runtime::Vec3> &scales,
                           const std::vector<bool> &animated,
                           const GltfSkinnedModel3D::BoneSegments &segments,
-                          std::vector<runtime::Vec3> &out, std::string &error) {
+                          GltfSkinnedModel3D::Pose &out, std::string &error) {
   if (translations.size() != model.nodes.size() ||
       rotations.size() != model.nodes.size() ||
       scales.size() != model.nodes.size() ||
@@ -359,6 +359,21 @@ bool resolvePosePositions(const GltfSkinnedModel3D &model,
     palettes.push_back(std::move(palette));
   }
 
+  out.nodes = std::move(globals);
+  out.skins = std::move(palettes);
+  error.clear();
+  return true;
+}
+
+bool positionsForPose(const GltfSkinnedModel3D &model,
+                      const GltfSkinnedModel3D::Pose &pose,
+                      std::vector<runtime::Vec3> &out, std::string &error) {
+  const auto &globals = pose.nodes;
+  const auto &palettes = pose.skins;
+  if (globals.size() != model.nodes.size() || palettes.size() != model.skins.size()) {
+    error = "GLB pose does not match its model.";
+    return false;
+  }
   out.resize(model.vertices.size());
   for (std::size_t index = 0; index < model.vertices.size(); ++index) {
     const GltfSkinnedVertex3D &vertex = model.vertices[index];
@@ -417,9 +432,8 @@ int GltfSkinnedModel3D::clipIndex(const std::string_view name,
              : std::clamp(fallback, 0, static_cast<int>(clips.size() - 1U));
 }
 
-bool GltfSkinnedModel3D::bindPosePositions(std::vector<runtime::Vec3> &out,
-                                           std::string &error,
-                                           const BoneSegments &segments) const {
+bool GltfSkinnedModel3D::bindPose(Pose &out, std::string &error,
+                                  const BoneSegments &segments) const {
   std::vector<runtime::Vec3> translations;
   std::vector<std::array<float, 4>> rotations;
   std::vector<runtime::Vec3> scales;
@@ -431,16 +445,15 @@ bool GltfSkinnedModel3D::bindPosePositions(std::vector<runtime::Vec3> &out,
     rotations.push_back(node.rotation);
     scales.push_back(node.scale);
   }
-  return resolvePosePositions(*this, translations, rotations, scales,
-                              std::vector<bool>(nodes.size(), false), segments,
-                              out, error);
+  return resolvePose(*this, translations, rotations, scales,
+                     std::vector<bool>(nodes.size(), false), segments, out,
+                     error);
 }
 
-bool GltfSkinnedModel3D::samplePositions(const int clipIndex, float time,
-                                         const bool loop,
-                                         std::vector<runtime::Vec3> &out,
-                                         std::string &error,
-                                         const BoneSegments &segments) const {
+bool GltfSkinnedModel3D::samplePose(const int clipIndex, float time,
+                                    const bool loop, Pose &out,
+                                    std::string &error,
+                                    const BoneSegments &segments) const {
   if (clipIndex < 0 || static_cast<std::size_t>(clipIndex) >= clips.size()) {
     error = "GLB animation clip index is out of range.";
     return false;
@@ -476,8 +489,30 @@ bool GltfSkinnedModel3D::samplePositions(const int clipIndex, float time,
       rotations[channel.node] = value;
   }
 
-  return resolvePosePositions(*this, translations, rotations, scales, animated,
-                              segments, out, error);
+  return resolvePose(*this, translations, rotations, scales, animated, segments,
+                     out, error);
+}
+
+bool GltfSkinnedModel3D::posePositions(const Pose &pose,
+                                       std::vector<runtime::Vec3> &out,
+                                       std::string &error) const {
+  return positionsForPose(*this, pose, out, error);
+}
+
+bool GltfSkinnedModel3D::bindPosePositions(std::vector<runtime::Vec3> &out,
+                                           std::string &error,
+                                           const BoneSegments &segments) const {
+  Pose pose;
+  return bindPose(pose, error, segments) && posePositions(pose, out, error);
+}
+
+bool GltfSkinnedModel3D::samplePositions(int clip, float time, bool loop,
+                                         std::vector<runtime::Vec3> &out,
+                                         std::string &error,
+                                         const BoneSegments &segments) const {
+  Pose pose;
+  return samplePose(clip, time, loop, pose, error, segments) &&
+         posePositions(pose, out, error);
 }
 
 std::optional<GltfSkinnedModel3D>
@@ -485,8 +520,8 @@ loadGltfSkinnedModel3D(const std::filesystem::path &path, std::string &error) {
   // The unprofiled overload predates import profiles and historically loaded
   // clips. Keep that contract for low-level callers while manifests select a
   // versioned preset explicitly.
-  return loadGltfSkinnedModel3D(
-      path, modelImportPreset("animated_character"), error);
+  return loadGltfSkinnedModel3D(path, modelImportPreset("animated_character"),
+                                error);
 }
 
 std::optional<GltfSkinnedModel3D>
@@ -590,6 +625,7 @@ loadGltfSkinnedModel3D(const std::filesystem::path &path,
           attribute(primitive, cgltf_attribute_type_position);
       if (positions == nullptr)
         continue;
+      const cgltf_accessor *normals = attribute(primitive, cgltf_attribute_type_normal);
       const cgltf_accessor *texcoords =
           attribute(primitive, cgltf_attribute_type_texcoord);
       const cgltf_accessor *joints =
@@ -610,10 +646,13 @@ loadGltfSkinnedModel3D(const std::filesystem::path &path,
         GltfSkinnedVertex3D vertex;
         float position[3]{};
         float uv[2]{};
+        float normal[3]{};
         cgltf_uint jointValues[4]{};
         float weightValues[4]{};
         readVec(positions, vertexIndex, position, 3);
         readVec(texcoords, vertexIndex, uv, 2);
+        readVec(normals, vertexIndex, normal, 3);
+        vertex.normal = {normal[0], normal[1], normal[2]};
         if (joints != nullptr)
           cgltf_accessor_read_uint(joints, vertexIndex, jointValues, 4);
         readVec(weights, vertexIndex, weightValues, 4);

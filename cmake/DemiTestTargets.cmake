@@ -291,6 +291,9 @@
   target_link_libraries(demi-debug-geometry3d-tests
     PRIVATE demi-render3d-bgfx)
   add_executable(demi-gpu-mesh3d-tests tests/gpu_mesh3d_tests.cpp)
+  add_executable(demi-gpu-skinning3d-tests tests/gpu_skinning3d_tests.cpp)
+  target_link_libraries(demi-gpu-skinning3d-tests PRIVATE demi-render3d-bgfx)
+  target_compile_definitions(demi-gpu-skinning3d-tests PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-mesh-deformation3d-tests tests/mesh_deformation3d_tests.cpp)
   target_link_libraries(demi-mesh-deformation3d-tests PRIVATE demi-render3d-bgfx)
   target_link_libraries(demi-gpu-mesh3d-tests PRIVATE demi-render3d-bgfx)
@@ -429,7 +432,7 @@
 
   # These tests use assert for checks and fixture setup. Keep those calls in
   # optimized test executables; the linked engine libraries remain Release.
-  foreach(target demi-bgfx-renderer3d-tests demi-gltf-skinned-model-tests demi-runtime-profiler-tests demi-gpu-mesh3d-tests)
+  foreach(target demi-bgfx-renderer3d-tests demi-gltf-skinned-model-tests demi-runtime-profiler-tests demi-gpu-mesh3d-tests demi-gpu-skinning3d-tests)
     if(MSVC)
       target_compile_options(${target} PRIVATE /UNDEBUG)
     else()

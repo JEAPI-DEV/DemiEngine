@@ -43,7 +43,7 @@ def summarize(path, warmup_seconds, width, height):
              'Graphics.wait_submit', 'Graphics.gpu', 'AnimationStateMachine.update',
              'Renderer3D.animation_rebuild', 'Renderer3D.skin_cpu', 'Renderer3D.skin_upload_cpu']
     names += ['Renderer3D.animation_prepare_wall', 'Renderer3D.mesh_vertices_cpu',
-              'Renderer3D.mesh_buffer_update_cpu']
+              'Renderer3D.mesh_buffer_update_cpu', 'Renderer3D.skin_palette_cpu']
     result = {'frames': len(frames), 'measured_frames': len(warm), 'measured_wall_seconds': 0,
               'metrics': {name: distribution([value for frame in warm
                            if (value := metric(frame, name)) is not None]) for name in names}}
@@ -80,6 +80,9 @@ def summarize(path, warmup_seconds, width, height):
                   'Renderer3D.animation_workers_available']:
         values = [v for f in warm if (v := metric(f, scope, 'gauge')) is not None]
         result[scope] = {'min': min(values), 'max': max(values), 'last': values[-1]} if values else None
+    for scope in ['Renderer3D.gpu_skinned_meshes', 'Renderer3D.cpu_skinned_meshes']:
+        values = [v for f in warm if (v := metric(f, scope, 'gauge')) is not None]
+        result[scope] = {'min': min(values), 'max': max(values)} if values else None
     rebuilds = [metric(f, 'Renderer3D.animation_rebuild', 'calls') or 0 for f in warm]
     result['Renderer3D.animation_rebuild.calls'] = {
         'min': min(rebuilds), 'max': max(rebuilds)} if rebuilds else None
@@ -97,6 +100,8 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--counts', type=int, nargs='+', default=[250, 2000])
     parser.add_argument('--geometry', choices=['primitives', 'barrel'], default='primitives')
+    parser.add_argument('--skinning', choices=['auto', 'cpu', 'gpu'], default='auto',
+                        help='GPU requires every crowd character to use the GPU path')
     parser.add_argument('--workloads', choices=['mesh', 'rigid', 'pile', *crowd.WORKLOADS], nargs='+', default=['rigid', 'pile'])
     parser.add_argument('--vsync', choices=['on', 'off'], nargs='+', default=['on', 'off'])
     parser.add_argument('--seconds', type=float, default=12)
@@ -119,6 +124,7 @@ def main():
     for name in ['DEMI_HEADLESS', 'DEMI_FIXED_DELTA_SECONDS']:
         environment.pop(name, None)
     environment['DEMI_PROFILE_SLOW_MS'] = '1000000'
+    environment['DEMI_GPU_SKINNING'] = '0' if args.skinning == 'cpu' else '1'
     with binary.open('rb') as source:
         digest = hashlib.file_digest(source, 'sha256').hexdigest()
     (output / 'machine.json').write_text(json.dumps({
@@ -128,6 +134,7 @@ def main():
         'workloads': args.workloads, 'counts': args.counts, 'repeats': args.repeats,
         'sdl_video_driver': environment.get('SDL_VIDEO_DRIVER', 'automatic'),
         'geometry': args.geometry,
+        'skinning': args.skinning,
         'cpu': subprocess.run(['lscpu'], capture_output=True, text=True, check=True).stdout,
     }, indent=2) + '\n')
     for count in args.counts:
@@ -166,6 +173,7 @@ def main():
                         result['valid_capture'] &= result['completed_duration']
                         if is_crowd:
                             crowd.qualify(result, count, workload)
+                            crowd.qualify_skinning(result, count, args.skinning)
                         result.update(workload=workload, count=count, geometry='ual1_standard' if is_crowd else args.geometry, vsync=vsync, repeat=repeat)
                         (output / f'{name}.json').write_text(json.dumps(result, indent=2) + '\n')
                         print(name + ': ' + json.dumps(result['metrics']) + f' valid={result["valid_capture"]} dropped_ms={result["dropped_fixed_ms"]:.3f}', flush=True)

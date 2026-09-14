@@ -26,7 +26,7 @@ not rerun benchmarks or qualify every feature at the current revision.
 | Milestone | Current status |
 | --- | --- |
 | 1 — Baselines/feasibility | Complete: baseline evidence and portable Blast/Jolt integration proof, including physical Android CPU execution. Production and expanded-workload qualification belongs to later milestones. |
-| 2 — Scaling | Measured lookup/contact/sleeping improvements and scoped desktop qualifications delivered; GPU skinning, animation budgets, and broader game workloads remain open. |
+| 2 — Scaling | Measured lookup/contact/sleeping improvements, initial Vulkan GPU skinning and scoped desktop qualifications delivered; animation budgets, broader rig/material support and mixed game workloads remain open. |
 | 3 — Localized destruction | Collider-asset prerequisites delivered; production fracture assets, scheduler, and compound-body transitions are not implemented. |
 | 4 — Visual/gameplay quality | Third-person mechanics foundation and native visual denting delivered; production animation/visual qualification remains open. |
 | 5 — Structural collapse | Impact-energy telemetry exists; structural connections, stress, fracture-driven collapse, and debris/character policy remain open. |
@@ -189,12 +189,12 @@ Jolt or rewrite unrelated subsystems based on entity counts alone.
   skinning/rebuild/upload scopes, full-population/playback capture checks, and
   reuse immutable model attributes instead of rebuilding them every pose.
   [Initial animation scaling](docs/3d-animation-scaling.md) records scoped
-  16/64-character desktop results; GPU skinning and larger-crowd targets remain open.
+  16/64-character CPU results; the GPU follow-up is recorded below.
 - [x] Batch independent character pose/normal/vertex preparation on the existing
   CPU worker pool, retaining render-thread GPU ownership, full-rate animation,
   bounded temporary output and failure/reload regression checks. Matched short
   [desktop captures](docs/3d-parallel-character-preparation.md) reduce 64-character
-  frame p95 to about 16 ms; GPU skinning, sustained and Android qualification remain open.
+  frame p95 to about 16 ms on the CPU path; the GPU follow-up is below.
 
 - [x] Optimize measured hot paths with before/after reports: Lua entity lookup,
   accidental body reactivation, body/contact bookkeeping, and sorted contact
@@ -210,9 +210,13 @@ Jolt or rewrite unrelated subsystems based on entity counts alone.
 - [x] Record short-run 1080p qualification on both GPUs for the covered
   2,000-body/barrel workloads and the 1,024-barrel impact tower. Reject larger
   cases that discard fixed-step time rather than calling them real-time passes.
-- [ ] Introduce GPU skinning and animation LOD/update budgets when validated by
-  the character benchmark. Existing CPU skinning and static-only model LOD are
-  explicit limitations to address, not capabilities to assume solved.
+- [x] Introduce Vulkan GPU skinning for supported single-skin models (up to 128
+  joints), with a shared CPU pose/reference path, authored normals, cache/reload
+  handling and explicit CPU fallback. [GPU skinning evidence](docs/3d-gpu-skinning.md)
+  includes NVIDIA and Radeon crowd captures. This is not universal rig/material
+  support or mixed-gameplay qualification.
+- [ ] Add animation LOD/update budgets and expand GPU skinning beyond the initial
+  supported rig/material subset. Static-only model LOD remains a limitation.
 - [ ] Keep collision-critical simulation and input responsive when AI or distant
   visual animation uses a reduced update rate.
 
@@ -361,9 +365,11 @@ streaming, saving/loading, and stress runs within declared performance budgets.
 Do not restart the already delivered primitive/barrel baselines. The native
 compound-transition probe now covers mass/inertia, inherited motion, collision,
 chunk identity, cancellation and body-capacity rollback on Linux and a Pixel 7.
-The active Milestone 2 step is character scaling: measure independent animation
-against an otherwise identical frozen crowd, separating CPU skinning, mesh upload,
-draw submission and GPU time before choosing GPU skinning/update budgets.
+The active Milestone 2 step is broader character qualification: Vulkan GPU
+skinning now has supported-rig NVIDIA/Radeon evidence, including a one-minute
+2,000-character visual probe. Next address animation LOD/update budgets, more
+rig/material types, sustained/mobile checks and representative mixed gameplay.
+Keep animation events and collision-critical work independent of visual budgets.
 Milestone 3 then brings compounds into Demi's shared physics/asset/entity ownership
 model, with an authored collider contract and persistent topology ownership.
 Use realistic workloads to set preparation/commit/response budgets before the

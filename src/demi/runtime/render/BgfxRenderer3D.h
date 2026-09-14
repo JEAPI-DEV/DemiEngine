@@ -11,6 +11,7 @@
 #include "demi/runtime/render/bgfx3d/BgfxCameraFrame3D.h"
 #include "demi/runtime/render/bgfx3d/DeformedMeshCache3D.h"
 #include "demi/runtime/render/bgfx3d/GpuMesh3D.h"
+#include "demi/runtime/render/bgfx3d/GpuSkinnedMesh3D.h"
 #include "demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PostProcessRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveCanvas3D.h"
@@ -31,7 +32,8 @@ namespace demi::runtime::render {
 // ownership boundaries.
 class BgfxRenderer3D {
 public:
-  BgfxRenderer3D(GpuResources &resources, RenderCommands &commands);
+  BgfxRenderer3D(GpuResources &resources, RenderCommands &commands,
+                 bool enableGpuSkinning = true);
   ~BgfxRenderer3D();
 
   BgfxRenderer3D(const BgfxRenderer3D &) = delete;
@@ -65,6 +67,8 @@ private:
     std::uint64_t signature = 0;
     MeshGeometry3D restGeometry;
     std::string animationModel;
+    std::unique_ptr<GpuSkinnedMesh3D> gpuSkin;
+    std::vector<float> skinPalette;
   };
 
   [[nodiscard]] bool prepareAnimatedMeshes(
@@ -80,6 +84,10 @@ private:
   TextureLibrary2D textures_;
   MaterialLibrary materials_;
   ProgramHandle meshProgram_;
+  bool gpuSkinningRequested_ = true;
+  bool gpuSkinningEnabled_ = false;
+  ProgramHandle skinnedMeshProgram_;
+  UniformHandle skinMatricesUniform_, skinImportUniform_;
   ProgramHandle instancedMeshProgram_;
   SamplerHandle meshSampler_;
   UniformHandle tintUniform_;

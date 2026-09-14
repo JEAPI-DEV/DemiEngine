@@ -15,6 +15,7 @@
 #include "demi/runtime/scene/components/3dcomponents/PostProcessStackComponent.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <unordered_set>
 
 namespace demi::runtime::render {
@@ -91,11 +92,12 @@ ModelLodSelection selectModelLod(const MeshRendererComponent &mesh,
 } // namespace
 
 BgfxRenderer3D::BgfxRenderer3D(GpuResources &resources,
-                               RenderCommands &commands)
+                               RenderCommands &commands, bool enableGpuSkinning)
     : resources_(resources), commands_(commands),
       primitives_(resources, commands), postProcess_(resources, commands),
       particleRenderer_(resources, commands), overlay_(resources, commands),
-      textures_(resources), materials_(resources), deformedMeshes_(resources) {}
+      textures_(resources), materials_(resources), gpuSkinningRequested_(enableGpuSkinning),
+      deformedMeshes_(resources) {}
 
 BgfxRenderer3D::~BgfxRenderer3D() { shutdown(); }
 
@@ -167,11 +169,30 @@ bool BgfxRenderer3D::initialize(std::string &error) {
     shutdown();
     return false;
   }
+  const char *gpuOverride = std::getenv("DEMI_GPU_SKINNING");
+  gpuSkinningEnabled_ = gpuSkinningRequested_ &&
+      (!gpuOverride || std::string_view(gpuOverride) != "0") &&
+      (resources_.shaderBackend() == "vulkan" || resources_.shaderBackend() == "noop");
+  if (gpuSkinningEnabled_) {
+    skinnedMeshProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Lit3DSkinned, error);
+    skinMatricesUniform_ = resources_.createUniform("u_skinMatrices", UniformType::Matrix4, MaximumGpuSkinJoints, error);
+    skinImportUniform_ = resources_.createUniform("u_skinImport", UniformType::Matrix4, 1, error);
+    if (!skinnedMeshProgram_ || !skinMatricesUniform_ || !skinImportUniform_) {
+      shutdown();
+      return false;
+    }
+  }
   initialized_ = true;
   return true;
 }
 
 void BgfxRenderer3D::shutdown() {
+  if (skinnedMeshProgram_) resources_.destroy(skinnedMeshProgram_);
+  if (skinMatricesUniform_) resources_.destroy(skinMatricesUniform_);
+  if (skinImportUniform_) resources_.destroy(skinImportUniform_);
+  skinnedMeshProgram_ = {};
+  skinMatricesUniform_ = {};
+  skinImportUniform_ = {};
   deformedMeshes_.clear();
   dynamicMeshes_.clear();
   primitiveMeshes_.clear();
@@ -453,6 +474,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         if (!cached->animationModel.empty()) {
           cached->gpu.clear();
           cached->animationModel.clear();
+          cached->skinPalette.clear();
         }
         if (dents.empty() &&
             (cached->signature != signature || !cached->gpu.valid())) {
@@ -491,13 +513,28 @@ bool BgfxRenderer3D::renderFrame(const World &world,
           return false;
         }
         const CachedMesh *drawMesh = cached->second.get();
+        const GpuSkinnedMesh3D *gpuSkin = nullptr;
+        const std::vector<float> *skinPalette = nullptr;
         if (player != nullptr) {
           const auto animated = dynamicMeshes_.find(entity.id);
-          if (animated == dynamicMeshes_.end() || !animated->second->gpu.valid()) {
+          if (animated == dynamicMeshes_.end()) {
             error = entity.id + ": Animated mesh preparation did not complete.";
             return false;
           }
-          drawMesh = animated->second.get();
+          if (!animated->second->skinPalette.empty()) {
+            gpuSkin = cached->second->gpuSkin.get();
+            skinPalette = &animated->second->skinPalette;
+            if (!gpuSkin) {
+              error = "GPU skin geometry is unavailable for " + selectedModel;
+              return false;
+            }
+          } else {
+            if (!animated->second->gpu.valid()) {
+              error = entity.id + ": CPU skin geometry is unavailable.";
+              return false;
+            }
+            drawMesh = animated->second.get();
+          }
         }
         const GpuMesh3D *drawGpu = &drawMesh->gpu;
         if (!dents.empty() && player == nullptr) {
@@ -517,7 +554,19 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         const TextureView2D texture = textures_.find(textureId);
         const TextureHandle resolvedTexture =
             texture.handle ? texture.handle : whiteTexture_;
-        if (player == nullptr && material == nullptr && dents.empty()) {
+        if (gpuSkin) {
+          drawUniforms.push_back({.handle=skinMatricesUniform_, .values=*skinPalette,
+              .count=static_cast<std::uint16_t>(skinPalette->size()/16)});
+          drawUniforms.push_back({.handle=skinImportUniform_,
+              .values=animatedModels_.at(selectedModel).importTransform});
+          queued = gpuSkin->draw(commands_, frame.viewId, skinnedMeshProgram_,
+              resolvedTexture, meshSampler_, composeMeshTransform3D(transform, mesh->size),
+              state, drawUniforms, error);
+          if (queued) {
+            ++bufferedDraws;
+            bufferedTriangles += gpuSkin->indexCount()/3;
+          }
+        } else if (player == nullptr && material == nullptr && dents.empty()) {
           const std::string groupKey =
               selectedModel + "\n" + mesh->material + "\n" +
               std::to_string(color) + "\n" +
