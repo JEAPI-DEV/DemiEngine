@@ -72,15 +72,28 @@ public:
     const std::size_t chunkSize = (count + chunkCount - 1) / chunkCount;
     std::vector<JobHandle> handles;
     handles.reserve(chunkCount - 1);
-    for (std::size_t chunk = 1; chunk < chunkCount; ++chunk) {
-      const std::size_t begin = chunk * chunkSize;
-      const std::size_t end = std::min(begin + chunkSize, count);
-      if (begin >= end)
-        break;
-      handles.push_back(submit([begin, end, &function] {
-        for (std::size_t index = begin; index < end; ++index)
-          std::invoke(function, index);
-      }));
+    try {
+      for (std::size_t chunk = 1; chunk < chunkCount; ++chunk) {
+        const std::size_t begin = chunk * chunkSize;
+        const std::size_t end = std::min(begin + chunkSize, count);
+        if (begin >= end)
+          break;
+        handles.push_back(submit([begin, end, &function] {
+          for (std::size_t index = begin; index < end; ++index)
+            std::invoke(function, index);
+        }));
+      }
+    } catch (...) {
+      // A failed queue allocation must not leave earlier jobs borrowing the
+      // caller's function/output after this stack frame has unwound.
+      for (const auto &handle : handles) {
+        try {
+          handle.wait();
+        } catch (...) {
+          // Preserve the dispatch failure after all siblings have joined.
+        }
+      }
+      throw;
     }
 
     std::exception_ptr callerError;

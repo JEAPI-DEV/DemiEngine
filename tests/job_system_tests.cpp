@@ -54,6 +54,23 @@ int main() {
   assert(completedLastChunk);
   assert(completed >= 48);
 
+  // A worker failure must also join all other chunks before returning.
+  completed = 0;
+  completedLastChunk = false;
+  surfaced = false;
+  try {
+    jobs.parallelFor(64, 8, [&](const std::size_t index) {
+      if (index == 16)
+        throw std::runtime_error("worker failure");
+      if (index == 63)
+        completedLastChunk = true;
+      ++completed;
+    });
+  } catch (const std::runtime_error &) {
+    surfaced = true;
+  }
+  assert(surfaced && completedLastChunk && completed >= 48);
+
   jobs.shutdown();
   jobs.shutdown();
   bool rejected = false;

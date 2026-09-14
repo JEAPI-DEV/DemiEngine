@@ -22,8 +22,9 @@ struct GpuMeshVertex3D {
   float v = 0.0F;
 };
 
-// Owns immutable GPU geometry. Entity transforms and presentation resources
-// remain draw-time inputs so one uploaded model can serve many entities.
+// Owns GPU geometry, with optional dynamic vertex updates. Entity transforms
+// and presentation resources remain draw-time inputs so one uploaded model can
+// serve many entities.
 class GpuMesh3D {
 public:
   explicit GpuMesh3D(GpuResources &resources);
@@ -41,6 +42,12 @@ public:
                             std::span<const Vec3> normals = {},
                             std::span<const std::uint32_t> colors = {},
                             bool dynamicVertices = false);
+  // Consumes CPU-prepared vertices; graphics resources remain render-thread owned.
+  // Dynamic updates preserve topology; clear() before replacing that topology.
+  [[nodiscard]] bool uploadPrepared(std::span<const GpuMeshVertex3D> vertices,
+                                    std::span<const std::uint32_t> indices,
+                                    std::string &error,
+                                    bool dynamicVertices = false);
   [[nodiscard]] bool
   draw(RenderCommands &commands, std::uint16_t viewId, ProgramHandle program,
        TextureHandle texture, SamplerHandle sampler,

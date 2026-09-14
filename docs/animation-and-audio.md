@@ -147,12 +147,22 @@ animation workloads. See its README for the visible benchmark command. Runtime
 profiling exposes `Renderer3D.animation_rebuild` (inclusive), `Renderer3D.skin_cpu`
 (pose evaluation and vertex skinning), and `Renderer3D.skin_upload_cpu` (normal
 reconstruction, vertex packing and upload submission, not GPU transfer timing).
-Per-frame CSV totals aggregate all rebuilt characters; session percentiles of
-these scopes describe individual calls, not whole-frame animation totals.
+Animated pose evaluation and vertex/normal preparation run in bounded batches on
+the existing engine worker pool. GPU uploads remain on the render thread in
+scene order. `Renderer3D.animation_prepare_wall` measures elapsed preparation time
+including dispatch, joins and uploads. The other animation scope totals sum
+per-character task durations, which can overlap; they are not frame latency.
+`Renderer3D.mesh_vertices_cpu` and `Renderer3D.mesh_buffer_update_cpu` separate
+vertex preparation from upload submission. Session percentiles describe individual
+calls, not whole-frame animation totals. Batch gauges expose peak staged vertex
+and mesh counts per camera and the available worker count.
 Frozen cached poses do not emit rebuild scopes. UVs, packed vertex colors and
 topology are reused from the model-owned cache and invalidated by asset reload;
 positions and normals still update per animated pose. GPU skinning is not yet
 implemented by this optimization.
+
+See [parallel character preparation](3d-parallel-character-preparation.md) for
+the matched desktop measurements and remaining qualification limits.
 
 ## Audio
 

@@ -190,6 +190,11 @@ Jolt or rewrite unrelated subsystems based on entity counts alone.
   reuse immutable model attributes instead of rebuilding them every pose.
   [Initial animation scaling](docs/3d-animation-scaling.md) records scoped
   16/64-character desktop results; GPU skinning and larger-crowd targets remain open.
+- [x] Batch independent character pose/normal/vertex preparation on the existing
+  CPU worker pool, retaining render-thread GPU ownership, full-rate animation,
+  bounded temporary output and failure/reload regression checks. Matched short
+  [desktop captures](docs/3d-parallel-character-preparation.md) reduce 64-character
+  frame p95 to about 16 ms; GPU skinning, sustained and Android qualification remain open.
 
 - [x] Optimize measured hot paths with before/after reports: Lua entity lookup,
   accidental body reactivation, body/contact bookkeeping, and sorted contact

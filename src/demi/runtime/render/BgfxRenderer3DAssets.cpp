@@ -13,6 +13,10 @@ namespace demi::runtime::render {
 bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
                                 std::vector<std::string> &diagnostics) {
   textures_.clear();
+  // A pose cache must not outlive the model data it was sampled from.
+  std::erase_if(dynamicMeshes_, [](const auto &entry) {
+    return !entry.second->animationModel.empty();
+  });
   modelMeshes_.clear();
   deformedMeshes_.clear();
   animatedModels_.clear();

@@ -42,6 +42,8 @@ def summarize(path, warmup_seconds, width, height):
              'Graphics.frame_advance', 'Graphics.render_thread', 'Graphics.wait_render',
              'Graphics.wait_submit', 'Graphics.gpu', 'AnimationStateMachine.update',
              'Renderer3D.animation_rebuild', 'Renderer3D.skin_cpu', 'Renderer3D.skin_upload_cpu']
+    names += ['Renderer3D.animation_prepare_wall', 'Renderer3D.mesh_vertices_cpu',
+              'Renderer3D.mesh_buffer_update_cpu']
     result = {'frames': len(frames), 'measured_frames': len(warm), 'measured_wall_seconds': 0,
               'metrics': {name: distribution([value for frame in warm
                            if (value := metric(frame, name)) is not None]) for name in names}}
@@ -73,7 +75,9 @@ def summarize(path, warmup_seconds, width, height):
               if (v := metric(f, 'Physics3D.update_error_steps', 'gauge')) is not None]
     result['physics_update_error_steps'] = max(errors) if errors else None
     for scope in ['Simulation.fixed_steps', 'Renderer3D.meshes_visible', 'Renderer3D.meshes_culled',
-                  'Renderer3D.batches', 'Physics3D.active_bodies']:
+                  'Renderer3D.batches', 'Physics3D.active_bodies',
+                  'Renderer3D.animation_batch_vertices', 'Renderer3D.animation_batch_meshes',
+                  'Renderer3D.animation_workers_available']:
         values = [v for f in warm if (v := metric(f, scope, 'gauge')) is not None]
         result[scope] = {'min': min(values), 'max': max(values), 'last': values[-1]} if values else None
     rebuilds = [metric(f, 'Renderer3D.animation_rebuild', 'calls') or 0 for f in warm]

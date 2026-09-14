@@ -1,5 +1,4 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
-#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 
 #include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
@@ -16,7 +15,6 @@
 #include "demi/runtime/scene/components/3dcomponents/PostProcessStackComponent.h"
 
 #include <algorithm>
-#include <bit>
 #include <unordered_set>
 
 namespace demi::runtime::render {
@@ -289,6 +287,19 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       error = "Could not create the camera's offscreen render surface.";
     return false;
   }
+  SceneVisibility3D visibility;
+  if (frame.updateContent) {
+    const auto extractionStarted = std::chrono::steady_clock::now();
+    visibility = extractVisibleMeshes3D(world, frame, &extractionJobs_);
+    lastExtractionMilliseconds_ =
+        std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - extractionStarted)
+            .count();
+  } else {
+    lastExtractionMilliseconds_ = 0.0;
+  }
+  if (frame.updateContent && !prepareAnimatedMeshes(visibility.meshes, frame, error))
+    return false;
   if (frame.updateContent &&
       !primitives_.begin(
           View3DConfig{
@@ -375,17 +386,6 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   std::uint32_t distanceCulled = 0;
   std::uint32_t mediumLodMeshes = 0;
   std::uint32_t lowLodMeshes = 0;
-  SceneVisibility3D visibility;
-  if (frame.updateContent) {
-    const auto extractionStarted = std::chrono::steady_clock::now();
-    visibility = extractVisibleMeshes3D(world, frame, &extractionJobs_);
-    lastExtractionMilliseconds_ =
-        std::chrono::duration<double, std::milli>(
-            std::chrono::steady_clock::now() - extractionStarted)
-            .count();
-  } else {
-    lastExtractionMilliseconds_ = 0.0;
-  }
   if (frame.updateContent)
     for (const VisibleMesh3D &visible : visibility.meshes) {
       const Entity &entity = *visible.entity;
@@ -450,6 +450,10 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         auto &cached = dynamicMeshes_[entity.id];
         if (!cached)
           cached = std::make_unique<CachedMesh>(resources_);
+        if (!cached->animationModel.empty()) {
+          cached->gpu.clear();
+          cached->animationModel.clear();
+        }
         if (dents.empty() &&
             (cached->signature != signature || !cached->gpu.valid())) {
           if (!cached->gpu.upload(mesh->vertices, mesh->uvs, {}, 0xffffffffU,
@@ -488,72 +492,12 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         }
         const CachedMesh *drawMesh = cached->second.get();
         if (player != nullptr) {
-          const auto source = animatedModels_.find(selectedModel);
-          if (source == animatedModels_.end()) {
-            error =
-                "No skinned model data is loaded for " + selectedModel + ".";
+          const auto animated = dynamicMeshes_.find(entity.id);
+          if (animated == dynamicMeshes_.end() || !animated->second->gpu.valid()) {
+            error = entity.id + ": Animated mesh preparation did not complete.";
             return false;
           }
-          const int clip = source->second.clipIndex(player->clipName, 0);
-          std::uint64_t signature = 14695981039346656037ULL;
-          hashValue(signature, static_cast<std::uint32_t>(clip));
-          hashValue(signature, std::bit_cast<std::uint32_t>(player->time));
-          hashValue(signature,
-                    static_cast<std::uint32_t>(player->proceduralPoseRevision));
-          hashValue(signature, static_cast<std::uint32_t>(
-                                   player->proceduralPoseRevision >> 32U));
-          hashValue(signature, color);
-          auto &animatedMesh = dynamicMeshes_[entity.id];
-          if (!animatedMesh)
-            animatedMesh = std::make_unique<CachedMesh>(resources_);
-          if (animatedMesh->signature != signature ||
-              !animatedMesh->gpu.valid()) {
-            ProfileScope animationScope("Renderer3D.animation_rebuild");
-            std::vector<Vec3> positions;
-            assets::GltfSkinnedModel3D::BoneSegments segments;
-            WorldTransform3D modelTransform = transform;
-            modelTransform.scale = {transform.scale.x * mesh->size.x,
-                                    transform.scale.y * mesh->size.y,
-                                    transform.scale.z * mesh->size.z};
-            for (const auto &[bone, target] : player->boneSegments) {
-              segments.emplace(bone, assets::GltfSkinnedModel3D::BoneSegment{
-                                         .start = inverseTransformPoint3D(
-                                             modelTransform, target.start),
-                                         .end = inverseTransformPoint3D(
-                                             modelTransform, target.end),
-                                         .pole = inverseTransformPoint3D(
-                                             modelTransform, target.pole)});
-            }
-            bool sampled = false;
-            {
-              ProfileScope skinScope("Renderer3D.skin_cpu");
-              sampled = clip >= 0 ? source->second.samplePositions(
-                                        clip, player->time, player->loop,
-                                        positions, error, segments)
-                                  : source->second.bindPosePositions(
-                                        positions, error, segments);
-            }
-            if (!sampled) {
-              error = entity.id + ": " + error;
-              return false;
-            }
-            // UVs, packed colors and topology are model-owned, not pose-owned.
-            // Asset reload replaces this cache together with the skin source.
-            const auto &rest = cached->second->restGeometry;
-            bool uploaded = false;
-            {
-              ProfileScope uploadScope("Renderer3D.skin_upload_cpu");
-              uploaded = animatedMesh->gpu.upload(positions, rest.uvs,
-                                                  rest.indices, 0xffffffffU,
-                                                  error, {}, rest.colors, true);
-            }
-            if (!uploaded) {
-              error = entity.id + ": " + error;
-              return false;
-            }
-            animatedMesh->signature = signature;
-          }
-          drawMesh = animatedMesh.get();
+          drawMesh = animated->second.get();
         }
         const GpuMesh3D *drawGpu = &drawMesh->gpu;
         if (!dents.empty() && player == nullptr) {

@@ -14,6 +14,7 @@
 #include "demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PostProcessRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveCanvas3D.h"
+#include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 #include "demi/runtime/scene/model/World.h"
 
 #include <chrono>
@@ -63,7 +64,12 @@ private:
     GpuMesh3D gpu;
     std::uint64_t signature = 0;
     MeshGeometry3D restGeometry;
+    std::string animationModel;
   };
+
+  [[nodiscard]] bool prepareAnimatedMeshes(
+      std::span<const VisibleMesh3D> visible, const BgfxCameraFrame3D &frame,
+      std::string &error);
 
   GpuResources &resources_;
   RenderCommands &commands_;

@@ -266,6 +266,60 @@ int main() {
   assert(std::any_of(advanced.begin(), advanced.end(), [](const auto &entry) {
     return entry.name == "Renderer3D.animation_rebuild" && entry.calls == 1;
   }));
+  // More than two preparation batches, followed by a cached frozen frame.
+  for (int i = 0; i < 40; ++i) {
+    Entity peer = shape("peer_" + std::to_string(i), "", {});
+    peer.component<MeshRendererComponent>()->model = "asset://models/animated";
+    peer.setComponent(AnimationPlayer3DComponent{.clipName = "Walk_Loop", .time = float(i) * 0.01F});
+    world.entities.push_back(std::move(peer));
+  }
+  RuntimeProfiler::beginFrame();
+  assert(renderer.renderFrame(world, frame, 0.016F, error));
+  static_cast<void>(graphics.endFrame());
+  const auto crowd = RuntimeProfiler::frameEntries();
+  assert(std::any_of(crowd.begin(), crowd.end(), [](const auto &entry) {
+    return entry.name == "Renderer3D.animation_rebuild" && entry.calls == 40;
+  }));
+  assert(std::any_of(crowd.begin(), crowd.end(), [](const auto &entry) {
+    return entry.name == "Renderer3D.animation_batch_meshes" && entry.gauge == 16;
+  }));
+  assert(std::any_of(crowd.begin(), crowd.end(), [](const auto &entry) {
+    return entry.name == "Renderer3D.animation_batch_vertices" && entry.gauge > 0 && entry.gauge <= 262144;
+  }));
+  RuntimeProfiler::beginFrame();
+  assert(renderer.renderFrame(world, frame, 0.016F, error));
+  static_cast<void>(graphics.endFrame());
+  const auto frozen = RuntimeProfiler::frameEntries();
+  assert(std::none_of(frozen.begin(), frozen.end(), [](const auto &entry) {
+    return entry.name == "Renderer3D.animation_rebuild" && entry.calls > 0;
+  }));
+  // Loop policy is part of the pose key even if time is unchanged.
+  world.entities.back().component<AnimationPlayer3DComponent>()->loop = false;
+  RuntimeProfiler::beginFrame();
+  assert(renderer.renderFrame(world, frame, 0.016F, error));
+  static_cast<void>(graphics.endFrame());
+  const auto loopChanged = RuntimeProfiler::frameEntries();
+  assert(std::any_of(loopChanged.begin(), loopChanged.end(), [](const auto &entry) {
+    return entry.name == "Renderer3D.animation_rebuild" && entry.calls == 1;
+  }));
+  auto *badPose = world.entities.back().component<AnimationPlayer3DComponent>();
+  badPose->boneSegments["missing_test_bone"] = {{0, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+  ++badPose->proceduralPoseRevision;
+  assert(!renderer.renderFrame(world, frame, 0.016F, error));
+  assert(error.find("missing_test_bone") != std::string::npos);
+  badPose->boneSegments.clear();
+  ++badPose->proceduralPoseRevision;
+  assert(renderer.renderFrame(world, frame, 0.016F, error));
+  static_cast<void>(graphics.endFrame());
+  diagnostics.clear();
+  assert(renderer.loadAssets(registry, diagnostics));
+  RuntimeProfiler::beginFrame();
+  assert(renderer.renderFrame(world, frame, 0.016F, error));
+  static_cast<void>(graphics.endFrame());
+  const auto reloaded = RuntimeProfiler::frameEntries();
+  assert(std::any_of(reloaded.begin(), reloaded.end(), [](const auto &entry) {
+    return entry.name == "Renderer3D.animation_rebuild" && entry.calls == 41;
+  }));
   RuntimeProfiler::setEnabled(false);
 
   renderer.shutdown();
