@@ -35,7 +35,7 @@ demi asset reimport path/to/game/assets/colliders/barrel/barrel.collider.asset.j
 ## Attaching a collider
 
 The existing `ModelCollider3D` component is the asset attachment; the Inspector
-labels it **Collider Asset 3D**. It now accepts a convex collider asset on a dynamic
+labels it **Collider Asset 3D**. It accepts convex and compound collider assets on a dynamic
 rigidbody. There is no need to create a prefab or repeat `ConvexCollider3D.points`.
 Inline colliders and optional prefabs remain available. The Inspector's Asset
 picker lists only `Collider3D` assets, not render models or other asset types.
@@ -84,7 +84,50 @@ does not imply sharing a native rigidbody.
   import/cook, inspection, and runtime loading. Cooking keeps the collider source
   inside the audited cooked asset tree with stable references.
 
+## Compound assemblies
+
+`shape: "compound"` defines 1–256 convex parts in one asset. Each part has a
+unique local `id` and 4–256 non-coplanar `points`, using the same hull validation
+as standalone convex sources. Points are expressed in the shared asset origin;
+there are no nested compounds or external child references in this first version.
+IDs start with an ASCII letter/digit and may contain letters, digits, `_`, `-`,
+and `.`, up to 128 characters. Do not use array positions as durable identity.
+
+```json
+{
+  "format_version": 1,
+  "shape": "compound",
+  "parts": [
+    { "id": "left", "points": [[-2,0,0], [-1,0,0], [-2,1,0], [-2,0,1]] },
+    { "id": "right", "points": [[1,0,0], [2,0,0], [1,1,0], [1,0,1]] }
+  ]
+}
+```
+
+Attach it with the same `ModelCollider3D` component. The compound is **one native
+body**, with real gaps between its hulls. `Rigidbody3D.mass` is the total mass;
+Jolt derives compound center of mass and inertia from its uniformly dense hulls,
+scaled to that total. The immutable compound shape can belong to a static,
+kinematic or dynamic body. Mirrored/nonuniform entity scale is applied to each
+part's points. Visual child entities may follow the body via `Transform3D.parent`;
+do not give those children extra colliders unless independent bodies are intended.
+
+After physics synchronization, `Physics3D.raycast` includes optional
+`collider_part_id` when a compound part is hit. Native subshape indices remain
+private. The body keeps its own part-ID snapshot, so a loaded/reordered asset
+does not mislabel hits while the old native shape is still in use. Shape casts
+and overlap queries use the real compound but do not yet report part IDs.
+Before the first physics synchronization, legacy cold-world query fallbacks
+omit compounds rather than treating their union bounds as solid collision.
+Editor selection uses the union bounds; collider debug drawing shows the hulls.
+
+The asset follows the normal import, cook, reload and live-user retention rules.
+This is a geometry contract, not a fracture asset: bonds, anchors, per-chunk
+materials/density, Blast damage, and transactional split-body replacement are
+separate Milestone 3 work. See `examples/destruction_3d_lab` for an editable
+three-part arch and native impulse/raycast probe.
+
 Triangle-mesh collider assets remain static-only. Asset-backed character-controller
 movement shapes are not enabled by this change; characters still use their existing
 inline box/sphere/capsule/convex components. This format does not yet define sphere,
-capsule, compound, or 2D collider assets.
+capsule, or 2D collider assets.

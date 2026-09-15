@@ -28,7 +28,7 @@ not every engine feature or production game.
 | --- | --- |
 | 1 — Baselines/feasibility | Complete: baseline evidence and portable Blast/Jolt integration proof, including physical Android CPU execution. Production and expanded-workload qualification belongs to later milestones. |
 | 2 — Scaling | Complete for the declared reference gate: GPU rig support, temporal/model LOD, desktop 2,000-object 1080p scaling, and physical Android 64/256-object scaling/lifecycle. 1440p was measured; Radeon’s 2,000-object stretch miss remains explicit. See [closure evidence](docs/3d-milestone-2-qualification.md). |
-| 3 — Localized destruction | Collider-asset prerequisites delivered; production fracture assets, scheduler, and compound-body transitions are not implemented. |
+| 3 — Localized destruction | In progress: convex/compound collider assets, native one-body assemblies, part raycast identity and an editable lab foundation are delivered. Blast fracture assets, scheduling and split-body transactions remain open. |
 | 4 — Visual/gameplay quality | Third-person mechanics foundation and native visual denting delivered; production animation/visual qualification remains open. |
 | 5 — Structural collapse | Impact-energy telemetry exists; structural connections, stress, fracture-driven collapse, and debris/character policy remain open. |
 | 6 — Landscape/workflow | Asset-service and static distance-LOD foundations plus editor workflow improvements exist; landscape-scale and destruction-specific qualification remain open. |
@@ -265,7 +265,17 @@ all-device, full-game or thermal-soak qualification.
   collider recommendations also exist.
   These are prerequisites, not a fracture-asset pipeline; dynamic recommendations
   currently use a bounds-derived hull, not general mesh-fitted convex decomposition.
-- [ ] Build `destruction_3d_lab`: a concrete wall, hammer, rocket, and steel door.
+- [x] Add real compound Collider3D assets: bounded convex parts with stable IDs,
+  shared parser/schema/import/cook, native one-body Jolt geometry, raycast part
+  identity, derived bounds, debug hulls, and reload/lifetime tests. This is not
+  a fracture-asset or atomic split transaction contract.
+- [x] Start editable `destruction_3d_lab` with a three-part arch, real opening,
+  part inspection, native impulse/reset controls and a gameplay E2E.
+  Screen-ray regression coverage checks all three visible parts; camera queries
+  now honor the rendered target offset and right-handed view. Manual mouse
+  verification remains pending after this correction.
+- [ ] Extend `destruction_3d_lab` to the concrete wall, hammer, rocket and steel
+  door; its current compound foundation does not yet fracture.
 - [ ] Author pre-fractured chunks, interior surfaces, collision hulls, materials,
   bonds, and anchors through Blender/import tooling. Start with offline fracture;
   runtime damage resolution is limited by the authored chunk hierarchy.
@@ -276,8 +286,8 @@ all-device, full-game or thermal-soak qualification.
   resumable work, fairness, topology-version checks, and separate budget metrics.
 - [ ] Translate splits into Jolt compound bodies for connected assemblies, not
   one awake rigid body per authored chunk from startup. Extend Demi's current
-  collider contract for real compound bodies rather than treating child entities
-  as an already-supported rigid compound assembly.
+  compound collider contract into transactional split-body replacement; visual
+  child entities are not independent rigid chunks from startup.
 - [ ] Apply body changes at a safe fixed-step boundary; update mass, inertia,
   center of mass, inherited linear/angular motion, collision bounds, and render
   ownership. Rebuild invalidated subshape mappings after topology changes.
@@ -394,8 +404,9 @@ Milestone 2 is closed with desktop and physical Android reference evidence.
 Retain the measured Radeon 1440p stretch limit and broader material/rig limitations
 explicitly; keep animation events and collision-critical work independent of
 visual budgets. The next implementation milestone is Milestone 3, bringing
-compounds into Demi's shared physics/asset/entity ownership
-model, with an authored collider contract and persistent topology ownership.
+compounds into Demi's shared physics/asset/entity ownership model. The compound
+collider contract and editable lab foundation are now implemented; next add
+persistent Blast topology ownership and staged split-body transactions.
 Use realistic workloads to set preparation/commit/response budgets before the
 affected-structure scheduler and minimal `destruction_3d_lab` wall/hammer/rocket
 scene. Landscape traversal, long thermal/asset-heavy soaks, and full Android game

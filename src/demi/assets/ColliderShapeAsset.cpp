@@ -5,6 +5,7 @@
 #include <fstream>
 #include <limits>
 #include <nlohmann/json.hpp>
+#include <unordered_set>
 
 namespace demi::assets {
 namespace {
@@ -26,12 +27,67 @@ parseColliderShapeAsset(const nlohmann::json &document, std::string &error) {
   error = "Collider source requires format_version 1, shape convex_hull, and "
           "4..256 finite, non-coplanar points.";
   try {
+    if (document.is_object() && document.value("shape", "") == "compound") {
+      error = "Compound collider requires format_version 1 and 1..256 convex "
+              "parts with unique IDs.";
+      if (!document.contains("format_version") ||
+          !document["format_version"].is_number_integer() ||
+          document.value("format_version", 0) != 1 ||
+          document.contains("points") || !document.contains("parts") ||
+          !document["parts"].is_array() || document["parts"].empty() ||
+          document["parts"].size() > 256)
+        return std::nullopt;
+      ColliderShapeAsset result;
+      result.minimum.fill(std::numeric_limits<float>::max());
+      result.maximum.fill(std::numeric_limits<float>::lowest());
+      std::unordered_set<std::string> ids;
+      for (const auto &part : document["parts"]) {
+        if (!part.is_object() || part.size() != 2 || !part.contains("id") ||
+            !part["id"].is_string() || !part.contains("points"))
+          return std::nullopt;
+        const auto id = part["id"].get<std::string>();
+        const auto alphanumeric = [](char c) {
+          return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                 (c >= '0' && c <= '9');
+        };
+        if (id.empty() || id.size() > 128 || !alphanumeric(id.front()) ||
+            !std::ranges::all_of(id,
+                                 [&](char c) {
+                                   return alphanumeric(c) || c == '_' ||
+                                          c == '-' || c == '.';
+                                 }) ||
+            !ids.insert(id).second)
+          return std::nullopt;
+        std::string partError;
+        auto hull = parseColliderShapeAsset({{"format_version", 1},
+                                             {"shape", "convex_hull"},
+                                             {"points", part["points"]}},
+                                            partError);
+        if (!hull) {
+          error = "Compound part " + id + ": " + partError;
+          return std::nullopt;
+        }
+        for (std::size_t axis = 0; axis < 3; ++axis) {
+          result.minimum[axis] =
+              std::min(result.minimum[axis], hull->minimum[axis]);
+          result.maximum[axis] =
+              std::max(result.maximum[axis], hull->maximum[axis]);
+          if (double(result.maximum[axis]) - result.minimum[axis] >
+              std::numeric_limits<float>::max())
+            return std::nullopt;
+        }
+        result.parts.push_back({id, std::move(hull->points)});
+      }
+      error.clear();
+      return result;
+    }
     if (!document.is_object() || !document.contains("format_version") ||
         !document["format_version"].is_number_integer() ||
         document.value("format_version", 0) != 1 ||
         document.value("shape", "") != "convex_hull" ||
-        !document.contains("points") || !document["points"].is_array() ||
-        document["points"].size() < 4 || document["points"].size() > 256)
+        document.contains("parts") || !document.contains("points") ||
+        !document["points"].is_array() || document["points"].size() < 4 ||
+        document["points"].size() > 256)
       return std::nullopt;
     ColliderShapeAsset result;
     result.minimum.fill(std::numeric_limits<float>::max());

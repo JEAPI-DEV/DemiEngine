@@ -75,8 +75,9 @@ Triangle-mesh `ModelCollider3D` is static-only. A self-contained convex
 on a moving rigidbody. Otherwise, moving objects use a primitive,
 capsule, or convex hull. Validation rejects moving meshes, multiple colliders,
 invalid capsule proportions, underspecified convex hulls, parented moving
-bodies, and moving bodies without a collider. Complex compound objects use
-child entities, each with one collider.
+bodies, and moving bodies without a collider. Real compound assemblies use a
+[compound collider asset](collider-assets.md) on one body. Parenting separate
+collider entities does not weld their native bodies together.
 
 Collider import detail controls generated mesh data only. Runtime collision is
 always determined by the collider component and its authored asset; the solver
@@ -173,6 +174,9 @@ parent rotation. `Transform3D.look_at` rotates the local +Z forward axis toward
 a world point. `Camera3D.screen_ray`, `world_to_screen`, and
 `screen_to_world` accept explicit viewport dimensions, which keeps the math
 deterministic and usable in headless tests.
+These conversions follow the rendered camera's transformed `target_offset`
+and `up_axis` (right-handed look-at), not just the entity's forward axis.
+For orthographic cameras, `orthographic_size` is the full visible height.
 
 The `minimal_3d` example is the reference probe. It uses public APIs for
 capsule movement and grounding, jumping, trigger pickups, a kinematic moving

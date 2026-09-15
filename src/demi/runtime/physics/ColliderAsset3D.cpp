@@ -46,6 +46,12 @@ std::optional<ColliderAsset3D> loadColliderAsset3D(const AssetManifest &asset,
                        source->minimum[2] + collider.size.z * 0.5F};
     for (const auto &point : source->points)
       collider.points.push_back({point[0], point[1], point[2]});
+    for (const auto &part : source->parts) {
+      ColliderPart3D converted{.id = part.id};
+      for (const auto &point : part.points)
+        converted.points.push_back({point[0], point[1], point[2]});
+      collider.parts.push_back(std::move(converted));
+    }
     collider.revision = std::hash<std::string>{}(asset.sourceHash);
     return collider;
   }
@@ -178,6 +184,15 @@ const std::vector<Vec3> *resolvedConvexCollider3D(const World &world,
   return found == world.colliderAssets3D.end() || found->second.points.empty()
              ? nullptr
              : &found->second.points;
+}
+
+const std::vector<ColliderPart3D> *resolvedCompoundCollider3D(
+    const World &world, const Entity &entity) {
+  const auto *model = entity.component<ModelCollider3DComponent>();
+  if (!model) return nullptr;
+  const auto found = world.colliderAssets3D.find(model->asset);
+  return found == world.colliderAssets3D.end() || found->second.parts.empty()
+      ? nullptr : &found->second.parts;
 }
 
 } // namespace demi::runtime

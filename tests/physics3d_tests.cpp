@@ -497,6 +497,47 @@ bool testCharacterAndCameraMath() {
     std::cerr << "3D camera screen/world conversion failed.\n";
     return false;
   }
+  // Off-centre rays must agree with the renderer's right-handed look-at.
+  const auto defaultRight =
+      cameraScreenRay3D(transform, camera, {600, 300}, {800, 600});
+  if (defaultRight.direction.x >= 0) {
+    std::cerr << "Camera ray handedness differs from rendering.\n";
+    return false;
+  }
+  transform.position = {0, 3, 10};
+  camera.targetOffset = {0, -1, -10};
+  const auto aimed =
+      cameraScreenRay3D(transform, camera, {400, 300}, {800, 600});
+  const auto aimedScreen =
+      worldToScreen3D(transform, camera, {0, 2, 0}, {800, 600});
+  if (!near(aimed.direction.z, -10.0F / std::sqrt(101.0F), 0.001F) ||
+      !near(aimed.direction.y, -1.0F / std::sqrt(101.0F), 0.001F) ||
+      !aimedScreen || !near(aimedScreen->x, 400) ||
+      !near(aimedScreen->y, 300)) {
+    std::cerr << "Camera conversions ignored the authored target offset.\n";
+    return false;
+  }
+  camera.targetOffset = {0, 0, -1};
+  camera.perspective = false;
+  camera.orthographicSize = 8;
+  const auto corner =
+      cameraScreenRay3D(transform, camera, {800, 0}, {800, 600});
+  const auto cornerScreen =
+      worldToScreen3D(transform, camera, {16.0F / 3.0F, 7, 0}, {800, 600});
+  if (!near(corner.origin.x, 16.0F / 3.0F) ||
+      !near(corner.origin.y, 7) || !cornerScreen ||
+      !near(cornerScreen->x, 800) || !near(cornerScreen->y, 0)) {
+    std::cerr << "Orthographic picking differs from the rendered extent.\n";
+    return false;
+  }
+  camera.upAxis = -1;
+  const auto inverted =
+      cameraScreenRay3D(transform, camera, {800, 0}, {800, 600});
+  if (!near(inverted.origin.x, -16.0F / 3.0F) ||
+      !near(inverted.origin.y, -1)) {
+    std::cerr << "Camera picking ignored the authored up axis.\n";
+    return false;
+  }
   const Vec3 rotation = lookAtRotation3D({}, {1.0F, 0.0F, 0.0F});
   const Vec3 forward =
       forwardDirection3D(WorldTransform3D{.rotation = rotation});

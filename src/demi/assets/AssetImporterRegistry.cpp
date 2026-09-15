@@ -199,7 +199,10 @@ AssetImporterRegistry createBuiltinImporterRegistry() {
   text.copyToGeneratedOnImport = false;
   add(std::move(text));
   add(descriptor("json_data", {".json"}, {"DataAsset"}));
-  add(descriptor("collider-shape", {".json"}, {"Collider3D"}));
+  auto colliderShape = descriptor("collider-shape", {".json"}, {"Collider3D"});
+  // Self-contained runtime geometry needs no duplicate import-cache artifact.
+  colliderShape.copyToGeneratedOnImport = false;
+  add(std::move(colliderShape));
   add(descriptor("json_schema", {".json"}, {"DataSchema"}));
   add(descriptor("network_contract", {".json"}, {"NetworkContract"}));
   add(descriptor("material", {".json"}, {"Material"}));

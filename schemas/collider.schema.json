@@ -3,10 +3,27 @@
   "$id": "https://demiengine.local/schemas/collider.schema.json",
   "title": "DemiEngine Collider Shape",
   "type": "object",
-  "required": ["format_version", "shape", "points"],
+  "required": ["format_version", "shape"],
   "properties": {
     "format_version": { "type": "integer", "const": 1 },
-    "shape": { "const": "convex_hull" },
+    "shape": { "enum": ["convex_hull", "compound"] },
+    "points": { "$ref": "#/$defs/points" },
+    "parts": {
+      "type": "array", "minItems": 1, "maxItems": 256,
+      "items": {
+        "type": "object", "required": ["id", "points"], "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$" },
+          "points": { "$ref": "#/$defs/points" }
+        }
+      }
+    }
+  },
+  "oneOf": [
+    { "properties": { "shape": { "const": "convex_hull" } }, "required": ["points"], "not": { "required": ["parts"] } },
+    { "properties": { "shape": { "const": "compound" } }, "required": ["parts"], "not": { "required": ["points"] } }
+  ],
+  "$defs": {
     "points": {
       "type": "array", "minItems": 4, "maxItems": 256,
       "description": "Finite local-space points with nonzero hull volume; geometric validation is performed by the asset loader.",

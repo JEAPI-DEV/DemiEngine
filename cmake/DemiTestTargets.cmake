@@ -204,6 +204,8 @@
   add_executable(demi-physics3d-tests tests/physics3d_tests.cpp)
   target_link_libraries(demi-physics3d-tests PRIVATE demi-runtime-lib)
   add_executable(demi-collider-shape-asset-tests tests/collider_shape_asset_tests.cpp)
+  add_executable(demi-compound-collider-asset-tests tests/compound_collider_asset_tests.cpp)
+  target_link_libraries(demi-compound-collider-asset-tests PRIVATE demi-runtime-lib)
   target_link_libraries(demi-collider-shape-asset-tests PRIVATE demi-runtime-lib)
   add_executable(demi-physics-contact-phases3d-tests
     tests/physics_contact_phases3d_tests.cpp)

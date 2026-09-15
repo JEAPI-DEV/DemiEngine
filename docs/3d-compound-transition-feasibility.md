@@ -72,8 +72,10 @@ and rerun instructions are in the [probe README](../tools/3d-feasibility/README.
 
 ## Remaining work
 
-- Bring the transition through Demi's shared physics/entity/asset ownership
-  boundary, with a real compound collider contract and render/chunk identity.
+- The [compound collider contract](collider-assets.md) is now integrated into
+  Demi's shared asset/physics path, with stable part raycast IDs and an editable
+  `destruction_3d_lab` foundation. The split transaction and automatic render/chunk
+  reassignment still need production integration.
 - Persistent Blast family ownership, topology generations, queued damage,
   cancellation/stale-result policy and asynchronous scheduling. This fixture
   creates and disposes its Blast family per proposal; it does not roll back a

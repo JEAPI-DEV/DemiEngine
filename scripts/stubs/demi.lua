@@ -1084,6 +1084,8 @@ function CharacterController3D.state(entity_id) end
 ---@field origin number[]
 ---@field direction number[]
 ---@class Camera3DService
+---Screen conversions follow the rendered target_offset and up_axis.
+---Orthographic size is the full visible height; coordinates are viewport-local.
 Camera3D = {}
 ---@param entity_id string
 ---@param screen_x number
@@ -1163,6 +1165,7 @@ function Physics2D.raycast(origin_x, origin_y, direction_x, direction_y, distanc
 Physics3D = {}
 ---@class PhysicsRaycastHit3D
 ---@field entity_id string
+---@field collider_part_id? string Stable compound part ID for raycasts; absent for other shapes/queries.
 ---@field layer string
 ---@field point number[]
 ---@field normal number[]

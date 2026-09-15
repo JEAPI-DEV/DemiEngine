@@ -19,6 +19,11 @@ struct TriangleCollider3D {
   Vec3 c;
 };
 
+struct ColliderPart3D {
+  std::string id;
+  std::vector<Vec3> points;
+};
+
 struct ColliderAsset3D {
   Vec3 size = {1.0F, 1.0F, 1.0F};
   Vec3 offset;
@@ -28,6 +33,7 @@ struct ColliderAsset3D {
   std::uint64_t revision = 0;
   bool resident = true;
   std::uint64_t lastUsedEpoch = 0;
+  std::vector<ColliderPart3D> parts{};
 };
 
 struct BoxColliderShape3D {
@@ -49,5 +55,7 @@ resolvedBoxCollider3D(const World &world, const Entity &entity);
 resolvedTriangleCollider3D(const World &world, const Entity &entity);
 [[nodiscard]] const std::vector<Vec3> *
 resolvedConvexCollider3D(const World &world, const Entity &entity);
+[[nodiscard]] const std::vector<ColliderPart3D> *
+resolvedCompoundCollider3D(const World &world, const Entity &entity);
 
 } // namespace demi::runtime

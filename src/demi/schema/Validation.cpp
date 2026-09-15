@@ -362,13 +362,13 @@ void validatePhysics3D(Diagnostics &diagnostics,
                                      "CapsuleCollider3D", "ConvexCollider3D",
                                      "ModelCollider3D"};
   std::optional<AssetRegistry> colliderRegistry;
-  std::unordered_map<std::string, bool> convexAssets;
-  const auto isConvexAsset = [&](const nlohmann::json &component) {
+  std::unordered_map<std::string, bool> movingColliderAssets;
+  const auto isMovingColliderAsset = [&](const nlohmann::json &component) {
     if (!component.is_object() || !component.contains("asset") ||
         !component["asset"].is_string())
       return false;
     const std::string id = component["asset"].get<std::string>();
-    if (const auto found = convexAssets.find(id); found != convexAssets.end())
+    if (const auto found = movingColliderAssets.find(id); found != movingColliderAssets.end())
       return found->second;
     bool valid = false;
     if (!colliderRegistry) {
@@ -383,7 +383,7 @@ void validatePhysics3D(Diagnostics &diagnostics,
       valid =
           assets::loadColliderShapeAsset(asset->sourcePath, error).has_value();
     }
-    convexAssets.emplace(id, valid);
+    movingColliderAssets.emplace(id, valid);
     return valid;
   };
   for (const auto &entity : document["entities"]) {
@@ -417,8 +417,7 @@ void validatePhysics3D(Diagnostics &diagnostics,
            .code = "PHYSICS3D_MULTIPLE_COLLIDERS",
            .message = "Entity " + id + " has multiple 3D collider components.",
            .path = path.string(),
-           .suggestion = "Use one explicit collider per entity; compose a "
-                         "compound from child entities."});
+           .suggestion = "Use one collider per entity or a compound Collider3D asset."});
     if (body != components.end() && bodyType != "static" && colliderCount == 0)
       diagnostics.push_back(
           {.severity = Severity::Error,
@@ -448,7 +447,7 @@ void validatePhysics3D(Diagnostics &diagnostics,
           {.severity = Severity::Error,
            .code = "PHYSICS3D_CHARACTER_REQUIRES_CONVEX_COLLIDER",
            .message = "CharacterController3D " + id +
-                      " uses an unsupported triangle-mesh collider.",
+                      " uses an unsupported asset-backed movement collider.",
            .path = path.string(),
            .suggestion = "Use a box, sphere, capsule, or convex collider."});
     if (character != components.end()) {
@@ -467,14 +466,14 @@ void validatePhysics3D(Diagnostics &diagnostics,
       }
     }
     if (components.contains("ModelCollider3D") && bodyType != "static" &&
-        !isConvexAsset(components["ModelCollider3D"]))
+        !isMovingColliderAsset(components["ModelCollider3D"]))
       diagnostics.push_back(
           {.severity = Severity::Error,
            .code = "PHYSICS3D_MESH_REQUIRES_STATIC_BODY",
            .message =
                "Triangle-mesh collider " + id + " must use a static body.",
            .path = path.string(),
-           .suggestion = "Use ConvexCollider3D for moving bodies."});
+           .suggestion = "Use ConvexCollider3D or a convex/compound Collider3D asset for moving bodies."});
     if (body != components.end() && bodyType != "static") {
       const auto transform = components.find("Transform3D");
       if (transform != components.end() && transform->is_object() &&

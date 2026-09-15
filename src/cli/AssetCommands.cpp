@@ -330,8 +330,17 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
       }
       const nlohmann::json report{
           {"id", manifest->id},
-          {"shape", "convex_hull"},
-          {"points", collider->points.size()},
+          {"shape", collider->parts.empty() ? "convex_hull" : "compound"},
+          {"points", [&] {
+             auto count = collider->points.size();
+             for (const auto &part : collider->parts) count += part.points.size();
+             return count;
+           }()},
+          {"part_ids", [&] {
+             auto ids = nlohmann::json::array();
+             for (const auto &part : collider->parts) ids.push_back(part.id);
+             return ids;
+           }()},
           {"dynamic_supported", true},
           {"bounds",
            {{"minimum", collider->minimum}, {"maximum", collider->maximum}}}};

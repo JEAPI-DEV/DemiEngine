@@ -27,6 +27,8 @@ struct PhysicsQueryHit3D {
   float distance = 0.0F;
   float fraction = 0.0F;
   bool isTrigger = false;
+  // Populated by raycasts hitting an authored compound collider part.
+  std::string colliderPartId{};
 };
 
 using PhysicsRaycastHit3D = PhysicsQueryHit3D;

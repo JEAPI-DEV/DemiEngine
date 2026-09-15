@@ -10,6 +10,7 @@ namespace {
 sol::table hitTable(lua_State *state, const PhysicsQueryHit3D &hit) {
   sol::table result = sol::state_view(state).create_table();
   result["entity_id"] = hit.entityId;
+  if (!hit.colliderPartId.empty()) result["collider_part_id"] = hit.colliderPartId;
   result["layer"] = hit.layer;
   result["point"] =
       sol::as_table(std::vector<float>{hit.point.x, hit.point.y, hit.point.z});

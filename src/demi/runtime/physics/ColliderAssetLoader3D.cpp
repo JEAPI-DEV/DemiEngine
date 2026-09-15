@@ -22,9 +22,12 @@ public:
     auto collider = loadColliderAsset3D(asset, error);
     if (!collider)
       return std::nullopt;
-    const auto bytes = sizeof(ColliderAsset3D) +
+    auto bytes = sizeof(ColliderAsset3D) +
                        collider->points.size() * sizeof(Vec3) +
                        collider->triangles.size() * sizeof(TriangleCollider3D);
+    bytes += collider->parts.size() * sizeof(ColliderPart3D);
+    for (const auto &part : collider->parts)
+      bytes += part.id.size() + part.points.size() * sizeof(Vec3);
     return assets::DecodedAsset{
         .payload = std::make_shared<ColliderAsset3D>(std::move(*collider)),
         .decodedBytes = bytes,

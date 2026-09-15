@@ -2,6 +2,7 @@
 #include "demi/runtime/geometry/MeshImpact3D.h"
 
 #include "demi/runtime/physics/ColliderAsset3D.h"
+#include "demi/runtime/physics/JoltCompoundShape3D.h"
 #include "demi/runtime/physics/PhysicsContactPhases3D.h"
 #include "demi/runtime/physics/SpatialQuery3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
@@ -356,6 +357,8 @@ void mix(std::uint64_t &hash, const bool value) {
       offset = {convex->offset.x * scale.x, convex->offset.y * scale.y,
                 convex->offset.z * scale.z};
   } else if (const auto *model = entity.component<ModelCollider3DComponent>()) {
+    if (const auto *parts = resolvedCompoundCollider3D(world, entity))
+      return createJoltCompoundShape3D(*parts, transform->scale);
     const auto triangles = resolvedTriangleCollider3D(world, entity);
     if (triangles != nullptr && !triangles->empty()) {
       JPH::TriangleList list;
@@ -423,6 +426,7 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
     bool reportContacts = true;
     bool continuous = false;
     bool added = true;
+    std::vector<std::string> partIds;
   };
   struct RawContact {
     Vec3 point;
@@ -754,6 +758,8 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
                             .continuous = body != nullptr && body->continuous,
                             .added = body == nullptr || body->bodyEnabled})
                     .first;
+        if (const auto *parts = resolvedCompoundCollider3D(world, entity))
+          for (const auto &part : *parts) found->second.partIds.push_back(part.id);
       } else {
         Impl::BodyRecord &record = found->second;
         const bool authoredTransformChanged =
@@ -1472,8 +1478,17 @@ PhysicsWorld3D::raycast(const Vec3 origin, const Vec3 direction,
                                ? lock.GetBody().GetWorldSpaceSurfaceNormal(
                                      result.mSubShapeID2, point)
                                : -unit;
-  return queryHit(impl_->world, impl_->ids, result.mBodyID, point, normal,
-                  result.mFraction * distance, result.mFraction);
+  auto hit = queryHit(impl_->world, impl_->ids, result.mBodyID, point, normal,
+                      result.mFraction * distance, result.mFraction);
+  if (lock.Succeeded()) {
+    const auto part = lock.GetBody().GetShape()->GetSubShapeUserData(result.mSubShapeID2);
+    if (part > 0) {
+      const auto record = impl_->bodies.find(hit.entityId);
+      if (record != impl_->bodies.end() && part <= record->second.partIds.size())
+        hit.colliderPartId = record->second.partIds[part - 1];
+    }
+  }
+  return hit;
 }
 
 std::optional<PhysicsQueryHit3D>

@@ -9,10 +9,16 @@
 
 namespace demi::assets {
 
+struct ColliderShapePart {
+  std::string id;
+  std::vector<std::array<float, 3>> points;
+};
+
 struct ColliderShapeAsset {
   std::vector<std::array<float, 3>> points;
   std::array<float, 3> minimum{};
   std::array<float, 3> maximum{};
+  std::vector<ColliderShapePart> parts;
 };
 
 // Self-contained .collider.json source; no model or backend handles required.
