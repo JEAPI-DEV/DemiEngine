@@ -31,6 +31,9 @@ else()
   set(DEMI_SHADERC_DEPENDENCY shaderc)
 endif()
 set(DEMI_BGFX_BUILTIN_SHADER_HEADERS
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_directional_glsl.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_directional_essl.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_directional_spv.h"
   "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_skinned_spv.h"
   "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_glsl.h"
   "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_lit_glsl.h"
@@ -51,6 +54,21 @@ add_custom_command(
   OUTPUT ${DEMI_BGFX_BUILTIN_SHADER_HEADERS}
   COMMAND "${CMAKE_COMMAND}" -E make_directory
     "${DEMI_BGFX_BUILTIN_SHADER_DIR}"
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_directional_glsl.h"
+    --type fragment --platform linux -p 140 --define DEMI_DIRECTIONAL_ONLY=1
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_directional_glsl
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_directional_essl.h"
+    --type fragment --platform android -p 100_es --define DEMI_DIRECTIONAL_ONLY=1
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_directional_essl
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_directional_spv.h"
+    --type fragment --platform linux -p spirv --define DEMI_DIRECTIONAL_ONLY=1
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_directional_spv
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_skinned.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_skinned_spv.h"
     --type vertex --platform linux -p spirv
@@ -146,6 +164,7 @@ add_library(demi-graphics-bgfx STATIC
   "${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/DefaultPixelFont.h"
   src/demi/runtime/render/backend/GraphicsDevice.cpp
   src/demi/runtime/render/backend/BgfxGraphicsDevice.cpp
+  src/demi/runtime/render/backend/BgfxProfileCallback.cpp
   src/demi/runtime/render/backend/BgfxGpuResources.cpp
   src/demi/runtime/render/backend/BgfxRenderCommands.cpp
   src/demi/runtime/render/backend/BgfxVertexLayout.cpp
@@ -216,9 +235,11 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/BgfxRenderer3D.cpp
   src/demi/runtime/render/BgfxRenderer3DAssets.cpp
   src/demi/runtime/render/BgfxRenderer3DAnimation.cpp
+  src/demi/runtime/render/BgfxRenderer3DModelLod.cpp
   src/demi/runtime/render/bgfx3d/DebugGeometry3D.cpp
   src/demi/runtime/render/bgfx3d/GpuMesh3D.cpp
   src/demi/runtime/render/bgfx3d/GpuSkinnedMesh3D.cpp
+  src/demi/runtime/render/bgfx3d/GpuSkinPalette3D.cpp
   src/demi/runtime/render/bgfx3d/MeshVertexPreparation3D.cpp
   src/demi/runtime/render/bgfx3d/MeshTransform3D.cpp
   src/demi/runtime/render/bgfx3d/PrimitiveCanvas3D.cpp

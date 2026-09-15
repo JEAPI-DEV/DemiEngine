@@ -67,7 +67,9 @@ def project_configuration(project_file: Path) -> tuple[str, str, str]:
     document = json.loads(project_file.read_text(encoding="utf-8"))
     build = document.get("build", {})
     application_id = build.get("application_id", "dev.jeapi.demi.android")
-    executable = build.get("executable_name", project_file.parent.name)
+    display_name = build.get("display_name", document.get("name", "Demi Game"))
+    default_executable = re.sub(r"[^a-z0-9]", "_", display_name.lower()).strip("_") or "demi_game"
+    executable = build.get("executable_name", default_executable)
     activity = "dev.jeapi.demi.android.DemiActivity"
     return application_id, executable, f"{application_id}/{activity}"
 
@@ -203,13 +205,23 @@ IGNORED_DIRECTORIES = {
 }
 
 REQUIRED_RUNTIME_MARKERS = (
-    "Switched scene to scene://minimal_2d_android/platformer",
     "[runtime] Frame 61",
     "[surface] Java surfaceCreated.",
-    "[render] Requested 60.0 FPS from the Android compositor.",
+    "FPS from the Android compositor.",
+    "[render] bgfx initialized:",
     "[audio] Audio device initialized.",
-    "[save] Wrote save slot settings",
 )
+
+
+def required_runtime_markers(project: Path) -> tuple[str, ...]:
+    document = json.loads(project.read_text(encoding="utf-8"))
+    if document.get("main_scene", "").startswith("scene://minimal_2d_android/"):
+        return REQUIRED_RUNTIME_MARKERS + (
+            "Switched scene to scene://minimal_2d_android/platformer",
+            "[render] Requested 60.0 FPS from the Android compositor.",
+            "[save] Wrote save slot settings",
+        )
+    return REQUIRED_RUNTIME_MARKERS
 
 
 def source_snapshot(project_root: Path) -> dict[str, tuple[int, int]]:
@@ -456,6 +468,40 @@ def qualification_run_interactive_steps(report, critical, adb, package,
         "shell", "pidof", package).stdout.strip()))
 
 
+def qualification_resume_probe(adb, package, component, output, settle_seconds,
+                               session_pids):
+    """Exercise surface destruction/rebinding after the Lua harness has exited."""
+    try:
+        launch(adb, package, component)
+        time.sleep(settle_seconds)
+        before = set(adb.run("shell", "pidof", package).stdout.split())
+        if not before:
+            raise ToolError("No runtime process before backgrounding")
+        session_pids.update(before)
+        adb.run("shell", "input", "keyevent", "HOME")
+        time.sleep(1)
+        adb.run("shell", "am", "start", "-W", "-n", component)
+        time.sleep(settle_seconds)
+        after = set(adb.run("shell", "pidof", package).stdout.split())
+        if before != after:
+            raise ToolError("Runtime process was replaced during background/resume")
+        logs = adb.run("logcat", "-d", "-v", "threadtime", "-s", "DemiEngine").stdout
+        scoped = '\n'.join(line for line in logs.splitlines()
+                           if len(line.split()) > 3 and line.split()[2] in before)
+        required = ("[surface] Java surfaceDestroyed.",
+                    "[surface] Java surfaceCreated.",
+                    "[render] Rebinding bgfx to native window")
+        if any(marker not in scoped for marker in required):
+            raise ToolError("Missing surface destruction/rebinding evidence after resume")
+        image = adb.run("exec-out", "screencap", "-p", binary=True).stdout
+        (output / "resumed.png").write_bytes(image)
+        return {"same_process": True, "surface_rebound": True,
+                "screenshot": "resumed.png",
+                "screenshot_sha256": hashlib.sha256(image).hexdigest()}
+    finally:
+        adb.run("shell", "am", "force-stop", package)
+
+
 def qualify_device(args: argparse.Namespace) -> int:
     project = Path(args.project).resolve()
     demi = Path(args.demi_executable).resolve()
@@ -518,6 +564,9 @@ def qualify_device(args: argparse.Namespace) -> int:
         critical.append(qualification_step(report, "private_files", lambda:
             adb.shell("run-as " + shlex.quote(package) +
                       " sh -c 'find files -type f | head -40'")))
+        critical.append(qualification_step(report, "background_resume", lambda:
+            qualification_resume_probe(adb, package, component, output,
+                                       args.settle_seconds, session_pids)))
     else:
         qualification_run_interactive_steps(
             report, critical, adb, package, component, demi, project, args,
@@ -542,29 +591,12 @@ def qualify_device(args: argparse.Namespace) -> int:
             fatal_markers.append("ANR")
     report["fatal_markers"] = fatal_markers
     report["smoke_coverage"] = {
-        "text_fallback_font":
-            "menu HUD labels render every frame; frame markers + screenshot",
-        "transparent_texture":
-            "menu and gameplay sprites; screenshot hash",
-        "shader_material":
-            "[render] bgfx pipeline + per-frame draws",
-        "audio":
-            "[audio] device initialization marker",
-        "touch_ime":
-            "in-app Mobile.touch actions or touch/save_path/scene_load_input/ime_text steps",
-        "save_path":
-            "[save] settings slot write through the options screen",
-        "network_loopback":
-            "in-app ENet host socket and TLS wire echo loopback via the "
-            "mobile test harness",
-        "rotation_safe_area":
-            "rotation step + [ui] safe-area marker",
-        "suspend_resume":
-            "background_resume and low_memory steps",
-        "surface_recreation":
-            "background_resume across surface generations",
+        "runtime": "required initialization/frame markers and captured screenshot",
+        "gameplay": "only the named Lua test results or recorded interactive steps",
+        "lifecycle": "not implied by Lua test success; inspect recorded steps",
+        "performance": "not qualified by this functional smoke test",
     }
-    missing_runtime_markers = [marker for marker in REQUIRED_RUNTIME_MARKERS
+    missing_runtime_markers = [marker for marker in required_runtime_markers(project)
                                if marker not in logs]
     report["missing_runtime_markers"] = missing_runtime_markers
     critical.append(not missing_runtime_markers)

@@ -2,6 +2,8 @@
 
 2026-09-14. GPU skinning is now the default optimization for supported models on
 Vulkan. No new model format, component, prefab or package is required.
+The later [Milestone 2 qualification](3d-milestone-2-qualification.md) includes
+final desktop and physical Android measurements with the completed optimizations.
 
 ## Implementation boundary
 
@@ -25,6 +27,12 @@ normal directions. Authored smooth/hard normals replace the CPU fallback's
 per-pose geometric reconstruction, so lighting is not pixel-identical between
 the two paths. No polygons or animation updates are removed.
 
+The vertex shader skips palette loads/arithmetic for zero-valued trailing
+influences. It does not drop small weights, renormalize them, or change the
+four-influence format. The UAL probe has 3,734 one-influence, 3,746 two-influence,
+466 three-influence and 600 four-influence vertices. This is useful for sparse
+weights, not a promise of the same speedup on every rig.
+
 GPU-only preparation batches contain up to 128 palettes (at most 1 MiB of palette
 output). CPU or mixed batches retain the previous 16-job limit and vertex-output
 budget. Oversized CPU geometry is handled alone. Resource caches are invalidated
@@ -35,10 +43,14 @@ cached; uniforms are still bound for each draw.
 
 - Vulkan (including the standard Android Vulkan renderer); Noop is supported for
   pipeline tests only. OpenGL/OpenGLES keep CPU skinning in this initial slice.
-- One skin with 1–128 joints and the importer's four-influence vertex format,
-  indexed triangles, skinned vertices with finite
+- Multiple skins and animated rigid parts, with at most 128 referenced matrix
+  entries combined and the importer's four-influence vertex format. Indexed
+  triangles and vertices with finite
   weights and valid authored normals. Invalid inactive joint indices are replaced
   with zero before upload, so even zero-weight shader operands stay in bounds.
+  The palette maps referenced `(skin, joint)` pairs, rigid owner nodes and an
+  identity entry where needed. Unused joints do not consume entries. See the
+  [multi-skin follow-up](3d-multi-skin.md) for the expanded contract and evidence.
 - Built-in material, no procedural bone segments, no active layer/blend. Other
   cases retain the existing CPU behavior; this does not add missing blend/layer
   functionality to either path.

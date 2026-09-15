@@ -8,10 +8,15 @@ uniform mat4 u_skinImport;
 
 void main()
 {
-    mat4 skin = u_skinMatrices[int(a_indices.x)] * a_weight.x
-              + u_skinMatrices[int(a_indices.y)] * a_weight.y
-              + u_skinMatrices[int(a_indices.z)] * a_weight.z
-              + u_skinMatrices[int(a_indices.w)] * a_weight.w;
+    // Imported weights often use only one or two influences. Zero-weight rows
+    // contribute nothing; avoid their palette loads and matrix arithmetic.
+    mat4 skin = u_skinMatrices[int(a_indices.x)] * a_weight.x;
+    if (a_weight.y != 0.0)
+        skin += u_skinMatrices[int(a_indices.y)] * a_weight.y;
+    if (a_weight.z != 0.0)
+        skin += u_skinMatrices[int(a_indices.z)] * a_weight.z;
+    if (a_weight.w != 0.0)
+        skin += u_skinMatrices[int(a_indices.w)] * a_weight.w;
     // The CPU reference applies import translation after the weighted xyz sum,
     // even when source weights do not sum to exactly one.
     vec3 posed = mul(skin, vec4(a_position, 1.0)).xyz;

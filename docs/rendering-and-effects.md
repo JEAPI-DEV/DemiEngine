@@ -51,6 +51,13 @@ selects the matching binary by stable `asset://` ID. Invalid or missing
 programs fail startup with diagnostics instead of silently changing a
 material's appearance.
 
+The renderer's default 3D material automatically selects a directional-only
+fragment variant when the camera's resolved lighting has no active point or
+spot lights. Ambient/directional light, texture, alpha cutoff and debug output
+are unchanged. Positive-range, positive-intensity local lights select the full
+shader immediately; custom material programs are never substituted. No asset
+flags or project settings are required for this optimization.
+
 Builds normally compile bgfx's `shaderc` host tool automatically. Offline,
 cross, and sanitizer build trees can reuse an existing executable with
 `-DDEMI_HOST_SHADERC=/absolute/path/to/shaderc`; CMake validates the path and

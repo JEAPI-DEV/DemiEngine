@@ -14,7 +14,9 @@
     } },
     { "id": "floor", "components": {
       "Transform3D": { "position": [0, -0.02, 0] },
-      "MeshRenderer": { "shape": "plane", "size": [200, 1, 200], "color": [0.08, 0.13, 0.20, 1] }
+      "MeshRenderer": { "shape": "plane", "size": [200, 1, 200], "color": [0.08, 0.13, 0.20, 1] },
+      "BoxCollider3D": { "size": [200, 1, 200], "offset": [0, -0.5, 0] },
+      "Rigidbody3D": { "body_type": "static" }
     } },
     { "id": "crowd", "components": {
       "LuaScript": { "module": "script://scripts/crowd.lua", "properties": { "count": 64 } }

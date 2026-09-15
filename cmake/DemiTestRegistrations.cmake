@@ -1,5 +1,11 @@
 # Unit, subsystem, CLI, and networking test registration.
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME demi-android-crowd-benchmark-tests
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/tests/android_crowd_benchmark_tests.py")
+add_test(NAME demi-bgfx-android-suboptimal-patch-tests
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/tests/bgfx_android_suboptimal_patch_tests.py")
 add_test(NAME demi-android-device-tool-tests
   COMMAND "${Python3_EXECUTABLE}"
     "${CMAKE_SOURCE_DIR}/tests/android_device_tool_tests.py")
@@ -193,6 +199,7 @@ add_test(NAME demi-primitive-canvas3d-tests COMMAND demi-primitive-canvas3d-test
 add_test(NAME demi-debug-geometry3d-tests COMMAND demi-debug-geometry3d-tests)
 add_test(NAME demi-gpu-mesh3d-tests COMMAND demi-gpu-mesh3d-tests)
 add_test(NAME demi-gpu-skinning3d-tests COMMAND demi-gpu-skinning3d-tests)
+add_test(NAME demi-bgfx-profile-callback-tests COMMAND demi-bgfx-profile-callback-tests)
 set_tests_properties(demi-gpu-skinning3d-tests PROPERTIES ENVIRONMENT "DEMI_GPU_SKINNING=1")
 add_test(NAME demi-mesh-deformation3d-tests COMMAND demi-mesh-deformation3d-tests)
 add_test(NAME demi-mesh-geometry3d-tests COMMAND demi-mesh-geometry3d-tests)
@@ -222,6 +229,7 @@ add_test(NAME demi-input-action-tests COMMAND demi-input-action-tests)
 add_test(NAME demi-sprite-animation-tests COMMAND demi-sprite-animation-tests)
 add_test(NAME demi-animation-primitives-tests COMMAND demi-animation-primitives-tests)
 add_test(NAME demi-animation-phase7-tests COMMAND demi-animation-phase7-tests)
+add_test(NAME demi-visual-animation-budget3d-tests COMMAND demi-visual-animation-budget3d-tests)
 add_test(NAME demi-audio-phase7-tests COMMAND demi-audio-phase7-tests)
 add_test(NAME demi-asset-pipeline-tests COMMAND demi-asset-pipeline-tests)
 add_test(NAME demi-asset-streaming-tests COMMAND demi-asset-streaming-tests)

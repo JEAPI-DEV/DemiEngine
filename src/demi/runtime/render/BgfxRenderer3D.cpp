@@ -1,4 +1,5 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 
 #include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
@@ -63,32 +64,6 @@ float debugModeValue(const std::string &mode) {
   return 0.0F;
 }
 
-struct ModelLodSelection {
-  const std::string *model = nullptr;
-  bool isCulled = false;
-  int level = 0;
-};
-
-ModelLodSelection selectModelLod(const MeshRendererComponent &mesh,
-                                 const Vec3 position, const Vec3 camera,
-                                 const bool isAnimated) {
-  const float x = position.x - camera.x;
-  const float y = position.y - camera.y;
-  const float z = position.z - camera.z;
-  const float distanceSquared = x * x + y * y + z * z;
-  const auto reached = [distanceSquared](const float distance) {
-    return distance > 0.0F && distanceSquared >= distance * distance;
-  };
-  if (reached(mesh.cullDistance))
-    return {.model = &mesh.model, .isCulled = true};
-  if (!isAnimated && !mesh.lowLodModel.empty() && reached(mesh.lowLodDistance))
-    return {.model = &mesh.lowLodModel, .level = 2};
-  if (!isAnimated && !mesh.mediumLodModel.empty() &&
-      reached(mesh.mediumLodDistance))
-    return {.model = &mesh.mediumLodModel, .level = 1};
-  return {.model = &mesh.model};
-}
-
 } // namespace
 
 BgfxRenderer3D::BgfxRenderer3D(GpuResources &resources,
@@ -124,6 +99,8 @@ bool BgfxRenderer3D::initialize(std::string &error) {
   meshProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Lit3D, error);
   instancedMeshProgram_ =
       resources_.createBuiltinProgram(BuiltinProgram::Lit3DInstanced, error);
+  directionalMeshProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Directional3D, error);
+  directionalInstancedProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Directional3DInstanced, error);
   meshSampler_ = resources_.createSampler("s_texColor", error);
   tintUniform_ =
       resources_.createUniform("u_tint", UniformType::Vec4, 1, error);
@@ -159,7 +136,8 @@ bool BgfxRenderer3D::initialize(std::string &error) {
                                             .wrap = TextureWrap::Clamp,
                                             .debugName = "3D white fallback"},
                                            error);
-  if (!meshProgram_ || !instancedMeshProgram_ || !meshSampler_ ||
+  if (!meshProgram_ || !instancedMeshProgram_ || !directionalMeshProgram_ ||
+      !directionalInstancedProgram_ || !meshSampler_ ||
       !tintUniform_ || !alphaCutoffUniform_ || !debugModeUniform_ ||
       !whiteTexture_ || !lightDirectionUniform_ || !lightColorUniform_ ||
       !ambientColorUniform_ || !pointPositionRangeUniform_ ||
@@ -175,9 +153,10 @@ bool BgfxRenderer3D::initialize(std::string &error) {
       (resources_.shaderBackend() == "vulkan" || resources_.shaderBackend() == "noop");
   if (gpuSkinningEnabled_) {
     skinnedMeshProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Lit3DSkinned, error);
-    skinMatricesUniform_ = resources_.createUniform("u_skinMatrices", UniformType::Matrix4, MaximumGpuSkinJoints, error);
+    directionalSkinnedProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Directional3DSkinned, error);
+    skinMatricesUniform_ = resources_.createUniform("u_skinMatrices", UniformType::Matrix4, MaximumGpuSkinMatrices, error);
     skinImportUniform_ = resources_.createUniform("u_skinImport", UniformType::Matrix4, 1, error);
-    if (!skinnedMeshProgram_ || !skinMatricesUniform_ || !skinImportUniform_) {
+    if (!skinnedMeshProgram_ || !directionalSkinnedProgram_ || !skinMatricesUniform_ || !skinImportUniform_) {
       shutdown();
       return false;
     }
@@ -187,6 +166,11 @@ bool BgfxRenderer3D::initialize(std::string &error) {
 }
 
 void BgfxRenderer3D::shutdown() {
+  for (const auto program : {directionalMeshProgram_, directionalInstancedProgram_, directionalSkinnedProgram_})
+    if (program) resources_.destroy(program);
+  directionalMeshProgram_ = {};
+  directionalInstancedProgram_ = {};
+  directionalSkinnedProgram_ = {};
   if (skinnedMeshProgram_) resources_.destroy(skinnedMeshProgram_);
   if (skinMatricesUniform_) resources_.destroy(skinMatricesUniform_);
   if (skinImportUniform_) resources_.destroy(skinImportUniform_);
@@ -365,6 +349,11 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       frame.lightingOverride
           ? *frame.lightingOverride
           : collectSceneLighting3D(world, frame.camera.renderMask);
+  const bool directionalOnly = !lighting.hasLocalLights();
+  RuntimeProfiler::setGauge("Renderer3D.directional_shader", directionalOnly ? 1.0 : 0.0);
+  const ProgramHandle defaultMeshProgram = directionalOnly ? directionalMeshProgram_ : meshProgram_;
+  const ProgramHandle defaultInstancedProgram = directionalOnly ? directionalInstancedProgram_ : instancedMeshProgram_;
+  const ProgramHandle defaultSkinnedProgram = directionalOnly ? directionalSkinnedProgram_ : skinnedMeshProgram_;
   const std::array<float, 4> whiteTint{1.0F, 1.0F, 1.0F, 1.0F};
   const std::array<float, 4> noAlphaCutoff{};
   const std::array<float, 4> debugMode{debugModeValue(frame.camera.debugMode),
@@ -415,8 +404,8 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       const WorldTransform3D &transform = visible.transform;
       const auto *player = entity.component<AnimationPlayer3DComponent>();
       const ModelLodSelection lod =
-          selectModelLod(*mesh, transform.position, frame.position,
-                         player != nullptr || !dents.empty());
+          selectModelLod(*mesh, player, transform.position, frame.position,
+                         !dents.empty());
       if (lod.isCulled) {
         ++distanceCulled;
         continue;
@@ -430,7 +419,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       const MaterialBinding *material = materials_.find(mesh->material);
       const ProgramHandle program = material != nullptr && material->program
                                         ? material->program
-                                        : meshProgram_;
+                                        : defaultMeshProgram;
       DrawState state =
           material != nullptr
               ? material->state
@@ -559,7 +548,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
               .count=static_cast<std::uint16_t>(skinPalette->size()/16)});
           drawUniforms.push_back({.handle=skinImportUniform_,
               .values=animatedModels_.at(selectedModel).importTransform});
-          queued = gpuSkin->draw(commands_, frame.viewId, skinnedMeshProgram_,
+          queued = gpuSkin->draw(commands_, frame.viewId, defaultSkinnedProgram,
               resolvedTexture, meshSampler_, composeMeshTransform3D(transform, mesh->size),
               state, drawUniforms, error);
           if (queued) {
@@ -672,12 +661,12 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       }
       const bool queued =
           group.transforms.size() == 1U
-              ? group.mesh->draw(commands_, frame.viewId, meshProgram_,
+              ? group.mesh->draw(commands_, frame.viewId, defaultMeshProgram,
                                  group.texture, meshSampler_,
                                  group.transforms.front(), state, error,
                                  groupUniforms)
               : group.mesh->drawInstanced(commands_, frame.viewId,
-                                          instancedMeshProgram_, group.texture,
+                                          defaultInstancedProgram, group.texture,
                                           meshSampler_, group.transforms, state,
                                           error, groupUniforms);
       if (!queued)

@@ -2,10 +2,9 @@
 
 #include "demi/assets/GltfSkinnedModel.h"
 #include "demi/runtime/render/bgfx3d/GpuMesh3D.h"
+#include "demi/runtime/render/bgfx3d/GpuSkinPalette3D.h"
 
 namespace demi::runtime::render {
-
-inline constexpr std::uint16_t MaximumGpuSkinJoints = 128;
 
 struct GpuSkinnedVertex3D {
   GpuMeshVertex3D vertex;
@@ -17,6 +16,7 @@ struct GpuSkinnedVertex3D {
 [[nodiscard]] bool
 buildGpuSkinVertices(const assets::GltfSkinnedModel3D &model,
                      std::vector<GpuSkinnedVertex3D> &vertices,
+                     GpuSkinPaletteLayout &layout,
                      std::string &reason);
 
 class GpuSkinnedMesh3D {
@@ -27,6 +27,7 @@ public:
   GpuSkinnedMesh3D &operator=(const GpuSkinnedMesh3D &) = delete;
   [[nodiscard]] bool upload(std::span<const GpuSkinnedVertex3D> vertices,
                             std::span<const std::uint32_t> indices,
+                            GpuSkinPaletteLayout layout,
                             std::string &error);
   [[nodiscard]] bool
   draw(RenderCommands &commands, std::uint16_t view, ProgramHandle program,
@@ -34,11 +35,13 @@ public:
        const std::array<float, 16> &transform, const DrawState &state,
        std::span<const DrawUniformValue> uniforms, std::string &error) const;
   [[nodiscard]] std::uint32_t indexCount() const { return indexCount_; }
+  [[nodiscard]] const GpuSkinPaletteLayout &paletteLayout() const { return layout_; }
 
 private:
   GpuResources &resources_;
   BufferHandle vertices_, indices_;
   std::uint32_t vertexCount_ = 0, indexCount_ = 0;
+  GpuSkinPaletteLayout layout_;
 };
 
 } // namespace demi::runtime::render

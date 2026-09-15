@@ -16,6 +16,7 @@
 #include "demi/runtime/render/bgfx3d/PostProcessRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveCanvas3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
+#include "demi/runtime/render/bgfx3d/VisualAnimationBudget3D.h"
 #include "demi/runtime/scene/model/World.h"
 
 #include <chrono>
@@ -24,6 +25,11 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+namespace demi::runtime {
+struct MeshRendererComponent;
+struct AnimationPlayer3DComponent;
+}
 
 namespace demi::runtime::render {
 
@@ -55,6 +61,14 @@ public:
   }
 
 private:
+  struct ModelLodSelection {
+    const std::string *model = nullptr;
+    bool isCulled = false;
+    int level = 0;
+  };
+  [[nodiscard]] ModelLodSelection selectModelLod(
+      const MeshRendererComponent &mesh, const AnimationPlayer3DComponent *player,
+      Vec3 position, Vec3 camera, bool preserveHigh) const;
   struct RenderTarget {
     RenderTargetHandles handles;
     std::uint16_t width = 1;
@@ -69,6 +83,7 @@ private:
     std::string animationModel;
     std::unique_ptr<GpuSkinnedMesh3D> gpuSkin;
     std::vector<float> skinPalette;
+    VisualAnimationSample3D animationSample;
   };
 
   [[nodiscard]] bool prepareAnimatedMeshes(
@@ -84,6 +99,7 @@ private:
   TextureLibrary2D textures_;
   MaterialLibrary materials_;
   ProgramHandle meshProgram_;
+  ProgramHandle directionalMeshProgram_, directionalInstancedProgram_, directionalSkinnedProgram_;
   bool gpuSkinningRequested_ = true;
   bool gpuSkinningEnabled_ = false;
   ProgramHandle skinnedMeshProgram_;

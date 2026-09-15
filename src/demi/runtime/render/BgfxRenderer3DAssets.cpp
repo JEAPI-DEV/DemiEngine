@@ -149,10 +149,11 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
                                 .colors = std::move(vertexColors)};
         if (gpuSkinningEnabled_ && animated) {
           std::vector<GpuSkinnedVertex3D> skinVertices;
+          GpuSkinPaletteLayout layout;
           std::string reason;
-          if (buildGpuSkinVertices(*animated, skinVertices, reason)) {
+          if (buildGpuSkinVertices(*animated, skinVertices, layout, reason)) {
             cached->gpuSkin = std::make_unique<GpuSkinnedMesh3D>(resources_);
-            if (!cached->gpuSkin->upload(skinVertices, animated->indices, error)) {
+            if (!cached->gpuSkin->upload(skinVertices, animated->indices, std::move(layout), error)) {
               diagnostics.push_back(asset.id + ": " + error);
               success = false;
               cached->gpuSkin.reset();

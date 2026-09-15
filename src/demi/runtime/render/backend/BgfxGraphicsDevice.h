@@ -3,13 +3,16 @@
 #include "demi/runtime/render/backend/GraphicsDevice.h"
 
 #include <cstdint>
+#include <memory>
 #include <string>
+
+namespace bgfx { struct CallbackI; }
 
 namespace demi::runtime::render {
 
 class BgfxGraphicsDevice final : public GraphicsDevice {
 public:
-  BgfxGraphicsDevice() = default;
+  BgfxGraphicsDevice();
   ~BgfxGraphicsDevice() override;
 
   BgfxGraphicsDevice(const BgfxGraphicsDevice &) = delete;
@@ -46,6 +49,7 @@ private:
   GraphicsFrameTimings timings_;
   GpuFrameSampleFilter gpuSamples_;
   std::int64_t lastCpuEnd_ = 0;
+  std::unique_ptr<bgfx::CallbackI> profileCallback_;
 };
 
 } // namespace demi::runtime::render

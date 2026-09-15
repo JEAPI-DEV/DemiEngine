@@ -9,12 +9,14 @@ uniform vec4 u_ambientColor;
 uniform vec4 u_tint;
 uniform vec4 u_alphaCutoff;
 uniform vec4 u_debugMode;
+#ifndef DEMI_DIRECTIONAL_ONLY
 uniform vec4 u_pointPositionRange[4];
 uniform vec4 u_pointColorIntensity[4];
 uniform vec4 u_spotPositionRange[4];
 uniform vec4 u_spotDirectionOuter[4];
 uniform vec4 u_spotColorIntensity[4];
 uniform vec4 u_spotInner[4];
+#endif
 
 void main()
 {
@@ -30,6 +32,7 @@ void main()
     float diffuse = max(dot(normal, directionalDirection), 0.0);
     vec3 lighting = u_ambientColor.rgb +
                     u_lightColor.rgb * diffuse * u_lightDirection.w;
+#ifndef DEMI_DIRECTIONAL_ONLY
     for (int ii = 0; ii < 4; ++ii)
     {
         if (u_pointPositionRange[ii].w > 0.0 &&
@@ -65,6 +68,7 @@ void main()
                         spotAttenuation * spotAttenuation;
         }
     }
+#endif
     if (u_debugMode.x > 0.5 && u_debugMode.x < 1.5)
     {
         gl_FragColor = vec4(normal * 0.5 + 0.5, 1.0);

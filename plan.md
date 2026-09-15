@@ -15,18 +15,19 @@ Expand the experimental 3D foundation into a polished, responsive workflow for
 This is a planned direction, not a claim that the capabilities below already
 exist or that Demi matches an established AAA engine.
 
-### Status Audit — source snapshot `fef9c67`
+### Status Audit and Qualification Updates
 
 Checked items below have an implementation and supporting tests or recorded
-evidence. Partial items are split into delivered work and remaining scope rather
-than marking an entire milestone complete. Benchmark results apply to their
-recorded builds, workloads, hardware, and settings; this documentation audit did
-not rerun benchmarks or qualify every feature at the current revision.
+evidence. The original source audit used `fef9c67`; Milestone 2 was subsequently
+qualified on 2026-09-15 with fresh desktop/device runs and regression tests.
+Partial items are split into delivered work and remaining scope. Benchmark
+results apply to their recorded builds, workloads, hardware, and settings,
+not every engine feature or production game.
 
 | Milestone | Current status |
 | --- | --- |
 | 1 — Baselines/feasibility | Complete: baseline evidence and portable Blast/Jolt integration proof, including physical Android CPU execution. Production and expanded-workload qualification belongs to later milestones. |
-| 2 — Scaling | Measured lookup/contact/sleeping improvements, initial Vulkan GPU skinning and scoped desktop qualifications delivered; animation budgets, broader rig/material support and mixed game workloads remain open. |
+| 2 — Scaling | Complete for the declared reference gate: GPU rig support, temporal/model LOD, desktop 2,000-object 1080p scaling, and physical Android 64/256-object scaling/lifecycle. 1440p was measured; Radeon’s 2,000-object stretch miss remains explicit. See [closure evidence](docs/3d-milestone-2-qualification.md). |
 | 3 — Localized destruction | Collider-asset prerequisites delivered; production fracture assets, scheduler, and compound-body transitions are not implemented. |
 | 4 — Visual/gameplay quality | Third-person mechanics foundation and native visual denting delivered; production animation/visual qualification remains open. |
 | 5 — Structural collapse | Impact-energy telemetry exists; structural connections, stress, fracture-driven collapse, and debris/character policy remain open. |
@@ -182,9 +183,10 @@ Jolt or rewrite unrelated subsystems based on entity counts alone.
 
 ### Milestone 2: Engine Scaling
 
-- [ ] Complete animated-character and richer mixed-content performance coverage,
-  including sustained runs. Streaming and destruction workloads are tracked in
-  Milestones 6 and 3 respectively.
+- [x] Add animated-character and mixed-content probes at 1080p/1440p, including
+  one-minute mixed runs with all bodies active and collision contacts verified.
+  [High-resolution evidence](docs/3d-m2-high-resolution.md) records exact settings,
+  passes and misses. Streaming/destruction remain in Milestones 6/3.
 - [x] Add matched independent-animation/frozen crowd probes, per-frame CPU
   skinning/rebuild/upload scopes, full-population/playback capture checks, and
   reuse immutable model attributes instead of rebuilding them every pose.
@@ -214,16 +216,39 @@ Jolt or rewrite unrelated subsystems based on entity counts alone.
   joints), with a shared CPU pose/reference path, authored normals, cache/reload
   handling and explicit CPU fallback. [GPU skinning evidence](docs/3d-gpu-skinning.md)
   includes NVIDIA and Radeon crowd captures. This is not universal rig/material
-  support or mixed-gameplay qualification.
-- [ ] Add animation LOD/update budgets and expand GPU skinning beyond the initial
-  supported rig/material subset. Static-only model LOD remains a limitation.
-- [ ] Keep collision-critical simulation and input responsive when AI or distant
-  visual animation uses a reduced update rate.
+  support or whole-game qualification.
+- [x] Add opt-in distance-based visual pose rates and clip-compatible authored
+  model LOD for animated meshes. Defaults preserve full-rate rendering; source,
+  clip and near-camera changes refresh immediately. This is temporal budgeting
+  plus authored model selection, not automatic mesh decimation or a global
+  millisecond scheduler. GPU rig expansion is recorded below.
+- [x] Support multiple skins, rigid node-owned parts and unweighted vertices in
+  one GPU palette, retaining per-skin inverse binds and the 128 referenced-matrix
+  budget. [Multi-skin evidence](docs/3d-multi-skin.md) covers CPU equivalence and
+  a geometry-preserving two-skin character probe. Material/blend/procedural GPU
+  restrictions and more advanced LOD policies remain documented limits.
+- [x] Keep clocks, root motion, events, fixed-step collision and HUD input
+  independent of visual pose budgets; regression tests cover 1 Hz visual posing
+  with normal gravity/collision/input and unchanged animation events/root motion.
+- [x] Run physical Android functional checks: Pixel 7 Vulkan, three animation E2Es,
+  four 2D E2Es, automatic background/resume and portrait/landscape transitions. See the device follow-up in
+  [high-resolution evidence](docs/3d-m2-high-resolution.md).
+- [x] Complete optimized Android scaling/performance qualification. Four one-minute
+  native 2400x1080 runs at 64/256 animated or mixed objects pass p95 <= 16.7 ms,
+  p99 <= 25 ms with full-rate poses, collisions intact and no lost fixed time.
+  [Swapchain investigation and fix](docs/3d-m2-android-swapchain.md) identifies
+  recreation on every SUBOPTIMAL advisory; the maintained patch retains real
+  resize/surface-error handling. Sparse-influence skinning and equivalent
+  directional-only default shading reduce remaining GPU work. [Earlier probes](docs/3d-m2-android-scaling.md)
+  remain historical evidence, not the final qualification result.
 
 Exit gate: declared scaling workloads meet agreed budgets with collisions intact;
 focused regression tests and existing 2D/3D probes remain valid.
-The recorded reference cases pass within their scope; this is not completion of
-the animated/mixed-content, sustained, or mobile parts of the full contract.
+Milestone 2 is complete within the [qualified workload/platform scope](docs/3d-milestone-2-qualification.md).
+Desktop 1080p and physical Android reference cases pass. Radeon’s 2,000-object
+1440p mixed case remains a measured stretch-limit miss (16.88 ms p95), not a
+reference-1080p failure or a hidden pass. This is not universal rig/material,
+all-device, full-game or thermal-soak qualification.
 
 ### Milestone 3: Localized Destruction and Asset Pipeline
 
@@ -365,17 +390,16 @@ streaming, saving/loading, and stress runs within declared performance budgets.
 Do not restart the already delivered primitive/barrel baselines. The native
 compound-transition probe now covers mass/inertia, inherited motion, collision,
 chunk identity, cancellation and body-capacity rollback on Linux and a Pixel 7.
-The active Milestone 2 step is broader character qualification: Vulkan GPU
-skinning now has supported-rig NVIDIA/Radeon evidence, including a one-minute
-2,000-character visual probe. Next address animation LOD/update budgets, more
-rig/material types, sustained/mobile checks and representative mixed gameplay.
-Keep animation events and collision-critical work independent of visual budgets.
-Milestone 3 then brings compounds into Demi's shared physics/asset/entity ownership
+Milestone 2 is closed with desktop and physical Android reference evidence.
+Retain the measured Radeon 1440p stretch limit and broader material/rig limitations
+explicitly; keep animation events and collision-critical work independent of
+visual budgets. The next implementation milestone is Milestone 3, bringing
+compounds into Demi's shared physics/asset/entity ownership
 model, with an authored collider contract and persistent topology ownership.
 Use realistic workloads to set preparation/commit/response budgets before the
 affected-structure scheduler and minimal `destruction_3d_lab` wall/hammer/rocket
-scene. Landscape traversal, sustained desktop
-runs, and full Android game qualification remain explicit roadmap gaps. The
+scene. Landscape traversal, long thermal/asset-heavy soaks, and full Android game
+qualification remain explicit roadmap gaps. The
 tool-level probe does not complete production compound/destruction support.
 
 Use an optimized build for performance qualification and run measurements

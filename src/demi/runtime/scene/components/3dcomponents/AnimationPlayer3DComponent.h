@@ -32,16 +32,24 @@ struct AnimationPlayer3DComponent {
       ComponentFieldDescriptor{"speed", ComponentFieldType::Number},
       ComponentFieldDescriptor{"time", ComponentFieldType::Number},
       ComponentFieldDescriptor{"loop", ComponentFieldType::Boolean},
-      ComponentFieldDescriptor{"playing", ComponentFieldType::Boolean}};
+      ComponentFieldDescriptor{"playing", ComponentFieldType::Boolean},
+      ComponentFieldDescriptor{"visual_update_rate", ComponentFieldType::Number,
+                               false, true, {}, 0, true, false, true, true, false, 240, true},
+      ComponentFieldDescriptor{"visual_update_distance", ComponentFieldType::Number,
+                               false, true, {}, 0, true}};
   static constexpr ComponentEditorMetadata editor{"Animation",
                                                   "Animation Player 3D"};
   static void parse(const nlohmann::json &json, Entity &entity);
+  static nlohmann::json defaults();
 
   std::string clipName;
   float speed = 1.0F;
   float time = 0.0F;
   bool loop = true;
   bool playing = true;
+  float visualUpdateRate = 0.0F; // Zero keeps full-rate rendering.
+  float visualUpdateDistance = 0.0F;
+  double visualClock = 0.0; // Runtime-only, independent of clip speed and cameras.
   std::string previousClipName;
   float previousTime = 0.0F;
   float blendWeight = 1.0F;

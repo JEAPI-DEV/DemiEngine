@@ -142,6 +142,29 @@ transitions, blend spaces, and layers.
 
 ### Animation performance evidence
 
+`AnimationPlayer3D` supports opt-in temporal LOD:
+
+```json
+{ "clip_name": "Walk_Loop", "visual_update_rate": 30, "visual_update_distance": 30 }
+```
+
+This refreshes distant visual poses at up to 30 Hz beyond 30 world units; nearer
+poses stay full rate. The default rate is zero (unrestricted). Distant poses are
+held between samples, not interpolated, so this is an explicit visual-quality
+tradeoff. Root transforms still render every frame. Gameplay clocks, events,
+root motion, input and fixed-step collision are never throttled by these fields.
+Stable entity phases distribute refreshes across frames. Clip/source changes,
+rewinds and near-camera requests bypass the cadence; active blends, layers and
+procedural overrides stay full rate. The shared Inspector/schema expose both
+fields; the internal presentation clock is never serialized.
+
+Animated meshes can also use existing `MeshRenderer.medium_lod_model` and
+`low_lod_model` references. Candidates must be loaded and contain the same named
+clip with matching duration; missing/incompatible clips, active blends/layers
+and procedural overrides keep the high model. Author compatible origin, scale,
+poses and bounds in the LOD assets. Colliders and authored model references do
+not change. This is selection of authored models, not automatic decimation.
+
 The crowd scene in `examples/animation_3d` provides matched live/frozen visual
 animation workloads. See its README for the visible benchmark command. Runtime
 profiling exposes `Renderer3D.animation_rebuild` (inclusive), `Renderer3D.skin_cpu`
@@ -161,9 +184,14 @@ topology are reused from the model-owned cache and invalidated by asset reload;
 positions and normals still update per animated pose on the CPU fallback.
 
 Vulkan now automatically uses GPU skinning for supported `AnimationPlayer3D`
-models: one skin, at most 128 joints, valid weights and authored vertex normals,
+models: multiple skins and animated rigid parts, at most 128 referenced matrix
+entries combined, valid weights and authored vertex normals,
 with the built-in material and no procedural override or active layer/blend.
 The original model buffers remain resident; only bone matrices are updated.
+Referenced `(skin, joint)` pairs stay distinct so each skin keeps its own inverse
+binds. Rigid vertices use their owner node's pose; unweighted skinned vertices
+use identity before the common import transform, matching CPU behavior. Unused
+joints do not consume GPU palette entries.
 `GltfSkinnedModel3D::samplePose`/`bindPose` provide the shared engine-owned pose,
 and `posePositions` is the CPU reference. Gameplay timing, root motion and
 animation events remain CPU-owned and are not reduced in frequency.

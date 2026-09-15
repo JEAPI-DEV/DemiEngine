@@ -17,6 +17,15 @@ struct SceneLighting3D {
   std::array<float, 16> spotDirectionOuter{};
   std::array<float, 16> spotColorIntensity{};
   std::array<float, 16> spotInner{};
+
+  [[nodiscard]] bool hasLocalLights() const {
+    for (std::size_t index = 3; index < 16; index += 4) {
+      if ((pointPositionRange[index] > 0 && pointColorIntensity[index] > 0) ||
+          (spotPositionRange[index] > 0 && spotColorIntensity[index] > 0))
+        return true;
+    }
+    return false;
+  }
 };
 
 [[nodiscard]] SceneLighting3D

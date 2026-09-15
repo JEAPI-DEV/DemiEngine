@@ -37,6 +37,9 @@ enum class BuiltinProgram {
   Lit3D,
   Lit3DInstanced,
   Lit3DSkinned,
+  Directional3D,
+  Directional3DInstanced,
+  Directional3DSkinned,
   PostProcess2D
 };
 enum class UniformType { Vec4, Matrix3, Matrix4 };

@@ -320,6 +320,25 @@ int main() {
   assert(std::any_of(reloaded.begin(), reloaded.end(), [](const auto &entry) {
     return entry.name == "Renderer3D.animation_rebuild" && entry.calls == 41;
   }));
+  auto lightingFrame = frame;
+  for (int lightingCase = 0; lightingCase < 4; ++lightingCase) {
+    lightingFrame.lightingOverride = SceneLighting3D{};
+    if (lightingCase == 1) {
+      lightingFrame.lightingOverride->pointPositionRange[3] = 10;
+      lightingFrame.lightingOverride->pointColorIntensity[3] = 1;
+    } else if (lightingCase == 2) {
+      lightingFrame.lightingOverride->spotPositionRange[15] = 10;
+      lightingFrame.lightingOverride->spotColorIntensity[15] = 1;
+    }
+    RuntimeProfiler::beginFrame();
+    assert(renderer.renderFrame(world, lightingFrame, 0.016F, error));
+    static_cast<void>(graphics.endFrame());
+    const auto entries = RuntimeProfiler::frameEntries();
+    const double expected = lightingCase == 0 || lightingCase == 3 ? 1.0 : 0.0;
+    assert(std::any_of(entries.begin(), entries.end(), [expected](const auto &entry) {
+      return entry.name == "Renderer3D.directional_shader" && entry.gauge == expected;
+    }));
+  }
   RuntimeProfiler::setEnabled(false);
 
   renderer.shutdown();

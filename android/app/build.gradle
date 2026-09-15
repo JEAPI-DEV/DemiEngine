@@ -265,6 +265,18 @@ android {
     }
 
     buildTypes {
+        profile {
+            initWith debug
+            debuggable true
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['debug']
+            externalNativeBuild {
+                cmake {
+                    arguments "-DCMAKE_BUILD_TYPE=RelWithDebInfo"
+                    cppFlags "-DDEMI_ANDROID_PROFILE=1"
+                }
+            }
+        }
         release {
             debuggable false
             minifyEnabled false

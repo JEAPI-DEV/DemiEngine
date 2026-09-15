@@ -8,6 +8,9 @@
 #include <fs_demi_lit_essl.h>
 #include <fs_demi_lit_glsl.h>
 #include <fs_demi_lit_spv.h>
+#include <fs_demi_directional_glsl.h>
+#include <fs_demi_directional_essl.h>
+#include <fs_demi_directional_spv.h>
 #include <fs_demi_post_process_essl.h>
 #include <fs_demi_post_process_glsl.h>
 #include <fs_demi_post_process_spv.h>
@@ -37,6 +40,13 @@ namespace {
 constexpr std::uint16_t Invalid = std::numeric_limits<std::uint16_t>::max();
 
 const bgfx::EmbeddedShader EmbeddedShaders[] = {
+    {"fs_demi_directional",
+     {{bgfx::RendererType::OpenGLES, fs_demi_directional_essl, sizeof(fs_demi_directional_essl)},
+      {bgfx::RendererType::OpenGL, fs_demi_directional_glsl, sizeof(fs_demi_directional_glsl)},
+      {bgfx::RendererType::Vulkan, fs_demi_directional_spv, sizeof(fs_demi_directional_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
     {"vs_demi_skinned",
      {{bgfx::RendererType::Vulkan, vs_demi_skinned_spv, sizeof(vs_demi_skinned_spv)},
       {bgfx::RendererType::Noop,
@@ -343,6 +353,18 @@ public:
     case BuiltinProgram::Lit3DSkinned:
       vertexName = "vs_demi_skinned";
       fragmentName = "fs_demi_lit";
+      break;
+    case BuiltinProgram::Directional3D:
+      vertexName = "vs_demi_lit";
+      fragmentName = "fs_demi_directional";
+      break;
+    case BuiltinProgram::Directional3DInstanced:
+      vertexName = "vs_demi_lit_instanced";
+      fragmentName = "fs_demi_directional";
+      break;
+    case BuiltinProgram::Directional3DSkinned:
+      vertexName = "vs_demi_skinned";
+      fragmentName = "fs_demi_directional";
       break;
     case BuiltinProgram::PostProcess2D:
       vertexName = "vs_demi_post_process";

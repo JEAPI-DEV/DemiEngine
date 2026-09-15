@@ -1,6 +1,7 @@
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 
 #include "demi/runtime/diagnostics/DeviceLog.h"
+#include "demi/runtime/render/backend/BgfxProfileCallback.h"
 
 #include <bgfx/bgfx.h>
 
@@ -55,6 +56,7 @@ bool validDimensions(const std::uint32_t width, const std::uint32_t height) {
 
 } // namespace
 
+BgfxGraphicsDevice::BgfxGraphicsDevice() = default;
 BgfxGraphicsDevice::~BgfxGraphicsDevice() { shutdown(); }
 
 bool BgfxGraphicsDevice::initialize(const GraphicsDeviceConfig &config,
@@ -79,6 +81,12 @@ bool BgfxGraphicsDevice::initialize(const GraphicsDeviceConfig &config,
   (void)bgfx::renderFrame();
 #endif
   bgfx::Init init;
+#if defined(__ANDROID__) && defined(DEMI_ANDROID_PROFILE)
+  if (config.profile) {
+    profileCallback_ = makeBgfxProfileCallback();
+    init.callback = profileCallback_.get();
+  }
+#endif
   init.profile = config.profile;
   init.type = rendererType(config.api);
   init.resolution.width = config.width;
