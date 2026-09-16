@@ -122,12 +122,62 @@ omit compounds rather than treating their union bounds as solid collision.
 Editor selection uses the union bounds; collider debug drawing shows the hulls.
 
 The asset follows the normal import, cook, reload and live-user retention rules.
-This is a geometry contract, not a fracture asset: bonds, anchors, per-chunk
-materials/density, Blast damage, and transactional split-body replacement are
-separate Milestone 3 work. See `examples/destruction_3d_lab` for an editable
-three-part arch and native impulse/raycast probe.
+An optional `fracture` block adds an authored bond graph; see below. Per-chunk
+materials/density and transactional split-body replacement remain separate
+Milestone 3 work. See `examples/destruction_3d_lab` for an editable three-part
+arch and native impulse/raycast probe.
 
 Triangle-mesh collider assets remain static-only. Asset-backed character-controller
 movement shapes are not enabled by this change; characters still use their existing
 inline box/sphere/capsule/convex components. This format does not yet define sphere,
 capsule, or 2D collider assets.
+
+## Optional fracture graph
+
+Compound sources can add a graph over their existing part IDs, without copying
+geometry or creating another asset type. It is covered by root `format_version: 1`.
+
+```json
+"fracture": {
+  "anchors": ["left", "right"],
+  "bonds": [
+    { "id": "left-lintel", "parts": ["left", "lintel"] },
+    { "id": "right-lintel", "parts": ["right", "lintel"], "health": 5 }
+  ]
+}
+```
+
+This example assumes parts named `left`, `right` and `lintel`. Bond IDs use the
+same local identifier rules as parts. Each pair references two distinct existing
+parts; repeated pairs (including reversed pairs) and duplicate IDs are invalid.
+There are at most 2,048 bonds, and they must connect every part into one initial
+assembly. A single-part compound may have an empty bond list. Optional `anchors`
+defaults to `[]` and contains unique existing part IDs. Optional bond `health`
+defaults to `1` and must be finite and positive. Unknown graph/bond fields are
+rejected to catch authoring typos. A standalone `convex_hull` cannot have this
+block; use a one-part compound if needed.
+
+These are authored connections, not automatically detected contacts. Authors
+must place the hulls/visuals appropriately. Health is a damage threshold, not a
+material-strength calculation. Anchors identify which connected groups remain
+supported; they do not change the current rigidbody's motion by themselves.
+
+Import, reimport, direct/registry validation and cooking use the same parser.
+Invalid graph edits reject reimport before updating the manifest hash. Valid
+graph edits update the normal source hash/revision. Cooking retains the graph
+inside the collider source, with no external graph dependencies, native Blast
+blobs or generated cache mirrors. `demi asset inspect ... --format json` reports
+the normalized bonds and anchors. The editor's existing Collider3D import and
+asset picker paths still apply; there is no dedicated bond-graph editor yet.
+
+The runtime loader preserves graph metadata and accounts for it in decoded and
+resident payload estimates. `createColliderFractureFamily3D` converts a loaded
+snapshot into independent Blast state, deriving local-space centers and volumes
+from Jolt convex hulls rather than bounding boxes or hand-entered values. Hulls
+that Jolt cannot construct fail preparation with an error. Existing families
+own their snapshots; asset reload/unload does not reset their accumulated damage.
+
+**Adding this block does not enable visible destruction yet.** World attachment,
+damage hit resolution and physical/visual split transactions remain pending.
+The current arch example includes editable bonds/anchors but still moves as one
+body. See [destruction runtime status](3d-destruction-runtime.md).

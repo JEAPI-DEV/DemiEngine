@@ -14,6 +14,9 @@ The entire scene is authored in `scenes/main.scene.json`. The renderer-only
 children follow `arch`; collision geometry and local part IDs live in
 `assets/colliders/arch/arch.collider.json`. Reimport its manifest after editing
 the collider file. The Lua script handles input only, not scene construction.
+The collider source also contains optional `fracture.bonds` and
+`fracture.anchors`, editable by stable part ID. These currently feed native
+pipeline tests; they do not yet make the visible arch break or pin its pillars.
 
 This is not the completed destruction demo: Blast damage, fracture bonds,
 hammer/rocket interactions, split-body transactions and the steel door remain

@@ -52,6 +52,7 @@ std::optional<ColliderAsset3D> loadColliderAsset3D(const AssetManifest &asset,
         converted.points.push_back({point[0], point[1], point[2]});
       collider.parts.push_back(std::move(converted));
     }
+    collider.fracture = source->fracture;
     collider.revision = std::hash<std::string>{}(asset.sourceHash);
     return collider;
   }
@@ -75,7 +76,8 @@ std::optional<ColliderAsset3D> loadColliderAsset3D(const AssetManifest &asset,
                              .offset = offset,
                              .detail = detail,
                              .triangles = {},
-                             .points = {}};
+                             .points = {},
+                             .fracture = {}};
     collider.revision =
         std::hash<std::string>{}(document.dump() + asset.sourceHash);
     if (detail > 0.0F) {

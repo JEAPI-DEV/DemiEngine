@@ -159,6 +159,8 @@ add_test(NAME demi-capabilities-check
 add_test(NAME demi-capabilities-reference-gates
   COMMAND demi capabilities verify-gates)
 add_test(NAME demi-physics2d-tests COMMAND demi-physics2d-tests)
+add_test(NAME demi-blast-family3d-tests COMMAND demi-blast-family3d-tests)
+add_test(NAME demi-fracture-asset-tests COMMAND demi-fracture-asset-tests)
 add_test(NAME demi-physics3d-tests COMMAND demi-physics3d-tests)
 add_test(NAME demi-collider-shape-asset-tests COMMAND demi-collider-shape-asset-tests)
 add_test(NAME demi-compound-collider-asset-tests COMMAND demi-compound-collider-asset-tests)

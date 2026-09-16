@@ -14,6 +14,7 @@ add_library(demi-core STATIC
   src/demi/assets/YamlDataDocument.cpp
   src/demi/assets/ColliderAssetGenerator.cpp
   src/demi/assets/ColliderShapeAsset.cpp
+  src/demi/assets/ColliderFractureGraph.cpp
   src/demi/assets/ModelImportProfile.cpp
   src/demi/assets/ModelInspector.cpp
   src/demi/assets/SceneBudget3D.cpp

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "demi/assets/ColliderFractureGraph.h"
+
 #include <array>
 #include <filesystem>
 #include <nlohmann/json_fwd.hpp>
@@ -19,6 +21,7 @@ struct ColliderShapeAsset {
   std::array<float, 3> minimum{};
   std::array<float, 3> maximum{};
   std::vector<ColliderShapePart> parts;
+  std::optional<ColliderFractureGraph> fracture;
 };
 
 // Self-contained .collider.json source; no model or backend handles required.

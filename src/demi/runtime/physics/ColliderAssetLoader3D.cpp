@@ -28,6 +28,15 @@ public:
     bytes += collider->parts.size() * sizeof(ColliderPart3D);
     for (const auto &part : collider->parts)
       bytes += part.id.size() + part.points.size() * sizeof(Vec3);
+    if (collider->fracture) {
+      bytes += collider->fracture->bonds.size() *
+               sizeof(assets::ColliderFractureBond);
+      for (const auto &bond : collider->fracture->bonds)
+        bytes += bond.id.size() + bond.firstPart.size() + bond.secondPart.size();
+      bytes += collider->fracture->anchors.size() * sizeof(std::string);
+      for (const auto &anchor : collider->fracture->anchors)
+        bytes += anchor.size();
+    }
     return assets::DecodedAsset{
         .payload = std::make_shared<ColliderAsset3D>(std::move(*collider)),
         .decodedBytes = bytes,

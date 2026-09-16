@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/ColliderFractureGraph.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <cstdint>
@@ -34,6 +35,7 @@ struct ColliderAsset3D {
   bool resident = true;
   std::uint64_t lastUsedEpoch = 0;
   std::vector<ColliderPart3D> parts{};
+  std::optional<assets::ColliderFractureGraph> fracture;
 };
 
 struct BoxColliderShape3D {

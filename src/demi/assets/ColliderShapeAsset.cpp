@@ -78,6 +78,15 @@ parseColliderShapeAsset(const nlohmann::json &document, std::string &error) {
         }
         result.parts.push_back({id, std::move(hull->points)});
       }
+      if (document.contains("fracture")) {
+        std::vector<std::string> ids;
+        for (const auto &part : result.parts)
+          ids.push_back(part.id);
+        result.fracture =
+            parseColliderFractureGraph(document["fracture"], ids, error);
+        if (!result.fracture)
+          return std::nullopt;
+      }
       error.clear();
       return result;
     }
@@ -85,7 +94,8 @@ parseColliderShapeAsset(const nlohmann::json &document, std::string &error) {
         !document["format_version"].is_number_integer() ||
         document.value("format_version", 0) != 1 ||
         document.value("shape", "") != "convex_hull" ||
-        document.contains("parts") || !document.contains("points") ||
+        document.contains("parts") || document.contains("fracture") ||
+        !document.contains("points") ||
         !document["points"].is_array() || document["points"].size() < 4 ||
         document["points"].size() > 256)
       return std::nullopt;

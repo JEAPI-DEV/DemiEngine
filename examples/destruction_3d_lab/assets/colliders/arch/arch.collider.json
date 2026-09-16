@@ -14,5 +14,12 @@
       [-2, 3, -0.5], [-2, 3, 0.5], [-2, 4, -0.5], [-2, 4, 0.5],
       [2, 3, -0.5], [2, 3, 0.5], [2, 4, -0.5], [2, 4, 0.5]
     ] }
-  ]
+  ],
+  "fracture": {
+    "anchors": ["left", "right"],
+    "bonds": [
+      { "id": "left-lintel", "parts": ["left", "lintel"] },
+      { "id": "right-lintel", "parts": ["right", "lintel"] }
+    ]
+  }
 }

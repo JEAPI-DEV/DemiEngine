@@ -1,4 +1,8 @@
 # Native test executables. Test registration lives in dedicated modules.
+  add_executable(demi-blast-family3d-tests tests/blast_family3d_tests.cpp)
+  target_link_libraries(demi-blast-family3d-tests PRIVATE demi-destruction)
+  add_executable(demi-fracture-asset-tests tests/fracture_asset_tests.cpp)
+  target_link_libraries(demi-fracture-asset-tests PRIVATE demi-runtime-lib)
   add_executable(demi-smoke-tests tests/smoke_tests.cpp)
   target_link_libraries(demi-smoke-tests PRIVATE demi-core)
 

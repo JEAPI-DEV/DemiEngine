@@ -3,6 +3,7 @@
 
 #include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/physics/JoltCompoundShape3D.h"
+#include "demi/runtime/physics/JoltLifetime.h"
 #include "demi/runtime/physics/PhysicsContactPhases3D.h"
 #include "demi/runtime/physics/SpatialQuery3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
@@ -14,7 +15,6 @@
 // Jolt.h defines platform/compiler macros required by every other Jolt header.
 #include <Jolt/Jolt.h>
 
-#include <Jolt/Core/Factory.h>
 #include <Jolt/Core/JobSystemThreadPool.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Geometry/Triangle.h>
@@ -34,7 +34,6 @@
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/Physics/PhysicsSystem.h>
-#include <Jolt/RegisterTypes.h>
 
 #include <algorithm>
 #include <atomic>
@@ -94,27 +93,6 @@ public:
                 const JPH::ObjectLayer second) const override {
     return first == MovingLayer || second == MovingLayer;
   }
-};
-
-struct JoltLifetime {
-  JoltLifetime() {
-    std::scoped_lock lock(mutex);
-    if (references++ != 0)
-      return;
-    JPH::RegisterDefaultAllocator();
-    JPH::Factory::sInstance = new JPH::Factory();
-    JPH::RegisterTypes();
-  }
-  ~JoltLifetime() {
-    std::scoped_lock lock(mutex);
-    if (--references != 0)
-      return;
-    JPH::UnregisterTypes();
-    delete JPH::Factory::sInstance;
-    JPH::Factory::sInstance = nullptr;
-  }
-  static inline std::mutex mutex;
-  static inline int references = 0;
 };
 
 [[nodiscard]] JPH::Vec3 jolt(const Vec3 value) {

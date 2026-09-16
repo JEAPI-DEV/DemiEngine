@@ -273,7 +273,17 @@ all-device, full-game or thermal-soak qualification.
   part inspection, native impulse/reset controls and a gameplay E2E.
   Screen-ray regression coverage checks all three visible parts; camera queries
   now honor the rendered target offset and right-handed view. Manual mouse
-  verification remains pending after this correction.
+  verification passed: left, right and lintel each return their stable IDs.
+- [x] Add the internal persistent Blast-family module with stable chunk/bond IDs,
+  cumulative bond damage, anchor-group metadata and staged commit/discard.
+  Native tests cover cancellation, stale tokens, repeated damage and 256 chunks.
+  This is not yet connected to world ownership or Jolt splits;
+  see [runtime integration status](docs/3d-destruction-runtime.md).
+- [x] Add optional authored bonds/anchors to compound collider sources, shared
+  parser/schema/import/reimport/cook validation, CLI inspection, runtime metadata
+  residency and a collider-to-Blast family factory with hull-derived centroids
+  and volumes. This is the graph/collision portion, not complete visual fracture
+  assets or automatic fracture authoring; world attachment remains pending.
 - [ ] Extend `destruction_3d_lab` to the concrete wall, hammer, rocket and steel
   door; its current compound foundation does not yet fracture.
 - [ ] Author pre-fractured chunks, interior surfaces, collision hulls, materials,

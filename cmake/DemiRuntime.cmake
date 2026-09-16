@@ -1,5 +1,14 @@
 # Shared runtime sources and graphical/headless runtime library variants.
+include(DemiBlast)
+add_library(demi-destruction STATIC
+  src/demi/runtime/destruction/BlastFamily3D.cpp)
+target_include_directories(demi-destruction PUBLIC src)
+target_compile_features(demi-destruction PUBLIC cxx_std_20)
+target_link_libraries(demi-destruction PRIVATE demi-blast-lowlevel)
+
 set(DEMI_RUNTIME_COMMON_SOURCES
+  src/demi/runtime/destruction/ColliderFractureFamily3D.cpp
+  src/demi/runtime/physics/JoltLifetime.cpp
   src/demi/runtime/scripting/LuaScriptHostMeshDeformation.cpp
   src/demi/runtime/scripting/bindings/components/LuaMeshDeformationBindings.cpp
   src/demi/runtime/physics/ColliderAssetLoader3D.cpp
@@ -124,7 +133,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
 
 function(configure_demi_runtime target with_renderer)
   add_library(${target} STATIC ${DEMI_RUNTIME_COMMON_SOURCES} ${ARGN})
-  target_link_libraries(${target} PUBLIC demi-core)
+  target_link_libraries(${target} PUBLIC demi-core PRIVATE demi-destruction)
   target_include_directories(${target} PUBLIC src
     "${DEMI_RENDER_GENERATED_INCLUDE_DIR}")
   target_compile_features(${target} PUBLIC cxx_std_20)

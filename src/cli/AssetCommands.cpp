@@ -328,7 +328,7 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
         error << issue << '\n';
         return ExitValidationFailure;
       }
-      const nlohmann::json report{
+      nlohmann::json report{
           {"id", manifest->id},
           {"shape", collider->parts.empty() ? "convex_hull" : "compound"},
           {"points", [&] {
@@ -344,6 +344,15 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
           {"dynamic_supported", true},
           {"bounds",
            {{"minimum", collider->minimum}, {"maximum", collider->maximum}}}};
+      if (collider->fracture) {
+        auto bonds = nlohmann::json::array();
+        for (const auto &bond : collider->fracture->bonds)
+          bonds.push_back({{"id", bond.id},
+                           {"parts", {bond.firstPart, bond.secondPart}},
+                           {"health", bond.health}});
+        report["fracture"] = {{"bonds", std::move(bonds)},
+                              {"anchors", collider->fracture->anchors}};
+      }
       if (valueAfter(args, "--format") == "json")
         output << nlohmann::json{{"report", report},
                                  {"diagnostics", nlohmann::json::array()}}
