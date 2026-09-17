@@ -1,5 +1,5 @@
 return { tests = {
-  { name = "compound opening and part identity", func = function()
+  { name = "localized split, anchored collision and reset", func = function()
     Test.wait(0.2)
     Test.expect(Physics3D.raycast(0, 1.5, 5, 0, 0, -1, 10) == nil, "Arch opening must not collide")
     local hit = Physics3D.raycast(-1.5, 1.5, 5, 0, 0, -1, 10)
@@ -16,11 +16,21 @@ return { tests = {
     end
     Test.touch("impulse")
     Test.wait(0.2)
-    local _, y = Transform3D.get_position("arch")
-    Test.expect(y > 0.1, "Native impulse must move the compound")
+    local state = Destruction3D.state("arch")
+    Test.expect(state.status == "applied" and state.bodies == 3, "Strike must split the native assembly: " .. state.error)
+    local beam = state.parts.lintel
+    Test.expect(beam and beam ~= state.parts.left, "Beam must have an independent physical owner")
+    local x = Transform3D.get_position(beam)
+    Test.expect(x > 0.1, "Strike impulse must move the detached beam")
+    local anchored = Physics3D.raycast(-1.5, 1.5, 5, 0, 0, -1, 10)
+    Test.expect(anchored and anchored.collider_part_id == "left", "Anchored pillar must retain real collision")
+    Test.wait(1.5)
+    local center = Entity.world_position("arch_lintel")
+    Test.expect(center and center[2] < 2.5, "Detached beam's visual center must fall below its supports; y=" .. tostring(center and center[2]))
     Test.touch("reset")
     Test.wait(0.3)
     local x, reset_y = Transform3D.get_position("arch")
     Test.expect(math.abs(x) < 0.1 and math.abs(reset_y) < 0.1, "Reset must restore the authored assembly")
+    Test.expect(Destruction3D.state("arch").bodies == 1, "Reset must clear fragment ownership")
   end }
 } }

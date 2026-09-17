@@ -236,6 +236,33 @@ void pipeline(const std::filesystem::path &root) {
   const auto cookedCollider = loadColliderAsset3D(*cookedManifest, error);
   expect(cookedCollider && cookedCollider->fracture->bonds[0].health == 5,
          "Cook lost authored bond health");
+  auto scene = Json{
+      {"format_version", 1}, {"id", "scene://fracture/main"},
+      {"entities", {
+        {{"id", "assembly"}, {"components", {
+          {"Transform3D", Json::object()},
+          {"Rigidbody3D", {{"body_type", "static"}}},
+          {"ModelCollider3D", {{"asset", manifest->id}}},
+          {"Destructible3D", {{"parts", {{"base", "base_visual"}, {"cap", "cap_visual"}}}}}
+        }}},
+        {{"id", "base_visual"}, {"components", {{"Transform3D", {{"parent", "assembly"}}}, {"MeshRenderer", Json::object()}}}},
+        {{"id", "cap_visual"}, {"components", {{"Transform3D", {{"parent", "assembly"}}}, {"MeshRenderer", Json::object()}}}}
+      }}};
+  const auto scenePath = project / "scenes/main.scene.json";
+  write(scenePath, scene);
+  expect(!hasErrors(validatePath(project).diagnostics), "Valid Destructible3D authoring rejected");
+  for (int invalid = 0; invalid < 6; ++invalid) {
+    auto badScene = scene;
+    auto &components = badScene["entities"][0]["components"];
+    if (invalid == 0) components["Destructible3D"]["parts"]["base"] = "missing";
+    if (invalid == 1) components["Destructible3D"]["parts"]["cap"] = "base_visual";
+    if (invalid == 2) components["Rigidbody3D"]["body_type"] = "dynamic";
+    if (invalid == 3) components["Destructible3D"]["max_bodies"] = 0;
+    if (invalid == 4) badScene["entities"][1]["components"]["BoxCollider3D"] = Json::object();
+    if (invalid == 5) badScene["entities"][1]["persistent"] = true;
+    write(scenePath, badScene);
+    expect(hasErrors(validatePath(project).diagnostics), "Invalid Destructible3D authoring accepted");
+  }
 }
 } // namespace
 int main() {

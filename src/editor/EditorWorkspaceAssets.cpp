@@ -63,6 +63,8 @@ bool EditorWorkspace::saveProject(std::string &error) {
   if (!loaded)
     return false;
   project_ = std::move(loaded);
+  if (!rebuildWorld(error))
+    return false;
   discoverSources();
   refreshAssetIndex();
   loadPreviewTilemaps();

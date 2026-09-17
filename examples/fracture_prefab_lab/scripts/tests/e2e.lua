@@ -1,0 +1,13 @@
+return { tests = {{ name = "generated prefab instances fracture independently", func = function()
+  Test.wait(0.3)
+  Test.expect(Destruction3D.state("wall_a/wall").bodies == 1, "First wall must start as one body")
+  Test.expect(Destruction3D.state("wall_b/wall").bodies == 1, "Second wall must start as one body")
+  local hit = Physics3D.raycast(-3.2, 1.5, 5, 0, 0, -1, 10)
+  Test.expect(hit and hit.collider_part_id, "Generated geometry must be raycastable")
+  local ok, issue = Destruction3D.damage_part(hit.entity_id, hit.collider_part_id, 2)
+  Test.expect(ok, issue)
+  Test.wait(0.15)
+  local state = Destruction3D.state("wall_a/wall")
+  Test.expect(state.status == "applied" and state.bodies > 1, "Generated bond graph must split: " .. state.error)
+  Test.expect(Destruction3D.state("wall_b/wall").revision == 0, "Other instance must remain intact")
+end }} }

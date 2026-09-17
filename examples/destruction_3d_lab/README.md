@@ -1,23 +1,25 @@
-# 3D Destruction Lab — compound foundation
+# 3D Destruction Lab — localized physical splits
 
 ```sh
 demi run --project examples/destruction_3d_lab
 ```
 
-This first Milestone 3 probe verifies a real compound collider: the arch is one
-dynamic body with three convex parts, not three independently simulated child
-bodies or a solid bounding box. Click a part to inspect its stable raycast ID,
-press Space (or Impulse) to move the whole assembly, and R (or Reset) to restart.
-Each scene click reports its hit or miss both in the status label and the console.
+The arch starts as one anchored static compound with three convex parts and a
+real opening. Click a part twice to break its incident bonds, or press Space /
+Strike Beam to detach and strike the beam. R / Reset restores the assembly.
+Anchored pillars stay fixed; the detached beam moves, rotates and falls using
+Jolt collision and gravity. The strike impulse is Lua gameplay; damage state,
+splitting, mass/motion inheritance and visual reparenting are engine-native.
+The status label/console reports hits, committed body counts and failures.
 
 The entire scene is authored in `scenes/main.scene.json`. The renderer-only
-children follow `arch`; collision geometry and local part IDs live in
+children initially follow `arch`; collision geometry and local part IDs live in
 `assets/colliders/arch/arch.collider.json`. Reimport its manifest after editing
-the collider file. The Lua script handles input only, not scene construction.
+the collider file. Lua handles controls and the strike impulse, not construction.
 The collider source also contains optional `fracture.bonds` and
-`fracture.anchors`, editable by stable part ID. These currently feed native
-pipeline tests; they do not yet make the visible arch break or pin its pillars.
+`fracture.anchors`, editable by stable part ID. The root's `Destructible3D.parts`
+map links those IDs to renderer children.
 
-This is not the completed destruction demo: Blast damage, fracture bonds,
-hammer/rocket interactions, split-body transactions and the steel door remain
-Milestone 3 work. The primitive arch is an engine probe, not final art.
+This is not the completed destruction demo: hammer/rocket interactions, spatial
+blast falloff, fair scheduling, performance qualification and the steel door
+remain Milestone 3 work. The primitive arch is an engine probe, not final art.

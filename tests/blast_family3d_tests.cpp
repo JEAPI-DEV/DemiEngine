@@ -123,6 +123,25 @@ void validation() {
   // Destruction with a pending proposal releases both states via ownership.
 }
 
+void anchorTransactions() {
+  const DestructionChunk3D chunk{"base", {}, 1, true};
+  BlastFamily3D family(std::span(&chunk, 1), {});
+  const AnchorDamage3D hit{"base", 0.6F};
+  auto token = family.stage({}, std::span(&hit, 1));
+  check(family.stagedGroups(token)[0].anchored, "Partial anchor hit released support");
+  check(family.discard(token), "Anchor discard failed");
+  token = family.stage({}, std::span(&hit, 1));
+  check(family.commit(token) && family.anchored("base"), "Anchor health leaked across discard");
+  token = family.stage({}, std::span(&hit, 1));
+  check(!family.stagedGroups(token)[0].anchored && family.anchored("base"),
+        "Anchor proposal mutated live support or failed to release");
+  check(family.discard(token) && family.anchored("base"), "Cancelled release leaked");
+  token = family.stage({}, std::span(&hit, 1));
+  check(family.commit(token) && !family.anchored("base"), "Anchor release failed");
+  const AnchorDamage3D missing{"missing", 1};
+  rejects([&] { (void)family.stage({}, std::span(&missing, 1)); });
+}
+
 void deterministicAndBounded() {
   auto c = chunks();
   auto b = bonds();
@@ -164,6 +183,7 @@ void deterministicAndBounded() {
 int main() {
   try {
     validation();
+    anchorTransactions();
     deterministicAndBounded();
     for (int iteration = 0; iteration < 40; ++iteration)
       transactions();

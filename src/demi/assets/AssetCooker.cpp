@@ -1,6 +1,7 @@
 #include "demi/assets/AssetCooker.h"
 
 #include "demi/assets/AssetCookGraph.h"
+#include "demi/assets/FractureAuthoring.h"
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetImporterRegistry.h"
 #include "demi/assets/AssetRegistry.h"
@@ -9,6 +10,7 @@
 #include "demi/assets/PackageContent.h"
 #include "demi/assets/RenderAsset.h"
 #include "demi/schema/Validation.h"
+#include "demi/runtime/scene/composition/PrefabResolver.h"
 
 #include <nlohmann/json.hpp>
 
@@ -359,7 +361,23 @@ Diagnostics cookProject(const CookRequest &request) {
     const bool isCacheHit =
         owner != fileOwners.end() && cookDecisions.at(owner->second).isCacheHit;
     std::filesystem::create_directories(target.parent_path(), code);
-    if (!code && !isCacheHit)
+    bool bakedFracture=false;
+    if (!code && (source.filename().string().ends_with(".prefab.json") || source.filename().string().ends_with(".scene.json"))) {
+      std::ifstream input(source);
+      const auto sourceJson=nlohmann::json::parse(input,nullptr,false);
+      if(sourceJson.is_object() && (sourceJson.contains("fracture") || hasFractureAuthoring(sourceJson))) {
+        const auto baked=source.filename().string().ends_with(".prefab.json")
+            ? runtime::composition::bakeFracturePrefab(source)
+            : runtime::composition::expandScene(source, sourceJson);
+        diagnostics.insert(diagnostics.end(),baked.diagnostics.begin(),baked.diagnostics.end());
+        if(!baked.document)continue;
+        std::ofstream output(target);
+        output<<baked.document->dump(2)<<'\n';
+        if(!output) { diagnostics.push_back({.severity=Severity::Error,.code="COOK_FRACTURE_WRITE_FAILED",.message="Could not write baked fracture prefab",.path=target.string()});continue; }
+        bakedFracture=true;
+      }
+    }
+    if (!code && !isCacheHit && !bakedFracture)
       std::filesystem::copy_file(
           source, target, std::filesystem::copy_options::overwrite_existing,
           code);

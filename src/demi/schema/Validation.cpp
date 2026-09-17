@@ -1,4 +1,5 @@
 #include "demi/schema/Validation.h"
+#include "demi/schema/DestructionValidation.h"
 
 #include "demi/assets/AssetGroup.h"
 #include "demi/assets/AssetRegistry.h"
@@ -146,35 +147,16 @@ void validateReferences(Diagnostics &diagnostics,
 
 void validateDuplicateEntityIds(Diagnostics &diagnostics,
                                 const std::filesystem::path &path,
-                                const std::string &text) {
+                                const nlohmann::json &document) {
+  if (!document.contains("entities") || !document["entities"].is_array()) return;
   std::set<std::string> ids;
-  std::size_t cursor = 0;
-  while (true) {
-    const std::size_t key = text.find("\"id\"", cursor);
-    if (key == std::string::npos) {
-      break;
-    }
-    const std::size_t colon = text.find(':', key + 4);
-    const std::size_t quote = colon == std::string::npos
-                                  ? std::string::npos
-                                  : text.find('"', colon + 1);
-    const std::size_t end = quote == std::string::npos
-                                ? std::string::npos
-                                : text.find('"', quote + 1);
-    if (quote == std::string::npos || end == std::string::npos) {
-      break;
-    }
-    const std::string id = text.substr(quote + 1, end - quote - 1);
-    if (!id.starts_with("scene://") && !ids.insert(id).second) {
-      diagnostics.push_back(Diagnostic{
-          .severity = Severity::Error,
-          .code = "SCENE_DUPLICATE_ENTITY_ID",
-          .message = "Scene contains duplicate entity id: " + id,
-          .path = path.string(),
-          .suggestion = "Use stable unique ids for every entity.",
-      });
-    }
-    cursor = end + 1;
+  for (const auto &entity : document["entities"]) {
+    if (!entity.is_object() || !entity.contains("id") || !entity["id"].is_string()) continue;
+    const auto id = entity["id"].get<std::string>();
+    if (!ids.insert(id).second)
+      diagnostics.push_back({.severity=Severity::Error, .code="SCENE_DUPLICATE_ENTITY_ID",
+          .message="Scene contains duplicate entity id: "+id, .path=path.string(),
+          .suggestion="Use stable unique ids for every entity."});
   }
 }
 
@@ -362,8 +344,22 @@ void validatePhysics3D(Diagnostics &diagnostics,
                                      "CapsuleCollider3D", "ConvexCollider3D",
                                      "ModelCollider3D"};
   std::optional<AssetRegistry> colliderRegistry;
+  if (std::ranges::any_of(document["entities"], [](const auto &entity) {
+        return entity.is_object() && entity.contains("components") &&
+               entity["components"].is_object() && entity["components"].contains("Destructible3D");
+      })) {
+    const auto project = findProjectDirectory(path);
+    colliderRegistry = project ? loadAssetRegistry(*project) : AssetRegistry{};
+    validateDestruction3D(diagnostics, path, document, *colliderRegistry);
+  }
   std::unordered_map<std::string, bool> movingColliderAssets;
   const auto isMovingColliderAsset = [&](const nlohmann::json &component) {
+    if (component.is_object() && component.contains("inline_geometry")) {
+      std::string error;
+      const auto shape = assets::parseColliderShapeAsset(component["inline_geometry"], error);
+      const auto asset=component.find("asset");
+      return (asset==component.end() || (asset->is_string() && asset->get<std::string>().empty())) && shape && !shape->parts.empty();
+    }
     if (!component.is_object() || !component.contains("asset") ||
         !component["asset"].is_string())
       return false;
@@ -393,6 +389,15 @@ void validatePhysics3D(Diagnostics &diagnostics,
     const std::string id = entity.value("id", "ent_unknown");
     const auto &components = entity["components"];
     const auto body = components.find("Rigidbody3D");
+    if (components.contains("ModelCollider3D") && components["ModelCollider3D"].is_object()) {
+      const auto &model = components["ModelCollider3D"];
+      const bool hasAsset = model.contains("asset") && model["asset"].is_string() && !model["asset"].get<std::string>().empty();
+      const bool hasInline = model.contains("inline_geometry");
+      std::string error;
+      const auto inlineShape = hasInline ? assets::parseColliderShapeAsset(model["inline_geometry"], error) : std::nullopt;
+      if (hasAsset == hasInline || (hasInline && (!inlineShape || inlineShape->parts.empty())))
+        diagnostics.push_back({.severity=Severity::Error,.code="COLLIDER_SOURCE_INVALID",.message="ModelCollider3D requires exactly one asset or valid inline compound geometry. " + error,.path=path.string()});
+    }
     if (components.contains("Dentable3D") && !components.contains("MeshRenderer"))
       diagnostics.push_back({.severity = Severity::Error,
         .code = "DENTABLE3D_MESH_REQUIRED",
@@ -530,14 +535,13 @@ void validatePhysics3D(Diagnostics &diagnostics,
 Diagnostics validateSceneDocument(const std::filesystem::path &scenePath,
                                   const nlohmann::json &document) {
   Diagnostics diagnostics;
-  const std::string text = document.dump();
-  validateDuplicateEntityIds(diagnostics, scenePath, text);
-  validateSceneComponents(diagnostics, scenePath, text);
   const runtime::composition::ExpansionResult expansion =
       runtime::composition::expandScene(scenePath, document);
   diagnostics.insert(diagnostics.end(), expansion.diagnostics.begin(),
                      expansion.diagnostics.end());
   if (expansion.document) {
+    validateSceneComponents(diagnostics, scenePath, expansion.document->dump());
+    validateDuplicateEntityIds(diagnostics, scenePath, *expansion.document);
     validateTransformHierarchy(diagnostics, scenePath, *expansion.document,
                                "Transform2D", "TRANSFORM2D");
     validateTransformHierarchy(diagnostics, scenePath, *expansion.document,
@@ -983,7 +987,10 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
     const auto expansion = runtime::composition::inspectPrefab(path);
     diagnostics.insert(diagnostics.end(), expansion.diagnostics.begin(),
                        expansion.diagnostics.end());
-    validateSceneComponents(diagnostics, path, text);
+    if (expansion.document) {
+      validateSceneComponents(diagnostics, path, expansion.document->dump());
+      validateDuplicateEntityIds(diagnostics, path, *expansion.document);
+    }
     break;
   }
   case SourceFileKind::UiPrefab: {

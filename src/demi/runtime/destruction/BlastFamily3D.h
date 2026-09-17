@@ -29,6 +29,11 @@ struct BondDamage3D {
   float damage = 0;
 };
 
+struct AnchorDamage3D {
+  std::string chunkId;
+  float damage = 0;
+};
+
 struct DestructionGroup3D {
   std::vector<std::string> chunks;
   bool anchored = false;
@@ -47,7 +52,9 @@ public:
   BlastFamily3D(const BlastFamily3D &) = delete;
   BlastFamily3D &operator=(const BlastFamily3D &) = delete;
 
-  [[nodiscard]] std::uint64_t stage(std::span<const BondDamage3D> damage);
+  [[nodiscard]] std::uint64_t stage(std::span<const BondDamage3D> damage,
+                                  std::span<const AnchorDamage3D> anchors = {});
+  [[nodiscard]] bool anchored(const std::string &chunk) const;
   [[nodiscard]] bool commit(std::uint64_t token) noexcept;
   [[nodiscard]] bool discard(std::uint64_t token) noexcept;
   [[nodiscard]] const std::vector<DestructionGroup3D> &groups() const;

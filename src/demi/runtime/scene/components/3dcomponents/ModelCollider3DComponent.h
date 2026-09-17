@@ -1,17 +1,21 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include <memory>
 
 #include <string>
 
 namespace demi::runtime {
+
+struct ColliderAsset3D;
 
 struct ModelCollider3DComponent {
   static constexpr std::string_view typeName = "ModelCollider3D";
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
   static constexpr std::array fields{
-      ComponentFieldDescriptor::assetReference("asset", true),
+      ComponentFieldDescriptor::assetReference("asset"),
+      ComponentFieldDescriptor{"inline_geometry", ComponentFieldType::Object},
       ComponentFieldDescriptor{"is_trigger", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"layer", ComponentFieldType::String}};
   static constexpr ComponentEditorMetadata editor{"Physics 3D",
@@ -21,6 +25,7 @@ struct ModelCollider3DComponent {
   std::string asset;
   bool isTrigger = false;
   std::string layer;
+  std::shared_ptr<const ColliderAsset3D> inlineGeometry{};
 };
 
 } // namespace demi::runtime

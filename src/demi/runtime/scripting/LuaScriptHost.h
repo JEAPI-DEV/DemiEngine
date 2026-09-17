@@ -1,4 +1,5 @@
 #pragma once
+#include "demi/runtime/destruction/DestructionWorld3D.h"
 #include "demi/runtime/geometry/MeshImpact3D.h"
 
 #include "demi/diagnostics/Diagnostic.h"
@@ -335,6 +336,9 @@ public:
   [[nodiscard]] bool
   physicsHasContact(const std::string &entityId,
                     const PhysicsContactFilter2D &filter) const;
+  bool damageDestructiblePart3D(const std::string &entityId, const std::string &partId,
+                               float damage, std::string &error);
+  DestructionState3D destructionState3D(const std::string &entityId) const;
   [[nodiscard]] std::vector<PhysicsContact2D>
   physicsContacts(const std::string &entityId) const;
   [[nodiscard]] bool createEntity(Entity entity);

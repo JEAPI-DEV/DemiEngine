@@ -1,4 +1,5 @@
 #include "demi/runtime/render/bgfx3d/PrimitiveMeshFactory3D.h"
+#include "demi/runtime/geometry/BoxGeometry3D.h"
 
 #include <array>
 #include <cmath>
@@ -8,25 +9,8 @@ namespace demi::runtime::render {
 namespace {
 
 void createCube(PrimitiveMeshData3D &output) {
-  constexpr std::array<Vec3, 4> Face{{{-0.5F, -0.5F, 0.5F},
-                                      {0.5F, -0.5F, 0.5F},
-                                      {0.5F, 0.5F, 0.5F},
-                                      {-0.5F, 0.5F, 0.5F}}};
-  constexpr std::array<Vec2, 4> FaceUvs{
-      {{0.0F, 1.0F}, {1.0F, 1.0F}, {1.0F, 0.0F}, {0.0F, 0.0F}}};
-  const std::array<std::array<Vec3, 4>, 6> faces{{
-      Face,
-      {{{0.5F, -0.5F, -0.5F}, {-0.5F, -0.5F, -0.5F},
-        {-0.5F, 0.5F, -0.5F}, {0.5F, 0.5F, -0.5F}}},
-      {{{-0.5F, -0.5F, -0.5F}, {-0.5F, -0.5F, 0.5F},
-        {-0.5F, 0.5F, 0.5F}, {-0.5F, 0.5F, -0.5F}}},
-      {{{0.5F, -0.5F, 0.5F}, {0.5F, -0.5F, -0.5F},
-        {0.5F, 0.5F, -0.5F}, {0.5F, 0.5F, 0.5F}}},
-      {{{-0.5F, 0.5F, 0.5F}, {0.5F, 0.5F, 0.5F},
-        {0.5F, 0.5F, -0.5F}, {-0.5F, 0.5F, -0.5F}}},
-      {{{-0.5F, -0.5F, -0.5F}, {0.5F, -0.5F, -0.5F},
-        {0.5F, -0.5F, 0.5F}, {-0.5F, -0.5F, 0.5F}}},
-  }};
+  const auto &faces=geometry::boxFaces;
+  const auto &FaceUvs=geometry::boxFaceUvs;
   for (const auto &face : faces) {
     const std::uint32_t base =
         static_cast<std::uint32_t>(output.positions.size());

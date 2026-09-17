@@ -853,6 +853,51 @@
       },
       "type": "object"
     },
+    "Destructible3D": {
+      "additionalProperties": false,
+      "properties": {
+        "generator_version": {
+          "default": 1,
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer",
+          "x-demi-editor-label": "Generator Version",
+          "x-demi-editor-step": 1,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "max_bodies": {
+          "default": 64,
+          "maximum": 256,
+          "minimum": 1,
+          "type": "integer",
+          "x-demi-editor-label": "Max Bodies",
+          "x-demi-editor-step": 1,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "parts": {
+          "default": {},
+          "type": "object",
+          "x-demi-editor-label": "Parts",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "seed": {
+          "default": 1,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer",
+          "x-demi-editor-label": "Seed",
+          "x-demi-editor-step": 1,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        }
+      },
+      "type": "object"
+    },
     "DirectionalLight": {
       "additionalProperties": false,
       "properties": {
@@ -1071,6 +1116,68 @@
           "maximum": 4096.0,
           "minimum": 128.0,
           "type": "integer",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        }
+      },
+      "type": "object"
+    },
+    "Fracture3D": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor_below": {
+          "default": null,
+          "type": "number",
+          "x-demi-editor-label": "Anchor Below",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-nullable": true
+        },
+        "bond_health": {
+          "default": 1,
+          "maximum": 1e+30,
+          "minimum": 0.000001,
+          "type": "number",
+          "x-demi-editor-label": "Bond Health",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "interior_color": {
+          "default": [
+            0.35,
+            0.33,
+            0.3,
+            1
+          ],
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "x-demi-editor-label": "Interior Color",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "interior_material": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-label": "Interior Material",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        },
+        "pieces": {
+          "default": 8,
+          "maximum": 128,
+          "minimum": 1,
+          "type": "integer",
+          "x-demi-editor-label": "Pieces",
+          "x-demi-editor-step": 1,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -1400,25 +1507,40 @@
       "additionalProperties": false,
       "properties": {
         "asset": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Asset",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
         },
+        "inline_geometry": {
+          "default": {},
+          "type": "object",
+          "x-demi-editor-label": "Inline Geometry",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "is_trigger": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Is Trigger",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "layer": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Layer",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
       },
-      "required": [
-        "asset"
-      ],
       "type": "object"
     },
     "ParticleEmitter2D": {

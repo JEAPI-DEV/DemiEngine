@@ -8,11 +8,40 @@ end
 
 -- @HandleAction("impulse")
 function Probe:on_impulse()
-  Rigidbody3D.add_impulse("arch", 1200, 3000, -400)
-  Hud.set_text("status", "Impulse applied to one rigid body; its three visual children follow.")
+  self:hit("arch", "lintel", 1)
+end
+
+function Probe:hit(entity, part, damage)
+  local before = Destruction3D.state(entity)
+  local ok, issue = Destruction3D.damage_part(entity, part, damage)
+  if ok then
+    self.pending_hit = {root = before.root, part = part, revision = before.revision}
+    Hud.set_text("status", "Damage queued: " .. part)
+  else
+    Hud.set_text("status", issue)
+    Debug.log(issue)
+  end
 end
 
 function Probe:on_update()
+  if self.pending_hit then
+    local hit = self.pending_hit
+    local state = Destruction3D.state(hit.root)
+    if state.status == "failed" then
+      Hud.set_text("status", state.error)
+      Debug.log(state.error)
+      self.pending_hit = nil
+    elseif state.revision > hit.revision then
+      -- Strike impulse is gameplay; splitting, reparenting and motion inheritance
+      -- belong to the engine. Anchored/static parts ignore this impulse.
+      local body = state.parts[hit.part]
+      if body then Rigidbody3D.add_impulse(body, 800, 0, -2400) end
+      local status = "Damage applied | physical bodies " .. state.bodies
+      Hud.set_text("status", status)
+      Debug.log(status)
+      self.pending_hit = nil
+    end
+  end
   if Input.pressed("reset") then
     self:on_reset()
     return
@@ -29,6 +58,11 @@ function Probe:on_update()
       local o, d = ray.origin, ray.direction
       local hit = Physics3D.raycast(o[1], o[2], o[3], d[1], d[2], d[3], 100)
       status = hit and ("Hit " .. hit.entity_id .. " / part " .. (hit.collider_part_id or "none")) or "No collider hit"
+      if hit and hit.collider_part_id then
+        Debug.log(status)
+        self:hit(hit.entity_id, hit.collider_part_id, 0.6)
+        return
+      end
     else
       status = "Camera ray unavailable"
     end

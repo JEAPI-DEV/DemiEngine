@@ -103,9 +103,8 @@ int main(int argc, char **argv) {
   assert(workspace.redo(error));
   assert(workspace.reparentEntity("child_copy", std::string("root"), error));
   assert(workspace.undo(error));
-  assert(workspace.sceneDocument()
-             .component("child_copy", "Transform3D")
-             ->at("parent") == "root_copy");
+  assert(workspace.sceneDocument().entity("root_copy")
+             ->at("children")[0]["id"] == "child_copy");
   assert(workspace.redo(error));
 
   // Inspector component add/remove actions use the same reversible path.

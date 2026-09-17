@@ -27,6 +27,27 @@ std::optional<Vec3> vec3(const nlohmann::json &document, const char *key) {
 
 } // namespace
 
+ColliderAsset3D colliderAssetFromShape3D(const assets::ColliderShapeAsset &source) {
+  ColliderAsset3D collider;
+  collider.size = {source.maximum[0]-source.minimum[0],source.maximum[1]-source.minimum[1],source.maximum[2]-source.minimum[2]};
+  collider.offset = {source.minimum[0]+collider.size.x*.5F,source.minimum[1]+collider.size.y*.5F,source.minimum[2]+collider.size.z*.5F};
+  for (const auto &p:source.points) collider.points.push_back({p[0],p[1],p[2]});
+  for (const auto &part:source.parts) {
+    ColliderPart3D converted{.id=part.id};
+    for (const auto &p:part.points) converted.points.push_back({p[0],p[1],p[2]});
+    collider.parts.push_back(std::move(converted));
+  }
+  collider.fracture=source.fracture;
+  return collider;
+}
+const ColliderAsset3D *resolvedColliderAsset3D(const World &world,const Entity &entity) {
+  const auto *model=entity.component<ModelCollider3DComponent>();
+  if (!model) return nullptr;
+  if (model->inlineGeometry) return &*model->inlineGeometry;
+  const auto found=world.colliderAssets3D.find(model->asset);
+  return found==world.colliderAssets3D.end()?nullptr:&found->second;
+}
+
 std::optional<ColliderAsset3D> loadColliderAsset3D(const AssetManifest &asset,
                                                    std::string &error) {
   if (asset.type != "Collider3D") {
@@ -37,22 +58,7 @@ std::optional<ColliderAsset3D> loadColliderAsset3D(const AssetManifest &asset,
     const auto source = assets::loadColliderShapeAsset(asset.sourcePath, error);
     if (!source)
       return std::nullopt;
-    ColliderAsset3D collider;
-    collider.size = {source->maximum[0] - source->minimum[0],
-                     source->maximum[1] - source->minimum[1],
-                     source->maximum[2] - source->minimum[2]};
-    collider.offset = {source->minimum[0] + collider.size.x * 0.5F,
-                       source->minimum[1] + collider.size.y * 0.5F,
-                       source->minimum[2] + collider.size.z * 0.5F};
-    for (const auto &point : source->points)
-      collider.points.push_back({point[0], point[1], point[2]});
-    for (const auto &part : source->parts) {
-      ColliderPart3D converted{.id = part.id};
-      for (const auto &point : part.points)
-        converted.points.push_back({point[0], point[1], point[2]});
-      collider.parts.push_back(std::move(converted));
-    }
-    collider.fracture = source->fracture;
+    auto collider = colliderAssetFromShape3D(*source);
     collider.revision = std::hash<std::string>{}(asset.sourceHash);
     return collider;
   }
@@ -130,7 +136,7 @@ bool resolveColliderAssets3D(World &world, const AssetRegistry &registry,
   world.colliderAssets3D.clear();
   for (const Entity &entity : world.entities) {
     const auto *collider = entity.component<ModelCollider3DComponent>();
-    if (collider == nullptr)
+    if (collider == nullptr || collider->inlineGeometry)
       continue;
     if (world.colliderAssets3D.contains(collider->asset))
       continue;
@@ -157,11 +163,11 @@ std::optional<BoxColliderShape3D> resolvedBoxCollider3D(const World &world,
   const auto *model = entity.component<ModelCollider3DComponent>();
   if (model == nullptr)
     return std::nullopt;
-  const auto asset = world.colliderAssets3D.find(model->asset);
-  if (asset == world.colliderAssets3D.end())
+  const auto *asset = resolvedColliderAsset3D(world, entity);
+  if (!asset)
     return std::nullopt;
-  return BoxColliderShape3D{.size = asset->second.size,
-                            .offset = asset->second.offset,
+  return BoxColliderShape3D{.size = asset->size,
+                            .offset = asset->offset,
                             .isTrigger = model->isTrigger};
 }
 
@@ -170,11 +176,10 @@ resolvedTriangleCollider3D(const World &world, const Entity &entity) {
   const auto *model = entity.component<ModelCollider3DComponent>();
   if (model == nullptr)
     return nullptr;
-  const auto asset = world.colliderAssets3D.find(model->asset);
-  return asset == world.colliderAssets3D.end() ||
-                 asset->second.triangles.empty()
+  const auto *asset = resolvedColliderAsset3D(world, entity);
+  return !asset || asset->triangles.empty()
              ? nullptr
-             : &asset->second.triangles;
+             : &asset->triangles;
 }
 
 const std::vector<Vec3> *resolvedConvexCollider3D(const World &world,
@@ -182,19 +187,18 @@ const std::vector<Vec3> *resolvedConvexCollider3D(const World &world,
   const auto *model = entity.component<ModelCollider3DComponent>();
   if (!model)
     return nullptr;
-  const auto found = world.colliderAssets3D.find(model->asset);
-  return found == world.colliderAssets3D.end() || found->second.points.empty()
+  const auto *found = resolvedColliderAsset3D(world, entity);
+  return !found || found->points.empty()
              ? nullptr
-             : &found->second.points;
+             : &found->points;
 }
 
 const std::vector<ColliderPart3D> *resolvedCompoundCollider3D(
     const World &world, const Entity &entity) {
   const auto *model = entity.component<ModelCollider3DComponent>();
   if (!model) return nullptr;
-  const auto found = world.colliderAssets3D.find(model->asset);
-  return found == world.colliderAssets3D.end() || found->second.parts.empty()
-      ? nullptr : &found->second.parts;
+  const auto *found = resolvedColliderAsset3D(world, entity);
+  return !found || found->parts.empty() ? nullptr : &found->parts;
 }
 
 } // namespace demi::runtime

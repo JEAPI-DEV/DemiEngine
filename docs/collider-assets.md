@@ -34,6 +34,12 @@ demi asset reimport path/to/game/assets/colliders/barrel/barrel.collider.asset.j
 
 ## Attaching a collider
 
+Prepared fracture prefabs may embed `ModelCollider3D.inline_geometry` instead of
+an `asset` reference. It uses this same compound format/parser, including
+`format_version`. Do not supply both sources. The normal workflow remains asset
+references; [fracture authoring](fracture-authoring.md) generates embedded payloads
+automatically and bakes them during cooking.
+
 The existing `ModelCollider3D` component is the asset attachment; the Inspector
 labels it **Collider Asset 3D**. It accepts convex and compound collider assets on a dynamic
 rigidbody. There is no need to create a prefab or repeat `ConvexCollider3D.points`.
@@ -177,7 +183,10 @@ from Jolt convex hulls rather than bounding boxes or hand-entered values. Hulls
 that Jolt cannot construct fail preparation with an error. Existing families
 own their snapshots; asset reload/unload does not reset their accumulated damage.
 
-**Adding this block does not enable visible destruction yet.** World attachment,
-damage hit resolution and physical/visual split transactions remain pending.
-The current arch example includes editable bonds/anchors but still moves as one
-body. See [destruction runtime status](3d-destruction-runtime.md).
+**Adding this block alone does not enable destruction.** Opt in with
+`Destructible3D` and map parts to their visual children. The arch demonstrates
+queued part damage and native physical/visual splits. Spatial blast falloff,
+general concave fracture authoring and the time-budgeted scheduler remain pending.
+For normal convex-mesh authoring, use `Destructible3D` and `Fracture3D` components
+in one prefab; [the shared compiler](fracture-authoring.md) generates this data.
+See [destruction runtime status](3d-destruction-runtime.md).

@@ -91,6 +91,15 @@ state.
 
 ## Queries
 
+Compound collider fracture graphs can opt into runtime splitting with
+`Destructible3D`. For ordinary scene/prefab authoring, add `Fracture3D` to its
+mesh children (or the same entity for a standalone mesh); the shared compiler
+generates the graph and colliders. See [fracture authoring](fracture-authoring.md).
+`Destruction3D.damage_part` queues part-local bond damage;
+`Destruction3D.state` reports completion and maps parts to their current bodies.
+See [destruction runtime](3d-destruction-runtime.md) for authoring, fixed-step
+replacement, anchors, limits and the playable arch probe.
+
 `Physics3D` provides raycasts, rich sphere/box overlaps, sphere casts, and the
 C++ layer also exposes capsule overlaps and casts. Rich hits contain
 `entity_id`, `layer`, `point`, `normal`, `distance`, `fraction`, and

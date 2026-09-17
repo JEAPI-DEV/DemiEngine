@@ -158,6 +158,10 @@ SceneFlow::activate(World &world, ResourceLifetimeRegistry &resources) {
     // Asset loaders publish into this stable World address before transition
     // commit. Keep resident/preloaded shapes and persistent users' snapshots.
     incoming.colliderAssets3D.merge(world.colliderAssets3D);
+    // The replacement world starts a fresh physics epoch. Old transient shape
+    // epochs must not accidentally retain unused fragment snapshots after reset.
+    for (auto &[id, collider] : incoming.colliderAssets3D)
+      collider.lastUsedEpoch = 0;
     world = std::move(incoming);
     world.activeSceneId = sceneId;
     world.loadedSceneIds = {sceneId};

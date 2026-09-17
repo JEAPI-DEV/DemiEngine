@@ -50,6 +50,7 @@ std::vector<NvBlastActor *> actors(NvBlastFamily *family) {
 
 struct FamilyState {
   Storage memory;
+  std::map<std::string, float> anchorHealth;
   std::vector<DestructionGroup3D> groups;
   NvBlastFamily *family() {
     return reinterpret_cast<NvBlastFamily *>(memory.data());
@@ -145,7 +146,9 @@ struct BlastFamily3D::Impl {
                 "Blast returned invalid chunk ownership");
         seen[index] = true;
         group.chunks.push_back(chunks[index].id);
-        group.anchored = group.anchored || chunks[index].anchored;
+        const auto anchor = state.anchorHealth.find(chunks[index].id);
+        group.anchored = group.anchored ||
+                         (anchor != state.anchorHealth.end() && anchor->second > 0);
       }
       std::ranges::sort(group.chunks);
       state.groups.push_back(std::move(group));
@@ -206,6 +209,15 @@ struct BlastFamily3D::Impl {
       healths[i] = bonds[assetBonds[i].userData].health;
     }
     current = emptyFamily();
+    for (const auto &chunk : chunks) {
+      if (!chunk.anchored)
+        continue;
+      float health = 0;
+      for (const auto &bond : bonds)
+        if (bond.firstChunk == chunk.id || bond.secondChunk == chunk.id)
+          health = std::max(health, bond.health);
+      current->anchorHealth.emplace(chunk.id, health > 0 ? health : 1);
+    }
     scratch = storage(NvBlastFamilyGetRequiredScratchForCreateFirstActor(
         current->family(), nullptr));
     NvBlastActorDesc actorDesc{1, healths.empty() ? nullptr : healths.data(),
@@ -218,6 +230,7 @@ struct BlastFamily3D::Impl {
 
   std::unique_ptr<FamilyState> cloneCurrent() {
     auto copy = emptyFamily();
+    copy->anchorHealth = current->anchorHealth;
     // Use supported actor serialization, not a memcpy of private SDK pointers.
     for (auto *actor : actors(current->family())) {
       const auto bytes = NvBlastActorGetSerializationSize(actor, nullptr);
@@ -245,12 +258,14 @@ BlastFamily3D::BlastFamily3D(std::span<const DestructionChunk3D> chunks,
 
 BlastFamily3D::~BlastFamily3D() = default;
 
-std::uint64_t BlastFamily3D::stage(std::span<const BondDamage3D> damage) {
+std::uint64_t BlastFamily3D::stage(std::span<const BondDamage3D> damage,
+                                 std::span<const AnchorDamage3D> anchors) {
   auto &state = *impl_;
   if (state.pending)
     throw std::logic_error(
         "Commit or discard the existing destruction proposal first");
-  if (damage.empty() || damage.size() > state.bonds.size())
+  if ((damage.empty() && anchors.empty()) || damage.size() > state.bonds.size() ||
+      anchors.size() > state.current->anchorHealth.size())
     throw std::invalid_argument("Invalid destruction damage batch size");
   std::map<std::uint32_t, float> orderedDamage;
   for (const auto &entry : damage) {
@@ -264,6 +279,15 @@ std::uint64_t BlastFamily3D::stage(std::span<const BondDamage3D> damage) {
   if (state.sequence == UINT64_MAX || state.revision == UINT64_MAX)
     throw std::overflow_error("Destruction generation exhausted");
   auto proposal = state.cloneCurrent();
+  std::set<std::string> damagedAnchors;
+  for (const auto &entry : anchors) {
+    auto anchor = proposal->anchorHealth.find(entry.chunkId);
+    if (anchor == proposal->anchorHealth.end() || !std::isfinite(entry.damage) ||
+        entry.damage <= 0 || !damagedAnchors.insert(entry.chunkId).second)
+      throw std::invalid_argument("Anchor damage requires unique anchored chunk IDs "
+                                  "and finite positive amounts");
+    anchor->second = std::max(0.0F, anchor->second - entry.damage);
+  }
   for (auto *actor : actors(proposal->family())) {
     std::vector<NvBlastBondFractureData> commands;
     for (const auto &[index, amount] : orderedDamage) {
@@ -326,5 +350,10 @@ BlastFamily3D::stagedGroups(std::uint64_t token) const {
 }
 
 std::uint64_t BlastFamily3D::revision() const { return impl_->revision; }
+
+bool BlastFamily3D::anchored(const std::string &chunk) const {
+  const auto anchor = impl_->current->anchorHealth.find(chunk);
+  return anchor != impl_->current->anchorHealth.end() && anchor->second > 0;
+}
 
 } // namespace demi::runtime

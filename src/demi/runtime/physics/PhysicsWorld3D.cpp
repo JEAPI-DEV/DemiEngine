@@ -4,6 +4,8 @@
 #include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/physics/JoltCompoundShape3D.h"
 #include "demi/runtime/physics/JoltLifetime.h"
+#include "demi/runtime/physics/JoltBodyBatch3D.h"
+#include "demi/runtime/destruction/DestructionWorld3D.h"
 #include "demi/runtime/physics/PhysicsContactPhases3D.h"
 #include "demi/runtime/physics/SpatialQuery3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
@@ -41,6 +43,7 @@
 #include <cmath>
 #include <cstdint>
 #include <mutex>
+#include <stdexcept>
 #include <string_view>
 #include <thread>
 #include <unordered_map>
@@ -265,6 +268,7 @@ void mix(std::uint64_t &hash, const bool value) {
   } else if (const auto *value = entity.component<ModelCollider3DComponent>()) {
     mix(hash, std::uint64_t{5});
     mix(hash, std::hash<std::string>{}(value->asset));
+    if (value->inlineGeometry) mix(hash, value->inlineGeometry->revision);
     mix(hash, value->isTrigger);
     if (const auto asset = world.colliderAssets3D.find(value->asset);
         asset != world.colliderAssets3D.end())
@@ -442,6 +446,7 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
                                 physicsWorkerCount()};
   JPH::PhysicsSystem physics;
   World *world = nullptr;
+  bool replacementPhase = false;
   std::unordered_map<std::string, BodyRecord> bodies;
   std::unordered_map<std::string, CharacterRecord> characters;
   std::unordered_map<std::uint32_t, std::string> ids;
@@ -620,6 +625,171 @@ PhysicsWorld3D &ensurePhysicsWorld3D(World &world) {
   return *world.physicsWorld3D;
 }
 
+bool PhysicsWorld3D::replaceBodies(
+    World &world, World &candidate, const std::vector<std::string> &sources,
+    const std::vector<ReplacementBody3D> &replacements, std::string &error) {
+  error.clear();
+  if (!impl_->replacementPhase || impl_->world != &world) {
+    error = "Body replacement requires the fixed-step transaction boundary";
+    return false;
+  }
+  auto &interface = impl_->physics.GetBodyInterface();
+  try {
+    if (sources.empty() || sources.size() > 256 || replacements.size() > 256)
+      throw std::runtime_error("Invalid replacement batch size");
+    std::unordered_set<std::string> sourceSet(sources.begin(), sources.end());
+    if (sourceSet.size() != sources.size())
+      throw std::runtime_error("Duplicate replacement source");
+    for (const auto &source : sources)
+      if (!impl_->bodies.contains(source) || !impl_->bodies.at(source).added)
+        throw std::runtime_error("Replacement source body is unavailable");
+    auto nextBodies = impl_->bodies;
+    auto nextIds = impl_->ids;
+    auto nextFrames = impl_->bodyFrames;
+    for (const auto &source : sources) {
+      const auto id = nextBodies.at(source).body;
+      nextBodies.erase(source);
+      nextIds.erase(id.GetIndexAndSequenceNumber());
+      nextFrames[id.GetIndex()].epoch = 0;
+    }
+    JoltBodyBatch3D batch(interface, replacements.size());
+    for (const auto &replacement : replacements) {
+      if (!sourceSet.contains(replacement.sourceId) ||
+          nextBodies.contains(replacement.entityId))
+        throw std::runtime_error("Invalid replacement identity or source");
+      auto *entity = findEntity(candidate, replacement.entityId);
+      auto *body = entity ? entity->component<Rigidbody3DComponent>() : nullptr;
+      auto *transform =
+          entity ? entity->component<Transform3DComponent>() : nullptr;
+      if (!entity || !body || !transform || !transform->parent.empty() ||
+          !body->bodyEnabled || isTrigger(*entity))
+        throw std::runtime_error(
+            "Replacement requires an enabled unparented rigid body");
+      auto shape = shapeFor(candidate, *entity);
+      if (!shape)
+        throw std::runtime_error("Replacement collision hull creation failed");
+      const auto *parts = resolvedCompoundCollider3D(candidate, *entity);
+      if (!parts || !std::isfinite(body->mass) || body->mass <= 0)
+        throw std::runtime_error(
+            "Replacement requires compound geometry and positive finite mass");
+      const auto source = impl_->bodies.at(replacement.sourceId).body;
+      JPH::RVec3 position;
+      JPH::Quat rotation;
+      JPH::Vec3 angular, linear;
+      {
+        JPH::BodyLockRead lock(impl_->physics.GetBodyLockInterface(), source);
+        if (!lock.Succeeded())
+          throw std::runtime_error("Replacement source lock failed");
+        const auto &parent = lock.GetBody();
+        transform->position = demi(parent.GetPosition());
+        transform->rotation = demi(parent.GetRotation().GetEulerAngles());
+        const auto center = parent.GetPosition() +
+                            parent.GetRotation() * shape->GetCenterOfMass();
+        angular = parent.IsStatic() ? JPH::Vec3::sZero()
+                                    : parent.GetAngularVelocity();
+        linear = parent.IsStatic()
+                     ? JPH::Vec3::sZero()
+                     : parent.GetLinearVelocity() +
+                           angular.Cross(JPH::Vec3(
+                               center - parent.GetCenterOfMassPosition()));
+        position = parent.GetPosition();
+        rotation = parent.GetRotation();
+      }
+      body->velocity = body->bodyType == "static" ? Vec3{} : demi(linear);
+      body->angularVelocity =
+          body->bodyType == "static" ? Vec3{} : demi(angular);
+      body->awake = true;
+      body->accumulatedForce = body->accumulatedImpulse =
+          body->accumulatedTorque = {};
+      JPH::BodyCreationSettings settings(
+          shape, position, rotation, motionType(body),
+          body->bodyType == "static" ? StaticLayer : MovingLayer);
+      settings.mLinearVelocity = jolt(body->velocity);
+      settings.mAngularVelocity = jolt(body->angularVelocity);
+      settings.mLinearDamping = body->linearDamping;
+      settings.mAngularDamping = body->angularDamping;
+      settings.mGravityFactor = body->useGravity ? body->gravityScale : 0;
+      settings.mFriction = body->friction;
+      settings.mRestitution = body->restitution;
+      settings.mAllowSleeping = body->allowSleep;
+      settings.mNumVelocityStepsOverride =
+          std::clamp(body->solverVelocitySteps, 0, 128);
+      settings.mNumPositionStepsOverride =
+          std::clamp(body->solverPositionSteps, 0, 128);
+      settings.mMotionQuality = body->continuous
+                                    ? JPH::EMotionQuality::LinearCast
+                                    : JPH::EMotionQuality::Discrete;
+      settings.mAllowedDOFs = allowedDofs(*body);
+      settings.mOverrideMassProperties =
+          JPH::EOverrideMassProperties::CalculateInertia;
+      settings.mMassPropertiesOverride.mMass = body->mass;
+      auto *created = batch.create(settings);
+      if (!created)
+        throw std::runtime_error(
+            "Native body capacity exhausted while staging split");
+      const auto id = created->GetID();
+      Impl::BodyRecord record{.body = id,
+                              .signature = shapeSignature(candidate, *entity),
+                              .previousPosition = transform->position,
+                              .currentPosition = transform->position,
+                              .lastAuthoredPosition = transform->position,
+                              .lastAuthoredRotation = transform->rotation,
+                              .publishedVelocity = body->velocity,
+                              .publishedAngularVelocity = body->angularVelocity,
+                              .publishedAwake = true,
+                              .gravityFactor = settings.mGravityFactor,
+                              .reportContacts = body->reportContacts,
+                              .continuous = body->continuous,
+                              .added = true,
+                              .partIds = {}};
+      for (const auto &part : *parts)
+        record.partIds.push_back(part.id);
+      candidate.colliderAssets3D
+          .at(entity->component<ModelCollider3DComponent>()->asset)
+          .lastUsedEpoch = impl_->frameEpoch;
+      nextBodies.emplace(entity->id, std::move(record));
+      nextIds.emplace(id.GetIndexAndSequenceNumber(), entity->id);
+      if (id.GetIndex() >= nextFrames.size())
+        nextFrames.resize(id.GetIndex() + 1);
+    }
+    // These pointers refer to the candidate vector's buffer, which swap
+    // preserves.
+    for (auto &entity : candidate.entities) {
+      const auto found = nextBodies.find(entity.id);
+      if (found == nextBodies.end())
+        continue;
+      const auto id = found->second.body;
+      nextFrames[id.GetIndex()] = {.epoch = impl_->frameEpoch,
+                                   .bodyKey = id.GetIndexAndSequenceNumber(),
+                                   .entity = &entity,
+                                   .layer = colliderLayer(entity),
+                                   .reports = reportsContacts(entity),
+                                   .added = found->second.added};
+    }
+    impl_->removedContacts.reserve(impl_->removedContacts.size() +
+                                   impl_->contacts.size());
+    batch.prepare();
+    // Commit: all engine allocations and native broadphase preparation
+    // succeeded.
+    for (const auto &source : sources) {
+      const auto id = impl_->bodies.at(source).body;
+      impl_->wakeNearBody(id);
+      interface.RemoveBody(id);
+      interface.DestroyBody(id);
+    }
+    batch.publish();
+    world.entities.swap(candidate.entities);
+    world.colliderAssets3D.swap(candidate.colliderAssets3D);
+    impl_->bodies.swap(nextBodies);
+    impl_->ids.swap(nextIds);
+    impl_->bodyFrames.swap(nextFrames);
+    return true;
+  } catch (const std::exception &exception) {
+    error = exception.what();
+    return false;
+  }
+}
+
 void PhysicsWorld3D::step(World &world, const float fixedDt,
                           const Vec3 gravity) {
   if (fixedDt <= 0.0F)
@@ -630,10 +800,13 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
   // Native slots may be reused; validate the generation and current step before
   // reading each snapshot. Contacts never retain entity/component pointers.
   ++impl_->frameEpoch;
+  if (world.destruction3D) world.destruction3D->prune(world);
 
   {
     ProfileScope scope("Physics3D.sync_bodies");
     for (Entity &entity : world.entities) {
+      if (!world.destruction3D && entity.enabled && entity.hasComponent<Destructible3DComponent>())
+        world.destruction3D = std::make_shared<DestructionWorld3D>();
       if (!entity.enabled || !entity.hasComponent<Transform3DComponent>() ||
           !hasCollider(entity) ||
           entity.hasComponent<CharacterController3DComponent>())
@@ -870,6 +1043,13 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
       impl_->ids.erase(iterator->second.body.GetIndexAndSequenceNumber());
       iterator = impl_->bodies.erase(iterator);
     }
+  }
+
+  if (world.destruction3D) {
+    ProfileScope scope("Destruction3D.update");
+    impl_->replacementPhase = true;
+    world.destruction3D->update(world, *this);
+    impl_->replacementPhase = false;
   }
 
   std::erase_if(world.colliderAssets3D, [&](const auto &entry) {

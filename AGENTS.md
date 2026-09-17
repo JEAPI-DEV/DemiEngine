@@ -97,6 +97,14 @@ rendering, validation, and presentation should not accumulate in one class.
 - Use stable IDs and URI references: `scene://`, `asset://`, `prefab://`,
   `ui-prefab://`, and `script://`. Do not replace stable references with array
   positions or editor-only handles.
+- Prefer entity `children` arrays for visually meaningful local hierarchies in
+  scenes and prefabs. Nest related objects under their owner rather than writing
+  flat siblings with transform `parent` fields. Keep explicit `parent` for
+  cross-prefab/cross-scene or other relationships that cannot be nested in the
+  authored document. IDs stay stable and document-wide; nesting is not an ID
+  namespace. Preserve existing source layout unless changing that hierarchy or
+  explicitly migrating it. This convention applies to examples and new editor
+  authoring as well as hand-written JSON.
 - Asset manifests use `*.asset.json`; authored scenes use `*.scene.json`; HUDs
   use `*.hud.json`. Generated paths never become the authored identity.
 - Project scene entries may omit `path` when the conventional path can be

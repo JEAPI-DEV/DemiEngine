@@ -1,7 +1,11 @@
 #include "demi/runtime/scene/composition/PrefabResolver.h"
+#include "demi/runtime/scene/composition/EntityHierarchy.h"
+#include "demi/assets/FracturePrefab.h"
+#include "demi/assets/FractureAuthoring.h"
 
 #include <algorithm>
 #include <fstream>
+#include <map>
 #include <ranges>
 #include <set>
 #include <sstream>
@@ -128,6 +132,14 @@ void remapEntityReferences(
       continue;
     }
     auto parent = component.value().find("parent");
+    if (component.key() == "Destructible3D" && component.value().contains("parts") &&
+        component.value()["parts"].is_object()) {
+      for (auto &[part, visual] : component.value()["parts"].items()) {
+        if (!visual.is_string()) continue;
+        const auto replacement = ids.find(visual.get<std::string>());
+        if (replacement != ids.end()) visual = replacement->second;
+      }
+    }
     if (parent != component.value().end() && parent->is_string()) {
       const auto replacement = ids.find(parent->get<std::string>());
       if (replacement != ids.end()) {
@@ -139,8 +151,9 @@ void remapEntityReferences(
 
 class ExpansionContext {
 public:
-  explicit ExpansionContext(Diagnostics &diagnostics)
-      : diagnostics_(diagnostics) {}
+  explicit ExpansionContext(Diagnostics &diagnostics,
+      std::filesystem::path overridePath = {}, std::optional<Json> overrideDocument = {}, bool compileFractures = true)
+      : diagnostics_(diagnostics), overridePath_(std::move(overridePath)), overrideDocument_(std::move(overrideDocument)), compileFractures_(compileFractures) {}
 
   Json expandInstance(const std::filesystem::path &ownerPath,
                       const Json &instance, const std::string &parentPrefix) {
@@ -173,7 +186,9 @@ public:
       return items;
     }
 
-    const auto prefab = readJson(canonical, diagnostics_);
+    auto prefab = overrideDocument_ && canonical==overridePath_ ? overrideDocument_ : readJson(canonical, diagnostics_);
+    if (const auto cached=compiledFractures_.find(canonical);cached!=compiledFractures_.end())
+      prefab=cached->second;
     if (!prefab.has_value()) {
       return items;
     }
@@ -187,11 +202,44 @@ public:
 
     active_.insert(canonical);
     stack_.push_back(canonical);
+    if (prefab->contains("fracture")) {
+      try {
+        if(prefab->contains("entities")||prefab->contains("instances")||prefab->contains("elements"))
+          throw std::runtime_error("A fracture recipe references a source prefab; it cannot also declare entities/instances");
+        const auto &recipe=(*prefab)["fracture"];
+        const auto source=recipe.at("source").get<std::string>();
+        auto inputs=expandInstance(canonical, {{"id","fracture_input"},{"prefab",source}}, {});
+        for (auto &input:inputs) {
+          auto strip=[](std::string value){ const std::string prefix="fracture_input/"; return value.starts_with(prefix)?value.substr(prefix.size()):value; };
+          input["id"]=strip(input["id"].get<std::string>());
+          if (input["components"].contains("Transform3D") && input["components"]["Transform3D"].contains("parent"))
+            input["components"]["Transform3D"]["parent"]=strip(input["components"]["Transform3D"]["parent"].get<std::string>());
+        }
+        const auto compiled=assets::compileFracturePrefab(*findProjectRoot(canonical), inputs, recipe);
+        (*prefab)["entities"]=compiled["entities"];
+        prefab->erase("instances");
+        prefab->erase("fracture");
+        compiledFractures_[canonical]=*prefab;
+      } catch (const std::exception &error) {
+        report(canonical,"FRACTURE_GENERATION_FAILED",error.what());
+        stack_.pop_back();active_.erase(canonical);return items;
+      }
+    }
     const std::string prefix =
         parentPrefix.empty()
             ? instance["id"].get<std::string>()
             : parentPrefix + "/" + instance["id"].get<std::string>();
 
+    if (prefab->contains("entities")) {
+      try {
+        (*prefab)["entities"] = flattenEntityHierarchy((*prefab)["entities"]);
+      } catch (const std::exception &error) {
+        report(canonical, "ENTITY_HIERARCHY_INVALID", error.what());
+        stack_.pop_back();
+        active_.erase(canonical);
+        return items;
+      }
+    }
     std::unordered_map<std::string, std::string> ids;
     if (prefab->contains("entities") && (*prefab)["entities"].is_array()) {
       for (const Json &item : (*prefab)["entities"]) {
@@ -222,6 +270,13 @@ public:
 
     applyOverrides(instance.value("overrides", Json::object()), prefix, items,
                    ownerPath);
+    if (compileFractures_) {
+      try {
+        items = assets::compileEntityFractures(*findProjectRoot(canonical), items, prefix);
+      } catch (const std::exception &error) {
+        report(canonical, "FRACTURE_GENERATION_FAILED", error.what());
+      }
+    }
     stack_.pop_back();
     active_.erase(canonical);
     return items;
@@ -290,6 +345,10 @@ private:
   Diagnostics &diagnostics_;
   std::set<std::filesystem::path> active_;
   std::vector<std::filesystem::path> stack_;
+  std::map<std::filesystem::path,Json> compiledFractures_;
+  std::filesystem::path overridePath_;
+  std::optional<Json> overrideDocument_;
+  bool compileFractures_ = true;
 };
 
 } // namespace
@@ -361,7 +420,7 @@ Json mergeOverride(Json inherited, const Json &overrideValue) {
 }
 
 ExpansionResult expandScene(const std::filesystem::path &scenePath,
-                            const Json &sceneDocument) {
+                            const Json &sceneDocument, bool compileFractures) {
   ExpansionResult result{.document = sceneDocument, .diagnostics = {}};
   if (!sceneDocument.is_object()) {
     result.document.reset();
@@ -374,7 +433,18 @@ ExpansionResult expandScene(const std::filesystem::path &scenePath,
     return result;
   }
   Json &expanded = *result.document;
-  ExpansionContext context(result.diagnostics);
+  if (expanded.contains("entities")) {
+    try {
+      expanded["entities"] = flattenEntityHierarchy(expanded["entities"]);
+    } catch (const std::exception &error) {
+      result.diagnostics.push_back({.severity = Severity::Error,
+          .code = "ENTITY_HIERARCHY_INVALID", .message = error.what(),
+          .path = scenePath.string()});
+      result.document.reset();
+      return result;
+    }
+  }
+  ExpansionContext context(result.diagnostics, {}, {}, compileFractures);
   if (expanded.contains("instances") && expanded["instances"].is_array()) {
     if (!expanded.contains("entities") || !expanded["entities"].is_array())
       expanded["entities"] = Json::array();
@@ -385,6 +455,15 @@ ExpansionResult expandScene(const std::filesystem::path &scenePath,
     }
   }
   expanded.erase("instances");
+  if (compileFractures && expanded.contains("entities")) {
+    try {
+      expanded["entities"] = assets::compileEntityFractures(
+          findProjectRoot(scenePath).value_or(scenePath.parent_path()), expanded["entities"]);
+    } catch (const std::exception &error) {
+      result.diagnostics.push_back({.severity = Severity::Error,
+          .code = "FRACTURE_GENERATION_FAILED", .message = error.what(), .path = scenePath.string()});
+    }
+  }
   if (hasErrors(result.diagnostics)) {
     result.document.reset();
   }
@@ -416,4 +495,32 @@ ExpansionResult inspectPrefab(const std::filesystem::path &prefabPath) {
   return result;
 }
 
+ExpansionResult bakeFracturePrefab(const std::filesystem::path &path) {
+  Diagnostics diagnostics;
+  const auto source=readJson(path,diagnostics);
+  if(!source || (!source->contains("fracture") && !assets::hasFractureAuthoring(*source))) {
+    diagnostics.push_back({.severity=Severity::Error,.code="FRACTURE_RECIPE_REQUIRED",.message="Expected a prefab fracture recipe.",.path=path.string()});
+    return {.document=std::nullopt,.diagnostics=std::move(diagnostics)};
+  }
+  return bakeFracturePrefab(path,*source);
+}
+ExpansionResult bakeFracturePrefab(const std::filesystem::path &path,const Json &source) {
+  ExpansionResult result{.document=Json::object(),.diagnostics={}};
+  if(!source.is_object() || (!source.contains("fracture") && !assets::hasFractureAuthoring(source)) ||
+     !source.contains("format_version") || !source["format_version"].is_number_integer() || source["format_version"]!=1 ||
+     !source.contains("id") || !source["id"].is_string() || !source["id"].get<std::string>().starts_with("prefab://")) {
+    result.diagnostics.push_back({.severity=Severity::Error,.code="FRACTURE_RECIPE_REQUIRED",.message="Expected a versioned prefab fracture recipe.",.path=path.string()});result.document.reset();return result;
+  }
+  ExpansionContext context(result.diagnostics,std::filesystem::weakly_canonical(path),source);
+  auto entities=context.expandInstance(path,{{"id","preview"},{"prefab",source["id"]}},{});
+  if(hasErrors(result.diagnostics)){result.document.reset();return result;}
+  std::unordered_map<std::string,std::string> ids;
+  for(const auto &entity:entities) {
+    const auto id=entity["id"].get<std::string>();
+    ids.emplace(id,id.substr(std::string("preview/").size()));
+  }
+  for(auto &entity:entities) {entity["id"]=ids.at(entity["id"].get<std::string>());remapEntityReferences(entity,ids);}
+  *result.document={{"format_version",1},{"id",source["id"]},{"entities",std::move(entities)}};
+  return result;
+}
 } // namespace demi::runtime::composition

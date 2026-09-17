@@ -94,6 +94,7 @@ else()
     src/editor/EditorSceneDocument.cpp
     src/editor/EditorSceneDomain.cpp
     src/editor/EditorSceneJson.cpp
+    src/editor/EditorEntityHierarchy.cpp
     src/editor/EditorScenePreview.cpp
     src/editor/EditorSceneView2DState.cpp
     src/editor/EditorSceneViewState.cpp

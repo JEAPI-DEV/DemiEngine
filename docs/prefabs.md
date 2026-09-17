@@ -51,6 +51,48 @@ demi scene diff scenes/old.scene.json scenes/new.scene.json
 `scene diff` compares expanded documents, so prefab changes and instance
 overrides appear as concrete JSON-pointer changes.
 
+## Local entity hierarchy
+
+Prefer `children` for entities that belong together in one scene or prefab:
+
+```json
+{
+  "id": "wall",
+  "components": { "Transform3D": {} },
+  "children": [
+    {
+      "id": "concrete",
+      "components": { "Transform3D": { "position": [0, 1.5, 0] } }
+    },
+    {
+      "id": "reinforcement",
+      "components": { "Transform3D": { "position": [0, 1.5, 0] } }
+    }
+  ]
+}
+```
+
+Nesting supplies the child's transform parent. Child transforms are local to the
+parent, and use the same domain (`Transform3D`, `Transform2D`, or `IsoTransform`).
+A child without a transform receives an identity transform in that domain.
+The owning entity must have a spatial transform. Explicit conflicting parents,
+mixed transform domains and nesting deeper than 128 levels are errors.
+
+IDs remain document-wide, not relative paths: a prefab instance `house` produces
+`house/wall` and `house/concrete`, not `house/wall/concrete`. Duplicate child IDs
+are still errors. CLI expansion and runtime loading flatten the hierarchy through
+the same composition path; cooked source may retain nesting.
+
+Use explicit transform `parent` references for cross-prefab/scene relationships
+or other links that cannot be expressed inside the source tree. Existing flat
+documents remain supported. Cross-scene references still require the parent to
+be available under the existing loading/validation rules; nesting does not add
+deferred cross-scene resolution.
+
+Editor child creation and local reparenting write nested entities. Edits, subtree
+duplication/deletion and Undo/Redo preserve authored nesting. Saving an unrelated
+field does not automatically convert an existing flat document.
+
 ## Runtime Instantiation
 
 Lua uses the same expansion and component-validation path as scene loading:

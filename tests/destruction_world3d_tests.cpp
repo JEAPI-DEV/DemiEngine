@@ -1,0 +1,348 @@
+#include "demi/runtime/destruction/DestructionWorld3D.h"
+#include "demi/runtime/physics/PhysicsWorld3D.h"
+#include "demi/runtime/scene/SceneFlow.h"
+#include "demi/runtime/scene/SceneLoader.h"
+#include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/components/EngineComponents.h"
+#include "demi/runtime/scene/model/World.h"
+#include <chrono>
+#include <cmath>
+#include <filesystem>
+#include <iostream>
+#include <stdexcept>
+#include <thread>
+
+using namespace demi::runtime;
+namespace {
+void expect(bool ok, const std::string &message) {
+  if (!ok)
+    throw std::runtime_error(message);
+}
+ColliderPart3D cube(const std::string &id, float x) {
+  ColliderPart3D part{.id = id};
+  for (float dx : {-0.5F, 0.5F})
+    for (float y : {-0.5F, 0.5F})
+      for (float z : {-0.5F, 0.5F})
+        part.points.push_back({x + dx, y, z});
+  return part;
+}
+World fixture(bool anchored = true) {
+  World world;
+  Entity floor;
+  floor.id = "floor";
+  floor.setComponent(Transform3DComponent{.position = {0, -0.5F, 0}});
+  floor.setComponent(BoxCollider3DComponent{.size = {40, 1, 40}});
+  Rigidbody3DComponent floorBody;
+  floorBody.bodyType = "static";
+  floor.setComponent(floorBody);
+  world.entities.push_back(std::move(floor));
+  ColliderAsset3D asset;
+  asset.parts = {cube("left", -1), cube("middle", 0), cube("right", 1)};
+  asset.fracture = demi::assets::ColliderFractureGraph{
+      .bonds = {{"a", "left", "middle", 1}, {"b", "middle", "right", 1}},
+      .anchors = anchored ? std::vector<std::string>{"left"}
+                          : std::vector<std::string>{}};
+  world.colliderAssets3D.emplace("asset://assembly", asset);
+  Entity root;
+  root.id = "root";
+  root.setComponent(Transform3DComponent{.position = {0, 4, 0}});
+  root.setComponent(ModelCollider3DComponent{.asset = "asset://assembly"});
+  Rigidbody3DComponent body;
+  body.bodyType = anchored ? "static" : "dynamic";
+  body.mass = 3;
+  body.linearDamping = body.angularDamping = 0;
+  body.useGravity = anchored;
+  if (!anchored) {
+    body.velocity = {3, 0, 0};
+    body.angularVelocity = {0, 0, 2};
+  }
+  root.setComponent(body);
+  Destructible3DComponent config;
+  for (const auto &part : asset.parts)
+    config.parts.emplace(part.id, "visual_" + part.id);
+  root.setComponent(config);
+  world.entities.push_back(std::move(root));
+  for (const auto &part : asset.parts) {
+    Entity visual;
+    visual.id = "visual_" + part.id;
+    float x = part.id == "left" ? -1 : part.id == "right" ? 1 : 0;
+    visual.setComponent(
+        Transform3DComponent{.parent = "root", .position = {x, 0, 0}});
+    visual.setComponent(MeshRendererComponent{});
+    world.entities.push_back(std::move(visual));
+  }
+  return world;
+}
+void hit(World &world, const std::string &part, float amount) {
+  std::string error;
+  expect(world.destruction3D->damagePart("root", part, amount, error), error);
+}
+void localized() {
+  auto world = fixture();
+  auto &physics = ensurePhysicsWorld3D(world);
+  physics.step(world, 1.0F / 60);
+  expect(world.destruction3D->state("root").status == "ready",
+         "Attachment failed");
+  hit(world, "right", 0.6F);
+  expect(world.destruction3D->state("root").revision == 0,
+         "Damage was not deferred");
+  physics.step(world, 1.0F / 60);
+  expect(world.destruction3D->state("root").bodies == 1,
+         "Partial damage split prematurely");
+  hit(world, "right", 0.6F);
+  physics.step(world, 1.0F / 60);
+  auto state = world.destruction3D->state("root");
+  expect(state.status == "applied" && state.bodies == 2,
+         "Split failed: " + state.error);
+  const auto right = state.parts.at("right");
+  expect(state.parts.at("left") == state.parts.at("middle") &&
+             right != state.parts.at("left"),
+         "Wrong connected groups");
+  expect(findEntity(world, "visual_right")
+                 ->component<Transform3DComponent>()
+                 ->parent == right,
+         "Visual not reparented");
+  expect(findEntity(world, right)->component<Rigidbody3DComponent>()->mass == 1,
+         "Split mass incorrect");
+  const auto query = physics.raycast({1, 4, 3}, {0, 0, -1}, 6);
+  expect(query && query->entityId == right && query->colliderPartId == "right",
+         "Native split identity incorrect");
+  for (int i = 0; i < 30; ++i)
+    physics.step(world, 1.0F / 60);
+  expect(
+      findEntity(world, right)->component<Transform3DComponent>()->position.y <
+          3,
+      "Detached body did not fall under gravity");
+  const auto remaining = physics.raycast({-1, 4, 3}, {0, 0, -1}, 6);
+  expect(remaining && remaining->colliderPartId == "left",
+         "Remaining anchored collision disappeared");
+  hit(world, "middle", 2);
+  physics.step(world, 1.0F / 60);
+  state = world.destruction3D->state("root");
+  expect(state.bodies == 3 && state.parts.at("right") == right,
+         "Repeated split rebuilt unrelated ownership");
+  for (int i = 0; i < 120; ++i)
+    physics.step(world, 1.0F / 60);
+  const auto resting =
+      resolveWorldTransform3D(world, *findEntity(world, "visual_right"))
+          ->position;
+  expect(resting.y > 0.4F && resting.y < 0.7F,
+         "Detached fragment did not collide with and settle on the floor");
+  std::erase_if(world.entities,
+                [](const Entity &entity) { return entity.id == "root"; });
+  physics.step(world, 1.0F / 60);
+  expect(world.destruction3D->state("root").status == "unattached",
+         "Removed assembly retained damage state");
+  for (const auto &[id, asset] : world.colliderAssets3D)
+    expect(!id.starts_with("runtime-fracture://"),
+           "Removed assembly leaked collider snapshots");
+  expect(!physics.raycast({-1, 4, 3}, {0, 0, -1}, 6),
+         "Removed fragments retained native collision");
+}
+
+void detachedFoundation() {
+  auto world = fixture();
+  auto &physics = ensurePhysicsWorld3D(world);
+  physics.step(world, 1.0F / 60);
+  hit(world, "middle", 2);
+  physics.step(world, 1.0F / 60);
+  auto state = world.destruction3D->state("root");
+  const auto base = state.parts.at("left");
+  const auto unrelated = state.parts.at("right");
+  expect(findEntity(world, base)->component<Rigidbody3DComponent>()->bodyType == "static",
+         "Foundation lost support from a neighboring hit");
+  hit(world, "left", 0.6F);
+  physics.step(world, 1.0F / 60);
+  expect(findEntity(world, base)->component<Rigidbody3DComponent>()->bodyType == "static",
+         "Partial direct hit released foundation");
+  hit(world, "left", 0.6F);
+  physics.step(world, 1.0F / 60);
+  state = world.destruction3D->state("root");
+  expect(state.status == "applied", "Foundation release failed: " + state.error);
+  expect(state.parts.at("right") == unrelated && state.bodies == 3,
+         "Foundation release changed unrelated ownership");
+  expect(findEntity(world, state.parts.at("left"))->component<Rigidbody3DComponent>()->bodyType == "dynamic",
+         "Isolated foundation remained static");
+  for (int i = 0; i < 30; ++i)
+    physics.step(world, 1.0F / 60);
+  expect(findEntity(world, state.parts.at("left"))->component<Transform3DComponent>()->position.y < 3,
+         "Released foundation did not fall");
+}
+void motionAndPose() {
+  auto world = fixture(false);
+  auto &physics = ensurePhysicsWorld3D(world);
+  physics.step(world, 1.0F / 60);
+  const auto before =
+      resolveWorldTransform3D(world, *findEntity(world, "visual_right"))
+          ->position;
+  hit(world, "middle", 2);
+  physics.step(world, 0.000001F);
+  const auto state = world.destruction3D->state("root");
+  expect(state.bodies == 3, "Moving split failed: " + state.error);
+  const auto after =
+      resolveWorldTransform3D(world, *findEntity(world, "visual_right"))
+          ->position;
+  expect(std::abs(after.x - before.x) < 0.001F &&
+             std::abs(after.y - before.y) < 0.001F,
+         "Visual jumped at split boundary");
+  Vec3 momentum{};
+  for (const auto &[part, id] : state.parts) {
+    const auto *body = findEntity(world, id)->component<Rigidbody3DComponent>();
+    expect(std::abs(body->mass - 1) < 0.001F &&
+               std::abs(body->angularVelocity.z - 2) < 0.001F,
+           "Mass/angular velocity inheritance failed");
+    momentum.x += body->mass * body->velocity.x;
+    momentum.y += body->mass * body->velocity.y;
+  }
+  expect(std::abs(momentum.x - 9) < 0.01F && std::abs(momentum.y) < 0.01F,
+         "Linear momentum not conserved");
+  Vec3 center{};
+  for (const auto &[part, id] : state.parts) {
+    const auto p =
+        resolveWorldTransform3D(world, *findEntity(world, "visual_" + part))
+            ->position;
+    center.x += p.x / 3;
+    center.y += p.y / 3;
+  }
+  float angularMomentum = 0;
+  for (const auto &[part, id] : state.parts) {
+    const auto p =
+        resolveWorldTransform3D(world, *findEntity(world, "visual_" + part))
+            ->position;
+    const auto *body = findEntity(world, id)->component<Rigidbody3DComponent>();
+    // Three unit cubes: each local Izz=m/6; the initial compound Izz=2.5.
+    angularMomentum += body->angularVelocity.z / 6 +
+                       (p.x - center.x) * body->velocity.y -
+                       (p.y - center.y) * body->velocity.x;
+  }
+  expect(std::abs(angularMomentum - 5) < 0.02F,
+         "Angular momentum not conserved");
+  const auto *right = findEntity(world, state.parts.at("right"))
+                          ->component<Rigidbody3DComponent>();
+  expect(right->velocity.y > 1.9F,
+         "Split did not inherit rotational velocity at its COM");
+}
+void rollbackAndCancellation() {
+  auto world = fixture();
+  auto *config =
+      findEntity(world, "root")->component<Destructible3DComponent>();
+  config->maxBodies = 1;
+  auto &physics = ensurePhysicsWorld3D(world);
+  physics.step(world, 1.0F / 60);
+  hit(world, "right", 2);
+  physics.step(world, 1.0F / 60);
+  expect(world.destruction3D->state("root").status == "failed" &&
+             world.destruction3D->state("root").revision == 0,
+         "Budget rejection mutated committed damage");
+  expect(physics.raycast({1, 4, 3}, {0, 0, -1}, 6)->entityId == "root",
+         "Failure retired original collision");
+  config->maxBodies = 64;
+  hit(world, "right", 0.6F);
+  physics.step(world, 1.0F / 60);
+  expect(world.destruction3D->state("root").bodies == 1,
+         "Cancelled damage leaked health");
+  hit(world, "right", 2);
+  // Remove and recreate the same authored ID before the queued hit executes.
+  auto fresh = fixture();
+  world.entities = std::move(fresh.entities);
+  physics.step(world, 1.0F / 60);
+  expect(world.destruction3D->state("root").revision == 0 &&
+             world.destruction3D->state("root").bodies == 1,
+         "Queued damage reached a recreated entity");
+  std::string error;
+  expect(!world.destruction3D->damagePart("root", "missing", 1, error),
+         "Unknown part accepted");
+  expect(!world.destruction3D->damagePart("root", "right", -1, error),
+         "Negative damage accepted");
+}
+void invalidAttachments() {
+  for (int invalid = 0; invalid < 3; ++invalid) {
+    auto world = fixture();
+    auto *root = findEntity(world, "root");
+    if (invalid == 0)
+      root->setComponent(BoxCollider3DComponent{});
+    if (invalid == 1)
+      findEntity(world, "visual_right")->persistent = true;
+    if (invalid == 2)
+      root->component<Destructible3DComponent>()->parts["right"] =
+          "visual_left";
+    ensurePhysicsWorld3D(world).step(world, 1.0F / 60);
+    const auto state = world.destruction3D->state("root");
+    expect(state.status == "failed" && !state.error.empty(),
+           "Invalid runtime attachment was accepted");
+    std::string error;
+    expect(!world.destruction3D->damagePart("root", "right", 1, error),
+           "Failed attachment accepted damage");
+  }
+}
+void sceneLifecycle() {
+  std::string error;
+  auto loaded = loadProject(std::filesystem::path(DEMI_SOURCE_DIR) /
+                                "examples/destruction_3d_lab/demi.project.json",
+                            error);
+  expect(bool(loaded), error);
+  auto &world = loaded->world;
+  const auto sceneId = world.activeSceneId;
+  const auto authoredCount = world.entities.size();
+  SceneFlow flow;
+  flow.configure(loaded->project);
+  ResourceLifetimeRegistry resources;
+  resources.capture(sceneId, world.entities);
+  const auto privateCount = [&] {
+    std::size_t count = 0;
+    for (const auto &[id, asset] : world.colliderAssets3D)
+      if (id.starts_with("runtime-fracture://"))
+        ++count;
+    return count;
+  };
+  for (int cycle = 0; cycle < 4; ++cycle) {
+    ensurePhysicsWorld3D(world).step(world, 1.0F / 60);
+    expect(world.destruction3D->state("arch").bodies == 1 &&
+               privateCount() == 0,
+           "Reload retained old fracture state or private collider snapshots");
+    expect(world.destruction3D->damagePart("arch", "lintel", 2, error), error);
+    ensurePhysicsWorld3D(world).step(world, 1.0F / 60);
+    expect(world.destruction3D->state("arch").bodies == 3 &&
+               privateCount() == 3,
+           "Repeated scene split failed");
+    expect(flow.prepare(sceneId, false), "Scene reset preparation failed");
+    for (int wait = 0;
+         wait < 500 && flow.state() == ScenePreparationState::Loading; ++wait) {
+      flow.poll();
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    expect(flow.state() == ScenePreparationState::Ready, flow.error());
+    expect(flow.activate(world, resources).has_value(),
+           "Scene reset activation failed");
+    expect(world.entities.size() == authoredCount && !world.destruction3D,
+           "Scene reset retained generated entities or damage owner");
+  }
+  ensurePhysicsWorld3D(world).step(world, 1.0F / 60);
+  expect(world.destruction3D->damagePart("arch", "lintel", 2, error), error);
+  ensurePhysicsWorld3D(world).step(world, 1.0F / 60);
+  expect(flow.unload(world, sceneId, resources).has_value(),
+         "Scene unload failed");
+  ensurePhysicsWorld3D(world).step(world, 1.0F / 60);
+  expect(world.entities.empty() && privateCount() == 0 &&
+             world.destruction3D->state("arch").status == "unattached",
+         "Scene unload leaked fragments, private geometry or damage state");
+}
+} // namespace
+int main() {
+  try {
+    invalidAttachments();
+    detachedFoundation();
+    sceneLifecycle();
+    for (int i = 0; i < 5; ++i) {
+      localized();
+      motionAndPose();
+      rollbackAndCancellation();
+    }
+    std::cout
+        << "World destruction ownership, splits, motion and rollback passed\n";
+    return 0;
+  } catch (const std::exception &error) {
+    std::cerr << error.what() << '\n';
+    return 1;
+  }
+}

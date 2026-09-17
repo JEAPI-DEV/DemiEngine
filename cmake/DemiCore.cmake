@@ -15,6 +15,10 @@ add_library(demi-core STATIC
   src/demi/assets/ColliderAssetGenerator.cpp
   src/demi/assets/ColliderShapeAsset.cpp
   src/demi/assets/ColliderFractureGraph.cpp
+  src/demi/assets/ConvexFracture.cpp
+  src/demi/assets/FracturePrefab.cpp
+  src/demi/assets/FractureAuthoring.cpp
+  src/demi/schema/DestructionValidation.cpp
   src/demi/assets/ModelImportProfile.cpp
   src/demi/assets/ModelInspector.cpp
   src/demi/assets/SceneBudget3D.cpp
@@ -44,6 +48,7 @@ add_library(demi-core STATIC
   src/demi/packages/PackageLock.cpp
   src/demi/schema/Validation.cpp
   src/demi/runtime/scene/composition/PrefabResolver.cpp
+  src/demi/runtime/scene/composition/EntityHierarchy.cpp
   src/demi/runtime/ui/UiLayoutEngine.cpp
   src/demi/runtime/ui/HudLayoutReport.cpp
   src/demi/runtime/ui/TextLayoutEngine.cpp

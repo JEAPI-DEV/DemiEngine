@@ -13,6 +13,7 @@
 #include "demi/runtime/scripting/bindings/components/LuaMeshDeformationBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics3DBindings.h"
+#include "demi/runtime/scripting/bindings/components/LuaDestruction3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaRigidbody2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaRigidbody3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaSprite2DBindings.h"
@@ -69,6 +70,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaSprite2DBindingModule sprite2D;
   const LuaPhysics2DBindingModule physics2D;
   const LuaPhysics3DBindingModule physics3D;
+  const LuaDestruction3DBindingModule destruction3D;
   const LuaHudBindingModule hud;
   const LuaSaveBindingModule save;
   const LuaAudioBindingModule audio;
@@ -95,7 +97,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
       &cutscene,    &network,     &networkSession,  &tls,
       &regex,       &random,      &isoGrid,         &vectorMath,
       &animation,   &assets,      &navigation2D,    &tilemap2D,
-      &data,        &e2eTests};
+      &data,        &e2eTests, &destruction3D};
   for (const LuaBindingModule *module : modules) {
     module->install(host, state);
   }

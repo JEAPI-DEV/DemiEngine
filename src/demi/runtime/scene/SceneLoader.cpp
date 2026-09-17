@@ -45,9 +45,10 @@ namespace {
 [[nodiscard]] std::optional<World>
 buildSceneWorld(const ProjectData &project, const std::string &sceneId,
                 const std::filesystem::path &scenePath,
-                const scene_loading::Json &sceneJson, std::string &error) {
+                const scene_loading::Json &sceneJson, std::string &error,
+                bool compileFractures = true) {
   const composition::ExpansionResult expansion =
-      composition::expandScene(scenePath, sceneJson);
+      composition::expandScene(scenePath, sceneJson, compileFractures);
   if (!expansion.document.has_value()) {
     error = expansion.diagnostics.empty()
                 ? "Scene prefab expansion failed: " + scenePath.string()
@@ -191,7 +192,7 @@ std::optional<World> loadScene(const ProjectData &project,
 std::optional<World> loadSceneDocument(const ProjectData &project,
                                        const std::string &sceneId,
                                        const nlohmann::json &document,
-                                       std::string &error) {
+                                       std::string &error, bool compileFractures) {
   const SceneEntry *scene = findSceneEntry(project, sceneId);
   if (scene == nullptr) {
     error = "No scene registered with id: " + sceneId;
@@ -200,7 +201,7 @@ std::optional<World> loadSceneDocument(const ProjectData &project,
 
   const std::filesystem::path scenePath =
       project.projectDirectory / scene->path;
-  return buildSceneWorld(project, sceneId, scenePath, document, error);
+  return buildSceneWorld(project, sceneId, scenePath, document, error, compileFractures);
 }
 
 } // namespace demi::runtime

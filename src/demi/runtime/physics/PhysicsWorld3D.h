@@ -11,6 +11,10 @@ namespace demi::runtime {
 
 struct World;
 struct Entity;
+struct ReplacementBody3D {
+  std::string entityId;
+  std::string sourceId;
+};
 
 class PhysicsWorld3D {
 public:
@@ -21,6 +25,11 @@ public:
 
   [[nodiscard]] bool available() const;
   void step(World &world, float fixedDt, Vec3 gravity = {0.0F, -9.81F, 0.0F});
+  // Internal fixed-step transaction: candidate owns prepared entity/asset data.
+  // Source remains live on failure. Not callable from scripts during simulation.
+  [[nodiscard]] bool replaceBodies(World &world, World &candidate,
+      const std::vector<std::string> &sources,
+      const std::vector<ReplacementBody3D> &replacements, std::string &error);
 
   [[nodiscard]] bool setVelocity(const std::string &entityId, Vec3 velocity);
   [[nodiscard]] std::optional<Vec3> velocity(const std::string &entityId) const;

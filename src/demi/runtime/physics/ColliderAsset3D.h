@@ -2,6 +2,7 @@
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/ColliderFractureGraph.h"
+#include "demi/assets/ColliderShapeAsset.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <cstdint>
@@ -43,6 +44,9 @@ struct BoxColliderShape3D {
   Vec3 offset;
   bool isTrigger = false;
 };
+
+[[nodiscard]] ColliderAsset3D colliderAssetFromShape3D(const assets::ColliderShapeAsset &source);
+[[nodiscard]] const ColliderAsset3D *resolvedColliderAsset3D(const World &world, const Entity &entity);
 
 // Resolves authored ModelCollider3D references into the immutable collider
 // shapes that runtime physics and debug rendering consume.

@@ -23,8 +23,11 @@ loadProject(const std::filesystem::path &projectPath, std::string &error);
 // touching disk for the scene file itself. Prefab references and the optional
 // HUD are still resolved relative to the scene's registered path. Used by the
 // editor to refresh its preview projection after an in-memory authored edit.
+// compileFractures=false retains editable source meshes and authoring components;
+// gameplay, including embedded Play, must use the default compiled projection.
 [[nodiscard]] std::optional<World>
 loadSceneDocument(const ProjectData &project, const std::string &sceneId,
-                  const nlohmann::json &document, std::string &error);
+                  const nlohmann::json &document, std::string &error,
+                  bool compileFractures = true);
 
 } // namespace demi::runtime

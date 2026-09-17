@@ -143,6 +143,7 @@ void printHelp() {
       << "  demi validate [path] [--platform linux|linux_server|android] "
          "[--format text|json]\n"
       << "  demi schema export\n"
+      << "  demi asset fracture <prefab.prefab.json>\n"
       << "  demi capabilities export [--output path]\n"
       << "  demi capabilities check [--baseline path] [--format text|json]\n"
       << "  demi capabilities verify-gates [--manifest path]\n"

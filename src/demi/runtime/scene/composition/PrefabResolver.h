@@ -38,7 +38,7 @@ resolvePrefabReference(const std::filesystem::path &sourcePath,
 
 [[nodiscard]] ExpansionResult
 expandScene(const std::filesystem::path &scenePath,
-            const nlohmann::json &sceneDocument);
+            const nlohmann::json &sceneDocument, bool compileFractures = true);
 
 [[nodiscard]] ExpansionResult
 expandPrefabInstance(const std::filesystem::path &ownerPath,
@@ -46,5 +46,8 @@ expandPrefabInstance(const std::filesystem::path &ownerPath,
 
 [[nodiscard]] ExpansionResult
 inspectPrefab(const std::filesystem::path &prefabPath);
+[[nodiscard]] ExpansionResult bakeFracturePrefab(const std::filesystem::path &prefabPath);
+[[nodiscard]] ExpansionResult bakeFracturePrefab(const std::filesystem::path &prefabPath,
+                                                const nlohmann::json &source);
 
 } // namespace demi::runtime::composition

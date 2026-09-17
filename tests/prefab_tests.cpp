@@ -1,4 +1,5 @@
 #include "demi/runtime/scene/composition/PrefabResolver.h"
+#include "demi/schema/Validation.h"
 
 #include <filesystem>
 #include <fstream>
@@ -16,6 +17,37 @@ bool write(const std::filesystem::path &path, const char *text) {
 
 int main() {
   using demi::runtime::composition::expandScene;
+  const auto nestedScene = nlohmann::json::parse(R"({
+    "format_version":1,"id":"scene://nested","entities":[
+      {"id":"wall","components":{"Transform3D":{}},"children":[
+        {"id":"concrete","components":{"Transform3D":{"position":[0,1,0]}},"children":[
+          {"id":"detail","components":{}}
+        ]}
+      ]}
+    ]})");
+  const auto nested = expandScene("nested.scene.json", nestedScene);
+  if (!nested.document || (*nested.document)["entities"].size() != 3 ||
+      (*nested.document)["entities"][1]["components"]["Transform3D"]["parent"] != "wall" ||
+      (*nested.document)["entities"][2]["components"]["Transform3D"]["parent"] != "concrete" ||
+      (*nested.document)["entities"][0].contains("children")) return 20;
+  auto invalid = nestedScene;
+  invalid["entities"][0]["children"][0]["components"]["Transform3D"]["parent"] = "other";
+  if (expandScene("nested.scene.json", invalid).document) return 21;
+  invalid = nestedScene;
+  invalid["entities"][0]["children"] = "not an array";
+  if (expandScene("nested.scene.json", invalid).document) return 22;
+  invalid = nestedScene;
+  invalid["entities"][0]["children"][0]["id"] = "wall";
+  if (!demi::hasErrors(demi::validateSceneDocument("nested.scene.json", invalid))) return 23;
+  invalid = nestedScene;
+  invalid["entities"][0]["children"][0]["components"]["Transform3D"]["position"] = "bad";
+  if (!demi::hasErrors(demi::validateSceneDocument("nested.scene.json", invalid))) return 24;
+  for (const char *domain : {"Transform2D", "IsoTransform"}) {
+    auto twoD = nestedScene;
+    twoD["entities"][0]["components"] = {{domain, nlohmann::json::object()}};
+    twoD["entities"][0]["children"][0]["components"] = {{domain, nlohmann::json::object()}};
+    if (!expandScene("nested.scene.json", twoD).document) return 25;
+  }
   const auto root =
       std::filesystem::temp_directory_path() / "demi_prefab_tests";
   std::error_code error;
@@ -29,8 +61,8 @@ int main() {
   })");
   write(root / "prefabs/parent.prefab.json", R"({
     "format_version":1,"id":"prefab://parent","entities":[
-      {"id":"root","name":"Root","components":{"Transform3D":{"position":[0,0,0]}}},
-      {"id":"child","name":"Child","components":{"Transform3D":{"parent":"root","position":[1,0,0]},"GameplayData":{"values":{"tags":[1,2,3],"keep":true}}}}
+      {"id":"root","name":"Root","components":{"Transform3D":{"position":[0,0,0]},"Destructible3D":{"parts":{"piece":"child"}}},"children":[
+      {"id":"child","name":"Child","components":{"Transform3D":{"position":[1,0,0]},"GameplayData":{"values":{"tags":[1,2,3],"keep":true}}}}]}
     ],"instances":[{"id":"nested","prefab":"prefab://child"}]
   })");
 
@@ -57,6 +89,10 @@ int main() {
     return 1;
   }
   const auto &child = (*expanded.document)["entities"][1];
+  if ((*expanded.document)["entities"][0]["components"]["Destructible3D"]["parts"]["piece"] != "hero/child") {
+    std::cerr << "Destructible visual references were not remapped inside the prefab.\n";
+    return 1;
+  }
   if (child["id"] != "hero/child" || child["name"] != "Changed" ||
       child["components"]["Transform3D"]["parent"] != "hero/root" ||
       child["components"]["GameplayData"]["values"]["tags"] !=

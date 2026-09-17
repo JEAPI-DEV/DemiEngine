@@ -1,8 +1,16 @@
 # Native test executables. Test registration lives in dedicated modules.
+  add_executable(demi-fracture-prefab-tests tests/fracture_prefab_tests.cpp)
+  target_link_libraries(demi-fracture-prefab-tests PRIVATE demi-runtime-lib demi-editor-model)
   add_executable(demi-blast-family3d-tests tests/blast_family3d_tests.cpp)
   target_link_libraries(demi-blast-family3d-tests PRIVATE demi-destruction)
   add_executable(demi-fracture-asset-tests tests/fracture_asset_tests.cpp)
   target_link_libraries(demi-fracture-asset-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-destruction-world3d-tests tests/destruction_world3d_tests.cpp)
+  target_link_libraries(demi-destruction-world3d-tests PRIVATE demi-runtime-lib)
+  target_compile_definitions(demi-destruction-world3d-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-jolt-body-batch3d-tests tests/jolt_body_batch3d_tests.cpp)
+  target_link_libraries(demi-jolt-body-batch3d-tests PRIVATE demi-runtime-lib Jolt)
   add_executable(demi-smoke-tests tests/smoke_tests.cpp)
   target_link_libraries(demi-smoke-tests PRIVATE demi-core)
 

@@ -28,7 +28,7 @@ not every engine feature or production game.
 | --- | --- |
 | 1 — Baselines/feasibility | Complete: baseline evidence and portable Blast/Jolt integration proof, including physical Android CPU execution. Production and expanded-workload qualification belongs to later milestones. |
 | 2 — Scaling | Complete for the declared reference gate: GPU rig support, temporal/model LOD, desktop 2,000-object 1080p scaling, and physical Android 64/256-object scaling/lifecycle. 1440p was measured; Radeon’s 2,000-object stretch miss remains explicit. See [closure evidence](docs/3d-milestone-2-qualification.md). |
-| 3 — Localized destruction | In progress: convex/compound collider assets, native one-body assemblies, part raycast identity and an editable lab foundation are delivered. Blast fracture assets, scheduling and split-body transactions remain open. |
+| 3 — Localized destruction | Foundation plus first bounded authoring slice: component-based convex fracture authoring, editable source hierarchies, automatic geometry/bonds/mappings, cooking and native splits work. General concave/material authoring, spatial/energy-aware hits, scheduling and production qualification remain open. |
 | 4 — Visual/gameplay quality | Third-person mechanics foundation and native visual denting delivered; production animation/visual qualification remains open. |
 | 5 — Structural collapse | Impact-energy telemetry exists; structural connections, stress, fracture-driven collapse, and debris/character policy remain open. |
 | 6 — Landscape/workflow | Asset-service and static distance-LOD foundations plus editor workflow improvements exist; landscape-scale and destruction-specific qualification remain open. |
@@ -252,6 +252,84 @@ all-device, full-game or thermal-soak qualification.
 
 ### Milestone 3: Localized Destruction and Asset Pipeline
 
+#### Required developer workflow and current gap
+
+The target is a reusable destruction workflow, not bespoke arch scripting or
+detaching whole authored objects. The existing arch proves bond breaking and
+physical-body replacement only. Its manual collider points, bond lists, part-to-
+visual mappings and part-named strike script are low-level test fixtures, not
+the intended way to build destructible environments. Prefab reference remapping
+alone does not complete this authoring workflow.
+
+An arch, wall or building must be an ordinary prefab assembled from multiple
+mesh objects. Developers should be able to:
+
+1. Assemble meshes, including concrete, reinforcement, beams, piping and doors,
+   using the normal scene/prefab hierarchy.
+2. Opt objects into destruction, assign material behavior, identify foundation
+   anchors and optionally override generated connections or fracture detail.
+3. Run an editor/import operation that generates fragments, interior surfaces,
+   collision hulls, chunk hierarchy, bonds and visual ownership automatically.
+   Manual point/bond/mapping entry must not be required for the normal workflow.
+4. Use shared impact behavior that supplies position, radius, direction and
+   energy/impulse. The engine resolves affected material and fragments; gameplay
+   scripts must not select named chunks or implement structure-specific splitting.
+
+Offline pre-fragmentation is the initial approach. Dynamic behavior means the
+actual hit location, impact and material determine local damage at runtime; it
+does not require infinitely arbitrary runtime geometric cuts. Fracture resolution
+is limited by the generated hierarchy and must be visible in tooling. Runtime
+CSG is not a prerequisite for the first usable system. Evaluate fragmentation
+algorithms against asset quality, determinism, licensing and generation cost;
+do not mandate TetGen/Delaunay or copy unverified historical implementation claims.
+Red Faction: Guerrilla is an experience reference, not a verified SDK specification.
+
+#### Next implementation order
+
+- Prefer nested entity `children` for local scene/prefab authoring; reserve explicit
+  transform `parent` references for relationships across source boundaries.
+  Keep stable IDs and preserve authored hierarchy through editor history/save.
+  Component-based fracture authoring builds on this shared hierarchy rather than
+  requiring a separate source/recipe prefab pair.
+
+- [x] Deliver the first convex prefab authoring slice: Destructible3D assemblies
+  and Fracture3D mesh components on ordinary scene/prefab entities, deterministic plane-bisection shards, closed interior
+  surfaces, hulls, contact-derived bonds, foundation thresholds and visual mappings.
+  Runtime and cook share the compiler; the editor keeps source meshes editable.
+  Cooking emits prepared data under the same prefab identity. Source/recipe pairs
+  are no longer the normal workflow; legacy recipes remain readable.
+  Boxes and closed convex static mesh inputs are supported with explicit limits.
+  See [fracture authoring](docs/fracture-authoring.md) and `fracture_prefab_lab`.
+- [ ] Deliver prefab-based fracture authoring first: select ordinary mesh objects,
+  generate/preview fragments and interior material slots, and retain editable
+  source objects, prefab relationships and explicit authoring overrides. Derive
+  collider geometry, chunk mass properties, connections and visual mappings.
+  Complete this beyond the initial convex slice: general concave/holed geometry,
+  embedded multi-material/smooth-normal fidelity, connection overrides and richer
+  generated-shard preview tooling remain open. Runtime hierarchical refinement is not
+  supplied by the initial flat-leaf generator.
+- [ ] Make generation deterministic and repeatable through the shared importer:
+  version settings/seeds, preserve stable chunk identities for unchanged inputs,
+  track dependencies and clearly invalidate incompatible generated results.
+  Source settings remain authored data; caches/cooked output are never hand-edited.
+  Component-authored geometry regenerates deterministically and is baked on every cook;
+  persistent authoring-cache/dependency reuse and generation migration are not yet
+  implemented. Source geometry and fracture components remain together in the editable prefab.
+- [ ] Add engine-native spatial impact resolution using world-space position,
+  radius, direction and energy/impulse, with material response and falloff. Keep
+  weapon controls/ammunition in reusable gameplay packages. `damage_part` remains
+  a low-level test/debug facility, not the primary weapon or authoring workflow.
+- [ ] Replace the arch as the main acceptance demonstration with a reinforced-wall
+  prefab and shared hammer/rocket behavior. Identical prefab instances must work
+  without new Lua code, manual bond lists or per-instance part-name switches.
+  The arch may remain a focused compound/transaction regression test.
+
+Structural load failure and full debris policy follow in Milestone 5. Performance
+instrumentation and bounded work apply throughout; a richer demo must not bypass
+the scheduling or qualification gates below.
+
+#### Foundations and remaining delivery gates
+
 - [ ] Establish production analysis, body-transition, physics and response-latency
   budgets using destruction-burst/topology workloads; sampled SDK timings are
   not worst-case guarantees or a resumable scheduler.
@@ -277,36 +355,58 @@ all-device, full-game or thermal-soak qualification.
 - [x] Add the internal persistent Blast-family module with stable chunk/bond IDs,
   cumulative bond damage, anchor-group metadata and staged commit/discard.
   Native tests cover cancellation, stale tokens, repeated damage and 256 chunks.
-  This is not yet connected to world ownership or Jolt splits;
+  This is now connected to opt-in world ownership and Jolt splits;
   see [runtime integration status](docs/3d-destruction-runtime.md).
 - [x] Add optional authored bonds/anchors to compound collider sources, shared
   parser/schema/import/reimport/cook validation, CLI inspection, runtime metadata
   residency and a collider-to-Blast family factory with hull-derived centroids
   and volumes. This is the graph/collision portion, not complete visual fracture
-  assets or automatic fracture authoring; world attachment remains pending.
+  assets or automatic fracture authoring.
+- [x] Add opt-in `Destructible3D` world attachment, prefab-remapped visual links,
+  queued `Destruction3D.damage_part` and ownership/status queries. Controlled
+  tests cover repeated splits, cleanup, same-ID replacement and failed proposals.
 - [ ] Extend `destruction_3d_lab` to the concrete wall, hammer, rocket and steel
-  door; its current compound foundation does not yet fracture.
+  door using the prefab/import workflow above. The current arch only separates
+  its few predefined parts; that does not satisfy localized wall fragmentation.
 - [ ] Author pre-fractured chunks, interior surfaces, collision hulls, materials,
-  bonds, and anchors through Blender/import tooling. Start with offline fracture;
-  runtime damage resolution is limited by the authored chunk hierarchy.
+  bonds, and anchors through editor/Blender/import tooling. Support hierarchical
+  refinement so large authored objects can break into smaller generated shards;
+  do not equate one authored mesh object with the smallest breakable unit.
+- [ ] Support composite prefab materials: concrete fragments can expose distinct
+  reinforcement, beams or pipes that remain present and connected. Treat brittle
+  fragmentation, metal survival and attachment failure separately; evaluate
+  ductile structural deformation in Milestone 5 rather than substituting decals.
 - [ ] Import/cook through the shared asset pipeline with stable chunk IDs,
   deterministic settings/hashes, explicit dependencies, and validated manifests.
-- [ ] Apply localized damage through Blast; preserve unaffected sections.
+- [x] Apply part-local bond damage through Blast; preserve unaffected connected
+  groups. This checked item is a foundation only: it currently targets authored
+  parts and incident bonds. Spatial/material-aware hits, generated sub-fragments,
+  blast falloff and structural stress remain unimplemented delivery requirements.
 - [ ] Implement the shared scheduler's affected-structure queue, coalescing,
   resumable work, fairness, topology-version checks, and separate budget metrics.
-- [ ] Translate splits into Jolt compound bodies for connected assemblies, not
+- [x] Translate splits into Jolt compound bodies for connected assemblies, not
   one awake rigid body per authored chunk from startup. Extend Demi's current
   compound collider contract into transactional split-body replacement; visual
   child entities are not independent rigid chunks from startup.
-- [ ] Apply body changes at a safe fixed-step boundary; update mass, inertia,
+- [x] Apply body changes at a safe fixed-step boundary; update mass, inertia,
   center of mass, inherited linear/angular motion, collision bounds, and render
   ownership. Rebuild invalidated subshape mappings after topology changes.
+  This first transaction stages full entity/asset collections and temporary
+  native bodies. Large-world cost, arbitrary allocation failures at commit and
+  Android gameplay remain unqualified; milestone-wide budgets are still open.
 - [ ] Bound fracture work and body creation; test cancellation, failure, scene
   unload, repeated spawning/destruction, and resource cleanup.
 
-Exit gate: hits open localized holes, remaining walls still collide, detached
-pieces behave physically, and repeated damage stays within measured budgets.
-Simultaneous-hit tests must also meet the scheduling acceptance criteria above.
+Exit gate: build a reinforced wall from ordinary objects in a reusable prefab,
+generate its fracture data through the supported tooling, and damage multiple
+instances without custom destruction scripts. Hits at different positions open
+different localized holes within the generated fracture resolution, rather than
+detaching the entire wall object. Surviving wall/reinforcement retains collision;
+interior surfaces are visible, and detached groups behave physically. Different
+material/connection strengths allow a door to survive while its frame releases
+it. Repeated damage must meet measured budgets, and simultaneous-hit tests must
+meet the scheduling acceptance criteria above. The three-part arch cannot close
+this milestone.
 
 ### Milestone 4: Visual and Gameplay Quality
 
@@ -336,6 +436,11 @@ frame budget. Retain visual captures and interaction regression tests.
 
 ### Milestone 5: Structural Collapse
 
+Connectivity is not load-bearing strength. The current foundation only determines
+whether a group remains connected to an anchor; one surviving bond can hold an
+arbitrarily large assembly. Do not describe that as structural integrity or mark
+load-dependent collapse complete on the basis of connectivity tests.
+
 - [x] Expose pre-solver normal impact-energy estimates in native 3D collision
   events for gameplay/material response. This supplies neutral impact data,
   not a completed falling-debris/character-damage system.
@@ -344,9 +449,17 @@ frame budget. Retain visual captures and interaction regression tests.
 - [ ] Author density, fracture resistance, and bond strength separately. Distinguish
   material survival from attachment failure: a steel door may stay intact while
   its frame breaks and releases it.
+- [ ] Model composite load paths: remaining reinforcement can support exposed
+  concrete sections, while damage to that reinforcement can release the structure.
+  Distinguish brittle failure from ductile bending/strain thresholds. Existing
+  visual mesh denting does not provide structural deformation or updated collision.
 - [ ] Add explosion falloff/obstruction and bounded impact-driven secondary damage.
 - [ ] Begin with connectivity-based support loss, then evaluate Blast's stress
   extension for load-dependent failure. Connectivity alone is not a stress model.
+- [ ] Recompute affected loads after damage, attachment changes and impacts; test
+  load redistribution, overloaded-but-still-connected members, progressive failure
+  and cascading collapse under self-weight. Keep one authoritative connectivity
+  graph and integrate strength/stress analysis with it, not a competing Lua graph.
 - [ ] Integrate stress into the existing bounded scheduler, including requests
   caused by changing dynamic loads. Expose pending/near-failure state for creaks
   and dust without allowing effects to dictate structural correctness.
@@ -354,10 +467,20 @@ frame budget. Retain visual captures and interaction regression tests.
   data while damage/death rules remain gameplay policy.
 - [ ] Preserve important debris collision and persistence. Pool/fade only cosmetic
   chips and dust; do not timer-delete a supporting slab or dangerous falling door.
+- [ ] Add explicit fragment/debris tiers: connected clusters stay combined; large
+  detached pieces retain real rigidbody collision, mass and momentum; fine grit,
+  dust and decals use non-colliding cosmetic effects. Use portable GPU particles
+  where supported with an appropriate fallback, not a vendor-specific requirement.
+- [ ] Budget active bodies, contacts, cosmetic particles and retained memory.
+  Use sleeping, pooling and importance/visibility/settling-aware retirement for
+  disposable debris. Offscreen or old does not automatically mean safe to delete:
+  structural support and hazardous/gameplay-relevant pieces keep their behavior.
 
-Exit gate: rockets damage tower supports, unsupported sections collapse, different
-materials respond appropriately, and an intact door can land on/hit the player.
-Test chained impacts, dense rubble, repeated collapses, and bounded recovery cost.
+Exit gate: rockets damage tower supports; remaining connected members can overload
+and fail under redistributed weight, causing progressive collapse. Concrete can
+break away while reinforcement remains, materials respond differently, and an
+intact door can land on/hit the player. Test chained impacts, dense rubble,
+repeated collapses and bounded recovery cost without deleting important collision.
 
 ### Milestone 6: Landscape Scale and Production Workflow
 

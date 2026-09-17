@@ -9,6 +9,7 @@
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/IsoGridComponent.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
+#include "demi/runtime/scene/composition/EntityHierarchy.h"
 #include "demi/schema/Validation.h"
 
 #include <algorithm>
@@ -55,6 +56,10 @@ bool EditorWorkspace::open(std::filesystem::path projectPath,
     return false;
   }
   if (!loadHudDocument(error)) {
+    project_.reset();
+    return false;
+  }
+  if (!rebuildWorld(error)) {
     project_.reset();
     return false;
   }
@@ -221,7 +226,7 @@ bool EditorWorkspace::refresh(std::string &error) {
   if (!projectDocument_.reload(error))
     return false;
   project_ = std::move(loaded);
-  if (editingPrefab_ && !rebuildWorld(error))
+  if (!rebuildWorld(error))
     return false;
   if (!loadHudDocument(error))
     return false;
@@ -368,6 +373,8 @@ bool EditorWorkspace::resolveExternalChange(
       return false;
     }
     project_ = std::move(loaded);
+    if (!rebuildWorld(error))
+      return false;
     viewportTool_.cancelDrag();
     viewportTool2D_.cancelDrag();
     updateSceneDomain(false);
@@ -822,7 +829,8 @@ bool EditorWorkspace::mutateAndRebuild(
 
 void EditorWorkspace::syncChangedEntity() {
   const std::string_view changed = sceneDocument_.lastChangedEntityId();
-  const nlohmann::json *authored = sceneDocument_.entity(changed);
+  const auto flat = runtime::composition::flattenEntityHierarchy(sceneDocument_.json()["entities"]);
+  const nlohmann::json *authored = runtime::composition::findAuthoredEntity(flat, changed);
   if (authored == nullptr)
     return;
   auto existing = std::ranges::find(project_->world.entities, changed,
@@ -852,13 +860,7 @@ void EditorWorkspace::reconcileIsoGridCellSelection() {
 
 bool EditorWorkspace::rebuildWorld(std::string &error) {
   error.clear();
-  const std::string sceneId = project_->world.activeSceneId.empty()
-                                  ? project_->project.mainScene
-                                  : project_->world.activeSceneId;
-  auto world = editingPrefab_
-                   ? loadEntityPreview(sceneDocument_, true, error)
-                   : runtime::loadSceneDocument(project_->project, sceneId,
-                                                sceneDocument_.json(), error);
+  auto world = loadEntityPreview(sceneDocument_, editingPrefab_, error);
   if (!world)
     return false;
   project_->world = std::move(*world);

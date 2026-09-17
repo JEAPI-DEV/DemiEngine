@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "id": "scene://destruction_3d_lab/main",
-  "name": "Compound collider foundation",
+  "name": "Localized compound destruction",
   "hud": "main.hud.json",
   "entities": [
     { "id": "camera", "components": {
@@ -18,7 +18,8 @@
     { "id": "arch", "components": {
       "Transform3D": {},
       "ModelCollider3D": { "asset": "asset://colliders/arch" },
-      "Rigidbody3D": { "body_type": "dynamic", "mass": 1000 }
+      "Rigidbody3D": { "body_type": "static", "mass": 1000 },
+      "Destructible3D": { "parts": { "left": "arch_left", "right": "arch_right", "lintel": "arch_lintel" } }
     } },
     { "id": "arch_left", "components": {
       "Transform3D": { "parent": "arch", "position": [-1.5, 1.5, 0] },
