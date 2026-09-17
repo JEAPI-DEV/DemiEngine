@@ -1,3 +1,5 @@
+local Test = require("demi.test")
+
 local LanguageFile = require("language_file")
 
 local texts = {

@@ -1,3 +1,8 @@
+local Debug = require("demi.debug")
+local Network = require("demi.network")
+local TlsServer = require("demi.tls_server")
+local Crypto = require("demi.crypto")
+
 local Matchmaking = {}
 Matchmaking.__index = Matchmaking
 

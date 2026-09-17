@@ -1,3 +1,7 @@
+local Data = require("demi.data")
+local Debug = require("demi.debug")
+local Hud = require("demi.hud")
+
 local GuiAnimation = require("demi.gui_animation")
 
 local MainMenu = {}

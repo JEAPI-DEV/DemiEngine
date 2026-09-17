@@ -1,3 +1,5 @@
+local Test = require("demi.test")
+
 local Events = require("demi.gameplay.events")
 
 Test.case("priority and registration order are deterministic", function()

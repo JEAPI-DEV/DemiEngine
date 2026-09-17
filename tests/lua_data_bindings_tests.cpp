@@ -56,6 +56,10 @@ int main() {
         "array": [1, false, null]
       })") ||
       !writeFile(root / "scripts/probe.lua", R"lua(
+local Data = require("demi.data")
+local Events = require("demi.events")
+local Save = require("demi.save")
+
 local Flags = require("demi.data.flags")
 local Conditions = require("demi.data.conditions")
 local Inventory = require("demi.data.inventory")

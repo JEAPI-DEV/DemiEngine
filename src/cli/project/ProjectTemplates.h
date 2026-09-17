@@ -15,7 +15,7 @@ struct ProjectTemplate {
   std::string title;
   std::string defaultName;
   std::filesystem::path directory;
-  std::filesystem::path luaStubPath;
+  std::filesystem::path luaStubDirectory;
   std::vector<std::filesystem::path> files;
 };
 

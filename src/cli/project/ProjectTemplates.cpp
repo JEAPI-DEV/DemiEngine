@@ -1,4 +1,5 @@
 #include "cli/project/ProjectTemplates.h"
+#include "cli/LuaStubExport.h"
 #include "cli/CliArguments.h"
 
 #include "demi/schema/Validation.h"
@@ -111,9 +112,9 @@ ProjectTemplateCatalog::discover(Diagnostics &diagnostics) const {
     projectTemplate.defaultName =
         manifest->value("default_name", projectTemplate.title);
     projectTemplate.directory = entry.path();
-    const auto stub = root_.parent_path() / "scripts/stubs/demi.lua";
-    if (std::filesystem::is_regular_file(stub))
-      projectTemplate.luaStubPath = stub;
+    const auto stub = root_.parent_path() / "scripts/stubs";
+    if (std::filesystem::is_directory(stub))
+      projectTemplate.luaStubDirectory = stub;
     if (manifest->contains("source") && (*manifest)["source"].is_string())
       projectTemplate.directory =
           entry.path() / (*manifest)["source"].get<std::string>();
@@ -193,8 +194,12 @@ ScaffoldResult ProjectScaffolder::create(const ScaffoldRequest &request) const {
   }
   for (const auto &relative : request.projectTemplate.files)
     result.files.push_back(request.destination / relative);
-  if (!request.projectTemplate.luaStubPath.empty())
-    result.files.push_back(request.destination / ".demi/lua/demi.lua");
+  if (!request.projectTemplate.luaStubDirectory.empty()) {
+    for (const auto &entry : std::filesystem::recursive_directory_iterator(request.projectTemplate.luaStubDirectory))
+      if (entry.is_regular_file() && entry.path().extension() == ".lua")
+        result.files.push_back(request.destination / ".demi/lua" / entry.path().lexically_relative(request.projectTemplate.luaStubDirectory));
+    result.files.push_back(request.destination / ".demi/lua/demi/_components.lua");
+  }
   if (request.dryRun)
     return result;
 
@@ -238,14 +243,12 @@ ScaffoldResult ProjectScaffolder::create(const ScaffoldRequest &request) const {
       return result;
     }
   }
-  if (!request.projectTemplate.luaStubPath.empty()) {
-    const auto target = staging / ".demi/lua/demi.lua";
-    std::filesystem::create_directories(target.parent_path(), error);
-    std::filesystem::copy_file(request.projectTemplate.luaStubPath, target,
-                               std::filesystem::copy_options::none, error);
-    if (error) {
+  if (!request.projectTemplate.luaStubDirectory.empty()) {
+    const auto target = staging / ".demi/lua";
+    std::string stubError;
+    if (!exportLuaStubs(request.projectTemplate.luaStubDirectory, target, stubError)) {
       add(result.diagnostics, Severity::Error, "SCAFFOLD_WRITE_FAILED",
-          error.message(), target);
+          stubError, target);
       return result;
     }
   }

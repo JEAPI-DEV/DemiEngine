@@ -132,6 +132,8 @@ in their registry.
 Lua uses one API for individual resources and batches:
 
 ```lua
+local Assets = require("demi.assets")
+
 local texture_request = Assets.load("asset://textures/portrait")
 local chapter_request = Assets.load("asset-group://chapter_02")
 

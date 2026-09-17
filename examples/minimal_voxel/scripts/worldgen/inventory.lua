@@ -1,3 +1,7 @@
+local Input = require("demi.input")
+local Application = require("demi.application")
+local Hud = require("demi.hud")
+
 local config = require("worldgen.config")
 
 local Inventory = {}

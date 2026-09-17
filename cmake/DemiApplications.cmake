@@ -6,6 +6,7 @@ if(ANDROID)
 else()
   find_package(CURL REQUIRED)
   add_library(demi-cli-support STATIC
+    src/cli/LuaStubExport.cpp
     src/cli/build/BuildService.cpp
     src/cli/build/LinuxPackaging.cpp
     src/cli/build/PackageContentAudit.cpp

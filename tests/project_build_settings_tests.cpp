@@ -194,7 +194,10 @@ int main() {
               }]
             })");
   writeFile("scripts/game.lua",
-            R"(local handled = Network.is_host()
+            R"(
+local Video = require("demi.video")
+local Network = require("demi.network")
+local handled = Network.is_host()
             if handled then
               Video.play("asset://media/intro")
             end)");

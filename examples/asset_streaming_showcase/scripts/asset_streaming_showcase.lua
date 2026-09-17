@@ -1,3 +1,7 @@
+local Debug = require("demi.debug")
+local Assets = require("demi.assets")
+local Hud = require("demi.hud")
+
 local AssetStreamingShowcase = {}
 
 local GROUP_ID = "asset-group://optional_theme"

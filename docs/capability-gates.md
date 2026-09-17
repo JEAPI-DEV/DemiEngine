@@ -38,7 +38,7 @@ baseline is reviewed.
 The Lua portion is sourced from functions actually installed into a fresh Lua
 runtime. The component portion is sourced from `componentDescriptors()`.
 `demi-lua-stub-contract-tests` independently requires the installed API and
-`scripts/stubs/demi.lua` to agree.
+the modules under `scripts/stubs/demi/` to agree.
 
 ## Adding a reference game
 

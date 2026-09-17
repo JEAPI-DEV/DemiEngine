@@ -1,3 +1,8 @@
+local Application = require("demi.application")
+local Hud = require("demi.hud")
+local Save = require("demi.save")
+local Audio = require("demi.audio")
+
 local Settings = {}
 
 local SETTINGS_SLOT = "settings"

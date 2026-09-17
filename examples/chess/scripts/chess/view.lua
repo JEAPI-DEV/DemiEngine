@@ -1,3 +1,5 @@
+local Hud = require("demi.hud")
+
 local Rules = require("chess.rules")
 
 local View = {}

@@ -98,6 +98,8 @@ field does not automatically convert an existing flat document.
 Lua uses the same expansion and component-validation path as scene loading:
 
 ```lua
+local Prefab = require("demi.prefab")
+
 local instance = Prefab.instantiate("prefab://enemies/grunt", {
   id = "wave_4_grunt_12",
   position = { 4, 2, 0 },

@@ -84,7 +84,7 @@ rendering, validation, and presentation should not accumulate in one class.
   shaders, Gradle intermediates, or cook caches.
 - Game saves and caches use platform user-data/cache directories, never the
   application or cooked source directory.
-- `scripts/stubs/demi.lua` is checked-in source for public Lua API metadata.
+- `scripts/stubs/demi/*.lua` is checked-in source for public Lua API metadata.
   Update it whenever public Lua APIs change.
 - Package output may contain only the audited cooked roots described in
   `docs/shipping.md`. Do not bypass the package-content audit or copy arbitrary
@@ -154,6 +154,13 @@ consolidated. Do not create a parallel editor-only component model.
 
 ## Lua Gameplay
 
+- Import every engine service explicitly into a local, e.g.
+  `local Input = require("demi.input")` and
+  `local Transform3D = require("demi.transform3d")`. Engine API globals no longer
+  exist. Do not add a global compatibility facade or an import-everything module.
+  Stub files are editor metadata, not runtime implementations. Keep each native
+  service's annotations in its matching module under `scripts/stubs/demi/`.
+
 - Use `on_create`, `on_start`, `on_update`, `on_fixed_update`, and `on_destroy`.
 - Prefer current concise APIs such as `Input.pressed`, `Input.down`,
   `Input.value`, and normalized `Input.vector`; compatibility aliases may still
@@ -171,7 +178,7 @@ consolidated. Do not create a parallel editor-only component model.
   serialization boundaries.
 - Preserve Lua array-like tables as numeric arrays across JSON/network bridges.
 - If a public API changes, update examples, templates, docs, tests, and
-  `scripts/stubs/demi.lua` in the same change.
+  the matching `scripts/stubs/demi/` modules in the same change.
 
 ## Scene, Transform, Physics, And Rendering
 

@@ -1,3 +1,7 @@
+local Profile = require("demi.profile")
+local Transform3D = require("demi.transform3d")
+local Hud = require("demi.hud")
+
 local chunks = require("worldgen.chunks")
 local config = require("worldgen.config")
 local inventory = require("worldgen.inventory")

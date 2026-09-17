@@ -231,6 +231,8 @@ bool testScriptFailureAndTeardownCommands() {
   std::error_code filesystemError;
   std::filesystem::remove_all(directory, filesystemError);
   if (!writeFile(directory / "scripts/outgoing.lua", R"lua(
+local Entity = require("demi.entity")
+
 local Outgoing = {}
 function Outgoing:on_destroy()
   Entity.create("ent_teardown_ghost", { components = {} })

@@ -75,6 +75,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/assets/RuntimeAssetReload.cpp
   src/demi/runtime/assets/RuntimeAssetService.cpp
   src/demi/runtime/scripting/LuaScriptHostBindings.cpp
+  src/demi/runtime/scripting/LuaServiceModules.cpp
   src/demi/runtime/scripting/LuaScriptHost.cpp
   src/demi/runtime/scripting/LuaScriptConsole.cpp
   src/demi/runtime/scripting/LuaBindingCleanup.cpp

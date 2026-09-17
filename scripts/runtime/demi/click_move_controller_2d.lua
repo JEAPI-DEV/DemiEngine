@@ -1,3 +1,8 @@
+local Input = require("demi.input")
+local Transform = require("demi.transform2d")
+local Rigidbody2D = require("demi.rigidbody2d")
+local Navigation2D = require("demi.navigation2d")
+
 local ClickMoveController2D = {}
 ClickMoveController2D.__index = ClickMoveController2D
 

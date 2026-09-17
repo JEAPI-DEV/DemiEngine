@@ -1,3 +1,13 @@
+local Input = require("demi.input")
+local Transform = require("demi.transform2d")
+local Sprite2D = require("demi.sprite2d")
+local Events = require("demi.events")
+local Rigidbody2D = require("demi.rigidbody2d")
+local Physics2D = require("demi.physics2d")
+local Tilemap2D = require("demi.tilemap2d")
+local Navigation2D = require("demi.navigation2d")
+local Hud = require("demi.hud")
+
 local Demo = {}
 
 local PLAYER = "ent_player"

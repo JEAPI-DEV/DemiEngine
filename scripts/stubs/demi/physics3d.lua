@@ -1,0 +1,62 @@
+---@meta
+-- Native module: require("demi.physics3d"). Annotations only.
+---@class Physics3DService
+local Physics3D = {}
+---@class PhysicsRaycastHit3D
+---@field entity_id string
+---@field collider_part_id? string Stable compound part ID for raycasts; absent for other shapes/queries.
+---@field layer string
+---@field point number[]
+---@field normal number[]
+---@field distance number
+---@field fraction number
+---@field is_trigger boolean
+---@param x number
+---@param y number
+---@param z number
+---@param radius number
+---@param ignored_entity_id? string
+---@return string[]
+function Physics3D.overlap_sphere(x, y, z, radius, ignored_entity_id) end
+---@param x number
+---@param y number
+---@param z number
+---@param radius number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return PhysicsRaycastHit3D[]
+function Physics3D.overlap_sphere_all(x, y, z, radius, layer, ignored_entity_id) end
+---@param x number
+---@param y number
+---@param z number
+---@param width number
+---@param height number
+---@param depth number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return PhysicsRaycastHit3D[]
+function Physics3D.overlap_box_all(x, y, z, width, height, depth, layer, ignored_entity_id) end
+---@param origin_x number
+---@param origin_y number
+---@param origin_z number
+---@param direction_x number
+---@param direction_y number
+---@param direction_z number
+---@param distance number
+---@param ignored_entity_id? string
+---@return PhysicsRaycastHit3D|nil
+function Physics3D.raycast(origin_x, origin_y, origin_z, direction_x, direction_y, direction_z, distance, ignored_entity_id) end
+---@param origin_x number
+---@param origin_y number
+---@param origin_z number
+---@param radius number
+---@param direction_x number
+---@param direction_y number
+---@param direction_z number
+---@param distance number
+---@param layer? string
+---@param ignored_entity_id? string
+---@return PhysicsRaycastHit3D|nil
+function Physics3D.sphere_cast(origin_x, origin_y, origin_z, radius, direction_x, direction_y, direction_z, distance, layer, ignored_entity_id) end
+
+return Physics3D

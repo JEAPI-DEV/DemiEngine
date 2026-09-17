@@ -1,4 +1,5 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/scripting/LuaServiceModules.h"
 #include "demi/runtime/assets/RuntimeAssetService.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
@@ -167,7 +168,7 @@ void LuaScriptHost::update(const float dt) {
     return;
   }
 
-  lua_getglobal(state, "Time");
+  pushLuaService(state, "Time");
   if (lua_istable(state, -1)) {
     lua_pushnumber(state, dt);
     lua_setfield(state, -2, "delta_time");

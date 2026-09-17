@@ -8,6 +8,8 @@ not call JNI or SDL directly.
 Only permissions listed in `build.android.permissions` may be requested:
 
 ```lua
+local Application = require("demi.application")
+
 local requested, error = Application.request_permission(
   "android.permission.RECORD_AUDIO")
 ```

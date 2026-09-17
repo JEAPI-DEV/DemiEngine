@@ -27,6 +27,9 @@ int main() {
   std::filesystem::remove_all(projectDirectory, error);
   std::filesystem::create_directories(projectDirectory / "scripts", error);
   if (error || !writeFile(projectDirectory / "scripts" / "probe.lua", R"lua(
+local Save = require("demi.save")
+local NetworkSession = require("demi.network_session")
+
 local Probe = {}
 
 local function assert_true(condition, message)

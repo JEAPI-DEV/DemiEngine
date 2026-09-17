@@ -263,6 +263,9 @@ The tree remains cycle-safe and sanitizes invalid resolved bounds at this
 boundary.
 
 ```lua
+local Debug = require("demi.debug")
+local Hud = require("demi.hud")
+
 for _, node in ipairs(Hud.accessibility_snapshot()) do
   Debug.log(node.role .. ": " .. node.label)
 end

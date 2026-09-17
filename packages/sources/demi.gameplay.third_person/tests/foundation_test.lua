@@ -1,3 +1,5 @@
+local Test = require("demi.test")
+
 local Character = require("demi.gameplay.third_person")
 local Orbit = require("demi.gameplay.orbit_camera")
 local Melee = require("demi.gameplay.melee")

@@ -1,3 +1,11 @@
+local Input = require("demi.input")
+local Entity = require("demi.entity")
+local Transform = require("demi.transform2d")
+local Transform3D = require("demi.transform3d")
+local Timer = require("demi.timer")
+local Events = require("demi.events")
+local Hud = require("demi.hud")
+
 -- demi.script: per-instance self-bound helpers + auto-cleanup subscriptions.
 -- require("demi.script") then Script.bind(self) inside on_create.
 -- No engine changes: desugars to existing Entity/Transform/Hud/Events/Timer.

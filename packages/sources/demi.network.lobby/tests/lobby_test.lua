@@ -1,3 +1,5 @@
+local Test = require("demi.test")
+
 local Lobby = require("demi.network.lobby")
 
 Test.case("lobby state is deterministic and readiness is explicit", function()

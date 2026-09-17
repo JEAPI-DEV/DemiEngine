@@ -1,3 +1,5 @@
+local Application = require("demi.application")
+
 local Actions = {}
 
 local ctx = nil

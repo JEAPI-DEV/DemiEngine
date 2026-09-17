@@ -1,3 +1,6 @@
+local Entity = require("demi.entity")
+local Grid = require("demi.grid")
+
 local TowerStats = require("game.tower_stats")
 local Building = {}
 

@@ -1,3 +1,5 @@
+local Test = require("demi.test")
+
 local Rules = require("chess.rules")
 local Engine = require("chess.engine")
 

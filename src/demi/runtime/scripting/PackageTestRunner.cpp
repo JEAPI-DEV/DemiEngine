@@ -15,7 +15,8 @@ namespace demi::runtime {
 namespace {
 
 constexpr std::string_view Harness = R"lua(
-Test = { passed = 0, failed = 0, failures = {}, time = 0, _seed = 1 }
+local Test = { passed = 0, failed = 0, failures = {}, time = 0, _seed = 1 }
+package.preload["demi.test"] = function() return Test end
 
 local function fail(message) error(message or "assertion failed", 2) end
 
@@ -196,7 +197,9 @@ runPackageTests(const std::filesystem::path &packageRoot,
     lua_close(state);
     return result;
   }
-  lua_getglobal(state, "Test");
+  lua_getglobal(state, "require");
+  lua_pushliteral(state, "demi.test");
+  lua_call(state, 1, 1);
   lua_pushinteger(state, static_cast<lua_Integer>(seed == 0 ? 1 : seed));
   lua_setfield(state, -2, "_seed");
   lua_pop(state, 1);
@@ -234,7 +237,9 @@ runPackageTests(const std::filesystem::path &packageRoot,
     }
   }
 
-  lua_getglobal(state, "Test");
+  lua_getglobal(state, "require");
+  lua_pushliteral(state, "demi.test");
+  lua_call(state, 1, 1);
   lua_getfield(state, -1, "passed");
   result.passed = static_cast<int>(lua_tointeger(state, -1));
   lua_pop(state, 1);

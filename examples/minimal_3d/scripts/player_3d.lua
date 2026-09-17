@@ -1,3 +1,14 @@
+local Debug = require("demi.debug")
+local Input = require("demi.input")
+local Entity = require("demi.entity")
+local Transform3D = require("demi.transform3d")
+local Time = require("demi.time")
+local Events = require("demi.events")
+local Rigidbody3D = require("demi.rigidbody3d")
+local CharacterController3D = require("demi.character_controller3d")
+local Hud = require("demi.hud")
+local Audio = require("demi.audio")
+
 ---@demi_component
 ---@display_name Player Controller 3D
 ---@category Gameplay

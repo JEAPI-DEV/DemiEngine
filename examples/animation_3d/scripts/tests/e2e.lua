@@ -1,3 +1,10 @@
+local Application = require("demi.application")
+local Entity = require("demi.entity")
+local Transform3D = require("demi.transform3d")
+local Physics3D = require("demi.physics3d")
+local Hud = require("demi.hud")
+local Test = require("demi.test")
+
 local suite = { tests = {
   { name = "visual pose budget preserves gravity collision and HUD input", func = function()
     Test.touch("open_crowd")

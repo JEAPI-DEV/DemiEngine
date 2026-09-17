@@ -1,3 +1,8 @@
+local Test = require("demi.test")
+local Network = require("demi.network")
+local TlsServer = require("demi.tls_server")
+local TlsClient = require("demi.tls_client")
+
 -- Mobile end-to-end tests for the physical-device qualification gate.
 --
 -- Runs when the runtime launches in test mode: `demi test android` sets the

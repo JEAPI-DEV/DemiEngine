@@ -1,3 +1,6 @@
+local Entity = require("demi.entity")
+local Grid = require("demi.grid")
+
 local Waves = {}
 
 function Waves.new(state, config, health_service)

@@ -1,3 +1,12 @@
+local Debug = require("demi.debug")
+local Entity = require("demi.entity")
+local Transform3D = require("demi.transform3d")
+local Animation = require("demi.animation")
+local Vector3 = require("demi.vector3")
+local Mathf = require("demi.mathf")
+local Physics3D = require("demi.physics3d")
+local Hud = require("demi.hud")
+
 ---@demi_component
 ---@display_name Procedural Spider
 ---@category Animation

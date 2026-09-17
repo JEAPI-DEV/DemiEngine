@@ -55,6 +55,8 @@ Preload the model and collider through the project's normal `assets` list:
 Then create any number of independent bodies from Lua:
 
 ```lua
+local Entity = require("demi.entity")
+
 Entity.create("barrel_1", { components = {
   Transform3D = { position = { 0, 3, 0 } },
   MeshRenderer = { model = "asset://models/barrel", color = { 1, 1, 1, 1 } },

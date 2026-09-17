@@ -1,3 +1,7 @@
+local Destruction3D = require("demi.destruction3d")
+local Physics3D = require("demi.physics3d")
+local Test = require("demi.test")
+
 return { tests = {{ name = "generated prefab instances fracture independently", func = function()
   Test.wait(0.3)
   Test.expect(Destruction3D.state("wall_a/wall").bodies == 1, "First wall must start as one body")

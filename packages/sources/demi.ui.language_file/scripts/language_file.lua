@@ -27,9 +27,9 @@ end
 function LanguageFile.new(options)
   options = options or {}
   local self = setmetatable({}, LanguageFile)
-  self.assets = options.assets or assert(Assets, "Assets service is unavailable")
-  self.data = options.data or assert(Data, "Data service is unavailable")
-  self.hud = options.hud or assert(Hud, "Hud service is unavailable")
+  self.assets = options.assets or require("demi.assets")
+  self.data = options.data or require("demi.data")
+  self.hud = options.hud or require("demi.hud")
   self.languages = options.languages or {}
   self.fallback = options.fallback
   self.pending = {}

@@ -1,3 +1,10 @@
+local Entity = require("demi.entity")
+local Transform3D = require("demi.transform3d")
+local Destruction3D = require("demi.destruction3d")
+local Camera3D = require("demi.camera3d")
+local Physics3D = require("demi.physics3d")
+local Test = require("demi.test")
+
 return { tests = {
   { name = "localized split, anchored collision and reset", func = function()
     Test.wait(0.2)

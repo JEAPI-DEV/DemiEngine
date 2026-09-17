@@ -1,4 +1,5 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/scripting/LuaServiceModules.h"
 
 #include <filesystem>
 #include <fstream>
@@ -31,6 +32,15 @@ std::string withoutLineComments(const std::string &text) {
 }
 
 ApiSet declaredStubApis(const std::filesystem::path &stubPath) {
+  if (std::filesystem::is_directory(stubPath)) {
+    ApiSet result;
+    for (const auto &entry : std::filesystem::recursive_directory_iterator(stubPath)) {
+      if (!entry.is_regular_file() || entry.path().extension() != ".lua") continue;
+      const auto apis = declaredStubApis(entry.path());
+      result.insert(apis.begin(), apis.end());
+    }
+    return result;
+  }
   const std::string text = withoutLineComments(readFile(stubPath));
   const std::regex functionPattern(
       R"(\bfunction\s+([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\s*\()");
@@ -63,11 +73,16 @@ bool shouldScanLuaFile(const std::filesystem::path &path) {
   }
   for (const std::filesystem::path &component : path) {
     if (component == "generated" || component == "build" ||
-        component == ".demi" || component == "tests") {
+        component == ".demi") {
       return false;
     }
   }
   const std::string generic = path.generic_string();
+  // Package-unit Test.case/equal helpers belong to the isolated package runner,
+  // not the native runtime E2E Test API. Keep scanning scripts/tests/e2e.lua.
+  if (generic.find("/tests/") != std::string::npos &&
+      generic.find("/scripts/tests/") == std::string::npos)
+    return false;
   return generic.find("/examples/") != std::string::npos ||
          generic.find("/scripts/runtime/") != std::string::npos;
 }
@@ -92,7 +107,9 @@ bool verifyGameCallsAreStubbed(const std::filesystem::path &root,
            it != end; ++it) {
         const std::string service = (*it)[1].str();
         const std::string function = (*it)[2].str();
-        if (localNames.contains(service)) {
+        const auto known = stubApis.lower_bound(service + ".");
+        const bool native = known != stubApis.end() && known->starts_with(service + ".");
+        if (localNames.contains(service) && !native) {
           continue;
         }
 
@@ -100,7 +117,7 @@ bool verifyGameCallsAreStubbed(const std::filesystem::path &root,
         if (!stubApis.contains(api)) {
           std::cerr
               << entry.path().string()
-              << ": game Lua call is missing from scripts/stubs/demi.lua: "
+              << ": game Lua call is missing from scripts/stubs/demi/: "
               << api << '\n';
           passed = false;
         }
@@ -115,7 +132,7 @@ bool requireStub(const ApiSet &stubApis, const std::string_view api) {
   if (stubApis.contains(std::string(api))) {
     return true;
   }
-  std::cerr << "scripts/stubs/demi.lua is missing required game-facing API: "
+  std::cerr << "scripts/stubs/demi/ is missing required game-facing API: "
             << api << '\n';
   return false;
 }
@@ -133,6 +150,28 @@ bool verifyInstalledApisMatchStubs(const ApiSet &stubApis) {
   const std::vector<std::string> installed = host.publicLuaApi();
   const ApiSet installedApis(installed.begin(), installed.end());
   bool passed = true;
+  std::set<std::string> services;
+  for (const auto &api : installed) services.insert(api.substr(0, api.find('.')));
+  for (const auto &service : services) {
+    const auto module = demi::runtime::luaServiceModuleName(service);
+    const auto result = host.executeConsole(
+        "assert(_G['" + service + "'] == nil); local api = require('" + module +
+        "'); assert(type(api) == 'table'); assert(api == require('" + module +
+        "')); assert(_G['" + service + "'] == nil)");
+    if (!result.succeeded) {
+      std::cerr << "Module import contract failed: " << module << ": " << result.error << '\n';
+      passed = false;
+    }
+  }
+  const auto missing = host.executeConsole("return Input.down('left')");
+  if (missing.succeeded) { std::cerr << "Implicit engine globals still work\n"; passed = false; }
+  const auto captureTime = host.executeConsole("captured_time = require('demi.time')");
+  host.beginFrame(0.25F);
+  const auto updatedTime = host.executeConsole("assert(captured_time.delta_time == 0.25)");
+  if (!captureTime.succeeded || !updatedTime.succeeded) {
+    std::cerr << "Imported Time table did not receive native frame updates\n";
+    passed = false;
+  }
   for (const std::string &api : stubApis) {
     if (!installedApis.contains(api)) {
       std::cerr << "Lua stub documents an API that is not installed: " << api
@@ -155,7 +194,7 @@ int main(int argc, char **argv) {
   const std::filesystem::path root = argc > 1 ? std::filesystem::path(argv[1])
                                               : std::filesystem::current_path();
   const ApiSet stubApis =
-      declaredStubApis(root / "scripts" / "stubs" / "demi.lua");
+      declaredStubApis(root / "scripts" / "stubs" / "demi");
   bool passed = true;
 
   for (const std::string_view api : {

@@ -1,4 +1,5 @@
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
+#include "demi/runtime/scripting/LuaServiceModules.h"
 
 #include "demi/runtime/scripting/bindings/LuaCoreBindings.h"
 #include "demi/runtime/scripting/bindings/LuaEntityBindings.h"
@@ -132,7 +133,11 @@ std::vector<std::string> LuaScriptHost::publicLuaApi() const {
     return result;
   }
 
-  lua_pushglobaltable(state);
+  lua_getfield(state, LUA_REGISTRYINDEX, LuaServicesRegistry);
+  if (!lua_istable(state, -1)) {
+    lua_pop(state, 1);
+    return result;
+  }
   const int globalsIndex = lua_gettop(state);
   lua_pushnil(state);
   while (lua_next(state, globalsIndex) != 0) {
@@ -472,6 +477,7 @@ bool luaRegisterBindings(LuaScriptHost &host, lua_State *state,
     return false;
   }
   registerSol2Bindings(host, state);
+  publishLuaServiceModules(state);
   return true;
 }
 

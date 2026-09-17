@@ -1,3 +1,10 @@
+local Input = require("demi.input")
+local Entity = require("demi.entity")
+local Transform = require("demi.transform2d")
+local Random = require("demi.random")
+local Rigidbody2D = require("demi.rigidbody2d")
+local Hud = require("demi.hud")
+
 local Board = require("board")
 
 local Game = {}

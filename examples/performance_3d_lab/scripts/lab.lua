@@ -1,3 +1,10 @@
+local Input = require("demi.input")
+local Application = require("demi.application")
+local Entity = require("demi.entity")
+local Transform3D = require("demi.transform3d")
+local Timer = require("demi.timer")
+local Scene = require("demi.scene")
+
 ---@demi_component
 local Lab = {}
 

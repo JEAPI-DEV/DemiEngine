@@ -62,6 +62,10 @@ Lua can set parameters, speed, layer weights, and root-motion opt-in, and can
 inspect normalized time and the current transition:
 
 ```lua
+local Animation = require("demi.animation")
+local Events = require("demi.events")
+local Audio = require("demi.audio")
+
 Animation.set_number("player", "speed", move_amount)
 Animation.set_layer_weight("player", "upper_body", aiming and 1 or 0)
 local transition = Animation.transition("player")
@@ -89,6 +93,8 @@ mechanical linkages; terrain contact remains a gameplay decision made with the
 normal physics queries.
 
 ```lua
+local Animation = require("demi.animation")
+
 local leg = Animation.solve_two_bone_3d({
   root = hip,
   target = foot_contact,
@@ -228,6 +234,8 @@ Each bus has volume, mute, and pause state. Custom buses may be routed below an
 existing bus in C++. Lua provides normal runtime mixing:
 
 ```lua
+local Audio = require("demi.audio")
+
 Audio.set_bus_volume("music", 0.8)
 Audio.set_bus_muted("voice", false)
 Audio.define_snapshot("gameplay", { music = 1.0, sfx = 1.0, voice = 1.0 })

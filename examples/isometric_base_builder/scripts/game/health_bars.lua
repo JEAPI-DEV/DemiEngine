@@ -1,3 +1,7 @@
+local Entity = require("demi.entity")
+local Sprite2D = require("demi.sprite2d")
+local Grid = require("demi.grid")
+
 local HealthBars = {}
 
 local BAR_HEIGHT = 1.25

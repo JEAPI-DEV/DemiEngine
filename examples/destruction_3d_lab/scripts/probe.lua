@@ -1,3 +1,12 @@
+local Debug = require("demi.debug")
+local Input = require("demi.input")
+local Scene = require("demi.scene")
+local Destruction3D = require("demi.destruction3d")
+local Rigidbody3D = require("demi.rigidbody3d")
+local Camera3D = require("demi.camera3d")
+local Physics3D = require("demi.physics3d")
+local Hud = require("demi.hud")
+
 ---@demi_component
 local Probe = {}
 

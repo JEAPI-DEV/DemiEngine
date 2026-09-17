@@ -80,7 +80,11 @@ def main():
         'expected_pixels': [args.width, args.height],
         'VK_DRIVER_FILES': environment.get('VK_DRIVER_FILES'),
     }, indent=2) + '\n')
-    test = '''return { tests = {{ name = "tower impact qualification", func = function()
+    test = '''local Test = require("demi.test")
+local Hud = require("demi.hud")
+local Entity = require("demi.entity")
+local Transform3D = require("demi.transform3d")
+return { tests = {{ name = "tower impact qualification", func = function()
       Test.wait(0.1)
       Hud.set_text("tower_help", "AUTOMATED TEST - please do not interact")
       Test.wait(SETTLE)

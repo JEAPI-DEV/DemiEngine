@@ -1,3 +1,7 @@
+local Application = require("demi.application")
+local Hud = require("demi.hud")
+local NetworkSession = require("demi.network_session")
+
 local HudView = {}
 local touch_controls_enabled = Application.platform() == "android"
 

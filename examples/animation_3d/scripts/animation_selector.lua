@@ -1,3 +1,9 @@
+local Debug = require("demi.debug")
+local Input = require("demi.input")
+local Animation = require("demi.animation")
+local Scene = require("demi.scene")
+local Hud = require("demi.hud")
+
 local AnimationSelector = {}
 
 local choices = {

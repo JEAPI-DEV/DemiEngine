@@ -1,3 +1,12 @@
+local Debug = require("demi.debug")
+local Input = require("demi.input")
+local Application = require("demi.application")
+local Transform3D = require("demi.transform3d")
+local Scene = require("demi.scene")
+local CharacterController3D = require("demi.character_controller3d")
+local Physics3D = require("demi.physics3d")
+local Hud = require("demi.hud")
+
 local Character = require("demi.gameplay.third_person")
 local Orbit = require("demi.gameplay.orbit_camera")
 local Melee = require("demi.gameplay.melee")

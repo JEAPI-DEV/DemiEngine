@@ -1,3 +1,6 @@
+local Input = require("demi.input")
+local Application = require("demi.application")
+
 local Rules = require("chess.rules")
 local ChessEngine = require("chess.engine")
 local View = require("chess.view")

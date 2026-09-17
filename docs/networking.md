@@ -26,6 +26,9 @@ not enter the secure session.
 ## Secure session flow
 
 ```lua
+local Debug = require("demi.debug")
+local NetworkSession = require("demi.network_session")
+
 if NetworkSession.host(39420) then
   NetworkSession.start_session({ scene_id = "scene://game", seed = 42 })
 end
@@ -54,6 +57,8 @@ Only the authoritative host can create network IDs, spawn, transfer, revoke,
 or despawn contract entities:
 
 ```lua
+local NetworkSession = require("demi.network_session")
+
 -- Host only. "player" is a replicated_prefabs key from the contract.
 local network_id = NetworkSession.spawn("player", "ent_player", peer_id)
 
@@ -85,6 +90,9 @@ messages while the server writes gameplay state.
 ## Declared messages
 
 ```lua
+local Input = require("demi.input")
+local NetworkSession = require("demi.network_session")
+
 NetworkSession.send("move_intent", player_network_id, {
   x = Input.action_value("move_x"),
   y = Input.action_value("move_y"),
@@ -113,6 +121,8 @@ configures bounded input, snapshot, replay, and optional query history before
 enabling a controller:
 
 ```lua
+local NetworkSession = require("demi.network_session")
+
 NetworkSession.configure({
   input_queue_capacity = 64,
   input_future_window = 32,
@@ -165,6 +175,8 @@ The host may record a small selected set of collision circles for hitscan lag
 compensation without rewinding the live world:
 
 ```lua
+local NetworkSession = require("demi.network_session")
+
 NetworkSession.configure({
   query_history_capacity = 32,
   query_history_max_entities = 16,

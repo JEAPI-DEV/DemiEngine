@@ -1,3 +1,7 @@
+local Input = require("demi.input")
+local Entity = require("demi.entity")
+local Transform3D = require("demi.transform3d")
+
 local chunks = require("worldgen.chunks")
 local config = require("worldgen.config")
 local inventory = require("worldgen.inventory")
