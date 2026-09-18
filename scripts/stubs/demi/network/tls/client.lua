@@ -1,5 +1,5 @@
 ---@meta
--- Native module: require("demi.tls_client"). Annotations only.
+-- Native module: require("demi.network.tls.client"). Annotations only.
 ---@class TlsClientService
 local TlsClient = {}
 ---@param host string

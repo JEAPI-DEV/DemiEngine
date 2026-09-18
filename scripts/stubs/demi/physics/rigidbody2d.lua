@@ -1,5 +1,5 @@
 ---@meta
--- Native module: require("demi.rigidbody2d"). Annotations only.
+-- Native module: require("demi.physics.rigidbody2d"). Annotations only.
 ---@class Rigidbody2DService
 local Rigidbody2D = {}
 ---@param entity_id string

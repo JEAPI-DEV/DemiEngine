@@ -58,10 +58,10 @@ int main() {
   if (!writeFile(projectDirectory / "scripts" / "probe.lua", R"lua(
 local Input = require("demi.input")
 local Application = require("demi.application")
-local ProceduralMesh = require("demi.procedural_mesh")
+local ProceduralMesh = require("demi.mesh.procedural")
 local Entity = require("demi.entity")
 local Sprite2D = require("demi.sprite2d")
-local Random = require("demi.random")
+local Random = require("demi.math.random")
 local Events = require("demi.events")
 local Hud = require("demi.hud")
 local Text = require("demi.text")

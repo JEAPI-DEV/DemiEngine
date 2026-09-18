@@ -1,5 +1,5 @@
 ---@meta
--- Native module: require("demi.random"). Annotations only.
+-- Native module: require("demi.math.random"). Annotations only.
 ---@class RandomService
 local Random = {}
 ---@param seed integer

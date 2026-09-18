@@ -1,8 +1,8 @@
 local Input = require("demi.input")
 local Entity = require("demi.entity")
 local Transform3D = require("demi.transform3d")
-local Random = require("demi.random")
-local Rigidbody3D = require("demi.rigidbody3d")
+local Random = require("demi.math.random")
+local Rigidbody3D = require("demi.physics.rigidbody3d")
 local Hud = require("demi.hud")
 
 local Game = {}

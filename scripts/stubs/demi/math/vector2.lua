@@ -1,5 +1,5 @@
 ---@meta
--- Native module: require("demi.vector2"). Annotations only.
+-- Native module: require("demi.math.vector2"). Annotations only.
 ---@class Vector2Service
 local Vector2 = {}
 ---@param left number[]

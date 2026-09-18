@@ -2,7 +2,7 @@ local Input = require("demi.input")
 local Transform = require("demi.transform2d")
 local Scene = require("demi.scene")
 local Physics = require("demi.physics")
-local Rigidbody2D = require("demi.rigidbody2d")
+local Rigidbody2D = require("demi.physics.rigidbody2d")
 local Hud = require("demi.hud")
 
 local state = require("game_state")

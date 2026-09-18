@@ -1,5 +1,5 @@
 ---@meta
--- Native module: require("demi.procedural_mesh"). Annotations only.
+-- Native module: require("demi.mesh.procedural"). Annotations only.
 ---@class ProceduralMeshBuilder
 ---@field clear fun(self: ProceduralMeshBuilder)
 ---@field reserve fun(self: ProceduralMeshBuilder, vertex_count: integer)

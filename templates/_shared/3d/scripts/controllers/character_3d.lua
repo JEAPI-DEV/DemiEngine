@@ -1,5 +1,5 @@
 local Input = require("demi.input")
-local CharacterController3D = require("demi.character_controller3d")
+local CharacterController3D = require("demi.physics.character_controller3d")
 
 local Character = {}
 

@@ -20,12 +20,27 @@ Import only the services you use. Aliases are local choices; there is no
 `require("demi")` import-all facade. Existing method names and arguments are
 unchanged. Requiring a module does not create a global for other scripts.
 
-Names are lowercase snake_case, keeping dimensional suffixes together:
-`demi.input`, `demi.entity`, `demi.hud`, `demi.physics3d`, `demi.rigidbody3d`,
-`demi.destruction3d`, `demi.character_controller3d`, `demi.network_session`.
+Related services share a dotted domain namespace. Individual leaf names use
+snake_case where needed and keep dimensional suffixes together:
+
+| Domain | Modules |
+| --- | --- |
+| Networking | `demi.network`, `demi.network.session`, `demi.network.tls.client`, `demi.network.tls.server`, `demi.network.crypto` |
+| Audio | `demi.audio`, `demi.audio.source` |
+| Physics | `demi.physics`, `demi.physics.query2d`, `demi.physics.query3d`, `demi.physics.rigidbody2d`, `demi.physics.rigidbody3d`, `demi.physics.character_controller3d`, `demi.physics.destruction3d` |
+| Meshes | `demi.mesh.procedural`, `demi.mesh.deformation` |
+| Math | `demi.math.scalar`, `demi.math.vector2`, `demi.math.vector3`, `demi.math.random` |
+| Voxels | `demi.voxel.world` |
+
+Standalone services such as `demi.input`, `demi.entity`, and `demi.hud` retain
+their direct paths. Namespace nesting does not implicitly import parent or child
+modules: `require("demi.network")` is the low-level network API, not an aggregate
+of its submodules. For example, import sessions with
+`local NetworkSession = require("demi.network.session")`.
+
 The former `Transform` service is `demi.transform2d`; the other transform module
 is `demi.transform3d`. The complete native module inventory is the files under
-`scripts/stubs/demi/`, excluding underscore-prefixed type-only files.
+`scripts/stubs/demi/` recursively, excluding underscore-prefixed type-only files.
 
 The native host supplies these modules through Lua's standard preload mechanism.
 `require` caches their tables per Lua state. Native bindings are still registered
@@ -58,6 +73,13 @@ Replace the old single-file stub library in your editor configuration. Remove
 old `demi.lua` annotations from LuaLS library paths so they do not falsely suggest
 that global APIs remain available. Regenerate stubs into the new directory layout.
 The old globals intentionally fail at runtime; there is no compatibility toggle.
+
+Earlier flat paths such as `demi.network_session`, `demi.tls_client`,
+`demi.audio_source`, and `demi.rigidbody3d` have been replaced by the domain paths
+above, without aliases. Regenerate into a fresh annotation directory or move
+obsolete generated stubs out of the existing library first. Stub export rejects
+obsolete native annotation files rather than leaving misleading old imports
+visible to LuaLS or deleting potentially edited files.
 
 Repository examples, bundled helpers, package sources and Lua test fixtures use
 explicit imports. Previously published package archives are not republished by

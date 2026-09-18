@@ -23,6 +23,28 @@ bool exportLuaStubs(const std::filesystem::path &source,
           "Native Lua stub module library was not found: " + source.string();
       return false;
     }
+    if (std::filesystem::is_directory(destination / "demi")) {
+      for (const auto &entry : std::filesystem::recursive_directory_iterator(
+               destination / "demi")) {
+        if (!entry.is_regular_file() || entry.path().extension() != ".lua")
+          continue;
+        const auto original =
+            source / entry.path().lexically_relative(destination);
+        if (std::filesystem::exists(original))
+          continue;
+        std::ifstream input(entry.path());
+        std::string first, marker;
+        std::getline(input, first);
+        std::getline(input, marker);
+        if (first == "---@meta" &&
+            marker.starts_with("-- Native module: require(")) {
+          error = "Obsolete native Lua stub: " + entry.path().string() +
+                  ". Move it out of the LuaLS library or export into a fresh "
+                  "directory.";
+          return false;
+        }
+      }
+    }
     for (const auto &entry :
          std::filesystem::recursive_directory_iterator(source)) {
       if (!entry.is_regular_file() || entry.path().extension() != ".lua")

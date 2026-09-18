@@ -1,5 +1,5 @@
 ---@meta
--- Native module: require("demi.character_controller3d"). Annotations only.
+-- Native module: require("demi.physics.character_controller3d"). Annotations only.
 ---@class CharacterController3DState
 ---@field velocity number[]
 ---@field grounded boolean

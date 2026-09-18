@@ -1,8 +1,8 @@
 local Entity = require("demi.entity")
 local Transform = require("demi.transform2d")
 local Sprite2D = require("demi.sprite2d")
-local Rigidbody2D = require("demi.rigidbody2d")
-local NetworkSession = require("demi.network_session")
+local Rigidbody2D = require("demi.physics.rigidbody2d")
+local NetworkSession = require("demi.network.session")
 
 local Config = require("shooter.config")
 

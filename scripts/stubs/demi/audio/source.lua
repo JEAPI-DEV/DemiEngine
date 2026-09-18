@@ -1,5 +1,5 @@
 ---@meta
--- Native module: require("demi.audio_source"). Annotations only.
+-- Native module: require("demi.audio.source"). Annotations only.
 ---@class AudioSourceService
 local AudioSource = {}
 ---@param entity_id string

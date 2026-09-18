@@ -107,7 +107,7 @@ C++ layer also exposes capsule overlaps and casts. Rich hits contain
 against the same shapes as simulation.
 
 ```lua
-local Physics3D = require("demi.physics3d")
+local Physics3D = require("demi.physics.query3d")
 
 local hit = Physics3D.sphere_cast(
   x, y, z, 0.12, direction_x, direction_y, direction_z, 30.0,
@@ -148,7 +148,7 @@ active:
 
 ```lua
 local Input = require("demi.input")
-local CharacterController3D = require("demi.character_controller3d")
+local CharacterController3D = require("demi.physics.character_controller3d")
 
 function Player:on_create()
   self.jump_buffer_remaining = 0

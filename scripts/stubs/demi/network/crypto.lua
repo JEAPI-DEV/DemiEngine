@@ -1,5 +1,5 @@
 ---@meta
--- Native module: require("demi.crypto"). Annotations only.
+-- Native module: require("demi.network.crypto"). Annotations only.
 ---@class CryptoService
 local Crypto = {}
 ---@param bytes? integer

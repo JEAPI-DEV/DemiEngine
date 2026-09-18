@@ -1,5 +1,5 @@
 ---@meta
--- Native module: require("demi.rigidbody3d"). Annotations only.
+-- Native module: require("demi.physics.rigidbody3d"). Annotations only.
 ---@class Rigidbody3DService
 -- Entity.create Rigidbody3D definitions accept solver_velocity_steps and
 -- solver_position_steps (integers 0..128). Zero retains backend defaults;

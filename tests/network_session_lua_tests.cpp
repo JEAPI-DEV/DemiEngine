@@ -28,7 +28,7 @@ int main() {
   std::filesystem::create_directories(projectDirectory / "scripts", error);
   if (error || !writeFile(projectDirectory / "scripts" / "probe.lua", R"lua(
 local Save = require("demi.save")
-local NetworkSession = require("demi.network_session")
+local NetworkSession = require("demi.network.session")
 
 local Probe = {}
 

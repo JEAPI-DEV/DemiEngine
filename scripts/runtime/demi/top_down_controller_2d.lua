@@ -1,7 +1,7 @@
 local Input = require("demi.input")
 local Transform = require("demi.transform2d")
 local Sprite2D = require("demi.sprite2d")
-local Rigidbody2D = require("demi.rigidbody2d")
+local Rigidbody2D = require("demi.physics.rigidbody2d")
 
 local TopDownController2D = {}
 TopDownController2D.__index = TopDownController2D

@@ -2,6 +2,7 @@
 #include "demi/runtime/scripting/LuaServiceModules.h"
 
 #include <filesystem>
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <regex>
@@ -137,7 +138,7 @@ bool requireStub(const ApiSet &stubApis, const std::string_view api) {
   return false;
 }
 
-bool verifyInstalledApisMatchStubs(const ApiSet &stubApis) {
+bool verifyInstalledApisMatchStubs(const ApiSet &stubApis, const std::filesystem::path &root) {
   demi::runtime::World world;
   demi::runtime::InputState input;
   demi::runtime::LuaScriptHost host;
@@ -154,6 +155,20 @@ bool verifyInstalledApisMatchStubs(const ApiSet &stubApis) {
   for (const auto &api : installed) services.insert(api.substr(0, api.find('.')));
   for (const auto &service : services) {
     const auto module = demi::runtime::luaServiceModuleName(service);
+    auto relative = module;
+    std::replace(relative.begin(), relative.end(), '.', '/');
+    const auto path = root / "scripts/stubs" / (relative + ".lua");
+    if (!std::filesystem::is_regular_file(path)) {
+      std::cerr << "Missing module-aligned stub: " << path << '\n';
+      passed = false;
+    } else {
+      const auto moduleApis = declaredStubApis(path);
+      for (const auto &api : installedApis)
+        if (api.starts_with(service + ".") && !moduleApis.contains(api)) {
+          std::cerr << "API is not declared in its own module: " << api << '\n';
+          passed = false;
+        }
+    }
     const auto result = host.executeConsole(
         "assert(_G['" + service + "'] == nil); local api = require('" + module +
         "'); assert(type(api) == 'table'); assert(api == require('" + module +
@@ -165,6 +180,15 @@ bool verifyInstalledApisMatchStubs(const ApiSet &stubApis) {
   }
   const auto missing = host.executeConsole("return Input.down('left')");
   if (missing.succeeded) { std::cerr << "Implicit engine globals still work\n"; passed = false; }
+  for (const char *old : {"demi.network_session", "demi.tls_server", "demi.tls_client",
+                         "demi.crypto", "demi.audio_source", "demi.procedural_mesh",
+                         "demi.mesh_deformation", "demi.voxel_world", "demi.vector2",
+                         "demi.vector3", "demi.mathf", "demi.random", "demi.physics2d",
+                         "demi.physics3d", "demi.rigidbody2d", "demi.rigidbody3d",
+                         "demi.character_controller3d", "demi.destruction3d"}) {
+    const auto rejected = host.executeConsole(std::string("assert(not pcall(require, '") + old + "'))");
+    if (!rejected.succeeded) { std::cerr << "Retired module is still importable: " << old << '\n'; passed = false; }
+  }
   const auto captureTime = host.executeConsole("captured_time = require('demi.time')");
   host.beginFrame(0.25F);
   const auto updatedTime = host.executeConsole("assert(captured_time.delta_time == 0.25)");
@@ -228,6 +252,6 @@ int main(int argc, char **argv) {
   }
 
   passed = verifyGameCallsAreStubbed(root, stubApis) && passed;
-  passed = verifyInstalledApisMatchStubs(stubApis) && passed;
+  passed = verifyInstalledApisMatchStubs(stubApis, root) && passed;
   return passed ? 0 : 1;
 }

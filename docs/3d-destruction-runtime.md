@@ -112,7 +112,7 @@ Attachment happens after the first physics synchronization. Graph metadata alone
 does not opt a collider into destruction.
 
 ```lua
-local Destruction3D = require("demi.destruction3d")
+local Destruction3D = require("demi.physics.destruction3d")
 
 local accepted, issue = Destruction3D.damage_part(hit.entity_id, hit.collider_part_id, 0.6)
 local state = Destruction3D.state("arch")

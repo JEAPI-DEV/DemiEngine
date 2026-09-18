@@ -1,5 +1,5 @@
 ---@meta
--- Native module: require("demi.destruction3d"). Annotations only.
+-- Native module: require("demi.physics.destruction3d"). Annotations only.
 ---@class Destruction3DState
 ---@field root string
 ---@field status string unattached, ready, queued, applied, or failed

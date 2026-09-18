@@ -160,6 +160,10 @@ consolidated. Do not create a parallel editor-only component model.
   exist. Do not add a global compatibility facade or an import-everything module.
   Stub files are editor metadata, not runtime implementations. Keep each native
   service's annotations in its matching module under `scripts/stubs/demi/`.
+- Group related native imports under dotted domain namespaces, e.g.
+  `demi.network.session`, `demi.network.tls.client`, `demi.audio.source`, and
+  `demi.physics.rigidbody3d`. Mirror these paths with nested stub directories.
+  Use snake_case within a leaf name when needed, not to flatten its namespace.
 
 - Use `on_create`, `on_start`, `on_update`, `on_fixed_update`, and `on_destroy`.
 - Prefer current concise APIs such as `Input.pressed`, `Input.down`,

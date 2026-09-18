@@ -1,6 +1,6 @@
 local Debug = require("demi.debug")
 local Network = require("demi.network")
-local TlsClient = require("demi.tls_client")
+local TlsClient = require("demi.network.tls.client")
 
 local Lobby = {
   server_host = "127.0.0.1",

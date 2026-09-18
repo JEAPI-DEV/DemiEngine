@@ -1,4 +1,4 @@
-local NetworkSession = require("demi.network_session")
+local NetworkSession = require("demi.network.session")
 
 NetworkSession.configure({
   port = 39420,

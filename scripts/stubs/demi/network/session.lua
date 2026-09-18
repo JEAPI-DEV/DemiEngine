@@ -1,5 +1,5 @@
 ---@meta
--- Native module: require("demi.network_session"). Annotations only.
+-- Native module: require("demi.network.session"). Annotations only.
 ---@class NetworkSessionService
 local NetworkSession = {}
 ---@class NetworkSessionDiagnostics

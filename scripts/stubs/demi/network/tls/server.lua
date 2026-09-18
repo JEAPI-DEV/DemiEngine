@@ -1,5 +1,5 @@
 ---@meta
--- Native module: require("demi.tls_server"). Annotations only.
+-- Native module: require("demi.network.tls.server"). Annotations only.
 ---@class TlsEvent
 ---@field type "connected"|"disconnected"|"message"
 ---@field client_id integer

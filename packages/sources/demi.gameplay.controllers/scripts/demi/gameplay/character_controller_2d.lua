@@ -18,7 +18,7 @@ end
 
 function CharacterController2D:is_grounded(entity_id)
   local Transform = require("demi.transform2d")
-  local Physics2D = require("demi.physics2d")
+  local Physics2D = require("demi.physics.query2d")
   local x, y = Transform.get_position(entity_id)
   if x == nil or y == nil then return false end
   return Physics2D.raycast(x, y, 0.0, -1.0, self.ground_distance,
@@ -27,7 +27,7 @@ end
 
 function CharacterController2D:update_horizontal(entity_id)
   local Input = require("demi.input")
-  local Rigidbody2D = require("demi.rigidbody2d")
+  local Rigidbody2D = require("demi.physics.rigidbody2d")
   local Sprite2D = require("demi.sprite2d")
   local axis = Input.action_value(self.move_action)
   Rigidbody2D.set_velocity_x(entity_id, axis * self.move_speed)
@@ -38,7 +38,7 @@ end
 
 function CharacterController2D:try_jump(entity_id, grounded)
   local Input = require("demi.input")
-  local Rigidbody2D = require("demi.rigidbody2d")
+  local Rigidbody2D = require("demi.physics.rigidbody2d")
   if grounded and Input.action_pressed(self.jump_action) then
     Rigidbody2D.set_velocity_y(entity_id, self.jump_speed)
     return true

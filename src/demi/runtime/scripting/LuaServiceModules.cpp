@@ -3,10 +3,34 @@ extern "C" {
 #include <lua.h>
 }
 #include <cctype>
+#include <utility>
 #include <vector>
 
 namespace demi::runtime {
 std::string luaServiceModuleName(std::string_view service) {
+  static constexpr std::pair<std::string_view, std::string_view> grouped[] = {
+      {"NetworkSession", "demi.network.session"},
+      {"TlsServer", "demi.network.tls.server"},
+      {"TlsClient", "demi.network.tls.client"},
+      {"Crypto", "demi.network.crypto"},
+      {"AudioSource", "demi.audio.source"},
+      {"ProceduralMesh", "demi.mesh.procedural"},
+      {"MeshDeformation", "demi.mesh.deformation"},
+      {"VoxelWorld", "demi.voxel.world"},
+      {"Vector2", "demi.math.vector2"},
+      {"Vector3", "demi.math.vector3"},
+      {"Mathf", "demi.math.scalar"},
+      {"Random", "demi.math.random"},
+      {"Physics2D", "demi.physics.query2d"},
+      {"Physics3D", "demi.physics.query3d"},
+      {"Rigidbody2D", "demi.physics.rigidbody2d"},
+      {"Rigidbody3D", "demi.physics.rigidbody3d"},
+      {"CharacterController3D", "demi.physics.character_controller3d"},
+      {"Destruction3D", "demi.physics.destruction3d"},
+  };
+  for (const auto &[name, module] : grouped)
+    if (service == name)
+      return std::string(module);
   if (service == "Transform")
     return "demi.transform2d";
   std::string result = "demi.";

@@ -1,5 +1,5 @@
 ---@meta
--- Native module: require("demi.mathf"). Annotations only.
+-- Native module: require("demi.math.scalar"). Annotations only.
 ---@class MathfService
 local Mathf = {}
 ---@param minimum number

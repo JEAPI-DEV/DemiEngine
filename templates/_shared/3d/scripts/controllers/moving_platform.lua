@@ -1,6 +1,6 @@
 local Transform3D = require("demi.transform3d")
 local Time = require("demi.time")
-local Rigidbody3D = require("demi.rigidbody3d")
+local Rigidbody3D = require("demi.physics.rigidbody3d")
 
 local MovingPlatform = {}
 

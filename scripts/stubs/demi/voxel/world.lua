@@ -1,5 +1,5 @@
 ---@meta
--- Native module: require("demi.voxel_world"). Annotations only.
+-- Native module: require("demi.voxel.world"). Annotations only.
 ---@class VoxelWorldHandle
 ---@field clear fun(self: VoxelWorldHandle)
 ---@field set_section fun(self: VoxelWorldHandle, cx: integer, section_y: integer, cz: integer, blocks: table)

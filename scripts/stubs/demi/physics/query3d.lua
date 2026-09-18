@@ -1,5 +1,5 @@
 ---@meta
--- Native module: require("demi.physics3d"). Annotations only.
+-- Native module: require("demi.physics.query3d"). Annotations only.
 ---@class Physics3DService
 local Physics3D = {}
 ---@class PhysicsRaycastHit3D

@@ -1,5 +1,5 @@
 local Profile = require("demi.profile")
-local ProceduralMesh = require("demi.procedural_mesh")
+local ProceduralMesh = require("demi.mesh.procedural")
 
 local config = require("worldgen.config")
 local terrain = require("worldgen.terrain")

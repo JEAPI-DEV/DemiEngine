@@ -1,5 +1,5 @@
 ---@meta
--- Native module: require("demi.mesh_deformation"). Annotations only.
+-- Native module: require("demi.mesh.deformation"). Annotations only.
 ---@class MeshDentImpact
 ---@field point number[] World-space impact point (x, y, z).
 ---@field direction number[] World-space inward displacement direction.

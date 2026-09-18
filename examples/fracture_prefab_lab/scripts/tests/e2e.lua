@@ -1,5 +1,5 @@
-local Destruction3D = require("demi.destruction3d")
-local Physics3D = require("demi.physics3d")
+local Destruction3D = require("demi.physics.destruction3d")
+local Physics3D = require("demi.physics.query3d")
 local Test = require("demi.test")
 
 return { tests = {{ name = "generated prefab instances fracture independently", func = function()

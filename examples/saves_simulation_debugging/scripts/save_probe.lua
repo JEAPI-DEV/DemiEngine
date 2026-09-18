@@ -1,6 +1,6 @@
 local Input = require("demi.input")
 local Transform = require("demi.transform2d")
-local Random = require("demi.random")
+local Random = require("demi.math.random")
 local Hud = require("demi.hud")
 local Save = require("demi.save")
 
