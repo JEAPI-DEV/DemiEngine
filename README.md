@@ -229,9 +229,11 @@ Commit `demi.packages.lock.json`. The installed `.demi/packages/` directory and
 download cache are derived state. The runtime never contacts a registry.
 See [available packages](packages/README.md), [asset streaming and package
 content](docs/asset-streaming.md), and [authenticated publishing](tools/package-store/README.md).
-The local [Kenney prototype texture package](packages/sources/kenney.textures.prototype/README.md)
-contains 78 CC0 textures with original previews and license. Its source being
-in this repository does not imply it has been published to the hosted catalog.
+The [Kenney prototype texture package](https://demiengine.de/packages/kenney.textures.prototype)
+contains 78 CC0 textures with original previews and license. Both it and
+[Destruction Weapons & Streaming](https://demiengine.de/packages/demi.gameplay.destruction)
+are available from the hosted registry; [local usage notes](packages/sources/kenney.textures.prototype/README.md)
+remain in the repository.
 
 ## Secure Multiplayer
 

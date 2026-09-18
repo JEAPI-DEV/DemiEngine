@@ -172,3 +172,25 @@ Initial deployment: 2026-09-12, server 91.218.66.127, PHP 8.5 FPM and Nginx.
 Let's Encrypt certificate renewal is managed by certbot.timer. The checked-in
 Nginx file is the HTTP bootstrap; Certbot adds the production TLS directives.
 Do not overwrite that live TLS configuration with the bootstrap on later releases.
+
+2026-09-18: homepage refreshed with an engine capture, editor/Lua/destruction
+resources, scoped crowd-performance evidence, and explicit rendering roadmap.
+Docs links target `improvements_to_gamedesign`, where these features currently
+live; update those links when that branch is merged. Homepage-specific CSS is
+in `public/home.css`, keeping catalog presentation separate.
+Published `demi.gameplay.destruction@1.0.0` and
+`kenney.textures.prototype@1.0.0`; the Kenney listing uses its original Preview.png
+and Sample.png, with CC0 attribution. Server release:
+`/srv/demi-store/releases/20260918-home-packages`; the preceding `20260912-04`
+release is retained for rollback. TLS/Nginx configuration and publishing keys
+were not changed.
+
+Follow-up release `20260918-home-links`: **Get the engine** explicitly links to
+`main`. New feature documentation still points to the development branch where
+it currently exists. The capture's link is labelled **Example instructions**;
+there is no browser-play build yet.
+
+Browser checks accept `PLAYWRIGHT_CHROMIUM_EXECUTABLE` for an existing Chromium
+binary and `SCREENSHOT_DIR` for desktop/tablet/mobile captures. Create the output
+directory first. Tests cover the homepage, package discovery, copy/download,
+license links and the Kenney gallery; they do not publish anything.

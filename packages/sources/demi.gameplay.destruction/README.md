@@ -1,5 +1,10 @@
 # Destruction weapon probes
 
+Requires the current DemiEngine development build with the experimental native
+destruction APIs. Install from a project directory with
+`demi package add demi.gameplay.destruction@1.0.0`. See `LICENSE` for BSD-3-Clause
+terms. This is gameplay code; no third-party models or textures are included.
+
 `demi.gameplay.destruction.weapons` owns hammer phases, ammunition, cooldowns,
 bounded rocket flight and cleanup. `demi.gameplay.destruction.native` adapts public
 engine queries, prefab visuals and native spatial impacts. No shard names or
