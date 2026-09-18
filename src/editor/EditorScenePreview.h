@@ -5,6 +5,7 @@
 #include <nlohmann/json_fwd.hpp>
 
 #include <string>
+#include <string_view>
 
 namespace demi::runtime {
 struct Entity;
@@ -17,6 +18,13 @@ namespace demi::editor {
 // world. Prefab source values and scene overrides are already merged here.
 [[nodiscard]] nlohmann::json
 editorPreviewEntityJson(const runtime::Entity &entity);
+
+// Redirect transient placement meshes to their authored placement for picking.
+[[nodiscard]] std::string
+editorPlacementOwner(const runtime::World &world, std::string_view entityId);
+// Keep the renderer's inline-mesh cache in sync after field edits and undo.
+void updateEditorMeshRevision(runtime::Entity &entity);
+void updateEditorPlacementVisibility(runtime::World &world);
 
 // Applies one already-validated authored value to a single preview entity.
 // This deliberately avoids scene expansion and asset/HUD reconstruction while

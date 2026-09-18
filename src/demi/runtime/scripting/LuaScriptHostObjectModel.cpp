@@ -1,12 +1,27 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/PrefabPlacements3D.h"
 #include "demi/runtime/scene/components/gameplay/LuaScriptComponent.h"
 
 #include <iostream>
 #include <unordered_set>
 
 namespace demi::runtime {
+
+nlohmann::json LuaScriptHost::prefabPlacements(const std::string &ancestor) const {
+  auto result = nlohmann::json::array();
+  if (!world_) return result;
+  for (const auto &placement : collectPrefabPlacements3D(*world_, ancestor)) {
+    const auto &t = placement.transform;
+    result.push_back({{"id", placement.id}, {"prefab", placement.prefab},
+      {"root", placement.root}, {"preserve", placement.preserve},
+      {"position", {t.position.x, t.position.y, t.position.z}},
+      {"rotation", {t.rotation.x, t.rotation.y, t.rotation.z}},
+      {"scale", {t.scale.x, t.scale.y, t.scale.z}}});
+  }
+  return result;
+}
 
 std::optional<std::string> LuaScriptHost::instantiatePrefab(
     const std::string &prefab, const PrefabInstantiateOptions &options) {

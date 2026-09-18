@@ -142,6 +142,23 @@ pagination, release history, image gallery and a copyable CLI command.
 
 ## Production layout
 
+### Server-only Impressum
+
+The `/impressum` page and shared footer link read `/etc/demi-store/impressum.json`.
+Keep this file outside the repository, release directories and public document
+root. Use root:www-data ownership and mode 0640. The JSON requires
+`format_version: 1`, `name`, `address` (an array of address lines), `phone`, and
+`email`. Do not put real contact details in fixtures, screenshots, examples or
+deployment archives. `DEMI_IMPRESSUM_FILE` overrides the path for isolated tests.
+
+The template escapes all values and builds telephone/email links from validated
+fields. Missing or invalid configuration returns 503 rather than fabricated
+contact information. Responses use `Cache-Control: no-store`; Twig caches only
+the generic template, not the supplied contact data. The rendered page is public.
+Back up the server configuration privately alongside other operator configuration.
+
+### Releases
+
 - /srv/demi-store/releases/<release>: application and Composer vendor dependencies.
 - /srv/demi-store/current: symlink to the active release.
 - /var/lib/demi-store/catalog: persistent releases, images and archives.

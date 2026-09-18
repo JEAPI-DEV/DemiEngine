@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "name": "demi.gameplay.destruction",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "engine": "^0.1.0",
   "dependencies": {},
   "public_modules": ["demi.gameplay.destruction.weapons", "demi.gameplay.destruction.native", "demi.gameplay.destruction.streaming"],

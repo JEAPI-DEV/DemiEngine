@@ -5,6 +5,7 @@ local Physics = require("demi.physics.query3d")
 local Body = require("demi.physics.rigidbody3d")
 local Transform = require("demi.transform3d")
 local Hud = require("demi.hud")
+local Prefab = require("demi.prefab")
 
 local function stats() return Entity.get("player","GameplayData","values") end
 local function reset_scene()
@@ -21,6 +22,10 @@ end
 
 return { tests = {{ name="weapons, streamed damage checkpoints and debris cleanup", func=function()
   Test.wait(0.35)
+  local placements=Prefab.placements("world_stream")
+  Test.expect(#placements==2 and placements[1].id=="a" and placements[2].id=="b",
+    "Streaming must read the authored prefab placement entities")
+  Test.expect(not Entity.exists("a/__preview/assembly"),"Editor preview geometry leaked into Play")
   Test.expect(type(stats().contacts)=="number","Player script must initialize its weapon state")
   Test.expect(Destruction.state("a/assembly").bodies==1,"Doorway A must attach")
   Test.expect(Destruction.state("b/assembly").bodies==1,"Doorway B must attach")

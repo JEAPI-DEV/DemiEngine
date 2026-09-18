@@ -5,12 +5,16 @@
   "hud":"main.hud.json",
   "entities":[
     {"id":"world_stream","components":{
-      "LuaScript":{"module":"script://scripts/world_stream.lua"},
-      "GameplayData":{"values":{"walls":[
-        {"id":"a","prefab":"prefab://doorway","position":[-2.8,0,0]},
-        {"id":"b","prefab":"prefab://doorway","position":[2.8,0,0]}
-      ]}}
-    }},
+      "Transform3D":{},
+      "LuaScript":{"module":"script://scripts/world_stream.lua"}
+    },"children":[
+      {"id":"a","name":"Left destructible wall","components":{
+        "Transform3D":{"position":[-2.8,0,0]},"PrefabPlacement3D":{"prefab":"prefab://doorway"}
+      }},
+      {"id":"b","name":"Right destructible wall","components":{
+        "Transform3D":{"position":[2.8,0,0]},"PrefabPlacement3D":{"prefab":"prefab://doorway"}
+      }}
+    ]},
     {"id":"sun","components":{"DirectionalLight":{"direction":[-0.4,-1,-0.6],"intensity":1.1}}},
     {"id":"environment","components":{"Environment3D":{"sky_texture":"asset://environment/evening_sky","ambient_color":[0.35,0.4,0.5,1],"ambient_intensity":0.5}}},
     {"id":"training_sensor","preset":"trigger_sphere_3d","radius":0.3,"components":{"Transform3D":{"position":[-4.175,1.6,1]}}},

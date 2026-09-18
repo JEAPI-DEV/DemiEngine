@@ -21,6 +21,20 @@ into logical editor space so picking and gizmos remain aligned.
 
 ## Current slice
 
+- **Prefab Placement 3D** makes runtime-streamed prefabs visible while editing.
+  Add it beside Transform3D, choose a prefab and its root, then move/rotate/scale
+  the placement normally. Preview meshes redirect selection to the placement;
+  **Open source prefab** opens the editable source. See
+  [streamed placement authoring](streamed-destruction.md#editable-scene-placements).
+  The editor does not execute gameplay Lua or instantiate fragment physics.
+- Object fields and Vec2/Vec3 arrays use expandable Inspector controls instead
+  of raw JSON blobs. Edit typed values, rename/add/remove object fields, and
+  add/remove array entries. New generic values start as null; choose their type
+  in the dropdown (or right-click an existing value to change its type).
+  Arrays of vectors have numeric coordinate rows. Collections page in groups
+  of 64, and nesting is bounded to 16 levels. Changes go through normal document
+  validation, Undo/Redo and format-preserving Save; invalid edits are rejected.
+
 - **Dentable 3D** is an optional reflected component for entities and scene
   prefabs. Add it to enable the native mesh-denting APIs; its Inspector fields
   configure material response without custom asset variants. New components

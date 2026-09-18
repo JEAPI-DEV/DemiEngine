@@ -47,3 +47,7 @@ docs/html
 !docs/latex/sty/
 
 examples/souls_boss_arena/assets/animation/*
+
+# Personal legal-notice source; production details belong on the server only.
+/impressum_demiengine_de_de.pdf
+/tools/package-store/impressum.json

@@ -436,6 +436,11 @@ bool EditorWorkspace::redo(std::string &error) {
 bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
                                 const bool continuous, std::string &error) {
   target = resolveSceneTarget(std::move(target));
+  if (target.component == "PrefabPlacement3D" ||
+      (target.component.empty() && target.field == "enabled"))
+    return mutateAndRebuild([&](EditorSceneDocument &document, std::string &issue) {
+      return document.setValue(target, value, continuous, issue);
+    }, error);
   if (target.isPrefabOverride()) {
     EditorSceneDocument before = sceneDocument_;
     if (!sceneDocument_.setValue(target, std::move(value), continuous, error)) {
@@ -839,6 +844,7 @@ void EditorWorkspace::syncChangedEntity() {
     return;
   runtime::Entity reparsed =
       runtime::scene_loading::parseSceneEntity(*authored);
+  updateEditorMeshRevision(reparsed);
   reparsed.sceneOwner = existing->sceneOwner;
   reparsed.prefabInstance = existing->prefabInstance;
   reparsed.prefabLocalId = existing->prefabLocalId;
@@ -863,6 +869,8 @@ bool EditorWorkspace::rebuildWorld(std::string &error) {
   auto world = loadEntityPreview(sceneDocument_, editingPrefab_, error);
   if (!world)
     return false;
+  for (auto &entity : world->entities) updateEditorMeshRevision(entity);
+  updateEditorPlacementVisibility(*world);
   project_->world = std::move(*world);
   syncHudPreview();
   updateSceneDomain(false);
@@ -1032,6 +1040,9 @@ void EditorWorkspace::syncHudPreview() {
 }
 
 void EditorWorkspace::selectEntity(std::string id) {
+  if (project_ && !sceneDocument_.entity(id))
+    if (auto owner = editorPlacementOwner(project_->world, id); !owner.empty())
+      id = std::move(owner);
   activeDocument_ = EditorWorkspaceDocument::Scene;
   selectedIsoGridCell_.reset();
   selectedHudNodeId_.clear();
@@ -1053,6 +1064,9 @@ void EditorWorkspace::selectIsoGridCell(EditorIsoGridCell cell) {
 }
 
 void EditorWorkspace::toggleEntitySelection(std::string id) {
+  if (project_ && !sceneDocument_.entity(id))
+    if (auto owner = editorPlacementOwner(project_->world, id); !owner.empty())
+      id = std::move(owner);
   selectedIsoGridCell_.reset();
   const auto found = std::ranges::find(selectedEntityIds_, id);
   if (found == selectedEntityIds_.end())

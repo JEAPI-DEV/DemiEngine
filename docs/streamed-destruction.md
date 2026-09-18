@@ -32,7 +32,9 @@ the native height-map path does not need model assets.
 The recipe is retained in cooked output. It expands only when the prefab is
 instantiated. The prefab service caches up to 16 eligible compact templates by
 source content hash and rebases stable entity/visual IDs per instance. Source
-edits invalidate the key. Nested prefabs, overrides, or source-model fracture
+edits invalidate the key. Transform-only overrides have their own bounded cache
+key, so repeated placements with the same rotation/scale share preparation.
+Nested prefabs, other overrides, or source-model fracture
 inputs use the uncached path. Repeated instantiation no longer expands twice.
 The editor previews region dimensions without saving generated bricks; normal
 Inspector edits and Undo/Redo change the recipe.
@@ -65,6 +67,64 @@ remain warm while individual walls unload. This is runtime CPU mesh generation,
 not tessellation, ray tracing or a complete PBR/shadow implementation.
 
 ## Proximity and lifetime policy
+
+### Editable scene placements
+
+Prefer ordinary entities with `Transform3D` and `PrefabPlacement3D` over placement
+records hidden in `GameplayData`. Nest them under the entity whose script owns
+streaming:
+
+```json
+{
+  "id": "world_stream",
+  "components": {
+    "Transform3D": {},
+    "LuaScript": {"module": "script://scripts/world_stream.lua"}
+  },
+  "children": [{
+    "id": "wall_a",
+    "components": {
+      "Transform3D": {"position": [0, 0, 0]},
+      "PrefabPlacement3D": {"prefab": "prefab://doorway"}
+    }
+  }]
+}
+```
+
+`prefab` is a normal prefab reference picker. `root` defaults to `assembly` and
+names the prefab's single Transform3D root; set it to `body` or another root ID
+when appropriate. `preserve` defaults to true. The placement's world position,
+rotation and positive scale replace the prefab root pose, while child transforms
+remain prefab-local. A placement is not a rigid body: put physics/destruction
+components in the prefab itself.
+
+`Prefab.placements(ancestor)` returns enabled placements beneath that entity,
+sorted by stable ID, including resolved world position/rotation/scale. Disabled
+ancestors exclude their placements. Omit the ancestor to read the whole world.
+Reading records does not instantiate anything; streaming remains explicit game
+policy:
+
+```lua
+local Prefab = require("demi.prefab")
+local Streaming = require("demi.gameplay.destruction.streaming")
+local Native = require("demi.gameplay.destruction.native")
+self.stream = Streaming.new(Native.streaming(), Prefab.placements(self.entity_id))
+```
+
+The weapon lab uses local destruction package 1.1.0 for placement orientation
+and scale support. The published 1.0.0 package has not been overwritten.
+Read placements at startup; changing markers during gameplay requires rebuilding
+the stream catalogue. Changing a saved placement's pose or root rejects that
+checkpoint rather than restoring debris into the wrong location.
+
+Editor preview uses the same prefab resolver with fracture compilation disabled.
+It shows coarse masonry regions and ordinary meshes, not per-brick physics
+bodies. Clicking preview geometry selects its authored placement for gizmos;
+**Open source prefab** edits the actual prefab after saving/undoing dirty scene
+changes. Preview entities never enter saved scenes or runtime worlds. This is
+not an editor rendering-performance qualification for a 100,000-placement map.
+
+### Programmatic catalogues
 
 Import `demi.gameplay.destruction.streaming` with `Native.streaming()` from
 `demi.gameplay.destruction.native`. Supply placement records:

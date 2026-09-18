@@ -2,7 +2,7 @@
   "format_version": 1,
   "name": "3D Destruction Weapon Lab",
   "package_registry": "../../packages",
-  "packages": { "demi.gameplay.destruction": "^1.0.0", "kenney.textures.prototype": "1.0.0" },
+  "packages": { "demi.gameplay.destruction": "^1.1.0", "kenney.textures.prototype": "1.0.0" },
   "main_scene": "scene://destruction_weapons_3d_lab/main",
   "assets": ["asset://textures/bricks085", "asset://textures/bricks085_height"],
   "scenes": [{ "id": "scene://destruction_weapons_3d_lab/main" }],

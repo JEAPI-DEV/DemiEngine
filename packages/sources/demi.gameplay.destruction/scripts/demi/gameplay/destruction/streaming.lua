@@ -42,6 +42,11 @@ function Streaming.new(services,definitions,options)
     assert(type(entry.id)=="string" and entry.id~="" and not self.entries[entry.id],"duplicate/invalid wall ID")
     assert(type(entry.prefab)=="string" and entry.prefab:match("^prefab://"),"invalid prefab")
     position(entry.position)
+    if entry.rotation then position(entry.rotation) end
+    if entry.scale then
+      position(entry.scale)
+      for i=1,3 do assert(entry.scale[i]>0,"placement scale must be positive") end
+    end
     entry=copy(entry); self.entries[entry.id]=entry
     local key=math.floor(entry.position[1]/settings.load_distance)..":"..math.floor(entry.position[3]/settings.load_distance)
     local cell=self.cells[key] or {cursor=1,entries={}}; self.cells[key]=cell
@@ -57,7 +62,8 @@ function Streaming:capture(entry)
   if state.revision==0 then return nil end
   local value,error=self.services.checkpoint(entry)
   if not value then return nil,error end
-  return {prefab=entry.prefab,position=copy(entry.position),checkpoint=value}
+  return {prefab=entry.prefab,root=entry.root,position=copy(entry.position),
+    rotation=copy(entry.rotation),scale=copy(entry.scale),checkpoint=value}
 end
 function Streaming:update(dt,observer)
   assert(finite(dt) and dt>=0,"invalid streaming dt"); position(observer)
@@ -167,6 +173,11 @@ function Streaming:import_state(state)
       assert(record.prefab==entry.prefab and type(record.checkpoint)=="table","Saved wall definition changed")
       position(record.position)
       assert(distance(record.position,entry.position)==0,"Saved wall placement changed")
+      assert((record.root or "assembly")== (entry.root or "assembly"),"Saved wall root changed")
+      local saved_rotation,rotation=record.rotation or {0,0,0},entry.rotation or {0,0,0}
+      local saved_scale,scale=record.scale or {1,1,1},entry.scale or {1,1,1}
+      position(saved_rotation);position(saved_scale)
+      assert(distance(saved_rotation,rotation)==0 and distance(saved_scale,scale)==0,"Saved wall orientation or scale changed")
       saved[id]=copy(record)
     end
     return saved

@@ -1,0 +1,15 @@
+{% extends 'base.html.twig' %}
+{% block title %}Impressum — DemiEngine{% endblock %}
+{% block description %}Impressum und Kontaktangaben für demiengine.de.{% endblock %}
+{% block body %}
+<article class="guide" lang="de">
+  <h1>Impressum</h1>
+  <address style="font-style:normal">
+    <strong>{{ notice.name }}</strong><br>
+    {% for line in notice.address %}{{ line }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+  </address>
+  <h2>Kontakt</h2>
+  <p>Telefon: <a href="tel:{{ notice.phone_uri }}">{{ notice.phone }}</a><br>
+     E-Mail: <a href="mailto:{{ notice.email }}">{{ notice.email }}</a></p>
+</article>
+{% endblock %}

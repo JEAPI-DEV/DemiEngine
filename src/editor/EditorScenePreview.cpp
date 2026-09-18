@@ -3,10 +3,45 @@
 #include "demi/runtime/scene/SceneEntityParser.h"
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/PrefabPlacements3D.h"
+#include "demi/runtime/scene/components/3dcomponents/PrefabPlacement3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
+#include <functional>
+#include <unordered_set>
 
 #include <nlohmann/json.hpp>
 
 namespace demi::editor {
+
+void updateEditorMeshRevision(runtime::Entity &entity) {
+  auto *mesh = entity.component<runtime::MeshRendererComponent>();
+  const auto source = entity.serializedComponents.find("MeshRenderer");
+  if (mesh && source != entity.serializedComponents.end())
+    mesh->revision = std::hash<std::string>{}(source->second);
+}
+
+std::string editorPlacementOwner(const runtime::World &world, std::string_view entityId) {
+  const auto *entity = runtime::findEntity(world, std::string(entityId));
+  std::unordered_set<std::string> visited;
+  while (entity && visited.insert(entity->id).second) {
+    if (entity->hasComponent<runtime::PrefabPlacement3DComponent>()) return entity->id;
+    const auto *transform = entity->component<runtime::Transform3DComponent>();
+    entity = transform && !transform->parent.empty()
+        ? runtime::findEntity(world, transform->parent) : nullptr;
+  }
+  return {};
+}
+
+void updateEditorPlacementVisibility(runtime::World &world) {
+  std::unordered_set<std::string> enabled;
+  for (const auto &placement : runtime::collectPrefabPlacements3D(world))
+    enabled.insert(placement.id);
+  for (auto &entity : world.entities) {
+    const auto owner = editorPlacementOwner(world, entity.id);
+    if (!owner.empty() && entity.id.starts_with(owner + "/__preview/") && !enabled.contains(owner))
+      entity.enabled = false;
+  }
+}
 
 nlohmann::json editorPreviewEntityJson(const runtime::Entity &entity) {
   nlohmann::json result{{"id", entity.id},
@@ -50,6 +85,7 @@ bool applyEditorPreviewValue(runtime::World &world,
 
   runtime::Entity replacement =
       runtime::scene_loading::parseSceneEntity(effective);
+  updateEditorMeshRevision(replacement);
   replacement.sceneOwner = current->sceneOwner;
   replacement.prefabInstance = current->prefabInstance;
   replacement.prefabLocalId = current->prefabLocalId;

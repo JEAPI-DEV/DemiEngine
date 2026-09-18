@@ -451,7 +451,7 @@
   # These tests use assert for checks and fixture setup. Keep those calls in
   # optimized test executables; the linked engine libraries remain Release.
   foreach(target demi-bgfx-renderer3d-tests demi-gltf-skinned-model-tests demi-runtime-profiler-tests demi-gpu-mesh3d-tests demi-gpu-skinning3d-tests
-                 demi-package-manager-tests demi-asset-streaming-tests demi-asset-pipeline-tests demi-editor-asset-workflow-tests demi-texture-library2d-tests)
+                 demi-package-manager-tests demi-asset-streaming-tests demi-asset-pipeline-tests demi-editor-asset-workflow-tests demi-texture-library2d-tests demi-editor-workspace-tests demi-editor-imgui-input-tests)
     if(MSVC)
       target_compile_options(${target} PRIVATE /UNDEBUG)
     else()

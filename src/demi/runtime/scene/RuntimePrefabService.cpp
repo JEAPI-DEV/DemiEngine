@@ -14,6 +14,22 @@
 namespace demi::runtime {
 namespace {
 
+bool placementOverrides(const nlohmann::json &overrides) {
+  if (!overrides.is_object()) return false;
+  for (const auto &entry : overrides) {
+    if (!entry.is_object() || entry.size()!=1 || !entry.contains("components")) return false;
+    const auto &components=entry["components"];
+    if (!components.is_object() || components.size()!=1 || !components.contains("Transform3D")) return false;
+    const auto &transform=components["Transform3D"];
+    if (!transform.is_object()) return false;
+    for (const auto &[key, value] : transform.items()) {
+      (void)value;
+      if (key!="position" && key!="rotation" && key!="scale") return false;
+    }
+  }
+  return true;
+}
+
 Diagnostic prefabError(std::string code, std::string message,
                        const std::filesystem::path &path = {}) {
   return {.severity = Severity::Error,
@@ -76,7 +92,7 @@ PrefabInstanceResult RuntimePrefabService::build(
   }
   std::string cacheKey;
   const auto path=composition::resolvePrefabReference(projectDirectory_/"demi.project.json",prefab);
-  if (path && options.overrides.empty()) {
+  if (path && placementOverrides(options.overrides)) {
     std::ifstream file(*path);
     const auto source=nlohmann::json::parse(file,nullptr,false);
     const auto safe=[](const auto &self,const nlohmann::json &value)->bool {
@@ -92,7 +108,7 @@ PrefabInstanceResult RuntimePrefabService::build(
       return true;
     };
     if (assets::hasMasonryAuthoring(source) && safe(safe,source))
-      if (auto hash=assets::hashFile(*path)) cacheKey=std::string(prefab)+"|"+*hash;
+      if (auto hash=assets::hashFile(*path)) cacheKey=std::string(prefab)+"|"+*hash+"|"+options.overrides.dump();
   }
   const nlohmann::json instance = {
       {"id", cacheKey.empty()?options.id:"template"},

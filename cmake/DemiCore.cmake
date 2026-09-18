@@ -20,6 +20,7 @@ add_library(demi-core STATIC
   src/demi/assets/FractureAuthoring.cpp
   src/demi/assets/MasonryGeneration.cpp
   src/demi/schema/DestructionValidation.cpp
+  src/demi/schema/PrefabPlacementValidation.cpp
   src/demi/assets/ModelImportProfile.cpp
   src/demi/assets/ModelInspector.cpp
   src/demi/assets/SceneBudget3D.cpp

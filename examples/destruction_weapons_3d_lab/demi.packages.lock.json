@@ -2,8 +2,8 @@
   "format_version": 1,
   "packages": [
     {
-      "archive_hash": "sha256:d710f94e60dc6229ccbe8db8f30bc4239b02e65b47af92af35fb8041122f6a55",
-      "archive_uri": "package://demi.gameplay.destruction/1.0.0",
+      "archive_hash": "sha256:6b9961f93706acffdfb9c97002aabc52252353d6695fb3e3afcd569cf10d548b",
+      "archive_uri": "package://demi.gameplay.destruction/1.1.0",
       "manifest": {
         "dependencies": {},
         "engine": "^0.1.0",
@@ -24,9 +24,9 @@
           "demi.gameplay.destruction.native",
           "demi.gameplay.destruction.streaming"
         ],
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
-      "manifest_hash": "sha256:4c4a44bdf63f4fd383156db9b9c76d41d5a1de2b7700af955e58a0c6a1c98c57",
+      "manifest_hash": "sha256:41ab14c28a56def4cffc254cad4e87e7029c2972b17f0ac0884735e7c8a47f2c",
       "yanked": false
     },
     {
