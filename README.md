@@ -5,6 +5,7 @@
 [Roadmap](plan.md)
 
 NOTE: Packages, examples, documentation, website may use LLM's (AI), for faster iteration and broader feature support. This allows me to improve clearity of existing features for people reading the examples or the docs. 
+
 EXTRA NOTE: This is a disclaimer is useless but needed, since EU is bad when it comes to regulation it appears.
 
 DemiEngine is a Linux-first C++20 game engine for deterministic, text-authored
