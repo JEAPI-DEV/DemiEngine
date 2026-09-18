@@ -55,6 +55,7 @@ public:
   [[nodiscard]] std::uint64_t stage(std::span<const BondDamage3D> damage,
                                   std::span<const AnchorDamage3D> anchors = {});
   [[nodiscard]] bool anchored(const std::string &chunk) const;
+  [[nodiscard]] bool bondIntact(const std::string &bond) const;
   [[nodiscard]] bool commit(std::uint64_t token) noexcept;
   [[nodiscard]] bool discard(std::uint64_t token) noexcept;
   [[nodiscard]] const std::vector<DestructionGroup3D> &groups() const;

@@ -3,6 +3,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include "demi/runtime/destruction/DestructionImpact3D.h"
 
 namespace demi::runtime {
 struct World;
@@ -26,6 +27,8 @@ public:
   bool update(World &world, PhysicsWorld3D &physics);
   bool damagePart(const std::string &entity, const std::string &part,
                   float amount, std::string &error);
+  bool impact(World &world, PhysicsWorld3D &physics, const DestructionImpact3D &impact,
+              std::size_t &affectedAssemblies, std::string &error);
   DestructionState3D state(const std::string &entity) const;
 
 private:

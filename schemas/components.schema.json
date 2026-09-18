@@ -856,6 +856,16 @@
     "Destructible3D": {
       "additionalProperties": false,
       "properties": {
+        "energy_per_health": {
+          "default": 1000,
+          "maximum": 1000000000000,
+          "minimum": 0.000001,
+          "type": "number",
+          "x-demi-editor-label": "Energy Per Health",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "generator_version": {
           "default": 1,
           "maximum": 1,

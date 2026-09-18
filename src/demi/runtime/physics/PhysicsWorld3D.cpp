@@ -38,6 +38,7 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 
 #include <algorithm>
+#include <tuple>
 #include <atomic>
 #include <bit>
 #include <cmath>
@@ -1372,6 +1373,17 @@ bool PhysicsWorld3D::addTorque(const std::string &entityId, const Vec3 torque) {
   return true;
 }
 
+bool PhysicsWorld3D::addImpulseAtPosition(const std::string &entityId,
+                                          Vec3 impulse, Vec3 position) {
+  const auto found = impl_->bodies.find(entityId);
+  if (found == impl_->bodies.end())
+    return false;
+  impl_->physics.GetBodyInterface().AddImpulse(
+      found->second.body, jolt(impulse),
+      JPH::RVec3(position.x, position.y, position.z));
+  return true;
+}
+
 bool PhysicsWorld3D::setAwake(const std::string &entityId, const bool awake) {
   const auto found = impl_->bodies.find(entityId);
   if (found == impl_->bodies.end())
@@ -1524,10 +1536,9 @@ PhysicsWorld3D::overlapCollider(const World &world, const Entity &entity,
   return result;
 }
 
-std::vector<PhysicsQueryHit3D>
-PhysicsWorld3D::overlapSphere(const Vec3 center, const float radius,
-                              const std::string &layer,
-                              const std::string &ignoredEntityId) const {
+std::vector<PhysicsQueryHit3D> PhysicsWorld3D::overlapSphere(
+    const Vec3 center, const float radius, const std::string &layer,
+    const std::string &ignoredEntityId, bool includeParts) const {
   if (radius < 0.0F || impl_->world == nullptr)
     return {};
   const JPH::SphereShape shape(std::max(radius, 0.001F));
@@ -1543,13 +1554,38 @@ PhysicsWorld3D::overlapSphere(const Vec3 center, const float radius,
     PhysicsQueryHit3D value = queryHit(
         impl_->world, impl_->ids, hit.mBodyID2, hit.mContactPointOn2,
         -hit.mPenetrationAxis.NormalizedOr(JPH::Vec3::sAxisY()), 0.0F, 0.0F);
+    if (includeParts && !value.entityId.empty()) {
+      JPH::BodyLockRead lock(impl_->physics.GetBodyLockInterface(),
+                             hit.mBodyID2);
+      if (lock.Succeeded()) {
+        const auto part =
+            lock.GetBody().GetShape()->GetSubShapeUserData(hit.mSubShapeID2);
+        const auto record = impl_->bodies.find(value.entityId);
+        if (part > 0 && record != impl_->bodies.end() &&
+            part <= record->second.partIds.size())
+          value.colliderPartId = record->second.partIds[part - 1];
+      }
+      value.distance = std::max(0.0F, radius - hit.mPenetrationDepth);
+      result.push_back(std::move(value));
+      continue;
+    }
     if (!value.entityId.empty() &&
         std::ranges::none_of(result, [&](const PhysicsQueryHit3D &existing) {
           return existing.entityId == value.entityId;
         }))
       result.push_back(std::move(value));
   }
-  std::ranges::sort(result, {}, &PhysicsQueryHit3D::entityId);
+  std::ranges::sort(result, [](const auto &a, const auto &b) {
+    return std::tie(a.entityId, a.colliderPartId, a.distance) <
+           std::tie(b.entityId, b.colliderPartId, b.distance);
+  });
+  if (includeParts)
+    result.erase(std::unique(result.begin(), result.end(),
+                             [](const auto &a, const auto &b) {
+                               return a.entityId == b.entityId &&
+                                      a.colliderPartId == b.colliderPartId;
+                             }),
+                 result.end());
   return result;
 }
 

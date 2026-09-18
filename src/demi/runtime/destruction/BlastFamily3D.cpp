@@ -65,6 +65,7 @@ struct BlastFamily3D::Impl {
   std::map<std::string, std::uint32_t> chunkIndices;
   std::map<std::string, std::uint32_t> bondIndices;
   std::vector<std::uint32_t> nodes;
+  std::vector<std::uint32_t> nativeBondIndices;
   Storage assetMemory;
   std::unique_ptr<FamilyState> current;
   std::unique_ptr<FamilyState> pending;
@@ -202,11 +203,13 @@ struct BlastFamily3D::Impl {
       nodes[graph.chunkIndices[node]] = node;
     }
     std::vector<float> healths(bonds.size());
+    nativeBondIndices.resize(bonds.size());
     const auto *assetBonds = NvBlastAssetGetBonds(asset(), nullptr);
     for (std::size_t i = 0; i < bonds.size(); ++i) {
       require(assetBonds[i].userData < bonds.size(),
               "Blast bond identity mismatch");
       healths[i] = bonds[assetBonds[i].userData].health;
+      nativeBondIndices[assetBonds[i].userData] = i;
     }
     current = emptyFamily();
     for (const auto &chunk : chunks) {
@@ -354,6 +357,15 @@ std::uint64_t BlastFamily3D::revision() const { return impl_->revision; }
 bool BlastFamily3D::anchored(const std::string &chunk) const {
   const auto anchor = impl_->current->anchorHealth.find(chunk);
   return anchor != impl_->current->anchorHealth.end() && anchor->second > 0;
+}
+bool BlastFamily3D::bondIntact(const std::string &bond) const {
+  const auto found = impl_->bondIndices.find(bond);
+  if (found == impl_->bondIndices.end()) return false;
+  const auto index = found->second;
+  const auto chunk = impl_->chunkIndices.at(impl_->bonds[index].firstChunk);
+  const auto *actor = NvBlastFamilyGetChunkActor(impl_->current->family(), chunk, nullptr);
+  const auto *health = actor ? NvBlastActorGetBondHealths(actor, nullptr) : nullptr;
+  return health && health[impl_->nativeBondIndices[index]] > 0;
 }
 
 } // namespace demi::runtime

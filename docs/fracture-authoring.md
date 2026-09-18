@@ -58,6 +58,8 @@ workflows use components.
 
 - `Destructible3D.seed` defaults to 1; `generator_version` defaults to 1.
   `max_bodies` defaults to 64 (maximum 256).
+- `Destructible3D.energy_per_health` defaults to 1000 joules per authored health
+  unit for [spatial impacts](3d-spatial-impacts.md). It does not change `damage_part` units.
 - `Fracture3D.pieces` defaults to 8 (1–128 per mesh, at most 256 per assembly).
   One piece participates in the structure but stays whole when detached.
 - `bond_health` defaults to 1. Connections use the lower of the two objects'
@@ -111,6 +113,6 @@ bonds, not general runtime CSG. Limits are 1,024 faces / 512 unique source verti
 
 Imported models require explicit exterior material/texture/color settings.
 Embedded multi-material extraction and authored smooth normals are not preserved;
-output normals are flat. The click probe still uses part-local damage. Spatial
-radius/energy hits, runtime refinement, structural stress, fair scheduling, debris
+output normals are flat. The click probe uses native spatial strikes and radial
+blasts. Richer material response, runtime refinement, structural stress, fair scheduling, debris
 budgets and production/platform performance qualification remain roadmap work.

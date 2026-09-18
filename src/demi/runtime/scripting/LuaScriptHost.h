@@ -339,6 +339,8 @@ public:
   bool damageDestructiblePart3D(const std::string &entityId, const std::string &partId,
                                float damage, std::string &error);
   DestructionState3D destructionState3D(const std::string &entityId) const;
+  bool applyDestructionImpact3D(const DestructionImpact3D &impact,
+                                std::size_t &affectedAssemblies, std::string &error);
   [[nodiscard]] std::vector<PhysicsContact2D>
   physicsContacts(const std::string &entityId) const;
   [[nodiscard]] bool createEntity(Entity entity);

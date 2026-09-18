@@ -9,6 +9,9 @@ namespace demi::runtime {
 void Destructible3DComponent::parse(const nlohmann::json &json,
                                     Entity &entity) {
   Destructible3DComponent value;
+  value.energyPerHealth = json.value("energy_per_health", 1000.0F);
+  if (!std::isfinite(value.energyPerHealth) || value.energyPerHealth < 0.000001F || value.energyPerHealth > 1e12F)
+    throw std::invalid_argument("Destructible3D.energy_per_health must be 0.000001..1e12 joules");
   if ((json.contains("seed") && !json["seed"].is_number_integer()) ||
       (json.contains("generator_version") && !json["generator_version"].is_number_integer()))
     throw std::invalid_argument("Destructible3D seed and generator_version must be integers");
@@ -38,6 +41,6 @@ void Destructible3DComponent::parse(const nlohmann::json &json,
   entity.setComponent(std::move(value));
 }
 nlohmann::json Destructible3DComponent::defaults() {
-  return {{"parts", nlohmann::json::object()}, {"max_bodies", 64}, {"seed", 1}, {"generator_version", 1}};
+  return {{"parts", nlohmann::json::object()}, {"max_bodies", 64}, {"energy_per_health", 1000}, {"seed", 1}, {"generator_version", 1}};
 }
 } // namespace demi::runtime

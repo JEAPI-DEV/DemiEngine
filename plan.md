@@ -28,7 +28,7 @@ not every engine feature or production game.
 | --- | --- |
 | 1 — Baselines/feasibility | Complete: baseline evidence and portable Blast/Jolt integration proof, including physical Android CPU execution. Production and expanded-workload qualification belongs to later milestones. |
 | 2 — Scaling | Complete for the declared reference gate: GPU rig support, temporal/model LOD, desktop 2,000-object 1080p scaling, and physical Android 64/256-object scaling/lifecycle. 1440p was measured; Radeon’s 2,000-object stretch miss remains explicit. See [closure evidence](docs/3d-milestone-2-qualification.md). |
-| 3 — Localized destruction | Foundation plus first bounded authoring slice: component-based convex fracture authoring, editable source hierarchies, automatic geometry/bonds/mappings, cooking and native splits work. General concave/material authoring, spatial/energy-aware hits, scheduling and production qualification remain open. |
+| 3 — Localized destruction | Component-based convex authoring, native splits and the first spatial energy/impulse API work. General concave/material authoring, finished hammer/rocket gameplay, scheduling and production qualification remain open. |
 | 4 — Visual/gameplay quality | Third-person mechanics foundation and native visual denting delivered; production animation/visual qualification remains open. |
 | 5 — Structural collapse | Impact-energy telemetry exists; structural connections, stress, fracture-driven collapse, and debris/character policy remain open. |
 | 6 — Landscape/workflow | Asset-service and static distance-LOD foundations plus editor workflow improvements exist; landscape-scale and destruction-specific qualification remain open. |
@@ -315,8 +315,11 @@ Red Faction: Guerrilla is an experience reference, not a verified SDK specificat
   Component-authored geometry regenerates deterministically and is baked on every cook;
   persistent authoring-cache/dependency reuse and generation migration are not yet
   implemented. Source geometry and fracture components remain together in the editable prefab.
-- [ ] Add engine-native spatial impact resolution using world-space position,
-  radius, direction and energy/impulse, with material response and falloff. Keep
+- [x] Add the first engine-native spatial impact slice using world-space position,
+  radius, direction and shared energy/impulse budgets, scalar connection resistance
+  and linear collider-surface falloff. Impulses follow successful native splits;
+  existing loose parts also respond. See [spatial impacts](docs/3d-spatial-impacts.md).
+  Richer material laws, shielding and automatic collision-driven damage remain open. Keep
   weapon controls/ammunition in reusable gameplay packages. `damage_part` remains
   a low-level test/debug facility, not the primary weapon or authoring workflow.
 - [ ] Replace the arch as the main acceptance demonstration with a reinforced-wall
@@ -380,8 +383,9 @@ the scheduling or qualification gates below.
   deterministic settings/hashes, explicit dependencies, and validated manifests.
 - [x] Apply part-local bond damage through Blast; preserve unaffected connected
   groups. This checked item is a foundation only: it currently targets authored
-  parts and incident bonds. Spatial/material-aware hits, generated sub-fragments,
-  blast falloff and structural stress remain unimplemented delivery requirements.
+  parts and incident bonds. Spatial sphere hits now allocate energy to live bonds
+  with authored resistance and falloff; richer material laws, hierarchical
+  sub-fragments and structural stress remain unimplemented delivery requirements.
 - [ ] Implement the shared scheduler's affected-structure queue, coalescing,
   resumable work, fairness, topology-version checks, and separate budget metrics.
 - [x] Translate splits into Jolt compound bodies for connected assemblies, not
@@ -453,7 +457,7 @@ load-dependent collapse complete on the basis of connectivity tests.
   concrete sections, while damage to that reinforcement can release the structure.
   Distinguish brittle failure from ductile bending/strain thresholds. Existing
   visual mesh denting does not provide structural deformation or updated collision.
-- [ ] Add explosion falloff/obstruction and bounded impact-driven secondary damage.
+- [ ] Extend the first radial falloff implementation with obstruction and bounded impact-driven secondary damage.
 - [ ] Begin with connectivity-based support loss, then evaluate Blast's stress
   extension for load-dependent failure. Connectivity alone is not a stress model.
 - [ ] Recompute affected loads after damage, attachment changes and impacts; test

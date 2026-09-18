@@ -1,6 +1,7 @@
 #include "demi/runtime/destruction/DestructionWorld3D.h"
 #include "demi/runtime/destruction/ColliderFractureFamily3D.h"
 #include "demi/runtime/physics/PhysicsWorld3D.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scene/model/World.h"
@@ -21,6 +22,11 @@ struct FragmentOwner {
 struct GroupBody {
   DestructionGroup3D group;
   std::string body;
+};
+struct PartImpulse {
+  std::string part;
+  Vec3 point; // Assembly-local while queued; world-space when prepared.
+  Vec3 impulse;
 };
 void require(bool condition, const std::string &message) {
   if (!condition)
@@ -48,6 +54,7 @@ struct DestructionWorld3D::Impl {
     std::vector<GroupBody> groups;
     std::map<std::string, float> pending;
     std::map<std::string, float> pendingAnchors;
+    std::vector<PartImpulse> pendingImpulses;
     DestructionState3D state;
     float totalVolume = 0;
     std::set<std::string> privateAssets;
@@ -139,8 +146,8 @@ struct DestructionWorld3D::Impl {
       const auto *collider = root->component<ModelCollider3DComponent>();
       const auto *source = resolvedColliderAsset3D(world, *root);
       require(
-          collider && collider->asset == assembly.sourceAsset &&
-              source && source->revision == assembly.asset.revision,
+          collider && collider->asset == assembly.sourceAsset && source &&
+              source->revision == assembly.asset.revision,
           "Fracture source changed; reload the scene before applying damage");
     }
     std::vector<BondDamage3D> commands;
@@ -149,6 +156,8 @@ struct DestructionWorld3D::Impl {
     std::vector<AnchorDamage3D> anchors;
     for (const auto &[id, damage] : assembly.pendingAnchors)
       anchors.push_back({id, damage});
+    if (commands.empty() && anchors.empty())
+      return false;
     const auto token = assembly.family->stage(commands, anchors);
     try {
       const auto &partition = assembly.family->stagedGroups(token);
@@ -360,13 +369,53 @@ bool DestructionWorld3D::update(World &world, PhysicsWorld3D &physics) {
   // scheduler.
   for (auto &[id, assembly] : impl_->assemblies) {
     if (!assembly.family ||
-        (assembly.pending.empty() && assembly.pendingAnchors.empty()))
+        (assembly.pending.empty() && assembly.pendingAnchors.empty() &&
+         assembly.pendingImpulses.empty()))
       continue;
     try {
+      require(assembly.state.revision != UINT64_MAX,
+              "Destruction revision exhausted");
+      auto impulses = assembly.pendingImpulses;
+      for (auto &impulse : impulses) {
+        const auto group =
+            std::ranges::find_if(assembly.groups, [&](const GroupBody &g) {
+              return contains(g.group, impulse.part);
+            });
+        require(group != assembly.groups.end(), "Impact part lost its owner");
+        const auto *body = findEntity(world, group->body);
+        const auto *transform =
+            body ? body->component<Transform3DComponent>() : nullptr;
+        const auto *rigidbody =
+            body ? body->component<Rigidbody3DComponent>() : nullptr;
+        require(transform && transform->parent.empty() && rigidbody &&
+                    rigidbody->bodyEnabled &&
+                    rigidbody->bodyType ==
+                        (group->group.anchored ? "static" : "dynamic") &&
+                    physics.velocity(group->body).has_value(),
+                "Impact body is unavailable");
+        impulse.point = transformPoint3D(
+            {transform->position, transform->rotation, transform->scale},
+            impulse.point);
+        require(std::isfinite(impulse.point.x) &&
+                    std::isfinite(impulse.point.y) &&
+                    std::isfinite(impulse.point.z),
+                "Impact point overflow");
+      }
       changed = impl_->apply(world, physics, assembly);
+      // No impulse is applied until the entire family's topology proposal
+      // commits.
+      for (const auto &impulse : impulses) {
+        const auto group =
+            std::ranges::find_if(assembly.groups, [&](const GroupBody &g) {
+              return contains(g.group, impulse.part);
+            });
+        if (group != assembly.groups.end() && !group->group.anchored)
+          (void)physics.addImpulseAtPosition(group->body, impulse.impulse,
+                                             impulse.point);
+      }
       assembly.state.status = "applied";
       assembly.state.error.clear();
-      assembly.state.revision = assembly.family->revision();
+      ++assembly.state.revision;
       assembly.state.bodies = assembly.groups.size();
     } catch (const std::exception &error) {
       assembly.state.status = "failed";
@@ -374,6 +423,7 @@ bool DestructionWorld3D::update(World &world, PhysicsWorld3D &physics) {
     }
     assembly.pending.clear();
     assembly.pendingAnchors.clear();
+    assembly.pendingImpulses.clear();
     break;
   }
   return changed;
@@ -412,7 +462,8 @@ bool DestructionWorld3D::damagePart(const std::string &entity,
     pendingAnchors[part] = sum;
   }
   for (const auto &bond : assembly->asset.fracture->bonds) {
-    if ((bond.firstPart == part || bond.secondPart == part) &&
+    if (assembly->family->bondIntact(bond.id) &&
+        (bond.firstPart == part || bond.secondPart == part) &&
         contains(owner->group, bond.firstPart) &&
         contains(owner->group, bond.secondPart)) {
       const float sum = pending[bond.id] + amount;
@@ -423,8 +474,10 @@ bool DestructionWorld3D::damagePart(const std::string &entity,
       pending[bond.id] = sum;
     }
   }
-  if (pending == assembly->pending && pendingAnchors == assembly->pendingAnchors) {
-    error = "Part is already detached; no bonds or foundation attachment remain";
+  if (pending == assembly->pending &&
+      pendingAnchors == assembly->pendingAnchors) {
+    error =
+        "Part is already detached; no bonds or foundation attachment remain";
     return false;
   }
   assembly->pending.swap(pending);
@@ -442,5 +495,164 @@ DestructionState3D DestructionWorld3D::state(const std::string &entity) const {
     for (const auto &part : group.group.chunks)
       result.parts.emplace(part, group.body);
   return result;
+}
+
+bool DestructionWorld3D::impact(World &world, PhysicsWorld3D &physics,
+                                const DestructionImpact3D &hit,
+                                std::size_t &affectedAssemblies,
+                                std::string &error) {
+  ProfileScope scope("Destruction3D.impact");
+  affectedAssemblies = 0;
+  if (!validateDestructionImpact3D(hit, error))
+    return false;
+  auto *target = hit.entity.empty() ? nullptr : impl_->find(hit.entity);
+  if (!hit.entity.empty() && (!target || !target->family)) {
+    error = "Impact target is not an attached destructible";
+    return false;
+  }
+  try {
+    struct Contact {
+      PhysicsQueryHit3D hit;
+      float weight;
+    };
+    struct Proposal {
+      std::string status = "queued";
+      Impl::Assembly *assembly = nullptr;
+      float energyPerHealth = 1000;
+      std::map<std::string, Contact> contacts;
+      std::map<std::string, float> bondWeights, anchorWeights;
+      std::map<std::string, float> bonds, anchors;
+      std::vector<PartImpulse> impulses;
+    };
+    std::map<std::string, Proposal> proposals;
+    double impulseWeight = 0, energyWeight = 0;
+    const auto contacts =
+        physics.overlapSphere(hit.position, hit.radius, {}, {}, true);
+    require(contacts.size() <= 8192,
+            "Impact query exceeds 8192 collider parts; reduce radius");
+    for (const auto &contact : contacts) {
+      if (contact.colliderPartId.empty() || contact.isTrigger)
+        continue;
+      auto *assembly = impl_->find(contact.entityId);
+      if (!assembly || !assembly->family || (target && target != assembly))
+        continue;
+      const auto *root = findEntity(world, assembly->state.root);
+      const auto *config =
+          root ? root->component<Destructible3DComponent>() : nullptr;
+      if (!root || !root->enabled || !config)
+        continue;
+      require(std::isfinite(config->energyPerHealth) &&
+                  config->energyPerHealth >= 0.000001F &&
+                  config->energyPerHealth <= 1e12F,
+              "Invalid energy_per_health");
+      const float weight =
+          destructionImpactWeight(contact.distance, hit.radius);
+      if (weight <= 0)
+        continue;
+      auto &proposal = proposals[assembly->state.root];
+      require(proposals.size() <= 32,
+              "Impact exceeds 32 affected assemblies; reduce radius");
+      proposal.assembly = assembly;
+      proposal.energyPerHealth = config->energyPerHealth;
+      if (proposal.contacts
+              .emplace(contact.colliderPartId, Contact{contact, weight})
+              .second)
+        impulseWeight += weight;
+    }
+    for (auto &[root, p] : proposals) {
+      const auto weight = [&](const std::string &part) {
+        const auto found = p.contacts.find(part);
+        return found == p.contacts.end() ? 0.0F : found->second.weight;
+      };
+      for (const auto &bond : p.assembly->asset.fracture->bonds) {
+        if (!p.assembly->family->bondIntact(bond.id))
+          continue;
+        const float w =
+            std::max(weight(bond.firstPart), weight(bond.secondPart));
+        if (w <= 0)
+          continue;
+        const bool connected =
+            std::ranges::any_of(p.assembly->groups, [&](const GroupBody &g) {
+              return contains(g.group, bond.firstPart) &&
+                     contains(g.group, bond.secondPart);
+            });
+        if (connected) {
+          p.bondWeights.emplace(bond.id, w);
+          energyWeight += w;
+        }
+      }
+      for (const auto &[part, contact] : p.contacts)
+        if (p.assembly->family->anchored(part)) {
+          p.anchorWeights.emplace(part, contact.weight);
+          energyWeight += contact.weight;
+        }
+    }
+    for (auto &[root, p] : proposals) {
+      p.bonds = p.assembly->pending;
+      p.anchors = p.assembly->pendingAnchors;
+      p.impulses = p.assembly->pendingImpulses;
+      const auto accumulate = [&](auto &pending, const auto &weights) {
+        if (hit.energy == 0)
+          return;
+        for (const auto &[id, weight] : weights) {
+          const double amount = double(hit.energy) * weight /
+                                std::max(1.0, energyWeight) / p.energyPerHealth;
+          require(float(amount) > 0,
+                  "Impact damage is below supported precision");
+          const double sum = pending[id] + amount;
+          require(std::isfinite(sum) &&
+                      sum <= std::numeric_limits<float>::max(),
+                  "Impact damage batch overflow");
+          pending[id] = float(sum);
+        }
+      };
+      accumulate(p.bonds, p.bondWeights);
+      accumulate(p.anchors, p.anchorWeights);
+      if (hit.impulse > 0)
+        for (const auto &[part, contact] : p.contacts) {
+          require(p.impulses.size() < 512,
+                  "Impact queue exceeds 512 part impulses for one assembly");
+          const auto *body = findEntity(world, contact.hit.entityId);
+          const auto transform =
+              body ? resolveWorldTransform3D(world, *body) : std::nullopt;
+          require(bool(transform), "Impact body transform unavailable");
+          const Vec3 point =
+              inverseTransformPoint3D(*transform, contact.hit.point);
+          require(std::isfinite(point.x) && std::isfinite(point.y) &&
+                      std::isfinite(point.z),
+                  "Impact local point overflow");
+          const float amount = float(double(hit.impulse) * contact.weight /
+                                     std::max(1.0, impulseWeight));
+          const auto direction =
+              destructionImpactDirection(hit, contact.hit.point);
+          p.impulses.push_back({part,
+                                point,
+                                {direction.x * amount, direction.y * amount,
+                                 direction.z * amount}});
+        }
+    }
+    // Validate and allocate every proposal before publishing any queue changes.
+    for (auto &[root, p] : proposals) {
+      const bool damage = hit.energy > 0 &&
+                          (!p.bondWeights.empty() || !p.anchorWeights.empty());
+      if (!damage && hit.impulse == 0)
+        continue;
+      p.assembly->pending.swap(p.bonds);
+      p.assembly->pendingAnchors.swap(p.anchors);
+      p.assembly->pendingImpulses.swap(p.impulses);
+      p.assembly->state.status.swap(p.status);
+      p.assembly->state.error.clear();
+      ++affectedAssemblies;
+    }
+    if (affectedAssemblies == 0) {
+      error = "No destructible bonds, anchors or movable fragments in impact "
+              "radius";
+      return false;
+    }
+    return true;
+  } catch (const std::exception &exception) {
+    error = exception.what();
+    return false;
+  }
 }
 } // namespace demi::runtime

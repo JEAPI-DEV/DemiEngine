@@ -184,6 +184,8 @@ J compileEntityFractures(const std::filesystem::path &project,
         rootComponents["Rigidbody3D"] = std::move(body);
         rootComponents["ModelCollider3D"] = c["ModelCollider3D"];
         rootComponents["Destructible3D"] = c["Destructible3D"];
+        if (config.contains("energy_per_health"))
+          rootComponents["Destructible3D"]["energy_per_health"] = config["energy_per_health"];
       }
     }
     for (auto &source : output) {

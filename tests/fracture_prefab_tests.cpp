@@ -113,7 +113,7 @@ void importedModel(const std::filesystem::path &root) {
 
 void componentAuthoring(const std::filesystem::path &root) {
   const auto prefab = J::parse(R"({"format_version":1,"id":"prefab://wall","entities":[
-    {"id":"wall","components":{"Transform3D":{"position":[3,0,0]},"Destructible3D":{},
+    {"id":"wall","components":{"Transform3D":{"position":[3,0,0]},"Destructible3D":{"energy_per_health":2500},
       "Rigidbody3D":{"body_type":"static","mass":50,"friction":0.7}},"children":[
       {"id":"block","components":{"Transform3D":{"position":[0,2,0]},
        "GameplayData":{"values":{"preserved":true}},
@@ -144,6 +144,8 @@ void componentAuthoring(const std::filesystem::path &root) {
         "Root placement or authored mass lost");
   check(c["ModelCollider3D"]["inline_geometry"]["parts"].size() == 6,
         "Component piece count ignored");
+  check(c["Destructible3D"]["energy_per_health"] == 2500,
+        "Fracture compilation lost the authored energy scale");
   check((*baked.document)["entities"][1]["id"] == "block" &&
         (*baked.document)["entities"][1]["components"].contains("GameplayData") &&
         !(*baked.document)["entities"][1]["components"].contains("MeshRenderer"),

@@ -27,7 +27,7 @@ struct PhysicsQueryHit3D {
   float distance = 0.0F;
   float fraction = 0.0F;
   bool isTrigger = false;
-  // Populated by raycasts hitting an authored compound collider part.
+  // Populated by raycasts and internal part-aware compound overlap queries.
   std::string colliderPartId{};
 };
 

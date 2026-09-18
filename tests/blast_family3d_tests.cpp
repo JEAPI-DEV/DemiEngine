@@ -123,6 +123,17 @@ void validation() {
   // Destruction with a pending proposal releases both states via ownership.
 }
 
+void cyclicBondHealth() {
+  const std::vector<DestructionChunk3D> c{{"a"}, {"b"}, {"c"}};
+  const std::vector<DestructionBond3D> b{{"ab","a","b",1}, {"bc","b","c",1}, {"ca","c","a",1}};
+  BlastFamily3D family(c,b);
+  auto token = damage(family, "ab", 2);
+  check(family.commit(token) && family.groups().size() == 1,
+        "Cyclic fixture unexpectedly separated");
+  check(!family.bondIntact("ab") && family.bondIntact("bc"),
+        "Broken edge in a connected group still reported intact");
+}
+
 void anchorTransactions() {
   const DestructionChunk3D chunk{"base", {}, 1, true};
   BlastFamily3D family(std::span(&chunk, 1), {});
@@ -183,6 +194,7 @@ void deterministicAndBounded() {
 int main() {
   try {
     validation();
+    cyclicBondHealth();
     anchorTransactions();
     deterministicAndBounded();
     for (int iteration = 0; iteration < 40; ++iteration)

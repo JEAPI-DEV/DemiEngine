@@ -9,6 +9,7 @@
 #include <cmath>
 #include <filesystem>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <thread>
 
@@ -76,6 +77,293 @@ World fixture(bool anchored = true) {
 void hit(World &world, const std::string &part, float amount) {
   std::string error;
   expect(world.destruction3D->damagePart("root", part, amount, error), error);
+}
+
+void spatialImpacts() {
+  auto world = fixture();
+  auto &physics = ensurePhysicsWorld3D(world);
+  const auto step = [&] { physics.step(world, 1.0F / 60, {0, 0, 0}); };
+  step();
+  std::string error;
+  std::size_t affected = 0;
+  DestructionImpact3D impact{.position = {1.49F, 4, 0},
+                             .radius = 0.06F,
+                             .energy = 1250,
+                             .impulse = 5,
+                             .direction = {0, 0, 1},
+                             .entity = "root"};
+  const auto contacts =
+      physics.overlapSphere(impact.position, impact.radius, {}, {}, true);
+  expect(contacts.size() == 1 && contacts.front().colliderPartId == "right",
+         "Spatial query missed an edge hit or used body bounds instead of part "
+         "geometry");
+  expect(world.destruction3D->impact(world, physics, impact, affected, error) &&
+             affected == 1,
+         error);
+  expect(world.destruction3D->state("root").revision == 0,
+         "Spatial hit was not queued");
+  step();
+  const auto state = world.destruction3D->state("root");
+  expect(state.status == "applied" && state.bodies == 2,
+         "Localized energy failed to split: " + state.error);
+  expect(state.parts.at("left") == state.parts.at("middle"),
+         "Spatial hit damaged a distant bond");
+  const auto *right = findEntity(world, state.parts.at("right"))
+                          ->component<Rigidbody3DComponent>();
+  expect(
+      right->velocity.z > 1 && std::abs(right->angularVelocity.y) > 0.1F,
+      "Committed off-center impulse did not produce translation and rotation");
+  auto miss = impact;
+  miss.position = {50, 4, 0};
+  expect(!world.destruction3D->impact(world, physics, miss, affected, error) &&
+             affected == 0,
+         "Out-of-radius geometry accepted damage");
+  miss.position.x = std::numeric_limits<float>::quiet_NaN();
+  expect(!world.destruction3D->impact(world, physics, miss, affected, error),
+         "NaN impact accepted");
+
+  auto rotated = fixture();
+  auto *transform =
+      findEntity(rotated, "root")->component<Transform3DComponent>();
+  transform->rotation.y = 1.5707963F;
+  transform->scale = {2, 1, 1};
+  impact.position = transformPoint3D(
+      {transform->position, transform->rotation, transform->scale},
+      {1.45F, 0, 0});
+  impact.impulse = 0;
+  auto &rotatedPhysics = ensurePhysicsWorld3D(rotated);
+  rotatedPhysics.step(rotated, 1.0F / 60, {0, 0, 0});
+  expect(rotated.destruction3D->impact(rotated, rotatedPhysics, impact,
+                                       affected, error),
+         error);
+  rotatedPhysics.step(rotated, 1.0F / 60, {0, 0, 0});
+  const auto rotatedState = rotated.destruction3D->state("root");
+  expect(rotatedState.bodies == 2 &&
+             rotatedState.parts.at("left") == rotatedState.parts.at("middle"),
+         "Rotated/scaled assembly did not resolve a world-space impact");
+}
+
+void impactSupportAndRollback() {
+  auto world = fixture();
+  auto &physics = ensurePhysicsWorld3D(world);
+  physics.step(world, 1.0F / 60, {0, 0, 0});
+  hit(world, "middle", 2);
+  physics.step(world, 1.0F / 60, {0, 0, 0});
+  std::size_t affected;
+  std::string error;
+  DestructionImpact3D hitBase{.position = {-1, 4, 0.5F},
+                              .radius = 0.2F,
+                              .energy = 1100,
+                              .impulse = 2,
+                              .direction = {0, 1, 0},
+                              .entity = "root"};
+  expect(world.destruction3D->impact(world, physics, hitBase, affected, error),
+         error);
+  physics.step(world, 1.0F / 60, {0, 0, 0});
+  auto state = world.destruction3D->state("root");
+  expect(
+      findEntity(world, state.parts.at("left"))
+              ->component<Rigidbody3DComponent>()
+              ->velocity.y > 1,
+      "Spatial hit did not release an isolated foundation and apply impulse");
+  auto loose = hitBase;
+  loose.position.x = 1;
+  loose.energy = 0;
+  expect(world.destruction3D->impact(world, physics, loose, affected, error),
+         error);
+  physics.step(world, 1.0F / 60, {0, 0, 0});
+  expect(world.destruction3D->state("root").revision == state.revision + 1,
+         "Impulse-only impact failed to finish without connected bonds");
+  expect(findEntity(world, state.parts.at("right"))
+                 ->component<Rigidbody3DComponent>()
+                 ->velocity.y > 1,
+         "Impulse-only hit did not move an already detached fragment");
+
+  auto rollback = fixture(false);
+  auto *config =
+      findEntity(rollback, "root")->component<Destructible3DComponent>();
+  config->maxBodies = 1;
+  auto &native = ensurePhysicsWorld3D(rollback);
+  native.step(rollback, 1.0F / 60, {0, 0, 0});
+  auto hitRight = loose;
+  hitRight.energy = 2000;
+  expect(rollback.destruction3D->impact(rollback, native, hitRight, affected,
+                                        error),
+         error);
+  native.step(rollback, 1.0F / 60, {0, 0, 0});
+  expect(rollback.destruction3D->state("root").status == "failed" &&
+             rollback.destruction3D->state("root").revision == 0 &&
+             native.velocity("root")->y == 0,
+         "Failed split applied an impulse or committed damage");
+  config->maxBodies = 64;
+  hitRight.energy = 600;
+  hitRight.impulse = 0;
+  expect(rollback.destruction3D->impact(rollback, native, hitRight, affected,
+                                        error),
+         error);
+  native.step(rollback, 1.0F / 60, {0, 0, 0});
+  expect(rollback.destruction3D->state("root").bodies == 1 &&
+             native.velocity("root")->y == 0,
+         "Cancelled spatial energy/impulse leaked into the next batch");
+}
+
+void impactStrengthAndFalloff() {
+  auto world = fixture();
+  world.colliderAssets3D.at("asset://assembly").fracture->bonds[1].health = 10;
+  auto &physics = ensurePhysicsWorld3D(world);
+  physics.step(world, 1.0F / 60, {0, 0, 0});
+  std::size_t affected;
+  std::string error;
+  DestructionImpact3D hitRight{.position = {1, 4, 0.5F},
+                               .radius = 0.2F,
+                               .energy = 2000,
+                               .entity = "root"};
+  expect(world.destruction3D->impact(world, physics, hitRight, affected, error),
+         error);
+  physics.step(world, 1.0F / 60, {0, 0, 0});
+  expect(world.destruction3D->state("root").bodies == 1,
+         "Strong connection ignored authored resistance");
+  hitRight.energy = 9000;
+  expect(world.destruction3D->impact(world, physics, hitRight, affected, error),
+         error);
+  physics.step(world, 1.0F / 60, {0, 0, 0});
+  expect(world.destruction3D->state("root").bodies == 2,
+         "Repeated energy did not accumulate");
+
+  auto distant = fixture();
+  auto &native = ensurePhysicsWorld3D(distant);
+  native.step(distant, 1.0F / 60, {0, 0, 0});
+  hitRight.position = {1, 4, 0.65F};
+  hitRight.radius = 0.2F;
+  hitRight.energy = 2000;
+  expect(
+      distant.destruction3D->impact(distant, native, hitRight, affected, error),
+      error);
+  native.step(distant, 1.0F / 60, {0, 0, 0});
+  expect(distant.destruction3D->state("root").bodies == 1,
+         "Distance falloff was normalized away for a single affected bond");
+
+  auto scaled = fixture();
+  findEntity(scaled, "root")
+      ->component<Destructible3DComponent>()
+      ->energyPerHealth = 4000;
+  auto &scaledPhysics = ensurePhysicsWorld3D(scaled);
+  scaledPhysics.step(scaled, 1.0F / 60, {0, 0, 0});
+  hitRight.position.z = 0.5F;
+  expect(scaled.destruction3D->impact(scaled, scaledPhysics, hitRight, affected,
+                                      error),
+         error);
+  scaledPhysics.step(scaled, 1.0F / 60, {0, 0, 0});
+  expect(scaled.destruction3D->state("root").bodies == 1,
+         "energy_per_health was ignored");
+  hitRight.energy = 2100;
+  expect(scaled.destruction3D->impact(scaled, scaledPhysics, hitRight, affected,
+                                      error),
+         error);
+  scaledPhysics.step(scaled, 1.0F / 60, {0, 0, 0});
+  expect(scaled.destruction3D->state("root").bodies == 2,
+         "Scaled cumulative energy failed to fracture");
+}
+
+void impactAcrossAssemblies() {
+  auto world = fixture();
+  auto second = fixture();
+  for (auto &entity : second.entities) {
+    if (entity.id == "floor")
+      continue;
+    entity.id = "other_" + entity.id;
+    if (auto *t = entity.component<Transform3DComponent>()) {
+      if (!t->parent.empty())
+        t->parent = "other_" + t->parent;
+      else
+        t->position.x += 6;
+    }
+    if (auto *d = entity.component<Destructible3DComponent>())
+      for (auto &[part, visual] : d->parts)
+        visual = "other_" + visual;
+    world.entities.push_back(std::move(entity));
+  }
+  auto &physics = ensurePhysicsWorld3D(world);
+  physics.step(world, 1.0F / 60, {0, 0, 0});
+  DestructionImpact3D blast{
+      .position = {3, 4, 0}, .radius = 10, .energy = 1500};
+  std::size_t affected;
+  std::string error;
+  for (int i = 0; i < 2; ++i) {
+    expect(
+        world.destruction3D->impact(world, physics, blast, affected, error) &&
+            affected == 2,
+        error);
+    physics.step(world, 1.0F / 60, {0, 0, 0});
+    physics.step(world, 1.0F / 60, {0, 0, 0});
+  }
+  expect(
+      world.destruction3D->state("root").revision == 2 &&
+          world.destruction3D->state("other_root").revision == 2 &&
+          world.destruction3D->state("root").bodies == 1 &&
+          world.destruction3D->state("other_root").bodies == 1,
+      "Explosion energy was multiplied per assembly or queued work was lost");
+  blast.entity = "root";
+  blast.energy = 10000;
+  expect(world.destruction3D->impact(world, physics, blast, affected, error) &&
+             affected == 1,
+         error);
+  physics.step(world, 1.0F / 60, {0, 0, 0});
+  expect(world.destruction3D->state("other_root").revision == 2,
+         "Target filter affected another assembly");
+}
+
+void impactQueueLimit() {
+  auto world = fixture();
+  auto &physics = ensurePhysicsWorld3D(world);
+  physics.step(world, 1.0F / 60, {0, 0, 0});
+  DestructionImpact3D impact{.position = {1.49F, 4, 0},
+                             .radius = 0.06F,
+                             .impulse = 1,
+                             .direction = {0, 0, 1},
+                             .entity = "root"};
+  std::size_t affected;
+  std::string error;
+  for (int i = 0; i < 512; ++i)
+    expect(world.destruction3D->impact(world, physics, impact, affected, error),
+           error);
+  expect(
+      !world.destruction3D->impact(world, physics, impact, affected, error) &&
+          affected == 0,
+      "Unbounded part impulse queue accepted");
+  physics.step(world, 1.0F / 60, {0, 0, 0});
+  expect(world.destruction3D->state("root").revision == 1 &&
+             world.destruction3D->state("root").status == "applied",
+         "Queue rejection discarded an earlier accepted batch");
+}
+
+void sharedImpulseBudget() {
+  auto world = fixture(false);
+  // The generic moving fixture starts with spin; isolate the impulse budget
+  // from inherited motion for this symmetric-contact assertion.
+  auto *initial = findEntity(world, "root")->component<Rigidbody3DComponent>();
+  initial->velocity = {};
+  initial->angularVelocity = {};
+  auto &physics = ensurePhysicsWorld3D(world);
+  physics.step(world, 1.0F / 60, {0, 0, 0});
+  DestructionImpact3D impact{
+      .position = {0, 4, 2}, .radius = 3, .impulse = 9, .direction = {0, 0, 1}};
+  expect(
+      physics.overlapSphere(impact.position, impact.radius).size() == 1 &&
+          physics.overlapSphere(impact.position, impact.radius, {}, {}, true)
+                  .size() == 3,
+      "Part-aware overlap changed legacy body deduplication or lost subshapes");
+  std::size_t affected;
+  std::string error;
+  expect(world.destruction3D->impact(world, physics, impact, affected, error),
+         error);
+  physics.step(world, 1.0F / 60, {0, 0, 0});
+  const auto *body =
+      findEntity(world, "root")->component<Rigidbody3DComponent>();
+  expect(std::abs(body->velocity.z - 3) < 0.02F &&
+             std::abs(body->angularVelocity.y) < 0.01F,
+         "Impulse budget was multiplied per part or symmetric contacts lost "
+         "torque balance");
 }
 void localized() {
   auto world = fixture();
@@ -149,23 +437,30 @@ void detachedFoundation() {
   auto state = world.destruction3D->state("root");
   const auto base = state.parts.at("left");
   const auto unrelated = state.parts.at("right");
-  expect(findEntity(world, base)->component<Rigidbody3DComponent>()->bodyType == "static",
+  expect(findEntity(world, base)->component<Rigidbody3DComponent>()->bodyType ==
+             "static",
          "Foundation lost support from a neighboring hit");
   hit(world, "left", 0.6F);
   physics.step(world, 1.0F / 60);
-  expect(findEntity(world, base)->component<Rigidbody3DComponent>()->bodyType == "static",
+  expect(findEntity(world, base)->component<Rigidbody3DComponent>()->bodyType ==
+             "static",
          "Partial direct hit released foundation");
   hit(world, "left", 0.6F);
   physics.step(world, 1.0F / 60);
   state = world.destruction3D->state("root");
-  expect(state.status == "applied", "Foundation release failed: " + state.error);
+  expect(state.status == "applied",
+         "Foundation release failed: " + state.error);
   expect(state.parts.at("right") == unrelated && state.bodies == 3,
          "Foundation release changed unrelated ownership");
-  expect(findEntity(world, state.parts.at("left"))->component<Rigidbody3DComponent>()->bodyType == "dynamic",
+  expect(findEntity(world, state.parts.at("left"))
+                 ->component<Rigidbody3DComponent>()
+                 ->bodyType == "dynamic",
          "Isolated foundation remained static");
   for (int i = 0; i < 30; ++i)
     physics.step(world, 1.0F / 60);
-  expect(findEntity(world, state.parts.at("left"))->component<Transform3DComponent>()->position.y < 3,
+  expect(findEntity(world, state.parts.at("left"))
+                 ->component<Transform3DComponent>()
+                 ->position.y < 3,
          "Released foundation did not fall");
 }
 void motionAndPose() {
@@ -330,6 +625,12 @@ void sceneLifecycle() {
 } // namespace
 int main() {
   try {
+    spatialImpacts();
+    impactSupportAndRollback();
+    impactStrengthAndFalloff();
+    impactAcrossAssemblies();
+    impactQueueLimit();
+    sharedImpulseBudget();
     invalidAttachments();
     detachedFoundation();
     sceneLifecycle();

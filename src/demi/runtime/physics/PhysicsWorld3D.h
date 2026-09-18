@@ -35,6 +35,7 @@ public:
   [[nodiscard]] std::optional<Vec3> velocity(const std::string &entityId) const;
   [[nodiscard]] bool addForce(const std::string &entityId, Vec3 force);
   [[nodiscard]] bool addImpulse(const std::string &entityId, Vec3 impulse);
+  [[nodiscard]] bool addImpulseAtPosition(const std::string &entityId, Vec3 impulse, Vec3 position);
   [[nodiscard]] bool addTorque(const std::string &entityId, Vec3 torque);
   [[nodiscard]] bool setAwake(const std::string &entityId, bool awake);
   [[nodiscard]] bool setEnabled(const std::string &entityId, bool enabled);
@@ -47,8 +48,10 @@ public:
   [[nodiscard]] std::optional<Vec3>
   interpolatedPosition(const std::string &entityId, float alpha) const;
   [[nodiscard]] std::vector<PhysicsQueryHit3D>
+  // includeParts retains compound subshape identities and surface distances;
+  // the default preserves the public per-body overlap query behavior.
   overlapSphere(Vec3 center, float radius, const std::string &layer = {},
-                const std::string &ignoredEntityId = {}) const;
+                const std::string &ignoredEntityId = {}, bool includeParts = false) const;
   [[nodiscard]] std::vector<PhysicsQueryHit3D>
   overlapBox(Vec3 center, Vec3 size, const std::string &layer = {},
              const std::string &ignoredEntityId = {}) const;

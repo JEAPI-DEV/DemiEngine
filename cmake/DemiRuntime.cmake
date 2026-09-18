@@ -11,6 +11,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/physics/JoltLifetime.cpp
   src/demi/runtime/physics/JoltBodyBatch3D.cpp
   src/demi/runtime/destruction/DestructionWorld3D.cpp
+  src/demi/runtime/destruction/DestructionImpact3D.cpp
   src/demi/runtime/scripting/LuaScriptHostDestruction.cpp
   src/demi/runtime/scripting/bindings/components/LuaDestruction3DBindings.cpp
   src/demi/runtime/scripting/LuaScriptHostMeshDeformation.cpp

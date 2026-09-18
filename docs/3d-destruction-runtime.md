@@ -130,8 +130,9 @@ still support the group. Anchor health is staged and rolled back with bond damag
 and native body replacement. An isolated anchored shard can therefore be released
 after all its neighboring bonds have already broken. Released leaf shards remain
 whole: this API does not recursively subdivide them.
-This is part-local damage, not yet spatial blast falloff, stress
-propagation, kinetic-energy damage or new interior mesh generation. Calls coalesce
+This low-level API is part-local damage. For radius selection, energy allocation
+and post-commit impulses use [the spatial impact API](3d-spatial-impacts.md).
+Structural stress and automatic collision-energy coupling are not implemented. Calls coalesce
 by bond until the next fixed step. Acceptance means queued, not committed; check
 the revision/status/error. Invalid IDs, non-positive/non-finite damage and overflow
 reject without changing the queue. The root remains the assembly handle; query
