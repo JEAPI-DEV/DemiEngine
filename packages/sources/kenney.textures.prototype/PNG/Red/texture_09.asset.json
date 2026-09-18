@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://kenney/prototype/red/texture_09",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "texture_09.png",
+  "source_hash": "fnv1a64:1c1c6daffbb0c51d",
+  "type": "Texture2D"
+}

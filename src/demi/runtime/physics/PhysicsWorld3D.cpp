@@ -674,6 +674,9 @@ bool PhysicsWorld3D::replaceBodies(
         throw std::runtime_error(
             "Replacement requires compound geometry and positive finite mass");
       const auto source = impl_->bodies.at(replacement.sourceId).body;
+      const auto checkpointTransform = *transform;
+      const auto checkpointVelocity = body->velocity;
+      const auto checkpointAngular = body->angularVelocity;
       JPH::RVec3 position;
       JPH::Quat rotation;
       JPH::Vec3 angular, linear;
@@ -695,6 +698,17 @@ bool PhysicsWorld3D::replaceBodies(
                                center - parent.GetCenterOfMassPosition()));
         position = parent.GetPosition();
         rotation = parent.GetRotation();
+      }
+      if (replacement.restoreState) {
+        for (Vec3 v : {checkpointTransform.position, checkpointTransform.rotation,
+                       checkpointVelocity, checkpointAngular})
+          if (!std::isfinite(v.x) || !std::isfinite(v.y) || !std::isfinite(v.z))
+            throw std::runtime_error("Non-finite replacement checkpoint state");
+        *transform = checkpointTransform;
+        position = JPH::RVec3(transform->position.x,transform->position.y,transform->position.z);
+        rotation = joltRotation(transform->rotation);
+        linear = jolt(checkpointVelocity);
+        angular = jolt(checkpointAngular);
       }
       body->velocity = body->bodyType == "static" ? Vec3{} : demi(linear);
       body->angularVelocity =
@@ -1457,9 +1471,9 @@ class DemiQueryBodyFilter final : public JPH::BodyFilter {
 public:
   DemiQueryBodyFilter(const World *world,
                       const std::unordered_map<std::uint32_t, std::string> *ids,
-                      std::string layer, std::string ignored)
+                      std::string layer, std::string ignored, bool includeTriggers = true)
       : world_(world), ids_(ids), layer_(std::move(layer)),
-        ignored_(std::move(ignored)) {}
+        ignored_(std::move(ignored)), includeTriggers_(includeTriggers) {}
 
   bool ShouldCollide(const JPH::BodyID &body) const override {
     if (world_ == nullptr)
@@ -1469,6 +1483,7 @@ public:
       return false;
     const Entity *entity = findEntity(*world_, found->second);
     return entity != nullptr &&
+           (includeTriggers_ || !isTrigger(*entity)) &&
            (layer_.empty() || colliderLayer(*entity) == layer_);
   }
 
@@ -1477,6 +1492,7 @@ private:
   const std::unordered_map<std::uint32_t, std::string> *ids_;
   std::string layer_;
   std::string ignored_;
+  bool includeTriggers_;
 };
 
 PhysicsQueryHit3D
@@ -1689,7 +1705,7 @@ std::optional<PhysicsQueryHit3D>
 PhysicsWorld3D::castSphere(const Vec3 origin, const float radius,
                            const Vec3 direction, const float distance,
                            const std::string &layer,
-                           const std::string &ignoredEntityId) const {
+                           const std::string &ignoredEntityId, bool includeTriggers) const {
   if (radius < 0.0F)
     return std::nullopt;
   const JPH::SphereShape shape(std::max(radius, 0.001F));
@@ -1702,7 +1718,7 @@ PhysicsWorld3D::castSphere(const Vec3 origin, const float radius,
       unit * distance);
   JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> collector;
   const DemiQueryBodyFilter filter(impl_->world, &impl_->ids, layer,
-                                   ignoredEntityId);
+                                   ignoredEntityId, includeTriggers);
   impl_->physics.GetNarrowPhaseQuery().CastShape(cast, {}, JPH::RVec3::sZero(),
                                                  collector, {}, {}, filter);
   if (!collector.HadHit())

@@ -1,0 +1,10 @@
+{
+  "format_version":1,
+  "id":"prefab://rocket",
+  "entities":[{"id":"body","tags":["weapon_rocket"],"components":{
+    "Transform3D":{}
+  },"children":[
+    {"id":"shell","components":{"Transform3D":{"position":[0,0,-0.1]},"MeshRenderer":{"shape":"sphere","size":[0.14,0.14,0.5],"color":[0.9,0.55,0.12,1]}}},
+    {"id":"fins","components":{"Transform3D":{"position":[0,0,-0.28]},"MeshRenderer":{"shape":"cube","size":[0.28,0.04,0.13],"color":[0.3,0.32,0.35,1]}}}
+  ]}]
+}

@@ -38,6 +38,7 @@ enum class BuiltinProgram {
   Lit3DInstanced,
   Lit3DSkinned,
   Directional3D,
+  Sky3D,
   Directional3DInstanced,
   Directional3DSkinned,
   PostProcess2D

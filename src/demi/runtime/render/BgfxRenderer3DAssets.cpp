@@ -19,6 +19,7 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
   });
   modelMeshes_.clear();
   deformedMeshes_.clear();
+  reliefMeshes_.loadAssets(registry);
   animatedModels_.clear();
   modelTextures_.clear();
   modelUnlit_.clear();

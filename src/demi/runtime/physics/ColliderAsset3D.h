@@ -24,6 +24,7 @@ struct TriangleCollider3D {
 struct ColliderPart3D {
   std::string id;
   std::vector<Vec3> points;
+  float density = 1000;
 };
 
 struct ColliderAsset3D {

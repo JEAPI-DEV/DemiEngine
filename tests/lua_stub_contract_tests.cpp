@@ -1,10 +1,12 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/runtime/scripting/LuaServiceModules.h"
+#include "demi/runtime/scene/components/3dcomponents/Rigidbody3DComponent.h"
 
 #include <filesystem>
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <regex>
 #include <set>
 #include <sstream>
@@ -93,6 +95,12 @@ bool verifyGameCallsAreStubbed(const std::filesystem::path &root,
   const std::regex callPattern(
       R"(\b([A-Z][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\s*\()");
   bool passed = true;
+  std::map<std::string, std::string> moduleServices;
+  for (const auto &api : stubApis) {
+    const auto service = api.substr(0, api.find('.'));
+    moduleServices.emplace(demi::runtime::luaServiceModuleName(service), service);
+  }
+  const std::regex importPattern(R"lua(\blocal\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*require\s*\(\s*["']([^"']+)["']\s*\))lua");
 
   for (const std::filesystem::path searchRoot :
        {root / "examples", root / "scripts" / "runtime"}) {
@@ -104,17 +112,19 @@ bool verifyGameCallsAreStubbed(const std::filesystem::path &root,
 
       const std::string text = withoutLineComments(readFile(entry.path()));
       const std::set<std::string> localNames = localModuleNames(text);
+      std::map<std::string, std::string> aliases;
+      for (std::sregex_iterator it(text.begin(), text.end(), importPattern), end; it != end; ++it) {
+        const auto module = moduleServices.find((*it)[2].str());
+        aliases[(*it)[1].str()] = module == moduleServices.end() ? "" : module->second;
+      }
       for (std::sregex_iterator it(text.begin(), text.end(), callPattern), end;
            it != end; ++it) {
         const std::string service = (*it)[1].str();
         const std::string function = (*it)[2].str();
-        const auto known = stubApis.lower_bound(service + ".");
-        const bool native = known != stubApis.end() && known->starts_with(service + ".");
-        if (localNames.contains(service) && !native) {
-          continue;
-        }
-
-        const std::string api = service + "." + function;
+        const auto alias = aliases.find(service);
+        if ((alias != aliases.end() && alias->second.empty()) ||
+            (alias == aliases.end() && localNames.contains(service))) continue;
+        const std::string api = (alias == aliases.end() ? service : alias->second) + "." + function;
         if (!stubApis.contains(api)) {
           std::cerr
               << entry.path().string()
@@ -140,6 +150,15 @@ bool requireStub(const ApiSet &stubApis, const std::string_view api) {
 
 bool verifyInstalledApisMatchStubs(const ApiSet &stubApis, const std::filesystem::path &root) {
   demi::runtime::World world;
+  demi::runtime::Entity generated;
+  generated.id = "native_body";
+  demi::runtime::Rigidbody3DComponent body;
+  body.mass = 9;
+  body.useGravity = false;
+  body.velocity = {1,2,3};
+  generated.setComponent(body);
+  generated.serializedComponents["Rigidbody3D"] = R"({"mass":1})";
+  world.entities.push_back(std::move(generated));
   demi::runtime::InputState input;
   demi::runtime::LuaScriptHost host;
   std::string error;
@@ -179,6 +198,16 @@ bool verifyInstalledApisMatchStubs(const ApiSet &stubApis, const std::filesystem
     }
   }
   const auto missing = host.executeConsole("return Input.down('left')");
+  const auto liveBody = host.executeConsole(R"lua(
+    local Body = require("demi.physics.rigidbody3d")
+    local Entity = require("demi.entity")
+    local value = Body.state("native_body")
+    assert(value and value.mass == 9 and value.body_type == "dynamic")
+    assert(value.use_gravity == false and value.velocity[2] == 2)
+    assert(Entity.get("native_body", "Rigidbody3D", "mass") == 1)
+    assert(Body.state("missing") == nil)
+  )lua");
+  if (!liveBody.succeeded) { std::cerr << "Live body state contract failed: " << liveBody.error << '\n'; passed = false; }
   if (missing.succeeded) { std::cerr << "Implicit engine globals still work\n"; passed = false; }
   for (const char *old : {"demi.network_session", "demi.tls_server", "demi.tls_client",
                          "demi.crypto", "demi.audio_source", "demi.procedural_mesh",

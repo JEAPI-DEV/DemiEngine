@@ -1071,6 +1071,15 @@
     "Environment3D": {
       "additionalProperties": false,
       "properties": {
+        "sky_texture": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-label": "Sky Texture",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        },
         "ambient_color": {
           "items": {
             "type": "number"
@@ -1135,6 +1144,14 @@
     "Fracture3D": {
       "additionalProperties": false,
       "properties": {
+        "collider": {
+          "default": "source",
+          "type": "string",
+          "enum": ["source", "box"],
+          "x-demi-editor-label": "Collider",
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "anchor_below": {
           "default": null,
           "type": "number",
@@ -1153,6 +1170,17 @@
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
+        },
+        "density": {
+          "default": null,
+          "maximum": 1000000.0,
+          "minimum": 0.001,
+          "type": "number",
+          "x-demi-editor-label": "Density",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-nullable": true
         },
         "interior_color": {
           "default": [
@@ -1408,6 +1436,131 @@
       "required": [
         "module"
       ],
+      "type": "object"
+    },
+    "Masonry3D": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor_below": {
+          "default": null,
+          "type": "number",
+          "x-demi-editor-label": "Anchor Below",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-nullable": true
+        },
+        "bond_health": {
+          "default": 0.5,
+          "maximum": 1e+30,
+          "minimum": 0.000001,
+          "type": "number",
+          "x-demi-editor-label": "Bond Health",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "columns": {
+          "default": 4,
+          "maximum": 64,
+          "minimum": 1,
+          "type": "integer",
+          "x-demi-editor-label": "Columns",
+          "x-demi-editor-step": 1,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "density": {
+          "default": 1800,
+          "maximum": 1000000,
+          "minimum": 0.001,
+          "type": "number",
+          "x-demi-editor-label": "Density",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "height_map": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-label": "Height Map",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        },
+        "models": {
+          "default": {},
+          "type": "object",
+          "x-demi-editor-label": "Models",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "relief_depth": {
+          "default": 0.012,
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number",
+          "x-demi-editor-label": "Relief Depth",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "rows": {
+          "default": 10,
+          "maximum": 128,
+          "minimum": 1,
+          "type": "integer",
+          "x-demi-editor-label": "Rows",
+          "x-demi-editor-step": 1,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "size": {
+          "default": [
+            1,
+            1,
+            0.115
+          ],
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array",
+          "x-demi-editor-label": "Size",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "texture": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-label": "Texture",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        },
+        "texture_grid": {
+          "default": [
+            8,
+            14
+          ],
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "x-demi-editor-label": "Texture Grid",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        }
+      },
       "type": "object"
     },
     "MeshRenderer": {
@@ -2622,6 +2775,102 @@
           "x-demi-replicated": true
         }
       },
+      "type": "object"
+    },
+    "SurfaceRelief3D": {
+      "additionalProperties": false,
+      "properties": {
+        "depth": {
+          "default": 0.012,
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number",
+          "x-demi-editor-label": "Depth",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "height_map": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-label": "Height Map",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        },
+        "height_max": {
+          "default": 0.9,
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number",
+          "x-demi-editor-label": "Height Max",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "height_min": {
+          "default": 0.45,
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number",
+          "x-demi-editor-label": "Height Min",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "segments": {
+          "default": [
+            24,
+            10
+          ],
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "x-demi-editor-label": "Segments",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "uv_offset": {
+          "default": [
+            0,
+            0
+          ],
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "x-demi-editor-label": "Uv Offset",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "uv_scale": {
+          "default": [
+            1,
+            1
+          ],
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "x-demi-editor-label": "Uv Scale",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        }
+      },
+      "required": [
+        "height_map"
+      ],
       "type": "object"
     },
     "Transform3D": {

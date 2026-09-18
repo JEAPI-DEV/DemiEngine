@@ -43,6 +43,9 @@ expandScene(const std::filesystem::path &scenePath,
 [[nodiscard]] ExpansionResult
 expandPrefabInstance(const std::filesystem::path &ownerPath,
                      const nlohmann::json &instance);
+// Rebase a prepared template through the same component-reference remapper.
+[[nodiscard]] nlohmann::json rebasePrefabEntities(nlohmann::json entities,
+    std::string_view oldPrefix, std::string_view newPrefix);
 
 [[nodiscard]] ExpansionResult
 inspectPrefab(const std::filesystem::path &prefabPath);

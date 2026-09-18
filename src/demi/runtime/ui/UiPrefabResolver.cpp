@@ -403,7 +403,13 @@ resolveUiPrefabReference(const std::filesystem::path &sourcePath,
 UiPrefabExpansionResult expandUiDocument(const std::filesystem::path &hudPath,
                                          const Json &hudDocument) {
   UiPrefabExpansionResult result{.document = hudDocument, .diagnostics = {}};
-  if (!hudDocument.is_object() || !hudDocument.contains("root")) {
+  if (hudDocument.is_object() && !hudDocument.contains("root") &&
+      hudDocument.contains("children") && hudDocument["children"].is_array()) {
+    (*result.document)["root"] = {{"id", "ui_root"}, {"type", "container"},
+        {"anchor_min", {0,0}}, {"anchor_max", {1,1}}, {"children", hudDocument["children"]}};
+    result.document->erase("children");
+  }
+  if (!result.document->is_object() || !result.document->contains("root")) {
     result.document.reset();
     result.diagnostics.push_back({
         .severity = Severity::Error,

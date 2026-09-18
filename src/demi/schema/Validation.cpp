@@ -389,6 +389,42 @@ void validatePhysics3D(Diagnostics &diagnostics,
     const std::string id = entity.value("id", "ent_unknown");
     const auto &components = entity["components"];
     const auto body = components.find("Rigidbody3D");
+    if (const auto environment = components.find("Environment3D");
+        environment != components.end() && environment->is_object()) {
+      const auto sky = environment->find("sky_texture");
+      const auto project = findProjectDirectory(path);
+      if (sky != environment->end() && sky->is_string() &&
+          !sky->get<std::string>().empty() && project) {
+        if (!colliderRegistry) colliderRegistry = loadAssetRegistry(*project);
+        const auto *asset = findAsset(*colliderRegistry, sky->get<std::string>());
+        if (!asset || asset->type != "Texture2D")
+          diagnostics.push_back({.severity = Severity::Error,
+            .code = "ENVIRONMENT_SKY_TEXTURE_INVALID",
+            .message = "Environment3D sky_texture must reference a Texture2D panorama.",
+            .path = path.string()});
+      }
+    }
+    for (const char *type : {"Masonry3D", "SurfaceRelief3D"}) {
+      const auto component=components.find(type);
+      if(component==components.end() || !component->is_object()) continue;
+      const auto height=component->find("height_map");
+      if(height==component->end() || !height->is_string() || height->get<std::string>().empty()) continue;
+      const auto project=findProjectDirectory(path);
+      if(!project) continue;
+      if(!colliderRegistry) colliderRegistry=loadAssetRegistry(*project);
+      const auto *asset=findAsset(*colliderRegistry,height->get<std::string>());
+      if(!asset || asset->type!="Texture2D")
+        diagnostics.push_back({.severity=Severity::Error,.code="RELIEF_HEIGHT_MAP_INVALID",
+          .message="Entity "+id+" requires a Texture2D height map.",.path=path.string()});
+    }
+    if (components.contains("SurfaceRelief3D")) {
+      const auto mesh=components.find("MeshRenderer");
+      if (mesh==components.end() || !mesh->is_object() || !mesh->value("model","").empty() ||
+          mesh->value("shape","cube")!="cube" || mesh->contains("vertices") ||
+          components.contains("Dentable3D") || components.contains("AnimationPlayer3D"))
+        diagnostics.push_back({.severity=Severity::Error,.code="SURFACE_RELIEF_MESH_INVALID",
+          .message="SurfaceRelief3D requires an undeformed cube MeshRenderer (no model, inline vertices or animation).",.path=path.string()});
+    }
     if (components.contains("ModelCollider3D") && components["ModelCollider3D"].is_object()) {
       const auto &model = components["ModelCollider3D"];
       const bool hasAsset = model.contains("asset") && model["asset"].is_string() && !model["asset"].get<std::string>().empty();

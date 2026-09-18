@@ -7,6 +7,7 @@
 #include "demi/assets/DataAsset.h"
 #include "demi/assets/GeneratedAtlasCooker.h"
 #include "demi/assets/ModelImportProfile.h"
+#include "demi/assets/PackageContent.h"
 #include "demi/assets/RenderAsset.h"
 #include "demi/runtime/network/NetworkContract.h"
 
@@ -223,7 +224,8 @@ loadAssetManifest(const std::filesystem::path &manifestPath,
   }
 }
 
-AssetRegistry loadAssetRegistry(const std::filesystem::path &projectDirectory) {
+AssetRegistry
+loadAuthoredAssetRegistry(const std::filesystem::path &projectDirectory) {
   AssetRegistry registry{.projectDirectory = projectDirectory};
   const auto assetsDirectory = projectDirectory / "assets";
   if (!std::filesystem::exists(assetsDirectory))
@@ -240,6 +242,19 @@ AssetRegistry loadAssetRegistry(const std::filesystem::path &projectDirectory) {
     else
       registry.diagnostics.push_back(std::move(diagnostic));
   }
+  std::ranges::sort(registry.assets, {}, &AssetManifest::id);
+  return registry;
+}
+
+AssetRegistry loadAssetRegistry(const std::filesystem::path &projectDirectory) {
+  AssetRegistry registry = loadAuthoredAssetRegistry(projectDirectory);
+  const auto content =
+      assets::loadLockedPackageContent(projectDirectory, "", &registry);
+  registry.diagnostics.insert(registry.diagnostics.end(),
+                              content.diagnostics.begin(),
+                              content.diagnostics.end());
+  registry.assets.insert(registry.assets.end(), content.assets.begin(),
+                         content.assets.end());
   std::ranges::sort(registry.assets, {}, &AssetManifest::id);
   return registry;
 }

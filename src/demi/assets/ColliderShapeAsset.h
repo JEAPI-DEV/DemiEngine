@@ -14,6 +14,7 @@ namespace demi::assets {
 struct ColliderShapePart {
   std::string id;
   std::vector<std::array<float, 3>> points;
+  float density = 1000;
 };
 
 struct ColliderShapeAsset {

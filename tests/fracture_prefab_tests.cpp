@@ -8,6 +8,7 @@
 #include "demi/runtime/destruction/DestructionWorld3D.h"
 #include "demi/runtime/physics/PhysicsWorld3D.h"
 #include "demi/runtime/scene/SceneLoader.h"
+#include "demi/runtime/scene/RuntimePrefabService.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/schema/Validation.h"
 #include "editor/EditorWorkspace.h"
@@ -179,6 +180,10 @@ void componentAuthoring(const std::filesystem::path &root) {
     check(findEntity(workspace.project().world, "block")->component<Transform3DComponent>()->parent == "wall",
           "Editing fracture settings lost the implied transform parent");
     check(workspace.undo(error) && workspace.sceneDocument().json() == prefab, "Fracture Inspector undo lost source");
+    check(workspace.editValue({.entityId="block",.component="Fracture3D",.field="density"}, 2400, false, error),
+          "Fracture density Inspector edit failed: " + error);
+    check(workspace.undo(error) && workspace.sceneDocument().json() == prefab,
+          "Density Inspector undo lost source");
     check(workspace.removeComponent("block", "Fracture3D", error), error);
     check(workspace.addComponent("block", "Fracture3D", error), "Could not add default fracture component: " + error);
     check(workspace.editValue({.entityId="block",.component="Fracture3D",.field="anchor_below"}, 0.001, false, error), error);
@@ -201,6 +206,153 @@ void componentAuthoring(const std::filesystem::path &root) {
   auto bad = prefab;
   bad["entities"][0]["components"].erase("Destructible3D");
   check(!composition::expandScene(root / "scenes/bad.scene.json", bad).document, "Orphan Fracture3D accepted");
+}
+void masonryStreamingAuthoring(const std::filesystem::path &root) {
+  const J prefab =
+      J::parse(R"({"format_version":1,"id":"prefab://wall","entities":[
+    {"id":"assembly","components":{"Transform3D":{},"Destructible3D":{}},"children":[
+      {"id":"region","components":{"Transform3D":{"position":[0,0.5,0]},
+        "Masonry3D":{"size":[1,1,0.1],"rows":2,"columns":2,"anchor_below":0}}}
+    ]}]})");
+  write(root / "prefabs/wall.prefab.json", prefab);
+  write(root / "demi.project.json",
+        {{"format_version", 1},
+         {"name", "Masonry test"},
+         {"main_scene", "scene://test/main"},
+         {"scenes", {{{"id", "scene://test/main"}}}}});
+  write(root / "scenes/main.scene.json", {{"format_version", 1},
+                                          {"id", "scene://test/main"},
+                                          {"entities", J::array()}});
+  std::string error;
+  auto loaded = loadProject(root / "demi.project.json", error);
+  check(bool(loaded), error);
+  check(loaded->world.entities.empty(),
+        "Inactive template eagerly created entities");
+  RuntimePrefabService prefabs;
+  prefabs.configure(root);
+  WorldCommandBuffer commands;
+  auto a = prefabs.instantiate(loaded->world, commands, "prefab://wall",
+                               {.id = "a"});
+  check(bool(a), "Masonry activation failed");
+  (void)commands.flush(loaded->world);
+  auto b = prefabs.instantiate(loaded->world, commands, "prefab://wall",
+                               {.id = "b", .position = Vec3{3, 0, 0}});
+  check(bool(b), "Cached activation failed");
+  (void)commands.flush(loaded->world);
+  check(a.entityIds.size() == 6 && b.entityIds.size() == 6,
+        "Masonry retained unnecessary source cells");
+  for (const auto &[part, visual] : findEntity(loaded->world, "b/assembly")
+                                        ->component<Destructible3DComponent>()
+                                        ->parts)
+    check(visual.starts_with("b/") && findEntity(loaded->world, visual),
+          "Cached template leaked another instance identity");
+  auto &physics = ensurePhysicsWorld3D(loaded->world);
+  physics.step(loaded->world, 1.F / 60);
+  check(loaded->world.destruction3D->state("a/assembly").bodies == 1,
+        "Masonry did not attach");
+  check(commands.destroy(loaded->world, a.entityIds.back()),
+        "Could not remove a visual fixture");
+  (void)commands.flush(loaded->world);
+  check(prefabs.release(loaded->world, commands, "a"),
+        "Release failed with a retired child");
+  (void)commands.flush(loaded->world);
+  physics.step(loaded->world, 1.F / 60);
+  check(!findEntity(loaded->world, "a/assembly") &&
+            findEntity(loaded->world, "b/assembly"),
+        "Release affected a different instance");
+  auto changed = prefab;
+  changed["entities"][0]["children"][0]["components"]["Masonry3D"]["columns"] =
+      3;
+  write(root / "prefabs/wall.prefab.json", changed);
+  auto c = prefabs.instantiate(loaded->world, commands, "prefab://wall",
+                               {.id = "c"});
+  check(bool(c) && c.entityIds.size() == 8,
+        "Template cache ignored source edit");
+  auto reliefSource=prefab;
+  reliefSource["entities"][0]["children"][0]["components"]["Masonry3D"]["height_map"]="asset://height";
+  write(root/"prefabs/wall.prefab.json",reliefSource);
+  const auto relief=composition::bakeFracturePrefab(root/"prefabs/wall.prefab.json");
+  check(bool(relief.document),"Runtime relief recipe failed to compile");
+  int reliefCells=0;
+  for(const auto &entity:(*relief.document)["entities"])
+    if(entity["components"].contains("SurfaceRelief3D")) {
+      ++reliefCells;
+      check(!entity["components"]["MeshRenderer"].contains("model") &&
+            !entity["components"]["MeshRenderer"].contains("vertices"),
+            "Relief generated a model dependency or serialized mesh geometry");
+    }
+  check(reliefCells==4,"Fracture discarded procedural relief descriptors");
+  write(root / "prefabs/wall.prefab.json", prefab);
+  {
+    editor::EditorWorkspace editor;
+    check(editor.open(root / "demi.project.json", error), error);
+    check(editor.openPrefabDocument(root / "prefabs/wall.prefab.json", error),
+          error);
+    check(editor.editValue(
+              {.entityId = "region", .component = "Masonry3D", .field = "rows"},
+              3, false, error),
+          error);
+    check(editor.undo(error) && editor.sceneDocument().json() == prefab,
+          "Masonry Inspector undo changed compact source");
+  }
+  const auto cooked = root / "build/cooked";
+  check(
+      !hasErrors(assets::cookProject({.projectFile = root / "demi.project.json",
+                                      .outputDirectory = cooked,
+                                      .platform = "linux"})),
+      "Masonry cook failed");
+  std::ifstream file(cooked / "prefabs/wall.prefab.json");
+  check(bool(file), "Cook omitted runtime prefab");
+  check(J::parse(file) == prefab,
+        "Cook expanded compact masonry into per-brick source");
+}
+void densityAuthoring(const std::filesystem::path &root) {
+  auto prefab = J::parse(R"({"format_version":1,"id":"prefab://density","entities":[
+    {"id":"wall","components":{"Transform3D":{"scale":[2,1,1]},"Destructible3D":{}},"children":[
+      {"id":"light","components":{"Transform3D":{"position":[-0.5,0,0]},
+       "MeshRenderer":{"shape":"cube"},"Fracture3D":{"pieces":1,"density":100}}},
+      {"id":"heavy","components":{"Transform3D":{"position":[0.5,0,0]},
+       "MeshRenderer":{"shape":"cube"},"Fracture3D":{"pieces":1,"density":900}}}
+    ]}]})");
+  const auto file = root / "prefabs/density.prefab.json";
+  write(file, prefab);
+  auto baked = composition::bakeFracturePrefab(file);
+  check(bool(baked.document), "Density authoring failed");
+  auto components = (*baked.document)["entities"][0]["components"];
+  check(std::abs(components["Rigidbody3D"]["mass"].get<double>() - 2000) < .01,
+        "Density mass must include authored root scale");
+  const auto &parts = components["ModelCollider3D"]["inline_geometry"]["parts"];
+  check(parts.size() == 2 && parts[0].contains("density") && parts[1].contains("density"),
+        "Cooked collider lost per-part density");
+  prefab["entities"][0]["components"]["Rigidbody3D"] = {{"mass", 50}};
+  write(file, prefab);
+  baked = composition::bakeFracturePrefab(file);
+  check(baked.document && (*baked.document)["entities"][0]["components"]["Rigidbody3D"]["mass"] == 50,
+        "Explicit total mass override ignored");
+  for (const J value : {J(0), J(-1), J(1000001), J("steel")}) {
+    prefab["entities"][0]["children"][0]["components"]["Fracture3D"]["density"] = value;
+    write(file, prefab);
+    check(!composition::bakeFracturePrefab(file).document, "Invalid fracture density accepted");
+  }
+  auto &light = prefab["entities"][0]["children"][0]["components"];
+  light["Fracture3D"] = {{"pieces",1},{"collider","box"},{"density",100}};
+  light["MeshRenderer"] = {{"shape","mesh"},{"vertices",{{-.5,-.5,0},{.5,-.5,0},{0,.5,.1}}}};
+  write(file,prefab);
+  baked = composition::bakeFracturePrefab(file);
+  check(bool(baked.document), "Explicit proxy rejected detailed non-convex visual");
+  bool retained = false;
+  for (const auto &entity : (*baked.document)["entities"])
+    if (entity["components"].contains("MeshRenderer") &&
+        entity["components"]["MeshRenderer"] == light["MeshRenderer"]) {
+      retained = true;
+      check(entity["components"]["Transform3D"]["position"] == J({-.5,0,0}),
+            "Box proxy lost visual placement");
+    }
+  check(retained, "Box proxy replaced the detailed visual with its collider");
+  light["Fracture3D"]["pieces"] = 2;
+  write(file,prefab);
+  check(!composition::bakeFracturePrefab(file).document,
+        "Proxy silently duplicated an unsplittable visual across shards");
 }
 void test(const std::filesystem::path &root) {
   write(
@@ -342,6 +494,8 @@ int main() {
   try {
     test(root);
     componentAuthoring(root / "components");
+    densityAuthoring(root / "components");
+    masonryStreamingAuthoring(root / "masonry");
   } catch (const std::exception &e) {
     std::cerr << e.what() << " fixtures=" << root << '\n';
     return 1;

@@ -75,7 +75,7 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
   require(settings.contains("objects") && settings["objects"].is_object() &&
               !settings["objects"].empty(),
           "Select fracture source objects");
-  const auto mass = settings.value("mass", 1000.0);
+  auto mass = settings.value("mass", 1000.0);
   require(std::isfinite(mass) && mass > 0 && mass < 1e12,
           "Fracture mass must be finite and positive");
   require(!settings.contains("seed") || settings["seed"].is_number_unsigned() ||
@@ -109,16 +109,25 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
     double health;
     std::string name;
     std::string sourceId;
+    J visualTransform;
+    J relief;
   };
   std::vector<Chunk> chunks;
+  bool hasDensity = false;
   for (const auto &[id, options] : settings["objects"].items()) {
     require(authored.contains(id), "Missing source prefab object: " + id);
     require(options.is_object(), "Fracture object settings must be objects");
     for (const auto &[key, value] : options.items())
       require(key == "pieces" || key == "bond_health" ||
                   key == "anchor_below" || key == "interior_color" ||
-                  key == "interior_material",
+                  key == "interior_material" || key == "density" || key == "collider",
               "Unknown object fracture setting: " + key);
+    if (options.contains("density")) {
+      const auto density = options["density"].get<double>();
+      require(std::isfinite(density) && density >= 0.001 && density <= 1000000,
+              "density must be 0.001..1000000 kg/m^3");
+      hasDensity = true;
+    }
     if (options.contains("interior_color")) {
       const auto &color = options["interior_color"];
       require(color.is_array() && color.size() == 4,
@@ -140,6 +149,9 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
                 options["pieces"].is_number_integer(),
             "pieces must be an integer");
     int count = options.value("pieces", 8);
+    const auto collider = options.value("collider", "source");
+    require(collider == "source" || (collider == "box" && count == 1),
+            "Box proxy fracture requires pieces=1");
     require(count >= 1 && count <= 128 && chunks.size() + count <= 256,
             "Fracture supports 1..128 pieces per object, 256 total");
     auto entity = std::ranges::find(world.entities, id, &runtime::Entity::id);
@@ -148,6 +160,8 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
     require(renderer && transform,
             "Fracture source requires MeshRenderer and Transform3D: " + id);
     const auto &components = authored[id]["components"];
+    require(!components.contains("SurfaceRelief3D") || (collider=="box" && count==1),
+            "Surface relief fracture requires a single-piece box proxy");
     require(!components.contains("AnimationPlayer3D") &&
                 !components.contains("Destructible3D"),
             "Fracture input must be an ordinary static mesh, not an "
@@ -155,7 +169,11 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
     const auto hash =
         digest(id); // Identity depends on source ID, not entity array order.
     FractureSolid solid{.id = "p" + hash.substr(hash.find(':') + 1) + "r"};
-    if (!renderer->vertices.empty()) {
+    if (collider == "box") {
+      require(!renderer->model.empty() || !renderer->vertices.empty() || components.contains("SurfaceRelief3D"),
+              "Box proxy requires a detailed model or inline mesh");
+      solid = box(solid.id);
+    } else if (!renderer->vertices.empty()) {
       require(renderer->vertices.size() % 3 == 0 &&
                   renderer->vertices.size() / 3 <= 1024,
               "Inline source mesh must contain at most 1024 triangles");
@@ -240,17 +258,27 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
     }
     for (auto &piece : pieces)
       chunks.push_back({std::move(piece), components["MeshRenderer"], options,
-                        health, entity->name, id});
+                        health, entity->name, id,
+                        {{"parent", "body"},
+                         {"position", {transform->position.x, transform->position.y, transform->position.z}},
+                         {"rotation", {transform->rotation.x, transform->rotation.y, transform->rotation.z}},
+                         {"scale", {transform->scale.x, transform->scale.y, transform->scale.z}}},
+                        components.value("SurfaceRelief3D",J())});
   }
   std::ranges::sort(chunks, {}, [](const Chunk &c) { return c.solid.id; });
   J parts = J::array(), anchors = J::array(), bonds = J::array(),
     mapping = J::object(), output = J::array(), sources = J::object();
+  double densityMass = 0;
   for (const auto &chunk : chunks) {
     const auto &id = chunk.solid.id;
     sources[id] = chunk.sourceId;
     sources[id + "_interior"] = chunk.sourceId;
     const auto points = fracturePoints(chunk.solid);
     parts.push_back({{"id", id}, {"points", points}});
+    const double density = chunk.options.value("density", 1000.0);
+    if (hasDensity)
+      parts.back()["density"] = density;
+    densityMass += fractureVolume(chunk.solid) * density;
     if (chunk.options.contains("anchor_below")) {
       const double y = chunk.options["anchor_below"].get<double>();
       require(std::isfinite(y), "anchor_below must be finite");
@@ -258,6 +286,13 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
         anchors.push_back(id);
     }
     mapping[id] = id;
+    if (chunk.options.value("collider", "source") == "box") {
+      output.push_back({{"id", id}, {"name", chunk.name + " shard "},
+                       {"components", {{"Transform3D", chunk.visualTransform},
+                                       {"MeshRenderer", chunk.renderer}}}});
+      if (!chunk.relief.is_null()) output.back()["components"]["SurfaceRelief3D"]=chunk.relief;
+      continue;
+    }
     auto exterior = mesh(chunk.solid, false, chunk.renderer);
     J interior = {
         {"color", chunk.options.value("interior_color",
@@ -299,6 +334,10 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
   require(bool(parseColliderShapeAsset(collider, issue)),
           "Generated fracture graph: " + issue +
               " Check that source objects touch or overlap.");
+  if (hasDensity && !settings.contains("mass"))
+    mass = densityMass;
+  require(std::isfinite(mass) && mass > 0 && mass < 1e12,
+          "Density-derived fracture mass is outside supported limits");
   J rootComponents = {
       {"Transform3D", J::object()},
       {"ModelCollider3D", {{"inline_geometry", collider}}},

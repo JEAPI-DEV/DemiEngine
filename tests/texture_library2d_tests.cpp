@@ -1,4 +1,5 @@
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
+#include "demi/runtime/render/backend/ImageMipmaps2D.h"
 #include "demi/runtime/render/backend/RenderAssetLoading.h"
 #include "demi/runtime/render/backend/TextureLibrary2D.h"
 
@@ -12,6 +13,22 @@
 using namespace demi::runtime::render;
 
 int main() {
+  assert(imageMipChain2D({}).empty());
+  ImageData2D square{
+      .width = 2, .height = 2, .rgba = std::vector<std::byte>(16)};
+  for (int channel = 0; channel < 4; ++channel)
+    square.rgba[channel] = std::byte{255};
+  const auto squareChain = imageMipChain2D(square);
+  assert(squareChain.size() == 20);
+  for (int channel = 0; channel < 4; ++channel)
+    assert(squareChain[16 + channel] == std::byte{64});
+  ImageData2D odd{.width = 3, .height = 1, .rgba = std::vector<std::byte>(12)};
+  for (int channel = 0; channel < 4; ++channel)
+    odd.rgba[8 + channel] = std::byte{255};
+  const auto oddChain = imageMipChain2D(odd);
+  assert(oddChain.size() == 16);
+  for (int channel = 0; channel < 4; ++channel)
+    assert(oddChain[12 + channel] == std::byte{85});
   const auto fixture =
       std::filesystem::temp_directory_path() / "demi-render-asset-loading.bin";
   {
@@ -25,10 +42,12 @@ int main() {
   demi::AssetManifest manifest;
   manifest.textureSettings.filter = "nearest";
   manifest.textureSettings.wrap = "mirror";
+  manifest.textureSettings.mipmaps = true;
   const TextureSampling2D sampling =
       textureSampling2D(manifest, TextureFilter::Linear);
   assert(sampling.filter == TextureFilter::Nearest);
   assert(sampling.wrap == TextureWrap::Mirror);
+  assert(sampling.mipmaps);
 
   BgfxGraphicsDevice graphics;
   std::string error;
@@ -44,7 +63,8 @@ int main() {
       .width = 1,
       .height = 1,
       .rgba = {std::byte{0xff}, std::byte{0}, std::byte{0}, std::byte{0xff}}};
-  assert(textures.upload("asset://red", image, error));
+  assert(imageMipChain2D(image) == image.rgba);
+  assert(textures.upload("asset://red", image, error, sampling));
   const TextureView2D first = textures.find("asset://red");
   assert(first.handle && first.width == 1 && first.height == 1);
 

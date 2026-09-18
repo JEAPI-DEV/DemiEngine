@@ -143,6 +143,109 @@ void spatialImpacts() {
          "Rotated/scaled assembly did not resolve a world-space impact");
 }
 
+void checkpointsAndCleanup() {
+  std::string error;
+  {
+    auto partial=fixture();auto &p=ensurePhysicsWorld3D(partial);p.step(partial,1e-6F);
+    hit(partial,"middle",.25F);p.step(partial,1e-6F);
+    const auto checkpoint=partial.destruction3D->checkpoint(partial,"root",error);
+    auto resumed=fixture();auto &q=ensurePhysicsWorld3D(resumed);q.step(resumed,1e-6F);
+    expect(resumed.destruction3D->restore("root",checkpoint,error),error);q.step(resumed,1e-6F);
+    hit(resumed,"middle",.8F);q.step(resumed,1e-6F);
+    expect(resumed.destruction3D->state("root").bodies==3,"Restore lost partial bond damage");
+  }
+  auto world = fixture(false);
+  auto &physics = ensurePhysicsWorld3D(world);
+  physics.step(world, 1.F / 60);
+  hit(world, "middle", 2);
+  physics.step(world, 1.F / 60);
+  const auto saved = world.destruction3D->checkpoint(world, "root", error);
+  expect(!saved.is_null() && saved.dump().size() < 2048, error);
+  auto restored = fixture(false);
+  auto &native = ensurePhysicsWorld3D(restored);
+  native.step(restored, 1e-6F);
+  expect(restored.destruction3D->restore("root", saved, error), error);
+  native.step(restored, 1e-6F);
+  auto state = restored.destruction3D->state("root");
+  expect(state.status == "applied" && state.bodies == 3,
+         "Checkpoint restore failed: " + state.error);
+  for (const auto &group : saved["groups"]) {
+    const auto part = group["parts"][0].get<std::string>();
+    const auto *entity = findEntity(restored, state.parts.at(part));
+    const auto *t = entity->component<Transform3DComponent>();
+    const auto *b = entity->component<Rigidbody3DComponent>();
+    expect(
+        std::abs(t->position.x - group["position"][0].get<float>()) < .001F &&
+            std::abs(b->velocity.y - group["velocity"][1].get<float>()) < .001F,
+        "Checkpoint lost fragment pose/momentum");
+  }
+  expect(!restored.destruction3D->restore("root", saved, error),
+         "Restore overwrote a live damaged assembly");
+
+  auto anchored = fixture();
+  auto &anchoredPhysics = ensurePhysicsWorld3D(anchored);
+  anchoredPhysics.step(anchored, 1e-6F);
+  hit(anchored, "middle", 2);
+  anchoredPhysics.step(anchored, 1e-6F);
+  expect(anchored.destruction3D->retireDebris("root", error), error);
+  expect(anchored.destruction3D->checkpoint(anchored, "root", error).is_null(),
+         "Checkpoint ignored queued cleanup");
+  anchoredPhysics.step(anchored, 1e-6F);
+  state = anchored.destruction3D->state("root");
+  expect(state.bodies == 1 && state.parts.size() == 1 &&
+             state.parts.contains("left"),
+         "Cleanup removed support or retained loose bodies");
+  const auto cleaned =
+      anchored.destruction3D->checkpoint(anchored, "root", error);
+  auto reload = fixture();
+  findEntity(reload, "root")->component<Destructible3DComponent>()->maxBodies =
+      1;
+  auto &reloadPhysics = ensurePhysicsWorld3D(reload);
+  reloadPhysics.step(reload, 1e-6F);
+  auto bad = cleaned;
+  bad["geometry_hash"] = "changed";
+  expect(!reload.destruction3D->restore("root", bad, error),
+         "Wrong template checkpoint accepted");
+  expect(reload.destruction3D->restore("root", cleaned, error), error);
+  reloadPhysics.step(reload, 1e-6F);
+  state = reload.destruction3D->state("root");
+  expect(state.status == "applied" && state.bodies == 1 &&
+             state.parts.size() == 1,
+         "Reload resurrected retired debris: " + state.error);
+  expect(!reloadPhysics.raycast({1, 4, 5}, {0, 0, -1}, 10),
+         "Retired debris still collides after restore");
+}
+void repeatedSleepingFragmentHits(bool heavy = false) {
+  auto world = fixture();
+  if (heavy)
+    findEntity(world, "root")->component<Rigidbody3DComponent>()->mass = 1440;
+  auto &physics = ensurePhysicsWorld3D(world);
+  physics.step(world, 1.F / 60);
+  hit(world, "middle", 2);
+  for (int step = 0; step < 600; ++step)
+    physics.step(world, 1.F / 60);
+  const auto owner = world.destruction3D->state("root").parts.at("right");
+  for (int strike = 0; strike < 4; ++strike) {
+    const auto *body = findEntity(world, owner)->component<Rigidbody3DComponent>();
+    expect(!body->awake, "Loose fragment must settle and sleep before the next hit");
+    const auto position = resolveWorldTransform3D(world, *findEntity(world, "visual_right"))->position;
+    const auto revision = world.destruction3D->state("root").revision;
+    DestructionImpact3D blow{.position = {position.x, position.y, position.z + .5F},
+                            .radius = .15F, .energy = 18000, .impulse = heavy ? 220.F : 2.F,
+                            .direction = {0, 0, -1}, .entity = owner};
+    std::size_t affected = 0;
+    std::string error;
+    expect(world.destruction3D->impact(world, physics, blow, affected, error), error);
+    physics.step(world, 1.F / 60);
+    const auto state = world.destruction3D->state("root");
+    expect(state.status == "applied" && state.revision == revision + 1,
+           "Repeated impact failed after bonds were exhausted: " + state.error);
+    expect(physics.velocity(owner)->z < (heavy ? -.2F : -.5F),
+           "Repeated hammer hit failed to wake/push the sleeping fragment");
+    for (int step = 0; step < 600; ++step)
+      physics.step(world, 1.F / 60);
+  }
+}
 void impactSupportAndRollback() {
   auto world = fixture();
   auto &physics = ensurePhysicsWorld3D(world);
@@ -463,8 +566,14 @@ void detachedFoundation() {
                  ->position.y < 3,
          "Released foundation did not fall");
 }
-void motionAndPose() {
+void motionAndPose(bool mixedDensity = false) {
   auto world = fixture(false);
+  if (mixedDensity) {
+    auto &parts = world.colliderAssets3D.at("asset://assembly").parts;
+    parts[0].density = 100;
+    parts[1].density = 200;
+    parts[2].density = 300;
+  }
   auto &physics = ensurePhysicsWorld3D(world);
   physics.step(world, 1.0F / 60);
   const auto before =
@@ -483,7 +592,8 @@ void motionAndPose() {
   Vec3 momentum{};
   for (const auto &[part, id] : state.parts) {
     const auto *body = findEntity(world, id)->component<Rigidbody3DComponent>();
-    expect(std::abs(body->mass - 1) < 0.001F &&
+    const float expectedMass = mixedDensity ? (part == "left" ? 0.5F : part == "right" ? 1.5F : 1.F) : 1.F;
+    expect(std::abs(body->mass - expectedMass) < 0.001F &&
                std::abs(body->angularVelocity.z - 2) < 0.001F,
            "Mass/angular velocity inheritance failed");
     momentum.x += body->mass * body->velocity.x;
@@ -496,8 +606,9 @@ void motionAndPose() {
     const auto p =
         resolveWorldTransform3D(world, *findEntity(world, "visual_" + part))
             ->position;
-    center.x += p.x / 3;
-    center.y += p.y / 3;
+    const auto mass = findEntity(world, id)->component<Rigidbody3DComponent>()->mass;
+    center.x += p.x * mass / 3;
+    center.y += p.y * mass / 3;
   }
   float angularMomentum = 0;
   for (const auto &[part, id] : state.parts) {
@@ -506,15 +617,15 @@ void motionAndPose() {
             ->position;
     const auto *body = findEntity(world, id)->component<Rigidbody3DComponent>();
     // Three unit cubes: each local Izz=m/6; the initial compound Izz=2.5.
-    angularMomentum += body->angularVelocity.z / 6 +
+    angularMomentum += body->mass * (body->angularVelocity.z / 6 +
                        (p.x - center.x) * body->velocity.y -
-                       (p.y - center.y) * body->velocity.x;
+                       (p.y - center.y) * body->velocity.x);
   }
-  expect(std::abs(angularMomentum - 5) < 0.02F,
+  expect(std::abs(angularMomentum - (mixedDensity ? 13.F / 3 : 5.F)) < 0.02F,
          "Angular momentum not conserved");
   const auto *right = findEntity(world, state.parts.at("right"))
                           ->component<Rigidbody3DComponent>();
-  expect(right->velocity.y > 1.9F,
+  expect(right->velocity.y > (mixedDensity ? 1.2F : 1.9F),
          "Split did not inherit rotational velocity at its COM");
 }
 void rollbackAndCancellation() {
@@ -627,6 +738,9 @@ int main() {
   try {
     spatialImpacts();
     impactSupportAndRollback();
+    checkpointsAndCleanup();
+    repeatedSleepingFragmentHits();
+    repeatedSleepingFragmentHits(true);
     impactStrengthAndFalloff();
     impactAcrossAssemblies();
     impactQueueLimit();
@@ -636,7 +750,8 @@ int main() {
     sceneLifecycle();
     for (int i = 0; i < 5; ++i) {
       localized();
-      motionAndPose();
+    motionAndPose();
+    motionAndPose(true);
       rollbackAndCancellation();
     }
     std::cout

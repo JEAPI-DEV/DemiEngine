@@ -86,7 +86,13 @@ displays status—no part-name selection or manual post-split impulses.
 Tests cover edge hits, radius misses, transform handling, cumulative resistance,
 falloff, multi-assembly energy sharing, target filtering, isolated foundation
 release, impulse-only hits, off-center torque, queue limits and rollback.
+Repeated full hammer-energy hits also exercise detached blocks after they settle
+and sleep, including heavy bodies. Exhausted bonds do not prevent later impulses;
+applied impulse does not guarantee large displacement against friction, remaining
+supports or surrounding debris. Single shards cannot recursively fracture yet.
 
-This is an impact probe, not yet the complete hammer/rocket/steel-door acceptance
-scene. There is no occlusion/shielding, blast response for ordinary non-destructible
+For the playable hammer/rocket/steel-door probe, use
+[`destruction_weapons_3d_lab`](../examples/destruction_weapons_3d_lab/README.md).
+It uses a reusable gameplay package, timed contact and swept projectile flight.
+There is no occlusion/shielding, blast response for ordinary non-destructible
 bodies, recursive shard refinement, structural stress or debris cleanup policy.

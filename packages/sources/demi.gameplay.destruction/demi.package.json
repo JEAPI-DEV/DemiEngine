@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "name": "demi.gameplay.destruction",
+  "version": "1.0.0",
+  "engine": "^0.1.0",
+  "dependencies": {},
+  "public_modules": ["demi.gameplay.destruction.weapons", "demi.gameplay.destruction.native", "demi.gameplay.destruction.streaming"],
+  "files": ["README.md", "scripts/demi/gameplay/destruction/weapons.lua", "scripts/demi/gameplay/destruction/native.lua", "scripts/demi/gameplay/destruction/streaming.lua", "tests/weapons_test.lua", "tests/streaming_test.lua"]
+}

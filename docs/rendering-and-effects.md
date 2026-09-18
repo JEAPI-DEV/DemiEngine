@@ -95,11 +95,59 @@ world-space UI path. `render_hud` controls the final screen HUD separately.
 
 ## Lighting and environment
 
+`SurfaceRelief3D` generates height-map box relief in a bounded session cache and
+shares meshes across instances. It writes no generated model files. See
+[runtime relief and limits](streamed-destruction.md#relief-without-generated-assets).
+
+For primitives and imported models alike, `MeshRenderer.texture` overrides a
+material's albedo texture, which overrides an imported model's embedded albedo.
+With none specified, rendering uses white. Static instancing groups include the
+resolved texture, so different overrides are not batched under the wrong image.
+
+The built-in 3D shader decodes the combined display-sRGB base color before
+multiplying it by linear lighting, then encodes the result for the UNORM scene
+target. Previously this multiplication happened directly in display space,
+making unlit faces excessively dark. This applies to both directional-only and
+local-light shader variants, including editor scene targets; HUD and diagnostic
+colors are unchanged. Alpha is not gamma-corrected. Unit illumination preserves
+the original base color.
+
+This is a correction to the existing forward color path, not a complete PBR/HDR
+pipeline: light colors remain linear coefficients, the combined base-color
+convention is retained, bright output can still clip on the LDR target, and
+post effects still operate on the encoded scene image. Imported material-factor
+color spaces, linear texture filtering/blending, HDR tone mapping and visual
+shadow qualification remain separate work.
+
 `Environment3D` owns ambient light, fog, shadow distance/resolution, and the
 maximum number of shadow-casting lights. `DirectionalLight`, `PointLight`, and
 `SpotLight` support color, intensity, masks, and bounded shadow participation.
 The lightweight forward path evaluates at most four lights per camera and
 honors the environment shadow-pass budget.
+
+### Panorama sky background
+
+Texture manifests with `settings.mipmaps: true` now upload a complete RGBA8
+box-filtered mip chain. Linear filtering interpolates between mip levels;
+nearest filtering selects the nearest level. This reduces distant texture
+aliasing without changing UVs or mesh geometry. Filtering currently averages
+encoded source channels; linear-light/premultiplied-alpha filtering is future
+work, not part of the HDR pipeline.
+
+Set `Environment3D.sky_texture` to a `Texture2D` asset containing a 2:1
+equirectangular, tone-mapped panorama (JPEG/PNG). It uses the normal scene asset
+loading path. The camera-centered background renders unlit at the far plane,
+without writing depth, so moving the camera creates no sky parallax and scene
+geometry always remains in front. The same pass is used by the editor and game.
+Only perspective cameras with `clear_mode: "color"` draw a sky; orthographic
+and overlay cameras retain their existing clear behavior. Omit the reference
+to keep the camera's solid background. The last enabled Environment3D wins,
+matching ambient-environment selection.
+
+This is a visible LDR background, not EXR decoding, HDR lighting, reflection
+probes or image-based lighting. Sun and ambient illumination remain explicit.
+The destruction weapon lab uses the supplied evening panorama plus Kenney
+prototype grid textures on its floor and rear wall.
 
 ## Particles
 

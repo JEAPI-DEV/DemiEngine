@@ -50,6 +50,10 @@ loadAssetManifest(const std::filesystem::path &manifestPath,
                   Diagnostic *diagnostic = nullptr);
 [[nodiscard]] AssetRegistry
 loadAssetRegistry(const std::filesystem::path &projectDirectory);
+// Project-local manifests only; cook combines these with target-specific locked
+// package content. Normal runtime/editor consumers should use loadAssetRegistry.
+[[nodiscard]] AssetRegistry
+loadAuthoredAssetRegistry(const std::filesystem::path &projectDirectory);
 [[nodiscard]] const AssetManifest *findAsset(const AssetRegistry &registry,
                                              const std::string &id);
 [[nodiscard]] std::vector<const AssetManifest *>

@@ -18,6 +18,7 @@ add_library(demi-core STATIC
   src/demi/assets/ConvexFracture.cpp
   src/demi/assets/FracturePrefab.cpp
   src/demi/assets/FractureAuthoring.cpp
+  src/demi/assets/MasonryGeneration.cpp
   src/demi/schema/DestructionValidation.cpp
   src/demi/assets/ModelImportProfile.cpp
   src/demi/assets/ModelInspector.cpp

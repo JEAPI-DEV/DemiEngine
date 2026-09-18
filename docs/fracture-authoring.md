@@ -4,6 +4,10 @@ Author one ordinary scene or prefab. Add `Destructible3D` to the assembly root
 and `Fracture3D` to each participating mesh. Prefer nested `children`; no second
 recipe prefab, collider points, bond list or part-to-visual map is required.
 
+For repeated walls, prefer compact `Masonry3D` regions and proximity activation
+instead of authored brick arrays. Height-map relief is generated in memory, not
+exported into asset folders. See [streamed destruction](streamed-destruction.md).
+
 ```json
 {
   "format_version": 1,
@@ -56,6 +60,15 @@ workflows use components.
 
 ## Settings and behavior
 
+- `Fracture3D.collider` defaults to `source`. Set `box` with `pieces: 1` to keep
+  a detailed model/inline mesh intact while using an explicit unit-box proxy
+  scaled by `MeshRenderer.size` and the entity transform. The model must be
+  authored in that unit box. Relief does not enter collision or density-derived
+  mass. Its UVs, normals, materials and LOD references remain on the detached
+  visual. This is an explicit approximation, not automatic concave decomposition;
+  subdividing the detailed visual during fracture is not supported.
+  `SurfaceRelief3D` also works on this explicit single-piece proxy path; its
+  renderer generates the visual mesh from a height map at runtime.
 - `Destructible3D.seed` defaults to 1; `generator_version` defaults to 1.
   `max_bodies` defaults to 64 (maximum 256).
 - `Destructible3D.energy_per_health` defaults to 1000 joules per authored health
@@ -64,6 +77,14 @@ workflows use components.
   One piece participates in the structure but stays whole when detached.
 - `bond_health` defaults to 1. Connections use the lower of the two objects'
   strengths. This is not a material-density or structural-load model.
+- `density` is optional, in kg/m³ (0.001–1,000,000). When any participating mesh
+  supplies it, omitted/null densities on the other meshes use 1000 kg/m³.
+  Without an explicit root mass, the compiler calculates total mass as the sum
+  of each solid's volume times density, including authored root scale. For
+  example, use 2400 for concrete and 7850 for solid steel. A hollow door modeled
+  by a solid collision box needs **effective density** (desired mass divided by
+  that box's volume), not the density of solid steel. Empty space is not inferred.
+  Density does not change bond health or fracture resistance.
 - `anchor_below` is an optional assembly-local Y threshold. Omit it or use null
   for no foundation attachment; in the Inspector choose Set/None. Direct hits
   can break attachments. Initial attachment health is the strongest incident
@@ -71,8 +92,14 @@ workflows use components.
 - Optional normalized RGBA `interior_color` defaults to
   `[0.35, 0.33, 0.30, 1]`; `interior_material` references a material asset.
 
-An optional root Rigidbody3D supplies mass and other body settings. Omitted mass
-uses the canonical Rigidbody3D default; generated body type is static with anchors, dynamic without.
+An optional root Rigidbody3D supplies body settings. An explicit `mass` overrides
+the calculated total, but per-part density still controls its distribution.
+With no density authored, the previous uniform distribution and canonical
+Rigidbody3D mass default remain. Split groups receive the sum of their parts'
+mass shares; Jolt uses the same densities for center of mass and inertia.
+Authored scale is accounted for at compilation; runtime resizing does not
+automatically change mass. Overlapping solids count both volumes (reinforcement
+does not subtract a void from concrete). Generated body type is static with anchors, dynamic without.
 For generated assemblies, this replaces an authored static/dynamic body type;
 configure foundation anchors instead. Kinematic assemblies are rejected. The compiler generates the
 collider: do not add another root collider or independent physics to participating
@@ -98,8 +125,12 @@ instances have independent physical ownership and damage.
 
 Runtime source loading and cooking share the compiler. Cooking bakes components
 to prepared geometry under the same prefab identity, including components authored
-directly in scenes. Packaged runtime does not execute the splitter. There is no
-persistent authoring cache or live damage migration across source changes yet.
+directly in scenes. For ordinary source-mesh fracture, packaged runtime does not
+execute the splitter. Documents containing `Masonry3D` instead retain compact
+recipes and generate on activation, with a bounded session template cache.
+There is no persistent disk authoring cache or live topology migration across
+source changes. Optional validated damage checkpoints are described in the
+streaming document above.
 Generated `Destructible3D.parts` and `ModelCollider3D.inline_geometry` are low-level
 transport, not normal authoring fields.
 

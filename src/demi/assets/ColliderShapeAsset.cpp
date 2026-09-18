@@ -42,9 +42,16 @@ parseColliderShapeAsset(const nlohmann::json &document, std::string &error) {
       result.maximum.fill(std::numeric_limits<float>::lowest());
       std::unordered_set<std::string> ids;
       for (const auto &part : document["parts"]) {
-        if (!part.is_object() || part.size() != 2 || !part.contains("id") ||
+        if (!part.is_object() ||
+            part.size() != (part.contains("density") ? 3 : 2) ||
+            !part.contains("id") ||
             !part["id"].is_string() || !part.contains("points"))
           return std::nullopt;
+        const float density = part.value("density", 1000.0F);
+        if (!std::isfinite(density) || density < 0.001F || density > 1000000) {
+          error = "Compound part density must be 0.001..1000000 kg/m^3";
+          return std::nullopt;
+        }
         const auto id = part["id"].get<std::string>();
         const auto alphanumeric = [](char c) {
           return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
@@ -76,7 +83,7 @@ parseColliderShapeAsset(const nlohmann::json &document, std::string &error) {
               std::numeric_limits<float>::max())
             return std::nullopt;
         }
-        result.parts.push_back({id, std::move(hull->points)});
+        result.parts.push_back({id, std::move(hull->points), density});
       }
       if (document.contains("fracture")) {
         std::vector<std::string> ids;

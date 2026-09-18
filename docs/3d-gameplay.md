@@ -56,6 +56,12 @@ locks, kinematic targets, and render interpolation. Use `Rigidbody3D` from Lua
 to issue runtime commands. Do not move dynamic bodies by repeatedly writing
 `Transform3D`; physics owns their simulated transform.
 
+`Rigidbody3D.state(entity)` reads live body type, configured mass, enabled/gravity
+flags and latest physics-synchronized velocities. It works for native-created
+fragments as well as authored bodies, and returns nil without a Rigidbody3D.
+It is not a native-body readiness check. `Entity.get` reads serialized component
+values; it is not a substitute for live physics queries.
+
 Lua can switch continuous detection with `Rigidbody3D.set_continuous` once a
 fast body has slowed down. `report_contacts` and
 `Rigidbody3D.set_report_contacts` control contact extraction and callbacks
@@ -113,6 +119,11 @@ local hit = Physics3D.sphere_cast(
   x, y, z, 0.12, direction_x, direction_y, direction_z, 30.0,
   "world", projectile_id)
 ```
+
+Append `false` as the optional `include_triggers` argument to `sphere_cast` to
+find blocking geometry beyond trigger volumes. The default remains true. Both
+the native query and pre-physics fallback apply this filter, along with the
+existing layer and ignored-entity filters.
 
 ## Character controller
 

@@ -119,7 +119,7 @@ add_test(NAME demi-package-cli-defaults
   COMMAND ${CMAKE_COMMAND} -DDEMI=$<TARGET_FILE:demi>
     -P ${CMAKE_SOURCE_DIR}/tests/package_cli_defaults.cmake)
 foreach(package_name IN ITEMS
-    core controllers health projectiles interactions traversal camera inventory encounters third_person)
+    core controllers health projectiles interactions traversal camera inventory encounters third_person destruction)
   add_test(NAME demi-gameplay-package-${package_name}
     COMMAND demi package test
       ${CMAKE_SOURCE_DIR}/packages/sources/demi.gameplay.${package_name})
@@ -239,6 +239,10 @@ add_test(NAME demi-visual-animation-budget3d-tests COMMAND demi-visual-animation
 add_test(NAME demi-audio-phase7-tests COMMAND demi-audio-phase7-tests)
 add_test(NAME demi-asset-pipeline-tests COMMAND demi-asset-pipeline-tests)
 add_test(NAME demi-asset-streaming-tests COMMAND demi-asset-streaming-tests)
+add_test(NAME demi-prototype-texture-package-tests
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/test_prototype_texture_package.py"
+          --demi "$<TARGET_FILE:demi>")
+set_tests_properties(demi-prototype-texture-package-tests PROPERTIES TIMEOUT 180 RUN_SERIAL TRUE)
 add_test(NAME demi-lightweight-3d-workflow-tests
   COMMAND demi-lightweight-3d-workflow-tests)
 add_test(NAME demi-data-asset-tests COMMAND demi-data-asset-tests)

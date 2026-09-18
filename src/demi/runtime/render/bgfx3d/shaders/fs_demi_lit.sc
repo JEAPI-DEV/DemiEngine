@@ -18,6 +18,23 @@ uniform vec4 u_spotColorIntensity[4];
 uniform vec4 u_spotInner[4];
 #endif
 
+// Base-color textures and authored colors use display sRGB. The 3D target is
+// an ordinary UNORM target (also used by the editor), so transfer conversion
+// belongs here, not on the backbuffer where it would affect HUD colors too.
+vec3 decodeColor(vec3 color)
+{
+    color = max(color, vec3(0.0));
+    return mix(color / 12.92, pow((color + 0.055) / 1.055, vec3(2.4)),
+               step(vec3(0.04045), color));
+}
+
+vec3 encodeColor(vec3 color)
+{
+    color = max(color, vec3(0.0));
+    return mix(color * 12.92, 1.055 * pow(color, vec3(1.0 / 2.4)) - 0.055,
+               step(vec3(0.0031308), color));
+}
+
 void main()
 {
     vec4 albedo = texture2D(s_texColor, v_texcoord0) * v_color0 * u_tint;
@@ -103,6 +120,6 @@ void main()
     }
     else
     {
-        gl_FragColor = vec4(albedo.rgb * lighting, albedo.a);
+        gl_FragColor = vec4(encodeColor(decodeColor(albedo.rgb) * lighting), albedo.a);
     }
 }

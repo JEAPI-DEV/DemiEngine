@@ -1,0 +1,12 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/textures/bricks085/Bricks085_1K-JPG_Color.jpg",
+  "id": "asset://textures/bricks085",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {},
+  "source": "../../Bricks/Bricks085_1K-JPG_Color.jpg",
+  "source_hash": "fnv1a64:4cad9716e89d7774",
+  "type": "Texture2D"
+}

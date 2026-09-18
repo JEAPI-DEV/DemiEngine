@@ -2,6 +2,7 @@
 #include "demi/runtime/scene/composition/EntityHierarchy.h"
 #include "demi/assets/FracturePrefab.h"
 #include "demi/assets/FractureAuthoring.h"
+#include "demi/assets/MasonryGeneration.h"
 
 #include <algorithm>
 #include <fstream>
@@ -270,6 +271,8 @@ public:
 
     applyOverrides(instance.value("overrides", Json::object()), prefix, items,
                    ownerPath);
+    if (!compileFractures_)
+      items = assets::expandMasonry(items, true);
     if (compileFractures_) {
       try {
         items = assets::compileEntityFractures(*findProjectRoot(canonical), items, prefix);
@@ -352,6 +355,22 @@ private:
 };
 
 } // namespace
+
+nlohmann::json rebasePrefabEntities(nlohmann::json entities,
+    std::string_view oldPrefix, std::string_view newPrefix) {
+  std::unordered_map<std::string,std::string> ids;
+  const auto prefix=std::string(oldPrefix)+"/";
+  for (const auto &entity:entities) {
+    const auto id=entity.at("id").get<std::string>();
+    if (!id.starts_with(prefix)) throw std::runtime_error("Invalid prepared prefab identity");
+    ids.emplace(id,std::string(newPrefix)+"/"+id.substr(prefix.size()));
+  }
+  for (auto &entity:entities) {
+    entity["id"]=ids.at(entity.at("id").get<std::string>());
+    remapEntityReferences(entity,ids);
+  }
+  return entities;
+}
 
 std::optional<PrefabEntityOrigin>
 prefabEntityOrigin(const Json &ownerDocument,
@@ -455,6 +474,8 @@ ExpansionResult expandScene(const std::filesystem::path &scenePath,
     }
   }
   expanded.erase("instances");
+  if (!compileFractures && expanded.contains("entities"))
+    expanded["entities"] = assets::expandMasonry(expanded["entities"], true);
   if (compileFractures && expanded.contains("entities")) {
     try {
       expanded["entities"] = assets::compileEntityFractures(

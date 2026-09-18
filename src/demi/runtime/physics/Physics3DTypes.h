@@ -6,6 +6,15 @@
 
 namespace demi::runtime {
 
+struct RigidbodyState3D {
+  std::string bodyType;
+  float mass = 1;
+  bool useGravity = true;
+  bool enabled = true;
+  Vec3 velocity;
+  Vec3 angularVelocity;
+};
+
 struct PhysicsContact3D {
   std::string entityId;
   std::string otherEntityId;

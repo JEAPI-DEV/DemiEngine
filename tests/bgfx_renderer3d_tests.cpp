@@ -3,6 +3,7 @@
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/BoxCollider3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Environment3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/ParticleEmitter3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
@@ -17,6 +18,35 @@ using namespace demi::runtime;
 using namespace demi::runtime::render;
 
 namespace {
+
+class TextureCapture final : public RenderCommands {
+public:
+  explicit TextureCapture(RenderCommands &target) : target_(target) {}
+  std::vector<TextureHandle> textures;
+  std::vector<DrawState> bufferedStates;
+  std::vector<std::array<float, 16>> bufferedTransforms;
+  bool configureView2D(const View2DConfig &view, std::string &error) override {
+    return target_.configureView2D(view, error);
+  }
+  bool configureView3D(const View3DConfig &view, std::string &error) override {
+    return target_.configureView3D(view, error);
+  }
+  bool submit(const TransientDraw &draw, std::string &error) override {
+    return target_.submit(draw, error);
+  }
+  bool submit(const BufferedDraw &draw, std::string &error) override {
+    textures.push_back(draw.texture);
+    bufferedStates.push_back(draw.state);
+    bufferedTransforms.push_back(draw.transform);
+    return target_.submit(draw, error);
+  }
+  bool submit(const InstancedBufferedDraw &draw, std::string &error) override {
+    textures.push_back(draw.texture);
+    return target_.submit(draw, error);
+  }
+private:
+  RenderCommands &target_;
+};
 
 Entity shape(std::string id, std::string shapeName, const Vec3 position) {
   Entity entity;
@@ -40,11 +70,16 @@ int main() {
                              error));
   auto resources = createBgfxGpuResources();
   auto commands = createBgfxRenderCommands(*resources);
-  BgfxRenderer3D renderer(*resources, *commands, false); // CPU fallback reference.
+  TextureCapture capture(*commands);
+  BgfxRenderer3D renderer(*resources, capture, false); // CPU fallback reference.
   assert(renderer.initialize(error));
   assert(renderer.initialize(error));
   std::vector<std::string> diagnostics;
   demi::AssetRegistry registry;
+  registry.assets.push_back(
+      {.id = "asset://textures/override", .type = "Texture2D",
+       .sourcePath = std::filesystem::path(DEMI_SOURCE_DIR) /
+                     "examples/minimal_3d/assets/textures/checker.png"});
   registry.assets.push_back(
       {.id = "asset://models/animated",
        .type = "Model3D",
@@ -116,6 +151,41 @@ int main() {
   const std::uint32_t batchesWithoutDebugGeometry =
       renderer.statistics().batches;
   static_cast<void>(graphics.endFrame());
+  {
+    World skyWorld;
+    Entity environment;
+    environment.id = "environment";
+    Environment3DComponent::parse({{"sky_texture", "asset://textures/override"}}, environment);
+    assert(environment.component<Environment3DComponent>()->skyTexture == "asset://textures/override");
+    skyWorld.entities.push_back(std::move(environment));
+    auto skyFrame = frame;
+    skyFrame.position = {13, 2, -17};
+    skyFrame.lightingOverride = SceneLighting3D{}; // Editor lighting override preserves sky.
+    capture.bufferedStates.clear();
+    capture.bufferedTransforms.clear();
+    assert(renderer.renderFrame(skyWorld, skyFrame, 0.016F, error));
+    assert(capture.bufferedStates.size() == 1);
+    assert(capture.bufferedStates.front().depthTest == DepthTest::LessEqual);
+    assert(!capture.bufferedStates.front().writeDepth);
+    assert(capture.bufferedTransforms.front()[12] == 13);
+    assert(capture.bufferedTransforms.front()[14] == -17);
+    static_cast<void>(graphics.endFrame());
+    skyWorld.entities.front().enabled = false;
+    capture.bufferedStates.clear();
+    assert(renderer.renderFrame(skyWorld, skyFrame, 0.016F, error));
+    assert(capture.bufferedStates.empty());
+    static_cast<void>(graphics.endFrame());
+    skyWorld.entities.front().enabled = true;
+    skyFrame.camera.perspective = false;
+    assert(renderer.renderFrame(skyWorld, skyFrame, 0.016F, error));
+    assert(capture.bufferedStates.empty());
+    static_cast<void>(graphics.endFrame());
+    skyFrame.camera.perspective = true;
+    skyFrame.camera.clearMode = "depth";
+    assert(renderer.renderFrame(skyWorld, skyFrame, 0.016F, error));
+    assert(capture.bufferedStates.empty());
+    static_cast<void>(graphics.endFrame());
+  }
   for (int index = 0; index < 64; ++index) {
     world.entities.push_back(shape("sphere_copy_" + std::to_string(index),
                                    "sphere", {0.0F, 0.0F, 0.0F}));
@@ -340,6 +410,67 @@ int main() {
     }));
   }
   RuntimeProfiler::setEnabled(false);
+
+  World textureWorld;
+  auto probe = shape("texture-probe", "cube", {});
+  probe.component<MeshRendererComponent>()->texture = "asset://textures/override";
+  textureWorld.entities.push_back(std::move(probe));
+  capture.textures.clear();
+  assert(renderer.renderFrame(textureWorld, frame, .016F, error));
+  static_cast<void>(graphics.endFrame());
+  assert(capture.textures.size() == 1);
+  const auto explicitTexture = capture.textures.front();
+  auto *mesh = textureWorld.entities.front().component<MeshRendererComponent>();
+  mesh->texture.clear();
+  capture.textures.clear();
+  assert(renderer.renderFrame(textureWorld, frame, .016F, error));
+  static_cast<void>(graphics.endFrame());
+  assert(capture.textures.size() == 1 && capture.textures.front() != explicitTexture);
+  // Static models go through instancing; animated ones use buffered submission.
+  // Both must honor the same explicit texture as a primitive, not white/embedded.
+  mesh->model = "asset://models/animated";
+  mesh->texture = "asset://textures/override";
+  for (bool animated : {false, true}) {
+    if (animated)
+      textureWorld.entities.front().setComponent(AnimationPlayer3DComponent{
+          .clipName = "Walk_Loop", .time = .2F});
+    capture.textures.clear();
+    assert(renderer.renderFrame(textureWorld, frame, .016F, error));
+    static_cast<void>(graphics.endFrame());
+    assert(!capture.textures.empty());
+    for (const auto texture : capture.textures)
+      assert(texture == explicitTexture);
+  }
+
+  // Relief geometry is generated from an image in a shared session cache,
+  // not imported from a generated per-brick asset.
+  textureWorld.entities.front().removeComponent<AnimationPlayer3DComponent>();
+  mesh=textureWorld.entities.front().component<MeshRendererComponent>();
+  mesh->model.clear();
+  SurfaceRelief3DComponent relief{.heightMap="asset://textures/override"};
+  textureWorld.entities.front().setComponent(relief);
+  capture.textures.clear();
+  assert(renderer.renderFrame(textureWorld,frame,.016F,error));
+  static_cast<void>(graphics.endFrame());
+  assert(capture.textures.size()==1 && capture.textures.front()==explicitTexture);
+  ReliefMeshCache3D cache(*resources);
+  cache.loadAssets(registry);
+  const auto *generated=cache.get(relief,{1,1,.115F},error);
+  assert(generated && generated->indexCount()>36 && cache.size()==1);
+  assert(cache.get(relief,{2,3,.115F},error)==generated && cache.size()==1);
+  assert(!cache.get(relief,{1,1,.001F},error));
+  cache.clear();
+  assert(cache.size()==0);
+  cache.loadAssets(registry);
+  auto tile=relief;tile.uvScale={1.F/16,1.F/16};
+  for(int i=0;i<256;++i) {
+    tile.uvOffset={float(i%16)/16,float(i/16)/16};
+    assert(cache.get(tile,{1,1,.115F},error));
+  }
+  assert(!cache.get(relief,{1,1,.115F},error));
+  cache.beginFrame();
+  assert(cache.get(relief,{1,1,.115F},error) && cache.size()==256);
+  cache.clear();
 
   renderer.shutdown();
   renderer.shutdown();

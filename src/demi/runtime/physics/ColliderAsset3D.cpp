@@ -33,7 +33,7 @@ ColliderAsset3D colliderAssetFromShape3D(const assets::ColliderShapeAsset &sourc
   collider.offset = {source.minimum[0]+collider.size.x*.5F,source.minimum[1]+collider.size.y*.5F,source.minimum[2]+collider.size.z*.5F};
   for (const auto &p:source.points) collider.points.push_back({p[0],p[1],p[2]});
   for (const auto &part:source.parts) {
-    ColliderPart3D converted{.id=part.id};
+    ColliderPart3D converted{.id=part.id, .density=part.density};
     for (const auto &p:part.points) converted.points.push_back({p[0],p[1],p[2]});
     collider.parts.push_back(std::move(converted));
   }

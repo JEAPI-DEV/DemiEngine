@@ -34,6 +34,24 @@ The `crowd` script component exposes `count` (default 64), `frozen`, and optiona
 `duration_seconds`. Increase the camera distance when manually increasing count.
 The automated runner fits the camera for each population.
 
+For a five-minute crowd demo, run from the repository root after building Release:
+
+```sh
+python3 scripts/benchmark_3d_visible.py \
+  --binary build/linux-release/demi \
+  --output "build/crowd-demo-$(date +%Y%m%d-%H%M%S)" \
+  --counts 1024 --workloads animated --skinning gpu \
+  --vsync on --seconds 300 \
+  --width 1920 --height 1080
+```
+
+Use `--counts 2000` for 2,000 characters (the runner's current character limit).
+For 1440p, use `--width 2560 --height 1440`. This prepares a temporary project,
+fits the camera, and leaves the authored example unchanged. Output directories
+must not already exist; the timestamp avoids overwriting earlier captures.
+The GPU option verifies the supported Vulkan skinning path. Run only one demo
+at a time. This is a visual demonstration, not a guaranteed frame-rate target.
+
 This reuses the existing licensed UAL1 character, with independent walk phases
 and speeds. No new model downloads/copies are needed in the repository. The
 frozen control keeps the same skin, poses, materials, draw path and placement;
@@ -44,7 +62,7 @@ dynamic bodies; the shared floor now has an authored static collider.
 
 ```sh
 SDL_VIDEO_DRIVER=x11 python3 scripts/benchmark_3d_visible.py \
-  --binary build/linux-release/demi --output build/animation-crowd-run \
+  --binary build/linux-release/demi --output "build/animation-crowd-$(date +%Y%m%d-%H%M%S)" \
   --counts 16 64 --workloads animated frozen --vsync off \
   --seconds 12 --warmup-seconds 2 --width 1920 --height 1080
 ```

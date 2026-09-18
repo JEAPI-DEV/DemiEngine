@@ -4,8 +4,12 @@
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
+#include "demi/assets/MasonryGeneration.h"
+#include "demi/assets/AssetHash.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 
 #include <algorithm>
+#include <fstream>
 
 namespace demi::runtime {
 namespace {
@@ -57,11 +61,12 @@ void applyRootPosition(Entity &entity, const Vec3 &position,
 void RuntimePrefabService::configure(std::filesystem::path projectDirectory) {
   projectDirectory_ = std::move(projectDirectory);
   instances_.clear();
+  templates_.clear();
 }
 
 PrefabInstanceResult RuntimePrefabService::build(
     const std::string_view prefab,
-    const PrefabInstantiateOptions &options) const {
+    const PrefabInstantiateOptions &options, nlohmann::json &expanded) {
   PrefabInstanceResult result;
   if (projectDirectory_.empty() || options.id.empty()) {
     result.diagnostics.push_back(prefabError(
@@ -69,20 +74,49 @@ PrefabInstanceResult RuntimePrefabService::build(
         "Runtime prefab instantiate requires a configured project and id."));
     return result;
   }
+  std::string cacheKey;
+  const auto path=composition::resolvePrefabReference(projectDirectory_/"demi.project.json",prefab);
+  if (path && options.overrides.empty()) {
+    std::ifstream file(*path);
+    const auto source=nlohmann::json::parse(file,nullptr,false);
+    const auto safe=[](const auto &self,const nlohmann::json &value)->bool {
+      if (value.is_object()) {
+        if (value.contains("instances") || value.contains("prefab") || value.contains("fracture")) return false;
+        if (value.contains("components")) {
+          const auto &c=value["components"];
+          if (c.contains("Fracture3D") && c.contains("MeshRenderer") &&
+              c["MeshRenderer"].contains("model") && c["Fracture3D"].value("collider","source")!="box") return false;
+        }
+        for (const auto &[key,child]:value.items()) if (!self(self,child)) return false;
+      } else if (value.is_array()) for (const auto &child:value) if (!self(self,child)) return false;
+      return true;
+    };
+    if (assets::hasMasonryAuthoring(source) && safe(safe,source))
+      if (auto hash=assets::hashFile(*path)) cacheKey=std::string(prefab)+"|"+*hash;
+  }
   const nlohmann::json instance = {
-      {"id", options.id},
+      {"id", cacheKey.empty()?options.id:"template"},
       {"prefab", prefab},
       {"overrides", options.overrides},
   };
-  const composition::ExpansionResult expansion =
-      composition::expandPrefabInstance(projectDirectory_ / "demi.project.json",
-                                        instance);
-  result.diagnostics = expansion.diagnostics;
-  if (!expansion.document)
-    return result;
+  if (!cacheKey.empty() && templates_.contains(cacheKey)) {
+    expanded=composition::rebasePrefabEntities(templates_.at(cacheKey),"template",options.id);
+  } else {
+    ProfileScope preparation("Prefab.prepare_template");
+    const auto expansion=composition::expandPrefabInstance(projectDirectory_/"demi.project.json",instance);
+    result.diagnostics=expansion.diagnostics;
+    if (!expansion.document) return result;
+    expanded=*expansion.document;
+    if (!cacheKey.empty()) {
+      if (templates_.size()>=16) templates_.erase(templates_.begin());
+      templates_[cacheKey]=expanded;
+      RuntimeProfiler::setGauge("Prefab.template_cache_entries",double(templates_.size()));
+      expanded=composition::rebasePrefabEntities(std::move(expanded),"template",options.id);
+    }
+  }
 
   result.instanceId = options.id;
-  for (const nlohmann::json &json : *expansion.document)
+  for (const nlohmann::json &json : expanded)
     result.entityIds.push_back(json.value("id", std::string{}));
   return result;
 }
@@ -90,22 +124,18 @@ PrefabInstanceResult RuntimePrefabService::build(
 PrefabInstanceResult RuntimePrefabService::instantiate(
     World &world, WorldCommandBuffer &commands, std::string prefab,
     PrefabInstantiateOptions options) {
+  ProfileScope instantiation("Prefab.instantiate");
   if (options.pooled)
     for (auto &[instanceId, instance] : instances_) {
       if (instance.prefab == prefab && instance.available) {
         options.id = instanceId;
-        PrefabInstanceResult result = build(prefab, options);
+        nlohmann::json expansion;
+        PrefabInstanceResult result = build(prefab, options, expansion);
         if (!result)
           return result;
-        const composition::ExpansionResult expansion =
-            composition::expandPrefabInstance(
-                projectDirectory_ / "demi.project.json",
-                {{"id", options.id},
-                 {"prefab", prefab},
-                 {"overrides", options.overrides}});
         std::vector<Entity> entities;
         std::string error;
-        for (const nlohmann::json &json : *expansion.document) {
+        for (const nlohmann::json &json : expansion) {
           auto entity = RuntimeObjectModel::buildEntity(json, error);
           if (!entity) {
             result.diagnostics.push_back(
@@ -134,7 +164,8 @@ PrefabInstanceResult RuntimePrefabService::instantiate(
       }
     }
 
-  PrefabInstanceResult result = build(prefab, options);
+  nlohmann::json expansion;
+  PrefabInstanceResult result = build(prefab, options, expansion);
   if (!result)
     return result;
   if (instances_.contains(options.id)) {
@@ -144,15 +175,9 @@ PrefabInstanceResult RuntimePrefabService::instantiate(
         "Prefab instance already exists: " + options.id));
     return result;
   }
-  const composition::ExpansionResult expansion =
-      composition::expandPrefabInstance(
-          projectDirectory_ / "demi.project.json",
-          {{"id", options.id},
-           {"prefab", prefab},
-           {"overrides", options.overrides}});
   std::vector<Entity> entities;
   std::string error;
-  for (const nlohmann::json &json : *expansion.document) {
+  for (const nlohmann::json &json : expansion) {
     auto entity = RuntimeObjectModel::buildEntity(json, error);
     if (!entity) {
       result.instanceId.clear();
@@ -211,7 +236,7 @@ bool RuntimePrefabService::release(World &world, WorldCommandBuffer &commands,
     return true;
   }
   for (const std::string &id : found->second.entityIds)
-    if (!commands.destroy(world, id))
+    if ((findEntity(world,id) || commands.pendingEntity(id)) && !commands.destroy(world, id))
       return false;
   instances_.erase(found);
   return true;

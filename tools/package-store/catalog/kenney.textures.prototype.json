@@ -1,0 +1,22 @@
+{
+  "format_version": 1,
+  "title": "Kenney Prototype Textures",
+  "description": "78 ready-to-use prototype textures in six colors. Original CC0 artwork by Kenney, packaged for DemiEngine with stable asset IDs and automatic asset discovery. Assign a texture directly to a mesh or 2D renderer; no manual importing or Lua setup required. Includes original previews and license.",
+  "publisher": "DemiEngine (artwork by Kenney)",
+  "license": "CC0-1.0",
+  "kind": "asset",
+  "category": "3D",
+  "price": 0,
+  "images": [
+    "../../../packages/sources/kenney.textures.prototype/Preview.png",
+    "../../../packages/sources/kenney.textures.prototype/Sample.png"
+  ],
+  "tags": [
+    "textures",
+    "prototype",
+    "kenney",
+    "cc0",
+    "2d",
+    "3d"
+  ]
+}

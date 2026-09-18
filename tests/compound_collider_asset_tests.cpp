@@ -58,6 +58,16 @@ void parsing() {
   expect(parsed && parsed->points.empty() && parsed->parts.size() == 3 &&
              parsed->minimum[0] == -2 && parsed->maximum[1] == 4,
          "Compound bounds/parts invalid");
+  auto dense = arch();
+  dense["parts"][0]["density"] = 7850;
+  const auto densityParsed = assets::parseColliderShapeAsset(dense, error);
+  expect(densityParsed && densityParsed->parts[0].density == 7850 &&
+             densityParsed->parts[1].density == 1000,
+         "Compound density/default lost");
+  for (const Json value : {Json(0), Json(-1), Json(1000001), Json("steel"), Json(nullptr)}) {
+    dense["parts"][0]["density"] = value;
+    expect(!assets::parseColliderShapeAsset(dense, error), "Invalid density accepted");
+  }
   for (int test = 0; test < 9; ++test) {
     auto bad = arch();
     switch (test) {

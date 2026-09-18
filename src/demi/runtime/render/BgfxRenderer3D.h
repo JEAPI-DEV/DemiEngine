@@ -11,11 +11,13 @@
 #include "demi/runtime/render/bgfx3d/BgfxCameraFrame3D.h"
 #include "demi/runtime/render/bgfx3d/DeformedMeshCache3D.h"
 #include "demi/runtime/render/bgfx3d/GpuMesh3D.h"
+#include "demi/runtime/render/bgfx3d/ReliefMeshCache3D.h"
 #include "demi/runtime/render/bgfx3d/GpuSkinnedMesh3D.h"
 #include "demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PostProcessRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveCanvas3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
+#include "demi/runtime/render/bgfx3d/SkyRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/VisualAnimationBudget3D.h"
 #include "demi/runtime/scene/model/World.h"
 
@@ -97,6 +99,7 @@ private:
   ParticleBillboardRenderer3D particleRenderer_;
   BgfxRenderer2D overlay_;
   TextureLibrary2D textures_;
+  SkyRenderer3D sky_;
   MaterialLibrary materials_;
   ProgramHandle meshProgram_;
   ProgramHandle directionalMeshProgram_, directionalInstancedProgram_, directionalSkinnedProgram_;
@@ -123,6 +126,7 @@ private:
   std::unordered_map<std::string, std::unique_ptr<CachedMesh>> primitiveMeshes_;
   std::unordered_map<std::string, std::unique_ptr<CachedMesh>> modelMeshes_;
   DeformedMeshCache3D deformedMeshes_;
+  ReliefMeshCache3D reliefMeshes_;
   std::unordered_map<std::string, assets::GltfSkinnedModel3D> animatedModels_;
   std::unordered_map<std::string, std::string> modelTextures_;
   std::unordered_map<std::string, bool> modelUnlit_;

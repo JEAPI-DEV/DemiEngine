@@ -1,7 +1,10 @@
 #include "demi/assets/FractureAuthoring.h"
 #include "demi/assets/FracturePrefab.h"
+#include "demi/assets/MasonryGeneration.h"
 #include "demi/runtime/scene/RuntimeObjectModel.h"
 #include "demi/runtime/scene/components/3dcomponents/Rigidbody3DComponent.h"
+#include <algorithm>
+#include <cmath>
 #include <map>
 #include <set>
 #include <stdexcept>
@@ -45,7 +48,9 @@ bool hasFractureAuthoring(const J &value) {
 }
 
 J compileEntityFractures(const std::filesystem::path &project,
-                         const J &entities, const std::string &instancePrefix) {
+                         const J &authoredEntities, const std::string &instancePrefix) {
+  std::set<std::string> generatedIds;
+  const J entities = expandMasonry(authoredEntities, false, &generatedIds);
   if (!hasFractureAuthoring(entities))
     return entities;
   J output = entities;
@@ -91,6 +96,8 @@ J compileEntityFractures(const std::filesystem::path &project,
             "Fracture3D requires Destructible3D on itself or an ancestor: " +
                 id);
     auto options = entity["components"]["Fracture3D"];
+    if (options.contains("density") && options["density"].is_null())
+      options.erase("density");
     if (options.contains("anchor_below") && options["anchor_below"].is_null())
       options.erase("anchor_below");
     if (options.value("interior_material", "").empty())
@@ -113,23 +120,22 @@ J compileEntityFractures(const std::filesystem::path &project,
                 rootId);
     require(rootComponents.contains("Transform3D"),
             "Fracture assembly requires Transform3D: " + rootId);
+    // Resolve selected ancestor chains once, not once per source entity.
+    // Large procedural regions otherwise repeat the same JSON/string walks N² times.
+    std::set<std::string> neededIds{rootId};
+    for (const auto &[selected, options] : objects.items()) {
+      std::string cursor = instancePrefix.empty() ? selected : instancePrefix + "/" + selected;
+      std::set<std::string> visited;
+      while (indices.contains(cursor) && visited.insert(cursor).second) {
+        neededIds.insert(cursor);
+        if (cursor == rootId) break;
+        cursor = parent(entities[indices.at(cursor)]);
+      }
+    }
     J inputs = J::array();
     for (const auto &source : entities) {
       const auto sourceId = source["id"].get<std::string>();
-      // Include selected geometry and its transform ancestors only.
-      bool needed = sourceId == rootId;
-      for (const auto &[selected, options] : objects.items()) {
-        std::string cursor =
-            instancePrefix.empty() ? selected : instancePrefix + "/" + selected;
-        std::set<std::string> visited;
-        while (indices.contains(cursor) && visited.insert(cursor).second) {
-          needed |= cursor == sourceId;
-          if (cursor == rootId)
-            break;
-          cursor = parent(entities[indices.at(cursor)]);
-        }
-      }
-      if (!needed)
+      if (!neededIds.contains(sourceId))
         continue;
       auto input = source;
       input["id"] = localId(sourceId);
@@ -143,12 +149,17 @@ J compileEntityFractures(const std::filesystem::path &project,
             localId(c["Transform3D"]["parent"].get<std::string>());
       inputs.push_back(std::move(input));
     }
+    const bool densityBased = std::ranges::any_of(objects, [](const J &object) {
+      return object.contains("density");
+    });
+    const auto authoredBody = rootComponents.value("Rigidbody3D", J::object());
     J settings = {{"generator_version", config.value("generator_version", 1)},
                   {"seed", config.value("seed", std::uint32_t(1))},
                   {"max_bodies", config.value("max_bodies", 64)},
-                  {"objects", objects},
-                  {"mass", rootComponents.value("Rigidbody3D", J::object())
-                      .value("mass", double(runtime::Rigidbody3DComponent{}.mass))}};
+                  {"objects", objects}};
+    if (authoredBody.contains("mass") || !densityBased)
+      settings["mass"] = authoredBody.value(
+          "mass", double(runtime::Rigidbody3DComponent{}.mass));
     const auto generatedData = compileFracturePrefab(project, inputs, settings);
     auto compiled = generatedData["entities"];
     std::map<std::string, std::string> remap{{"body", rootId}};
@@ -174,7 +185,16 @@ J compileEntityFractures(const std::filesystem::path &project,
         require(body.value("body_type", "dynamic") != "kinematic",
                 "Kinematic fracture assemblies are not supported: " + rootId);
         body["body_type"] = generatedType;
-        body["mass"] = settings["mass"];
+        double mass = c["Rigidbody3D"]["mass"].get<double>();
+        if (densityBased && !authoredBody.contains("mass")) {
+          const auto scale = rootComponents["Transform3D"].value(
+              "scale", J::array({1, 1, 1}));
+          mass *= std::abs(scale[0].get<double>() * scale[1].get<double>() *
+                           scale[2].get<double>());
+          require(std::isfinite(mass) && mass > 0 && mass < 1e12,
+                  "Scaled density-derived mass is outside supported limits");
+        }
+        body["mass"] = mass;
         for (const char *collider :
              {"BoxCollider3D", "SphereCollider3D", "CapsuleCollider3D",
               "ConvexCollider3D", "ModelCollider3D"})
@@ -231,6 +251,10 @@ J compileEntityFractures(const std::filesystem::path &project,
       output.push_back(std::move(generated));
     }
   }
+  std::erase_if(output.get_ref<J::array_t &>(), [&](const J &entity) {
+    return generatedIds.contains(entity.at("id").get<std::string>()) &&
+           !entity["components"].contains("MeshRenderer");
+  });
   return output;
 }
 } // namespace demi::assets

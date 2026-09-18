@@ -21,6 +21,7 @@ std::vector<std::byte> readRenderAssetBytes(const std::filesystem::path &path) {
 TextureSampling2D textureSampling2D(const AssetManifest &asset,
                                     const TextureFilter defaultFilter) {
   TextureSampling2D result{.filter = defaultFilter};
+  result.mipmaps = asset.textureSettings.mipmaps;
   if (asset.textureSettings.filter == "nearest")
     result.filter = TextureFilter::Nearest;
   else if (asset.textureSettings.filter == "bilinear" ||

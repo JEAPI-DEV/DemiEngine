@@ -1,4 +1,5 @@
 #include "demi/runtime/render/backend/TextureLibrary2D.h"
+#include "demi/runtime/render/backend/ImageMipmaps2D.h"
 
 #include <utility>
 
@@ -27,11 +28,13 @@ bool TextureLibrary2D::upload(
     return false;
   }
   const ImageData2D &uploadImage = image;
+  const auto mipChain = sampling.mipmaps ? imageMipChain2D(image) : std::vector<std::byte>{};
   const TextureHandle replacement =
       resources_.createTexture(TextureCreateInfo{.width = uploadImage.width,
                                                  .height = uploadImage.height,
                                                  .format = TextureFormat::RGBA8,
-                                                 .data = uploadImage.rgba,
+                                                 .data = sampling.mipmaps ? std::span<const std::byte>(mipChain) : std::span<const std::byte>(uploadImage.rgba),
+                                                 .generateMipmaps = sampling.mipmaps,
                                                  .filter = sampling.filter,
                                                  .wrap = sampling.wrap,
                                                  .debugName = id},

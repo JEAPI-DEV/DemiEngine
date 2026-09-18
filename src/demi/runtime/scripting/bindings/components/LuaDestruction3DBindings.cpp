@@ -1,5 +1,6 @@
 #include "demi/runtime/scripting/bindings/components/LuaDestruction3DBindings.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/scripting/bindings/LuaJsonBridge.h"
 #include <sol/sol.hpp>
 #include <stdexcept>
 namespace demi::runtime {
@@ -90,6 +91,21 @@ void LuaDestruction3DBindingModule::install(LuaScriptHost &host,
     result["bodies"] = value.bodies;
     result["parts"] = sol::as_table(value.parts);
     return result;
+  });
+  api.set_function("checkpoint", [&host,state](const std::string &entity) {
+    std::string error;
+    const auto value=host.destructionCheckpoint3D(entity,error);
+    return std::tuple{jsonToLuaObject(state,value),error};
+  });
+  api.set_function("restore", [&host](const std::string &entity,sol::table value) {
+    std::string error;
+    const bool ok=host.restoreDestruction3D(entity,luaObjectToJson(value),error);
+    return std::tuple{ok,error};
+  });
+  api.set_function("retire_debris", [&host](const std::string &entity) {
+    std::string error;
+    const bool ok=host.retireDestructionDebris3D(entity,error);
+    return std::tuple{ok,error};
   });
 }
 } // namespace demi::runtime

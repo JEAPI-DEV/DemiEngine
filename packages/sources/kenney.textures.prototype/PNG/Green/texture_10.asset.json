@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://kenney/prototype/green/texture_10",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "texture_10.png",
+  "source_hash": "fnv1a64:0c51f7449e720a6e",
+  "type": "Texture2D"
+}

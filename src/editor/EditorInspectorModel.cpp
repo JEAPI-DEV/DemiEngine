@@ -80,6 +80,8 @@ editorReferenceChoices(const runtime::ComponentReferenceKind kind,
          loadAssetRegistry(projectDirectory).assets) {
       if (componentName == "ModelCollider3D" && asset.type != "Collider3D")
         continue;
+      if ((componentName == "Masonry3D" || componentName == "SurfaceRelief3D" || componentName == "Environment3D") && asset.type != "Texture2D")
+        continue;
       choices.push_back({.id = asset.id, .label = asset.id});
     }
   } else if (kind == runtime::ComponentReferenceKind::Entity) {

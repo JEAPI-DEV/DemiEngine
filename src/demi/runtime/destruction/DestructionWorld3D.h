@@ -3,6 +3,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <nlohmann/json.hpp>
 #include "demi/runtime/destruction/DestructionImpact3D.h"
 
 namespace demi::runtime {
@@ -30,6 +31,11 @@ public:
   bool impact(World &world, PhysicsWorld3D &physics, const DestructionImpact3D &impact,
               std::size_t &affectedAssemblies, std::string &error);
   DestructionState3D state(const std::string &entity) const;
+  nlohmann::json checkpoint(const World &world, const std::string &entity,
+                            std::string &error) const;
+  bool restore(const std::string &entity, const nlohmann::json &checkpoint,
+               std::string &error);
+  bool retireDebris(const std::string &entity, std::string &error);
 
 private:
   struct Impl;

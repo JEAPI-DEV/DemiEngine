@@ -17,6 +17,10 @@
 ---@class Destruction3DService
 ---Destructible3D assemblies and Fracture3D mesh components generate mappings and ModelCollider3D.inline_geometry;
 ---gameplay should not maintain these generated collider payloads manually.
+---Fracture3D.density is authored in kg/m^3; generated bodies preserve weighted
+---mass/inertia. An explicit assembly Rigidbody3D.mass overrides the total.
+---Fracture3D.collider="box" with pieces=1 preserves a detailed unit-box visual
+---and uses a simple size-scaled collision proxy; it does not slice that visual.
 local Destruction3D = {}
 ---Uses actual collider parts and linear surface-distance falloff. Budgets are
 ---shared, not multiplied per fragment. energy_per_health converts joules to
@@ -42,5 +46,25 @@ function Destruction3D.damage_part(entity_id, part_id, damage) end
 ---@param entity_id string
 ---@return Destruction3DState
 function Destruction3D.state(entity_id) end
+
+---Returns a versioned geometry-free checkpoint of committed damage and fragment
+---poses. Fails while commands are queued. Save this through demi.save if desired.
+---@param entity_id string
+---@return table|nil checkpoint
+---@return string error
+function Destruction3D.checkpoint(entity_id) end
+---Queues checkpoint restoration on a fresh attached assembly. Geometry hash,
+---part identities, numeric bounds and partition/support are checked. Poll state.
+---@param entity_id string
+---@param checkpoint table
+---@return boolean accepted
+---@return string error
+function Destruction3D.restore(entity_id, checkpoint) end
+---Opt-in cleanup of detached dynamic groups at the fixed-step boundary.
+---Supported geometry remains; checkpoints remember retired debris as missing.
+---@param entity_id string
+---@return boolean accepted
+---@return string error
+function Destruction3D.retire_debris(entity_id) end
 
 return Destruction3D

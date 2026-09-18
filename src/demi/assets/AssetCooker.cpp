@@ -2,6 +2,7 @@
 
 #include "demi/assets/AssetCookGraph.h"
 #include "demi/assets/FractureAuthoring.h"
+#include "demi/assets/MasonryGeneration.h"
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetImporterRegistry.h"
 #include "demi/assets/AssetRegistry.h"
@@ -266,7 +267,7 @@ Diagnostics cookProject(const CookRequest &request) {
   diagnostics.insert(diagnostics.end(), summary.diagnostics.begin(),
                      summary.diagnostics.end());
   const auto projectDirectory = absoluteProject.parent_path();
-  AssetRegistry registry = loadAssetRegistry(projectDirectory);
+  AssetRegistry registry = loadAuthoredAssetRegistry(projectDirectory);
   LockedPackageContent packageContent =
       loadLockedPackageContent(projectDirectory, request.platform, &registry);
   diagnostics.insert(diagnostics.end(), packageContent.diagnostics.begin(),
@@ -365,7 +366,7 @@ Diagnostics cookProject(const CookRequest &request) {
     if (!code && (source.filename().string().ends_with(".prefab.json") || source.filename().string().ends_with(".scene.json"))) {
       std::ifstream input(source);
       const auto sourceJson=nlohmann::json::parse(input,nullptr,false);
-      if(sourceJson.is_object() && (sourceJson.contains("fracture") || hasFractureAuthoring(sourceJson))) {
+      if(sourceJson.is_object() && !hasMasonryAuthoring(sourceJson) && (sourceJson.contains("fracture") || hasFractureAuthoring(sourceJson))) {
         const auto baked=source.filename().string().ends_with(".prefab.json")
             ? runtime::composition::bakeFracturePrefab(source)
             : runtime::composition::expandScene(source, sourceJson);

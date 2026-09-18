@@ -3,11 +3,13 @@
 #include "demi/runtime/scene/model/World.h"
 
 #include <array>
+#include <string>
 #include <string_view>
 
 namespace demi::runtime::render {
 
 struct SceneLighting3D {
+  std::string skyTexture;
   std::array<float, 4> direction{-0.4F, -1.0F, -0.3F, 0.0F};
   std::array<float, 4> directionalColor{1.0F, 1.0F, 1.0F, 1.0F};
   std::array<float, 4> ambient{1.0F, 1.0F, 1.0F, 1.0F};

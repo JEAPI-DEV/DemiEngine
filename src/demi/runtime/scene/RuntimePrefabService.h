@@ -7,6 +7,7 @@
 #include <nlohmann/json.hpp>
 
 #include <filesystem>
+#include <map>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -52,10 +53,12 @@ private:
   };
 
   [[nodiscard]] PrefabInstanceResult build(
-      std::string_view prefab, const PrefabInstantiateOptions &options) const;
+      std::string_view prefab, const PrefabInstantiateOptions &options,
+      nlohmann::json &expanded);
 
   std::filesystem::path projectDirectory_;
   std::unordered_map<std::string, Instance> instances_;
+  std::map<std::string,nlohmann::json> templates_; // Bounded, project-local.
 };
 
 } // namespace demi::runtime

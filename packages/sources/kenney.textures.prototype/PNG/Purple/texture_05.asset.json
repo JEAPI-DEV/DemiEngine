@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://kenney/prototype/purple/texture_05",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "texture_05.png",
+  "source_hash": "fnv1a64:ca7e624b0a8dc0a6",
+  "type": "Texture2D"
+}

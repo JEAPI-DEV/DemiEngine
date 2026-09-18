@@ -1,5 +1,6 @@
 #include "demi/runtime/destruction/DestructionWorld3D.h"
 #include "demi/runtime/destruction/ColliderFractureFamily3D.h"
+#include "demi/runtime/destruction/DestructionCheckpoint3D.h"
 #include "demi/runtime/physics/PhysicsWorld3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/WorldQueries.h"
@@ -22,6 +23,7 @@ struct FragmentOwner {
 struct GroupBody {
   DestructionGroup3D group;
   std::string body;
+  bool retired = false;
 };
 struct PartImpulse {
   std::string part;
@@ -48,6 +50,8 @@ struct DestructionWorld3D::Impl {
   struct Assembly {
     std::uint64_t key = 0;
     ColliderAsset3D asset;
+    std::string geometryHash;
+    Vec3 scale;
     std::string sourceAsset;
     std::unique_ptr<BlastFamily3D> family;
     std::map<std::string, std::string> visuals;
@@ -57,12 +61,17 @@ struct DestructionWorld3D::Impl {
     std::vector<PartImpulse> pendingImpulses;
     DestructionState3D state;
     float totalVolume = 0;
+    std::map<std::string, double> massWeights;
+    std::map<std::string,float> appliedBonds, appliedAnchors;
+    std::optional<DestructionCheckpoint3D> restore;
+    bool retireRequested = false;
     std::set<std::string> privateAssets;
   };
   std::map<std::string, Assembly> assemblies;
   std::uint64_t nextKey = 1;
 
   Assembly *find(const std::string &entity) {
+    if (entity.empty()) return nullptr;
     if (auto it = assemblies.find(entity); it != assemblies.end())
       return &it->second;
     for (auto &[id, assembly] : assemblies)
@@ -124,16 +133,74 @@ struct DestructionWorld3D::Impl {
     auto family = createColliderFractureFamily3D(*asset, error);
     require(bool(family), error);
     assembly.asset = *asset;
+    assembly.scale=transform->scale;
+    assembly.geometryHash=destructionGeometryHash(*asset)+":"+
+        nlohmann::json({transform->scale.x,transform->scale.y,transform->scale.z,body->mass}).dump();
     assembly.sourceAsset = collider->asset;
     assembly.visuals = config->parts;
-    for (const auto &chunk : family->chunks())
+    for (const auto &chunk : family->chunks()) {
       assembly.totalVolume += chunk.volume;
+      const auto part =
+          std::ranges::find(asset->parts, chunk.id, &ColliderPart3D::id);
+      require(part != asset->parts.end() && std::isfinite(part->density) &&
+                  part->density >= 0.001F && part->density <= 1000000,
+              "Invalid fracture density");
+      assembly.massWeights.emplace(chunk.id,
+                                   double(chunk.volume) * part->density);
+    }
     require(std::isfinite(assembly.totalVolume) && assembly.totalVolume > 0,
             "Invalid fracture volume");
     assembly.groups.push_back({family->groups().front(), root.id});
     assembly.family = std::move(family);
     assembly.state.status = "ready";
     assembly.state.bodies = 1;
+  }
+
+  bool retire(World &world, PhysicsWorld3D &physics, Assembly &assembly) {
+    std::vector<std::string> sources;
+    std::set<std::string> removed;
+    for (const auto &group : assembly.groups)
+      if (!group.retired && !group.group.anchored &&
+          group.body != assembly.state.root) {
+        sources.push_back(group.body);
+        removed.insert(group.body);
+      }
+    if (sources.empty())
+      return false;
+    World candidate;
+    candidate.entities = world.entities;
+    candidate.colliderAssets3D = world.colliderAssets3D;
+    auto privateAssets = assembly.privateAssets;
+    for (const auto &id : sources) {
+      const auto *entity = findEntity(world, id);
+      require(entity && entity->component<ModelCollider3DComponent>(),
+              "Retired body unavailable");
+      const auto asset = entity->component<ModelCollider3DComponent>()->asset;
+      candidate.colliderAssets3D.erase(asset);
+      privateAssets.erase(asset);
+    }
+    for (;;) {
+      const auto before = removed.size();
+      for (const auto &entity : candidate.entities) {
+        const auto *transform = entity.component<Transform3DComponent>();
+        if (transform && removed.contains(transform->parent))
+          removed.insert(entity.id);
+      }
+      if (removed.size() == before)
+        break;
+    }
+    std::erase_if(candidate.entities, [&](const Entity &entity) {
+      return removed.contains(entity.id);
+    });
+    std::string error;
+    require(physics.replaceBodies(world, candidate, sources, {}, error), error);
+    for (auto &group : assembly.groups)
+      if (removed.contains(group.body)) {
+        group.retired = true;
+        group.body.clear();
+      }
+    assembly.privateAssets.swap(privateAssets);
+    return true;
   }
 
   bool apply(World &world, PhysicsWorld3D &physics, Assembly &assembly) {
@@ -156,14 +223,30 @@ struct DestructionWorld3D::Impl {
     std::vector<AnchorDamage3D> anchors;
     for (const auto &[id, damage] : assembly.pendingAnchors)
       anchors.push_back({id, damage});
-    if (commands.empty() && anchors.empty())
+    if (commands.empty() && anchors.empty() && !assembly.restore)
       return false;
-    const auto token = assembly.family->stage(commands, anchors);
+    const auto token = commands.empty() && anchors.empty() ? 0 : assembly.family->stage(commands, anchors);
     try {
-      const auto &partition = assembly.family->stagedGroups(token);
-      require(partition.size() <= static_cast<std::size_t>(config->maxBodies),
+      const auto &partition = token ? assembly.family->stagedGroups(token) : assembly.family->groups();
+      if (assembly.restore) {
+        require(assembly.restore->groups.size()==partition.size(),"Checkpoint partition mismatch");
+        for (const auto &group:partition) {
+          auto parts=group.chunks; std::ranges::sort(parts);
+          const auto saved=std::ranges::find(assembly.restore->groups,parts,&DestructionGroupCheckpoint3D::parts);
+          require(saved!=assembly.restore->groups.end() && !(group.anchored && saved->retired),
+                  "Checkpoint partition/support mismatch");
+        }
+      }
+      const auto liveGroups=std::ranges::count_if(partition,[&](const DestructionGroup3D &group) {
+        if (assembly.restore) {
+          auto parts=group.chunks; std::ranges::sort(parts);
+          return !std::ranges::find(assembly.restore->groups,parts,&DestructionGroupCheckpoint3D::parts)->retired;
+        }
+        return std::ranges::none_of(assembly.groups,[&](const GroupBody &old){return old.retired && old.group==group;});
+      });
+      require(liveGroups <= config->maxBodies,
               "Destruction max_bodies budget exceeded");
-      if (partition == assembly.family->groups()) {
+      if (!assembly.restore && partition == assembly.family->groups()) {
         require(assembly.family->commit(token), "Stale destruction token");
         return false;
       }
@@ -177,7 +260,7 @@ struct DestructionWorld3D::Impl {
       std::map<std::string, std::string> parentForPart;
       for (const auto &old : assembly.groups) {
         const auto unchanged = std::ranges::find(partition, old.group);
-        if (unchanged != partition.end())
+        if (unchanged != partition.end() && !assembly.restore)
           continue;
         const auto *entity = findEntity(world, old.body);
         const auto *transform =
@@ -213,7 +296,7 @@ struct DestructionWorld3D::Impl {
             std::ranges::find_if(assembly.groups, [&](const GroupBody &old) {
               return old.group == group;
             });
-        if (unchanged != assembly.groups.end()) {
+        if (unchanged != assembly.groups.end() && !assembly.restore) {
           nextGroups.push_back(*unchanged);
           continue;
         }
@@ -223,6 +306,22 @@ struct DestructionWorld3D::Impl {
             });
         require(source != assembly.groups.end(),
                 "Fracture partition lost its physical owner");
+        const DestructionGroupCheckpoint3D *saved = nullptr;
+        if (assembly.restore) {
+          auto parts=group.chunks; std::ranges::sort(parts);
+          saved=&*std::ranges::find(assembly.restore->groups,parts,&DestructionGroupCheckpoint3D::parts);
+        }
+        if (saved && saved->retired) {
+          nextGroups.push_back({group,{},true});
+          for (const auto &part:group.chunks) {
+            const auto visual=assembly.visuals.at(part);
+            std::erase_if(candidate.entities,[&](const Entity &entity) {
+              const auto *t=entity.component<Transform3DComponent>();
+              return entity.id==visual || (t && t->parent==visual);
+            });
+          }
+          continue;
+        }
         const auto *oldEntity = findEntity(world, source->body);
         const auto *oldTransform = oldEntity->component<Transform3DComponent>();
         const std::string id = rootId + "/fracture/" + group.chunks.front();
@@ -235,13 +334,13 @@ struct DestructionWorld3D::Impl {
         geometry.resident =
             false; // Native users retain it; scene reset retires it.
         geometry.revision = assembly.family->revision() + 1;
-        float volume = 0;
+        double massWeight = 0;
         for (const auto &part : assembly.asset.parts)
           if (contains(group, part.id))
             geometry.parts.push_back(part);
         for (const auto &chunk : assembly.family->chunks())
           if (contains(group, chunk.id))
-            volume += chunk.volume;
+            massWeight += assembly.massWeights.at(chunk.id);
         // Bounds are shared asset-space; preserve each visual's existing local
         // pose.
         Vec3 minimum{std::numeric_limits<float>::max(),
@@ -279,17 +378,22 @@ struct DestructionWorld3D::Impl {
         auto body = *oldEntity->component<Rigidbody3DComponent>();
         require(body.bodyEnabled && body.bodyType != "kinematic",
                 "Fracture source must be enabled and non-kinematic");
-        float sourceVolume = 0;
+        double sourceMassWeight = 0;
         for (const auto &chunk : assembly.family->chunks())
           if (contains(source->group, chunk.id))
-            sourceVolume += chunk.volume;
+            sourceMassWeight += assembly.massWeights.at(chunk.id);
         body.bodyType = group.anchored ? "static" : "dynamic";
-        body.mass *= volume / sourceVolume;
+        body.mass *= massWeight / sourceMassWeight;
         body.bodyEnabled = body.awake = true;
+        if (saved) {
+          auto *transform=fragment.component<Transform3DComponent>();
+          transform->position=saved->position; transform->rotation=saved->rotation;
+          body.velocity=saved->velocity; body.angularVelocity=saved->angularVelocity;
+        }
         fragment.setComponent(std::move(body));
         fragment.setComponent(FragmentOwner{rootId, assembly.key});
         candidate.entities.push_back(std::move(fragment));
-        replacements.push_back({id, source->body});
+        replacements.push_back({id, source->body, saved!=nullptr});
         nextGroups.push_back({group, id});
         for (const auto &part : group.chunks)
           parentForPart.emplace(part, id);
@@ -303,12 +407,12 @@ struct DestructionWorld3D::Impl {
           physics.replaceBodies(world, candidate, sources, replacements, error),
           error);
       // Single-thread ownership guarantees this token is still current.
-      (void)assembly.family->commit(token);
+      if (token) (void)assembly.family->commit(token);
       assembly.groups.swap(nextGroups);
       assembly.privateAssets.swap(privateAssets);
       return true;
     } catch (...) {
-      (void)assembly.family->discard(token);
+      if (token) (void)assembly.family->discard(token);
       throw;
     }
   }
@@ -370,7 +474,7 @@ bool DestructionWorld3D::update(World &world, PhysicsWorld3D &physics) {
   for (auto &[id, assembly] : impl_->assemblies) {
     if (!assembly.family ||
         (assembly.pending.empty() && assembly.pendingAnchors.empty() &&
-         assembly.pendingImpulses.empty()))
+         assembly.pendingImpulses.empty() && !assembly.restore && !assembly.retireRequested))
       continue;
     try {
       require(assembly.state.revision != UINT64_MAX,
@@ -402,6 +506,12 @@ bool DestructionWorld3D::update(World &world, PhysicsWorld3D &physics) {
                 "Impact point overflow");
       }
       changed = impl_->apply(world, physics, assembly);
+      const auto record=[](auto &applied,const auto &pending) {
+        for (const auto &[id,amount]:pending)
+          applied[id]=float(std::min(1e30,double(applied[id])+amount));
+      };
+      record(assembly.appliedBonds,assembly.pending);
+      record(assembly.appliedAnchors,assembly.pendingAnchors);
       // No impulse is applied until the entire family's topology proposal
       // commits.
       for (const auto &impulse : impulses) {
@@ -413,10 +523,12 @@ bool DestructionWorld3D::update(World &world, PhysicsWorld3D &physics) {
           (void)physics.addImpulseAtPosition(group->body, impulse.impulse,
                                              impulse.point);
       }
+      if (assembly.retireRequested)
+        changed = impl_->retire(world,physics,assembly) || changed;
       assembly.state.status = "applied";
       assembly.state.error.clear();
       ++assembly.state.revision;
-      assembly.state.bodies = assembly.groups.size();
+      assembly.state.bodies = std::ranges::count_if(assembly.groups,[](const GroupBody &g){return !g.retired;});
     } catch (const std::exception &error) {
       assembly.state.status = "failed";
       assembly.state.error = error.what();
@@ -424,6 +536,8 @@ bool DestructionWorld3D::update(World &world, PhysicsWorld3D &physics) {
     assembly.pending.clear();
     assembly.pendingAnchors.clear();
     assembly.pendingImpulses.clear();
+    assembly.restore.reset();
+    assembly.retireRequested=false;
     break;
   }
   return changed;
@@ -433,8 +547,9 @@ bool DestructionWorld3D::damagePart(const std::string &entity,
                                     std::string &error) {
   error.clear();
   auto *assembly = impl_->find(entity);
-  if (!assembly || !assembly->family) {
-    error = assembly ? assembly->state.error : "No attached destructible";
+  if (!assembly || !assembly->family || assembly->restore) {
+    error = assembly && assembly->restore ? "Destruction is restoring a checkpoint" :
+        (assembly ? assembly->state.error : "No attached destructible");
     return false;
   }
   if (!std::isfinite(amount) || amount <= 0 ||
@@ -492,9 +607,87 @@ DestructionState3D DestructionWorld3D::state(const std::string &entity) const {
     return {.root = {}, .status = "unattached", .error = {}, .parts = {}};
   auto result = assembly->state;
   for (const auto &group : assembly->groups)
+    if (!group.retired)
     for (const auto &part : group.group.chunks)
       result.parts.emplace(part, group.body);
   return result;
+}
+
+nlohmann::json DestructionWorld3D::checkpoint(const World &world,
+                                              const std::string &entity,
+                                              std::string &error) const {
+  error.clear();
+  try {
+    const auto *assembly = impl_->find(entity);
+    require(assembly && assembly->family, "No attached destructible");
+    require(assembly->pending.empty() && assembly->pendingAnchors.empty() &&
+                assembly->pendingImpulses.empty() && !assembly->restore &&
+                !assembly->retireRequested,
+            "Wait for queued destruction before checkpointing");
+    DestructionCheckpoint3D saved;
+    saved.geometryHash = assembly->geometryHash;
+    saved.bonds = assembly->appliedBonds;
+    saved.anchors = assembly->appliedAnchors;
+    for (const auto &group : assembly->groups) {
+      DestructionGroupCheckpoint3D item;
+      item.parts = group.group.chunks;
+      std::ranges::sort(item.parts);
+      item.retired = group.retired;
+      if (!item.retired) {
+        const auto *body = findEntity(world, group.body);
+        require(body && body->component<Transform3DComponent>() &&
+                    body->component<Rigidbody3DComponent>(),
+                "Checkpoint body unavailable");
+        const auto *t = body->component<Transform3DComponent>();
+        require(t->scale.x==assembly->scale.x && t->scale.y==assembly->scale.y &&
+                    t->scale.z==assembly->scale.z,"Reload the scene after changing destructible scale");
+        const auto *b = body->component<Rigidbody3DComponent>();
+        item.position = t->position;
+        item.rotation = t->rotation;
+        item.velocity = b->velocity;
+        item.angularVelocity = b->angularVelocity;
+      }
+      saved.groups.push_back(std::move(item));
+    }
+    return writeDestructionCheckpoint(saved);
+  } catch (const std::exception &exception) {
+    error = exception.what();
+    return nullptr;
+  }
+}
+bool DestructionWorld3D::restore(const std::string &entity,
+                                 const nlohmann::json &json,
+                                 std::string &error) {
+  error.clear();
+  try {
+    auto *assembly = impl_->find(entity);
+    require(assembly && assembly->family && assembly->state.revision == 0 &&
+                assembly->pending.empty() && assembly->pendingAnchors.empty() &&
+                assembly->pendingImpulses.empty() && !assembly->restore &&
+                !assembly->retireRequested,
+            "Restore requires a fresh attached assembly without queued damage");
+    auto saved = readDestructionCheckpoint(json, assembly->asset, assembly->geometryHash);
+    assembly->pending = saved.bonds;
+    assembly->pendingAnchors = saved.anchors;
+    assembly->restore = std::move(saved);
+    assembly->state.status = "queued";
+    return true;
+  } catch (const std::exception &exception) {
+    error = exception.what();
+    return false;
+  }
+}
+bool DestructionWorld3D::retireDebris(const std::string &entity,
+                                      std::string &error) {
+  error.clear();
+  auto *assembly = impl_->find(entity);
+  if (!assembly || !assembly->family || assembly->restore) {
+    error = "No ready destructible for debris cleanup";
+    return false;
+  }
+  assembly->retireRequested = true;
+  assembly->state.status = "queued";
+  return true;
 }
 
 bool DestructionWorld3D::impact(World &world, PhysicsWorld3D &physics,
@@ -536,6 +729,7 @@ bool DestructionWorld3D::impact(World &world, PhysicsWorld3D &physics,
       auto *assembly = impl_->find(contact.entityId);
       if (!assembly || !assembly->family || (target && target != assembly))
         continue;
+      require(!assembly->restore,"Impact target is restoring a checkpoint");
       const auto *root = findEntity(world, assembly->state.root);
       const auto *config =
           root ? root->component<Destructible3DComponent>() : nullptr;

@@ -32,7 +32,8 @@
         "type": "object", "required": ["id", "points"], "additionalProperties": false,
         "properties": {
           "id": { "type": "string", "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$" },
-          "points": { "$ref": "#/$defs/points" }
+          "points": { "$ref": "#/$defs/points" },
+          "density": { "type": "number", "minimum": 0.001, "maximum": 1000000, "default": 1000, "description": "Mass-distribution density in kg/m^3; Rigidbody3D mass sets the total." }
         }
       }
     }

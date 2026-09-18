@@ -1,0 +1,17 @@
+{
+  "format_version":1,
+  "canvas_size":[960,540],
+  "children":[
+    {"id":"title","type":"label","text":"DESTRUCTION WEAPON RANGE","position":[24,18],"font_size":18},
+    {"id":"help","type":"label","text":"Click to capture | TAB cursor | WASD move | LMB hammer | RMB rocket | F refill | R reset","position":[24,46],"font_size":11},
+    {"id":"status","type":"label","text":"Walls stream nearby; damage persists when you return. Aim at the frame.","position":[24,70],"font_size":12},
+    {"id":"ammo","type":"label","text":"Rockets: 8","position":[24,94],"font_size":12},
+    {"id":"stream_stats","type":"label","text":"Nearby walls load at 24 m and unload beyond 32 m","position":[24,116],"font_size":11},
+    {"id":"crosshair","type":"label","text":"+","anchor_min":[0.5,0.5],"anchor_max":[0.5,0.5],"position":[-5,-10],"font_size":20},
+    {"id":"hammer","type":"button","action":"hammer","text":"HAMMER","position":[24,492],"size":[110,32]},
+    {"id":"rocket","type":"button","action":"rocket","text":"ROCKET","position":[142,492],"size":[110,32]},
+    {"id":"reload","type":"button","action":"reload","text":"REFILL","position":[260,492],"size":[100,32]},
+    {"id":"reset","type":"button","action":"reset","text":"RESET","position":[368,492],"size":[100,32]},
+    {"id":"save_world","type":"button","action":"save_world","text":"SAVE","position":[476,492],"size":[100,32]}
+  ]
+}

@@ -14,6 +14,7 @@ struct Entity;
 struct ReplacementBody3D {
   std::string entityId;
   std::string sourceId;
+  bool restoreState = false; // Candidate contains a validated checkpoint pose.
 };
 
 class PhysicsWorld3D {
@@ -66,7 +67,7 @@ public:
   [[nodiscard]] std::optional<PhysicsQueryHit3D>
   castSphere(Vec3 origin, float radius, Vec3 direction, float distance,
              const std::string &layer = {},
-             const std::string &ignoredEntityId = {}) const;
+             const std::string &ignoredEntityId = {}, bool includeTriggers = true) const;
   [[nodiscard]] std::optional<PhysicsQueryHit3D>
   castCapsule(Vec3 origin, float radius, float height, Vec3 direction,
               float distance, const std::string &layer = {},

@@ -28,7 +28,7 @@ not every engine feature or production game.
 | --- | --- |
 | 1 — Baselines/feasibility | Complete: baseline evidence and portable Blast/Jolt integration proof, including physical Android CPU execution. Production and expanded-workload qualification belongs to later milestones. |
 | 2 — Scaling | Complete for the declared reference gate: GPU rig support, temporal/model LOD, desktop 2,000-object 1080p scaling, and physical Android 64/256-object scaling/lifecycle. 1440p was measured; Radeon’s 2,000-object stretch miss remains explicit. See [closure evidence](docs/3d-milestone-2-qualification.md). |
-| 3 — Localized destruction | Component-based convex authoring, native splits and the first spatial energy/impulse API work. General concave/material authoring, finished hammer/rocket gameplay, scheduling and production qualification remain open. |
+| 3 — Localized destruction | Component-based convex authoring, native spatial impacts and the hammer/rocket/steel-door weapon probe work. General concave/material authoring, production weapon/art quality, scheduling and performance qualification remain open. |
 | 4 — Visual/gameplay quality | Third-person mechanics foundation and native visual denting delivered; production animation/visual qualification remains open. |
 | 5 — Structural collapse | Impact-energy telemetry exists; structural connections, stress, fracture-driven collapse, and debris/character policy remain open. |
 | 6 — Landscape/workflow | Asset-service and static distance-LOD foundations plus editor workflow improvements exist; landscape-scale and destruction-specific qualification remain open. |
@@ -322,10 +322,15 @@ Red Faction: Guerrilla is an experience reference, not a verified SDK specificat
   Richer material laws, shielding and automatic collision-driven damage remain open. Keep
   weapon controls/ammunition in reusable gameplay packages. `damage_part` remains
   a low-level test/debug facility, not the primary weapon or authoring workflow.
-- [ ] Replace the arch as the main acceptance demonstration with a reinforced-wall
+- [x] Replace the arch as the main acceptance demonstration with a reinforced-wall
   prefab and shared hammer/rocket behavior. Identical prefab instances must work
   without new Lua code, manual bond lists or per-instance part-name switches.
   The arch may remain a focused compound/transaction regression test.
+  `destruction_weapons_3d_lab` now uses two ordinary doorway prefab instances,
+  a timed hammer and swept rocket package, and an intact releasable steel door.
+  Package and desktop tests cover contact timing, actual flight, trigger filtering,
+  cleanup and native door ownership/collision. Primitive art, scalar resistance
+  and uniform mass distribution remain diagnostic—not production material fidelity.
 
 Structural load failure and full debris policy follow in Milestone 5. Performance
 instrumentation and bounded work apply throughout; a richer demo must not bypass
@@ -368,9 +373,9 @@ the scheduling or qualification gates below.
 - [x] Add opt-in `Destructible3D` world attachment, prefab-remapped visual links,
   queued `Destruction3D.damage_part` and ownership/status queries. Controlled
   tests cover repeated splits, cleanup, same-ID replacement and failed proposals.
-- [ ] Extend `destruction_3d_lab` to the concrete wall, hammer, rocket and steel
-  door using the prefab/import workflow above. The current arch only separates
-  its few predefined parts; that does not satisfy localized wall fragmentation.
+- [x] Add `destruction_weapons_3d_lab` for concrete, hammer, rocket and steel door
+  using the prefab/import workflow above. Keep `destruction_3d_lab` as the arch
+  regression fixture; the weapon lab is the interactive acceptance probe.
 - [ ] Author pre-fractured chunks, interior surfaces, collision hulls, materials,
   bonds, and anchors through editor/Blender/import tooling. Support hierarchical
   refinement so large authored objects can break into smaller generated shards;
@@ -400,6 +405,13 @@ the scheduling or qualification gates below.
   Android gameplay remain unqualified; milestone-wide budgets are still open.
 - [ ] Bound fracture work and body creation; test cancellation, failure, scene
   unload, repeated spawning/destruction, and resource cleanup.
+  Implemented bounded proximity activation through a reusable package, compact
+  runtime `Masonry3D` recipes, a 16-entry safe-template cache, and geometry-free
+  native checkpoints/restore/opt-in debris retirement. A 100,000-record catalogue
+  test verifies bounded scans and spawns without expanding the catalogue into
+  entities. The desktop probe unloads/reloads real damaged walls and preserves
+  retired holes. First-use generation remains synchronous; merged intact visuals,
+  time-budgeted workers and 100,000-wall platform/FPS qualification remain open.
 
 Exit gate: build a reinforced wall from ordinary objects in a reusable prefab,
 generate its fracture data through the supported tooling, and damage multiple
@@ -413,6 +425,16 @@ meet the scheduling acceptance criteria above. The three-part arch cannot close
 this milestone.
 
 ### Milestone 4: Visual and Gameplay Quality
+
+- [x] Add a native optional panorama background (`Environment3D.sky_texture`),
+  shared by editor/runtime, and apply the evening-sky JPEG and installed Kenney
+  prototype floor/backstop textures to the weapon lab. This is LDR background
+  rendering only, not HDR/IBL. Texture upload now honors authored mipmap requests.
+- [ ] Prioritize HDR/exposure/tone mapping, followed by metallic/roughness PBR
+  and filtered environment lighting/reflections. Then add local reflection probes;
+  screen-space reflections should be optional with explicit quality budgets.
+  Use the weapon lab for before/after visual and frame-time comparisons. Dynamic
+  debris reflections are not implied by a sky reflection map.
 
 - [x] Provide the `demi.gameplay.third_person` mechanics foundation and editable
   `third_person_foundation` room: camera-relative motion, orbit/obstruction,
@@ -428,6 +450,15 @@ this milestone.
 - [ ] Create a compact visual reference environment using good source assets.
   Audit material import, metallic/roughness PBR, normal maps, color spaces,
   mipmaps, ambient/environment lighting, shadows, exposure, and anti-aliasing.
+  First correction: built-in 3D lighting now multiplies decoded base color in
+  linear space and encodes to the existing UNORM target, avoiding excessively
+  dark shaded faces. GLSL/ESSL/SPIR-V compilation and renderer smoke tests pass;
+  this does not qualify HDR, material import, shadows or visual/performance gates.
+  The weapon lab now uses the supplied Bricks085 color/height maps and native
+  `SurfaceRelief3D`: memory-only shared geometry, no generated masonry files in
+  developer asset folders. The earlier exported-mesh prototype exposed registry-
+  wide renderer rebuilds on every asset upload and exhausted deferred GPU buffer
+  handles; general incremental/batched residency remains separate work.
 - [ ] Improve the measured weakest links; pair every visual upgrade with quality
   settings and CPU/GPU measurements rather than raising polygon counts alone.
 - [ ] Qualify mouse orbit/camera collision, directional movement, rolls, animation
@@ -453,6 +484,10 @@ load-dependent collapse complete on the basis of connectivity tests.
 - [ ] Author density, fracture resistance, and bond strength separately. Distinguish
   material survival from attachment failure: a steel door may stay intact while
   its frame breaks and releases it.
+  Per-mesh `Fracture3D.density` now provides density-derived mass and weighted
+  fragment mass/center of mass/inertia; explicit root mass overrides the total.
+  Hollow objects use effective density. This does not implement a separate
+  material fracture-toughness law, structural stress or hollow-volume inference.
 - [ ] Model composite load paths: remaining reinforcement can support exposed
   concrete sections, while damage to that reinforcement can release the structure.
   Distinguish brittle failure from ductile bending/strain thresholds. Existing

@@ -368,7 +368,9 @@ void drawComponentFields(EditorWorkspace &workspace,
       component.value("parts", nlohmann::json::object()).empty())
     ImGui::TextWrapped("Add Fracture 3D to this mesh or its children. Foundation anchors determine the generated static/dynamic body type; mass and other Rigidbody settings are retained.");
   if (componentName == "Fracture3D")
-    ImGui::TextWrapped("Anchor Below uses assembly-local Y. None leaves this mesh unanchored. Source geometry stays editable; Play loads the generated shards.");
+    ImGui::TextWrapped("Density uses kg/m^3 of collider volume. Root mass overrides the total. Box collider requires Pieces=1 and a unit-box model scaled by MeshRenderer Size; it retains the detailed visual. Source collider requires convex geometry. Anchor Below uses assembly-local Y.");
+  if (componentName == "Masonry3D")
+    ImGui::TextWrapped("Compact runtime masonry recipe. Rows/Columns generate cells when its prefab is activated; models are shared variants. Editor preview shows region dimensions. Cooking retains the recipe, not expanded bricks. Add Destructible3D to its owner.");
   for (const ComponentFieldDescriptor &field : descriptor.fields) {
     if (!field.editorVisible)
       continue;

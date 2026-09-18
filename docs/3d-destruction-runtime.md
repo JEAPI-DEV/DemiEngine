@@ -146,7 +146,8 @@ candidate entities/assets, hulls, native bodies, ID mappings and broadphase
 additions before retiring sources. Preparation failure discards staged bodies
 and Blast damage. Anchored groups stay static; others become dynamic. Replacements
 preserve source origin/rotation/scale, receive their fraction of source mass by
-hull volume, recalculate native inertia, and inherit
+hull volume multiplied by each part's density, recalculate density-weighted
+native inertia/center of mass, and inherit
 `v + omega × (new_COM - old_COM)` plus source angular velocity. Visual children
 are reparented with unchanged local poses. Native raycasts retain part IDs.
 
@@ -157,6 +158,13 @@ work and cleans owned fragments at the next fixed step. Scene reset/unload relea
 native/world ownership; unused private geometry is retired by physics. Runtime
 changes never write scene files. Editing an attached source graph or visual map
 requires scene reload; it is not a topology migration operation.
+
+Opt-in `checkpoint`, `restore` and `retire_debris` now support distance/lifetime
+policies without respawning destroyed pieces. Checkpoints contain validated
+damage and group poses, not mesh geometry. Cleanup retires detached groups through
+the native replacement transaction; retained support is not removed. See
+[streamed destruction](streamed-destruction.md) for API constraints and the
+reusable proximity package. Whole-world streaming/performance is not implied.
 
 This initial transaction copies candidate entity/collider collections. It handles
 at most one queued family per step in stable root order. It is synchronous, not

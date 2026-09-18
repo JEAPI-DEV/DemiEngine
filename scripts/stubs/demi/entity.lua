@@ -66,6 +66,9 @@ function Entity.has_component(entity_id, component) end
 ---@param component string
 ---@param field string
 ---@return any
+---Reads serialized/authored component values, not arbitrary live simulation
+---state. Omitted fields can return nil. Use dedicated services such as
+---Rigidbody3D.state for native-generated bodies and current physics state.
 function Entity.get(entity_id, component, field) end
 ---@param entity_id string
 ---@param component string

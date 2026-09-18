@@ -30,6 +30,7 @@ SceneLighting3D collectSceneLighting3D(const World &world,
     if (!entity.enabled)
       continue;
     if (const auto *environment = entity.component<Environment3DComponent>()) {
+      lighting.skyTexture = environment->skyTexture;
       lighting.ambient = {
           environment->ambientColor.r * environment->ambientIntensity,
           environment->ambientColor.g * environment->ambientIntensity,

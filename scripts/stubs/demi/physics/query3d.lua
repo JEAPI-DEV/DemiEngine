@@ -56,7 +56,8 @@ function Physics3D.raycast(origin_x, origin_y, origin_z, direction_x, direction_
 ---@param distance number
 ---@param layer? string
 ---@param ignored_entity_id? string
+---@param include_triggers? boolean Defaults to true; false finds the first solid collider beyond triggers.
 ---@return PhysicsRaycastHit3D|nil
-function Physics3D.sphere_cast(origin_x, origin_y, origin_z, radius, direction_x, direction_y, direction_z, distance, layer, ignored_entity_id) end
+function Physics3D.sphere_cast(origin_x, origin_y, origin_z, radius, direction_x, direction_y, direction_z, distance, layer, ignored_entity_id, include_triggers) end
 
 return Physics3D

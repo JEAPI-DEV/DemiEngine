@@ -700,6 +700,25 @@ bool testShapeQueriesAndColliderKinds() {
   return true;
 }
 
+bool testSolidOnlySphereCast() {
+  World world;
+  auto trigger = makeStaticBox(); trigger.id = "sensor";
+  trigger.component<Transform3DComponent>()->position.x = 1;
+  trigger.component<BoxCollider3DComponent>()->isTrigger = true;
+  auto wall = makeStaticBox(); wall.component<Transform3DComponent>()->position.x = 3;
+  world.entities.push_back(std::move(trigger)); world.entities.push_back(std::move(wall));
+  const auto verify = [&] {
+    const auto any = sphereCast3D(world, {0,0.5F,0}, 0.1F, {1,0,0}, 5);
+    const auto solid = sphereCast3D(world, {0,0.5F,0}, 0.1F, {1,0,0}, 5, {}, {}, false);
+    return any && any->entityId == "sensor" && any->isTrigger &&
+           solid && solid->entityId == "box_wall" && !solid->isTrigger;
+  };
+  if (!verify()) { std::cerr << "Fallback solid-only sphere cast failed.\n"; return false; }
+  ensurePhysicsWorld3D(world).step(world, 1.0F/60);
+  if (!verify()) { std::cerr << "Native solid-only sphere cast failed.\n"; return false; }
+  return true;
+}
+
 bool testCharacterStepAndMovingPlatform() {
   World stepWorld;
   stepWorld.entities.push_back(
@@ -1009,7 +1028,7 @@ int main() {
       !testTriggersAndFiltering() || !testCharacterAndCameraMath() ||
       !testCharacterUsesSelectedBoxCollider() ||
       !testAirborneJumpRequestIsNotBufferedByPhysics() ||
-      !testShapeQueriesAndColliderKinds() ||
+      !testShapeQueriesAndColliderKinds() || !testSolidOnlySphereCast() ||
       !testCharacterStepAndMovingPlatform() ||
       !testRepeatedLifetimeAndInterpolation() || !testDeterministicReplay() ||
       !testColliderShapeCachingAndInvalidation())

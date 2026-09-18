@@ -1,6 +1,7 @@
 #include "demi/runtime/physics/JoltCompoundShape3D.h"
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/StaticCompoundShape.h>
+#include <cmath>
 
 namespace demi::runtime {
 JPH::ShapeRefC
@@ -10,12 +11,16 @@ createJoltCompoundShape3D(const std::vector<ColliderPart3D> &parts,
     return {};
   JPH::StaticCompoundShapeSettings compound;
   for (std::size_t index = 0; index < parts.size(); ++index) {
+    if (!std::isfinite(parts[index].density) || parts[index].density < 0.001F ||
+        parts[index].density > 1000000)
+      return {};
     JPH::Array<JPH::Vec3> points;
     points.reserve(parts[index].points.size());
     for (Vec3 point : parts[index].points)
       points.emplace_back(point.x * scale.x, point.y * scale.y,
                           point.z * scale.z);
     JPH::ConvexHullShapeSettings settings(points);
+    settings.mDensity = parts[index].density;
     settings.mUserData = index + 1;
     auto leaf = settings.Create();
     if (leaf.HasError())

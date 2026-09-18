@@ -113,8 +113,9 @@ and `.`, up to 128 characters. Do not use array positions as durable identity.
 ```
 
 Attach it with the same `ModelCollider3D` component. The compound is **one native
-body**, with real gaps between its hulls. `Rigidbody3D.mass` is the total mass;
-Jolt derives compound center of mass and inertia from its uniformly dense hulls,
+body**, with real gaps between its hulls. `Rigidbody3D.mass` is the total mass.
+Each part can specify `density` in kg/m³ (default 1000, range 0.001–1,000,000).
+Jolt derives compound center of mass and inertia from these weighted hulls,
 scaled to that total. The immutable compound shape can belong to a static,
 kinematic or dynamic body. Mirrored/nonuniform entity scale is applied to each
 part's points. Visual child entities may follow the body via `Transform3D.parent`;
@@ -130,9 +131,10 @@ omit compounds rather than treating their union bounds as solid collision.
 Editor selection uses the union bounds; collider debug drawing shows the hulls.
 
 The asset follows the normal import, cook, reload and live-user retention rules.
-An optional `fracture` block adds an authored bond graph; see below. Per-chunk
-materials/density and transactional split-body replacement remain separate
-Milestone 3 work. See `examples/destruction_3d_lab` for an editable three-part
+An optional `fracture` block adds an authored bond graph; see below. Density is
+independent of bond strength. Transactional splitting preserves weighted mass;
+material stress and automatic structural failure remain separate work.
+See `examples/destruction_3d_lab` for an editable three-part
 arch and native impulse/raycast probe.
 
 Triangle-mesh collider assets remain static-only. Asset-backed character-controller

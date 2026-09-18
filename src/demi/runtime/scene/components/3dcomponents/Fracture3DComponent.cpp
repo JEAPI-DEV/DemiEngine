@@ -10,7 +10,17 @@ void Fracture3DComponent::parse(const nlohmann::json &json, Entity &entity) {
   if (json.contains("pieces") && !json["pieces"].is_number_integer())
     throw std::invalid_argument("Fracture3D.pieces must be an integer");
   value.pieces = json.value("pieces", 8);
+  value.collider = json.value("collider", "source");
+  if ((value.collider != "source" && value.collider != "box") ||
+      (value.collider == "box" && value.pieces != 1))
+    throw std::invalid_argument("Fracture3D box proxy requires pieces=1; collider must be source or box");
   value.bondHealth = json.value("bond_health", 1.0F);
+  if (json.contains("density") && !json["density"].is_null()) {
+    value.density = json["density"].get<float>();
+    if (!std::isfinite(*value.density) || *value.density < 0.001F ||
+        *value.density > 1000000)
+      throw std::invalid_argument("Fracture3D.density must be 0.001..1000000 kg/m^3");
+  }
   if (value.pieces < 1 || value.pieces > 128 ||
       !std::isfinite(value.bondHealth) || value.bondHealth <= 0 ||
       value.bondHealth > 1e30F)
@@ -31,8 +41,10 @@ void Fracture3DComponent::parse(const nlohmann::json &json, Entity &entity) {
 }
 nlohmann::json Fracture3DComponent::defaults() {
   return {{"pieces", 8},
+          {"collider", "source"},
           {"bond_health", 1},
           {"anchor_below", nullptr},
+          {"density", nullptr},
           {"interior_color", {0.35, 0.33, 0.30, 1}},
           {"interior_material", ""}};
 }

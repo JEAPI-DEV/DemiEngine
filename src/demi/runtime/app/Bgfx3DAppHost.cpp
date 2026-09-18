@@ -53,6 +53,8 @@ bool Bgfx3DAppHost::reloadAssets(const AssetRegistry &assets,
   if (!candidate->renderer.loadAssets(assets, diagnostics)) {
     candidate->renderer.shutdown();
     error = "One or more 3D assets failed to load.";
+    for (std::size_t i = 0; i < diagnostics.size() && i < 8; ++i)
+      error += "\n" + diagnostics[i];
     return false;
   }
   renderer_->renderer.shutdown();

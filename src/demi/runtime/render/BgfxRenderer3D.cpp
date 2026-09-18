@@ -71,8 +71,8 @@ BgfxRenderer3D::BgfxRenderer3D(GpuResources &resources,
     : resources_(resources), commands_(commands),
       primitives_(resources, commands), postProcess_(resources, commands),
       particleRenderer_(resources, commands), overlay_(resources, commands),
-      textures_(resources), materials_(resources), gpuSkinningRequested_(enableGpuSkinning),
-      deformedMeshes_(resources) {}
+      textures_(resources), sky_(resources), materials_(resources), gpuSkinningRequested_(enableGpuSkinning),
+      deformedMeshes_(resources), reliefMeshes_(resources) {}
 
 BgfxRenderer3D::~BgfxRenderer3D() { shutdown(); }
 
@@ -166,6 +166,7 @@ bool BgfxRenderer3D::initialize(std::string &error) {
 }
 
 void BgfxRenderer3D::shutdown() {
+  sky_.clear();
   for (const auto program : {directionalMeshProgram_, directionalInstancedProgram_, directionalSkinnedProgram_})
     if (program) resources_.destroy(program);
   directionalMeshProgram_ = {};
@@ -178,6 +179,7 @@ void BgfxRenderer3D::shutdown() {
   skinMatricesUniform_ = {};
   skinImportUniform_ = {};
   deformedMeshes_.clear();
+  reliefMeshes_.clear();
   dynamicMeshes_.clear();
   primitiveMeshes_.clear();
   modelMeshes_.clear();
@@ -345,10 +347,23 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         entity.component<AnimationPlayer3DComponent>() != nullptr)
       liveDynamicMeshes.insert(entity.id);
   }
+  const SceneLighting3D sceneLighting = collectSceneLighting3D(world, frame.camera.renderMask);
+  bool skyDrawn = false;
+  if (frame.updateContent && frame.camera.perspective &&
+      frame.camera.clearMode == "color" && !sceneLighting.skyTexture.empty()) {
+    const auto texture = textures_.find(sceneLighting.skyTexture);
+    if (!texture.handle) {
+      error = "Environment sky texture is not loaded: " + sceneLighting.skyTexture;
+      return false;
+    }
+    if (!sky_.draw(commands_, frame.viewId, texture.handle, frame.position, error))
+      return false;
+    skyDrawn = true;
+  }
   const SceneLighting3D lighting =
       frame.lightingOverride
           ? *frame.lightingOverride
-          : collectSceneLighting3D(world, frame.camera.renderMask);
+          : sceneLighting;
   const bool directionalOnly = !lighting.hasLocalLights();
   RuntimeProfiler::setGauge("Renderer3D.directional_shader", directionalOnly ? 1.0 : 0.0);
   const ProgramHandle defaultMeshProgram = directionalOnly ? directionalMeshProgram_ : meshProgram_;
@@ -391,8 +406,9 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     std::vector<std::array<float, 16>> transforms;
   };
   std::unordered_map<std::string, InstanceGroup> instanceGroups;
-  std::uint32_t bufferedDraws = 0;
-  std::uint32_t bufferedTriangles = 0;
+  reliefMeshes_.beginFrame();
+  std::uint32_t bufferedDraws = skyDrawn ? 1U : 0U;
+  std::uint32_t bufferedTriangles = skyDrawn ? 12U : 0U;
   std::uint32_t distanceCulled = 0;
   std::uint32_t mediumLodMeshes = 0;
   std::uint32_t lowLodMeshes = 0;
@@ -455,7 +471,29 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         drawUniforms.insert(drawUniforms.end(), material->uniforms.begin(),
                             material->uniforms.end());
       bool queued = false;
-      if (!mesh->vertices.empty()) {
+      if (const auto *relief=entity.component<SurfaceRelief3DComponent>(); relief && !relief->heightMap.empty()) {
+        if (player || !dents.empty() || !mesh->model.empty() || !mesh->vertices.empty() || mesh->shape!="cube") {
+          error="SurfaceRelief3D requires an undeformed cube MeshRenderer";
+          return false;
+        }
+        const auto *gpu=reliefMeshes_.get(*relief,mesh->size,error);
+        if (!gpu) return false;
+        std::string textureId=mesh->texture;
+        if(textureId.empty() && material)textureId=material->albedoTexture;
+        const auto texture=textures_.find(textureId);
+        const auto resolved=texture.handle?texture.handle:whiteTexture_;
+        if(!material) {
+          const auto key="relief:"+std::to_string(reinterpret_cast<std::uintptr_t>(gpu))+":"+
+              std::to_string(color)+":"+std::to_string(resolved.index)+":"+std::to_string(resolved.generation);
+          auto &[groupMesh,groupTexture,groupTint,groupUnlit,transforms]=instanceGroups[key];
+          groupMesh=gpu;groupTexture=resolved;groupTint=entityTint;groupUnlit=false;
+          transforms.push_back(composeMeshTransform3D(transform,mesh->size));queued=true;
+        } else {
+          queued=gpu->draw(commands_,frame.viewId,program,resolved,meshSampler_,
+                          composeMeshTransform3D(transform,mesh->size),state,error,drawUniforms);
+          if(queued){++bufferedDraws;bufferedTriangles+=gpu->indexCount()/3U;}
+        }
+      } else if (!mesh->vertices.empty()) {
         const std::uint64_t signature = meshCacheRevision(*mesh);
         auto &cached = dynamicMeshes_[entity.id];
         if (!cached)
@@ -535,11 +573,13 @@ bool BgfxRenderer3D::renderFrame(const World &world,
             return false;
         }
         const auto modelTexture = modelTextures_.find(selectedModel);
-        const std::string textureId =
-            material != nullptr && !material->albedoTexture.empty()
-                ? material->albedoTexture
-                : (modelTexture == modelTextures_.end() ? std::string{}
-                                                        : modelTexture->second);
+        // Match primitive meshes: an entity texture overrides material and
+        // embedded model albedo. Keep it in the instancing key below as well.
+        std::string textureId = mesh->texture;
+        if (textureId.empty() && material != nullptr)
+          textureId = material->albedoTexture;
+        if (textureId.empty() && modelTexture != modelTextures_.end())
+          textureId = modelTexture->second;
         const TextureView2D texture = textures_.find(textureId);
         const TextureHandle resolvedTexture =
             texture.handle ? texture.handle : whiteTexture_;
