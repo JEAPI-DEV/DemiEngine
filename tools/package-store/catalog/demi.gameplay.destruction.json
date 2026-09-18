@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "title": "Destruction Weapons & Streaming",
+  "description": "Hammer windup/contact/recovery, swept rockets, ammunition and cleanup, plus adapters to DemiEngine's native spatial impacts. Proximity-based prefab streaming preserves damage checkpoints and supports optional debris retirement and save-state export. Uses the current development engine's experimental Blast/Jolt destruction APIs; this is gameplay code, not a model pack or a structural stress solver.",
+  "publisher": "DemiEngine",
+  "license": "BSD-3-Clause",
+  "kind": "code",
+  "category": "3D",
+  "price": 0,
+  "images": [],
+  "tags": ["3d", "destruction", "physics", "weapons", "streaming", "gameplay"]
+}

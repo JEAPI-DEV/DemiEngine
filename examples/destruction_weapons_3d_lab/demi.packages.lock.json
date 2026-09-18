@@ -2,7 +2,7 @@
   "format_version": 1,
   "packages": [
     {
-      "archive_hash": "sha256:460d6271c7bea11d6342592a2687da086611d0908b80526986beb737d9b92f4a",
+      "archive_hash": "sha256:d710f94e60dc6229ccbe8db8f30bc4239b02e65b47af92af35fb8041122f6a55",
       "archive_uri": "package://demi.gameplay.destruction/1.0.0",
       "manifest": {
         "dependencies": {},
@@ -10,6 +10,7 @@
         "exported_events": [],
         "files": [
           "README.md",
+          "LICENSE",
           "scripts/demi/gameplay/destruction/weapons.lua",
           "scripts/demi/gameplay/destruction/native.lua",
           "scripts/demi/gameplay/destruction/streaming.lua",
@@ -25,7 +26,7 @@
         ],
         "version": "1.0.0"
       },
-      "manifest_hash": "sha256:059fbbde7d7b595214658fa5e8974b70b66bb9bc07276928cea413d0601b7d9c",
+      "manifest_hash": "sha256:4c4a44bdf63f4fd383156db9b9c76d41d5a1de2b7700af955e58a0c6a1c98c57",
       "yanked": false
     },
     {
