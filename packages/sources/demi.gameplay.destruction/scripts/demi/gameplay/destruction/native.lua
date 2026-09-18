@@ -6,7 +6,14 @@ function Native.streaming()
   local Entity=require("demi.entity")
   local function root(entry) return entry.id.."/"..(entry.root or "assembly") end
   return {
-    spawn=function(entry) return Prefab.instantiate(entry.prefab,{id=entry.id,position=entry.position})~=nil end,
+    spawn=function(entry)
+      local options={id=entry.id,position=entry.position}
+      if entry.rotation or entry.scale then
+        options.overrides={[entry.root or "assembly"]={components={Transform3D={
+          rotation=entry.rotation or {0,0,0},scale=entry.scale or {1,1,1}}}}}
+      end
+      return Prefab.instantiate(entry.prefab,options)~=nil
+    end,
     release=function(entry) return Prefab.release(entry.id) or not Entity.exists(root(entry)) end,
     state=function(entry) return Destruction.state(root(entry)) end,
     checkpoint=function(entry) return Destruction.checkpoint(root(entry)) end,

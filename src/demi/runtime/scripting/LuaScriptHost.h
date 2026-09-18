@@ -382,6 +382,7 @@ public:
   entityLocalPosition(const std::string &entityId) const;
   [[nodiscard]] std::optional<nlohmann::json>
   entityWorldPosition(const std::string &entityId) const;
+  [[nodiscard]] nlohmann::json prefabPlacements(const std::string &ancestor) const;
   [[nodiscard]] std::optional<std::string>
   captureEntityReplicatedState(const std::string &entityId) const;
   [[nodiscard]] std::optional<std::string> captureEntityReplicatedState(

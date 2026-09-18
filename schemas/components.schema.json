@@ -1,6 +1,37 @@
 {
   "additionalProperties": false,
   "properties": {
+    "PrefabPlacement3D": {
+      "additionalProperties": false,
+      "properties": {
+        "prefab": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-label": "Prefab",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "prefab"
+        },
+        "preserve": {
+          "default": true,
+          "type": "boolean",
+          "x-demi-editor-label": "Preserve",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "root": {
+          "default": "assembly",
+          "type": "string",
+          "x-demi-editor-label": "Root",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        }
+      },
+      "type": "object"
+    },
     "AnimationCollision2D": {
       "additionalProperties": false,
       "properties": {

@@ -1,5 +1,6 @@
 #include "demi/schema/Validation.h"
 #include "demi/schema/DestructionValidation.h"
+#include "demi/schema/PrefabPlacementValidation.h"
 
 #include "demi/assets/AssetGroup.h"
 #include "demi/assets/AssetRegistry.h"
@@ -583,6 +584,7 @@ Diagnostics validateSceneDocument(const std::filesystem::path &scenePath,
     validateTransformHierarchy(diagnostics, scenePath, *expansion.document,
                                "Transform3D", "TRANSFORM3D");
     validatePhysics3D(diagnostics, scenePath, *expansion.document);
+    validatePrefabPlacements3D(diagnostics, scenePath, *expansion.document);
   }
   return diagnostics;
 }
@@ -1026,6 +1028,7 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
     if (expansion.document) {
       validateSceneComponents(diagnostics, path, expansion.document->dump());
       validateDuplicateEntityIds(diagnostics, path, *expansion.document);
+      validatePrefabPlacements3D(diagnostics, path, *expansion.document);
     }
     break;
   }

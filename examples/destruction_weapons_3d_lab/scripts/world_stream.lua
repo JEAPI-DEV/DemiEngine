@@ -3,6 +3,7 @@ local Native=require("demi.gameplay.destruction.native")
 local Entity=require("demi.entity")
 local Hud=require("demi.hud")
 local Save=require("demi.save")
+local Prefab=require("demi.prefab")
 
 ---@demi_component
 local WorldStream={}
@@ -16,8 +17,7 @@ WorldStream.debris_lifetime=45
 WorldStream.save_slot=""
 
 function WorldStream:on_start()
-  local values=Entity.get(self.entity_id,"GameplayData","values")
-  self.stream=Streaming.new(Native.streaming(),values.walls,{
+  self.stream=Streaming.new(Native.streaming(),Prefab.placements(self.entity_id),{
     load_distance=self.load_distance,unload_distance=self.unload_distance,
     debris_lifetime=self.debris_lifetime,max_active=8,spawn_budget=1,
   })

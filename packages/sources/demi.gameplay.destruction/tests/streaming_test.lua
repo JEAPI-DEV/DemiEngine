@@ -65,3 +65,18 @@ Test.case("an unattached activation times out instead of leaking a capacity slot
   for i=1,10 do stream:update(.1,{0,0,0}) end
   Test.equal(calls.released,1);Test.equal(stream.active_count,0)
 end)
+Test.case("placement rotation and scale are preserved and stale checkpoints rejected",function()
+  local definitions={{id="a",prefab="prefab://wall",root="assembly",position={2,0,0},rotation={0,1,0},scale={2,1,1}}}
+  local stream,calls=fixture(definitions)
+  stream:update(.1,{0,0,0});stream:update(.1,{0,0,0})
+  calls.states.a={status="applied",revision=1}
+  local saved=assert(stream:export_state())
+  Test.equal(saved.walls.a.rotation[2],1);Test.equal(saved.walls.a.scale[1],2)
+  local other=fixture(definitions);Test.truthy(other:import_state(saved))
+  definitions[1].rotation={0,2,0}
+  local rotated=fixture(definitions);Test.equal(rotated:import_state(saved),false)
+  definitions[1].rotation={0,1,0};definitions[1].scale={1,1,1}
+  local scaled=fixture(definitions);Test.equal(scaled:import_state(saved),false)
+  definitions[1].scale={0,1,1}
+  Test.equal(pcall(function() fixture(definitions) end),false)
+end)

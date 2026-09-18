@@ -1,8 +1,13 @@
 #include "editor/EditorWorkspace.h"
 #include "demi/runtime/scene/components/3dcomponents/Dentable3DComponent.h"
+#include "demi/runtime/scene/PrefabPlacements3D.h"
+#include "demi/runtime/scene/SceneLoader.h"
+#include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -211,13 +216,76 @@ int main() {
   assert(barrelWorkspace.sceneDocument().component("body", "Dentable3D") != nullptr);
   std::filesystem::remove(temporaryPrefab);
 
+  {
+    using namespace demi::runtime;
+    demi::editor::EditorWorkspace placements;
+    assert(placements.open(root / "examples/destruction_weapons_3d_lab", error));
+    const auto authored = placements.sceneDocument().json().dump();
+    const auto *preview = findEntity(placements.project().world, "a/__preview/assembly");
+    assert(preview);
+    assert(placements.project().world.entities.size() < 60); // Regions, not hundreds of shards.
+    assert(!placements.sceneDocument().entity("a/__preview/assembly"));
+    auto entries = collectPrefabPlacements3D(placements.project().world, "world_stream");
+    assert(entries.size()==2 && entries.front().id=="a");
+    assert(entries.front().transform.position.x==-2.8F);
+    placements.selectEntity("a/__preview/assembly");
+    assert(placements.selectedEntityId()=="a");
+    assert(placements.editValue({.entityId="a",.component="Transform3D",.field="position"},
+                                nlohmann::json::array({-4,0,0}),false,error));
+    preview = findEntity(placements.project().world, "a/__preview/assembly");
+    assert(resolveWorldTransform3D(placements.project().world,*preview)->position.x==-4);
+    assert(placements.undo(error));
+    assert(placements.sceneDocument().json().dump()==authored);
+    assert(placements.editValue({.entityId="world_stream",.component="Transform3D",.field="rotation"},
+                                nlohmann::json::array({0,1,0}),false,error));
+    entries=collectPrefabPlacements3D(placements.project().world,"world_stream");
+    preview=findEntity(placements.project().world,"a/__preview/assembly");
+    const auto transformed=resolveWorldTransform3D(placements.project().world,*preview);
+    assert(std::abs(transformed->position.z-entries.front().transform.position.z)<.0001F);
+    assert(std::abs(transformed->rotation.y-entries.front().transform.rotation.y)<.0001F);
+    assert(placements.undo(error));
+    assert(!placements.editValue({.entityId="a",.component="PrefabPlacement3D",.field="prefab"},
+                                 "prefab://does_not_exist",false,error));
+    assert(placements.sceneDocument().json().dump()==authored);
+    assert(placements.editValue({.entityId="a",.field="enabled"},false,false,error));
+    assert(collectPrefabPlacements3D(placements.project().world,"world_stream").size()==1);
+    assert(placements.undo(error));
+    assert(!placements.editValue({.entityId="a",.component="Transform3D",.field="scale"},
+                                 nlohmann::json::array({0,1,1}),false,error));
+    assert(placements.sceneDocument().json().dump()==authored);
+    assert(placements.duplicateEntity("a",error));
+    const auto duplicate=std::string(placements.sceneDocument().lastChangedEntityId());
+    assert(collectPrefabPlacements3D(placements.project().world,"world_stream").size()==3);
+    assert(findEntity(placements.project().world,duplicate+"/__preview/assembly"));
+    assert(placements.undo(error));
+    assert(placements.sceneDocument().json().dump()==authored);
+    auto runtime=loadProject(root / "examples/destruction_weapons_3d_lab/demi.project.json",error);
+    assert(runtime && findEntity(runtime->world,"a"));
+    assert(!findEntity(runtime->world,"a/__preview/assembly"));
+    assert(!findEntity(runtime->world,"a/assembly")); // Only gameplay activates it.
+    assert(placements.editValue({.entityId="world_stream",.field="enabled"},false,false,error));
+    assert(collectPrefabPlacements3D(placements.project().world,"world_stream").empty());
+    assert(!findEntity(placements.project().world,"a/__preview/assembly")->enabled);
+    assert(placements.undo(error));
+    const auto *floor=placements.sceneDocument().component("floor","MeshRenderer");
+    const auto revision=findEntity(placements.project().world,"floor")->component<MeshRendererComponent>()->revision;
+    auto uvs=(*floor)["uvs"];
+    uvs[0][0]=5;
+    assert(placements.editValue({.entityId="floor",.component="MeshRenderer",.field="uvs"},uvs,false,error));
+    assert((*placements.sceneDocument().component("floor","MeshRenderer"))["uvs"][0][0]==5);
+    assert(findEntity(placements.project().world,"floor")->component<MeshRendererComponent>()->revision!=revision);
+    assert(placements.undo(error));
+    assert(findEntity(placements.project().world,"floor")->component<MeshRendererComponent>()->revision==revision);
+    assert(placements.sceneDocument().json().dump()==authored);
+  }
+
   const std::string documentBeforeFailure =
       workspace.sceneDocument().json().dump();
   const bool couldUndoBeforeFailure = workspace.sceneDocument().canUndo();
   const bool couldRedoBeforeFailure = workspace.sceneDocument().canRedo();
-  workspace.project().world.activeSceneId = "scene://missing";
+  workspace.project().project.scenes.clear();
   assert(!workspace.createEntity(error));
-  assert(error.find("No scene registered") != std::string::npos);
+  assert(error.find("no longer registered") != std::string::npos);
   assert(workspace.sceneDocument().json().dump() == documentBeforeFailure);
   assert(workspace.sceneDocument().canUndo() == couldUndoBeforeFailure);
   assert(workspace.sceneDocument().canRedo() == couldRedoBeforeFailure);

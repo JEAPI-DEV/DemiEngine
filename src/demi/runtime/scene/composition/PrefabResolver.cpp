@@ -273,6 +273,12 @@ public:
                    ownerPath);
     if (!compileFractures_)
       items = assets::expandMasonry(items, true);
+    if (!compileFractures_) {
+      const auto authored = items;
+      for (const auto &entity : authored)
+        for (auto &preview : expandPlacement(canonical, entity))
+          items.push_back(std::move(preview));
+    }
     if (compileFractures_) {
       try {
         items = assets::compileEntityFractures(*findProjectRoot(canonical), items, prefix);
@@ -282,6 +288,41 @@ public:
     }
     stack_.pop_back();
     active_.erase(canonical);
+    return items;
+  }
+
+  Json expandPlacement(const std::filesystem::path &ownerPath, const Json &entity) {
+    if (!entity.contains("components") || !entity["components"].is_object())
+      return Json::array();
+    const auto placement = entity["components"].find("PrefabPlacement3D");
+    if (placement == entity["components"].end() || !placement->is_object())
+      return Json::array();
+    const auto reference = placement->value("prefab", std::string{});
+    if (reference.empty()) return Json::array(); // Incomplete editor authoring.
+    const auto owner = entity.at("id").get<std::string>();
+    const auto root = placement->value("root", std::string("assembly"));
+    const auto prefix = owner + "/__preview";
+    auto items = expandInstance(ownerPath, {{"id", prefix}, {"prefab", reference}}, {});
+    auto found = std::ranges::find_if(items, [&](const auto &item) {
+      return item.value("id", std::string{}) == prefix + "/" + root;
+    });
+    if (found == items.end() || !(*found)["components"].contains("Transform3D")) {
+      report(ownerPath, "PREFAB_PLACEMENT_ROOT_INVALID", "Placement " + owner + " has no Transform3D root: " + root);
+      return Json::array();
+    }
+    // The placement owns the root pose. Internal child transforms stay in the
+    // prefab. This transient parent is never written to the authored document.
+    (*found)["components"]["Transform3D"] = {{"parent", owner}};
+    for (auto &item : items) {
+      const auto &components = item["components"];
+      if (item["id"] != prefix + "/" + root && components.contains("Transform3D") &&
+          (!components["Transform3D"].contains("parent") || !components["Transform3D"]["parent"].is_string() ||
+           components["Transform3D"]["parent"].get<std::string>().empty())) {
+        report(ownerPath, "PREFAB_PLACEMENT_ROOT_INVALID", "Placement prefabs require one Transform3D root.");
+        return Json::array();
+      }
+      if (!entity.value("enabled", true)) item["enabled"] = false;
+    }
     return items;
   }
 
@@ -463,6 +504,7 @@ ExpansionResult expandScene(const std::filesystem::path &scenePath,
       return result;
     }
   }
+  const Json authoredEntities = expanded.value("entities", Json::array());
   ExpansionContext context(result.diagnostics, {}, {}, compileFractures);
   if (expanded.contains("instances") && expanded["instances"].is_array()) {
     if (!expanded.contains("entities") || !expanded["entities"].is_array())
@@ -474,6 +516,11 @@ ExpansionResult expandScene(const std::filesystem::path &scenePath,
     }
   }
   expanded.erase("instances");
+  if (!compileFractures && expanded.contains("entities")) {
+    for (const auto &entity : authoredEntities)
+      for (auto &preview : context.expandPlacement(scenePath, entity))
+        expanded["entities"].push_back(std::move(preview));
+  }
   if (!compileFractures && expanded.contains("entities"))
     expanded["entities"] = assets::expandMasonry(expanded["entities"], true);
   if (compileFractures && expanded.contains("entities")) {

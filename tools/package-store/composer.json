@@ -22,6 +22,6 @@
     "sort-packages": true
   },
   "scripts": {
-    "test": "php tests/run.php"
+    "test": ["php tests/run.php", "php tests/legal-notice.php"]
   }
 }

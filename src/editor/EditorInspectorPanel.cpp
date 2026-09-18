@@ -5,14 +5,17 @@
 #include "editor/EditorLuaComponentMetadata.h"
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorScenePreview.h"
+#include "editor/EditorStructuredValue.h"
 #include "editor/EditorWorkspace.h"
 
 #include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/runtime/scene/composition/PrefabResolver.h"
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -101,6 +104,7 @@ void drawScriptProperties(EditorWorkspace &workspace,
     const std::string label = definition.value("label", name);
     ImGui::PushID(name.c_str());
     bool changed = false;
+    std::optional<StructuredValueEdit> structured;
     if (type == "boolean" && value.is_boolean()) {
       bool edited = value.get<bool>();
       changed = ImGui::Checkbox(label.c_str(), &edited);
@@ -154,18 +158,29 @@ void drawScriptProperties(EditorWorkspace &workspace,
         for (std::size_t index = 0; index < count; ++index)
           value.push_back(edited[index]);
       }
+    } else if (value.is_structured()) {
+      ImGui::TextUnformatted(label.c_str());
+      structured = drawStructuredValue(value);
+      changed = structured->changed;
     } else {
       ImGui::TextDisabled("%s: %s", label.c_str(), value.dump().c_str());
     }
     if (changed) {
       properties[name] = std::move(value);
-      commit(workspace,
+      if (structured) {
+        std::string error;
+        const bool accepted = workspace.editValue(
+            {.entityId=std::string(entityId),.component="LuaScript",.field="properties"},
+            properties, structured->continuous, error);
+        notice = accepted ? "Scene modified" : error;
+      } else commit(workspace,
              {.entityId = std::string(entityId),
               .component = "LuaScript",
               .field = "properties"},
              std::move(properties), notice);
       finishEdit(workspace);
     }
+    if (structured && structured->finished) workspace.endContinuousEdit();
     ImGui::PopID();
   }
 }
@@ -262,7 +277,10 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
                     const bool mixed = false) {
   (void)mixed;
   if (runtime::scene_loading::componentFieldEditorReadOnly(field)) {
-    ImGui::TextWrapped("%s", value.dump().c_str());
+    if (value.is_structured()) {
+      auto preview = value;
+      (void)drawStructuredValue(preview, 0, true);
+    } else ImGui::TextWrapped("%s", value.dump().c_str());
     return true;
   }
   if (field.nullable && field.type == ComponentFieldType::Number) {
@@ -345,9 +363,19 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
   }
   case ComponentFieldType::Object:
   case ComponentFieldType::Vec2Array:
-  case ComponentFieldType::Vec3Array:
-    ImGui::TextWrapped("%s", value.dump().c_str());
-    return true;
+  case ComponentFieldType::Vec3Array: {
+    const auto edit = drawStructuredValue(replacement,
+        field.type==ComponentFieldType::Vec2Array ? 2 : field.type==ComponentFieldType::Vec3Array ? 3 : 0);
+    bool accepted = true;
+    if (edit.changed) {
+      std::string error;
+      accepted = targets ? workspace.editValues(*targets, replacement, error)
+                         : workspace.editValue(target, replacement, edit.continuous, error);
+      notice = accepted ? "Scene modified" : error;
+    }
+    if (edit.finished) workspace.endContinuousEdit();
+    return accepted;
+  }
   }
 
   const bool accepted =
@@ -401,9 +429,24 @@ void drawComponentFields(EditorWorkspace &workspace,
         runtime::scene_loading::componentFieldEditorLabel(field);
     ImGui::TextDisabled("%s", label.c_str());
     drawFieldHelp(field);
-    ImGui::SameLine(112.0F);
     const bool canReset =
         prefabEntity ? workspace.hasExplicitValue(target) : !field.required;
+    if (field.type==ComponentFieldType::Object || field.type==ComponentFieldType::Vec2Array ||
+        field.type==ComponentFieldType::Vec3Array) {
+      if (canReset) {
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Reset")) {
+          std::string error;
+          notice=workspace.removeValue(target,error)?"Collection reset":error;
+        }
+      }
+      ImGui::SetNextItemWidth(-1.0F);
+      (void)drawFieldValue(workspace,target,field,*value,notice);
+      drawInlineIssue(workspace,target);
+      ImGui::PopID();
+      continue;
+    }
+    ImGui::SameLine(112.0F);
     ImGui::SetNextItemWidth(canReset ? -52.0F : -1.0F);
     (void)drawFieldValue(workspace, target, field, *value, notice);
     if (canReset) {
@@ -593,7 +636,8 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
     return;
   }
 
-  const nlohmann::json *entity = workspace.sceneDocument().entity(selected->id);
+  const std::string selectedId = selected->id;
+  const nlohmann::json *entity = workspace.sceneDocument().entity(selectedId);
   const bool prefabEntity =
       entity == nullptr && !selected->prefabInstance.empty();
   nlohmann::json effectiveEntity;
@@ -612,7 +656,23 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
     ImGui::End();
     return;
   }
+  // Committing a field can rebuild the preview or replace document storage.
+  // Keep this frame's UI inputs independent of both owners' lifetimes.
+  nlohmann::json entitySnapshot = *entity;
+  entity = &entitySnapshot;
   drawEntityHeader(workspace, *entity, notice, prefabEntity);
+  if (entity->contains("components") && (*entity)["components"].contains("PrefabPlacement3D")) {
+    ImGui::TextWrapped("Streamed prefab placement. Move/rotate/scale this entity to place the instance. Preview meshes are not saved or simulated; edit their source prefab below.");
+    if (ImGui::Button("Open source prefab")) {
+      const auto path = runtime::composition::resolvePrefabReference(
+          workspace.sceneDocument().path(), (*entity)["components"]["PrefabPlacement3D"].value("prefab",std::string{}));
+      std::string error;
+      if (!path || !workspace.openPrefabDocument(*path, error))
+        notice = error.empty() ? "Could not open placement prefab" : error;
+      ImGui::End();
+      return;
+    }
+  }
   const EditorLuaComponentCatalog luaComponents = discoverEditorLuaComponents(
       workspace.project().project.projectDirectory, workspace.sources());
 
@@ -651,7 +711,7 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
       if (removeRequested) {
         std::string error;
         const bool removed =
-            workspace.removeComponent(selected->id, name, error);
+            workspace.removeComponent(selectedId, name, error);
         notice = removed ? "Component removed" : error;
         ImGui::PopID();
         ImGui::End();
@@ -661,14 +721,14 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         ImGui::PopID();
         continue;
       }
-      drawInlineIssue(workspace, {.entityId = selected->id, .component = name});
+      drawInlineIssue(workspace, {.entityId = selectedId, .component = name});
       if (luaMetadata != nullptr)
-        drawScriptProperties(workspace, selected->id, component, *luaMetadata,
+        drawScriptProperties(workspace, selectedId, component, *luaMetadata,
                              notice);
       else if (descriptor == nullptr || descriptor->fields.empty())
         drawGenericComponent(component);
       else
-        drawComponentFields(workspace, selected->id, name, component,
+        drawComponentFields(workspace, selectedId, name, component,
                             *descriptor, notice, prefabEntity);
       ImGui::PopID();
     }
@@ -715,7 +775,7 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
       if (ImGui::Selectable(descriptor.editor.displayName.data())) {
         std::string error;
         const bool added =
-            workspace.addComponent(selected->id, descriptor.name, error);
+            workspace.addComponent(selectedId, descriptor.name, error);
         notice = added ? "Component added" : error;
         if (!choice.compatible)
           ImGui::EndDisabled();
@@ -751,7 +811,7 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         if (ImGui::Selectable(metadata.displayName.c_str())) {
           std::string error;
           const bool added =
-              workspace.addScriptComponent(selected->id, metadata, error);
+              workspace.addScriptComponent(selectedId, metadata, error);
           notice = added ? metadata.displayName + " added" : error;
           if (hasLuaScript)
             ImGui::EndDisabled();

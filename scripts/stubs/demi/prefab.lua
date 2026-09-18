@@ -8,6 +8,17 @@
 
 ---@class PrefabService
 local Prefab = {}
+---@class PrefabPlacement3D
+---@field id string
+---@field prefab string
+---@field root string
+---@field position number[] World-space placement position.
+---@field rotation number[] World-space Euler rotation (radians).
+---@field scale number[] World-space scale.
+---@field preserve boolean
+---@param ancestor? string Limit to this entity and its descendants.
+---@return PrefabPlacement3D[] placements Enabled authored markers, sorted by ID; does not spawn anything.
+function Prefab.placements(ancestor) end
 ---@param prefab_id string
 ---@param options PrefabInstantiateOptions
 ---@return string|nil instance_id

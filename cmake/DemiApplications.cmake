@@ -142,6 +142,7 @@ else()
     src/editor/EditorHudNodeInspector.cpp
     src/editor/EditorImGuiInput.cpp
     src/editor/EditorInspectorPanel.cpp
+    src/editor/EditorStructuredValue.cpp
     src/editor/EditorIsoGridInspector.cpp
     src/editor/EditorJsonInspector.cpp
     src/editor/EditorPanelStyle.cpp

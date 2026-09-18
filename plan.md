@@ -286,6 +286,15 @@ Red Faction: Guerrilla is an experience reference, not a verified SDK specificat
 
 #### Next implementation order
 
+- [x] Make streamed wall placements authored `PrefabPlacement3D` entities with
+  normal transforms and prefab reference controls. The shared resolver supplies
+  lightweight edit-mode previews; generated preview children stay out of the
+  authored hierarchy, saves and Play. `Prefab.placements` feeds the same source
+  placements to the local destruction package 1.1.0, retaining runtime activation,
+  pose-aware checkpoints and cleanup. Inspector objects/vector arrays now have
+  structured controls with paging and normal validation/Undo/Redo. Large-map
+  editor performance and detailed fracture/chunk inspection remain separate work.
+
 - Prefer nested entity `children` for local scene/prefab authoring; reserve explicit
   transform `parent` references for relationships across source boundaries.
   Keep stable IDs and preserve authored hierarchy through editor history/save.

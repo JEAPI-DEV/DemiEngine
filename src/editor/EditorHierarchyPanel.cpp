@@ -5,6 +5,7 @@
 #include "editor/EditorIsoGridCell.h"
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorWorkspace.h"
+#include "editor/EditorScenePreview.h"
 
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/IsoGridComponent.h"
@@ -48,15 +49,21 @@ std::string_view entityParent(const runtime::Entity &entity) {
   return {};
 }
 
-bool hasChildren(const runtime::World &world, const std::string_view parent) {
+bool placementPreview(const EditorWorkspace &workspace, const runtime::Entity &entity) {
+  if (workspace.sceneDocument().entity(entity.id)) return false;
+  const auto owner=editorPlacementOwner(workspace.project().world,entity.id);
+  return !owner.empty() && owner!=entity.id;
+}
+
+bool hasChildren(const EditorWorkspace &workspace, const runtime::World &world, const std::string_view parent) {
   const runtime::Entity *entity =
       runtime::findEntity(world, std::string(parent));
   const auto *grid = entity == nullptr
                          ? nullptr
                          : entity->component<runtime::IsoGridComponent>();
   return (grid != nullptr && !grid->cellTextures.empty()) ||
-         std::ranges::any_of(world.entities, [parent](const auto &candidate) {
-           return entityParent(candidate) == parent;
+         std::ranges::any_of(world.entities, [&](const auto &candidate) {
+           return entityParent(candidate) == parent && !placementPreview(workspace,candidate);
          });
 }
 
@@ -67,6 +74,7 @@ struct HierarchyAction {
     Reparent,
     Delete,
     DeleteSelection,
+    ToggleVisibility,
     DeleteGridCell
   };
   Kind kind = Kind::Create;
@@ -101,6 +109,12 @@ bool applyHierarchyAction(EditorWorkspace &workspace,
     succeeded = workspace.createEntity(error, action.parentId);
     notice = succeeded ? "Entity created" : error;
     break;
+  case HierarchyAction::Kind::ToggleVisibility: {
+    const auto *entity=runtime::findEntity(workspace.project().world,action.entityId);
+    succeeded=entity && workspace.editValue({.entityId=action.entityId,.field="enabled"},!entity->enabled,false,error);
+    notice=succeeded?"Entity visibility changed":error;
+    break;
+  }
   case HierarchyAction::Kind::Duplicate:
     succeeded = workspace.duplicateEntity(action.entityId, error);
     notice = succeeded ? "Entity subtree duplicated" : error;
@@ -272,6 +286,7 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
                     const runtime::World &world, const std::string_view filter,
                     std::optional<HierarchyAction> &pending,
                     std::string &notice) {
+  if (placementPreview(workspace,entity)) return;
   const bool childMatch =
       std::ranges::any_of(world.entities, [&](const auto &candidate) {
         return entityParent(candidate) == entity.id &&
@@ -287,7 +302,7 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
       !paintedCellMatch)
     return;
 
-  const bool entityHasChildren = hasChildren(world, entity.id);
+  const bool entityHasChildren = hasChildren(workspace, world, entity.id);
   ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow |
                              ImGuiTreeNodeFlags_SpanAvailWidth |
                              ImGuiTreeNodeFlags_DefaultOpen;
@@ -316,12 +331,7 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
   if (overVisibility)
     ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
   if (overVisibility && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-    std::string error;
-    const bool changed =
-        workspace.editValue({.entityId = entity.id, .field = "enabled"},
-                            !entity.enabled, false, error);
-    notice = changed ? (entity.enabled ? "Entity disabled" : "Entity enabled")
-                     : error;
+    pending=HierarchyAction{.kind=HierarchyAction::Kind::ToggleVisibility,.entityId=entity.id};
   } else if (ImGui::IsItemClicked()) {
     if (ImGui::GetIO().KeyCtrl)
       workspace.toggleEntitySelection(entity.id);

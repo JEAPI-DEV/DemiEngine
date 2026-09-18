@@ -390,6 +390,9 @@ void LuaEntityBindingModule::install(LuaScriptHost &host,
   sol::state_view lua(state);
 
   sol::table prefab = lua.create_named_table("Prefab");
+  prefab.set_function("placements", [&host, state](sol::optional<std::string> ancestor) {
+    return jsonToLuaObject(state, host.prefabPlacements(ancestor.value_or("")));
+  });
   prefab.set_function(
       "instantiate",
       [&host](const std::string &prefabId, const sol::table optionsTable) {

@@ -44,6 +44,15 @@ expanded wall geometry. Queued impacts must finish before saving/unloading.
 
 ## Verification and limits
 
+In the editor, expand `world_stream` and select **Left destructible wall** or
+**Right destructible wall**. These are ordinary `PrefabPlacement3D` entities,
+not entries in a raw GameplayData catalogue. Move them with the gizmo, choose
+their prefab in the Inspector, or use **Open source prefab** to edit the wall.
+The preview contains masonry regions, not hundreds of simulated bricks.
+Play reads those same placements through `Prefab.placements` and preserves
+distance-based activation and cleanup. Install the local packages after pulling:
+`demi package install --project examples/destruction_weapons_3d_lab`.
+
 The floor and rear backstop use `kenney.textures.prototype` from the local
 package registry. Run `demi package install --project examples/destruction_weapons_3d_lab`
 after pulling the example. Their surface UVs repeat the grid every two meters;
