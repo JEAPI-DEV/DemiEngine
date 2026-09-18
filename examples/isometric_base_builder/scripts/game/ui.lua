@@ -1,3 +1,7 @@
+local Input = require("demi.input")
+local Hud = require("demi.hud")
+local Grid = require("demi.grid")
+
 local TowerStats = require("game.tower_stats")
 local Ui = {}
 

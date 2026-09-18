@@ -27,10 +27,14 @@
         "type": "object",
         "required": [
           "id",
-          "name",
           "components"
         ],
         "properties": {
+          "children": {
+            "type": "array",
+            "items": { "$ref": "#/properties/entities/items" },
+            "description": "Local child entities; transform parent is inferred without changing stable IDs."
+          },
           "id": {
             "type": "string"
           },

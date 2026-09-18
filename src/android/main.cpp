@@ -238,9 +238,19 @@ int main(int argc, char **argv) {
     logInfo("Physical-device hot reload enabled.");
   if (e2eTests)
     logInfo("Physical-device e2e tests enabled.");
-  return demi::runtime::runProject(demi::runtime::RuntimeOptions{
+  demi::runtime::RuntimeOptions options{
       .projectPath = projectPath,
       .watch = hotReload,
       .e2eTests = e2eTests,
-  });
+  };
+#if defined(DEMI_ANDROID_PROFILE)
+  // Development-only variant: fixed private paths, no exported intent controls.
+  if (std::filesystem::is_regular_file(storage / ".demi_profile")) {
+    options.profileReportPath = storage / "profile.csv";
+    options.profileFramesPath = storage / "profile.frames.csv";
+    options.maxFrames = 120000;
+    logInfo("Development frame trace enabled (optimized profile build).");
+  }
+#endif
+  return demi::runtime::runProject(options);
 }

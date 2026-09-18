@@ -1,4 +1,5 @@
 #include "editor/EditorSceneJson.h"
+#include "demi/runtime/scene/composition/EntityHierarchy.h"
 
 #include <algorithm>
 
@@ -96,10 +97,7 @@ nlohmann::json *findEntity(nlohmann::json &document,
   auto entities = document.find("entities");
   if (entities == document.end() || !entities->is_array())
     return nullptr;
-  const auto found = std::ranges::find_if(*entities, [&](auto &entity) {
-    return entity.is_object() && entity.value("id", std::string{}) == id;
-  });
-  return found == entities->end() ? nullptr : &*found;
+  return runtime::composition::findAuthoredEntity(*entities, id);
 }
 
 const nlohmann::json *findEntity(const nlohmann::json &document,
@@ -107,10 +105,7 @@ const nlohmann::json *findEntity(const nlohmann::json &document,
   auto entities = document.find("entities");
   if (entities == document.end() || !entities->is_array())
     return nullptr;
-  const auto found = std::ranges::find_if(*entities, [&](const auto &entity) {
-    return entity.is_object() && entity.value("id", std::string{}) == id;
-  });
-  return found == entities->end() ? nullptr : &*found;
+  return runtime::composition::findAuthoredEntity(*entities, id);
 }
 
 nlohmann::json *entitiesArray(nlohmann::json &document) {
@@ -283,11 +278,11 @@ std::vector<std::string> collectSubtreeIds(const nlohmann::json &document,
                                            const std::string_view rootId) {
   std::vector<std::string> result{std::string(rootId)};
   std::unordered_set<std::string> visited{std::string(rootId)};
+  const auto *source = entitiesArray(document);
+  if (!source) return result;
+  const auto flat = runtime::composition::flattenEntityHierarchy(*source);
   for (std::size_t cursor = 0; cursor < result.size(); ++cursor) {
-    const nlohmann::json *entities = entitiesArray(document);
-    if (entities == nullptr)
-      break;
-    for (const auto &entity : *entities) {
+    for (const auto &entity : flat) {
       if (!entity.is_object())
         continue;
       const std::string id = entity.value("id", std::string{});
@@ -320,7 +315,7 @@ void remapParentReferences(
   auto components = entity.find("components");
   if (components == entity.end() || !components->is_object())
     return;
-  for (const char *name : {"Transform3D", "Transform2D"}) {
+  for (const char *name : {"Transform3D", "Transform2D", "IsoTransform"}) {
     auto transform = components->find(name);
     if (transform == components->end() || !transform->is_object())
       continue;

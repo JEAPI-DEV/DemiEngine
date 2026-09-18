@@ -1,3 +1,9 @@
+local Debug = require("demi.debug")
+local Application = require("demi.application")
+local Network = require("demi.network")
+local TlsClient = require("demi.network.tls.client")
+local NetworkSession = require("demi.network.session")
+
 local Client = {
   elapsed = 0.0,
   tls_ready = false,

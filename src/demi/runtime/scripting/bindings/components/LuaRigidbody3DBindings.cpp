@@ -10,6 +10,23 @@ namespace demi::runtime {
 void LuaRigidbody3DBindingModule::install(LuaScriptHost &host,
                                           lua_State *state) const {
   sol::table body = sol::state_view(state).create_named_table("Rigidbody3D");
+  body.set_function(
+      "state", [state, &host](const std::string &id) -> sol::object {
+        const auto value = host.rigidbodyState3D(id);
+        if (!value)
+          return sol::make_object(state, sol::nil);
+        auto result = sol::state_view(state).create_table();
+        result["body_type"] = value->bodyType;
+        result["mass"] = value->mass;
+        result["use_gravity"] = value->useGravity;
+        result["enabled"] = value->enabled;
+        result["velocity"] = sol::as_table(std::vector<float>{
+            value->velocity.x, value->velocity.y, value->velocity.z});
+        result["angular_velocity"] = sol::as_table(std::vector<float>{
+            value->angularVelocity.x, value->angularVelocity.y,
+            value->angularVelocity.z});
+        return sol::make_object(state, result);
+      });
   body.set_function("get_velocity", [state, &host](const std::string &id) {
     return luaVec3Result(state, host.getRigidbodyVelocity3D(id));
   });

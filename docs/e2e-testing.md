@@ -11,6 +11,8 @@ Declare a module at `scripts/tests/e2e.lua` in the project. It returns a
 table of tests; each test is a coroutine-driven function:
 
 ```lua
+local Test = require("demi.test")
+
 -- scripts/tests/e2e.lua
 local tests = {}
 

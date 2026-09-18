@@ -1,3 +1,6 @@
+local Debug = require("demi.debug")
+local Grid = require("demi.grid")
+
 local TowerStats = require("game.tower_stats")
 local Selection = {}
 local SEGMENTS = 64

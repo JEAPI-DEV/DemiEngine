@@ -244,6 +244,15 @@ FetchContent_Declare(bgfx
   PATCH_COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${FETCHCONTENT_BASE_DIR}/bgfx-src -P ${CMAKE_SOURCE_DIR}/cmake/patches/apply_bgfx_vk_surface_loss_retry.cmake
 )
 FetchContent_MakeAvailable(bgfx)
+execute_process(COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${bgfx_SOURCE_DIR}
+  -P ${CMAKE_SOURCE_DIR}/cmake/patches/apply_bgfx_vk_profile_scopes.cmake
+  COMMAND_ERROR_IS_FATAL ANY)
+execute_process(COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${bgfx_SOURCE_DIR}
+  -P ${CMAKE_SOURCE_DIR}/cmake/patches/apply_bgfx_android_suboptimal.cmake
+  COMMAND_ERROR_IS_FATAL ANY)
+if(ANDROID AND CMAKE_CXX_FLAGS MATCHES "DEMI_ANDROID_PROFILE=1")
+  target_compile_definitions(bgfx PRIVATE BGFX_CONFIG_PROFILER=1)
+endif()
 # bgfx itself needs bimg, but its optional offline image encoder/decoder
 # libraries are not runtime dependencies and otherwise inflate every build.
 set_target_properties(bimg_decode bimg_encode PROPERTIES EXCLUDE_FROM_ALL TRUE)

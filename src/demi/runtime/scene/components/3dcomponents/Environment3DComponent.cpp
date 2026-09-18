@@ -9,6 +9,7 @@ namespace demi::runtime {
 void Environment3DComponent::parse(const nlohmann::json &json,
                                    Entity &entity) {
   Environment3DComponent component;
+  component.skyTexture = json.value("sky_texture", std::string{});
   if (auto value = scene_loading::colorField(json, "ambient_color"))
     component.ambientColor = *value;
   component.ambientIntensity = std::max(

@@ -1,3 +1,6 @@
+local Input = require("demi.input")
+local Hud = require("demi.hud")
+
 local LanguageFile = require("language_file")
 
 local MainMenu = {}

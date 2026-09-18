@@ -1,6 +1,6 @@
 #include "demi/runtime/render/bgfx3d/GpuMesh3D.h"
+#include "demi/runtime/render/bgfx3d/MeshVertexPreparation3D.h"
 
-#include <cmath>
 #include <limits>
 #include <numeric>
 #include <utility>
@@ -56,23 +56,6 @@ bool GpuMesh3D::upload(const std::span<const Vec3> positions,
     error = "GPU mesh has no resource owner.";
     return false;
   }
-  if (positions.empty()) {
-    error = "GPU mesh requires at least one vertex.";
-    return false;
-  }
-  if (!textureCoordinates.empty() &&
-      textureCoordinates.size() != positions.size()) {
-    error = "GPU mesh texture-coordinate count must match its vertices.";
-    return false;
-  }
-  if (!sourceNormals.empty() && sourceNormals.size() != positions.size()) {
-    error = "GPU mesh normal count must match its vertices.";
-    return false;
-  }
-  if (!colors.empty() && colors.size() != positions.size()) {
-    error = "GPU mesh color count must match its vertices.";
-    return false;
-  }
   std::vector<std::uint32_t> generatedIndices;
   std::span<const std::uint32_t> indices = sourceIndices;
   if (indices.empty()) {
@@ -80,60 +63,26 @@ bool GpuMesh3D::upload(const std::span<const Vec3> positions,
     std::iota(generatedIndices.begin(), generatedIndices.end(), 0U);
     indices = generatedIndices;
   }
-  if (indices.empty() || indices.size() % 3U != 0U) {
-    error = "GPU mesh indices must describe complete triangles.";
+  std::vector<GpuMeshVertex3D> vertices;
+  if (!prepareMeshVertices3D(positions, textureCoordinates, indices, rgba,
+                             sourceNormals, colors, vertices, error))
+    return false;
+  return uploadPrepared(vertices, indices, error, dynamicVertices);
+}
+
+bool GpuMesh3D::uploadPrepared(const std::span<const GpuMeshVertex3D> vertices,
+                               const std::span<const std::uint32_t> indices,
+                               std::string &error, const bool dynamicVertices) {
+  if (!resources_ || vertices.empty() || indices.empty() || indices.size() % 3) {
+    error = "Invalid prepared GPU mesh.";
     return false;
   }
-  for (const std::uint32_t index : indices) {
-    if (index >= positions.size()) {
-      error = "GPU mesh index lies outside the vertex array.";
+  for (const auto index : indices) {
+    if (index >= vertices.size()) {
+      error = "Prepared GPU mesh index lies outside the vertex array.";
       return false;
     }
   }
-
-  std::vector<Vec3> generatedNormals;
-  std::span<const Vec3> normals = sourceNormals;
-  if (normals.empty()) {
-    generatedNormals.resize(positions.size());
-    for (std::size_t triangle = 0; triangle < indices.size(); triangle += 3U) {
-      const Vec3 a = positions[indices[triangle]];
-      const Vec3 b = positions[indices[triangle + 1U]];
-      const Vec3 c = positions[indices[triangle + 2U]];
-      const Vec3 ab{b.x - a.x, b.y - a.y, b.z - a.z};
-      const Vec3 ac{c.x - a.x, c.y - a.y, c.z - a.z};
-      const Vec3 face{ab.y * ac.z - ab.z * ac.y, ab.z * ac.x - ab.x * ac.z,
-                      ab.x * ac.y - ab.y * ac.x};
-      for (std::size_t corner = 0; corner < 3U; ++corner) {
-        Vec3 &normal = generatedNormals[indices[triangle + corner]];
-        normal = {normal.x + face.x, normal.y + face.y, normal.z + face.z};
-      }
-    }
-    for (Vec3 &normal : generatedNormals) {
-      const float length = std::sqrt(normal.x * normal.x + normal.y * normal.y +
-                                     normal.z * normal.z);
-      normal = length > 0.000001F ? Vec3{normal.x / length, normal.y / length,
-                                         normal.z / length}
-                                  : Vec3{0.0F, 1.0F, 0.0F};
-    }
-    normals = generatedNormals;
-  }
-
-  std::vector<GpuMeshVertex3D> vertices;
-  vertices.reserve(positions.size());
-  for (std::size_t index = 0; index < positions.size(); ++index) {
-    const Vec2 uv =
-        textureCoordinates.empty() ? Vec2{} : textureCoordinates[index];
-    vertices.push_back({.x = positions[index].x,
-                        .y = positions[index].y,
-                        .z = positions[index].z,
-                        .nx = normals[index].x,
-                        .ny = normals[index].y,
-                        .nz = normals[index].z,
-                        .rgba = colors.empty() ? rgba : colors[index],
-                        .u = uv.x,
-                        .v = uv.y});
-  }
-
   if (dynamicVertices && dynamicVertices_ && vertexCount_ == vertices.size() &&
       indexCount_ == indices.size()) {
     return resources_->updateBuffer(vertices_,
@@ -151,7 +100,7 @@ bool GpuMesh3D::upload(const std::span<const Vec3> positions,
     return false;
 
   const bool needs32Bit =
-      positions.size() >
+      vertices.size() >
       static_cast<std::size_t>(std::numeric_limits<std::uint16_t>::max());
   if (needs32Bit) {
     indices_ = resources_->createBuffer({.kind = BufferKind::Index32,
@@ -176,7 +125,7 @@ bool GpuMesh3D::upload(const std::span<const Vec3> positions,
     vertices_ = {};
     return false;
   }
-  vertexCount_ = static_cast<std::uint32_t>(positions.size());
+  vertexCount_ = static_cast<std::uint32_t>(vertices.size());
   indexCount_ = static_cast<std::uint32_t>(indices.size());
   dynamicVertices_ = dynamicVertices;
   return true;

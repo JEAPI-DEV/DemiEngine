@@ -1,3 +1,5 @@
+local Test = require("demi.test")
+
 local Camera = require("demi.gameplay.camera")
 
 Test.case("overlapping zones use priority then stable id", function()

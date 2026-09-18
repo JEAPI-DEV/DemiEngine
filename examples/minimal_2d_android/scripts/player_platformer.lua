@@ -1,3 +1,9 @@
+local Input = require("demi.input")
+local Transform = require("demi.transform2d")
+local Rigidbody2D = require("demi.physics.rigidbody2d")
+local Physics2D = require("demi.physics.query2d")
+local Audio = require("demi.audio")
+
 local config = require("player_config")
 local state = require("game_state")
 

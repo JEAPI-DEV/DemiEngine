@@ -26,7 +26,8 @@ struct LockedPackageContent {
   Diagnostics diagnostics;
 };
 
-// Reads only the lock and installed tree created by the package installer.
+// Reads only the lock and installed tree created by the package installer,
+// or the relocated runtime-only packages/ tree in a cooked game.
 // It deliberately has no registry dependency and performs no version solving.
 [[nodiscard]] LockedPackageContent
 loadLockedPackageContent(const std::filesystem::path &projectDirectory,

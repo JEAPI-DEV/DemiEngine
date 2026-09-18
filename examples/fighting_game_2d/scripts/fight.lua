@@ -1,3 +1,10 @@
+local Input = require("demi.input")
+local Transform = require("demi.transform2d")
+local Sprite2D = require("demi.sprite2d")
+local Animation = require("demi.animation")
+local Events = require("demi.events")
+local Hud = require("demi.hud")
+
 local InputBuffer = require("demi.input_buffer")
 local Commands = require("demi.command_recognizer")
 local GameplayEvents = require("demi.gameplay.events")

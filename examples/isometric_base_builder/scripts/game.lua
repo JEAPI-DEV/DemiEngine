@@ -1,3 +1,8 @@
+local Debug = require("demi.debug")
+local Input = require("demi.input")
+local Application = require("demi.application")
+local Grid = require("demi.grid")
+
 ---@demi_component
 ---@display_name Tower Defense Controller
 ---@category Gameplay

@@ -10,6 +10,7 @@ struct Environment3DComponent {
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
   static constexpr std::array fields{
+      ComponentFieldDescriptor::assetReference("sky_texture"),
       ComponentFieldDescriptor{"ambient_color", ComponentFieldType::Color},
       ComponentFieldDescriptor{"ambient_intensity", ComponentFieldType::Number,
                                false, true, {}, 0.0, true},
@@ -32,6 +33,7 @@ struct Environment3DComponent {
   static void parse(const nlohmann::json &json, Entity &entity);
 
   Color ambientColor{0.35F, 0.4F, 0.5F, 1.0F};
+  std::string skyTexture;
   float ambientIntensity = 0.5F;
   Color fogColor{0.56F, 0.74F, 0.95F, 1.0F};
   float fogStart = 80.0F;

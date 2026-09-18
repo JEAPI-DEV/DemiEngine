@@ -40,6 +40,8 @@ int main() {
 #endif
 
   if (!writeFile(projectDirectory / "scripts" / "action_module.lua", R"lua(
+local Save = require("demi.save")
+
 local ActionModule = {}
 -- @HandleAction("mobile_probe_action")
 function ActionModule.handle_action(event)
@@ -53,6 +55,8 @@ return ActionModule
 
   if (!writeFile(projectDirectory / "scripts" / "tests" / "e2e.lua",
                  R"lua(
+local Test = require("demi.test")
+
 return {tests = {
   {name = "tap reaches button by node id", func = function()
     Test.wait(0.2)

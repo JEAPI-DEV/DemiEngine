@@ -7,19 +7,50 @@
   "anyOf": [
     { "required": ["entities"] },
     { "required": ["elements"] },
-    { "required": ["instances"] }
+    { "required": ["instances"] },
+    { "required": ["fracture"] }
   ],
+  "allOf": [{ "if": { "required": ["fracture"] }, "then": { "not": { "anyOf": [{ "required": ["entities"] }, { "required": ["instances"] }, { "required": ["elements"] }] } } }],
   "additionalProperties": false,
   "properties": {
     "format_version": { "type": "integer", "minimum": 1 },
     "id": { "type": "string", "pattern": "^prefab://" },
     "name": { "type": "string" },
+    "fracture": {
+      "type": "object", "additionalProperties": false,
+      "required": ["generator_version", "source", "objects"],
+      "properties": {
+        "generator_version": { "type": "integer", "const": 1 },
+        "source": { "type": "string", "pattern": "^prefab://" },
+        "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295, "default": 1 },
+        "mass": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1000000000000, "default": 1000 },
+        "max_bodies": { "type": "integer", "minimum": 1, "maximum": 256, "default": 64 },
+        "objects": {
+          "type": "object", "minProperties": 1, "maxProperties": 256,
+          "additionalProperties": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "pieces": { "type": "integer", "minimum": 1, "maximum": 128, "default": 8 },
+              "bond_health": { "type": "number", "exclusiveMinimum": 0, "maximum": 1e30, "default": 1 },
+              "anchor_below": { "type": "number" },
+              "interior_color": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": 0, "maximum": 1 } },
+              "interior_material": { "type": "string", "pattern": "^asset://" }
+            }
+          }
+        }
+      }
+    },
     "entities": {
       "type": "array",
       "items": {
         "type": "object",
         "required": ["id", "components"],
         "properties": {
+          "children": {
+            "type": "array",
+            "items": { "$ref": "#/properties/entities/items" },
+            "description": "Local child entities; transform parent is inferred without changing stable IDs."
+          },
           "id": { "type": "string" },
           "name": { "type": "string" },
           "enabled": { "type": "boolean", "default": true },

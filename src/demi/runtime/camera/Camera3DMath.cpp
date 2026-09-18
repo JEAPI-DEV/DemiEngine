@@ -24,6 +24,29 @@ float radians(const float degrees) {
   return degrees * 0.01745329251994329577F;
 }
 
+Vec3 cross(const Vec3 left, const Vec3 right) {
+  return {left.y * right.z - left.z * right.y,
+          left.z * right.x - left.x * right.z,
+          left.x * right.y - left.y * right.x};
+}
+
+struct CameraBasis {
+  Vec3 forward;
+  Vec3 right;
+  Vec3 up;
+};
+
+CameraBasis cameraBasis(const WorldTransform3D &transform,
+                        const Camera3DComponent &camera) {
+  // Match the renderer's right-handed look-at view, not the entity's +Z axis.
+  const Vec3 forward =
+      normalized(transformDirection3D(transform, camera.targetOffset));
+  const Vec3 authoredUp =
+      transformDirection3D(transform, {0.0F, camera.upAxis, 0.0F});
+  const Vec3 right = normalized(cross(forward, authoredUp));
+  return {forward, right, normalized(cross(right, forward))};
+}
+
 } // namespace
 
 CameraRay3D cameraScreenRay3D(const WorldTransform3D &transform,
@@ -33,12 +56,10 @@ CameraRay3D cameraScreenRay3D(const WorldTransform3D &transform,
   const float height = std::max(viewport.y, 1.0F);
   const float ndcX = screen.x * 2.0F / width - 1.0F;
   const float ndcY = 1.0F - screen.y * 2.0F / height;
-  const Vec3 forward = normalized(forwardDirection3D(transform));
-  const Vec3 right = normalized(rightDirection3D(transform));
-  const Vec3 up = normalized(upDirection3D(transform));
+  const auto [forward, right, up] = cameraBasis(transform, camera);
 
   if (!camera.perspective) {
-    const float halfHeight = std::max(camera.orthographicSize, 0.001F);
+    const float halfHeight = std::max(camera.orthographicSize, 0.001F) * 0.5F;
     const float halfWidth = halfHeight * width / height;
     return {
         .origin = {transform.position.x + right.x * ndcX * halfWidth +
@@ -72,9 +93,7 @@ std::optional<Vec2> worldToScreen3D(const WorldTransform3D &transform,
   const Vec3 offset{world.x - transform.position.x,
                     world.y - transform.position.y,
                     world.z - transform.position.z};
-  const Vec3 forward = normalized(forwardDirection3D(transform));
-  const Vec3 right = normalized(rightDirection3D(transform));
-  const Vec3 up = normalized(upDirection3D(transform));
+  const auto [forward, right, up] = cameraBasis(transform, camera);
   const float depth = dot(offset, forward);
   if (depth < camera.nearClip || depth > camera.farClip)
     return std::nullopt;
@@ -87,7 +106,7 @@ std::optional<Vec2> worldToScreen3D(const WorldTransform3D &transform,
     ndcX = dot(offset, right) / (depth * tangent * width / height);
     ndcY = dot(offset, up) / (depth * tangent);
   } else {
-    const float halfHeight = std::max(camera.orthographicSize, 0.001F);
+    const float halfHeight = std::max(camera.orthographicSize, 0.001F) * 0.5F;
     ndcX = dot(offset, right) / (halfHeight * width / height);
     ndcY = dot(offset, up) / halfHeight;
   }

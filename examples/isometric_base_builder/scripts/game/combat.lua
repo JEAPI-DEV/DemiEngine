@@ -1,3 +1,5 @@
+local Entity = require("demi.entity")
+
 local TowerStats = require("game.tower_stats")
 local Targeting = require("game.targeting")
 local Combat = {}

@@ -1,4 +1,5 @@
 #pragma once
+#include "demi/runtime/destruction/DestructionWorld3D.h"
 #include "demi/runtime/geometry/MeshImpact3D.h"
 
 #include "demi/diagnostics/Diagnostic.h"
@@ -331,10 +332,19 @@ public:
   physicsSphereCast3D(float originX, float originY, float originZ, float radius,
                       float directionX, float directionY, float directionZ,
                       float distance, const std::string &layer,
-                      const std::string &ignoredEntityId) const;
+                      const std::string &ignoredEntityId, bool includeTriggers = true) const;
   [[nodiscard]] bool
   physicsHasContact(const std::string &entityId,
                     const PhysicsContactFilter2D &filter) const;
+  bool damageDestructiblePart3D(const std::string &entityId, const std::string &partId,
+                               float damage, std::string &error);
+  DestructionState3D destructionState3D(const std::string &entityId) const;
+  nlohmann::json destructionCheckpoint3D(const std::string &entityId, std::string &error) const;
+  bool restoreDestruction3D(const std::string &entityId, const nlohmann::json &state, std::string &error);
+  bool retireDestructionDebris3D(const std::string &entityId, std::string &error);
+  std::optional<RigidbodyState3D> rigidbodyState3D(const std::string &entityId) const;
+  bool applyDestructionImpact3D(const DestructionImpact3D &impact,
+                                std::size_t &affectedAssemblies, std::string &error);
   [[nodiscard]] std::vector<PhysicsContact2D>
   physicsContacts(const std::string &entityId) const;
   [[nodiscard]] bool createEntity(Entity entity);

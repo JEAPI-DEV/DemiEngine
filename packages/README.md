@@ -1,4 +1,4 @@
-# Demi gameplay packages
+# Demi packages
 
 Browse the free package catalog at https://demiengine.de/packages/.
 Inside a project directory, run `demi package add demi.ui.language_file@1.0.0`.
@@ -10,14 +10,16 @@ The local source registry below remains available for
 engine development. Store application and publishing instructions live in
 `tools/package-store/README.md`.
 
-These are optional Lua packages, not engine singletons. They depend only on
+Gameplay packages are optional Lua packages, not engine singletons. They depend only on
 public Demi APIs or explicitly declared packages and keep game policy in Lua.
 
 | Package | Responsibility |
 |---|---|
+| `kenney.textures.prototype` | 78 CC0 prototype textures with ready-to-use asset IDs (no Lua required) |
 | `demi.gameplay.core` | deterministic instance-owned event queues |
 | `demi.gameplay.health` | health, damage, invulnerability, defeat events |
 | `demi.gameplay.projectiles` | weapon timing, hit-scan/swept shots, pooling |
+| `demi.gameplay.destruction` | timed 3D hammer contacts, swept rockets and native-impact adapter |
 | `demi.gameplay.interactions` | deterministic interactions and pickups |
 | `demi.gameplay.traversal` | checkpoints, entrances, respawn data |
 | `demi.gameplay.camera` | follow, bounds, zones, shake, look-ahead |

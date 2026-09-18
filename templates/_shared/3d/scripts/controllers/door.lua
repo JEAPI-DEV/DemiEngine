@@ -1,3 +1,6 @@
+local Entity = require("demi.entity")
+local Events = require("demi.events")
+
 local Door = {}
 
 function Door:on_create()

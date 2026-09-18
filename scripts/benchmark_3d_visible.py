@@ -42,6 +42,15 @@ def summarize(path, warmup_seconds, width, height):
              'Graphics.frame_advance', 'Graphics.render_thread', 'Graphics.wait_render',
              'Graphics.wait_submit', 'Graphics.gpu', 'AnimationStateMachine.update',
              'Renderer3D.animation_rebuild', 'Renderer3D.skin_cpu', 'Renderer3D.skin_upload_cpu']
+    names += ['Renderer3D.animation_prepare_wall', 'Renderer3D.mesh_vertices_cpu',
+              'Renderer3D.mesh_buffer_update_cpu', 'Renderer3D.skin_palette_cpu']
+    names += ['Vulkan.memory_budget', 'Vulkan.acquire_image', 'Vulkan.present', 'Vulkan.wait_fence',
+              'Vulkan.submit', 'Vulkan.command_alloc', 'Vulkan.acquire_total']
+    names += ['Bgfx.api_frame', 'Bgfx.render_frame', 'Bgfx.flip', 'Bgfx.commands_pre',
+              'Bgfx.commands_post', 'Bgfx.render_submit', 'Bgfx.sort', 'Bgfx.dedup_bind']
+    names += ['Vulkan.uniform_flush', 'Vulkan.timer_end', 'Vulkan.timer_begin', 'Vulkan.staging_flush', 'Vulkan.command_kick']
+    names += ['Vulkan.swapchain_create', 'Vulkan.swapchain_update', 'Vulkan.framebuffer_pre_reset']
+    names += ['Vulkan.suboptimal_usable']
     result = {'frames': len(frames), 'measured_frames': len(warm), 'measured_wall_seconds': 0,
               'metrics': {name: distribution([value for frame in warm
                            if (value := metric(frame, name)) is not None]) for name in names}}
@@ -73,12 +82,22 @@ def summarize(path, warmup_seconds, width, height):
               if (v := metric(f, 'Physics3D.update_error_steps', 'gauge')) is not None]
     result['physics_update_error_steps'] = max(errors) if errors else None
     for scope in ['Simulation.fixed_steps', 'Renderer3D.meshes_visible', 'Renderer3D.meshes_culled',
-                  'Renderer3D.batches', 'Physics3D.active_bodies']:
+                  'Renderer3D.directional_shader',
+                  'Renderer3D.batches', 'Physics3D.active_bodies', 'Physics3D.bodies', 'Physics3D.contact_pairs',
+                  'Renderer3D.animation_deferred',
+                  'Renderer3D.animation_batch_vertices', 'Renderer3D.animation_batch_meshes',
+                  'Renderer3D.animation_workers_available']:
         values = [v for f in warm if (v := metric(f, scope, 'gauge')) is not None]
         result[scope] = {'min': min(values), 'max': max(values), 'last': values[-1]} if values else None
+    for scope in ['Renderer3D.gpu_skinned_meshes', 'Renderer3D.cpu_skinned_meshes']:
+        values = [v for f in warm if (v := metric(f, scope, 'gauge')) is not None]
+        result[scope] = {'min': min(values), 'max': max(values)} if values else None
     rebuilds = [metric(f, 'Renderer3D.animation_rebuild', 'calls') or 0 for f in warm]
     result['Renderer3D.animation_rebuild.calls'] = {
         'min': min(rebuilds), 'max': max(rebuilds)} if rebuilds else None
+    accounted = [(metric(f, 'Renderer3D.animation_rebuild', 'calls') or 0) +
+                 (metric(f, 'Renderer3D.animation_deferred', 'gauge') or 0) for f in warm]
+    result['Renderer3D.animation_accounted'] = {'min': min(accounted), 'max': max(accounted)} if accounted else None
     result['valid_capture'] = bool(warm and result['widths'] == [width] and result['heights'] == [height]
                                    and result['metrics']['Graphics.gpu'] is not None
                                    and not result['minimized_frames'] and not result['overridden_delta_frames']
@@ -93,6 +112,9 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--counts', type=int, nargs='+', default=[250, 2000])
     parser.add_argument('--geometry', choices=['primitives', 'barrel'], default='primitives')
+    parser.add_argument('--rig-layout', choices=['original', 'split'], default='original')
+    parser.add_argument('--skinning', choices=['auto', 'cpu', 'gpu'], default='auto',
+                        help='GPU requires every crowd character to use the GPU path')
     parser.add_argument('--workloads', choices=['mesh', 'rigid', 'pile', *crowd.WORKLOADS], nargs='+', default=['rigid', 'pile'])
     parser.add_argument('--vsync', choices=['on', 'off'], nargs='+', default=['on', 'off'])
     parser.add_argument('--seconds', type=float, default=12)
@@ -100,13 +122,19 @@ def main():
     parser.add_argument('--repeats', type=int, default=1)
     parser.add_argument('--width', type=int, default=1920)
     parser.add_argument('--height', type=int, default=1080)
+    parser.add_argument('--visual-rate', type=float, default=0, help='Far visual poses per second; zero preserves full rate')
+    parser.add_argument('--visual-distance', type=float, default=30, help='Nearer poses remain full rate (world units)')
     args = parser.parse_args()
+    if not (0 <= args.visual_rate <= 240) or not (0 <= args.visual_distance < float('inf')):
+        parser.error('Visual rate must be 0..240 and distance finite/nonnegative')
     if not (0 <= args.warmup_seconds < args.seconds <= 600) or args.repeats < 1:
         parser.error('Require 0 <= warmup < seconds <= 600 and positive repeats')
     if any(n < 1 or n > 5000 for n in args.counts) or not (1 <= args.width <= 65535 and 1 <= args.height <= 65535):
         parser.error('Counts must be 1..5000 and dimensions 1..65535')
     if any(w in crowd.WORKLOADS for w in args.workloads) and (max(args.counts) > 2000 or args.geometry != 'primitives'):
         parser.error('Character workloads require counts <= 2000 and no barrel geometry override')
+    if args.rig_layout != 'original' and any(w not in crowd.WORKLOADS for w in args.workloads):
+        parser.error('Split rig layout requires character workloads')
     binary = args.binary.resolve(strict=True)
     root = Path(__file__).resolve().parents[1]
     output = args.output.resolve()
@@ -115,6 +143,7 @@ def main():
     for name in ['DEMI_HEADLESS', 'DEMI_FIXED_DELTA_SECONDS']:
         environment.pop(name, None)
     environment['DEMI_PROFILE_SLOW_MS'] = '1000000'
+    environment['DEMI_GPU_SKINNING'] = '0' if args.skinning == 'cpu' else '1'
     with binary.open('rb') as source:
         digest = hashlib.file_digest(source, 'sha256').hexdigest()
     (output / 'machine.json').write_text(json.dumps({
@@ -124,6 +153,9 @@ def main():
         'workloads': args.workloads, 'counts': args.counts, 'repeats': args.repeats,
         'sdl_video_driver': environment.get('SDL_VIDEO_DRIVER', 'automatic'),
         'geometry': args.geometry,
+        'skinning': args.skinning,
+        'rig_layout': args.rig_layout,
+        'visual_rate': args.visual_rate, 'visual_distance': args.visual_distance,
         'cpu': subprocess.run(['lscpu'], capture_output=True, text=True, check=True).stdout,
     }, indent=2) + '\n')
     for count in args.counts:
@@ -141,7 +173,8 @@ def main():
                         settings = json.loads(project_path.read_text())
                         settings['display'] = {'vsync': vsync == 'on'}
                         if is_crowd:
-                            crowd.configure(project, settings, count, workload, args.seconds)
+                            crowd.configure(project, settings, count, workload, args.seconds, args.rig_layout,
+                                            args.visual_rate, args.visual_distance)
                         else:
                             scene_path = project / 'scenes/main.scene.json'
                             scene = json.loads(scene_path.read_text())
@@ -152,6 +185,12 @@ def main():
                         project_path.write_text(json.dumps(settings, indent=2) + '\n')
                         trace = output / f'{name}.frames.csv'
                         with (output / f'{name}.log').open('w') as log:
+                            if is_crowd and args.rig_layout == 'split':
+                                subprocess.run([str(binary), 'asset', 'reimport',
+                                    str(project / 'assets/AnimationLib/ual1_standard.asset.json')],
+                                    stdout=log, stderr=subprocess.STDOUT, timeout=60, check=True)
+                            subprocess.run([str(binary), 'validate', str(project)],
+                                stdout=log, stderr=subprocess.STDOUT, timeout=60, check=True)
                             subprocess.run([str(binary), 'run', '--project', str(project_path),
                                 '--window-size', f'{args.width}x{args.height}', '--max-frames', '120000',
                                 '--profile-report', str(output / f'{name}.csv'), '--profile-frames', str(trace)],
@@ -161,7 +200,8 @@ def main():
                         result['completed_duration'] = result['measured_wall_seconds'] >= (args.seconds - args.warmup_seconds) * .9
                         result['valid_capture'] &= result['completed_duration']
                         if is_crowd:
-                            crowd.qualify(result, count, workload)
+                            crowd.qualify(result, count, workload, args.visual_rate)
+                            crowd.qualify_skinning(result, (count + 1) // 2 if workload == 'mixed' else count, args.skinning)
                         result.update(workload=workload, count=count, geometry='ual1_standard' if is_crowd else args.geometry, vsync=vsync, repeat=repeat)
                         (output / f'{name}.json').write_text(json.dumps(result, indent=2) + '\n')
                         print(name + ': ' + json.dumps(result['metrics']) + f' valid={result["valid_capture"]} dropped_ms={result["dropped_fixed_ms"]:.3f}', flush=True)

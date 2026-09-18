@@ -704,6 +704,13 @@ int main() {
 
   const std::filesystem::path prefabRoot =
       std::filesystem::temp_directory_path() / "demi_ui_prefab_step3";
+  const nlohmann::json implicitRoot = {{"format_version",1}, {"children", {{{"id","implicit_label"},{"type","label"},{"text","Hello"}}}}};
+  const auto expandedImplicit = expandUiDocument(prefabRoot / "scenes/implicit.hud.json", implicitRoot);
+  if (!expandedImplicit.document || (*expandedImplicit.document)["root"]["id"] != "ui_root" ||
+      (*expandedImplicit.document)["root"]["children"][0]["id"] != "implicit_label" || implicitRoot.contains("root")) {
+    std::cerr << "HUD composition rejected or mutated supported implicit-root authoring.\n";
+    return 1;
+  }
   std::filesystem::remove_all(prefabRoot);
   std::filesystem::create_directories(prefabRoot / "ui");
   std::filesystem::create_directories(prefabRoot / "scenes");

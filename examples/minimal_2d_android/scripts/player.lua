@@ -1,3 +1,8 @@
+local Debug = require("demi.debug")
+local Input = require("demi.input")
+local Transform = require("demi.transform2d")
+local Sprite2D = require("demi.sprite2d")
+
 local config = require("player_config")
 local state = require("game_state")
 local platformer = require("player_platformer")

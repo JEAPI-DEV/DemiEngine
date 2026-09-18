@@ -28,6 +28,8 @@ For physical hits, use the native energy-based entry point with a collision
 event, rather than choosing a fixed depth:
 
 ```lua
+local MeshDeformation = require("demi.mesh.deformation")
+
 -- Inside a physics3d_collision_enter handler, for the entity being dented:
 local ok, error, depth = MeshDeformation.impact(contact.entity_id, contact, {
   radius = 0.32, yield_energy = 4, stiffness = 4000,
@@ -51,6 +53,8 @@ through physics; it is not added again as another damage source. Consume **enter
 events so resting contacts do not repeatedly damage a mesh.
 
 ```lua
+local MeshDeformation = require("demi.mesh.deformation")
+
 local ok, error = MeshDeformation.dent("barrel", {
   point = {hit_x, hit_y, hit_z},
   direction = {travel_x, travel_y, travel_z},

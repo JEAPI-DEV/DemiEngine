@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "canvas_size": [960, 540],
+  "root": { "id": "root", "type": "container", "anchor_max": [1, 1], "children": [
+    { "id": "title", "type": "label", "text": "DESTRUCTION LAB - LOCALIZED SPLITS", "position": [28, 24], "font_size": 18 },
+    { "id": "help", "type": "label", "text": "LMB hit part (two hits break bonds) | SPACE strike beam | R reset", "position": [28, 52], "font_size": 12 },
+    { "id": "status", "type": "label", "text": "Anchored pillars stay fixed. Detached pieces use gravity and collision.", "position": [28, 78], "font_size": 12 },
+    { "id": "impulse", "type": "button", "action": "impulse", "text": "STRIKE BEAM", "position": [28, 110], "size": [120, 36] },
+    { "id": "reset", "type": "button", "action": "reset", "text": "RESET", "position": [160, 110], "size": [100, 36] }
+  ] }
+}

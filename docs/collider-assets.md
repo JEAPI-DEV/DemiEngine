@@ -34,8 +34,14 @@ demi asset reimport path/to/game/assets/colliders/barrel/barrel.collider.asset.j
 
 ## Attaching a collider
 
+Prepared fracture prefabs may embed `ModelCollider3D.inline_geometry` instead of
+an `asset` reference. It uses this same compound format/parser, including
+`format_version`. Do not supply both sources. The normal workflow remains asset
+references; [fracture authoring](fracture-authoring.md) generates embedded payloads
+automatically and bakes them during cooking.
+
 The existing `ModelCollider3D` component is the asset attachment; the Inspector
-labels it **Collider Asset 3D**. It now accepts a convex collider asset on a dynamic
+labels it **Collider Asset 3D**. It accepts convex and compound collider assets on a dynamic
 rigidbody. There is no need to create a prefab or repeat `ConvexCollider3D.points`.
 Inline colliders and optional prefabs remain available. The Inspector's Asset
 picker lists only `Collider3D` assets, not render models or other asset types.
@@ -49,6 +55,8 @@ Preload the model and collider through the project's normal `assets` list:
 Then create any number of independent bodies from Lua:
 
 ```lua
+local Entity = require("demi.entity")
+
 Entity.create("barrel_1", { components = {
   Transform3D = { position = { 0, 3, 0 } },
   MeshRenderer = { model = "asset://models/barrel", color = { 1, 1, 1, 1 } },
@@ -84,7 +92,105 @@ does not imply sharing a native rigidbody.
   import/cook, inspection, and runtime loading. Cooking keeps the collider source
   inside the audited cooked asset tree with stable references.
 
+## Compound assemblies
+
+`shape: "compound"` defines 1–256 convex parts in one asset. Each part has a
+unique local `id` and 4–256 non-coplanar `points`, using the same hull validation
+as standalone convex sources. Points are expressed in the shared asset origin;
+there are no nested compounds or external child references in this first version.
+IDs start with an ASCII letter/digit and may contain letters, digits, `_`, `-`,
+and `.`, up to 128 characters. Do not use array positions as durable identity.
+
+```json
+{
+  "format_version": 1,
+  "shape": "compound",
+  "parts": [
+    { "id": "left", "points": [[-2,0,0], [-1,0,0], [-2,1,0], [-2,0,1]] },
+    { "id": "right", "points": [[1,0,0], [2,0,0], [1,1,0], [1,0,1]] }
+  ]
+}
+```
+
+Attach it with the same `ModelCollider3D` component. The compound is **one native
+body**, with real gaps between its hulls. `Rigidbody3D.mass` is the total mass.
+Each part can specify `density` in kg/m³ (default 1000, range 0.001–1,000,000).
+Jolt derives compound center of mass and inertia from these weighted hulls,
+scaled to that total. The immutable compound shape can belong to a static,
+kinematic or dynamic body. Mirrored/nonuniform entity scale is applied to each
+part's points. Visual child entities may follow the body via `Transform3D.parent`;
+do not give those children extra colliders unless independent bodies are intended.
+
+After physics synchronization, `Physics3D.raycast` includes optional
+`collider_part_id` when a compound part is hit. Native subshape indices remain
+private. The body keeps its own part-ID snapshot, so a loaded/reordered asset
+does not mislabel hits while the old native shape is still in use. Shape casts
+and overlap queries use the real compound but do not yet report part IDs.
+Before the first physics synchronization, legacy cold-world query fallbacks
+omit compounds rather than treating their union bounds as solid collision.
+Editor selection uses the union bounds; collider debug drawing shows the hulls.
+
+The asset follows the normal import, cook, reload and live-user retention rules.
+An optional `fracture` block adds an authored bond graph; see below. Density is
+independent of bond strength. Transactional splitting preserves weighted mass;
+material stress and automatic structural failure remain separate work.
+See `examples/destruction_3d_lab` for an editable three-part
+arch and native impulse/raycast probe.
+
 Triangle-mesh collider assets remain static-only. Asset-backed character-controller
 movement shapes are not enabled by this change; characters still use their existing
 inline box/sphere/capsule/convex components. This format does not yet define sphere,
-capsule, compound, or 2D collider assets.
+capsule, or 2D collider assets.
+
+## Optional fracture graph
+
+Compound sources can add a graph over their existing part IDs, without copying
+geometry or creating another asset type. It is covered by root `format_version: 1`.
+
+```json
+"fracture": {
+  "anchors": ["left", "right"],
+  "bonds": [
+    { "id": "left-lintel", "parts": ["left", "lintel"] },
+    { "id": "right-lintel", "parts": ["right", "lintel"], "health": 5 }
+  ]
+}
+```
+
+This example assumes parts named `left`, `right` and `lintel`. Bond IDs use the
+same local identifier rules as parts. Each pair references two distinct existing
+parts; repeated pairs (including reversed pairs) and duplicate IDs are invalid.
+There are at most 2,048 bonds, and they must connect every part into one initial
+assembly. A single-part compound may have an empty bond list. Optional `anchors`
+defaults to `[]` and contains unique existing part IDs. Optional bond `health`
+defaults to `1` and must be finite and positive. Unknown graph/bond fields are
+rejected to catch authoring typos. A standalone `convex_hull` cannot have this
+block; use a one-part compound if needed.
+
+These are authored connections, not automatically detected contacts. Authors
+must place the hulls/visuals appropriately. Health is a damage threshold, not a
+material-strength calculation. Anchors identify which connected groups remain
+supported; they do not change the current rigidbody's motion by themselves.
+
+Import, reimport, direct/registry validation and cooking use the same parser.
+Invalid graph edits reject reimport before updating the manifest hash. Valid
+graph edits update the normal source hash/revision. Cooking retains the graph
+inside the collider source, with no external graph dependencies, native Blast
+blobs or generated cache mirrors. `demi asset inspect ... --format json` reports
+the normalized bonds and anchors. The editor's existing Collider3D import and
+asset picker paths still apply; there is no dedicated bond-graph editor yet.
+
+The runtime loader preserves graph metadata and accounts for it in decoded and
+resident payload estimates. `createColliderFractureFamily3D` converts a loaded
+snapshot into independent Blast state, deriving local-space centers and volumes
+from Jolt convex hulls rather than bounding boxes or hand-entered values. Hulls
+that Jolt cannot construct fail preparation with an error. Existing families
+own their snapshots; asset reload/unload does not reset their accumulated damage.
+
+**Adding this block alone does not enable destruction.** Opt in with
+`Destructible3D` and map parts to their visual children. The arch demonstrates
+queued part damage and native physical/visual splits. Spatial blast falloff,
+general concave fracture authoring and the time-budgeted scheduler remain pending.
+For normal convex-mesh authoring, use `Destructible3D` and `Fracture3D` components
+in one prefab; [the shared compiler](fracture-authoring.md) generates this data.
+See [destruction runtime status](3d-destruction-runtime.md).

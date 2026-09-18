@@ -75,28 +75,38 @@ loadLockedPackageContent(const std::filesystem::path &projectDirectory,
   if (hasErrors(result.diagnostics))
     return result;
 
+  // Cooked games retain the lock as the public-content manifest, but omit
+  // installer state and author-only files (README, tests, docs).
+  const bool cooked =
+      std::filesystem::is_regular_file(projectDirectory / "cook.manifest.json");
+
   std::map<std::string, std::string> owners;
   if (projectAssets != nullptr)
     for (const AssetManifest &asset : projectAssets->assets)
       owners.emplace(asset.id, "project");
 
   for (const auto &[packageName, release] : lock.releases) {
-    const auto root = projectDirectory / ".demi/packages" / packageName;
-    const auto installed =
-        packages::loadPackageManifest(root / packages::PackageManifestFilename);
-    result.diagnostics.insert(result.diagnostics.end(),
-                              installed.diagnostics.begin(),
-                              installed.diagnostics.end());
-    if (!installed.manifest ||
-        packages::packageManifestJson(*installed.manifest).dump() !=
-            packages::packageManifestJson(release.manifest).dump()) {
-      error(result.diagnostics, "PACKAGE_CONTENT_LOCK_MISMATCH",
-            "Installed package content does not match the verified lock.",
-            root);
-      continue;
+    const auto root = projectDirectory /
+                      (cooked ? "packages" : ".demi/packages") / packageName;
+    if (!cooked) {
+      const auto installed =
+          packages::loadPackageManifest(root / packages::PackageManifestFilename);
+      result.diagnostics.insert(result.diagnostics.end(),
+                                installed.diagnostics.begin(),
+                                installed.diagnostics.end());
+      if (!installed.manifest ||
+          packages::packageManifestJson(*installed.manifest).dump() !=
+              packages::packageManifestJson(release.manifest).dump()) {
+        error(result.diagnostics, "PACKAGE_CONTENT_LOCK_MISMATCH",
+              "Installed package content does not match the verified lock.",
+              root);
+        continue;
+      }
     }
     std::vector<std::filesystem::path> packageFiles;
-    for (const std::string &relative : installed.manifest->files) {
+    for (const std::string &relative : release.manifest.files) {
+      if (cooked && !isRuntimePackageFile(relative))
+        continue;
       const auto file = root / relative;
       if (!std::filesystem::is_regular_file(file)) {
         error(result.diagnostics, "PACKAGE_CONTENT_FILE_MISSING",
@@ -113,7 +123,7 @@ loadLockedPackageContent(const std::filesystem::path &projectDirectory,
             "Could not hash installed package content.", root);
       continue;
     }
-    for (const std::string &relative : installed.manifest->assetManifests) {
+    for (const std::string &relative : release.manifest.assetManifests) {
       Diagnostic diagnostic;
       auto asset = loadAssetManifest(root / relative, &diagnostic);
       if (!asset) {
@@ -132,7 +142,7 @@ loadLockedPackageContent(const std::filesystem::path &projectDirectory,
       asset->packageContentHash = *contentHash;
       result.assets.push_back(std::move(*asset));
     }
-    for (const std::string &relative : installed.manifest->engineExtensions) {
+    for (const std::string &relative : release.manifest.engineExtensions) {
       const auto descriptorPath = root / relative;
       try {
         std::ifstream input(descriptorPath);
@@ -148,8 +158,8 @@ loadLockedPackageContent(const std::filesystem::path &projectDirectory,
                 document.value("platforms", std::vector<std::string>{}),
             .importer = std::nullopt};
         const bool declaredEntry =
-            std::ranges::find(installed.manifest->files, entryPath) !=
-            installed.manifest->files.end();
+            std::ranges::find(release.manifest.files, entryPath) !=
+            release.manifest.files.end();
         if (document.value("format_version", 0) != 1 || extension.id.empty() ||
             (extension.kind != "asset_importer" &&
              extension.kind != "asset_handler") ||

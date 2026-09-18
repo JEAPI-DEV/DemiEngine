@@ -132,6 +132,8 @@ in their registry.
 Lua uses one API for individual resources and batches:
 
 ```lua
+local Assets = require("demi.assets")
+
 local texture_request = Assets.load("asset://textures/portrait")
 local chapter_request = Assets.load("asset-group://chapter_02")
 
@@ -221,6 +223,17 @@ stable-ID collisions, validates extension platform support, and records the
 source package and installed content hash for every cooked asset. Package
 removal is rejected while authored references or cooked manifests retain that
 package's assets.
+
+Installed `asset_manifests` are also merged into the shared runtime/editor asset
+registry and scene validation, including projects with no local `assets/`
+directory. Installing an asset package makes its stable IDs available without
+copying or reimporting its contents. Registration does not preload all textures:
+normal scene references and explicit asset loading still control residency.
+Cooked games resolve the same exports from the lock and relocated `packages/`
+tree without requiring installer state or excluded authoring documentation.
+`kenney.textures.prototype` is a complete CC0 texture-package example; run
+`python3 scripts/test_prototype_texture_package.py` to exercise its local publish,
+offline install, scene references, Linux/Android cook and headless runtime.
 
 The integration test builds a complete installed-and-locked content fixture
 without a registry, cooks it twice for Linux and once for Android, and compares

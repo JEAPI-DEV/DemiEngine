@@ -1,4 +1,5 @@
 #include "cli/AssetCommands.h"
+#include "cli/LuaStubExport.h"
 #include "cli/BuildCommands.h"
 #include "cli/CapabilityCommands.h"
 #include "cli/CliArguments.h"
@@ -143,6 +144,7 @@ void printHelp() {
       << "  demi validate [path] [--platform linux|linux_server|android] "
          "[--format text|json]\n"
       << "  demi schema export\n"
+      << "  demi asset fracture <prefab.prefab.json>\n"
       << "  demi capabilities export [--output path]\n"
       << "  demi capabilities check [--baseline path] [--format text|json]\n"
       << "  demi capabilities verify-gates [--manifest path]\n"
@@ -181,7 +183,7 @@ void printHelp() {
       << "  demi cook --project <project> [--platform linux] [--output path]\n"
       << "  demi save inspect <save>\n"
       << "  demi script check <script>\n"
-      << "  demi lua-stubs generate [path]\n"
+      << "  demi lua-stubs generate [directory]\n"
       << "  demi test [--project <project>]\n"
       << "  demi test linux [path] [--timeout seconds]\n"
       << "  demi test android --project <project> [--serial device]\n"
@@ -377,48 +379,17 @@ int runScript(const std::vector<std::string> &args) {
 
 int runLuaStubs(const std::vector<std::string> &args) {
   if (args.size() < 2 || args[1] != "generate") {
-    std::cerr << "lua-stubs requires: demi lua-stubs generate [path].\n";
+    std::cerr << "Usage: demi lua-stubs generate [directory].\n";
     return ExitUsageError;
   }
-
-  const std::filesystem::path outputPath =
-      args.size() >= 3 ? std::filesystem::path(args[2])
-                       : std::filesystem::path("scripts/stubs/demi.lua");
-  std::error_code error;
-  if (!outputPath.parent_path().empty()) {
-    std::filesystem::create_directories(outputPath.parent_path(), error);
-  }
-  if (error) {
-    std::cerr << "Failed to create stub directory: "
-              << outputPath.parent_path().string() << '\n';
+  const auto output = args.size() >= 3 ? std::filesystem::path(args[2])
+                                       : std::filesystem::path(".demi/lua");
+  std::string error;
+  if (!demi::cli::exportLuaStubs(sourceRoot() / "scripts/stubs", output, error)) {
+    std::cerr << error << '\n';
     return ExitValidationFailure;
   }
-
-  const std::filesystem::path sourcePath =
-      sourceRoot() / "scripts" / "stubs" / "demi.lua";
-  std::ifstream input(sourcePath);
-  if (!input) {
-    std::cerr << "Failed to read Lua stubs: " << sourcePath.string() << '\n';
-    return ExitValidationFailure;
-  }
-  std::ostringstream sourceBuffer;
-  sourceBuffer << input.rdbuf();
-  std::string source = sourceBuffer.str();
-  constexpr std::string_view generatedMarker =
-      "\n-- Generated from ComponentRegistry metadata.\n";
-  if (const std::size_t generated = source.find(generatedMarker);
-      generated != std::string::npos)
-    source.resize(generated);
-
-  std::ofstream output(outputPath);
-  if (!output) {
-    std::cerr << "Failed to write Lua stubs: " << outputPath.string() << '\n';
-    return ExitValidationFailure;
-  }
-
-  output << source;
-  output << demi::runtime::scene_loading::generatedLuaComponentTypes();
-  std::cout << "Wrote LuaLS stubs: " << outputPath.string() << '\n';
+  std::cout << "Wrote LuaLS module library: " << output.string() << '\n';
   return ExitSuccess;
 }
 

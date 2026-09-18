@@ -1,7 +1,9 @@
 # CPU Blast / Jolt feasibility probes
 
-This is an opt-in integration experiment, not a shipped destruction subsystem or
-a public engine API. Default engine builds do not download or link Blast.
+These executables remain opt-in integration experiments, not a public engine
+API. Default engine builds now share the pinned CPU-only Blast dependency with
+the [internal damage-state module](../../docs/3d-destruction-runtime.md).
+The visible game destruction path is still under construction.
 
 ## Dependency audit
 

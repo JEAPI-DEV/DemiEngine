@@ -31,6 +31,10 @@ else()
   set(DEMI_SHADERC_DEPENDENCY shaderc)
 endif()
 set(DEMI_BGFX_BUILTIN_SHADER_HEADERS
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_directional_glsl.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_directional_essl.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_directional_spv.h"
+  "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_skinned_spv.h"
   "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_glsl.h"
   "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_lit_glsl.h"
   "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_essl.h"
@@ -50,6 +54,26 @@ add_custom_command(
   OUTPUT ${DEMI_BGFX_BUILTIN_SHADER_HEADERS}
   COMMAND "${CMAKE_COMMAND}" -E make_directory
     "${DEMI_BGFX_BUILTIN_SHADER_DIR}"
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_directional_glsl.h"
+    --type fragment --platform linux -p 140 --define DEMI_DIRECTIONAL_ONLY=1
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_directional_glsl
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_directional_essl.h"
+    --type fragment --platform android -p 100_es --define DEMI_DIRECTIONAL_ONLY=1
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_directional_essl
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_directional_spv.h"
+    --type fragment --platform linux -p spirv --define DEMI_DIRECTIONAL_ONLY=1
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_directional_spv
+  COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_skinned.sc"
+    -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_skinned_spv.h"
+    --type vertex --platform linux -p spirv
+    --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_skinned_spv
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_glsl.h"
     --type vertex --platform linux -p 140
@@ -126,6 +150,7 @@ add_custom_command(
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
     -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_post_process_spv
   DEPENDS ${DEMI_SHADERC_DEPENDENCY}
+    "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_skinned.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit_instanced.sc"
@@ -134,11 +159,46 @@ add_custom_command(
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
   VERBATIM)
 
+# Panorama background uses the same portable shader toolchain as scene meshes.
+foreach(variant glsl essl spv)
+  if(variant STREQUAL "glsl")
+    set(sky_profile 120)
+    set(sky_platform linux)
+  elseif(variant STREQUAL "essl")
+    set(sky_profile 100_es)
+    set(sky_platform android)
+  else()
+    set(sky_profile spirv)
+    set(sky_platform linux)
+  endif()
+  foreach(stage vs fs)
+    if(stage STREQUAL "vs")
+      set(sky_stage vertex)
+    else()
+      set(sky_stage fragment)
+    endif()
+    set(sky_header "${DEMI_BGFX_BUILTIN_SHADER_DIR}/${stage}_demi_sky_${variant}.h")
+    add_custom_command(OUTPUT "${sky_header}"
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${DEMI_BGFX_BUILTIN_SHADER_DIR}"
+      COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/${stage}_demi_sky.sc"
+        -o "${sky_header}" --type ${sky_stage} --platform ${sky_platform} -p ${sky_profile}
+        --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+        -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c ${stage}_demi_sky_${variant}
+      DEPENDS ${DEMI_SHADERC_DEPENDENCY}
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/${stage}_demi_sky.sc"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+      VERBATIM)
+    list(APPEND DEMI_BGFX_BUILTIN_SHADER_HEADERS "${sky_header}")
+  endforeach()
+endforeach()
+
+
 add_library(demi-graphics-bgfx STATIC
   ${DEMI_BGFX_BUILTIN_SHADER_HEADERS}
   "${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/DefaultPixelFont.h"
   src/demi/runtime/render/backend/GraphicsDevice.cpp
   src/demi/runtime/render/backend/BgfxGraphicsDevice.cpp
+  src/demi/runtime/render/backend/BgfxProfileCallback.cpp
   src/demi/runtime/render/backend/BgfxGpuResources.cpp
   src/demi/runtime/render/backend/BgfxRenderCommands.cpp
   src/demi/runtime/render/backend/BgfxVertexLayout.cpp
@@ -147,6 +207,7 @@ add_library(demi-graphics-bgfx STATIC
   src/demi/runtime/render/backend/FontAtlas2D.cpp
   src/demi/runtime/render/backend/GifDecoder2D.cpp
   src/demi/runtime/render/backend/ImageDecoder2D.cpp
+  src/demi/runtime/render/backend/ImageMipmaps2D.cpp
   src/demi/runtime/render/backend/QuadBatch.cpp
   src/demi/runtime/render/backend/RenderAssetLoading.cpp
   src/demi/runtime/render/backend/TextureLibrary2D.cpp
@@ -208,11 +269,18 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/bgfx3d/DeformedMeshCache3D.cpp
   src/demi/runtime/render/BgfxRenderer3D.cpp
   src/demi/runtime/render/BgfxRenderer3DAssets.cpp
+  src/demi/runtime/render/BgfxRenderer3DAnimation.cpp
+  src/demi/runtime/render/BgfxRenderer3DModelLod.cpp
   src/demi/runtime/render/bgfx3d/DebugGeometry3D.cpp
   src/demi/runtime/render/bgfx3d/GpuMesh3D.cpp
+  src/demi/runtime/render/bgfx3d/ReliefMeshCache3D.cpp
+  src/demi/runtime/render/bgfx3d/GpuSkinnedMesh3D.cpp
+  src/demi/runtime/render/bgfx3d/GpuSkinPalette3D.cpp
+  src/demi/runtime/render/bgfx3d/MeshVertexPreparation3D.cpp
   src/demi/runtime/render/bgfx3d/MeshTransform3D.cpp
   src/demi/runtime/render/bgfx3d/PrimitiveCanvas3D.cpp
   src/demi/runtime/render/bgfx3d/PrimitiveMeshFactory3D.cpp
+  src/demi/runtime/render/bgfx3d/SkyRenderer3D.cpp
   src/demi/runtime/render/bgfx3d/PostProcessRenderer3D.cpp
   src/demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.cpp
   src/demi/runtime/render/bgfx3d/SceneLighting3D.cpp

@@ -1,3 +1,5 @@
+local Entity = require("demi.entity")
+
 local Board = {}
 
 Board.rows = 12

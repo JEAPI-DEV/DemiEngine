@@ -5,6 +5,7 @@
 #include "demi/assets/AssetRegistry.h"
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
+#include "demi/runtime/scene/composition/EntityHierarchy.h"
 
 #include <algorithm>
 #include <cctype>
@@ -79,12 +80,14 @@ editorReferenceChoices(const runtime::ComponentReferenceKind kind,
          loadAssetRegistry(projectDirectory).assets) {
       if (componentName == "ModelCollider3D" && asset.type != "Collider3D")
         continue;
+      if ((componentName == "Masonry3D" || componentName == "SurfaceRelief3D" || componentName == "Environment3D") && asset.type != "Texture2D")
+        continue;
       choices.push_back({.id = asset.id, .label = asset.id});
     }
   } else if (kind == runtime::ComponentReferenceKind::Entity) {
     const nlohmann::json *entities = entitiesArray(scene);
     if (entities != nullptr) {
-      for (const nlohmann::json &entity : *entities) {
+      for (const nlohmann::json &entity : runtime::composition::flattenEntityHierarchy(*entities)) {
         if (!entity.is_object())
           continue;
         const std::string id = entity.value("id", std::string{});

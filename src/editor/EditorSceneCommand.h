@@ -49,6 +49,14 @@ struct ReparentCommand {
   std::optional<std::string> after;
 };
 
+// Structural edits can move subtrees between arrays. Keep their exact source
+// shape for undo, including legacy flat relationships and sibling ordering.
+struct EntityHierarchyCommand {
+  std::string entityId;
+  nlohmann::json before;
+  nlohmann::json after;
+};
+
 struct AddComponentCommand {
   std::string entityId;
   std::string componentName;
@@ -68,7 +76,7 @@ struct RemoveComponentCommand {
 using SceneCommand =
     std::variant<SetValueCommand, SetValuesCommand, InsertEntityCommand,
                  RemoveEntitiesCommand, DuplicateEntityCommand,
-                 ReparentCommand, AddComponentCommand, RemoveComponentCommand>;
+                 ReparentCommand, EntityHierarchyCommand, AddComponentCommand, RemoveComponentCommand>;
 
 // Applies `command` forward onto `document`, or reverts it when `forward` is
 // false. Purely structural: no validation is performed here.

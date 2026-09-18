@@ -20,6 +20,7 @@
 namespace demi::runtime {
 
 class PhysicsWorld3D;
+class DestructionWorld3D;
 
 struct PhysicsContact2D {
   std::string entityId;
@@ -95,6 +96,7 @@ struct World {
   bool tilemapCollisionDirty = false;
   std::unique_ptr<Box2DWorldState> box2dState;
   std::shared_ptr<PhysicsWorld3D> physicsWorld3D;
+  std::shared_ptr<DestructionWorld3D> destruction3D;
 };
 
 } // namespace demi::runtime

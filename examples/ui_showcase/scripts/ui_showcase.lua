@@ -1,3 +1,8 @@
+local Application = require("demi.application")
+local Events = require("demi.events")
+local Hud = require("demi.hud")
+local Regex = require("demi.regex")
+
 local UiShowcase = {}
 
 local inventory_items = {}

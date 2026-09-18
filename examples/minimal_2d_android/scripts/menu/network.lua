@@ -1,3 +1,8 @@
+local Input = require("demi.input")
+local Hud = require("demi.hud")
+local Network = require("demi.network")
+local NetworkSession = require("demi.network.session")
+
 local lobby = require("network_lobby")
 local replication = require("network_replication")
 

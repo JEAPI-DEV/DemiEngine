@@ -9,12 +9,31 @@ uniform vec4 u_ambientColor;
 uniform vec4 u_tint;
 uniform vec4 u_alphaCutoff;
 uniform vec4 u_debugMode;
+#ifndef DEMI_DIRECTIONAL_ONLY
 uniform vec4 u_pointPositionRange[4];
 uniform vec4 u_pointColorIntensity[4];
 uniform vec4 u_spotPositionRange[4];
 uniform vec4 u_spotDirectionOuter[4];
 uniform vec4 u_spotColorIntensity[4];
 uniform vec4 u_spotInner[4];
+#endif
+
+// Base-color textures and authored colors use display sRGB. The 3D target is
+// an ordinary UNORM target (also used by the editor), so transfer conversion
+// belongs here, not on the backbuffer where it would affect HUD colors too.
+vec3 decodeColor(vec3 color)
+{
+    color = max(color, vec3(0.0));
+    return mix(color / 12.92, pow((color + 0.055) / 1.055, vec3(2.4)),
+               step(vec3(0.04045), color));
+}
+
+vec3 encodeColor(vec3 color)
+{
+    color = max(color, vec3(0.0));
+    return mix(color * 12.92, 1.055 * pow(color, vec3(1.0 / 2.4)) - 0.055,
+               step(vec3(0.0031308), color));
+}
 
 void main()
 {
@@ -30,6 +49,7 @@ void main()
     float diffuse = max(dot(normal, directionalDirection), 0.0);
     vec3 lighting = u_ambientColor.rgb +
                     u_lightColor.rgb * diffuse * u_lightDirection.w;
+#ifndef DEMI_DIRECTIONAL_ONLY
     for (int ii = 0; ii < 4; ++ii)
     {
         if (u_pointPositionRange[ii].w > 0.0 &&
@@ -65,6 +85,7 @@ void main()
                         spotAttenuation * spotAttenuation;
         }
     }
+#endif
     if (u_debugMode.x > 0.5 && u_debugMode.x < 1.5)
     {
         gl_FragColor = vec4(normal * 0.5 + 0.5, 1.0);
@@ -99,6 +120,6 @@ void main()
     }
     else
     {
-        gl_FragColor = vec4(albedo.rgb * lighting, albedo.a);
+        gl_FragColor = vec4(encodeColor(decodeColor(albedo.rgb) * lighting), albedo.a);
     }
 }

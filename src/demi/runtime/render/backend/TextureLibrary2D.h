@@ -20,6 +20,7 @@ struct TextureView2D {
 struct TextureSampling2D {
   TextureFilter filter = TextureFilter::Linear;
   TextureWrap wrap = TextureWrap::Clamp;
+  bool mipmaps = false;
 };
 
 class TextureLibrary2D {

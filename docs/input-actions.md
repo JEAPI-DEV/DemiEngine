@@ -51,6 +51,8 @@ Bindings can specify `scale`, `vector`, `deadzone`, `invert`, `normalize`, and
 Lua exposes held, pressed, released, scalar, vector, and source state:
 
 ```lua
+local Input = require("demi.input")
+
 local x, y = Input.action_vector("move", 1)
 if Input.action_pressed("fire", 1) then
   shoot()

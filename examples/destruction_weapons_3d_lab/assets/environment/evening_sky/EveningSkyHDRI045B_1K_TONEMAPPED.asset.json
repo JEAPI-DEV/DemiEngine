@@ -1,0 +1,12 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/environment/evening_sky/EveningSkyHDRI045B_1K_TONEMAPPED.jpg",
+  "id": "asset://environment/evening_sky",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {"filter": "bilinear", "wrap": "repeat"},
+  "source": "EveningSkyHDRI045B_1K_TONEMAPPED.jpg",
+  "source_hash": "fnv1a64:3143fc0830be6947",
+  "type": "Texture2D"
+}

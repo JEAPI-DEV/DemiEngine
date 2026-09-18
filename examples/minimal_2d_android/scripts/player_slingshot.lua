@@ -1,3 +1,8 @@
+local Debug = require("demi.debug")
+local Input = require("demi.input")
+local Rigidbody2D = require("demi.physics.rigidbody2d")
+local Physics2D = require("demi.physics.query2d")
+
 local config = require("player_config")
 local state = require("game_state")
 

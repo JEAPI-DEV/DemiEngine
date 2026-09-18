@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "android_device.py"
@@ -13,11 +15,65 @@ SPEC.loader.exec_module(android_device)
 
 
 class AndroidDeviceToolTests(unittest.TestCase):
+    def test_resume_probe_requires_same_process_and_scoped_surface_markers(self):
+        class FakeAdb:
+            def __init__(self, pids, log_pid):
+                self.pids = iter(pids)
+                self.log_pid = log_pid
+                self.calls = []
+
+            def run(self, *args, **kwargs):
+                self.calls.append(args)
+                if args[:2] == ('shell', 'pidof'):
+                    value = next(self.pids)
+                elif args[0] == 'logcat':
+                    value = '\n'.join(f'09-15 12:00:00 {self.log_pid} 42 I DemiEngine: {marker}'
+                                      for marker in ('[surface] Java surfaceDestroyed.',
+                                                     '[surface] Java surfaceCreated.',
+                                                     '[render] Rebinding bgfx to native window'))
+                elif args[0] == 'exec-out':
+                    value = b'fake screenshot'
+                else:
+                    value = ''
+                return SimpleNamespace(stdout=value, returncode=0)
+
+        with tempfile.TemporaryDirectory() as temporary, patch.object(android_device.time, 'sleep'):
+            output = Path(temporary)
+            adb = FakeAdb(['42', '42'], '42')
+            pids = set()
+            result = android_device.qualification_resume_probe(adb, 'dev.test', 'dev.test/Main', output, 0, pids)
+            self.assertTrue(result['same_process'])
+            self.assertEqual(pids, {'42'})
+            self.assertTrue((output / 'resumed.png').exists())
+            self.assertEqual(adb.calls[-1], ('shell', 'am', 'force-stop', 'dev.test'))
+            for changed, log_pid in ((['42', '43'], '42'), (['42', '42'], '7')):
+                adb = FakeAdb(changed, log_pid)
+                with self.assertRaises(android_device.ToolError):
+                    android_device.qualification_resume_probe(adb, 'dev.test', 'dev.test/Main', output, 0, set())
+                self.assertEqual(adb.calls[-1], ('shell', 'am', 'force-stop', 'dev.test'))
+
     def test_qualification_requires_surface_and_frame_pacing_markers(self):
         markers = android_device.REQUIRED_RUNTIME_MARKERS
         self.assertIn("[surface] Java surfaceCreated.", markers)
-        self.assertIn("[render] Requested 60.0 FPS from the Android compositor.",
+        self.assertIn("FPS from the Android compositor.",
                       markers)
+
+    def test_default_artifact_uses_project_display_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "demi.project.json"
+            project.write_text(json.dumps({"name": "3D Animation"}))
+            self.assertEqual(android_device.apk_path(project).name,
+                             "3d_animation-debug.apk")
+            self.assertNotIn("[save] Wrote save slot settings",
+                             android_device.required_runtime_markers(project))
+            project.write_text(json.dumps({
+                "name": "3D Animation",
+                "build": {"display_name": " Custom Demo! "},
+                "main_scene": "scene://minimal_2d_android/menu"}))
+            self.assertEqual(android_device.apk_path(project).name,
+                             "custom_demo-debug.apk")
+            self.assertIn("[render] Requested 60.0 FPS from the Android compositor.",
+                          android_device.required_runtime_markers(project))
 
     def test_device_parser_uses_only_ready_devices(self):
         output = "List of devices attached\nready\tdevice model:Pixel\noffline\toffline\n"

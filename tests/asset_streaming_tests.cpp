@@ -289,9 +289,9 @@ void lockedPackageCookRoundTripTest() {
              {"id", "scene://main"},
              {"name", "Main"},
              {"entities", nlohmann::json::array()}});
-  writeJson(packageRoot / "assets/content.json", {{"value", 7}});
+  writeJson(packageRoot / "assets/content.json", {{"format_version", 1}, {"value", 7}});
   const std::string sourceHash =
-      *demi::assets::hashFile(packageRoot / "assets/content.json");
+      *demi::assets::hashFiles({packageRoot / "assets/content.json"});
   writeJson(packageRoot / "assets/content.asset.json",
             {{"format_version", 1},
              {"id", "asset://fixture/content"},
@@ -301,7 +301,7 @@ void lockedPackageCookRoundTripTest() {
              {"importer_version", 1},
              {"source_hash", sourceHash},
              {"dependencies", nlohmann::json::array()},
-             {"settings", nlohmann::json::object()}});
+             {"settings", {{"content_type", "fixture"}}}});
 
   const nlohmann::json packageDocument{
       {"format_version", 1},
@@ -326,6 +326,19 @@ void lockedPackageCookRoundTripTest() {
             demi::packages::packageLockJson({{release.manifest.name, release}},
                                             "offline-test"));
 
+  // A package-only project has no assets/ directory. Runtime, editor and
+  // validation still need the same exported asset IDs as the cooker.
+  const auto registry = demi::loadAssetRegistry(root);
+  assert(!demi::hasErrors(registry.diagnostics));
+  assert(registry.assets.size() == 1);
+  const auto *content = demi::findAsset(registry, "asset://fixture/content");
+  assert(content && content->sourcePackage == "fixture.content");
+  assert(demi::loadAuthoredAssetRegistry(root).assets.empty());
+  auto project = nlohmann::json::parse(std::ifstream(root / "demi.project.json"));
+  project["assets"] = {"asset://fixture/content"};
+  writeJson(root / "demi.project.json", project);
+  assert(!demi::hasErrors(demi::validatePath(root / "demi.project.json").diagnostics));
+
   const auto cook = [&](const std::string &platform,
                         const std::filesystem::path &output) {
     const auto diagnostics =
@@ -341,6 +354,11 @@ void lockedPackageCookRoundTripTest() {
       cook("linux", root / "generated/cooked-linux-b");
   const nlohmann::json android =
       cook("android", root / "generated/cooked-android");
+  const auto cookedRegistry =
+      demi::loadAssetRegistry(root / "generated/cooked-linux-a");
+  assert(!demi::hasErrors(cookedRegistry.diagnostics));
+  assert(cookedRegistry.assets.size() == 1);
+  assert(demi::findAsset(cookedRegistry, "asset://fixture/content"));
   assert(firstLinux == secondLinux);
   assert(android.value("platform", "") == "android");
   for (const nlohmann::json *manifest : {&firstLinux, &android}) {
@@ -352,6 +370,15 @@ void lockedPackageCookRoundTripTest() {
     assert(asset->value("source_package", "") == "fixture.content");
     assert(!asset->value("package_content_hash", "").empty());
   }
+  std::filesystem::create_directories(root / "assets");
+  std::filesystem::copy_file(packageRoot / "assets/content.asset.json",
+                             root / "assets/content.asset.json");
+  std::filesystem::copy_file(packageRoot / "assets/content.json",
+                             root / "assets/content.json");
+  const auto conflict = demi::loadAssetRegistry(root);
+  assert(std::ranges::any_of(conflict.diagnostics, [](const auto &diagnostic) {
+    return diagnostic.code == "PACKAGE_ASSET_ID_CONFLICT";
+  }));
   std::filesystem::remove_all(root);
 }
 

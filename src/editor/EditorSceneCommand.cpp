@@ -64,6 +64,8 @@ void applySceneCommand(nlohmann::json &document, const SceneCommand &command,
             entities->erase(position, position + static_cast<Difference>(
                                                      typed.entities.size()));
           }
+        } else if constexpr (std::is_same_v<Command, EntityHierarchyCommand>) {
+          document["entities"] = forward ? typed.after : typed.before;
         } else if constexpr (std::is_same_v<Command, ReparentCommand>) {
           nlohmann::json *entity = findEntity(document, typed.entityId);
           nlohmann::json *transform =

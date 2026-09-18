@@ -139,6 +139,8 @@ void AnimationStateMachineSystem::update(World &world,
   for (Entity &entity : world.entities) {
     if (!entity.enabled)
       continue;
+    if (auto *model = entity.component<AnimationPlayer3DComponent>())
+      model->visualClock += std::max(unscaledDeltaTime >= 0 ? unscaledDeltaTime : deltaTime, 0.0F);
     auto *machine = entity.component<AnimationStateMachineComponent>();
     if (machine == nullptr) {
       if (auto *model = entity.component<AnimationPlayer3DComponent>();

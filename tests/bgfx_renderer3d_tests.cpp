@@ -3,6 +3,7 @@
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/BoxCollider3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Environment3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/ParticleEmitter3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
@@ -17,6 +18,35 @@ using namespace demi::runtime;
 using namespace demi::runtime::render;
 
 namespace {
+
+class TextureCapture final : public RenderCommands {
+public:
+  explicit TextureCapture(RenderCommands &target) : target_(target) {}
+  std::vector<TextureHandle> textures;
+  std::vector<DrawState> bufferedStates;
+  std::vector<std::array<float, 16>> bufferedTransforms;
+  bool configureView2D(const View2DConfig &view, std::string &error) override {
+    return target_.configureView2D(view, error);
+  }
+  bool configureView3D(const View3DConfig &view, std::string &error) override {
+    return target_.configureView3D(view, error);
+  }
+  bool submit(const TransientDraw &draw, std::string &error) override {
+    return target_.submit(draw, error);
+  }
+  bool submit(const BufferedDraw &draw, std::string &error) override {
+    textures.push_back(draw.texture);
+    bufferedStates.push_back(draw.state);
+    bufferedTransforms.push_back(draw.transform);
+    return target_.submit(draw, error);
+  }
+  bool submit(const InstancedBufferedDraw &draw, std::string &error) override {
+    textures.push_back(draw.texture);
+    return target_.submit(draw, error);
+  }
+private:
+  RenderCommands &target_;
+};
 
 Entity shape(std::string id, std::string shapeName, const Vec3 position) {
   Entity entity;
@@ -40,11 +70,16 @@ int main() {
                              error));
   auto resources = createBgfxGpuResources();
   auto commands = createBgfxRenderCommands(*resources);
-  BgfxRenderer3D renderer(*resources, *commands);
+  TextureCapture capture(*commands);
+  BgfxRenderer3D renderer(*resources, capture, false); // CPU fallback reference.
   assert(renderer.initialize(error));
   assert(renderer.initialize(error));
   std::vector<std::string> diagnostics;
   demi::AssetRegistry registry;
+  registry.assets.push_back(
+      {.id = "asset://textures/override", .type = "Texture2D",
+       .sourcePath = std::filesystem::path(DEMI_SOURCE_DIR) /
+                     "examples/minimal_3d/assets/textures/checker.png"});
   registry.assets.push_back(
       {.id = "asset://models/animated",
        .type = "Model3D",
@@ -116,6 +151,41 @@ int main() {
   const std::uint32_t batchesWithoutDebugGeometry =
       renderer.statistics().batches;
   static_cast<void>(graphics.endFrame());
+  {
+    World skyWorld;
+    Entity environment;
+    environment.id = "environment";
+    Environment3DComponent::parse({{"sky_texture", "asset://textures/override"}}, environment);
+    assert(environment.component<Environment3DComponent>()->skyTexture == "asset://textures/override");
+    skyWorld.entities.push_back(std::move(environment));
+    auto skyFrame = frame;
+    skyFrame.position = {13, 2, -17};
+    skyFrame.lightingOverride = SceneLighting3D{}; // Editor lighting override preserves sky.
+    capture.bufferedStates.clear();
+    capture.bufferedTransforms.clear();
+    assert(renderer.renderFrame(skyWorld, skyFrame, 0.016F, error));
+    assert(capture.bufferedStates.size() == 1);
+    assert(capture.bufferedStates.front().depthTest == DepthTest::LessEqual);
+    assert(!capture.bufferedStates.front().writeDepth);
+    assert(capture.bufferedTransforms.front()[12] == 13);
+    assert(capture.bufferedTransforms.front()[14] == -17);
+    static_cast<void>(graphics.endFrame());
+    skyWorld.entities.front().enabled = false;
+    capture.bufferedStates.clear();
+    assert(renderer.renderFrame(skyWorld, skyFrame, 0.016F, error));
+    assert(capture.bufferedStates.empty());
+    static_cast<void>(graphics.endFrame());
+    skyWorld.entities.front().enabled = true;
+    skyFrame.camera.perspective = false;
+    assert(renderer.renderFrame(skyWorld, skyFrame, 0.016F, error));
+    assert(capture.bufferedStates.empty());
+    static_cast<void>(graphics.endFrame());
+    skyFrame.camera.perspective = true;
+    skyFrame.camera.clearMode = "depth";
+    assert(renderer.renderFrame(skyWorld, skyFrame, 0.016F, error));
+    assert(capture.bufferedStates.empty());
+    static_cast<void>(graphics.endFrame());
+  }
   for (int index = 0; index < 64; ++index) {
     world.entities.push_back(shape("sphere_copy_" + std::to_string(index),
                                    "sphere", {0.0F, 0.0F, 0.0F}));
@@ -266,7 +336,141 @@ int main() {
   assert(std::any_of(advanced.begin(), advanced.end(), [](const auto &entry) {
     return entry.name == "Renderer3D.animation_rebuild" && entry.calls == 1;
   }));
+  // More than two preparation batches, followed by a cached frozen frame.
+  for (int i = 0; i < 40; ++i) {
+    Entity peer = shape("peer_" + std::to_string(i), "", {});
+    peer.component<MeshRendererComponent>()->model = "asset://models/animated";
+    peer.setComponent(AnimationPlayer3DComponent{.clipName = "Walk_Loop", .time = float(i) * 0.01F});
+    world.entities.push_back(std::move(peer));
+  }
+  RuntimeProfiler::beginFrame();
+  assert(renderer.renderFrame(world, frame, 0.016F, error));
+  static_cast<void>(graphics.endFrame());
+  const auto crowd = RuntimeProfiler::frameEntries();
+  assert(std::any_of(crowd.begin(), crowd.end(), [](const auto &entry) {
+    return entry.name == "Renderer3D.animation_rebuild" && entry.calls == 40;
+  }));
+  assert(std::any_of(crowd.begin(), crowd.end(), [](const auto &entry) {
+    return entry.name == "Renderer3D.animation_batch_meshes" && entry.gauge == 16;
+  }));
+  assert(std::any_of(crowd.begin(), crowd.end(), [](const auto &entry) {
+    return entry.name == "Renderer3D.animation_batch_vertices" && entry.gauge > 0 && entry.gauge <= 262144;
+  }));
+  RuntimeProfiler::beginFrame();
+  assert(renderer.renderFrame(world, frame, 0.016F, error));
+  static_cast<void>(graphics.endFrame());
+  const auto frozen = RuntimeProfiler::frameEntries();
+  assert(std::none_of(frozen.begin(), frozen.end(), [](const auto &entry) {
+    return entry.name == "Renderer3D.animation_rebuild" && entry.calls > 0;
+  }));
+  // Loop policy is part of the pose key even if time is unchanged.
+  world.entities.back().component<AnimationPlayer3DComponent>()->loop = false;
+  RuntimeProfiler::beginFrame();
+  assert(renderer.renderFrame(world, frame, 0.016F, error));
+  static_cast<void>(graphics.endFrame());
+  const auto loopChanged = RuntimeProfiler::frameEntries();
+  assert(std::any_of(loopChanged.begin(), loopChanged.end(), [](const auto &entry) {
+    return entry.name == "Renderer3D.animation_rebuild" && entry.calls == 1;
+  }));
+  auto *badPose = world.entities.back().component<AnimationPlayer3DComponent>();
+  badPose->boneSegments["missing_test_bone"] = {{0, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+  ++badPose->proceduralPoseRevision;
+  assert(!renderer.renderFrame(world, frame, 0.016F, error));
+  assert(error.find("missing_test_bone") != std::string::npos);
+  badPose->boneSegments.clear();
+  ++badPose->proceduralPoseRevision;
+  assert(renderer.renderFrame(world, frame, 0.016F, error));
+  static_cast<void>(graphics.endFrame());
+  diagnostics.clear();
+  assert(renderer.loadAssets(registry, diagnostics));
+  RuntimeProfiler::beginFrame();
+  assert(renderer.renderFrame(world, frame, 0.016F, error));
+  static_cast<void>(graphics.endFrame());
+  const auto reloaded = RuntimeProfiler::frameEntries();
+  assert(std::any_of(reloaded.begin(), reloaded.end(), [](const auto &entry) {
+    return entry.name == "Renderer3D.animation_rebuild" && entry.calls == 41;
+  }));
+  auto lightingFrame = frame;
+  for (int lightingCase = 0; lightingCase < 4; ++lightingCase) {
+    lightingFrame.lightingOverride = SceneLighting3D{};
+    if (lightingCase == 1) {
+      lightingFrame.lightingOverride->pointPositionRange[3] = 10;
+      lightingFrame.lightingOverride->pointColorIntensity[3] = 1;
+    } else if (lightingCase == 2) {
+      lightingFrame.lightingOverride->spotPositionRange[15] = 10;
+      lightingFrame.lightingOverride->spotColorIntensity[15] = 1;
+    }
+    RuntimeProfiler::beginFrame();
+    assert(renderer.renderFrame(world, lightingFrame, 0.016F, error));
+    static_cast<void>(graphics.endFrame());
+    const auto entries = RuntimeProfiler::frameEntries();
+    const double expected = lightingCase == 0 || lightingCase == 3 ? 1.0 : 0.0;
+    assert(std::any_of(entries.begin(), entries.end(), [expected](const auto &entry) {
+      return entry.name == "Renderer3D.directional_shader" && entry.gauge == expected;
+    }));
+  }
   RuntimeProfiler::setEnabled(false);
+
+  World textureWorld;
+  auto probe = shape("texture-probe", "cube", {});
+  probe.component<MeshRendererComponent>()->texture = "asset://textures/override";
+  textureWorld.entities.push_back(std::move(probe));
+  capture.textures.clear();
+  assert(renderer.renderFrame(textureWorld, frame, .016F, error));
+  static_cast<void>(graphics.endFrame());
+  assert(capture.textures.size() == 1);
+  const auto explicitTexture = capture.textures.front();
+  auto *mesh = textureWorld.entities.front().component<MeshRendererComponent>();
+  mesh->texture.clear();
+  capture.textures.clear();
+  assert(renderer.renderFrame(textureWorld, frame, .016F, error));
+  static_cast<void>(graphics.endFrame());
+  assert(capture.textures.size() == 1 && capture.textures.front() != explicitTexture);
+  // Static models go through instancing; animated ones use buffered submission.
+  // Both must honor the same explicit texture as a primitive, not white/embedded.
+  mesh->model = "asset://models/animated";
+  mesh->texture = "asset://textures/override";
+  for (bool animated : {false, true}) {
+    if (animated)
+      textureWorld.entities.front().setComponent(AnimationPlayer3DComponent{
+          .clipName = "Walk_Loop", .time = .2F});
+    capture.textures.clear();
+    assert(renderer.renderFrame(textureWorld, frame, .016F, error));
+    static_cast<void>(graphics.endFrame());
+    assert(!capture.textures.empty());
+    for (const auto texture : capture.textures)
+      assert(texture == explicitTexture);
+  }
+
+  // Relief geometry is generated from an image in a shared session cache,
+  // not imported from a generated per-brick asset.
+  textureWorld.entities.front().removeComponent<AnimationPlayer3DComponent>();
+  mesh=textureWorld.entities.front().component<MeshRendererComponent>();
+  mesh->model.clear();
+  SurfaceRelief3DComponent relief{.heightMap="asset://textures/override"};
+  textureWorld.entities.front().setComponent(relief);
+  capture.textures.clear();
+  assert(renderer.renderFrame(textureWorld,frame,.016F,error));
+  static_cast<void>(graphics.endFrame());
+  assert(capture.textures.size()==1 && capture.textures.front()==explicitTexture);
+  ReliefMeshCache3D cache(*resources);
+  cache.loadAssets(registry);
+  const auto *generated=cache.get(relief,{1,1,.115F},error);
+  assert(generated && generated->indexCount()>36 && cache.size()==1);
+  assert(cache.get(relief,{2,3,.115F},error)==generated && cache.size()==1);
+  assert(!cache.get(relief,{1,1,.001F},error));
+  cache.clear();
+  assert(cache.size()==0);
+  cache.loadAssets(registry);
+  auto tile=relief;tile.uvScale={1.F/16,1.F/16};
+  for(int i=0;i<256;++i) {
+    tile.uvOffset={float(i%16)/16,float(i/16)/16};
+    assert(cache.get(tile,{1,1,.115F},error));
+  }
+  assert(!cache.get(relief,{1,1,.115F},error));
+  cache.beginFrame();
+  assert(cache.get(relief,{1,1,.115F},error) && cache.size()==256);
+  cache.clear();
 
   renderer.shutdown();
   renderer.shutdown();

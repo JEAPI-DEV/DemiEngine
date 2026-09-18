@@ -1,4 +1,5 @@
 #include "demi/runtime/scripting/bindings/data/LuaDataBindings.h"
+#include "demi/runtime/scripting/LuaServiceModules.h"
 
 #include "demi/assets/DataDocument.h"
 #include "demi/assets/YamlDataDocument.h"
@@ -28,7 +29,7 @@ void setKind(lua_State *state, const char *kind) {
 
 void pushDataValue(lua_State *state, const assets::DataValue &value) {
   if (value.isNull()) {
-    lua_getglobal(state, "Data");
+    pushLuaService(state, "Data");
     lua_getfield(state, -1, "null");
     lua_remove(state, -2);
     return;
@@ -155,7 +156,7 @@ int query(lua_State *state) {
 }
 
 int kind(lua_State *state) {
-  lua_getglobal(state, "Data");
+  pushLuaService(state, "Data");
   lua_getfield(state, -1, "null");
   const bool isNull = lua_rawequal(state, 1, -1);
   lua_pop(state, 2);
@@ -173,7 +174,7 @@ int kind(lua_State *state) {
 }
 
 int isNull(lua_State *state) {
-  lua_getglobal(state, "Data");
+  pushLuaService(state, "Data");
   lua_getfield(state, -1, "null");
   const bool result = lua_rawequal(state, 1, -1);
   lua_pop(state, 2);

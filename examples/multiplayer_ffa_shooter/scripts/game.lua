@@ -1,3 +1,11 @@
+local Debug = require("demi.debug")
+local Input = require("demi.input")
+local Transform = require("demi.transform2d")
+local Sprite2D = require("demi.sprite2d")
+local Rigidbody2D = require("demi.physics.rigidbody2d")
+local Hud = require("demi.hud")
+local NetworkSession = require("demi.network.session")
+
 local Actions = require("shooter.actions")
 local Combat = require("shooter.combat")
 local Config = require("shooter.config")

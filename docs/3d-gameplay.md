@@ -56,6 +56,12 @@ locks, kinematic targets, and render interpolation. Use `Rigidbody3D` from Lua
 to issue runtime commands. Do not move dynamic bodies by repeatedly writing
 `Transform3D`; physics owns their simulated transform.
 
+`Rigidbody3D.state(entity)` reads live body type, configured mass, enabled/gravity
+flags and latest physics-synchronized velocities. It works for native-created
+fragments as well as authored bodies, and returns nil without a Rigidbody3D.
+It is not a native-body readiness check. `Entity.get` reads serialized component
+values; it is not a substitute for live physics queries.
+
 Lua can switch continuous detection with `Rigidbody3D.set_continuous` once a
 fast body has slowed down. `report_contacts` and
 `Rigidbody3D.set_report_contacts` control contact extraction and callbacks
@@ -75,8 +81,9 @@ Triangle-mesh `ModelCollider3D` is static-only. A self-contained convex
 on a moving rigidbody. Otherwise, moving objects use a primitive,
 capsule, or convex hull. Validation rejects moving meshes, multiple colliders,
 invalid capsule proportions, underspecified convex hulls, parented moving
-bodies, and moving bodies without a collider. Complex compound objects use
-child entities, each with one collider.
+bodies, and moving bodies without a collider. Real compound assemblies use a
+[compound collider asset](collider-assets.md) on one body. Parenting separate
+collider entities does not weld their native bodies together.
 
 Collider import detail controls generated mesh data only. Runtime collision is
 always determined by the collider component and its authored asset; the solver
@@ -90,6 +97,15 @@ state.
 
 ## Queries
 
+Compound collider fracture graphs can opt into runtime splitting with
+`Destructible3D`. For ordinary scene/prefab authoring, add `Fracture3D` to its
+mesh children (or the same entity for a standalone mesh); the shared compiler
+generates the graph and colliders. See [fracture authoring](fracture-authoring.md).
+`Destruction3D.damage_part` queues part-local bond damage;
+`Destruction3D.state` reports completion and maps parts to their current bodies.
+See [destruction runtime](3d-destruction-runtime.md) for authoring, fixed-step
+replacement, anchors, limits and the playable arch probe.
+
 `Physics3D` provides raycasts, rich sphere/box overlaps, sphere casts, and the
 C++ layer also exposes capsule overlaps and casts. Rich hits contain
 `entity_id`, `layer`, `point`, `normal`, `distance`, `fraction`, and
@@ -97,10 +113,17 @@ C++ layer also exposes capsule overlaps and casts. Rich hits contain
 against the same shapes as simulation.
 
 ```lua
+local Physics3D = require("demi.physics.query3d")
+
 local hit = Physics3D.sphere_cast(
   x, y, z, 0.12, direction_x, direction_y, direction_z, 30.0,
   "world", projectile_id)
 ```
+
+Append `false` as the optional `include_triggers` argument to `sphere_cast` to
+find blocking geometry beyond trigger volumes. The default remains true. Both
+the native query and pre-physics fallback apply this filter, along with the
+existing layer and ignored-entity filters.
 
 ## Character controller
 
@@ -135,6 +158,9 @@ jump from `on_fixed_update` while the example's grounded grace period is
 active:
 
 ```lua
+local Input = require("demi.input")
+local CharacterController3D = require("demi.physics.character_controller3d")
+
 function Player:on_create()
   self.jump_buffer_remaining = 0
   self.coyote_remaining = 0
@@ -173,6 +199,9 @@ parent rotation. `Transform3D.look_at` rotates the local +Z forward axis toward
 a world point. `Camera3D.screen_ray`, `world_to_screen`, and
 `screen_to_world` accept explicit viewport dimensions, which keeps the math
 deterministic and usable in headless tests.
+These conversions follow the rendered camera's transformed `target_offset`
+and `up_axis` (right-handed look-at), not just the entity's forward axis.
+For orthographic cameras, `orthographic_size` is the full visible height.
 
 The `minimal_3d` example is the reference probe. It uses public APIs for
 capsule movement and grounding, jumping, trigger pickups, a kinematic moving

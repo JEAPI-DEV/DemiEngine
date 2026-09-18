@@ -265,6 +265,20 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
     ImGui::TextWrapped("%s", value.dump().c_str());
     return true;
   }
+  if (field.nullable && field.type == ComponentFieldType::Number) {
+    if (value.is_null()) {
+      ImGui::TextUnformatted("None");
+      ImGui::SameLine();
+      if (ImGui::SmallButton("Set"))
+        return targets ? commitMany(workspace, *targets, 0.0, notice)
+                       : commit(workspace, target, 0.0, notice);
+      return true;
+    }
+    if (ImGui::SmallButton("None"))
+      return targets ? commitMany(workspace, *targets, nullptr, notice)
+                     : commit(workspace, target, nullptr, notice);
+    ImGui::SameLine();
+  }
   bool changed = false;
   nlohmann::json replacement = value;
   switch (field.type) {
@@ -275,8 +289,8 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
     break;
   }
   case ComponentFieldType::Integer: {
-    int edited = value.get<int>();
-    changed = ImGui::InputInt("##value", &edited, 0);
+    std::int64_t edited = value.get<std::int64_t>();
+    changed = ImGui::InputScalar("##value", ImGuiDataType_S64, &edited);
     if (changed)
       clampNumericValue(edited, field);
     replacement = edited;
@@ -350,6 +364,13 @@ void drawComponentFields(EditorWorkspace &workspace,
                          const nlohmann::json &component,
                          const ComponentDescriptor &descriptor,
                          std::string &notice, const bool prefabEntity) {
+  if (componentName == "Destructible3D" &&
+      component.value("parts", nlohmann::json::object()).empty())
+    ImGui::TextWrapped("Add Fracture 3D to this mesh or its children. Foundation anchors determine the generated static/dynamic body type; mass and other Rigidbody settings are retained.");
+  if (componentName == "Fracture3D")
+    ImGui::TextWrapped("Density uses kg/m^3 of collider volume. Root mass overrides the total. Box collider requires Pieces=1 and a unit-box model scaled by MeshRenderer Size; it retains the detailed visual. Source collider requires convex geometry. Anchor Below uses assembly-local Y.");
+  if (componentName == "Masonry3D")
+    ImGui::TextWrapped("Compact runtime masonry recipe. Rows/Columns generate cells when its prefab is activated; models are shared variants. Editor preview shows region dimensions. Cooking retains the recipe, not expanded bricks. Add Destructible3D to its owner.");
   for (const ComponentFieldDescriptor &field : descriptor.fields) {
     if (!field.editorVisible)
       continue;
@@ -549,6 +570,13 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
     ImGui::TextColored({0.95F, 0.67F, 0.28F, 1.0F}, "Unsaved");
   }
   ImGui::Separator();
+  if (workspace.sceneDocument().json().contains("fracture")) {
+    ImGui::TextWrapped("Generated fracture preview. Edit the source prefab to change its objects. Edit the recipe to change fracture settings; generated chunks are read-only.");
+    if (const auto *entity = workspace.selectedEntity())
+      ImGui::TextWrapped("Selected: %s", entity->name.c_str());
+    ImGui::End();
+    return;
+  }
   if (drawIsoGridCellInspector(workspace, notice)) {
     ImGui::End();
     return;

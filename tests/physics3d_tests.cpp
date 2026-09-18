@@ -497,6 +497,47 @@ bool testCharacterAndCameraMath() {
     std::cerr << "3D camera screen/world conversion failed.\n";
     return false;
   }
+  // Off-centre rays must agree with the renderer's right-handed look-at.
+  const auto defaultRight =
+      cameraScreenRay3D(transform, camera, {600, 300}, {800, 600});
+  if (defaultRight.direction.x >= 0) {
+    std::cerr << "Camera ray handedness differs from rendering.\n";
+    return false;
+  }
+  transform.position = {0, 3, 10};
+  camera.targetOffset = {0, -1, -10};
+  const auto aimed =
+      cameraScreenRay3D(transform, camera, {400, 300}, {800, 600});
+  const auto aimedScreen =
+      worldToScreen3D(transform, camera, {0, 2, 0}, {800, 600});
+  if (!near(aimed.direction.z, -10.0F / std::sqrt(101.0F), 0.001F) ||
+      !near(aimed.direction.y, -1.0F / std::sqrt(101.0F), 0.001F) ||
+      !aimedScreen || !near(aimedScreen->x, 400) ||
+      !near(aimedScreen->y, 300)) {
+    std::cerr << "Camera conversions ignored the authored target offset.\n";
+    return false;
+  }
+  camera.targetOffset = {0, 0, -1};
+  camera.perspective = false;
+  camera.orthographicSize = 8;
+  const auto corner =
+      cameraScreenRay3D(transform, camera, {800, 0}, {800, 600});
+  const auto cornerScreen =
+      worldToScreen3D(transform, camera, {16.0F / 3.0F, 7, 0}, {800, 600});
+  if (!near(corner.origin.x, 16.0F / 3.0F) ||
+      !near(corner.origin.y, 7) || !cornerScreen ||
+      !near(cornerScreen->x, 800) || !near(cornerScreen->y, 0)) {
+    std::cerr << "Orthographic picking differs from the rendered extent.\n";
+    return false;
+  }
+  camera.upAxis = -1;
+  const auto inverted =
+      cameraScreenRay3D(transform, camera, {800, 0}, {800, 600});
+  if (!near(inverted.origin.x, -16.0F / 3.0F) ||
+      !near(inverted.origin.y, -1)) {
+    std::cerr << "Camera picking ignored the authored up axis.\n";
+    return false;
+  }
   const Vec3 rotation = lookAtRotation3D({}, {1.0F, 0.0F, 0.0F});
   const Vec3 forward =
       forwardDirection3D(WorldTransform3D{.rotation = rotation});
@@ -656,6 +697,25 @@ bool testShapeQueriesAndColliderKinds() {
     std::cerr << "Invalid 3D shape query input was accepted.\n";
     return false;
   }
+  return true;
+}
+
+bool testSolidOnlySphereCast() {
+  World world;
+  auto trigger = makeStaticBox(); trigger.id = "sensor";
+  trigger.component<Transform3DComponent>()->position.x = 1;
+  trigger.component<BoxCollider3DComponent>()->isTrigger = true;
+  auto wall = makeStaticBox(); wall.component<Transform3DComponent>()->position.x = 3;
+  world.entities.push_back(std::move(trigger)); world.entities.push_back(std::move(wall));
+  const auto verify = [&] {
+    const auto any = sphereCast3D(world, {0,0.5F,0}, 0.1F, {1,0,0}, 5);
+    const auto solid = sphereCast3D(world, {0,0.5F,0}, 0.1F, {1,0,0}, 5, {}, {}, false);
+    return any && any->entityId == "sensor" && any->isTrigger &&
+           solid && solid->entityId == "box_wall" && !solid->isTrigger;
+  };
+  if (!verify()) { std::cerr << "Fallback solid-only sphere cast failed.\n"; return false; }
+  ensurePhysicsWorld3D(world).step(world, 1.0F/60);
+  if (!verify()) { std::cerr << "Native solid-only sphere cast failed.\n"; return false; }
   return true;
 }
 
@@ -968,7 +1028,7 @@ int main() {
       !testTriggersAndFiltering() || !testCharacterAndCameraMath() ||
       !testCharacterUsesSelectedBoxCollider() ||
       !testAirborneJumpRequestIsNotBufferedByPhysics() ||
-      !testShapeQueriesAndColliderKinds() ||
+      !testShapeQueriesAndColliderKinds() || !testSolidOnlySphereCast() ||
       !testCharacterStepAndMovingPlatform() ||
       !testRepeatedLifetimeAndInterpolation() || !testDeterministicReplay() ||
       !testColliderShapeCachingAndInvalidation())

@@ -2,6 +2,8 @@
 
 #include "demi/filesystem/ProjectPaths.h"
 #include "editor/EditorAuthoredJson.h"
+#include "editor/EditorEntityHierarchy.h"
+#include "demi/runtime/scene/composition/EntityHierarchy.h"
 #include "editor/EditorSpecializedDocument.h"
 
 #include "demi/diagnostics/Diagnostic.h"
@@ -74,7 +76,8 @@ bool EditorSceneDocument::open(const std::filesystem::path &path,
         stagedHasErrors(resolvedPath, parsed, error))
       return false;
     if (!parsed.is_object() || !parsed.contains("format_version") ||
-        !parsed.contains("entities") || !parsed["entities"].is_array()) {
+        ((!parsed.contains("entities") || !parsed["entities"].is_array()) &&
+         !(isPrefabFile(resolvedPath) && parsed.contains("fracture") && parsed["fracture"].is_object()))) {
       error = "The active scene is not an editable scene document.";
       return false;
     }
@@ -217,6 +220,10 @@ bool EditorSceneDocument::stageAndCommit(SceneCommand command,
 bool EditorSceneDocument::setValue(SceneValueTarget target,
                                    nlohmann::json replacement,
                                    const bool continuous, std::string &error) {
+  if (!target.isPrefabOverride() && target.field == "parent" &&
+      (target.component == "Transform3D" || target.component == "Transform2D" ||
+       target.component == "IsoTransform") && replacement.is_string())
+    return reparent(target.entityId, replacement.get<std::string>(), error);
   const nlohmann::json *current = value(target);
   replacement = normalizeEditorAuthoredValue(std::move(replacement), current);
   if (current != nullptr && *current == replacement) {
@@ -336,6 +343,10 @@ bool EditorSceneDocument::cancelContinuousEdit(std::string &error) {
 
 bool EditorSceneDocument::removeValue(SceneValueTarget target,
                                       std::string &error) {
+  if (!target.isPrefabOverride() && target.field == "parent" &&
+      (target.component == "Transform3D" || target.component == "Transform2D" ||
+       target.component == "IsoTransform"))
+    return reparent(target.entityId, std::nullopt, error);
   const nlohmann::json *current = value(target);
   if (current == nullptr) {
     error = "The selected authored field no longer exists.";
@@ -361,7 +372,8 @@ bool EditorSceneDocument::createEntity(std::string &error,
                         {"name", "New Entity"},
                         {"components", nlohmann::json::object()}};
   if (parent.has_value()) {
-    const nlohmann::json *parentEntity = this->entity(*parent);
+    const auto flat = runtime::composition::flattenEntityHierarchy(*entities);
+    const nlohmann::json *parentEntity = runtime::composition::findAuthoredEntity(flat, *parent);
     if (parentEntity == nullptr) {
       error = "The parent entity no longer exists.";
       reject({.entityId = *parent}, error);
@@ -374,12 +386,13 @@ bool EditorSceneDocument::createEntity(std::string &error,
       reject({.entityId = *parent}, error);
       return false;
     }
-    const auto *descriptor =
-        runtime::scene_loading::findComponentDescriptor(transform);
-    nlohmann::json childTransform =
-        runtime::scene_loading::componentDefaults(*descriptor);
-    childTransform["parent"] = *parent;
-    entity["components"][transform] = std::move(childTransform);
+    entity["components"][transform] = nlohmann::json::object();
+  }
+  if (parent) {
+    auto staged = document_;
+    insertEntityUnder(staged, std::move(entity), *parent);
+    return stageAndCommit(EntityHierarchyCommand{.entityId = id,
+        .before = document_["entities"], .after = std::move(staged["entities"])}, error);
   }
   return stageAndCommit(InsertEntityCommand{.index = entities->size(),
                                             .entity = std::move(entity)},
@@ -431,20 +444,10 @@ bool EditorSceneDocument::deleteEntities(const std::span<const std::string> ids,
     for (std::string member : collectSubtreeIds(document_, id))
       members.insert(std::move(member));
   }
-  std::vector<IndexedSceneEntity> removed;
-  for (const std::string &member : members) {
-    const std::optional<std::size_t> index = entityIndex(document_, member);
-    const nlohmann::json *authored = entity(member);
-    if (!index.has_value() || authored == nullptr) {
-      error = "The entity subtree changed while preparing deletion.";
-      reject({.entityId = ids.front()}, error);
-      return false;
-    }
-    removed.push_back({.index = *index, .entity = *authored});
-  }
-  std::ranges::sort(removed, {}, &IndexedSceneEntity::index);
-  return stageAndCommit(RemoveEntitiesCommand{.entities = std::move(removed)},
-                        error);
+  auto staged = document_["entities"];
+  eraseEntitySubtrees(staged, members);
+  return stageAndCommit(EntityHierarchyCommand{.entityId = ids.front(),
+      .before = document_["entities"], .after = std::move(staged)}, error);
 }
 
 bool EditorSceneDocument::reparent(const std::string_view id,
@@ -456,24 +459,29 @@ bool EditorSceneDocument::reparent(const std::string_view id,
     reject({.entityId = std::string(id)}, error);
     return false;
   }
-  const char *transform = transformComponentName(*authored);
+  const auto flat = runtime::composition::flattenEntityHierarchy(document_["entities"]);
+  const auto *effective = runtime::composition::findAuthoredEntity(flat, id);
+  const char *transform = transformComponentName(*effective);
   if (transform == nullptr) {
     error = "Reparenting requires a Transform3D, Transform2D, or IsoTransform "
             "component on the entity.";
     reject({.entityId = std::string(id)}, error);
     return false;
   }
-  nlohmann::json *component = findComponent(*authored, transform);
-  std::optional<std::string> before;
-  if (const auto parent = component->find("parent");
-      parent != component->end() && parent->is_string())
-    before = parent->get<std::string>();
-
-  return stageAndCommit(ReparentCommand{.entityId = std::string(id),
-                                        .component = transform,
-                                        .before = std::move(before),
-                                        .after = std::move(newParent)},
-                        error);
+  const auto subtree = collectSubtreeIds(document_, id);
+  if (newParent && std::ranges::find(subtree, *newParent) != subtree.end()) {
+    error = "An entity cannot be parented to itself or its descendants.";
+    reject({.entityId = std::string(id)}, error);
+    return false;
+  }
+  auto moved = *authored;
+  if (!findComponent(moved, transform))
+    moved["components"][transform] = nlohmann::json::object();
+  auto staged = document_;
+  eraseEntitySubtrees(staged["entities"], {std::string(id)});
+  insertEntityUnder(staged, std::move(moved), newParent.value_or(""));
+  return stageAndCommit(EntityHierarchyCommand{.entityId = std::string(id),
+      .before = document_["entities"], .after = std::move(staged["entities"])}, error);
 }
 
 bool EditorSceneDocument::duplicateEntity(const std::string_view id,
@@ -494,8 +502,9 @@ bool EditorSceneDocument::duplicateEntity(const std::string_view id,
 
   std::vector<nlohmann::json> copies;
   copies.reserve(subtree.size());
+  const auto flat = runtime::composition::flattenEntityHierarchy(document_["entities"]);
   for (const std::string &member : subtree) {
-    const nlohmann::json *original = entity(member);
+    const nlohmann::json *original = runtime::composition::findAuthoredEntity(flat, member);
     if (original == nullptr)
       continue;
     nlohmann::json copy = *original;
@@ -509,12 +518,13 @@ bool EditorSceneDocument::duplicateEntity(const std::string_view id,
     return false;
   }
 
-  nlohmann::json *entities = entitiesArray(document_);
-  return stageAndCommit(DuplicateEntityCommand{.index = entities == nullptr
-                                                            ? 0
-                                                            : entities->size(),
-                                               .entities = std::move(copies)},
-                        error);
+  auto staged = document_;
+  for (auto &copy : copies) {
+    const auto parent = transformParentId(copy);
+    insertEntityUnder(staged, std::move(copy), parent);
+  }
+  return stageAndCommit(EntityHierarchyCommand{.entityId = remap.at(std::string(id)),
+      .before = document_["entities"], .after = std::move(staged["entities"])}, error);
 }
 
 bool EditorSceneDocument::addComponent(const std::string_view id,

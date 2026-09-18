@@ -6,6 +6,15 @@
 
 namespace demi::runtime {
 
+struct RigidbodyState3D {
+  std::string bodyType;
+  float mass = 1;
+  bool useGravity = true;
+  bool enabled = true;
+  Vec3 velocity;
+  Vec3 angularVelocity;
+};
+
 struct PhysicsContact3D {
   std::string entityId;
   std::string otherEntityId;
@@ -27,6 +36,8 @@ struct PhysicsQueryHit3D {
   float distance = 0.0F;
   float fraction = 0.0F;
   bool isTrigger = false;
+  // Populated by raycasts and internal part-aware compound overlap queries.
+  std::string colliderPartId{};
 };
 
 using PhysicsRaycastHit3D = PhysicsQueryHit3D;

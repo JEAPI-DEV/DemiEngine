@@ -33,6 +33,12 @@ bool sourceExists(const std::filesystem::path &manifestPath,
 Diagnostics validatePrefab(const std::filesystem::path &path,
                            const nlohmann::json &document) {
   Diagnostics diagnostics;
+  if (document.is_object() && document.contains("fracture")) {
+    const auto baked=runtime::composition::bakeFracturePrefab(path,document);
+    if(!baked.document)return baked.diagnostics;
+    auto scene=*baked.document;scene["id"]="scene://prefab-editor";
+    return validateSceneDocument(path,scene);
+  }
   if (!document.is_object() || document.value("format_version", 0) != 1 ||
       !document.value("id", "").starts_with("prefab://") ||
       !document.contains("entities") || !document["entities"].is_array()) {

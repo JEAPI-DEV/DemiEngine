@@ -16,7 +16,7 @@
 #include "demi/runtime/scene/components/3dcomponents/PostProcessStackComponent.h"
 
 #include <algorithm>
-#include <bit>
+#include <cstdlib>
 #include <unordered_set>
 
 namespace demi::runtime::render {
@@ -64,40 +64,15 @@ float debugModeValue(const std::string &mode) {
   return 0.0F;
 }
 
-struct ModelLodSelection {
-  const std::string *model = nullptr;
-  bool isCulled = false;
-  int level = 0;
-};
-
-ModelLodSelection selectModelLod(const MeshRendererComponent &mesh,
-                                 const Vec3 position, const Vec3 camera,
-                                 const bool isAnimated) {
-  const float x = position.x - camera.x;
-  const float y = position.y - camera.y;
-  const float z = position.z - camera.z;
-  const float distanceSquared = x * x + y * y + z * z;
-  const auto reached = [distanceSquared](const float distance) {
-    return distance > 0.0F && distanceSquared >= distance * distance;
-  };
-  if (reached(mesh.cullDistance))
-    return {.model = &mesh.model, .isCulled = true};
-  if (!isAnimated && !mesh.lowLodModel.empty() && reached(mesh.lowLodDistance))
-    return {.model = &mesh.lowLodModel, .level = 2};
-  if (!isAnimated && !mesh.mediumLodModel.empty() &&
-      reached(mesh.mediumLodDistance))
-    return {.model = &mesh.mediumLodModel, .level = 1};
-  return {.model = &mesh.model};
-}
-
 } // namespace
 
 BgfxRenderer3D::BgfxRenderer3D(GpuResources &resources,
-                               RenderCommands &commands)
+                               RenderCommands &commands, bool enableGpuSkinning)
     : resources_(resources), commands_(commands),
       primitives_(resources, commands), postProcess_(resources, commands),
       particleRenderer_(resources, commands), overlay_(resources, commands),
-      textures_(resources), materials_(resources), deformedMeshes_(resources) {}
+      textures_(resources), sky_(resources), materials_(resources), gpuSkinningRequested_(enableGpuSkinning),
+      deformedMeshes_(resources), reliefMeshes_(resources) {}
 
 BgfxRenderer3D::~BgfxRenderer3D() { shutdown(); }
 
@@ -124,6 +99,8 @@ bool BgfxRenderer3D::initialize(std::string &error) {
   meshProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Lit3D, error);
   instancedMeshProgram_ =
       resources_.createBuiltinProgram(BuiltinProgram::Lit3DInstanced, error);
+  directionalMeshProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Directional3D, error);
+  directionalInstancedProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Directional3DInstanced, error);
   meshSampler_ = resources_.createSampler("s_texColor", error);
   tintUniform_ =
       resources_.createUniform("u_tint", UniformType::Vec4, 1, error);
@@ -159,7 +136,8 @@ bool BgfxRenderer3D::initialize(std::string &error) {
                                             .wrap = TextureWrap::Clamp,
                                             .debugName = "3D white fallback"},
                                            error);
-  if (!meshProgram_ || !instancedMeshProgram_ || !meshSampler_ ||
+  if (!meshProgram_ || !instancedMeshProgram_ || !directionalMeshProgram_ ||
+      !directionalInstancedProgram_ || !meshSampler_ ||
       !tintUniform_ || !alphaCutoffUniform_ || !debugModeUniform_ ||
       !whiteTexture_ || !lightDirectionUniform_ || !lightColorUniform_ ||
       !ambientColorUniform_ || !pointPositionRangeUniform_ ||
@@ -169,12 +147,39 @@ bool BgfxRenderer3D::initialize(std::string &error) {
     shutdown();
     return false;
   }
+  const char *gpuOverride = std::getenv("DEMI_GPU_SKINNING");
+  gpuSkinningEnabled_ = gpuSkinningRequested_ &&
+      (!gpuOverride || std::string_view(gpuOverride) != "0") &&
+      (resources_.shaderBackend() == "vulkan" || resources_.shaderBackend() == "noop");
+  if (gpuSkinningEnabled_) {
+    skinnedMeshProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Lit3DSkinned, error);
+    directionalSkinnedProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Directional3DSkinned, error);
+    skinMatricesUniform_ = resources_.createUniform("u_skinMatrices", UniformType::Matrix4, MaximumGpuSkinMatrices, error);
+    skinImportUniform_ = resources_.createUniform("u_skinImport", UniformType::Matrix4, 1, error);
+    if (!skinnedMeshProgram_ || !directionalSkinnedProgram_ || !skinMatricesUniform_ || !skinImportUniform_) {
+      shutdown();
+      return false;
+    }
+  }
   initialized_ = true;
   return true;
 }
 
 void BgfxRenderer3D::shutdown() {
+  sky_.clear();
+  for (const auto program : {directionalMeshProgram_, directionalInstancedProgram_, directionalSkinnedProgram_})
+    if (program) resources_.destroy(program);
+  directionalMeshProgram_ = {};
+  directionalInstancedProgram_ = {};
+  directionalSkinnedProgram_ = {};
+  if (skinnedMeshProgram_) resources_.destroy(skinnedMeshProgram_);
+  if (skinMatricesUniform_) resources_.destroy(skinMatricesUniform_);
+  if (skinImportUniform_) resources_.destroy(skinImportUniform_);
+  skinnedMeshProgram_ = {};
+  skinMatricesUniform_ = {};
+  skinImportUniform_ = {};
   deformedMeshes_.clear();
+  reliefMeshes_.clear();
   dynamicMeshes_.clear();
   primitiveMeshes_.clear();
   modelMeshes_.clear();
@@ -289,6 +294,19 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       error = "Could not create the camera's offscreen render surface.";
     return false;
   }
+  SceneVisibility3D visibility;
+  if (frame.updateContent) {
+    const auto extractionStarted = std::chrono::steady_clock::now();
+    visibility = extractVisibleMeshes3D(world, frame, &extractionJobs_);
+    lastExtractionMilliseconds_ =
+        std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - extractionStarted)
+            .count();
+  } else {
+    lastExtractionMilliseconds_ = 0.0;
+  }
+  if (frame.updateContent && !prepareAnimatedMeshes(visibility.meshes, frame, error))
+    return false;
   if (frame.updateContent &&
       !primitives_.begin(
           View3DConfig{
@@ -329,10 +347,28 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         entity.component<AnimationPlayer3DComponent>() != nullptr)
       liveDynamicMeshes.insert(entity.id);
   }
+  const SceneLighting3D sceneLighting = collectSceneLighting3D(world, frame.camera.renderMask);
+  bool skyDrawn = false;
+  if (frame.updateContent && frame.camera.perspective &&
+      frame.camera.clearMode == "color" && !sceneLighting.skyTexture.empty()) {
+    const auto texture = textures_.find(sceneLighting.skyTexture);
+    if (!texture.handle) {
+      error = "Environment sky texture is not loaded: " + sceneLighting.skyTexture;
+      return false;
+    }
+    if (!sky_.draw(commands_, frame.viewId, texture.handle, frame.position, error))
+      return false;
+    skyDrawn = true;
+  }
   const SceneLighting3D lighting =
       frame.lightingOverride
           ? *frame.lightingOverride
-          : collectSceneLighting3D(world, frame.camera.renderMask);
+          : sceneLighting;
+  const bool directionalOnly = !lighting.hasLocalLights();
+  RuntimeProfiler::setGauge("Renderer3D.directional_shader", directionalOnly ? 1.0 : 0.0);
+  const ProgramHandle defaultMeshProgram = directionalOnly ? directionalMeshProgram_ : meshProgram_;
+  const ProgramHandle defaultInstancedProgram = directionalOnly ? directionalInstancedProgram_ : instancedMeshProgram_;
+  const ProgramHandle defaultSkinnedProgram = directionalOnly ? directionalSkinnedProgram_ : skinnedMeshProgram_;
   const std::array<float, 4> whiteTint{1.0F, 1.0F, 1.0F, 1.0F};
   const std::array<float, 4> noAlphaCutoff{};
   const std::array<float, 4> debugMode{debugModeValue(frame.camera.debugMode),
@@ -370,22 +406,12 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     std::vector<std::array<float, 16>> transforms;
   };
   std::unordered_map<std::string, InstanceGroup> instanceGroups;
-  std::uint32_t bufferedDraws = 0;
-  std::uint32_t bufferedTriangles = 0;
+  reliefMeshes_.beginFrame();
+  std::uint32_t bufferedDraws = skyDrawn ? 1U : 0U;
+  std::uint32_t bufferedTriangles = skyDrawn ? 12U : 0U;
   std::uint32_t distanceCulled = 0;
   std::uint32_t mediumLodMeshes = 0;
   std::uint32_t lowLodMeshes = 0;
-  SceneVisibility3D visibility;
-  if (frame.updateContent) {
-    const auto extractionStarted = std::chrono::steady_clock::now();
-    visibility = extractVisibleMeshes3D(world, frame, &extractionJobs_);
-    lastExtractionMilliseconds_ =
-        std::chrono::duration<double, std::milli>(
-            std::chrono::steady_clock::now() - extractionStarted)
-            .count();
-  } else {
-    lastExtractionMilliseconds_ = 0.0;
-  }
   if (frame.updateContent)
     for (const VisibleMesh3D &visible : visibility.meshes) {
       const Entity &entity = *visible.entity;
@@ -394,8 +420,8 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       const WorldTransform3D &transform = visible.transform;
       const auto *player = entity.component<AnimationPlayer3DComponent>();
       const ModelLodSelection lod =
-          selectModelLod(*mesh, transform.position, frame.position,
-                         player != nullptr || !dents.empty());
+          selectModelLod(*mesh, player, transform.position, frame.position,
+                         !dents.empty());
       if (lod.isCulled) {
         ++distanceCulled;
         continue;
@@ -409,7 +435,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       const MaterialBinding *material = materials_.find(mesh->material);
       const ProgramHandle program = material != nullptr && material->program
                                         ? material->program
-                                        : meshProgram_;
+                                        : defaultMeshProgram;
       DrawState state =
           material != nullptr
               ? material->state
@@ -445,11 +471,38 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         drawUniforms.insert(drawUniforms.end(), material->uniforms.begin(),
                             material->uniforms.end());
       bool queued = false;
-      if (!mesh->vertices.empty()) {
+      if (const auto *relief=entity.component<SurfaceRelief3DComponent>(); relief && !relief->heightMap.empty()) {
+        if (player || !dents.empty() || !mesh->model.empty() || !mesh->vertices.empty() || mesh->shape!="cube") {
+          error="SurfaceRelief3D requires an undeformed cube MeshRenderer";
+          return false;
+        }
+        const auto *gpu=reliefMeshes_.get(*relief,mesh->size,error);
+        if (!gpu) return false;
+        std::string textureId=mesh->texture;
+        if(textureId.empty() && material)textureId=material->albedoTexture;
+        const auto texture=textures_.find(textureId);
+        const auto resolved=texture.handle?texture.handle:whiteTexture_;
+        if(!material) {
+          const auto key="relief:"+std::to_string(reinterpret_cast<std::uintptr_t>(gpu))+":"+
+              std::to_string(color)+":"+std::to_string(resolved.index)+":"+std::to_string(resolved.generation);
+          auto &[groupMesh,groupTexture,groupTint,groupUnlit,transforms]=instanceGroups[key];
+          groupMesh=gpu;groupTexture=resolved;groupTint=entityTint;groupUnlit=false;
+          transforms.push_back(composeMeshTransform3D(transform,mesh->size));queued=true;
+        } else {
+          queued=gpu->draw(commands_,frame.viewId,program,resolved,meshSampler_,
+                          composeMeshTransform3D(transform,mesh->size),state,error,drawUniforms);
+          if(queued){++bufferedDraws;bufferedTriangles+=gpu->indexCount()/3U;}
+        }
+      } else if (!mesh->vertices.empty()) {
         const std::uint64_t signature = meshCacheRevision(*mesh);
         auto &cached = dynamicMeshes_[entity.id];
         if (!cached)
           cached = std::make_unique<CachedMesh>(resources_);
+        if (!cached->animationModel.empty()) {
+          cached->gpu.clear();
+          cached->animationModel.clear();
+          cached->skinPalette.clear();
+        }
         if (dents.empty() &&
             (cached->signature != signature || !cached->gpu.valid())) {
           if (!cached->gpu.upload(mesh->vertices, mesh->uvs, {}, 0xffffffffU,
@@ -487,73 +540,28 @@ bool BgfxRenderer3D::renderFrame(const World &world,
           return false;
         }
         const CachedMesh *drawMesh = cached->second.get();
+        const GpuSkinnedMesh3D *gpuSkin = nullptr;
+        const std::vector<float> *skinPalette = nullptr;
         if (player != nullptr) {
-          const auto source = animatedModels_.find(selectedModel);
-          if (source == animatedModels_.end()) {
-            error =
-                "No skinned model data is loaded for " + selectedModel + ".";
+          const auto animated = dynamicMeshes_.find(entity.id);
+          if (animated == dynamicMeshes_.end()) {
+            error = entity.id + ": Animated mesh preparation did not complete.";
             return false;
           }
-          const int clip = source->second.clipIndex(player->clipName, 0);
-          std::uint64_t signature = 14695981039346656037ULL;
-          hashValue(signature, static_cast<std::uint32_t>(clip));
-          hashValue(signature, std::bit_cast<std::uint32_t>(player->time));
-          hashValue(signature,
-                    static_cast<std::uint32_t>(player->proceduralPoseRevision));
-          hashValue(signature, static_cast<std::uint32_t>(
-                                   player->proceduralPoseRevision >> 32U));
-          hashValue(signature, color);
-          auto &animatedMesh = dynamicMeshes_[entity.id];
-          if (!animatedMesh)
-            animatedMesh = std::make_unique<CachedMesh>(resources_);
-          if (animatedMesh->signature != signature ||
-              !animatedMesh->gpu.valid()) {
-            ProfileScope animationScope("Renderer3D.animation_rebuild");
-            std::vector<Vec3> positions;
-            assets::GltfSkinnedModel3D::BoneSegments segments;
-            WorldTransform3D modelTransform = transform;
-            modelTransform.scale = {transform.scale.x * mesh->size.x,
-                                    transform.scale.y * mesh->size.y,
-                                    transform.scale.z * mesh->size.z};
-            for (const auto &[bone, target] : player->boneSegments) {
-              segments.emplace(bone, assets::GltfSkinnedModel3D::BoneSegment{
-                                         .start = inverseTransformPoint3D(
-                                             modelTransform, target.start),
-                                         .end = inverseTransformPoint3D(
-                                             modelTransform, target.end),
-                                         .pole = inverseTransformPoint3D(
-                                             modelTransform, target.pole)});
-            }
-            bool sampled = false;
-            {
-              ProfileScope skinScope("Renderer3D.skin_cpu");
-              sampled = clip >= 0 ? source->second.samplePositions(
-                                        clip, player->time, player->loop,
-                                        positions, error, segments)
-                                  : source->second.bindPosePositions(
-                                        positions, error, segments);
-            }
-            if (!sampled) {
-              error = entity.id + ": " + error;
+          if (!animated->second->skinPalette.empty()) {
+            gpuSkin = cached->second->gpuSkin.get();
+            skinPalette = &animated->second->skinPalette;
+            if (!gpuSkin) {
+              error = "GPU skin geometry is unavailable for " + selectedModel;
               return false;
             }
-            // UVs, packed colors and topology are model-owned, not pose-owned.
-            // Asset reload replaces this cache together with the skin source.
-            const auto &rest = cached->second->restGeometry;
-            bool uploaded = false;
-            {
-              ProfileScope uploadScope("Renderer3D.skin_upload_cpu");
-              uploaded = animatedMesh->gpu.upload(positions, rest.uvs,
-                                                  rest.indices, 0xffffffffU,
-                                                  error, {}, rest.colors, true);
-            }
-            if (!uploaded) {
-              error = entity.id + ": " + error;
+          } else {
+            if (!animated->second->gpu.valid()) {
+              error = entity.id + ": CPU skin geometry is unavailable.";
               return false;
             }
-            animatedMesh->signature = signature;
+            drawMesh = animated->second.get();
           }
-          drawMesh = animatedMesh.get();
         }
         const GpuMesh3D *drawGpu = &drawMesh->gpu;
         if (!dents.empty() && player == nullptr) {
@@ -565,15 +573,29 @@ bool BgfxRenderer3D::renderFrame(const World &world,
             return false;
         }
         const auto modelTexture = modelTextures_.find(selectedModel);
-        const std::string textureId =
-            material != nullptr && !material->albedoTexture.empty()
-                ? material->albedoTexture
-                : (modelTexture == modelTextures_.end() ? std::string{}
-                                                        : modelTexture->second);
+        // Match primitive meshes: an entity texture overrides material and
+        // embedded model albedo. Keep it in the instancing key below as well.
+        std::string textureId = mesh->texture;
+        if (textureId.empty() && material != nullptr)
+          textureId = material->albedoTexture;
+        if (textureId.empty() && modelTexture != modelTextures_.end())
+          textureId = modelTexture->second;
         const TextureView2D texture = textures_.find(textureId);
         const TextureHandle resolvedTexture =
             texture.handle ? texture.handle : whiteTexture_;
-        if (player == nullptr && material == nullptr && dents.empty()) {
+        if (gpuSkin) {
+          drawUniforms.push_back({.handle=skinMatricesUniform_, .values=*skinPalette,
+              .count=static_cast<std::uint16_t>(skinPalette->size()/16)});
+          drawUniforms.push_back({.handle=skinImportUniform_,
+              .values=animatedModels_.at(selectedModel).importTransform});
+          queued = gpuSkin->draw(commands_, frame.viewId, defaultSkinnedProgram,
+              resolvedTexture, meshSampler_, composeMeshTransform3D(transform, mesh->size),
+              state, drawUniforms, error);
+          if (queued) {
+            ++bufferedDraws;
+            bufferedTriangles += gpuSkin->indexCount()/3;
+          }
+        } else if (player == nullptr && material == nullptr && dents.empty()) {
           const std::string groupKey =
               selectedModel + "\n" + mesh->material + "\n" +
               std::to_string(color) + "\n" +
@@ -679,12 +701,12 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       }
       const bool queued =
           group.transforms.size() == 1U
-              ? group.mesh->draw(commands_, frame.viewId, meshProgram_,
+              ? group.mesh->draw(commands_, frame.viewId, defaultMeshProgram,
                                  group.texture, meshSampler_,
                                  group.transforms.front(), state, error,
                                  groupUniforms)
               : group.mesh->drawInstanced(commands_, frame.viewId,
-                                          instancedMeshProgram_, group.texture,
+                                          defaultInstancedProgram, group.texture,
                                           meshSampler_, group.transforms, state,
                                           error, groupUniforms);
       if (!queued)

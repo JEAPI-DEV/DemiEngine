@@ -1,4 +1,16 @@
 # Native test executables. Test registration lives in dedicated modules.
+  add_executable(demi-fracture-prefab-tests tests/fracture_prefab_tests.cpp)
+  target_link_libraries(demi-fracture-prefab-tests PRIVATE demi-runtime-lib demi-editor-model)
+  add_executable(demi-blast-family3d-tests tests/blast_family3d_tests.cpp)
+  target_link_libraries(demi-blast-family3d-tests PRIVATE demi-destruction)
+  add_executable(demi-fracture-asset-tests tests/fracture_asset_tests.cpp)
+  target_link_libraries(demi-fracture-asset-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-destruction-world3d-tests tests/destruction_world3d_tests.cpp)
+  target_link_libraries(demi-destruction-world3d-tests PRIVATE demi-runtime-lib)
+  target_compile_definitions(demi-destruction-world3d-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-jolt-body-batch3d-tests tests/jolt_body_batch3d_tests.cpp)
+  target_link_libraries(demi-jolt-body-batch3d-tests PRIVATE demi-runtime-lib Jolt)
   add_executable(demi-smoke-tests tests/smoke_tests.cpp)
   target_link_libraries(demi-smoke-tests PRIVATE demi-core)
 
@@ -204,6 +216,8 @@
   add_executable(demi-physics3d-tests tests/physics3d_tests.cpp)
   target_link_libraries(demi-physics3d-tests PRIVATE demi-runtime-lib)
   add_executable(demi-collider-shape-asset-tests tests/collider_shape_asset_tests.cpp)
+  add_executable(demi-compound-collider-asset-tests tests/compound_collider_asset_tests.cpp)
+  target_link_libraries(demi-compound-collider-asset-tests PRIVATE demi-runtime-lib)
   target_link_libraries(demi-collider-shape-asset-tests PRIVATE demi-runtime-lib)
   add_executable(demi-physics-contact-phases3d-tests
     tests/physics_contact_phases3d_tests.cpp)
@@ -291,6 +305,11 @@
   target_link_libraries(demi-debug-geometry3d-tests
     PRIVATE demi-render3d-bgfx)
   add_executable(demi-gpu-mesh3d-tests tests/gpu_mesh3d_tests.cpp)
+  add_executable(demi-gpu-skinning3d-tests tests/gpu_skinning3d_tests.cpp)
+  add_executable(demi-bgfx-profile-callback-tests tests/bgfx_profile_callback_tests.cpp)
+  target_link_libraries(demi-bgfx-profile-callback-tests PRIVATE demi-graphics-bgfx bgfx)
+  target_link_libraries(demi-gpu-skinning3d-tests PRIVATE demi-render3d-bgfx)
+  target_compile_definitions(demi-gpu-skinning3d-tests PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-mesh-deformation3d-tests tests/mesh_deformation3d_tests.cpp)
   target_link_libraries(demi-mesh-deformation3d-tests PRIVATE demi-render3d-bgfx)
   target_link_libraries(demi-gpu-mesh3d-tests PRIVATE demi-render3d-bgfx)
@@ -355,6 +374,8 @@
   add_executable(demi-animation-primitives-tests tests/animation_primitives_tests.cpp)
   target_link_libraries(demi-animation-primitives-tests PRIVATE demi-runtime-lib)
   add_executable(demi-animation-phase7-tests tests/animation_phase7_tests.cpp)
+  add_executable(demi-visual-animation-budget3d-tests tests/visual_animation_budget3d_tests.cpp)
+  target_link_libraries(demi-visual-animation-budget3d-tests PRIVATE demi-runtime-lib)
   target_link_libraries(demi-animation-phase7-tests PRIVATE demi-runtime-lib)
   add_executable(demi-audio-phase7-tests tests/audio_phase7_tests.cpp)
   target_link_libraries(demi-audio-phase7-tests PRIVATE demi-runtime-lib)
@@ -429,7 +450,8 @@
 
   # These tests use assert for checks and fixture setup. Keep those calls in
   # optimized test executables; the linked engine libraries remain Release.
-  foreach(target demi-bgfx-renderer3d-tests demi-gltf-skinned-model-tests demi-runtime-profiler-tests)
+  foreach(target demi-bgfx-renderer3d-tests demi-gltf-skinned-model-tests demi-runtime-profiler-tests demi-gpu-mesh3d-tests demi-gpu-skinning3d-tests
+                 demi-package-manager-tests demi-asset-streaming-tests demi-asset-pipeline-tests demi-editor-asset-workflow-tests demi-texture-library2d-tests)
     if(MSVC)
       target_compile_options(${target} PRIVATE /UNDEBUG)
     else()

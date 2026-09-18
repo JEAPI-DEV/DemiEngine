@@ -1,3 +1,6 @@
+local Entity = require("demi.entity")
+local Time = require("demi.time")
+
 local Projectile = {}
 
 function Projectile:on_create()

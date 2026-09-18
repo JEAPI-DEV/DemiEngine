@@ -22,6 +22,7 @@ struct GltfSkinnedVertex3D {
   std::array<float, 4> weights{};
   int node = -1;
   int skin = -1;
+  runtime::Vec3 normal{}; // Authored local normal; zero means unavailable.
 };
 
 struct GltfSkinnedModel3D {
@@ -61,6 +62,10 @@ struct GltfSkinnedModel3D {
     runtime::Vec3 pole;
   };
   using BoneSegments = std::unordered_map<std::string, BoneSegment>;
+  struct Pose {
+    std::vector<std::array<float, 16>> nodes;
+    std::vector<std::vector<std::array<float, 16>>> skins;
+  };
 
   std::vector<GltfSkinnedVertex3D> vertices;
   std::vector<std::uint32_t> indices;
@@ -73,6 +78,13 @@ struct GltfSkinnedModel3D {
                                         0.0F, 0.0F, 0.0F, 1.0F};
 
   [[nodiscard]] int clipIndex(std::string_view name, int fallback = 0) const;
+  [[nodiscard]] bool bindPose(Pose &out, std::string &error,
+                               const BoneSegments &segments = {}) const;
+  [[nodiscard]] bool samplePose(int clip, float time, bool loop, Pose &out,
+                                 std::string &error,
+                                 const BoneSegments &segments = {}) const;
+  [[nodiscard]] bool posePositions(const Pose &pose, std::vector<runtime::Vec3> &out,
+                                    std::string &error) const;
   [[nodiscard]] bool bindPosePositions(std::vector<runtime::Vec3> &out,
                                        std::string &error,
                                        const BoneSegments &segments = {}) const;

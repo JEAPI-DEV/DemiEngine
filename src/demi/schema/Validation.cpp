@@ -1,4 +1,5 @@
 #include "demi/schema/Validation.h"
+#include "demi/schema/DestructionValidation.h"
 
 #include "demi/assets/AssetGroup.h"
 #include "demi/assets/AssetRegistry.h"
@@ -146,35 +147,16 @@ void validateReferences(Diagnostics &diagnostics,
 
 void validateDuplicateEntityIds(Diagnostics &diagnostics,
                                 const std::filesystem::path &path,
-                                const std::string &text) {
+                                const nlohmann::json &document) {
+  if (!document.contains("entities") || !document["entities"].is_array()) return;
   std::set<std::string> ids;
-  std::size_t cursor = 0;
-  while (true) {
-    const std::size_t key = text.find("\"id\"", cursor);
-    if (key == std::string::npos) {
-      break;
-    }
-    const std::size_t colon = text.find(':', key + 4);
-    const std::size_t quote = colon == std::string::npos
-                                  ? std::string::npos
-                                  : text.find('"', colon + 1);
-    const std::size_t end = quote == std::string::npos
-                                ? std::string::npos
-                                : text.find('"', quote + 1);
-    if (quote == std::string::npos || end == std::string::npos) {
-      break;
-    }
-    const std::string id = text.substr(quote + 1, end - quote - 1);
-    if (!id.starts_with("scene://") && !ids.insert(id).second) {
-      diagnostics.push_back(Diagnostic{
-          .severity = Severity::Error,
-          .code = "SCENE_DUPLICATE_ENTITY_ID",
-          .message = "Scene contains duplicate entity id: " + id,
-          .path = path.string(),
-          .suggestion = "Use stable unique ids for every entity.",
-      });
-    }
-    cursor = end + 1;
+  for (const auto &entity : document["entities"]) {
+    if (!entity.is_object() || !entity.contains("id") || !entity["id"].is_string()) continue;
+    const auto id = entity["id"].get<std::string>();
+    if (!ids.insert(id).second)
+      diagnostics.push_back({.severity=Severity::Error, .code="SCENE_DUPLICATE_ENTITY_ID",
+          .message="Scene contains duplicate entity id: "+id, .path=path.string(),
+          .suggestion="Use stable unique ids for every entity."});
   }
 }
 
@@ -362,13 +344,27 @@ void validatePhysics3D(Diagnostics &diagnostics,
                                      "CapsuleCollider3D", "ConvexCollider3D",
                                      "ModelCollider3D"};
   std::optional<AssetRegistry> colliderRegistry;
-  std::unordered_map<std::string, bool> convexAssets;
-  const auto isConvexAsset = [&](const nlohmann::json &component) {
+  if (std::ranges::any_of(document["entities"], [](const auto &entity) {
+        return entity.is_object() && entity.contains("components") &&
+               entity["components"].is_object() && entity["components"].contains("Destructible3D");
+      })) {
+    const auto project = findProjectDirectory(path);
+    colliderRegistry = project ? loadAssetRegistry(*project) : AssetRegistry{};
+    validateDestruction3D(diagnostics, path, document, *colliderRegistry);
+  }
+  std::unordered_map<std::string, bool> movingColliderAssets;
+  const auto isMovingColliderAsset = [&](const nlohmann::json &component) {
+    if (component.is_object() && component.contains("inline_geometry")) {
+      std::string error;
+      const auto shape = assets::parseColliderShapeAsset(component["inline_geometry"], error);
+      const auto asset=component.find("asset");
+      return (asset==component.end() || (asset->is_string() && asset->get<std::string>().empty())) && shape && !shape->parts.empty();
+    }
     if (!component.is_object() || !component.contains("asset") ||
         !component["asset"].is_string())
       return false;
     const std::string id = component["asset"].get<std::string>();
-    if (const auto found = convexAssets.find(id); found != convexAssets.end())
+    if (const auto found = movingColliderAssets.find(id); found != movingColliderAssets.end())
       return found->second;
     bool valid = false;
     if (!colliderRegistry) {
@@ -383,7 +379,7 @@ void validatePhysics3D(Diagnostics &diagnostics,
       valid =
           assets::loadColliderShapeAsset(asset->sourcePath, error).has_value();
     }
-    convexAssets.emplace(id, valid);
+    movingColliderAssets.emplace(id, valid);
     return valid;
   };
   for (const auto &entity : document["entities"]) {
@@ -393,6 +389,51 @@ void validatePhysics3D(Diagnostics &diagnostics,
     const std::string id = entity.value("id", "ent_unknown");
     const auto &components = entity["components"];
     const auto body = components.find("Rigidbody3D");
+    if (const auto environment = components.find("Environment3D");
+        environment != components.end() && environment->is_object()) {
+      const auto sky = environment->find("sky_texture");
+      const auto project = findProjectDirectory(path);
+      if (sky != environment->end() && sky->is_string() &&
+          !sky->get<std::string>().empty() && project) {
+        if (!colliderRegistry) colliderRegistry = loadAssetRegistry(*project);
+        const auto *asset = findAsset(*colliderRegistry, sky->get<std::string>());
+        if (!asset || asset->type != "Texture2D")
+          diagnostics.push_back({.severity = Severity::Error,
+            .code = "ENVIRONMENT_SKY_TEXTURE_INVALID",
+            .message = "Environment3D sky_texture must reference a Texture2D panorama.",
+            .path = path.string()});
+      }
+    }
+    for (const char *type : {"Masonry3D", "SurfaceRelief3D"}) {
+      const auto component=components.find(type);
+      if(component==components.end() || !component->is_object()) continue;
+      const auto height=component->find("height_map");
+      if(height==component->end() || !height->is_string() || height->get<std::string>().empty()) continue;
+      const auto project=findProjectDirectory(path);
+      if(!project) continue;
+      if(!colliderRegistry) colliderRegistry=loadAssetRegistry(*project);
+      const auto *asset=findAsset(*colliderRegistry,height->get<std::string>());
+      if(!asset || asset->type!="Texture2D")
+        diagnostics.push_back({.severity=Severity::Error,.code="RELIEF_HEIGHT_MAP_INVALID",
+          .message="Entity "+id+" requires a Texture2D height map.",.path=path.string()});
+    }
+    if (components.contains("SurfaceRelief3D")) {
+      const auto mesh=components.find("MeshRenderer");
+      if (mesh==components.end() || !mesh->is_object() || !mesh->value("model","").empty() ||
+          mesh->value("shape","cube")!="cube" || mesh->contains("vertices") ||
+          components.contains("Dentable3D") || components.contains("AnimationPlayer3D"))
+        diagnostics.push_back({.severity=Severity::Error,.code="SURFACE_RELIEF_MESH_INVALID",
+          .message="SurfaceRelief3D requires an undeformed cube MeshRenderer (no model, inline vertices or animation).",.path=path.string()});
+    }
+    if (components.contains("ModelCollider3D") && components["ModelCollider3D"].is_object()) {
+      const auto &model = components["ModelCollider3D"];
+      const bool hasAsset = model.contains("asset") && model["asset"].is_string() && !model["asset"].get<std::string>().empty();
+      const bool hasInline = model.contains("inline_geometry");
+      std::string error;
+      const auto inlineShape = hasInline ? assets::parseColliderShapeAsset(model["inline_geometry"], error) : std::nullopt;
+      if (hasAsset == hasInline || (hasInline && (!inlineShape || inlineShape->parts.empty())))
+        diagnostics.push_back({.severity=Severity::Error,.code="COLLIDER_SOURCE_INVALID",.message="ModelCollider3D requires exactly one asset or valid inline compound geometry. " + error,.path=path.string()});
+    }
     if (components.contains("Dentable3D") && !components.contains("MeshRenderer"))
       diagnostics.push_back({.severity = Severity::Error,
         .code = "DENTABLE3D_MESH_REQUIRED",
@@ -417,8 +458,7 @@ void validatePhysics3D(Diagnostics &diagnostics,
            .code = "PHYSICS3D_MULTIPLE_COLLIDERS",
            .message = "Entity " + id + " has multiple 3D collider components.",
            .path = path.string(),
-           .suggestion = "Use one explicit collider per entity; compose a "
-                         "compound from child entities."});
+           .suggestion = "Use one collider per entity or a compound Collider3D asset."});
     if (body != components.end() && bodyType != "static" && colliderCount == 0)
       diagnostics.push_back(
           {.severity = Severity::Error,
@@ -448,7 +488,7 @@ void validatePhysics3D(Diagnostics &diagnostics,
           {.severity = Severity::Error,
            .code = "PHYSICS3D_CHARACTER_REQUIRES_CONVEX_COLLIDER",
            .message = "CharacterController3D " + id +
-                      " uses an unsupported triangle-mesh collider.",
+                      " uses an unsupported asset-backed movement collider.",
            .path = path.string(),
            .suggestion = "Use a box, sphere, capsule, or convex collider."});
     if (character != components.end()) {
@@ -467,14 +507,14 @@ void validatePhysics3D(Diagnostics &diagnostics,
       }
     }
     if (components.contains("ModelCollider3D") && bodyType != "static" &&
-        !isConvexAsset(components["ModelCollider3D"]))
+        !isMovingColliderAsset(components["ModelCollider3D"]))
       diagnostics.push_back(
           {.severity = Severity::Error,
            .code = "PHYSICS3D_MESH_REQUIRES_STATIC_BODY",
            .message =
                "Triangle-mesh collider " + id + " must use a static body.",
            .path = path.string(),
-           .suggestion = "Use ConvexCollider3D for moving bodies."});
+           .suggestion = "Use ConvexCollider3D or a convex/compound Collider3D asset for moving bodies."});
     if (body != components.end() && bodyType != "static") {
       const auto transform = components.find("Transform3D");
       if (transform != components.end() && transform->is_object() &&
@@ -531,14 +571,13 @@ void validatePhysics3D(Diagnostics &diagnostics,
 Diagnostics validateSceneDocument(const std::filesystem::path &scenePath,
                                   const nlohmann::json &document) {
   Diagnostics diagnostics;
-  const std::string text = document.dump();
-  validateDuplicateEntityIds(diagnostics, scenePath, text);
-  validateSceneComponents(diagnostics, scenePath, text);
   const runtime::composition::ExpansionResult expansion =
       runtime::composition::expandScene(scenePath, document);
   diagnostics.insert(diagnostics.end(), expansion.diagnostics.begin(),
                      expansion.diagnostics.end());
   if (expansion.document) {
+    validateSceneComponents(diagnostics, scenePath, expansion.document->dump());
+    validateDuplicateEntityIds(diagnostics, scenePath, *expansion.document);
     validateTransformHierarchy(diagnostics, scenePath, *expansion.document,
                                "Transform2D", "TRANSFORM2D");
     validateTransformHierarchy(diagnostics, scenePath, *expansion.document,
@@ -984,7 +1023,10 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
     const auto expansion = runtime::composition::inspectPrefab(path);
     diagnostics.insert(diagnostics.end(), expansion.diagnostics.begin(),
                        expansion.diagnostics.end());
-    validateSceneComponents(diagnostics, path, text);
+    if (expansion.document) {
+      validateSceneComponents(diagnostics, path, expansion.document->dump());
+      validateDuplicateEntityIds(diagnostics, path, *expansion.document);
+    }
     break;
   }
   case SourceFileKind::UiPrefab: {

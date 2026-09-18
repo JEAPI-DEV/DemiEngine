@@ -1,6 +1,8 @@
 #pragma once
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/ColliderFractureGraph.h"
+#include "demi/assets/ColliderShapeAsset.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <cstdint>
@@ -19,6 +21,12 @@ struct TriangleCollider3D {
   Vec3 c;
 };
 
+struct ColliderPart3D {
+  std::string id;
+  std::vector<Vec3> points;
+  float density = 1000;
+};
+
 struct ColliderAsset3D {
   Vec3 size = {1.0F, 1.0F, 1.0F};
   Vec3 offset;
@@ -28,6 +36,8 @@ struct ColliderAsset3D {
   std::uint64_t revision = 0;
   bool resident = true;
   std::uint64_t lastUsedEpoch = 0;
+  std::vector<ColliderPart3D> parts{};
+  std::optional<assets::ColliderFractureGraph> fracture;
 };
 
 struct BoxColliderShape3D {
@@ -35,6 +45,9 @@ struct BoxColliderShape3D {
   Vec3 offset;
   bool isTrigger = false;
 };
+
+[[nodiscard]] ColliderAsset3D colliderAssetFromShape3D(const assets::ColliderShapeAsset &source);
+[[nodiscard]] const ColliderAsset3D *resolvedColliderAsset3D(const World &world, const Entity &entity);
 
 // Resolves authored ModelCollider3D references into the immutable collider
 // shapes that runtime physics and debug rendering consume.
@@ -49,5 +62,7 @@ resolvedBoxCollider3D(const World &world, const Entity &entity);
 resolvedTriangleCollider3D(const World &world, const Entity &entity);
 [[nodiscard]] const std::vector<Vec3> *
 resolvedConvexCollider3D(const World &world, const Entity &entity);
+[[nodiscard]] const std::vector<ColliderPart3D> *
+resolvedCompoundCollider3D(const World &world, const Entity &entity);
 
 } // namespace demi::runtime

@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "canvas_size": [960, 540],
+  "root": { "id": "root", "type": "container", "anchor_max": [1, 1], "children": [
+    { "id": "title", "type": "label", "text": "FRACTURE PREFAB AUTHORING", "position": [24, 20], "font_size": 18 },
+    { "id": "help", "type": "label", "text": "LMB localized strike | RMB radial blast | R reset | Both walls share one prefab", "position": [24, 46], "font_size": 12 },
+    { "id": "status", "type": "label", "text": "Edit wall.prefab.json: Destructible3D root, Fracture3D mesh children. No separate recipe.", "position": [24, 68], "font_size": 12 }
+  ] }
+}

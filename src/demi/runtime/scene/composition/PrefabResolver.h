@@ -38,13 +38,19 @@ resolvePrefabReference(const std::filesystem::path &sourcePath,
 
 [[nodiscard]] ExpansionResult
 expandScene(const std::filesystem::path &scenePath,
-            const nlohmann::json &sceneDocument);
+            const nlohmann::json &sceneDocument, bool compileFractures = true);
 
 [[nodiscard]] ExpansionResult
 expandPrefabInstance(const std::filesystem::path &ownerPath,
                      const nlohmann::json &instance);
+// Rebase a prepared template through the same component-reference remapper.
+[[nodiscard]] nlohmann::json rebasePrefabEntities(nlohmann::json entities,
+    std::string_view oldPrefix, std::string_view newPrefix);
 
 [[nodiscard]] ExpansionResult
 inspectPrefab(const std::filesystem::path &prefabPath);
+[[nodiscard]] ExpansionResult bakeFracturePrefab(const std::filesystem::path &prefabPath);
+[[nodiscard]] ExpansionResult bakeFracturePrefab(const std::filesystem::path &prefabPath,
+                                                const nlohmann::json &source);
 
 } // namespace demi::runtime::composition

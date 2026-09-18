@@ -1,3 +1,7 @@
+local Entity = require("demi.entity")
+local Save = require("demi.save")
+local Grid = require("demi.grid")
+
 local Persistence = {}
 
 function Persistence.new(state, config, building, waves, projectiles, health_bars)

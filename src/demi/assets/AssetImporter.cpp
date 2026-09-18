@@ -3,6 +3,7 @@
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/AssetSourceFiles.h"
+#include "demi/assets/ColliderShapeAsset.h"
 
 #include <nlohmann/json.hpp>
 
@@ -358,6 +359,14 @@ Diagnostics reimportAsset(const std::filesystem::path &manifestPath) {
     return diagnostics;
   }
   try {
+    if (descriptor->name == "collider-shape") {
+      std::string error;
+      if (!loadColliderShapeAsset(manifest->sourcePath, error)) {
+        diagnostics.push_back({.severity=Severity::Error, .code="COLLIDER_SHAPE_INVALID",
+                               .message=error, .path=manifest->sourcePath.string()});
+        return diagnostics;
+      }
+    }
     auto document = readJson(manifestPath);
     document["format_version"] = 1;
     document["importer"] = descriptor->name;
@@ -367,7 +376,11 @@ Diagnostics reimportAsset(const std::filesystem::path &manifestPath) {
       document["dependencies"] = nlohmann::json::array();
     if (!document.contains("settings"))
       document["settings"] = nlohmann::json::object();
-    if (manifest->generatedOutputPath) {
+    if (descriptor->name == "collider-shape") {
+      // Migrate older mirror-only manifests; the source and stable ID stay put.
+      // Leave the old cache file alone rather than deleting authoring data.
+      document.erase("generated_output");
+    } else if (manifest->generatedOutputPath) {
       std::string error;
       if (!copyFile(manifest->sourcePath, *manifest->generatedOutputPath,
                     error))

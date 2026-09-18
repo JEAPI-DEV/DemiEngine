@@ -72,12 +72,19 @@ and rerun instructions are in the [probe README](../tools/3d-feasibility/README.
 
 ## Remaining work
 
-- Bring the transition through Demi's shared physics/entity/asset ownership
-  boundary, with a real compound collider contract and render/chunk identity.
+- The [compound collider contract](collider-assets.md) is now integrated into
+  Demi's shared asset/physics path, with stable part raycast IDs and an editable
+  `destruction_3d_lab`. An opt-in world transaction now stages native replacement
+  bodies and reassigns mapped visuals; large-world budgets and Android gameplay
+  qualification still remain open.
 - Persistent Blast family ownership, topology generations, queued damage,
   cancellation/stale-result policy and asynchronous scheduling. This fixture
   creates and disposes its Blast family per proposal; it does not roll back a
   persistent Blast actor graph.
+  A separate [shared runtime module](3d-destruction-runtime.md) now preserves
+  partial damage and stages actor snapshots with commit/discard and state
+  revisions. World ownership, coalesced part hits and fixed-step physical commits
+  are now connected; the fair/time-budgeted scheduler is still pending.
 - Budget synchronous SDK calls and preparation separately; do not pretend the
   split call can pause internally. General allocation failure after commit,
   stress/support analysis, fracture authoring and memory residency remain open.

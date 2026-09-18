@@ -1,3 +1,9 @@
+local Debug = require("demi.debug")
+local Input = require("demi.input")
+local Transform = require("demi.transform2d")
+local Physics2D = require("demi.physics.query2d")
+local NetworkSession = require("demi.network.session")
+
 local Config = require("shooter.config")
 local GameplayEvents = require("demi.gameplay.events")
 local Health = require("demi.gameplay.health")

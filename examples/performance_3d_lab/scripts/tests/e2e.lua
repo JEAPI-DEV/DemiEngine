@@ -1,3 +1,10 @@
+local MeshDeformation = require("demi.mesh.deformation")
+local Entity = require("demi.entity")
+local Transform3D = require("demi.transform3d")
+local Physics3D = require("demi.physics.query3d")
+local Hud = require("demi.hud")
+local Test = require("demi.test")
+
 local tests = {}
 
 tests[#tests + 1] = {

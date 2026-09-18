@@ -1,3 +1,5 @@
+local Transform3D = require("demi.transform3d")
+
 local MinimapCamera = {}
 
 function MinimapCamera:on_update(_dt)

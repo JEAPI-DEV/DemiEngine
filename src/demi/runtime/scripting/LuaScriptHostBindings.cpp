@@ -1,4 +1,5 @@
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
+#include "demi/runtime/scripting/LuaServiceModules.h"
 
 #include "demi/runtime/scripting/bindings/LuaCoreBindings.h"
 #include "demi/runtime/scripting/bindings/LuaEntityBindings.h"
@@ -13,6 +14,7 @@
 #include "demi/runtime/scripting/bindings/components/LuaMeshDeformationBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics3DBindings.h"
+#include "demi/runtime/scripting/bindings/components/LuaDestruction3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaRigidbody2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaRigidbody3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaSprite2DBindings.h"
@@ -69,6 +71,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaSprite2DBindingModule sprite2D;
   const LuaPhysics2DBindingModule physics2D;
   const LuaPhysics3DBindingModule physics3D;
+  const LuaDestruction3DBindingModule destruction3D;
   const LuaHudBindingModule hud;
   const LuaSaveBindingModule save;
   const LuaAudioBindingModule audio;
@@ -95,7 +98,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
       &cutscene,    &network,     &networkSession,  &tls,
       &regex,       &random,      &isoGrid,         &vectorMath,
       &animation,   &assets,      &navigation2D,    &tilemap2D,
-      &data,        &e2eTests};
+      &data,        &e2eTests, &destruction3D};
   for (const LuaBindingModule *module : modules) {
     module->install(host, state);
   }
@@ -130,7 +133,11 @@ std::vector<std::string> LuaScriptHost::publicLuaApi() const {
     return result;
   }
 
-  lua_pushglobaltable(state);
+  lua_getfield(state, LUA_REGISTRYINDEX, LuaServicesRegistry);
+  if (!lua_istable(state, -1)) {
+    lua_pop(state, 1);
+    return result;
+  }
   const int globalsIndex = lua_gettop(state);
   lua_pushnil(state);
   while (lua_next(state, globalsIndex) != 0) {
@@ -470,6 +477,7 @@ bool luaRegisterBindings(LuaScriptHost &host, lua_State *state,
     return false;
   }
   registerSol2Bindings(host, state);
+  publishLuaServiceModules(state);
   return true;
 }
 

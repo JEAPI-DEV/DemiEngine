@@ -10,6 +10,7 @@
 #include "demi/assets/ModelImportProfile.h"
 #include "demi/assets/ModelInspector.h"
 #include "demi/assets/SceneBudget3D.h"
+#include "demi/runtime/scene/composition/PrefabResolver.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -109,6 +110,22 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
     return ExitUsageError;
   }
   const std::string &command = args[1];
+  if (command == "fracture") {
+    if(args.size()!=3) { error<<"Usage: demi asset fracture <prefab.prefab.json>\n";return ExitUsageError; }
+    const auto result=runtime::composition::bakeFracturePrefab(args[2]);
+    if(!result.document)return printDiagnostics(result.diagnostics,error);
+    std::size_t chunks=0, bonds=0, anchors=0;
+    for (const auto &entity : (*result.document)["entities"]) {
+      const auto &c=entity["components"];
+      if (!c.contains("Destructible3D") || !c.contains("ModelCollider3D") || !c["ModelCollider3D"].contains("inline_geometry")) continue;
+      const auto &geometry=c["ModelCollider3D"]["inline_geometry"];
+      chunks+=geometry["parts"].size(); bonds+=geometry["fracture"]["bonds"].size(); anchors+=geometry["fracture"]["anchors"].size();
+    }
+    output<<nlohmann::json{{"prefab",(*result.document)["id"]},{"chunks",chunks},
+       {"bonds",bonds},{"anchors",anchors},
+       {"source_unchanged",true}}.dump(2)<<'\n';
+    return ExitSuccess;
+  }
   if (command == "import") {
     if (args.size() < 3 || valueAfter(args, "--id").empty()) {
       error << "Usage: demi asset import <source> --project <project> --id "
@@ -328,13 +345,31 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
         error << issue << '\n';
         return ExitValidationFailure;
       }
-      const nlohmann::json report{
+      nlohmann::json report{
           {"id", manifest->id},
-          {"shape", "convex_hull"},
-          {"points", collider->points.size()},
+          {"shape", collider->parts.empty() ? "convex_hull" : "compound"},
+          {"points", [&] {
+             auto count = collider->points.size();
+             for (const auto &part : collider->parts) count += part.points.size();
+             return count;
+           }()},
+          {"part_ids", [&] {
+             auto ids = nlohmann::json::array();
+             for (const auto &part : collider->parts) ids.push_back(part.id);
+             return ids;
+           }()},
           {"dynamic_supported", true},
           {"bounds",
            {{"minimum", collider->minimum}, {"maximum", collider->maximum}}}};
+      if (collider->fracture) {
+        auto bonds = nlohmann::json::array();
+        for (const auto &bond : collider->fracture->bonds)
+          bonds.push_back({{"id", bond.id},
+                           {"parts", {bond.firstPart, bond.secondPart}},
+                           {"health", bond.health}});
+        report["fracture"] = {{"bonds", std::move(bonds)},
+                              {"anchors", collider->fracture->anchors}};
+      }
       if (valueAfter(args, "--format") == "json")
         output << nlohmann::json{{"report", report},
                                  {"diagnostics", nlohmann::json::array()}}

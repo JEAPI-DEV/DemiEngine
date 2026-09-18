@@ -17,6 +17,11 @@ to public Lua APIs.
 
 ## Deprecation Window
 
+The current unreleased development migration to explicit Lua imports intentionally
+removes implicit engine globals without a compatibility facade. Import native
+services through `require("demi.<module>")`; see [the migration guide](lua-modules.md).
+This does not change authored JSON format versions.
+
 - Public formats and Lua APIs are deprecated for at least one minor release
   before removal when a compatibility adapter is practical.
 - Deprecations must identify the replacement and intended removal version in

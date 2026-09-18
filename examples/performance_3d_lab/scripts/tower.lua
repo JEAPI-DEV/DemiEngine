@@ -1,3 +1,9 @@
+local Input = require("demi.input")
+local Entity = require("demi.entity")
+local Timer = require("demi.timer")
+local Scene = require("demi.scene")
+local Hud = require("demi.hud")
+
 ---@demi_component
 local Tower = {}
 

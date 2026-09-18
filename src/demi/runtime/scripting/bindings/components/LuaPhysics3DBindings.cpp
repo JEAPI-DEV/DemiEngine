@@ -10,6 +10,7 @@ namespace {
 sol::table hitTable(lua_State *state, const PhysicsQueryHit3D &hit) {
   sol::table result = sol::state_view(state).create_table();
   result["entity_id"] = hit.entityId;
+  if (!hit.colliderPartId.empty()) result["collider_part_id"] = hit.colliderPartId;
   result["layer"] = hit.layer;
   result["point"] =
       sol::as_table(std::vector<float>{hit.point.x, hit.point.y, hit.point.z});
@@ -82,10 +83,11 @@ void LuaPhysics3DBindingModule::install(LuaScriptHost &host,
                      const float directionX, const float directionY,
                      const float directionZ, const float distance,
                      const sol::optional<std::string> layer,
-                     const sol::optional<std::string> ignored) -> sol::object {
+                     const sol::optional<std::string> ignored,
+                     const sol::optional<bool> includeTriggers) -> sol::object {
         const auto hit = host.physicsSphereCast3D(
             originX, originY, originZ, radius, directionX, directionY,
-            directionZ, distance, layer.value_or(""), ignored.value_or(""));
+            directionZ, distance, layer.value_or(""), ignored.value_or(""), includeTriggers.value_or(true));
         return hit ? sol::make_object(state, hitTable(state, *hit))
                    : sol::make_object(state, sol::nil);
       });

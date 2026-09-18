@@ -1,6 +1,7 @@
 package dev.jeapi.demi.android;
 
 import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.graphics.Rect;
 import android.hardware.Sensor;
 import android.os.Build;
@@ -35,6 +36,17 @@ public final class DemiActivity extends SDLActivity {
     protected String[] getLibraries() {
         // SDL is linked statically into the engine runtime.
         return new String[] {"demi_android"};
+    }
+
+    @Override
+    public void setOrientationBis(int width, int height, boolean resizable, String hint) {
+        // SDL otherwise replaces the authored manifest policy with FULL_USER
+        // for resizable windows, rotating landscape games into portrait.
+        // The current request also includes explicit Application overrides.
+        if ((hint == null || hint.isEmpty()) &&
+                getRequestedOrientation() != ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
+            return;
+        super.setOrientationBis(width, height, resizable, hint == null ? "" : hint);
     }
 
     @Override

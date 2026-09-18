@@ -1,3 +1,5 @@
+local Entity = require("demi.entity")
+
 local Platforms = {}
 
 function Platforms.create_static_box(id, name, x, y, width, height)

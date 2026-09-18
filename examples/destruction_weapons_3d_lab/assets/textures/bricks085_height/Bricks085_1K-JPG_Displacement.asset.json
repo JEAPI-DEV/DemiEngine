@@ -1,0 +1,12 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/textures/bricks085_height/Bricks085_1K-JPG_Displacement.jpg",
+  "id": "asset://textures/bricks085_height",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {},
+  "source": "../../Bricks/Bricks085_1K-JPG_Displacement.jpg",
+  "source_hash": "fnv1a64:b295b16558239a54",
+  "type": "Texture2D"
+}

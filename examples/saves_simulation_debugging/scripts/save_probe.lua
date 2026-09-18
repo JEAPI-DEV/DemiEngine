@@ -1,3 +1,9 @@
+local Input = require("demi.input")
+local Transform = require("demi.transform2d")
+local Random = require("demi.math.random")
+local Hud = require("demi.hud")
+local Save = require("demi.save")
+
 local Probe = {
   score = 0,
   sequence = 0,

@@ -8,6 +8,9 @@
 #include <fs_demi_lit_essl.h>
 #include <fs_demi_lit_glsl.h>
 #include <fs_demi_lit_spv.h>
+#include <fs_demi_directional_glsl.h>
+#include <fs_demi_directional_essl.h>
+#include <fs_demi_directional_spv.h>
 #include <fs_demi_post_process_essl.h>
 #include <fs_demi_post_process_glsl.h>
 #include <fs_demi_post_process_spv.h>
@@ -20,6 +23,7 @@
 #include <vs_demi_lit_instanced_glsl.h>
 #include <vs_demi_lit_instanced_spv.h>
 #include <vs_demi_lit_spv.h>
+#include <vs_demi_skinned_spv.h>
 #include <vs_demi_post_process_essl.h>
 #include <vs_demi_post_process_glsl.h>
 #include <vs_demi_post_process_spv.h>
@@ -28,6 +32,12 @@
 #include <vs_ocornut_imgui.bin.h>
 
 #include <array>
+#include <vs_demi_sky_glsl.h>
+#include <vs_demi_sky_essl.h>
+#include <vs_demi_sky_spv.h>
+#include <fs_demi_sky_glsl.h>
+#include <fs_demi_sky_essl.h>
+#include <fs_demi_sky_spv.h>
 #include <limits>
 
 namespace demi::runtime::render {
@@ -36,6 +46,32 @@ namespace {
 constexpr std::uint16_t Invalid = std::numeric_limits<std::uint16_t>::max();
 
 const bgfx::EmbeddedShader EmbeddedShaders[] = {
+    {"vs_demi_sky",
+     {{bgfx::RendererType::OpenGLES, vs_demi_sky_essl, sizeof(vs_demi_sky_essl)},
+      {bgfx::RendererType::OpenGL, vs_demi_sky_glsl, sizeof(vs_demi_sky_glsl)},
+      {bgfx::RendererType::Vulkan, vs_demi_sky_spv, sizeof(vs_demi_sky_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("VSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
+    {"fs_demi_sky",
+     {{bgfx::RendererType::OpenGLES, fs_demi_sky_essl, sizeof(fs_demi_sky_essl)},
+      {bgfx::RendererType::OpenGL, fs_demi_sky_glsl, sizeof(fs_demi_sky_glsl)},
+      {bgfx::RendererType::Vulkan, fs_demi_sky_spv, sizeof(fs_demi_sky_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
+    {"fs_demi_directional",
+     {{bgfx::RendererType::OpenGLES, fs_demi_directional_essl, sizeof(fs_demi_directional_essl)},
+      {bgfx::RendererType::OpenGL, fs_demi_directional_glsl, sizeof(fs_demi_directional_glsl)},
+      {bgfx::RendererType::Vulkan, fs_demi_directional_spv, sizeof(fs_demi_directional_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
+    {"vs_demi_skinned",
+     {{bgfx::RendererType::Vulkan, vs_demi_skinned_spv, sizeof(vs_demi_skinned_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("VSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
     BGFX_EMBEDDED_SHADER(vs_ocornut_imgui),
     BGFX_EMBEDDED_SHADER(fs_ocornut_imgui),
     BGFX_EMBEDDED_SHADER(vs_drawstress),
@@ -330,9 +366,29 @@ public:
       vertexName = "vs_demi_lit";
       fragmentName = "fs_demi_lit";
       break;
+    case BuiltinProgram::Sky3D:
+      vertexName = "vs_demi_sky";
+      fragmentName = "fs_demi_sky";
+      break;
     case BuiltinProgram::Lit3DInstanced:
       vertexName = "vs_demi_lit_instanced";
       fragmentName = "fs_demi_lit";
+      break;
+    case BuiltinProgram::Lit3DSkinned:
+      vertexName = "vs_demi_skinned";
+      fragmentName = "fs_demi_lit";
+      break;
+    case BuiltinProgram::Directional3D:
+      vertexName = "vs_demi_lit";
+      fragmentName = "fs_demi_directional";
+      break;
+    case BuiltinProgram::Directional3DInstanced:
+      vertexName = "vs_demi_lit_instanced";
+      fragmentName = "fs_demi_directional";
+      break;
+    case BuiltinProgram::Directional3DSkinned:
+      vertexName = "vs_demi_skinned";
+      fragmentName = "fs_demi_directional";
       break;
     case BuiltinProgram::PostProcess2D:
       vertexName = "vs_demi_post_process";

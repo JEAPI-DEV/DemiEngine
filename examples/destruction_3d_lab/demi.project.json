@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "name": "3D Destruction Lab",
+  "main_scene": "scene://destruction_3d_lab/main",
+  "scenes": [{ "id": "scene://destruction_3d_lab/main" }],
+  "assets": ["asset://colliders/arch"],
+  "input": { "actions": {
+    "inspect_part": { "type": "button", "bindings": [{ "input": "mouse:left" }] },
+    "impulse": { "type": "button", "bindings": [{ "input": "key:space" }] },
+    "reset": { "type": "button", "bindings": [{ "input": "key:r" }] }
+  } },
+  "scripting": { "language": "lua54", "modules": [] }
+}

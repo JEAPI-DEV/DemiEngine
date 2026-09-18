@@ -39,7 +39,7 @@ raycast3D(const World &world, Vec3 origin, Vec3 direction, float distance,
 [[nodiscard]] std::optional<PhysicsQueryHit3D>
 sphereCast3D(const World &world, Vec3 origin, float radius, Vec3 direction,
              float distance, const std::string &layer = {},
-             const std::string &ignoredEntityId = {});
+             const std::string &ignoredEntityId = {}, bool includeTriggers = true);
 [[nodiscard]] std::optional<PhysicsQueryHit3D>
 capsuleCast3D(const World &world, Vec3 origin, float radius, float height,
               Vec3 direction, float distance, const std::string &layer = {},

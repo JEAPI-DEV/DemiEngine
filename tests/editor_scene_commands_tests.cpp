@@ -156,7 +156,8 @@ int main() {
   assert(entityExists(document, "root_copy"));
   assert(entityExists(document, "child_copy"));
   const nlohmann::json *copy = document.entity("child_copy");
-  assert(copy->at("components").at("Transform3D").at("parent") == "root_copy");
+  assert(!copy->at("components").at("Transform3D").contains("parent"));
+  assert(document.entity("root_copy")->at("children")[0]["id"] == "child_copy");
   assert(document.undo(error));
   assert(!entityExists(document, "root_copy"));
   assert(!entityExists(document, "child_copy"));
@@ -215,6 +216,30 @@ int main() {
   assert(!document.removeComponent("root", "Transform3D", error));
   assert(!error.empty());
   assert(document.component("root", "Transform3D") != nullptr);
+
+  // Local authoring writes nesting and keeps exact source structure on undo.
+  assert(document.reparent("child", "root", error));
+  assert(document.entity("root")->at("children")[0]["id"] == "child");
+  assert(!document.component("child", "Transform3D")->contains("parent"));
+  const auto nested = document.json();
+  assert(document.setValue({.entityId = "child", .component = "Transform3D",
+                            .field = "position"}, {3, 2, 1}, false, error));
+  assert(document.undo(error) && document.json() == nested);
+  assert(document.createEntity(error, "child"));
+  const std::string grandchild(document.lastChangedEntityId());
+  assert(document.entity("child")->at("children")[0]["id"] == grandchild);
+  assert(document.deleteEntity("root", error));
+  assert(!document.entity(grandchild));
+  assert(document.undo(error) && document.entity(grandchild));
+  assert(document.duplicateEntity("child", error));
+  const std::string nestedCopy(document.lastChangedEntityId());
+  assert(document.entity(nestedCopy)->contains("children"));
+  assert(document.undo(error));
+  assert(document.save(error));
+  EditorSceneDocument reopened;
+  assert(reopened.open(scene, error));
+  assert(reopened.json() == document.json());
+  assert(reopened.entity(grandchild));
 
   std::error_code ignored;
   std::filesystem::remove_all(scene.parent_path(), ignored);

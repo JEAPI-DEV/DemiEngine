@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://colliders/arch",
+  "importer": "collider-shape",
+  "importer_version": 1,
+  "settings": {},
+  "source": "arch.collider.json",
+  "source_hash": "fnv1a64:9c7ee553bd60716a",
+  "type": "Collider3D"
+}

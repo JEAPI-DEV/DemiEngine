@@ -2,6 +2,8 @@
 #include "demi/runtime/render/backend/GpuResources.h"
 #include "demi/runtime/render/backend/RenderCommands.h"
 #include "demi/runtime/render/bgfx3d/GpuMesh3D.h"
+#include "demi/runtime/render/bgfx3d/MeshVertexPreparation3D.h"
+#include "demi/runtime/concurrency/JobSystem.h"
 
 #include <array>
 #include <cassert>
@@ -44,6 +46,36 @@ int main() {
                       WrongColors));
   assert(mesh.upload(Positions, {}, Indices, 0xffffffffU, error, {}, Colors));
   assert(mesh.vertexCount() == 3 && mesh.indexCount() == 3);
+  std::vector<GpuMeshVertex3D> prepared;
+  assert(prepareMeshVertices3D(Positions, {}, Indices, 0xffffffffU, {}, Colors, prepared, error));
+  assert(prepared.size() == 3);
+  for (std::size_t i = 0; i < prepared.size(); ++i) {
+    assert(prepared[i].nz == 1 && prepared[i].nx == 0 && prepared[i].ny == 0);
+    assert(prepared[i].rgba == Colors[i]);
+    assert(prepared[i].x == Positions[i].x && prepared[i].y == Positions[i].y);
+  }
+  assert(mesh.uploadPrepared(prepared, Indices, error, true));
+  assert(mesh.uploadPrepared(prepared, Indices, error, true));
+  assert(!mesh.uploadPrepared(prepared, BadIndices, error, true));
+  assert(!prepareMeshVertices3D(Positions, WrongUvs, Indices, 0xffffffffU, {}, {}, prepared, error));
+  assert(!prepareMeshVertices3D(Positions, {}, BadIndices, 0xffffffffU, {}, {}, prepared, error));
+  constexpr std::array<Vec3, 3> Degenerate{};
+  assert(prepareMeshVertices3D(Degenerate, {}, Indices, 0xffffffffU, {}, {}, prepared, error));
+  assert(prepared[0].ny == 1 && prepared[0].nz == 0);
+  constexpr std::array<Vec3, 3> SuppliedNormals{{{1, 0, 0}, {1, 0, 0}, {1, 0, 0}}};
+  assert(prepareMeshVertices3D(Positions, {}, Indices, 0xffffffffU, SuppliedNormals, {}, prepared, error));
+  assert(prepared[0].nx == 1 && prepared[0].nz == 0);
+  JobSystem workers(3);
+  std::vector<std::vector<GpuMeshVertex3D>> parallel(40);
+  workers.parallelFor(parallel.size(), 1, [&](std::size_t i) {
+    std::string localError;
+    assert(prepareMeshVertices3D(Positions, {}, Indices, 0xffffffffU, SuppliedNormals, {}, parallel[i], localError));
+  });
+  for (const auto &output : parallel)
+    for (std::size_t i = 0; i < output.size(); ++i) {
+      assert(output[i].x == prepared[i].x && output[i].y == prepared[i].y);
+      assert(output[i].nx == prepared[i].nx && output[i].ny == prepared[i].ny && output[i].nz == prepared[i].nz);
+    }
   assert(commands->configureView3D({.width = 64, .height = 64}, error));
   assert(mesh.draw(*commands, 0, program, texture, sampler, {},
                    {.depthTest = DepthTest::Less, .writeDepth = true}, error));

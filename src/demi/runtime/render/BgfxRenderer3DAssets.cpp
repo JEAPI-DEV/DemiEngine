@@ -13,8 +13,13 @@ namespace demi::runtime::render {
 bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
                                 std::vector<std::string> &diagnostics) {
   textures_.clear();
+  // A pose cache must not outlive the model data it was sampled from.
+  std::erase_if(dynamicMeshes_, [](const auto &entry) {
+    return !entry.second->animationModel.empty();
+  });
   modelMeshes_.clear();
   deformedMeshes_.clear();
+  reliefMeshes_.loadAssets(registry);
   animatedModels_.clear();
   modelTextures_.clear();
   modelUnlit_.clear();
@@ -143,6 +148,19 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
                                 .uvs = std::move(textureCoordinates),
                                 .indices = std::move(indices),
                                 .colors = std::move(vertexColors)};
+        if (gpuSkinningEnabled_ && animated) {
+          std::vector<GpuSkinnedVertex3D> skinVertices;
+          GpuSkinPaletteLayout layout;
+          std::string reason;
+          if (buildGpuSkinVertices(*animated, skinVertices, layout, reason)) {
+            cached->gpuSkin = std::make_unique<GpuSkinnedMesh3D>(resources_);
+            if (!cached->gpuSkin->upload(skinVertices, animated->indices, std::move(layout), error)) {
+              diagnostics.push_back(asset.id + ": " + error);
+              success = false;
+              cached->gpuSkin.reset();
+            }
+          }
+        }
         modelMeshes_.emplace(asset.id, std::move(cached));
         std::vector<std::byte> embeddedAlbedo =
             animated ? std::move(animated->albedoImage)

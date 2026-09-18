@@ -51,6 +51,9 @@ JSON pointer that failed.
 ## Lua
 
 ```lua
+local Data = require("demi.data")
+local Debug = require("demi.debug")
+
 local item, error = Data.load("asset://items/iron_sword")
 if item == nil then
   Debug.log(error.code .. ": " .. error.message)

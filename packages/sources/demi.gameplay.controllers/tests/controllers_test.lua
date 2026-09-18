@@ -1,3 +1,5 @@
+local Test = require("demi.test")
+
 local Controllers = require("demi.gameplay.controllers")
 
 Test.case("platform coyote and buffered jump are package policy", function()

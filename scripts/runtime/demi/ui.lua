@@ -1,3 +1,6 @@
+local Events = require("demi.events")
+local Hud = require("demi.hud")
+
 -- demi.ui: high-level retained-UI helpers over the existing Hud/Events API.
 -- No engine changes: wraps Hud.find/create/recycle_rows/set_text and the
 -- typed ui_scroll event. Keeps game meaning in game scripts.

@@ -55,6 +55,8 @@ module. A module without `@demi_component` annotations can still opt into
 validation by declaring `property_schema` on the returned script table:
 
 ```lua
+local Debug = require("demi.debug")
+
 local Player = {}
 
 ---@type ScriptPropertySchema

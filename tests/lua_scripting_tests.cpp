@@ -56,6 +56,19 @@ int main() {
 #endif
 
   if (!writeFile(projectDirectory / "scripts" / "probe.lua", R"lua(
+local Input = require("demi.input")
+local Application = require("demi.application")
+local ProceduralMesh = require("demi.mesh.procedural")
+local Entity = require("demi.entity")
+local Sprite2D = require("demi.sprite2d")
+local Random = require("demi.math.random")
+local Events = require("demi.events")
+local Hud = require("demi.hud")
+local Text = require("demi.text")
+local Save = require("demi.save")
+local Cutscene = require("demi.cutscene")
+local Network = require("demi.network")
+
 local Probe = {}
 function Probe:on_start()
   require("action_module")
@@ -323,6 +336,8 @@ return Probe
   }
 
   if (!writeFile(projectDirectory / "scripts" / "dynamic_probe.lua", R"lua(
+local Save = require("demi.save")
+
 local DynamicProbe = {}
 function DynamicProbe:on_create()
   Save.set_string("test", "dynamic_create", "called")
@@ -340,6 +355,8 @@ return DynamicProbe
   }
 
   if (!writeFile(projectDirectory / "scripts" / "action_module.lua", R"lua(
+local Save = require("demi.save")
+
 local ActionModule = {}
 -- @HandleAction("test.module")
 function ActionModule.handle_action(event)
@@ -356,6 +373,8 @@ return ActionModule
   }
 
   if (!writeFile(projectDirectory / "scripts" / "button.lua", R"lua(
+local Save = require("demi.save")
+
 local Button = {}
 function Button:on_ui_event(event)
   if event.type == "submit" then
@@ -372,6 +391,8 @@ return Button
   }
 
   if (!writeFile(projectDirectory / "scripts" / "prop_probe.lua", R"lua(
+local Save = require("demi.save")
+
 local PropProbe = {}
 PropProbe.property_schema = {
   enabled = { type = "boolean", default = false },

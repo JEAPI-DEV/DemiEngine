@@ -1,0 +1,57 @@
+{
+  "format_version": 1,
+  "id": "prefab://wall",
+  "name": "Editable wall and reinforcement",
+  "entities": [
+    {
+      "id": "wall",
+      "components": {
+        "Transform3D": {},
+        "Rigidbody3D": {
+          "mass": 1000
+        },
+        "Destructible3D": {
+          "seed": 17
+        }
+      },
+      "children": [
+        {
+          "id": "concrete",
+          "components": {
+            "Transform3D": {
+              "position": [0,1.5,0]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "size": [4,3,0.4],
+              "color": [0.62,0.58,0.52,1]
+            },
+            "Fracture3D": {
+              "pieces": 16,
+              "anchor_below": 0.01,
+              "interior_color": [0.34,0.31,0.27,1]
+            }
+          }
+        },
+        {
+          "id": "reinforcement",
+          "components": {
+            "Transform3D": {
+              "position": [0,1.5,0]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "size": [0.1,2.9,0.12],
+              "color": [0.18,0.23,0.28,1]
+            },
+            "Fracture3D": {
+              "pieces": 1,
+              "bond_health": 10,
+              "anchor_below": 0.06
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

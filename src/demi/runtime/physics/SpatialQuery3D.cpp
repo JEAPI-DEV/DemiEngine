@@ -476,6 +476,10 @@ overlapSphereAll3D(const World &world, const Vec3 center, const float radius,
   std::vector<PhysicsQueryHit3D> entities;
   const Sphere3D query{.center = center, .radius = std::max(radius, 0.0F)};
   for (const Entity &entity : world.entities) {
+    // Compound narrow phase is owned by the native physics world. Before its
+    // first synchronization, do not fabricate hits against the union bounds.
+    if (resolvedCompoundCollider3D(world, entity))
+      continue;
     if (!entity.enabled || entity.id == ignoredEntityId ||
         (!layer.empty() && colliderLayer(entity) != layer))
       continue;
@@ -510,6 +514,8 @@ overlapBoxAll3D(const World &world, const Vec3 center, const Vec3 size,
   const Aabb3D query{.min = subtract(center, half),
                      .max = add(center, half)};
   for (const Entity &entity : world.entities) {
+    if (resolvedCompoundCollider3D(world, entity))
+      continue;
     if (!entity.enabled || entity.id == ignoredEntityId ||
         (!layer.empty() && colliderLayer(entity) != layer))
       continue;
@@ -568,6 +574,8 @@ raycast3D(const World &world, const Vec3 origin, const Vec3 direction,
     return std::nullopt;
   std::optional<PhysicsRaycastHit3D> nearest;
   for (const Entity &entity : world.entities) {
+    if (resolvedCompoundCollider3D(world, entity))
+      continue;
     if (!entity.enabled || entity.id == ignoredEntityId)
       continue;
     std::optional<float> hitDistance;
@@ -625,10 +633,10 @@ std::optional<PhysicsQueryHit3D>
 sphereCast3D(const World &world, const Vec3 origin, const float radius,
              const Vec3 direction, const float distance,
              const std::string &layer,
-             const std::string &ignoredEntityId) {
+             const std::string &ignoredEntityId, bool includeTriggers) {
   if (world.physicsWorld3D != nullptr)
     return world.physicsWorld3D->castSphere(
-        origin, radius, direction, distance, layer, ignoredEntityId);
+        origin, radius, direction, distance, layer, ignoredEntityId, includeTriggers);
   if (radius < 0.0F || distance < 0.0F ||
       lengthSquared(direction) <= 0.000001F)
     return std::nullopt;
@@ -644,6 +652,7 @@ sphereCast3D(const World &world, const Vec3 origin, const float radius,
                      unit.z * travelled});
     auto hits = overlapSphereAll3D(world, center, radius, layer,
                                    ignoredEntityId);
+    if (!includeTriggers) std::erase_if(hits, [](const auto &hit) { return hit.isTrigger; });
     if (hits.empty())
       continue;
     PhysicsQueryHit3D hit = hits.front();

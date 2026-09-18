@@ -18,6 +18,15 @@
 #include <utility>
 
 namespace demi::runtime {
+std::optional<RigidbodyState3D> LuaScriptHost::rigidbodyState3D(const std::string &entityId) const {
+  const auto *entity = world_ ? findEntity(*world_, entityId) : nullptr;
+  const auto *body = entity ? entity->component<Rigidbody3DComponent>() : nullptr;
+  if (!body) return std::nullopt;
+  return RigidbodyState3D{.bodyType=body->bodyType, .mass=body->mass,
+      .useGravity=body->useGravity, .enabled=body->bodyEnabled,
+      .velocity=body->velocity,
+      .angularVelocity=body->angularVelocity};
+}
 
 Entity *LuaScriptHost::lookupServiceEntity(const std::string &id) const {
   return world_ ? serviceEntityLookup_.find(world_->entities, id) : nullptr;
@@ -712,12 +721,12 @@ std::optional<PhysicsQueryHit3D> LuaScriptHost::physicsSphereCast3D(
     const float originX, const float originY, const float originZ,
     const float radius, const float directionX, const float directionY,
     const float directionZ, const float distance, const std::string &layer,
-    const std::string &ignoredEntityId) const {
+    const std::string &ignoredEntityId, bool includeTriggers) const {
   return world_ == nullptr
              ? std::nullopt
              : sphereCast3D(*world_, {originX, originY, originZ}, radius,
                             {directionX, directionY, directionZ}, distance,
-                            layer, ignoredEntityId);
+                            layer, ignoredEntityId, includeTriggers);
 }
 
 bool LuaScriptHost::physicsHasContact(

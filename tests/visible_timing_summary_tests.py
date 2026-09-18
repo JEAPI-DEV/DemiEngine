@@ -6,14 +6,59 @@ import unittest
 import subprocess
 import json
 import shutil
+import struct
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from benchmark_3d_visible import summarize, distribution
 from benchmark_barrel_tower import phase_frames, impact_burst_end
 import animation_crowd_workload as crowd
+from split_skin_fixture import split_skin
 
 
 class SummaryTests(unittest.TestCase):
+    def test_mixed_and_budgeted_capture_requires_all_work_and_collisions(self):
+        result={'valid_capture':True, 'Renderer3D.meshes_visible':{'min':41},
+                'Renderer3D.animation_rebuild.calls':{'min':0,'max':20},
+                'Renderer3D.animation_accounted':{'min':20,'max':20},
+                'Physics3D.bodies':{'min':41,'max':41},
+                'Physics3D.active_bodies':{'min':40,'max':40},
+                'Physics3D.contact_pairs':{'max':60}}
+        crowd.qualify(result,40,'mixed',15)
+        self.assertTrue(result['valid_capture'])
+        result['Physics3D.contact_pairs']={'max':0}
+        crowd.qualify(result,40,'mixed',15)
+        self.assertFalse(result['valid_capture'])
+
+    def test_split_fixture_preserves_geometry_and_animation_bytes(self):
+        source = Path(__file__).resolve().parents[1] / 'examples/animation_3d/assets/AnimationLib/UAL1_Standard.glb'
+        original = source.read_bytes()
+        def unpack(raw):
+            length = struct.unpack_from('<I', raw, 12)[0]
+            return json.loads(raw[20:20 + length]), raw[20 + length:]
+        with tempfile.TemporaryDirectory(prefix='demi-skin-fixture-') as folder:
+            output = Path(folder) / 'split.glb'
+            split_skin(source, output)
+            before, original_binary = unpack(original)
+            after, split_binary = unpack(output.read_bytes())
+            self.assertEqual(original_binary, split_binary)
+            for key in ('animations', 'accessors', 'bufferViews', 'buffers'):
+                self.assertEqual(before[key], after[key])
+            self.assertEqual(len(after['skins']), len(before['skins']) + 1)
+            self.assertEqual(after['meshes'][0]['primitives'] + after['meshes'][-1]['primitives'],
+                             before['meshes'][0]['primitives'])
+            with self.assertRaises(ValueError):
+                split_skin(source, output)
+            with self.assertRaises(ValueError):
+                split_skin(source, source)
+        self.assertEqual(original, source.read_bytes())
+
+    def test_skinning_mode_requires_explicit_population_evidence(self):
+        for mode, scope in [('gpu', 'Renderer3D.gpu_skinned_meshes'), ('cpu', 'Renderer3D.cpu_skinned_meshes')]:
+            for population, valid in [(None, False), ({'min':63, 'max':64}, False), ({'min':64, 'max':64}, True)]:
+                result = {'valid_capture':True, scope:population}
+                crowd.qualify_skinning(result, 64, mode)
+                self.assertEqual(result['valid_capture'], valid)
+
     def test_crowd_configuration_preserves_source_and_matches_control(self):
         source = Path(__file__).resolve().parents[1] / 'examples/animation_3d/scenes/crowd.scene.json'
         original = source.read_bytes()
@@ -23,7 +68,7 @@ class SummaryTests(unittest.TestCase):
             shutil.copy2(source, project / 'scenes/crowd.scene.json')
             settings = {}
             configurations = []
-            for workload in crowd.WORKLOADS:
+            for workload in ('animated', 'frozen'):
                 crowd.configure(project, settings, 64, workload, 6)
                 configurations.append(json.loads((project / 'scenes/crowd.scene.json').read_text()))
             self.assertEqual(settings['main_scene'], 'scene://animation_3d/crowd')

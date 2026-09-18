@@ -1,3 +1,11 @@
+local Input = require("demi.input")
+local MeshDeformation = require("demi.mesh.deformation")
+local Entity = require("demi.entity")
+local Scene = require("demi.scene")
+local Camera3D = require("demi.camera3d")
+local Physics3D = require("demi.physics.query3d")
+local Hud = require("demi.hud")
+
 local Demo = {}
 
 function Demo:on_start()

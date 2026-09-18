@@ -1,3 +1,5 @@
+local Hud = require("demi.hud")
+
 local config = require("player_config")
 local state = require("game_state")
 

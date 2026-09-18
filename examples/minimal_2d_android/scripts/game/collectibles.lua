@@ -1,3 +1,7 @@
+local Entity = require("demi.entity")
+local Transform = require("demi.transform2d")
+local Audio = require("demi.audio")
+
 local config = require("player_config")
 local state = require("game_state")
 local hud = require("game.hud")

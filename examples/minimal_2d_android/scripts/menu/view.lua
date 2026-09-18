@@ -1,3 +1,6 @@
+local Application = require("demi.application")
+local Hud = require("demi.hud")
+
 local View = {}
 local touch_controls_enabled = Application.platform() == "android"
 

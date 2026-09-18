@@ -1,3 +1,5 @@
+local Test = require("demi.test")
+
 local Events = require("demi.gameplay.events")
 local Inventory = require("demi.gameplay.inventory")
 

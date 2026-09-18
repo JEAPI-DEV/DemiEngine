@@ -1,3 +1,8 @@
+local Transform = require("demi.transform2d")
+local Events = require("demi.events")
+local Physics = require("demi.physics")
+local Hud = require("demi.hud")
+
 local state = require("game_state")
 local main_menu = require("main_menu")
 local replication = require("network_replication")

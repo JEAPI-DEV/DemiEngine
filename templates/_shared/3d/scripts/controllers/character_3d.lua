@@ -1,3 +1,6 @@
+local Input = require("demi.input")
+local CharacterController3D = require("demi.physics.character_controller3d")
+
 local Character = {}
 
 function Character:on_create()

@@ -1,3 +1,6 @@
+local Input = require("demi.input")
+local Transform = require("demi.transform2d")
+
 local Main = {}
 
 function Main:on_create()

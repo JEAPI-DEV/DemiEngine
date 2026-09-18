@@ -12,6 +12,22 @@ using namespace demi::runtime;
 using namespace demi::runtime::render;
 
 int main() {
+  for (std::size_t slot = 3; slot < 16; slot += 4) {
+    SceneLighting3D lighting;
+    if (lighting.hasLocalLights()) return 1;
+    lighting.pointPositionRange[slot] = 1;
+    if (lighting.hasLocalLights()) return 1;
+    lighting.pointColorIntensity[slot] = 1;
+    if (!lighting.hasLocalLights()) return 1;
+    lighting.pointColorIntensity[slot] = -1;
+    if (lighting.hasLocalLights()) return 1;
+    lighting.spotColorIntensity[slot] = 1;
+    if (lighting.hasLocalLights()) return 1;
+    lighting.spotPositionRange[slot] = 1;
+    if (!lighting.hasLocalLights()) return 1;
+    lighting.spotPositionRange[slot] = 0;
+    if (lighting.hasLocalLights()) return 1;
+  }
   World world;
   const SceneLighting3D defaults = collectSceneLighting3D(world, {});
   assert(defaults.ambient[0] == 1.0F);

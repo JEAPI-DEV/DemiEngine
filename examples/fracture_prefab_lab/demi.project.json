@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "name": "Fracture Prefab Authoring Lab",
+  "main_scene": "scene://fracture_prefab_lab/main",
+  "scenes": [{ "id": "scene://fracture_prefab_lab/main" }],
+  "input": { "actions": {
+    "strike": { "type": "button", "bindings": [{ "input": "mouse:left" }] },
+    "blast": { "type": "button", "bindings": [{ "input": "mouse:right" }] },
+    "reset": { "type": "button", "bindings": [{ "input": "key:r" }] }
+  } },
+  "scripting": { "language": "lua54", "modules": [] }
+}

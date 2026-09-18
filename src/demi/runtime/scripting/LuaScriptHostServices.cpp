@@ -1,4 +1,5 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/scripting/LuaServiceModules.h"
 
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
 #include "demi/runtime/diagnostics/DeviceLog.h"
@@ -134,7 +135,7 @@ void LuaScriptHost::beginFrame(const float unscaledDeltaTime) {
   auto *state = static_cast<lua_State *>(state_);
   if (state == nullptr)
     return;
-  lua_getglobal(state, "Time");
+  pushLuaService(state, "Time");
   if (lua_istable(state, -1)) {
     lua_pushnumber(state, deltaTime_);
     lua_setfield(state, -2, "delta_time");

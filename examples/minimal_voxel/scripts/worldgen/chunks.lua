@@ -1,3 +1,7 @@
+local Profile = require("demi.profile")
+local ProceduralMesh = require("demi.mesh.procedural")
+local Entity = require("demi.entity")
+
 local config = require("worldgen.config")
 local mesh_builder = require("worldgen.mesh")
 local terrain = require("worldgen.terrain")
