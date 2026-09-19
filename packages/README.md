@@ -1,5 +1,9 @@
 # Demi packages
 
+Last reviewed: 2026-09-19. Anyone can publish to the hosted registry without
+updating this file, so the table below may not list every available package;
+the online catalog at https://demiengine.de/packages/ is the complete list.
+
 Browse the free package catalog at https://demiengine.de/packages/.
 Inside a project directory, run `demi package add demi.ui.language_file@1.0.0`.
 Package commands find `./demi.project.json` when `--project` is omitted.

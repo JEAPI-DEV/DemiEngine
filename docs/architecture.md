@@ -123,7 +123,7 @@ creates no hidden authored state.
 
 ## Keeping Large Translation Units Cohesive
 
-Line count is a warning, not an architectural boundary. Split a file when it
+Split a file when it
 has multiple owners or reasons to change; keep dense domain algorithms together
 when separating them would only add forwarding APIs.
 

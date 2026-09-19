@@ -110,10 +110,13 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
   [--apk apk] [--watch]`: build a current debug APK, install it on the
   attached device, launch the game, and stream filtered engine/SDL/crash
   logs until stopped. APKs rebuild automatically when engine or project
-  sources are newer than the artifact. `--watch` enables the Android
-  runtime project watcher: changed project sources are cooked
-  incrementally and only changed cooked files are synchronized into the
-  debuggable application sandbox for hot reload without reinstalling.
+  sources are newer than the artifact. Add `--watch` to enter watch mode:
+  while the game runs, edited project sources (scenes, HUD, Lua, data, and
+  assets) are cooked incrementally in the background, and only the changed
+  cooked files are pushed into the app's sandbox. The running game hot-reloads
+  them, so you can iterate on project source without reinstalling the APK or
+  restarting. Engine (C++) changes still require a rebuild and reinstall.
+  See [the attached-device workflow](android-lifecycle.md#attached-device-workflow).
 - `demi run linux --project <project> --profiler`: print slow-frame details,
   frame-time percentiles, and a sorted runtime scope report when the run ends.
 - `demi run ... --input-replay <fixture.replay.json>`: replay deterministic input frames; the project fixed timestep must match the fixture.

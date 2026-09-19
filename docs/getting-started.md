@@ -33,15 +33,18 @@ cd games/my_game
 ```
 
 `demi dev` finds the nearest `demi.project.json`, runs the relevant environment
-and project checks, and starts the runtime with source watching enabled. Pass
+and project checks, and starts the runtime with watch mode enabled. Pass
 `--project` when invoking it from outside the project tree.
 
-Watch mode observes source files at frame boundaries. Lua tables are prepared
-before replacing their live version. Scene and HUD edits use scene preparation,
-and renderer assets are loaded into a candidate renderer before the live
-renderer is swapped. Invalid changes print diagnostics and keep the last good
-world and renderer active. Build output, saves, `.git`, and generated files are
-excluded from watching.
+Watch mode means you can edit Lua, scene, HUD, data, and asset files while the
+game keeps running: changes hot-reload into the running world without a
+restart. Changes are prepared at frame boundaries before they replace the live
+version, and invalid changes print diagnostics while the last good world and
+renderer stay active. Build output, saves, `.git`, and generated files are
+excluded from watching. On an attached Android device the same flow works
+through `demi run android --watch`; see the
+[CLI reference](cli.md) and the
+[Android workflow](android-lifecycle.md#attached-device-workflow).
 
 Lua modules can declare typed, defaulted configuration through
 [`property_schema`](script-properties.md). Invalid property overrides reject

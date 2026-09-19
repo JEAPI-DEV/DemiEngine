@@ -142,12 +142,12 @@ Startup `assets` entries preload the assets they name; scene references and
 explicit asset groups control the rest of resource residency.
 
 The CLI, runtime, tests, and native editor consume the same files and
-diagnostics. A project that only works because of unrecorded editor state is a
-bug.
+diagnostics.
 
 ## Lua Gameplay
 
-Scripts use explicit lifecycle methods and narrow engine services:
+Scripts use explicit lifecycle methods, while imports use specific library
+paths:
 
 ```lua
 local Input = require("demi.input")
@@ -173,18 +173,10 @@ return Player
 
 Supported lifecycle methods are `on_create`, `on_start`, `on_update`,
 `on_fixed_update`, and `on_destroy`. Public API declarations live in
-[`scripts/stubs/demi/`](scripts/stubs/demi/). Inside a project, export the
-annotation library to `.demi/lua/demi/` with:
-
-```sh
-demi lua-stubs generate
-```
-
-Each script imports only the services it uses. There are no implicit engine
-globals or import-all module; local aliases are your choice. Related services
-use dotted namespaces, such as `demi.physics.rigidbody3d` and
-`demi.network.session`. Stubs are IDE metadata; the runtime never loads them.
-See [explicit Lua imports](docs/lua-modules.md).
+[`scripts/stubs/demi/`](scripts/stubs/demi/). Related services use dotted
+namespaces, such as `demi.physics.rigidbody3d` and `demi.network.session`.
+Stubs are IDE metadata; the runtime never loads them. See
+[explicit Lua imports](docs/lua-modules.md).
 
 Use `@demi_component` and assignment-based `@demi_property` annotations for
 editor-visible behavior, defaults, ranges, and references. Scene and prefab
@@ -225,10 +217,19 @@ For engine development, projects can use the repository's local registry:
 Resolve, update, inspect, and test packages through the CLI:
 
 ```sh
+# Resolve the dependency graph and install everything it needs:
 demi package install --project demi.project.json
+
+# Reinstall exactly the versions pinned by demi.packages.lock.json:
 demi package install --locked --offline --project demi.project.json
+
+# Update one package within its version constraint:
 demi package update demi.gameplay.health --project demi.project.json
+
+# Show the installed packages:
 demi package list --project demi.project.json
+
+# Run a package's test suite while developing it:
 demi package test packages/sources/demi.gameplay.health
 ```
 
@@ -244,9 +245,8 @@ remain in the repository.
 
 ## Secure Multiplayer
 
-Networking is included by default and remains experimental at the product level.
-Including it does not host a server or connect automatically. To intentionally
-build without it, configure with `-DDEMI_ENABLE_NETWORK=OFF`.
+Networking is included by default. To build without it, configure with
+`-DDEMI_ENABLE_NETWORK=OFF`.
 
 Existing build directories retain their cached setting; enable it explicitly
 when updating a previously offline build:
@@ -284,10 +284,6 @@ NetworkSession.send("move_intent", player_network_id, {
   y = Input.value("move_y"),
 })
 ```
-
-`NetworkSession.emit` is legacy: it sent an undeclared generic event over the
-transport. `Events.emit` is a separate, in-process event bus and remains the
-supported way to emit local gameplay events.
 
 Run or package a windowless server with:
 
@@ -363,9 +359,6 @@ Each example is an executable engine probe that exercises real engine features:
 | `saves_simulation_debugging` | Versioned saves, simulation, replay, and diagnostics |
 | `minimal_2d_android_server` | Headless/server-oriented networking companion project |
 
-When an example exposes a general gap, fix it in the engine or in a reusable
-package instead of working around it privately in that example.
-
 ### Try the destruction lab
 
 From the repository root:
@@ -401,7 +394,7 @@ python3 scripts/benchmark_3d_visible.py \
 Change `--counts 1024` to `--counts 2000` for the larger demo, or use
 `--width 2560 --height 1440` for 1440p. The runner adjusts the camera in a temporary
 project and closes after five minutes. Timestamped output folders preserve
-previous results; reusing an existing folder is rejected. Run one demo at a time.
+previous results; reusing an existing folder is rejected.
 
 This demo shows independently phased walk animations; it does not simulate AI
 agents or character collisions. `--skinning gpu` requests and verifies the GPU
@@ -506,6 +499,7 @@ See [architecture](docs/architecture.md) for more detail.
 - [Script properties and editor annotations](docs/script-properties.md)
 - [Data assets](docs/data-assets.md)
 - [Networking](docs/networking.md)
+- [Legacy APIs](docs/legacy-apis.md)
 - [First-party gameplay packages](packages/README.md)
 - [Asset streaming and package content](docs/asset-streaming.md)
 - [Package store and publishing](tools/package-store/README.md)

@@ -222,5 +222,7 @@ cannot accidentally bypass its declared policy. New multiplayer examples must
 use `spawn`, `transfer`, `send`, and contract-based replication.
 
 This deprecation applies only to `NetworkSession.emit`, which sent an
-undeclared generic event over the transport. `Events.emit` is the supported
-in-process event bus for gameplay callbacks and does not use networking.
+undeclared generic event over the transport. The deprecation list is
+maintained in [legacy APIs](legacy-apis.md); `Events.emit` is not on it, since
+it is the in-process event bus for gameplay callbacks and does not use
+networking.

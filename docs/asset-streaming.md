@@ -1,6 +1,6 @@
 # Asset iteration, streaming, and package content
 
-Demi's Step 7 asset pipeline separates authored manifests, deterministic cook
+The asset pipeline separates authored manifests, deterministic cook
 policy, and runtime resource ownership. Importers never upload resources and
 resource loaders never resolve package versions.
 
@@ -206,7 +206,7 @@ memory reporting.
 
 ## Locked package content
 
-Packages can declare reusable content without changing Step 4 resolution:
+Packages can declare reusable content without changing package resolution:
 
 ```json
 {

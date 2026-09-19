@@ -1,6 +1,6 @@
 # Capability Manifest and Reference Gates
 
-Phase 0 makes engine progress testable in three ways:
+Engine progress is testable in three ways:
 
 1. `demi capabilities export` inspects the installed Lua VM and component
    descriptors and writes a deterministic machine-readable manifest.
