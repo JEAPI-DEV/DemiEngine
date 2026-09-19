@@ -2,8 +2,8 @@
 
 E2E tests are Lua functions that run inside the game on a connected device
 (or on desktop) and drive it through the `Test` API. Touches resolve HUD
-nodes by id and flow through the real input pipeline, so a passing test means
-the same path a finger uses works.
+nodes by id and flow through the real input pipeline, so a passing test
+exercises the same path a finger uses.
 
 ## Writing tests
 
@@ -62,11 +62,11 @@ next one.
 
 TLS endpoints are also scriptable for loopback tests: `TlsServer.listen`,
 `TlsServer.send`, `TlsServer.client_connected(id)`, `TlsClient.connect`,
-`TlsClient.send`, `TlsClient.is_connected`, and `TlsClient.events`. Note that
-the game code and the test harness share one TLS client event stream: game
-modules that call `TlsClient.events()` drain the same queue, so prefer the
-polled state (`TlsClient.is_connected`, `TlsServer.client_connected`) over
-the `connected` event inside tests, and pump `TlsServer.events()` to flush
+`TlsClient.send`, `TlsClient.is_connected`, and `TlsClient.events`. The game
+code and the test harness share one TLS client event stream: game modules
+that call `TlsClient.events()` drain the same queue, so prefer the polled
+state (`TlsClient.is_connected`, `TlsServer.client_connected`) over the
+`connected` event inside tests, and pump `TlsServer.events()` to flush
 queued sends.
 
 ## Running

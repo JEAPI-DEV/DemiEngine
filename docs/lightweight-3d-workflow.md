@@ -102,7 +102,7 @@ demi validate demi.project.json
 
 The report covers visible instances, unique mesh/material groups, procedural
 triangles, estimated decoded texture memory, lights, shadow lights, and
-transparent draws. Android defaults are intentionally conservative:
+transparent draws. Android defaults are conservative:
 
 | Cost | Default Android limit |
 |---|---:|

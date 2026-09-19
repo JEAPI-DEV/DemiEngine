@@ -4,10 +4,10 @@ Tree UI uses the existing `*.hud.json` format with a top-level `root` node.
 A tree node owns its content, layout, state, and children. Renderers consume
 the resulting resolved rectangles.
 
-Every node type can own `children`. A `panel` can therefore provide a visible
+Every node type can own `children`. A `panel` can provide a visible
 background, padding, and layout for a complete UI section. Child positions and
 anchors are resolved against the parent's padded content rectangle, so moving,
-hiding, disabling, or anchoring a panel applies naturally to its subtree.
+hiding, disabling, or anchoring a panel applies to its subtree.
 
 All nodes support `anchor_min` / `anchor_max`, `margin`, `padding`, `min_size`,
 and `max_size`. Nodes with children can additionally use `row`, `column`, or
@@ -70,7 +70,7 @@ See `examples/main_menu_lang` for preloaded and lazily loaded YAML languages.
 an action. Use these for screen/tab transitions that do not require gameplay
 logic. Actions are still emitted to Lua after the built-in state change.
 
-Lua changes state without controlling layout:
+Lua changes node state; layout stays as authored:
 
 - `Hud.set_text(id, text)` and `Hud.set_font_size(id, pixels)`
 - `Hud.set_color(id, ...)` and `Hud.set_background_color(id, ...)`
@@ -85,14 +85,14 @@ Runtime-generated UI uses the same retained tree and layout path as authored
 nodes. `Hud.create(parent, definition)` returns a generation-checked handle;
 `Hud.clone`, `Hud.remove`, `Hud.reparent`, and `Hud.clear_children` reject stale
 handles and apply structural changes transactionally. Removing a subtree also
-clears focus and pointer captures that refer to it. This is intentionally
-generic: projects decide whether a generated button represents an inventory
-item, player, save slot, setting, dialogue choice, or debug command.
+clears focus and pointer captures that refer to it. Projects decide whether a
+generated button represents an inventory item, player, save slot, setting,
+dialogue choice, or debug command.
 
 ## Reusable UI prefabs
 
-Project-authored UI prefabs reuse arbitrary node trees without assigning them
-gameplay meaning. Files end in `.ui.prefab.json`, live under the project's
+Project-authored UI prefabs reuse arbitrary node trees and carry no gameplay
+meaning. Files end in `.ui.prefab.json`, live under the project's
 `ui/` directory, and use stable `ui-prefab://` IDs. For example,
 `ui-prefab://controls/menu_button` resolves to
 `ui/controls/menu_button.ui.prefab.json`.
@@ -140,13 +140,13 @@ the local `hint` node above becomes `confirm.hint`. Nested prefab instances use
 the same rule. This gives callbacks, focus, and runtime mutation stable IDs
 without leaking local IDs between instances. Prefabs go through the normal HUD
 layout, styling, localization, input, hot-reload, and transactional activation
-path; they are composition data rather than a separate widget runtime.
+path as composition data.
 
 For large collections, `Hud.visible_range(item_count, item_extent,
 scroll_offset, viewport_extent, overscan)` returns the bounded logical range a
-game should represent with live nodes. Ten thousand data rows therefore do not
-require ten thousand retained controls. `examples/ui_showcase` demonstrates
-runtime row creation without a genre-specific engine widget.
+game should represent with live nodes. Ten thousand data rows can be
+represented with a bounded number of live controls. `examples/ui_showcase`
+demonstrates runtime row creation with the generic HUD APIs.
 
 Rows whose content wraps or otherwise has different heights use a persistent
 `Hud.virtual_layout({height_a, height_b, ...})` object. Its
@@ -158,7 +158,7 @@ finite and positive. Failed construction or mutation is transactional and
 leaves the previous offsets intact.
 
 The virtual layout owns only measurement and range lookup. Stable data keys,
-row content, and gameplay meaning remain game-owned. `Hud.recycle_rows`
+row content, and gameplay meaning are game-owned. `Hud.recycle_rows`
 combines that range with a hidden project-authored row template. It keeps only
 the visible range plus overscan alive and returns generation-checked bindings
 for game code to populate. A slot rebound resets focus, pointer capture,
@@ -169,7 +169,7 @@ Project fonts are ordinary `Font2D` assets imported from TTF or OTF files.
 They are loaded in stable asset-ID order after the default pixel font and are
 selected per node with `"font": "asset://fonts/body"`; `Hud.set_font` can
 change that selection at runtime. If the selected font lacks a glyph, shaping
-falls back through the other loaded fonts. Missing glyphs remain explicit diagnostics, while
+falls back through the other loaded fonts. Missing glyphs produce explicit diagnostics, while
 the GPU atlas grows on demand within a bounded page budget.
 
 Text nodes support `text_wrap` (`none`, `word`, or `grapheme`),
@@ -187,9 +187,9 @@ tags.
 between conventional left-aligned fields and centered presentation.
 
 Focused `text_input` nodes use the same grapheme boundaries for caret motion,
-selection, Backspace, Delete, Home, End, and Ctrl+A. Backspace therefore
+selection, Backspace, Delete, Home, End, and Ctrl+A. Backspace
 removes one user-visible character instead of one UTF-8 byte. SDL text-editing
-events remain an IME composition range separate from the committed value; the
+events are an IME composition range separate from the committed value; the
 renderer draws the selection, composition underline, and caret. Committing
 text replaces the active selection atomically. Losing focus, hiding or
 disabling the input, changing its value through `Hud.set_text`, or receiving a
@@ -248,19 +248,18 @@ semantic snapshot through `Hud.accessibility_snapshot()`. The snapshot derives
 roles from normal node types and reports stable IDs, semantic parents, labels,
 descriptions, live values, checked/focused/disabled states, and bounds in HUD
 canvas coordinates. Bounds are clipped through scroll ancestors and fully
-clipped nodes remain represented with `offscreen = true`. Buttons and labels
+clipped nodes are still represented with `offscreen = true`. Buttons and labels
 fall back to their visible text;
 text-input fields fall back to their placeholder. Use
 `accessibility_label` when the visible content is not a sufficient spoken
 label, and `accessibility_description` for optional supplementary context.
 
-Unlabeled layout-only panels are flattened instead of adding noise to the
-semantic tree. Decorative images are omitted unless they have an accessibility
-label. Invisible nodes and descendants of an invisible node are omitted.
+Unlabeled layout-only panels are flattened. Decorative images are omitted
+unless they have an accessibility label. Invisible nodes and descendants of
+an invisible node are omitted.
 `accessibility_hidden: true` explicitly removes a decorative subtree, while a
-disabled node remains present and passes its disabled state to descendants.
-The tree remains cycle-safe and sanitizes invalid resolved bounds at this
-boundary.
+disabled node is still present and passes its disabled state to descendants.
+The tree is cycle-safe and sanitizes invalid resolved bounds at this boundary.
 
 ```lua
 local Debug = require("demi.debug")

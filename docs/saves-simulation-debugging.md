@@ -2,7 +2,7 @@
 
 Milestone 5 adds a structured game-save boundary alongside the existing simple
 settings API. `Save.write_state` requires four explicit tables: `game`,
-`selected_entities`, `prefab_instances`, and `lua`. Only Lua data deliberately
+`selected_entities`, `prefab_instances`, and `lua`. Only Lua data
 placed in the `lua` table is persisted. Options carry `format_version`,
 `autosave`, `sequence`, and `reason`; `Save.metadata` reads them back and
 `Save.last_error` explains rejected or incompatible documents. Existing

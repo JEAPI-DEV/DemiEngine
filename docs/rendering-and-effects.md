@@ -112,10 +112,10 @@ local-light shader variants, including editor scene targets; HUD and diagnostic
 colors are unchanged. Alpha is not gamma-corrected. Unit illumination preserves
 the original base color.
 
-This is a correction to the existing forward color path, not a complete PBR/HDR
-pipeline: light colors remain linear coefficients, the combined base-color
-convention is retained, bright output can still clip on the LDR target, and
-post effects still operate on the encoded scene image. Imported material-factor
+This corrects the existing forward color path: light colors remain linear
+coefficients, the combined base-color convention is retained, bright output can
+still clip on the LDR target, and post effects still operate on the encoded
+scene image. Imported material-factor
 color spaces, linear texture filtering/blending, HDR tone mapping and visual
 shadow qualification remain separate work.
 
@@ -132,7 +132,7 @@ box-filtered mip chain. Linear filtering interpolates between mip levels;
 nearest filtering selects the nearest level. This reduces distant texture
 aliasing without changing UVs or mesh geometry. Filtering currently averages
 encoded source channels; linear-light/premultiplied-alpha filtering is future
-work, not part of the HDR pipeline.
+work.
 
 Set `Environment3D.sky_texture` to a `Texture2D` asset containing a 2:1
 equirectangular, tone-mapped panorama (JPEG/PNG). It uses the normal scene asset
@@ -144,8 +144,9 @@ and overlay cameras retain their existing clear behavior. Omit the reference
 to keep the camera's solid background. The last enabled Environment3D wins,
 matching ambient-environment selection.
 
-This is a visible LDR background, not EXR decoding, HDR lighting, reflection
-probes or image-based lighting. Sun and ambient illumination remain explicit.
+This is a visible LDR background. EXR decoding, HDR lighting, reflection
+probes, and image-based lighting are separate work. Sun and ambient
+illumination remain explicit.
 The destruction weapon lab uses the supplied evening panorama plus Kenney
 prototype grid textures on its floor and rear wall.
 
@@ -177,4 +178,4 @@ world objects with distance and render-mask filtering.
 
 Keep mobile particle budgets and camera target sizes conservative. A minimap
 adds another world pass even when its target is physically small, so give
-secondary cameras a deliberate `update_interval`.
+secondary cameras an explicit `update_interval`.

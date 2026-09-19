@@ -63,8 +63,9 @@ space; meshes already queued by the current view are protected. More than 256
 distinct visible variants in one view remains an explicit limit. Encoded maps
 are capped at 16 MiB and decoded dimensions at 4096.
 Asset reload/unload and renderer shutdown clear the cache. Shared variants may
-remain warm while individual walls unload. This is runtime CPU mesh generation,
-not tessellation, ray tracing or a complete PBR/shadow implementation.
+remain warm while individual walls unload. This is runtime CPU mesh generation;
+tessellation, ray tracing, and a complete PBR/shadow implementation are separate
+work.
 
 ## Proximity and lifetime policy
 
@@ -143,9 +144,8 @@ per update. Hysteresis avoids activation churn. When full, the budget can
 replace a farther ready wall with a candidate
 at least two metres closer. Pending damage blocks checkpoint/eviction. These are
 proximity limits, not a guarantee that every wall inside the radius is active.
-Distances use assembly origins, not individual debris bounds; this is not a
-world-partition visibility system.
-There is no distant wall proxy when a region is unloaded.
+Distances use assembly origins, not individual debris bounds. Unloading a region
+leaves no distant wall proxy behind.
 `activation_timeout` defaults to five game-time seconds; failed/stalled
 activations release their slot and retain any previous checkpoint for retry.
 
@@ -169,7 +169,7 @@ not retired. Cleanup includes large loose props, so developers must choose this
 policy deliberately. Per-material/important-debris exemptions are not implemented.
 
 Distance unload preserves damage in memory by default. `preserve=false` on a
-record deliberately discards it and resets that wall on its next activation.
+record discards it and resets that wall on its next activation.
 Neither policy writes project files. No queued impact is silently discarded to
 permit unloading.
 
@@ -185,7 +185,7 @@ or full expanded entities. The default in-memory policy performs no save-file IO
 The lab's World Stream script exposes `save_slot` in its Inspector. Leave it
 empty to disable disk persistence. Set it, press SAVE, and the next scene load
 reads that slot. R reloads the scene; with a save slot configured it loads the
-saved damage rather than promising a pristine reset.
+saved damage instead of a pristine reset.
 
 Native `demi.physics.destruction3d` provides:
 

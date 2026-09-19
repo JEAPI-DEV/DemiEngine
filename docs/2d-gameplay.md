@@ -39,8 +39,8 @@ are emitted through `Events` as `sprite_animation`; its payload contains
 ## Shared animation states and timed collision
 
 `AnimationStateMachine` adds named states, deterministic transitions,
-parameters, triggers, durations, and timed events without coupling gameplay
-rules to a renderer. A state can select a `sprite_clip`, a `model_clip`, or
+parameters, triggers, durations, and timed events, and keeps gameplay rules
+independent of the renderer. A state can select a `sprite_clip`, a `model_clip`, or
 both. Lua uses `Animation.state`, `Animation.play`, `Animation.set_number`,
 `Animation.set_bool`, and `Animation.trigger`. Timed state events are emitted
 as `animation_event` with `entity_id`, `state`, and `name`.
@@ -48,13 +48,13 @@ as `animation_event` with `entity_id`, `state`, and `name`.
 `AnimationCollision2D` describes named receiver shapes and state-time overlap
 windows. Layers and masks select compatible shapes. The runtime emits one
 `animation_collision` event per source window and receiver overlap, containing
-`source_id`, `target_id`, `window`, and `receiver`. It intentionally has no
+`source_id`, `target_id`, `window`, and `receiver`. It has no
 damage, health, teams, hitstun, or knockback; games assign meaning to the
 neutral overlap in Lua. The fighting-game example demonstrates that boundary.
 
 Optional Lua helpers `demi.input_buffer` and `demi.command_recognizer` provide
-time-window buffering and ordered command matching without imposing a control
-scheme on the runtime.
+time-window buffering and ordered command matching; the control scheme stays
+with the game.
 
 `Camera2D` supports `target`, `follow_speed`, `follow_offset`, `bounds_min`,
 and `bounds_max`. A follow speed of zero snaps to the target. Bounds constrain
@@ -145,7 +145,7 @@ observed, especially large sleeping piles.
 `Rigidbody2D.move_and_slide` applies a motion vector to a kinematic collider,
 stops on static colliders, preserves tangent motion, and returns the applied
 vector.
-`DistanceJoint2D` remains the focused spring-distance component. `Joint2D`
+`DistanceJoint2D` is the spring-distance joint. `Joint2D`
 adds revolute, prismatic, weld, rope, and motor configurations.
 
 Lua queries include `Physics2D.overlap_box_all`, `overlap_circle_all`,
@@ -172,7 +172,7 @@ blockers and per-cell costs, request four- or eight-direction A* paths, and
 convert between cells and world centers. Isometric games project their input
 through the isometric adapter before using the same grid.
 
-Reusable Lua helpers cover ordinary movement without embedding game rules:
+Reusable Lua helpers cover ordinary movement; game rules stay in game code:
 
 - `demi.character_controller_2d`: platform movement, grounding, jump, flip,
   and animation selection;

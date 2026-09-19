@@ -1,7 +1,7 @@
 # Explicit Lua engine imports
 
-Engine services are modules, not implicit globals. Every script declares what it
-uses, including scripts loaded by another script and package modules:
+Engine services are modules. Every script declares what it uses, including
+scripts loaded by another script and package modules:
 
 ```lua
 local Input = require("demi.input")
@@ -44,8 +44,8 @@ is `demi.transform3d`. The complete native module inventory is the files under
 
 The native host supplies these modules through Lua's standard preload mechanism.
 `require` caches their tables per Lua state. Native bindings are still registered
-at host initialization: this change makes dependencies explicit, not lazy
-subsystem startup or a permissions sandbox. Ordinary Lua helpers such as
+at host initialization; the change makes dependencies explicit only, leaving
+startup timing and permission behavior unchanged. Ordinary Lua helpers such as
 `demi.script`, `demi.ui`, and installed package modules still use the existing
 package resolver. Package unit tests and runtime E2E tests both explicitly import
 `demi.test`; their test-context-specific helper APIs remain distinct.
@@ -72,7 +72,7 @@ Update console commands and generated Lua fixtures in the same way.
 Replace the old single-file stub library in your editor configuration. Remove
 old `demi.lua` annotations from LuaLS library paths so they do not falsely suggest
 that global APIs remain available. Regenerate stubs into the new directory layout.
-The old globals intentionally fail at runtime; there is no compatibility toggle.
+The old globals fail at runtime; there is no compatibility toggle.
 
 Earlier flat paths such as `demi.network_session`, `demi.tls_client`,
 `demi.audio_source`, and `demi.rigidbody3d` have been replaced by the domain paths

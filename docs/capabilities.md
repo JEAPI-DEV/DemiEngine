@@ -3,7 +3,7 @@
 Status meanings:
 
 - **Stable:** covered by automated tests and part of the supported workflow.
-- **Experimental:** usable, but intentionally limited or still evolving.
+- **Experimental:** usable, but limited in scope or still evolving.
 - **Planned:** not yet a supported engine capability.
 
 | Area | Status | Current scope |
@@ -23,11 +23,11 @@ Status meanings:
 | Lightweight 3D | Experimental | Cycle-safe transform hierarchies, CLI-generated glTF colliders, spatial queries, versioned materials/shaders, directional/point/spot lighting, bounded shadow passes, multi-camera targets/viewports/masks, post effects, deterministic particles, world text/UI targets, batching, culling, resource ownership, and profiler-visible render budgets |
 | Video/cutscenes | Experimental | FFmpeg-backed playback when enabled |
 | Networking | Experimental | Versioned network contracts, bounded declared messages and schemas, server-issued IDs, ownership generations and disconnect policy, reflected replicated fields, late-join state, reconnect/fault-test primitives, sequenced owner inputs, authoritative snapshots, opt-in prediction/reconciliation, bounded interpolation/extrapolation, detached historical 2D queries, dedicated-server startup, optional lobby package, ENet, and TLS/DTLS transport |
-| Android | Experimental | Shared action/touch controls, lifecycle/display services, and debug APK packaging; release workflow remains incomplete |
+| Android | Experimental | Shared action/touch controls, lifecycle/display services, and debug APK packaging; release workflow is incomplete |
 | Component metadata as sole source | Stable | Generated registry drives parsing, validation, schema export, Lua policy, and editor placeholders |
 | Prefabs | Stable | Versioned entity/UI files, nesting, overrides, cycle diagnostics, CLI expansion/diff |
 | Tree/layout runtime UI | Stable | Layout containers, controls, focus, themes, localization, safe-area roots, and virtual controls |
-| Production text/dynamic UI | Experimental | Grapheme-safe editing, selection/caret geometry, SDL IME composition, wrapping, rich-text validation, runtime mutations, transactional parameterized UI prefabs, cached uniform/variable-height virtualization ranges, localization, tweens, typed interaction events, and deterministic accessibility snapshots; complex shaping, fallback-font atlas pages, row-node recycling, and native accessibility bridges remain incomplete |
+| Production text/dynamic UI | Experimental | Grapheme-safe editing, selection/caret geometry, SDL IME composition, wrapping, rich-text validation, runtime mutations, transactional parameterized UI prefabs, cached uniform/variable-height virtualization ranges, localization, tweens, typed interaction events, and deterministic accessibility snapshots; complex shaping, fallback-font atlas pages, row-node recycling, and native accessibility bridges are incomplete |
 | Tilemaps and sprite animation system | Stable | Runtime tile mutation, collision/navigation refresh, multiple tilesets, animations, object layers, clips, playback, and events |
 | Deterministic replay/debug tooling | Stable | Versioned input replay, deterministic random state, profiling, and headless probes |
 | Isometric placement/pathfinding | Stable | Grid conversion, occupancy, placement diagnostics, pathfinding, and rendering |
@@ -40,11 +40,11 @@ Status meanings:
 | Portable asset packages | Stable | Deterministic dependency-complete export/import with checksums, path safety, licenses, and explicit conflicts |
 | Linux cooking and packaging | Stable | Runtime-only deterministic cook output, manifest, Linux runtime bundle, and headless smoke coverage |
 | Android cooking integration | Planned | Deferred until the Android runtime path has equivalent automated coverage |
-| Functional editor | Experimental | Native project shell, hierarchy, metadata-driven field editors, coalesced undo/redo, conflict-safe atomic saves, authored 3D preview, asset/source browser, shared diagnostics, and owned runtime play controls are available; structural commands, 2D preview, and an embedded game view remain planned |
-| Professional desktop 3D expansion | Planned | Measured entity scaling, improved rendering/animation, and CPU-side Blast destruction integrated with Jolt; milestone gates in [the roadmap](../plan.md), not currently supported capabilities |
+| Functional editor | Experimental | Native project shell, hierarchy, metadata-driven field editors, coalesced undo/redo, conflict-safe atomic saves, authored 3D preview, asset/source browser, shared diagnostics, and owned runtime play controls are available; structural commands, 2D preview, and an embedded game view are planned |
+| Professional desktop 3D expansion | Planned | Measured entity scaling, improved rendering/animation, and CPU-side Blast destruction integrated with Jolt; milestone gates in [the roadmap](../plan.md), and these features are not yet supported |
 | General AAA-engine feature parity | Deferred | Outside the bounded desktop 3D roadmap |
 
 The machine-readable status and compatibility workflow is documented in
 [Capability Manifest and Reference Gates](capability-gates.md). The matrix
-above remains a human summary; CI derives its contract from runtime binding
+above is a human summary; CI derives its contract from runtime binding
 metadata, component descriptors, and the checked reference-gate document.

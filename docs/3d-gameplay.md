@@ -59,8 +59,9 @@ to issue runtime commands. Do not move dynamic bodies by repeatedly writing
 `Rigidbody3D.state(entity)` reads live body type, configured mass, enabled/gravity
 flags and latest physics-synchronized velocities. It works for native-created
 fragments as well as authored bodies, and returns nil without a Rigidbody3D.
-It is not a native-body readiness check. `Entity.get` reads serialized component
-values; it is not a substitute for live physics queries.
+It does not act as a native-body readiness check. For current geometry and
+contact state use the live physics queries; `Entity.get` only reads serialized
+component values.
 
 Lua can switch continuous detection with `Rigidbody3D.set_continuous` once a
 fast body has slowed down. `report_contacts` and
@@ -129,7 +130,7 @@ existing layer and ignored-entity filters.
 
 `CharacterController3D` provides slope limit, step height, skin width, gravity,
 grounding, wall slide, and moving-platform ground velocity. Collision geometry
-is deliberately separate: add exactly one `BoxCollider3D`,
+is separate: add exactly one `BoxCollider3D`,
 `SphereCollider3D`, `CapsuleCollider3D`, or `ConvexCollider3D` to the same root
 entity. That collider owns the controller's dimensions, offset, transform
 scale, and collision layer. A controller collider cannot be a trigger or a
@@ -151,7 +152,7 @@ capsule:
 }
 ```
 
-The controller intentionally does not define coyote time or jump buffering:
+The controller does not define coyote time or jump buffering:
 those are game-feel policies and belong in gameplay code. Capture the pressed
 edge in `on_update`, retain it for the desired buffer duration, and issue the
 jump from `on_fixed_update` while the example's grounded grace period is

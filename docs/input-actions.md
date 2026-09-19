@@ -1,8 +1,9 @@
 # Input Actions
 
-Gameplay code should depend on player intent rather than physical devices.
-Actions are declared under `input.actions` and can combine keyboard, mouse,
-gamepad, touch-driven virtual controls, and multiple local players:
+Gameplay code should depend on player intent and let the action system map
+physical devices to actions. Actions are declared under `input.actions` and can
+combine keyboard, mouse, gamepad, touch-driven virtual controls, and multiple
+local players:
 
 ```json
 {
@@ -73,4 +74,4 @@ touch ID.
 
 `Application.safe_area()`, `Application.ui_scale()`, and the other Application
 APIs expose display, lifecycle, clipboard, keyboard, and writable storage
-services without platform-specific Lua branches.
+services, so Lua code needs no platform-specific branches.

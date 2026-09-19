@@ -32,8 +32,8 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
   importer version after a source change.
 - `demi asset register-generated <source> --project <project> --id asset://id`:
   create or refresh a manifest beside a generated source under the project's
-  `assets/` directory. Importer selection, source hashing, and manifest metadata
-  remain owned by the engine instead of build scripts.
+  `assets/` directory. The engine owns importer selection, source hashing, and
+  manifest metadata; build scripts do not compute them.
 - `demi asset collider <model.asset.json> --project <project> --id
   asset://colliders/id [--detail 0..1]`: generate a glTF collider asset.
   `0` (the default) is a bounding box; higher values retain a deterministic
@@ -69,7 +69,7 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
 - `demi dev [--project <project>]`: find the nearest project, run development
   environment checks, and launch it with last-known-good source watching.
   Runtime flags such as `--profiler`, `--debug-overlays`, and `--max-frames`
-  remain available.
+  are still accepted.
 - `demi package add <name>@<constraint> [--project <project>]`: resolve the full
   dependency graph, verify archives, and atomically update the project,
   `demi.packages.lock.json`, and `.demi/packages/`.
@@ -127,7 +127,7 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
 - `demi run ... --window-size WIDTHxHEIGHT`: request the desktop window's initial
   size, e.g. `1920x1080`, without modifying the project. Both dimensions must be
   1..65535. DPI/compositor constraints can change actual drawable pixels; check
-  the reported backbuffer dimensions. Defaults remain 960x540.
+  the reported backbuffer dimensions. The default is 960x540.
 - `demi run ... --debug-overlays <names>`: override project overlays with a comma-separated list of `colliders`, `contacts`, `grid`, `entity_ids`, `draw_order`, `ui_bounds`, and `profiler`.
 - `demi editor [--project <project>]`: launch the native editor. Without an
   explicit path, it discovers the nearest parent `demi.project.json`.

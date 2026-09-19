@@ -89,7 +89,7 @@ end)
 Procedural rigs can solve a two-segment chain in either 2D or 3D. The target is
 clamped when it lies outside the chain's reach, and the pole selects the bend
 side or plane. This is suitable for planted feet, aiming arms, tentacles, and
-mechanical linkages; terrain contact remains a gameplay decision made with the
+mechanical linkages; terrain contact is a gameplay decision made with the
 normal physics queries.
 
 ```lua
@@ -156,8 +156,8 @@ transitions, blend spaces, and layers.
 
 This refreshes distant visual poses at up to 30 Hz beyond 30 world units; nearer
 poses stay full rate. The default rate is zero (unrestricted). Distant poses are
-held between samples, not interpolated, so this is an explicit visual-quality
-tradeoff. Root transforms still render every frame. Gameplay clocks, events,
+held between samples, not interpolated, so this is a visual-quality tradeoff.
+Root transforms still render every frame. Gameplay clocks, events,
 root motion, input and fixed-step collision are never throttled by these fields.
 Stable entity phases distribute refreshes across frames. Clip/source changes,
 rewinds and near-camera requests bypass the cadence; active blends, layers and
@@ -169,7 +169,8 @@ Animated meshes can also use existing `MeshRenderer.medium_lod_model` and
 clip with matching duration; missing/incompatible clips, active blends/layers
 and procedural overrides keep the high model. Author compatible origin, scale,
 poses and bounds in the LOD assets. Colliders and authored model references do
-not change. This is selection of authored models, not automatic decimation.
+not change. This switches between authored models; the engine does not decimate
+meshes automatically.
 
 The crowd scene in `examples/animation_3d` provides matched live/frozen visual
 animation workloads. See its README for the visible benchmark command. Runtime
@@ -211,7 +212,7 @@ pose on either path, not necessarily rebuilt vertices.
 
 GPU lighting transforms the model's authored normals with the inverse-transpose
 of the blended skin/import/model transform. CPU fallback still reconstructs
-geometric normals. Shading can therefore differ; GPU skinning does not claim
+geometric normals. Shading can differ; GPU skinning does not claim
 pixel-identical lighting to the older reconstruction heuristic.
 
 See [parallel character preparation](3d-parallel-character-preparation.md) for

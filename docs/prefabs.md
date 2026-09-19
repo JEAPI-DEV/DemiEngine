@@ -33,9 +33,9 @@ Override semantics are deterministic:
 - An absent field inherits the prefab value.
 - Objects merge recursively.
 - Arrays replace the inherited array completely.
-- `null` removes the inherited field. Setting a component to `null` therefore
-  removes that component; setting an entity override to `null` removes the
-  entity from that instance.
+- `null` removes the inherited field. Setting a component to `null` removes
+  that component; setting an entity override to `null` removes the entity from
+  that instance.
 - An override cannot replace the expanded entity ID.
 
 Nested prefab cycles are errors and diagnostics include the active file chain.
@@ -78,10 +78,10 @@ A child without a transform receives an identity transform in that domain.
 The owning entity must have a spatial transform. Explicit conflicting parents,
 mixed transform domains and nesting deeper than 128 levels are errors.
 
-IDs remain document-wide, not relative paths: a prefab instance `house` produces
-`house/wall` and `house/concrete`, not `house/wall/concrete`. Duplicate child IDs
-are still errors. CLI expansion and runtime loading flatten the hierarchy through
-the same composition path; cooked source may retain nesting.
+IDs are document-wide: a prefab instance `house` produces `house/wall` and
+`house/concrete`, not `house/wall/concrete`. Duplicate child IDs are still
+errors. CLI expansion and runtime loading flatten the hierarchy through the
+same composition path; cooked source may retain nesting.
 
 Use explicit transform `parent` references for cross-prefab/scene relationships
 or other links that cannot be expressed inside the source tree. Existing flat

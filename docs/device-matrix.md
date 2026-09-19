@@ -25,5 +25,5 @@ stays visible.
    above with the serial, API level, ABI, GPU (`renderer` field), date, and
    result.
 
-An emulator is not required for local release qualification; a CI device farm
-may supplement this matrix later.
+Local release qualification runs on an attached physical device; no emulator
+is needed. A CI device farm may supplement this matrix later.

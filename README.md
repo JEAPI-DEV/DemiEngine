@@ -4,7 +4,9 @@
 [Getting started](docs/getting-started.md) · [Editor guide](docs/editor.md) ·
 [Roadmap](plan.md)
 
-NOTE: Packages, examples, documentation, website may use LLM's (AI), for faster iteration and broader feature support. This allows me to improve clearity of existing features for people reading the examples or the docs. 
+NOTE: Packages, examples, documentation, and the website may use LLMs (AI) for
+faster iteration and broader feature support. This helps me improve the clarity
+of existing features for people reading the examples or the docs.
 
 EXTRA NOTE: This is a disclaimer is useless but needed, since EU is bad when it comes to regulation it appears.
 
@@ -17,7 +19,8 @@ The established focus is 2D, isometric, 2.5D, UI-heavy, and data-heavy games.
 Current development is expanding the experimental 3D engine: character scaling,
 Jolt physics, localized destruction, and a native scene editor. Android shares
 the runtime and authoring formats, with support qualified per feature and device.
-This is not yet a production-ready replacement for a mature high-end 3D engine.
+3D stays experimental for now and does not yet match a mature high-end 3D
+engine.
 
 ## What Works Today
 
@@ -135,8 +138,8 @@ or an example's `generated/` directory.
 
 Prefer nested entity `children` for local hierarchies. Explicit transform
 `parent` references remain useful for relationships across prefabs or scenes.
-Startup `assets` entries are preloads, not an instruction to load every asset.
-Scene references and explicit asset groups control resource residency.
+Startup `assets` entries preload the assets they name; scene references and
+explicit asset groups control the rest of resource residency.
 
 The CLI, runtime, tests, and native editor consume the same files and
 diagnostics. A project that only works because of unrecorded editor state is a
@@ -180,8 +183,8 @@ demi lua-stubs generate
 Each script imports only the services it uses. There are no implicit engine
 globals or import-all module; local aliases are your choice. Related services
 use dotted namespaces, such as `demi.physics.rigidbody3d` and
-`demi.network.session`. Stubs are IDE metadata, not runtime modules. See
-[explicit Lua imports](docs/lua-modules.md).
+`demi.network.session`. Stubs are IDE metadata; the runtime never loads them.
+See [explicit Lua imports](docs/lua-modules.md).
 
 Use `@demi_component` and assignment-based `@demi_property` annotations for
 editor-visible behavior, defaults, ranges, and references. Scene and prefab
@@ -282,9 +285,9 @@ NetworkSession.send("move_intent", player_network_id, {
 })
 ```
 
-`NetworkSession.emit` is legacy because it sent an undeclared generic network
-event. This does **not** apply to `Events.emit`, which remains the supported
-local event bus.
+`NetworkSession.emit` is legacy: it sent an undeclared generic event over the
+transport. `Events.emit` is a separate, in-process event bus and remains the
+supported way to emit local gameplay events.
 
 Run or package a windowless server with:
 
@@ -333,7 +336,7 @@ Use `demi --help` as the authoritative command list.
 
 ## Example Projects
 
-Examples are executable engine probes, not throwaway snippets:
+Each example is an executable engine probe that exercises real engine features:
 
 | Example | Purpose |
 |---|---|
@@ -360,8 +363,8 @@ Examples are executable engine probes, not throwaway snippets:
 | `saves_simulation_debugging` | Versioned saves, simulation, replay, and diagnostics |
 | `minimal_2d_android_server` | Headless/server-oriented networking companion project |
 
-When an example exposes a general gap, the fix belongs in the engine or a
-reusable package—not as a private workaround in that example.
+When an example exposes a general gap, fix it in the engine or in a reusable
+package instead of working around it privately in that example.
 
 ### Try the destruction lab
 
@@ -400,10 +403,10 @@ Change `--counts 1024` to `--counts 2000` for the larger demo, or use
 project and closes after five minutes. Timestamped output folders preserve
 previous results; reusing an existing folder is rejected. Run one demo at a time.
 
-This shows independently phased walk animations, not thousands of AI agents or
-character collisions. `--skinning gpu` requests and verifies the GPU path on the
-supported Vulkan rig. Performance depends on the scene, hardware, resolution,
-and build. See the [animation example](examples/animation_3d/README.md),
+This demo shows independently phased walk animations; it does not simulate AI
+agents or character collisions. `--skinning gpu` requests and verifies the GPU
+path on the supported Vulkan rig. Performance depends on the scene, hardware,
+resolution, and build. See the [animation example](examples/animation_3d/README.md),
 [GPU skinning](docs/3d-gpu-skinning.md), and
 [Milestone 2 qualification](docs/3d-milestone-2-qualification.md) for measured
 workloads and limitations. The demo command is not the qualification protocol.
@@ -441,7 +444,7 @@ bundles, Android APK packaging, and headless dedicated-server startup.
 
 ## Architecture
 
-The main dependency direction is deliberate:
+Dependencies flow one way:
 
 ```text
 CLI / application composition
@@ -479,15 +482,15 @@ See [architecture](docs/architecture.md) for more detail.
   See [shipping](docs/shipping.md) for signing and target restrictions.
 - 3D remains experimental. The tone-mapped sky is not HDR lighting; full PBR,
   reflections, qualified shadows, and landscape-scale workflows remain unfinished.
-- Destruction supports localized bonded fragments and runtime masonry, not
-  arbitrary recursive slicing or a complete structural stress/collapse system.
-  Cold generation is synchronous; large-world performance is not implied by
-  the proximity-streaming API.
+- Destruction supports localized bonded fragments and runtime masonry. Arbitrary
+  recursive slicing and a complete structural stress/collapse system are out of
+  scope. Cold generation is synchronous; large-world performance is not implied
+  by the proximity-streaming API.
 - The native editor supports 2D/3D/HUD previews, prefab editing and embedded Play,
   but is still evolving. See [editor status](docs/editor.md); use
   **Edit → Editor Settings → UI scale** for high-DPI screens.
-- Networking includes prediction/reconciliation primitives, not hosted accounts,
-  matchmaking, or a complete multiplayer backend service.
+- Networking includes prediction/reconciliation primitives. Hosted accounts,
+  matchmaking, and a complete multiplayer backend service are out of scope.
 - Validate the actual shipping target. Android intentionally excludes some
   desktop features such as FFmpeg media and runtime SVG decoding.
 

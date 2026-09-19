@@ -80,8 +80,8 @@ runtime with librsvg support at run time.
 ## Build progress
 
 The editor reads Gradle's real task graph and displays the current task plus
-completed and total task counts. Builds have no duration limit and remain
-explicitly cancellable.
+completed and total task counts. Builds have no duration limit and can be
+cancelled at any time.
 
 ## Linux bundles
 
@@ -121,10 +121,10 @@ rolling back a package never deletes or rewrites them; only uninstalling does.
 ## Rollback policy
 
 Artifacts are published transactionally: a failed or interrupted package
-never replaces the previous artifact, so the last good build remains runnable
+never replaces the previous artifact, so the last good build stays runnable
 and rollback is "reinstall the previous artifact". Because save data lives
 outside the package, rolling the application back keeps user progress; only
-revert gameplay migrations deliberately if a newer save format must be
-rejected, and register the rejecting migration explicitly. Never ship
+revert gameplay migrations if a newer save format must be rejected, and
+register the rejecting migration explicitly. Never ship
 certificate or signing material inside the package; signing inputs stay in
 environment/CI secret references.

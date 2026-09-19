@@ -65,7 +65,7 @@ local shop_items = Data.query({
 })
 ```
 
-Queries are ordered by stable asset ID. Arrays remain one-based Lua arrays;
+Queries are ordered by stable asset ID. Arrays load as one-based Lua arrays;
 `Data.kind(value)` distinguishes empty arrays from empty objects. JSON null is
 represented by `Data.null` and tested with `Data.is_null(value)`.
 
@@ -78,13 +78,12 @@ An invalid reload keeps the last valid revision.
 `Data.parse_yaml(text, source)` converts YAML mappings, sequences, and scalars
 into the same detached Lua value contract. Parsing is generic engine
 infrastructure backed by pinned `yaml-cpp`; locale selection and other domain
-policy remain in optional packages. Invalid YAML returns a structured
+policy live in optional packages. Invalid YAML returns a structured
 `DataError` and observes the normal data-document size, depth, element, and
 string limits.
 
 Optional pure-Lua packages for flags, conditions, inventories, quests, and
 dialogue live in `scripts/runtime/demi/data`. They accept explicit save state,
-use stable IDs, and return structured gameplay events rather than controlling
-a particular HUD.
+use stable IDs, and return structured gameplay events for the game to present.
 
 See `examples/main_menu_animated` for a small schema-backed runtime probe.

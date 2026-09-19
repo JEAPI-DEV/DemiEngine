@@ -10,7 +10,7 @@ Project files use `*.project.json` and declare the project name, scenes, and met
 
 Scene files use `*.scene.json` and declare stable scene IDs and entity lists.
 
-Scenes can declare generic components such as `Transform2D`, `Camera2D`, `Sprite`, `LuaScript`, `Rigidbody2D`, and `BoxCollider2D`. Gameplay-specific behavior should live in Lua scripts rather than engine code.
+Scenes can declare generic components such as `Transform2D`, `Camera2D`, `Sprite`, `LuaScript`, `Rigidbody2D`, and `BoxCollider2D`. Gameplay-specific behavior belongs in Lua scripts; keep it out of engine code.
 
 ## Save Files
 
@@ -78,13 +78,13 @@ identifier:
 Validation rejects unnamed or duplicate clips and clips that declare
 incompatible skeletons. Animation state machines reference these stable names;
 root motion is represented by evenly spaced `root_motion_track` position
-samples in scene data and remains disabled unless explicitly enabled.
+samples in scene data and is disabled unless explicitly enabled.
 
 Audio manifests accept a boolean `settings.streaming`. Use it for music and
 ambience so platform backends stream the source instead of preloading the
 whole clip. Mixing buses, fades, concurrency, spatial settings, and pause
-policy belong to scene/runtime data rather than backend-specific manifests.
-See [Animation and Audio](animation-and-audio.md).
+policy belong to scene/runtime data; backend-specific manifests do not carry
+them. See [Animation and Audio](animation-and-audio.md).
 
 ### Game data assets
 
@@ -102,7 +102,7 @@ slots, number/color parameters, and blend/cull/depth/alpha-cutoff state.
 point at versioned `*.shader.json` sources containing one bgfx `.sc`
 vertex/fragment pair and a varying definition. Cooking produces the Vulkan and
 native fallback binaries for each target. Shader stage files are discovered as
-asset sidecars and therefore travel through cooking and package export. See
+asset sidecars, so they travel through cooking and package export. See
 [Rendering And Effects](rendering-and-effects.md).
 
 ## Performance Budgets

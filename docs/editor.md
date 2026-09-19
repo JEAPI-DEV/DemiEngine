@@ -88,7 +88,7 @@ into logical editor space so picking and gizmos remain aligned.
   without losing their original presence through Undo. Numeric authoring uses
   the precision visible in the Inspector: scene values use three decimals, HUD
   positions/sizes/spacing use one, and HUD anchors use two. Binary
-  floating-point noise is therefore not persisted. Scene, project, HUD, and
+  floating-point noise is not persisted. Scene, project, HUD, and
   specialized JSON saves patch changed values and structures into the original
   source text, preserving untouched whitespace, key order, compact arrays, and
   neighboring multiline style; replacement remains same-directory and atomic.
@@ -106,8 +106,8 @@ into logical editor space so picking and gizmos remain aligned.
   disk without saving or changing scene/project documents. Duplicate names,
   path traversal, internal directories, and symbolic-link parents are rejected.
   Empty directories are not tracked by Git until they contain a file.
-  Generic file glyphs remain intentionally honest until preview generation is
-  implemented by the relevant specialized-document preview milestone.
+  Generic file glyphs are used as-is until preview generation is implemented
+  by the relevant specialized-document preview milestone.
 - Asset workflows are operational: type filtering, manifest metadata,
   dependencies, source/import diagnostics, Linux cook freshness, reimport,
   filesystem location, importer-backed import, and versioned asset-group
@@ -155,9 +155,9 @@ into logical editor space so picking and gizmos remain aligned.
   Stop.
 - The editor exposes draw order as a selection-scoped inspection tool: select
   an entity in the runtime hierarchy, then enable `Selected draw index`. Only
-  that entity receives a backed callout and leader line. Entity ID is already
-  present in the runtime Inspector and is deliberately not duplicated in the
-  viewport. The CLI's global `entity_ids` overlay remains available.
+  that entity receives a backed callout and leader line. Entity ID already
+  appears in the runtime Inspector, so the viewport does not duplicate it.
+  The CLI's global `entity_ids` overlay remains available.
 - Play saves pending valid changes and starts an isolated embedded runtime
   world in the Game view. Pause/Resume, exact fixed-tick Step, and Stop control
   that world; an owned external `demi-runtime` window remains available from
@@ -166,8 +166,7 @@ into logical editor space so picking and gizmos remain aligned.
   (`DEMI_ENABLE_NETWORK=OFF`). If a compiled-in network backend fails to
   initialize, Play still reports that failure instead of silently continuing.
 - The central scene view renders authored 2D and 3D entities through the
-  engine's existing bgfx renderers on the editor graphics device. It does not
-  maintain a second editor-only rendering implementation.
+  engine's existing bgfx renderers on the editor graphics device.
 - Deterministic CPU picking selects authored entities by stable ID and keeps
   viewport, hierarchy, and Inspector selection synchronized, including empty
   space and scene reloads.
@@ -190,8 +189,8 @@ real engine services exist.
 
 The polished editor reference supplied for the Minimal Voxel project is the
 authoritative visual target. The current Dear ImGui screen is a functional
-authoring scaffold, not an accepted approximation of that design. Preserving
-the same rough panel positions is insufficient.
+authoring scaffold. Matching that design requires more than preserving the
+same rough panel positions.
 
 The target is a compact native game-development workspace with three clearly
 layered horizontal bands: the application menu, a grouped icon command bar,
@@ -208,7 +207,7 @@ Required layout and presentation:
   is temporary. Undo and Redo use conventional left- and right-facing hooked
   arrows so their direction is recognizable without a label.
 - Scene and Game are document tabs directly above the central canvas. Switching
-  views is not presented as a small global-toolbar text button.
+  views must not be a small global-toolbar text button.
 - Hierarchy rows communicate nesting, entity kind, expansion, visibility, and
   locked/runtime-owned state without turning generated data such as grid cells
   into ordinary authored entities.
@@ -222,8 +221,8 @@ Required layout and presentation:
   service. Lua Console commands execute only against the isolated embedded Play
   VM, with bounded Up/Down history and structured results/errors.
 - The Assets region is ultimately a folder tree plus breadcrumb/search toolbar
-  and thumbnail/file grid. The current flat source list remains honest but is
-  not the final asset-browser design.
+  and thumbnail/file grid. The current flat source list is a temporary stand-in
+  for that design.
 - Build targets and configuration open from the top Build menu instead of
   permanently consuming lower-workspace width. The window retains one clear
   primary build action backed by the real build service.
@@ -253,8 +252,8 @@ the current docked content region.
 
 Both the authored Scene/HUD viewport and embedded Game view render into owned
 GPU targets which Stage presents as ImGui images. Direct backbuffer-region
-rendering is intentionally not used inside docked windows because dock-node
-backgrounds are composited after the scene and would cover it. ImGui overlays,
+rendering is not used inside docked windows because dock-node backgrounds are
+composited after the scene and would cover it. ImGui overlays,
 picking, gizmos, and HUD handles are then drawn over the target image using the
 same live content rectangle.
 
@@ -282,7 +281,7 @@ FetchContent source.
 ## Implementation roadmap
 
 This is the practical todo list for Step 8. The detailed architectural contract
-and edge-case matrix remain in [plan.md](../plan.md#step-8--functional-editor-on-runtime-contracts).
+and edge-case matrix live in [plan.md](../plan.md#step-8--functional-editor-on-runtime-contracts).
 Complete milestones in order unless a regression requires otherwise. Do not
 enable a control until its service, failure reporting, and tests are connected.
 
@@ -561,7 +560,7 @@ classes before a second format needs shared behavior.
   Preview scene identity is transient and is never saved into the prefab or
   project. Use the Viewport tab to return to the scene; save or undo pending
   scene/prefab edits before switching. One scene prefab is open at a time.
-  This visual workflow is for scene prefabs, not UI-prefab documents.
+  This visual workflow covers scene prefabs only.
 - [x] HUD editor: an integrated HUD stage tab, the normal hierarchy and
   Inspector, runtime-rendered canvas, visual selection, move/resize handles,
   typed controls, and structural add/delete commands. Scene-attached HUDs stay
@@ -609,7 +608,8 @@ as those services gain structured data.
 rolling samples and searchable category tables. Console and build diagnostics
 are searchable by severity, code, message, path, entity, component, and field,
 with source-copy and entity-selection actions. Valid bgfx Game-view GPU
-timestamps are recorded by pass and unsupported backends remain explicit.
+timestamps are recorded by pass, and unsupported backends are reported
+explicitly.
 
 **9B present:** a categorized Debug tab consumes `RuntimeDebugSnapshot` for
 input, physics/contact counts, navigation configuration, resident asset memory,
