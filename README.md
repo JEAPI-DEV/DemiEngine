@@ -4,12 +4,6 @@
 [Getting started](docs/getting-started.md) · [Editor guide](docs/editor.md) ·
 [Roadmap](plan.md)
 
-NOTE: Packages, examples, documentation, and the website may use LLMs (AI) for
-faster iteration and broader feature support. This helps me improve the clarity
-of existing features for people reading the examples or the docs.
-
-EXTRA NOTE: This is a disclaimer is useless but needed, since EU is bad when it comes to regulation it appears.
-
 DemiEngine is a Linux-first C++20 game engine for deterministic, text-authored
 games. Projects are versioned JSON, gameplay is Lua 5.4, and the command line
 is the primary authoring, validation, testing, and packaging interface. Nothing
@@ -76,6 +70,10 @@ engine.
 The precise support level of each subsystem is tracked in the
 [capability matrix](docs/capabilities.md). Do not infer production support from
 an example alone.
+
+## Quick Editor Look
+
+![ui_showcase](images/destruction_weapons_3d_lab.png)
 
 ## Quick Start
 
