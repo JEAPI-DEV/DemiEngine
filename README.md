@@ -142,6 +142,8 @@ explicit asset groups control the rest of resource residency.
 The CLI, runtime, tests, and native editor consume the same files and
 diagnostics.
 
+Note, if you need help finding assets check out [Asset Help](docs/asset-help.md)
+
 ## Lua Gameplay
 
 Scripts use explicit lifecycle methods, while imports use specific library
