@@ -16,8 +16,15 @@ collider snapshot to this module and derives chunk volumes/centers through Jolt.
 maps part IDs to visual children; the `Destruction3D` Lua API queues hits and
 reports committed ownership.
 
-Inputs are a connected flat graph of 1–256 support chunks and at most 2,048
-bonds. IDs are unique ASCII identifiers, at most 128 characters, using the same
+Cooked masonry may map parts to dormant templates in `deferred_visuals` rather
+than live children. `DeferredFractureVisuals3D` owns their regional refinement:
+it stages visual changes in the candidate world and commits only after physics
+accepts body replacement. Unchanged regions retain one intact visual. See
+[lazy masonry visuals](streamed-destruction.md#lazy-masonry-visuals).
+
+Inputs are a connected flat graph with 32-bit chunk and bond indices. There is
+no 256-chunk or 2,048-bond cap; available memory and frame cost constrain usable
+sizes. IDs are unique ASCII identifiers, at most 128 characters, using the same
 letters/digits/underscore/dash/dot convention as compound part IDs. Chunks carry
 finite centroids (each coordinate bounded to ±1,000,000), positive volume and an
 anchor flag. Bonds reference two distinct chunks and have finite positive

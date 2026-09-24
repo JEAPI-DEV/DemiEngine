@@ -3,6 +3,47 @@
 The experimental editor is a native desktop workspace over DemiEngine's
 existing project, scene, component, source, and validation contracts.
 
+## Authoring and input
+
+The Assets **Create** menu creates 2D/3D scenes, HUDs, entity prefabs, UI prefabs,
+Lua components, materials, and data assets. Materials and data assets are
+registered through the shared asset importer and open in their specialized
+editors. New scenes are registered in the project. Use **Scene → HUD**
+to attach or detach a HUD, with Undo/Redo. Play starts the open registered scene.
+
+Double-click a prefab to open its document; **Open source prefab** uses the same
+path. Failed opens display an explanation, including unsaved-document guards.
+HUD documents have their own cleared stage. Implicit top-level `children` remain
+editable without converting the whole file to an explicit root.
+
+Click Game View to focus input. **Ctrl+D** releases mouse capture and detaches
+game input; click Game View to resume. Switching away or losing window focus
+releases capture. Runtime Inspector values are read-only; stop Play to author.
+Focus and Ctrl+D suspend host capture without clearing the game's requested
+mouse mode, so returning to Game View can resume relative mouse input.
+The scene Viewport does not draw the gameplay HUD; use HUD authoring or Game
+View for it. Procedural terrain created by gameplay scripts appears during Play,
+not in the authored scene Viewport.
+
+Double-click Lua to launch the external editor configured in **Editor Settings**.
+The default is `code --reuse-window {project} --goto {file}`. Arguments are passed
+directly, without shell evaluation. Lua stubs are exported to `.demi/lua`; a new
+`.luarc.json` points Lua Language Server there. Existing configuration is preserved
+and may need that path added manually. Install the Lua Language Server extension
+in the chosen editor for completion and documentation.
+
+MeshRenderer's raw vertex, normal and UV arrays are under **Advanced geometry
+buffers**. Ordinary model use does not require editing them. Field help explains
+the model, texture, material, primitive and buffer controls.
+
+Masonry previews share runtime atlas/relief descriptors. Generated cells select
+their source region and stay out of the authored hierarchy and saved document.
+Prefab studio lighting can still make colors look different from scene lighting.
+
+Remaining gaps include damage-local shard
+activation, and editor access to every CLI authoring operation. The current
+lighting shader has no shadow-map pass; real-time cast shadows remain pending.
+
 ```sh
 cmake --build --preset linux-debug
 ./build/linux-debug/demi editor --project examples/minimal_voxel

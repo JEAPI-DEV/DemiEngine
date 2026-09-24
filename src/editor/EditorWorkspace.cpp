@@ -1,4 +1,5 @@
 #include "editor/EditorWorkspace.h"
+#include "demi/filesystem/ProjectPaths.h"
 
 #include "editor/EditorIsoGridCell.h"
 #include "editor/EditorIsoGridCellDocument.h"
@@ -436,7 +437,7 @@ bool EditorWorkspace::redo(std::string &error) {
 bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
                                 const bool continuous, std::string &error) {
   target = resolveSceneTarget(std::move(target));
-  if (target.component == "PrefabPlacement3D" ||
+  if (target.component == "PrefabPlacement3D" || target.component == "Masonry3D" ||
       (target.component.empty() && target.field == "enabled"))
     return mutateAndRebuild([&](EditorSceneDocument &document, std::string &issue) {
       return document.setValue(target, value, continuous, issue);
@@ -871,7 +872,15 @@ bool EditorWorkspace::rebuildWorld(std::string &error) {
     return false;
   for (auto &entity : world->entities) updateEditorMeshRevision(entity);
   updateEditorPlacementVisibility(*world);
+  const auto expected=authoredHudPath();
+  const bool replaceHud=(!expected && hudDocument_) || (expected && (!hudDocument_ || !samePath(*expected,hudDocument_->path())));
+  std::optional<EditorHudDocument> nextHud;
+  if (replaceHud) {
+    if (hudDocument_ && hudDocument_->isDirty()) {error="Save or undo HUD edits before switching the scene HUD.";return false;}
+    if (expected) { EditorHudDocument candidate; if(!candidate.open(*expected,error)) return false;nextHud=std::move(candidate); }
+  }
   project_->world = std::move(*world);
+  if(replaceHud) {hudDocument_=std::move(nextHud);selectedHudNodeId_.clear();}
   syncHudPreview();
   updateSceneDomain(false);
   return true;
@@ -966,6 +975,26 @@ const EditorHudDocument *EditorWorkspace::hudDocument() const {
   if (usesOpenedHudDocument_ && openedHudDocument_)
     return &*openedHudDocument_;
   return hudDocument_ ? &*hudDocument_ : nullptr;
+}
+
+bool EditorWorkspace::setSceneHud(const std::filesystem::path &path,std::string &error) {
+  if (editingPrefab_) {error="Open a scene before assigning its HUD.";return false;}
+  if ((hudDocument_ && hudDocument_->isDirty()) || (openedHudDocument_ && openedHudDocument_->isDirty())) {
+    error="Save or undo HUD changes before changing the scene HUD.";return false;
+  }
+  auto candidate=sceneDocument_.json();
+  if (path.empty()) candidate.erase("hud");
+  else {
+    const auto absolute=std::filesystem::weakly_canonical(path);
+    const auto relative=absolute.lexically_relative(project_->project.projectDirectory);
+    if (relative.empty() || relative.is_absolute() || *relative.begin()==".." || !isHudFile(path)) {
+      error="Choose a HUD source inside this project.";return false;
+    }
+    candidate["hud"]=std::filesystem::relative(absolute,sceneDocument_.path().parent_path()).generic_string();
+  }
+  return mutateAndRebuild([&](EditorSceneDocument &document,std::string &issue){
+    return document.setHud(candidate.contains("hud") ? std::optional<nlohmann::json>(candidate["hud"]) : std::nullopt,issue);
+  },error);
 }
 
 EditorHudDocument *EditorWorkspace::activeHudDocument() {

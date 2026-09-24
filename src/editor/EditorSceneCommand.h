@@ -21,6 +21,11 @@ struct SetValuesCommand {
   std::vector<SetValueCommand> values;
 };
 
+struct SetSceneHudCommand {
+  std::optional<nlohmann::json> before;
+  std::optional<nlohmann::json> after;
+};
+
 struct InsertEntityCommand {
   std::size_t index = 0;
   nlohmann::json entity;
@@ -74,7 +79,7 @@ struct RemoveComponentCommand {
 // against their owning document revision and never depend on live pointers or
 // selection.
 using SceneCommand =
-    std::variant<SetValueCommand, SetValuesCommand, InsertEntityCommand,
+    std::variant<SetValueCommand, SetValuesCommand, SetSceneHudCommand, InsertEntityCommand,
                  RemoveEntitiesCommand, DuplicateEntityCommand,
                  ReparentCommand, EntityHierarchyCommand, AddComponentCommand, RemoveComponentCommand>;
 

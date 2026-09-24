@@ -28,14 +28,14 @@ parseColliderShapeAsset(const nlohmann::json &document, std::string &error) {
           "4..256 finite, non-coplanar points.";
   try {
     if (document.is_object() && document.value("shape", "") == "compound") {
-      error = "Compound collider requires format_version 1 and 1..256 convex "
+      error = "Compound collider requires format_version 1 and convex "
               "parts with unique IDs.";
       if (!document.contains("format_version") ||
           !document["format_version"].is_number_integer() ||
           document.value("format_version", 0) != 1 ||
           document.contains("points") || !document.contains("parts") ||
           !document["parts"].is_array() || document["parts"].empty() ||
-          document["parts"].size() > 256)
+          document["parts"].size() >= UINT32_MAX)
         return std::nullopt;
       ColliderShapeAsset result;
       result.minimum.fill(std::numeric_limits<float>::max());

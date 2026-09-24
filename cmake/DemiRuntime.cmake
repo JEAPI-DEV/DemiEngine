@@ -11,6 +11,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/physics/JoltLifetime.cpp
   src/demi/runtime/physics/JoltBodyBatch3D.cpp
   src/demi/runtime/destruction/DestructionWorld3D.cpp
+  src/demi/runtime/destruction/DeferredFractureVisuals3D.cpp
   src/demi/runtime/destruction/DestructionCheckpoint3D.cpp
   src/demi/runtime/destruction/DestructionImpact3D.cpp
   src/demi/runtime/scripting/LuaScriptHostDestruction.cpp
@@ -210,6 +211,7 @@ configure_demi_runtime(demi-runtime-lib TRUE
   src/demi/runtime/platform/PlatformInput.cpp
   src/demi/runtime/platform/SdlNativeWindow.cpp
   src/demi/runtime/platform/SdlPlatformHost.cpp
+  src/demi/runtime/platform/ExternalProcess.cpp
 )
 
 if(NOT ANDROID)

@@ -252,6 +252,37 @@ all-device, full-game or thermal-soak qualification.
 
 ### Milestone 3: Localized Destruction and Asset Pipeline
 
+#### September 24 editor and scale audit
+
+- Removed the engine's 256-cell/part/chunk, 2,048-bond and 256-body authoring
+  caps. Representation checks remain; Jolt still limits each convex hull to
+  256 points. This is not qualification for arbitrarily large simulations.
+- Relief cache budgets are configurable retention settings; visible variants
+  may exceed them. Cook expands masonry into build output, not authored folders.
+- Added editor source creation, external Lua editor setup, reversible scene/HUD
+  assignment, implicit-root HUD edits, prefab-open feedback, and Ctrl+D release.
+- Built-in masonry now has compact intact regional visuals and deferred leaf
+  entities. Regions refine only when Blast assigns their bricks to different
+  bodies. Other regions/walls remain compact. Source-model fracture and custom
+  masonry models still need this path, as do deeper spatial hierarchy and
+  on-demand metadata loading.
+- Masonry preview now shares cell meshes, atlas coordinates and relief settings
+  with runtime. Picking redirects to the source region; edits rebuild the
+  transient cells. Tests compare runtime/preview descriptors and exercise Undo.
+- Materials and data assets can now be created and registered in the editor.
+- Still required: nested/model/override cache coverage, runtime shadow maps,
+  and a complete CLI/editor authoring parity audit.
+- Lazy-activation acceptance: two intact walls must have no live leaf shard
+  entities; damaging one must not instantiate leaves of the other. Preserve
+  raycast part IDs, mass, checkpoint restore, retirement and prefab release.
+  The native tests now cover these checks for built-in masonry, including
+  rejected transactions and neighboring regions within one assembly.
+  The doorway has 12 live entities plus 210 cold brick templates instead of
+  222 live entities. Surface detail and support-graph memory are unchanged in
+  scope; no large-map FPS gate is claimed by this change.
+- Blast's hierarchical visible chunks are the relevant starting point:
+  https://docs.omniverse.nvidia.com/kit/docs/blast-sdk/latest/docs/api/api_ll_users_guide.html
+
 #### Required developer workflow and current gap
 
 The target is a reusable destruction workflow, not bespoke arch scripting or

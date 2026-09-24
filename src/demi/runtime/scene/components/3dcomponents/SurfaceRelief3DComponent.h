@@ -50,7 +50,9 @@ struct SurfaceRelief3DComponent {
                                true},
       ComponentFieldDescriptor{"uv_offset", ComponentFieldType::Vec2},
       ComponentFieldDescriptor{"uv_scale", ComponentFieldType::Vec2},
-      ComponentFieldDescriptor{"segments", ComponentFieldType::Vec2}};
+      ComponentFieldDescriptor{"segments", ComponentFieldType::Vec2},
+      ComponentFieldDescriptor{"tiles", ComponentFieldType::Vec2},
+      ComponentFieldDescriptor{"atlas_grid", ComponentFieldType::Vec2}};
   static constexpr ComponentEditorMetadata editor{"Rendering 3D",
                                                   "Surface Relief 3D"};
   static void parse(const nlohmann::json &, Entity &);
@@ -58,5 +60,6 @@ struct SurfaceRelief3DComponent {
   std::string heightMap;
   float depth = .012F, heightMin = .45F, heightMax = .9F;
   Vec2 uvOffset{}, uvScale{1, 1}, segments{24, 10};
+  Vec2 tiles{1, 1}, atlasGrid{1, 1};
 };
 } // namespace demi::runtime

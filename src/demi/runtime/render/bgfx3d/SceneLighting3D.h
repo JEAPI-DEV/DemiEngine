@@ -10,6 +10,8 @@ namespace demi::runtime::render {
 
 struct SceneLighting3D {
   std::string skyTexture;
+  std::size_t reliefCacheMeshes = 256;
+  std::size_t reliefImageCacheBytes = 64U*1024U*1024U;
   std::array<float, 4> direction{-0.4F, -1.0F, -0.3F, 0.0F};
   std::array<float, 4> directionalColor{1.0F, 1.0F, 1.0F, 1.0F};
   std::array<float, 4> ambient{1.0F, 1.0F, 1.0F, 1.0F};

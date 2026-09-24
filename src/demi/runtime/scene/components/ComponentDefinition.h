@@ -40,6 +40,9 @@ struct ComponentFieldEditorMetadata {
 };
 
 struct ComponentFieldDescriptor {
+  [[nodiscard]] constexpr ComponentFieldDescriptor withHelp(std::string_view text) const {
+    auto result=*this; result.editor.help=text; return result;
+  }
   [[nodiscard]] static constexpr ComponentFieldDescriptor
   entityReference(std::string_view fieldName, bool fieldRequired = false) {
     return ComponentFieldDescriptor(

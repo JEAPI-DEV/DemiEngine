@@ -29,6 +29,9 @@
   add_executable(demi-build-service-tests tests/build_service_tests.cpp)
   target_link_libraries(demi-build-service-tests PRIVATE demi-cli-support)
   add_executable(demi-editor-workspace-tests tests/editor_workspace_tests.cpp)
+  add_executable(demi-editor-source-workflow-tests tests/editor_source_workflow_tests.cpp)
+  target_link_libraries(demi-editor-source-workflow-tests PRIVATE demi-editor-model demi-runtime-lib)
+  target_compile_definitions(demi-editor-source-workflow-tests PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   target_link_libraries(demi-editor-workspace-tests PRIVATE demi-editor-model)
   target_compile_definitions(demi-editor-workspace-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")

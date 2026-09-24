@@ -3,13 +3,16 @@
 #include <cmath>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
+#include <limits>
 
 namespace demi::runtime {
 void Fracture3DComponent::parse(const nlohmann::json &json, Entity &entity) {
   Fracture3DComponent value;
   if (json.contains("pieces") && !json["pieces"].is_number_integer())
     throw std::invalid_argument("Fracture3D.pieces must be an integer");
-  value.pieces = json.value("pieces", 8);
+  const auto pieces=json.value("pieces",std::int64_t(8));
+  if (pieces<1 || pieces>std::numeric_limits<int>::max()) throw std::invalid_argument("Fracture pieces must fit a positive 32-bit integer");
+  value.pieces = static_cast<int>(pieces);
   value.collider = json.value("collider", "source");
   if ((value.collider != "source" && value.collider != "box") ||
       (value.collider == "box" && value.pieces != 1))
@@ -21,7 +24,7 @@ void Fracture3DComponent::parse(const nlohmann::json &json, Entity &entity) {
         *value.density > 1000000)
       throw std::invalid_argument("Fracture3D.density must be 0.001..1000000 kg/m^3");
   }
-  if (value.pieces < 1 || value.pieces > 128 ||
+  if (value.pieces < 1 ||
       !std::isfinite(value.bondHealth) || value.bondHealth <= 0 ||
       value.bondHealth > 1e30F)
     throw std::invalid_argument("Invalid fracture piece count or bond health");

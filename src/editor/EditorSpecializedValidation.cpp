@@ -61,9 +61,11 @@ Diagnostics validateHud(const std::filesystem::path &path,
                         const nlohmann::json &document) {
   Diagnostics diagnostics;
   if (!document.is_object() || document.value("format_version", 0) != 1 ||
-      !document.contains("root") || !document["root"].is_object()) {
+      (!(document.contains("root") && document["root"].is_object()) &&
+      !(document.contains("children") && document["children"].is_array()) &&
+      !(document.contains("elements") && document["elements"].is_array()))) {
     issue(diagnostics, path, "HUD_INVALID_DOCUMENT",
-          "HUD requires format_version 1 and a root node.");
+          "HUD requires format_version 1 and a root, children, or elements.");
     return diagnostics;
   }
   const runtime::ui::UiPrefabExpansionResult expansion =

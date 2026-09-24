@@ -1,6 +1,7 @@
 #pragma once
 
 #include "editor/EditorAssetGroupDocument.h"
+#include "editor/EditorSourceCreation.h"
 
 #include <array>
 #include <filesystem>
@@ -20,6 +21,8 @@ public:
   void queueImport(std::filesystem::path source);
   void openCreateGroup() { showCreateGroup_ = true; }
   void openNewFolder(std::filesystem::path relativeParent);
+  void openNewSource(EditorSourceKind kind) { sourceKind_=kind;sourceName_.fill(0);showNewSource_=true; }
+  std::optional<std::filesystem::path> takeCreatedSource() { return std::exchange(createdSource_,std::nullopt); }
   [[nodiscard]] std::optional<std::filesystem::path> takeCreatedFolder() {
     return std::exchange(createdFolder_, std::nullopt);
   }
@@ -28,6 +31,10 @@ public:
   void draw(EditorWorkspace &workspace, std::string &notice);
 
 private:
+  EditorSourceKind sourceKind_=EditorSourceKind::Scene3D;
+  bool showNewSource_=false;
+  std::array<char,192> sourceName_{};
+  std::optional<std::filesystem::path> createdSource_;
   std::array<char, 256> folderName_{};
   std::filesystem::path folderParent_;
   std::optional<std::filesystem::path> createdFolder_;

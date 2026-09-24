@@ -6,6 +6,9 @@
 
 #include <imgui.h>
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <cmath>
 #include <cstdlib>

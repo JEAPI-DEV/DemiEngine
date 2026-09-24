@@ -13,6 +13,13 @@
 
 namespace demi::editor {
 
+bool EditorPlaySession::mouseCaptured() const {
+  return embedded_ && embedded_->mouseCaptured();
+}
+void EditorPlaySession::releaseMouseCapture() {
+  if (embedded_) embedded_->releaseMouseCapture();
+}
+
 std::string_view editorPlayStateLabel(const EditorPlayState state) {
   switch (state) {
   case EditorPlayState::Stopped:
@@ -34,7 +41,7 @@ EditorPlaySession::EditorPlaySession() = default;
 EditorPlaySession::~EditorPlaySession() { stop(); }
 
 bool EditorPlaySession::startEmbedded(const std::filesystem::path &project,
-                                      std::string &error) {
+                                      std::string &error, const std::string &sceneId) {
   stop();
   state_ = EditorPlayState::Starting;
   mode_ = EditorPlayMode::Embedded;
@@ -44,7 +51,7 @@ bool EditorPlaySession::startEmbedded(const std::filesystem::path &project,
   auto session = std::make_unique<runtime::EmbeddedRuntimeSession>();
   runtime::RuntimeProfiler::setEnabled(true);
   runtime::RuntimeProfiler::resetSession();
-  if (!session->start(project, error)) {
+  if (!session->start(project, error, sceneId)) {
     runtime::RuntimeProfiler::setEnabled(false);
     reportFailure(error);
     return false;

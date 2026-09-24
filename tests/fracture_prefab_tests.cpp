@@ -3,6 +3,7 @@
 #include "demi/assets/ConvexFracture.h"
 #include "demi/assets/FracturePrefab.h"
 #include "demi/assets/FractureAuthoring.h"
+#include "demi/assets/MasonryGeneration.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/destruction/DestructionWorld3D.h"
@@ -239,20 +240,55 @@ void masonryStreamingAuthoring(const std::filesystem::path &root) {
                                {.id = "b", .position = Vec3{3, 0, 0}});
   check(bool(b), "Cached activation failed");
   (void)commands.flush(loaded->world);
-  check(a.entityIds.size() == 6 && b.entityIds.size() == 6,
-        "Masonry retained unnecessary source cells");
+  check(a.entityIds.size() == 2 && b.entityIds.size() == 2,
+        "Intact masonry eagerly created leaf entities");
   for (const auto &[part, visual] : findEntity(loaded->world, "b/assembly")
                                         ->component<Destructible3DComponent>()
                                         ->parts)
-    check(visual.starts_with("b/") && findEntity(loaded->world, visual),
+    check(visual.starts_with("b/") && !findEntity(loaded->world, visual),
           "Cached template leaked another instance identity");
   auto &physics = ensurePhysicsWorld3D(loaded->world);
   physics.step(loaded->world, 1.F / 60);
   check(loaded->world.destruction3D->state("a/assembly").bodies == 1,
         "Masonry did not attach");
-  check(commands.destroy(loaded->world, a.entityIds.back()),
-        "Could not remove a visual fixture");
+  const auto hit=physics.raycast({-.25F,.75F,2},{0,0,-1},4);
+  check(hit && hit->entityId=="a/assembly" && !hit->colliderPartId.empty(),"Dormant wall lost part picking");
+  const auto mass=findEntity(loaded->world,"a/assembly")->component<Rigidbody3DComponent>()->mass;
+  findEntity(loaded->world,"a/assembly")->component<Destructible3DComponent>()->maxBodies=1;
+  check(loaded->world.destruction3D->damagePart("a/assembly",hit->colliderPartId,2,error),error);
+  physics.step(loaded->world,1.F/60);
+  check(loaded->world.destruction3D->state("a/assembly").status=="failed" &&
+        findEntity(loaded->world,"a/region"),"Rejected split materialized or removed intact visuals");
+  check(loaded->world.entities.size()==4,"Rejected split leaked leaf entities");
+  findEntity(loaded->world,"a/assembly")->component<Destructible3DComponent>()->maxBodies=64;
+  check(loaded->world.destruction3D->damagePart("a/assembly",hit->colliderPartId,2,error),error);
+  physics.step(loaded->world,1.F/60);
+  const auto state=loaded->world.destruction3D->state("a/assembly");
+  check(state.status=="applied",state.error);
+  check(!findEntity(loaded->world,"a/region")->hasComponent<MeshRendererComponent>(),"Split region kept its intact surface");
+  double splitMass=0;
+  for(const auto &entity:loaded->world.entities)
+    if(entity.id.starts_with("a/fracture/") || entity.id.starts_with("a/assembly/fracture/"))
+      if(const auto *body=entity.component<Rigidbody3DComponent>())splitMass+=body->mass;
+  check(std::abs(splitMass-mass)<.001,"Lazy split changed mass");
+  const auto &bParts=findEntity(loaded->world,"b/assembly")->component<Destructible3DComponent>()->parts;
+  for(const auto &[part,visual]:bParts)check(!findEntity(loaded->world,visual),"Damage activated another wall's leaves");
+  const auto checkpoint=loaded->world.destruction3D->checkpoint(loaded->world,"a/assembly",error);
+  check(!checkpoint.is_null(),error);
+  check(loaded->world.destruction3D->restore("b/assembly",checkpoint,error),error);
+  physics.step(loaded->world,1.F/60);
+  check(loaded->world.destruction3D->state("b/assembly").status=="applied",loaded->world.destruction3D->state("b/assembly").error);
+  check(loaded->world.destruction3D->retireDebris("a/assembly",error),error);
+  physics.step(loaded->world,1.F/60);
+  const auto retired=loaded->world.destruction3D->checkpoint(loaded->world,"a/assembly",error);
+  check(!retired.is_null(),error);
+  auto restored=prefabs.instantiate(loaded->world,commands,"prefab://wall",{.id="restored"});
+  check(bool(restored),"Could not instantiate checkpoint target");
   (void)commands.flush(loaded->world);
+  physics.step(loaded->world,1.F/60);
+  check(loaded->world.destruction3D->restore("restored/assembly",retired,error),error);
+  physics.step(loaded->world,1.F/60);
+  check(loaded->world.destruction3D->state("restored/assembly").status=="applied",loaded->world.destruction3D->state("restored/assembly").error);
   check(prefabs.release(loaded->world, commands, "a"),
         "Release failed with a retired child");
   (void)commands.flush(loaded->world);
@@ -260,13 +296,36 @@ void masonryStreamingAuthoring(const std::filesystem::path &root) {
   check(!findEntity(loaded->world, "a/assembly") &&
             findEntity(loaded->world, "b/assembly"),
         "Release affected a different instance");
+  for(const auto &entity:loaded->world.entities)
+    check(!entity.id.starts_with("a/"),"Prefab release leaked lazily created leaves");
+  auto multiple=prefab;
+  multiple["id"]="prefab://multiple";
+  auto nextRegion=multiple["entities"][0]["children"][0];
+  nextRegion["id"]="region2";
+  nextRegion["components"]["Transform3D"]["position"]={1,.5,0};
+  multiple["entities"][0]["children"].push_back(nextRegion);
+  write(root/"prefabs/multiple.prefab.json",multiple);
+  auto d=prefabs.instantiate(loaded->world,commands,"prefab://multiple",{.id="d",.position=Vec3{10,0,0}});
+  check(bool(d) && d.entityIds.size()==3,"Multi-region wall was not compact");
+  (void)commands.flush(loaded->world);
+  physics.step(loaded->world,1.F/60);
+  const auto localHit=physics.raycast({9.75F,.75F,2},{0,0,-1},4);
+  check(localHit && localHit->entityId=="d/assembly","Multi-region picking failed");
+  check(loaded->world.destruction3D->damagePart("d/assembly",localHit->colliderPartId,2,error),error);
+  physics.step(loaded->world,1.F/60);
+  check(loaded->world.destruction3D->state("d/assembly").status=="applied",loaded->world.destruction3D->state("d/assembly").error);
+  check(findEntity(loaded->world,"d/region2")->hasComponent<MeshRendererComponent>() &&
+        !findEntity(loaded->world,"d/region")->hasComponent<MeshRendererComponent>(),"Damage expanded an unrelated masonry region");
+  const auto &config=*findEntity(loaded->world,"d/assembly")->component<Destructible3DComponent>();
+  for(const auto &leaf:(*config.deferredVisuals)["d/region2"])
+    check(!findEntity(loaded->world,leaf["id"].get<std::string>()),"Unchanged region has live leaf entities");
   auto changed = prefab;
   changed["entities"][0]["children"][0]["components"]["Masonry3D"]["columns"] =
       3;
   write(root / "prefabs/wall.prefab.json", changed);
   auto c = prefabs.instantiate(loaded->world, commands, "prefab://wall",
                                {.id = "c"});
-  check(bool(c) && c.entityIds.size() == 8,
+  check(bool(c) && c.entityIds.size() == 2 && commands.pendingEntity("c/assembly")->component<Destructible3DComponent>()->parts.size()==6,
         "Template cache ignored source edit");
   auto reliefSource=prefab;
   reliefSource["entities"][0]["children"][0]["components"]["Masonry3D"]["height_map"]="asset://height";
@@ -281,17 +340,37 @@ void masonryStreamingAuthoring(const std::filesystem::path &root) {
             !entity["components"]["MeshRenderer"].contains("vertices"),
             "Relief generated a model dependency or serialized mesh geometry");
     }
-  check(reliefCells==4,"Fracture discarded procedural relief descriptors");
+  check(reliefCells==1,"Intact region did not share a relief surface");
+  const auto preview=composition::expandScene(root/"prefabs/wall.prefab.json",reliefSource,false);
+  check(bool(preview.document),"Masonry preview expansion failed");
+  std::vector<J> previewRelief, runtimeRelief;
+  for (const auto &entity:(*preview.document)["entities"]) {
+    const auto &components=entity["components"];
+    if (!components.contains("SurfaceRelief3D")) continue;
+    check(!components.contains("Fracture3D"),"Preview created fracture simulation inputs");
+    previewRelief.push_back({components["MeshRenderer"],components["SurfaceRelief3D"]});
+  }
+  for (const auto &entity:(*relief.document)["entities"])
+    if (entity["components"].contains("Destructible3D"))
+      for(const auto &templates:entity["components"]["Destructible3D"]["deferred_visuals"])
+        for(const auto &leaf:templates)
+          runtimeRelief.push_back({leaf["components"]["MeshRenderer"],leaf["components"]["SurfaceRelief3D"]});
+  std::ranges::sort(previewRelief);
+  std::ranges::sort(runtimeRelief);
+  check(previewRelief==runtimeRelief,"Preview atlas/relief descriptors differ from runtime");
   write(root / "prefabs/wall.prefab.json", prefab);
   {
     editor::EditorWorkspace editor;
     check(editor.open(root / "demi.project.json", error), error);
     check(editor.openPrefabDocument(root / "prefabs/wall.prefab.json", error),
           error);
+    editor.selectEntity("region/__masonry_preview/cell_0_0");
+    check(editor.selectedEntityId()=="region","Generated preview cell did not select its recipe");
     check(editor.editValue(
               {.entityId = "region", .component = "Masonry3D", .field = "rows"},
               3, false, error),
           error);
+    check(editor.project().world.entities.size()==8,"Recipe edit did not rebuild preview cells");
     check(editor.undo(error) && editor.sceneDocument().json() == prefab,
           "Masonry Inspector undo changed compact source");
   }
@@ -303,8 +382,10 @@ void masonryStreamingAuthoring(const std::filesystem::path &root) {
       "Masonry cook failed");
   std::ifstream file(cooked / "prefabs/wall.prefab.json");
   check(bool(file), "Cook omitted runtime prefab");
-  check(J::parse(file) == prefab,
-        "Cook expanded compact masonry into per-brick source");
+  const auto baked=J::parse(file);
+  check(!assets::hasMasonryAuthoring(baked),"Cook did not prepare masonry fracture data");
+  std::ifstream authored(root / "prefabs/wall.prefab.json");
+  check(J::parse(authored)==prefab,"Cook modified the authored wall recipe");
 }
 void densityAuthoring(const std::filesystem::path &root) {
   auto prefab = J::parse(R"({"format_version":1,"id":"prefab://density","entities":[
@@ -468,11 +549,11 @@ void test(const std::filesystem::path &root) {
              .document,
         "Recipe dependency cycle accepted");
   bad = recipe();
-  bad["fracture"]["objects"]["wall"]["pieces"] = 10000;
+  bad["fracture"]["objects"]["wall"]["pieces"] = std::int64_t(INT32_MAX) + 1;
   write(root / "prefabs/broken.prefab.json", bad);
   check(!composition::bakeFracturePrefab(root / "prefabs/broken.prefab.json")
              .document,
-        "Unbounded recipe accepted");
+        "Unrepresentable piece count accepted");
   write(root / "prefabs/broken.prefab.json", recipe());
   auto changed = source();
   changed["entities"][0]["components"]["MeshRenderer"]["size"] = {5, 4, .4};

@@ -21,6 +21,11 @@ void SurfaceRelief3DComponent::parse(const nlohmann::json &j, Entity &entity) {
   read("uv_offset", value.uvOffset);
   read("uv_scale", value.uvScale);
   read("segments", value.segments);
+  read("tiles", value.tiles);
+  read("atlas_grid", value.atlasGrid);
+  for (float n : {value.tiles.x, value.tiles.y, value.atlasGrid.x, value.atlasGrid.y})
+    if (n < 1 || n >= float(INT32_MAX) || std::floor(n) != n)
+      throw std::invalid_argument("Relief tile and atlas dimensions must be positive integers");
   if ((!value.heightMap.empty() && (!value.heightMap.starts_with("asset://") || value.heightMap.size() <= 8)) ||
       !std::isfinite(value.depth) || value.depth < 0 || value.depth > 1 ||
       !std::isfinite(value.heightMin) || !std::isfinite(value.heightMax) ||
@@ -38,6 +43,6 @@ void SurfaceRelief3DComponent::parse(const nlohmann::json &j, Entity &entity) {
 nlohmann::json SurfaceRelief3DComponent::defaults() {
   return {{"height_map", ""},    {"depth", .012},       {"height_min", .45},
           {"height_max", .9},    {"uv_offset", {0, 0}}, {"uv_scale", {1, 1}},
-          {"segments", {24, 10}}};
+          {"segments", {24, 10}}, {"tiles", {1, 1}}, {"atlas_grid", {1, 1}}};
 }
 } // namespace demi::runtime

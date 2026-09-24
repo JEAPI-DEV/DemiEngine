@@ -65,8 +65,15 @@ EmbeddedRuntimeSession::EmbeddedRuntimeSession() = default;
 
 EmbeddedRuntimeSession::~EmbeddedRuntimeSession() { stop(); }
 
+bool EmbeddedRuntimeSession::mouseCaptured() const {
+  return state_ && state_->running && !state_->paused && state_->lua.mouseCaptured();
+}
+void EmbeddedRuntimeSession::releaseMouseCapture() {
+  if (state_) state_->lua.setMouseCaptured(false);
+}
+
 bool EmbeddedRuntimeSession::start(const std::filesystem::path &projectPath,
-                                   std::string &error) {
+                                   std::string &error, const std::string &sceneId) {
   error.clear();
   if (state_ != nullptr) {
     error = "An embedded runtime session is already active.";
@@ -76,6 +83,12 @@ bool EmbeddedRuntimeSession::start(const std::filesystem::path &projectPath,
   auto loaded = loadProject(projectPath, error);
   if (!loaded)
     return false;
+  if (!sceneId.empty() && sceneId!=loaded->project.mainScene) {
+    auto selected=loadScene(loaded->project,sceneId,error);
+    if (!selected) return false;
+    loaded->project.mainScene=sceneId;
+    loaded->world=std::move(*selected);
+  }
   state->loaded = std::move(*loaded);
   state->assetRegistry =
       loadAssetRegistry(state->loaded.project.projectDirectory);

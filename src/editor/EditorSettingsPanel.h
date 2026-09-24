@@ -1,5 +1,6 @@
 #pragma once
 
 namespace demi::editor {
-void drawEditorSettingsPanel(bool &open, float &uiScale);
+struct EditorPreferences;
+void drawEditorSettingsPanel(bool &open, float &uiScale, EditorPreferences &preferences);
 }

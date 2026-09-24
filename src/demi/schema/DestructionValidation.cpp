@@ -1,6 +1,7 @@
 #include "demi/schema/DestructionValidation.h"
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/ColliderShapeAsset.h"
+#include "demi/runtime/scene/RuntimeObjectModel.h"
 #include <map>
 #include <nlohmann/json.hpp>
 #include <set>
@@ -69,17 +70,32 @@ void validateDestruction3D(Diagnostics &diagnostics,
                   config["parts"].size() == geometry->parts.size(),
               "Map every collider part to one visual entity");
       std::set<std::string> used;
+      auto visualEntities=entities;
+      if(config.contains("deferred_visuals")) {
+        require(config["deferred_visuals"].is_object(),"Deferred visuals must be an object");
+        for(const auto &[region,items]:config["deferred_visuals"].items()) {
+          require(entities.contains(region) && items.is_array() && !items.empty(),"Invalid deferred visual region");
+          const auto &regionComponents=entities.at(region)->at("components");
+          require(regionComponents.contains("MeshRenderer") && regionComponents.contains("Transform3D") &&
+              regionComponents["Transform3D"].value("parent","")==id,"Deferred region must be a direct renderer child");
+          for(const auto &item:items) {
+            std::string error;
+            require(bool(runtime::RuntimeObjectModel::buildEntity(item,error)),"Invalid deferred entity components");
+            require(visualEntities.emplace(item.at("id").get<std::string>(),&item).second,"Duplicate deferred visual identity");
+          }
+        }
+      }
       for (const auto &part : geometry->parts) {
         require(config["parts"].contains(part.id) &&
                     config["parts"][part.id].is_string(),
                 "Missing collider part visual mapping");
         const auto visualId = config["parts"][part.id].get<std::string>();
         require(visualId != id && used.insert(visualId).second &&
-                    entities.contains(visualId),
+                    visualEntities.contains(visualId),
                 "Visual IDs must be distinct existing children");
-        require(!entities.at(visualId)->value("persistent", false),
+        require(!visualEntities.at(visualId)->value("persistent", false),
                 "Persistent fracture visuals are not supported");
-        const auto &visual = entities.at(visualId)->at("components");
+        const auto &visual = visualEntities.at(visualId)->at("components");
         require(
             visual.contains("Transform3D") &&
                 visual["Transform3D"].value("parent", "") == id &&

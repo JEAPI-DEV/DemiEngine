@@ -75,10 +75,9 @@ bool EditorViewportRenderer::render3D(const runtime::World &world,
   runtime::render::BgfxCameraFrame3D frame;
   frame.cameraId = "editor-camera";
   frame.camera = camera.projection;
-  // The editor scene is rendered into a texture rather than directly to the
-  // swapchain. Keep the authored HUD in that same texture so the docked scene
-  // viewport matches the runtime composition and HUD picking coordinates.
-  frame.camera.renderHud = true;
+  // Scene inspection uses the editor camera. HUD authoring has its own stage;
+  // Game View owns the combined runtime presentation.
+  frame.camera.renderHud = false;
   frame.camera.renderHudToTarget = true;
   frame.position = camera.position;
   frame.forward = camera.forward;
@@ -109,8 +108,7 @@ bool EditorViewportRenderer::render2D(const runtime::World &world,
                                      0, area.width, area.height, deltaSeconds,
                                      error, 1.0F, target_->frameBuffer))
     return false;
-  const bool rendered = renderer2D_->drawWorld(world, showColliders) &&
-                        renderer2D_->drawHud(world);
+  const bool rendered = renderer2D_->drawWorld(world, showColliders);
   const bool flushed = renderer2D_->endFrame(error);
   if (!rendered && error.empty())
     error = "Could not draw the authored 2D scene and HUD.";
@@ -127,6 +125,9 @@ bool EditorViewportRenderer::renderHud(const runtime::ui::UiDocument &document,
                                        deltaSeconds, error,
                                        target_->frameBuffer))
     return false;
+  if (!commands_.configureView2D({.id=1,.width=area.width,.height=area.height,
+                                 .clearRgba=0x20232bffU,.clear=true,
+                                 .frameBuffer=target_->frameBuffer},error)) return false;
   const bool rendered = renderer2D_->drawUi(document);
   const bool flushed = renderer2D_->endFrame(error);
   if (!rendered && error.empty())

@@ -25,11 +25,11 @@ parseColliderFractureGraph(const nlohmann::json &document,
                            std::span<const std::string> partIds,
                            std::string &error) {
   error =
-      "Fracture requires bonds (0..2048) and optional unique anchor part IDs.";
+      "Fracture requires bonds and optional unique anchor part IDs.";
   try {
-    if (partIds.empty() || partIds.size() > 256 || !document.is_object() ||
+    if (partIds.empty() || partIds.size() >= UINT32_MAX || !document.is_object() ||
         !document.contains("bonds") || !document["bonds"].is_array() ||
-        document["bonds"].size() > 2048)
+        document["bonds"].size() >= UINT32_MAX)
       return std::nullopt;
     for (const auto &[key, value] : document.items())
       if (key != "bonds" && key != "anchors")

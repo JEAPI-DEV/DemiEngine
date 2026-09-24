@@ -22,14 +22,17 @@ void updateEditorMeshRevision(runtime::Entity &entity) {
 
 std::string editorPlacementOwner(const runtime::World &world, std::string_view entityId) {
   const auto *entity = runtime::findEntity(world, std::string(entityId));
+  std::string masonryOwner;
   std::unordered_set<std::string> visited;
   while (entity && visited.insert(entity->id).second) {
     if (entity->hasComponent<runtime::PrefabPlacement3DComponent>()) return entity->id;
     const auto *transform = entity->component<runtime::Transform3DComponent>();
+    if (transform && entity->id.starts_with(transform->parent + "/__masonry_preview/"))
+      masonryOwner = transform->parent;
     entity = transform && !transform->parent.empty()
         ? runtime::findEntity(world, transform->parent) : nullptr;
   }
-  return {};
+  return masonryOwner;
 }
 
 void updateEditorPlacementVisibility(runtime::World &world) {

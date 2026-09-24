@@ -366,7 +366,7 @@ Diagnostics cookProject(const CookRequest &request) {
     if (!code && (source.filename().string().ends_with(".prefab.json") || source.filename().string().ends_with(".scene.json"))) {
       std::ifstream input(source);
       const auto sourceJson=nlohmann::json::parse(input,nullptr,false);
-      if(sourceJson.is_object() && !hasMasonryAuthoring(sourceJson) && (sourceJson.contains("fracture") || hasFractureAuthoring(sourceJson))) {
+      if(sourceJson.is_object() && (hasMasonryAuthoring(sourceJson) || sourceJson.contains("fracture") || hasFractureAuthoring(sourceJson))) {
         const auto baked=source.filename().string().ends_with(".prefab.json")
             ? runtime::composition::bakeFracturePrefab(source)
             : runtime::composition::expandScene(source, sourceJson);

@@ -29,6 +29,8 @@ return { tests = {{ name="weapons, streamed damage checkpoints and debris cleanu
   Test.expect(type(stats().contacts)=="number","Player script must initialize its weapon state")
   Test.expect(Destruction.state("a/assembly").bodies==1,"Doorway A must attach")
   Test.expect(Destruction.state("b/assembly").bodies==1,"Doorway B must attach")
+  Test.expect(not Entity.find("Masonry cell shard "),
+    "Intact masonry must not create live brick shard entities")
   Test.touch("hammer")
   Test.wait(0.06)
   Test.expect(stats().phase~="idle","Hammer HUD action must start an attack")

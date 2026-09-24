@@ -42,6 +42,10 @@ int main() {
     std::string error;
     assert(session.startEmbedded(project, error));
     assert(session.state() == demi::editor::EditorPlayState::Running);
+    assert(session.executeLuaConsole("require('demi.application').set_mouse_captured(true)").succeeded);
+    assert(session.mouseCaptured());
+    session.releaseMouseCapture();
+    assert(!session.mouseCaptured());
     assert(session.runtimeWorld() != nullptr);
     const auto console = session.executeLuaConsole("1 + 2");
     assert(console.succeeded && console.values.size() == 1 &&

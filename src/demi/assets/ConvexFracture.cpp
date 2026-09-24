@@ -129,10 +129,10 @@ double fractureVolume(const FractureSolid &s) {
   return std::abs(signedVolume(s));
 }
 void validateFractureSolid(FractureSolid &s) {
-  if (s.faces.size() < 4 || s.faces.size() > 1024)
-    throw std::runtime_error("Fracture source requires 4..1024 faces");
+  if (s.faces.size() < 4)
+    throw std::runtime_error("Fracture source requires at least 4 faces");
   for (const auto &f : s.faces) {
-    if (f.vertices.size() < 3 || f.vertices.size() > 256)
+    if (f.vertices.size() < 3)
       throw std::runtime_error("Invalid fracture polygon");
     for (const auto &v : f.vertices) {
       for (double coordinate : v.uv)
@@ -145,8 +145,8 @@ void validateFractureSolid(FractureSolid &s) {
     }
   }
   const auto points = fracturePoints(s);
-  if (points.size() < 4 || points.size() > 512)
-    throw std::runtime_error("Fracture source requires 4..512 unique vertices");
+  if (points.size() < 4)
+    throw std::runtime_error("Fracture source requires at least 4 unique vertices");
   const double e = extent(s) * 1e-6;
   if (!(e > 1e-10) || fractureVolume(s) < e * e * e)
     throw std::runtime_error("Fracture source has no solid volume");
@@ -184,8 +184,8 @@ void validateFractureSolid(FractureSolid &s) {
 std::vector<FractureSolid> fractureConvexSolid(FractureSolid source,
                                                std::size_t pieces,
                                                std::uint32_t seed) {
-  if (pieces < 1 || pieces > 128)
-    throw std::runtime_error("Fracture pieces must be 1..128 per object");
+  if (pieces < 1)
+    throw std::runtime_error("Fracture pieces must be positive");
   validateFractureSolid(source);
   std::vector<FractureSolid> result{std::move(source)};
   std::uint32_t random = seed ? seed : 0x9e3779b9U;

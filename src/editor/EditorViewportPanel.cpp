@@ -289,7 +289,8 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                                 color(line.axis));
       }
     }
-    if (const runtime::ui::UiNode *hudNode = workspace.selectedHudNode()) {
+    if (const runtime::ui::UiNode *hudNode = workspace.selectedHudNode();
+        hudOnly && hudNode && !hudNode->parent.empty()) {
       runtime::ui::Rect rect = editorHudEditableRect(*hudNode);
       if (hudState.drag != EditorHudViewportState::Drag::None &&
           hudState.nodeId == hudNode->id) {

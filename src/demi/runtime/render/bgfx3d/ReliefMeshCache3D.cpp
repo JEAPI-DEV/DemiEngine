@@ -1,4 +1,5 @@
 #include "demi/runtime/render/bgfx3d/ReliefMeshCache3D.h"
+#include "demi/runtime/geometry/BoxGeometry3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include <algorithm>
 #include <cmath>
@@ -43,25 +44,24 @@ const GpuMesh3D *ReliefMeshCache3D::get(const SurfaceRelief3DComponent &r,
   const auto key =
       nlohmann::json({r.heightMap, r.depth / thickness, r.heightMin,
                       r.heightMax, r.uvOffset.x, r.uvOffset.y, r.uvScale.x,
-                      r.uvScale.y, r.segments.x, r.segments.y})
+                      r.uvScale.y, r.segments.x, r.segments.y, r.tiles.x,
+                      r.tiles.y, r.atlasGrid.x, r.atlasGrid.y})
           .dump();
   if (auto found = meshes_.find(key); found != meshes_.end()) {
     found->second.frame = frame_;
     return found->second.mesh.get();
   }
-  if (meshes_.size() >= 256) {
+  while (retainedMeshes_ && meshes_.size() >= retainedMeshes_) {
     const auto unused = std::ranges::find_if(meshes_, [&](const auto &entry) {
-      return entry.second.frame != frame_;
+      return entry.second.frame < frame_ && frame_ - entry.second.frame > 1;
     });
-    if (unused == meshes_.end()) {
-      error = "Current view exceeds 256 shared relief variants";
-      return nullptr;
-    }
+    if (unused == meshes_.end())
+      break;               // Active geometry may exceed retention.
     meshes_.erase(unused); // Never invalidate a mesh queued by this view.
   }
   ProfileScope generation("Renderer3D.relief_generate");
   auto image = images_.find(r.heightMap);
-  if (image == images_.end()) {
+  if (image == images_.end() && !r.heightMap.empty()) {
     auto path = sources_.find(r.heightMap);
     if (path == sources_.end()) {
       error = "Relief height map is not resident: " + r.heightMap;
@@ -69,8 +69,9 @@ const GpuMesh3D *ReliefMeshCache3D::get(const SurfaceRelief3DComponent &r,
     }
     std::ifstream file(path->second, std::ios::binary | std::ios::ate);
     const auto count = file.tellg();
-    if (!file || count <= 0 || count > 16 * 1024 * 1024) {
-      error = "Relief image must be readable and <=16 MiB";
+    if (!file || count <= 0 || std::uint64_t(count) > UINT32_MAX) {
+      error = "Relief image must be readable and fit the decoder's 32-bit "
+              "input length";
       return nullptr;
     }
     std::vector<std::byte> bytes(static_cast<std::size_t>(count));
@@ -82,23 +83,23 @@ const GpuMesh3D *ReliefMeshCache3D::get(const SurfaceRelief3DComponent &r,
     ImageData2D decoded;
     if (!decodeImage2D(bytes, decoded, error))
       return nullptr;
-    if (decoded.width > 4096 || decoded.height > 4096) {
-      error = "Relief image dimensions exceed 4096";
-      return nullptr;
-    }
     auto bytesUsed = [&] {
       std::size_t total = decoded.rgba.size();
       for (const auto &[id, value] : images_)
         total += value.rgba.size();
       return total;
     };
-    while (!images_.empty() &&
-           (images_.size() >= 8 || bytesUsed() > 64U * 1024U * 1024U))
+    while (!images_.empty() && imageBytes_ && bytesUsed() > imageBytes_)
       images_.erase(images_.begin());
     image = images_.emplace(r.heightMap, std::move(decoded)).first;
+    RuntimeProfiler::setGauge("Renderer3D.relief_decoded_maps",
+                              double(images_.size()));
   }
-  const auto &pixels = image->second;
+  const ImageData2D flat;
+  const auto &pixels = image == images_.end() ? flat : image->second;
   auto height = [&](Vec2 uv) {
+    if (r.heightMap.empty())
+      return 1.F;
     const float x = std::clamp(uv.x, 0.F, 1.F) * (pixels.width - 1),
                 y = std::clamp(uv.y, 0.F, 1.F) * (pixels.height - 1);
     const int ix = int(x), iy = int(y);
@@ -115,60 +116,108 @@ const GpuMesh3D *ReliefMeshCache3D::get(const SurfaceRelief3DComponent &r,
     return std::clamp((h - r.heightMin) / (r.heightMax - r.heightMin), 0.F,
                       1.F);
   };
-  std::vector<Vec3> positions;
-  std::vector<Vec2> uvs;
-  std::vector<std::uint32_t> indices;
-  const int nx = int(r.segments.x), ny = int(r.segments.y), stride = nx + 1,
-            n = stride * (ny + 1);
-  for (int side : {1, -1})
-    for (int y = 0; y <= ny; ++y)
-      for (int x = 0; x <= nx; ++x) {
-        const Vec2 uv{r.uvOffset.x + float(x) / nx * r.uvScale.x,
-                      r.uvOffset.y + float(y) / ny * r.uvScale.y};
-        const float depth = .5F - (1 - height(uv)) * r.depth / thickness;
-        positions.push_back(
-            {float(x) / nx - .5F, .5F - float(y) / ny, side * depth});
-        uvs.push_back(uv);
-      }
-  for (int offset : {0, n})
-    for (int y = 0; y < ny; ++y)
-      for (int x = 0; x < nx; ++x) {
-        const auto a = std::uint32_t(offset + y * stride + x),
-                   s = std::uint32_t(stride);
-        if (offset == 0)
-          indices.insert(indices.end(),
-                         {a, a + s, a + s + 1, a, a + s + 1, a + 1});
-        else
-          indices.insert(indices.end(),
-                         {a, a + 1, a + s + 1, a, a + s + 1, a + s});
-      }
-  std::vector<int> edge;
-  for (int x = 0; x <= nx; ++x)
-    edge.push_back(x);
-  for (int y = 1; y <= ny; ++y)
-    edge.push_back(y * stride + nx);
-  for (int x = nx - 1; x >= 0; --x)
-    edge.push_back(ny * stride + x);
-  for (int y = ny - 1; y > 0; --y)
-    edge.push_back(y * stride);
-  for (std::size_t i = 0; i < edge.size(); ++i) {
-    const int a = edge[i], b = edge[(i + 1) % edge.size()];
-    const auto base = std::uint32_t(positions.size());
-    for (int index : {a, b, b + n, a + n}) {
-      const auto p = positions[index];
-      const auto uv = uvs[index];
-      positions.push_back(p);
-      uvs.push_back(uv);
+  std::vector<Vec3> allPositions;
+  std::vector<Vec2> allUvs;
+  std::vector<std::uint32_t> allIndices;
+  for (float value : {r.tiles.x, r.tiles.y, r.atlasGrid.x, r.atlasGrid.y})
+    if (!std::isfinite(value) || value < 1 || value >= float(INT32_MAX) ||
+        std::floor(value) != value) {
+      error = "Invalid relief tile dimensions";
+      return nullptr;
     }
-    indices.insert(indices.end(),
-                   {base, base + 1, base + 2, base, base + 2, base + 3});
+  const auto tileVertices =
+      r.heightMap.empty() ? 24.0
+                          : 2.0 * (r.segments.x + 1) * (r.segments.y + 1) +
+                                8.0 * (r.segments.x + r.segments.y);
+  if (tileVertices * double(r.tiles.x) * double(r.tiles.y) >= UINT32_MAX) {
+    error = "Relief mesh exceeds 32-bit vertex indices";
+    return nullptr;
   }
+  for (int row = 0; row < int(r.tiles.y); ++row)
+    for (int col = 0; col < int(r.tiles.x); ++col) {
+      const bool tiled = r.tiles.x > 1 || r.tiles.y > 1;
+      const Vec2 uvOffset =
+          tiled
+              ? Vec2{float(col % int(r.atlasGrid.x)) / r.atlasGrid.x,
+                     float(int(r.atlasGrid.y) - 1 - row % int(r.atlasGrid.y)) /
+                         r.atlasGrid.y}
+              : r.uvOffset;
+      const Vec2 uvScale =
+          tiled ? Vec2{1.F / r.atlasGrid.x, 1.F / r.atlasGrid.y} : r.uvScale;
+      std::vector<Vec3> positions;
+      std::vector<Vec2> uvs;
+      std::vector<std::uint32_t> indices;
+      if (r.heightMap.empty()) {
+        for (const auto &face : geometry::boxFaces) {
+          const auto base = std::uint32_t(positions.size());
+          positions.insert(positions.end(), face.begin(), face.end());
+          uvs.insert(uvs.end(), geometry::boxFaceUvs.begin(),
+                     geometry::boxFaceUvs.end());
+          indices.insert(indices.end(),
+                         {base, base + 1, base + 2, base, base + 2, base + 3});
+        }
+      } else {
+        const int nx = int(r.segments.x), ny = int(r.segments.y),
+                  stride = nx + 1, n = stride * (ny + 1);
+        for (int side : {1, -1})
+          for (int y = 0; y <= ny; ++y)
+            for (int x = 0; x <= nx; ++x) {
+              const Vec2 uv{uvOffset.x + float(x) / nx * uvScale.x,
+                            uvOffset.y + float(y) / ny * uvScale.y};
+              const float depth = .5F - (1 - height(uv)) * r.depth / thickness;
+              positions.push_back(
+                  {float(x) / nx - .5F, .5F - float(y) / ny, side * depth});
+              uvs.push_back(uv);
+            }
+        for (int offset : {0, n})
+          for (int y = 0; y < ny; ++y)
+            for (int x = 0; x < nx; ++x) {
+              const auto a = std::uint32_t(offset + y * stride + x),
+                         s = std::uint32_t(stride);
+              if (offset == 0)
+                indices.insert(indices.end(),
+                               {a, a + s, a + s + 1, a, a + s + 1, a + 1});
+              else
+                indices.insert(indices.end(),
+                               {a, a + 1, a + s + 1, a, a + s + 1, a + s});
+            }
+        std::vector<int> edge;
+        for (int x = 0; x <= nx; ++x)
+          edge.push_back(x);
+        for (int y = 1; y <= ny; ++y)
+          edge.push_back(y * stride + nx);
+        for (int x = nx - 1; x >= 0; --x)
+          edge.push_back(ny * stride + x);
+        for (int y = ny - 1; y > 0; --y)
+          edge.push_back(y * stride);
+        for (std::size_t i = 0; i < edge.size(); ++i) {
+          const int a = edge[i], b = edge[(i + 1) % edge.size()];
+          const auto base = std::uint32_t(positions.size());
+          for (int index : {a, b, b + n, a + n}) {
+            const auto p = positions[index];
+            const auto uv = uvs[index];
+            positions.push_back(p);
+            uvs.push_back(uv);
+          }
+          indices.insert(indices.end(),
+                         {base, base + 1, base + 2, base, base + 2, base + 3});
+        }
+      }
+      const auto base = std::uint32_t(allPositions.size());
+      for (auto p : positions)
+        allPositions.push_back({(p.x + col + .5F) / r.tiles.x - .5F,
+                                (p.y + row + .5F) / r.tiles.y - .5F, p.z});
+      allUvs.insert(allUvs.end(), uvs.begin(), uvs.end());
+      for (auto index : indices)
+        allIndices.push_back(base + index);
+    }
   auto mesh = std::make_unique<GpuMesh3D>(resources_);
-  if (!mesh->upload(positions, uvs, indices, 0xffffffffU, error))
+  if (!mesh->upload(allPositions, allUvs, allIndices, 0xffffffffU, error))
     return nullptr;
   const auto *result = mesh.get();
   meshes_.emplace(key, Entry{std::move(mesh), frame_});
-  RuntimeProfiler::setGauge("Renderer3D.relief_cache_variants",double(meshes_.size()));
+  RuntimeProfiler::setGauge("Renderer3D.relief_cache_variants",
+                            double(meshes_.size()));
   return result;
 }
 } // namespace demi::runtime::render

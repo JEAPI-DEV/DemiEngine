@@ -1,5 +1,8 @@
 #include "editor/EditorSceneDocument.h"
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <filesystem>
 #include <fstream>

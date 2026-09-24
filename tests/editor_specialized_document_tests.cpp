@@ -3,6 +3,9 @@
 #include "demi/assets/AssetHash.h"
 #include "demi/schema/Validation.h"
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <filesystem>
 #include <fstream>

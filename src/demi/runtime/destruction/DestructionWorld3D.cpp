@@ -1,4 +1,5 @@
 #include "demi/runtime/destruction/DestructionWorld3D.h"
+#include "demi/runtime/destruction/DeferredFractureVisuals3D.h"
 #include "demi/runtime/destruction/ColliderFractureFamily3D.h"
 #include "demi/runtime/destruction/DestructionCheckpoint3D.h"
 #include "demi/runtime/physics/PhysicsWorld3D.h"
@@ -55,6 +56,7 @@ struct DestructionWorld3D::Impl {
     std::string sourceAsset;
     std::unique_ptr<BlastFamily3D> family;
     std::map<std::string, std::string> visuals;
+    DeferredFractureVisuals3D deferred;
     std::vector<GroupBody> groups;
     std::map<std::string, float> pending;
     std::map<std::string, float> pendingAnchors;
@@ -106,6 +108,7 @@ struct DestructionWorld3D::Impl {
     require(config->parts.size() == asset->parts.size(),
             "Every fracture part needs one visual mapping");
     std::set<std::string> mappedVisuals;
+    assembly.deferred.configure(world,root,*config);
     for (const auto &part : asset->parts) {
       const auto mapping = config->parts.find(part.id);
       require(mapping != config->parts.end(),
@@ -113,6 +116,7 @@ struct DestructionWorld3D::Impl {
       require(mappedVisuals.insert(mapping->second).second,
               "Fracture visuals must be unique");
       const auto *visual = findEntity(world, mapping->second);
+      if(!visual && !assembly.deferred.dormantOwner(mapping->second).empty())continue;
       const auto *local =
           visual ? visual->component<Transform3DComponent>() : nullptr;
       require(visual && !visual->persistent && local &&
@@ -269,6 +273,10 @@ struct DestructionWorld3D::Impl {
                 "Fracture source transform unavailable");
         for (const auto &part : old.group.chunks) {
           auto *visual = findEntity(world, assembly.visuals.at(part));
+          if(!visual) {
+            const auto owner=assembly.deferred.dormantOwner(assembly.visuals.at(part));
+            visual=findEntity(world,owner);
+          }
           require(visual && visual->component<Transform3DComponent>() &&
                       visual->component<Transform3DComponent>()->parent ==
                           old.body,
@@ -398,16 +406,21 @@ struct DestructionWorld3D::Impl {
         for (const auto &part : group.chunks)
           parentForPart.emplace(part, id);
       }
+      std::map<std::string,std::string> visualOwners;
+      for(const auto &group:nextGroups)
+        for(const auto &part:group.group.chunks)
+          visualOwners[assembly.visuals.at(part)]=group.retired?std::string{}:group.body;
+      auto refined=assembly.deferred.prepare(candidate,visualOwners);
       for (const auto &[part, parent] : parentForPart)
-        findEntity(candidate, assembly.visuals.at(part))
-            ->component<Transform3DComponent>()
-            ->parent = parent;
+        if(auto *visual=findEntity(candidate,assembly.visuals.at(part)))
+          visual->component<Transform3DComponent>()->parent = parent;
       std::string error;
       require(
           physics.replaceBodies(world, candidate, sources, replacements, error),
           error);
       // Single-thread ownership guarantees this token is still current.
       if (token) (void)assembly.family->commit(token);
+      assembly.deferred.commit(std::move(refined));
       assembly.groups.swap(nextGroups);
       assembly.privateAssets.swap(privateAssets);
       return true;

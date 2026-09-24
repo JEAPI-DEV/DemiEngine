@@ -89,7 +89,8 @@ void drawPlayGroup(EditorWorkspace &workspace, EditorPlaySession &playSession,
       notice = error;
     } else if (workspace.sceneDocument().isDirty() && !workspace.save(error)) {
       notice = error;
-    } else if (playSession.startEmbedded(workspace.projectPath(), error)) {
+    } else if (playSession.startEmbedded(workspace.projectPath(), error,
+                 workspace.isPrefabDocument()?std::string{}:workspace.sceneDocument().json().value("id",std::string{}))) {
       notice = "Embedded play session started";
       showGameView = true;
     } else {

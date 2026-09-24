@@ -398,8 +398,16 @@ void drawComponentFields(EditorWorkspace &workspace,
   if (componentName == "Fracture3D")
     ImGui::TextWrapped("Density uses kg/m^3 of collider volume. Root mass overrides the total. Box collider requires Pieces=1 and a unit-box model scaled by MeshRenderer Size; it retains the detailed visual. Source collider requires convex geometry. Anchor Below uses assembly-local Y.");
   if (componentName == "Masonry3D")
-    ImGui::TextWrapped("Compact runtime masonry recipe. Rows/Columns generate cells when its prefab is activated; models are shared variants. Editor preview shows region dimensions. Cooking retains the recipe, not expanded bricks. Add Destructible3D to its owner.");
+    ImGui::TextWrapped("Masonry recipe. Add Destructible3D to its owner. Cooking prepares the fracture data in build output; the authored recipe stays compact.");
+  bool showGeometry=true;
+  if (componentName=="MeshRenderer") {
+    ImGui::TextWrapped("Choose a model or built-in shape, then assign its texture/material. Hover field labels for help.");
+    const auto key=ImGui::GetID("advanced-geometry");
+    showGeometry=ImGui::GetStateStorage()->GetBool(key,false);
+    if (ImGui::Checkbox("Advanced geometry buffers",&showGeometry)) ImGui::GetStateStorage()->SetBool(key,showGeometry);
+  }
   for (const ComponentFieldDescriptor &field : descriptor.fields) {
+    if (!showGeometry && (field.name=="vertices" || field.name=="normals" || field.name=="uvs")) continue;
     if (!field.editorVisible)
       continue;
     const auto value = component.find(field.name);
@@ -449,6 +457,7 @@ void drawComponentFields(EditorWorkspace &workspace,
     ImGui::SameLine(112.0F);
     ImGui::SetNextItemWidth(canReset ? -52.0F : -1.0F);
     (void)drawFieldValue(workspace, target, field, *value, notice);
+    drawFieldHelp(field);
     if (canReset) {
       ImGui::SameLine();
       if (ImGui::SmallButton("Reset")) {
@@ -666,9 +675,8 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
     if (ImGui::Button("Open source prefab")) {
       const auto path = runtime::composition::resolvePrefabReference(
           workspace.sceneDocument().path(), (*entity)["components"]["PrefabPlacement3D"].value("prefab",std::string{}));
-      std::string error;
-      if (!path || !workspace.openPrefabDocument(*path, error))
-        notice = error.empty() ? "Could not open placement prefab" : error;
+      if (path) state.openRequest=*path;
+      else notice="Could not resolve placement prefab";
       ImGui::End();
       return;
     }

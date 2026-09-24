@@ -89,7 +89,7 @@ bool drawAssetTile(const char *id, const std::string &label,
                                              ? ImVec4{0.27F, 0.21F, 0.40F, 1.0F}
                                              : ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
   ImGui::PushStyleColor(ImGuiCol_HeaderHovered, {0.18F, 0.18F, 0.22F, 1.0F});
-  const bool pressed = ImGui::Selectable("##tile", selected, 0, size);
+  const bool pressed = ImGui::Selectable("##tile", selected, ImGuiSelectableFlags_AllowDoubleClick, size);
   ImGui::PopStyleColor(2);
   ImDrawList *draw = ImGui::GetWindowDrawList();
   const ImVec2 min = ImGui::GetItemRectMin();
@@ -219,6 +219,13 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
   if (ImGui::Button("+ Create", {76.0F, 28.0F}))
     ImGui::OpenPopup("asset-create-menu");
   if (ImGui::BeginPopup("asset-create-menu")) {
+    for (const auto &[name,kind]:std::vector<std::pair<const char*,EditorSourceKind>>{
+      {"3D Scene...",EditorSourceKind::Scene3D},{"2D Scene...",EditorSourceKind::Scene2D},
+      {"HUD...",EditorSourceKind::Hud},{"Scene Prefab...",EditorSourceKind::Prefab},
+      {"UI Prefab...",EditorSourceKind::UiPrefab},{"Lua Script...",EditorSourceKind::Lua},
+      {"Material...",EditorSourceKind::Material},{"Data Asset...",EditorSourceKind::Data}})
+      if (ImGui::MenuItem(name)) dialogs_.openNewSource(kind);
+    ImGui::Separator();
     if (ImGui::MenuItem("New Folder..."))
       dialogs_.openNewFolder(directory_);
     if (ImGui::MenuItem("Asset group..."))
@@ -347,6 +354,7 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::EndChild();
   ImGui::End();
   dialogs_.draw(workspace, notice);
+  if (auto source=dialogs_.takeCreatedSource()) { selectedSource_=*source;openRequest_=*source; }
   if (auto created = dialogs_.takeCreatedFolder()) {
     directory_ = std::move(*created);
     selectedSource_.clear();

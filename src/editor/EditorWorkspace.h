@@ -57,6 +57,7 @@ public:
   }
   [[nodiscard]] bool save(std::string &error);
   [[nodiscard]] bool saveProject(std::string &error);
+  [[nodiscard]] bool setSceneHud(const std::filesystem::path &path, std::string &error);
   [[nodiscard]] bool saveAll(std::string &error);
   [[nodiscard]] std::vector<EditorRecoveryDocument> dirtyDocuments() const;
   [[nodiscard]] bool applyRecovery(const EditorRecoverySnapshot &snapshot,

@@ -2,6 +2,8 @@
 
 #include <array>
 #include <string>
+#include <filesystem>
+#include <optional>
 
 struct ImVec2;
 
@@ -11,6 +13,7 @@ class EditorWorkspace;
 
 struct EditorInspectorPanelState {
   std::array<char, 128> componentSearch{};
+  std::optional<std::filesystem::path> openRequest;
 };
 
 void drawInspectorPanel(EditorWorkspace &workspace, ImVec2 position,

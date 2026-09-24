@@ -14,6 +14,9 @@ public:
   void loadAssets(const AssetRegistry &registry);
   void clear();
   void beginFrame() { ++frame_; }
+  void setRetentionBudget(std::size_t meshes,std::size_t imageBytes) {
+    retainedMeshes_=meshes;imageBytes_=imageBytes;
+  }
   const GpuMesh3D *get(const SurfaceRelief3DComponent &relief, Vec3 size,
                        std::string &error);
   std::size_t size() const { return meshes_.size(); }
@@ -28,5 +31,6 @@ private:
   };
   std::map<std::string, Entry> meshes_;
   std::uint64_t frame_ = 0;
+  std::size_t retainedMeshes_=256, imageBytes_=64U*1024U*1024U;
 };
 } // namespace demi::runtime::render

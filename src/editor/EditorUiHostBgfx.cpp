@@ -189,6 +189,7 @@ public:
     // Demi's platform input is a per-frame float delta, so submit it through
     // ImGui's native queue and keep the legacy wrapper channel fixed at zero.
     submitEditorImGuiInput(input_);
+    ImGui::GetIO().AddFocusEvent(frame.focused);
     ImGui::GetIO().DisplayFramebufferScale = {uiScale_, uiScale_};
     imguiBeginFrame(
         static_cast<std::int32_t>(input_.mousePosition.x / uiScale_),
@@ -277,7 +278,7 @@ public:
 
   runtime::InputState gameInput(const EditorViewportArea area,
                                 const bool focused) const override {
-    if (!focused)
+    if (!focused || !platform_->frameState().focused)
       return {};
     runtime::InputState result = input_;
     result.mousePosition.x = result.mousePosition.x / uiScale_ - area.x;
@@ -297,11 +298,12 @@ public:
 
   bool setViewportInputCaptured(const bool captured,
                                 std::string &error) override {
-    if (captured == mouseCaptured_)
+    const bool effective=captured && platform_->frameState().focused;
+    if (effective == mouseCaptured_)
       return true;
-    if (!platform_->setMouseCaptured(captured, error))
+    if (!platform_->setMouseCaptured(effective, error))
       return false;
-    mouseCaptured_ = captured;
+    mouseCaptured_ = effective;
     return true;
   }
 

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <set>
 #include <stdexcept>
+#include <limits>
 
 namespace demi::runtime {
 void Destructible3DComponent::parse(const nlohmann::json &json,
@@ -20,9 +21,9 @@ void Destructible3DComponent::parse(const nlohmann::json &json,
     throw std::invalid_argument("Invalid Destructible3D seed or generator version");
   value.seed = static_cast<std::uint32_t>(seed);
   const auto parts = json.value("parts", nlohmann::json::object());
-  if (!parts.is_object() || parts.size() > 256)
+  if (!parts.is_object() || parts.size() >= UINT32_MAX)
     throw std::invalid_argument(
-        "Destructible3D.parts requires at most 256 part-to-visual entity IDs");
+        "Destructible3D.parts requires an object of part-to-visual entity IDs");
   std::set<std::string> visuals;
   for (const auto &[part, visual] : parts.items()) {
     if (part.empty() || !visual.is_string() ||
@@ -35,12 +36,31 @@ void Destructible3DComponent::parse(const nlohmann::json &json,
   if (json.contains("max_bodies") && !json["max_bodies"].is_number())
     throw std::invalid_argument("Destructible3D.max_bodies must be an integer");
   const double limit = json.value("max_bodies", 64.0);
-  if (!std::isfinite(limit) || limit < 1 || limit > 256 || std::trunc(limit) != limit)
-    throw std::invalid_argument("Destructible3D.max_bodies must be 1..256");
+  if (!std::isfinite(limit) || limit < 1 || limit > std::numeric_limits<int>::max() || std::trunc(limit) != limit)
+    throw std::invalid_argument("Destructible3D.max_bodies must be a positive 32-bit integer");
   value.maxBodies = static_cast<int>(limit);
+  if (json.contains("deferred_visuals")) {
+    const auto &groups=json["deferred_visuals"];
+    if (!groups.is_object()) throw std::invalid_argument("Deferred visuals must be region-to-template arrays");
+    std::set<std::string> ids;
+    for (const auto &[region,templates]:groups.items()) {
+      if (region.empty() || !templates.is_array() || templates.empty())
+        throw std::invalid_argument("Invalid deferred visual region");
+      for (const auto &item:templates) {
+        if (!item.is_object() || !item.contains("id") || !item["id"].is_string() || item["id"].get<std::string>().empty() ||
+            !item.contains("components") || !item["components"].is_object() ||
+            !ids.insert(item["id"].get<std::string>()).second)
+          throw std::invalid_argument("Invalid or duplicate deferred visual template");
+        for (const auto &[name,component]:item["components"].items())
+          if (name!="Transform3D" && name!="MeshRenderer" && name!="SurfaceRelief3D")
+            throw std::invalid_argument("Deferred visual templates may contain only render and transform components");
+      }
+    }
+    value.deferredVisuals=std::make_shared<const nlohmann::json>(groups);
+  }
   entity.setComponent(std::move(value));
 }
 nlohmann::json Destructible3DComponent::defaults() {
-  return {{"parts", nlohmann::json::object()}, {"max_bodies", 64}, {"energy_per_health", 1000}, {"seed", 1}, {"generator_version", 1}};
+  return {{"parts", nlohmann::json::object()}, {"deferred_visuals", nlohmann::json::object()}, {"max_bodies", 64}, {"energy_per_health", 1000}, {"seed", 1}, {"generator_version", 1}};
 }
 } // namespace demi::runtime

@@ -35,7 +35,7 @@ public:
     return viewportArea_;
   }
   [[nodiscard]] EditorViewportArea gameArea() const { return gameArea_; }
-  [[nodiscard]] bool gameViewFocused() const { return gameViewFocused_; }
+  [[nodiscard]] bool gameViewFocused() const { return gameViewFocused_ && !gameInputDetached_; }
   [[nodiscard]] bool showingGameView() const { return showGameView_; }
   [[nodiscard]] bool showingHudView() const { return showHudView_; }
   [[nodiscard]] EditorPlaySession &playSession() { return playSession_; }
@@ -56,7 +56,7 @@ public:
   }
   [[nodiscard]] bool viewportInputCaptured() const {
     if (showGameView_)
-      return false;
+      return gameViewFocused() && playSession_.mouseCaptured();
     if (showHudView_)
       return false;
     return workspace_.viewDimension() ==
@@ -71,6 +71,8 @@ public:
                                   std::string &error);
 
 private:
+  bool gameInputDetached_ = false;
+  std::string documentOpenError_;
   EditorWorkspace &workspace_;
   EditorDockingWorkspace dockingWorkspace_;
   EditorPlaySession playSession_;

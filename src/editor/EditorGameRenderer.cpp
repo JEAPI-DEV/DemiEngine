@@ -124,6 +124,8 @@ bool EditorGameRenderer::render(const runtime::World &world,
     const runtime::Entity &entity = *cameras.front();
     frame.camera = *entity.component<runtime::Camera3DComponent>();
     frame.camera.renderHudToTarget = true;
+    if (const auto *effect = entity.component<runtime::PostProcessStackComponent>())
+      frame.postProcess = *effect;
     if (const auto transform =
             runtime::resolveWorldTransform3D(world, entity)) {
       frame.position = transform->position;

@@ -24,20 +24,26 @@ ordinary props such as a lintel and door.
 
 The owner supplies the deterministic seed and body budget. Density defaults to
 1800 kg/m³ and bond health to 0.5. Size is positive metres; rows/columns are
-integers, with at most 256 cells per region and 256 parts per assembly including
-other fracture meshes. `anchor_below` uses assembly-local Y. An optional `models`
+positive integers whose product fits a signed 32-bit index. There is no
+256-cell or assembly-part cap. Memory and generation cost still grow with detail.
+`anchor_below` uses assembly-local Y. An optional `models`
 object can select developer-authored shared meshes instead of a height map;
 the native height-map path does not need model assets.
 
-The recipe is retained in cooked output. It expands only when the prefab is
-instantiated. The prefab service caches up to 16 eligible compact templates by
+Cooking expands the recipe into the build output; authored prefabs remain
+compact. Running uncooked source expands it when the prefab is instantiated.
+The prefab service caches up to 16 eligible compact templates by
 source content hash and rebases stable entity/visual IDs per instance. Source
 edits invalidate the key. Transform-only overrides have their own bounded cache
 key, so repeated placements with the same rotation/scale share preparation.
 Nested prefabs, other overrides, or source-model fracture
 inputs use the uncached path. Repeated instantiation no longer expands twice.
-The editor previews region dimensions without saving generated bricks; normal
-Inspector edits and Undo/Redo change the recipe.
+The editor uses the same cell mesh, atlas UV and height-relief descriptors as
+runtime. Preview cells have no fracture component and are not saved into source.
+Picking one selects its authored masonry region; Inspector edits and Undo/Redo
+rebuild the preview from the recipe. This accurate preview costs more than the
+old stretched-box approximation. Runtime activation uses the compact regional
+representation described below.
 
 ## Relief without generated assets
 
@@ -46,7 +52,8 @@ defaults to `[8,14]`; cells cycle through image regions. `relief_depth` defaults
 to 0.012 m. Color and height images are source assets. The renderer generates
 closed, indexed meshes in memory and instances identical variants across walls.
 There are no generated GLBs, model manifests, or vertex arrays in authored or
-cooked wall definitions.
+cooked wall definitions. Cooked definitions contain cell and fracture metadata;
+relief surface meshes are still prepared by the renderer.
 
 Standalone `SurfaceRelief3D` accompanies a cube `MeshRenderer`. It accepts
 `height_map`, `depth`, `height_min`/`height_max` (default 0.45/0.9), `uv_offset`,
@@ -57,15 +64,47 @@ red channel is treated as height data, not sRGB color. Depth must remain within
 denting cannot be combined with this component. Fracture uses `pieces: 1` and
 an explicit box proxy; surface chips do not add collision complexity or mass.
 
-The session-owned cache is bounded to eight decoded height maps (64 MiB total)
-and 256 shared mesh variants. Unused variants are evicted as new regions need
-space; meshes already queued by the current view are protected. More than 256
-distinct visible variants in one view remains an explicit limit. Encoded maps
-are capped at 16 MiB and decoded dimensions at 4096.
+`tiles` and `atlas_grid` default to `[1,1]`. Cooked masonry uses these to draw an
+intact region as one indexed surface with the same cell UVs and relief as its
+leaves. Tiles cycle through the atlas from the bottom row. An empty height map
+with multiple tiles produces flat boxes. Dimensions must fit integer indices;
+the generated mesh must fit the renderer's 32-bit vertex indexing.
+
+`Environment3D.relief_image_cache_mb` (default 64) and `relief_cache_meshes`
+(default 256) configure soft retention budgets. Zero disables budget eviction.
+Visible meshes can exceed the retention budget; older unused variants are
+evicted. A single image can exceed its cache budget. Image loading follows the
+decoder and renderer's supported sizes, without separate 16 MiB/4096 limits.
 Asset reload/unload and renderer shutdown clear the cache. Shared variants may
 remain warm while individual walls unload. This is runtime CPU mesh generation;
 tessellation, ray tracing, and a complete PBR/shadow implementation are separate
 work.
+
+## Lazy masonry visuals
+
+Built-in masonry starts with one live visual per region. Cook stores leaf
+descriptions in the owner's `Destructible3D.deferred_visuals`, rather than as
+live entities. No generated source files need to be managed by the developer.
+The normal part mapping and complete collision support graph remain available
+for raycasts and damage.
+
+After Blast computes new body groups, regions whose bricks still share one body
+remain compact and follow that body. A region expands into leaf entities only
+when its bricks separate into different groups. Other regions and walls stay
+compact. Visual activation commits with body replacement; a rejected split
+does not leave partial visuals behind. Checkpoint restore and debris retirement
+use the same path.
+
+The weapon lab doorway contains 12 live entities and 210 deferred brick
+descriptions, compared with 222 live entities in the eager layout. The visible
+smoke test used two shared regional relief meshes. This reduces entity and
+render-resource overhead; the full surface detail and support graph remain in
+memory. It is not a large-map frame-rate qualification.
+
+This is a two-level visual hierarchy over Blast's support partition. Arbitrary
+source-model fracture, custom `Masonry3D.models`, deeper spatial refinement and
+on-demand loading of fracture metadata remain open. Those paths retain their
+existing eager visuals.
 
 ## Proximity and lifetime policy
 

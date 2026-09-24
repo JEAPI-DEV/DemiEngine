@@ -264,6 +264,9 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   const float renderScale =
       authoredOffscreen ? 1.0F
                         : std::clamp(frame.camera.renderScale, 0.25F, 2.0F);
+  // Scaling needs an intermediate surface even without color effects. Drawing
+  // a smaller view directly into the destination leaves its edges untouched.
+  const bool resolveSurface = applyPostProcess || renderScale != 1.0F;
   const std::uint16_t renderWidth =
       authoredOffscreen
           ? renderTarget->second.width
@@ -281,15 +284,15 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   RenderTargetHandles sourceTarget;
   if (authoredOffscreen)
     sourceTarget = renderTarget->second.handles;
-  else if (applyPostProcess)
+  else if (resolveSurface)
     sourceTarget = postProcess_.scratchTarget(
         std::max<std::uint16_t>(renderWidth, 1),
         std::max<std::uint16_t>(renderHeight, 1), error);
   else if (hostOffscreen)
     sourceTarget.frameBuffer = frame.frameBuffer;
-  const bool offscreen = authoredOffscreen || hostOffscreen || applyPostProcess;
+  const bool offscreen = authoredOffscreen || hostOffscreen || resolveSurface;
   if (offscreen && (!sourceTarget.frameBuffer ||
-                    (applyPostProcess && !sourceTarget.color))) {
+                    (resolveSurface && !sourceTarget.color))) {
     if (error.empty())
       error = "Could not create the camera's offscreen render surface.";
     return false;
@@ -348,6 +351,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       liveDynamicMeshes.insert(entity.id);
   }
   const SceneLighting3D sceneLighting = collectSceneLighting3D(world, frame.camera.renderMask);
+  reliefMeshes_.setRetentionBudget(sceneLighting.reliefCacheMeshes,sceneLighting.reliefImageCacheBytes);
   bool skyDrawn = false;
   if (frame.updateContent && frame.camera.perspective &&
       frame.camera.clearMode == "color" && !sceneLighting.skyTexture.empty()) {
@@ -471,7 +475,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
         drawUniforms.insert(drawUniforms.end(), material->uniforms.begin(),
                             material->uniforms.end());
       bool queued = false;
-      if (const auto *relief=entity.component<SurfaceRelief3DComponent>(); relief && !relief->heightMap.empty()) {
+      if (const auto *relief=entity.component<SurfaceRelief3DComponent>(); relief && (!relief->heightMap.empty() || relief->tiles.x > 1 || relief->tiles.y > 1)) {
         if (player || !dents.empty() || !mesh->model.empty() || !mesh->vertices.empty() || mesh->shape!="cube") {
           error="SurfaceRelief3D requires an undeformed cube MeshRenderer";
           return false;
@@ -794,7 +798,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   }
 
   if (offscreen) {
-    if (applyPostProcess) {
+    if (resolveSurface) {
       if (!postProcess_.present(frame, sourceTarget.color, frame.frameBuffer,
                                 error))
         return false;

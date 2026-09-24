@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace demi::editor {
 
@@ -18,6 +19,8 @@ struct EditorPreferences {
   bool showBounds2D = true;
   bool showColliders2D = false;
   bool showCameras2D = true;
+  std::string codeEditor = "code";
+  std::vector<std::string> codeEditorArguments{"--reuse-window", "{project}", "--goto", "{file}"};
   auto operator<=>(const EditorPreferences &) const = default;
 };
 

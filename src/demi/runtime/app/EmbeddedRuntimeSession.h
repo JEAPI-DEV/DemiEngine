@@ -25,7 +25,7 @@ public:
   EmbeddedRuntimeSession &operator=(const EmbeddedRuntimeSession &) = delete;
 
   [[nodiscard]] bool start(const std::filesystem::path &projectPath,
-                           std::string &error);
+                           std::string &error, const std::string &sceneId = {});
   void stop();
   void setPaused(bool paused);
   [[nodiscard]] bool update(InputState input, float deltaSeconds,
@@ -37,6 +37,8 @@ public:
   [[nodiscard]] bool isRunning() const;
   [[nodiscard]] bool isPaused() const;
   [[nodiscard]] bool quitRequested() const;
+  [[nodiscard]] bool mouseCaptured() const;
+  void releaseMouseCapture();
   [[nodiscard]] const World *world() const;
   [[nodiscard]] World *world();
   [[nodiscard]] float fixedTimestep() const;

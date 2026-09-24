@@ -78,9 +78,9 @@ struct BlastFamily3D::Impl {
   }
 
   void validate() {
-    if (chunks.empty() || chunks.size() > 256 || bonds.size() > 2048)
+    if (chunks.empty() || chunks.size() >= UINT32_MAX || bonds.size() >= UINT32_MAX)
       throw std::invalid_argument(
-          "Destruction requires 1..256 chunks and at most 2048 bonds");
+          "Destruction requires chunks and counts representable by Blast's 32-bit indices");
     std::ranges::sort(chunks, {}, &DestructionChunk3D::id);
     std::ranges::sort(bonds, {}, &DestructionBond3D::id);
     for (std::uint32_t i = 0; i < chunks.size(); ++i) {
@@ -110,15 +110,14 @@ struct BlastFamily3D::Impl {
         throw std::invalid_argument("Duplicate destruction bond endpoints");
     }
     // One initial physical assembly must have one connected support graph.
-    std::set<std::uint32_t> reached{0};
-    for (std::size_t pass = 0; pass < chunks.size(); ++pass)
-      for (const auto &[a, b] : edges) {
-        if (reached.contains(a))
-          reached.insert(b);
-        if (reached.contains(b))
-          reached.insert(a);
-      }
-    if (reached.size() != chunks.size())
+    std::vector<std::vector<std::uint32_t>> adjacency(chunks.size());
+    for (const auto &[a,b]:edges) { adjacency[a].push_back(b);adjacency[b].push_back(a); }
+    std::vector<bool> reached(chunks.size());reached[0]=true;
+    std::vector<std::uint32_t> queue{0};
+    for (std::size_t cursor=0;cursor<queue.size();++cursor)
+      for (auto next:adjacency[queue[cursor]])
+        if (!reached[next]) { reached[next]=true;queue.push_back(next); }
+    if (queue.size() != chunks.size())
       throw std::invalid_argument(
           "Initial destruction graph must be connected");
   }
@@ -252,7 +251,7 @@ struct BlastFamily3D::Impl {
 BlastFamily3D::BlastFamily3D(std::span<const DestructionChunk3D> chunks,
                              std::span<const DestructionBond3D> bonds)
     : impl_(std::make_unique<Impl>()) {
-  if (chunks.empty() || chunks.size() > 256 || bonds.size() > 2048)
+  if (chunks.empty() || chunks.size() >= UINT32_MAX || bonds.size() >= UINT32_MAX)
     throw std::invalid_argument("Destruction family exceeds chunk/bond limits");
   impl_->chunks.assign(chunks.begin(), chunks.end());
   impl_->bonds.assign(bonds.begin(), bonds.end());

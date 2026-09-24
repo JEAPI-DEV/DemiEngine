@@ -37,6 +37,7 @@ public:
   [[nodiscard]] bool reload(std::string &error);
   [[nodiscard]] bool save(std::string &error);
   [[nodiscard]] bool restore(nlohmann::json document, std::string &error);
+  [[nodiscard]] bool setHud(std::optional<nlohmann::json> value, std::string &error);
   [[nodiscard]] bool
   resolveExternalChange(ExternalChangeDecision decision,
                         const std::filesystem::path &copyPath,

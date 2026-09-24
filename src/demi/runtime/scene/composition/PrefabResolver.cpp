@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <functional>
 #include <map>
 #include <ranges>
 #include <set>
@@ -123,6 +124,15 @@ std::optional<Json> readJson(const std::filesystem::path &path,
   }
 }
 
+void collectDeferredIds(const Json &entity,
+    const std::function<void(const std::string &)> &add) {
+  if(!entity.contains("components"))return;
+  const auto &c=entity["components"];
+  if(!c.contains("Destructible3D") || !c["Destructible3D"].contains("deferred_visuals"))return;
+  for(const auto &templates:c["Destructible3D"]["deferred_visuals"])
+    for(const auto &item:templates)add(item.at("id").get<std::string>());
+}
+
 void remapEntityReferences(
     Json &entity, const std::unordered_map<std::string, std::string> &ids) {
   if (!entity.contains("components") || !entity["components"].is_object()) {
@@ -139,6 +149,17 @@ void remapEntityReferences(
         if (!visual.is_string()) continue;
         const auto replacement = ids.find(visual.get<std::string>());
         if (replacement != ids.end()) visual = replacement->second;
+      }
+      if(component.value().contains("deferred_visuals")) {
+        Json groups=Json::object();
+        for(auto &[region,templates]:component.value()["deferred_visuals"].items()) {
+          for(auto &item:templates) {
+            item["id"]=ids.at(item.at("id").get<std::string>());
+            remapEntityReferences(item,ids);
+          }
+          groups[ids.at(region)]=std::move(templates);
+        }
+        component.value()["deferred_visuals"]=std::move(groups);
       }
     }
     if (parent != component.value().end() && parent->is_string()) {
@@ -247,6 +268,7 @@ public:
         if (item.is_object() && item.contains("id") && item["id"].is_string()) {
           const std::string local = item["id"].get<std::string>();
           ids.emplace(local, prefix + "/" + local);
+          collectDeferredIds(item,[&](const std::string &id){ids.emplace(id,prefix+"/"+id);});
         }
       }
       for (Json item : (*prefab)["entities"]) {
@@ -405,6 +427,10 @@ nlohmann::json rebasePrefabEntities(nlohmann::json entities,
     const auto id=entity.at("id").get<std::string>();
     if (!id.starts_with(prefix)) throw std::runtime_error("Invalid prepared prefab identity");
     ids.emplace(id,std::string(newPrefix)+"/"+id.substr(prefix.size()));
+    collectDeferredIds(entity,[&](const std::string &leaf) {
+      if(!leaf.starts_with(prefix))throw std::runtime_error("Invalid deferred prefab identity");
+      ids.emplace(leaf,std::string(newPrefix)+"/"+leaf.substr(prefix.size()));
+    });
   }
   for (auto &entity:entities) {
     entity["id"]=ids.at(entity.at("id").get<std::string>());
@@ -587,6 +613,12 @@ ExpansionResult bakeFracturePrefab(const std::filesystem::path &path,const Json 
     const auto id=entity["id"].get<std::string>();
     ids.emplace(id,id.substr(std::string("preview/").size()));
   }
+  for(const auto &entity:entities)
+    collectDeferredIds(entity,[&](const std::string &leaf){
+      const auto slash=leaf.find('/');
+      if(slash==std::string::npos)throw std::runtime_error("Invalid baked deferred identity");
+      ids.emplace(leaf,leaf.substr(slash+1));
+    });
   for(auto &entity:entities) {entity["id"]=ids.at(entity["id"].get<std::string>());remapEntityReferences(entity,ids);}
   *result.document={{"format_version",1},{"id",source["id"]},{"entities",std::move(entities)}};
   return result;

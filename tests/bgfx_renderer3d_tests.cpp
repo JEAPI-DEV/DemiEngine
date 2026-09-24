@@ -9,6 +9,9 @@
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 
 #include <algorithm>
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <filesystem>
 #include <string>
@@ -25,10 +28,14 @@ public:
   std::vector<TextureHandle> textures;
   std::vector<DrawState> bufferedStates;
   std::vector<std::array<float, 16>> bufferedTransforms;
+  std::vector<View2DConfig> views2D;
+  std::vector<View3DConfig> views3D;
   bool configureView2D(const View2DConfig &view, std::string &error) override {
+    views2D.push_back(view);
     return target_.configureView2D(view, error);
   }
   bool configureView3D(const View3DConfig &view, std::string &error) override {
+    views3D.push_back(view);
     return target_.configureView3D(view, error);
   }
   bool submit(const TransientDraw &draw, std::string &error) override {
@@ -244,6 +251,23 @@ int main() {
   embeddedFrame.camera.renderHudToTarget = true;
   assert(renderer.renderFrame(world, embeddedFrame, 0.016F, error));
   static_cast<void>(graphics.endFrame());
+  for (const float scale : {0.8F, 1.5F}) {
+    embeddedFrame.postProcess.reset();
+    embeddedFrame.camera.renderScale = scale;
+    capture.views2D.clear();
+    capture.views3D.clear();
+    assert(renderer.renderFrame(world, embeddedFrame, 0.016F, error));
+    assert(capture.views3D.front().width == std::lround(320 * scale));
+    assert(capture.views3D.front().frameBuffer != embeddedTarget.frameBuffer);
+    const auto present = std::ranges::find_if(capture.views2D, [&](const auto &view) {
+      return view.id == embeddedFrame.viewId + 2;
+    });
+    assert(present != capture.views2D.end());
+    assert(present->frameBuffer == embeddedTarget.frameBuffer);
+    assert(present->width == 320 && present->height == 180);
+    assert(present->x == 0 && present->y == 0);
+    static_cast<void>(graphics.endFrame());
+  }
   assert(resources->destroy(embeddedTarget.frameBuffer));
   assert(resources->destroy(embeddedTarget.depth));
   assert(resources->destroy(embeddedTarget.color));
@@ -458,17 +482,27 @@ int main() {
   const auto *generated=cache.get(relief,{1,1,.115F},error);
   assert(generated && generated->indexCount()>36 && cache.size()==1);
   assert(cache.get(relief,{2,3,.115F},error)==generated && cache.size()==1);
+  auto regionRelief=relief;
+  regionRelief.tiles={4,3};regionRelief.atlasGrid={8,14};
+  const auto *regionMesh=cache.get(regionRelief,{4,3,.115F},error);
+  assert(regionMesh && regionMesh->indexCount()==12*generated->indexCount());
+  assert(cache.get(regionRelief,{8,6,.115F},error)==regionMesh);
+  auto flatRegion=regionRelief;flatRegion.heightMap.clear();flatRegion.depth=0;
+  assert(cache.get(flatRegion,{4,3,.115F},error)->indexCount()==12*36);
   assert(!cache.get(relief,{1,1,.001F},error));
   cache.clear();
   assert(cache.size()==0);
   cache.loadAssets(registry);
   auto tile=relief;tile.uvScale={1.F/16,1.F/16};
-  for(int i=0;i<256;++i) {
+  for(int i=0;i<300;++i) {
     tile.uvOffset={float(i%16)/16,float(i/16)/16};
     assert(cache.get(tile,{1,1,.115F},error));
   }
-  assert(!cache.get(relief,{1,1,.115F},error));
+  assert(cache.get(relief,{1,1,.115F},error));
+  assert(cache.size()>256); // An active view can exceed the retention budget.
   cache.beginFrame();
+  cache.beginFrame();
+  relief.uvOffset.y=.731F;
   assert(cache.get(relief,{1,1,.115F},error) && cache.size()==256);
   cache.clear();
 

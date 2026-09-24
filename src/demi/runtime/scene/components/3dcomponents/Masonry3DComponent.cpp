@@ -3,6 +3,7 @@
 #include <cmath>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
+#include <limits>
 
 namespace demi::runtime {
 void Masonry3DComponent::parse(const nlohmann::json &json, Entity &entity) {
@@ -18,12 +19,12 @@ void Masonry3DComponent::parse(const nlohmann::json &json, Entity &entity) {
   for (const char *key : {"columns", "rows"})
     if (json.contains(key) && !json[key].is_number_integer())
       throw std::invalid_argument("Masonry3D cell counts must be integers");
-  value.columns = json.value("columns", 4);
-  value.rows = json.value("rows", 10);
-  if (value.columns < 1 || value.columns > 64 || value.rows < 1 ||
-      value.rows > 128 || value.columns * value.rows > 256)
+  const auto columns=json.value("columns",std::int64_t(4)), rows=json.value("rows",std::int64_t(10));
+  if (columns<1 || rows<1 || columns>std::numeric_limits<int>::max() ||
+      rows>std::numeric_limits<int>::max() || columns*rows>std::numeric_limits<int>::max())
     throw std::invalid_argument(
-        "Masonry3D supports at most 256 cells per region");
+        "Masonry3D cell counts must be positive and fit 32-bit cell indices");
+  value.columns=static_cast<int>(columns);value.rows=static_cast<int>(rows);
   if (json.contains("models") &&
       (!json["models"].is_object() || json["models"].size() > 32))
     throw std::invalid_argument(

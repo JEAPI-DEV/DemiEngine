@@ -17,6 +17,7 @@ add_test(NAME demi-application-permissions-tests
 add_test(NAME demi-project-templates-tests COMMAND demi-project-templates-tests)
 add_test(NAME demi-build-service-tests COMMAND demi-build-service-tests)
 add_test(NAME demi-editor-workspace-tests COMMAND demi-editor-workspace-tests)
+add_test(NAME demi-editor-source-workflow-tests COMMAND demi-editor-source-workflow-tests)
 add_test(NAME demi-editor-project-document-tests
   COMMAND demi-editor-project-document-tests)
 add_test(NAME demi-editor-asset-workflow-tests

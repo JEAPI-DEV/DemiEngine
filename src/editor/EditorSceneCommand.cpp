@@ -10,7 +10,11 @@ void applySceneCommand(nlohmann::json &document, const SceneCommand &command,
   std::visit(
       [&](const auto &typed) {
         using Command = std::decay_t<decltype(typed)>;
-        if constexpr (std::is_same_v<Command, SetValueCommand>) {
+        if constexpr (std::is_same_v<Command, SetSceneHudCommand>) {
+          const auto &value = forward ? typed.after : typed.before;
+          if (value) document["hud"] = *value;
+          else document.erase("hud");
+        } else if constexpr (std::is_same_v<Command, SetValueCommand>) {
           (void)assignValueInDocument(document, typed.target,
                                       forward ? typed.after : typed.before);
         } else if constexpr (std::is_same_v<Command, SetValuesCommand>) {
@@ -105,7 +109,9 @@ std::string sceneCommandEntityId(const SceneCommand &command) {
   return std::visit(
       [](const auto &typed) -> std::string {
         using Command = std::decay_t<decltype(typed)>;
-        if constexpr (std::is_same_v<Command, SetValueCommand>)
+        if constexpr (std::is_same_v<Command, SetSceneHudCommand>)
+          return {};
+        else if constexpr (std::is_same_v<Command, SetValueCommand>)
           return typed.target.entityId;
         else if constexpr (std::is_same_v<Command, SetValuesCommand>)
           return typed.values.empty() ? std::string{}

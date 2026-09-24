@@ -36,7 +36,7 @@ public:
   ~EditorPlaySession();
 
   [[nodiscard]] bool startEmbedded(const std::filesystem::path &project,
-                                   std::string &error);
+                                    std::string &error, const std::string &sceneId = {});
   [[nodiscard]] bool startExternal(const std::filesystem::path &project,
                                    std::string &error);
   [[nodiscard]] bool togglePause(std::string &error);
@@ -65,6 +65,8 @@ public:
   [[nodiscard]] std::string_view failure() const { return failure_; }
   [[nodiscard]] std::uint64_t fixedTickCount() const;
   [[nodiscard]] float interpolationAlpha() const;
+  [[nodiscard]] bool mouseCaptured() const;
+  void releaseMouseCapture();
   [[nodiscard]] EditorProfilerSnapshot profilerSnapshot() const;
   void setGpuTiming(EditorGpuTimingSample sample);
   [[nodiscard]] runtime::RuntimeDebugSnapshot debugSnapshot() const;

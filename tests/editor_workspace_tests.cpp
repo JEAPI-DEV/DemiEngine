@@ -6,6 +6,9 @@
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 
 #include <algorithm>
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <cmath>
 #include <filesystem>
@@ -223,7 +226,16 @@ int main() {
     const auto authored = placements.sceneDocument().json().dump();
     const auto *preview = findEntity(placements.project().world, "a/__preview/assembly");
     assert(preview);
-    assert(placements.project().world.entities.size() < 60); // Regions, not hundreds of shards.
+    std::size_t previewCells = 0;
+    for (const auto &entity : placements.project().world.entities) {
+      if (entity.id.find("/__masonry_preview/") == std::string::npos) continue;
+      ++previewCells;
+      assert(entity.hasComponent<MeshRendererComponent>());
+      assert(!entity.serializedComponents.contains("Fracture3D"));
+      assert(!entity.serializedComponents.contains("Rigidbody3D"));
+      assert(!placements.sceneDocument().entity(entity.id));
+    }
+    assert(previewCells > 0);
     assert(!placements.sceneDocument().entity("a/__preview/assembly"));
     auto entries = collectPrefabPlacements3D(placements.project().world, "world_stream");
     assert(entries.size()==2 && entries.front().id=="a");

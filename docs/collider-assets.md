@@ -94,7 +94,7 @@ does not imply sharing a native rigidbody.
 
 ## Compound assemblies
 
-`shape: "compound"` defines 1–256 convex parts in one asset. Each part has a
+`shape: "compound"` defines convex parts in one asset. Each part has a
 unique local `id` and 4–256 non-coplanar `points`, using the same hull validation
 as standalone convex sources. Points are expressed in the shared asset origin;
 there are no nested compounds or external child references in this first version.
@@ -160,7 +160,7 @@ geometry or creating another asset type. It is covered by root `format_version: 
 This example assumes parts named `left`, `right` and `lintel`. Bond IDs use the
 same local identifier rules as parts. Each pair references two distinct existing
 parts; repeated pairs (including reversed pairs) and duplicate IDs are invalid.
-There are at most 2,048 bonds, and they must connect every part into one initial
+The bonds must connect every part into one initial
 assembly. A single-part compound may have an empty bond list. Optional `anchors`
 defaults to `[]` and contains unique existing part IDs. Optional bond `health`
 defaults to `1` and must be finite and positive. Unknown graph/bond fields are

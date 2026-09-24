@@ -32,6 +32,21 @@ bool EditorAssetDialogs::openEditGroup(const std::filesystem::path &path,
 }
 
 void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
+  if (showNewSource_) {
+    ImGui::SetNextWindowSize({490,180},ImGuiCond_Appearing);
+    if (ImGui::Begin("Create project source",&showNewSource_,ImGuiWindowFlags_NoDocking)) {
+      ImGui::TextWrapped("Name without extension; subfolders such as chapter/level_01 are supported.");
+      ImGui::InputText("Name",sourceName_.data(),sourceName_.size());
+      if (ImGui::Button("Create")) {
+        std::filesystem::path created;std::string error;
+        if (createEditorSource(workspace,sourceKind_,sourceName_.data(),created,error)) {
+          createdSource_=created;showNewSource_=false;notice="Created "+created.filename().string();
+        } else notice=error;
+      }
+      ImGui::TextWrapped("%s",notice.c_str());
+    }
+    ImGui::End();
+  }
   if (showNewFolder_) {
     ImGui::SetNextWindowSize({440.0F, 200.0F}, ImGuiCond_Appearing);
     if (ImGui::Begin("New Folder", &showNewFolder_,

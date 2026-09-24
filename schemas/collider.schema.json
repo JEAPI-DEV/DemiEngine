@@ -12,9 +12,9 @@
       "type": "object", "required": ["bonds"], "additionalProperties": false,
       "description": "Optional connected fracture graph over compound part IDs. Does not enable runtime destruction by itself.",
       "properties": {
-        "anchors": { "type": "array", "maxItems": 256, "uniqueItems": true, "items": { "$ref": "#/$defs/localId" } },
+        "anchors": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/localId" } },
         "bonds": {
-          "type": "array", "maxItems": 2048,
+          "type": "array",
           "items": {
             "type": "object", "required": ["id", "parts"], "additionalProperties": false,
             "properties": {
@@ -27,7 +27,7 @@
       }
     },
     "parts": {
-      "type": "array", "minItems": 1, "maxItems": 256,
+      "type": "array", "minItems": 1,
       "items": {
         "type": "object", "required": ["id", "points"], "additionalProperties": false,
         "properties": {

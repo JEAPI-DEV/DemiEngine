@@ -154,6 +154,13 @@ bool EditorSceneDocument::restore(nlohmann::json document, std::string &error) {
   return true;
 }
 
+bool EditorSceneDocument::setHud(std::optional<nlohmann::json> value, std::string &error) {
+  const auto before = document_.contains("hud")
+      ? std::optional<nlohmann::json>(document_["hud"]) : std::nullopt;
+  if (before == value) return true;
+  return stageAndCommit(SetSceneHudCommand{before, std::move(value)}, error);
+}
+
 bool EditorSceneDocument::resolveExternalChange(
     const ExternalChangeDecision decision,
     const std::filesystem::path &copyPath, std::string &error) {

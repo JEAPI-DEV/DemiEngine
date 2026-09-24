@@ -2,6 +2,8 @@
 #include "demi/assets/FracturePrefab.h"
 #include "demi/assets/MasonryGeneration.h"
 #include "demi/runtime/scene/RuntimeObjectModel.h"
+#include "demi/runtime/scene/Transform3DHierarchy.h"
+#include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/scene/components/3dcomponents/Rigidbody3DComponent.h"
 #include <algorithm>
 #include <cmath>
@@ -54,6 +56,12 @@ J compileEntityFractures(const std::filesystem::path &project,
   if (!hasFractureAuthoring(entities))
     return entities;
   J output = entities;
+  std::map<std::string,J> masonryRegions;
+  for(const auto &source:authoredEntities) {
+    const auto &c=source.at("components");
+    if(c.contains("Masonry3D") && c["Masonry3D"].value("models",J::object()).empty())
+      masonryRegions.emplace(source.at("id").get<std::string>(),source);
+  }
   std::map<std::string, std::size_t> indices;
   std::map<std::string, J> selections;
   const auto localId = [&](const std::string &id) {
@@ -226,6 +234,7 @@ J compileEntityFractures(const std::filesystem::path &project,
       c.erase("MeshRenderer");
       c.erase("Fracture3D");
     }
+    J deferred=J::object();
     // Append only after finishing references into the output array.
     for (auto generated : compiled) {
       const auto id = generated["id"].get<std::string>();
@@ -248,7 +257,35 @@ J compileEntityFractures(const std::filesystem::path &project,
         generated["layer"] = source["layer"];
       if (!source.value("enabled", true))
         generated["enabled"] = false;
-      output.push_back(std::move(generated));
+      const auto region=parent(source);
+      if(generatedIds.contains(sourceId) && masonryRegions.contains(region)) {
+        if(!deferred.contains(region))deferred[region]=J::array();
+        deferred[region].push_back(std::move(generated));
+      } else output.push_back(std::move(generated));
+    }
+    if(!deferred.empty()) {
+      // Cook one intact regional surface and retain leaf descriptions as cold
+      // data. Physics still owns the complete support graph for picking/damage.
+      runtime::World localWorld;
+      for(const auto &input:inputs) {
+        std::string error;
+        auto entity=runtime::RuntimeObjectModel::buildEntity(input,error);
+        require(bool(entity),error);
+        localWorld.entities.push_back(std::move(*entity));
+      }
+      for(const auto &[region,templates]:deferred.items()) {
+        auto intact=masonryIntactVisual(masonryRegions.at(region));
+        const auto local=std::ranges::find(localWorld.entities,localId(region),&runtime::Entity::id);
+        require(local!=localWorld.entities.end(),"Missing masonry region transform");
+        const auto pose=runtime::resolveWorldTransform3D(localWorld,*local);
+        require(bool(pose),"Invalid masonry region transform");
+        intact["components"]["Transform3D"]={{"parent",rootId},
+          {"position",{pose->position.x,pose->position.y,pose->position.z}},
+          {"rotation",{pose->rotation.x,pose->rotation.y,pose->rotation.z}},
+          {"scale",{pose->scale.x,pose->scale.y,pose->scale.z}}};
+        output[indices.at(region)]=std::move(intact);
+      }
+      output[rootIndex]["components"]["Destructible3D"]["deferred_visuals"]=std::move(deferred);
     }
   }
   std::erase_if(output.get_ref<J::array_t &>(), [&](const J &entity) {

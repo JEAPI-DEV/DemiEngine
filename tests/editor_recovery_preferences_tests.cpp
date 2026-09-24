@@ -2,6 +2,9 @@
 #include "editor/EditorRecoveryStore.h"
 #include "editor/EditorWorkspace.h"
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <filesystem>
 #include <fstream>
@@ -42,6 +45,11 @@ int main() {
                                 .showColliders2D = true};
   assert(preferencesStore.save(preferences, error));
   EditorPreferences restored;
+  assert(preferencesStore.load(restored, error));
+  assert(restored == preferences);
+  preferences.codeEditor = "/opt/my editor/editor";
+  preferences.codeEditorArguments = {"{project}", "--open", "{file}"};
+  assert(preferencesStore.save(preferences, error));
   assert(preferencesStore.load(restored, error));
   assert(restored == preferences);
   for (const float invalid :

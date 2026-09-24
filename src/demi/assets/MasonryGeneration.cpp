@@ -5,6 +5,23 @@
 
 namespace demi::assets {
 using J = nlohmann::json;
+J masonryIntactVisual(const J &entity) {
+  std::string error;
+  const auto parsed=runtime::RuntimeObjectModel::buildEntity(entity,error);
+  if(!parsed) throw std::runtime_error(error);
+  const auto &wall=*parsed->component<runtime::Masonry3DComponent>();
+  J result=entity;
+  auto &c=result["components"];
+  c.erase("Masonry3D");
+  c["MeshRenderer"]={{"shape","cube"},{"size",{wall.size.x,wall.size.y,wall.size.z}},{"texture",wall.texture}};
+  const bool relief=!wall.heightMap.empty();
+  const auto grid=relief?wall.textureGrid:runtime::Vec2{1,1};
+  c["SurfaceRelief3D"]={{"height_map",wall.heightMap},{"depth",relief?wall.reliefDepth:0.F},
+      {"tiles",{wall.columns,wall.rows}},{"atlas_grid",{grid.x,grid.y}},
+      {"uv_offset",{0,(grid.y-1)/grid.y}},{"uv_scale",{1/grid.x,1/grid.y}}};
+  if(!relief)c["SurfaceRelief3D"]["segments"]={1,1};
+  return result;
+}
 bool hasMasonryAuthoring(const J &value) {
   if (value.is_object()) {
     if (value.contains("components") &&
@@ -45,20 +62,14 @@ J expandMasonry(const J &entities, bool preview,
                                "its own render/fracture cells: " +
                                id);
     components.erase("Masonry3D");
-    if (preview) {
-      components["MeshRenderer"] = {
-          {"shape", "cube"},
-          {"size", {wall.size.x, wall.size.y, wall.size.z}},
-          {"texture", wall.texture}};
-      continue;
-    }
     std::vector<std::string> models;
     for (const auto &[name, model] : wall.models)
       models.push_back(model);
     for (int row = 0; row < wall.rows; ++row)
       for (int col = 0; col < wall.columns; ++col) {
         const auto cellId =
-            id + "/cell_" + std::to_string(row) + "_" + std::to_string(col);
+            id + (preview ? "/__masonry_preview/cell_" : "/cell_") +
+            std::to_string(row) + "_" + std::to_string(col);
         if (!ids.insert(cellId).second)
           throw std::runtime_error("Generated masonry ID collision: " + cellId);
         if (generatedIds)
@@ -100,6 +111,11 @@ J expandMasonry(const J &entities, bool preview,
                {float(col % nx) / nx, float(ny - 1 - row % ny) / ny}},
               {"uv_scale", {1.F / nx, 1.F / ny}}};
         }
+        if (preview)
+          output.back()["components"].erase("Fracture3D");
+        for (const char *field : {"enabled", "layer"})
+          if (entity.contains(field))
+            output.back()[field] = entity[field];
       }
   }
   return output;

@@ -2,6 +2,9 @@
 #include "editor/EditorSceneDocument.h"
 #include "editor/EditorSceneJson.h"
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <filesystem>
 #include <fstream>

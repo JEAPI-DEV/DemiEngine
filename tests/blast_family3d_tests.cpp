@@ -186,6 +186,13 @@ void deterministicAndBounded() {
   c.push_back({"overflow", {256, 0, 0}});
   rejects([&] { BlastFamily3D tooLarge(c, b); });
   const DestructionChunk3D singleton{"single"};
+  c.clear();b.clear();
+  for(int i=0;i<1024;++i) c.push_back({"large-"+std::to_string(i),{float(i),0,0},1,i==0});
+  for(int step=1;step<=4;++step) for(int i=0;i+step<1024;++i)
+    b.push_back({"edge-"+std::to_string(step)+"-"+std::to_string(i),c[i].id,c[i+step].id,1});
+  check(b.size()>2048,"Large graph fixture must exceed the former bond cap");
+  BlastFamily3D expanded(c,b);
+  check(expanded.groups().size()==1 && expanded.groups().front().chunks.size()==1024,"Large connected graph rejected");
   BlastFamily3D single(std::span(&singleton, 1), {});
   check(single.groups().size() == 1, "Singleton family failed");
 }

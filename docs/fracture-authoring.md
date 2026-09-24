@@ -70,10 +70,10 @@ workflows use components.
   `SurfaceRelief3D` also works on this explicit single-piece proxy path; its
   renderer generates the visual mesh from a height map at runtime.
 - `Destructible3D.seed` defaults to 1; `generator_version` defaults to 1.
-  `max_bodies` defaults to 64 (maximum 256).
+  `max_bodies` defaults to 64 and accepts positive signed 32-bit values.
 - `Destructible3D.energy_per_health` defaults to 1000 joules per authored health
   unit for [spatial impacts](3d-spatial-impacts.md). It does not change `damage_part` units.
-- `Fracture3D.pieces` defaults to 8 (1–128 per mesh, at most 256 per assembly).
+- `Fracture3D.pieces` defaults to 8 and accepts positive signed 32-bit values.
   One piece participates in the structure but stays whole when detached.
 - `bond_health` defaults to 1. Connections use the lower of the two objects'
   strengths. This is not a material-density or structural-load model.
@@ -139,8 +139,10 @@ transport, not normal authoring fields.
 Box primitives, inline triangle meshes and closed convex static glTF/GLB geometry
 are supported. Open, concave, skinned and overly complex inputs fail explicitly.
 Seeded convex plane bisection generates closed interior faces and contact-derived
-bonds, not general runtime CSG. Limits are 1,024 faces / 512 unique source vertices,
-256 hull vertices and 2,048 bonds. Generation is synchronous.
+bonds, not general runtime CSG. Each collision hull remains limited to 256
+vertices by Jolt. The separate source-face, source-vertex and bond count caps
+have been removed. Generation is synchronous, so large inputs can take time
+and substantial memory; removing a validation cap is not a performance guarantee.
 
 Imported models require explicit exterior material/texture/color settings.
 Embedded multi-material extraction and authored smooth normals are not preserved;

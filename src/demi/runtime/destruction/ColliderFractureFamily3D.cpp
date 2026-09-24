@@ -16,7 +16,7 @@ createColliderFractureFamily3D(const ColliderAsset3D &collider,
   error.clear();
   try {
     if (!collider.fracture || collider.parts.empty() ||
-        collider.parts.size() > 256 || collider.fracture->bonds.size() > 2048 ||
+        collider.parts.size() >= UINT32_MAX || collider.fracture->bonds.size() >= UINT32_MAX ||
         collider.fracture->anchors.size() > collider.parts.size())
       throw std::invalid_argument(
           "Collider requires an authored compound fracture graph");

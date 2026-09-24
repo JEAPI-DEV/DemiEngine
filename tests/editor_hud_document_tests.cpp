@@ -1,6 +1,9 @@
 #include "editor/EditorHudCanvas.h"
 #include "editor/EditorHudDocument.h"
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <filesystem>
 #include <fstream>
@@ -68,5 +71,22 @@ int main() {
          nlohmann::json({28.7, 56.0}));
   assert(savedDocument["root"]["children"][0]["anchor_min"] ==
          nlohmann::json({0.33, 0.67}));
+  const auto implicit=root/"implicit.hud.json";
+  {std::ofstream output(implicit); output<<R"({"format_version":1,"canvas_size":[320,180],"children":[{"id":"label","type":"label","text":"Before","position":[4,8]}]})";}
+  demi::editor::EditorHudDocument shorthand;
+  assert(shorthand.open(implicit,error));
+  assert(shorthand.authoredNode("label") && shorthand.authoredNode("ui_root"));
+  assert(shorthand.setNodeField("label","text","After",error));
+  assert(shorthand.setNodeField("label","position",{30,40},error));
+  assert(!shorthand.json().contains("root"));
+  assert(shorthand.createNode("button","ui_root",created,error));
+  assert(shorthand.deleteNode(created,error));
+  assert(shorthand.save(error));
+  assert(shorthand.open(implicit,error));
+  assert(shorthand.authoredNode("label")->at("text")=="After");
+  assert(shorthand.setNodeField("ui_root","padding",{4,4},error));
+  assert(shorthand.json().contains("root"));
+  assert(shorthand.undo(error));
+  assert(!shorthand.json().contains("root"));
   fs::remove_all(root, ignored);
 }

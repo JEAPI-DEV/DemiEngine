@@ -86,9 +86,9 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
   require(!settings.contains("max_bodies") ||
               settings["max_bodies"].is_number_integer(),
           "max_bodies must be an integer");
-  const auto maxBodies = settings.value("max_bodies", 64);
-  require(maxBodies >= 1 && maxBodies <= 256,
-          "Fracture max_bodies must be 1..256");
+  const auto maxBodies = settings.value("max_bodies", std::int64_t(64));
+  require(maxBodies >= 1 && maxBodies <= INT32_MAX,
+          "Fracture max_bodies must be a positive 32-bit integer");
   runtime::World world;
   std::map<std::string, J> authored;
   for (const auto &json : entities) {
@@ -148,12 +148,15 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
     require(!options.contains("pieces") ||
                 options["pieces"].is_number_integer(),
             "pieces must be an integer");
-    int count = options.value("pieces", 8);
+    const auto count64 = options.value("pieces", std::int64_t(8));
+    require(count64 >= 1 && count64 <= INT32_MAX,
+            "Fracture pieces must be a positive 32-bit integer");
+    const int count = static_cast<int>(count64);
     const auto collider = options.value("collider", "source");
     require(collider == "source" || (collider == "box" && count == 1),
             "Box proxy fracture requires pieces=1");
-    require(count >= 1 && count <= 128 && chunks.size() + count <= 256,
-            "Fracture supports 1..128 pieces per object, 256 total");
+    require(count >= 1 && chunks.size() + std::size_t(count) < UINT32_MAX,
+            "Fracture requires positive piece counts fitting 32-bit indices");
     auto entity = std::ranges::find(world.entities, id, &runtime::Entity::id);
     const auto *renderer = entity->component<runtime::MeshRendererComponent>();
     const auto transform = runtime::resolveWorldTransform3D(world, *entity);
@@ -207,10 +210,6 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
       const auto geometry =
           loadGltfSkinnedModel3D(asset->sourcePath, *profile, issue);
       require(bool(geometry), issue);
-      require(geometry->indices.size() <= 3072 &&
-                  geometry->vertices.size() <= 4096,
-              "Source model exceeds the bounded fracture input size; simplify "
-              "or split the source first");
       require(geometry->skins.empty(),
               "Skinned fracture source meshes are not supported");
       std::vector<runtime::Vec3> positions;
@@ -317,8 +316,8 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
     for (std::size_t j = i + 1; j < chunks.size(); ++j) {
       if (!fractureSolidsTouch(chunks[i].solid, chunks[j].solid))
         continue;
-      require(bonds.size() < 2048,
-              "Generated bond graph exceeds 2048 connections");
+      require(bonds.size() < UINT32_MAX,
+              "Generated bond graph exceeds 32-bit indices");
       const auto bondHash =
           digest(chunks[i].solid.id + ":" + chunks[j].solid.id);
       bonds.push_back(
