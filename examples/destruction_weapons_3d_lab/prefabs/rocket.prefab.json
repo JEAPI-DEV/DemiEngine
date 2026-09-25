@@ -5,6 +5,36 @@
     "Transform3D":{}
   },"children":[
     {"id":"shell","components":{"Transform3D":{"position":[0,0,-0.1]},"MeshRenderer":{"shape":"sphere","size":[0.14,0.14,0.5],"color":[0.9,0.55,0.12,1]}}},
-    {"id":"fins","components":{"Transform3D":{"position":[0,0,-0.28]},"MeshRenderer":{"shape":"cube","size":[0.28,0.04,0.13],"color":[0.3,0.32,0.35,1]}}}
+    {"id":"ent_new","components":{"Transform3D":{"position":[0,0,-0.108]}},
+    "children": [
+      {"id": "fins", "components": {"Transform3D": {"position": [0,0,-0.28], "scale": [
+              0.6,
+              0.5,
+              1.0
+            ]}, "MeshRenderer": {"shape": "cube", "size": [0.28,0.04,0.13], "color": [0.3,0.32,0.35,1]}}, "name": "fins_x"},
+      {"id": "fins_copy", "components": {"Transform3D": {"position": [0,0,-0.28], "rotation": [
+              0.0,
+              -0.0,
+              -1.571
+            ], "scale": [
+              0.6,
+              0.5,
+              1.0
+            ]}, "MeshRenderer": {
+            "color": [
+              0.3,
+              0.32,
+              0.35,
+              1
+            ],
+            "shape": "cube",
+            "size": [
+              0.28,
+              0.04,
+              0.13
+            ]
+          }}, "name": "fins_y"}
+    ],
+    "name": "fins_group"}
   ]}]
 }
