@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <cstdint>
@@ -37,6 +38,27 @@ struct CapsuleCollider2DComponent {
   float restitution = 0.0F;
   float density = 1.0F;
   bool debugVisible = true;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<CapsuleCollider2DComponent>::member<
+          &CapsuleCollider2DComponent::size>("size"),
+      RuntimeFieldBinding<CapsuleCollider2DComponent>::member<
+          &CapsuleCollider2DComponent::offset>("offset"),
+      RuntimeFieldBinding<CapsuleCollider2DComponent>::member<
+          &CapsuleCollider2DComponent::isTrigger>("is_trigger"),
+      RuntimeFieldBinding<CapsuleCollider2DComponent>::member<
+          &CapsuleCollider2DComponent::layer>("layer"),
+      RuntimeFieldBinding<CapsuleCollider2DComponent>::member<
+          &CapsuleCollider2DComponent::categoryBits>("category_bits"),
+      RuntimeFieldBinding<CapsuleCollider2DComponent>::member<
+          &CapsuleCollider2DComponent::maskBits>("mask_bits"),
+      RuntimeFieldBinding<CapsuleCollider2DComponent>::member<
+          &CapsuleCollider2DComponent::friction>("friction"),
+      RuntimeFieldBinding<CapsuleCollider2DComponent>::member<
+          &CapsuleCollider2DComponent::restitution>("restitution"),
+      RuntimeFieldBinding<CapsuleCollider2DComponent>::member<
+          &CapsuleCollider2DComponent::density>("density"),
+      RuntimeFieldBinding<CapsuleCollider2DComponent>::member<
+          &CapsuleCollider2DComponent::debugVisible>("debug_visible")};
 };
 
 } // namespace demi::runtime

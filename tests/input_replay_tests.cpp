@@ -1,8 +1,10 @@
+#include "demi/runtime/input/InputActionResolver.h"
 #include "demi/runtime/input/replay/InputReplay.h"
 
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <unordered_set>
 
 int main() {
   const auto path =
@@ -58,6 +60,41 @@ int main() {
       !state.textCompositionChanged || replay->apply(2, state)) {
     std::cerr << "Input replay parsing or frame application failed: " << error
               << '\n';
+    return 1;
+  }
+  if (!replay->apply(0, state)) {
+    return 1;
+  }
+  using namespace demi::runtime::input;
+  const InputActionResolver resolver;
+  const InputActionMap actions{{"jump", {.context = "gameplay"}}};
+  const InputActionMap noDefinitions;
+  const std::unordered_set<std::string> noContexts;
+  const std::unordered_set<std::string> gameplay{"gameplay"};
+  const std::unordered_set<std::string> menu{"menu"};
+  const auto isNeutral = [](const InputActionState &value) {
+    return !value.held && !value.pressed && !value.released &&
+           value.value == 0.0F && value.vector.x == 0.0F &&
+           value.vector.y == 0.0F && value.source.empty();
+  };
+  if (!isNeutral(resolver.resolve(actions, state, "jump", 1, &noContexts)) ||
+      !isNeutral(resolver.resolve(actions, state, "jump", 1, &menu)) ||
+      !isNeutral(
+          resolver.resolve(noDefinitions, state, "jump", 1, &gameplay)) ||
+      !isNeutral(
+          resolver.resolve(noDefinitions, state, "jump", 1, &noContexts))) {
+    std::cerr << "Recorded actions bypassed an explicit context filter.\n";
+    return 1;
+  }
+  const auto enabled = resolver.resolve(actions, state, "JUMP", 1, &gameplay);
+  const auto unfiltered = resolver.resolve(noDefinitions, state, "jump", 1);
+  if (!enabled.held || !enabled.pressed || enabled.value != 1.0F ||
+      enabled.vector.x != 1.0F || enabled.source != "gamepad:south" ||
+      !unfiltered.held || unfiltered.source != enabled.source ||
+      !isNeutral(resolver.resolve(actions, state, "jump", 2, &gameplay)) ||
+      !isNeutral(resolver.resolve(noDefinitions, state, "jump", 2))) {
+    std::cerr << "Context filtering changed enabled replay values or player "
+                 "selection.\n";
     return 1;
   }
   replay->applyOrNeutral(2, state);

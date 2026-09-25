@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include <string>
 
 namespace demi::runtime {
@@ -20,5 +21,12 @@ struct PrefabPlacement3DComponent {
   std::string prefab;
   std::string root = "assembly";
   bool preserve = true;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<PrefabPlacement3DComponent>::member<
+          &PrefabPlacement3DComponent::prefab>("prefab"),
+      RuntimeFieldBinding<PrefabPlacement3DComponent>::member<
+          &PrefabPlacement3DComponent::root>("root"),
+      RuntimeFieldBinding<PrefabPlacement3DComponent>::member<
+          &PrefabPlacement3DComponent::preserve>("preserve")};
 };
 } // namespace demi::runtime

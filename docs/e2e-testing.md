@@ -41,8 +41,17 @@ return {tests = tests}
 The harness runs tests sequentially from the boot scene, logs stable markers
 (`[test] PASS <name>.`, `[test] FAIL <name>: <reason>.`,
 `[test] SUMMARY passed=N failed=M.`), and quits the app when done. A failed
-`Mobile.expect` or a timeout fails the running test and continues with the
+`Test.expect` or a timeout fails the running test and continues with the
 next one.
+
+`LuaE2ETestRunner` owns the coroutine registry references, wait state, synthetic
+touch queue, and summary counters. Its runtime callbacks resolve HUD coordinates,
+read the active scene, and request quit; the Lua host supplies those callbacks and
+shuts the runner down before closing its VM. Scene script reloads leave the test
+runner alive so a pending scene expectation can complete. Synthetic touches drain
+one queued frame per runtime frame. Module-load failures also emit a failed final
+summary and request quit. Starting a new suite releases the previous suite's
+references and resets its counters.
 
 ## API
 

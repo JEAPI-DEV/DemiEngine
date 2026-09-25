@@ -12,7 +12,8 @@ void Camera3DComponent::parse(const nlohmann::json &json, Entity &entity) {
   if (auto value = scene_loading::numberField(json, "near_clip"))
     component.nearClip = std::max(*value, 0.001F);
   if (auto value = scene_loading::numberField(json, "far_clip"))
-    component.farClip = std::max(*value, component.nearClip);
+    component.farClip = *value;
+  component.farClip = std::max(component.farClip, component.nearClip);
   if (auto value = scene_loading::numberField(json, "orthographic_size"))
     component.orthographicSize = *value;
   if (auto value = scene_loading::vec3Field(json, "target_offset"))

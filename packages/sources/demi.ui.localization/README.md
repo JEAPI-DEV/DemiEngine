@@ -1,12 +1,12 @@
-# language_file
+# HUD localization
 
 Loads YAML language assets through Demi's normal asset residency service and
 applies their `variables` map to native HUD `${variable}` placeholders.
 
 ```lua
-local LanguageFile = require("language_file")
+local Localization = require("demi.ui.localization")
 
-local language = LanguageFile.new({
+local language = Localization.new({
   fallback = "en",
   languages = {
     en = "asset://language/en",

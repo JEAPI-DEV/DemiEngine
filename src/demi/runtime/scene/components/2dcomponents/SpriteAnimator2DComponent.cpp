@@ -5,8 +5,39 @@
 #include "demi/runtime/scene/model/Entity.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace demi::runtime {
+
+void SpriteAnimator2DComponent::copyClips(
+    SpriteAnimator2DComponent &destination,
+    const SpriteAnimator2DComponent &source) {
+  destination.clips = source.clips;
+  // Keep gameplay's active clip when it survives the edit. Otherwise use the
+  // parser's authored/automatic selection, including its empty-map behavior.
+  if (!destination.clips.contains(destination.clip))
+    destination.clip = source.clip;
+}
+
+void SpriteAnimator2DComponent::afterRuntimeFieldChange(
+    SpriteAnimator2DComponent &component, const std::string_view field) {
+  if (field != "clip" && field != "atlas" && field != "clips")
+    return;
+  const auto selected = component.clips.find(component.clip);
+  if (selected == component.clips.end()) {
+    component.currentFrame = 0;
+    return;
+  }
+  const auto &clip = selected->second;
+  // Refresh the sampled frame even while paused. Field edits do not advance
+  // time, emit events, restart playback, or replace transition history.
+  const double tick = std::floor(component.time * clip.framesPerSecond);
+  const double localFrame =
+      clip.loop
+          ? std::max(std::fmod(tick, clip.frameCount), 0.0)
+          : std::clamp(tick, 0.0, static_cast<double>(clip.frameCount - 1));
+  component.currentFrame = clip.startFrame + static_cast<int>(localFrame);
+}
 
 void SpriteAnimator2DComponent::parse(const nlohmann::json &json,
                                       Entity &entity) {

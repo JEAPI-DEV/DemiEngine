@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <cstdint>
@@ -58,6 +59,22 @@ struct AnimationPlayer3DComponent {
   // before evaluating the skin, so gameplay never handles inverse bind data.
   std::unordered_map<std::string, ProceduralBoneSegment3D> boneSegments;
   std::uint64_t proceduralPoseRevision = 0;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<AnimationPlayer3DComponent>::member<
+          &AnimationPlayer3DComponent::clipName>("clip_name"),
+      RuntimeFieldBinding<AnimationPlayer3DComponent>::member<
+          &AnimationPlayer3DComponent::speed>("speed"),
+      RuntimeFieldBinding<AnimationPlayer3DComponent>::member<
+          &AnimationPlayer3DComponent::time>("time"),
+      RuntimeFieldBinding<AnimationPlayer3DComponent>::member<
+          &AnimationPlayer3DComponent::loop>("loop"),
+      RuntimeFieldBinding<AnimationPlayer3DComponent>::member<
+          &AnimationPlayer3DComponent::playing>("playing"),
+      RuntimeFieldBinding<AnimationPlayer3DComponent>::member<
+          &AnimationPlayer3DComponent::visualUpdateRate>("visual_update_rate"),
+      RuntimeFieldBinding<AnimationPlayer3DComponent>::member<
+          &AnimationPlayer3DComponent::visualUpdateDistance>(
+          "visual_update_distance")};
 };
 
 } // namespace demi::runtime

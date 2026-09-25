@@ -1,8 +1,8 @@
 ---@meta
 -- Native module: require("demi.mesh.deformation"). Annotations only.
 ---@class MeshDentImpact
----@field point number[] World-space impact point (x, y, z).
----@field direction number[] World-space inward displacement direction.
+---@field point Vec3 World-space impact point (x, y, z).
+---@field direction Vec3 World-space inward displacement direction.
 ---@field radius number Positive world-space brush radius in meters.
 ---@field depth number Positive dent depth in meters, at most radius / 2.
 

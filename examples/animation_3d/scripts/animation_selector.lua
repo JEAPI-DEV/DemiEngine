@@ -49,7 +49,7 @@ function AnimationSelector:on_update(_dt)
     return
   end
   for _, choice in ipairs(choices) do
-    if Input.action_pressed(choice.action) then
+    if Input.pressed(choice.action) then
       self:select(choice)
       return
     end

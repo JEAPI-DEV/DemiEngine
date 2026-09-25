@@ -29,7 +29,7 @@ bool LuaScriptHost::initialize(World &world, InputState &input,
   isoGridApi_.attach(&world);
   tilemapRuntime_.attach(&world, nullptr, &navigationGrid2D_);
   input_ = &input;
-  activeInputContexts_ = {"gameplay"};
+  gameplayInput_.initialize(input);
   audio_ = audio;
   const char *hotReload = std::getenv("DEMI_LUA_HOT_RELOAD");
   hotReloadEnabled_ = hotReload != nullptr && std::string(hotReload) != "0";
@@ -41,6 +41,7 @@ bool LuaScriptHost::initialize(World &world, InputState &input,
   }
   luaL_openlibs(state);
   state_ = state;
+  initializeE2ETestRunner();
   luaInstallRuntimeLogging(state, runtimeLog_);
 
   return luaRegisterBindings(*this, state, error);
@@ -235,6 +236,7 @@ void LuaScriptHost::fixedUpdate(const float dt) {
 }
 
 void LuaScriptHost::destroy() {
+  e2eTestRunner_.shutdown();
   unloadScripts();
   if (world_ != nullptr) {
     for (auto &[_, recycler] : world_->uiVirtualRecyclers)

@@ -7,7 +7,7 @@ local Transform = require("demi.transform3d")
 local Hud = require("demi.hud")
 local Prefab = require("demi.prefab")
 
-local function stats() return Entity.get("player","GameplayData","values") end
+local function stats() return Entity.get_config("player","GameplayData","values") end
 local function reset_scene()
   Test.touch("reset")
   for attempt=1,60 do
@@ -53,7 +53,7 @@ return { tests = {{ name="weapons, streamed damage checkpoints and debris cleanu
   reset_scene()
   local door=Entity.find("Steel door shard ")
   Test.expect(door and Entity.parent(door)=="a/assembly","First steel door must be a single generated visual: "..tostring(door).." parent="..tostring(door and Entity.parent(door)))
-  local vertices=Entity.get(door,"MeshRenderer","vertices")
+  local vertices=Entity.get_config(door,"MeshRenderer","vertices")
   Test.expect(vertices and #vertices==36,"Steel door must remain one intact box mesh")
   Test.touch("rocket")
   Test.wait(0.06)
@@ -78,7 +78,7 @@ return { tests = {{ name="weapons, streamed damage checkpoints and debris cleanu
   Test.expect(owner~="a/assembly" and body and body.body_type=="dynamic",
     "Steel door must release with physical ownership: owner="..tostring(owner).." type="..tostring(body and body.body_type))
   Test.expect(body.use_gravity,"Released steel door must retain gravity")
-  Test.expect(#Entity.get(door,"MeshRenderer","vertices")==36,"Steel door was fragmented or lost geometry")
+  Test.expect(#Entity.get_config(door,"MeshRenderer","vertices")==36,"Steel door was fragmented or lost geometry")
   local collision=false
   for _,hit in ipairs(Physics.overlap_sphere_all(-2.8,1,0,12)) do
     if hit.entity_id==owner then collision=true end
@@ -145,7 +145,7 @@ return { tests = {{ name="weapons, streamed damage checkpoints and debris cleanu
   local right="b/wall/assembly"
   local brick=Physics.raycast(1.425,1.6,1,0,0,-1,2)
   Test.expect(brick and brick.collider_part_id,"Right masonry was not hittable")
-  local mapping=Entity.get(right,"Destructible3D","parts")
+  local mapping=Entity.get_config(right,"Destructible3D","parts")
   local visual=mapping and mapping[brick.collider_part_id]
   Test.expect(visual~=nil,"Right brick has no authored visual mapping")
   local accepted,issue=Destruction.damage_part(right,brick.collider_part_id,100)

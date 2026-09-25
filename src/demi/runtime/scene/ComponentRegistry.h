@@ -18,9 +18,10 @@ namespace demi::runtime::scene_loading {
 
 using ComponentParseFn = void (*)(const nlohmann::json &, Entity &);
 using ComponentSerializeFn = nlohmann::json (*)(const Entity &);
-using ComponentDefaultsFn = nlohmann::json (*)();
+using ComponentDefaultsFn = const nlohmann::json &(*)();
 using ComponentContainsFn = bool (*)(const Entity &);
 using ComponentRemoveFn = bool (*)(Entity &);
+using ComponentPatchFn = bool (*)(Entity &, std::string_view, const nlohmann::json &);
 
 struct ComponentValidationError {
   std::string field;
@@ -34,6 +35,7 @@ struct ComponentDescriptor {
   ComponentDefaultsFn defaults;
   ComponentContainsFn contains;
   ComponentRemoveFn remove;
+  ComponentPatchFn patch;
   std::span<const ComponentFieldDescriptor> fields;
   ComponentEditorMetadata editor;
   bool exposedToLua = false;
@@ -58,12 +60,51 @@ template <typename ComponentClass>
 }
 
 template <typename ComponentClass>
-[[nodiscard]] nlohmann::json defaultComponentJson() {
-  if constexpr (requires { ComponentClass::defaults(); })
-    return ComponentClass::defaults();
-  Entity entity;
-  parseComponent<ComponentClass>(nlohmann::json::object(), entity);
-  return serializeComponent<ComponentClass>(entity);
+[[nodiscard]] const nlohmann::json &defaultComponentJson() {
+  static const nlohmann::json defaults = [] {
+    nlohmann::json result = nlohmann::json::object();
+    // Only retain explicitly owned composite/nullable fallbacks. Optional
+    // handwritten scalar defaults must never supersede native readers.
+    nlohmann::json exceptionalDefaults = nlohmann::json::object();
+    if constexpr (requires { ComponentClass::defaults(); })
+      exceptionalDefaults = ComponentClass::defaults();
+    // Some parsers require an authored key even for their empty/default value
+    // (SurfaceRelief3D.height_map). Seed only required keys explicitly owned by
+    // the component; optional scalar defaults must still come from the parser.
+    auto parseInput = nlohmann::json::object();
+    for (const auto &field : ComponentClass::fields) {
+      if (field.required) {
+        if (const auto seed = exceptionalDefaults.find(field.name);
+            seed != exceptionalDefaults.end())
+          parseInput[std::string(field.name)] = *seed;
+      }
+    }
+    Entity entity;
+    ComponentClass::parse(parseInput, entity);
+    const auto &component = *entity.component<ComponentClass>();
+    for (const auto &binding : ComponentClass::runtimeFields) {
+      if (!binding.advertiseDefault)
+        continue;
+      nlohmann::json value;
+      bool encoded = false;
+      if constexpr (requires {
+                      ComponentClass::serializeField(component, binding.name,
+                                                     value);
+                    })
+        encoded =
+            ComponentClass::serializeField(component, binding.name, value);
+      if (!encoded && binding.read != nullptr)
+        encoded = binding.read(component, value);
+      if (encoded)
+        result[std::string(binding.name)] = std::move(value);
+      else if (const auto fallback = exceptionalDefaults.find(binding.name);
+               fallback != exceptionalDefaults.end() &&
+               (fallback->is_structured() || fallback->is_null()))
+        result[std::string(binding.name)] = *fallback;
+    }
+    return result;
+  }();
+  return defaults;
 }
 
 template <typename ComponentClass>
@@ -95,7 +136,50 @@ template <typename ComponentClass>
 }
 
 template <typename ComponentClass>
+[[nodiscard]] constexpr bool runtimeFieldsComplete() {
+  for (const auto &field : componentFields<ComponentClass>()) {
+    bool found = false;
+    for (const auto &binding : ComponentClass::runtimeFields) {
+      if (binding.name == field.name) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      return false;
+    }
+  }
+  return true;
+}
+
+template <typename ComponentClass>
+bool patchComponentField(Entity &entity, std::string_view field,
+                         const nlohmann::json &values) {
+  auto *destination = entity.component<ComponentClass>();
+  if (destination == nullptr) {
+    return false;
+  }
+  for (const auto &binding : ComponentClass::runtimeFields) {
+    if (binding.name != field) {
+      continue;
+    }
+    Entity parsed;
+    ComponentClass::parse(values, parsed);
+    binding.copy(*destination, *parsed.component<ComponentClass>());
+    if constexpr (requires { ComponentClass::afterRuntimeFieldChange(*destination, field); }) {
+      ComponentClass::afterRuntimeFieldChange(*destination, field);
+    }
+    entity.serializedComponents.insert_or_assign(
+        std::string(ComponentClass::typeName), values.dump());
+    return true;
+  }
+  return false;
+}
+
+template <typename ComponentClass>
 [[nodiscard]] constexpr ComponentDescriptor makeComponentDescriptor() {
+  static_assert(runtimeFieldsComplete<ComponentClass>(),
+                "Every reflected field needs a runtime mutation binding");
   return ComponentDescriptor{
       .name = ComponentClass::typeName,
       .parse = &parseComponent<ComponentClass>,
@@ -103,6 +187,7 @@ template <typename ComponentClass>
       .defaults = &defaultComponentJson<ComponentClass>,
       .contains = &containsComponent<ComponentClass>,
       .remove = &removeComponent<ComponentClass>,
+      .patch = &patchComponentField<ComponentClass>,
       .fields = componentFields<ComponentClass>(),
       .editor = componentEditorMetadata<ComponentClass>(),
       .exposedToLua = ComponentClass::exposedToLua,
@@ -113,7 +198,7 @@ template <typename ComponentClass>
 [[nodiscard]] std::vector<ComponentValidationError>
 validateComponent(const ComponentDescriptor &descriptor,
                   const nlohmann::json &json);
-[[nodiscard]] nlohmann::json
+[[nodiscard]] const nlohmann::json &
 componentDefaults(const ComponentDescriptor &descriptor);
 [[nodiscard]] nlohmann::json
 componentFieldDefault(const ComponentDescriptor &descriptor,

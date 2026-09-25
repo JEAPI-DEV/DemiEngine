@@ -60,8 +60,14 @@ to issue runtime commands. Do not move dynamic bodies by repeatedly writing
 flags and latest physics-synchronized velocities. It works for native-created
 fragments as well as authored bodies, and returns nil without a Rigidbody3D.
 It does not act as a native-body readiness check. For current geometry and
-contact state use the live physics queries; `Entity.get` only reads serialized
+contact state use the live physics queries; `Entity.get_config` only reads serialized
 component values.
+
+`state.velocity` and `state.angular_velocity` are numeric `{x,y,z}` arrays in
+world space, in world units/second and radians/second respectively.
+`Rigidbody3D.get_velocity` instead returns three scalar values (or three nils
+without a body). `move_kinematic` takes world-position targets, Euler rotation
+in radians, and a positive fixed-step duration in seconds.
 
 Lua can switch continuous detection with `Rigidbody3D.set_continuous` once a
 fast body has slowed down. `report_contacts` and
@@ -95,6 +101,9 @@ Project collision layers and masks apply to 3D body pairs. Contacts produce
 `physics3d_trigger_*` events. `physics3d_contact` receives both. Payloads
 contain entity IDs, layers, phase, point, normal, penetration, and trigger
 state.
+Event coordinates are flattened scalar fields (`point_x`, `point_y`, `point_z`,
+`normal_x`, `normal_y`, `normal_z`). Query hits instead embed `point` and `normal`
+as numeric `{x,y,z}` arrays; do not interchange the two payload shapes.
 
 ## Queries
 
@@ -168,7 +177,7 @@ function Player:on_create()
 end
 
 function Player:on_update(dt)
-  if Input.action_pressed("jump") then
+  if Input.pressed("jump") then
     self.jump_buffer_remaining = 0.12
   end
 end
@@ -195,14 +204,36 @@ selected virtual shape is not a dynamic rigidbody.
 
 ## Transforms and cameras
 
-`Transform3D.forward`, `right`, and `up` return world directions, including
-parent rotation. `Transform3D.look_at` rotates the local +Z forward axis toward
-a world point. `Camera3D.screen_ray`, `world_to_screen`, and
+`Transform3D.get_position`, `get_rotation`, and `get_scale` return three scalar
+values from the local component; setters use the same local space. Euler
+rotations are radians. Missing components return `nil,nil,nil`; setters return
+false. `Entity.local_position` and `Entity.world_position` instead return
+numeric arrays, with the latter including the parent hierarchy.
+
+`Transform3D.forward`, `right`, and `up` return world-space unit directions as
+scalar tuples, including parent rotation. `Transform3D.look_at` aims the entity's
+world forward direction at a world-space target, resolving the world origin and
+converting the desired rotation back through the parent hierarchy. It changes
+only local rotation, preserving local position and scale. Missing or unresolved
+hierarchies and noninvertible parent scales return false without mutation.
+Pending roots can be aimed; parents must already exist in the world, so an
+entity whose parent is still pending returns false until that parent is committed.
+`Camera3D.screen_ray`, `world_to_screen`, and
 `screen_to_world` accept explicit viewport dimensions, which keeps the math
 deterministic and usable in headless tests.
 These conversions follow the rendered camera's transformed `target_offset`
 and `up_axis` (right-handed look-at), not just the entity's forward axis.
 For orthographic cameras, `orthographic_size` is the full visible height.
+
+Screen coordinates are viewport-local, with the origin at the top left and +Y
+down, in the same units as viewport dimensions (clamped to at least 1).
+`screen_ray` returns `{origin={x,y,z}, direction={x,y,z}}` in world space with a
+unit direction. `world_to_screen` returns `{x,y}` or nil outside near/far depth;
+it does not clip offscreen X/Y. `screen_to_world` returns a world-space scalar
+tuple at the requested distance along that ray, clamped to zero for negative
+distance. This is ray distance, not camera-forward depth. Without a camera or
+resolvable transform, the first two APIs return nil and `screen_to_world`
+returns three nils. Camera FOV is in degrees, unlike transform rotation.
 
 The `minimal_3d` example is the reference probe. It uses public APIs for
 capsule movement and grounding, jumping, trigger pickups, a kinematic moving

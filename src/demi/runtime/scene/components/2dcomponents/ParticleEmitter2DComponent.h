@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <cstdint>
@@ -70,6 +71,50 @@ struct ParticleEmitter2DComponent {
   int mobileMaxParticles = 96;
   bool playing = true;
   bool loop = true;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::emissionShape>("emission_shape"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::emissionSize>("emission_size"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::rate>("rate"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::burst>("burst"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::lifetime>("lifetime"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::velocityMin>("velocity_min"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::velocityMax>("velocity_max"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::gravity>("gravity"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::sizeStart>("size_start"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::sizeEnd>("size_end"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::rotationSpeed>("rotation_speed"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::colorStart>("color_start"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::colorEnd>("color_end"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::texture>("texture"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::material>("material"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::sortingOrder>("sorting_order"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::seed>("seed"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::maxParticles>("max_particles"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::mobileMaxParticles>(
+          "mobile_max_particles"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::playing>("playing"),
+      RuntimeFieldBinding<ParticleEmitter2DComponent>::member<
+          &ParticleEmitter2DComponent::loop>("loop")};
 };
 
 } // namespace demi::runtime

@@ -40,20 +40,12 @@ function Player:on_start()
     state.respawn_x = x
     state.respawn_y = y
   end
-  self.network_id = "player_" .. replication.sender_id()
-  if not replication.register_entity(self.entity_id, {
-    network_id = self.network_id,
-  }) then
-    local diagnostics = replication.diagnostics()
-    Debug.log("Player replication registration failed: " .. tostring(diagnostics.last_error))
-  end
 end
 
 function Player:on_update(dt)
   Debug.clear_lines()
   local color = player_colors.for_sender(replication.sender_id())
   Sprite2D.set_color(self.entity_id, color[1], color[2], color[3], color[4])
-  replication.set_local_color(color[1], color[2], color[3], color[4])
 
   if state.menu_open or state.game_over then
     self.jump_was_down = false
@@ -74,7 +66,7 @@ function Player:on_update(dt)
     return
   end
 
-  replication.update_entity(self.network_id, dt)
+  replication.update_avatar(self.entity_id, color, dt)
 
   local mouse_down = Input.mouse_down("left")
   local grounded = platformer.is_grounded(self.entity_id)

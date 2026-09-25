@@ -8,11 +8,11 @@
 ---@field bodies integer
 ---@field parts table<string,string> Collider part ID to its current physical entity ID.
 ---@class Destruction3DImpact
----@field position number[] Required world-space [x,y,z].
+---@field position Vec3 Required world-space [x,y,z].
 ---@field radius? number World-space metres, 0.001..1000; defaults to 0.5.
 ---@field energy? number Total fracture budget in joules, 0..1e12; defaults to 0.
 ---@field impulse? number Total momentum budget in N*s, 0..1e9; defaults to 0.
----@field direction? number[] Normalized internally; omitted/zero means radial. Coincident radial points use +Y.
+---@field direction? Vec3 Normalized internally; omitted/zero means radial. Coincident radial points use +Y.
 ---@field entity? string Optional root/current-fragment filter. Omit to affect nearby assemblies.
 ---@class Destruction3DService
 ---Destructible3D assemblies and Fracture3D mesh components generate mappings and ModelCollider3D.inline_geometry;

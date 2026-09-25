@@ -150,6 +150,14 @@ InputActionState InputActionResolver::resolve(
     const std::string_view action, const int player,
     const std::unordered_set<std::string> *contexts) const {
   const std::string actionName = normalized(std::string(action));
+  const InputAction *definition = findAction(actions, action);
+  // Recordings contain resolved values, not context metadata. Explicit filters
+  // therefore require an authored action in an enabled context, just as live
+  // input does. A null filter still permits definition-free replay inspection.
+  if (contexts != nullptr &&
+      (definition == nullptr || !contexts->contains(definition->context))) {
+    return {};
+  }
   if (const auto recorded = state.recordedActions.find(actionName);
       recorded != state.recordedActions.end() &&
       (player < 0 || recorded->second.player < 0 ||
@@ -162,12 +170,8 @@ InputActionState InputActionResolver::resolve(
             .source = recorded->second.source};
   }
   InputActionState result;
-  const InputAction *definition = findAction(actions, action);
   if (definition == nullptr ||
-      (contexts != nullptr && !contexts->empty() &&
-       !contexts->contains(definition->context)) ||
-      (definition->player >= 0 && player >= 0 &&
-       definition->player != player))
+      (definition->player >= 0 && player >= 0 && definition->player != player))
     return result;
 
   for (const InputBinding &binding : definition->bindings) {

@@ -1,5 +1,6 @@
 #pragma once
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 #include <map>
 #include <optional>
@@ -96,7 +97,8 @@ struct Masonry3DComponent {
                                true},
       ComponentFieldDescriptor{"debris_lifetime", ComponentFieldType::Number, false, true, {}, 0, true}.withHelp("Zero keeps physical rubble. Positive seconds makes detached masonry non-colliding and fades it before removal."),
       ComponentFieldDescriptor{"debris_fade", ComponentFieldType::Number, false, true, {}, 0, true}};
-  static constexpr ComponentEditorMetadata editor{"Physics 3D", "Masonry 3D"};
+  static constexpr ComponentEditorMetadata editor{"Physics 3D", "Masonry 3D",
+      "Masonry recipe. Add Destructible3D to its owner. Cooking prepares the fracture data in build output; the authored recipe stays compact."};
   static void parse(const nlohmann::json &, Entity &);
   static nlohmann::json defaults();
   Vec3 size{1, 1, .115F};
@@ -109,5 +111,32 @@ struct Masonry3DComponent {
   float density = 1800, bondHealth = .5F;
   std::optional<float> anchorBelow;
   float debrisLifetime=0,debrisFade=1;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<Masonry3DComponent>::member<
+          &Masonry3DComponent::size>("size"),
+      RuntimeFieldBinding<Masonry3DComponent>::member<
+          &Masonry3DComponent::columns>("columns"),
+      RuntimeFieldBinding<Masonry3DComponent>::member<
+          &Masonry3DComponent::rows>("rows"),
+      RuntimeFieldBinding<Masonry3DComponent>::member<
+          &Masonry3DComponent::models>("models"),
+      RuntimeFieldBinding<Masonry3DComponent>::member<
+          &Masonry3DComponent::texture>("texture"),
+      RuntimeFieldBinding<Masonry3DComponent>::member<
+          &Masonry3DComponent::heightMap>("height_map"),
+      RuntimeFieldBinding<Masonry3DComponent>::member<
+          &Masonry3DComponent::reliefDepth>("relief_depth"),
+      RuntimeFieldBinding<Masonry3DComponent>::member<
+          &Masonry3DComponent::textureGrid>("texture_grid"),
+      RuntimeFieldBinding<Masonry3DComponent>::member<
+          &Masonry3DComponent::density>("density"),
+      RuntimeFieldBinding<Masonry3DComponent>::member<
+          &Masonry3DComponent::bondHealth>("bond_health"),
+      RuntimeFieldBinding<Masonry3DComponent>::member<
+          &Masonry3DComponent::anchorBelow>("anchor_below"),
+      RuntimeFieldBinding<Masonry3DComponent>::member<
+          &Masonry3DComponent::debrisLifetime>("debris_lifetime"),
+      RuntimeFieldBinding<Masonry3DComponent>::member<
+          &Masonry3DComponent::debrisFade>("debris_fade")};
 };
 } // namespace demi::runtime

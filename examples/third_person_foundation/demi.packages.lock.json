@@ -2,7 +2,7 @@
   "format_version": 1,
   "packages": [
     {
-      "archive_hash": "sha256:9d4d9b36eeedb0c180e43e9ff3b51f00da58844b335f092634be64c2727f5d46",
+      "archive_hash": "sha256:e271e3595611e2fc3eb8a76c739d1e31969ab60e327d7dfa8ff2fcde08944904",
       "archive_uri": "package://demi.gameplay.third_person/1.0.0",
       "manifest": {
         "dependencies": {},

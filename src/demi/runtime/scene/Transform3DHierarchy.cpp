@@ -87,15 +87,37 @@ Vec3 rotate(const Quaternion rotation, const Vec3 value) {
 }
 
 Vec3 eulerFromQuaternion(const Quaternion value) {
-  const float m00 = 1.0F - 2.0F * (value.y * value.y + value.z * value.z);
-  const float m10 = 2.0F * (value.x * value.y + value.w * value.z);
-  const float m20 = 2.0F * (value.x * value.z - value.w * value.y);
-  const float m21 = 2.0F * (value.y * value.z + value.w * value.x);
-  const float m22 = 1.0F - 2.0F * (value.x * value.x + value.y * value.y);
+  const double x = value.x;
+  const double y = value.y;
+  const double z = value.z;
+  const double w = value.w;
+  const double normSquared = x * x + y * y + z * z + w * w;
+  if (normSquared == 0.0)
+    return {};
+
+  // Quaternion composition accumulates float norm drift. Normalize the matrix
+  // in double so that a quarter-turn does not become an imprecise asin near 1.
+  const double scale = 2.0 / normSquared;
+  const double m00 = 1.0 - scale * (y * y + z * z);
+  const double m10 = scale * (x * y + w * z);
+  const double m20 = scale * (x * z - w * y);
+  const double m21 = scale * (y * z + w * x);
+  const double m22 = 1.0 - scale * (x * x + y * y);
+  const double cosPitch = std::hypot(m00, m10);
+  const float pitch = static_cast<float>(std::atan2(-m20, cosPitch));
+  // Only collapse double-roundoff-sized cos(pitch), not nearby orientations.
+  // For Rz * Ry * Rx at either pole, choose roll=0 and recover the coupled yaw.
+  if (cosPitch <= 1.0e-12) {
+    const double m01 = scale * (x * y - w * z);
+    const double m11 = 1.0 - scale * (x * x + z * z);
+    return {.x = 0.0F,
+            .y = pitch,
+            .z = static_cast<float>(std::atan2(-m01, m11))};
+  }
   return {
-      .x = std::atan2(m21, m22),
-      .y = std::asin(std::clamp(-m20, -1.0F, 1.0F)),
-      .z = std::atan2(m10, m00),
+      .x = static_cast<float>(std::atan2(m21, m22)),
+      .y = pitch,
+      .z = static_cast<float>(std::atan2(m10, m00)),
   };
 }
 
@@ -147,6 +169,17 @@ resolve(const World &world, const Entity &entity,
 }
 
 } // namespace
+
+WorldTransform3D composeWorldTransform3D(const WorldTransform3D &parent,
+                                         const WorldTransform3D &local) {
+  const auto parentRotation = quaternionFromEuler(parent.rotation);
+  const auto localRotation = quaternionFromEuler(local.rotation);
+  const auto worldRotation = multiply(parentRotation, localRotation);
+
+  return {.position = transformPoint3D(parent, local.position),
+          .rotation = eulerFromQuaternion(worldRotation),
+          .scale = multiply(parent.scale, local.scale)};
+}
 
 std::optional<WorldTransform3D> resolveWorldTransform3D(const World &world,
                                                         const Entity &entity) {

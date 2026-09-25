@@ -4,6 +4,7 @@
 #include <nlohmann/json.hpp>
 #include <set>
 #include <string>
+#include <vector>
 
 namespace demi::runtime {
 struct World;
@@ -26,6 +27,7 @@ private:
   std::shared_ptr<const nlohmann::json> templates_;
   std::map<std::string, std::string> regions_;
   std::map<std::string, std::string> leafOwners_;
+  std::map<std::string, std::vector<std::string>> intactVisuals_;
   std::set<std::string> refined_;
 };
 } // namespace demi::runtime

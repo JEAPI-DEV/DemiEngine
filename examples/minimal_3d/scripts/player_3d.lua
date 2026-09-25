@@ -78,17 +78,17 @@ end
 function Player3D:on_update(dt)
   Debug.clear_lines()
 
-  local right = Input.action_value("move_right")
-  local forward = Input.action_value("move_forward")
+  local right = Input.value("move_right")
+  local forward = Input.value("move_forward")
   if right ~= 0.0 and forward ~= 0.0 then
     right = right * 0.70710678
     forward = forward * 0.70710678
   end
 
-  if Input.action_down("rotate_left") then
+  if Input.down("rotate_left") then
     self.yaw = self.yaw + self.rotation_speed * dt
   end
-  if Input.action_down("rotate_right") then
+  if Input.down("rotate_right") then
     self.yaw = self.yaw - self.rotation_speed * dt
   end
   Transform3D.set_rotation(self.entity_id, 0.0, self.yaw, 0.0)
@@ -105,11 +105,11 @@ function Player3D:on_update(dt)
   local px2, py2, pz2 = Transform3D.get_position(self.entity_id)
   Hud.set_text("position/label", string.format("pos: (%.1f, %.1f, %.1f)", px2, py2, pz2), 20.0, 100.0, 2.5)
 
-  if Input.action_pressed("jump") then
+  if Input.pressed("jump") then
     self.jump_buffer_remaining = self.jump_buffer_duration
   end
 
-  if Input.action_pressed("fire") then
+  if Input.pressed("fire") then
     Audio.transition_snapshot("action", 0.08)
     self.music_restore_at = Time.time + 0.35
     local projectile_id = "ent_projectile_" .. tostring(self.next_projectile_id)

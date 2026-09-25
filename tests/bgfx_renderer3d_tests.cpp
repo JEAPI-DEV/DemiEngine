@@ -1,4 +1,6 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
+#include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
+#include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/destruction/DestructionWorld3D.h"
 #include "demi/runtime/destruction/DetachedFragmentFade3D.h"
 #include "demi/runtime/physics/PhysicsWorld3D.h"
@@ -33,6 +35,7 @@ public:
   explicit TextureCapture(RenderCommands &target) : target_(target) {}
   std::vector<TextureHandle> textures;
   std::vector<DrawState> bufferedStates;
+  std::size_t instanceDrawCalls = 0;
   std::vector<float> bufferedAlpha;
   std::vector<std::array<float, 16>> bufferedTransforms;
   std::vector<View2DConfig> views2D;
@@ -60,6 +63,7 @@ public:
     return target_.submit(draw, error);
   }
   bool submit(const InstancedBufferedDraw &draw, std::string &error) override {
+    ++instanceDrawCalls;
     for(const auto &transform:draw.transforms)transformsByView[draw.viewId].push_back(transform);
     for(const auto &texture:draw.textures)if(texture.stage==1)shadowTextures[draw.viewId]=texture.texture;
     textures.push_back(draw.texture);
@@ -660,6 +664,33 @@ int main() {
     assert(capture.bufferedStates.back().blend==BlendMode::Alpha && !capture.bufferedStates.back().writeDepth);
     assert(std::abs(capture.bufferedAlpha.back()-.5F)<1e-5F);
     (void)graphics.endFrame();
+  }
+  {
+    World instanceWorld;
+    auto owner = shape("instance-owner", "cube", {100.0F, 0.0F, 0.0F});
+    auto *mesh = owner.component<MeshRendererComponent>();
+    mesh->hasBounds = true;
+    mesh->boundsMin = {-0.5F, -0.5F, -0.5F};
+    mesh->boundsMax = {0.5F, 0.5F, 0.5F};
+
+    MeshInstances3DComponent instances;
+    instances.transforms["left"].position = {-101.0F, 0.0F, 0.0F};
+    instances.transforms["right"].position = {-99.0F, 0.0F, 0.0F};
+    instances.transforms["outside"].position = {100.0F, 0.0F, 0.0F};
+    owner.setComponent(instances);
+    instanceWorld.entities.push_back(owner);
+
+    const auto visible = extractVisibleMeshes3D(instanceWorld, frame);
+    assert(visible.considered == 3 && visible.culled == 1 && visible.meshes.size() == 2);
+    capture.transformsByView.clear();
+    capture.instanceDrawCalls = 0;
+    assert(renderer.renderFrame(instanceWorld, frame, 0.016F, error));
+    assert(capture.transformsByView.at(frame.viewId).size() == 2);
+    assert(capture.instanceDrawCalls == 1);
+    (void)graphics.endFrame();
+
+    instanceWorld.entities.front().component<MeshInstances3DComponent>()->transforms.clear();
+    assert(extractVisibleMeshes3D(instanceWorld, frame).meshes.empty());
   }
   renderer.shutdown();
   renderer.shutdown();

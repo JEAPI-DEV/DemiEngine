@@ -264,7 +264,8 @@ NetworkMessageGateway::accept(const std::span<const std::uint8_t> bytes,
       validation != NetworkGatewayRejectCode::None)
     return reject(validation, "network payload exceeded structural limits");
   if (!payload.is_object() || !payload.contains("name") ||
-      !payload["name"].is_string() || !payload.contains("data"))
+      !payload["name"].is_string() || !payload.contains("data") ||
+      (payload.contains("target") && !payload["target"].is_string()))
     return reject(NetworkGatewayRejectCode::InvalidJson,
                   "network payload is missing name or data");
 

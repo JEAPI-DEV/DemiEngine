@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <string>
@@ -31,6 +32,21 @@ struct DistanceJoint2DComponent {
   float stiffness = 0.0F;
   float damping = 0.0F;
   bool collideConnected = false;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<DistanceJoint2DComponent>::member<
+          &DistanceJoint2DComponent::otherEntity>("other_entity"),
+      RuntimeFieldBinding<DistanceJoint2DComponent>::member<
+          &DistanceJoint2DComponent::anchor>("anchor"),
+      RuntimeFieldBinding<DistanceJoint2DComponent>::member<
+          &DistanceJoint2DComponent::otherAnchor>("other_anchor"),
+      RuntimeFieldBinding<DistanceJoint2DComponent>::member<
+          &DistanceJoint2DComponent::length>("length"),
+      RuntimeFieldBinding<DistanceJoint2DComponent>::member<
+          &DistanceJoint2DComponent::stiffness>("stiffness"),
+      RuntimeFieldBinding<DistanceJoint2DComponent>::member<
+          &DistanceJoint2DComponent::damping>("damping"),
+      RuntimeFieldBinding<DistanceJoint2DComponent>::member<
+          &DistanceJoint2DComponent::collideConnected>("collide_connected")};
 };
 
 } // namespace demi::runtime

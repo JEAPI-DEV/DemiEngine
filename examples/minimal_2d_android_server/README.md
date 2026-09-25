@@ -54,13 +54,11 @@ sudo ufw allow 39421/tcp
 sudo ufw allow 39420/udp
 ```
 
-Ship `server.crt` with the game client and configure the session:
+Ship `server.crt` with the game client and connect its custom lobby protocol:
 
 ```lua
-NetworkSession.configure({
-  trusted_certificate = "certs/server.crt",
-  server_name = "game.example.com",
-})
+local Network = require("demi.network")
+Network.connect_dtls("game.example.com", 39420, "certs/server.crt", "game.example.com")
 ```
 
 For the Android example, place the public certificate at

@@ -20,6 +20,9 @@ struct InputActionState {
 
 class InputActionResolver {
 public:
+  // A null context filter is unfiltered. An explicit set enables only its
+  // contexts; an empty set disables all actions, including recorded actions.
+  // Filtered replay queries need an authored definition for context metadata.
   [[nodiscard]] InputActionState
   resolve(const InputActionMap &actions, const InputState &state,
           std::string_view action, int player = -1,

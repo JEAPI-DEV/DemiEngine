@@ -42,6 +42,8 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
                             std::string{"Virtual item index is out of range."}};
         return std::tuple{layout.itemOffset(oneBasedIndex - 1), std::string{}};
       });
+  lua["HudNodeHandle"] = sol::nil;
+  lua["HudVirtualLayout"] = sol::nil;
   sol::table hud = lua.create_named_table("Hud");
   hud.set_function("find", [&host](const std::string &id) {
     return host.hudNodeHandle(id);

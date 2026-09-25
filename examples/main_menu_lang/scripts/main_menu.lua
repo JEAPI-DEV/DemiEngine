@@ -1,7 +1,7 @@
 local Input = require("demi.input")
 local Hud = require("demi.hud")
 
-local LanguageFile = require("language_file")
+local LanguageFile = require("demi.ui.localization")
 
 local MainMenu = {}
 
@@ -36,9 +36,9 @@ function MainMenu:on_start()
 end
 
 function MainMenu:on_update()
-  if Input.action_pressed("language_english") then
+  if Input.pressed("language_english") then
     self:request_language("en")
-  elseif Input.action_pressed("language_german") then
+  elseif Input.pressed("language_german") then
     self:request_language("de")
   end
   if self.pending_locale then

@@ -69,7 +69,7 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
               settings.value("generator_version", 0) == 1,
           "Fracture recipe requires generator_version 1");
   for (const auto &[key, value] : settings.items())
-    require(key == "source" || key == "generator_version" || key == "seed" ||
+    require(key == "generator_version" || key == "seed" ||
                 key == "mass" || key == "max_bodies" || key == "objects",
             "Unknown fracture setting: " + key);
   require(settings.contains("objects") && settings["objects"].is_object() &&

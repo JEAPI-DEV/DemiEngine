@@ -34,7 +34,7 @@ function ClickMoveController2D:request(entity_id, world_x, world_y)
 end
 
 function ClickMoveController2D:update(entity_id)
-  if Input.action_pressed(self.move_action) then
+  if Input.pressed(self.move_action) then
     local target_x, target_y = Input.mouse_world_position()
     if target_x ~= nil then
       self:request(entity_id, target_x, target_y)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 namespace demi::runtime {
@@ -29,6 +30,21 @@ struct WorldText3DComponent {
   bool billboard = true;
   float maxDistance = 100.0F;
   std::string renderMask;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<WorldText3DComponent>::member<
+          &WorldText3DComponent::text>("text"),
+      RuntimeFieldBinding<WorldText3DComponent>::member<
+          &WorldText3DComponent::font>("font"),
+      RuntimeFieldBinding<WorldText3DComponent>::member<
+          &WorldText3DComponent::color>("color"),
+      RuntimeFieldBinding<WorldText3DComponent>::member<
+          &WorldText3DComponent::fontSize>("font_size"),
+      RuntimeFieldBinding<WorldText3DComponent>::member<
+          &WorldText3DComponent::billboard>("billboard"),
+      RuntimeFieldBinding<WorldText3DComponent>::member<
+          &WorldText3DComponent::maxDistance>("max_distance"),
+      RuntimeFieldBinding<WorldText3DComponent>::member<
+          &WorldText3DComponent::renderMask>("render_mask")};
 };
 
 } // namespace demi::runtime

@@ -1,7 +1,6 @@
 #include "demi/assets/AssetCooker.h"
 #include "demi/assets/AssetImporter.h"
 #include "demi/assets/ConvexFracture.h"
-#include "demi/assets/FracturePrefab.h"
 #include "demi/assets/FractureAuthoring.h"
 #include "demi/assets/MasonryGeneration.h"
 #include "demi/runtime/scene/WorldQueries.h"
@@ -13,6 +12,8 @@
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/schema/Validation.h"
 #include "editor/EditorWorkspace.h"
+#include "editor/EditorSpecializedDocument.h"
+#include <algorithm>
 #include <bit>
 #include <chrono>
 #include <cmath>
@@ -40,11 +41,84 @@ J source() {
   {"id":"wall","components":{"Transform3D":{"position":[0,2,0]},"MeshRenderer":{"shape":"cube","size":[4,4,0.4],"color":[0.5,0.5,0.5,1]}}}
 ]})");
 }
-J recipe() {
-  return J::parse(R"({"format_version":1,"id":"prefab://broken","fracture":{
-  "generator_version":1,"source":"prefab://source","seed":123,
-  "objects":{"wall":{"pieces":12,"anchor_below":0.001}}
-}})");
+J fracturePrefab() {
+  auto mesh = source()["entities"][0];
+  mesh["components"]["Fracture3D"] = {{"pieces", 12}, {"anchor_below", 0.001}};
+  return {{"format_version", 1},
+          {"id", "prefab://broken"},
+          {"entities", {{{"id", "body"},
+                          {"components", {{"Transform3D", J::object()},
+                                          {"Destructible3D", {{"seed", 123}}}}},
+                          {"children", J::array({mesh})}}}}};
+}
+
+void obsoleteRecipeRejected(const std::filesystem::path &root) {
+  write(root / "demi.project.json",
+        {{"format_version", 1},
+         {"name", "Removed fracture format"},
+         {"main_scene", "scene://test/main"},
+         {"scenes", {{{"id", "scene://test/main"}}}}});
+  write(root / "scenes/main.scene.json",
+        {{"format_version", 1}, {"id", "scene://test/main"},
+         {"entities", J::array()}});
+  const auto path = root / "prefabs/legacy.prefab.json";
+  const J legacy = {{"format_version", 1},
+                    {"id", "prefab://legacy"},
+                    {"fracture", {{"generator_version", 1},
+                                  {"source", "prefab://missing"},
+                                  {"objects", {{"wall", {{"pieces", 2}}}}}}}};
+  for (const bool withEntities : {false, true}) {
+    auto document = legacy;
+    if (withEntities)
+      document["entities"] = J::array();
+    write(path, document);
+    check(hasErrors(validatePath(path).diagnostics),
+          "Prefab schema accepted a removed top-level fracture recipe");
+    const auto expanded = composition::expandPrefabInstance(
+        path, {{"id", "instance"}, {"prefab", "prefab://legacy"}});
+    check(!expanded.document && hasErrors(expanded.diagnostics),
+          "Runtime accepted a removed top-level fracture recipe");
+    check(expanded.diagnostics.front().code == "PREFAB_INVALID_DOCUMENT",
+          "Runtime tried to resolve the removed recipe's source");
+    check(!composition::preparePrefabDocument(path, document).document,
+          "Cooking accepted a removed top-level fracture recipe");
+    check(!composition::bakeFracturePrefab(path).document,
+          "Fracture command accepted a removed top-level recipe");
+    const auto editorDiagnostics = editor::validateSpecializedDocument(
+        editor::EditorSpecializedKind::Prefab, path, document);
+    check(hasErrors(editorDiagnostics) &&
+              editorDiagnostics.front().code == "PREFAB_INVALID_DOCUMENT",
+          "Editor validation accepted a removed top-level recipe");
+    editor::EditorSceneDocument editorDocument;
+    std::string error;
+    check(!editorDocument.open(path, error),
+          "Editor opened a removed top-level recipe as an editable prefab");
+    const auto cooked = root / "build/cooked";
+    const auto cookDiagnostics = assets::cookProject(
+        {.projectFile = root / "demi.project.json",
+         .outputDirectory = cooked,
+         .platform = "linux"});
+    const bool rejectedRecipe = std::ranges::any_of(
+        cookDiagnostics, [&](const Diagnostic &diagnostic) {
+          return diagnostic.severity == Severity::Error &&
+                 diagnostic.code == "PREFAB_INVALID_DOCUMENT" &&
+                 diagnostic.path == path.string();
+        });
+    check(rejectedRecipe,
+          "Cook did not validate the unreferenced legacy prefab");
+    check(!std::filesystem::exists(cooked / "prefabs/legacy.prefab.json"),
+          "Cook copied a removed top-level recipe into build output");
+  }
+  const J prepared = {{"format_version", 1},
+                      {"id", "prefab://legacy"},
+                      {"entities", J::array()},
+                      {"source_recipe", legacy}};
+  write(path, prepared);
+  const auto expanded = composition::expandPrefabInstance(
+      path, {{"id", "instance"}, {"prefab", "prefab://legacy"}});
+  check(!expanded.document && !expanded.diagnostics.empty() &&
+            expanded.diagnostics.front().code == "PREFAB_SOURCE_RECIPE_INVALID",
+        "Cooked source_recipe accepted the removed public recipe format");
 }
 void writeTetraGlb(const std::filesystem::path &path, bool closed) {
   J json = J::parse(
@@ -86,13 +160,12 @@ void importedModel(const std::filesystem::path &root) {
                                              .source = root / "tetra.glb",
                                              .id = "asset://tetra"});
   check(!hasErrors(imported.diagnostics), "GLB fixture import failed");
-  auto model = source();
-  auto &renderer = model["entities"][0]["components"]["MeshRenderer"];
+  auto config = fracturePrefab();
+  auto &components = config["entities"][0]["children"][0]["components"];
+  auto &renderer = components["MeshRenderer"];
   renderer["model"] = "asset://tetra";
   renderer["size"] = {1, 1, 1};
-  write(root / "prefabs/source.prefab.json", model);
-  auto config = recipe();
-  config["fracture"]["objects"]["wall"]["pieces"] = 4;
+  components["Fracture3D"]["pieces"] = 4;
   write(root / "prefabs/broken.prefab.json", config);
   const auto generated =
       composition::bakeFracturePrefab(root / "prefabs/broken.prefab.json");
@@ -137,7 +210,8 @@ void lazyImportedSources(const std::filesystem::path &root) {
       root / "scenes/main.scene.json",
       J::parse(
           R"({"format_version":1,"id":"scene://test/main","entities":[],"instances":[
-    {"id":"a","prefab":"prefab://solid"},{"id":"b","prefab":"prefab://nested"}]})"));
+    {"id":"a","prefab":"prefab://solid"},{"id":"b","prefab":"prefab://nested",
+     "overrides":{"n/solid.Fracture3D.pieces":6}}]})"));
   std::string error;
   auto loaded = loadProject(root / "demi.project.json", error);
   check(bool(loaded), error);
@@ -152,6 +226,9 @@ void lazyImportedSources(const std::filesystem::path &root) {
                 ->component<Transform3DComponent>()
                 ->position.x == 5,
         "Nested source override was lost");
+  check(findEntity(world, "b/n/solid")
+                ->component<Destructible3DComponent>()->parts.size() == 6,
+        "Outer fracture override was applied after nested compilation");
   const auto mapping =
       findEntity(world, "a/solid")->component<Destructible3DComponent>()->parts;
   const auto templates = *findEntity(world, "a/solid")
@@ -221,6 +298,20 @@ void lazyImportedSources(const std::filesystem::path &root) {
   check(bool(shipping), error);
   check(shipping->world.entities.size() == 4,
         "Cooked lazy models expanded eagerly");
+  check(findEntity(shipping->world, "b/n/solid")
+                ->component<Destructible3DComponent>()->parts.size() == 6,
+        "Cooking lost the outer fracture override");
+
+  RuntimePrefabService prefabs;
+  prefabs.configure(cooked);
+  WorldCommandBuffer pending;
+  const auto instance = prefabs.instantiate(
+      shipping->world, pending, "prefab://nested",
+      {.id = "changed", .overrides = {{"n/solid.Fracture3D.pieces", 8}}});
+  check(bool(instance), "Cooked runtime fracture override failed");
+  check(pending.pendingEntity("changed/n/solid")
+                ->component<Destructible3DComponent>()->parts.size() == 8,
+        "Cooked runtime override used stale prepared geometry");
 }
 
 void componentAuthoring(const std::filesystem::path &root) {
@@ -322,13 +413,26 @@ void componentAuthoring(const std::filesystem::path &root) {
   bad["entities"][0]["components"].erase("Destructible3D");
   check(!composition::expandScene(root / "scenes/bad.scene.json", bad).document, "Orphan Fracture3D accepted");
 }
-void masonryStreamingAuthoring(const std::filesystem::path &root) {
-  const J prefab =
-      J::parse(R"({"format_version":1,"id":"prefab://wall","entities":[
+void masonryStreamingAuthoring(const std::filesystem::path &root,
+                               bool customModels = false) {
+  J prefab = J::parse(R"({"format_version":1,"id":"prefab://wall","entities":[
     {"id":"assembly","components":{"Transform3D":{},"Destructible3D":{}},"children":[
       {"id":"region","components":{"Transform3D":{"position":[0,0.5,0]},
         "Masonry3D":{"size":[1,1,0.1],"rows":2,"columns":2,"anchor_below":0}}}
     ]}]})");
+  if (customModels) {
+    std::filesystem::create_directories(root);
+    writeTetraGlb(root / "brick.glb", true);
+    for (const auto *id : {"asset://brick_a", "asset://brick_b"})
+      check(!hasErrors(assets::importAsset({.projectDirectory = root,
+                                            .source = root / "brick.glb",
+                                            .id = id})
+                           .diagnostics),
+            "Masonry model import failed");
+    prefab["entities"][0]["children"][0]["components"]["Masonry3D"]["models"] =
+        {{"a", "asset://brick_a"}, {"b", "asset://brick_b"}};
+  }
+  const std::size_t intactCount = customModels ? 3 : 2;
   write(root / "prefabs/wall.prefab.json", prefab);
   write(root / "demi.project.json",
         {{"format_version", 1},
@@ -354,8 +458,10 @@ void masonryStreamingAuthoring(const std::filesystem::path &root) {
                                {.id = "b", .position = Vec3{3, 0, 0}});
   check(bool(b), "Cached activation failed");
   (void)commands.flush(loaded->world);
-  check(a.entityIds.size() == 2 && b.entityIds.size() == 2,
+  check(a.entityIds.size() == intactCount && b.entityIds.size() == intactCount,
         "Intact masonry eagerly created leaf entities");
+  check(prefabs.templateCacheStatistics().hits == 1,
+        "Repeated masonry preparation did not reuse its template");
   for (const auto &[part, visual] : findEntity(loaded->world, "b/assembly")
                                         ->component<Destructible3DComponent>()
                                         ->parts)
@@ -373,13 +479,20 @@ void masonryStreamingAuthoring(const std::filesystem::path &root) {
   physics.step(loaded->world,1.F/60);
   check(loaded->world.destruction3D->state("a/assembly").status=="failed" &&
         findEntity(loaded->world,"a/region"),"Rejected split materialized or removed intact visuals");
-  check(loaded->world.entities.size()==4,"Rejected split leaked leaf entities");
+  check(loaded->world.entities.size() == 2 * intactCount,
+        "Rejected split leaked leaf entities");
   findEntity(loaded->world,"a/assembly")->component<Destructible3DComponent>()->maxBodies=64;
   check(loaded->world.destruction3D->damagePart("a/assembly",hit->colliderPartId,2,error),error);
   physics.step(loaded->world,1.F/60);
   const auto state=loaded->world.destruction3D->state("a/assembly");
   check(state.status=="applied",state.error);
   check(!findEntity(loaded->world,"a/region")->hasComponent<MeshRendererComponent>(),"Split region kept its intact surface");
+  if (customModels) {
+    check(!findEntity(loaded->world, "a/region/__instances/1"),
+          "Split retained a duplicate intact model batch");
+    check(findEntity(loaded->world, "b/region/__instances/1"),
+          "Split removed an unrelated model batch");
+  }
   double splitMass=0;
   for(const auto &entity:loaded->world.entities)
     if(entity.id.starts_with("a/fracture/") || entity.id.starts_with("a/assembly/fracture/"))
@@ -420,7 +533,8 @@ void masonryStreamingAuthoring(const std::filesystem::path &root) {
   multiple["entities"][0]["children"].push_back(nextRegion);
   write(root/"prefabs/multiple.prefab.json",multiple);
   auto d=prefabs.instantiate(loaded->world,commands,"prefab://multiple",{.id="d",.position=Vec3{10,0,0}});
-  check(bool(d) && d.entityIds.size()==3,"Multi-region wall was not compact");
+  check(bool(d) && d.entityIds.size() == 1 + 2 * (intactCount - 1),
+        "Multi-region wall was not compact");
   (void)commands.flush(loaded->world);
   physics.step(loaded->world,1.F/60);
   const auto localHit=physics.raycast({9.75F,.75F,2},{0,0,-1},4);
@@ -439,39 +553,54 @@ void masonryStreamingAuthoring(const std::filesystem::path &root) {
   write(root / "prefabs/wall.prefab.json", changed);
   auto c = prefabs.instantiate(loaded->world, commands, "prefab://wall",
                                {.id = "c"});
-  check(bool(c) && c.entityIds.size() == 2 && commands.pendingEntity("c/assembly")->component<Destructible3DComponent>()->parts.size()==6,
+  check(bool(c) && c.entityIds.size() == intactCount &&
+            commands.pendingEntity("c/assembly")
+                    ->component<Destructible3DComponent>()
+                    ->parts.size() == 6,
         "Template cache ignored source edit");
-  auto reliefSource=prefab;
-  reliefSource["entities"][0]["children"][0]["components"]["Masonry3D"]["height_map"]="asset://height";
-  write(root/"prefabs/wall.prefab.json",reliefSource);
-  const auto relief=composition::bakeFracturePrefab(root/"prefabs/wall.prefab.json");
-  check(bool(relief.document),"Runtime relief recipe failed to compile");
-  int reliefCells=0;
-  for(const auto &entity:(*relief.document)["entities"])
-    if(entity["components"].contains("SurfaceRelief3D")) {
-      ++reliefCells;
-      check(!entity["components"]["MeshRenderer"].contains("model") &&
-            !entity["components"]["MeshRenderer"].contains("vertices"),
+  if (!customModels) {
+    auto reliefSource = prefab;
+    reliefSource["entities"][0]["children"][0]["components"]["Masonry3D"]
+                ["height_map"] = "asset://height";
+    write(root / "prefabs/wall.prefab.json", reliefSource);
+    const auto relief =
+        composition::bakeFracturePrefab(root / "prefabs/wall.prefab.json");
+    check(bool(relief.document), "Runtime relief recipe failed to compile");
+    int reliefCells = 0;
+    for (const auto &entity : (*relief.document)["entities"])
+      if (entity["components"].contains("SurfaceRelief3D")) {
+        ++reliefCells;
+        check(
+            !entity["components"]["MeshRenderer"].contains("model") &&
+                !entity["components"]["MeshRenderer"].contains("vertices"),
             "Relief generated a model dependency or serialized mesh geometry");
+      }
+    check(reliefCells == 1, "Intact region did not share a relief surface");
+    const auto preview = composition::expandScene(
+        root / "prefabs/wall.prefab.json", reliefSource, false);
+    check(bool(preview.document), "Masonry preview expansion failed");
+    std::vector<J> previewRelief, runtimeRelief;
+    for (const auto &entity : (*preview.document)["entities"]) {
+      const auto &components = entity["components"];
+      if (!components.contains("SurfaceRelief3D"))
+        continue;
+      check(!components.contains("Fracture3D"),
+            "Preview created fracture simulation inputs");
+      previewRelief.push_back(
+          {components["MeshRenderer"], components["SurfaceRelief3D"]});
     }
-  check(reliefCells==1,"Intact region did not share a relief surface");
-  const auto preview=composition::expandScene(root/"prefabs/wall.prefab.json",reliefSource,false);
-  check(bool(preview.document),"Masonry preview expansion failed");
-  std::vector<J> previewRelief, runtimeRelief;
-  for (const auto &entity:(*preview.document)["entities"]) {
-    const auto &components=entity["components"];
-    if (!components.contains("SurfaceRelief3D")) continue;
-    check(!components.contains("Fracture3D"),"Preview created fracture simulation inputs");
-    previewRelief.push_back({components["MeshRenderer"],components["SurfaceRelief3D"]});
+    for (const auto &entity : (*relief.document)["entities"])
+      if (entity["components"].contains("Destructible3D"))
+        for (const auto &templates :
+             entity["components"]["Destructible3D"]["deferred_visuals"])
+          for (const auto &leaf : templates)
+            runtimeRelief.push_back({leaf["components"]["MeshRenderer"],
+                                     leaf["components"]["SurfaceRelief3D"]});
+    std::ranges::sort(previewRelief);
+    std::ranges::sort(runtimeRelief);
+    check(previewRelief == runtimeRelief,
+          "Preview atlas/relief descriptors differ from runtime");
   }
-  for (const auto &entity:(*relief.document)["entities"])
-    if (entity["components"].contains("Destructible3D"))
-      for(const auto &templates:entity["components"]["Destructible3D"]["deferred_visuals"])
-        for(const auto &leaf:templates)
-          runtimeRelief.push_back({leaf["components"]["MeshRenderer"],leaf["components"]["SurfaceRelief3D"]});
-  std::ranges::sort(previewRelief);
-  std::ranges::sort(runtimeRelief);
-  check(previewRelief==runtimeRelief,"Preview atlas/relief descriptors differ from runtime");
   write(root / "prefabs/wall.prefab.json", prefab);
   {
     editor::EditorWorkspace editor;
@@ -500,6 +629,22 @@ void masonryStreamingAuthoring(const std::filesystem::path &root) {
   check(!assets::hasMasonryAuthoring(baked),"Cook did not prepare masonry fracture data");
   std::ifstream authored(root / "prefabs/wall.prefab.json");
   check(J::parse(authored)==prefab,"Cook modified the authored wall recipe");
+  if (customModels) {
+    auto shipping = loadProject(cooked / "demi.project.json", error);
+    check(bool(shipping), error);
+    RuntimePrefabService cookedPrefabs;
+    cookedPrefabs.configure(cooked);
+    WorldCommandBuffer pending;
+    const auto instance = cookedPrefabs.instantiate(
+        shipping->world, pending, "prefab://wall", {.id = "cooked"});
+    check(bool(instance) && instance.entityIds.size() == intactCount,
+          "Cooked model masonry expanded eagerly");
+    (void)pending.flush(shipping->world);
+    ensurePhysicsWorld3D(shipping->world).step(shipping->world, 1.F / 60);
+    check(shipping->world.destruction3D->state("cooked/assembly").status ==
+              "ready",
+          shipping->world.destruction3D->state("cooked/assembly").error);
+  }
 }
 void densityAuthoring(const std::filesystem::path &root) {
   auto prefab = J::parse(R"({"format_version":1,"id":"prefab://density","entities":[
@@ -553,12 +698,11 @@ void test(const std::filesystem::path &root) {
   write(
       root / "demi.project.json",
       {{"format_version", 1},
-       {"name", "Fracture recipe test"},
+       {"name", "Fracture component test"},
        {"main_scene", "scene://test/main"},
        {"scenes",
         {{{"id", "scene://test/main"}, {"path", "scenes/main.scene.json"}}}}});
-  write(root / "prefabs/source.prefab.json", source());
-  write(root / "prefabs/broken.prefab.json", recipe());
+  write(root / "prefabs/broken.prefab.json", fracturePrefab());
   write(
       root / "scenes/main.scene.json",
       J::parse(
@@ -585,9 +729,11 @@ void test(const std::filesystem::path &root) {
             !geometry["fracture"]["anchors"].empty(),
         "Generated parts/anchors missing");
   double volume = 0;
-  for (const auto &entity : (*first.document)["entities"]) {
-    if (!entity["components"].contains("MeshRenderer"))
-      continue;
+  const auto &deferred = (*first.document)["entities"][0]["components"]
+                                        ["Destructible3D"]["deferred_visuals"];
+  check(deferred.contains("wall") && (*first.document)["entities"].size() == 2,
+        "Component fracture did not retain a compact intact source");
+  for (const auto &entity : deferred.at("wall")) {
     const auto &mesh = entity["components"]["MeshRenderer"];
     check(mesh["vertices"].size() == mesh["normals"].size() &&
               mesh["vertices"].size() == mesh["uvs"].size(),
@@ -637,8 +783,9 @@ void test(const std::filesystem::path &root) {
   std::ifstream file(cooked / "prefabs/broken.prefab.json");
   J baked;
   file >> baked;
-  check(!baked.contains("fracture") && baked["id"] == "prefab://broken",
-        "Cook did not bake recipe to stable prefab data");
+  check(baked["id"] == "prefab://broken" &&
+            baked.at("source_recipe") == fracturePrefab(),
+        "Cook did not retain component source for runtime overrides");
   check(!hasErrors(validatePath(cooked).diagnostics), "Cooked prefab invalid");
   check(bool(loadProject(cooked / "demi.project.json", error)),
         "Cooked prefab runtime load failed: " + error);
@@ -648,30 +795,31 @@ void test(const std::filesystem::path &root) {
           "Editor project open failed: " + error);
     const bool opened =
         editor.openPrefabDocument(root / "prefabs/broken.prefab.json", error);
-    check(opened, "Editor recipe preview failed: " + error);
+    check(opened, "Editor component preview failed: " + error);
     check(editor.project().world.entities.size() ==
               (*first.document)["entities"].size(),
-          "Editor preview differs from compiled prefab");
-    check(editor.sceneDocument().json().contains("fracture") &&
+          "Editor preview lost authored entities");
+    check(editor.sceneDocument().json() == fracturePrefab() &&
               !editor.sceneDocument().isDirty(),
-          "Preview materialized generated geometry into authored recipe");
+          "Preview materialized generated geometry into authored components");
   }
-  auto bad = recipe();
-  bad["fracture"]["source"] = "prefab://broken";
+  auto bad = fracturePrefab();
+  bad["instances"] = {{{"id", "cycle"}, {"prefab", "prefab://broken"}}};
   write(root / "prefabs/broken.prefab.json", bad);
   check(!composition::bakeFracturePrefab(root / "prefabs/broken.prefab.json")
              .document,
-        "Recipe dependency cycle accepted");
-  bad = recipe();
-  bad["fracture"]["objects"]["wall"]["pieces"] = std::int64_t(INT32_MAX) + 1;
+        "Component prefab dependency cycle accepted");
+  bad = fracturePrefab();
+  bad["entities"][0]["children"][0]["components"]["Fracture3D"]["pieces"] =
+      std::int64_t(INT32_MAX) + 1;
   write(root / "prefabs/broken.prefab.json", bad);
   check(!composition::bakeFracturePrefab(root / "prefabs/broken.prefab.json")
              .document,
         "Unrepresentable piece count accepted");
-  write(root / "prefabs/broken.prefab.json", recipe());
-  auto changed = source();
-  changed["entities"][0]["components"]["MeshRenderer"]["size"] = {5, 4, .4};
-  write(root / "prefabs/source.prefab.json", changed);
+  auto changed = fracturePrefab();
+  changed["entities"][0]["children"][0]["components"]["MeshRenderer"]["size"] =
+      {5, 4, .4};
+  write(root / "prefabs/broken.prefab.json", changed);
   check(composition::bakeFracturePrefab(root / "prefabs/broken.prefab.json")
                 .document != first.document,
         "Source edit did not regenerate output");
@@ -692,6 +840,8 @@ int main() {
     lazyImportedSources(root / "lazy-models");
     densityAuthoring(root / "components");
     masonryStreamingAuthoring(root / "masonry");
+    masonryStreamingAuthoring(root / "masonry-models", true);
+    obsoleteRecipeRejected(root / "removed-format");
   } catch (const std::exception &e) {
     std::cerr << e.what() << " fixtures=" << root << '\n';
     return 1;

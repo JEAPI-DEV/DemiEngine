@@ -5,6 +5,15 @@
 
 namespace demi::runtime {
 
+bool GameplayDataComponent::serializeField(
+    const GameplayDataComponent &component, std::string_view field,
+    nlohmann::json &out) {
+  if (field != "values")
+    return false;
+  out = nlohmann::json::parse(component.valuesJson);
+  return true;
+}
+
 void GameplayDataComponent::parse(const nlohmann::json &json, Entity &entity) {
   GameplayDataComponent component;
   if (const auto *values = scene_loading::objectField(json, "values")) {

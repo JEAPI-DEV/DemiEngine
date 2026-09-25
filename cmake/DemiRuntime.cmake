@@ -101,6 +101,8 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/LuaBindingHelpers.cpp
   src/demi/runtime/scripting/bindings/LuaCoreBindings.cpp
   src/demi/runtime/scripting/bindings/LuaEntityBindings.cpp
+  src/demi/runtime/scripting/bindings/scene/LuaPrefabBindings.cpp
+  src/demi/runtime/scripting/bindings/mesh/LuaMeshConstructionBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaPhysics2DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaPhysics3DBindings.cpp
   src/demi/runtime/scripting/bindings/components/LuaRigidbody3DBindings.cpp
@@ -129,12 +131,15 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/LuaNetworkBindings.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkQueryHistoryBindings.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkSessionBindings.cpp
+  src/demi/runtime/network/NetworkSessionProtocol.cpp
+  src/demi/runtime/network/NetworkSessionPrediction.cpp
   src/demi/runtime/scripting/bindings/LuaRandomBindings.cpp
   src/demi/runtime/scripting/bindings/LuaTlsBindings.cpp
   src/demi/runtime/scripting/persistence/LuaSaveCodec.cpp
   src/demi/runtime/scripting/persistence/GameSaveDocument.cpp
   src/demi/runtime/scripting/LuaScriptHostPersistence.cpp
   src/demi/runtime/scripting/LuaScriptHostE2ETests.cpp
+  src/demi/runtime/scripting/LuaE2ETestRunner.cpp
   src/demi/runtime/scripting/LuaScriptHostServices.cpp
   src/demi/runtime/scripting/LuaScriptHostSimulationServices.cpp
 )

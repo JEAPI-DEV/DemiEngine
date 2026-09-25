@@ -1,16 +1,187 @@
+#include "demi/runtime/input/GameplayInputService.h"
 #include "demi/runtime/input/InputActionParser.h"
 #include "demi/runtime/input/InputActionResolver.h"
 #include "demi/runtime/input/InputRebinding.h"
 #include "demi/runtime/input/TouchGestureRecognizer.h"
 #include "demi/runtime/platform/ApplicationServices.h"
 
+#include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <unordered_set>
 
+namespace {
+
+bool gameplayInputServiceTests() {
+  using namespace demi::runtime;
+  using namespace demi::runtime::input;
+
+  GameplayInputService service;
+  if (service.keyDown("space") || service.keyPressed("space") ||
+      service.keyReleased("space") || service.down("jump") ||
+      service.pressed("jump") || service.released("jump") ||
+      service.value("jump") != 0.0F || service.rawVector("move").x != 0.0F ||
+      !service.source("jump").empty() || service.assignGamepad(4, 1)) {
+    std::cerr << "Uninitialized gameplay input must be neutral.\n";
+    return false;
+  }
+
+  const auto actions = parseInputActions(nlohmann::json::parse(R"({
+    "input": {"actions": {
+      "jump": {"type":"button","bindings":[{"input":"key:space"}]},
+      "accept": {"type":"button","context":"menu",
+                 "bindings":[{"input":"key:space"}]},
+      "move": {"type":"vector2","bindings":[
+        {"input":"key:d","vector":[1,0]},
+        {"input":"key:s","vector":[0,1]}]}
+    }}
+  })"));
+  InputState state;
+  state.keysDown = {"space", "d", "s"};
+  state.keysPressed = {"space"};
+  state.keysReleased = {"escape"};
+  state.gamepads.push_back({.deviceId = 4});
+  service.initialize(state);
+  const auto directory =
+      std::filesystem::temp_directory_path() /
+      ("demi-gameplay-input-" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::string error;
+  const auto relativePath = directory.filename() / "bindings.json";
+  if (service.saveBindings(relativePath, error) ||
+      error != "cannot save relative input bindings before user-data storage "
+               "is configured" ||
+      std::filesystem::exists(relativePath)) {
+    std::cerr << "Unconfigured relative binding save was not rejected.\n";
+    return false;
+  }
+  if (service.loadBindings(relativePath, error) ||
+      error != "cannot load relative input bindings before user-data storage "
+               "is configured") {
+    std::cerr << "Unconfigured relative binding load was not rejected.\n";
+    return false;
+  }
+  service.configure(actions, directory);
+
+  const Vec2 raw = service.rawVector("MOVE");
+  const Vec2 unit = service.vector("move");
+  if (!service.keyDown("SPACE") || !service.keyPressed("Space") ||
+      !service.keyReleased("ESCAPE") || !service.down("JUMP") ||
+      !service.pressed("jump") || service.value("jump") != 1.0F ||
+      service.source("jump") != "key:space" || service.down("accept") ||
+      raw.x != 1.0F || raw.y != 1.0F ||
+      std::abs(unit.x * unit.x + unit.y * unit.y - 1.0F) > 0.00001F) {
+    std::cerr << "Gameplay input key, action, or vector queries failed.\n";
+    return false;
+  }
+  state.keysDown.erase("space");
+  state.keysPressed.clear();
+  state.keysReleased.insert("space");
+  if (service.down("jump") || !service.released("jump")) {
+    std::cerr << "Gameplay input did not observe the live snapshot.\n";
+    return false;
+  }
+  state.keysDown.insert("space");
+  service.enableContext("MENU");
+  service.disableContext("GAMEPLAY");
+  service.configure(actions, directory);
+  if (service.down("jump") || !service.down("accept") ||
+      service.contextEnabled("gameplay") || !service.contextEnabled("Menu")) {
+    std::cerr << "Project configuration reset gameplay input contexts.\n";
+    return false;
+  }
+  service.disableContext("menu");
+  if (service.contextEnabled("gameplay") || service.contextEnabled("menu") ||
+      service.down("jump") || service.down("accept") ||
+      service.released("jump") || service.value("jump") != 0.0F ||
+      !service.source("jump").empty() || service.rawVector("move").x != 0.0F ||
+      !service.keyDown("space")) {
+    std::cerr
+        << "An empty context selection must disable actions, not raw keys.\n";
+    return false;
+  }
+  const std::unordered_set<std::string> noContexts;
+  const InputActionResolver resolver;
+  if (resolver.down(actions, state, "jump", -1, &noContexts) ||
+      !resolver.down(actions, state, "jump") ||
+      !resolver.down(actions, state, "accept")) {
+    std::cerr
+        << "Explicit empty and unfiltered context queries were conflated.\n";
+    return false;
+  }
+  service.enableContext("GAMEPLAY");
+  if (!service.down("jump") || service.down("accept")) {
+    std::cerr << "Re-enabling gameplay did not restore only its actions.\n";
+    return false;
+  }
+
+  if (!service.rebind("JUMP", 0, "key:j", -1, error) || service.down("jump") ||
+      service.rebind("jump", 1, "key:k", -1, error) || error.empty() ||
+      actions.at("jump").bindings.front().input != "key:space") {
+    std::cerr << "Gameplay rebinding failed or mutated authored actions.\n";
+    return false;
+  }
+  const auto path = directory / "bindings.json";
+  if (!service.saveBindings("bindings.json", error) ||
+      !std::filesystem::is_regular_file(path)) {
+    std::cerr << "Relative bindings did not use user storage: " << error
+              << '\n';
+    return false;
+  }
+  service.configure(actions, directory);
+  if (!service.down("jump") || !service.loadBindings(path, error) ||
+      service.down("jump")) {
+    std::cerr << "Absolute binding load or authored reset failed: " << error
+              << '\n';
+    return false;
+  }
+  state.keysDown.insert("j");
+  if (!service.down("jump") || !service.saveBindings(path, error) ||
+      !service.loadBindings("bindings.json", error) ||
+      service.loadBindings("missing.json", error) || !service.down("jump")) {
+    std::cerr << "Binding persistence or failed-load preservation failed.\n";
+    return false;
+  }
+  GameplayInputService unconfigured;
+  const auto explicitPath = directory / "explicit-bindings.json";
+  if (!unconfigured.loadBindings(path, error) ||
+      !unconfigured.saveBindings(explicitPath, error) ||
+      !std::filesystem::is_regular_file(explicitPath)) {
+    std::cerr << "Unconfigured absolute binding paths failed: " << error
+              << '\n';
+    return false;
+  }
+  std::filesystem::remove(explicitPath);
+  std::filesystem::remove(path);
+  std::filesystem::remove(directory);
+
+  if (service.assignGamepad(99, 1) || service.assignGamepad(4, -1) ||
+      !service.assignGamepad(4, 2) || state.gamepads.front().player != 2 ||
+      state.gamepadAssignments.at(4) != 2) {
+    std::cerr << "Gameplay input device assignment failed.\n";
+    return false;
+  }
+  InputState replacement;
+  service.initialize(replacement);
+  if (service.keyDown("j") || service.down("jump") ||
+      !service.contextEnabled("gameplay") || service.contextEnabled("menu")) {
+    std::cerr
+        << "Gameplay input initialization retained stale state or contexts.\n";
+    return false;
+  }
+  return true;
+}
+
+} // namespace
+
 int main() {
+  if (!gameplayInputServiceTests()) {
+    return 1;
+  }
   const auto actions =
       demi::runtime::input::parseInputActions(nlohmann::json::parse(R"({
         "input": {"actions": {

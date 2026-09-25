@@ -1,201 +1,24 @@
 {
   "additionalProperties": false,
   "properties": {
-    "FractureDebris3D": {
-      "additionalProperties": false,
-      "properties": {
-        "color": {
-          "default": [
-            0.65,
-            0.45,
-            0.3,
-            1
-          ],
-          "items": {
-            "type": "number"
-          },
-          "maxItems": 4,
-          "minItems": 4,
-          "type": "array",
-          "x-demi-editor-label": "Color",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "count": {
-          "default": 12,
-          "minimum": 0,
-          "type": "integer",
-          "x-demi-editor-help": "Cosmetic chips per accepted spatial impact. Zero disables emission.",
-          "x-demi-editor-label": "Count",
-          "x-demi-editor-step": 1,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "fade_duration": {
-          "default": 1,
-          "minimum": 0,
-          "type": "number",
-          "x-demi-editor-help": "Opacity fades during the final seconds of lifetime. Zero means immediate removal at expiry.",
-          "x-demi-editor-label": "Fade Duration",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "gravity": {
-          "default": [
-            0,
-            -9.81,
-            0
-          ],
-          "items": {
-            "type": "number"
-          },
-          "maxItems": 3,
-          "minItems": 3,
-          "type": "array",
-          "x-demi-editor-label": "Gravity",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "lifetime": {
-          "default": 3,
-          "minimum": 0,
-          "type": "number",
-          "x-demi-editor-help": "Seconds before cosmetic chips disappear. Zero disables emission.",
-          "x-demi-editor-label": "Lifetime",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "max_fragments": {
-          "default": 128,
-          "minimum": 0,
-          "type": "integer",
-          "x-demi-editor-help": "Live cosmetic chip budget for this emitter. Oldest chips are replaced; structural debris is never affected.",
-          "x-demi-editor-label": "Max Fragments",
-          "x-demi-editor-step": 1,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "model": {
-          "default": "",
-          "type": "string",
-          "x-demi-editor-help": "Optional shared chip model. Omit for built-in cuboid chips; no generated asset is required.",
-          "x-demi-editor-label": "Model",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true,
-          "x-demi-reference": "asset"
-        },
-        "render_layer": {
-          "default": "",
-          "type": "string",
-          "x-demi-editor-label": "Render Layer",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "seed": {
-          "default": 1,
-          "minimum": 0,
-          "type": "integer",
-          "x-demi-editor-label": "Seed",
-          "x-demi-editor-step": 1,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "size": {
-          "default": [
-            0.12,
-            0.05,
-            0.08
-          ],
-          "items": {
-            "type": "number"
-          },
-          "maxItems": 3,
-          "minItems": 3,
-          "type": "array",
-          "x-demi-editor-help": "Base chip dimensions in metres, varied deterministically per fragment.",
-          "x-demi-editor-label": "Size",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "speed": {
-          "default": 2,
-          "minimum": 0,
-          "type": "number",
-          "x-demi-editor-label": "Speed",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "spin": {
-          "default": 180,
-          "minimum": 0,
-          "type": "number",
-          "x-demi-editor-help": "Maximum angular speed in degrees per second per axis.",
-          "x-demi-editor-label": "Spin",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "texture": {
-          "default": "",
-          "type": "string",
-          "x-demi-editor-label": "Texture",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true,
-          "x-demi-reference": "asset"
-        }
-      },
-      "type": "object"
-    },
-    "PrefabPlacement3D": {
-      "additionalProperties": false,
-      "properties": {
-        "prefab": {
-          "default": "",
-          "type": "string",
-          "x-demi-editor-label": "Prefab",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true,
-          "x-demi-reference": "prefab"
-        },
-        "preserve": {
-          "default": true,
-          "type": "boolean",
-          "x-demi-editor-label": "Preserve",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "root": {
-          "default": "assembly",
-          "type": "string",
-          "x-demi-editor-label": "Root",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        }
-      },
-      "type": "object"
-    },
     "AnimationCollision2D": {
       "additionalProperties": false,
       "properties": {
         "receivers": {
+          "default": {},
           "type": "object",
+          "x-demi-editor-label": "Receivers",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "windows": {
+          "default": {},
           "type": "object",
+          "x-demi-editor-label": "Windows",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -206,27 +29,61 @@
       "additionalProperties": false,
       "properties": {
         "clip_name": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Clip Name",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "loop": {
+          "default": true,
           "type": "boolean",
+          "x-demi-editor-label": "Loop",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "playing": {
+          "default": true,
           "type": "boolean",
+          "x-demi-editor-label": "Playing",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "speed": {
+          "default": 1.0,
           "type": "number",
+          "x-demi-editor-label": "Speed",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "time": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Time",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "visual_update_distance": {
+          "default": 0.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-label": "Visual Update Distance",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "visual_update_rate": {
+          "default": 0.0,
+          "maximum": 240.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-label": "Visual Update Rate",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -237,47 +94,79 @@
       "additionalProperties": false,
       "properties": {
         "blend_spaces": {
+          "default": {},
           "type": "object",
+          "x-demi-editor-label": "Blend Spaces",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "initial_state": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Initial State",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "layers": {
+          "default": {},
           "type": "object",
+          "x-demi-editor-label": "Layers",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "parameters": {
+          "default": {},
           "type": "object",
+          "x-demi-editor-label": "Parameters",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "pause_policy": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Pause Policy",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "root_motion": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Root Motion",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "speed": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Speed",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "states": {
+          "default": {},
           "type": "object",
+          "x-demi-editor-label": "States",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "transitions": {
+          "default": {},
           "type": "object",
+          "x-demi-editor-label": "Transitions",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -291,7 +180,10 @@
       "additionalProperties": false,
       "properties": {
         "primary": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Primary",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -302,98 +194,155 @@
       "additionalProperties": false,
       "properties": {
         "attenuation": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Attenuation",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "bus": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Bus",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "clip": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Clip",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
         },
         "concurrency_group": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Concurrency Group",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "doppler": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Doppler",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "fade_in": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Fade In",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "loop": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Loop",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "max_distance": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Max Distance",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "max_voices": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Max Voices",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "min_distance": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Min Distance",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "pan": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Pan",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "pause_with_game": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Pause With Game",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "pitch": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Pitch",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "play_on_start": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Play On Start",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "rolloff": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Rolloff",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "spatial": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Spatial",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "streaming": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Streaming",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "voice_stealing": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Voice Stealing",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "volume": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Volume",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -404,62 +353,98 @@
       "additionalProperties": false,
       "properties": {
         "category_bits": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Category Bits",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "debug_visible": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Debug Visible",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "density": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Density",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "friction": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Friction",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "is_trigger": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Is Trigger",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "layer": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Layer",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "mask_bits": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Mask Bits",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "offset": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Offset",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "restitution": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Restitution",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "size": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Size",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -470,32 +455,52 @@
       "additionalProperties": false,
       "properties": {
         "is_trigger": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Is Trigger",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "layer": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Layer",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "offset": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 3,
           "minItems": 3,
           "type": "array",
+          "x-demi-editor-label": "Offset",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "size": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 3,
           "minItems": 3,
           "type": "array",
+          "x-demi-editor-label": "Size",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -506,13 +511,19 @@
       "additionalProperties": false,
       "properties": {
         "asset": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Asset",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
         },
         "blocks_movement": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Blocks Movement",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -523,57 +534,92 @@
       "additionalProperties": false,
       "properties": {
         "bounds_max": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Bounds Max",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "bounds_min": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Bounds Min",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "clear_color": {
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 4,
           "minItems": 4,
           "type": "array",
+          "x-demi-editor-label": "Clear Color",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "follow_offset": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Follow Offset",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "follow_speed": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Follow Speed",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "orthographic_size": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Orthographic Size",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "target": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Target",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -584,26 +630,38 @@
       "additionalProperties": false,
       "properties": {
         "clear_color": {
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 4,
           "minItems": 4,
           "type": "array",
+          "x-demi-editor-label": "Clear Color",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "clear_mode": {
+          "default": "color",
           "enum": [
             "color",
             "depth",
             "none"
           ],
           "type": "string",
+          "x-demi-editor-label": "Clear Mode",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "debug_mode": {
+          "default": "shaded",
           "enum": [
             "shaded",
             "normals",
@@ -616,123 +674,189 @@
             "instancing"
           ],
           "type": "string",
+          "x-demi-editor-label": "Debug Mode",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "far_clip": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Far Clip",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "fov": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Fov",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "near_clip": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Near Clip",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "orthographic_size": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Orthographic Size",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "perspective": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Perspective",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "position_x": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Position X",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "primary": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Primary",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "priority": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Priority",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "render_hud": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Render Hud",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "render_hud_to_target": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Render Hud To Target",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "render_mask": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Render Mask",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "render_scale": {
+          "default": 0.0,
           "maximum": 2.0,
           "minimum": 0.25,
           "type": "number",
+          "x-demi-editor-label": "Render Scale",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "render_target": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Render Target",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
         },
         "target_offset": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 3,
           "minItems": 3,
           "type": "array",
+          "x-demi-editor-label": "Target Offset",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "up_axis": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Up Axis",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "update_interval": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Update Interval",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "viewport_height": {
+          "default": 0.0,
           "maximum": 1.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Viewport Height",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "viewport_width": {
+          "default": 0.0,
           "maximum": 1.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Viewport Width",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "viewport_x": {
+          "default": 0.0,
           "maximum": 1.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Viewport X",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "viewport_y": {
+          "default": 0.0,
           "maximum": 1.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Viewport Y",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -743,62 +867,98 @@
       "additionalProperties": false,
       "properties": {
         "category_bits": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Category Bits",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "debug_visible": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Debug Visible",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "density": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Density",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "friction": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Friction",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "is_trigger": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Is Trigger",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "layer": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Layer",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "mask_bits": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Mask Bits",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "offset": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Offset",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "restitution": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Restitution",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "size": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Size",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -809,39 +969,61 @@
       "additionalProperties": false,
       "properties": {
         "debug_visible": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Debug Visible",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "height": {
+          "default": 0.0,
           "minimum": 0.002,
           "type": "number",
+          "x-demi-editor-label": "Height",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "is_trigger": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Is Trigger",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "layer": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Layer",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "offset": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 3,
           "minItems": 3,
           "type": "array",
+          "x-demi-editor-label": "Offset",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "radius": {
+          "default": 0.0,
           "minimum": 0.001,
           "type": "number",
+          "x-demi-editor-label": "Radius",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -852,26 +1034,38 @@
       "additionalProperties": false,
       "properties": {
         "gravity": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Gravity",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "skin_width": {
+          "default": 0.0,
           "minimum": 0.0001,
           "type": "number",
+          "x-demi-editor-label": "Skin Width",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "slope_limit": {
+          "default": 0.0,
           "maximum": 89.9,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Slope Limit",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "step_height": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Step Height",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -882,57 +1076,90 @@
       "additionalProperties": false,
       "properties": {
         "category_bits": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Category Bits",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "debug_visible": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Debug Visible",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "density": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Density",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "friction": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Friction",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "is_trigger": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Is Trigger",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "layer": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Layer",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "mask_bits": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Mask Bits",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "offset": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Offset",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "radius": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Radius",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "restitution": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Restitution",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -943,31 +1170,48 @@
       "additionalProperties": false,
       "properties": {
         "debug_visible": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Debug Visible",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "is_trigger": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Is Trigger",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "layer": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Layer",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "offset": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 3,
           "minItems": 3,
           "type": "array",
+          "x-demi-editor-label": "Offset",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "points": {
+          "default": [],
           "items": {
             "items": {
               "type": "number"
@@ -977,6 +1221,9 @@
             "type": "array"
           },
           "type": "array",
+          "x-demi-editor-label": "Points",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -1001,7 +1248,7 @@
         },
         "max_depth": {
           "default": 0.15000000596046448,
-          "minimum": 0.000001,
+          "minimum": 1e-06,
           "type": "number",
           "x-demi-editor-label": "Max Depth",
           "x-demi-editor-step": 0.05,
@@ -1010,7 +1257,7 @@
         },
         "radius": {
           "default": 0.3199999928474426,
-          "minimum": 0.000001,
+          "minimum": 1e-06,
           "type": "number",
           "x-demi-editor-label": "Radius",
           "x-demi-editor-step": 0.05,
@@ -1019,7 +1266,7 @@
         },
         "stiffness": {
           "default": 4000.0,
-          "minimum": 0.000001,
+          "minimum": 1e-06,
           "type": "number",
           "x-demi-editor-label": "Stiffness",
           "x-demi-editor-step": 0.05,
@@ -1040,16 +1287,8 @@
     },
     "Destructible3D": {
       "additionalProperties": false,
+      "description": "Add Fracture 3D to this mesh or its children. Foundation anchors determine the generated static/dynamic body type; mass and other Rigidbody settings are retained.",
       "properties": {
-        "fading_parts": {
-          "default": {},
-          "type": "object",
-          "x-demi-editor-label": "Fading Parts",
-          "x-demi-editor-read-only": true,
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
         "deferred_visuals": {
           "default": {},
           "type": "object",
@@ -1069,6 +1308,15 @@
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
+        "fading_parts": {
+          "default": {},
+          "type": "object",
+          "x-demi-editor-label": "Fading Parts",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "generator_version": {
           "default": 1,
           "maximum": 1.0,
@@ -1076,6 +1324,15 @@
           "type": "integer",
           "x-demi-editor-label": "Generator Version",
           "x-demi-editor-step": 1.0,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "intact_visuals": {
+          "default": {},
+          "type": "object",
+          "x-demi-editor-label": "Intact Visuals",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
@@ -1114,38 +1371,62 @@
       "additionalProperties": false,
       "properties": {
         "casts_shadows": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Casts Shadows",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "color": {
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 4,
           "minItems": 4,
           "type": "array",
+          "x-demi-editor-label": "Color",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "direction": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 3,
           "minItems": 3,
           "type": "array",
+          "x-demi-editor-label": "Direction",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "intensity": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Intensity",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "render_mask": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Render Mask",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -1156,47 +1437,74 @@
       "additionalProperties": false,
       "properties": {
         "anchor": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Anchor",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "collide_connected": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Collide Connected",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "damping": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Damping",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "length": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Length",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "other_anchor": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Other Anchor",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "other_entity": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Other Entity",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "stiffness": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Stiffness",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -1207,46 +1515,71 @@
       "additionalProperties": false,
       "properties": {
         "category_bits": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Category Bits",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "debug_visible": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Debug Visible",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "density": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Density",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "friction": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Friction",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "is_trigger": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Is Trigger",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "layer": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Layer",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "loop": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Loop",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "mask_bits": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Mask Bits",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "points": {
+          "default": [],
           "items": {
             "items": {
               "type": "number"
@@ -1256,11 +1589,17 @@
             "type": "array"
           },
           "type": "array",
+          "x-demi-editor-label": "Points",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "restitution": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Restitution",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -1428,27 +1767,8 @@
     },
     "Fracture3D": {
       "additionalProperties": false,
+      "description": "Density uses kg/m^3 of collider volume. Root mass overrides the total. Box collider requires Pieces=1 and a unit-box model scaled by MeshRenderer Size; it retains the detailed visual. Source collider requires convex geometry. Anchor Below uses assembly-local Y.",
       "properties": {
-        "debris_lifetime": {
-          "default": 0,
-          "minimum": 0,
-          "type": "number",
-          "x-demi-editor-help": "Zero keeps physical rubble. Positive seconds makes detached chunks non-colliding and fades them before removal. Mixed chunks stay physical.",
-          "x-demi-editor-label": "Debris Lifetime",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "debris_fade": {
-          "default": 1,
-          "minimum": 0,
-          "type": "number",
-          "x-demi-editor-help": "Fade duration at the end of debris lifetime, in seconds.",
-          "x-demi-editor-label": "Debris Fade",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
         "anchor_below": {
           "default": null,
           "type": "number",
@@ -1476,6 +1796,26 @@
           ],
           "type": "string",
           "x-demi-editor-label": "Collider",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "debris_fade": {
+          "default": 1,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-help": "Fade duration at the end of debris lifetime, in seconds.",
+          "x-demi-editor-label": "Debris Fade",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "debris_lifetime": {
+          "default": 0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-help": "Zero keeps physical rubble. Positive seconds makes detached chunks non-colliding and fades them before removal. Mixed chunks stay physical.",
+          "x-demi-editor-label": "Debris Lifetime",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
@@ -1530,11 +1870,169 @@
       },
       "type": "object"
     },
+    "FractureDebris3D": {
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "default": [
+            0.65,
+            0.45,
+            0.3,
+            1
+          ],
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "x-demi-editor-label": "Color",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "count": {
+          "default": 12,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-demi-editor-help": "Cosmetic chips per accepted spatial impact. Zero disables emission.",
+          "x-demi-editor-label": "Count",
+          "x-demi-editor-step": 1.0,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "fade_duration": {
+          "default": 1,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-help": "Opacity fades during the final seconds of lifetime. Zero means immediate removal at expiry.",
+          "x-demi-editor-label": "Fade Duration",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "gravity": {
+          "default": [
+            0,
+            -9.81,
+            0
+          ],
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array",
+          "x-demi-editor-label": "Gravity",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "lifetime": {
+          "default": 3,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-help": "Seconds before cosmetic chips disappear. Zero disables emission.",
+          "x-demi-editor-label": "Lifetime",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "max_fragments": {
+          "default": 128,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-demi-editor-help": "Live cosmetic chip budget for this emitter. Oldest chips are replaced; structural debris is never affected.",
+          "x-demi-editor-label": "Max Fragments",
+          "x-demi-editor-step": 1.0,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "model": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-help": "Optional shared chip model. Omit for built-in cuboid chips; no generated asset is required.",
+          "x-demi-editor-label": "Model",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        },
+        "render_layer": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-label": "Render Layer",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "seed": {
+          "default": 1,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-demi-editor-label": "Seed",
+          "x-demi-editor-step": 1.0,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "size": {
+          "default": [
+            0.12,
+            0.05,
+            0.08
+          ],
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array",
+          "x-demi-editor-help": "Base chip dimensions in metres, varied deterministically per fragment.",
+          "x-demi-editor-label": "Size",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "speed": {
+          "default": 2,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-label": "Speed",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "spin": {
+          "default": 180,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-help": "Maximum angular speed in degrees per second per axis.",
+          "x-demi-editor-label": "Spin",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "texture": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-label": "Texture",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        }
+      },
+      "type": "object"
+    },
     "GameplayData": {
       "additionalProperties": false,
       "properties": {
         "values": {
+          "default": {},
           "type": "object",
+          "x-demi-editor-label": "Values",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -1548,32 +2046,52 @@
       "additionalProperties": false,
       "properties": {
         "cell_size": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Cell Size",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "cell_textures": {
+          "default": {},
           "type": "object",
+          "x-demi-editor-label": "Cell Textures",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "default_texture": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Default Texture",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
         },
         "height": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Height",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "width": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Width",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -1584,34 +2102,52 @@
       "additionalProperties": false,
       "properties": {
         "footprint": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Footprint",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "height": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Height",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "parent": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Parent",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-nullable": true,
           "x-demi-reference": "entity"
         },
         "tile": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Tile",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -1622,88 +2158,137 @@
       "additionalProperties": false,
       "properties": {
         "anchor": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Anchor",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "axis": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Axis",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "collide_connected": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Collide Connected",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "correction_factor": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Correction Factor",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "enable_limit": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Enable Limit",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "enable_motor": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Enable Motor",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "lower_limit": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Lower Limit",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "max_length": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Max Length",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "max_motor_force": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Max Motor Force",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "max_motor_torque": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Max Motor Torque",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "motor_speed": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Motor Speed",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "other_anchor": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Other Anchor",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "other_entity": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Other Entity",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-nullable": true,
           "x-demi-reference": "entity"
         },
         "type": {
+          "default": "revolute",
           "enum": [
             "revolute",
             "prismatic",
@@ -1712,11 +2297,16 @@
             "motor"
           ],
           "type": "string",
+          "x-demi-editor-label": "Type",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "upper_limit": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Upper Limit",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -1731,12 +2321,19 @@
       "additionalProperties": false,
       "properties": {
         "module": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Module",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "properties": {
+          "default": {},
           "type": "object",
+          "x-demi-editor-label": "Properties",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -1748,26 +2345,8 @@
     },
     "Masonry3D": {
       "additionalProperties": false,
+      "description": "Masonry recipe. Add Destructible3D to its owner. Cooking prepares the fracture data in build output; the authored recipe stays compact.",
       "properties": {
-        "debris_lifetime": {
-          "default": 0,
-          "minimum": 0,
-          "type": "number",
-          "x-demi-editor-help": "Zero keeps physical rubble. Positive seconds makes detached masonry non-colliding and fades it before removal.",
-          "x-demi-editor-label": "Debris Lifetime",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "debris_fade": {
-          "default": 1,
-          "minimum": 0,
-          "type": "number",
-          "x-demi-editor-label": "Debris Fade",
-          "x-demi-editor-step": 0.05,
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
         "anchor_below": {
           "default": null,
           "type": "number",
@@ -1793,6 +2372,25 @@
           "type": "integer",
           "x-demi-editor-label": "Columns",
           "x-demi-editor-step": 1.0,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "debris_fade": {
+          "default": 1,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-label": "Debris Fade",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "debris_lifetime": {
+          "default": 0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-help": "Zero keeps physical rubble. Positive seconds makes detached masonry non-colliding and fades it before removal.",
+          "x-demi-editor-label": "Debris Lifetime",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
@@ -1888,8 +2486,25 @@
       },
       "type": "object"
     },
+    "MeshInstances3D": {
+      "additionalProperties": false,
+      "properties": {
+        "transforms": {
+          "default": {},
+          "type": "object",
+          "x-demi-editor-help": "Render-only local instances keyed by stable labels. Each supports position, rotation and scale. Uses the owner's shared static MeshRenderer; no per-instance colliders or scripts.",
+          "x-demi-editor-label": "Transforms",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        }
+      },
+      "type": "object"
+    },
     "MeshRenderer": {
       "additionalProperties": false,
+      "description": "Choose a model or built-in shape, then assign its texture/material. Hover field labels for help.",
       "properties": {
         "color": {
           "default": [
@@ -1995,6 +2610,7 @@
             "type": "array"
           },
           "type": "array",
+          "x-demi-editor-advanced": true,
           "x-demi-editor-help": "Lighting directions for inline vertices. Omit to calculate them from the triangles; otherwise provide one XYZ normal per vertex.",
           "x-demi-editor-label": "Normals",
           "x-demi-editor-read-only": true,
@@ -2058,6 +2674,7 @@
             "type": "array"
           },
           "type": "array",
+          "x-demi-editor-advanced": true,
           "x-demi-editor-help": "Texture coordinates for inline vertices, one UV pair per vertex. 0..1 spans the image; larger values tile when texture Wrap is Repeat.",
           "x-demi-editor-label": "Uvs",
           "x-demi-editor-read-only": true,
@@ -2076,6 +2693,7 @@
             "type": "array"
           },
           "type": "array",
+          "x-demi-editor-advanced": true,
           "x-demi-editor-help": "Advanced inline triangle geometry: three XYZ vertices per triangle. Usually supplied by a model or the Shape primitive.",
           "x-demi-editor-label": "Vertices",
           "x-demi-editor-read-only": true,
@@ -2138,151 +2756,236 @@
       "additionalProperties": false,
       "properties": {
         "burst": {
+          "default": 0,
           "minimum": 0.0,
           "type": "integer",
+          "x-demi-editor-label": "Burst",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "color_end": {
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 4,
           "minItems": 4,
           "type": "array",
+          "x-demi-editor-label": "Color End",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "color_start": {
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 4,
           "minItems": 4,
           "type": "array",
+          "x-demi-editor-label": "Color Start",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "emission_shape": {
+          "default": "point",
           "enum": [
             "point",
             "box",
             "circle"
           ],
           "type": "string",
+          "x-demi-editor-label": "Emission Shape",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "emission_size": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Emission Size",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "gravity": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Gravity",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "lifetime": {
+          "default": 0.0,
           "minimum": 0.001,
           "type": "number",
+          "x-demi-editor-label": "Lifetime",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "loop": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Loop",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "material": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Material",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
         },
         "max_particles": {
+          "default": 0,
           "minimum": 1.0,
           "type": "integer",
+          "x-demi-editor-label": "Max Particles",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "mobile_max_particles": {
+          "default": 0,
           "minimum": 1.0,
           "type": "integer",
+          "x-demi-editor-label": "Mobile Max Particles",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "playing": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Playing",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "rate": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Rate",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "rotation_speed": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Rotation Speed",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "seed": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Seed",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "size_end": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Size End",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "size_start": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Size Start",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "sorting_order": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Sorting Order",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "texture": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Texture",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
         },
         "velocity_max": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Velocity Max",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "velocity_min": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Velocity Min",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -2293,32 +2996,52 @@
       "additionalProperties": false,
       "properties": {
         "burst": {
+          "default": 0,
           "minimum": 0.0,
           "type": "integer",
+          "x-demi-editor-label": "Burst",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "color_end": {
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 4,
           "minItems": 4,
           "type": "array",
+          "x-demi-editor-label": "Color End",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "color_start": {
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 4,
           "minItems": 4,
           "type": "array",
+          "x-demi-editor-label": "Color Start",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "emission_shape": {
+          "default": "point",
           "enum": [
             "point",
             "box",
@@ -2326,133 +3049,208 @@
             "cone"
           ],
           "type": "string",
+          "x-demi-editor-label": "Emission Shape",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "emission_size": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 3,
           "minItems": 3,
           "type": "array",
+          "x-demi-editor-label": "Emission Size",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "gravity": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 3,
           "minItems": 3,
           "type": "array",
+          "x-demi-editor-label": "Gravity",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "lifetime": {
+          "default": 0.0,
           "minimum": 0.001,
           "type": "number",
+          "x-demi-editor-label": "Lifetime",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "loop": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Loop",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "material": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Material",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
         },
         "max_particles": {
+          "default": 0,
           "minimum": 1.0,
           "type": "integer",
+          "x-demi-editor-label": "Max Particles",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "mobile_max_particles": {
+          "default": 0,
           "minimum": 1.0,
           "type": "integer",
+          "x-demi-editor-label": "Mobile Max Particles",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "playing": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Playing",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "rate": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Rate",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "render_mask": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Render Mask",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "rotation_speed": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Rotation Speed",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "seed": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Seed",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "simulation_space": {
+          "default": "world",
           "enum": [
             "world",
             "local"
           ],
           "type": "string",
+          "x-demi-editor-label": "Simulation Space",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "size_end": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Size End",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "size_start": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Size Start",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "sorting_order": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Sorting Order",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "texture": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Texture",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
         },
         "velocity_max": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 3,
           "minItems": 3,
           "type": "array",
+          "x-demi-editor-label": "Velocity Max",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "velocity_min": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 3,
           "minItems": 3,
           "type": "array",
+          "x-demi-editor-label": "Velocity Min",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -2463,34 +3261,54 @@
       "additionalProperties": false,
       "properties": {
         "casts_shadows": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Casts Shadows",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "color": {
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 4,
           "minItems": 4,
           "type": "array",
+          "x-demi-editor-label": "Color",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "intensity": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Intensity",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "range": {
+          "default": 0.0,
           "minimum": 0.001,
           "type": "number",
+          "x-demi-editor-label": "Range",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "render_mask": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Render Mask",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -2501,51 +3319,79 @@
       "additionalProperties": false,
       "properties": {
         "category_bits": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Category Bits",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "debug_visible": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Debug Visible",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "density": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Density",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "friction": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Friction",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "is_trigger": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Is Trigger",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "layer": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Layer",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "mask_bits": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Mask Bits",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "offset": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Offset",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "points": {
+          "default": [],
           "items": {
             "items": {
               "type": "number"
@@ -2555,11 +3401,17 @@
             "type": "array"
           },
           "type": "array",
+          "x-demi-editor-label": "Points",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "restitution": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Restitution",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -2573,66 +3425,134 @@
       "additionalProperties": false,
       "properties": {
         "bloom": {
+          "default": 0.0,
           "maximum": 2.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Bloom",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "bloom_threshold": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Bloom Threshold",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "contrast": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Contrast",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "exposure": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Exposure",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "fade": {
+          "default": 0.0,
           "maximum": 1.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Fade",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "fade_color": {
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 4,
           "minItems": 4,
           "type": "array",
+          "x-demi-editor-label": "Fade Color",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "saturation": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Saturation",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "tint": {
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 4,
           "minItems": 4,
           "type": "array",
+          "x-demi-editor-label": "Tint",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "vignette": {
+          "default": 0.0,
           "maximum": 1.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Vignette",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        }
+      },
+      "type": "object"
+    },
+    "PrefabPlacement3D": {
+      "additionalProperties": false,
+      "properties": {
+        "prefab": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-label": "Prefab",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "prefab"
+        },
+        "preserve": {
+          "default": true,
+          "type": "boolean",
+          "x-demi-editor-label": "Preserve",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "root": {
+          "default": "assembly",
+          "type": "string",
+          "x-demi-editor-label": "Root",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -2643,72 +3563,119 @@
       "additionalProperties": false,
       "properties": {
         "allow_sleep": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Allow Sleep",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "angular_damping": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Angular Damping",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "angular_velocity": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Angular Velocity",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "awake": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Awake",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "body_enabled": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Body Enabled",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "body_type": {
+          "default": "dynamic",
           "enum": [
             "dynamic",
             "static",
             "kinematic"
           ],
           "type": "string",
+          "x-demi-editor-label": "Body Type",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "bounciness": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Bounciness",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "continuous": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Continuous",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "gravity_scale": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Gravity Scale",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "linear_damping": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Linear Damping",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "lock_rotation": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Lock Rotation",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "report_contacts": {
+          "default": false,
+          "type": "boolean",
+          "x-demi-editor-label": "Report Contacts",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "velocity": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Velocity",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-replicated": true
@@ -2720,142 +3687,227 @@
       "additionalProperties": false,
       "properties": {
         "allow_sleep": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Allow Sleep",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "angular_damping": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Angular Damping",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "angular_velocity": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 3,
           "minItems": 3,
           "type": "array",
+          "x-demi-editor-label": "Angular Velocity",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "awake": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Awake",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "body_enabled": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Body Enabled",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "body_type": {
+          "default": "dynamic",
           "enum": [
             "dynamic",
             "static",
             "kinematic"
           ],
           "type": "string",
+          "x-demi-editor-label": "Body Type",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "continuous": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Continuous",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "friction": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Friction",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "gravity_scale": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Gravity Scale",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "interpolate": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Interpolate",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "linear_damping": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Linear Damping",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "lock_position_x": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Lock Position X",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "lock_position_y": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Lock Position Y",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "lock_position_z": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Lock Position Z",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "lock_rotation_x": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Lock Rotation X",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "lock_rotation_y": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Lock Rotation Y",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "lock_rotation_z": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Lock Rotation Z",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "mass": {
+          "default": 0.0,
           "minimum": 0.0001,
           "type": "number",
+          "x-demi-editor-label": "Mass",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "report_contacts": {
+          "default": false,
+          "type": "boolean",
+          "x-demi-editor-label": "Report Contacts",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "restitution": {
+          "default": 0.0,
           "maximum": 1.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Restitution",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "solver_position_steps": {
+          "default": 0,
           "maximum": 128.0,
           "minimum": 0.0,
           "type": "integer",
+          "x-demi-editor-label": "Solver Position Steps",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "solver_velocity_steps": {
+          "default": 0,
           "maximum": 128.0,
           "minimum": 0.0,
           "type": "integer",
+          "x-demi-editor-label": "Solver Velocity Steps",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "use_gravity": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Use Gravity",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "velocity": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 3,
           "minItems": 3,
           "type": "array",
+          "x-demi-editor-label": "Velocity",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-replicated": true
@@ -2867,28 +3919,44 @@
       "additionalProperties": false,
       "properties": {
         "is_trigger": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Is Trigger",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "layer": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Layer",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "offset": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 3,
           "minItems": 3,
           "type": "array",
+          "x-demi-editor-label": "Offset",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "radius": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Radius",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -2899,58 +3967,91 @@
       "additionalProperties": false,
       "properties": {
         "casts_shadows": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Casts Shadows",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "color": {
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 4,
           "minItems": 4,
           "type": "array",
+          "x-demi-editor-label": "Color",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "direction": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 3,
           "minItems": 3,
           "type": "array",
+          "x-demi-editor-label": "Direction",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "inner_angle": {
+          "default": 0.0,
           "maximum": 179.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Inner Angle",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "intensity": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Intensity",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "outer_angle": {
+          "default": 0.0,
           "maximum": 179.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Outer Angle",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "range": {
+          "default": 0.0,
           "minimum": 0.001,
           "type": "number",
+          "x-demi-editor-label": "Range",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "render_mask": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Render Mask",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -2961,60 +4062,93 @@
       "additionalProperties": false,
       "properties": {
         "color": {
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 4,
           "minItems": 4,
           "type": "array",
+          "x-demi-editor-label": "Color",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-replicated": true
         },
         "flip_x": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Flip X",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-replicated": true
         },
         "flip_y": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Flip Y",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-replicated": true
         },
         "layer": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Layer",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "mask_offset": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Mask Offset",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "mask_size": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Mask Size",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "material": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Material",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
         },
         "nine_slice": {
+          "default": [],
           "items": {
             "items": {
               "type": "number"
@@ -3024,71 +4158,110 @@
             "type": "array"
           },
           "type": "array",
+          "x-demi-editor-label": "Nine Slice",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "pivot": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Pivot",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "shape": {
+          "default": "rectangle",
           "enum": [
             "rectangle",
             "circle",
             "triangle"
           ],
           "type": "string",
+          "x-demi-editor-label": "Shape",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "size": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Size",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "sorting_order": {
+          "default": 0,
           "type": "integer",
+          "x-demi-editor-label": "Sorting Order",
+          "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "source_normalized": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Source Normalized",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "source_position": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Source Position",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "source_size": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Source Size",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "texture": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Texture",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
@@ -3100,107 +4273,62 @@
       "additionalProperties": false,
       "properties": {
         "atlas": {
+          "default": {},
           "type": "object",
+          "x-demi-editor-label": "Atlas",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "clip": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Clip",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "clips": {
+          "default": {},
           "type": "object",
+          "x-demi-editor-label": "Clips",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "frame_size": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Frame Size",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "playing": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Playing",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "speed": {
+          "default": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Speed",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
-        }
-      },
-      "type": "object"
-    },
-    "Tilemap2D": {
-      "additionalProperties": false,
-      "properties": {
-        "asset": {
-          "type": "string",
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true,
-          "x-demi-reference": "asset"
-        },
-        "layer": {
-          "type": "string",
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "pixels_per_unit": {
-          "type": "number",
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        },
-        "sorting_order": {
-          "type": "integer",
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true
-        }
-      },
-      "type": "object"
-    },
-    "Transform2D": {
-      "additionalProperties": false,
-      "properties": {
-        "parent": {
-          "type": "string",
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true,
-          "x-demi-nullable": true,
-          "x-demi-reference": "entity"
-        },
-        "position": {
-          "items": {
-            "type": "number"
-          },
-          "maxItems": 2,
-          "minItems": 2,
-          "type": "array",
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true,
-          "x-demi-replicated": true
-        },
-        "rotation": {
-          "type": "number",
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true,
-          "x-demi-replicated": true
-        },
-        "scale": {
-          "items": {
-            "type": "number"
-          },
-          "maxItems": 2,
-          "minItems": 2,
-          "type": "array",
-          "x-demi-lua-readable": true,
-          "x-demi-lua-writable": true,
-          "x-demi-replicated": true
         }
       },
       "type": "object"
@@ -3333,45 +4461,167 @@
       ],
       "type": "object"
     },
-    "Transform3D": {
+    "Tilemap2D": {
+      "additionalProperties": false,
+      "properties": {
+        "asset": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-label": "Asset",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        },
+        "layer": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-label": "Layer",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "pixels_per_unit": {
+          "default": 0.0,
+          "type": "number",
+          "x-demi-editor-label": "Pixels Per Unit",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "sorting_order": {
+          "default": 0,
+          "type": "integer",
+          "x-demi-editor-label": "Sorting Order",
+          "x-demi-editor-step": 1.0,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        }
+      },
+      "type": "object"
+    },
+    "Transform2D": {
       "additionalProperties": false,
       "properties": {
         "parent": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Parent",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-nullable": true,
           "x-demi-reference": "entity"
         },
         "position": {
+          "default": [
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
-          "maxItems": 3,
-          "minItems": 3,
+          "maxItems": 2,
+          "minItems": 2,
           "type": "array",
+          "x-demi-editor-label": "Position",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-replicated": true
         },
         "rotation": {
-          "items": {
-            "type": "number"
-          },
-          "maxItems": 3,
-          "minItems": 3,
-          "type": "array",
+          "default": 0.0,
+          "type": "number",
+          "x-demi-editor-label": "Rotation",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-replicated": true
         },
         "scale": {
+          "default": [
+            0.0,
+            0.0
+          ],
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "x-demi-editor-label": "Scale",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-replicated": true
+        }
+      },
+      "type": "object"
+    },
+    "Transform3D": {
+      "additionalProperties": false,
+      "properties": {
+        "parent": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-label": "Parent",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-nullable": true,
+          "x-demi-reference": "entity"
+        },
+        "position": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 3,
           "minItems": 3,
           "type": "array",
+          "x-demi-editor-label": "Position",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-replicated": true
+        },
+        "rotation": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array",
+          "x-demi-editor-label": "Rotation",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-replicated": true
+        },
+        "scale": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array",
+          "x-demi-editor-label": "Scale",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-replicated": true
@@ -3383,18 +4633,27 @@
       "additionalProperties": false,
       "properties": {
         "clip": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Clip",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
         },
         "loop": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Loop",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "play_on_start": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Play On Start",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
@@ -3405,45 +4664,71 @@
       "additionalProperties": false,
       "properties": {
         "billboard": {
+          "default": false,
           "type": "boolean",
+          "x-demi-editor-label": "Billboard",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "color": {
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
           "items": {
             "type": "number"
           },
           "maxItems": 4,
           "minItems": 4,
           "type": "array",
+          "x-demi-editor-label": "Color",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "font": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Font",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
         },
         "font_size": {
+          "default": 0.0,
           "minimum": 0.01,
           "type": "number",
+          "x-demi-editor-label": "Font Size",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "max_distance": {
+          "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-label": "Max Distance",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "render_mask": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Render Mask",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
         "text": {
+          "default": "",
           "type": "string",
+          "x-demi-editor-label": "Text",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }

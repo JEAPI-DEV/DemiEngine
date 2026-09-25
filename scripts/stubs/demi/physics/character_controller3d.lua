@@ -1,7 +1,7 @@
 ---@meta
 -- Native module: require("demi.physics.character_controller3d"). Annotations only.
 ---@class CharacterController3DState
----@field velocity number[]
+---@field velocity Vec3 Current world-space velocity in world units/second.
 ---@field grounded boolean
 ---@field ground_entity string
 ---@class CharacterController3DService
@@ -13,7 +13,7 @@ local CharacterController3D = {}
 ---@return boolean
 function CharacterController3D.set_velocity(entity_id, x, y, z) end
 ---@param entity_id string
----@param speed number
+---@param speed number Upward jump speed in world units/second.
 ---@return boolean
 function CharacterController3D.jump(entity_id, speed) end
 ---@param entity_id string

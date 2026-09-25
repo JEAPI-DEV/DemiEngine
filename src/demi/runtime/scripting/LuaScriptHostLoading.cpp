@@ -99,7 +99,8 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData &project, World &world,
     sceneFlow_.configure(project);
     resourceLifetimes_.capture(world.activeSceneId, world.entities);
   }
-  inputActions_ = project.inputActions;
+  gameplayInput_.configure(project.inputActions,
+                            applicationServices_.userDataPath());
   project_ = &project;
   luaConfigurePackagePath(state, project);
   moduleActionHandlers_.clear();

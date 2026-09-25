@@ -34,12 +34,18 @@ enum class ComponentReferenceKind {
 
 struct ComponentFieldEditorMetadata {
   std::string_view label;
-  std::string_view help;
+  std::string_view help{};
   double numericStep = 0.0;
   bool readOnly = false;
+  bool advanced = false;
 };
 
 struct ComponentFieldDescriptor {
+  [[nodiscard]] constexpr ComponentFieldDescriptor asAdvanced() const {
+    auto result = *this;
+    result.editor.advanced = true;
+    return result;
+  }
   [[nodiscard]] constexpr ComponentFieldDescriptor withIntegerChoices(std::span<const int> values) const {
     auto result=*this; result.allowedIntegers=values; return result;
   }
@@ -120,6 +126,7 @@ struct ComponentFieldDescriptor {
 struct ComponentEditorMetadata {
   std::string_view category;
   std::string_view displayName;
+  std::string_view help{};
 };
 
 } // namespace demi::runtime

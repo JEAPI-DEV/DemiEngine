@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <string>
@@ -38,6 +39,11 @@ struct AnimationCollision2DComponent {
   std::unordered_map<std::string, AnimationCollisionWindow2D> windows;
   std::string activeWindow;
   std::unordered_set<std::string> reportedOverlaps;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<AnimationCollision2DComponent>::member<
+          &AnimationCollision2DComponent::receivers>("receivers"),
+      RuntimeFieldBinding<AnimationCollision2DComponent>::member<
+          &AnimationCollision2DComponent::windows>("windows")};
 };
 
 } // namespace demi::runtime

@@ -132,8 +132,12 @@ rendering, validation, and presentation should not accumulate in one class.
   float noise without reformatting the document.
 
 Any new shorthand or preset must update parser, schema, validator, CLI inspect
-output, editor behavior, documentation, and tests together. Expanded legacy
-forms must remain supported according to `docs/compatibility.md`.
+output, editor behavior, documentation, and tests together. During alpha/beta,
+intentional breaking changes are allowed: migrate repository examples, templates
+and packages rather than adding legacy aliases or duplicate implementations.
+Backward-compatibility guarantees begin with the first explicitly designated
+production release, as described in `docs/compatibility.md`. Keep format versions,
+validation and data-integrity checks; never silently delete incompatible saves.
 
 ## Component Contract Changes
 
@@ -152,8 +156,18 @@ Reflection metadata should be the single source for serialization, Inspector
 controls, schemas, docs, Lua stubs, and default comparison as those paths are
 consolidated. Do not create a parallel editor-only component model.
 
+Bind reflected fields to their native members through `RuntimeFieldBinding`.
+Generic field mutation must preserve unrelated live state and invoke the owning
+component's invalidation hook where needed. Derive canonical defaults from
+parsed native values; put exceptional wire encodings in the component, without
+assuming enum ordinals match strings. Presence-sensitive authoring fields must
+not advertise invented defaults. Keep editor initial-value scaffolds separate.
+
 ## Lua Gameplay
 
+- Prefer plain domain names for types and variables. Public vector annotations
+  are `Vec2` and `Vec3`, without a `Demi` prefix; the `demi.*` module namespace
+  already identifies the engine API.
 - Import every engine service explicitly into a local, e.g.
   `local Input = require("demi.input")` and
   `local Transform3D = require("demi.transform3d")`. Engine API globals no longer
@@ -167,8 +181,9 @@ consolidated. Do not create a parallel editor-only component model.
 
 - Use `on_create`, `on_start`, `on_update`, `on_fixed_update`, and `on_destroy`.
 - Prefer current concise APIs such as `Input.pressed`, `Input.down`,
-  `Input.value`, and normalized `Input.vector`; compatibility aliases may still
-  exist but new examples should teach the concise names.
+  `Input.value`, and normalized `Input.vector`. Use `Input.raw_vector` only when
+  unnormalized action values are intended, and `Input.key_*` for raw key queries.
+  Removed `is_*` and `action_*` aliases must not be reintroduced.
 - `Input.axis(negative, positive)` returns positive minus negative.
 - Use `@demi_component` and assignment-based `@demi_property` annotations for
   editor-visible game-specific behavior. Display name, category, description,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 
 #include <string>
 #include <unordered_map>
@@ -26,6 +27,15 @@ struct Tilemap2DComponent {
   int sortingOrder = 0;
   std::unordered_map<std::string, int> tileOverrides;
   std::unordered_set<std::string> dirtyChunks;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<Tilemap2DComponent>::member<
+          &Tilemap2DComponent::asset>("asset"),
+      RuntimeFieldBinding<Tilemap2DComponent>::member<
+          &Tilemap2DComponent::pixelsPerUnit>("pixels_per_unit"),
+      RuntimeFieldBinding<Tilemap2DComponent>::member<
+          &Tilemap2DComponent::layer>("layer"),
+      RuntimeFieldBinding<Tilemap2DComponent>::member<
+          &Tilemap2DComponent::sortingOrder>("sorting_order")};
 };
 
 } // namespace demi::runtime

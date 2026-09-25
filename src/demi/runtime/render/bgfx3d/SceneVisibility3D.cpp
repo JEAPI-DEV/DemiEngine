@@ -1,5 +1,6 @@
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 #include "demi/runtime/geometry/MeshDeformation3D.h"
+#include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 
 #include "demi/runtime/concurrency/JobSystem.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
@@ -112,6 +113,26 @@ bool visible(const Sphere sphere, const BgfxCameraFrame3D &frame) {
          std::abs(dot(relative, up)) <= halfHeight + verticalRadius;
 }
 
+void appendVisibleInstances(const VisibleMesh3D &source,
+                            const MeshInstances3DComponent &instances,
+                            const BgfxCameraFrame3D &frame,
+                            SceneVisibility3D &result) {
+  const auto &mesh = *source.entity->component<MeshRendererComponent>();
+  const auto &dents = entityMeshDents3D(*source.entity);
+
+  for (const auto &[instanceId, localTransform] : instances.transforms) {
+    ++result.considered;
+    const auto worldTransform =
+        composeWorldTransform3D(source.transform, localTransform);
+    if (mesh.hasBounds &&
+        !visible(worldBounds(mesh, worldTransform, dents), frame)) {
+      ++result.culled;
+      continue;
+    }
+    result.meshes.push_back({source.entity, worldTransform});
+  }
+}
+
 } // namespace
 
 SceneVisibility3D extractVisibleMeshes3D(const World &world,
@@ -136,7 +157,9 @@ SceneVisibility3D extractVisibleMeshes3D(const World &world,
     const auto transform = resolveWorldTransform3D(world, entity);
     if (!transform)
       return;
-    if (mesh->hasBounds && !visible(worldBounds(*mesh, *transform, entityMeshDents3D(entity)), frame)) {
+    if (!entity.hasComponent<MeshInstances3DComponent>() && mesh->hasBounds &&
+        !visible(worldBounds(*mesh, *transform, entityMeshDents3D(entity)),
+                 frame)) {
       culled[index] = 1;
       return;
     }
@@ -155,6 +178,15 @@ SceneVisibility3D extractVisibleMeshes3D(const World &world,
   SceneVisibility3D result;
   result.meshes.reserve(world.entities.size());
   for (std::size_t index = 0; index < extracted.size(); ++index) {
+    if (extracted[index]) {
+      const auto &source = *extracted[index];
+      const auto *instances =
+          source.entity->component<MeshInstances3DComponent>();
+      if (instances) {
+        appendVisibleInstances(source, *instances, frame, result);
+        continue;
+      }
+    }
     result.considered += considered[index] ? 1U : 0U;
     result.culled += culled[index] ? 1U : 0U;
     if (extracted[index])

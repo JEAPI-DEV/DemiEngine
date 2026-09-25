@@ -1,5 +1,6 @@
 # Unit, subsystem, CLI, and networking test registration.
 add_test(NAME demi-project-discovery-tests COMMAND demi-project-discovery-tests)
+add_test(NAME demi-prefab-template-cache-tests COMMAND demi-prefab-template-cache-tests)
 add_test(NAME demi-variable-font-tests COMMAND demi-variable-font-tests)
 add_test(NAME demi-cosmetic-debris3d-tests COMMAND demi-cosmetic-debris3d-tests)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
@@ -123,7 +124,7 @@ add_test(NAME demi-package-cli-defaults
   COMMAND ${CMAKE_COMMAND} -DDEMI=$<TARGET_FILE:demi>
     -P ${CMAKE_SOURCE_DIR}/tests/package_cli_defaults.cmake)
 foreach(package_name IN ITEMS
-    core controllers health projectiles interactions traversal camera inventory encounters third_person destruction)
+    events controllers health projectiles interactions checkpoints camera inventory encounters third_person destruction)
   add_test(NAME demi-gameplay-package-${package_name}
     COMMAND demi package test
       ${CMAKE_SOURCE_DIR}/packages/sources/demi.gameplay.${package_name})
@@ -135,10 +136,10 @@ add_test(NAME demi-network-lobby-package
     ${CMAKE_SOURCE_DIR}/packages/sources/demi.network.lobby)
 set_tests_properties(demi-network-lobby-package
   PROPERTIES LABELS "packages;network")
-add_test(NAME demi-ui-language-file-package
+add_test(NAME demi-ui-localization-package
   COMMAND demi package test
-    ${CMAKE_SOURCE_DIR}/packages/sources/demi.ui.language_file)
-set_tests_properties(demi-ui-language-file-package
+    ${CMAKE_SOURCE_DIR}/packages/sources/demi.ui.localization)
+set_tests_properties(demi-ui-localization-package
   PROPERTIES LABELS "packages;ui;localization")
 add_test(NAME demi-project-watch-reload-tests
   COMMAND demi-project-watch-reload-tests)
@@ -146,6 +147,9 @@ add_test(NAME demi-capability-manifest-tests
   COMMAND demi-capability-manifest-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-runtime-object-model-tests
   COMMAND demi-runtime-object-model-tests)
+add_test(NAME demi-component-schema-tests COMMAND demi-component-schema-tests)
+add_test(NAME demi-atomic-text-file-tests COMMAND demi-atomic-text-file-tests)
+add_test(NAME demi-voxel-mesh-builder-tests COMMAND demi-voxel-mesh-builder-tests)
 add_test(NAME demi-entity-lookup-tests COMMAND demi-entity-lookup-tests)
 add_test(NAME demi-runtime-scene-prefab-tests
   COMMAND demi-runtime-scene-prefab-tests)
@@ -228,6 +232,7 @@ add_test(NAME demi-iso-canvas-renderer-tests
 add_test(NAME demi-lua-stub-contract-tests COMMAND demi-lua-stub-contract-tests ${CMAKE_SOURCE_DIR})
 add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
 add_test(NAME demi-lua-e2e-tests COMMAND demi-lua-e2e-tests)
+add_test(NAME demi-lua-e2e-runner-tests COMMAND demi-lua-e2e-runner-tests)
 add_test(NAME demi-script-property-contract-tests
   COMMAND demi-script-property-contract-tests)
 add_test(NAME demi-scene-loader-tests COMMAND demi-scene-loader-tests ${CMAKE_SOURCE_DIR})

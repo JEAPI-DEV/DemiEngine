@@ -2,7 +2,49 @@
 #include "demi/runtime/scene/SceneJson.h"
 #include "demi/runtime/scene/model/Entity.h"
 #include <algorithm>
+#include <atomic>
 namespace demi::runtime {
+bool MeshRendererComponent::serializeField(
+    const MeshRendererComponent &component, std::string_view field,
+    nlohmann::json &out) {
+  if (field != "material_properties")
+    return false;
+  out = nlohmann::json::object();
+  for (const auto &[name, value] : component.materialNumbers)
+    out[name] = value;
+  for (const auto &[name, value] : component.materialColors)
+    out[name] = {value.r, value.g, value.b, value.a};
+  return true;
+}
+
+void MeshRendererComponent::markGeometryChanged() {
+  // Renderer caches are keyed by entity ID. A fresh mesh may reuse that ID,
+  // so a per-component counter would repeat revisions after replacement.
+  static std::atomic<std::uint64_t> nextRevision{1};
+  revision = nextRevision.fetch_add(1, std::memory_order_relaxed);
+  hasBounds = !vertices.empty();
+  if (!hasBounds) {
+    return;
+  }
+  boundsMin = vertices.front();
+  boundsMax = vertices.front();
+  for (const auto &vertex : vertices) {
+    boundsMin.x = std::min(boundsMin.x, vertex.x);
+    boundsMin.y = std::min(boundsMin.y, vertex.y);
+    boundsMin.z = std::min(boundsMin.z, vertex.z);
+    boundsMax.x = std::max(boundsMax.x, vertex.x);
+    boundsMax.y = std::max(boundsMax.y, vertex.y);
+    boundsMax.z = std::max(boundsMax.z, vertex.z);
+  }
+}
+
+void MeshRendererComponent::afterRuntimeFieldChange(
+    MeshRendererComponent &mesh, std::string_view field) {
+  if (field == "vertices" || field == "normals" || field == "uvs") {
+    mesh.markGeometryChanged();
+  }
+}
+
 void MeshRendererComponent::parse(const nlohmann::json &json, Entity &entity) {
   MeshRendererComponent component;
   component.model = scene_loading::stringOr(json, "model");
@@ -62,6 +104,9 @@ void MeshRendererComponent::parse(const nlohmann::json &json, Entity &entity) {
     for (const auto &value : *values)
       if (value.is_array() && value.size() >= 2)
         component.uvs.push_back({value[0].get<float>(), value[1].get<float>()});
+  }
+  if (!component.vertices.empty()) {
+    component.markGeometryChanged();
   }
   entity.setComponent(std::move(component));
 }

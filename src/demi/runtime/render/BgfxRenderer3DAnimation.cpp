@@ -1,4 +1,5 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
+#include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/geometry/MeshDeformation3D.h"
@@ -179,6 +180,11 @@ bool BgfxRenderer3D::prepareAnimatedMeshes(
   for (const auto &item : visible) {
     const auto *mesh = item.entity->component<MeshRendererComponent>();
     const auto *player = item.entity->component<AnimationPlayer3DComponent>();
+    if (player && item.entity->hasComponent<MeshInstances3DComponent>()) {
+      error = "MeshInstances3D currently requires a shared static mesh, "
+              "without AnimationPlayer3D";
+      return false;
+    }
     if (!player || !mesh || mesh->model.empty() || !mesh->vertices.empty())
       continue;
     const auto lodPosition=frame.lodPosition.value_or(frame.position);

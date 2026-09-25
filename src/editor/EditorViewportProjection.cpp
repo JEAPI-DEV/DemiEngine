@@ -1,4 +1,5 @@
 #include "editor/EditorViewportProjection.h"
+#include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 
 #include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/scene/Transform3DHierarchy.h"
@@ -178,26 +179,27 @@ std::optional<std::string> pickSceneEntity3D(
       continue;
     runtime::Vec3 minimum{-0.2F, -0.2F, -0.2F};
     runtime::Vec3 maximum{0.2F, 0.2F, 0.2F};
-    if (const auto box = runtime::resolvedBoxCollider3D(world, entity)) {
+    const auto *instances = entity.component<runtime::MeshInstances3DComponent>();
+    if (const auto box = runtime::resolvedBoxCollider3D(world, entity); !instances && box) {
       const runtime::Vec3 half{box->size.x * 0.5F, box->size.y * 0.5F,
                                box->size.z * 0.5F};
       minimum = subtract(box->offset, half);
       maximum = add(box->offset, half);
     } else if (const auto *sphere =
-                   entity.component<runtime::SphereCollider3DComponent>()) {
+                   entity.component<runtime::SphereCollider3DComponent>(); !instances && sphere) {
       const runtime::Vec3 radius{sphere->radius, sphere->radius,
                                  sphere->radius};
       minimum = subtract(sphere->offset, radius);
       maximum = add(sphere->offset, radius);
     } else if (const auto *capsule =
-                   entity.component<runtime::CapsuleCollider3DComponent>()) {
+                   entity.component<runtime::CapsuleCollider3DComponent>(); !instances && capsule) {
       const runtime::Vec3 half{capsule->radius, capsule->height * 0.5F,
                                capsule->radius};
       minimum = subtract(capsule->offset, half);
       maximum = add(capsule->offset, half);
     } else if (const auto *convex =
                    entity.component<runtime::ConvexCollider3DComponent>();
-               convex != nullptr && !convex->points.empty()) {
+               !instances && convex != nullptr && !convex->points.empty()) {
       minimum = add(convex->points.front(), convex->offset);
       maximum = minimum;
       for (const runtime::Vec3 point : convex->points) {
@@ -224,15 +226,24 @@ std::optional<std::string> pickSceneEntity3D(
       if (minimum.z > maximum.z)
         std::swap(minimum.z, maximum.z);
     }
-    const Ray local{
-        .origin = runtime::inverseTransformPoint3D(*transform, ray.origin),
-        .direction =
-            runtime::inverseTransformVector3D(*transform, ray.direction)};
-    const auto distance = rayBox(local, minimum, maximum);
-    if (distance && *distance > camera.projection.nearClip &&
-        *distance < nearestDistance) {
-      nearestDistance = *distance;
-      nearest = entity.id;
+    const auto considerTransform = [&](const runtime::WorldTransform3D &pose) {
+      const Ray local{
+          .origin = runtime::inverseTransformPoint3D(pose, ray.origin),
+          .direction = runtime::inverseTransformVector3D(pose, ray.direction)};
+      const auto distance = rayBox(local, minimum, maximum);
+      if (distance && *distance > camera.projection.nearClip &&
+          *distance < nearestDistance) {
+        nearestDistance = *distance;
+        nearest = entity.id;
+      }
+    };
+
+    if (instances) {
+      for (const auto &[instanceId, localTransform] : instances->transforms) {
+        considerTransform(runtime::composeWorldTransform3D(*transform, localTransform));
+      }
+    } else {
+      considerTransform(*transform);
     }
   }
   return nearest;

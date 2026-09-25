@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <cstdint>
@@ -37,6 +38,27 @@ struct CircleCollider2DComponent {
   float restitution = 0.0F;
   float density = 1.0F;
   bool debugVisible = true;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<CircleCollider2DComponent>::member<
+          &CircleCollider2DComponent::radius>("radius"),
+      RuntimeFieldBinding<CircleCollider2DComponent>::member<
+          &CircleCollider2DComponent::offset>("offset"),
+      RuntimeFieldBinding<CircleCollider2DComponent>::member<
+          &CircleCollider2DComponent::isTrigger>("is_trigger"),
+      RuntimeFieldBinding<CircleCollider2DComponent>::member<
+          &CircleCollider2DComponent::layer>("layer"),
+      RuntimeFieldBinding<CircleCollider2DComponent>::member<
+          &CircleCollider2DComponent::categoryBits>("category_bits"),
+      RuntimeFieldBinding<CircleCollider2DComponent>::member<
+          &CircleCollider2DComponent::maskBits>("mask_bits"),
+      RuntimeFieldBinding<CircleCollider2DComponent>::member<
+          &CircleCollider2DComponent::friction>("friction"),
+      RuntimeFieldBinding<CircleCollider2DComponent>::member<
+          &CircleCollider2DComponent::restitution>("restitution"),
+      RuntimeFieldBinding<CircleCollider2DComponent>::member<
+          &CircleCollider2DComponent::density>("density"),
+      RuntimeFieldBinding<CircleCollider2DComponent>::member<
+          &CircleCollider2DComponent::debugVisible>("debug_visible")};
 };
 
 } // namespace demi::runtime

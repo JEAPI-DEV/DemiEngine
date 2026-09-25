@@ -2,7 +2,7 @@
   "format_version": 1,
   "packages": [
     {
-      "archive_hash": "sha256:1935ba3b0aa16208f8c8c0abf06c1a0fe3717c4d369283cbe202a2789d622669",
+      "archive_hash": "sha256:e5b132780c6f64ab67ef3338eec211870f3ec80b3f1d287c0c69ede64272f5c5",
       "archive_uri": "package://demi.gameplay.controllers/1.0.0",
       "manifest": {
         "dependencies": {},

@@ -68,7 +68,7 @@ bool contractAllows(const NetworkPrefabRule &prefab, const std::string &path,
     error = path + " is not declared by the network contract";
     return false;
   }
-  if (rule->second.writeBy != writer &&
+  if (writer != NetworkActor::All && rule->second.writeBy != writer &&
       rule->second.writeBy != NetworkActor::All) {
     error =
         path + " is not writable by " + std::string(networkActorName(writer));

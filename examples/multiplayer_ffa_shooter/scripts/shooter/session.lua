@@ -1,4 +1,4 @@
-local Entity = require("demi.entity")
+local Prefab = require("demi.prefab")
 local Transform = require("demi.transform2d")
 local Sprite2D = require("demi.sprite2d")
 local Rigidbody2D = require("demi.physics.rigidbody2d")
@@ -101,7 +101,6 @@ function Session.connect(address)
 end
 
 function Session.register_local(entity_id, sender_id, color, mode)
-  NetworkSession.set_local_color(color[1], color[2], color[3], color[4])
   if mode ~= "host" then
     return true
   end
@@ -164,10 +163,11 @@ end
 function Session.spawn_remote(sender_id)
   if not NetworkSession.is_host() then return nil end
   if NetworkSession.network_id_for_owner(sender_id) ~= nil then return nil end
-  local entity_id = authority_entity_id(sender_id)
+  local instance_id = authority_entity_id(sender_id)
+  local entity_id = instance_id .. "/ent_network_player_template"
   local x, y = Config.spawn_for(sender_id, 0)
-  if not Entity.spawn(entity_id, {
-    prefab = "prefab://player",
+  if not Prefab.instantiate("prefab://player", {
+    id = instance_id,
     position = {x, y},
   }) then
     return nil
@@ -176,7 +176,7 @@ function Session.spawn_remote(sender_id)
   Sprite2D.set_color(entity_id, color[1], color[2], color[3], color[4])
   local network_id = NetworkSession.spawn("player", entity_id, sender_id)
   if network_id == nil then
-    Entity.destroy(entity_id)
+    Prefab.release(instance_id)
     return nil
   end
   Session.controllers[network_id] = state_for(entity_id)

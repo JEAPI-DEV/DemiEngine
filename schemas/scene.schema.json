@@ -10,6 +10,10 @@
   ],
   "additionalProperties": true,
   "properties": {
+    "prefab_origins": {
+      "$ref": "#/properties/instances",
+      "description": "Cooked scene instance ownership retained after entity expansion."
+    },
     "format_version": {
       "type": "integer",
       "minimum": 1

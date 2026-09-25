@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "name": "demi.ui.localization",
+  "version": "1.0.0",
+  "engine": "^0.1.0",
+  "dependencies": {},
+  "public_modules": ["demi.ui.localization"],
+  "files": [
+    "README.md",
+    "scripts/demi/ui/localization.lua",
+    "tests/localization_test.lua"
+  ]
+}

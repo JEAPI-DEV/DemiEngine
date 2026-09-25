@@ -4,8 +4,93 @@
 #include "demi/runtime/scene/model/Entity.h"
 
 #include <algorithm>
+#include <stdexcept>
 
 namespace demi::runtime {
+namespace {
+
+void resetStatePlayback(AnimationStateMachineComponent &component) {
+  component.time = 0.0F;
+  component.normalizedTime = 0.0F;
+  component.entered = true;
+  component.activeTransition = {};
+  component.blendSamples.clear();
+}
+
+} // namespace
+
+bool AnimationStateMachineComponent::selectState(const std::string &name) {
+  if (!states.contains(name))
+    return false;
+  if (state == name)
+    return true;
+  state = name;
+  resetStatePlayback(*this);
+  return true;
+}
+
+void AnimationStateMachineComponent::copyStates(
+    AnimationStateMachineComponent &destination,
+    const AnimationStateMachineComponent &source) {
+  destination.states = source.states;
+  if (destination.states.contains(destination.state))
+    return;
+  if (destination.states.empty()) {
+    destination.state.clear();
+    resetStatePlayback(destination);
+  } else {
+    // Parsing has resolved the configured initial state or lexical fallback.
+    (void)destination.selectState(source.state);
+  }
+}
+
+void AnimationStateMachineComponent::copyInitialState(
+    AnimationStateMachineComponent &destination,
+    const AnimationStateMachineComponent &source) {
+  if (!destination.selectState(source.initialState))
+    throw std::invalid_argument(
+        "AnimationStateMachine initial_state was not found");
+  destination.initialState = source.initialState;
+}
+
+void AnimationStateMachineComponent::afterRuntimeFieldChange(
+    AnimationStateMachineComponent &component, const std::string_view field) {
+  if (field != "states" && field != "transitions")
+    return;
+  std::erase_if(component.transitions,
+                [&](const AnimationTransition &transition) {
+                  return !component.states.contains(transition.to) ||
+                         (!transition.from.empty() && transition.from != "*" &&
+                          !component.states.contains(transition.from));
+                });
+  const auto &active = component.activeTransition;
+  const bool missingEndpoint =
+      (active.active || !active.from.empty() || !active.to.empty()) &&
+      (!component.states.contains(active.from) ||
+       !component.states.contains(active.to));
+  const bool removedTransition =
+      active.active && field == "transitions" &&
+      std::ranges::none_of(component.transitions, [&](const auto &transition) {
+        return transition.to == active.to &&
+               (transition.from.empty() || transition.from == "*" ||
+                transition.from == active.from);
+      });
+  if (missingEndpoint || removedTransition)
+    component.activeTransition = {};
+  // Preserve surviving samples and playback phase; discard dangling cache keys.
+  std::erase_if(component.blendSamples, [&](const auto &sample) {
+    return !component.states.contains(sample.first);
+  });
+}
+
+bool AnimationStateMachineComponent::serializeField(
+    const AnimationStateMachineComponent &component, std::string_view field,
+    nlohmann::json &out) {
+  if (field != "pause_policy")
+    return false;
+  out = component.updateWhenPaused ? "continue" : "pause";
+  return true;
+}
 
 void AnimationStateMachineComponent::parse(const nlohmann::json &json,
                                            Entity &entity) {
@@ -114,7 +199,8 @@ void AnimationStateMachineComponent::parse(const nlohmann::json &json,
         component.parameters[name] = value.get<float>();
     }
   }
-  component.state = scene_loading::stringOr(json, "initial_state");
+  component.initialState = scene_loading::stringOr(json, "initial_state");
+  component.state = component.initialState;
   component.speed = std::max(
       scene_loading::numberField(json, "speed").value_or(1.0F), 0.0F);
   component.rootMotion =

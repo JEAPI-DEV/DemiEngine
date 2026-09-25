@@ -92,15 +92,20 @@ end
 ---@param entity_id string
 ---@param options table EntitySpawnOptions (position/velocity/ttl/components)
 ---@return boolean ok
+---@return string? error
 function Script.spawn(self, entity_id, options)
   options = options or {}
-  local ok = Entity.spawn(entity_id, options)
+  local native_options = {}
+  for key, value in pairs(options) do
+    if key ~= "ttl" then native_options[key] = value end
+  end
+  local ok, err = Entity.spawn(entity_id, native_options)
   if ok and options.ttl and options.ttl > 0 then
     self:after(options.ttl, function()
       Entity.destroy(entity_id)
     end)
   end
-  return ok
+  return ok, err
 end
 
 ---Move this entity by (dx, dy) in 2D.

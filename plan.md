@@ -358,6 +358,86 @@ transparent effects, material-specific emission, and large-burst profiling.
 
 ##### 2. Lazy fracture activation and cooked data
 
+Alpha/beta cleanup follows `docs/compatibility.md`: migrate repository consumers
+instead of adding aliases for unreleased contracts. The event-queue package is
+now `demi.gameplay.events` (formerly `demi.gameplay.core`); dependent manifests,
+the three affected example locks and package tests use the new name. Its README
+documents dispatch, ownership and failure behavior. `docs/engine-concepts.md`
+introduces authoring concepts and distinguishes native services from packages.
+Package renames are local; the hosted registry has not been republished. The
+expanded naming and ownership work is recorded below.
+
+API and source-ownership cleanup also covers the native engine, not just packages:
+
+Current audit implementation:
+
+- [x] Field-level mutation bindings across all 50 reflected components replace
+  whole-component reconstruction. Compile-time coverage rejects missing bindings.
+  Authored/configured reads are explicitly named `Entity.get_config`; mutations
+  use `Entity.set_field`. Hierarchy rollback restores the live entity snapshot.
+- [x] Missing prefab override targets report an error instead of being ignored.
+  Prefab schemas accept dotted scalar/array overrides and inline prefab entities;
+  the old top-level fracture recipe reader and schema are removed. Editor and
+  cook validation reject that format, including unreferenced source prefabs.
+- [x] Remove the 32 masonry-model and 1,000-metre dimension parser limits; retain
+  positive/finite dimensions and cell index overflow checks.
+- [x] Move component guidance and advanced-field visibility into metadata instead
+  of Inspector branches keyed by component/field names.
+- [x] Derive and cache canonical defaults from parsed native field bindings.
+  Component-owned codecs handle enums, units and compound representations;
+  presence-sensitive authoring sugar advertises no fake default. Inspector
+  scaffolds are distinct from defaults. Float formatting preserves short
+  round-trip values without truncating small numbers or double precision.
+- [x] Consolidate Input aliases: concise action methods, explicit `key_*` raw-key
+  queries, and distinct `raw_vector`/normalized `vector`. Repository users migrate
+  with the stubs and binding implementation; removed names have no aliases.
+- [x] Rename traversal to `demi.gameplay.checkpoints` and language_file to
+  `demi.ui.localization`, including a namespaced localization module.
+- [ ] Qualify the combined change set and refresh affected package locks.
+- [ ] After qualification, add a native asynchronous HTTP/HTTPS client for Lua
+  REST API use. Reuse an established HTTP implementation, with verified TLS,
+  request headers and bodies, JSON helpers, explicit timeout/cancellation and
+  separate transport errors from HTTP status responses. Cover runtime shutdown,
+  desktop/Android dependencies and local-server regression tests. Keep secrets
+  out of diagnostics; do not block the game loop on network requests.
+
+- [x] Replace uppercase-global discovery and inferred native import paths with
+  an explicit service catalog; test unrelated globals, import caching, cleanup,
+  private userdata factories and unknown-service rejection.
+- [x] Move network response/event annotations out of the grid stub.
+- [x] Separate prefab and mesh/voxel construction bindings from entity operations.
+- [x] Audit native stub signatures and ownership; correct confirmed return shapes,
+  vector aliases, units and coordinate-space descriptions. Behavioral contract
+  tests now check tuple arity, embedded vectors, failure results, parented
+  rotations and structured data instead of only checking method names.
+- [x] Separate typed mesh/voxel algorithms from Lua table conversion. Native
+  geometry accepts blocks, tile maps and bordered heightfields and owns section
+  neighbor queries; the Lua adapter converts inputs. Native regression tests
+  cover visible faces, neighboring sections, unload, heightfields and overflow.
+- [x] Extract gameplay input ownership and the E2E coroutine runner from
+  LuaScriptHost. Native input owns bindings, contexts and rebinding persistence;
+  the runner owns coroutine references, waits and synthetic touches. Host methods
+  retain runtime callback wiring rather than those algorithms and state.
+- [x] Move network protocol and prediction policy into Lua-free services:
+  ownership, validation, lifecycle, replay, interpolation and per-entity send
+  pacing. Remove pre-contract Lua facades; raw transport remains available.
+  Scene presentation and Lua callback conversion remain adapters.
+- [x] Review package boundaries and rewrite eight short gameplay guides with
+  actual exports, ownership, working examples and limitations. Keep the
+  third-person package as an intentional movement/camera/combat bundle. Document
+  immediate native events versus caller-owned queued gameplay events.
+- [x] Make pending exact-ID script lookups consistent with Entity.exists so
+  newly instantiated prefab roots can be configured and replicated before the
+  command-buffer commit. Physics and spatial queries remain committed-world-only.
+- [x] Correct quaternion-to-Euler precision at quarter turns and make look_at
+  respect parent transforms while preserving local position and scale.
+- [x] Reject unsupported Entity.spawn prefab/TTL options with actionable errors
+  instead of ignoring them. Prefab.instantiate owns composition; Script.spawn
+  retains its own explicit timer-based lifetime behavior.
+- [x] Enable assertions for every Release test target, preserve the Jolt library
+  ABI, and replace a stale template file-count test with exact generated-path
+  and dry-run nonmutation checks.
+
 - [x] Built-in masonry uses combined intact region visuals and deferred leaf
   entities; unrelated walls and unsplit regions remain compact.
 - [ ] Extend this behavior to source-model fractures, custom masonry models,
@@ -368,8 +448,20 @@ transparent effects, material-specific emission, and large-burst profiling.
   interior visuals follow their primary shard. Imported GLB, standalone roots,
   nested prefab/transform override, rejected split, checkpoint restore and cooked
   loading tests pass. Two imported instances start with four live entities.
-  This extends visual activation, not template-cache eligibility. Custom masonry
-  model aggregation, legacy recipe activation and broader cache coverage remain.
+  Custom masonry now retains one instance batch per model variant, including
+  transactional removal of auxiliary batches when a region splits. Picking,
+  checked-in schema/docs, per-instance visibility and instanced-draw tests cover
+  the shared MeshInstances3D path. Geometry and model references are preserved.
+  Template retention now tracks nested sources, asset manifests, external model
+  buffers and complete override keys; its capacity is script-configurable.
+  Dependency edits during preparation bypass retention. Cache/integration tests
+  pass, including same-size, same-timestamp external-buffer edits.
+  Nested outer overrides now apply before fracture compilation. Tests cover
+  changing an imported nested mesh's piece count, cooking the result, and a
+  different runtime override on the cooked prefab. Generated IDs may change;
+  the user approved resetting old destruction checkpoints. No migration alias
+  is required during alpha/beta. The legacy top-level recipe path is removed;
+  its tests now exercise component authoring and explicit rejection of old files.
 - [ ] Reduce cold shard-template and structural metadata costs through spatial
   hierarchy and demand loading. Deferring live entities alone does not solve
   large-world memory usage. Preserve authoritative support/connectivity data.

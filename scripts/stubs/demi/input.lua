@@ -4,34 +4,24 @@
 local Input = {}
 ---@param key string
 ---@return boolean
-function Input.is_down(key) end
+function Input.key_down(key) end
 ---@param key string
 ---@return boolean
-function Input.is_pressed(key) end
+function Input.key_pressed(key) end
 ---@param key string
 ---@return boolean
-function Input.is_released(key) end
+function Input.key_released(key) end
 ---@param action string
 ---@param player? integer
 ---@return boolean
-function Input.action_down(action, player) end
----@param action string
----@param player? integer
----@return boolean
-function Input.action_pressed(action, player) end
----@param action string
----@param player? integer
----@return boolean
-function Input.action_released(action, player) end
----@param action string
----@param player? integer
----@return number
-function Input.action_value(action, player) end
+function Input.released(action, player) end
 ---@param action string
 ---@param player? integer
 ---@return number x
 ---@return number y
-function Input.action_vector(action, player) end
+---Resolved action vector without an extra unit-length clamp. Individual binding
+---normalization still applies.
+function Input.raw_vector(action, player) end
 ---@param action string Vector2 action; result normalized to length <= 1 (diagonal-safe).
 ---@param player? integer
 ---@return number x
@@ -52,11 +42,14 @@ function Input.value(action, player) end
 ---@param action string
 ---@param player? integer
 ---@return string
-function Input.action_source(action, player) end
+function Input.source(action, player) end
 ---@param context string
 function Input.enable_context(context) end
+---Disables this context for live and recorded actions. Disabling the last
+---enabled context leaves all named actions neutral; raw key queries still work.
 ---@param context string
 function Input.disable_context(context) end
+---Returns whether this context is explicitly enabled.
 ---@param context string
 ---@return boolean
 function Input.context_enabled(context) end

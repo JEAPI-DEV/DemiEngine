@@ -1,19 +1,5 @@
 ---@meta
 -- Native module: require("demi.grid"). Annotations only.
----@class NetworkEvent
----@field type "connected"|"disconnected"|"message"
----@field peer_id integer
----@field channel integer
----@field message string
----@field latency_ms integer
-
----@class NetworkHttpResponse
----@field ok boolean
----@field status integer
----@field body string
----@field error string
----@field json table|nil
-
 ---@alias GridPoint {[1]: number, [2]: number}
 ---@alias GridPath GridPoint[]
 

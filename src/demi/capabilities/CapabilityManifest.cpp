@@ -245,7 +245,8 @@ Json buildManifest(const std::span<const std::string> luaApi) {
                         {"replicated", field.replicated},
                         {"lua_readable", field.luaReadable},
                         {"lua_writable",
-                         field.luaWritable && !field.runtimeReadOnly},
+                         field.luaWritable && !field.runtimeReadOnly &&
+                             !field.restartRequired},
                         {"nullable", field.nullable},
                         {"has_minimum", field.hasMinimum},
                         {"minimum", field.minimum},

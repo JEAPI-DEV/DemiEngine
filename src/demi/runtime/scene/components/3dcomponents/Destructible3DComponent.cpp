@@ -59,6 +59,26 @@ void Destructible3DComponent::parse(const nlohmann::json &json,
     value.deferredVisuals=std::make_shared<const nlohmann::json>(groups);
   }
   auto &parsed=value;
+  const auto intactVisuals =
+      json.value("intact_visuals", nlohmann::json::object());
+  if (!intactVisuals.is_object()) {
+    throw std::invalid_argument("intact_visuals must be an object");
+  }
+  std::set<std::string> usedVisualIds;
+  for (const auto &[regionId, visualIds] : intactVisuals.items()) {
+    if (!value.deferredVisuals || !value.deferredVisuals->contains(regionId) ||
+        !visualIds.is_array()) {
+      throw std::invalid_argument("Intact visuals require a deferred region");
+    }
+    for (const auto &entry : visualIds) {
+      const std::string visualId = entry.get<std::string>();
+      if (visualId.empty() || visualId == regionId ||
+          !usedVisualIds.insert(visualId).second) {
+        throw std::invalid_argument("Invalid intact visual identity");
+      }
+      value.intactVisuals[regionId].push_back(visualId);
+    }
+  }
   const auto fading=json.value("fading_parts",nlohmann::json::object());
   if(!fading.is_object()) throw std::invalid_argument("fading_parts must be an object");
   for(const auto &[part,settings]:fading.items()) {
@@ -70,6 +90,13 @@ void Destructible3DComponent::parse(const nlohmann::json &json,
   entity.setComponent(std::move(value));
 }
 nlohmann::json Destructible3DComponent::defaults() {
-  return {{"parts", nlohmann::json::object()}, {"fading_parts", nlohmann::json::object()}, {"deferred_visuals", nlohmann::json::object()}, {"max_bodies", 64}, {"energy_per_health", 1000}, {"seed", 1}, {"generator_version", 1}};
+  return {{"parts", nlohmann::json::object()},
+          {"fading_parts", nlohmann::json::object()},
+          {"deferred_visuals", nlohmann::json::object()},
+          {"intact_visuals", nlohmann::json::object()},
+          {"max_bodies", 64},
+          {"energy_per_health", 1000},
+          {"seed", 1},
+          {"generator_version", 1}};
 }
 } // namespace demi::runtime

@@ -271,7 +271,7 @@ Diagnostics cookProject(const CookRequest &request) {
     effectiveRequest.shaderCompiler = DEMI_SHADERC_PATH;
   if (effectiveRequest.shaderIncludeDirectory.empty())
     effectiveRequest.shaderIncludeDirectory = DEMI_BGFX_SHADER_INCLUDE_DIR;
-  const auto summary = validatePath(absoluteProject);
+  const auto summary = validateProjectPath(absoluteProject);
   diagnostics.insert(diagnostics.end(), summary.diagnostics.begin(),
                      summary.diagnostics.end());
   const auto projectDirectory = absoluteProject.parent_path();
@@ -371,12 +371,12 @@ Diagnostics cookProject(const CookRequest &request) {
         owner != fileOwners.end() && cookDecisions.at(owner->second).isCacheHit;
     std::filesystem::create_directories(target.parent_path(), code);
     bool bakedFracture=false;
-    if (!code && (source.filename().string().ends_with(".prefab.json") || source.filename().string().ends_with(".scene.json"))) {
+    if (!code && (isPrefabFile(source) || isSceneFile(source))) {
       std::ifstream input(source);
       const auto sourceJson=nlohmann::json::parse(input,nullptr,false);
-      if(sourceJson.is_object() && (hasMasonryAuthoring(sourceJson) || sourceJson.contains("fracture") || hasFractureAuthoring(sourceJson))) {
-        const auto baked=source.filename().string().ends_with(".prefab.json")
-            ? runtime::composition::bakeFracturePrefab(source)
+      if(sourceJson.is_object() && (hasMasonryAuthoring(sourceJson) || hasFractureAuthoring(sourceJson) || runtime::composition::hasPrefabComposition(sourceJson))) {
+        const auto baked=isPrefabFile(source)
+            ? runtime::composition::preparePrefabDocument(source, sourceJson)
             : runtime::composition::expandScene(source, sourceJson);
         diagnostics.insert(diagnostics.end(),baked.diagnostics.begin(),baked.diagnostics.end());
         if(!baked.document)continue;

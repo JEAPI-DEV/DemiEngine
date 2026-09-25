@@ -1,5 +1,6 @@
 #pragma once
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 namespace demi::runtime {
@@ -62,5 +63,32 @@ struct FractureDebris3DComponent {
   Color color{0.65F, 0.45F, 0.3F, 1};
   std::string model, texture, renderLayer;
   std::uint32_t seed = 1;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<FractureDebris3DComponent>::member<
+          &FractureDebris3DComponent::count>("count"),
+      RuntimeFieldBinding<FractureDebris3DComponent>::member<
+          &FractureDebris3DComponent::maxFragments>("max_fragments"),
+      RuntimeFieldBinding<FractureDebris3DComponent>::member<
+          &FractureDebris3DComponent::lifetime>("lifetime"),
+      RuntimeFieldBinding<FractureDebris3DComponent>::member<
+          &FractureDebris3DComponent::fadeDuration>("fade_duration"),
+      RuntimeFieldBinding<FractureDebris3DComponent>::member<
+          &FractureDebris3DComponent::size>("size"),
+      RuntimeFieldBinding<FractureDebris3DComponent>::member<
+          &FractureDebris3DComponent::speed>("speed"),
+      RuntimeFieldBinding<FractureDebris3DComponent>::member<
+          &FractureDebris3DComponent::spin>("spin"),
+      RuntimeFieldBinding<FractureDebris3DComponent>::member<
+          &FractureDebris3DComponent::gravity>("gravity"),
+      RuntimeFieldBinding<FractureDebris3DComponent>::member<
+          &FractureDebris3DComponent::color>("color"),
+      RuntimeFieldBinding<FractureDebris3DComponent>::member<
+          &FractureDebris3DComponent::model>("model"),
+      RuntimeFieldBinding<FractureDebris3DComponent>::member<
+          &FractureDebris3DComponent::texture>("texture"),
+      RuntimeFieldBinding<FractureDebris3DComponent>::member<
+          &FractureDebris3DComponent::renderLayer>("render_layer"),
+      RuntimeFieldBinding<FractureDebris3DComponent>::member<
+          &FractureDebris3DComponent::seed>("seed")};
 };
 } // namespace demi::runtime

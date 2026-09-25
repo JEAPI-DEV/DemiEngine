@@ -48,6 +48,10 @@ LuaScriptHost::pooledPrefabCount(const std::string &prefab) const {
   return prefabService_.pooledCount(prefab);
 }
 
+void LuaScriptHost::setPrefabTemplateCacheCapacity(std::size_t entries) {
+  prefabService_.setTemplateCacheCapacity(entries);
+}
+
 bool LuaScriptHost::entityExists(const std::string &entityId) const {
   return world_ != nullptr &&
          (findEntity(*world_, entityId) != nullptr ||

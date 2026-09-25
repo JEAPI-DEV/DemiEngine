@@ -43,6 +43,7 @@ add_library(demi-core STATIC
   src/demi/runtime/concurrency/JobSystem.cpp
   src/demi/diagnostics/Diagnostic.cpp
   src/demi/filesystem/ProjectDiscovery.cpp
+  src/demi/filesystem/AtomicTextFile.cpp
   src/demi/filesystem/ProjectPaths.cpp
   src/demi/packages/SemanticVersion.cpp
   src/demi/runtime/scene/ProjectBuildSettings.cpp
@@ -76,6 +77,7 @@ add_library(demi-core STATIC
   src/demi/runtime/ui/UiStateController.cpp
   src/demi/runtime/ui/UiActionController.cpp
   src/demi/runtime/input/InputActionResolver.cpp
+  src/demi/runtime/input/GameplayInputService.cpp
   src/demi/runtime/input/InputRebinding.cpp
   src/demi/runtime/input/TouchGestureRecognizer.cpp
   src/demi/runtime/platform/ApplicationServices.cpp
@@ -108,6 +110,9 @@ target_compile_features(demi-core PUBLIC cxx_std_20)
 target_link_libraries(demi-core PUBLIC nlohmann_json::nlohmann_json box2d
   utf8proc harfbuzz freetype SheenBidi::SheenBidi mbedcrypto bimg_decode bimg
   yaml-cpp::yaml-cpp)
+if(WIN32)
+  target_link_libraries(demi-core PRIVATE advapi32)
+endif()
 set(DEMI_HOST_SHADERC "" CACHE FILEPATH
   "Existing host shaderc executable to reuse instead of building shaderc")
 if(NOT ANDROID)

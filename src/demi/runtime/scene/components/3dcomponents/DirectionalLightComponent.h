@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 namespace demi::runtime {
@@ -25,6 +26,17 @@ struct DirectionalLightComponent {
   float intensity = 1.0F;
   bool castsShadows = false;
   std::string renderMask;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<DirectionalLightComponent>::member<
+          &DirectionalLightComponent::direction>("direction"),
+      RuntimeFieldBinding<DirectionalLightComponent>::member<
+          &DirectionalLightComponent::color>("color"),
+      RuntimeFieldBinding<DirectionalLightComponent>::member<
+          &DirectionalLightComponent::intensity>("intensity"),
+      RuntimeFieldBinding<DirectionalLightComponent>::member<
+          &DirectionalLightComponent::castsShadows>("casts_shadows"),
+      RuntimeFieldBinding<DirectionalLightComponent>::member<
+          &DirectionalLightComponent::renderMask>("render_mask")};
 };
 
 } // namespace demi::runtime

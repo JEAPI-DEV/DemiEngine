@@ -1,4 +1,9 @@
 ---@meta
+---Fixed-length, one-based numeric arrays used for embedded/bulk vector values.
+---Scalar-returning queries still return multiple Lua values, not these tables.
+---@alias Vec2 {[1]: number, [2]: number}
+---@alias Vec3 {[1]: number, [2]: number, [3]: number}
+
 ---@class DemiScript
 ---@field entity_id? string
 ---@field ui_id? string
@@ -64,11 +69,11 @@ function DemiScript:on_ui_scroll(event) end
 -- Generated from ComponentRegistry metadata.
 ---@class DemiRigidbody2DSpec
 ---@field body_type? string
----@field velocity? number[]
+---@field velocity? Vec2
 ---@field gravity_scale? number
 ---@field bounciness? number
 ---@field lock_rotation? boolean
----@field angular_velocity? number
+---@field angular_velocity? number Radians per second.
 ---@field linear_damping? number
 ---@field angular_damping? number
 ---@field continuous? boolean
@@ -86,15 +91,15 @@ function DemiScript:on_ui_scroll(event) end
 
 ---@class DemiTransform2DSpec
 ---@field parent? string
----@field position? number[]
----@field rotation? number
----@field scale? number[]
+---@field position? Vec2 Local position.
+---@field rotation? number Local angle in radians.
+---@field scale? Vec2
 
 ---@class DemiTransform3DSpec
 ---@field parent? string
----@field position? number[]
----@field rotation? number[]
----@field scale? number[]
+---@field position? Vec3 Local position.
+---@field rotation? Vec3 Local Euler angles in radians.
+---@field scale? Vec3
 
 ---@class DemiAnimationStateMachineSpec
 ---@field states table

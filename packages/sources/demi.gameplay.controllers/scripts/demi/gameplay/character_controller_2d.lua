@@ -29,7 +29,7 @@ function CharacterController2D:update_horizontal(entity_id)
   local Input = require("demi.input")
   local Rigidbody2D = require("demi.physics.rigidbody2d")
   local Sprite2D = require("demi.sprite2d")
-  local axis = Input.action_value(self.move_action)
+  local axis = Input.value(self.move_action)
   Rigidbody2D.set_velocity_x(entity_id, axis * self.move_speed)
   if self.flip_sprite and axis ~= 0.0 then Sprite2D.set_flip(entity_id, axis < 0.0, false) end
   Sprite2D.play_animation(entity_id, axis == 0.0 and self.idle_animation or self.run_animation)
@@ -39,7 +39,7 @@ end
 function CharacterController2D:try_jump(entity_id, grounded)
   local Input = require("demi.input")
   local Rigidbody2D = require("demi.physics.rigidbody2d")
-  if grounded and Input.action_pressed(self.jump_action) then
+  if grounded and Input.pressed(self.jump_action) then
     Rigidbody2D.set_velocity_y(entity_id, self.jump_speed)
     return true
   end

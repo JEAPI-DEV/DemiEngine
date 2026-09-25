@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <ranges>
 #include <utility>
 
@@ -22,6 +23,105 @@ bool writeFile(const std::filesystem::path &path, const char *contents) {
   }
   output << contents;
   return true;
+}
+
+bool initializePendingEntities(LuaScriptHost &host, World &world,
+                               const std::filesystem::path &projectDirectory) {
+  if (!writeFile(projectDirectory / "prefabs/pending_probe.prefab.json",
+                 R"json({
+    "format_version": 1,
+    "id": "prefab://pending_probe",
+    "entities": [{
+      "id": "root", "name": "Pending prefab name",
+      "components": {"Transform3D": {}, "Rigidbody3D": {"mass": 3.0}}
+    }]
+  })json")) {
+    return false;
+  }
+  Entity committed;
+  committed.id = "pending_replacement_probe";
+  committed.setComponent<Transform2DComponent>(
+      Transform2DComponent{.position = {1.0F, 2.0F}});
+  world.entities.push_back(committed);
+  // Model one gameplay callback: create, configure and capture before the
+  // host's lifecycle boundary flushes commands into the committed world.
+  const auto callback = [&]() {
+    Entity replacement = committed;
+    if (!host.replaceEntity(std::move(replacement)) ||
+        !host.setEntityPosition(committed.id, 40.0F, 50.0F)) {
+      return false;
+    }
+    Entity created;
+    created.id = "pending_direct_probe";
+    created.name = "Pending direct name";
+    created.setComponent<Transform2DComponent>({});
+    created.setComponent<SpriteComponent>({});
+    if (!host.createEntity(std::move(created)) ||
+        !host.setEntityPosition("pending_direct_probe", 12.0F, 34.0F) ||
+        !host.setEntitySpriteColor("pending_direct_probe",
+                                   {0.25F, 0.5F, 0.75F, 1.0F}) ||
+        !host.setSpriteFlip("pending_direct_probe", true, false) ||
+        !host.setSpriteSize("pending_direct_probe", 4.0F, 5.0F) ||
+        !host.setSpriteLayer("pending_direct_probe", "foreground") ||
+        !host.setSpriteSortingOrder("pending_direct_probe", 7) ||
+        !host.setSpriteMaterial("pending_direct_probe",
+                                "asset://materials/probe")) {
+      return false;
+    }
+    const auto instance = host.instantiatePrefab(
+        "prefab://pending_probe", {.id = "pending_prefab_probe"});
+    const std::string root = "pending_prefab_probe/root";
+    if (!instance || !host.setEntityPosition3D(root, 7.0F, 8.0F, 9.0F)) {
+      return false;
+    }
+    const LuaScriptHost &reader = host;
+    if (reader.findEntityId(root) != root ||
+        reader.findEntityId("pending_direct_probe") != "pending_direct_probe" ||
+        reader.findEntityId("Pending prefab name") ||
+        reader.findEntityId("Pending direct name") ||
+        !reader.entityExists(root)) {
+      // Only exact pending IDs participate; names stay committed-world queries.
+      return false;
+    }
+    const auto directPosition = reader.entityPosition("pending_direct_probe");
+    const auto prefabPosition = reader.entityPosition3D(root);
+    const auto replacementPosition = reader.entityPosition(committed.id);
+    const auto directState =
+        reader.captureEntityReplicatedState("pending_direct_probe");
+    const auto prefabState = reader.captureEntityReplicatedState(root);
+    NetworkContract contract;
+    contract.replicatedPrefabs["probe"].fields["Transform3D.position"] = {};
+    const auto declaredState = reader.captureEntityReplicatedState(
+        root, contract, "probe", NetworkActor::All);
+    if (!replacementPosition || replacementPosition->x != 40.0F ||
+        findEntity(world, committed.id)
+                ->component<Transform2DComponent>()
+                ->position.x != 1.0F ||
+        !directPosition || directPosition->x != 12.0F || !prefabPosition ||
+        prefabPosition->z != 9.0F || !directState || !prefabState ||
+        !declaredState) {
+      return false;
+    }
+    const auto direct = nlohmann::json::parse(*directState);
+    const auto prefab = nlohmann::json::parse(*prefabState);
+    const auto declared = nlohmann::json::parse(*declaredState);
+    if (direct["Transform2D"]["position"] !=
+            nlohmann::json::array({12.0F, 34.0F}) ||
+        direct["Sprite"]["flip_x"] != true ||
+        direct["Sprite"]["color"][0] != 0.25F ||
+        prefab["Transform3D"]["position"] !=
+            nlohmann::json::array({7.0F, 8.0F, 9.0F}) ||
+        declared["Transform3D"]["position"] !=
+            prefab["Transform3D"]["position"]) {
+      return false;
+    }
+    const auto pendingBody = reader.rigidbodyState3D(root);
+    return pendingBody && pendingBody->mass == 3.0F &&
+           findEntity(world, root) == nullptr &&
+           findEntity(world, "pending_direct_probe") == nullptr &&
+           !reader.entityForward3D(root);
+  };
+  return callback();
 }
 } // namespace
 
@@ -61,6 +161,9 @@ local Application = require("demi.application")
 local ProceduralMesh = require("demi.mesh.procedural")
 local Entity = require("demi.entity")
 local Sprite2D = require("demi.sprite2d")
+local Transform2D = require("demi.transform2d")
+local Transform3D = require("demi.transform3d")
+local Prefab = require("demi.prefab")
 local Random = require("demi.math.random")
 local Events = require("demi.events")
 local Hud = require("demi.hud")
@@ -71,6 +174,12 @@ local Network = require("demi.network")
 
 local Probe = {}
 function Probe:on_start()
+  local instance = Prefab.instantiate("prefab://pending_probe", {id = "pending_lua_prefab"})
+  local root = "pending_lua_prefab/root"
+  if instance and Entity.exists(root) and Entity.find(root) == root and
+      Transform3D.set_position(root, 10, 20, 30) then
+    Save.set_string("test", "pending_prefab_configured", "passed")
+  end
   require("action_module")
   Random.seed(1234)
   local exact_random_state = Random.state()
@@ -173,7 +282,9 @@ function Probe:on_start()
       },
     },
   })
-  if Sprite2D.set_color("ent_tinted_sprite", 0.45, 0.55, 0.65, 0.75) and
+  if Entity.find("ent_tinted_sprite") == "ent_tinted_sprite" and
+      Transform2D.set_position("ent_tinted_sprite", 3.0, 4.0) and
+      Sprite2D.set_color("ent_tinted_sprite", 0.45, 0.55, 0.65, 0.75) and
       Sprite2D.set_size("ent_tinted_sprite", 2.5, 0.5) then
     Save.set_string("test", "sprite_color", "updated")
   end
@@ -318,12 +429,12 @@ function Probe:on_update(dt)
   if Input.ui_pointer_captured() then
     Save.set_string("test", "ui_pointer_capture", "captured")
   end
-  if Input.is_down("space") then
+  if Input.key_down("space") then
     Save.set_string("test", "space", "down")
   else
     Save.set_string("test", "space", "up")
   end
-  if Input.is_pressed("escape") then
+  if Input.key_pressed("escape") then
     Save.set_string("test", "escape_pressed", "pressed")
   else
     Save.set_string("test", "escape_pressed", "released")
@@ -528,7 +639,28 @@ return PropProbe
   }
 
   host.setViewport(100, 100);
+  if (!initializePendingEntities(host, world, projectDirectory)) {
+    std::cerr
+        << "Pending direct-ID configuration or replication capture failed.\n";
+    return 1;
+  }
   host.start();
+  if (host.saveString("test", "pending_prefab_configured") != "passed") {
+    std::cerr
+        << "Lua prefab initialization failed within one lifecycle callback.\n";
+    return 1;
+  }
+  const auto *configured = findEntity(world, "pending_direct_probe");
+  const auto *sprite =
+      configured ? configured->component<SpriteComponent>() : nullptr;
+  if (!sprite || sprite->size.x != 4.0F || sprite->layer != "foreground" ||
+      sprite->sortingOrder != 7 ||
+      sprite->material != "asset://materials/probe" ||
+      !findEntity(world, "pending_prefab_probe/root")) {
+    std::cerr
+        << "Pending entity configuration did not survive command commit.\n";
+    return 1;
+  }
   host.setTimeScale(0.5F);
   host.beginFrame(0.2F);
   host.advanceFixedTime(1.0F / 60.0F);
@@ -811,19 +943,19 @@ return PropProbe
     return 1;
   }
   if (host.saveString("test", "space") != "up") {
-    std::cerr << "Input.is_down returned true for an unpressed key.\n";
+    std::cerr << "Input.key_down returned true for an unpressed key.\n";
     return 1;
   }
   input.keysPressed.insert("escape");
   host.update(1.0F / 60.0F);
   if (host.saveString("test", "escape_pressed") != "pressed") {
-    std::cerr << "Input.is_pressed did not report a pressed key.\n";
+    std::cerr << "Input.key_pressed did not report a pressed key.\n";
     return 1;
   }
   input.keysPressed.clear();
   host.update(1.0F / 60.0F);
   if (host.saveString("test", "escape_pressed") != "released") {
-    std::cerr << "Input.is_pressed stayed true after the press frame.\n";
+    std::cerr << "Input.key_pressed stayed true after the press frame.\n";
     return 1;
   }
 

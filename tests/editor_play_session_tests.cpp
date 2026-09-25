@@ -42,6 +42,12 @@ int main() {
     std::string error;
     assert(session.startEmbedded(project, error));
     assert(session.state() == demi::editor::EditorPlayState::Running);
+    const auto cacheCapacity = session.executeLuaConsole(
+        "require('demi.prefab').set_template_cache_capacity(32)");
+    assert(cacheCapacity.succeeded && cacheCapacity.values.front() == "true");
+    const auto invalidCapacity = session.executeLuaConsole(
+        "require('demi.prefab').set_template_cache_capacity(-1)");
+    assert(invalidCapacity.succeeded && invalidCapacity.values.front() == "false");
     assert(session.executeLuaConsole("require('demi.application').set_mouse_captured(true)").succeeded);
     assert(session.mouseCaptured());
     assert(session.executeLuaConsole("require('demi.application').set_mouse_visible(false)").succeeded);

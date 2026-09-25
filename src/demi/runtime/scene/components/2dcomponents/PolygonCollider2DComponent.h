@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <cstdint>
@@ -38,6 +39,27 @@ struct PolygonCollider2DComponent {
   float restitution = 0.0F;
   float density = 1.0F;
   bool debugVisible = true;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<PolygonCollider2DComponent>::member<
+          &PolygonCollider2DComponent::points>("points"),
+      RuntimeFieldBinding<PolygonCollider2DComponent>::member<
+          &PolygonCollider2DComponent::offset>("offset"),
+      RuntimeFieldBinding<PolygonCollider2DComponent>::member<
+          &PolygonCollider2DComponent::isTrigger>("is_trigger"),
+      RuntimeFieldBinding<PolygonCollider2DComponent>::member<
+          &PolygonCollider2DComponent::layer>("layer"),
+      RuntimeFieldBinding<PolygonCollider2DComponent>::member<
+          &PolygonCollider2DComponent::categoryBits>("category_bits"),
+      RuntimeFieldBinding<PolygonCollider2DComponent>::member<
+          &PolygonCollider2DComponent::maskBits>("mask_bits"),
+      RuntimeFieldBinding<PolygonCollider2DComponent>::member<
+          &PolygonCollider2DComponent::friction>("friction"),
+      RuntimeFieldBinding<PolygonCollider2DComponent>::member<
+          &PolygonCollider2DComponent::restitution>("restitution"),
+      RuntimeFieldBinding<PolygonCollider2DComponent>::member<
+          &PolygonCollider2DComponent::density>("density"),
+      RuntimeFieldBinding<PolygonCollider2DComponent>::member<
+          &PolygonCollider2DComponent::debugVisible>("debug_visible")};
 };
 
 } // namespace demi::runtime

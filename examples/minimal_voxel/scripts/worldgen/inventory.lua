@@ -304,12 +304,12 @@ function Inventory.drop_for(block)
 end
 
 function Inventory.update_input(inventory)
-  if Input.action_pressed("inventory") then
+  if Input.pressed("inventory") then
     set_inventory_open(inventory, not inventory.open)
   end
 
   for index = 1, hotbar_count do
-    if Input.is_pressed(tostring(index)) then
+    if Input.key_pressed(tostring(index)) then
       inventory.selected = index
       inventory.dirty = true
       return

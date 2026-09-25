@@ -4,6 +4,8 @@
   target_link_libraries(demi-cosmetic-debris3d-tests PRIVATE demi-runtime-lib)
   target_link_libraries(demi-project-discovery-tests PRIVATE demi-editor-model)
   add_executable(demi-fracture-prefab-tests tests/fracture_prefab_tests.cpp)
+  add_executable(demi-prefab-template-cache-tests tests/prefab_template_cache_tests.cpp)
+  target_link_libraries(demi-prefab-template-cache-tests PRIVATE demi-core)
   target_link_libraries(demi-fracture-prefab-tests PRIVATE demi-runtime-lib demi-editor-model)
   add_executable(demi-blast-family3d-tests tests/blast_family3d_tests.cpp)
   target_link_libraries(demi-blast-family3d-tests PRIVATE demi-destruction)
@@ -15,6 +17,9 @@
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-jolt-body-batch3d-tests tests/jolt_body_batch3d_tests.cpp)
   target_link_libraries(demi-jolt-body-batch3d-tests PRIVATE demi-runtime-lib Jolt)
+  # Keep Jolt headers on the linked library's ABI while test assertions remain on.
+  target_compile_definitions(demi-jolt-body-batch3d-tests PRIVATE
+    $<$<CONFIG:Release,RelWithDebInfo,MinSizeRel>:JPH_NO_DEBUG>)
   add_executable(demi-smoke-tests tests/smoke_tests.cpp)
   target_link_libraries(demi-smoke-tests PRIVATE demi-core)
 
@@ -204,6 +209,14 @@
   add_executable(demi-runtime-object-model-tests
     tests/runtime_object_model_tests.cpp)
   target_link_libraries(demi-runtime-object-model-tests PRIVATE demi-core)
+  add_executable(demi-component-schema-tests tests/component_schema_tests.cpp)
+  add_executable(demi-atomic-text-file-tests tests/atomic_text_file_tests.cpp)
+  target_link_libraries(demi-atomic-text-file-tests PRIVATE demi-core)
+  target_link_libraries(demi-component-schema-tests PRIVATE demi-core)
+  target_compile_definitions(demi-component-schema-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-voxel-mesh-builder-tests tests/voxel_mesh_builder_tests.cpp)
+  target_link_libraries(demi-voxel-mesh-builder-tests PRIVATE demi-core)
   add_executable(demi-entity-lookup-tests tests/entity_lookup_tests.cpp)
   target_link_libraries(demi-entity-lookup-tests PRIVATE demi-core)
   add_executable(demi-runtime-scene-prefab-tests
@@ -359,6 +372,17 @@
 
   add_executable(demi-lua-stub-contract-tests tests/lua_stub_contract_tests.cpp)
   target_link_libraries(demi-lua-stub-contract-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-lua-e2e-runner-tests tests/lua_e2e_runner_tests.cpp)
+  target_link_libraries(demi-lua-e2e-runner-tests PRIVATE demi-runtime-lib)
+  foreach(lua_api_test IN ITEMS demi-lua-stub-contract-tests demi-lua-e2e-runner-tests)
+    if(TARGET lua54)
+      target_link_libraries(${lua_api_test} PRIVATE lua54)
+    elseif(TARGET demi-server-lua54)
+      target_link_libraries(${lua_api_test} PRIVATE demi-server-lua54)
+    else()
+      target_link_libraries(${lua_api_test} PRIVATE PkgConfig::LUA54)
+    endif()
+  endforeach()
 
   add_executable(demi-lua-scripting-tests tests/lua_scripting_tests.cpp)
   target_link_libraries(demi-lua-scripting-tests PRIVATE demi-runtime-lib)
@@ -460,15 +484,15 @@
   add_executable(demi-navigation2d-tests tests/navigation2d_tests.cpp)
   target_link_libraries(demi-navigation2d-tests PRIVATE demi-core)
 
-  # These tests use assert for checks and fixture setup. Keep those calls in
-  # optimized test executables; the linked engine libraries remain Release.
-  foreach(target demi-bgfx-renderer3d-tests demi-gltf-skinned-model-tests demi-runtime-profiler-tests demi-gpu-mesh3d-tests demi-gpu-skinning3d-tests
-                 demi-package-manager-tests demi-asset-streaming-tests demi-asset-pipeline-tests demi-editor-asset-workflow-tests demi-texture-library2d-tests demi-editor-workspace-tests demi-editor-imgui-input-tests
-                 demi-project-watch-reload-tests demi-project-build-settings-tests demi-editor-diagnostics-profiler-tests demi-font-atlas2d-tests
-                 demi-ui-canvas-renderer-tests demi-bgfx-renderer2d-tests)
-    if(MSVC)
-      target_compile_options(${target} PRIVATE /UNDEBUG)
-    else()
-      target_compile_options(${target} PRIVATE -UNDEBUG)
+  # Assertions are executable checks (and sometimes fixture setup). Never
+  # compile them out of tests; production libraries still use Release flags.
+  get_property(demi_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+  foreach(target IN LISTS demi_test_targets)
+    if(target MATCHES "^demi-.*-tests$")
+      if(MSVC)
+        target_compile_options(${target} PRIVATE /UNDEBUG)
+      else()
+        target_compile_options(${target} PRIVATE -UNDEBUG)
+      endif()
     endif()
   endforeach()

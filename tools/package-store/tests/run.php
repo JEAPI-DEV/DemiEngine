@@ -169,8 +169,8 @@ try {
 }
 
 $kernel = new App\Kernel('test',false);
-if ((new Catalog())->find('demi.gameplay.core')) {
-    $request = Request::create('/v1/packages/demi.gameplay.core');
+if ((new Catalog())->find('demi.gameplay.events')) {
+    $request = Request::create('/v1/packages/demi.gameplay.events');
     $response = $kernel->handle($request);
     $json = json_decode($response->getContent());
     check($json->releases[0]->manifest->dependencies instanceof stdClass, 'empty dependency map stays object');

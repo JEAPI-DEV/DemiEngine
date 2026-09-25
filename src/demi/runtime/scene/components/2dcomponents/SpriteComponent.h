@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <string>
@@ -55,6 +56,8 @@ struct SpriteComponent {
                                true}};
   static constexpr ComponentEditorMetadata editor{"2D", "Sprite"};
   static void parse(const nlohmann::json &json, Entity &entity);
+  static bool serializeField(const SpriteComponent &component,
+                             std::string_view field, nlohmann::json &out);
 
   std::string texture;
   std::string shape = "rectangle";
@@ -73,6 +76,39 @@ struct SpriteComponent {
   bool flipX = false;
   bool flipY = false;
   Color color = {1.0F, 1.0F, 1.0F, 1.0F};
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<SpriteComponent>::member<&SpriteComponent::texture>(
+          "texture"),
+      RuntimeFieldBinding<SpriteComponent>::member<&SpriteComponent::shape>(
+          "shape"),
+      RuntimeFieldBinding<SpriteComponent>::member<&SpriteComponent::layer>(
+          "layer"),
+      RuntimeFieldBinding<SpriteComponent>::member<
+          &SpriteComponent::sortingOrder>("sorting_order"),
+      RuntimeFieldBinding<SpriteComponent>::member<
+          &SpriteComponent::sourcePosition>("source_position"),
+      RuntimeFieldBinding<SpriteComponent>::member<
+          &SpriteComponent::sourceSize>("source_size"),
+      RuntimeFieldBinding<SpriteComponent>::member<
+          &SpriteComponent::sourceNormalized>("source_normalized"),
+      RuntimeFieldBinding<SpriteComponent>::member<&SpriteComponent::size>(
+          "size"),
+      RuntimeFieldBinding<SpriteComponent>::member<&SpriteComponent::pivot>(
+          "pivot"),
+      RuntimeFieldBinding<SpriteComponent>::members<
+          &SpriteComponent::sliceStart, &SpriteComponent::sliceEnd>("nine_slice"),
+      RuntimeFieldBinding<SpriteComponent>::member<
+          &SpriteComponent::maskOffset>("mask_offset"),
+      RuntimeFieldBinding<SpriteComponent>::member<&SpriteComponent::maskSize>(
+          "mask_size"),
+      RuntimeFieldBinding<SpriteComponent>::member<&SpriteComponent::material>(
+          "material"),
+      RuntimeFieldBinding<SpriteComponent>::member<&SpriteComponent::flipX>(
+          "flip_x"),
+      RuntimeFieldBinding<SpriteComponent>::member<&SpriteComponent::flipY>(
+          "flip_y"),
+      RuntimeFieldBinding<SpriteComponent>::member<&SpriteComponent::color>(
+          "color")};
 };
 
 } // namespace demi::runtime

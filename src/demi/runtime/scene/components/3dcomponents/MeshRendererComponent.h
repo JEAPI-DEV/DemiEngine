@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <cstdint>
@@ -47,12 +48,15 @@ struct MeshRendererComponent {
       ComponentFieldDescriptor{"material_properties",
                                ComponentFieldType::Object},
       ComponentFieldDescriptor{"render_layer", ComponentFieldType::String},
-      ComponentFieldDescriptor{"vertices", ComponentFieldType::Vec3Array}.withHelp("Advanced inline triangle geometry: three XYZ vertices per triangle. Usually supplied by a model or the Shape primitive."),
-      ComponentFieldDescriptor{"normals", ComponentFieldType::Vec3Array}.withHelp("Lighting directions for inline vertices. Omit to calculate them from the triangles; otherwise provide one XYZ normal per vertex."),
-      ComponentFieldDescriptor{"uvs", ComponentFieldType::Vec2Array}.withHelp("Texture coordinates for inline vertices, one UV pair per vertex. 0..1 spans the image; larger values tile when texture Wrap is Repeat."),
+      ComponentFieldDescriptor{"vertices", ComponentFieldType::Vec3Array}.asAdvanced().withHelp("Advanced inline triangle geometry: three XYZ vertices per triangle. Usually supplied by a model or the Shape primitive."),
+      ComponentFieldDescriptor{"normals", ComponentFieldType::Vec3Array}.asAdvanced().withHelp("Lighting directions for inline vertices. Omit to calculate them from the triangles; otherwise provide one XYZ normal per vertex."),
+      ComponentFieldDescriptor{"uvs", ComponentFieldType::Vec2Array}.asAdvanced().withHelp("Texture coordinates for inline vertices, one UV pair per vertex. 0..1 spans the image; larger values tile when texture Wrap is Repeat."),
       ComponentFieldDescriptor{"wireframe", ComponentFieldType::Boolean}};
-  static constexpr ComponentEditorMetadata editor{"3D", "Mesh Renderer"};
+  static constexpr ComponentEditorMetadata editor{"3D", "Mesh Renderer",
+      "Choose a model or built-in shape, then assign its texture/material. Hover field labels for help."};
   static void parse(const nlohmann::json &json, Entity &entity);
+  static bool serializeField(const MeshRendererComponent &component,
+                             std::string_view field, nlohmann::json &out);
 
   std::string model;
   std::string mediumLodModel;
@@ -76,6 +80,45 @@ struct MeshRendererComponent {
   Vec3 boundsMax;
   bool hasBounds = false;
   bool wireframe = false;
+  void markGeometryChanged();
+  static void afterRuntimeFieldChange(MeshRendererComponent &mesh,
+                                      std::string_view field);
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::model>("model"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::mediumLodModel>("medium_lod_model"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::mediumLodDistance>("medium_lod_distance"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::lowLodModel>("low_lod_model"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::lowLodDistance>("low_lod_distance"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::cullDistance>("cull_distance"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::shape>("shape"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::size>("size"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::color>("color"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::texture>("texture"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::material>("material"),
+      RuntimeFieldBinding<MeshRendererComponent>::members<
+          &MeshRendererComponent::materialNumbers,
+          &MeshRendererComponent::materialColors>("material_properties"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::renderLayer>("render_layer"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::vertices>("vertices"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::normals>("normals"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::uvs>("uvs"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::wireframe>("wireframe")};
 };
 
 } // namespace demi::runtime

@@ -2,8 +2,9 @@
 #include <filesystem>
 #include <nlohmann/json.hpp>
 namespace demi::assets {
-// Pure compilation: source prefab remains untouched. Caller supplies expanded
-// prefab-local entities, including their hierarchy. Throws actionable errors.
+// Internal geometry compilation for FractureAuthoring. Inputs are expanded
+// assembly-local entities and normalized component settings, not a prefab
+// document or a public recipe format. Throws actionable errors.
 nlohmann::json compileFracturePrefab(const std::filesystem::path &project,
                                      const nlohmann::json &entities,
                                      const nlohmann::json &settings);

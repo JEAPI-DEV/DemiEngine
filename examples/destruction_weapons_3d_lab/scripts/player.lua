@@ -145,7 +145,7 @@ function Player:on_fixed_update(dt)
   local key=phase..":"..self.weapon.shots..":"..self.weapon.detonations..":"..self.weapon.contacts..":"..#self.weapon.rockets..":"..self.weapon.ammo
   if key~=self.stats_key then
     self.stats_key=key
-    Entity.set(self.entity_id,"GameplayData","values",{
+    Entity.set_field(self.entity_id,"GameplayData","values",{
       phase=phase, shots=self.weapon.shots, detonations=self.weapon.detonations,
       contacts=self.weapon.contacts, active_rockets=#self.weapon.rockets, ammo=self.weapon.ammo,
     })

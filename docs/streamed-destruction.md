@@ -29,15 +29,33 @@ positive integers whose product fits a signed 32-bit index. There is no
 `anchor_below` uses assembly-local Y. An optional `models`
 object can select developer-authored shared meshes instead of a height map;
 the native height-map path does not need model assets.
+There is no separate model-variant count or 1,000-metre dimension cap. Dimensions
+must be positive and finite; index and backend representation requirements still
+apply. Acceptance by the parser is not a memory or performance guarantee.
 
 Cooking expands the recipe into the build output; authored prefabs remain
 compact. Running uncooked source expands it when the prefab is instantiated.
-The prefab service caches up to 16 eligible compact templates by
-source content hash and rebases stable entity/visual IDs per instance. Source
-edits invalidate the key. Transform-only overrides have their own bounded cache
-key, so repeated placements with the same rotation/scale share preparation.
-Nested prefabs, other overrides, or source-model fracture
-inputs use the uncached path. Repeated instantiation no longer expands twice.
+The prefab service retains prepared templates and rebases stable entity/visual
+IDs per instance. Nested prefabs, general overrides and source-model fracture
+inputs use the same cache. Keys include the prefab reference and full override
+document. Dependency snapshots cover nested source files, asset-registry
+manifests, referenced assets and external model buffers; changes invalidate the
+entry. A dependency change during preparation prevents that result from being
+retained. Unresolvable references or unreadable dependencies use uncached
+preparation. Missing files are tracked so their creation invalidates an entry.
+Nested prefab composition applies outer overrides before compiling fracture
+geometry. Cooking prepares that composed result. Prepared fracture prefabs also
+carry a compact `source_recipe` for runtime authoring overrides; unchanged
+instances reuse the prepared geometry. This is generated build data, not another
+file developers maintain. Old nested-fracture checkpoints may require a reset
+because generated part IDs changed; they are not migrated automatically.
+
+Retention defaults to 16 templates and evicts the least recently used entry.
+`require("demi.prefab").set_template_cache_capacity(entries)` changes this budget;
+zero clears and disables retention. This does not cap live instances, parts or
+models. Profiler gauges report cache entries, hits, misses and bypasses. Source
+dependency checks themselves consume time; large-project preparation performance
+still needs qualification. Repeated instantiation no longer expands twice.
 The editor uses the same cell mesh, atlas UV and height-relief descriptors as
 runtime. Preview cells have no fracture component and are not saved into source.
 Picking one selects its authored masonry region; Inspector edits and Undo/Redo
@@ -102,11 +120,13 @@ render-resource overhead; the full surface detail and support graph remain in
 memory. It is not a large-map frame-rate qualification.
 
 This is a two-level visual hierarchy over Blast's support partition. Arbitrary
-custom `Masonry3D.models`, deeper spatial refinement and on-demand loading of
-fracture metadata remain open. Custom masonry models retain eager visuals.
+deeper spatial refinement and on-demand loading of fracture metadata remain open.
+Custom `Masonry3D.models` now use [shared model instance batches](mesh-instances-3d.md)
+for intact regions, with shard entities activated only after a region splits.
 Component-authored multi-piece source meshes now have a similar intact-to-shard
 transition, including deferred interior surfaces; see
-[fracture authoring](fracture-authoring.md). Legacy recipe visuals remain eager.
+[fracture authoring](fracture-authoring.md). The top-level prefab `fracture`
+recipe format is removed; author these behaviors through components.
 
 ## Proximity and lifetime policy
 
@@ -160,8 +180,9 @@ the stream catalogue. Changing a saved placement's pose or root rejects that
 checkpoint rather than restoring debris into the wrong location.
 
 Editor preview uses the same prefab resolver with fracture compilation disabled.
-It shows coarse masonry regions and ordinary meshes, not per-brick physics
-bodies. Clicking preview geometry selects its authored placement for gizmos;
+It shows generated masonry cells with their model or relief descriptors and
+ordinary meshes, without per-brick physics bodies. Clicking preview geometry
+selects its authored placement for gizmos;
 **Open source prefab** edits the actual prefab after saving/undoing dirty scene
 changes. Preview entities never enter saved scenes or runtime worlds. This is
 not an editor rendering-performance qualification for a 100,000-placement map.
@@ -199,7 +220,8 @@ Active regions use one compound body per connected group. Their visual cells
 exist only while active; geometry is shared. This first implementation activates
 cells by proximity, not exclusively on impact. First-time template preparation
 and mesh generation are synchronous; count budgets are not a millisecond budget.
-Worker preparation, merged intact visuals and large-world FPS qualification
+Built-in masonry already uses combined intact regional surfaces; custom models
+use instance batches. Worker preparation and large-world FPS qualification
 remain future work. The 100,000-record package test verifies bounded catalogue
 scanning/instantiation; it is not a 100,000-rendered-wall benchmark.
 
@@ -248,9 +270,12 @@ multiplayer authority/replication are not part of this feature.
 
 ## Recorded Linux probe
 
-The authored/cooked doorway shrank from 167,117 to 4,813 bytes. A fresh Linux
-cook retained the recipe byte-for-byte and contained only the two referenced
-images plus manifests under assets, with no GLB/Blender geometry.
+An earlier probe reduced the compact doorway definition from 167,117 to 4,813
+bytes and retained that recipe byte-for-byte during cooking. That measurement
+predates prepared fracture geometry: current cooking expands components and
+retains `source_recipe` for runtime overrides, so 4,813 bytes is not a current
+cooked-size claim. The earlier asset output contained only the two referenced
+images plus manifests, with no GLB/Blender geometry.
 
 The same three-frame headless probe measured first template preparation at
 79.5 ms before removing a repeated ancestor scan and 37.0 ms afterward. The

@@ -2,6 +2,7 @@
 
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/scene/WorldCommandBuffer.h"
+#include "demi/runtime/scene/PrefabTemplateCache.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <nlohmann/json.hpp>
@@ -35,6 +36,8 @@ struct PrefabInstanceResult {
 class RuntimePrefabService {
 public:
   void configure(std::filesystem::path projectDirectory);
+  void setTemplateCacheCapacity(std::size_t entries) { templates_.setCapacity(entries); }
+  PrefabTemplateCacheStats templateCacheStatistics() const { return templates_.statistics(); }
 
   [[nodiscard]] PrefabInstanceResult instantiate(
       World &world, WorldCommandBuffer &commands, std::string prefab,
@@ -58,7 +61,7 @@ private:
 
   std::filesystem::path projectDirectory_;
   std::unordered_map<std::string, Instance> instances_;
-  std::map<std::string,nlohmann::json> templates_; // Bounded, project-local.
+  PrefabTemplateCache templates_;
 };
 
 } // namespace demi::runtime

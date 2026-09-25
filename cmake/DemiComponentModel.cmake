@@ -30,9 +30,11 @@ file(GENERATE
 
 set(DEMI_COMPONENT_MODEL_SOURCES
   src/demi/runtime/scene/ComponentRegistry.cpp
+  src/demi/runtime/scene/components/RuntimeFieldBinding.cpp
   src/demi/runtime/scene/EntityLookup.cpp
   src/demi/runtime/scene/RuntimeObjectModel.cpp
   src/demi/runtime/scene/RuntimePrefabService.cpp
+  src/demi/runtime/scene/PrefabTemplateCache.cpp
   src/demi/runtime/scene/PrefabPlacements3D.cpp
   src/demi/runtime/scene/ResourceLifetimeRegistry.cpp
   src/demi/runtime/scene/SceneJson.cpp

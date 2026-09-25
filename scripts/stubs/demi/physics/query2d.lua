@@ -1,6 +1,8 @@
 ---@meta
 -- Native module: require("demi.physics.query2d"). Annotations only.
 ---@class Physics2DService
+---Queries use world coordinates. Bulk queries return an empty array on no hits;
+---raycast returns nil. Contact normals are scalar fields, unlike hit.normal.
 local Physics2D = {}
 ---@param x number
 ---@param y number
@@ -12,8 +14,8 @@ function Physics2D.overlap_box(x, y, width, height, ignored_entity_id) end
 ---@class PhysicsRaycastHit2D
 ---@field entity_id string
 ---@field layer string
----@field point number[]
----@field normal number[]
+---@field point Vec2 World-space hit point.
+---@field normal Vec2 World-space hit normal.
 ---@field distance number
 ---@field fraction number
 ---@param x number
@@ -53,7 +55,7 @@ function Physics2D.raycast(origin_x, origin_y, direction_x, direction_y, distanc
 ---@field other_entity_id string
 ---@field other_layer string
 ---@field phase "enter"|"stay"|"exit"
----@field point number[]
+---@field point Vec2
 ---@field normal_x number
 ---@field normal_y number
 ---@field normal_impulse number

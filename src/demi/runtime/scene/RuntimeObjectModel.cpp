@@ -247,7 +247,15 @@ ObjectModelResult RuntimeObjectModel::setComponentField(
   if (!errors.empty()) {
     return failure(validationError(errors));
   }
-  descriptor->parse(values, entity);
+  try {
+    if (!descriptor->patch(entity, fieldName, values)) {
+      return failure("field has no runtime mutation binding");
+    }
+  } catch (const std::bad_alloc &) {
+    throw;
+  } catch (const std::exception &error) {
+    return failure(error.what());
+  }
   return success();
 }
 
@@ -258,25 +266,22 @@ ObjectModelResult RuntimeObjectModel::setComponentField(
   Entity *entity = findEntity(world, std::string(entityId));
   if (entity == nullptr)
     return failure("entity was not found");
-  const std::string oldSerialized =
-      entity->serializedComponents.contains(std::string(componentName))
-          ? entity->serializedComponents.at(std::string(componentName))
-          : "{}";
+  const bool changesParent = fieldName == "parent" &&
+      (componentName == "Transform2D" || componentName == "Transform3D");
+  const std::optional<Entity> before = changesParent
+      ? std::optional<Entity>(*entity) : std::nullopt;
   const ObjectModelResult changed =
       setComponentField(*entity, componentName, fieldName, value);
   if (!changed)
     return changed;
 
-  if (fieldName == "parent" &&
-      (componentName == "Transform2D" || componentName == "Transform3D")) {
+  if (changesParent) {
     const bool invalid2D = componentName == "Transform2D" &&
                            has2DParentCycle(world, *entity);
     const bool invalid3D = componentName == "Transform3D" &&
                            !validateTransform3DHierarchy(world).empty();
     if (invalid2D || invalid3D) {
-      const ComponentDescriptor *descriptor =
-          scene_loading::findComponentDescriptor(componentName);
-      descriptor->parse(Json::parse(oldSerialized), *entity);
+      *entity = *before;
       return failure("parent would create a cycle or reference an invalid "
                      "parent");
     }

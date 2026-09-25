@@ -1,4 +1,5 @@
 #include "editor/EditorViewportProjection.h"
+#include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "editor/EditorViewportTool.h"
 #include "editor/EditorWorkspace.h"
 
@@ -59,6 +60,20 @@ int main() {
   editor::EditorSceneViewState sceneView;
   sceneView.reset(world);
   const runtime::Vec2 viewport{800.0F, 600.0F};
+
+  {
+    runtime::World instanceWorld;
+    auto owner = cube("instances", 20.0F);
+    runtime::MeshInstances3DComponent instances;
+    instances.transforms["center"].position = {-20.0F, 0.0F, 0.0F};
+    owner.setComponent(instances);
+    instanceWorld.entities.push_back(owner);
+    assert(editor::pickSceneEntity3D(instanceWorld, sceneView.camera(),
+                                     {400.0F, 300.0F}, viewport) == "instances");
+    instanceWorld.entities.front().component<runtime::MeshInstances3DComponent>()->transforms.clear();
+    assert(!editor::pickSceneEntity3D(instanceWorld, sceneView.camera(),
+                                     {400.0F, 300.0F}, viewport));
+  }
 
   assert(editor::pickSceneEntity3D(world, sceneView.camera(), {400.0F, 300.0F},
                                    viewport) == "cube");

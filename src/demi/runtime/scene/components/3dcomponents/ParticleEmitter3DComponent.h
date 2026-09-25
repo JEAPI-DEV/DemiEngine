@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <cstdint>
@@ -76,6 +77,54 @@ struct ParticleEmitter3DComponent {
   int mobileMaxParticles = 96;
   bool playing = true;
   bool loop = true;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::emissionShape>("emission_shape"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::emissionSize>("emission_size"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::rate>("rate"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::burst>("burst"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::lifetime>("lifetime"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::velocityMin>("velocity_min"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::velocityMax>("velocity_max"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::gravity>("gravity"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::sizeStart>("size_start"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::sizeEnd>("size_end"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::rotationSpeed>("rotation_speed"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::colorStart>("color_start"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::colorEnd>("color_end"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::texture>("texture"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::material>("material"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::simulationSpace>("simulation_space"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::sortingOrder>("sorting_order"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::renderMask>("render_mask"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::seed>("seed"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::maxParticles>("max_particles"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::mobileMaxParticles>(
+          "mobile_max_particles"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::playing>("playing"),
+      RuntimeFieldBinding<ParticleEmitter3DComponent>::member<
+          &ParticleEmitter3DComponent::loop>("loop")};
 };
 
 } // namespace demi::runtime

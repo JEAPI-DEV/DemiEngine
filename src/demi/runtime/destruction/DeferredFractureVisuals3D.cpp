@@ -2,6 +2,7 @@
 #include "demi/runtime/scene/RuntimeObjectModel.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/Destructible3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/SurfaceRelief3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
@@ -15,6 +16,23 @@ void DeferredFractureVisuals3D::configure(
     const Destructible3DComponent &config) {
   templates_ = config.deferredVisuals;
   root_ = root.id;
+  intactVisuals_ = config.intactVisuals;
+  for (const auto &[regionId, visualIds] : intactVisuals_) {
+    if (!templates_ || !templates_->contains(regionId)) {
+      throw std::runtime_error("Missing deferred region for intact batches: " +
+                               regionId);
+    }
+    for (const std::string &visualId : visualIds) {
+      const Entity *visual = findEntity(world, visualId);
+      const auto *transform =
+          visual ? visual->component<Transform3DComponent>() : nullptr;
+      if (!transform || transform->parent != regionId ||
+          !visual->hasComponent<MeshRendererComponent>() ||
+          !visual->hasComponent<MeshInstances3DComponent>()) {
+        throw std::runtime_error("Invalid intact instance batch: " + visualId);
+      }
+    }
+  }
   if (!templates_)
     return;
   std::set<std::string> mapped;
@@ -95,11 +113,19 @@ std::set<std::string> DeferredFractureVisuals3D::prepare(
     if (intact) {
       // Preserve the authored region's identity and any attached gameplay.
       intact->removeComponent<MeshRendererComponent>();
+      intact->removeComponent<MeshInstances3DComponent>();
       intact->removeComponent<SurfaceRelief3DComponent>();
       intact->serializedComponents.erase("MeshRenderer");
+      intact->serializedComponents.erase("MeshInstances3D");
       intact->serializedComponents.erase("SurfaceRelief3D");
       intact->component<Transform3DComponent>()->parent = root_;
     }
+    if (const auto batch = intactVisuals_.find(region);
+        batch != intactVisuals_.end())
+      std::erase_if(candidate.entities, [&](const Entity &entity) {
+        return std::ranges::find(batch->second, entity.id) !=
+               batch->second.end();
+      });
     for (const auto &item : items) {
       const auto id = item.at("id").get<std::string>();
       const auto &parent = owners.at(leafOwners_.at(id));

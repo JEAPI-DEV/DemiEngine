@@ -127,6 +127,18 @@ int main() {
     return 1;
   }
   const auto &flatWall = (*flat.document)["entities"][0];
+  for (const auto &key : {"missing", "missing.Transform3D.position"}) {
+    auto invalid = flatScene;
+    invalid["instances"][0]["overrides"] = {{key, nullptr}};
+    const auto rejected = expandScene(root / "scenes/main.scene.json", invalid);
+    if (rejected.document ||
+        std::ranges::none_of(rejected.diagnostics, [](const auto &diagnostic) {
+          return diagnostic.code == "PREFAB_OVERRIDE_TARGET_MISSING";
+        })) {
+      std::cerr << "Missing prefab override target was silently accepted.\n";
+      return 1;
+    }
+  }
   if (flatWall["id"] != "prop/wall" ||
       flatWall["components"]["Transform3D"]["position"] !=
           nlohmann::json::array({4.0, 1.0, 0.0})) {

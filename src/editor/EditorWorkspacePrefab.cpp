@@ -1,7 +1,6 @@
 #include "editor/EditorWorkspace.h"
 
 #include "demi/filesystem/ProjectPaths.h"
-#include "demi/runtime/scene/composition/PrefabResolver.h"
 
 #include <algorithm>
 
@@ -40,14 +39,6 @@ EditorWorkspace::loadEntityPreview(const EditorSceneDocument &document,
   const std::string previewId = "scene://editor-prefab-preview";
   previewProject.scenes = {{.id = previewId, .path = document.path()}};
   auto preview = document.json();
-  if (preview.contains("fracture")) {
-    const auto baked=runtime::composition::bakeFracturePrefab(document.path(), preview);
-    if(!baked.document) {
-      error=baked.diagnostics.empty()?"Fracture preview failed":baked.diagnostics.front().message;
-      return std::nullopt;
-    }
-    preview=*baked.document;
-  }
   preview["id"] = previewId;
   return runtime::loadSceneDocument(previewProject, previewId, preview, error, false);
 }

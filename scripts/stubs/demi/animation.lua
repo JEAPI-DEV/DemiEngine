@@ -4,37 +4,37 @@
 local Animation = {}
 
 ---@class TwoBoneIkOptions2D
----@field root number[]
----@field target number[]
----@field pole number[]
+---@field root Vec2
+---@field target Vec2
+---@field pole Vec2
 ---@field upper_length number
 ---@field lower_length number
 ---@class TwoBoneIkResult2D
----@field joint number[]
----@field end_position number[]
+---@field joint Vec2
+---@field end_position Vec2
 ---@field reached boolean
 ---@param options TwoBoneIkOptions2D
----@return TwoBoneIkResult2D|nil
+---@return TwoBoneIkResult2D|nil result Same coordinate space as inputs; nil for nonfinite inputs or nonpositive lengths. Unreachable targets return reached=false.
 function Animation.solve_two_bone_2d(options) end
 
 ---@class TwoBoneIkOptions3D
----@field root number[]
----@field target number[]
----@field pole number[]
+---@field root Vec3
+---@field target Vec3
+---@field pole Vec3
 ---@field upper_length number
 ---@field lower_length number
 ---@class TwoBoneIkResult3D
----@field joint number[]
----@field end_position number[]
+---@field joint Vec3
+---@field end_position Vec3
 ---@field reached boolean
 ---@param options TwoBoneIkOptions3D
----@return TwoBoneIkResult3D|nil
+---@return TwoBoneIkResult3D|nil result Same coordinate space as inputs; nil for nonfinite inputs or nonpositive lengths. Unreachable targets return reached=false.
 function Animation.solve_two_bone_3d(options) end
 
 ---@class BoneSegment3D
----@field start number[] World-space bone head.
----@field tail number[] World-space bone tail.
----@field pole number[] World-space roll hint.
+---@field start Vec3 World-space bone head.
+---@field tail Vec3 World-space bone tail.
+---@field pole Vec3 World-space roll hint.
 ---@param entity_id string
 ---@param bone string
 ---@param segment BoneSegment3D

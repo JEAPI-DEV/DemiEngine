@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 namespace demi::runtime {
@@ -43,6 +44,8 @@ struct Environment3DComponent {
   static constexpr ComponentEditorMetadata editor{"Lighting",
                                                   "3D Environment"};
   static void parse(const nlohmann::json &json, Entity &entity);
+  static bool serializeField(const Environment3DComponent &component,
+                             std::string_view field, nlohmann::json &out);
   static nlohmann::json defaults();
 
   Color ambientColor{0.35F, 0.4F, 0.5F, 1.0F};
@@ -58,6 +61,35 @@ struct Environment3DComponent {
   int shadowResolution = 1024;
   float shadowBias = .02F;
   int maxShadowLights = 1;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::msaaSamples>("msaa_samples"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::reliefCacheMeshes>("relief_cache_meshes"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::reliefImageCacheBytes>(
+          "relief_image_cache_mb"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::skyTexture>("sky_texture"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::ambientColor>("ambient_color"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::ambientIntensity>("ambient_intensity"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::fogColor>("fog_color"),
+      RuntimeFieldBinding<Environment3DComponent>::memberWithDerived<
+          &Environment3DComponent::fogStart,
+          &Environment3DComponent::fogEnd>("fog_start"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::fogEnd>("fog_end"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::shadowDistance>("shadow_distance"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::shadowResolution>("shadow_resolution"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::shadowBias>("shadow_bias"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::maxShadowLights>("max_shadow_lights")};
 };
 
 } // namespace demi::runtime

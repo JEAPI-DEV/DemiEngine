@@ -1,5 +1,7 @@
 ---@meta
 -- Native module: require("demi.navigation2d"). Annotations only.
+---@alias NavigationPathPoint2D {[1]: integer, [2]: integer, world_x: number, world_y: number}
+---Path points contain zero-based column/row indices and world-space cell centers.
 ---@class Navigation2DService
 local Navigation2D = {}
 ---@param width integer
@@ -27,14 +29,15 @@ function Navigation2D.set_cost(x, y, cost) end
 ---@param goal_x integer
 ---@param goal_y integer
 ---@param diagonal? boolean
----@return table path
----@return string diagnostic
+---@return NavigationPathPoint2D[] path Includes start and goal; empty on failure, never nil.
+---@return string diagnostic "OK" on success, otherwise a PATH_* diagnostic code.
 function Navigation2D.path(start_x, start_y, goal_x, goal_y, diagonal) end
 ---@param x number
 ---@param y number
 ---@return integer|nil column
 ---@return integer|nil row
 function Navigation2D.world_to_cell(x, y) end
+---Returns the world-space cell center, or nil,nil for an out-of-bounds cell.
 ---@param column integer
 ---@param row integer
 ---@return number|nil x

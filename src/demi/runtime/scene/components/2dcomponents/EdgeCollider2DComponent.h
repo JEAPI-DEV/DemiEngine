@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <cstdint>
@@ -38,6 +39,27 @@ struct EdgeCollider2DComponent {
   float restitution = 0.0F;
   float density = 0.0F;
   bool debugVisible = true;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<EdgeCollider2DComponent>::member<
+          &EdgeCollider2DComponent::points>("points"),
+      RuntimeFieldBinding<EdgeCollider2DComponent>::member<
+          &EdgeCollider2DComponent::loop>("loop"),
+      RuntimeFieldBinding<EdgeCollider2DComponent>::member<
+          &EdgeCollider2DComponent::isTrigger>("is_trigger"),
+      RuntimeFieldBinding<EdgeCollider2DComponent>::member<
+          &EdgeCollider2DComponent::layer>("layer"),
+      RuntimeFieldBinding<EdgeCollider2DComponent>::member<
+          &EdgeCollider2DComponent::categoryBits>("category_bits"),
+      RuntimeFieldBinding<EdgeCollider2DComponent>::member<
+          &EdgeCollider2DComponent::maskBits>("mask_bits"),
+      RuntimeFieldBinding<EdgeCollider2DComponent>::member<
+          &EdgeCollider2DComponent::friction>("friction"),
+      RuntimeFieldBinding<EdgeCollider2DComponent>::member<
+          &EdgeCollider2DComponent::restitution>("restitution"),
+      RuntimeFieldBinding<EdgeCollider2DComponent>::member<
+          &EdgeCollider2DComponent::density>("density"),
+      RuntimeFieldBinding<EdgeCollider2DComponent>::member<
+          &EdgeCollider2DComponent::debugVisible>("debug_visible")};
 };
 
 } // namespace demi::runtime

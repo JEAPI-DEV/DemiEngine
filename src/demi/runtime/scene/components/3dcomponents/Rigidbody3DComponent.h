@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <string>
@@ -132,6 +133,55 @@ struct Rigidbody3DComponent {
   Vec3 kinematicTargetRotation;
   float kinematicTargetDt = 0.0F;
   bool hasKinematicTarget = false;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::bodyType>("body_type"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::velocity>("velocity"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::angularVelocity>("angular_velocity"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::useGravity>("use_gravity"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::gravityScale>("gravity_scale"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::mass>("mass"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::linearDamping>("linear_damping"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::angularDamping>("angular_damping"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::solverVelocitySteps>("solver_velocity_steps"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::solverPositionSteps>("solver_position_steps"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::friction>("friction"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::restitution>("restitution"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::continuous>("continuous"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::reportContacts>("report_contacts"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::allowSleep>("allow_sleep"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::awake>("awake"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::bodyEnabled>("body_enabled"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::interpolate>("interpolate"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::lockPositionX>("lock_position_x"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::lockPositionY>("lock_position_y"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::lockPositionZ>("lock_position_z"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::lockRotationX>("lock_rotation_x"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::lockRotationY>("lock_rotation_y"),
+      RuntimeFieldBinding<Rigidbody3DComponent>::member<
+          &Rigidbody3DComponent::lockRotationZ>("lock_rotation_z")};
 };
 
 } // namespace demi::runtime

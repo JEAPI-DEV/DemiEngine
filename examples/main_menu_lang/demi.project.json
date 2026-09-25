@@ -3,7 +3,7 @@
   "name": "Main Menu Languages",
   "package_registry": "../../packages",
   "packages": {
-    "demi.ui.language_file": "^1.0.0"
+    "demi.ui.localization": "^1.0.0"
   },
   "main_scene": "scene://main_menu_lang/main",
   "scenes": [

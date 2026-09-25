@@ -1,4 +1,5 @@
 #include "demi/runtime/scripting/persistence/LuaSaveCodec.h"
+#include "demi/filesystem/AtomicTextFile.h"
 
 #include <algorithm>
 #include <cctype>
@@ -49,27 +50,7 @@ std::filesystem::path savePath(const std::filesystem::path& projectDirectory, co
 
 bool atomicWriteText(const std::filesystem::path& path, const std::string& text) {
   std::error_code error;
-  std::filesystem::create_directories(path.parent_path(), error);
-  if (error) {
-    return false;
-  }
-
-  const std::filesystem::path tempPath = path.string() + ".tmp";
-  {
-    std::ofstream output(tempPath);
-    if (!output) {
-      return false;
-    }
-    output << text;
-  }
-
-  std::filesystem::rename(tempPath, path, error);
-  if (error) {
-    std::filesystem::remove(path, error);
-    error.clear();
-    std::filesystem::rename(tempPath, path, error);
-  }
-  return !error;
+  return demi::atomicWriteText(path, text, error);
 }
 
 std::optional<nlohmann::json> parseSaveDocument(const std::string& text) {

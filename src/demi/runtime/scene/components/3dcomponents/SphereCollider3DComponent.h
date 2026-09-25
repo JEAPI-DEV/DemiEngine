@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <string>
@@ -25,6 +26,15 @@ struct SphereCollider3DComponent {
   Vec3 offset;
   bool isTrigger = false;
   std::string layer;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<SphereCollider3DComponent>::member<
+          &SphereCollider3DComponent::radius>("radius"),
+      RuntimeFieldBinding<SphereCollider3DComponent>::member<
+          &SphereCollider3DComponent::offset>("offset"),
+      RuntimeFieldBinding<SphereCollider3DComponent>::member<
+          &SphereCollider3DComponent::isTrigger>("is_trigger"),
+      RuntimeFieldBinding<SphereCollider3DComponent>::member<
+          &SphereCollider3DComponent::layer>("layer")};
 };
 
 } // namespace demi::runtime

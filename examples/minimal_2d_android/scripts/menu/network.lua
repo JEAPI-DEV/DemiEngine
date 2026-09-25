@@ -1,7 +1,6 @@
 local Input = require("demi.input")
 local Hud = require("demi.hud")
 local Network = require("demi.network")
-local NetworkSession = require("demi.network.session")
 
 local lobby = require("network_lobby")
 local replication = require("network_replication")
@@ -49,13 +48,10 @@ local function render_lobbies()
 end
 
 local function begin_game(token)
-  NetworkSession.configure({
-    trusted_certificate = lobby.trusted_certificate,
-    server_name = lobby.server_name,
-  })
   NetworkMenu.admission_token = token
   NetworkMenu.auth_sent = false
-  menu.network_join_pending = replication.connect(lobby.server_host, lobby.gameplay_port)
+  menu.network_join_pending = replication.connect(lobby.server_host, lobby.gameplay_port,
+    lobby.trusted_certificate, lobby.server_name)
   menu.network_join_elapsed = 0.0
   status(menu.network_join_pending and "CONNECTING TO GAME" or "GAME SERVER UNAVAILABLE")
 end
@@ -156,7 +152,7 @@ local function edit_text()
   local key = NetworkMenu.focus
   local value = key == "name" and NetworkMenu.create_name
     or key == "create_password" and NetworkMenu.create_password or NetworkMenu.join_password
-  if Input.is_pressed("backspace") then value = value:sub(1, math.max(0, #value - 1)) end
+  if Input.key_pressed("backspace") then value = value:sub(1, math.max(0, #value - 1)) end
   local entered = Input.text_entered()
   if key == "name" then entered = entered:lower():gsub("[^a-z0-9_]", "") end
   local limit = key == "name" and 20 or 64

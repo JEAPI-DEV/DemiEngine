@@ -3,6 +3,8 @@
 
 #include "demi/runtime/scripting/bindings/LuaCoreBindings.h"
 #include "demi/runtime/scripting/bindings/LuaEntityBindings.h"
+#include "demi/runtime/scripting/bindings/scene/LuaPrefabBindings.h"
+#include "demi/runtime/scripting/bindings/mesh/LuaMeshConstructionBindings.h"
 #include "demi/runtime/scripting/bindings/LuaNetworkBindings.h"
 #include "demi/runtime/scripting/bindings/LuaNetworkSessionBindings.h"
 #include "demi/runtime/scripting/bindings/LuaRandomBindings.h"
@@ -61,6 +63,8 @@ int luaTraceback(lua_State *state) {
 void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaCoreBindingModule core;
   const LuaEntityBindingModule entity;
+  const LuaPrefabBindingModule prefab;
+  const LuaMeshConstructionBindingModule meshConstruction;
   const LuaTransform2DBindingModule transform2D;
   const LuaTransform3DBindingModule transform3D;
   const LuaRigidbody2DBindingModule rigidbody2D;
@@ -91,7 +95,8 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaDataBindingModule data;
   const LuaTestBindingModule e2eTests;
   const LuaBindingModule *modules[] = {
-      &core,        &entity,      &transform2D,     &transform3D,
+      &core,        &entity,      &prefab,          &meshConstruction,
+      &transform2D, &transform3D,
       &rigidbody2D, &rigidbody3D, &meshDeformation, &characterController3D,
       &camera3D,    &sprite2D,    &physics2D,       &physics3D,
       &hud,         &save,        &audio,           &video,

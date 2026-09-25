@@ -34,7 +34,7 @@ function Game:on_create()
 end
 
 function Game:reset_level_state()
-  replication.reset_claims()
+  replication.reset_coins()
   self.coins = {}
   self.platforms = {}
   self.next_coin_index = 1
@@ -72,7 +72,7 @@ function Game:on_start()
   main_menu.apply_settings()
   main_menu.begin_active_level()
   self.level.on_start(self)
-  replication.request_claim_once_sync()
+  replication.sync_coins()
 end
 
 function Game:on_update(dt)

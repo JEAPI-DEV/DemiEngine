@@ -3,6 +3,7 @@
 
 #include "demi/capabilities/CapabilityManifest.h"
 #include "demi/diagnostics/Diagnostic.h"
+#include "demi/filesystem/AtomicTextFile.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
@@ -56,30 +57,26 @@ int exportManifest(const std::vector<std::string> &args, std::ostream &out,
   if (!manifest.has_value()) {
     return Failure;
   }
+  std::string content;
+  try {
+    content = manifest->dump(2) + '\n';
+  } catch (const std::exception &failure) {
+    error << "Failed to encode capability manifest: " << failure.what() << '\n';
+    return Failure;
+  }
   const std::string outputValue = valueAfter(args, "--output");
   if (outputValue.empty()) {
-    out << manifest->dump(2) << '\n';
+    out << content;
     return Success;
   }
 
   const std::filesystem::path outputPath = outputValue;
   std::error_code filesystemError;
-  if (!outputPath.parent_path().empty()) {
-    std::filesystem::create_directories(outputPath.parent_path(),
-                                        filesystemError);
-  }
-  if (filesystemError) {
-    error << "Failed to create capability output directory: "
-          << outputPath.parent_path().string() << '\n';
-    return Failure;
-  }
-  std::ofstream output(outputPath);
-  if (!output) {
+  if (!demi::atomicWriteText(outputPath, content, filesystemError)) {
     error << "Failed to write capability manifest: " << outputPath.string()
-          << '\n';
+          << ": " << filesystemError.message() << '\n';
     return Failure;
   }
-  output << manifest->dump(2) << '\n';
   out << "Wrote capability manifest: " << outputPath.string() << '\n';
   return Success;
 }

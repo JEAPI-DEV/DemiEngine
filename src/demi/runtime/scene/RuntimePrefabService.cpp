@@ -4,31 +4,12 @@
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
-#include "demi/assets/MasonryGeneration.h"
-#include "demi/assets/AssetHash.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 
 #include <algorithm>
-#include <fstream>
 
 namespace demi::runtime {
 namespace {
-
-bool placementOverrides(const nlohmann::json &overrides) {
-  if (!overrides.is_object()) return false;
-  for (const auto &entry : overrides) {
-    if (!entry.is_object() || entry.size()!=1 || !entry.contains("components")) return false;
-    const auto &components=entry["components"];
-    if (!components.is_object() || components.size()!=1 || !components.contains("Transform3D")) return false;
-    const auto &transform=components["Transform3D"];
-    if (!transform.is_object()) return false;
-    for (const auto &[key, value] : transform.items()) {
-      (void)value;
-      if (key!="position" && key!="rotation" && key!="scale") return false;
-    }
-  }
-  return true;
-}
 
 Diagnostic prefabError(std::string code, std::string message,
                        const std::filesystem::path &path = {}) {
@@ -77,7 +58,7 @@ void applyRootPosition(Entity &entity, const Vec3 &position,
 void RuntimePrefabService::configure(std::filesystem::path projectDirectory) {
   projectDirectory_ = std::move(projectDirectory);
   instances_.clear();
-  templates_.clear();
+  templates_.configure(projectDirectory_);
 }
 
 PrefabInstanceResult RuntimePrefabService::build(
@@ -90,46 +71,29 @@ PrefabInstanceResult RuntimePrefabService::build(
         "Runtime prefab instantiate requires a configured project and id."));
     return result;
   }
-  std::string cacheKey;
-  const auto path=composition::resolvePrefabReference(projectDirectory_/"demi.project.json",prefab);
-  if (path && placementOverrides(options.overrides)) {
-    std::ifstream file(*path);
-    const auto source=nlohmann::json::parse(file,nullptr,false);
-    const auto safe=[](const auto &self,const nlohmann::json &value)->bool {
-      if (value.is_object()) {
-        if (value.contains("instances") || value.contains("prefab") || value.contains("fracture")) return false;
-        if (value.contains("components")) {
-          const auto &c=value["components"];
-          if (c.contains("Fracture3D") && c.contains("MeshRenderer") &&
-              c["MeshRenderer"].contains("model") && c["Fracture3D"].value("collider","source")!="box") return false;
-        }
-        for (const auto &[key,child]:value.items()) if (!self(self,child)) return false;
-      } else if (value.is_array()) for (const auto &child:value) if (!self(self,child)) return false;
-      return true;
-    };
-    if (assets::hasMasonryAuthoring(source) && safe(safe,source))
-      if (auto hash=assets::hashFile(*path)) cacheKey=std::string(prefab)+"|"+*hash+"|"+options.overrides.dump();
-  }
-  const nlohmann::json instance = {
-      {"id", cacheKey.empty()?options.id:"template"},
-      {"prefab", prefab},
-      {"overrides", options.overrides},
-  };
-  if (!cacheKey.empty() && templates_.contains(cacheKey)) {
-    expanded=composition::rebasePrefabEntities(templates_.at(cacheKey),"template",options.id);
+  const std::string reference(prefab);
+  constexpr std::string_view TemplateId = "template";
+  if (const auto *cached = templates_.find(reference, options.overrides)) {
+    expanded = composition::rebasePrefabEntities(*cached, TemplateId, options.id);
   } else {
     ProfileScope preparation("Prefab.prepare_template");
-    const auto expansion=composition::expandPrefabInstance(projectDirectory_/"demi.project.json",instance);
-    result.diagnostics=expansion.diagnostics;
-    if (!expansion.document) return result;
-    expanded=*expansion.document;
-    if (!cacheKey.empty()) {
-      if (templates_.size()>=16) templates_.erase(templates_.begin());
-      templates_[cacheKey]=expanded;
-      RuntimeProfiler::setGauge("Prefab.template_cache_entries",double(templates_.size()));
-      expanded=composition::rebasePrefabEntities(std::move(expanded),"template",options.id);
+    const auto dependencies = templates_.dependencies(reference, options.overrides);
+    const nlohmann::json instance = {
+        {"id", TemplateId}, {"prefab", reference}, {"overrides", options.overrides}};
+    const auto expansion = composition::expandPrefabInstance(
+        projectDirectory_ / "demi.project.json", instance);
+    result.diagnostics = expansion.diagnostics;
+    if (!expansion.document) {
+      return result;
     }
+    templates_.store(reference, options.overrides, *expansion.document, dependencies);
+    expanded = composition::rebasePrefabEntities(*expansion.document, TemplateId, options.id);
   }
+  const auto cache = templates_.statistics();
+  RuntimeProfiler::setGauge("Prefab.template_cache_entries", double(cache.entries));
+  RuntimeProfiler::setGauge("Prefab.template_cache_hits", double(cache.hits));
+  RuntimeProfiler::setGauge("Prefab.template_cache_misses", double(cache.misses));
+  RuntimeProfiler::setGauge("Prefab.template_cache_bypasses", double(cache.bypasses));
 
   result.instanceId = options.id;
   for (const nlohmann::json &json : expanded)

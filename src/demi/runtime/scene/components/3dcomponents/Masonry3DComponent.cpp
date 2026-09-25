@@ -13,9 +13,9 @@ void Masonry3DComponent::parse(const nlohmann::json &json, Entity &entity) {
     value.size = {size[0], size[1], size[2]};
   }
   for (float axis : {value.size.x, value.size.y, value.size.z})
-    if (!std::isfinite(axis) || axis <= 0 || axis > 1000)
+    if (!std::isfinite(axis) || axis <= 0)
       throw std::invalid_argument(
-          "Masonry3D size must be positive and at most 1000 m per axis");
+          "Masonry3D size must be positive and finite");
   for (const char *key : {"columns", "rows"})
     if (json.contains(key) && !json[key].is_number_integer())
       throw std::invalid_argument("Masonry3D cell counts must be integers");
@@ -26,9 +26,9 @@ void Masonry3DComponent::parse(const nlohmann::json &json, Entity &entity) {
         "Masonry3D cell counts must be positive and fit 32-bit cell indices");
   value.columns=static_cast<int>(columns);value.rows=static_cast<int>(rows);
   if (json.contains("models") &&
-      (!json["models"].is_object() || json["models"].size() > 32))
+      !json["models"].is_object())
     throw std::invalid_argument(
-        "Masonry3D supports at most 32 shared model variants");
+        "Masonry3D models must be an object of named asset references");
   value.models = json.value("models", value.models);
   for (const auto &[key, model] : value.models)
     if (key.empty() || !model.starts_with("asset://") || model.size() <= 8)

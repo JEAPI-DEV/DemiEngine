@@ -5,6 +5,8 @@
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/data/DataAssetStore.h"
 #include "demi/runtime/diagnostics/RuntimeLog.h"
+#include "demi/runtime/input/GameplayInputService.h"
+#include "demi/runtime/scripting/LuaE2ETestRunner.h"
 #include "demi/runtime/input/TouchGestureRecognizer.h"
 #include "demi/runtime/isometric/IsoGridApi.h"
 #include "demi/runtime/navigation/NavigationGrid2D.h"
@@ -26,7 +28,6 @@
 #include "demi/runtime/ui/UiModel.h"
 
 #include <cstdint>
-#include <deque>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -100,33 +101,8 @@ public:
                     const PrefabInstantiateOptions &options);
   [[nodiscard]] bool releasePrefab(const std::string &instanceId);
   [[nodiscard]] std::size_t pooledPrefabCount(const std::string &prefab) const;
-  [[nodiscard]] bool isKeyDown(const std::string &key) const;
-  [[nodiscard]] bool isKeyPressed(const std::string &key) const;
-  [[nodiscard]] bool isKeyReleased(const std::string &key) const;
-  [[nodiscard]] bool isActionDown(const std::string &action,
-                                  int player = -1) const;
-  [[nodiscard]] bool isActionPressed(const std::string &action,
-                                     int player = -1) const;
-  [[nodiscard]] bool isActionReleased(const std::string &action,
-                                      int player = -1) const;
-  [[nodiscard]] float actionValue(const std::string &action,
-                                  int player = -1) const;
-  [[nodiscard]] Vec2 actionVector(const std::string &action,
-                                  int player = -1) const;
-  [[nodiscard]] std::string actionSource(const std::string &action,
-                                         int player = -1) const;
-  void enableInputContext(const std::string &context);
-  void disableInputContext(const std::string &context);
-  [[nodiscard]] bool inputContextEnabled(const std::string &context) const;
-  [[nodiscard]] bool rebindInput(const std::string &action,
-                                 std::size_t bindingIndex,
-                                 const std::string &input, int player,
-                                 std::string &error);
-  [[nodiscard]] bool saveInputBindings(const std::string &path,
-                                       std::string &error) const;
-  [[nodiscard]] bool loadInputBindings(const std::string &path,
-                                       std::string &error);
-  [[nodiscard]] bool assignGamepad(int deviceId, int player);
+  void setPrefabTemplateCacheCapacity(std::size_t entries);
+  [[nodiscard]] input::GameplayInputService &gameplayInput();
   [[nodiscard]] const InputState *inputState() const;
   [[nodiscard]] const std::vector<input::GestureEvent> &gestures() const;
   void seedRandom(std::uint64_t seed);
@@ -590,19 +566,7 @@ public:
   [[nodiscard]] int e2eTestsPassed() const;
   [[nodiscard]] int e2eTestsFailed() const;
   [[nodiscard]] bool e2eTestsActive() const;
-  [[nodiscard]] std::optional<Vec2>
-  e2eNodeCenterCanvas(const std::string &nodeId) const;
-  [[nodiscard]] std::optional<Vec2>
-  e2eNodeCenterViewport(const std::string &nodeId) const;
-  [[nodiscard]] Vec2 e2eCanvasToViewport(Vec2 canvas) const;
-  void e2eEnqueueTap(Vec2 viewportPosition);
-  void e2eEnqueueSwipe(Vec2 from, Vec2 to, double seconds);
-  void e2eWaitFor(double seconds);
-  void e2eExpectSceneStart(const std::string &sceneId, double timeout);
-  void failActiveE2ETest(const std::string &message);
-  void passActiveE2ETest();
-  void finishActiveE2ETest();
-  void startNextE2ETest();
+  [[nodiscard]] LuaE2ETestRunner &e2eTestRunner();
   void beginFrame(float unscaledDeltaTime);
   void advanceFixedTime(float fixedDeltaTime);
   void setPaused(bool paused);
@@ -644,7 +608,9 @@ public:
   }
 
 private:
-  [[nodiscard]] Entity *lookupServiceEntity(const std::string &id) const;
+  void initializeE2ETestRunner();
+  [[nodiscard]] Entity *lookupServiceEntity(const std::string &id);
+  [[nodiscard]] const Entity *lookupServiceEntity(const std::string &id) const;
   mutable EntityLookup serviceEntityLookup_;
   [[nodiscard]] bool hasEventListener(std::string_view eventName) const;
 
@@ -713,8 +679,7 @@ private:
   World *world_ = nullptr;
   const ProjectData *project_ = nullptr;
   InputState *input_ = nullptr;
-  input::InputActionMap inputActions_;
-  std::unordered_set<std::string> activeInputContexts_;
+  input::GameplayInputService gameplayInput_;
   input::TouchGestureRecognizer touchGestureRecognizer_;
   std::vector<input::GestureEvent> gestureEvents_;
   platform::ApplicationServices applicationServices_;
@@ -751,34 +716,7 @@ private:
   bool applicationFocused_ = true;
   bool applicationMinimized_ = false;
   bool applicationSuspended_ = false;
-  // End-to-end test harness state. Tests run as coroutines that yield
-  // wait requests; synthetic touches drain one frame per runtime frame into
-  // the same input state real fingers use.
-  struct E2ESyntheticFrame {
-    TouchPhase phase = TouchPhase::Began;
-    Vec2 position;
-  };
-  struct E2ETestDefinition {
-    std::string name;
-    int functionRef = 0;
-  };
-  enum class E2EWaitKind { None, Frames, Seconds, Scene, Gesture };
-  std::vector<E2ETestDefinition> e2eTests_;
-  std::size_t e2eTestIndex_ = 0;
-  int e2eTestThread_ = 0;
-  std::string activeE2ETestName_;
-  E2EWaitKind e2eWait_ = E2EWaitKind::None;
-  int e2eWaitFrames_ = 0;
-  double e2eWaitSeconds_ = 0.0;
-  double e2eWaitElapsed_ = 0.0;
-  std::string e2eWaitScene_;
-  double e2eWaitTimeout_ = 0.0;
-  int pendingGestureFrames_ = 0;
-  std::deque<E2ESyntheticFrame> syntheticTouches_;
-  std::int64_t syntheticFingerId_ = 0x54455354LL;
-  int e2eTestsPassed_ = 0;
-  int e2eTestsFailed_ = 0;
-  bool e2eTestsEnabled_ = false;
+  LuaE2ETestRunner e2eTestRunner_;
   bool hotReloadEnabled_ = false;
   bool cutscenePaused_ = false;
   bool previousUiMouseDown_ = false;
@@ -803,7 +741,6 @@ private:
   ResourceLifetimeRegistry resourceLifetimes_;
   std::string lastSaveError_;
   std::uint64_t nextTimerId_ = 1;
-  std::uint64_t nextMeshRevision_ = 1;
   std::uint64_t nextEventSubscriptionId_ = 1;
 };
 

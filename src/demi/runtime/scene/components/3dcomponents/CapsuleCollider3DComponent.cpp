@@ -13,7 +13,8 @@ void CapsuleCollider3DComponent::parse(const nlohmann::json &json,
   if (auto value = scene_loading::numberField(json, "radius"))
     component.radius = std::max(*value, 0.001F);
   if (auto value = scene_loading::numberField(json, "height"))
-    component.height = std::max(*value, component.radius * 2.0F);
+    component.height = *value;
+  component.height = std::max(component.height, component.radius * 2.0F);
   if (auto value = scene_loading::vec3Field(json, "offset"))
     component.offset = *value;
   component.isTrigger =

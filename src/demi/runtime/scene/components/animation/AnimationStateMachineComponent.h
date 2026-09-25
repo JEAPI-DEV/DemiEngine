@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <string>
@@ -79,6 +80,15 @@ struct AnimationStateMachineComponent {
   static constexpr ComponentEditorMetadata editor{"Animation",
                                                   "Animation State Machine"};
   static void parse(const nlohmann::json &json, Entity &entity);
+  static bool serializeField(const AnimationStateMachineComponent &component,
+                             std::string_view field, nlohmann::json &out);
+  [[nodiscard]] bool selectState(const std::string &name);
+  static void copyStates(AnimationStateMachineComponent &destination,
+                         const AnimationStateMachineComponent &source);
+  static void copyInitialState(AnimationStateMachineComponent &destination,
+                              const AnimationStateMachineComponent &source);
+  static void afterRuntimeFieldChange(AnimationStateMachineComponent &component,
+                                     std::string_view field);
 
   std::unordered_map<std::string, AnimationState> states;
   std::vector<AnimationTransition> transitions;
@@ -86,6 +96,8 @@ struct AnimationStateMachineComponent {
   std::vector<AnimationLayer> layers;
   std::unordered_map<std::string, float> parameters;
   std::unordered_set<std::string> triggers;
+  // Retain the authored request separately from the parser's fallback/live state.
+  std::string initialState;
   std::string state;
   float time = 0.0F;
   float speed = 1.0F;
@@ -95,6 +107,29 @@ struct AnimationStateMachineComponent {
   AnimationTransitionState activeTransition;
   std::vector<std::pair<std::string, float>> blendSamples;
   bool entered = true;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<AnimationStateMachineComponent>{
+          "states", copyStates,
+          RuntimeFieldBinding<AnimationStateMachineComponent>::member<
+              &AnimationStateMachineComponent::states>("states").read},
+      RuntimeFieldBinding<AnimationStateMachineComponent>::member<
+          &AnimationStateMachineComponent::transitions>("transitions"),
+      RuntimeFieldBinding<AnimationStateMachineComponent>::member<
+          &AnimationStateMachineComponent::parameters>("parameters"),
+      RuntimeFieldBinding<AnimationStateMachineComponent>::member<
+          &AnimationStateMachineComponent::blendSpaces>("blend_spaces"),
+      RuntimeFieldBinding<AnimationStateMachineComponent>::member<
+          &AnimationStateMachineComponent::layers>("layers"),
+      RuntimeFieldBinding<AnimationStateMachineComponent>{
+          "initial_state", copyInitialState,
+          RuntimeFieldBinding<AnimationStateMachineComponent>::member<
+              &AnimationStateMachineComponent::state>("initial_state").read},
+      RuntimeFieldBinding<AnimationStateMachineComponent>::member<
+          &AnimationStateMachineComponent::speed>("speed"),
+      RuntimeFieldBinding<AnimationStateMachineComponent>::member<
+          &AnimationStateMachineComponent::rootMotion>("root_motion"),
+      RuntimeFieldBinding<AnimationStateMachineComponent>::member<
+          &AnimationStateMachineComponent::updateWhenPaused>("pause_policy")};
 };
 
 } // namespace demi::runtime

@@ -2,8 +2,8 @@
   "format_version": 1,
   "packages": [
     {
-      "archive_hash": "sha256:7c0bd537c4f48e6ad974cb9fa506239801e0447f54a0a368d683f6123ecfefb6",
-      "archive_uri": "package://demi.gameplay.core/1.0.0",
+      "archive_hash": "sha256:515945d823cc3e562df5c5f51f71ef69b4ed8196f41597606a02c9fe159ce2f3",
+      "archive_uri": "package://demi.gameplay.events/1.0.0",
       "manifest": {
         "dependencies": {},
         "engine": "^0.1.0",
@@ -14,21 +14,21 @@
           "tests/events_test.lua"
         ],
         "format_version": 1,
-        "name": "demi.gameplay.core",
+        "name": "demi.gameplay.events",
         "public_modules": [
           "demi.gameplay.events"
         ],
         "version": "1.0.0"
       },
-      "manifest_hash": "sha256:7df6257de2cea7c0a308a1c87f6ec80ab42834a9317169c9d5e73bb7ad3f62e1",
+      "manifest_hash": "sha256:cf8ba7b19490af8ffaaa381208ae83aa257f8c4caa0edbf10486c413015b6308",
       "yanked": false
     },
     {
-      "archive_hash": "sha256:a6ae6423ef5291e63cf00a4e231c010d01917a6f1e273a60919322914ae33787",
+      "archive_hash": "sha256:5b22d75e77926c24083dc5e0991075a8627f8ed3dc338c5d807b138573f609ca",
       "archive_uri": "package://demi.gameplay.health/1.0.0",
       "manifest": {
         "dependencies": {
-          "demi.gameplay.core": "^1.0.0"
+          "demi.gameplay.events": "^1.0.0"
         },
         "engine": "^0.1.0",
         "exported_events": [
@@ -48,7 +48,7 @@
         ],
         "version": "1.0.0"
       },
-      "manifest_hash": "sha256:1949b19661d1047ad6ad7b8845dac820b39b0b58d485a68191a6559e32e6f4e0",
+      "manifest_hash": "sha256:e239162607711df36cf0d4419b207d31d8157dbcb5585dc101b9820797f3a888",
       "yanked": false
     }
   ],

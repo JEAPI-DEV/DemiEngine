@@ -2,6 +2,16 @@
 #include "demi/runtime/scene/SceneJson.h"
 #include "demi/runtime/scene/model/Entity.h"
 namespace demi::runtime {
+bool SpriteComponent::serializeField(const SpriteComponent &component,
+                                     std::string_view field,
+                                     nlohmann::json &out) {
+  if (field != "nine_slice")
+    return false;
+  out = {{component.sliceStart.x, component.sliceStart.y},
+         {component.sliceEnd.x, component.sliceEnd.y}};
+  return true;
+}
+
 void SpriteComponent::parse(const nlohmann::json &json, Entity &entity) {
   SpriteComponent component;
   component.texture = scene_loading::stringOr(json, "texture");

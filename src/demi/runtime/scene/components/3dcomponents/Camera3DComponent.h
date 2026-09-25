@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 namespace demi::runtime {
@@ -78,6 +79,53 @@ struct Camera3DComponent {
   float updateInterval = 0.0F;
   bool renderHudToTarget = false;
   bool renderHud = true;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::clearColor>("clear_color"),
+      RuntimeFieldBinding<Camera3DComponent>::member<&Camera3DComponent::fov>(
+          "fov"),
+      RuntimeFieldBinding<Camera3DComponent>::memberWithDerived<
+          &Camera3DComponent::nearClip, &Camera3DComponent::farClip>("near_clip"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::farClip>("far_clip"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::orthographicSize>("orthographic_size"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::targetOffset>("target_offset"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::perspective>("perspective"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::positionX>("position_x"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::upAxis>("up_axis"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::viewportX>("viewport_x"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::viewportY>("viewport_y"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::viewportWidth>("viewport_width"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::viewportHeight>("viewport_height"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::renderScale>("render_scale"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::priority>("priority"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::primary>("primary"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::renderMask>("render_mask"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::clearMode>("clear_mode"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::debugMode>("debug_mode"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::renderTarget>("render_target"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::updateInterval>("update_interval"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::renderHudToTarget>("render_hud_to_target"),
+      RuntimeFieldBinding<Camera3DComponent>::member<
+          &Camera3DComponent::renderHud>("render_hud")};
 };
 
 } // namespace demi::runtime

@@ -18,15 +18,15 @@ function Entity.exists(entity_id) end
 ---@return boolean
 function Entity.create(entity_id, spec) end
 ---@class EntitySpawnOptions
----@field prefab? string prefab:// reference expanded by RuntimeObjectModel
----@field position? number[] [x,y] or [x,y,z] flattened into Transform2D/3D
----@field velocity? number[] flattened into Rigidbody2D/3D
----@field ttl? number seconds until auto-destroy via Timer.after (use Script.after or Entity.spawn_ttl)
+---@field position? Vec2|Vec3 Dense finite numeric array, flattened into local Transform2D/3D position.
+---@field velocity? Vec2|Vec3 Dense finite numeric array, flattened into Rigidbody2D/3D; must match position dimensionality when both are supplied.
 ---@field components? table explicit component blocks; shorthand never overwrites these
 ---@param entity_id string
 ---@param options EntitySpawnOptions
 ---@return boolean ok
----@return integer timer_id ttl timer when ttl > 0, else 0
+---@return string? error Nil on success; diagnostic on failure. Success queues creation.
+---Rejects prefab and ttl options: use Prefab.instantiate and Timer.after.
+---Explicit component fields override valid shorthand; coordinates must fit a float.
 function Entity.spawn(entity_id, options) end
 ---@param entity_id string
 ---@param spec table
@@ -66,16 +66,19 @@ function Entity.has_component(entity_id, component) end
 ---@param component string
 ---@param field string
 ---@return any
----Reads serialized/authored component values, not arbitrary live simulation
+---Reads the last configured component values, not arbitrary live simulation
 ---state. Omitted fields can return nil. Use dedicated services such as
 ---Rigidbody3D.state for native-generated bodies and current physics state.
-function Entity.get(entity_id, component, field) end
+function Entity.get_config(entity_id, component, field) end
 ---@param entity_id string
 ---@param component string
 ---@param field string
 ---@param value any
 ---@return boolean
-function Entity.set(entity_id, component, field, value) end
+---Changes one validated field without replacing unrelated simulation state.
+---Also updates the in-memory configuration returned by get_config; never saves
+---the authored project file. Runtime read-only/restart-required fields reject edits.
+function Entity.set_field(entity_id, component, field, value) end
 ---@param query EntityQuery
 ---@return string[]
 function Entity.query(query) end
@@ -90,10 +93,10 @@ function Entity.parent(entity_id) end
 ---@return string[]
 function Entity.children(entity_id) end
 ---@param entity_id string
----@return number[]|nil
+---@return Vec2|Vec3|nil position Local position; nil without a supported transform.
 function Entity.local_position(entity_id) end
 ---@param entity_id string
----@return number[]|nil
+---@return Vec2|Vec3|nil position Hierarchy-resolved world position; nil when unavailable.
 function Entity.world_position(entity_id) end
 
 return Entity

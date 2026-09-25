@@ -5,7 +5,7 @@ add_test(NAME demi-performance-3d-lab-smoke
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/performance_3d_lab/demi.project.json --max-frames 3)
 set_tests_properties(demi-performance-3d-lab-smoke PROPERTIES
   ENVIRONMENT "DEMI_HEADLESS=1"
-  PASS_REGULAR_EXPRESSION "PERF_LAB workload=rigid count=250"
+  PASS_REGULAR_EXPRESSION "PERF_LAB workload=pile count=250(\\.0)? geometry=barrel"
   TIMEOUT 30)
 add_test(NAME demi-runtime-minimal-frame
   COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/minimal_2d_android/demi.project.json --max-frames 1

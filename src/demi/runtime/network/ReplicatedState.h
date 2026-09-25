@@ -24,6 +24,8 @@ struct ReplicatedStateResult {
     std::string_view prefabKey, NetworkActor writer);
 [[nodiscard]] ReplicatedStateResult
 validateReplicatedState(const nlohmann::json &state);
+// All validates the union of declared fields for authoritative spawn state.
+// Incremental updates must pass the actual Server or Owner writer.
 [[nodiscard]] ReplicatedStateResult validateContractReplicatedState(
     const NetworkContract &contract, std::string_view prefabKey,
     NetworkActor writer, const nlohmann::json &state);

@@ -5,19 +5,20 @@
 ---@field mass number Configured mass; static bodies do not respond to impulses.
 ---@field use_gravity boolean
 ---@field enabled boolean Rigidbody enabled flag, independent of Entity.enabled.
----@field velocity number[] Current linear velocity.
----@field angular_velocity number[] Latest physics-synchronized angular velocity.
+---@field velocity Vec3 World-space linear velocity in world units/second.
+---@field angular_velocity Vec3 Latest physics-synchronized world-space angular velocity in radians/second.
 ---@class Rigidbody3DService
 -- Entity.create Rigidbody3D definitions accept solver_velocity_steps and
 -- solver_position_steps (integers 0..128). Zero retains backend defaults;
 -- higher values increase contact-solving work for the connected body island.
 local Rigidbody3D = {}
 ---Reads live component state, including native-generated fragment bodies, not
----the authored JSON snapshot returned by Entity.get. Configuration is available
+---the configured JSON snapshot returned by Entity.get_config. Configuration is available
 ---before the first physics step; this is not a native-body readiness check.
 ---@param entity_id string
 ---@return Rigidbody3DState|nil
 function Rigidbody3D.state(entity_id) end
+---Returns world-space velocity as x,y,z; nil,nil,nil without Rigidbody3D.
 ---@param entity_id string
 ---@return number|nil x
 ---@return number|nil y
@@ -67,10 +68,10 @@ function Rigidbody3D.set_report_contacts(entity_id, report_contacts) end
 ---@param x number
 ---@param y number
 ---@param z number
----@param rotation_x number
----@param rotation_y number
----@param rotation_z number
----@param fixed_dt number
+---@param rotation_x number Target Euler X in radians.
+---@param rotation_y number Target Euler Y in radians.
+---@param rotation_z number Target Euler Z in radians.
+---@param fixed_dt number Fixed-step duration in seconds; must be positive.
 ---@return boolean
 function Rigidbody3D.move_kinematic(entity_id, x, y, z, rotation_x, rotation_y, rotation_z, fixed_dt) end
 

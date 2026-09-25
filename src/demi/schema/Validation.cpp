@@ -390,6 +390,14 @@ void validatePhysics3D(Diagnostics &diagnostics,
     const std::string id = entity.value("id", "ent_unknown");
     const auto &components = entity["components"];
     const auto body = components.find("Rigidbody3D");
+    if (components.contains("MeshInstances3D") &&
+        (!components.contains("MeshRenderer") ||
+         components.contains("AnimationPlayer3D")))
+      diagnostics.push_back({.severity = Severity::Error,
+                             .code = "MESH_INSTANCES_INVALID",
+                             .message = "MeshInstances3D requires MeshRenderer "
+                                        "without AnimationPlayer3D.",
+                             .path = path.string()});
     for(const char *lightType:{"PointLight","SpotLight"}) {
       const auto light=components.find(lightType);
       if(light!=components.end() && light->is_object() && light->contains("casts_shadows") && (*light)["casts_shadows"]==true)

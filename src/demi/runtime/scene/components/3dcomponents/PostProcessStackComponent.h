@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 namespace demi::runtime {
@@ -41,6 +42,25 @@ struct PostProcessStackComponent {
   float bloomThreshold = 1.0F;
   Color fadeColor{0.0F, 0.0F, 0.0F, 1.0F};
   float fade = 0.0F;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<PostProcessStackComponent>::member<
+          &PostProcessStackComponent::exposure>("exposure"),
+      RuntimeFieldBinding<PostProcessStackComponent>::member<
+          &PostProcessStackComponent::contrast>("contrast"),
+      RuntimeFieldBinding<PostProcessStackComponent>::member<
+          &PostProcessStackComponent::saturation>("saturation"),
+      RuntimeFieldBinding<PostProcessStackComponent>::member<
+          &PostProcessStackComponent::tint>("tint"),
+      RuntimeFieldBinding<PostProcessStackComponent>::member<
+          &PostProcessStackComponent::vignette>("vignette"),
+      RuntimeFieldBinding<PostProcessStackComponent>::member<
+          &PostProcessStackComponent::bloom>("bloom"),
+      RuntimeFieldBinding<PostProcessStackComponent>::member<
+          &PostProcessStackComponent::bloomThreshold>("bloom_threshold"),
+      RuntimeFieldBinding<PostProcessStackComponent>::member<
+          &PostProcessStackComponent::fadeColor>("fade_color"),
+      RuntimeFieldBinding<PostProcessStackComponent>::member<
+          &PostProcessStackComponent::fade>("fade")};
 };
 
 } // namespace demi::runtime

@@ -114,11 +114,11 @@ return {tests = {
   }
   host.setViewport(960, 540);
 
-  if (!host.e2eNodeCenterCanvas("probe_button")) {
+  if (!host.e2eTestRunner().nodeCenterCanvas("probe_button")) {
     std::cerr << "Mobile node resolution failed for probe_button.\n";
     return 1;
   }
-  if (host.e2eNodeCenterCanvas("missing_button")) {
+  if (host.e2eTestRunner().nodeCenterCanvas("missing_button")) {
     std::cerr << "Mobile node resolution accepted an unknown node.\n";
     return 1;
   }

@@ -2,7 +2,6 @@
 
 #include "demi/assets/DataDocument.h"
 #include "demi/assets/RenderAsset.h"
-#include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/runtime/ui/UiDocumentParser.h"
 #include "demi/runtime/ui/UiLayoutEngine.h"
 #include "demi/runtime/ui/UiPrefabResolver.h"
@@ -34,10 +33,10 @@ Diagnostics validatePrefab(const std::filesystem::path &path,
                            const nlohmann::json &document) {
   Diagnostics diagnostics;
   if (document.is_object() && document.contains("fracture")) {
-    const auto baked=runtime::composition::bakeFracturePrefab(path,document);
-    if(!baked.document)return baked.diagnostics;
-    auto scene=*baked.document;scene["id"]="scene://prefab-editor";
-    return validateSceneDocument(path,scene);
+    issue(diagnostics, path, "PREFAB_INVALID_DOCUMENT",
+          "Top-level fracture recipes are unsupported. Author Destructible3D "
+          "with Fracture3D or Masonry3D components instead.");
+    return diagnostics;
   }
   if (!document.is_object() || document.value("format_version", 0) != 1 ||
       !document.value("id", "").starts_with("prefab://") ||

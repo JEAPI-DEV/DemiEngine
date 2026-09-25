@@ -3,14 +3,14 @@
 ---@class AudioService
 local Audio = {}
 ---@class AudioPlayOptions
----@field bus? '"music"'|'"sfx"'|'"voice"'|'"ui"'|string
+---@field bus? "music"|"sfx"|"voice"|"ui"|string
 ---@field loop? boolean
 ---@field streaming? boolean
 ---@field volume? number
 ---@field pitch? number
 ---@field pan? number
----@field spatial? '"none"'|'"2d"'|'"3d"'
----@field attenuation? '"none"'|'"inverse"'|'"linear"'|'"exponential"'
+---@field spatial? "none"|"2d"|"3d"
+---@field attenuation? "none"|"inverse"|"linear"|"exponential"
 ---@field x? number
 ---@field y? number
 ---@field z? number
@@ -18,11 +18,11 @@ local Audio = {}
 ---@field max_distance? number
 ---@field rolloff? number
 ---@field doppler? boolean
----@field delay? number
----@field fade_in? number
+---@field delay? number Seconds.
+---@field fade_in? number Seconds.
 ---@field concurrency_group? string
 ---@field max_voices? integer
----@field voice_stealing? '"reject"'|'"oldest"'|'"quietest"'
+---@field voice_stealing? "reject"|"oldest"|"quietest"
 ---@field pause_with_game? boolean
 ---@param asset_id string
 ---@param options? AudioPlayOptions

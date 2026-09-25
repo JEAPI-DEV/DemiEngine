@@ -9,6 +9,15 @@
 #include <cmath>
 
 namespace demi::runtime {
+bool Environment3DComponent::serializeField(
+    const Environment3DComponent &component, std::string_view field,
+    nlohmann::json &out) {
+  if (field != "relief_image_cache_mb")
+    return false;
+  out = component.reliefImageCacheBytes / (1024U * 1024U);
+  return true;
+}
+
 nlohmann::json Environment3DComponent::defaults() {
   const Environment3DComponent c;
   return {{"msaa_samples",c.msaaSamples},{"sky_texture",c.skyTexture},{"ambient_color",{c.ambientColor.r,c.ambientColor.g,c.ambientColor.b,c.ambientColor.a}},

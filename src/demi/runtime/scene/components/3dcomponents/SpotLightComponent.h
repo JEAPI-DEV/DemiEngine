@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 namespace demi::runtime {
@@ -35,6 +36,24 @@ struct SpotLightComponent {
   Vec3 direction{0.0F, 0.0F, -1.0F};
   bool castsShadows = false;
   std::string renderMask;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<SpotLightComponent>::member<
+          &SpotLightComponent::color>("color"),
+      RuntimeFieldBinding<SpotLightComponent>::member<
+          &SpotLightComponent::intensity>("intensity"),
+      RuntimeFieldBinding<SpotLightComponent>::member<
+          &SpotLightComponent::range>("range"),
+      RuntimeFieldBinding<SpotLightComponent>::memberWithDerived<
+          &SpotLightComponent::innerAngle,
+          &SpotLightComponent::outerAngle>("inner_angle"),
+      RuntimeFieldBinding<SpotLightComponent>::member<
+          &SpotLightComponent::outerAngle>("outer_angle"),
+      RuntimeFieldBinding<SpotLightComponent>::member<
+          &SpotLightComponent::direction>("direction"),
+      RuntimeFieldBinding<SpotLightComponent>::member<
+          &SpotLightComponent::castsShadows>("casts_shadows"),
+      RuntimeFieldBinding<SpotLightComponent>::member<
+          &SpotLightComponent::renderMask>("render_mask")};
 };
 
 } // namespace demi::runtime

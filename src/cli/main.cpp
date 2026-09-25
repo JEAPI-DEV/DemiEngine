@@ -17,6 +17,7 @@
 #include "demi/capabilities/PlatformCapabilities.h"
 #include "demi/core/Version.h"
 #include "demi/diagnostics/Diagnostic.h"
+#include "demi/filesystem/AtomicTextFile.h"
 #include "demi/runtime/app/RuntimeApp.h"
 #include "demi/runtime/platform/RuntimeCapabilities.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
@@ -25,6 +26,7 @@
 #include "demi/schema/Validation.h"
 
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -429,13 +431,24 @@ int main(int argc, char **argv) {
     const std::filesystem::path outputPath =
         args.size() >= 3 ? std::filesystem::path(args[2])
                          : sourceRoot() / "schemas" / "components.schema.json";
-    std::ofstream output(outputPath);
-    if (!output) {
-      std::cerr << "Failed to write component schema: " << outputPath << '\n';
+    try {
+      const std::string content =
+          demi::runtime::scene_loading::canonicalComponentSchema().dump(2) + '\n';
+      std::error_code error;
+      if (!demi::atomicWriteText(outputPath, content, error)) {
+        std::cerr << "Failed to write component schema: " << outputPath << ": "
+                  << error.message() << '\n';
+        return ExitValidationFailure;
+      }
+    } catch (const std::exception &error) {
+      std::cerr << "Failed to export component schema: " << outputPath << ": "
+                << error.what() << '\n';
+      return ExitValidationFailure;
+    } catch (...) {
+      std::cerr << "Failed to export component schema: " << outputPath
+                << ": unknown exception\n";
       return ExitValidationFailure;
     }
-    output << demi::runtime::scene_loading::canonicalComponentSchema().dump(2)
-           << '\n';
     std::cout << "Wrote component schema: " << outputPath << '\n';
     return ExitSuccess;
   }

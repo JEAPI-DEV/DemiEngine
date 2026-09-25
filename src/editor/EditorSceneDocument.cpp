@@ -76,8 +76,7 @@ bool EditorSceneDocument::open(const std::filesystem::path &path,
         stagedHasErrors(resolvedPath, parsed, error))
       return false;
     if (!parsed.is_object() || !parsed.contains("format_version") ||
-        ((!parsed.contains("entities") || !parsed["entities"].is_array()) &&
-         !(isPrefabFile(resolvedPath) && parsed.contains("fracture") && parsed["fracture"].is_object()))) {
+        !parsed.contains("entities") || !parsed["entities"].is_array()) {
       error = "The active scene is not an editable scene document.";
       return false;
     }

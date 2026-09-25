@@ -17,6 +17,9 @@ struct WorldTransform3D {
   Vec3 rotation;
   Vec3 scale = {1.0F, 1.0F, 1.0F};
 };
+[[nodiscard]] WorldTransform3D
+composeWorldTransform3D(const WorldTransform3D &parent,
+                        const WorldTransform3D &local);
 
 enum class Transform3DHierarchyIssueKind {
   MissingParent,

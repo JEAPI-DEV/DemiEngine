@@ -34,7 +34,7 @@ function Rigidbody2D.add_force(entity_id, x, y) end
 ---@return boolean
 function Rigidbody2D.add_torque(entity_id, torque) end
 ---@param entity_id string
----@param angular_velocity number
+---@param angular_velocity number Radians per second.
 ---@return boolean
 function Rigidbody2D.set_angular_velocity(entity_id, angular_velocity) end
 ---@param entity_id string
@@ -56,7 +56,7 @@ function Rigidbody2D.set_report_contacts(entity_id, report_contacts) end
 ---@param entity_id string
 ---@param x number
 ---@param y number
----@param fixed_dt? number
+---@param fixed_dt? number Seconds; defaults to 1/60. Pass the actual fixed timestep explicitly.
 ---@return boolean
 function Rigidbody2D.move_kinematic(entity_id, x, y, fixed_dt) end
 ---@param entity_id string

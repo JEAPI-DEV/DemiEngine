@@ -49,7 +49,12 @@ expandPrefabInstance(const std::filesystem::path &ownerPath,
 
 [[nodiscard]] ExpansionResult
 inspectPrefab(const std::filesystem::path &prefabPath);
+// Validate and prepare component-authored fracture/masonry, including nested
+// prefab composition. Source documents remain untouched.
 [[nodiscard]] ExpansionResult bakeFracturePrefab(const std::filesystem::path &prefabPath);
+[[nodiscard]] ExpansionResult preparePrefabDocument(const std::filesystem::path &prefabPath,
+                                                    const nlohmann::json &source);
+[[nodiscard]] bool hasPrefabComposition(const nlohmann::json &document);
 [[nodiscard]] ExpansionResult bakeFracturePrefab(const std::filesystem::path &prefabPath,
                                                 const nlohmann::json &source);
 

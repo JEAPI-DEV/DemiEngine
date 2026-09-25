@@ -38,7 +38,7 @@ function Test.expect_scene(scene_id, timeout) end
 function Test.expect(condition, message) end
 ---Returns the resolved center of a HUD node in canvas units, or nil.
 ---@param node_id string
----@return number[]?
+---@return Vec2? center HUD canvas coordinates; nil for an unknown node.
 function Test.node_center(node_id) end
 
 return Test

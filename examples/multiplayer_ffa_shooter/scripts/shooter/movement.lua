@@ -15,8 +15,8 @@ local function normalized(x, y)
 end
 
 function Movement.sample(game)
-  local keyboard_x = Input.action_value("move_x")
-  local keyboard_y = Input.action_value("move_y")
+  local keyboard_x = Input.value("move_x")
+  local keyboard_y = Input.value("move_y")
   local x = keyboard_x
   local y = keyboard_y
   x, y = normalized(x, y)

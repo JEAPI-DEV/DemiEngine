@@ -7,44 +7,20 @@
   "anyOf": [
     { "required": ["entities"] },
     { "required": ["elements"] },
-    { "required": ["instances"] },
-    { "required": ["fracture"] }
+    { "required": ["instances"] }
   ],
-  "allOf": [{ "if": { "required": ["fracture"] }, "then": { "not": { "anyOf": [{ "required": ["entities"] }, { "required": ["instances"] }, { "required": ["elements"] }] } } }],
   "additionalProperties": false,
   "properties": {
     "format_version": { "type": "integer", "minimum": 1 },
     "id": { "type": "string", "pattern": "^prefab://" },
     "name": { "type": "string" },
-    "fracture": {
-      "type": "object", "additionalProperties": false,
-      "required": ["generator_version", "source", "objects"],
-      "properties": {
-        "generator_version": { "type": "integer", "const": 1 },
-        "source": { "type": "string", "pattern": "^prefab://" },
-        "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295, "default": 1 },
-        "mass": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1000000000000, "default": 1000 },
-        "max_bodies": { "type": "integer", "minimum": 1, "maximum": 256, "default": 64 },
-        "objects": {
-          "type": "object", "minProperties": 1, "maxProperties": 256,
-          "additionalProperties": {
-            "type": "object", "additionalProperties": false,
-            "properties": {
-              "pieces": { "type": "integer", "minimum": 1, "maximum": 128, "default": 8 },
-              "bond_health": { "type": "number", "exclusiveMinimum": 0, "maximum": 1e30, "default": 1 },
-              "anchor_below": { "type": "number" },
-              "interior_color": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": 0, "maximum": 1 } },
-              "interior_material": { "type": "string", "pattern": "^asset://" }
-            }
-          }
-        }
-      }
-    },
+    "source_recipe": { "type": "object", "description": "Cooked prefab source retained for regeneration when authoring overrides change prepared geometry." },
     "entities": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "components"],
+        "required": ["id"],
+        "anyOf": [{ "required": ["components"] }, { "required": ["prefab"] }],
         "properties": {
           "children": {
             "type": "array",
@@ -61,6 +37,8 @@
             "uniqueItems": true
           },
           "layer": { "type": "string" },
+          "prefab": { "type": "string", "pattern": "^prefab://" },
+          "overrides": { "$ref": "#/$defs/instance/properties/overrides" },
           "components": { "$ref": "components.schema.json" }
         }
       }
@@ -90,9 +68,11 @@
         "prefab": { "type": "string", "pattern": "^prefab://" },
         "overrides": {
           "type": "object",
-          "additionalProperties": {
-            "anyOf": [{ "type": "object" }, { "type": "null" }]
-          }
+          "description": "Entity keys accept an object or null; dotted entity.Component.field keys accept a field value. Targets must exist.",
+          "patternProperties": {
+            "^[^.]+$": { "type": ["object", "null"] }
+          },
+          "additionalProperties": true
         }
       }
     }

@@ -13,7 +13,7 @@
 ---@class DataError
 ---@field code string
 ---@field message string
----@field id string
+---@field path string Asset ID or diagnostic source path.
 
 ---@class DataQuery
 ---@field content_type? string
@@ -32,7 +32,7 @@ function Data.load(id) end
 ---@return DataError? error
 function Data.parse_yaml(text, source) end
 ---@param query? DataQuery
----@return table[] snapshots Ordered deterministically by stable asset ID.
+---@return any[] snapshots Document roots (including scalars/null sentinels), ordered deterministically by stable asset ID.
 function Data.query(query) end
 ---@param id string
 ---@return integer

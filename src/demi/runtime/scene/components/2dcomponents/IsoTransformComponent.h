@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <string>
@@ -23,6 +24,15 @@ struct IsoTransformComponent {
   Vec2 tile;
   float height = 0.0F;
   Vec2 footprint = {1.0F, 1.0F};
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<IsoTransformComponent>::member<
+          &IsoTransformComponent::parent>("parent"),
+      RuntimeFieldBinding<IsoTransformComponent>::member<
+          &IsoTransformComponent::tile>("tile"),
+      RuntimeFieldBinding<IsoTransformComponent>::member<
+          &IsoTransformComponent::height>("height"),
+      RuntimeFieldBinding<IsoTransformComponent>::member<
+          &IsoTransformComponent::footprint>("footprint")};
 };
 
 } // namespace demi::runtime

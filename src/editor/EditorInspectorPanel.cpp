@@ -192,9 +192,38 @@ void drawInlineIssue(const EditorWorkspace &workspace,
     ImGui::TextColored({0.95F, 0.34F, 0.38F, 1.0F}, "%s", issue->c_str());
 }
 
-nlohmann::json defaultValue(const ComponentDescriptor &descriptor,
-                            const ComponentFieldDescriptor &field) {
-  return runtime::scene_loading::componentFieldDefault(descriptor, field);
+nlohmann::json initialFieldValue(const ComponentDescriptor &descriptor,
+                                 const ComponentFieldDescriptor &field) {
+  const auto &defaults = runtime::scene_loading::componentDefaults(descriptor);
+  if (const auto value = defaults.find(field.name); value != defaults.end())
+    return *value;
+
+  // These are editing scaffolds, not claims about omitted runtime values.
+  // Authoring presence-sensitive sugar (for example atlas={}) is a real edit.
+  switch (field.type) {
+  case ComponentFieldType::Object:
+    return nlohmann::json::object();
+  case ComponentFieldType::Vec2Array:
+  case ComponentFieldType::Vec3Array:
+    return nlohmann::json::array();
+  case ComponentFieldType::Boolean:
+    return false;
+  case ComponentFieldType::Integer:
+    return field.allowedIntegers.empty() ? 0 : field.allowedIntegers.front();
+  case ComponentFieldType::Number:
+    return field.hasMinimum ? field.minimum : 0.0;
+  case ComponentFieldType::String:
+    return field.allowedValues.empty()
+               ? nlohmann::json("")
+               : nlohmann::json(field.allowedValues.front());
+  case ComponentFieldType::Vec2:
+    return nlohmann::json::array({0.0, 0.0});
+  case ComponentFieldType::Vec3:
+    return nlohmann::json::array({0.0, 0.0, 0.0});
+  case ComponentFieldType::Color:
+    return nlohmann::json::array({1.0, 1.0, 1.0, 1.0});
+  }
+  return nullptr;
 }
 
 void drawFieldHelp(const ComponentFieldDescriptor &field) {
@@ -401,22 +430,23 @@ void drawComponentFields(EditorWorkspace &workspace,
                          const nlohmann::json &component,
                          const ComponentDescriptor &descriptor,
                          std::string &notice, const bool prefabEntity) {
-  if (componentName == "Destructible3D" &&
-      component.value("parts", nlohmann::json::object()).empty())
-    ImGui::TextWrapped("Add Fracture 3D to this mesh or its children. Foundation anchors determine the generated static/dynamic body type; mass and other Rigidbody settings are retained.");
-  if (componentName == "Fracture3D")
-    ImGui::TextWrapped("Density uses kg/m^3 of collider volume. Root mass overrides the total. Box collider requires Pieces=1 and a unit-box model scaled by MeshRenderer Size; it retains the detailed visual. Source collider requires convex geometry. Anchor Below uses assembly-local Y.");
-  if (componentName == "Masonry3D")
-    ImGui::TextWrapped("Masonry recipe. Add Destructible3D to its owner. Cooking prepares the fracture data in build output; the authored recipe stays compact.");
-  bool showGeometry=true;
-  if (componentName=="MeshRenderer") {
-    ImGui::TextWrapped("Choose a model or built-in shape, then assign its texture/material. Hover field labels for help.");
-    const auto key=ImGui::GetID("advanced-geometry");
-    showGeometry=ImGui::GetStateStorage()->GetBool(key,false);
-    if (ImGui::Checkbox("Advanced geometry buffers",&showGeometry)) ImGui::GetStateStorage()->SetBool(key,showGeometry);
+  if (!descriptor.editor.help.empty()) {
+    ImGui::TextWrapped("%s", descriptor.editor.help.data());
+  }
+  bool showAdvanced = false;
+  const bool hasAdvanced = std::ranges::any_of(
+      descriptor.fields, [](const auto &field) { return field.editor.advanced; });
+  if (hasAdvanced) {
+    const auto key = ImGui::GetID("advanced-fields");
+    showAdvanced = ImGui::GetStateStorage()->GetBool(key, false);
+    if (ImGui::Checkbox("Advanced fields", &showAdvanced)) {
+      ImGui::GetStateStorage()->SetBool(key, showAdvanced);
+    }
   }
   for (const ComponentFieldDescriptor &field : descriptor.fields) {
-    if (!showGeometry && (field.name=="vertices" || field.name=="normals" || field.name=="uvs")) continue;
+    if (field.editor.advanced && !showAdvanced) {
+      continue;
+    }
     if (!field.editorVisible)
       continue;
     const auto value = component.find(field.name);
@@ -428,12 +458,17 @@ void drawComponentFields(EditorWorkspace &workspace,
         ImGui::PushID(field.name.data());
         const std::string label =
             runtime::scene_loading::componentFieldEditorLabel(field);
+        const bool hasDefault =
+            runtime::scene_loading::componentDefaults(descriptor)
+                .contains(field.name);
         ImGui::TextDisabled("%s (%s)", label.c_str(),
-                            prefabEntity ? "inherited default" : "default");
+                            !hasDefault    ? "not authored"
+                            : prefabEntity ? "inherited default"
+                                           : "default");
         drawFieldHelp(field);
         ImGui::SameLine(180.0F);
         if (ImGui::SmallButton(prefabEntity ? "Override" : "Author"))
-          (void)commit(workspace, target, defaultValue(descriptor, field),
+          (void)commit(workspace, target, initialFieldValue(descriptor, field),
                        notice);
         drawInlineIssue(workspace, target);
         ImGui::PopID();
@@ -631,13 +666,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
     ImGui::TextColored({0.95F, 0.67F, 0.28F, 1.0F}, "Unsaved");
   }
   ImGui::Separator();
-  if (workspace.sceneDocument().json().contains("fracture")) {
-    ImGui::TextWrapped("Generated fracture preview. Edit the source prefab to change its objects. Edit the recipe to change fracture settings; generated chunks are read-only.");
-    if (const auto *entity = workspace.selectedEntity())
-      ImGui::TextWrapped("Selected: %s", entity->name.c_str());
-    ImGui::End();
-    return;
-  }
   if (drawIsoGridCellInspector(workspace, notice)) {
     ImGui::End();
     return;

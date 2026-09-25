@@ -60,15 +60,15 @@ function Demo:on_start()
 end
 
 function Demo:on_fixed_update(dt)
-  local x = Input.action_value("move_x")
-  local y = Input.action_value("move_y")
+  local x = Input.value("move_x")
+  local y = Input.value("move_y")
   local length = math.sqrt(x * x + y * y)
   if length > 1 then x, y = x / length, y / length end
   Rigidbody2D.move_and_slide(PLAYER, x * SPEED * dt, y * SPEED * dt)
 end
 
 function Demo:on_update()
-  if Input.action_pressed("toggle_gate") then
+  if Input.pressed("toggle_gate") then
     self:set_gate(not self.gate_open)
     self.message = self.gate_open and "Gate opened; navigation refreshed."
       or "Gate closed; navigation refreshed."

@@ -1,5 +1,19 @@
 ---@meta
 -- Native module: require("demi.network"). Annotations only.
+---@class NetworkEvent
+---@field type "connected"|"disconnected"|"message"
+---@field peer_id integer
+---@field channel integer
+---@field message string
+---@field latency_ms integer
+
+---@class NetworkHttpResponse
+---@field ok boolean
+---@field status integer
+---@field body string
+---@field error string
+---@field json table|string|number|boolean|nil Parsed JSON value, including scalar roots; nil for empty/invalid JSON or JSON null.
+
 ---@class NetworkService
 local Network = {}
 ---@return boolean

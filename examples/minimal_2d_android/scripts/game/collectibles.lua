@@ -60,7 +60,7 @@ function Collectibles.create_coin(game, x, y)
   })
 
   game.coins[id] = { x = x, y = y, collected = false }
-  replication.register_claim_once(id, {
+  replication.register_coin(id, {
     can_claim = function(object_id, collector_id, claim)
       local coin = game.coins[object_id]
       if coin == nil or coin.collected then
@@ -111,7 +111,7 @@ function Collectibles.collect_near_player(game, player_x, player_y)
       local dx = player_x - coin.x
       local dy = player_y - coin.y
       if (dx * dx) + (dy * dy) <= radius_squared then
-        replication.try_claim_once(id, { x = player_x, y = player_y })
+        replication.collect_coin(id, { x = player_x, y = player_y })
         if state.extra_jumps >= config.max_extra_jumps then
           return
         end

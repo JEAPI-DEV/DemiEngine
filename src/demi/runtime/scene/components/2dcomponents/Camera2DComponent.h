@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <string>
@@ -30,6 +31,23 @@ struct Camera2DComponent {
   Vec2 boundsMin;
   Vec2 boundsMax;
   bool hasBounds = false;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<Camera2DComponent>::member<
+          &Camera2DComponent::clearColor>("clear_color"),
+      RuntimeFieldBinding<Camera2DComponent>::member<
+          &Camera2DComponent::orthographicSize>("orthographic_size"),
+      RuntimeFieldBinding<Camera2DComponent>::member<
+          &Camera2DComponent::target>("target"),
+      RuntimeFieldBinding<Camera2DComponent>::member<
+          &Camera2DComponent::followSpeed>("follow_speed"),
+      RuntimeFieldBinding<Camera2DComponent>::member<
+          &Camera2DComponent::followOffset>("follow_offset"),
+      RuntimeFieldBinding<Camera2DComponent>::memberWithDerived<
+          &Camera2DComponent::boundsMin, &Camera2DComponent::boundsMax,
+          &Camera2DComponent::hasBounds>("bounds_min").withoutDefault(),
+      RuntimeFieldBinding<Camera2DComponent>::memberWithDerived<
+          &Camera2DComponent::boundsMax, &Camera2DComponent::boundsMin,
+          &Camera2DComponent::hasBounds>("bounds_max").withoutDefault()};
 };
 
 } // namespace demi::runtime

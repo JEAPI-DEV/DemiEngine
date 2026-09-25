@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 namespace demi::runtime {
@@ -51,6 +52,15 @@ struct CharacterController3DComponent {
   float requestedJumpSpeed = 0.0F;
   bool grounded = false;
   std::string groundEntity;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<CharacterController3DComponent>::member<
+          &CharacterController3DComponent::stepHeight>("step_height"),
+      RuntimeFieldBinding<CharacterController3DComponent>::member<
+          &CharacterController3DComponent::slopeLimit>("slope_limit"),
+      RuntimeFieldBinding<CharacterController3DComponent>::member<
+          &CharacterController3DComponent::skinWidth>("skin_width"),
+      RuntimeFieldBinding<CharacterController3DComponent>::member<
+          &CharacterController3DComponent::gravity>("gravity")};
 };
 
 } // namespace demi::runtime

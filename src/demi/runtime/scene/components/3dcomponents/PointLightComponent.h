@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 namespace demi::runtime {
@@ -25,6 +26,17 @@ struct PointLightComponent {
   float range = 8.0F;
   bool castsShadows = false;
   std::string renderMask;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<PointLightComponent>::member<
+          &PointLightComponent::color>("color"),
+      RuntimeFieldBinding<PointLightComponent>::member<
+          &PointLightComponent::intensity>("intensity"),
+      RuntimeFieldBinding<PointLightComponent>::member<
+          &PointLightComponent::range>("range"),
+      RuntimeFieldBinding<PointLightComponent>::member<
+          &PointLightComponent::castsShadows>("casts_shadows"),
+      RuntimeFieldBinding<PointLightComponent>::member<
+          &PointLightComponent::renderMask>("render_mask")};
 };
 
 } // namespace demi::runtime

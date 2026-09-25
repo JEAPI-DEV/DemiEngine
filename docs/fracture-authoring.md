@@ -54,9 +54,15 @@ generated-shard preview toggle is not implemented.
 
 Adding an assembly before its first fracture mesh is allowed. An assembly with
 no participating meshes is inert, so component authoring can happen incrementally.
-The former **Create fracture prefab** dialog is removed. Existing top-level
-recipe documents remain readable for compatibility, but new examples and editor
-workflows use components.
+The former **Create fracture prefab** dialog and top-level `fracture` recipe
+format are removed. Prefabs use `Destructible3D` with `Fracture3D` meshes or
+`Masonry3D` regions. Ordinary nested prefabs and their overrides compose these
+components before generation.
+
+Nested prefab overrides are applied before fracture generation, including when
+cooking. A prepared prefab retains its compact recipe in build output so runtime
+overrides can regenerate geometry when needed. Do not edit that generated
+`source_recipe` field. Change the authored prefab and rebuild instead.
 
 ## Settings and behavior
 
@@ -126,8 +132,10 @@ instances have independent physical ownership and damage.
 Runtime source loading and cooking share the compiler. Cooking bakes components
 to prepared geometry under the same prefab identity, including components authored
 directly in scenes. For ordinary source-mesh fracture, packaged runtime does not
-execute the splitter. Documents containing `Masonry3D` instead retain compact
-recipes and generate on activation, with a bounded session template cache.
+execute the splitter unless authoring overrides require regeneration. Cooking
+also prepares `Masonry3D` geometry and retains compact component source in
+`source_recipe` for overrides. Uncooked source generates on instantiation;
+repeated instances use the bounded session template cache.
 There is no persistent disk authoring cache or live topology migration across
 source changes. Optional validated damage checkpoints are described in the
 streaming document above.
@@ -146,8 +154,8 @@ that ID must not collide with an authored entity.
 Nested prefabs and overrides use this activation path too. Rejected splits do
 not publish shard entities; checkpoint restoration refines only affected
 sources. This does not change template-cache eligibility, unload cold geometry,
-or add further subdivision after the first source-level refinement. Legacy
-top-level fracture recipes and custom masonry models still use eager visuals.
+or add further subdivision after the first source-level refinement. Custom masonry models use
+[intact instance batches](mesh-instances-3d.md) until their region splits.
 
 Intact models use the authored renderer; generated shards retain the existing
 fracture material/normal limitations below. This change does not establish

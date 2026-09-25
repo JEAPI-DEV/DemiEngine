@@ -2,46 +2,73 @@
 extern "C" {
 #include <lua.h>
 }
-#include <cctype>
-#include <utility>
-#include <vector>
+#include <stdexcept>
 
 namespace demi::runtime {
+namespace {
+constexpr LuaServiceModule serviceModules[] = {
+    {"Animation", "demi.animation"},
+    {"Application", "demi.application"},
+    {"Assets", "demi.assets"},
+    {"Audio", "demi.audio"},
+    {"AudioSource", "demi.audio.source"},
+    {"Camera3D", "demi.camera3d"},
+    {"CharacterController3D", "demi.physics.character_controller3d"},
+    {"Crypto", "demi.network.crypto"},
+    {"Cutscene", "demi.cutscene"},
+    {"Data", "demi.data"},
+    {"Debug", "demi.debug"},
+    {"Destruction3D", "demi.physics.destruction3d"},
+    {"Entity", "demi.entity"},
+    {"Events", "demi.events"},
+    {"Grid", "demi.grid"},
+    {"Hud", "demi.hud"},
+    {"Input", "demi.input"},
+    {"Mathf", "demi.math.scalar"},
+    {"MeshDeformation", "demi.mesh.deformation"},
+    {"Navigation2D", "demi.navigation2d"},
+    {"Network", "demi.network"},
+    {"NetworkSession", "demi.network.session"},
+    {"Physics", "demi.physics"},
+    {"Physics2D", "demi.physics.query2d"},
+    {"Physics3D", "demi.physics.query3d"},
+    {"Prefab", "demi.prefab"},
+    {"ProceduralMesh", "demi.mesh.procedural"},
+    {"Profile", "demi.profile"},
+    {"Random", "demi.math.random"},
+    {"Regex", "demi.regex"},
+    {"Rigidbody2D", "demi.physics.rigidbody2d"},
+    {"Rigidbody3D", "demi.physics.rigidbody3d"},
+    {"Save", "demi.save"},
+    {"Scene", "demi.scene"},
+    {"Sprite2D", "demi.sprite2d"},
+    {"Test", "demi.test"},
+    {"Text", "demi.text"},
+    {"Tilemap2D", "demi.tilemap2d"},
+    {"Time", "demi.time"},
+    {"Timer", "demi.timer"},
+    {"TlsClient", "demi.network.tls.client"},
+    {"TlsServer", "demi.network.tls.server"},
+    {"Transform", "demi.transform2d"},
+    {"Transform3D", "demi.transform3d"},
+    {"Vector2", "demi.math.vector2"},
+    {"Vector3", "demi.math.vector3"},
+    {"Video", "demi.video"},
+    {"VoxelWorld", "demi.voxel.world"},
+};
+} // namespace
+
+std::span<const LuaServiceModule> luaServiceModules() {
+  return serviceModules;
+}
+
 std::string luaServiceModuleName(std::string_view service) {
-  static constexpr std::pair<std::string_view, std::string_view> grouped[] = {
-      {"NetworkSession", "demi.network.session"},
-      {"TlsServer", "demi.network.tls.server"},
-      {"TlsClient", "demi.network.tls.client"},
-      {"Crypto", "demi.network.crypto"},
-      {"AudioSource", "demi.audio.source"},
-      {"ProceduralMesh", "demi.mesh.procedural"},
-      {"MeshDeformation", "demi.mesh.deformation"},
-      {"VoxelWorld", "demi.voxel.world"},
-      {"Vector2", "demi.math.vector2"},
-      {"Vector3", "demi.math.vector3"},
-      {"Mathf", "demi.math.scalar"},
-      {"Random", "demi.math.random"},
-      {"Physics2D", "demi.physics.query2d"},
-      {"Physics3D", "demi.physics.query3d"},
-      {"Rigidbody2D", "demi.physics.rigidbody2d"},
-      {"Rigidbody3D", "demi.physics.rigidbody3d"},
-      {"CharacterController3D", "demi.physics.character_controller3d"},
-      {"Destruction3D", "demi.physics.destruction3d"},
-  };
-  for (const auto &[name, module] : grouped)
-    if (service == name)
-      return std::string(module);
-  if (service == "Transform")
-    return "demi.transform2d";
-  std::string result = "demi.";
-  for (std::size_t i = 0; i < service.size(); ++i) {
-    const auto c = static_cast<unsigned char>(service[i]);
-    if (i && std::isupper(c) &&
-        std::islower(static_cast<unsigned char>(service[i - 1])))
-      result += '_';
-    result += static_cast<char>(std::tolower(c));
+  for (const auto &entry : serviceModules) {
+    if (service == entry.service) {
+      return std::string(entry.module);
+    }
   }
-  return result;
+  throw std::invalid_argument("Unknown native Lua service: " + std::string(service));
 }
 void publishLuaServiceModules(lua_State *state) {
   lua_newtable(state);
@@ -52,32 +79,24 @@ void publishLuaServiceModules(lua_State *state) {
   const int preload = lua_gettop(state);
   lua_pushglobaltable(state);
   const int globals = lua_gettop(state);
-  std::vector<std::string> names;
-  lua_pushnil(state);
-  while (lua_next(state, globals)) {
-    if (lua_type(state, -2) == LUA_TSTRING && lua_istable(state, -1)) {
-      const std::string name = lua_tostring(state, -2);
-      if (!name.empty() &&
-          std::isupper(static_cast<unsigned char>(name.front()))) {
-        names.push_back(name);
-        lua_pushvalue(state, -1);
-        lua_setfield(state, services, name.c_str());
-        lua_pushvalue(state, -1);
-        lua_pushcclosure(
-            state,
-            [](lua_State *s) {
-              lua_pushvalue(s, lua_upvalueindex(1));
-              return 1;
-            },
-            1);
-        lua_setfield(state, preload, luaServiceModuleName(name).c_str());
-      }
+  for (const auto &entry : serviceModules) {
+    lua_getfield(state, globals, entry.service.data());
+    if (!lua_istable(state, -1)) {
+      lua_pop(state, 1);
+      continue;
     }
-    lua_pop(state, 1);
-  }
-  for (const auto &name : names) {
+    lua_pushvalue(state, -1);
+    lua_setfield(state, services, entry.service.data());
+    lua_pushcclosure(
+        state,
+        [](lua_State *moduleState) {
+          lua_pushvalue(moduleState, lua_upvalueindex(1));
+          return 1;
+        },
+        1);
+    lua_setfield(state, preload, entry.module.data());
     lua_pushnil(state);
-    lua_setfield(state, globals, name.c_str());
+    lua_setfield(state, globals, entry.service.data());
   }
   lua_pop(state, 2);
   lua_setfield(state, LUA_REGISTRYINDEX, LuaServicesRegistry);

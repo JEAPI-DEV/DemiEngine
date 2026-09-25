@@ -1,6 +1,6 @@
 local Test = require("demi.test")
 
-local LanguageFile = require("language_file")
+local Localization = require("demi.ui.localization")
 
 local texts = {
   ["asset://language/en"] = "en",
@@ -30,7 +30,7 @@ local fake_hud = {
 }
 
 Test.case("selected language overrides fallback variables", function()
-  local languages = LanguageFile.new({
+  local languages = Localization.new({
     assets = fake_assets, data = fake_data, hud = fake_hud,
     fallback = "en",
     languages = { en = "asset://language/en", de = "asset://language/de" },
@@ -47,7 +47,7 @@ Test.case("loaded documents are parsed once and cached", function()
   local data = { parse_yaml = function(text)
     parses = parses + 1; return documents[text], nil
   end }
-  local languages = LanguageFile.new({
+  local languages = Localization.new({
     assets = fake_assets, data = data, hud = fake_hud,
     languages = { en = "asset://language/en" },
   })

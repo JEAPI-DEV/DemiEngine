@@ -67,7 +67,7 @@ local function show_options()
 end
 
 local function pressed_once(key)
-  local down = Input.is_down(key)
+  local down = Input.key_down(key)
   local pressed = down and not Menu.key_was_down[key]
   Menu.key_was_down[key] = down
   return pressed
@@ -178,7 +178,7 @@ function Menu.update(dt)
     network.update_lobby(dt)
   end
 
-  local enter_down = Input.is_down("return") or Input.is_down("space")
+  local enter_down = Input.key_down("return") or Input.key_down("space")
   local enter_pressed = enter_down and not Menu.enter_was_down
 
   if Menu.screen == "main" and enter_pressed then
@@ -186,26 +186,26 @@ function Menu.update(dt)
   end
 
   if Menu.screen == "levels" then
-    if Input.is_down("1") then
+    if Input.key_down("1") then
       select_level(SCENE_PLATFORMER, 1)
-    elseif Input.is_down("2") then
+    elseif Input.key_down("2") then
       select_level(SCENE_SPIRAL, 2)
-    elseif Input.is_down("escape") then
+    elseif Input.key_down("escape") then
       view.show_main(Menu)
     end
   end
 
   if Menu.screen == "network" or Menu.screen == "network_create" or Menu.screen == "network_password" then
     network.update_connection(dt)
-    if Input.is_down("escape") then
+    if Input.key_down("escape") then
       network.back_to_main()
     end
   end
 
   if Menu.screen == "options" then
-    if Input.is_down("left") then
+    if Input.key_down("left") then
       settings.set_volume(Menu.volume - 0.02)
-    elseif Input.is_down("right") then
+    elseif Input.key_down("right") then
       settings.set_volume(Menu.volume + 0.02)
     end
   end

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <cstdint>
@@ -37,6 +38,27 @@ struct BoxCollider2DComponent {
   float restitution = 0.0F;
   float density = 1.0F;
   bool debugVisible = true;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<BoxCollider2DComponent>::member<
+          &BoxCollider2DComponent::size>("size"),
+      RuntimeFieldBinding<BoxCollider2DComponent>::member<
+          &BoxCollider2DComponent::offset>("offset"),
+      RuntimeFieldBinding<BoxCollider2DComponent>::member<
+          &BoxCollider2DComponent::isTrigger>("is_trigger"),
+      RuntimeFieldBinding<BoxCollider2DComponent>::member<
+          &BoxCollider2DComponent::layer>("layer"),
+      RuntimeFieldBinding<BoxCollider2DComponent>::member<
+          &BoxCollider2DComponent::categoryBits>("category_bits"),
+      RuntimeFieldBinding<BoxCollider2DComponent>::member<
+          &BoxCollider2DComponent::maskBits>("mask_bits"),
+      RuntimeFieldBinding<BoxCollider2DComponent>::member<
+          &BoxCollider2DComponent::friction>("friction"),
+      RuntimeFieldBinding<BoxCollider2DComponent>::member<
+          &BoxCollider2DComponent::restitution>("restitution"),
+      RuntimeFieldBinding<BoxCollider2DComponent>::member<
+          &BoxCollider2DComponent::density>("density"),
+      RuntimeFieldBinding<BoxCollider2DComponent>::member<
+          &BoxCollider2DComponent::debugVisible>("debug_visible")};
 };
 
 } // namespace demi::runtime

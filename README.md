@@ -1,7 +1,8 @@
 # DemiEngine
 
 [Website](https://demiengine.de/) · [Free package catalog](https://demiengine.de/packages/) ·
-[Getting started](docs/getting-started.md) · [Editor guide](docs/editor.md) ·
+[Getting started](docs/getting-started.md) · [Engine concepts](docs/engine-concepts.md) ·
+[Editor guide](docs/editor.md) ·
 [Roadmap](plan.md)
 
 DemiEngine is a Linux-first C++20 game engine for deterministic, text-authored
@@ -15,6 +16,11 @@ Jolt physics, localized destruction, and a native scene editor. Android shares
 the runtime and authoring formats, with support qualified per feature and device.
 3D stays experimental for now and does not yet match a mature high-end 3D
 engine.
+
+This is an alpha/beta engine. APIs, package interfaces and file formats may
+change without backward compatibility; the examples and documentation are
+updated with them. Compatibility guarantees start with the first production
+release. See the [compatibility policy](docs/compatibility.md).
 
 ## What Works Today
 

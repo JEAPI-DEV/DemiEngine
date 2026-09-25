@@ -48,7 +48,7 @@ local NetworkSession = {}
 ---@field rotation? number
 ---@field scale? number[]
 ---@field color? number[]
----@param options {send_interval?: number, extrapolation_limit?: number, initial_prediction?: number, interpolation_delay?: number, snapshot_buffer?: integer, input_queue_capacity?: integer, input_future_window?: integer, input_head_of_line_timeout?: number, input_max_per_tick?: integer, prediction_history_limit?: integer, prediction_visual_decay?: number, query_history_capacity?: integer, query_history_max_entities?: integer, query_history_rewind_ticks?: integer, channel?: integer, port?: integer, max_peers?: integer, remote_prefab?: NetworkRemotePrefab, certificate?: string, private_key?: string, trusted_certificate?: string, server_name?: string}
+---@param options {send_interval?: number, extrapolation_limit?: number, initial_prediction?: number, interpolation_delay?: number, snapshot_buffer?: integer, input_queue_capacity?: integer, input_future_window?: integer, input_head_of_line_timeout?: number, input_max_per_tick?: integer, prediction_history_limit?: integer, prediction_visual_decay?: number, query_history_capacity?: integer, query_history_max_entities?: integer, query_history_rewind_ticks?: integer, port?: integer, max_peers?: integer, remote_prefab?: NetworkRemotePrefab, certificate?: string, private_key?: string, trusted_certificate?: string, server_name?: string}
 function NetworkSession.configure(options) end
 ---@return string
 function NetworkSession.sender_id() end
@@ -64,22 +64,6 @@ function NetworkSession.owner(network_id) end
 ---@param network_id string
 ---@return boolean
 function NetworkSession.has_authority(network_id) end
----@deprecated Use transfer with a declared network contract. Clients cannot change ownership.
----@param network_id string
----@param owner string
----@return boolean
-function NetworkSession.set_authority(network_id, owner) end
----@deprecated For networking, use NetworkSession.send with a declared message. Events.emit remains the supported local event bus.
----@param name string
----@param data? any
----@param reliable? boolean
----@return boolean
-function NetworkSession.emit(name, data, reliable) end
----@deprecated Use spawn with a prefab declared by the active network contract.
----@param entity_id string
----@param options? {network_id?: string, owner?: string}
----@return boolean
-function NetworkSession.register_entity(entity_id, options) end
 ---@param name string Declared contract message name.
 ---@param target? string Network entity target when required by the contract.
 ---@param data? any Payload validated against the declared schema.
@@ -100,11 +84,6 @@ function NetworkSession.network_id_for_owner(owner) end
 ---@param network_id string
 ---@return boolean
 function NetworkSession.despawn(network_id) end
----@param r number
----@param g number
----@param b number
----@param a? number
-function NetworkSession.set_local_color(r, g, b, a) end
 ---@param port? integer
 ---@return boolean
 function NetworkSession.host(port) end
@@ -119,28 +98,10 @@ function NetworkSession.is_connected() end
 function NetworkSession.start_session(metadata) end
 ---@return table|nil
 function NetworkSession.current_session() end
-function NetworkSession.reset_claims() end
 ---@param sender_id string
 ---@return number|nil x
 ---@return number|nil y
 function NetworkSession.remote_position(sender_id) end
----@param id string
----@param options? table
----@return boolean
-function NetworkSession.register_claim_once(id, options) end
----@param id string
----@param collector_id string
----@param broadcast? boolean
----@param claim? table
----@return boolean
-function NetworkSession.apply_claim_once(id, collector_id, broadcast, claim) end
----@param peer_id? integer
----@return boolean
-function NetworkSession.request_claim_once_sync(peer_id) end
----@param id string
----@param claim? table
----@return boolean
-function NetworkSession.try_claim_once(id, claim) end
 ---@return NetworkSessionUpdate
 function NetworkSession.process_events() end
 ---@param network_id string
@@ -158,7 +119,7 @@ function NetworkSession.bind_local_entity(network_id, entity_id) end
 ---@field network_id string Network entity the local peer owns and predicts.
 ---@field state table Serializable initial controller state; gameplay-defined.
 ---@field apply fun(state: table, input: table): table Deterministic replay callback returning the new state.
----@field input_message? string Declared contract message used to carry inputs to the server.
+---@field input_message string Declared contract message used to carry inputs to the server.
 ---@class NetworkSnapshotPublishOptions
 ---@field marker? "normal"|"teleport"|"reset" Correction marker; reset and teleport clear client history.
 ---@class NetworkPredictionServerDiagnostics
@@ -217,7 +178,7 @@ function NetworkSession.take_inputs(network_id) end
 ---@param options? NetworkSnapshotPublishOptions
 ---@return boolean
 function NetworkSession.publish_snapshot(network_id, state, options) end
----Enables opt-in local prediction for an owned entity. The apply callback
+---Enables opt-in local prediction for a contract entity owned by the connected client. The apply callback
 ---must be deterministic and define the replayable controller state.
 ---@param options NetworkPredictionOptions
 ---@return boolean

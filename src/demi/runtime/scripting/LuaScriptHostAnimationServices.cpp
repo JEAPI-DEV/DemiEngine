@@ -33,15 +33,7 @@ bool LuaScriptHost::playAnimationState(const std::string &entityId,
   auto *machine = entity == nullptr
                       ? nullptr
                       : entity->component<AnimationStateMachineComponent>();
-  if (machine == nullptr || !machine->states.contains(state))
-    return false;
-  if (machine->state == state)
-    return true;
-  machine->activeTransition = {};
-  machine->state = state;
-  machine->time = 0.0F;
-  machine->entered = true;
-  return true;
+  return machine != nullptr && machine->selectState(state);
 }
 
 bool LuaScriptHost::setAnimationParameter(const std::string &entityId,
@@ -242,7 +234,7 @@ LuaScriptHost::spriteAnimationClip(const std::string &entityId) const {
 
 bool LuaScriptHost::setSpriteFlip(const std::string &entityId, const bool flipX,
                                   const bool flipY) {
-  Entity *entity = world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  Entity *entity = lookupServiceEntity(entityId);
   auto *sprite =
       entity == nullptr ? nullptr : entity->component<SpriteComponent>();
   if (sprite == nullptr)
@@ -254,9 +246,7 @@ bool LuaScriptHost::setSpriteFlip(const std::string &entityId, const bool flipX,
 
 bool LuaScriptHost::setSpriteSize(const std::string &entityId,
                                   const float width, const float height) {
-  Entity *entity = world_ == nullptr ? nullptr : findEntity(*world_, entityId);
-  if (entity == nullptr)
-    entity = worldCommands_.pendingEntity(entityId);
+  Entity *entity = lookupServiceEntity(entityId);
   auto *sprite =
       entity == nullptr ? nullptr : entity->component<SpriteComponent>();
   if (sprite == nullptr || width < 0.0F || height < 0.0F)
@@ -267,7 +257,7 @@ bool LuaScriptHost::setSpriteSize(const std::string &entityId,
 
 bool LuaScriptHost::setSpriteLayer(const std::string &entityId,
                                    const std::string &layer) {
-  Entity *entity = world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  Entity *entity = lookupServiceEntity(entityId);
   auto *sprite =
       entity == nullptr ? nullptr : entity->component<SpriteComponent>();
   if (sprite == nullptr)
@@ -278,7 +268,7 @@ bool LuaScriptHost::setSpriteLayer(const std::string &entityId,
 
 bool LuaScriptHost::setSpriteSortingOrder(const std::string &entityId,
                                           const int sortingOrder) {
-  Entity *entity = world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  Entity *entity = lookupServiceEntity(entityId);
   auto *sprite =
       entity == nullptr ? nullptr : entity->component<SpriteComponent>();
   if (sprite == nullptr)
@@ -289,7 +279,7 @@ bool LuaScriptHost::setSpriteSortingOrder(const std::string &entityId,
 
 bool LuaScriptHost::setSpriteMaterial(const std::string &entityId,
                                       const std::string &material) {
-  Entity *entity = world_ == nullptr ? nullptr : findEntity(*world_, entityId);
+  Entity *entity = lookupServiceEntity(entityId);
   auto *sprite =
       entity == nullptr ? nullptr : entity->component<SpriteComponent>();
   if (sprite == nullptr)

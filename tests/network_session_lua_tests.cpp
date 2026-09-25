@@ -41,41 +41,25 @@ end
 function Probe:on_start()
   NetworkSession.configure({ port = 40000 })
 
-  local removed = false
-  local claimed_local = false
-  assert_true(NetworkSession.register_claim_once("coin", {
-    can_claim = function(object_id, collector_id, claim)
-      return object_id == "coin"
-        and collector_id == NetworkSession.sender_id()
-        and claim.x == 1.0
-        and claim.y == 2.0
-    end,
-    on_removed = function(object_id)
-      removed = object_id == "coin"
-    end,
-    on_claimed_local = function(object_id)
-      claimed_local = object_id == "coin"
-    end,
-  }), "claim-once registration failed")
-  assert_true(NetworkSession.apply_claim_once(
-    "coin", NetworkSession.sender_id(), true, { x = 1.0, y = 2.0 }
-  ), "valid local claim was rejected")
-  assert_true(removed and claimed_local, "claim callbacks were not invoked")
-  assert_true(not NetworkSession.try_claim_once("coin", { x = 1.0, y = 2.0 }),
-    "claimed object remained claimable")
-  NetworkSession.reset_claims()
-  assert_true(NetworkSession.register_claim_once("coin"),
-    "claim reset did not restore registration")
+  assert_true(NetworkSession.register_claim_once == nil
+    and NetworkSession.apply_claim_once == nil and NetworkSession.try_claim_once == nil
+    and NetworkSession.request_claim_once_sync == nil and NetworkSession.reset_claims == nil
+    and NetworkSession.set_local_color == nil, "non-contract helpers remain exposed")
+  assert_true(not NetworkSession.host() and not NetworkSession.connect(),
+    "session transport started without a contract")
 
-  assert_true(NetworkSession.register_entity("player", {
-    network_id = "player_client",
-  }), "replicated entity registration failed")
-  assert_true(NetworkSession.owner("player_client") == "client",
-    "entity owner was not recorded")
-  assert_true(NetworkSession.has_authority("player_client"),
-    "local entity did not grant local authority")
-  assert_true(NetworkSession.update_entity("player_client", 1.0),
-    "offline entity update should be a no-op success")
+  assert_true(NetworkSession.register_entity == nil
+    and NetworkSession.set_authority == nil and NetworkSession.emit == nil,
+    "retired pre-contract APIs remain exposed")
+  assert_true(NetworkSession.spawn("player", "player") == nil,
+    "entity spawn bypassed the required contract")
+  assert_true(not NetworkSession.transfer("player_client", "client"),
+    "ownership transfer bypassed the required contract")
+  assert_true(not NetworkSession.send("undeclared", nil, {}),
+    "undeclared network message was accepted")
+  assert_true(NetworkSession.owner("player_client") == nil
+    and not NetworkSession.has_authority("player_client"),
+    "an unknown entity granted authority")
 
   assert_true(not NetworkSession.enable_prediction({
     network_id = "player_client",
@@ -88,17 +72,15 @@ function Probe:on_start()
     port = 40000,
     prediction_history_limit = 8,
   })
-  assert_true(NetworkSession.enable_prediction({
+  assert_true(not NetworkSession.enable_prediction({
     network_id = "player_client",
     state = { x = 0.0 },
-    apply = function(state, input)
-      return { x = state.x + input.x }
-    end,
-  }), "explicit prediction configuration was rejected")
-  assert_true(NetworkSession.predict_input("player_client", { x = 2.0 }) == 1,
-    "predicted input sequence was not assigned")
-  assert_true(NetworkSession.prediction_state("player_client").x == 2.0,
-    "predicted input was not applied immediately")
+    apply = function(state, input) return { x = state.x + input.x } end,
+  }), "offline prediction bypassed contract ownership")
+  assert_true(NetworkSession.predict_input("player_client", { x = 2.0 }) == nil,
+    "unknown entity accepted predicted input")
+  assert_true(NetworkSession.prediction_state("player_client") == nil,
+    "unknown entity retained prediction state")
   local query_diagnostics = NetworkSession.query_history_diagnostics()
   assert_true(query_diagnostics.depth == 0 and query_diagnostics.latest_tick == 0,
     "query history diagnostics were not installed")

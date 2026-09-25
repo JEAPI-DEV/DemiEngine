@@ -28,6 +28,52 @@ AudioVoiceStealing parseVoiceStealing(const std::string &value) {
   return AudioVoiceStealing::Oldest;
 }
 } // namespace
+bool AudioSourceComponent::serializeField(const AudioSourceComponent &component,
+                                         std::string_view field,
+                                         nlohmann::json &out) {
+  if (field == "spatial") {
+    switch (component.spatialMode) {
+    case AudioSpatialMode::None:
+      out = "none";
+      return true;
+    case AudioSpatialMode::TwoDimensional:
+      out = "2d";
+      return true;
+    case AudioSpatialMode::ThreeDimensional:
+      out = "3d";
+      return true;
+    }
+  } else if (field == "attenuation") {
+    switch (component.attenuation) {
+    case AudioAttenuation::None:
+      out = "none";
+      return true;
+    case AudioAttenuation::Inverse:
+      out = "inverse";
+      return true;
+    case AudioAttenuation::Linear:
+      out = "linear";
+      return true;
+    case AudioAttenuation::Exponential:
+      out = "exponential";
+      return true;
+    }
+  } else if (field == "voice_stealing") {
+    switch (component.voiceStealing) {
+    case AudioVoiceStealing::Reject:
+      out = "reject";
+      return true;
+    case AudioVoiceStealing::Oldest:
+      out = "oldest";
+      return true;
+    case AudioVoiceStealing::Quietest:
+      out = "quietest";
+      return true;
+    }
+  }
+  return false;
+}
+
 void AudioSourceComponent::parse(const nlohmann::json &json, Entity &entity) {
   AudioSourceComponent component;
   component.clip = scene_loading::stringOr(json, "clip");

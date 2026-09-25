@@ -59,7 +59,7 @@ J compileEntityFractures(const std::filesystem::path &project,
   std::map<std::string,J> masonryRegions;
   for(const auto &source:authoredEntities) {
     const auto &c=source.at("components");
-    if(c.contains("Masonry3D") && c["Masonry3D"].value("models",J::object()).empty())
+    if (c.contains("Masonry3D"))
       masonryRegions.emplace(source.at("id").get<std::string>(),source);
   }
   std::map<std::string, std::size_t> indices;
@@ -315,10 +315,38 @@ J compileEntityFractures(const std::filesystem::path &project,
         require(bool(entity),error);
         localWorld.entities.push_back(std::move(*entity));
       }
+      J intactReferences = J::object();
       for (const auto &[region, templates] : deferred.items()) {
-        auto intact = intactSources.contains(region)
-                          ? intactSources.at(region)
-                          : masonryIntactVisual(masonryRegions.at(region));
+        J intact;
+        if (intactSources.contains(region)) {
+          intact = intactSources.at(region);
+        } else {
+          const auto &sourceRegion = masonryRegions.at(region);
+          const auto &settings = sourceRegion.at("components").at("Masonry3D");
+          const bool usesModels =
+              !settings.value("models", J::object()).empty();
+
+          if (usesModels) {
+            auto batches = buildIntactMasonryModelBatches(sourceRegion);
+            intact = std::move(batches.front());
+
+            for (std::size_t batchIndex = 1; batchIndex < batches.size();
+                 ++batchIndex) {
+              auto &batch = batches[batchIndex];
+              const std::string batchId = batch.at("id").get<std::string>();
+              require(!indices.contains(batchId),
+                      "Intact masonry batch ID collision: " + batchId);
+
+              if (!intactReferences.contains(region)) {
+                intactReferences[region] = J::array();
+              }
+              intactReferences[region].push_back(batchId);
+              output.push_back(std::move(batch));
+            }
+          } else {
+            intact = masonryIntactVisual(sourceRegion);
+          }
+        }
         const auto source =
             regionSources.contains(region) ? regionSources.at(region) : region;
         const auto local = std::ranges::find(
@@ -341,6 +369,9 @@ J compileEntityFractures(const std::filesystem::path &project,
       }
       output[rootIndex]["components"]["Destructible3D"]["deferred_visuals"] =
           std::move(deferred);
+      if (!intactReferences.empty())
+        output[rootIndex]["components"]["Destructible3D"]["intact_visuals"] =
+            std::move(intactReferences);
     }
   }
   std::erase_if(output.get_ref<J::array_t &>(), [&](const J &entity) {

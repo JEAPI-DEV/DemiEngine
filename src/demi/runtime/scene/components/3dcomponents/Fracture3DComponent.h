@@ -1,5 +1,6 @@
 #pragma once
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include <optional>
 #include <string>
 
@@ -56,7 +57,8 @@ struct Fracture3DComponent {
       ComponentFieldDescriptor::assetReference("interior_material"),
       ComponentFieldDescriptor{"debris_lifetime", ComponentFieldType::Number, false, true, {}, 0, true}.withHelp("Zero keeps physical rubble. Positive seconds makes detached chunks non-colliding and fades them before removal. Mixed chunks stay physical."),
       ComponentFieldDescriptor{"debris_fade", ComponentFieldType::Number, false, true, {}, 0, true}.withHelp("Fade duration at the end of debris lifetime, in seconds.")};
-  static constexpr ComponentEditorMetadata editor{"Physics 3D", "Fracture 3D"};
+  static constexpr ComponentEditorMetadata editor{"Physics 3D", "Fracture 3D",
+      "Density uses kg/m^3 of collider volume. Root mass overrides the total. Box collider requires Pieces=1 and a unit-box model scaled by MeshRenderer Size; it retains the detailed visual. Source collider requires convex geometry. Anchor Below uses assembly-local Y."};
   static void parse(const nlohmann::json &, Entity &);
   static nlohmann::json defaults();
   int pieces = 8;
@@ -67,5 +69,24 @@ struct Fracture3DComponent {
   std::array<float, 4> interiorColor{0.35F, 0.33F, 0.30F, 1};
   std::string interiorMaterial;
   float debrisLifetime=0, debrisFade=1;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<Fracture3DComponent>::member<
+          &Fracture3DComponent::collider>("collider"),
+      RuntimeFieldBinding<Fracture3DComponent>::member<
+          &Fracture3DComponent::pieces>("pieces"),
+      RuntimeFieldBinding<Fracture3DComponent>::member<
+          &Fracture3DComponent::bondHealth>("bond_health"),
+      RuntimeFieldBinding<Fracture3DComponent>::member<
+          &Fracture3DComponent::anchorBelow>("anchor_below"),
+      RuntimeFieldBinding<Fracture3DComponent>::member<
+          &Fracture3DComponent::density>("density"),
+      RuntimeFieldBinding<Fracture3DComponent>::member<
+          &Fracture3DComponent::interiorColor>("interior_color"),
+      RuntimeFieldBinding<Fracture3DComponent>::member<
+          &Fracture3DComponent::interiorMaterial>("interior_material"),
+      RuntimeFieldBinding<Fracture3DComponent>::member<
+          &Fracture3DComponent::debrisLifetime>("debris_lifetime"),
+      RuntimeFieldBinding<Fracture3DComponent>::member<
+          &Fracture3DComponent::debrisFade>("debris_fade")};
 };
 } // namespace demi::runtime

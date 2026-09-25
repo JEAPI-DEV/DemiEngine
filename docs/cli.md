@@ -10,7 +10,9 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
   Pass `--platform linux|linux_server|android` to also cross-check reachable
   project features and declared Android permissions against what the target
   platform's packaged runtime supports (see [Shipping](shipping.md)).
-- `demi schema export`: list schema files available in `schemas/`.
+- `demi schema export [output-path]`: write the component schema generated from
+  the runtime registry. Without a path, updates `schemas/components.schema.json`
+  in the engine source checkout.
 - `demi scene list <project>`: list scene references from a project file.
 - `demi scene inspect <scene>`: validate and summarize a scene file.
 - `demi scene diff <old> <new>`: print a deterministic structural scene diff.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <string>
@@ -29,6 +30,17 @@ struct IsoGridComponent {
   int height = 0;
   std::string defaultTexture;
   std::unordered_map<std::string, std::string> cellTextures;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<IsoGridComponent>::member<
+          &IsoGridComponent::cellSize>("cell_size"),
+      RuntimeFieldBinding<IsoGridComponent>::member<&IsoGridComponent::width>(
+          "width"),
+      RuntimeFieldBinding<IsoGridComponent>::member<&IsoGridComponent::height>(
+          "height"),
+      RuntimeFieldBinding<IsoGridComponent>::member<
+          &IsoGridComponent::defaultTexture>("default_texture"),
+      RuntimeFieldBinding<IsoGridComponent>::member<
+          &IsoGridComponent::cellTextures>("cell_textures")};
 };
 
 } // namespace demi::runtime

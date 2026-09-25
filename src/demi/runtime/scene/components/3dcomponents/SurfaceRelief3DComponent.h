@@ -1,5 +1,6 @@
 #pragma once
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 #include <string>
 namespace demi::runtime {
@@ -61,5 +62,24 @@ struct SurfaceRelief3DComponent {
   float depth = .012F, heightMin = .45F, heightMax = .9F;
   Vec2 uvOffset{}, uvScale{1, 1}, segments{24, 10};
   Vec2 tiles{1, 1}, atlasGrid{1, 1};
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<SurfaceRelief3DComponent>::member<
+          &SurfaceRelief3DComponent::heightMap>("height_map"),
+      RuntimeFieldBinding<SurfaceRelief3DComponent>::member<
+          &SurfaceRelief3DComponent::depth>("depth"),
+      RuntimeFieldBinding<SurfaceRelief3DComponent>::member<
+          &SurfaceRelief3DComponent::heightMin>("height_min"),
+      RuntimeFieldBinding<SurfaceRelief3DComponent>::member<
+          &SurfaceRelief3DComponent::heightMax>("height_max"),
+      RuntimeFieldBinding<SurfaceRelief3DComponent>::member<
+          &SurfaceRelief3DComponent::uvOffset>("uv_offset"),
+      RuntimeFieldBinding<SurfaceRelief3DComponent>::member<
+          &SurfaceRelief3DComponent::uvScale>("uv_scale"),
+      RuntimeFieldBinding<SurfaceRelief3DComponent>::member<
+          &SurfaceRelief3DComponent::segments>("segments"),
+      RuntimeFieldBinding<SurfaceRelief3DComponent>::member<
+          &SurfaceRelief3DComponent::tiles>("tiles"),
+      RuntimeFieldBinding<SurfaceRelief3DComponent>::member<
+          &SurfaceRelief3DComponent::atlasGrid>("atlas_grid")};
 };
 } // namespace demi::runtime

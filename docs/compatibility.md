@@ -1,47 +1,49 @@
 # Compatibility Policy
 
-This policy applies to project, scene, prefab, HUD, asset, and save formats and
-to public Lua APIs.
+DemiEngine is in alpha/beta development. There has not been a production release,
+and current development builds do not promise backward compatibility.
 
-## Versioned Data
+This policy covers public Lua APIs, package interfaces, and project, scene,
+prefab, HUD, asset and save formats.
 
-- Every durable document includes an integer `format_version`.
-- Version 1 is the current project, scene, HUD, asset, and save baseline unless
-  a schema states otherwise.
-- A reader must reject unsupported future versions with a structured
-  diagnostic; it must not guess.
-- A format change that alters meaning, removes a field, or changes defaults
-  requires a deterministic migration and round-trip tests.
-- Migrations operate on authored data explicitly. The editor may invoke them,
-  but must not silently keep an editor-only upgraded representation.
+## During alpha/beta
 
-## Deprecation Window
+Breaking changes are allowed when they improve the engine's design or usability.
+APIs, packages and fields may be renamed, replaced or removed without a
+deprecation window. Old destruction checkpoints and other development saves
+may require a reset.
 
-The current unreleased development migration to explicit Lua imports removes
-implicit engine globals and provides no compatibility facade. Import native
-services through `require("demi.<module>")`; see [the migration guide](lua-modules.md).
-This does not change authored JSON format versions.
+- Maintain one current way to use a feature. Do not add aliases, duplicate
+  loaders or compatibility branches solely to preserve development-era behavior.
+- Migrate the repository's examples, templates and package sources with the
+  implementation. Update schemas, Lua stubs, tests and documentation in the
+  same change.
+- Explain breaking changes and any required rebuild, reinstall or save reset.
+  A migration tool is optional when it saves useful work; it is not a release
+  requirement during this phase.
+- Do not silently delete saves or rewrite unrelated user data. Permission to
+  break compatibility is not permission to discard data.
 
-- Public formats and Lua APIs are deprecated for at least one minor release
-  before removal when a compatibility adapter is practical.
-- Deprecations must identify the replacement and intended removal version in
-  release notes and diagnostics.
-- Security flaws or data-corruption bugs may require immediate removal; that
-  exception must include a migration or recovery note.
+A version number on a development package does not make the engine stable.
+Package locks, content hashes and validation remain necessary for reproducible
+installs; they must not be bypassed to accommodate an API change.
 
-## Compatibility Guarantees
+## Format versions and errors
 
-- Patch releases preserve valid authored version-1 documents and public Lua
-  API behavior except for bug fixes.
-- Minor releases may add optional fields, components, and APIs with stable
-  defaults.
-- Major releases may remove deprecated behavior and advance format versions,
-  with checked-in migrations for supported source versions.
-- Unknown engine components are errors unless an explicitly registered
-  extension owns them. Gameplay data must live in declared serializable data,
-  `LuaScript.properties`, or saves; it must not disappear during loading.
+Durable documents still require `format_version`. Readers must reject
+unsupported versions and invalid data with clear diagnostics rather than guess
+or silently drop fields. Advance a format version when necessary to distinguish
+incompatible meanings of otherwise valid data.
 
-## Required Change Checklist
+Unknown engine components remain errors unless a registered extension owns them.
+Gameplay data belongs in declared serializable data, script properties or saves.
+Removing compatibility guarantees does not relax validation or data integrity.
 
-Any public format/API change updates its schema, documentation, migration or
-deprecation notice, Lua stubs when applicable, and focused regression tests.
+## First production release
+
+The first explicitly designated production release will establish the supported
+compatibility baseline. Before that release, define the guarantees for patches,
+the deprecation process and the migration policy for supported versions.
+
+Those guarantees will apply from that baseline onward. They will not require
+supporting every alpha/beta format or API retrospectively.

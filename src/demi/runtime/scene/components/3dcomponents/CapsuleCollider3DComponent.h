@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <string>
@@ -30,6 +31,20 @@ struct CapsuleCollider3DComponent {
   bool isTrigger = false;
   std::string layer;
   bool debugVisible = false;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<CapsuleCollider3DComponent>::memberWithDerived<
+          &CapsuleCollider3DComponent::radius,
+          &CapsuleCollider3DComponent::height>("radius"),
+      RuntimeFieldBinding<CapsuleCollider3DComponent>::member<
+          &CapsuleCollider3DComponent::height>("height"),
+      RuntimeFieldBinding<CapsuleCollider3DComponent>::member<
+          &CapsuleCollider3DComponent::offset>("offset"),
+      RuntimeFieldBinding<CapsuleCollider3DComponent>::member<
+          &CapsuleCollider3DComponent::isTrigger>("is_trigger"),
+      RuntimeFieldBinding<CapsuleCollider3DComponent>::member<
+          &CapsuleCollider3DComponent::layer>("layer"),
+      RuntimeFieldBinding<CapsuleCollider3DComponent>::member<
+          &CapsuleCollider3DComponent::debugVisible>("debug_visible")};
 };
 
 } // namespace demi::runtime

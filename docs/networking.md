@@ -6,8 +6,8 @@ CMake build directories retain cached values; reconfigure an older offline
 build with `-DDEMI_ENABLE_NETWORK=ON` and rebuild. Including the module does not
 open a listening port or connect automatically; hosting/connecting remains an
 explicit gameplay action.
-Games use `NetworkSession`; the lower-level `Network` service is reserved for
-transport tools. A multiplayer project should declare one validated network
+Games use `NetworkSession`; the lower-level `Network` service supports
+transport tools and explicitly game-owned protocols. A session project must declare one validated network
 contract so trust rules remain source data rather than Lua conventions.
 
 ```json
@@ -74,6 +74,11 @@ marked `replicated` by component reflection. The gateway checks the session
 epoch and current ownership generation, so delayed state from an old owner or
 a despawned entity cannot overwrite current state. Reliable spawn state is
 retained and replayed to late joiners before subsequent lifecycle operations.
+Publication pacing is native and tracked separately for each owned network ID;
+transfer, despawn, disconnect and reset discard that entity's timing state.
+Remote presentation samples the game clock relative to snapshot receipt time,
+so publishing additional local entities cannot advance remote extrapolation.
+Already-interpolated prediction samples receive no additional extrapolation.
 
 The shared policy vocabulary is deliberately small:
 
@@ -94,8 +99,8 @@ local Input = require("demi.input")
 local NetworkSession = require("demi.network.session")
 
 NetworkSession.send("move_intent", player_network_id, {
-  x = Input.action_value("move_x"),
-  y = Input.action_value("move_y"),
+  x = Input.value("move_x"),
+  y = Input.value("move_y"),
 })
 ```
 
@@ -107,12 +112,17 @@ bounded diagnostic counters.
 
 ## Lifecycle and reconnect foundations
 
-The engine lifecycle has explicit `closed`, `connected`, `authenticated`,
-`ready`, `active`, and `reconnecting` phases. Session reset revokes ownership,
-queued protocol state, counters, and reconnect leases before advancing the
-epoch. Reconnect leases are single-use, expire, and are bound to the session
-epoch plus every leased entity's ownership generation. A transfer, despawn, or
-reset therefore invalidates an older lease.
+The lifecycle primitives define `closed`, `connected`, `authenticated`,
+`ready`, `active`, and `reconnecting` phases. `NetworkSession` reset clears
+ownership, queued protocol/prediction state, publication timing and counters,
+and advances the epoch.
+
+Reconnect leases are tested standalone primitives: they are single-use,
+expire, and are bound to the session epoch plus every leased entity's ownership
+generation. Their tests cover invalidation after transfer, despawn and reset.
+`NetworkSessionProtocol` does not own a lease store or issue/consume leases;
+automatic reconnect and lease management are not integrated into the Lua
+session service.
 
 ## Predicted authoritative movement
 
@@ -149,6 +159,14 @@ NetworkSession.enable_prediction({
 ```
 
 `input_message` must be a declared owner-to-server `owned_entity` intent.
+Prediction requires an assigned client identity and an owned contract entity;
+offline/unknown-entity prediction is not a session compatibility mode.
+`NetworkSessionPrediction` owns input queues, snapshot publication, replay,
+interpolation, visual correction timing, and diagnostic events. Lua only adapts
+the gameplay state-transition callback. A failed callback disables prediction.
+The protocol invalidates this state on transfer, despawn, disconnect and reset,
+including interpolation buffers and server input queues.
+
 `predict_input` applies it immediately, assigns `seq`, stores the replayable
 input, and sends it through the normal contract gateway. The authoritative
 fixed tick consumes `take_inputs(network_id)` in sequence order and publishes
@@ -214,15 +232,31 @@ test runs predicted input and authoritative correction through deterministic
 loss, duplication, delay, reordering, and tick gaps, then verifies the final
 authority state against the accepted input log.
 
-## Legacy compatibility
+## Removed pre-contract APIs
 
-Projects without `network_contract` may temporarily use `register_entity`,
-`set_authority`, and `emit`. Contract projects reject those APIs so a game
-cannot accidentally bypass its declared policy. New multiplayer examples must
-use `spawn`, `transfer`, `send`, and contract-based replication.
+`register_entity`, `set_authority`, and `emit` have been removed from
+`demi.network.session`, including for projects without `network_contract`.
+Use `spawn`, `transfer`, `send`, and contract-based replication. Old generic
+event, entity replication, and authority-change packets are rejected.
 
-This deprecation applies only to `NetworkSession.emit`, which sent an
-undeclared generic event over the transport. The deprecation list is
+This removal applies only to `NetworkSession.emit`, which sent an
+undeclared generic event over the transport. The migration list is
 maintained in [legacy APIs](legacy-apis.md); `Events.emit` is not on it, since
 it is the in-process event bus for gameplay callbacks and does not use
 networking.
+
+The native `NetworkSessionProtocol` service owns contract packet acceptance,
+session lifecycle, ownership changes, and retained spawn state. Its ownership
+registry is read-only to adapters. Late joiners receive the handshake, session
+metadata, then retained spawns in stable network-ID order. Lua adapts scene
+operations and gameplay callbacks; it cannot directly mutate contract ownership.
+`NetworkSession.host` and `connect` now require a contract. Generic claim-once
+helpers, `reset_claims`, and the unused `set_local_color` setter are removed.
+Session dispatch rejects non-contract packets, including legacy transform and
+claim messages. `remote_position` remains a view of contract-replicated entities.
+
+The Android platformer and its dedicated lobby server use an explicitly
+game-owned protocol through `demi.network`: avatar updates and coin collection
+live in `examples/minimal_2d_android/scripts/network_replication.lua`. The
+dedicated server retains its custom admission/claim rules. This transport probe
+does not claim the authority guarantees of the engine's contract session.

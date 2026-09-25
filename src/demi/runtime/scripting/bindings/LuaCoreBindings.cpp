@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cmath>
 #include <cstdint>
 #include <iostream>
 #include <tuple>
@@ -40,55 +39,89 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
     return true;
   });
 
+  auto &gameplayInput = host.gameplayInput();
   sol::table input = lua.create_named_table("Input");
-  input.set_function("is_down", [&host](const std::string& key) { return host.isKeyDown(key); });
-  input.set_function("is_pressed", [&host](const std::string& key) { return host.isKeyPressed(key); });
-  input.set_function("is_released", [&host](const std::string& key) { return host.isKeyReleased(key); });
-  input.set_function("action_down", [&host](const std::string& action, sol::optional<int> player) { return host.isActionDown(action, player.value_or(-1)); });
-  input.set_function("action_pressed", [&host](const std::string& action, sol::optional<int> player) { return host.isActionPressed(action, player.value_or(-1)); });
-  input.set_function("action_released", [&host](const std::string& action, sol::optional<int> player) { return host.isActionReleased(action, player.value_or(-1)); });
-  input.set_function("action_value", [&host](const std::string& action, sol::optional<int> player) { return host.actionValue(action, player.value_or(-1)); });
-  input.set_function("action_vector", [&host](const std::string& action, sol::optional<int> player) {
-      const Vec2 value = host.actionVector(action, player.value_or(-1));
-      return std::tuple{value.x, value.y};
-    });
-  input.set_function("vector", [&host](const std::string& action, sol::optional<int> player) {
-      Vec2 value = host.actionVector(action, player.value_or(-1));
-      const float length = std::sqrt(value.x * value.x + value.y * value.y);
-      if (length > 1.0F && length > 0.0F) {
-        value.x /= length;
-        value.y /= length;
-      }
-      return std::tuple{value.x, value.y};
-    });
-  input.set_function("pressed", [&host](const std::string& action, sol::optional<int> player) { return host.isActionPressed(action, player.value_or(-1)); });
-  input.set_function("down", [&host](const std::string& action, sol::optional<int> player) { return host.isActionDown(action, player.value_or(-1)); });
-  input.set_function("value", [&host](const std::string& action, sol::optional<int> player) { return host.actionValue(action, player.value_or(-1)); });
-  input.set_function("action_source", [&host](const std::string& action, sol::optional<int> player) { return host.actionSource(action, player.value_or(-1)); });
-  input.set_function("enable_context", [&host](const std::string& context) { host.enableInputContext(context); });
-  input.set_function("disable_context", [&host](const std::string& context) { host.disableInputContext(context); });
-  input.set_function("context_enabled", [&host](const std::string& context) { return host.inputContextEnabled(context); });
-  input.set_function("rebind", [&host](const std::string& action, int binding, const std::string& control, sol::optional<int> player) {
-      std::string error;
-      const bool success =
-          binding > 0
-              ? host.rebindInput(action, static_cast<std::size_t>(binding - 1),
-                                 control, player.value_or(-1), error)
-              : false;
-      if (binding <= 0) error = "binding index must be one or greater";
-      return std::tuple{success, error};
-    });
-  input.set_function("save_bindings", [&host](const std::string& path) {
-      std::string error;
-      const bool success = host.saveInputBindings(path, error);
-      return std::tuple{success, error};
-    });
-  input.set_function("load_bindings", [&host](const std::string& path) {
-      std::string error;
-      const bool success = host.loadInputBindings(path, error);
-      return std::tuple{success, error};
-    });
-  input.set_function("assign_gamepad", [&host](int device, int player) { return host.assignGamepad(device, player); });
+  input.set_function("key_down", [&gameplayInput](const std::string &key) {
+    return gameplayInput.keyDown(key);
+  });
+  input.set_function("key_pressed", [&gameplayInput](const std::string &key) {
+    return gameplayInput.keyPressed(key);
+  });
+  input.set_function("key_released", [&gameplayInput](const std::string &key) {
+    return gameplayInput.keyReleased(key);
+  });
+  input.set_function("released", [&gameplayInput](const std::string &action,
+                                                  sol::optional<int> player) {
+    return gameplayInput.released(action, player.value_or(-1));
+  });
+  input.set_function("raw_vector", [&gameplayInput](const std::string &action,
+                                                    sol::optional<int> player) {
+    const Vec2 value = gameplayInput.rawVector(action, player.value_or(-1));
+    return std::tuple{value.x, value.y};
+  });
+  input.set_function("vector", [&gameplayInput](const std::string &action,
+                                                sol::optional<int> player) {
+    const Vec2 value = gameplayInput.vector(action, player.value_or(-1));
+    return std::tuple{value.x, value.y};
+  });
+  input.set_function("pressed", [&gameplayInput](const std::string &action,
+                                                 sol::optional<int> player) {
+    return gameplayInput.pressed(action, player.value_or(-1));
+  });
+  input.set_function("down", [&gameplayInput](const std::string &action,
+                                              sol::optional<int> player) {
+    return gameplayInput.down(action, player.value_or(-1));
+  });
+  input.set_function("value", [&gameplayInput](const std::string &action,
+                                               sol::optional<int> player) {
+    return gameplayInput.value(action, player.value_or(-1));
+  });
+  input.set_function("source", [&gameplayInput](const std::string &action,
+                                                sol::optional<int> player) {
+    return gameplayInput.source(action, player.value_or(-1));
+  });
+  input.set_function("enable_context",
+                     [&gameplayInput](const std::string &context) {
+                       gameplayInput.enableContext(context);
+                     });
+  input.set_function("disable_context",
+                     [&gameplayInput](const std::string &context) {
+                       gameplayInput.disableContext(context);
+                     });
+  input.set_function("context_enabled",
+                     [&gameplayInput](const std::string &context) {
+                       return gameplayInput.contextEnabled(context);
+                     });
+  input.set_function("rebind", [&gameplayInput](const std::string &action,
+                                                int binding,
+                                                const std::string &control,
+                                                sol::optional<int> player) {
+    std::string error;
+    if (binding <= 0) {
+      return std::tuple{false,
+                        std::string{"binding index must be one or greater"}};
+    }
+    const bool success =
+        gameplayInput.rebind(action, static_cast<std::size_t>(binding - 1),
+                             control, player.value_or(-1), error);
+    return std::tuple{success, error};
+  });
+  input.set_function(
+      "save_bindings", [&gameplayInput](const std::string &path) {
+        std::string error;
+        const bool success = gameplayInput.saveBindings(path, error);
+        return std::tuple{success, error};
+      });
+  input.set_function(
+      "load_bindings", [&gameplayInput](const std::string &path) {
+        std::string error;
+        const bool success = gameplayInput.loadBindings(path, error);
+        return std::tuple{success, error};
+      });
+  input.set_function("assign_gamepad",
+                     [&gameplayInput](int device, int player) {
+                       return gameplayInput.assignGamepad(device, player);
+                     });
   input.set_function("gamepad_count", [&host] {
       const InputState* state = host.inputState();
       return state == nullptr ? std::size_t{0} : state->gamepads.size();

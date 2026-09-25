@@ -1,5 +1,5 @@
-local LanguageFile = {}
-LanguageFile.__index = LanguageFile
+local Localization = {}
+Localization.__index = Localization
 
 local parsed_cache = {}
 
@@ -24,9 +24,9 @@ local function validate(document, asset_id)
   return { locale = document.locale, variables = variables }
 end
 
-function LanguageFile.new(options)
+function Localization.new(options)
   options = options or {}
-  local self = setmetatable({}, LanguageFile)
+  local self = setmetatable({}, Localization)
   self.assets = options.assets or require("demi.assets")
   self.data = options.data or require("demi.data")
   self.hud = options.hud or require("demi.hud")
@@ -39,14 +39,14 @@ function LanguageFile.new(options)
   return self
 end
 
-function LanguageFile:define(locale, asset_id)
+function Localization:define(locale, asset_id)
   assert(type(locale) == "string" and locale ~= "")
   assert(type(asset_id) == "string" and asset_id:match("^asset://"))
   self.languages[locale] = asset_id
   return self
 end
 
-function LanguageFile:_read(locale)
+function Localization:_read(locale)
   local asset_id = self.languages[locale]
   if not asset_id then return false, "Unknown language: " .. tostring(locale) end
   if parsed_cache[asset_id] then return true end
@@ -71,11 +71,11 @@ function LanguageFile:_read(locale)
   return false, "loading"
 end
 
-function LanguageFile:_ready(locale)
+function Localization:_ready(locale)
   return locale == nil or self:_read(locale)
 end
 
-function LanguageFile:_apply(locale)
+function Localization:_apply(locale)
   local selected_id = self.languages[locale]
   local selected = selected_id and parsed_cache[selected_id]
   if not selected then return false, "Language is not loaded: " .. locale end
@@ -100,7 +100,7 @@ function LanguageFile:_apply(locale)
   return true
 end
 
-function LanguageFile:use(locale)
+function Localization:use(locale)
   self.requested = locale
   local fallback_ready, fallback_error = self:_ready(self.fallback)
   if not fallback_ready and fallback_error ~= "loading" then
@@ -116,7 +116,7 @@ function LanguageFile:use(locale)
   return self:_apply(locale)
 end
 
-function LanguageFile:update()
+function Localization:update()
   for locale, request in pairs(self.pending) do
     local progress = self.assets.progress(request)
     if progress.stage == "failed" or progress.stage == "cancelled" then
@@ -142,13 +142,13 @@ function LanguageFile:update()
   return false, "loading"
 end
 
-function LanguageFile:get(locale, name)
+function Localization:get(locale, name)
   local asset_id = self.languages[locale]
   local language = asset_id and parsed_cache[asset_id]
   return language and language.variables[name] or nil
 end
 
-function LanguageFile:clear(locale)
+function Localization:clear(locale)
   if locale then
     local asset_id = self.languages[locale]
     if asset_id then parsed_cache[asset_id] = nil end
@@ -157,4 +157,4 @@ function LanguageFile:clear(locale)
   end
 end
 
-return LanguageFile
+return Localization

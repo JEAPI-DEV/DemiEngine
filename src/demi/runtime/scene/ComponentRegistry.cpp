@@ -6,9 +6,14 @@
 #include <cmath>
 #include <sstream>
 
+
 namespace demi::runtime::scene_loading {
 
 namespace {
+
+bool finiteNumber(const nlohmann::json &value) {
+  return value.is_number() && std::isfinite(value.get<double>());
+}
 
 constexpr std::array Descriptors{
 #include "demi/generated/ComponentDescriptors.inc"
@@ -63,7 +68,7 @@ bool matchesFieldType(const nlohmann::json &value,
             std::isfinite(value.get<double>()) &&
             std::trunc(value.get<double>()) == value.get<double>());
   case ComponentFieldType::Number:
-    return value.is_number();
+    return finiteNumber(value);
   case ComponentFieldType::String:
     return value.is_string();
   case ComponentFieldType::Object:
@@ -71,24 +76,22 @@ bool matchesFieldType(const nlohmann::json &value,
   case ComponentFieldType::Vec2:
     return value.is_array() && value.size() == 2 &&
            std::ranges::all_of(
-               value, [](const auto &item) { return item.is_number(); });
+               value, finiteNumber);
   case ComponentFieldType::Vec3:
     return value.is_array() && value.size() == 3 &&
            std::ranges::all_of(
-               value, [](const auto &item) { return item.is_number(); });
+               value, finiteNumber);
   case ComponentFieldType::Color:
     return value.is_array() && value.size() == 4 &&
            std::ranges::all_of(
-               value, [](const auto &item) { return item.is_number(); });
+               value, finiteNumber);
   case ComponentFieldType::Vec2Array:
   case ComponentFieldType::Vec3Array: {
     const std::size_t width = type == ComponentFieldType::Vec2Array ? 2U : 3U;
     return value.is_array() &&
            std::ranges::all_of(value, [width](const auto &item) {
              return item.is_array() && item.size() == width &&
-                    std::ranges::all_of(item, [](const auto &number) {
-                      return number.is_number();
-                    });
+                    std::ranges::all_of(item, finiteNumber);
            });
   }
   }
@@ -154,38 +157,16 @@ validateComponent(const ComponentDescriptor &descriptor,
   return errors;
 }
 
-nlohmann::json componentDefaults(const ComponentDescriptor &descriptor) {
+const nlohmann::json &componentDefaults(const ComponentDescriptor &descriptor) {
   return descriptor.defaults();
 }
 
 nlohmann::json componentFieldDefault(
     const ComponentDescriptor &descriptor,
     const ComponentFieldDescriptor &field) {
-  const nlohmann::json defaults = componentDefaults(descriptor);
+  const auto &defaults = componentDefaults(descriptor);
   if (const auto value = defaults.find(field.name); value != defaults.end())
     return *value;
-  switch (field.type) {
-  case ComponentFieldType::Boolean:
-    return false;
-  case ComponentFieldType::Integer:
-    return field.allowedIntegers.empty() ? 0 : field.allowedIntegers.front();
-  case ComponentFieldType::Number:
-    return 0.0;
-  case ComponentFieldType::String:
-    return field.allowedValues.empty() ? nlohmann::json("")
-                                       : nlohmann::json(field.allowedValues[0]);
-  case ComponentFieldType::Object:
-    return nlohmann::json::object();
-  case ComponentFieldType::Vec2:
-    return nlohmann::json::array({0.0, 0.0});
-  case ComponentFieldType::Vec3:
-    return nlohmann::json::array({0.0, 0.0, 0.0});
-  case ComponentFieldType::Color:
-    return nlohmann::json::array({1.0, 1.0, 1.0, 1.0});
-  case ComponentFieldType::Vec2Array:
-  case ComponentFieldType::Vec3Array:
-    return nlohmann::json::array();
-  }
   return nullptr;
 }
 
@@ -227,6 +208,9 @@ nlohmann::json componentSchema(const ComponentDescriptor &descriptor) {
   nlohmann::json schema = {{"type", "object"},
                            {"additionalProperties", false},
                            {"properties", nlohmann::json::object()}};
+  if (!descriptor.editor.help.empty()) {
+    schema["description"] = descriptor.editor.help;
+  }
   for (const ComponentFieldDescriptor &field : descriptor.fields) {
     nlohmann::json property;
     switch (field.type) {
@@ -281,18 +265,22 @@ nlohmann::json componentSchema(const ComponentDescriptor &descriptor) {
       property["x-demi-replicated"] = true;
     property["x-demi-lua-readable"] = field.luaReadable;
     property["x-demi-lua-writable"] =
-        field.luaWritable && !field.runtimeReadOnly;
+        field.luaWritable && !field.runtimeReadOnly && !field.restartRequired;
     if (field.nullable)
       property["x-demi-nullable"] = true;
     if (field.restartRequired)
       property["x-demi-restart-required"] = true;
     if (field.runtimeReadOnly)
       property["readOnly"] = true;
-    property["default"] = componentFieldDefault(descriptor, field);
+    const auto &defaults = componentDefaults(descriptor);
+    if (const auto value = defaults.find(field.name); value != defaults.end())
+      property["default"] = *value;
     property["x-demi-editor-label"] = componentFieldEditorLabel(field);
     property["x-demi-editor-step"] = componentFieldEditorStep(field);
     if (!field.editor.help.empty())
       property["x-demi-editor-help"] = field.editor.help;
+    if (field.editor.advanced)
+      property["x-demi-editor-advanced"] = true;
     if (componentFieldEditorReadOnly(field))
       property["x-demi-editor-read-only"] = true;
     if (!field.arrayElementSchema.empty())

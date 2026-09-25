@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <string>
@@ -27,6 +28,17 @@ struct ConvexCollider3DComponent {
   bool isTrigger = false;
   std::string layer;
   bool debugVisible = false;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<ConvexCollider3DComponent>::member<
+          &ConvexCollider3DComponent::points>("points"),
+      RuntimeFieldBinding<ConvexCollider3DComponent>::member<
+          &ConvexCollider3DComponent::offset>("offset"),
+      RuntimeFieldBinding<ConvexCollider3DComponent>::member<
+          &ConvexCollider3DComponent::isTrigger>("is_trigger"),
+      RuntimeFieldBinding<ConvexCollider3DComponent>::member<
+          &ConvexCollider3DComponent::layer>("layer"),
+      RuntimeFieldBinding<ConvexCollider3DComponent>::member<
+          &ConvexCollider3DComponent::debugVisible>("debug_visible")};
 };
 
 } // namespace demi::runtime

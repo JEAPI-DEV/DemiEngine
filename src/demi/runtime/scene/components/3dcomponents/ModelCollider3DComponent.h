@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include <memory>
 
 #include <string>
@@ -26,6 +27,15 @@ struct ModelCollider3DComponent {
   bool isTrigger = false;
   std::string layer;
   std::shared_ptr<const ColliderAsset3D> inlineGeometry{};
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<ModelCollider3DComponent>::member<
+          &ModelCollider3DComponent::asset>("asset"),
+      RuntimeFieldBinding<ModelCollider3DComponent>::member<
+          &ModelCollider3DComponent::inlineGeometry>("inline_geometry"),
+      RuntimeFieldBinding<ModelCollider3DComponent>::member<
+          &ModelCollider3DComponent::isTrigger>("is_trigger"),
+      RuntimeFieldBinding<ModelCollider3DComponent>::member<
+          &ModelCollider3DComponent::layer>("layer")};
 };
 
 } // namespace demi::runtime

@@ -513,6 +513,20 @@ component-specific branches to the generic inspector.
 - [x] Extend shared field metadata with editor label/help, reference kind,
   canonical default, read-only policy, restart requirement, and useful numeric
   step where those values are missing.
+
+  Canonical defaults are cached from parsing omitted optional fields and reading
+  native fields through shared bindings. Required keys may be seeded from
+  explicit component-owned defaults before parsing. Component-owned codecs
+  handle enums, compound properties, JSON-backed values and unit conversions.
+  Unsupported representations have no advertised schema default; an editor's
+  initial editing value is not a canonical default. Presence-sensitive sugar
+  and non-invertible sugar such as `SpriteAnimator2D.atlas` intentionally have no
+  advertised default. Empty `atlas={}` leaves clips empty; named atlas rows
+  generate clips, but the native clip map does not retain the atlas description.
+  The Inspector labels these omitted properties “not authored”; Author starts
+  an explicit editing scaffold. Optional `Camera2D` bounds likewise have no
+  advertised default because supplying both bounds enables camera clamping.
+
 - [x] Add asset/entity/prefab reference pickers backed by the shared resolver.
 - [x] Filter and group Add Component choices by metadata category/domain; show
   why an incompatible component cannot be added.

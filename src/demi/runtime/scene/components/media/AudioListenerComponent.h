@@ -1,5 +1,6 @@
 #pragma once
 #include "demi/runtime/scene/components/ComponentDefinition.h"
+#include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 namespace demi::runtime {
 struct AudioListenerComponent {
   static constexpr std::string_view typeName = "AudioListener";
@@ -10,5 +11,8 @@ struct AudioListenerComponent {
   static constexpr ComponentEditorMetadata editor{"Media", "Audio Listener"};
   static void parse(const nlohmann::json &json, Entity &entity);
   bool primary = true;
+  static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<AudioListenerComponent>::member<
+          &AudioListenerComponent::primary>("primary")};
 };
 } // namespace demi::runtime

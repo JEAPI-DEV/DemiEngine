@@ -9,6 +9,7 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <set>
 
 namespace {
 
@@ -88,13 +89,37 @@ int main() {
   assert(nlohmann::json::parse(unchangedInput)["name"] == "A \"Good\" Story");
 
   const fs::path dryDestination = root / "dry";
+  std::set<fs::path> expectedDryFiles{
+      dryDestination / ".luarc.json",
+      dryDestination / "demi.project.json",
+      dryDestination / "scenes/main.scene.json",
+      dryDestination / "scripts/main.lua",
+      dryDestination / "tests/smoke.replay.json",
+      dryDestination / ".demi/lua/demi/_components.lua"};
+  const fs::path stubRoot = sourceRoot / "scripts/stubs";
+  assert(fs::is_directory(stubRoot));
+  for (const auto &entry : fs::recursive_directory_iterator(stubRoot)) {
+    if (entry.is_regular_file() && entry.path().extension() == ".lua")
+      expectedDryFiles.insert(dryDestination / ".demi/lua" /
+                              entry.path().lexically_relative(stubRoot));
+  }
+  std::set<fs::path> entriesBeforeDryRun;
+  for (const auto &entry : fs::directory_iterator(root))
+    entriesBeforeDryRun.insert(entry.path());
   const auto dry = ProjectScaffolder{}.create({.projectTemplate = *item,
                                                .destination = dryDestination,
                                                .projectName = "Dry Run",
                                                .dryRun = true});
   assert(!dry.committed);
-  assert(dry.files.size() == 6);
+  assert(!demi::hasErrors(dry.diagnostics));
+  const std::set<fs::path> actualDryFiles(dry.files.begin(), dry.files.end());
+  assert(actualDryFiles == expectedDryFiles);
+  assert(dry.files.size() == actualDryFiles.size());
   assert(!fs::exists(dryDestination));
+  std::set<fs::path> entriesAfterDryRun;
+  for (const auto &entry : fs::directory_iterator(root))
+    entriesAfterDryRun.insert(entry.path());
+  assert(entriesAfterDryRun == entriesBeforeDryRun);
 
   const fs::path brokenRoot = root / "broken_catalog";
   write(brokenRoot / "bad/template.json",
