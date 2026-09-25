@@ -1,458 +1,315 @@
 #include "demi/runtime/network/HttpClient.h"
+#include "demi/runtime/network/HttpTransfer.h"
 
-#include <algorithm>
-#include <array>
-#include <cerrno>
-#include <charconv>
-#include <cctype>
-#include <cstring>
-#include <sstream>
-#include <string_view>
+#include <atomic>
+#include <deque>
+#include <mutex>
+#include <thread>
+#include <unordered_map>
 
-#include <fcntl.h>
-#include <netdb.h>
-#include <poll.h>
-#include <sys/socket.h>
-#include <unistd.h>
-
-#if DEMI_HAS_MBEDTLS
-#include <mbedtls/ctr_drbg.h>
-#include <mbedtls/entropy.h>
-#include <mbedtls/error.h>
-#include <mbedtls/net_sockets.h>
-#include <mbedtls/ssl.h>
+#if !defined(_WIN32)
+#include <pthread.h>
+#include <signal.h>
 #endif
 
 namespace demi::runtime {
-
 namespace {
 
-struct SocketHandle {
-  int fd = -1;
+struct WorkerWakeup {
+  std::mutex mutex;
+  CURLM* multi = nullptr;
 
-  ~SocketHandle() {
-    if (fd >= 0) {
-      close(fd);
+  void wake() {
+    // Serialize wakeup against cleanup, including handles outliving the client.
+    std::lock_guard lock(mutex);
+    if (multi) {
+      (void)curl_multi_wakeup(multi);
     }
   }
 };
 
-[[nodiscard]] bool setNonBlocking(const int fd, std::string& error) {
-  const int flags = fcntl(fd, F_GETFL, 0);
-  if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-    error = "failed to configure socket";
-    return false;
-  }
-  return true;
-}
-
-[[nodiscard]] int connectSocket(const ParsedUrl& url, const int timeoutMs, std::string& error) {
-  addrinfo hints{};
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_socktype = SOCK_STREAM;
-
-  addrinfo* results = nullptr;
-  const std::string port = std::to_string(url.port);
-  const int gai = getaddrinfo(url.host.c_str(), port.c_str(), &hints, &results);
-  if (gai != 0) {
-    error = gai_strerror(gai);
-    return -1;
-  }
-
-  for (addrinfo* item = results; item != nullptr; item = item->ai_next) {
-    SocketHandle socket{::socket(item->ai_family, item->ai_socktype, item->ai_protocol)};
-    if (socket.fd < 0 || !setNonBlocking(socket.fd, error)) {
-      continue;
-    }
-
-    const int result = ::connect(socket.fd, item->ai_addr, item->ai_addrlen);
-    if (result == 0 || errno == EINPROGRESS) {
-      pollfd pollItem{.fd = socket.fd, .events = POLLOUT, .revents = 0};
-      if (poll(&pollItem, 1, timeoutMs) > 0) {
-        int socketError = 0;
-        socklen_t length = sizeof(socketError);
-        if (getsockopt(socket.fd, SOL_SOCKET, SO_ERROR, &socketError, &length) == 0 && socketError == 0) {
-          const int fd = socket.fd;
-          socket.fd = -1;
-          freeaddrinfo(results);
-          return fd;
-        }
-      }
-    }
-  }
-
-  freeaddrinfo(results);
-  if (error.empty()) {
-    error = "connection failed";
-  }
-  return -1;
-}
-
-[[nodiscard]] bool sendAll(const int fd, const std::string& request, const int timeoutMs, std::string& error) {
-  std::size_t sent = 0;
-  while (sent < request.size()) {
-    pollfd pollItem{.fd = fd, .events = POLLOUT, .revents = 0};
-    if (poll(&pollItem, 1, timeoutMs) <= 0) {
-      error = "send timed out";
-      return false;
-    }
-    const ssize_t count = send(fd, request.data() + sent, request.size() - sent, 0);
-    if (count < 0) {
-      if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
-        continue;
-      }
-      error = "send failed";
-      return false;
-    }
-    sent += static_cast<std::size_t>(count);
-  }
-  return true;
-}
-
-[[nodiscard]] std::string readAll(const int fd, const int timeoutMs, std::string& error) {
-  std::string response;
-  std::array<char, 4096> buffer{};
-  while (true) {
-    pollfd pollItem{.fd = fd, .events = POLLIN, .revents = 0};
-    const int ready = poll(&pollItem, 1, timeoutMs);
-    if (ready == 0) {
-      error = "receive timed out";
-      return {};
-    }
-    if (ready < 0) {
-      if (errno == EINTR) {
-        continue;
-      }
-      error = "receive failed";
-      return {};
-    }
-    const ssize_t count = recv(fd, buffer.data(), buffer.size(), 0);
-    if (count == 0) {
-      break;
-    }
-    if (count < 0) {
-      if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
-        continue;
-      }
-      error = "receive failed";
-      return {};
-    }
-    response.append(buffer.data(), static_cast<std::size_t>(count));
-  }
-  return response;
-}
-
-[[nodiscard]] HttpResponse parseResponse(const std::string& raw) {
-  HttpResponse response;
-  const std::size_t headerEnd = raw.find("\r\n\r\n");
-  if (headerEnd == std::string::npos) {
-    response.error = "invalid HTTP response";
-    return response;
-  }
-
-  const std::string_view statusLine(raw.data(), raw.find("\r\n"));
-  const std::size_t firstSpace = statusLine.find(' ');
-  if (firstSpace != std::string_view::npos) {
-    const std::size_t secondSpace = statusLine.find(' ', firstSpace + 1);
-    const std::string_view statusText = statusLine.substr(firstSpace + 1, secondSpace - firstSpace - 1);
-    (void)std::from_chars(statusText.data(), statusText.data() + statusText.size(), response.status);
-  }
-  const std::string headers = raw.substr(0, headerEnd);
-  std::string lowerHeaders = headers;
-  std::ranges::transform(lowerHeaders, lowerHeaders.begin(), [](const unsigned char c) {
-    return static_cast<char>(std::tolower(c));
-  });
-  response.body = raw.substr(headerEnd + 4);
-  if (lowerHeaders.find("transfer-encoding: chunked") != std::string::npos) {
-    std::string decoded;
-    std::size_t offset = 0;
-    while (offset < response.body.size()) {
-      const std::size_t lineEnd = response.body.find("\r\n", offset);
-      if (lineEnd == std::string::npos) {
-        response.error = "invalid chunked HTTP response";
-        response.body.clear();
-        return response;
-      }
-      const std::string_view sizeText(response.body.data() + offset, lineEnd - offset);
-      std::size_t chunkSize = 0;
-      const auto [_, ec] = std::from_chars(sizeText.data(), sizeText.data() + sizeText.size(), chunkSize, 16);
-      if (ec != std::errc{}) {
-        response.error = "invalid HTTP chunk size";
-        response.body.clear();
-        return response;
-      }
-      offset = lineEnd + 2;
-      if (chunkSize == 0) {
-        break;
-      }
-      if (offset + chunkSize > response.body.size()) {
-        response.error = "truncated chunked HTTP response";
-        response.body.clear();
-        return response;
-      }
-      decoded.append(response.body.data() + offset, chunkSize);
-      offset += chunkSize + 2;
-    }
-    response.body = std::move(decoded);
-  }
-  response.ok = response.status >= 200 && response.status < 300;
-  return response;
-}
-
-[[nodiscard]] std::string tlsError(const int code) {
-#if DEMI_HAS_MBEDTLS
-  std::array<char, 160> buffer{};
-  mbedtls_strerror(code, buffer.data(), buffer.size());
-  return buffer.data();
-#else
-  (void)code;
-  return "TLS backend unavailable";
-#endif
-}
-
-[[nodiscard]] HttpResponse tlsRequest(const std::string& method, const ParsedUrl& url, const std::string& body) {
-  HttpResponse response;
-#if !DEMI_HAS_MBEDTLS
-  response.error = "TLS backend unavailable";
-  return response;
-#else
-  mbedtls_net_context server;
-  mbedtls_ssl_context ssl;
-  mbedtls_ssl_config conf;
-  mbedtls_ctr_drbg_context ctrDrbg;
-  mbedtls_entropy_context entropy;
-
-  mbedtls_net_init(&server);
-  mbedtls_ssl_init(&ssl);
-  mbedtls_ssl_config_init(&conf);
-  mbedtls_ctr_drbg_init(&ctrDrbg);
-  mbedtls_entropy_init(&entropy);
-
-  auto cleanup = [&] {
-    mbedtls_ssl_close_notify(&ssl);
-    mbedtls_net_free(&server);
-    mbedtls_ssl_free(&ssl);
-    mbedtls_ssl_config_free(&conf);
-    mbedtls_ctr_drbg_free(&ctrDrbg);
-    mbedtls_entropy_free(&entropy);
-  };
-
-  constexpr const char* Personalization = "demi-http-client";
-  int result = mbedtls_ctr_drbg_seed(&ctrDrbg, mbedtls_entropy_func, &entropy,
-                                     reinterpret_cast<const unsigned char*>(Personalization),
-                                     std::strlen(Personalization));
-  if (result != 0) {
-    response.error = tlsError(result);
-    cleanup();
-    return response;
-  }
-
-  result = mbedtls_net_connect(&server, url.host.c_str(), std::to_string(url.port).c_str(), MBEDTLS_NET_PROTO_TCP);
-  if (result != 0) {
-    response.error = tlsError(result);
-    cleanup();
-    return response;
-  }
-
-  result = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT);
-  if (result != 0) {
-    response.error = tlsError(result);
-    cleanup();
-    return response;
-  }
-  mbedtls_ssl_conf_authmode(&conf, MBEDTLS_SSL_VERIFY_NONE);
-  mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctrDrbg);
-
-  result = mbedtls_ssl_setup(&ssl, &conf);
-  if (result != 0) {
-    response.error = tlsError(result);
-    cleanup();
-    return response;
-  }
-  result = mbedtls_ssl_set_hostname(&ssl, url.host.c_str());
-  if (result != 0) {
-    response.error = tlsError(result);
-    cleanup();
-    return response;
-  }
-  mbedtls_ssl_set_bio(&ssl, &server, mbedtls_net_send, mbedtls_net_recv, nullptr);
-
-  while ((result = mbedtls_ssl_handshake(&ssl)) != 0) {
-    if (result != MBEDTLS_ERR_SSL_WANT_READ && result != MBEDTLS_ERR_SSL_WANT_WRITE) {
-      response.error = tlsError(result);
-      cleanup();
-      return response;
-    }
-  }
-
-  std::ostringstream request;
-  request << method << ' ' << url.path << " HTTP/1.1\r\n"
-          << "Host: " << url.host << "\r\n"
-          << "Connection: close\r\n"
-          << "User-Agent: DemiEngine/0.1\r\n";
-  if (method == "POST") {
-    request << "Content-Type: application/x-www-form-urlencoded\r\n"
-            << "Content-Length: " << body.size() << "\r\n";
-  }
-  request << "\r\n" << body;
-
-  const std::string text = request.str();
-  std::size_t written = 0;
-  while (written < text.size()) {
-    result = mbedtls_ssl_write(&ssl, reinterpret_cast<const unsigned char*>(text.data() + written), text.size() - written);
-    if (result == MBEDTLS_ERR_SSL_WANT_READ || result == MBEDTLS_ERR_SSL_WANT_WRITE) {
-      continue;
-    }
-    if (result <= 0) {
-      response.error = tlsError(result);
-      cleanup();
-      return response;
-    }
-    written += static_cast<std::size_t>(result);
-  }
-
-  std::string raw;
-  std::array<unsigned char, 4096> buffer{};
-  while (true) {
-    result = mbedtls_ssl_read(&ssl, buffer.data(), buffer.size());
-    if (result == MBEDTLS_ERR_SSL_WANT_READ || result == MBEDTLS_ERR_SSL_WANT_WRITE) {
-      continue;
-    }
-    if (result == 0 || result == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
-      break;
-    }
-    if (result < 0) {
-      response.error = tlsError(result);
-      cleanup();
-      return response;
-    }
-    raw.append(reinterpret_cast<const char*>(buffer.data()), static_cast<std::size_t>(result));
-  }
-
-  cleanup();
-  return parseResponse(raw);
-#endif
-}
-
-[[nodiscard]] HttpResponse request(const std::string& method, const std::string& urlText, const std::string& body, const int timeoutMs) {
-  ParsedUrl url;
-  HttpResponse response;
-  if (!parseHttpUrl(urlText, url, response.error)) {
-    return response;
-  }
-  if (url.scheme == "https") {
-    (void)timeoutMs;
-    return tlsRequest(method, url, body);
-  }
-
-  SocketHandle socket{connectSocket(url, timeoutMs, response.error)};
-  if (socket.fd < 0) {
-    return response;
-  }
-
-  std::ostringstream request;
-  request << method << ' ' << url.path << " HTTP/1.1\r\n"
-          << "Host: " << url.host << "\r\n"
-          << "Connection: close\r\n"
-          << "User-Agent: DemiEngine/0.1\r\n";
-  if (method == "POST") {
-    request << "Content-Type: application/x-www-form-urlencoded\r\n"
-            << "Content-Length: " << body.size() << "\r\n";
-  }
-  request << "\r\n" << body;
-
-  if (!sendAll(socket.fd, request.str(), timeoutMs, response.error)) {
-    return response;
-  }
-  const std::string raw = readAll(socket.fd, timeoutMs, response.error);
-  if (!response.error.empty()) {
-    return response;
-  }
-  return parseResponse(raw);
+HttpResponse cancelledResponse() {
+  return http::failure("cancelled", "HTTP request cancelled");
 }
 
 } // namespace
 
-std::string urlEncode(const std::string& value) {
-  std::ostringstream output;
-  output.fill('0');
-  output << std::hex << std::uppercase;
-  for (const unsigned char c : value) {
-    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '~') {
-      output << static_cast<char>(c);
-    } else if (c == ' ') {
-      output << '+';
-    } else {
-      output << '%' << static_cast<int>(c >> 4) << static_cast<int>(c & 15);
+struct HttpOperation::Impl {
+  mutable std::mutex mutex;
+  std::optional<HttpResponse> result;
+  std::atomic<bool> cancelled = false;
+  std::weak_ptr<WorkerWakeup> wakeup;
+
+  void complete(HttpResponse response) {
+    std::lock_guard lock(mutex);
+    if (!result) {
+      result = std::move(response);
     }
   }
-  return output.str();
+};
+
+HttpOperation::HttpOperation(std::shared_ptr<Impl> impl) : impl_(std::move(impl)) {}
+HttpOperation::~HttpOperation() = default;
+
+bool HttpOperation::done() const {
+  std::lock_guard lock(impl_->mutex);
+  return impl_->result.has_value();
 }
 
-std::string formEncode(const std::map<std::string, std::string>& fields) {
-  std::string body;
-  for (const auto& [key, value] : fields) {
-    if (!body.empty()) {
-      body += '&';
+std::optional<HttpResponse> HttpOperation::response() const {
+  std::lock_guard lock(impl_->mutex);
+  return impl_->result;
+}
+
+void HttpOperation::cancel() {
+  {
+    std::lock_guard lock(impl_->mutex);
+    if (impl_->result) {
+      return;
     }
-    body += urlEncode(key);
-    body += '=';
-    body += urlEncode(value);
+    impl_->cancelled.store(true, std::memory_order_relaxed);
+    impl_->result = cancelledResponse();
   }
-  return body;
+  if (const auto wakeup = impl_->wakeup.lock()) {
+    wakeup->wake();
+  }
 }
 
-bool parseHttpUrl(const std::string& url, ParsedUrl& parsed, std::string& error) {
-  constexpr std::string_view httpPrefix = "http://";
-  constexpr std::string_view httpsPrefix = "https://";
-  parsed = ParsedUrl{};
-  std::size_t prefixSize = httpPrefix.size();
-  if (url.starts_with(httpsPrefix)) {
-    prefixSize = httpsPrefix.size();
-    parsed.scheme = "https";
-    parsed.port = 443;
-  } else if (url.starts_with(httpPrefix)) {
-    parsed.scheme = "http";
-    parsed.port = 80;
-  } else {
-    error = "URL must start with http:// or https://";
-    return false;
-  }
+struct HttpClient::Impl {
+  struct Pending {
+    HttpRequest request;
+    std::shared_ptr<HttpOperation::Impl> operation;
+  };
+  struct Active {
+    std::shared_ptr<HttpOperation::Impl> operation;
+    std::unique_ptr<http::Transfer> transfer;
+  };
 
-  std::string remainder = url.substr(prefixSize);
-  const std::size_t pathStart = remainder.find('/');
-  std::string hostPort = pathStart == std::string::npos ? remainder : remainder.substr(0, pathStart);
-  parsed.path = pathStart == std::string::npos ? "/" : remainder.substr(pathStart);
-  if (hostPort.empty()) {
-    error = "URL host is empty";
-    return false;
-  }
+  std::shared_ptr<const http::CurlRuntime> runtime;
+  std::shared_ptr<WorkerWakeup> wakeup = std::make_shared<WorkerWakeup>();
+  std::mutex mutex;
+  std::mutex shutdownMutex;
+  std::deque<Pending> pending;
+  std::atomic<bool> stopping = false;
+  std::thread worker;
+  CURLM* multi = nullptr;
+  // Worker-owned after startup. The caller only publishes pending requests.
+  std::unordered_map<CURL*, Active> active;
 
-  const std::size_t colon = hostPort.rfind(':');
-  parsed.host = colon == std::string::npos ? hostPort : hostPort.substr(0, colon);
-  if (colon != std::string::npos) {
-    int port = 0;
-    const std::string_view portText(hostPort.data() + colon + 1, hostPort.size() - colon - 1);
-    const auto [_, ec] = std::from_chars(portText.data(), portText.data() + portText.size(), port);
-    if (ec != std::errc{} || port <= 0 || port > 65535) {
-      error = "URL port is invalid";
+  bool start(std::string& error) {
+    if (worker.joinable()) {
+      return true;
+    }
+    multi = curl_multi_init();
+    if (!multi) {
+      error = "HTTP worker initialization failed";
       return false;
     }
-    parsed.port = static_cast<std::uint16_t>(port);
+    {
+      std::lock_guard lock(wakeup->mutex);
+      wakeup->multi = multi;
+    }
+    try {
+      worker = std::thread([this] {
+        run();
+      });
+      return true;
+    } catch (...) {
+      cleanupMulti();
+      error = "HTTP worker could not start";
+      return false;
+    }
   }
-  if (parsed.host.empty()) {
-    error = "URL host is empty";
-    return false;
+
+  void cleanupMulti() {
+    std::lock_guard lock(wakeup->mutex);
+    wakeup->multi = nullptr;
+    if (multi) {
+      curl_multi_cleanup(multi);
+    }
+    multi = nullptr;
   }
-  return true;
+
+  void admitPending() {
+    // Pop individually so shutdown can interrupt even a large submission queue.
+    // Snapshot its length so continuous submissions cannot starve active work.
+    std::size_t count;
+    {
+      std::lock_guard lock(mutex);
+      count = pending.size();
+    }
+    while (count-- && !stopping.load(std::memory_order_relaxed)) {
+      Pending item;
+      {
+        std::lock_guard lock(mutex);
+        if (pending.empty()) {
+          break;
+        }
+        item = std::move(pending.front());
+        pending.pop_front();
+      }
+      if (item.operation->cancelled.load(std::memory_order_relaxed)) {
+        continue;
+      }
+      // Retain operation ownership through allocation/configuration failures.
+      try {
+        auto transfer = std::make_unique<http::Transfer>(std::move(item.request), item.operation->cancelled, stopping);
+        const auto result = transfer->configure();
+        if (result != CURLE_OK) {
+          item.operation->complete(transfer->finish(result));
+          continue;
+        }
+        auto* easy = transfer->handle();
+        active.emplace(easy, Active{item.operation, std::move(transfer)});
+        if (curl_multi_add_handle(multi, easy) != CURLM_OK) {
+          item.operation->complete(http::failure("internal", "HTTP transfer could not start"));
+          active.erase(easy);
+        }
+      } catch (...) {
+        item.operation->complete(http::failure("internal", "HTTP transfer storage failed"));
+      }
+    }
+  }
+
+  void removeCancelled() {
+    for (auto it = active.begin(); it != active.end();) {
+      if (!it->second.operation->cancelled.load(std::memory_order_relaxed)) {
+        ++it;
+        continue;
+      }
+      (void)curl_multi_remove_handle(multi, it->first);
+      it = active.erase(it);
+    }
+  }
+
+  void collectCompleted() {
+    int remaining = 0;
+    while (auto* message = curl_multi_info_read(multi, &remaining)) {
+      if (message->msg != CURLMSG_DONE) {
+        continue;
+      }
+      const auto it = active.find(message->easy_handle);
+      if (it == active.end()) {
+        continue;
+      }
+      auto response = it->second.transfer->finish(message->data.result);
+      (void)curl_multi_remove_handle(multi, message->easy_handle);
+      it->second.operation->complete(std::move(response));
+      active.erase(it);
+    }
+  }
+
+  void finishPending(const bool failed) {
+    std::deque<Pending> queued;
+    {
+      std::lock_guard lock(mutex);
+      stopping.store(true, std::memory_order_relaxed);
+      queued.swap(pending);
+    }
+    const auto response = [failed] {
+      return failed ? http::failure("internal", "HTTP worker failed") : cancelledResponse();
+    };
+    for (auto& item : queued) {
+      item.operation->complete(response());
+    }
+    for (auto& [easy, item] : active) {
+      (void)curl_multi_remove_handle(multi, easy);
+      item.operation->complete(response());
+    }
+    active.clear();
+  }
+
+  void run() {
+    bool failed = false;
+#if !defined(_WIN32)
+    // NOSIGNAL avoids process-wide signal-handler races. Blocking SIGPIPE only
+    // on this dedicated thread also covers TLS backend write corner cases.
+    sigset_t signals;
+    sigemptyset(&signals);
+    sigaddset(&signals, SIGPIPE);
+    failed = pthread_sigmask(SIG_BLOCK, &signals, nullptr) != 0;
+#endif
+    try {
+      while (!failed && !stopping.load(std::memory_order_relaxed)) {
+        admitPending();
+        removeCancelled();
+        if (stopping.load(std::memory_order_relaxed)) {
+          break;
+        }
+        int running = 0;
+        if (curl_multi_perform(multi, &running) != CURLM_OK) {
+          failed = true;
+          break;
+        }
+        collectCompleted();
+        // wakeup interrupts idle and active waits. The short fallback also
+        // bounds responsiveness if the OS wakeup mechanism itself fails.
+        if (curl_multi_poll(multi, nullptr, 0, 100, nullptr) != CURLM_OK) {
+          failed = true;
+        }
+      }
+    } catch (...) {
+      failed = true;
+    }
+    finishPending(failed);
+    cleanupMulti();
+  }
+
+  void shutdown() {
+    // Concurrent callers may request shutdown, but only one can join.
+    std::lock_guard shutdownLock(shutdownMutex);
+    {
+      std::lock_guard lock(mutex);
+      stopping.store(true, std::memory_order_relaxed);
+    }
+    wakeup->wake();
+    if (worker.joinable()) {
+      worker.join();
+    }
+  }
+};
+
+HttpClient::HttpClient() : impl_(std::make_unique<Impl>()) {}
+HttpClient::~HttpClient() {
+  shutdown();
 }
 
-HttpResponse httpGet(const std::string& url, const int timeoutMs) {
-  return request("GET", url, {}, timeoutMs);
+std::shared_ptr<HttpOperation> HttpClient::request(HttpRequest request, std::string& error) {
+  error.clear();
+  try {
+    const auto runtime = http::CurlRuntime::acquire();
+    if (!runtime->error().empty()) {
+      error = runtime->error();
+      return nullptr;
+    }
+    if (!http::validate(request, error)) {
+      return nullptr;
+    }
+    auto state = std::make_shared<HttpOperation::Impl>();
+    state->wakeup = impl_->wakeup;
+    const std::shared_ptr<HttpOperation> operation(new HttpOperation(state));
+    {
+      std::lock_guard lock(impl_->mutex);
+      if (impl_->stopping.load(std::memory_order_relaxed)) {
+        error = "HTTP client is shut down";
+        return nullptr;
+      }
+      impl_->runtime = runtime;
+      if (!impl_->start(error)) {
+        return nullptr;
+      }
+      impl_->pending.push_back({std::move(request), std::move(state)});
+    }
+    impl_->wakeup->wake();
+    return operation;
+  } catch (...) {
+    error = "HTTP request submission failed";
+    return nullptr;
+  }
 }
 
-HttpResponse httpPostForm(const std::string& url, const std::map<std::string, std::string>& fields, const int timeoutMs) {
-  return request("POST", url, formEncode(fields), timeoutMs);
+void HttpClient::shutdown() {
+  impl_->shutdown();
 }
 
 } // namespace demi::runtime

@@ -25,6 +25,28 @@ std::optional<Vec3> vec3(const nlohmann::json &document, const char *key) {
               .z = (*value)[2].get<float>()};
 }
 
+bool finite(const Vec3 value) {
+  return std::isfinite(value.x) && std::isfinite(value.y) &&
+         std::isfinite(value.z);
+}
+
+bool nondegenerateTriangle(const Vec3 a, const Vec3 b, const Vec3 c) {
+  if (!finite(a) || !finite(b) || !finite(c))
+    return false;
+  const double abx = double(b.x) - a.x;
+  const double aby = double(b.y) - a.y;
+  const double abz = double(b.z) - a.z;
+  const double acx = double(c.x) - a.x;
+  const double acy = double(c.y) - a.y;
+  const double acz = double(c.z) - a.z;
+  const double crossX = aby * acz - abz * acy;
+  const double crossY = abz * acx - abx * acz;
+  const double crossZ = abx * acy - aby * acx;
+  const double areaSquared =
+      crossX * crossX + crossY * crossY + crossZ * crossZ;
+  return std::isfinite(areaSquared) && areaSquared > 0.0;
+}
+
 } // namespace
 
 ColliderAsset3D colliderAssetFromShape3D(const assets::ColliderShapeAsset &source) {
@@ -69,13 +91,19 @@ std::optional<ColliderAsset3D> loadColliderAsset3D(const AssetManifest &asset,
     const auto offset = vec3(document, "offset").value_or(Vec3{});
     const float detail = document.value("detail", 0.0F);
     const std::string shape = document.value("shape", "");
-    if (document.value("format_version", 0) != 1 ||
-        (shape != "box" && shape != "triangle_mesh") || !size ||
-        size->x <= 0.0F || size->y <= 0.0F || size->z <= 0.0F ||
-        !std::isfinite(detail) || detail < 0.0F || detail > 1.0F) {
-      error = "Collider asset must define format_version 1 and a positive "
-              "box size: " +
-              asset.manifestPath.string();
+    const bool commonValid =
+        document.value("format_version", 0) == 1 && size && finite(*size) &&
+        finite(offset) && std::isfinite(detail) && detail >= 0.0F &&
+        detail <= 1.0F;
+    const bool boxValid =
+        shape == "box" && detail == 0.0F && size && size->x > 0.0F &&
+        size->y > 0.0F && size->z > 0.0F;
+    const bool meshValid =
+        shape == "triangle_mesh" && detail > 0.0F && size &&
+        size->x >= 0.0F && size->y >= 0.0F && size->z >= 0.0F;
+    if (!commonValid || (!boxValid && !meshValid)) {
+      error = "Collider asset must define format_version 1 and valid "
+              "shape-specific bounds/detail: " + asset.manifestPath.string();
       return std::nullopt;
     }
     ColliderAsset3D collider{.size = *size,
@@ -105,6 +133,11 @@ std::optional<ColliderAsset3D> loadColliderAsset3D(const AssetManifest &asset,
                 asset.id + ": " + geometryError;
         return std::nullopt;
       }
+      if (geometry->indices.empty() || geometry->indices.size() % 3U != 0U) {
+        error = "Triangle collider geometry requires complete triangles: " +
+                asset.id;
+        return std::nullopt;
+      }
       const std::size_t total = geometry->indices.size() / 3U;
       const std::size_t count =
           detail >= 1.0F
@@ -114,13 +147,20 @@ std::optional<ColliderAsset3D> loadColliderAsset3D(const AssetManifest &asset,
       collider.triangles.reserve(count);
       for (std::size_t index = 0; index < count; ++index) {
         const std::size_t triangle = index * total / count;
-        const auto position = [&](const std::size_t corner) {
-          const std::uint32_t vertex =
-              geometry->indices[triangle * 3U + corner];
-          return vertex < positions.size() ? positions[vertex] : Vec3{};
-        };
-        collider.triangles.push_back(
-            {.a = position(0), .b = position(1), .c = position(2)});
+        const std::uint32_t first = geometry->indices[triangle * 3U];
+        const std::uint32_t second = geometry->indices[triangle * 3U + 1U];
+        const std::uint32_t third = geometry->indices[triangle * 3U + 2U];
+        if (first >= positions.size() || second >= positions.size() ||
+            third >= positions.size() ||
+            !nondegenerateTriangle(positions[first], positions[second],
+                                   positions[third])) {
+          error = "Triangle collider geometry contains invalid or degenerate "
+                  "triangles: " + asset.id;
+          return std::nullopt;
+        }
+        collider.triangles.push_back({.a = positions[first],
+                                      .b = positions[second],
+                                      .c = positions[third]});
       }
     }
     return collider;

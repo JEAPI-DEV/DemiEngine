@@ -27,6 +27,10 @@ bool writeFile(const std::filesystem::path &path, const char *contents) {
 
 bool initializePendingEntities(LuaScriptHost &host, World &world,
                                const std::filesystem::path &projectDirectory) {
+  if (!writeFile(projectDirectory / "demi.project.json",
+                 R"json({"format_version":1,"id":"project://lua_scripting_tests"})json")) {
+    return false;
+  }
   if (!writeFile(projectDirectory / "prefabs/pending_probe.prefab.json",
                  R"json({
     "format_version": 1,
@@ -164,6 +168,7 @@ local Sprite2D = require("demi.sprite2d")
 local Transform2D = require("demi.transform2d")
 local Transform3D = require("demi.transform3d")
 local Prefab = require("demi.prefab")
+local Http = require("demi.network.http")
 local Random = require("demi.math.random")
 local Events = require("demi.events")
 local Hud = require("demi.hud")
@@ -399,13 +404,13 @@ function Probe:on_start()
   if Application.platform() == "linux" then
     Save.set_string("test", "runtime_platform", "linux")
   end
-  local http_probe = Network.http_get("ftp://simplehardware.net/lobby.php")
-  if http_probe and http_probe.ok == false and http_probe.status == 0 and string.find(http_probe.error, "URL") then
+  local http_probe, http_error = Http.get("ftp://example.invalid/probe")
+  if http_probe == nil and type(http_error) == "string" and #http_error > 0 then
     Save.set_string("test", "network_http_probe", "passed")
   end
-  local lobby_probe = Network.lobby_list("ftp://simplehardware.net/lobby.php", "minimal_2d_android")
-  if lobby_probe and lobby_probe.ok == false and lobby_probe.status == 0 and string.find(lobby_probe.error, "URL") then
-    Save.set_string("test", "network_lobby_probe", "passed")
+  local invalid, invalid_error = Http.request({url = "https://example.invalid", json = {}, body = "duplicate"})
+  if invalid == nil and type(invalid_error) == "string" then
+    Save.set_string("test", "http_options_probe", "passed")
   end
   Application.set_max_fps(144)
   if Application.max_fps() == 144 then
@@ -872,13 +877,12 @@ return PropProbe
     return 1;
   }
   if (host.saveString("test", "network_http_probe") != "passed") {
-    std::cerr << "Network Lua HTTP API did not return the expected unsupported "
-                 "TLS error.\n";
+    std::cerr << "HTTP Lua API did not reject an unsupported URL scheme.\n";
     return 1;
   }
-  if (host.saveString("test", "network_lobby_probe") != "passed") {
+  if (host.saveString("test", "http_options_probe") != "passed") {
     std::cerr
-        << "Network Lua lobby API did not share HTTP validation behavior.\n";
+        << "HTTP Lua API did not reject conflicting request body options.\n";
     return 1;
   }
   if (host.saveString("test", "script_event") != "script") {

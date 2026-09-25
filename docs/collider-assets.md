@@ -34,6 +34,17 @@ demi asset reimport path/to/game/assets/colliders/barrel/barrel.collider.asset.j
 
 ## Attaching a collider
 
+For imported glTF/GLB models, select the `Model3D` asset in the editor and use
+**Generate Collider Asset...**. The shared generator offers body recommendations
+and geometry detail. Static/trigger triangle meshes can represent planar surfaces;
+the bounding-box option needs positive extent on all three axes. A flat source
+does not receive an invented thickness. Existing generated assets require an
+explicit replacement confirmation, with a conflict check before writing.
+
+Choose **Collider Asset 3D** in Add Component, then choose its collider asset.
+The reference and component are added together as one undoable change. The CLI
+equivalent is `demi asset collider`; use `--replace` to replace a generated asset.
+
 Prepared fracture prefabs may embed `ModelCollider3D.inline_geometry` instead of
 an `asset` reference. It uses this same compound format/parser, including
 `format_version`. Do not supply both sources. The normal workflow remains asset

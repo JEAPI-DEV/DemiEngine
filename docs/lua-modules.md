@@ -25,7 +25,7 @@ snake_case where needed and keep dimensional suffixes together:
 
 | Domain | Modules |
 | --- | --- |
-| Networking | `demi.network`, `demi.network.session`, `demi.network.tls.client`, `demi.network.tls.server`, `demi.network.crypto` |
+| Networking | `demi.network`, `demi.network.session`, `demi.network.http`, `demi.network.tls.client`, `demi.network.tls.server`, `demi.network.crypto` |
 | Audio | `demi.audio`, `demi.audio.source` |
 | Physics | `demi.physics`, `demi.physics.query2d`, `demi.physics.query3d`, `demi.physics.rigidbody2d`, `demi.physics.rigidbody3d`, `demi.physics.character_controller3d`, `demi.physics.destruction3d` |
 | Meshes | `demi.mesh.procedural`, `demi.mesh.deformation` |

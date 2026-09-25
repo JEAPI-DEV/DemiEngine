@@ -128,7 +128,7 @@ void locateSource(const std::filesystem::path &source, std::string &notice) {
 
 void drawAssetDetails(EditorWorkspace &workspace,
                       const std::filesystem::path &selected,
-                      std::string &notice) {
+                      EditorAssetDialogs &dialogs, std::string &notice) {
   ImGui::TextDisabled("DETAILS");
   if (selected.empty()) {
     ImGui::TextWrapped("Select an authored source or asset manifest.");
@@ -149,6 +149,12 @@ void drawAssetDetails(EditorWorkspace &workspace,
     notice =
         workspace.reimportAsset(selected, error) ? "Asset reimported" : error;
     return;
+  }
+  if (record->manifest.type == "Model3D") {
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Generate collider"))
+      dialogs.openGenerateCollider(record->manifest.manifestPath,
+                                   record->manifest.id);
   }
   ImGui::Separator();
   ImGui::TextDisabled("Stable ID");
@@ -323,6 +329,10 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
           notice = workspace.reimportAsset(source, error) ? "Asset reimported"
                                                           : error;
         }
+        if (record != nullptr && record->manifest.type == "Model3D" &&
+            ImGui::MenuItem("Generate Collider Asset..."))
+          dialogs_.openGenerateCollider(record->manifest.manifestPath,
+                                        record->manifest.id);
         ImGui::EndPopup();
       }
     }
@@ -335,7 +345,7 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::EndChild();
   ImGui::SameLine();
   ImGui::BeginChild("asset-details", {0.0F, 0.0F}, ImGuiChildFlags_Borders);
-  drawAssetDetails(workspace, selectedSource_, notice);
+  drawAssetDetails(workspace, selectedSource_, dialogs_, notice);
   const auto selectedGroup =
       std::ranges::find(workspace.assetIndex().groups(), selectedSource_,
                         &assets::AssetGroupDescriptor::sourcePath);
@@ -355,6 +365,13 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::End();
   dialogs_.draw(workspace, notice);
   if (auto source=dialogs_.takeCreatedSource()) { selectedSource_=*source;openRequest_=*source; }
+  if (auto collider = dialogs_.takeCreatedCollider()) {
+    selectedSource_ = *collider;
+    directory_ = relativeSource(workspace, *collider).parent_path();
+    filter_.fill('\0');
+    typeFilter_.clear();
+    revealDirectory_ = true;
+  }
   if (auto created = dialogs_.takeCreatedFolder()) {
     directory_ = std::move(*created);
     selectedSource_.clear();

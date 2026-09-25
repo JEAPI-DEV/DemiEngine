@@ -238,6 +238,7 @@ void LuaScriptHost::fixedUpdate(const float dt) {
 void LuaScriptHost::destroy() {
   e2eTestRunner_.shutdown();
   unloadScripts();
+  httpClient_.shutdown();
   if (world_ != nullptr) {
     for (auto &[_, recycler] : world_->uiVirtualRecyclers)
       recycler->clear(world_->ui, world_->uiTweens);

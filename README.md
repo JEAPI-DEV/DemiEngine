@@ -42,7 +42,7 @@ release. See the [compatibility policy](docs/compatibility.md).
   localization, UI prefabs, text editing, virtualization, and accessibility
   snapshots.
 - Schema-backed immutable game data and reusable Lua gameplay packages for
-  controllers, health, projectiles, interactions, traversal, cameras,
+  controllers, health, projectiles, interactions, checkpoints, cameras,
   inventory, and encounters.
 - Audio mixing, buses, snapshots, scheduling, streaming, spatial voices, and
   entity-attached sources behind a backend-neutral runtime API.
@@ -69,6 +69,8 @@ release. See the [compatibility policy](docs/compatibility.md).
 - Host-authoritative networking with validated contracts, declared messages,
   server-issued entity IDs, ownership generations, bounded payload validation,
   late-join state, reconnect primitives, and a windowless dedicated server.
+- Asynchronous HTTP/HTTPS requests with verified TLS, JSON bodies/responses,
+  cancellation and configurable timeouts for REST services.
 - Android APK/AAB build and signing workflows using the same project data and
   Lua gameplay as Linux; feature and device qualification remains scoped.
 - FFmpeg-backed video and cutscene playback when media support is enabled.
@@ -251,8 +253,8 @@ remain in the repository.
 
 ## Secure Multiplayer
 
-Networking is included by default. To build without it, configure with
-`-DDEMI_ENABLE_NETWORK=OFF`.
+ENet multiplayer is included by default. To build without ENet, configure with
+`-DDEMI_ENABLE_NETWORK=OFF`. HTTP/HTTPS and TLS services are independent.
 
 Existing build directories retain their cached setting; enable it explicitly
 when updating a previously offline build:
@@ -506,6 +508,7 @@ See [architecture](docs/architecture.md) for more detail.
 - [Script properties and editor annotations](docs/script-properties.md)
 - [Data assets](docs/data-assets.md)
 - [Networking](docs/networking.md)
+- [HTTP/HTTPS and REST APIs](docs/http.md)
 - [Legacy APIs](docs/legacy-apis.md)
 - [First-party gameplay packages](packages/README.md)
 - [Asset streaming and package content](docs/asset-streaming.md)

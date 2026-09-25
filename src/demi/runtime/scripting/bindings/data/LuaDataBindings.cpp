@@ -1,5 +1,6 @@
 #include "demi/runtime/scripting/bindings/data/LuaDataBindings.h"
 #include "demi/runtime/scripting/LuaServiceModules.h"
+#include "demi/runtime/scripting/bindings/LuaJsonBridge.h"
 
 #include "demi/assets/DataDocument.h"
 #include "demi/assets/YamlDataDocument.h"
@@ -16,15 +17,6 @@ namespace {
 LuaScriptHost &host(lua_State *state) {
   return *static_cast<LuaScriptHost *>(
       lua_touserdata(state, lua_upvalueindex(1)));
-}
-
-void setKind(lua_State *state, const char *kind) {
-  lua_newtable(state);
-  lua_pushstring(state, kind);
-  lua_setfield(state, -2, "__demi_json_kind");
-  lua_pushboolean(state, false);
-  lua_setfield(state, -2, "__metatable");
-  lua_setmetatable(state, -2);
 }
 
 void pushDataValue(lua_State *state, const assets::DataValue &value) {
@@ -57,7 +49,7 @@ void pushDataValue(lua_State *state, const assets::DataValue &value) {
       pushDataValue(state, (*array)[index]);
       lua_rawseti(state, -2, static_cast<lua_Integer>(index + 1));
     }
-    setKind(state, "array");
+    setLuaJsonTableKind(state, "array");
     return;
   }
   if (const auto *object = value.object()) {
@@ -66,7 +58,7 @@ void pushDataValue(lua_State *state, const assets::DataValue &value) {
       lua_setfield(state, -2, key.c_str());
     }
   }
-  setKind(state, "object");
+  setLuaJsonTableKind(state, "object");
 }
 
 void pushError(lua_State *state, const char *code, std::string message,
@@ -151,7 +143,7 @@ int query(lua_State *state) {
     pushDataValue(state, snapshots[index]->document->root());
     lua_rawseti(state, -2, static_cast<lua_Integer>(index + 1));
   }
-  setKind(state, "array");
+  setLuaJsonTableKind(state, "array");
   return 1;
 }
 
@@ -201,12 +193,7 @@ void LuaDataBindingModule::install(LuaScriptHost &scriptHost,
   addFunction(state, "kind", kind, scriptHost);
   addFunction(state, "is_null", isNull, scriptHost);
   lua_newtable(state);
-  lua_newtable(state);
-  lua_pushliteral(state, "null");
-  lua_setfield(state, -2, "__demi_json_kind");
-  lua_pushboolean(state, false);
-  lua_setfield(state, -2, "__metatable");
-  lua_setmetatable(state, -2);
+  setLuaJsonTableKind(state, "null");
   lua_setfield(state, -2, "null");
   lua_setglobal(state, "Data");
 }

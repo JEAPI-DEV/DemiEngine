@@ -7,13 +7,6 @@
 ---@field message string
 ---@field latency_ms integer
 
----@class NetworkHttpResponse
----@field ok boolean
----@field status integer
----@field body string
----@field error string
----@field json table|string|number|boolean|nil Parsed JSON value, including scalar roots; nil for empty/invalid JSON or JSON null.
-
 ---@class NetworkService
 local Network = {}
 ---@return boolean
@@ -59,45 +52,6 @@ function Network.security_error() end
 function Network.latency_ms() end
 ---@return NetworkEvent[]
 function Network.events() end
----@param url string
----@param timeout_ms? integer
----@return NetworkHttpResponse
-function Network.http_get(url, timeout_ms) end
----@param url string
----@param fields table<string, string|number|boolean>
----@param timeout_ms? integer
----@return NetworkHttpResponse
-function Network.http_post_form(url, fields, timeout_ms) end
----@param url string
----@param game? string
----@param timeout_ms? integer
----@return NetworkHttpResponse
-function Network.lobby_list(url, game, timeout_ms) end
----@param url string
----@param game string|nil
----@param port integer
----@param player_name? string
----@param timeout_ms? integer
----@return NetworkHttpResponse
-function Network.lobby_create(url, game, port, player_name, timeout_ms) end
----@param url string
----@param lobby_id integer
----@param player_name? string
----@param timeout_ms? integer
----@return NetworkHttpResponse
-function Network.lobby_join(url, lobby_id, player_name, timeout_ms) end
----@param url string
----@param lobby_id integer
----@param player_token string
----@param timeout_ms? integer
----@return NetworkHttpResponse
-function Network.lobby_heartbeat(url, lobby_id, player_token, timeout_ms) end
----@param url string
----@param lobby_id integer
----@param player_token string
----@param timeout_ms? integer
----@return NetworkHttpResponse
-function Network.lobby_leave(url, lobby_id, player_token, timeout_ms) end
 ---@param assigned_peer_id? string
 ---@return string
 function Network.sender_id(assigned_peer_id) end

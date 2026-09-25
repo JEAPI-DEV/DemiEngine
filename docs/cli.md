@@ -42,7 +42,8 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
   subset of model triangles, and `1` uses the complete model geometry.
   `--recommend --body static|dynamic|trigger|character` explains an appropriate
   explicit collider without changing the project; `--preview` writes a scene
-  using the generated collider.
+  using the generated collider. Replacing an existing generated collider requires
+  `--replace`; other asset types are never overwritten by this command.
 - `demi asset export --project <project> --output <file.demipack> --asset
   asset://id`: export selected assets and their transitive dependencies as a
   deterministic, checksummed package. Repeat `--asset` to select more roots.
@@ -139,6 +140,11 @@ The `demi` CLI is the automation interface for humans, scripts, CI, and AI agent
 
 See [Capability Manifest and Reference Gates](capability-gates.md) for the
 checked baseline and reference-game workflow.
+
+Schema and capability exports generate their full contents before replacing the
+destination atomically. A generation or write failure leaves an existing file
+intact and returns a failure status. Directory and symlink destinations are
+rejected.
 
 ## Exit Codes
 

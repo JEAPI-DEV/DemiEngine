@@ -20,7 +20,8 @@ struct ModelCollider3DComponent {
       ComponentFieldDescriptor{"is_trigger", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"layer", ComponentFieldType::String}};
   static constexpr ComponentEditorMetadata editor{"Physics 3D",
-                                                  "Collider Asset 3D"};
+                                                  "Collider Asset 3D", {},
+                                                  "asset"};
   static void parse(const nlohmann::json &json, Entity &entity);
 
   std::string asset;
@@ -29,7 +30,7 @@ struct ModelCollider3DComponent {
   std::shared_ptr<const ColliderAsset3D> inlineGeometry{};
   static constexpr std::array runtimeFields{
       RuntimeFieldBinding<ModelCollider3DComponent>::member<
-          &ModelCollider3DComponent::asset>("asset"),
+          &ModelCollider3DComponent::asset>("asset").withoutDefault(),
       RuntimeFieldBinding<ModelCollider3DComponent>::member<
           &ModelCollider3DComponent::inlineGeometry>("inline_geometry"),
       RuntimeFieldBinding<ModelCollider3DComponent>::member<

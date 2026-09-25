@@ -16,15 +16,18 @@ struct ColliderAssetGenerationRequest {
   float detail = 0.0F;
   std::string body = "static";
   std::filesystem::path previewPath;
+  bool replaceExisting = false;
+  std::optional<std::string> expectedExistingManifestHash;
 };
 
 struct ColliderAssetGenerationResult {
   std::filesystem::path manifestPath;
+  std::optional<std::string> existingManifestHash;
   Diagnostics diagnostics;
 };
 
-// Generates a deterministic box collider asset from the transformed POSITION
-// accessor bounds of a glTF Model3D asset.
+// Generates a deterministic box or triangle-mesh collider asset from a glTF
+// Model3D asset. Existing generated colliders require explicit replacement.
 [[nodiscard]] ColliderAssetGenerationResult
 generateColliderAsset(const ColliderAssetGenerationRequest &request);
 

@@ -4,6 +4,7 @@
 #include "editor/EditorProjectFolders.h"
 
 #include "demi/assets/AssetImporter.h"
+#include "demi/assets/ColliderAssetGenerator.h"
 
 #include <algorithm>
 #include <cctype>
@@ -161,6 +162,41 @@ bool EditorWorkspace::reimportAsset(const std::filesystem::path &manifest,
   }
   refreshAssetMetadata();
   return true;
+}
+
+std::optional<assets::ColliderRecommendation>
+EditorWorkspace::recommendCollider(const std::filesystem::path &modelManifest,
+                                   const std::string_view body,
+                                   std::string &error) {
+  Diagnostics result;
+  auto recommendation =
+      assets::recommendCollider(modelManifest, std::string(body), result);
+  diagnostics_.insert(diagnostics_.end(), result.begin(), result.end());
+  if (!recommendation || hasErrors(result)) {
+    error = result.empty() ? "Collider recommendation is unavailable."
+                           : result.front().message;
+    return std::nullopt;
+  }
+  error.clear();
+  return recommendation;
+}
+
+std::optional<std::filesystem::path> EditorWorkspace::generateColliderAsset(
+    assets::ColliderAssetGenerationRequest request,
+    std::optional<std::string> &existingManifestHash, std::string &error) {
+  request.projectDirectory = project_->project.projectDirectory;
+  const assets::ColliderAssetGenerationResult result =
+      assets::generateColliderAsset(request);
+  existingManifestHash = result.existingManifestHash;
+  diagnostics_.insert(diagnostics_.end(), result.diagnostics.begin(),
+                      result.diagnostics.end());
+  if (hasErrors(result.diagnostics)) {
+    error = result.diagnostics.front().message;
+    return std::nullopt;
+  }
+  error.clear();
+  refreshAssetMetadata();
+  return result.manifestPath;
 }
 
 bool EditorWorkspace::createAssetGroup(std::string id,

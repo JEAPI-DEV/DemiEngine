@@ -6,6 +6,7 @@
 #include "demi/runtime/scripting/bindings/scene/LuaPrefabBindings.h"
 #include "demi/runtime/scripting/bindings/mesh/LuaMeshConstructionBindings.h"
 #include "demi/runtime/scripting/bindings/LuaNetworkBindings.h"
+#include "demi/runtime/scripting/bindings/LuaHttpBindings.h"
 #include "demi/runtime/scripting/bindings/LuaNetworkSessionBindings.h"
 #include "demi/runtime/scripting/bindings/LuaRandomBindings.h"
 #include "demi/runtime/scripting/bindings/LuaTlsBindings.h"
@@ -82,6 +83,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaVideoBindingModule video;
   const LuaCutsceneBindingModule cutscene;
   const LuaNetworkBindingModule network;
+  const LuaHttpBindingModule http;
   const LuaNetworkSessionBindingModule networkSession;
   const LuaTlsBindingModule tls;
   const LuaRegexBindingModule regex;
@@ -100,7 +102,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
       &rigidbody2D, &rigidbody3D, &meshDeformation, &characterController3D,
       &camera3D,    &sprite2D,    &physics2D,       &physics3D,
       &hud,         &save,        &audio,           &video,
-      &cutscene,    &network,     &networkSession,  &tls,
+      &cutscene,    &network,     &networkSession,  &tls, &http,
       &regex,       &random,      &isoGrid,         &vectorMath,
       &animation,   &assets,      &navigation2D,    &tilemap2D,
       &data,        &e2eTests, &destruction3D};

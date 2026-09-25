@@ -536,6 +536,26 @@ bool EditorSceneDocument::duplicateEntity(const std::string_view id,
 bool EditorSceneDocument::addComponent(const std::string_view id,
                                        const std::string_view componentName,
                                        std::string &error) {
+  const runtime::scene_loading::ComponentDescriptor *descriptor =
+      runtime::scene_loading::findComponentDescriptor(componentName);
+  if (descriptor == nullptr) {
+    error = "Unknown component: " + std::string(componentName);
+    reject(
+        {.entityId = std::string(id), .component = std::string(componentName)},
+        error);
+    return false;
+  }
+  auto authoredDefaults = runtime::scene_loading::componentDefaults(*descriptor);
+  for (const auto &field : descriptor->fields)
+    if (!field.required)
+      authoredDefaults.erase(std::string(field.name));
+  return addComponent(id, componentName, std::move(authoredDefaults), error);
+}
+
+bool EditorSceneDocument::addComponent(const std::string_view id,
+                                       const std::string_view componentName,
+                                       nlohmann::json initialValues,
+                                       std::string &error) {
   if (entity(id) == nullptr) {
     error = "The entity no longer exists.";
     reject(
@@ -560,15 +580,18 @@ bool EditorSceneDocument::addComponent(const std::string_view id,
         error);
     return false;
   }
-  auto authoredDefaults = runtime::scene_loading::componentDefaults(*descriptor);
-  for (const auto &field : descriptor->fields)
-    if (!field.required)
-      authoredDefaults.erase(std::string(field.name));
+  if (!initialValues.is_object()) {
+    error = "Initial component values must be an object.";
+    reject(
+        {.entityId = std::string(id), .component = std::string(componentName)},
+        error);
+    return false;
+  }
   return stageAndCommit(
       AddComponentCommand{
           .entityId = std::string(id),
           .componentName = std::string(componentName),
-          .component = std::move(authoredDefaults)},
+          .component = std::move(initialValues)},
       error);
 }
 

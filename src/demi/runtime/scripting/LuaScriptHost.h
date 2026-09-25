@@ -11,6 +11,7 @@
 #include "demi/runtime/isometric/IsoGridApi.h"
 #include "demi/runtime/navigation/NavigationGrid2D.h"
 #include "demi/runtime/network/NetworkContract.h"
+#include "demi/runtime/network/HttpClient.h"
 #include "demi/runtime/network/NetworkSystem.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/SpatialQuery3D.h"
@@ -63,6 +64,8 @@ public:
 
   LuaScriptHost();
   ~LuaScriptHost();
+
+  [[nodiscard]] HttpClient &httpClient() { return httpClient_; }
 
   LuaScriptHost(const LuaScriptHost &) = delete;
   LuaScriptHost &operator=(const LuaScriptHost &) = delete;
@@ -680,6 +683,7 @@ private:
   const ProjectData *project_ = nullptr;
   InputState *input_ = nullptr;
   input::GameplayInputService gameplayInput_;
+  HttpClient httpClient_;
   input::TouchGestureRecognizer touchGestureRecognizer_;
   std::vector<input::GestureEvent> gestureEvents_;
   platform::ApplicationServices applicationServices_;

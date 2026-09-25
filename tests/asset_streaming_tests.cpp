@@ -56,6 +56,24 @@ public:
   std::set<std::string> unloaded;
 };
 
+bool waitUntilReady(demi::assets::AssetGroupService &service,
+                    demi::assets::AssetGroupRequestHandle request) {
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  do {
+    service.update();
+    const auto stage = service.progress(request).stage;
+    if (stage == demi::assets::AssetGroupStage::Ready)
+      return true;
+    if (stage == demi::assets::AssetGroupStage::Failed ||
+        stage == demi::assets::AssetGroupStage::Cancelled)
+      return false;
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  } while (std::chrono::steady_clock::now() < deadline);
+  return service.progress(request).stage ==
+         demi::assets::AssetGroupStage::Ready;
+}
+
 void importerRegistryTest() {
   demi::assets::AssetImporterRegistry registry;
   demi::Diagnostics diagnostics;
@@ -149,13 +167,7 @@ void groupLifetimeTest() {
   demi::assets::AssetGroupDescriptor second{.id = "asset-group://second",
                                             .roots = {"asset://shared"}};
   const auto firstRequest = service.prepare(first);
-  for (int attempt = 0;
-       attempt < 100 && service.progress(firstRequest).stage !=
-                            demi::assets::AssetGroupStage::Ready;
-       ++attempt) {
-    service.update();
-    std::this_thread::yield();
-  }
+  assert(waitUntilReady(service, firstRequest));
   assert(service.activate(firstRequest));
   assert(service.isGroupActive(first.id));
   const auto secondRequest = service.prepare(second);
@@ -188,13 +200,7 @@ void concurrentGroupDeduplicationTest() {
   const auto firstRequest = service.prepare(first);
   const auto secondRequest = service.prepare(second);
   assert(service.cancel(firstRequest));
-  for (int attempt = 0;
-       attempt < 100 && service.progress(secondRequest).stage !=
-                            demi::assets::AssetGroupStage::Ready;
-       ++attempt) {
-    service.update();
-    std::this_thread::yield();
-  }
+  assert(waitUntilReady(service, secondRequest));
   assert(service.progress(firstRequest).stage ==
          demi::assets::AssetGroupStage::Cancelled);
   assert(service.progress(secondRequest).stage ==

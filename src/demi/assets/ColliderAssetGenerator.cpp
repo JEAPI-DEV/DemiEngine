@@ -5,6 +5,7 @@
 #include "demi/assets/GltfGeometry.h"
 #include "demi/assets/GltfSkinnedModel.h"
 #include "demi/assets/ModelImportProfile.h"
+#include "demi/filesystem/AtomicTextFile.h"
 
 #include <nlohmann/json.hpp>
 
@@ -245,14 +246,9 @@ std::optional<Bounds> gltfBounds(const std::filesystem::path &path,
   return result;
 }
 
-bool writeJson(const std::filesystem::path &path, const Json &document) {
-  std::error_code error;
-  std::filesystem::create_directories(path.parent_path(), error);
-  if (error)
-    return false;
-  std::ofstream output(path);
-  output << document.dump(2) << '\n';
-  return static_cast<bool>(output);
+bool writeJson(const std::filesystem::path &path, const Json &document,
+               std::error_code &error) {
+  return atomicWriteText(path, document.dump(2) + '\n', error);
 }
 
 std::optional<ModelImportProfile> profileFor(const AssetManifest &model,
@@ -398,6 +394,67 @@ generateColliderAsset(const ColliderAssetGenerationRequest &request) {
                   request.modelManifestPath);
     return result;
   }
+  const std::filesystem::path relativeId(idPath(request.id));
+  const std::filesystem::path assetDirectory =
+      request.projectDirectory / "assets" / relativeId;
+  result.manifestPath = assetDirectory / "collider.asset.json";
+
+  const AssetRegistry registry = loadAssetRegistry(request.projectDirectory);
+  const AssetManifest *existingAsset = findAsset(registry, request.id);
+  std::error_code statusError;
+  const auto targetStatus =
+      std::filesystem::symlink_status(result.manifestPath, statusError);
+  const bool targetExists =
+      !statusError && std::filesystem::exists(targetStatus);
+  if (statusError && statusError != std::errc::no_such_file_or_directory) {
+    addDiagnostic(result.diagnostics, "COLLIDER_ASSET_STATUS_FAILED",
+                  "Could not inspect the collider asset destination: " +
+                      statusError.message(),
+                  result.manifestPath);
+    return result;
+  }
+  if (existingAsset == nullptr && !targetExists &&
+      request.expectedExistingManifestHash) {
+    addDiagnostic(result.diagnostics, "COLLIDER_ASSET_CHANGED",
+                  "The collider selected for replacement no longer exists. "
+                  "Review the destination and try again.",
+                  result.manifestPath);
+    return result;
+  }
+  if (existingAsset != nullptr || targetExists) {
+    if (existingAsset == nullptr ||
+        existingAsset->manifestPath != result.manifestPath ||
+        existingAsset->type != "Collider3D" ||
+        existingAsset->importer != "collider-generator") {
+      addDiagnostic(result.diagnostics, "COLLIDER_ASSET_CONFLICT",
+                    "The collider ID or destination belongs to another asset.",
+                    result.manifestPath);
+      return result;
+    }
+    result.existingManifestHash = hashFile(result.manifestPath);
+    if (!result.existingManifestHash) {
+      addDiagnostic(result.diagnostics, "COLLIDER_ASSET_HASH_FAILED",
+                    "Could not snapshot the existing collider manifest.",
+                    result.manifestPath);
+      return result;
+    }
+    if (!request.replaceExisting) {
+      addDiagnostic(result.diagnostics, "COLLIDER_ASSET_EXISTS",
+                    "A generated collider already uses this asset ID. "
+                    "Explicit replacement is required.",
+                    result.manifestPath);
+      return result;
+    }
+    if (request.expectedExistingManifestHash &&
+        *request.expectedExistingManifestHash !=
+            *result.existingManifestHash) {
+      addDiagnostic(result.diagnostics, "COLLIDER_ASSET_CHANGED",
+                    "The existing collider changed after replacement was "
+                    "confirmed. Review it and try again.",
+                    result.manifestPath);
+      return result;
+    }
+  }
   Diagnostic diagnostic;
   const auto model = loadAssetManifest(request.modelManifestPath, &diagnostic);
   if (!model) {
@@ -411,14 +468,6 @@ generateColliderAsset(const ColliderAssetGenerationRequest &request) {
         result.diagnostics, "COLLIDER_SOURCE_UNSUPPORTED",
         "Collider generation supports glTF/GLB Model3D assets.",
         model->manifestPath);
-    return result;
-  }
-  const AssetRegistry registry = loadAssetRegistry(request.projectDirectory);
-  if (const AssetManifest *existing = findAsset(registry, request.id);
-      existing != nullptr && existing->type != "Collider3D") {
-    addDiagnostic(result.diagnostics, "COLLIDER_ASSET_CONFLICT",
-                  "A collider asset already uses this ID.",
-                  request.modelManifestPath);
     return result;
   }
   const auto profile = profileFor(*model, result.diagnostics);
@@ -440,15 +489,35 @@ generateColliderAsset(const ColliderAssetGenerationRequest &request) {
     }
   }
 
-  const std::filesystem::path relativeId(idPath(request.id));
-  const std::filesystem::path assetDirectory =
-      request.projectDirectory / "assets" / relativeId;
-  result.manifestPath = assetDirectory / "collider.asset.json";
   std::array<float, 3> size{};
   std::array<float, 3> offset{};
   for (std::size_t axis = 0; axis < size.size(); ++axis) {
     size[axis] = bounds->maximum[axis] - bounds->minimum[axis];
     offset[axis] = (bounds->maximum[axis] + bounds->minimum[axis]) * 0.5F;
+  }
+  if (std::ranges::any_of(size, [](const float extent) {
+        return !std::isfinite(extent) || extent < 0.0F;
+      }) ||
+      std::ranges::any_of(offset, [](const float value) {
+        return !std::isfinite(value);
+      })) {
+    addDiagnostic(result.diagnostics, "COLLIDER_BOUNDS_INVALID",
+                  "Collider generation requires finite model bounds and "
+                  "nonnegative extents on every axis.",
+                  model->manifestPath);
+    return result;
+  }
+  if (request.detail == 0.0F &&
+      std::ranges::any_of(size, [](const float extent) {
+        return extent == 0.0F;
+      })) {
+    addDiagnostic(
+        result.diagnostics, "COLLIDER_BOUNDS_DEGENERATE",
+        "Bounds-box collider generation requires positive model bounds on "
+        "every axis. Use triangle-mesh detail for valid planar collision "
+        "surfaces.",
+        model->manifestPath);
+    return result;
   }
   const auto hash = hashFiles(model->sourcePaths);
   if (!hash) {
@@ -479,9 +548,26 @@ generateColliderAsset(const ColliderAssetGenerationRequest &request) {
         {"body", request.body},
         {"model_import", modelImportProfileJson(*profile)}}},
   };
-  if (!writeJson(result.manifestPath, manifest)) {
+  if (targetExists) {
+    const auto currentHash = hashFile(result.manifestPath);
+    if (!currentHash || currentHash != result.existingManifestHash) {
+      addDiagnostic(result.diagnostics, "COLLIDER_ASSET_CHANGED",
+                    "The existing collider changed while its replacement was "
+                    "being prepared. Review it and try again.",
+                    result.manifestPath);
+      return result;
+    }
+  } else if (std::filesystem::exists(result.manifestPath)) {
+    addDiagnostic(result.diagnostics, "COLLIDER_ASSET_CONFLICT",
+                  "A collider asset appeared while generation was in progress.",
+                  result.manifestPath);
+    return result;
+  }
+  std::error_code writeError;
+  if (!writeJson(result.manifestPath, manifest, writeError)) {
     addDiagnostic(result.diagnostics, "COLLIDER_ASSET_WRITE_FAILED",
-                  "Could not write collider asset manifest.",
+                  "Could not write collider asset manifest: " +
+                      writeError.message(),
                   result.manifestPath);
   }
   if (result.diagnostics.empty() && !request.previewPath.empty()) {
@@ -497,9 +583,11 @@ generateColliderAsset(const ColliderAssetGenerationRequest &request) {
                          {"Rigidbody3D",
                           {{"body_type", "static"},
                            {"use_gravity", false}}}}}}})}};
-    if (!writeJson(request.previewPath, preview))
+    writeError.clear();
+    if (!writeJson(request.previewPath, preview, writeError))
       addDiagnostic(result.diagnostics, "COLLIDER_PREVIEW_WRITE_FAILED",
-                    "Could not write collider preview scene.",
+                    "Could not write collider preview scene: " +
+                        writeError.message(),
                     request.previewPath);
   }
   return result;

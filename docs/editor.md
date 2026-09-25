@@ -16,6 +16,17 @@ registered through the shared asset importer and open in their specialized
 editors. New scenes are registered in the project. Use **Scene → HUD**
 to attach or detach a HUD, with Undo/Redo. Play starts the open registered scene.
 
+Select an imported `Model3D` asset and use **Generate collider** in its details
+or **Generate Collider Asset...** in its context menu to create a deterministic
+`Collider3D` asset from the model's authored import profile. Choose static or
+trigger intent and geometry detail from transformed bounds (`0`) through source
+triangles (`1`); dynamic bodies and characters instead show the shared convex or
+capsule recommendation because mesh collider generation is unsafe for them.
+Existing generated colliders are never overwritten silently. Replacement needs
+an explicit second confirmation and is rejected if the manifest changed after
+the warning appeared. Successful generation refreshes the Assets panel, reveals
+the collider, and makes it available to the `ModelCollider3D` asset picker.
+
 Double-click a prefab to open its document; **Open source prefab** uses the same
 path. Failed opens display an explanation, including unsaved-document guards.
 HUD documents have their own cleared stage. Implicit top-level `children` remain
@@ -245,7 +256,7 @@ into logical editor space so picking and gizmos remain aligned.
   world in the Game view. Pause/Resume, exact fixed-tick Step, and Stop control
   that world; an owned external `demi-runtime` window remains available from
   the transport options.
-  Offline projects also work when optional networking is compiled out
+  Offline projects also work when the optional ENet backend is compiled out
   (`DEMI_ENABLE_NETWORK=OFF`). If a compiled-in network backend fails to
   initialize, Play still reports that failure instead of silently continuing.
 - The central scene view renders authored 2D and 3D entities through the

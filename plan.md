@@ -393,13 +393,25 @@ Current audit implementation:
   with the stubs and binding implementation; removed names have no aliases.
 - [x] Rename traversal to `demi.gameplay.checkpoints` and language_file to
   `demi.ui.localization`, including a namespaced localization module.
-- [ ] Qualify the combined change set and refresh affected package locks.
-- [ ] After qualification, add a native asynchronous HTTP/HTTPS client for Lua
+- [x] Qualify the combined change set and refresh affected package locks.
+  Release qualification on September 25: all 321 tests pass sequentially,
+  including both Android packaging gates. The seven package-consuming example
+  locks were refreshed. Canonical schema and capability baseline are regenerated.
+- [x] Add a native asynchronous HTTP/HTTPS client for Lua
   REST API use. Reuse an established HTTP implementation, with verified TLS,
   request headers and bodies, JSON helpers, explicit timeout/cancellation and
   separate transport errors from HTTP status responses. Cover runtime shutdown,
   desktop/Android dependencies and local-server regression tests. Keep secrets
   out of diagnostics; do not block the game loop on network requests.
+  Implemented as `demi.network.http` over libcurl, separate from ENet. Request
+  handles support polling and cancellation; raw/JSON bodies, duplicate response
+  headers, compressed content, verified TLS and configurable body/header budgets
+  are covered by local HTTP/HTTPS fixtures and a real Lua request/response test.
+  Shared JSON conversion is iterative and preserves Data null/array metadata.
+  Old synchronous HTTP/lobby helpers are removed. Android packaging passes;
+  device HTTPS remains unqualified because no device is attached. Threaded OS
+  DNS can delay shutdown cleanup; no hard real-time shutdown guarantee is made.
+  See [HTTP client](docs/http.md).
 
 - [x] Replace uppercase-global discovery and inferred native import paths with
   an explicit service catalog; test unrelated globals, import caching, cleanup,
@@ -504,6 +516,15 @@ Remaining work:
   Save/reopen, Undo/Redo, conflict handling, and useful error messages. For mesh
   and UV data, distinguish model-import settings from editable geometry and
   runtime-only buffers; make unsupported operations explicit.
+  - Collider generation now has an editor action over `ColliderAssetGenerator`,
+    with body recommendations, detail selection, explicit replacement and
+    conflict detection. Qualification covers asset discovery and assigning the
+    collider through the same reversible component command used by Inspector.
+    A required reference must be chosen before adding the component; an empty
+    invalid component is not a useful intermediate authoring state.
+    This workflow passes generation/replacement-conflict, assignment, failed-add
+    rollback, Undo/Redo, Save/reopen and planar-triangle regression tests. Planar
+    mesh colliders remain supported; zero-volume boxes report a diagnostic.
 - [ ] Verify HUD tab visibility and stray labels such as `ui_root`, scene/HUD/
   prefab switching, nested UI prefabs, and persistence after restart. The known
   implicit-root fix does not establish correctness for every HUD authoring path.

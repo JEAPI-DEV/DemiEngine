@@ -818,10 +818,18 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
       if (!choice.compatible)
         ImGui::BeginDisabled();
       if (ImGui::Selectable(descriptor.editor.displayName.data())) {
-        std::string error;
-        const bool added =
-            workspace.addComponent(selectedId, descriptor.name, error);
-        notice = added ? "Component added" : error;
+        if (descriptor.editor.initialReferenceField.empty()) {
+          std::string error;
+          const bool added =
+              workspace.addComponent(selectedId, descriptor.name, error);
+          notice = added ? "Component added" : error;
+        } else {
+          state.pendingComponentEntity = selectedId;
+          state.pendingComponent = descriptor.name;
+          state.pendingReferenceField =
+              descriptor.editor.initialReferenceField;
+          notice = "Choose the initial reference to add this component.";
+        }
         if (!choice.compatible)
           ImGui::EndDisabled();
         ImGui::EndCombo();
@@ -876,6 +884,70 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
     if (!anyResult)
       ImGui::TextDisabled("No matching components.");
     ImGui::EndCombo();
+  }
+  if (!state.pendingComponent.empty()) {
+    if (state.pendingComponentEntity != selectedId) {
+      state.pendingComponentEntity.clear();
+      state.pendingComponent.clear();
+      state.pendingReferenceField.clear();
+    } else {
+      const ComponentDescriptor *pendingDescriptor =
+          runtime::scene_loading::findComponentDescriptor(
+              state.pendingComponent);
+      const ComponentFieldDescriptor *pendingField = nullptr;
+      if (pendingDescriptor != nullptr) {
+        const auto found = std::ranges::find(
+            pendingDescriptor->fields, state.pendingReferenceField,
+            &ComponentFieldDescriptor::name);
+        if (found != pendingDescriptor->fields.end())
+          pendingField = &*found;
+      }
+      if (pendingDescriptor == nullptr || pendingField == nullptr ||
+          pendingField->referenceKind == runtime::ComponentReferenceKind::None) {
+        notice = "The component's initial reference metadata is invalid.";
+        state.pendingComponentEntity.clear();
+        state.pendingComponent.clear();
+        state.pendingReferenceField.clear();
+      } else {
+        const auto references = editorReferenceChoices(
+            pendingField->referenceKind,
+            workspace.project().project.projectDirectory,
+            workspace.sceneDocument().path(), workspace.sceneDocument().json(),
+            workspace.sources(), pendingDescriptor->name);
+        ImGui::TextWrapped("Choose %s before adding %s.",
+                           runtime::scene_loading::componentFieldEditorLabel(
+                               *pendingField)
+                               .c_str(),
+                           pendingDescriptor->editor.displayName.data());
+        ImGui::SetNextItemWidth(-1.0F);
+        if (ImGui::BeginCombo("##initial-component-reference",
+                              "Select reference...")) {
+          for (const EditorReferenceChoice &reference : references) {
+            if (!ImGui::Selectable(reference.label.c_str()))
+              continue;
+            std::string error;
+            const bool added = workspace.addComponent(
+                selectedId, pendingDescriptor->name,
+                {{std::string(pendingField->name), reference.id}}, error);
+            notice = added ? "Component added" : error;
+            if (added) {
+              state.pendingComponentEntity.clear();
+              state.pendingComponent.clear();
+              state.pendingReferenceField.clear();
+            }
+            break;
+          }
+          ImGui::EndCombo();
+        }
+        if (references.empty())
+          ImGui::TextDisabled("No compatible references are available.");
+        if (ImGui::SmallButton("Cancel component add")) {
+          state.pendingComponentEntity.clear();
+          state.pendingComponent.clear();
+          state.pendingReferenceField.clear();
+        }
+      }
+    }
   }
   ImGui::End();
 }

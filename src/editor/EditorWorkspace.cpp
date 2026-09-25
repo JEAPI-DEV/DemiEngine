@@ -587,6 +587,20 @@ bool EditorWorkspace::addComponent(const std::string_view id,
       error);
 }
 
+bool EditorWorkspace::addComponent(const std::string_view id,
+                                   const std::string_view componentName,
+                                   nlohmann::json initialValues,
+                                   std::string &error) {
+  return mutateAndRebuild(
+      [id = std::string(id), componentName = std::string(componentName),
+       initialValues = std::move(initialValues)](
+          EditorSceneDocument &document, std::string &mutationError) mutable {
+        return document.addComponent(id, componentName,
+                                     std::move(initialValues), mutationError);
+      },
+      error);
+}
+
 bool EditorWorkspace::addScriptComponent(
     const std::string_view id, const EditorLuaComponentMetadata &metadata,
     std::string &error) {

@@ -14,6 +14,7 @@
 #include "editor/EditorViewportTool2D.h"
 
 #include "demi/assets/AssetImporter.h"
+#include "demi/assets/ColliderAssetGenerator.h"
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/tilemap/TilemapAsset.h"
@@ -92,6 +93,12 @@ public:
                                  std::string &error);
   [[nodiscard]] bool reimportAsset(const std::filesystem::path &manifest,
                                    std::string &error);
+  [[nodiscard]] std::optional<assets::ColliderRecommendation>
+  recommendCollider(const std::filesystem::path &modelManifest,
+                    std::string_view body, std::string &error);
+  [[nodiscard]] std::optional<std::filesystem::path> generateColliderAsset(
+      assets::ColliderAssetGenerationRequest request,
+      std::optional<std::string> &existingManifestHash, std::string &error);
   [[nodiscard]] bool createAssetGroup(std::string id,
                                       std::vector<std::string> roots,
                                       std::string &error);
@@ -121,6 +128,10 @@ public:
   [[nodiscard]] bool duplicateEntity(std::string_view id, std::string &error);
   [[nodiscard]] bool addComponent(std::string_view id,
                                   std::string_view componentName,
+                                  std::string &error);
+  [[nodiscard]] bool addComponent(std::string_view id,
+                                  std::string_view componentName,
+                                  nlohmann::json initialValues,
                                   std::string &error);
   [[nodiscard]] bool
   addScriptComponent(std::string_view id,

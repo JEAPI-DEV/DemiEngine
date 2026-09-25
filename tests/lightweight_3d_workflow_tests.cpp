@@ -1,9 +1,11 @@
 #include "demi/assets/AssetImporter.h"
+#include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/ColliderAssetGenerator.h"
 #include "demi/assets/ModelImportProfile.h"
 #include "demi/assets/ModelInspector.h"
 #include "demi/assets/SceneBudget3D.h"
+#include "demi/runtime/physics/ColliderAsset3D.h"
 
 #include <chrono>
 #include <cmath>
@@ -85,10 +87,11 @@ int main() {
     return 1;
   }
 
-  std::vector<unsigned char> geometry(42U);
-  const float positions[]{-1.0F, -1.0F, 0.0F, 1.0F, -1.0F,
-                          0.0F,  0.0F,  1.0F, 0.0F};
-  const std::uint16_t indices[]{0, 1, 2};
+  std::vector<unsigned char> geometry(72U);
+  const float positions[]{-1.0F, -1.0F, -1.0F, 1.0F, -1.0F, -1.0F,
+                          0.0F,  1.0F, -1.0F, 0.0F, 0.0F,  1.0F};
+  const std::uint16_t indices[]{0, 1, 2, 0, 1, 3,
+                                1, 2, 3, 2, 0, 3};
   std::memcpy(geometry.data(), positions, sizeof(positions));
   std::memcpy(geometry.data() + sizeof(positions), indices, sizeof(indices));
   writeBytes(source / "geometry.bin", geometry);
@@ -96,15 +99,15 @@ int main() {
     "asset":{"version":"2.0"},"scene":0,
     "scenes":[{"nodes":[0]}],
     "nodes":[{"name":"Mirrored Root","mesh":0,"scale":[-1,2,1]}],
-    "buffers":[{"uri":"geometry.bin","byteLength":42}],
-    "bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36},
-                   {"buffer":0,"byteOffset":36,"byteLength":6}],
+    "buffers":[{"uri":"geometry.bin","byteLength":72}],
+    "bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":48},
+                   {"buffer":0,"byteOffset":48,"byteLength":24}],
     "meshes":[{"name":"Triangle","primitives":[{
       "attributes":{"POSITION":0},"indices":1}]}],
     "accessors":[
-      {"bufferView":0,"componentType":5126,"count":3,"type":"VEC3",
-       "min":[-1,-1,0],"max":[1,1,0]},
-      {"bufferView":1,"componentType":5123,"count":3,"type":"SCALAR"}]
+      {"bufferView":0,"componentType":5126,"count":4,"type":"VEC3",
+       "min":[-1,-1,-1],"max":[1,1,1]},
+      {"bufferView":1,"componentType":5123,"count":12,"type":"SCALAR"}]
   })");
   const auto imported = importAsset({.projectDirectory = project,
                                      .source = source / "model.gltf",
@@ -131,6 +134,62 @@ int main() {
       !hasCode(inspection.diagnostics, "MODEL_NORMALS_MISSING") ||
       !hasCode(inspection.diagnostics, "MODEL_UV_MISSING")) {
     std::cerr << "Structured model inspection omitted edge diagnostics.\n";
+    return 1;
+  }
+
+  std::vector<unsigned char> flatGeometry(42U);
+  const float flatPositions[]{-1.0F, -1.0F, 0.0F, 1.0F, -1.0F,
+                              0.0F,  0.0F,  1.0F, 0.0F};
+  const std::uint16_t flatIndices[]{0, 1, 2};
+  std::memcpy(flatGeometry.data(), flatPositions, sizeof(flatPositions));
+  std::memcpy(flatGeometry.data() + sizeof(flatPositions), flatIndices,
+              sizeof(flatIndices));
+  writeBytes(source / "flat.bin", flatGeometry);
+  writeText(source / "flat.gltf", R"({
+    "asset":{"version":"2.0"},"scene":0,
+    "scenes":[{"nodes":[0]}],"nodes":[{"mesh":0}],
+    "buffers":[{"uri":"flat.bin","byteLength":42}],
+    "bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36},
+                   {"buffer":0,"byteOffset":36,"byteLength":6}],
+    "meshes":[{"primitives":[{"attributes":{"POSITION":0},"indices":1}]}],
+    "accessors":[
+      {"bufferView":0,"componentType":5126,"count":3,"type":"VEC3",
+       "min":[-1,-1,0],"max":[1,1,0]},
+      {"bufferView":1,"componentType":5123,"count":3,"type":"SCALAR"}]
+  })");
+  const auto flatModel = importAsset({.projectDirectory = project,
+                                      .source = source / "flat.gltf",
+                                      .id = "asset://models/flat"});
+  const auto flatCollider = generateColliderAsset(
+      {.projectDirectory = project,
+       .modelManifestPath = flatModel.manifestPath,
+       .id = "asset://colliders/flat",
+       .detail = 0.0F,
+       .body = "static"});
+  if (hasErrors(flatModel.diagnostics) ||
+      !hasCode(flatCollider.diagnostics, "COLLIDER_BOUNDS_DEGENERATE") ||
+      std::filesystem::exists(flatCollider.manifestPath)) {
+    std::cerr << "Planar bounds generated an invalid box collider asset.\n";
+    return 1;
+  }
+  const auto flatSurface = generateColliderAsset(
+      {.projectDirectory = project,
+       .modelManifestPath = flatModel.manifestPath,
+       .id = "asset://colliders/flat_surface",
+       .detail = 1.0F,
+       .body = "static"});
+  const auto flatSurfaceManifest = loadAssetManifest(flatSurface.manifestPath);
+  std::string flatSurfaceError;
+  const auto loadedFlatSurface =
+      flatSurfaceManifest
+          ? runtime::loadColliderAsset3D(*flatSurfaceManifest,
+                                         flatSurfaceError)
+          : std::nullopt;
+  if (hasErrors(flatSurface.diagnostics) || !flatSurfaceManifest ||
+      !loadedFlatSurface || loadedFlatSurface->size.z != 0.0F ||
+      loadedFlatSurface->triangles.size() != 1U) {
+    std::cerr << "Planar triangle-mesh collider failed: "
+              << flatSurfaceError << '\n';
     return 1;
   }
 
@@ -167,6 +226,46 @@ int main() {
       readJson(collider.manifestPath)["generation"]["model_import"]
               ["source_up"] != "+z") {
     std::cerr << "Collider generation/preview lost provenance.\n";
+    return 1;
+  }
+  const auto replacementProbe = generateColliderAsset(
+      {.projectDirectory = project,
+       .modelManifestPath = imported.manifestPath,
+       .id = "asset://colliders/triangle",
+       .detail = 0.0F,
+       .body = "static"});
+  if (!hasCode(replacementProbe.diagnostics, "COLLIDER_ASSET_EXISTS") ||
+      !replacementProbe.existingManifestHash) {
+    std::cerr << "Existing colliders were not protected from replacement.\n";
+    return 1;
+  }
+  writeText(collider.manifestPath,
+            readJson(collider.manifestPath).dump(2) + "\n\n");
+  const auto staleReplacement = generateColliderAsset(
+      {.projectDirectory = project,
+       .modelManifestPath = imported.manifestPath,
+       .id = "asset://colliders/triangle",
+       .detail = 0.0F,
+       .body = "static",
+       .replaceExisting = true,
+       .expectedExistingManifestHash =
+           replacementProbe.existingManifestHash});
+  if (!hasCode(staleReplacement.diagnostics, "COLLIDER_ASSET_CHANGED")) {
+    std::cerr << "Stale collider replacement confirmation was accepted.\n";
+    return 1;
+  }
+  const auto currentColliderHash = hashFile(collider.manifestPath);
+  const auto replacement = generateColliderAsset(
+      {.projectDirectory = project,
+       .modelManifestPath = imported.manifestPath,
+       .id = "asset://colliders/triangle",
+       .detail = 0.0F,
+       .body = "static",
+       .replaceExisting = true,
+       .expectedExistingManifestHash = currentColliderHash});
+  if (hasErrors(replacement.diagnostics) ||
+      readJson(replacement.manifestPath).value("detail", 1.0F) != 0.0F) {
+    std::cerr << "Confirmed collider replacement failed.\n";
     return 1;
   }
   const auto unsafe = generateColliderAsset(

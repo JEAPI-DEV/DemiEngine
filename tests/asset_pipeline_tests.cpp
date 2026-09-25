@@ -211,10 +211,11 @@ int main() {
     std::cerr << "glTF collider asset generation failed.\n";
     return 1;
   }
-  std::vector<unsigned char> geometryBytes(42U);
-  const float positions[]{-1.0F, -1.0F, 0.0F, 1.0F, -1.0F,
-                          0.0F,  0.0F,  1.0F, 0.0F};
-  const std::uint16_t indices[]{0, 1, 2};
+  std::vector<unsigned char> geometryBytes(72U);
+  const float positions[]{-1.0F, -1.0F, -1.0F, 1.0F, -1.0F, -1.0F,
+                          0.0F,  1.0F, -1.0F, 0.0F, 0.0F,  1.0F};
+  const std::uint16_t indices[]{0, 1, 2, 0, 1, 3,
+                                1, 2, 3, 2, 0, 3};
   std::memcpy(geometryBytes.data(), positions, sizeof(positions));
   std::memcpy(geometryBytes.data() + sizeof(positions), indices,
               sizeof(indices));
@@ -224,15 +225,15 @@ int main() {
     "scene": 0,
     "scenes": [{"nodes": [0]}],
     "nodes": [{"mesh": 0}],
-    "buffers": [{"uri": "geometry.bin", "byteLength": 42}],
+    "buffers": [{"uri": "geometry.bin", "byteLength": 72}],
     "bufferViews": [
-      {"buffer": 0, "byteOffset": 0, "byteLength": 36},
-      {"buffer": 0, "byteOffset": 36, "byteLength": 6}
+      {"buffer": 0, "byteOffset": 0, "byteLength": 48},
+      {"buffer": 0, "byteOffset": 48, "byteLength": 24}
     ],
     "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "indices": 1}]}],
     "accessors": [
-      {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3", "min": [-1, -1, 0], "max": [1, 1, 0]},
-      {"bufferView": 1, "componentType": 5123, "count": 3, "type": "SCALAR"}
+      {"bufferView": 0, "componentType": 5126, "count": 4, "type": "VEC3", "min": [-1, -1, -1], "max": [1, 1, 1]},
+      {"bufferView": 1, "componentType": 5123, "count": 12, "type": "SCALAR"}
     ]
   })");
   if (hasErrors(assets::reimportAsset(modelDirectory / "model.asset.json"))) {
@@ -243,7 +244,8 @@ int main() {
       {.projectDirectory = sourceProject,
        .modelManifestPath = modelDirectory / "model.asset.json",
        .id = "asset://colliders/fixture",
-       .detail = 1.0F});
+       .detail = 1.0F,
+       .replaceExisting = true});
   const auto detailedData = readJson(detailedCollider.manifestPath);
   if (hasErrors(detailedCollider.diagnostics) ||
       detailedData["shape"] != "triangle_mesh" ||

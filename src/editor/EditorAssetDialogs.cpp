@@ -8,6 +8,22 @@
 #include <algorithm>
 
 namespace demi::editor {
+namespace {
+
+template <std::size_t Size>
+void setBuffer(std::array<char, Size> &buffer, const std::string_view value) {
+  buffer.fill('\0');
+  std::copy_n(value.data(), std::min(value.size(), Size - 1), buffer.data());
+}
+
+std::string colliderIdForModel(const std::string_view modelId) {
+  constexpr std::string_view Prefix = "asset://";
+  std::filesystem::path relative(
+      modelId.starts_with(Prefix) ? modelId.substr(Prefix.size()) : modelId);
+  return "asset://colliders/" + relative.filename().string();
+}
+
+} // namespace
 
 void EditorAssetDialogs::openNewFolder(std::filesystem::path relativeParent) {
   folderParent_ = std::move(relativeParent);
@@ -19,6 +35,20 @@ void EditorAssetDialogs::openNewFolder(std::filesystem::path relativeParent) {
 
 void EditorAssetDialogs::queueImport(std::filesystem::path source) {
   droppedSources_.push_back(std::move(source));
+}
+
+void EditorAssetDialogs::openGenerateCollider(
+    std::filesystem::path modelManifest, const std::string_view modelId) {
+  colliderModelManifest_ = std::move(modelManifest);
+  setBuffer(colliderId_, colliderIdForModel(modelId));
+  colliderBody_ = "static";
+  colliderDetail_ = 1.0F;
+  colliderRecommendation_.reset();
+  colliderRecommendationBody_.clear();
+  colliderRecommendationError_.clear();
+  colliderReplacementHash_.reset();
+  colliderReplacementId_.clear();
+  showGenerateCollider_ = true;
 }
 
 bool EditorAssetDialogs::openEditGroup(const std::filesystem::path &path,
@@ -142,6 +172,106 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
         importId_.fill('\0');
         importType_.fill('\0');
         showImport_ = false;
+      }
+    }
+    ImGui::End();
+  }
+
+  if (showGenerateCollider_) {
+    ImGui::SetNextWindowSize({560.0F, 390.0F}, ImGuiCond_Appearing);
+    if (ImGui::Begin("Generate Collider Asset", &showGenerateCollider_,
+                     ImGuiWindowFlags_NoSavedSettings)) {
+      ImGui::TextWrapped("Generate a collider from the selected model using "
+                         "its authored import profile.");
+      ImGui::TextDisabled("Model");
+      ImGui::TextWrapped("%s", colliderModelManifest_.string().c_str());
+      ImGui::SetNextItemWidth(-1.0F);
+      if (ImGui::InputText("Stable ID", colliderId_.data(),
+                           colliderId_.size())) {
+        colliderReplacementHash_.reset();
+        colliderReplacementId_.clear();
+      }
+      ImGui::SetNextItemWidth(-1.0F);
+      if (ImGui::BeginCombo("Body intent", colliderBody_.c_str())) {
+        for (const char *body : {"static", "dynamic", "trigger", "character"}) {
+          if (ImGui::Selectable(body, colliderBody_ == body)) {
+            colliderBody_ = body;
+            colliderRecommendationBody_.clear();
+            colliderReplacementHash_.reset();
+          }
+        }
+        ImGui::EndCombo();
+      }
+      if (colliderRecommendationBody_ != colliderBody_) {
+        colliderRecommendationBody_ = colliderBody_;
+        colliderRecommendationError_.clear();
+        colliderRecommendation_ = workspace.recommendCollider(
+            colliderModelManifest_, colliderBody_,
+            colliderRecommendationError_);
+        if (colliderRecommendation_)
+          colliderDetail_ = colliderRecommendation_->detail;
+      }
+      if (colliderRecommendation_) {
+        ImGui::Text("Recommended shape: %s",
+                    colliderRecommendation_->shape.c_str());
+        ImGui::TextWrapped("%s", colliderRecommendation_->reason.c_str());
+      } else if (!colliderRecommendationError_.empty()) {
+        ImGui::TextWrapped("Recommendation unavailable: %s",
+                           colliderRecommendationError_.c_str());
+      }
+      const bool canGenerate =
+          colliderBody_ == "static" || colliderBody_ == "trigger";
+      if (canGenerate) {
+        ImGui::SliderFloat("Geometry detail", &colliderDetail_, 0.0F, 1.0F,
+                           "%.2f");
+        ImGui::TextDisabled(
+            "0 uses transformed bounds; values above 0 retain source "
+            "triangles.");
+      } else {
+        ImGui::TextWrapped(
+            "Dynamic bodies and characters use the recommended explicit "
+            "convex or capsule component; the generator does not create an "
+            "unsafe mesh collider for them.");
+      }
+      const std::string currentId = colliderId_.data();
+      const bool replacing = colliderReplacementHash_ &&
+                             colliderReplacementId_ == currentId;
+      if (replacing)
+        ImGui::TextWrapped(
+            "A generated collider already uses this ID. Replace only the "
+            "version inspected when this warning appeared?");
+      ImGui::BeginDisabled(!canGenerate || currentId.empty());
+      if (ImGui::Button(replacing ? "Replace" : "Generate",
+                        {100.0F, 30.0F})) {
+        std::string error;
+        std::optional<std::string> existingHash;
+        auto created = workspace.generateColliderAsset(
+            {.modelManifestPath = colliderModelManifest_,
+             .id = currentId,
+             .detail = colliderDetail_,
+             .body = colliderBody_,
+             .replaceExisting = replacing,
+             .expectedExistingManifestHash =
+                 replacing ? colliderReplacementHash_ : std::nullopt},
+            existingHash, error);
+        if (created) {
+          createdCollider_ = *created;
+          notice = replacing ? "Collider asset replaced"
+                             : "Collider asset generated";
+          showGenerateCollider_ = false;
+          colliderReplacementHash_.reset();
+        } else {
+          notice = error;
+          colliderReplacementHash_ = std::move(existingHash);
+          colliderReplacementId_ =
+              colliderReplacementHash_ ? currentId : std::string{};
+        }
+      }
+      ImGui::EndDisabled();
+      ImGui::SameLine();
+      if (ImGui::Button("Cancel", {90.0F, 30.0F})) {
+        showGenerateCollider_ = false;
+        colliderReplacementHash_.reset();
       }
     }
     ImGui::End();

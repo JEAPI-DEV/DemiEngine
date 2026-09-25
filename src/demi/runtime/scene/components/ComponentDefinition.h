@@ -127,6 +127,7 @@ struct ComponentEditorMetadata {
   std::string_view category;
   std::string_view displayName;
   std::string_view help{};
+  std::string_view initialReferenceField{};
 };
 
 } // namespace demi::runtime

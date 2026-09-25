@@ -233,6 +233,13 @@ add_test(NAME demi-lua-stub-contract-tests COMMAND demi-lua-stub-contract-tests 
 add_test(NAME demi-lua-scripting-tests COMMAND demi-lua-scripting-tests)
 add_test(NAME demi-lua-e2e-tests COMMAND demi-lua-e2e-tests)
 add_test(NAME demi-lua-e2e-runner-tests COMMAND demi-lua-e2e-runner-tests)
+add_test(NAME demi-lua-http-tests COMMAND demi-lua-http-tests)
+set_tests_properties(demi-lua-http-tests PROPERTIES LABELS "network;http" TIMEOUT 30)
+if(TARGET demi-http-client-tests)
+  add_test(NAME demi-http-client-tests COMMAND demi-http-client-tests)
+  set_tests_properties(demi-http-client-tests PROPERTIES LABELS "network;http" TIMEOUT 60)
+endif()
+add_test(NAME demi-lua-json-bridge-tests COMMAND demi-lua-json-bridge-tests)
 add_test(NAME demi-script-property-contract-tests
   COMMAND demi-script-property-contract-tests)
 add_test(NAME demi-scene-loader-tests COMMAND demi-scene-loader-tests ${CMAKE_SOURCE_DIR})

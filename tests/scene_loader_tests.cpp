@@ -53,9 +53,15 @@ int main(int argc, char **argv) {
   runtime::Entity metadataEntity;
   const nlohmann::json transformJson = {{"position", {2.0, 3.0}},
                                         {"rotation", 0.5}};
+  const nlohmann::json transformDefaults = {
+      {"parent", ""},
+      {"position", {0.0, 0.0}},
+      {"rotation", 0.0},
+      {"scale", {1.0, 1.0}}};
   transform2D->parse(transformJson, metadataEntity);
   if (transform2D->serialize(metadataEntity) != transformJson ||
-      !runtime::scene_loading::componentDefaults(*transform2D).empty() ||
+      runtime::scene_loading::componentDefaults(*transform2D) !=
+          transformDefaults ||
       runtime::scene_loading::validateComponent(*transform2D, transformJson)
               .size() != 0 ||
       runtime::scene_loading::validateComponent(

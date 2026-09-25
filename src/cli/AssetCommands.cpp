@@ -207,7 +207,7 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
       error << "Usage: demi asset collider <model.asset.json> --project "
                "<project> [--recommend] [--body static|dynamic|trigger|"
                "character] [--id asset://colliders/id] [--detail 0..1] "
-               "[--preview scene.json]\n";
+               "[--preview scene.json] [--replace]\n";
       return ExitUsageError;
     }
     const std::string body = valueAfter(args, "--body").empty()
@@ -253,7 +253,8 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
          .id = valueAfter(args, "--id"),
          .detail = *detail,
          .body = body,
-         .previewPath = valueAfter(args, "--preview")});
+         .previewPath = valueAfter(args, "--preview"),
+         .replaceExisting = hasArg(args, "--replace")});
     const int status = printDiagnostics(result.diagnostics, error);
     if (status == ExitSuccess)
       output << "Generated collider asset: " << result.manifestPath.string()

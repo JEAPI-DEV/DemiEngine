@@ -25,6 +25,7 @@ namespace runtime {
 // sourced from authored scene, prefab, HUD, and Lua files.
 struct ProjectFeatureUsage {
   bool network = false;
+  bool internet = false;
   bool media = false;
   bool svg = false;
   std::vector<std::string> networkEvidence;

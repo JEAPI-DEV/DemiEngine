@@ -5,6 +5,8 @@ are no compatibility aliases.
 
 | Legacy API | Replacement | Reason |
 |---|---|---|
+| `Network.http_get`, `Network.http_post_form` | Asynchronous `demi.network.http` requests | HTTP no longer blocks gameplay; HTTPS verifies certificates and hostnames. Collect the response from its request handle. |
+| `Network.lobby_*` | Game-owned REST requests through `demi.network.http` | Lobby payloads and endpoints are application policy, not native transport behavior. |
 | `NetworkSession.emit(topic, ...)` | `NetworkSession.send` for network messages, `Events.emit` for local gameplay events | `emit` sent an undeclared generic event over the transport, bypassing the network contract's declared message list. |
 | `NetworkSession.register_entity(...)` | `NetworkSession.spawn(...)` with a declared contract prefab | The server allocates identity and enforces declared ownership policy. |
 | `NetworkSession.set_authority(...)` | `NetworkSession.transfer(...)` | Contract-based ownership generations replace manual authority assignment. |

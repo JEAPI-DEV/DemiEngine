@@ -14,6 +14,9 @@ class EditorWorkspace;
 struct EditorInspectorPanelState {
   std::array<char, 128> componentSearch{};
   std::optional<std::filesystem::path> openRequest;
+  std::string pendingComponentEntity;
+  std::string pendingComponent;
+  std::string pendingReferenceField;
 };
 
 void drawInspectorPanel(EditorWorkspace &workspace, ImVec2 position,

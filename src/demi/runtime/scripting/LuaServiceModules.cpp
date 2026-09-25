@@ -23,6 +23,7 @@ constexpr LuaServiceModule serviceModules[] = {
     {"Events", "demi.events"},
     {"Grid", "demi.grid"},
     {"Hud", "demi.hud"},
+    {"Http", "demi.network.http"},
     {"Input", "demi.input"},
     {"Mathf", "demi.math.scalar"},
     {"MeshDeformation", "demi.mesh.deformation"},

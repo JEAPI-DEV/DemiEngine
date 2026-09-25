@@ -477,6 +477,24 @@ int main() {
         << "Unsupported atlas/clip authoring acquired a guessed default.\n";
     return 1;
   }
+  const auto *modelCollider = findComponentDescriptor("ModelCollider3D");
+  const auto modelColliderSchema = componentSchema(*modelCollider);
+  if (modelCollider->editor.initialReferenceField != "asset" ||
+      modelColliderSchema.value("x-demi-editor-initial-reference", "") !=
+          "asset" ||
+      modelColliderSchema["properties"]["asset"].contains("default") ||
+      componentDefaults(*modelCollider).contains("asset")) {
+    std::cerr << "Model collider editor initialization was exported as a "
+                 "runtime default.\n";
+    return 1;
+  }
+  const auto *transform3D = findComponentDescriptor("Transform3D");
+  if (!transform3D->editor.initialReferenceField.empty() ||
+      componentSchema(*transform3D).contains(
+          "x-demi-editor-initial-reference")) {
+    std::cerr << "Ordinary components acquired initial-reference metadata.\n";
+    return 1;
+  }
   if (!omittedAtlas.component<demi::runtime::SpriteAnimator2DComponent>()
            ->clips.empty() ||
       !explicitAtlas.component<demi::runtime::SpriteAnimator2DComponent>()
@@ -659,6 +677,8 @@ int main() {
   const std::string generatedTypes =
       demi::runtime::scene_loading::generatedLuaComponentTypes();
   if (generatedTypes.find("DemiTransform2DSpec") == std::string::npos ||
+      generatedTypes.find("---@field position? Vec2") == std::string::npos ||
+      generatedTypes.find("---@field position? Vec3") == std::string::npos ||
       generatedTypes.find("---@field parent? string") == std::string::npos) {
     std::cerr << "Lua component types were not generated from metadata.\n";
     return 1;

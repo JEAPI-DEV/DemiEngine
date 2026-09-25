@@ -221,6 +221,27 @@ local handled = Network.is_host()
     return 1;
   }
 
+  const auto httpRoot = fixtureRoot / "http_only";
+  std::filesystem::create_directories(httpRoot / "scripts");
+  {
+    std::ofstream script(httpRoot / "scripts/rest.lua");
+    script << "local Rest = require('demi.network.http')\n";
+  }
+  const auto httpUsage = demi::runtime::scanProjectFeatureUsage(
+      nlohmann::json::object(), httpRoot, demi::loadAssetRegistry(httpRoot));
+  auto offlineFeatures = androidFeatures;
+  offlineFeatures.network = false;
+  const auto httpDiagnostics = demi::runtime::validateProjectPlatformCapabilities(
+      fixtureParsed.settings, httpUsage,
+      demi::capabilities::TargetPlatform::Android, offlineFeatures,
+      httpRoot / "demi.project.json");
+  if (!httpUsage.internet || httpUsage.network ||
+      !containsCode(httpDiagnostics, "PROJECT_BUILD_PERMISSION_NETWORK_MISSING") ||
+      containsCode(httpDiagnostics, "PROJECT_BUILD_FEATURE_NETWORK_UNSUPPORTED")) {
+    std::cerr << "HTTP must require Internet permission, independently of ENet.\n";
+    return 1;
+  }
+
   const auto rejectedOnAndroid = demi::runtime::validateProjectPlatformCapabilities(
       fixtureParsed.settings, usage, demi::capabilities::TargetPlatform::Android,
       androidFeatures, fixtureRoot / "demi.project.json");

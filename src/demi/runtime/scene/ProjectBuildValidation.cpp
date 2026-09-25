@@ -154,8 +154,15 @@ bool sceneDocumentFile(const std::filesystem::path &path) {
          isHudFile(path);
 }
 
-bool luaServiceCall(const std::string &text, const std::string &service) {
-  const std::regex pattern("\\b" + service + "\\.\\w+\\s*\\(");
+bool luaRequires(const std::string &text, const std::string &module) {
+  std::string escaped;
+  for (const char character : module) {
+    if (character == '.')
+      escaped += "\\.";
+    else
+      escaped += character;
+  }
+  const std::regex pattern("\\brequire\\s*\\(?\\s*[\"']" + escaped + "[\"']");
   return std::regex_search(text, pattern);
 }
 
@@ -251,12 +258,17 @@ ProjectFeatureUsage scanProjectFeatureUsage(
 
     if (path.extension() == ".lua") {
       const std::string text = readFileText(path);
-      if (luaServiceCall(text, "Network") ||
-          luaServiceCall(text, "NetworkSession")) {
+      if (luaRequires(text, "demi.network") ||
+          luaRequires(text, "demi.network.session")) {
         usage.network = true;
         recordPathEvidence(path, projectDirectory, usage.networkEvidence);
       }
-      if (luaServiceCall(text, "Video")) {
+      if (luaRequires(text, "demi.network.http") ||
+          luaRequires(text, "demi.network.tls.client") ||
+          luaRequires(text, "demi.network.tls.server")) {
+        usage.internet = true;
+      }
+      if (luaRequires(text, "demi.video")) {
         usage.media = true;
         recordPathEvidence(path, projectDirectory, usage.mediaEvidence);
       }
@@ -331,7 +343,7 @@ Diagnostics validateProjectPlatformCapabilities(
   // Projects without an authored build block still receive the engine's
   // Gradle default permissions, which include INTERNET.
   if (platform == capabilities::TargetPlatform::Android && settings.authored &&
-      usage.network && !internetDeclared) {
+      (usage.network || usage.internet) && !internetDeclared) {
     diagnostics.push_back({.severity = Severity::Error,
                            .code = "PROJECT_BUILD_PERMISSION_NETWORK_MISSING",
                            .message = "The project uses networking but does "

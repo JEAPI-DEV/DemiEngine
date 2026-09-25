@@ -1,7 +1,10 @@
 # Game-Facing Networking
 
-Networking is experimental and enabled by default (`DEMI_ENABLE_NETWORK=ON`).
-Use `-DDEMI_ENABLE_NETWORK=OFF` only for an intentionally offline build. Existing
+For web services and REST APIs, see the independent [HTTP client](http.md).
+
+ENet multiplayer networking is experimental and enabled by default
+(`DEMI_ENABLE_NETWORK=ON`). `-DDEMI_ENABLE_NETWORK=OFF` disables ENet, not the
+independent HTTP/HTTPS or TLS services. Existing
 CMake build directories retain cached values; reconfigure an older offline
 build with `-DDEMI_ENABLE_NETWORK=ON` and rebuild. Including the module does not
 open a listening port or connect automatically; hosting/connecting remains an

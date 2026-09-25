@@ -65,6 +65,10 @@ public:
   [[nodiscard]] bool addComponent(std::string_view id,
                                   std::string_view componentName,
                                   std::string &error);
+  [[nodiscard]] bool addComponent(std::string_view id,
+                                  std::string_view componentName,
+                                  nlohmann::json initialValues,
+                                  std::string &error);
   [[nodiscard]] bool addScriptComponent(std::string_view id, std::string module,
                                         nlohmann::json properties,
                                         std::string &error);

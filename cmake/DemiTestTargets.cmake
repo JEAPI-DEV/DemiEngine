@@ -374,7 +374,22 @@
   target_link_libraries(demi-lua-stub-contract-tests PRIVATE demi-runtime-lib)
   add_executable(demi-lua-e2e-runner-tests tests/lua_e2e_runner_tests.cpp)
   target_link_libraries(demi-lua-e2e-runner-tests PRIVATE demi-runtime-lib)
-  foreach(lua_api_test IN ITEMS demi-lua-stub-contract-tests demi-lua-e2e-runner-tests)
+  add_executable(demi-lua-http-tests tests/lua_http_tests.cpp)
+  target_link_libraries(demi-lua-http-tests PRIVATE demi-runtime-lib)
+  if(UNIX)
+    add_executable(demi-http-client-tests tests/http_client_tests.cpp)
+    target_link_libraries(demi-http-client-tests PRIVATE demi-runtime-lib mbedtls mbedx509 mbedcrypto Threads::Threads)
+    target_compile_definitions(demi-http-client-tests PRIVATE
+      DEMI_DTLS_TEST_CERT="${mbedtls_SOURCE_DIR}/framework/data_files/server5.crt"
+      DEMI_DTLS_TEST_KEY="${mbedtls_SOURCE_DIR}/framework/data_files/server5.key"
+      DEMI_DTLS_TEST_CA="${mbedtls_SOURCE_DIR}/framework/data_files/test-ca2.crt")
+  endif()
+  add_executable(demi-lua-json-bridge-tests tests/lua_json_bridge_tests.cpp)
+  target_link_libraries(demi-lua-json-bridge-tests PRIVATE demi-runtime-lib sol2::sol2)
+  target_include_directories(demi-lua-json-bridge-tests BEFORE PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/demi/runtime/scripting/lua_compat
+    ${lua_SOURCE_DIR})
+  foreach(lua_api_test IN ITEMS demi-lua-stub-contract-tests demi-lua-e2e-runner-tests demi-lua-json-bridge-tests)
     if(TARGET lua54)
       target_link_libraries(${lua_api_test} PRIVATE lua54)
     elseif(TARGET demi-server-lua54)

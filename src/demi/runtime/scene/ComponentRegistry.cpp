@@ -211,6 +211,10 @@ nlohmann::json componentSchema(const ComponentDescriptor &descriptor) {
   if (!descriptor.editor.help.empty()) {
     schema["description"] = descriptor.editor.help;
   }
+  if (!descriptor.editor.initialReferenceField.empty()) {
+    schema["x-demi-editor-initial-reference"] =
+        descriptor.editor.initialReferenceField;
+  }
   for (const ComponentFieldDescriptor &field : descriptor.fields) {
     nlohmann::json property;
     switch (field.type) {
@@ -321,14 +325,15 @@ std::string generatedLuaComponentTypes() {
     case ComponentFieldType::Object:
       return "table";
     case ComponentFieldType::Vec2:
-      return "number[]";
+      return "Vec2";
     case ComponentFieldType::Vec3:
-      return "number[]";
+      return "Vec3";
     case ComponentFieldType::Color:
       return "number[]";
     case ComponentFieldType::Vec2Array:
+      return "Vec2[]";
     case ComponentFieldType::Vec3Array:
-      return "number[][]";
+      return "Vec3[]";
     }
     return "unknown";
   };
