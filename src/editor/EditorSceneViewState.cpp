@@ -1,5 +1,7 @@
 #include "editor/EditorSceneViewState.h"
 
+#include "editor/EditorEntityBounds3D.h"
+
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/scene/model/World.h"
@@ -50,7 +52,7 @@ void EditorSceneViewState::reset(const runtime::World &world) {
   transformSpace_ = EditorTransformSpace::Local;
   capturesPointer_ = false;
   updateOrientation();
-  (void)alignToFirstCamera(world);
+  (void)frameScene(world);
 }
 
 bool EditorSceneViewState::alignToFirstCamera(const runtime::World &world) {
@@ -158,16 +160,21 @@ bool EditorSceneViewState::frameEntity(const runtime::World &world,
       std::ranges::find(world.entities, entityId, &runtime::Entity::id);
   if (found == world.entities.end())
     return false;
-  const auto transform = runtime::resolveWorldTransform3D(world, *found);
-  if (!transform)
+  const auto entityBounds = editorEntityBounds3D(world, *found);
+  if (!entityBounds)
     return false;
-  focus_ = transform->position;
-  const float radius =
-      std::max({std::abs(transform->scale.x), std::abs(transform->scale.y),
-                std::abs(transform->scale.z), 0.5F});
-  distance_ = std::max(radius * 3.0F, 2.0F);
-  cameraSettings_.orthographicSize = std::max(radius * 1.5F, 1.0F);
-  position_ = add(focus_, multiply(forward_, -distance_));
+  const auto worldBounds = editorWorldBounds3D(*entityBounds);
+  if (!worldBounds)
+    return false;
+  frameBounds(*worldBounds);
+  return true;
+}
+
+bool EditorSceneViewState::frameScene(const runtime::World &world) {
+  const auto bounds = editorSceneBounds3D(world);
+  if (!bounds)
+    return false;
+  frameBounds(*bounds);
   return true;
 }
 
@@ -189,6 +196,27 @@ EditorSceneViewCamera EditorSceneViewState::camera() const {
 
 void EditorSceneViewState::setProjection(const EditorProjection projection) {
   projection_ = projection;
+}
+
+void EditorSceneViewState::frameBounds(const EditorBounds3D &bounds) {
+  focus_ = {(bounds.minimum.x + bounds.maximum.x) * 0.5F,
+            (bounds.minimum.y + bounds.maximum.y) * 0.5F,
+            (bounds.minimum.z + bounds.maximum.z) * 0.5F};
+  const runtime::Vec3 extent{bounds.maximum.x - focus_.x,
+                             bounds.maximum.y - focus_.y,
+                             bounds.maximum.z - focus_.z};
+  const float radius = std::max(length(extent), 0.5F);
+  constexpr float DegreesToRadians = 0.01745329251994329577F;
+  constexpr float FramePadding = 1.15F;
+  const float halfFov =
+      std::clamp(cameraSettings_.fov, 1.0F, 179.0F) *
+      DegreesToRadians * 0.5F;
+  distance_ = std::max(radius * FramePadding / std::sin(halfFov), 2.0F);
+  cameraSettings_.orthographicSize =
+      std::max(radius * 2.0F * FramePadding, 1.0F);
+  cameraSettings_.farClip =
+      std::max(cameraSettings_.farClip, distance_ + radius * 2.0F);
+  position_ = add(focus_, multiply(forward_, -distance_));
 }
 
 void EditorSceneViewState::updateOrientation() {

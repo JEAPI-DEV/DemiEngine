@@ -4,11 +4,12 @@
 #include "editor/EditorAuthoredJson.h"
 #include "editor/EditorEntityHierarchy.h"
 #include "demi/runtime/scene/composition/EntityHierarchy.h"
+#include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "editor/EditorSpecializedDocument.h"
 
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
-#include "demi/runtime/scene/SceneEntityParser.h"
+#include "demi/runtime/scene/EntityPresets.h"
 #include "demi/schema/Validation.h"
 
 #include <algorithm>
@@ -40,6 +41,14 @@ bool stagedHasErrors(const std::filesystem::path &path,
   for (const Diagnostic &diagnostic : diagnostics) {
     if (diagnostic.severity == Severity::Error) {
       error = diagnostic.code + ": " + diagnostic.message;
+      return true;
+    }
+  }
+  if (runtime::composition::hasPrefabComposition(document)) {
+    const auto expansion = runtime::composition::expandScene(path, document, false);
+    if (!expansion.document) {
+      error = expansion.diagnostics.empty() ? "Prefab composition failed."
+                                            : expansion.diagnostics.front().message;
       return true;
     }
   }
@@ -246,6 +255,11 @@ bool EditorSceneDocument::setValue(SceneValueTarget target,
                                      ? std::nullopt
                                      : std::optional<nlohmann::json>(*current),
                        .after = std::move(replacement)};
+  if (!target.isPrefabOverride() && !target.component.empty()) {
+    const auto *owner = entity(target.entityId);
+    next.createdComponent = owner && component(target.entityId, target.component) == nullptr;
+    next.createdComponentsContainer = next.createdComponent && !owner->contains("components");
+  }
   nlohmann::json staged = document_;
   if (!assignValueInDocument(staged, target, next.after)) {
     error = "The selected entity or component no longer exists.";
@@ -405,6 +419,35 @@ bool EditorSceneDocument::createEntity(std::string &error,
                         error);
 }
 
+bool EditorSceneDocument::instantiatePrefab(const std::string_view reference,
+                                            std::string &error) {
+  constexpr std::string_view Prefix = "prefab://";
+  if (!reference.starts_with(Prefix) || reference.size() == Prefix.size()) {
+    error = "Prefab instances require a prefab:// reference.";
+    reject({}, error);
+    return false;
+  }
+  nlohmann::json *entities = entitiesArray(document_);
+  if (entities == nullptr) {
+    error = "The scene has no entities array.";
+    reject({}, error);
+    return false;
+  }
+
+  std::string_view base = reference.substr(Prefix.size());
+  if (const std::size_t separator = base.rfind('/');
+      separator != std::string_view::npos)
+    base.remove_prefix(separator + 1);
+  if (base.empty())
+    base = "prefab_instance";
+  const std::string id = uniqueEntityId(document_, base);
+  return stageAndCommit(
+      InsertEntityCommand{
+          .index = entities->size(),
+          .entity = {{"id", id}, {"prefab", std::string(reference)}}},
+      error);
+}
+
 bool EditorSceneDocument::createPresetEntity(std::string_view preset,
                                              std::string &error) {
   const auto known = runtime::scene_loading::knownEntityPresets();
@@ -423,6 +466,10 @@ bool EditorSceneDocument::createPresetEntity(std::string_view preset,
                         {"name", std::string(preset) + " Entity"},
                         {"preset", std::string(preset)},
                         {"components", nlohmann::json::object()}};
+  // Physics presets describe bodies/colliders, so new editor objects also need
+  // an authored pose for gizmos and hierarchy operations. The 2D preset supplies it.
+  if (preset != "prop_2d")
+    entity["components"]["Transform3D"] = nlohmann::json::object();
   return stageAndCommit(InsertEntityCommand{.index = entities->size(),
                                             .entity = std::move(entity)},
                         error);
@@ -434,6 +481,20 @@ bool EditorSceneDocument::deleteEntity(const std::string_view id,
   return deleteEntities(ids, error);
 }
 
+bool EditorSceneDocument::unpackPreset(const std::string_view id, std::string &error) {
+  const auto *source = entity(id);
+  if (!source || !source->contains("preset")) {
+    error = "Select an authored preset entity.";
+    return false;
+  }
+  auto staged = document_;
+  auto *replacement = findEntity(staged, id);
+  *replacement = runtime::scene_loading::expandEntityPreset(*source);
+  replacement->erase("size"); // The preset has applied this shorthand to its components.
+  return stageAndCommit(EntityHierarchyCommand{.entityId = std::string(id),
+      .before = document_["entities"], .after = staged["entities"]}, error);
+}
+
 bool EditorSceneDocument::deleteEntities(const std::span<const std::string> ids,
                                          std::string &error) {
   if (ids.empty()) {
@@ -441,8 +502,17 @@ bool EditorSceneDocument::deleteEntities(const std::span<const std::string> ids,
     return false;
   }
   std::unordered_set<std::string> members;
+  std::unordered_set<std::string> instancesToRemove;
+  const auto instances = document_.find("instances");
   for (const std::string &id : ids) {
     if (entity(id) == nullptr) {
+      if (instances != document_.end() && instances->is_array() &&
+          std::ranges::any_of(*instances, [&](const auto &item) {
+            return item.value("id", std::string{}) == id;
+          })) {
+        instancesToRemove.insert(id);
+        continue;
+      }
       error = "The entity no longer exists.";
       reject({.entityId = id}, error);
       return false;
@@ -452,8 +522,17 @@ bool EditorSceneDocument::deleteEntities(const std::span<const std::string> ids,
   }
   auto staged = document_["entities"];
   eraseEntitySubtrees(staged, members);
-  return stageAndCommit(EntityHierarchyCommand{.entityId = ids.front(),
-      .before = document_["entities"], .after = std::move(staged)}, error);
+  EntityHierarchyCommand command{.entityId = ids.front(),
+      .before = document_["entities"], .after = std::move(staged)};
+  if (!instancesToRemove.empty()) {
+    command.instancesBefore = *instances;
+    auto remaining = nlohmann::json::array();
+    for (const auto &instance : *instances)
+      if (!instancesToRemove.contains(instance.value("id", std::string{})))
+        remaining.push_back(instance);
+    command.instancesAfter = std::move(remaining);
+  }
+  return stageAndCommit(std::move(command), error);
 }
 
 bool EditorSceneDocument::reparent(const std::string_view id,
@@ -494,6 +573,22 @@ bool EditorSceneDocument::duplicateEntity(const std::string_view id,
                                           std::string &error) {
   const nlohmann::json *source = entity(id);
   if (source == nullptr) {
+    const auto instances = document_.find("instances");
+    if (instances != document_.end() && instances->is_array()) {
+      const auto instance = std::ranges::find_if(*instances, [&](const auto &item) {
+        return item.value("id", std::string{}) == id;
+      });
+      if (instance != instances->end()) {
+        auto after = *instances;
+        auto copy = *instance;
+        const auto copyId = uniqueEntityId(document_, std::string(id) + "_copy");
+        copy["id"] = copyId;
+        after.push_back(std::move(copy));
+        return stageAndCommit(EntityHierarchyCommand{
+            .entityId = copyId, .before = document_["entities"], .after = document_["entities"],
+            .instancesBefore = *instances, .instancesAfter = std::move(after)}, error);
+      }
+    }
     error = "The entity no longer exists.";
     reject({.entityId = std::string(id)}, error);
     return false;

@@ -1,6 +1,7 @@
 #pragma once
 #include <filesystem>
 #include <string>
+#include <string_view>
 namespace demi::editor {
 class EditorWorkspace;
 enum class EditorSourceKind {
@@ -8,6 +9,8 @@ enum class EditorSourceKind {
   Scene3D,
   Hud,
   Prefab,
+  Prefab2D,
+  PrefabFromSelection,
   UiPrefab,
   Lua,
   Material,
@@ -15,5 +18,6 @@ enum class EditorSourceKind {
 };
 bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
                         const std::string &name, std::filesystem::path &created,
-                        std::string &error);
+                        std::string &error,
+                        std::string_view selectedEntity = {});
 } // namespace demi::editor

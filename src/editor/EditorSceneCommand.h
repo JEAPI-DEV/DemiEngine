@@ -15,6 +15,8 @@ struct SetValueCommand {
   SceneValueTarget target;
   std::optional<nlohmann::json> before;
   std::optional<nlohmann::json> after;
+  bool createdComponent = false;
+  bool createdComponentsContainer = false;
 };
 
 struct SetValuesCommand {
@@ -60,6 +62,9 @@ struct EntityHierarchyCommand {
   std::string entityId;
   nlohmann::json before;
   nlohmann::json after;
+  // When populated, also preserve edits to separately authored prefab instances.
+  std::optional<nlohmann::json> instancesBefore = std::nullopt;
+  std::optional<nlohmann::json> instancesAfter = std::nullopt;
 };
 
 struct AddComponentCommand {

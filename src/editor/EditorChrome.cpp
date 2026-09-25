@@ -248,7 +248,10 @@ bool editorStageTab(const char *label, const bool selected, const ImVec2 size) {
                                  : ImVec4{0.09F, 0.095F, 0.11F, 1.0F});
   ImGui::PushStyleColor(ImGuiCol_ButtonHovered, {0.18F, 0.18F, 0.22F, 1.0F});
   ImGui::PushStyleColor(ImGuiCol_ButtonActive, {0.20F, 0.18F, 0.27F, 1.0F});
-  const bool pressed = ImGui::Button(label, size);
+  const ImVec2 measured{std::max(size.x, ImGui::CalcTextSize(label).x +
+                                          ImGui::GetStyle().FramePadding.x * 2.0F),
+                        std::max(size.y, ImGui::GetFrameHeight())};
+  const bool pressed = ImGui::Button(label, measured);
   if (selected) {
     const ImVec2 min = ImGui::GetItemRectMin();
     const ImVec2 max = ImGui::GetItemRectMax();

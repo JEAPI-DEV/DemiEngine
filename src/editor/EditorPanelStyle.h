@@ -1,5 +1,7 @@
 #pragma once
 
+#include "editor/EditorDialogLayout.h"
+
 #include <imgui.h>
 
 namespace demi::editor {
@@ -10,6 +12,7 @@ inline constexpr ImU32 EditorAccentSoft = IM_COL32(88, 64, 140, 170);
 [[nodiscard]] bool beginEditorPanel(const char *id, ImVec2 initialPosition,
                                     ImVec2 initialSize, bool *open = nullptr,
                                     ImGuiWindowFlags additionalFlags = 0);
+void prepareEditorDialog(EditorDialogLayoutSpec spec);
 void beginEditorShellPanel(const char *id, ImVec2 position, ImVec2 size,
                            ImGuiWindowFlags additionalFlags = 0);
 void editorSectionTitle(const char *title, const char *detail = nullptr);

@@ -1,4 +1,16 @@
 # Native test executables. Test registration lives in dedicated modules.
+  add_executable(demi-prefab-origin-index-tests tests/prefab_origin_index_tests.cpp)
+  target_link_libraries(demi-prefab-origin-index-tests PRIVATE demi-core)
+  add_executable(demi-editor-game-authoring-tests tests/editor_game_authoring_tests.cpp)
+  target_link_libraries(demi-editor-game-authoring-tests PRIVATE demi-editor-model demi-cli-support)
+  target_compile_definitions(demi-editor-game-authoring-tests PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-prefab-authoring-tests tests/editor_prefab_authoring_tests.cpp)
+  target_link_libraries(demi-editor-prefab-authoring-tests PRIVATE demi-editor-model)
+  add_executable(demi-editor-entity-bounds3d-tests tests/editor_entity_bounds3d_tests.cpp)
+  target_link_libraries(demi-editor-entity-bounds3d-tests PRIVATE demi-editor-model)
+  add_executable(demi-editor-dialog-layout-tests tests/editor_dialog_layout_tests.cpp)
+  target_include_directories(demi-editor-dialog-layout-tests PRIVATE src)
+  target_compile_features(demi-editor-dialog-layout-tests PRIVATE cxx_std_20)
   add_executable(demi-project-discovery-tests tests/project_discovery_tests.cpp)
   add_executable(demi-cosmetic-debris3d-tests tests/cosmetic_debris3d_tests.cpp)
   target_link_libraries(demi-cosmetic-debris3d-tests PRIVATE demi-runtime-lib)
@@ -179,6 +191,14 @@
   target_compile_definitions(demi-editor-folder-dialog-tests PRIVATE
     IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
   target_link_libraries(demi-editor-folder-dialog-tests PRIVATE demi-editor-ui)
+  add_executable(demi-editor-settings-layout-tests tests/editor_settings_layout_tests.cpp)
+  target_include_directories(demi-editor-settings-layout-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-settings-layout-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h"
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  target_link_libraries(demi-editor-settings-layout-tests PRIVATE demi-editor-ui)
   target_link_libraries(demi-editor-asset-workflow-tests
     PRIVATE demi-editor-model)
   add_executable(demi-editor-asset-drop-tests

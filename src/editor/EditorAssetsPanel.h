@@ -21,6 +21,9 @@ public:
   void queueImport(std::filesystem::path source) {
     dialogs_.queueImport(std::move(source));
   }
+  void openCreate(EditorSourceKind kind, std::string selectedEntity = {}) {
+    dialogs_.openNewSource(kind, std::move(selectedEntity));
+  }
   [[nodiscard]] std::optional<std::filesystem::path> takeOpenRequest() {
     return std::exchange(openRequest_, std::nullopt);
   }

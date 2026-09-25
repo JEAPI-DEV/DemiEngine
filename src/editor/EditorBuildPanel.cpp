@@ -1,8 +1,8 @@
 #include "editor/EditorBuildPanel.h"
 
+#include "demi/runtime/platform/RuntimeCapabilities.h"
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorWorkspace.h"
-#include "demi/runtime/platform/RuntimeCapabilities.h"
 
 #include <imgui.h>
 
@@ -15,6 +15,11 @@
 
 namespace demi::editor {
 namespace {
+
+constexpr EditorDialogLayoutSpec BuildLayout{
+    .preferredEm = {68.0F, 52.0F},
+    .minimumEm = {42.0F, 32.0F},
+};
 
 std::filesystem::path editorRuntimeExecutable() {
   std::error_code error;
@@ -119,9 +124,10 @@ void EditorBuildPanel::drawBuildSettings(EditorWorkspace &workspace,
   const auto changed = [&](const bool value) {
     settings_.dirty = settings_.dirty || value;
   };
-  const auto assetPicker = [&](const char *label, auto &buffer) {
+  const auto assetPicker = [&](const char *id, auto &buffer) {
     const char *preview = buffer[0] == '\0' ? "None" : buffer.data();
-    if (!ImGui::BeginCombo(label, preview))
+    ImGui::SetNextItemWidth(-1.0F);
+    if (!ImGui::BeginCombo(id, preview))
       return;
     if (ImGui::Selectable("None", buffer[0] == '\0')) {
       buffer.fill('\0');
@@ -139,73 +145,133 @@ void EditorBuildPanel::drawBuildSettings(EditorWorkspace &workspace,
     }
     ImGui::EndCombo();
   };
+  const auto beginPropertyTable = [](const char *id) {
+    if (!ImGui::BeginTable(id, 2, ImGuiTableFlags_SizingStretchProp))
+      return false;
+    ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed,
+                            ImGui::GetFontSize() * 12.0F);
+    ImGui::TableSetupColumn("Control", ImGuiTableColumnFlags_WidthStretch);
+    return true;
+  };
+  const auto propertyRow = [](const char *label, const auto &drawControl) {
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(label);
+    ImGui::TableNextColumn();
+    drawControl();
+  };
 
   if (ImGui::CollapsingHeader("Application", ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::SetNextItemWidth(-1.0F);
-    changed(ImGui::InputText("Application ID", settings_.applicationId.data(),
-                             settings_.applicationId.size()));
-    ImGui::SetNextItemWidth(-1.0F);
-    changed(ImGui::InputText("Display Name", settings_.displayName.data(),
-                             settings_.displayName.size()));
-    ImGui::SetNextItemWidth(-1.0F);
-    changed(ImGui::InputText("Executable", settings_.executableName.data(),
-                             settings_.executableName.size()));
-    ImGui::SetNextItemWidth(180.0F);
-    changed(ImGui::InputText("Version", settings_.versionName.data(),
-                             settings_.versionName.size()));
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(120.0F);
-    changed(ImGui::InputInt("Version Code", &settings_.versionCode));
-    assetPicker("Icon", settings_.icon);
-    assetPicker("Splash", settings_.splash);
+    if (beginPropertyTable("application-settings")) {
+      propertyRow("Application ID", [&] {
+        ImGui::SetNextItemWidth(-1.0F);
+        changed(ImGui::InputText("##application-id",
+                                 settings_.applicationId.data(),
+                                 settings_.applicationId.size()));
+      });
+      propertyRow("Display name", [&] {
+        ImGui::SetNextItemWidth(-1.0F);
+        changed(ImGui::InputText("##display-name", settings_.displayName.data(),
+                                 settings_.displayName.size()));
+      });
+      propertyRow("Executable", [&] {
+        ImGui::SetNextItemWidth(-1.0F);
+        changed(ImGui::InputText("##executable",
+                                 settings_.executableName.data(),
+                                 settings_.executableName.size()));
+      });
+      propertyRow("Version", [&] {
+        ImGui::SetNextItemWidth(-1.0F);
+        changed(ImGui::InputText("##version", settings_.versionName.data(),
+                                 settings_.versionName.size()));
+      });
+      propertyRow("Version code", [&] {
+        ImGui::SetNextItemWidth(-1.0F);
+        changed(ImGui::InputInt("##version-code", &settings_.versionCode));
+      });
+      propertyRow("Icon", [&] { assetPicker("##icon", settings_.icon); });
+      propertyRow("Splash", [&] { assetPicker("##splash", settings_.splash); });
+      ImGui::EndTable();
+    }
   }
 
   if (ImGui::CollapsingHeader("Linux / Desktop",
                               ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::SetNextItemWidth(120.0F);
-    changed(ImGui::InputInt("Width", &settings_.windowWidth));
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(120.0F);
-    changed(ImGui::InputInt("Height", &settings_.windowHeight));
-    if (ImGui::BeginCombo("Window Mode", settings_.windowMode.c_str())) {
-      for (const char *mode : {"windowed", "borderless", "fullscreen"}) {
-        if (ImGui::Selectable(mode, settings_.windowMode == mode)) {
-          settings_.windowMode = mode;
-          settings_.dirty = true;
+    if (beginPropertyTable("desktop-settings")) {
+      propertyRow("Window width", [&] {
+        ImGui::SetNextItemWidth(-1.0F);
+        changed(ImGui::InputInt("##window-width", &settings_.windowWidth));
+      });
+      propertyRow("Window height", [&] {
+        ImGui::SetNextItemWidth(-1.0F);
+        changed(ImGui::InputInt("##window-height", &settings_.windowHeight));
+      });
+      propertyRow("Window mode", [&] {
+        ImGui::SetNextItemWidth(-1.0F);
+        if (ImGui::BeginCombo("##window-mode", settings_.windowMode.c_str())) {
+          for (const char *mode : {"windowed", "borderless", "fullscreen"}) {
+            if (ImGui::Selectable(mode, settings_.windowMode == mode)) {
+              settings_.windowMode = mode;
+              settings_.dirty = true;
+            }
+          }
+          ImGui::EndCombo();
         }
-      }
-      ImGui::EndCombo();
+      });
+      ImGui::EndTable();
     }
   }
 
   if (ImGui::CollapsingHeader("Android", ImGuiTreeNodeFlags_DefaultOpen)) {
-    if (ImGui::BeginCombo("Orientation", settings_.orientation.c_str())) {
-      for (const char *orientation : {"unspecified", "portrait", "landscape",
-                                      "portrait_sensor",
-                                      "landscape_sensor"}) {
-        if (ImGui::Selectable(orientation,
-                              settings_.orientation == orientation)) {
-          settings_.orientation = orientation;
-          settings_.dirty = true;
+    if (beginPropertyTable("android-settings")) {
+      propertyRow("Orientation", [&] {
+        ImGui::SetNextItemWidth(-1.0F);
+        if (ImGui::BeginCombo("##orientation", settings_.orientation.c_str())) {
+          for (const char *orientation :
+               {"unspecified", "portrait", "landscape", "portrait_sensor",
+                "landscape_sensor"}) {
+            if (ImGui::Selectable(orientation,
+                                  settings_.orientation == orientation)) {
+              settings_.orientation = orientation;
+              settings_.dirty = true;
+            }
+          }
+          ImGui::EndCombo();
         }
-      }
-      ImGui::EndCombo();
+      });
+      propertyRow("Minimum SDK", [&] {
+        ImGui::SetNextItemWidth(-1.0F);
+        changed(ImGui::InputInt("##minimum-sdk", &settings_.minimumSdk));
+      });
+      propertyRow("Architectures", [&] {
+        changed(ImGui::Checkbox("ARM64 (arm64-v8a)", &settings_.arm64));
+        ImGui::SameLine();
+        changed(ImGui::Checkbox("x86_64", &settings_.x86_64));
+      });
+      ImGui::EndTable();
     }
-    ImGui::SetNextItemWidth(120.0F);
-    changed(ImGui::InputInt("Minimum SDK", &settings_.minimumSdk));
-    changed(ImGui::Checkbox("ARM64 (arm64-v8a)", &settings_.arm64));
-    ImGui::SameLine();
-    changed(ImGui::Checkbox("x86_64", &settings_.x86_64));
 
     ImGui::TextDisabled("Declared permissions");
     std::optional<std::size_t> removePermission;
-    for (std::size_t index = 0; index < settings_.permissions.size(); ++index) {
-      ImGui::PushID(static_cast<int>(index));
-      ImGui::TextUnformatted(settings_.permissions[index].c_str());
-      ImGui::SameLine();
-      if (ImGui::SmallButton("Remove"))
-        removePermission = index;
-      ImGui::PopID();
+    if (ImGui::BeginTable("android-permissions", 2,
+                          ImGuiTableFlags_SizingStretchProp |
+                              ImGuiTableFlags_BordersInnerH)) {
+      ImGui::TableSetupColumn("Permission", ImGuiTableColumnFlags_WidthStretch);
+      ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed);
+      for (std::size_t index = 0; index < settings_.permissions.size();
+           ++index) {
+        ImGui::PushID(static_cast<int>(index));
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(settings_.permissions[index].c_str());
+        ImGui::TableNextColumn();
+        if (ImGui::SmallButton("Remove"))
+          removePermission = index;
+        ImGui::PopID();
+      }
+      ImGui::EndTable();
     }
     if (removePermission) {
       settings_.permissions.erase(
@@ -213,29 +279,37 @@ void EditorBuildPanel::drawBuildSettings(EditorWorkspace &workspace,
           static_cast<std::ptrdiff_t>(*removePermission));
       settings_.dirty = true;
     }
-    ImGui::SetNextItemWidth(390.0F);
-    ImGui::InputTextWithHint("##permission", "android.permission.INTERNET",
-                             settings_.newPermission.data(),
-                             settings_.newPermission.size());
-    ImGui::SameLine();
-    const std::string permission = settings_.newPermission.data();
-    ImGui::BeginDisabled(permission.empty());
-    if (ImGui::Button("Add##permission")) {
-      if (std::ranges::find(settings_.permissions, permission) !=
-          settings_.permissions.end()) {
-        notice = "That Android permission is already declared.";
-      } else {
-        settings_.permissions.push_back(permission);
-        settings_.newPermission.fill('\0');
-        settings_.dirty = true;
+    if (ImGui::BeginTable("add-android-permission", 2,
+                          ImGuiTableFlags_SizingStretchProp)) {
+      ImGui::TableSetupColumn("Permission", ImGuiTableColumnFlags_WidthStretch);
+      ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed);
+      ImGui::TableNextRow();
+      ImGui::TableNextColumn();
+      ImGui::SetNextItemWidth(-1.0F);
+      ImGui::InputTextWithHint("##permission", "android.permission.INTERNET",
+                               settings_.newPermission.data(),
+                               settings_.newPermission.size());
+      ImGui::TableNextColumn();
+      const std::string permission = settings_.newPermission.data();
+      ImGui::BeginDisabled(permission.empty());
+      if (ImGui::Button("Add##permission")) {
+        if (std::ranges::find(settings_.permissions, permission) !=
+            settings_.permissions.end()) {
+          notice = "That Android permission is already declared.";
+        } else {
+          settings_.permissions.push_back(permission);
+          settings_.newPermission.fill('\0');
+          settings_.dirty = true;
+        }
       }
+      ImGui::EndDisabled();
+      ImGui::EndTable();
     }
-    ImGui::EndDisabled();
   }
 
   ImGui::Spacing();
   ImGui::BeginDisabled(!settings_.dirty);
-  if (ImGui::Button("Apply Settings", {140.0F, 28.0F})) {
+  if (ImGui::Button("Apply Settings")) {
     std::string error;
     if (workspace.setProjectBuildSettings(editedBuildSettings(), error)) {
       notice = "Build settings updated";
@@ -249,7 +323,7 @@ void EditorBuildPanel::drawBuildSettings(EditorWorkspace &workspace,
   ImGui::EndDisabled();
   ImGui::SameLine();
   ImGui::BeginDisabled(!settings_.dirty);
-  if (ImGui::Button("Reset Changes", {120.0F, 28.0F})) {
+  if (ImGui::Button("Reset Changes")) {
     settings_.dirty = false;
     settings_.initialized = false;
     syncBuildSettings(workspace);
@@ -279,12 +353,16 @@ void EditorBuildPanel::draw(EditorWorkspace &workspace, std::string &notice) {
   if (!show_)
     return;
   syncBuildSettings(workspace);
-  ImGui::SetNextWindowSize({640.0F, 760.0F}, ImGuiCond_Appearing);
-  if (!ImGui::Begin("Build Project", &show_,
-                    ImGuiWindowFlags_NoSavedSettings)) {
+  prepareEditorDialog(BuildLayout);
+  if (!ImGui::Begin("Build Project", &show_)) {
     ImGui::End();
     return;
   }
+  const float footerHeight =
+      ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y * 2.0F;
+  ImGui::BeginChild("build-project-content", {0.0F, -footerHeight},
+                    ImGuiChildFlags_None,
+                    ImGuiWindowFlags_AlwaysVerticalScrollbar);
   editorSectionTitle("Build");
   ImGui::BeginDisabled(settings_.dirty);
   if (ImGui::SmallButton("Validate") &&
@@ -326,9 +404,9 @@ void EditorBuildPanel::draw(EditorWorkspace &workspace, std::string &notice) {
         releaseBuild_ = true;
       ImGui::EndCombo();
     }
-    if (releaseBuild_ && ImGui::BeginCombo(
-                             "Android Output",
-                             androidBundle_ ? "App Bundle (.aab)" : "APK")) {
+    if (releaseBuild_ &&
+        ImGui::BeginCombo("Android Output",
+                          androidBundle_ ? "App Bundle (.aab)" : "APK")) {
       if (ImGui::Selectable("APK", !androidBundle_))
         androidBundle_ = false;
       if (ImGui::Selectable("App Bundle (.aab)", androidBundle_))
@@ -355,16 +433,16 @@ void EditorBuildPanel::draw(EditorWorkspace &workspace, std::string &notice) {
     }
   }
   ImGui::Spacing();
-  ImGui::Separator();
+  ImGui::EndChild();
   if (operation.running) {
-    if (ImGui::Button("Cancel", {-1.0F, 30.0F})) {
+    if (ImGui::Button("Cancel", {-1.0F, ImGui::GetFrameHeight()})) {
       operations_.cancel();
       notice = "Cancelling project operation";
     }
   } else {
     const bool hasTarget = linuxTarget_ || androidTarget_;
     ImGui::BeginDisabled(!hasTarget || settings_.dirty);
-    if (ImGui::Button("Build Project", {-1.0F, 30.0F}) &&
+    if (ImGui::Button("Build Project", {-1.0F, ImGui::GetFrameHeight()}) &&
         saveBeforeOperation(workspace, notice)) {
       std::vector<build::ProjectOperationRequest> requests;
       if (linuxTarget_)
@@ -372,12 +450,10 @@ void EditorBuildPanel::draw(EditorWorkspace &workspace, std::string &notice) {
             operationRequest(workspace, build::ProjectOperation::PackageLinux));
       if (androidTarget_)
         requests.push_back(operationRequest(
-            workspace,
-            !releaseBuild_
-                ? build::ProjectOperation::PackageAndroid
-                : androidBundle_
-                      ? build::ProjectOperation::BundleAndroidRelease
-                      : build::ProjectOperation::PackageAndroidRelease));
+            workspace, !releaseBuild_ ? build::ProjectOperation::PackageAndroid
+                       : androidBundle_
+                           ? build::ProjectOperation::BundleAndroidRelease
+                           : build::ProjectOperation::PackageAndroidRelease));
       std::string error;
       notice = operations_.start(std::move(requests), error)
                    ? "Project build started"

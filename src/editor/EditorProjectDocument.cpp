@@ -123,6 +123,22 @@ bool EditorProjectDocument::addScene(std::string id, std::filesystem::path path,
   return commit(std::move(replacement), error);
 }
 
+bool EditorProjectDocument::setMainScene(const std::string_view id,
+                                         std::string &error) {
+  const auto scenes = document_.find("scenes");
+  if (scenes == document_.end() || !scenes->is_array() ||
+      std::ranges::none_of(*scenes, [&](const nlohmann::json &scene) {
+        return scene.is_object() && scene.value("id", "") == id;
+      })) {
+    error = "The start scene must be registered by this project.";
+    return false;
+  }
+
+  nlohmann::json replacement = document_;
+  replacement["main_scene"] = std::string(id);
+  return commit(std::move(replacement), error);
+}
+
 bool EditorProjectDocument::setInputActions(nlohmann::json actions,
                                             std::string &error) {
   if (!actions.is_object()) {

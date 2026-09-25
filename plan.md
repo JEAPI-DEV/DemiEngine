@@ -486,6 +486,43 @@ Current audit implementation:
 
 ##### 3. Editor authoring completion
 
+September 25 authoring-workbench pass (native ImGui, existing runtime services):
+
+- [x] Expose new scenes, HUDs, entity/UI prefabs and behaviours through File as
+  well as Assets; add a persisted Start scene selector in Project Settings.
+- [x] Edit canonical component defaults directly, filter properties, and show
+  field origin/help on hover. Keep presence-sensitive values explicit; Reset
+  removes authored values/overrides rather than saving every default.
+  Preset-inherited components are visible/editable too; initial edits and
+  continuous-edit Undo preserve compact source. Explicit Unpack makes preset
+  components independent. Shared data-only preset expansion also fixes
+  validator/runtime agreement for parent and component checks.
+- [x] Replace cramped settings/build/asset dialog dimensions with shared
+  font-relative sizing constrained to the viewport. Make the default Inspector
+  wider and the Assets area span the bottom workspace; preserve saved layouts.
+- [x] Create an entity prefab from an authored hierarchy without replacing it;
+  place instances through menus or drag/drop, edit overrides, duplicate and
+  remove instances with Undo/Redo. Inline composition and origin tracking use
+  the shared scene/prefab resolver, including nested parenting and cycle errors.
+- [x] Group HUD controls by Layout/Appearance/Content/Interaction, expose dock,
+  anchor and stack choices plus canvas size, insert UI prefabs, and duplicate
+  or reparent authored UI subtrees. Keep expanded prefab children source-owned.
+- [x] Start the 3D editor view at a geometry overview, not inside a gameplay
+  camera. Use shared transformed bounds for picking, framing and instanced meshes.
+- [x] Qualify the combined workbench changes with the full suite and visual review.
+  Release: 327/327 tests pass sequentially, including both Android packaging
+  gates. The running native workbench was reviewed visually; real ImGui settings,
+  project and build panels also pass layout tests at 1920×1080 and 800×600.
+  The new editor-service acceptance probe authors a project/scene/HUD/prefabs,
+  saves/reopens it, runs keyboard-controlled Play and builds a Linux package;
+  only gameplay Lua is hand-written. This does not close every CLI/editor gap.
+- [x] Avoid rescanning the full source hierarchy per loaded entity when resolving
+  prefab origins. A per-load index preserves longest-prefix ownership. The
+  isolated Release probe (`demi-prefab-origin-index-tests`, 2,000 origins/queries,
+  median of three runs) measured 207.509 ms before and 0.469 ms after, including
+  index construction in the latter. These are CPU lookup timings, not whole-load
+  or rendering performance measurements.
+
 Implemented fixes to retain and regression-test:
 
 - [x] Game View relative mouse capture, Ctrl+D release, focus-loss release, and
@@ -516,6 +553,9 @@ Remaining work:
   Save/reopen, Undo/Redo, conflict handling, and useful error messages. For mesh
   and UV data, distinguish model-import settings from editable geometry and
   runtime-only buffers; make unsupported operations explicit.
+  Further work includes field-specific asset-picker filtering/search, UI-prefab
+  parameter declaration authoring, and dedicated specialized-asset tools. The
+  core scene/HUD/prefab workflow above is qualified independently of these gaps.
   - Collider generation now has an editor action over `ColliderAssetGenerator`,
     with body recommendations, detail selection, explicit replacement and
     conflict detection. Qualification covers asset discovery and assigning the

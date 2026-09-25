@@ -2,6 +2,7 @@
 #include "demi/assets/AssetImporter.h"
 #include "demi/assets/AssetRegistry.h"
 #include "editor/EditorDocumentStore.h"
+#include "editor/EditorPrefabAuthoring.h"
 #include "editor/EditorWorkspace.h"
 #include <algorithm>
 #include <nlohmann/json.hpp>
@@ -9,7 +10,7 @@
 namespace demi::editor {
 bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
                         const std::string &name, std::filesystem::path &created,
-                        std::string &error) {
+                        std::string &error, std::string_view selectedEntity) {
   try {
     if (name.empty() || name.size() > 180 ||
         !std::ranges::all_of(name,
@@ -74,7 +75,14 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
       }
     }
     std::string content;
-    if (kind == EditorSourceKind::Material) {
+    if (kind == EditorSourceKind::PrefabFromSelection) {
+      const auto prefab =
+          makeEntityPrefab(workspace.sceneDocument().json(), selectedEntity,
+                           "prefab://" + name, error);
+      if (!prefab)
+        return false;
+      document = *prefab;
+    } else if (kind == EditorSourceKind::Material) {
       document["shader"] = "builtin://lit";
       document["parameters"] = {{"base_color", {1, 1, 1, 1}}};
     } else if (kind == EditorSourceKind::Data) {
@@ -113,6 +121,10 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
              {"components",
               {{"Transform2D", nlohmann::json::object()},
                {"Camera2D", nlohmann::json::object()}}}});
+      else if (kind == EditorSourceKind::Prefab2D)
+        document["entities"].push_back(
+            {{"id", "body"},
+             {"components", {{"Transform2D", nlohmann::json::object()}}}});
       else
         document["entities"].push_back(
             {{"id", "body"},

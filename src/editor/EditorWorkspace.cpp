@@ -537,6 +537,12 @@ bool EditorWorkspace::deleteEntity(const std::string_view id,
   return deleteEntities({std::string(id)}, error);
 }
 
+bool EditorWorkspace::unpackPreset(const std::string_view id, std::string &error) {
+  return mutateAndRebuild([&](EditorSceneDocument &document, std::string &failure) {
+    return document.unpackPreset(id, failure);
+  }, error);
+}
+
 bool EditorWorkspace::deleteEntities(std::vector<std::string> ids,
                                      std::string &error) {
   if (!mutateAndRebuild(
@@ -738,6 +744,79 @@ bool EditorWorkspace::deleteSelectedHudNode(std::string &error) {
   return true;
 }
 
+bool EditorWorkspace::createHudPrefabInstance(const std::string_view reference,
+                                              std::string &error) {
+  auto *hud = activeHudDocument();
+  if (!hud) {
+    error = "Open a HUD before adding a UI prefab.";
+    return false;
+  }
+  std::string parent(selectedHudNodeId_);
+  if (parent.empty() && !hud->preview().nodes.empty())
+    parent = hud->preview().nodes.front().id;
+  std::string created;
+  if (!hud->createPrefabInstance(reference, parent, created, error))
+    return false;
+  syncHudPreview();
+  selectHudNode(std::move(created));
+  return true;
+}
+
+bool EditorWorkspace::setHudNodeAnchors(const std::string_view id,
+                                       const runtime::Vec2 minimum,
+                                       const runtime::Vec2 maximum,
+                                       std::string &error) {
+  auto *hud = activeHudDocument();
+  if (!hud) {
+    error = "Open a HUD before changing its layout.";
+    return false;
+  }
+  if (!hud->setNodeAnchors(id, minimum, maximum, error))
+    return false;
+  syncHudPreview();
+  return true;
+}
+
+bool EditorWorkspace::setHudCanvasSize(const runtime::Vec2 size, std::string &error) {
+  auto *hud = activeHudDocument();
+  if (!hud) {
+    error = "Open a HUD before changing its canvas.";
+    return false;
+  }
+  if (!hud->setCanvasSize(size, error))
+    return false;
+  syncHudPreview();
+  return true;
+}
+
+bool EditorWorkspace::reparentHudNode(const std::string_view id,
+                                     const std::string_view parent, std::string &error) {
+  auto *hud = activeHudDocument();
+  if (!hud) {
+    error = "Open a HUD before moving UI elements.";
+    return false;
+  }
+  if (!hud->reparentNode(id, parent, error))
+    return false;
+  syncHudPreview();
+  selectHudNode(std::string(id));
+  return true;
+}
+
+bool EditorWorkspace::duplicateHudNode(const std::string_view id, std::string &error) {
+  auto *hud = activeHudDocument();
+  if (!hud) {
+    error = "Open a HUD before duplicating UI elements.";
+    return false;
+  }
+  std::string created;
+  if (!hud->duplicateNode(id, created, error))
+    return false;
+  syncHudPreview();
+  selectHudNode(std::move(created));
+  return true;
+}
+
 bool EditorWorkspace::setHudNodeField(const std::string_view id,
                                       const std::string_view field,
                                       nlohmann::json value,
@@ -912,6 +991,10 @@ EditorWorkspace::resolveSceneTarget(SceneValueTarget target) const {
     target.prefabEntityId = entity->prefabLocalId;
     return target;
   }
+  // Loaded entities already carry composition provenance. Do not rescan the
+  // entire source document for every ordinary Inspector field.
+  if (entity != nullptr)
+    return target;
   if (const auto origin = runtime::composition::prefabEntityOrigin(
           sceneDocument_.json(), target.entityId)) {
     target.prefabInstanceId = origin->instanceId;

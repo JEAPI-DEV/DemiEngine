@@ -1,32 +1,33 @@
 #include "editor/EditorSceneJson.h"
 #include "demi/runtime/scene/composition/EntityHierarchy.h"
+#include "demi/runtime/scene/EntityPresets.h"
 
 #include <algorithm>
 
 namespace demi::editor {
 namespace {
 
-nlohmann::json *findInstance(nlohmann::json &document,
-                             const std::string_view id) {
+template <typename Json>
+Json *findInstance(Json &document, const std::string_view id) {
+  auto entities = document.find("entities");
+  if (entities != document.end() && entities->is_array()) {
+    Json *inlineInstance =
+        runtime::composition::findAuthoredEntity(*entities, id);
+    if (inlineInstance != nullptr) {
+      const auto prefab = inlineInstance->find("prefab");
+      if (prefab != inlineInstance->end() && prefab->is_string())
+        return inlineInstance;
+    }
+  }
+
   auto instances = document.find("instances");
   if (instances == document.end() || !instances->is_array())
     return nullptr;
   const auto found = std::ranges::find_if(*instances, [&](auto &instance) {
-    return instance.is_object() && instance.value("id", std::string{}) == id;
+    return instance.is_object() &&
+           instance.value("id", std::string{}) == id &&
+           instance.contains("prefab") && instance["prefab"].is_string();
   });
-  return found == instances->end() ? nullptr : &*found;
-}
-
-const nlohmann::json *findInstance(const nlohmann::json &document,
-                                   const std::string_view id) {
-  auto instances = document.find("instances");
-  if (instances == document.end() || !instances->is_array())
-    return nullptr;
-  const auto found =
-      std::ranges::find_if(*instances, [&](const auto &instance) {
-        return instance.is_object() &&
-               instance.value("id", std::string{}) == id;
-      });
   return found == instances->end() ? nullptr : &*found;
 }
 
@@ -237,9 +238,18 @@ bool assignValueInDocument(nlohmann::json &document,
   if (container == nullptr)
     return false;
   if (!target.component.empty()) {
-    container = findComponent(*container, target.component);
-    if (container == nullptr)
+    auto *component = findComponent(*container, target.component);
+    if (component == nullptr && value && container->contains("preset")) {
+      const auto expanded = runtime::scene_loading::expandEntityPreset(*container);
+      const auto resolved = expanded.find("components");
+      if (resolved != expanded.end() && resolved->contains(target.component)) {
+        (*container)["components"][target.component] = nlohmann::json::object();
+        component = &(*container)["components"][target.component];
+      }
+    }
+    if (component == nullptr)
       return false;
+    container = component;
   }
   if (value.has_value())
     (*container)[target.field] = *value;
@@ -265,12 +275,15 @@ std::string transformParentId(const nlohmann::json &entity) {
 
 const char *transformComponentName(const nlohmann::json &entity) {
   const auto components = entity.find("components");
-  if (components == entity.end() || !components->is_object())
-    return nullptr;
-  for (const char *name : {"Transform3D", "Transform2D", "IsoTransform"}) {
-    if (components->contains(name))
-      return name;
+  if (components != entity.end() && components->is_object()) {
+    for (const char *name : {"Transform3D", "Transform2D", "IsoTransform"}) {
+      if (components->contains(name))
+        return name;
+    }
   }
+  if (const auto preset = entity.find("preset");
+      preset != entity.end() && preset->is_string())
+    return transformComponentName(runtime::scene_loading::expandEntityPreset(entity));
   return nullptr;
 }
 
@@ -298,8 +311,15 @@ std::string uniqueEntityId(const nlohmann::json &document,
                            const std::string_view base,
                            const std::unordered_set<std::string> &reserved) {
   const auto taken = [&](const std::string &candidate) {
-    return reserved.contains(candidate) ||
-           findEntity(document, candidate) != nullptr;
+    if (reserved.contains(candidate) ||
+        findEntity(document, candidate) != nullptr)
+      return true;
+    const auto instances = document.find("instances");
+    return instances != document.end() && instances->is_array() &&
+           std::ranges::any_of(*instances, [&](const auto &instance) {
+             return instance.is_object() &&
+                    instance.value("id", std::string{}) == candidate;
+           });
   };
   std::string candidate(base);
   std::size_t suffix = 2;

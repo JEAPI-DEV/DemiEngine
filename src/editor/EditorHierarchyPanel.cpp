@@ -18,11 +18,13 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace demi::editor {
 namespace {
 
 constexpr const char *EntityPayload = "DEMI_SCENE_ENTITY";
+constexpr const char *HudNodePayload = "DEMI_HUD_NODE";
 
 bool containsCaseInsensitive(const std::string_view value,
                              const std::string_view filter) {
@@ -71,6 +73,11 @@ struct HierarchyAction {
   enum class Kind {
     Create,
     Duplicate,
+    DuplicatePrefab,
+    RemovePrefab,
+    PlacePrefab,
+    DuplicateHudNode,
+    ReparentHudNode,
     Reparent,
     Delete,
     DeleteSelection,
@@ -81,12 +88,21 @@ struct HierarchyAction {
   std::string entityId;
   std::optional<std::string> parentId;
   std::optional<EditorIsoGridCell> gridCell;
+  std::filesystem::path prefabSource;
 };
 
 void acceptEntityDrop(std::optional<HierarchyAction> &pending,
                       std::optional<std::string> parentId) {
   if (!ImGui::BeginDragDropTarget())
     return;
+  if (!parentId) {
+    if (const auto *payload = ImGui::AcceptDragDropPayload("DEMI_PREFAB_SOURCE");
+        payload && payload->Data && payload->DataSize > 1) {
+      pending = HierarchyAction{.kind = HierarchyAction::Kind::PlacePrefab,
+          .prefabSource = std::string(static_cast<const char *>(payload->Data),
+                                     static_cast<std::size_t>(payload->DataSize - 1))};
+    }
+  }
   if (const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(EntityPayload);
       payload != nullptr && payload->Data != nullptr && payload->DataSize > 1) {
     const auto *data = static_cast<const char *>(payload->Data);
@@ -105,6 +121,10 @@ bool applyHierarchyAction(EditorWorkspace &workspace,
   std::string error;
   bool succeeded = false;
   switch (action.kind) {
+  case HierarchyAction::Kind::PlacePrefab:
+    succeeded = workspace.instantiatePrefab(action.prefabSource, error);
+    notice = succeeded ? "Prefab instance added" : error;
+    break;
   case HierarchyAction::Kind::Create:
     succeeded = workspace.createEntity(error, action.parentId);
     notice = succeeded ? "Entity created" : error;
@@ -118,6 +138,23 @@ bool applyHierarchyAction(EditorWorkspace &workspace,
   case HierarchyAction::Kind::Duplicate:
     succeeded = workspace.duplicateEntity(action.entityId, error);
     notice = succeeded ? "Entity subtree duplicated" : error;
+    break;
+  case HierarchyAction::Kind::DuplicatePrefab:
+    succeeded = workspace.duplicatePrefabInstance(action.entityId, error);
+    notice = succeeded ? "Prefab instance duplicated" : error;
+    break;
+  case HierarchyAction::Kind::RemovePrefab:
+    succeeded = workspace.removePrefabInstance(action.entityId, error);
+    notice = succeeded ? "Prefab instance removed" : error;
+    break;
+  case HierarchyAction::Kind::DuplicateHudNode:
+    succeeded = workspace.duplicateHudNode(action.entityId, error);
+    notice = succeeded ? "HUD subtree duplicated" : error;
+    break;
+  case HierarchyAction::Kind::ReparentHudNode:
+    succeeded = workspace.reparentHudNode(
+        action.entityId, action.parentId.value_or(""), error);
+    notice = succeeded ? "HUD element moved" : error;
     break;
   case HierarchyAction::Kind::Reparent:
     succeeded =
@@ -197,6 +234,8 @@ bool hudNodeMatches(const std::vector<EditorHudHierarchyNode> &nodes,
 void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
                  const EditorHudHierarchyNode &node,
                  const std::string_view filter, EditorWorkspace &workspace,
+                 const std::string_view rootId,
+                 std::optional<HierarchyAction> &pending,
                  std::string &notice) {
   if (!hudNodeMatches(nodes, node, filter))
     return;
@@ -232,7 +271,45 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
     ImGui::SetTooltip("HUD %s · %s\nSelect to edit in the viewport",
                       node.type.c_str(), node.visible ? "visible" : "hidden");
   }
+  const EditorHudDocument *document = workspace.hudDocument();
+  const bool authored = document != nullptr &&
+                        document->authoredNode(node.id) != nullptr;
+  const bool movable = authored && node.id != rootId;
+  if (movable && ImGui::BeginDragDropSource()) {
+    ImGui::SetDragDropPayload(HudNodePayload, node.id.c_str(),
+                              node.id.size() + 1);
+    ImGui::TextUnformatted(node.label.c_str());
+    ImGui::TextDisabled("Drop on an authored HUD node to reparent");
+    ImGui::EndDragDropSource();
+  }
+  if (authored && ImGui::BeginDragDropTarget()) {
+    if (const ImGuiPayload *payload =
+            ImGui::AcceptDragDropPayload(HudNodePayload);
+        payload != nullptr && payload->Data != nullptr &&
+        payload->DataSize > 1) {
+      const auto *data = static_cast<const char *>(payload->Data);
+      std::string draggedId(
+          data, static_cast<std::size_t>(payload->DataSize - 1));
+      if (draggedId != node.id)
+        pending = HierarchyAction{.kind =
+                                      HierarchyAction::Kind::ReparentHudNode,
+                                  .entityId = std::move(draggedId),
+                                  .parentId = node.id};
+    }
+    ImGui::EndDragDropTarget();
+  }
   if (ImGui::BeginPopupContextItem(widgetId.c_str())) {
+    if (ImGui::MenuItem("Duplicate UI subtree", nullptr, false, movable))
+      pending = HierarchyAction{
+          .kind = HierarchyAction::Kind::DuplicateHudNode,
+          .entityId = node.id};
+    if (ImGui::MenuItem("Move to HUD root", nullptr, false,
+                        movable && node.parent != rootId))
+      pending = HierarchyAction{
+          .kind = HierarchyAction::Kind::ReparentHudNode,
+          .entityId = node.id,
+          .parentId = std::string(rootId)};
+    ImGui::Separator();
     if (ImGui::MenuItem("Delete UI element")) {
       workspace.selectHudNode(node.id);
       std::string error;
@@ -244,12 +321,13 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
   if (hasChildren && open) {
     for (const EditorHudHierarchyNode &child : nodes)
       if (child.parent == node.id)
-        drawHudNode(nodes, child, filter, workspace, notice);
+        drawHudNode(nodes, child, filter, workspace, rootId, pending, notice);
     ImGui::TreePop();
   }
 }
 
 void drawHudHierarchy(EditorWorkspace &workspace, const std::string_view filter,
+                      std::optional<HierarchyAction> &pending,
                       std::string &notice) {
   const EditorHudDocument *hud = workspace.hudDocument();
   if (hud == nullptr)
@@ -273,9 +351,13 @@ void drawHudHierarchy(EditorWorkspace &workspace, const std::string_view filter,
                   {rowMin.x + 28.0F, (rowMin.y + rowMax.y) * 0.5F},
                   IM_COL32(171, 151, 230, 255), 0.7F);
   if (open) {
+    const auto root =
+        std::ranges::find(nodes, std::string{}, &EditorHudHierarchyNode::parent);
+    const std::string rootId =
+        root == nodes.end() ? std::string{} : root->id;
     for (const EditorHudHierarchyNode &node : nodes)
       if (node.parent.empty())
-        drawHudNode(nodes, node, filter, workspace, notice);
+        drawHudNode(nodes, node, filter, workspace, rootId, pending, notice);
     if (nodes.empty())
       ImGui::TextDisabled("HUD contains no parsed nodes.");
     ImGui::TreePop();
@@ -349,14 +431,17 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
   acceptEntityDrop(pending, entity.id);
 
   if (!pending.has_value() && ImGui::BeginPopupContextItem(entity.id.c_str())) {
-    if (ImGui::MenuItem("Duplicate subtree"))
-      pending = HierarchyAction{.kind = HierarchyAction::Kind::Duplicate,
+    const bool prefabInstance = !entity.prefabInstance.empty();
+    if (ImGui::MenuItem(prefabInstance ? "Duplicate prefab instance" : "Duplicate subtree"))
+      pending = HierarchyAction{.kind = prefabInstance ? HierarchyAction::Kind::DuplicatePrefab
+                                                      : HierarchyAction::Kind::Duplicate,
                                 .entityId = entity.id};
-    if (!entityParent(entity).empty() && ImGui::MenuItem("Move to scene root"))
+    if (!prefabInstance && !entityParent(entity).empty() && ImGui::MenuItem("Move to scene root"))
       pending = HierarchyAction{.kind = HierarchyAction::Kind::Reparent,
                                 .entityId = entity.id};
-    if (ImGui::MenuItem(entityHasChildren ? "Delete subtree" : "Delete"))
-      pending = HierarchyAction{.kind = HierarchyAction::Kind::Delete,
+    if (ImGui::MenuItem(prefabInstance ? "Remove prefab instance" : entityHasChildren ? "Delete subtree" : "Delete"))
+      pending = HierarchyAction{.kind = prefabInstance ? HierarchyAction::Kind::RemovePrefab
+                                                      : HierarchyAction::Kind::Delete,
                                 .entityId = entity.id};
     ImGui::EndPopup();
   }
@@ -399,9 +484,14 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
     if (ImGui::BeginPopup("add-preset-entity")) {
       ImGui::TextDisabled("Entity preset");
       ImGui::Separator();
-      for (const char *preset :
-           {"static_box_3d", "trigger_sphere_3d", "prop_2d", "character_3d"}) {
-        if (!ImGui::MenuItem(preset))
+      constexpr std::pair<const char *, const char *> presets[]{
+          {"3D Static Box", "static_box_3d"},
+          {"3D Trigger Sphere", "trigger_sphere_3d"},
+          {"2D Sprite", "prop_2d"},
+          {"3D Character", "character_3d"},
+      };
+      for (const auto &[label, preset] : presets) {
+        if (!ImGui::MenuItem(label))
           continue;
         std::string error;
         notice = workspace.createPresetEntity(preset, error)
@@ -419,22 +509,51 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
     if (ImGui::BeginPopup("add-hud-element")) {
       ImGui::TextDisabled("Add under selected HUD node");
       ImGui::Separator();
-      for (const char *type :
-           {"container", "panel", "label", "button", "image", "text_input"}) {
-        if (!ImGui::MenuItem(type))
+      ImGui::TextDisabled("Element");
+      constexpr std::pair<const char *, const char *> elementTypes[]{
+          {"Container", "container"}, {"Panel", "panel"},
+          {"Text", "label"},           {"Image", "image"},
+          {"Button", "button"},       {"Toggle", "toggle"},
+          {"Slider", "slider"},       {"Text Input", "text_input"},
+          {"Scroll Area", "scroll"},  {"List", "list"},
+          {"Progress Bar", "progress"}, {"Modal", "modal"},
+      };
+      for (const auto &[label, type] : elementTypes) {
+        if (!ImGui::MenuItem(label))
           continue;
         std::string error;
         notice = workspace.createHudNode(type, error)
                      ? std::string(type) + " added"
                      : error;
       }
+      ImGui::Separator();
+      ImGui::TextDisabled("UI Prefab");
+      bool hasUiPrefab = false;
+      for (const std::filesystem::path &source : workspace.sources()) {
+        const std::optional<std::string> reference = editorUiPrefabReference(
+            workspace.project().project.projectDirectory, source);
+        if (!reference || (workspace.hudDocument() &&
+                           source == workspace.hudDocument()->path()))
+          continue;
+        hasUiPrefab = true;
+        const std::string label =
+            reference->substr(std::string_view("ui-prefab://").size());
+        if (!ImGui::MenuItem(label.c_str()))
+          continue;
+        std::string error;
+        notice = workspace.createHudPrefabInstance(*reference, error)
+                     ? label + " instance added"
+                     : error;
+      }
+      if (!hasUiPrefab)
+        ImGui::TextDisabled("No UI prefabs in project/ui");
       ImGui::EndPopup();
     }
   }
   ImGui::Spacing();
 
   if (hudOnly) {
-    drawHudHierarchy(workspace, filter_.data(), notice);
+    drawHudHierarchy(workspace, filter_.data(), pending, notice);
   } else {
     const bool sceneOpen =
         ImGui::TreeNodeEx("Scene", ImGuiTreeNodeFlags_DefaultOpen |
@@ -445,7 +564,7 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
         if (entityParent(entity).empty())
           drawEntityNode(workspace, entity, workspace.project().world,
                          filter_.data(), pending, notice);
-      drawHudHierarchy(workspace, filter_.data(), notice);
+      drawHudHierarchy(workspace, filter_.data(), pending, notice);
       ImGui::TreePop();
     }
   }

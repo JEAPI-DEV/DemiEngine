@@ -287,6 +287,17 @@ public:
           continue;
         }
         if(item.contains("prefab")) {
+          remapEntityReferences(item, ids);
+          for (const char *transform : {"Transform2D", "Transform3D", "IsoTransform"}) {
+            if (item.contains(transform) && item[transform].is_object()) {
+              auto parent = item[transform].find("parent");
+              if (parent != item[transform].end() && parent->is_string()) {
+                const auto mapped = ids.find(parent->get<std::string>());
+                if (mapped != ids.end())
+                  *parent = mapped->second;
+              }
+            }
+          }
           for(auto &nested:expandInstance(canonical,item,prefix)) items.push_back(std::move(nested));
           continue;
         }
@@ -307,6 +318,7 @@ public:
 
     applyOverrides(instance.value("overrides", Json::object()), prefix, items,
                    ownerPath);
+    attachInstanceParent(ownerPath, instance, items);
     const bool finalizeInstance = parentPrefix.empty();
     if (!compileFractures_ && finalizeInstance) {
       items = assets::expandMasonry(items, true);
@@ -327,6 +339,48 @@ public:
     stack_.pop_back();
     active_.erase(canonical);
     return items;
+  }
+
+  void attachInstanceParent(const std::filesystem::path &ownerPath,
+                            const Json &instance, Json &items) {
+    const Json &authored = instance.contains("components") ? instance["components"] : instance;
+    for (const char *domain : {"Transform2D", "Transform3D", "IsoTransform"}) {
+      const auto transform = authored.find(domain);
+      if (transform == authored.end() || !transform->is_object())
+        continue;
+      const std::string parent = transform->value("parent", std::string{});
+      if (parent.empty())
+        continue;
+      std::set<std::string> internalIds;
+      for (const auto &item : items)
+        internalIds.insert(item.at("id").get<std::string>());
+      for (auto &item : items) {
+        Json &components = item.contains("components") ? item["components"] : item;
+        bool internalChild = false;
+        for (const char *candidate : {"Transform2D", "Transform3D", "IsoTransform"}) {
+          const auto current = components.find(candidate);
+          if (current == components.end() || !current->is_object())
+            continue;
+          if (std::string_view(candidate) != domain) {
+            report(ownerPath, "PREFAB_PARENT_DOMAIN_MISMATCH",
+                   "A nested prefab must use its parent's transform domain.");
+            return;
+          }
+          const auto existing = current->value("parent", std::string{});
+          internalChild = internalIds.contains(existing);
+          if (!internalChild && !existing.empty() && existing != parent) {
+            report(ownerPath, "PREFAB_PARENT_CONFLICT",
+                   "A nested prefab root has a conflicting external parent.");
+            return;
+          }
+        }
+        if (!internalChild) {
+          if (!components.contains(domain))
+            components[domain] = Json::object();
+          components[domain]["parent"] = parent;
+        }
+      }
+    }
   }
 
   Json expandPlacement(const std::filesystem::path &ownerPath, const Json &entity) {
@@ -463,34 +517,61 @@ nlohmann::json rebasePrefabEntities(nlohmann::json entities,
   return entities;
 }
 
-std::optional<PrefabEntityOrigin>
-prefabEntityOrigin(const Json &ownerDocument,
-                   const std::string_view expandedEntityId) {
-  const auto instances = ownerDocument.find(
-      ownerDocument.contains("instances") ? "instances" : "prefab_origins");
-  if (instances == ownerDocument.end() || !instances->is_array())
-    return std::nullopt;
-
-  std::optional<PrefabEntityOrigin> result;
-  for (const Json &instance : *instances) {
+PrefabOriginIndex::PrefabOriginIndex(const Json &ownerDocument) {
+  const auto consider = [&](const Json &instance) {
     if (!instance.is_object())
-      continue;
+      return;
     const auto id = instance.find("id");
     if (id == instance.end() || !id->is_string())
-      continue;
+      return;
     const std::string &instanceId = id->get_ref<const std::string &>();
-    if (instanceId.empty() || expandedEntityId.size() <= instanceId.size() ||
-        !expandedEntityId.starts_with(instanceId) ||
-        expandedEntityId[instanceId.size()] != '/')
-      continue;
-    if (result && result->instanceId.size() >= instanceId.size())
-      continue;
-    result =
-        PrefabEntityOrigin{.instanceId = instanceId,
-                           .localEntityId = std::string(
-                               expandedEntityId.substr(instanceId.size() + 1))};
+    if (!instanceId.empty())
+      instances_.insert(instanceId);
+  };
+  for (const char *field : {"instances", "prefab_origins"}) {
+    const auto instances = ownerDocument.find(field);
+    if (instances != ownerDocument.end() && instances->is_array())
+      for (const auto &instance : *instances)
+        consider(instance);
   }
-  return result;
+  std::vector<const Json *> pending;
+  if (const auto entities = ownerDocument.find("entities");
+      entities != ownerDocument.end() && entities->is_array())
+    pending.push_back(&*entities);
+  while (!pending.empty()) {
+    const Json &entities = *pending.back();
+    pending.pop_back();
+    for (const Json &entity : entities) {
+      if (!entity.is_object())
+        continue;
+      if (entity.contains("prefab"))
+        consider(entity);
+      if (const auto children = entity.find("children");
+          children != entity.end() && children->is_array())
+        pending.push_back(&*children);
+    }
+  }
+}
+
+std::optional<PrefabEntityOrigin>
+PrefabOriginIndex::find(const std::string_view expandedEntityId) const {
+  if (instances_.empty())
+    return std::nullopt;
+  auto separator = expandedEntityId.rfind('/');
+  while (separator != std::string_view::npos) {
+    const std::string prefix(expandedEntityId.substr(0, separator));
+    if (separator + 1 < expandedEntityId.size() && instances_.contains(prefix))
+      return PrefabEntityOrigin{prefix, std::string(expandedEntityId.substr(separator + 1))};
+    if (separator == 0)
+      break;
+    separator = expandedEntityId.rfind('/', separator - 1);
+  }
+  return std::nullopt;
+}
+
+std::optional<PrefabEntityOrigin>
+prefabEntityOrigin(const Json &ownerDocument, const std::string_view expandedEntityId) {
+  return PrefabOriginIndex(ownerDocument).find(expandedEntityId);
 }
 
 std::optional<std::filesystem::path>
@@ -556,7 +637,25 @@ ExpansionResult expandScene(const std::filesystem::path &scenePath,
     }
   }
   const Json authoredEntities = expanded.value("entities", Json::array());
-  ExpansionContext context(result.diagnostics, {}, {}, compileFractures);
+  const bool prefabSource = sceneDocument.value("id", std::string{}).starts_with("prefab://");
+  ExpansionContext context(result.diagnostics,
+      prefabSource ? std::filesystem::weakly_canonical(scenePath) : std::filesystem::path{},
+      prefabSource ? std::optional<Json>(sceneDocument) : std::nullopt, compileFractures);
+  if (expanded.contains("entities") && expanded["entities"].is_array()) {
+    Json resolved = Json::array();
+    for (const Json &entity : authoredEntities) {
+      if (entity.contains("prefab")) {
+        for (auto &item : context.expandInstance(scenePath, entity, {}))
+          resolved.push_back(std::move(item));
+        if (!expanded.contains("prefab_origins"))
+          expanded["prefab_origins"] = Json::array();
+        expanded["prefab_origins"].push_back(entity);
+      } else {
+        resolved.push_back(entity);
+      }
+    }
+    expanded["entities"] = std::move(resolved);
+  }
   if (expanded.contains("instances") && expanded["instances"].is_array()) {
     if (!expanded.contains("entities") || !expanded["entities"].is_array())
       expanded["entities"] = Json::array();
@@ -567,7 +666,10 @@ ExpansionResult expandScene(const std::filesystem::path &scenePath,
     }
   }
   if (expanded.contains("instances")) {
-    expanded["prefab_origins"] = expanded["instances"];
+    if (!expanded.contains("prefab_origins"))
+      expanded["prefab_origins"] = Json::array();
+    for (const auto &instance : expanded["instances"])
+      expanded["prefab_origins"].push_back(instance);
     expanded.erase("instances");
   }
   if (!compileFractures && expanded.contains("entities")) {

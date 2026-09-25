@@ -18,9 +18,24 @@ public:
   [[nodiscard]] bool createNode(std::string_view type,
                                 std::string_view parentId,
                                 std::string &createdId, std::string &error);
+  [[nodiscard]] bool createPrefabInstance(std::string_view prefabReference,
+                                          std::string_view parentId,
+                                          std::string &createdId,
+                                          std::string &error);
+  [[nodiscard]] bool reparentNode(std::string_view id,
+                                  std::string_view parentId,
+                                  std::string &error);
+  [[nodiscard]] bool duplicateNode(std::string_view id,
+                                   std::string &createdId,
+                                   std::string &error);
   [[nodiscard]] bool deleteNode(std::string_view id, std::string &error);
+  [[nodiscard]] bool setCanvasSize(runtime::Vec2 size, std::string &error);
   [[nodiscard]] bool setNodeField(std::string_view id, std::string_view field,
                                   nlohmann::json value, std::string &error);
+  [[nodiscard]] bool setNodeAnchors(std::string_view id,
+                                    runtime::Vec2 anchorMin,
+                                    runtime::Vec2 anchorMax,
+                                    std::string &error);
   [[nodiscard]] bool undo(std::string &error);
   [[nodiscard]] bool redo(std::string &error);
   [[nodiscard]] bool save(std::string &error) { return document_.save(error); }
@@ -36,10 +51,13 @@ public:
     return preview_;
   }
   [[nodiscard]] const nlohmann::json &json() const { return document_.json(); }
+  [[nodiscard]] bool hasImplicitRoot() const;
   [[nodiscard]] const nlohmann::json *authoredNode(std::string_view id) const;
 
 private:
   [[nodiscard]] bool rebuild(std::string &error);
+  [[nodiscard]] bool replaceAndRebuild(nlohmann::json replacement,
+                                       std::string &error);
 
   EditorJsonDocument document_;
   runtime::ui::UiDocument preview_;

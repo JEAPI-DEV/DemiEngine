@@ -39,8 +39,15 @@ int main() {
   const auto authoredTransform = demi::runtime::resolveWorldTransform3D(
       workspace.project().world, *authoredCamera);
   assert(authoredTransform.has_value());
+  const auto initialOverview = workspace.sceneView().camera();
+  assert(initialOverview.projection.perspective);
+  assert(!close(initialOverview.position, authoredTransform->position));
+  assert(workspace.sceneView().alignToFirstCamera(workspace.project().world));
   assert(close(workspace.sceneView().camera().position,
                authoredTransform->position));
+  workspace.sceneView().reset(workspace.project().world);
+  assert(close(workspace.sceneView().camera().position,
+               initialOverview.position));
 
   const std::string authoredJson = workspace.sceneDocument().json().dump();
   const auto start = workspace.sceneView().camera();

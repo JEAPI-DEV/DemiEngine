@@ -67,6 +67,70 @@ bool editorComponentMatchesSearch(const std::string_view query,
          containsCaseInsensitive(category, query);
 }
 
+bool editorPropertyMatchesSearch(
+    const std::string_view query, const ComponentDescriptor &component,
+    const runtime::ComponentFieldDescriptor &field) {
+  if (query.empty())
+    return true;
+  return editorComponentMatchesSearch(query, component.name,
+                                      component.editor.displayName,
+                                      component.editor.category) ||
+         containsCaseInsensitive(field.name, query) ||
+         containsCaseInsensitive(
+             runtime::scene_loading::componentFieldEditorLabel(field), query) ||
+         containsCaseInsensitive(field.editor.help, query);
+}
+
+EditorPropertyPresentation editorPropertyPresentation(
+    const ComponentDescriptor &descriptor,
+    const runtime::ComponentFieldDescriptor &field,
+    const nlohmann::json &resolvedComponent, const bool isPrefabEntity,
+    const bool hasExplicitValue) {
+  EditorPropertyPresentation presentation;
+  const auto resolved = resolvedComponent.find(field.name);
+  const auto &defaults = runtime::scene_loading::componentDefaults(descriptor);
+  const auto canonicalDefault = defaults.find(field.name);
+
+  if (resolved != resolvedComponent.end()) {
+    presentation.value = *resolved;
+    presentation.hasValue = true;
+  } else if (canonicalDefault != defaults.end()) {
+    presentation.value = *canonicalDefault;
+    presentation.hasValue = true;
+  }
+
+  if (!presentation.hasValue)
+    presentation.origin = EditorPropertyOrigin::Missing;
+  else if (isPrefabEntity)
+    presentation.origin = hasExplicitValue ? EditorPropertyOrigin::Override
+                                           : EditorPropertyOrigin::Inherited;
+  else if (hasExplicitValue)
+    presentation.origin = EditorPropertyOrigin::Authored;
+  else
+    presentation.origin = EditorPropertyOrigin::Default;
+
+  presentation.requiresExplicitAdd = !presentation.hasValue;
+  presentation.canReset =
+      hasExplicitValue && (isPrefabEntity || !field.required);
+  return presentation;
+}
+
+std::string_view editorPropertyOriginLabel(const EditorPropertyOrigin origin) {
+  switch (origin) {
+  case EditorPropertyOrigin::Default:
+    return "Default";
+  case EditorPropertyOrigin::Inherited:
+    return "Inherited";
+  case EditorPropertyOrigin::Authored:
+    return "Authored";
+  case EditorPropertyOrigin::Override:
+    return "Override";
+  case EditorPropertyOrigin::Missing:
+    return "Not set";
+  }
+  return {};
+}
+
 std::vector<EditorReferenceChoice>
 editorReferenceChoices(const runtime::ComponentReferenceKind kind,
                        const std::filesystem::path &projectDirectory,

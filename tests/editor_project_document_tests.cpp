@@ -44,6 +44,19 @@ int main() {
                                       error));
   assert(document.addScene("scene://menu", "scenes/menu.scene.json", error));
   assert(document.scenes().size() == 2);
+  assert(document.setMainScene("scene://menu", error));
+  assert(document.json().value("main_scene", "") == "scene://menu");
+  const std::string beforeInvalidMainScene = document.json().dump();
+  assert(!document.setMainScene("scene://missing", error));
+  assert(document.json().dump() == beforeInvalidMainScene);
+  assert(document.undo(error));
+  assert(document.json().value("main_scene", "") == "scene://main");
+  assert(document.redo(error));
+  assert(document.json().value("main_scene", "") == "scene://menu");
+  assert(document.save(error));
+  assert(nlohmann::json::parse(read(root / "demi.project.json"))
+             .value("main_scene", "") == "scene://menu");
+  assert(document.setMainScene("scene://main", error));
   assert(!document.removeScene("scene://main", error));
   assert(document.removeScene("scene://menu", error));
   assert(document.setInputActions(

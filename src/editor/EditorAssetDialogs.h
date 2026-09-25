@@ -1,8 +1,8 @@
 #pragma once
 
+#include "demi/assets/ColliderAssetGenerator.h"
 #include "editor/EditorAssetGroupDocument.h"
 #include "editor/EditorSourceCreation.h"
-#include "demi/assets/ColliderAssetGenerator.h"
 
 #include <array>
 #include <filesystem>
@@ -25,8 +25,17 @@ public:
   void openNewFolder(std::filesystem::path relativeParent);
   void openGenerateCollider(std::filesystem::path modelManifest,
                             std::string_view modelId);
-  void openNewSource(EditorSourceKind kind) { sourceKind_=kind;sourceName_.fill(0);showNewSource_=true; }
-  std::optional<std::filesystem::path> takeCreatedSource() { return std::exchange(createdSource_,std::nullopt); }
+  void openNewSource(EditorSourceKind kind, std::string selectedEntity = {}) {
+    sourceKind_ = kind;
+    sourceSelection_ = std::move(selectedEntity);
+    sourceName_.fill(0);
+    sourceError_.clear();
+    showNewSource_ = true;
+  }
+  std::optional<std::filesystem::path> takeCreatedSource() {
+    return std::exchange(createdSource_, std::nullopt);
+  }
+  [[nodiscard]] bool opensCreatedSource() const { return opensCreatedSource_; }
   [[nodiscard]] std::optional<std::filesystem::path> takeCreatedFolder() {
     return std::exchange(createdFolder_, std::nullopt);
   }
@@ -38,10 +47,13 @@ public:
   void draw(EditorWorkspace &workspace, std::string &notice);
 
 private:
-  EditorSourceKind sourceKind_=EditorSourceKind::Scene3D;
-  bool showNewSource_=false;
-  std::array<char,192> sourceName_{};
+  EditorSourceKind sourceKind_ = EditorSourceKind::Scene3D;
+  bool showNewSource_ = false;
+  std::array<char, 192> sourceName_{};
+  std::string sourceSelection_;
+  std::string sourceError_;
   std::optional<std::filesystem::path> createdSource_;
+  bool opensCreatedSource_ = true;
   std::array<char, 256> folderName_{};
   std::filesystem::path folderParent_;
   std::optional<std::filesystem::path> createdFolder_;

@@ -3,7 +3,8 @@
 namespace demi::editor::EditorDefaultLayout {
 
 inline constexpr float HierarchyRatio = 0.19F;
-inline constexpr float InspectorRatio = 0.24F;
+// Applied after the hierarchy split: reserve room for labels and editable values.
+inline constexpr float InspectorRatio = 0.34F;
 inline constexpr float BottomRatio = 0.30F;
 inline constexpr float ConsoleRatio = 0.32F;
 inline constexpr float HierarchyWidth = 300.0F;

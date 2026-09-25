@@ -36,8 +36,8 @@ std::filesystem::path relativeSource(const EditorWorkspace &workspace,
                                      const std::filesystem::path &source) {
   // Keep file aliases in their authored folder, without filesystem queries
   // during drawing. Directory discovery uses the same lexical paths.
-  const auto relative = source.lexically_relative(
-      workspace.project().project.projectDirectory);
+  const auto relative =
+      source.lexically_relative(workspace.project().project.projectDirectory);
   return relative.empty() ? source.filename() : relative;
 }
 
@@ -89,7 +89,8 @@ bool drawAssetTile(const char *id, const std::string &label,
                                              ? ImVec4{0.27F, 0.21F, 0.40F, 1.0F}
                                              : ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
   ImGui::PushStyleColor(ImGuiCol_HeaderHovered, {0.18F, 0.18F, 0.22F, 1.0F});
-  const bool pressed = ImGui::Selectable("##tile", selected, ImGuiSelectableFlags_AllowDoubleClick, size);
+  const bool pressed = ImGui::Selectable(
+      "##tile", selected, ImGuiSelectableFlags_AllowDoubleClick, size);
   ImGui::PopStyleColor(2);
   ImDrawList *draw = ImGui::GetWindowDrawList();
   const ImVec2 min = ImGui::GetItemRectMin();
@@ -138,6 +139,21 @@ void drawAssetDetails(EditorWorkspace &workspace,
   ImGui::TextWrapped("%s", relative.generic_string().c_str());
   if (ImGui::SmallButton("Locate"))
     locateSource(selected, notice);
+
+  if (isPrefabFile(selected)) {
+    ImGui::Spacing();
+    ImGui::TextWrapped(
+        "Reusable entity hierarchy. Double-click to edit its source.");
+    ImGui::BeginDisabled(workspace.activeDocument() !=
+                         EditorWorkspaceDocument::Scene);
+    if (ImGui::Button("Add prefab to active scene", {-1.0F, 0.0F})) {
+      std::string error;
+      notice = workspace.instantiatePrefab(selected, error)
+                   ? "Prefab instance added"
+                   : error;
+    }
+    ImGui::EndDisabled();
+  }
 
   const EditorAssetRecord *record =
       workspace.assetIndex().findByManifest(selected);
@@ -219,18 +235,31 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
     return;
   }
   const float panelWidth = ImGui::GetContentRegionAvail().x;
-  if (ImGui::Button("+ Import", {76.0F, 28.0F}))
+  if (ImGui::Button("+ Import"))
     dialogs_.openImport();
   ImGui::SameLine();
-  if (ImGui::Button("+ Create", {76.0F, 28.0F}))
+  if (ImGui::Button("+ Create"))
     ImGui::OpenPopup("asset-create-menu");
   if (ImGui::BeginPopup("asset-create-menu")) {
-    for (const auto &[name,kind]:std::vector<std::pair<const char*,EditorSourceKind>>{
-      {"3D Scene...",EditorSourceKind::Scene3D},{"2D Scene...",EditorSourceKind::Scene2D},
-      {"HUD...",EditorSourceKind::Hud},{"Scene Prefab...",EditorSourceKind::Prefab},
-      {"UI Prefab...",EditorSourceKind::UiPrefab},{"Lua Script...",EditorSourceKind::Lua},
-      {"Material...",EditorSourceKind::Material},{"Data Asset...",EditorSourceKind::Data}})
-      if (ImGui::MenuItem(name)) dialogs_.openNewSource(kind);
+    for (const auto &[name, kind] :
+         std::vector<std::pair<const char *, EditorSourceKind>>{
+             {"3D Scene...", EditorSourceKind::Scene3D},
+             {"2D Scene...", EditorSourceKind::Scene2D},
+             {"HUD...", EditorSourceKind::Hud},
+             {"3D Entity Prefab...", EditorSourceKind::Prefab},
+             {"2D Entity Prefab...", EditorSourceKind::Prefab2D},
+             {"UI Prefab...", EditorSourceKind::UiPrefab},
+             {"Lua Script...", EditorSourceKind::Lua},
+             {"Material...", EditorSourceKind::Material},
+             {"Data Asset...", EditorSourceKind::Data}})
+      if (ImGui::MenuItem(name))
+        dialogs_.openNewSource(kind);
+    const auto selection = workspace.selectedEntityId();
+    if (ImGui::MenuItem("Prefab from selected hierarchy...", nullptr, false,
+                        !selection.empty() &&
+                            workspace.sceneDocument().entity(selection)))
+      dialogs_.openNewSource(EditorSourceKind::PrefabFromSelection,
+                             std::string(selection));
     ImGui::Separator();
     if (ImGui::MenuItem("New Folder..."))
       dialogs_.openNewFolder(directory_);
@@ -241,8 +270,8 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::SameLine();
   ImGui::TextDisabled("Assets%s%s", directory_.empty() ? "" : " / ",
                       directory_.generic_string().c_str());
-  ImGui::SameLine(std::max(300.0F, panelWidth - 430.0F));
-  ImGui::SetNextItemWidth(135.0F);
+  ImGui::SetNextItemWidth(
+      std::min(panelWidth * 0.35F, ImGui::GetFontSize() * 10.0F));
   if (ImGui::BeginCombo("##asset-type-filter", typeFilter_.empty()
                                                    ? "All types"
                                                    : typeFilter_.c_str())) {
@@ -254,7 +283,7 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
     ImGui::EndCombo();
   }
   ImGui::SameLine();
-  ImGui::SetNextItemWidth(220.0F);
+  ImGui::SetNextItemWidth(-1.0F);
   ImGui::InputTextWithHint("##asset-search", "Search assets", filter_.data(),
                            filter_.size());
   ImGui::Separator();
@@ -319,9 +348,27 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
         openRequest_ = source;
       if (ImGui::IsItemHovered())
         ImGui::SetTooltip("%s", display.c_str());
+      if (isPrefabFile(source) && ImGui::BeginDragDropSource()) {
+        const std::string path = source.string();
+        ImGui::SetDragDropPayload("DEMI_PREFAB_SOURCE", path.c_str(),
+                                  path.size() + 1);
+        ImGui::TextUnformatted(source.filename().string().c_str());
+        ImGui::TextDisabled(
+            "Drop on Scene in the Hierarchy to add an instance");
+        ImGui::EndDragDropSource();
+      }
       if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("Open"))
           openRequest_ = source;
+        if (isPrefabFile(source) &&
+            ImGui::MenuItem("Add prefab to active scene", nullptr, false,
+                            workspace.activeDocument() ==
+                                EditorWorkspaceDocument::Scene)) {
+          std::string error;
+          notice = workspace.instantiatePrefab(source, error)
+                       ? "Prefab instance added"
+                       : error;
+        }
         if (ImGui::MenuItem("Locate in filesystem"))
           locateSource(source, notice);
         if (record != nullptr && ImGui::MenuItem("Reimport")) {
@@ -364,7 +411,15 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::EndChild();
   ImGui::End();
   dialogs_.draw(workspace, notice);
-  if (auto source=dialogs_.takeCreatedSource()) { selectedSource_=*source;openRequest_=*source; }
+  if (auto source = dialogs_.takeCreatedSource()) {
+    selectedSource_ = *source;
+    directory_ = relativeSource(workspace, *source).parent_path();
+    filter_.fill('\0');
+    typeFilter_.clear();
+    revealDirectory_ = true;
+    if (dialogs_.opensCreatedSource())
+      openRequest_ = *source;
+  }
   if (auto collider = dialogs_.takeCreatedCollider()) {
     selectedSource_ = *collider;
     directory_ = relativeSource(workspace, *collider).parent_path();

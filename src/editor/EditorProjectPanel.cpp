@@ -1,5 +1,6 @@
 #include "editor/EditorProjectPanel.h"
 
+#include "editor/EditorPanelStyle.h"
 #include "editor/EditorWorkspace.h"
 
 #include "cli/project/ProjectTemplates.h"
@@ -12,6 +13,15 @@
 
 namespace demi::editor {
 namespace {
+
+constexpr EditorDialogLayoutSpec ProjectSettingsLayout{
+    .preferredEm = {72.0F, 50.0F},
+    .minimumEm = {42.0F, 30.0F},
+};
+constexpr EditorDialogLayoutSpec CreateProjectLayout{
+    .preferredEm = {46.0F, 26.0F},
+    .minimumEm = {34.0F, 22.0F},
+};
 
 void reportDiagnostics(const Diagnostics &diagnostics, std::string &notice) {
   if (diagnostics.empty())
@@ -35,27 +45,39 @@ void copyInput(std::array<char, 160> &destination,
 
 void EditorProjectPanel::draw(EditorWorkspace &workspace, std::string &notice) {
   if (showSettings_) {
-    ImGui::SetNextWindowSize({660.0F, 720.0F}, ImGuiCond_Appearing);
-    if (ImGui::Begin("Project Settings", nullptr,
-                     ImGuiWindowFlags_NoSavedSettings)) {
+    prepareEditorDialog(ProjectSettingsLayout);
+    if (ImGui::Begin("Project Settings")) {
       ImGui::TextUnformatted(workspace.project().project.name.c_str());
       if (workspace.projectDocument().isDirty()) {
         ImGui::SameLine();
         ImGui::TextColored({0.95F, 0.67F, 0.28F, 1.0F}, "Modified");
       }
       ImGui::Separator();
-      ImGui::BeginChild("project-settings-content", {0.0F, -48.0F}, false);
-      ImGui::TextUnformatted("Preloaded assets and groups");
+      const float footerHeight = ImGui::GetFrameHeightWithSpacing();
+      ImGui::BeginChild("project-settings-content", {0.0F, -footerHeight},
+                        ImGuiChildFlags_None,
+                        ImGuiWindowFlags_AlwaysVerticalScrollbar);
+      ImGui::SeparatorText("Preloaded assets and groups");
       std::vector<std::string> preloads =
           workspace.projectDocument().preloadedAssets();
       std::optional<std::size_t> removePreload;
-      for (std::size_t index = 0; index < preloads.size(); ++index) {
-        ImGui::PushID(static_cast<int>(index));
-        ImGui::TextUnformatted(preloads[index].c_str());
-        ImGui::SameLine(500.0F);
-        if (ImGui::SmallButton("Remove"))
-          removePreload = index;
-        ImGui::PopID();
+      if (ImGui::BeginTable("preload-list", 2,
+                            ImGuiTableFlags_SizingStretchProp |
+                                ImGuiTableFlags_BordersInnerH)) {
+        ImGui::TableSetupColumn("Resource", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed);
+        for (std::size_t index = 0; index < preloads.size(); ++index) {
+          ImGui::PushID(static_cast<int>(index));
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn();
+          ImGui::AlignTextToFramePadding();
+          ImGui::TextUnformatted(preloads[index].c_str());
+          ImGui::TableNextColumn();
+          if (ImGui::SmallButton("Remove"))
+            removePreload = index;
+          ImGui::PopID();
+        }
+        ImGui::EndTable();
       }
       if (removePreload) {
         preloads.erase(preloads.begin() +
@@ -87,22 +109,66 @@ void EditorProjectPanel::draw(EditorWorkspace &workspace, std::string &notice) {
       }
 
       ImGui::Spacing();
-      ImGui::Separator();
-      ImGui::TextUnformatted("Scene membership");
+      ImGui::SeparatorText("Scene membership");
+      const std::vector<runtime::SceneEntry> projectScenes =
+          workspace.projectDocument().scenes();
+      const std::string mainScene =
+          workspace.projectDocument().json().value("main_scene", "");
+      if (ImGui::BeginTable("start-scene", 2,
+                            ImGuiTableFlags_SizingStretchProp)) {
+        ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed,
+                                ImGui::GetFontSize() * 9.0F);
+        ImGui::TableSetupColumn("Control", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("Start scene");
+        ImGui::TableNextColumn();
+        ImGui::SetNextItemWidth(-1.0F);
+        if (ImGui::BeginCombo("##start-scene", mainScene.c_str())) {
+          for (const runtime::SceneEntry &scene : projectScenes) {
+            const bool isMain = scene.id == mainScene;
+            if (ImGui::Selectable(scene.id.c_str(), isMain) && !isMain) {
+              std::string error;
+              notice = workspace.setProjectMainScene(scene.id, error)
+                           ? "Project start scene updated"
+                           : error;
+            }
+            if (isMain)
+              ImGui::SetItemDefaultFocus();
+          }
+          ImGui::EndCombo();
+        }
+        ImGui::EndTable();
+      }
+
       std::optional<std::string> removeScene;
-      for (const runtime::SceneEntry &scene :
-           workspace.projectDocument().scenes()) {
-        ImGui::PushID(scene.id.c_str());
-        ImGui::Text("%s", scene.id.c_str());
-        ImGui::SameLine(315.0F);
-        ImGui::TextDisabled("%s", scene.path.string().c_str());
-        ImGui::SameLine(540.0F);
-        const bool isMain = scene.id == workspace.project().project.mainScene;
-        if (isMain)
-          ImGui::TextDisabled("Main");
-        else if (ImGui::SmallButton("Remove"))
-          removeScene = scene.id;
-        ImGui::PopID();
+      if (ImGui::BeginTable("scene-list", 3,
+                            ImGuiTableFlags_SizingStretchProp |
+                                ImGuiTableFlags_BordersInnerH)) {
+        ImGui::TableSetupColumn("Scene", ImGuiTableColumnFlags_WidthStretch,
+                                0.9F);
+        ImGui::TableSetupColumn("Source", ImGuiTableColumnFlags_WidthStretch,
+                                1.1F);
+        ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed);
+        for (const runtime::SceneEntry &scene : projectScenes) {
+          ImGui::PushID(scene.id.c_str());
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn();
+          ImGui::AlignTextToFramePadding();
+          ImGui::TextUnformatted(scene.id.c_str());
+          ImGui::TableNextColumn();
+          ImGui::AlignTextToFramePadding();
+          ImGui::TextDisabled("%s", scene.path.string().c_str());
+          ImGui::TableNextColumn();
+          const bool isMain = scene.id == mainScene;
+          if (isMain)
+            ImGui::TextDisabled("Main");
+          else if (ImGui::SmallButton("Remove"))
+            removeScene = scene.id;
+          ImGui::PopID();
+        }
+        ImGui::EndTable();
       }
       if (removeScene) {
         std::string error;
@@ -110,28 +176,37 @@ void EditorProjectPanel::draw(EditorWorkspace &workspace, std::string &notice) {
                      ? "Project scene removed"
                      : error;
       }
-      ImGui::SetNextItemWidth(250.0F);
-      ImGui::InputTextWithHint("##scene-id", "scene://game/level",
-                               sceneId_.data(), sceneId_.size());
-      ImGui::SameLine();
-      ImGui::SetNextItemWidth(250.0F);
-      ImGui::InputTextWithHint("##scene-path", "scenes/level.scene.json",
-                               scenePath_.data(), scenePath_.size());
-      ImGui::SameLine();
-      if (ImGui::Button("Add")) {
-        std::string error;
-        if (workspace.addProjectScene(sceneId_.data(), scenePath_.data(),
-                                      error)) {
-          notice = "Project scene added";
-          sceneId_.fill('\0');
-          scenePath_.fill('\0');
-        } else {
-          notice = error;
+      if (ImGui::BeginTable("add-scene", 3,
+                            ImGuiTableFlags_SizingStretchProp)) {
+        ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthStretch, 0.9F);
+        ImGui::TableSetupColumn("Path", ImGuiTableColumnFlags_WidthStretch,
+                                1.1F);
+        ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::SetNextItemWidth(-1.0F);
+        ImGui::InputTextWithHint("##scene-id", "scene://game/level",
+                                 sceneId_.data(), sceneId_.size());
+        ImGui::TableNextColumn();
+        ImGui::SetNextItemWidth(-1.0F);
+        ImGui::InputTextWithHint("##scene-path", "scenes/level.scene.json",
+                                 scenePath_.data(), scenePath_.size());
+        ImGui::TableNextColumn();
+        if (ImGui::Button("Add")) {
+          std::string error;
+          if (workspace.addProjectScene(sceneId_.data(), scenePath_.data(),
+                                        error)) {
+            notice = "Project scene added";
+            sceneId_.fill('\0');
+            scenePath_.fill('\0');
+          } else {
+            notice = error;
+          }
         }
+        ImGui::EndTable();
       }
 
       ImGui::Spacing();
-      ImGui::Separator();
       if (ImGui::CollapsingHeader("Input Actions",
                                   ImGuiTreeNodeFlags_DefaultOpen)) {
         // Presets expand into actions at runtime (wasd_arrows, confirm,
@@ -139,35 +214,56 @@ void EditorProjectPanel::draw(EditorWorkspace &workspace, std::string &notice) {
         const std::vector<std::string> activePresets =
             workspace.projectDocument().inputPresets();
         ImGui::TextDisabled("Presets");
-        for (const char *preset :
-             {"wasd_arrows", "confirm", "gamepad_confirm", "move_3d"}) {
-          bool enabled = std::ranges::find(activePresets, preset) !=
-                         activePresets.end();
-          if (ImGui::Checkbox(preset, &enabled)) {
-            std::vector<std::string> updated = activePresets;
-            if (enabled)
-              updated.push_back(preset);
-            else
-              std::erase(updated, preset);
-            std::string error;
-            notice = workspace.setProjectInputPresets(std::move(updated), error)
-                         ? "Input presets updated"
-                         : error;
+        const int presetColumns =
+            std::clamp(static_cast<int>(ImGui::GetContentRegionAvail().x /
+                                        (ImGui::GetFontSize() * 14.0F)),
+                       1, 4);
+        if (ImGui::BeginTable("input-presets", presetColumns,
+                              ImGuiTableFlags_SizingStretchSame)) {
+          for (const char *preset :
+               {"wasd_arrows", "confirm", "gamepad_confirm", "move_3d"}) {
+            ImGui::TableNextColumn();
+            bool enabled =
+                std::ranges::find(activePresets, preset) != activePresets.end();
+            if (ImGui::Checkbox(preset, &enabled)) {
+              std::vector<std::string> updated = activePresets;
+              if (enabled)
+                updated.push_back(preset);
+              else
+                std::erase(updated, preset);
+              std::string error;
+              notice =
+                  workspace.setProjectInputPresets(std::move(updated), error)
+                      ? "Input presets updated"
+                      : error;
+            }
           }
-          ImGui::SameLine();
+          ImGui::EndTable();
         }
-        ImGui::NewLine();
         nlohmann::json actions = workspace.projectDocument().inputActions();
         std::optional<std::string> removeAction;
         for (const auto &[name, action] : actions.items()) {
           ImGui::PushID(name.c_str());
-          ImGui::Text("%s", name.c_str());
-          ImGui::SameLine(220.0F);
-          ImGui::TextDisabled("%s / %s", action.value("type", "").c_str(),
-                              action.value("context", "gameplay").c_str());
-          ImGui::SameLine(565.0F);
-          if (ImGui::SmallButton("Remove"))
-            removeAction = name;
+          if (ImGui::BeginTable("action-summary", 3,
+                                ImGuiTableFlags_SizingStretchProp)) {
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch,
+                                    1.0F);
+            ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthStretch,
+                                    1.0F);
+            ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted(name.c_str());
+            ImGui::TableNextColumn();
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextDisabled("%s / %s", action.value("type", "").c_str(),
+                                action.value("context", "gameplay").c_str());
+            ImGui::TableNextColumn();
+            if (ImGui::SmallButton("Remove"))
+              removeAction = name;
+            ImGui::EndTable();
+          }
           const auto bindings = action.find("bindings");
           if (bindings != action.end() && bindings->is_array()) {
             for (std::size_t index = 0; index < bindings->size(); ++index) {
@@ -182,29 +278,43 @@ void EditorProjectPanel::draw(EditorWorkspace &workspace, std::string &notice) {
                   copyInput(editor.value, input);
                 editor.source = input;
               }
-              ImGui::TextDisabled("Binding %zu", index + 1);
-              ImGui::SameLine(105.0F);
-              ImGui::SetNextItemWidth(360.0F);
-              const bool submitted = ImGui::InputTextWithHint(
-                  "##input", "key:space, mouse:left, gamepad:south...",
-                  editor.value.data(), editor.value.size(),
-                  ImGuiInputTextFlags_EnterReturnsTrue);
-              ImGui::SameLine();
-              const std::string replacement = editor.value.data();
-              const bool changed = replacement != input;
-              ImGui::BeginDisabled(!changed || replacement.empty());
-              if ((ImGui::SmallButton("Apply") || submitted) && changed &&
-                  !replacement.empty()) {
-                std::string error;
-                if (workspace.setProjectInputBinding(name, index, replacement,
-                                                     error)) {
-                  editor.source = replacement;
-                  notice = "Input binding updated";
-                } else {
-                  notice = error;
+              if (ImGui::BeginTable("binding-row", 3,
+                                    ImGuiTableFlags_SizingStretchProp)) {
+                ImGui::TableSetupColumn("Label",
+                                        ImGuiTableColumnFlags_WidthFixed,
+                                        ImGui::GetFontSize() * 7.0F);
+                ImGui::TableSetupColumn("Binding",
+                                        ImGuiTableColumnFlags_WidthStretch);
+                ImGui::TableSetupColumn("Action",
+                                        ImGuiTableColumnFlags_WidthFixed);
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::AlignTextToFramePadding();
+                ImGui::TextDisabled("Binding %zu", index + 1);
+                ImGui::TableNextColumn();
+                ImGui::SetNextItemWidth(-1.0F);
+                const bool submitted = ImGui::InputTextWithHint(
+                    "##input", "key:space, mouse:left, gamepad:south...",
+                    editor.value.data(), editor.value.size(),
+                    ImGuiInputTextFlags_EnterReturnsTrue);
+                ImGui::TableNextColumn();
+                const std::string replacement = editor.value.data();
+                const bool changed = replacement != input;
+                ImGui::BeginDisabled(!changed || replacement.empty());
+                if ((ImGui::SmallButton("Apply") || submitted) && changed &&
+                    !replacement.empty()) {
+                  std::string error;
+                  if (workspace.setProjectInputBinding(name, index, replacement,
+                                                       error)) {
+                    editor.source = replacement;
+                    notice = "Input binding updated";
+                  } else {
+                    notice = error;
+                  }
                 }
+                ImGui::EndDisabled();
+                ImGui::EndTable();
               }
-              ImGui::EndDisabled();
               ImGui::PopID();
             }
           }
@@ -218,90 +328,116 @@ void EditorProjectPanel::draw(EditorWorkspace &workspace, std::string &notice) {
                        ? "Input action removed"
                        : error;
         }
-        ImGui::SetNextItemWidth(145.0F);
-        ImGui::InputTextWithHint("##action-name", "action_name",
-                                 actionName_.data(), actionName_.size());
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(105.0F);
-        if (ImGui::BeginCombo("##action-type", actionType_.c_str())) {
-          for (const char *type : {"button", "axis1d", "vector2"})
-            if (ImGui::Selectable(type, actionType_ == type))
-              actionType_ = type;
-          ImGui::EndCombo();
-        }
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(130.0F);
-        ImGui::InputTextWithHint("##action-context", "gameplay",
-                                 actionContext_.data(), actionContext_.size());
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(145.0F);
-        ImGui::InputTextWithHint("##action-binding", "key:space",
-                                 actionBinding_.data(), actionBinding_.size());
-        ImGui::SameLine();
-        const bool canAddAction = actionName_[0] != '\0' &&
-                                  actionBinding_[0] != '\0';
-        ImGui::BeginDisabled(!canAddAction);
-        if (ImGui::Button("Add##action")) {
-          if (actions.contains(actionName_.data())) {
-            notice = "An input action with that name already exists.";
-          } else {
-            actions[actionName_.data()] = {
-                {"type", actionType_},
-                {"bindings",
-                 nlohmann::json::array({{{"input", actionBinding_.data()}}})}};
-            if (actionContext_[0] != '\0')
-              actions[actionName_.data()]["context"] = actionContext_.data();
-            std::string error;
-            if (workspace.setProjectInputActions(std::move(actions), error)) {
-              notice = "Input action added";
-              actionName_.fill('\0');
-              actionContext_.fill('\0');
-              actionBinding_.fill('\0');
+        ImGui::TextDisabled("New action");
+        if (ImGui::BeginTable("add-action", 5,
+                              ImGuiTableFlags_SizingStretchProp)) {
+          ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch,
+                                  1.0F);
+          ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed,
+                                  ImGui::GetFontSize() * 8.0F);
+          ImGui::TableSetupColumn("Context", ImGuiTableColumnFlags_WidthStretch,
+                                  0.8F);
+          ImGui::TableSetupColumn("Binding", ImGuiTableColumnFlags_WidthStretch,
+                                  1.2F);
+          ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed);
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn();
+          ImGui::SetNextItemWidth(-1.0F);
+          ImGui::InputTextWithHint("##action-name", "action_name",
+                                   actionName_.data(), actionName_.size());
+          ImGui::TableNextColumn();
+          ImGui::SetNextItemWidth(-1.0F);
+          if (ImGui::BeginCombo("##action-type", actionType_.c_str())) {
+            for (const char *type : {"button", "axis1d", "vector2"})
+              if (ImGui::Selectable(type, actionType_ == type))
+                actionType_ = type;
+            ImGui::EndCombo();
+          }
+          ImGui::TableNextColumn();
+          ImGui::SetNextItemWidth(-1.0F);
+          ImGui::InputTextWithHint("##action-context", "gameplay",
+                                   actionContext_.data(),
+                                   actionContext_.size());
+          ImGui::TableNextColumn();
+          ImGui::SetNextItemWidth(-1.0F);
+          ImGui::InputTextWithHint("##action-binding", "key:space",
+                                   actionBinding_.data(),
+                                   actionBinding_.size());
+          ImGui::TableNextColumn();
+          const bool canAddAction =
+              actionName_[0] != '\0' && actionBinding_[0] != '\0';
+          ImGui::BeginDisabled(!canAddAction);
+          if (ImGui::Button("Add##action")) {
+            if (actions.contains(actionName_.data())) {
+              notice = "An input action with that name already exists.";
             } else {
-              notice = error;
+              actions[actionName_.data()] = {
+                  {"type", actionType_},
+                  {"bindings", nlohmann::json::array(
+                                   {{{"input", actionBinding_.data()}}})}};
+              if (actionContext_[0] != '\0')
+                actions[actionName_.data()]["context"] = actionContext_.data();
+              std::string error;
+              if (workspace.setProjectInputActions(std::move(actions), error)) {
+                notice = "Input action added";
+                actionName_.fill('\0');
+                actionContext_.fill('\0');
+                actionBinding_.fill('\0');
+              } else {
+                notice = error;
+              }
             }
           }
+          ImGui::EndDisabled();
+          ImGui::EndTable();
         }
-        ImGui::EndDisabled();
       }
 
       ImGui::EndChild();
-      ImGui::Separator();
-      ImGui::BeginDisabled(!workspace.projectDocument().canUndo());
-      if (ImGui::Button("Undo")) {
-        std::string error;
-        notice = workspace.projectUndo(error) ? "Undid project edit" : error;
-      }
-      ImGui::EndDisabled();
-      ImGui::SameLine();
-      ImGui::BeginDisabled(!workspace.projectDocument().canRedo());
-      if (ImGui::Button("Redo")) {
-        std::string error;
-        notice = workspace.projectRedo(error) ? "Redid project edit" : error;
-      }
-      ImGui::EndDisabled();
-      ImGui::SameLine(400.0F);
-      ImGui::BeginDisabled(!workspace.projectDocument().isDirty());
-      if (ImGui::Button("Save Project")) {
-        std::string error;
-        notice = workspace.saveProject(error) ? "Project saved" : error;
-      }
-      ImGui::EndDisabled();
-      ImGui::SameLine();
-      if (ImGui::Button("Close")) {
-        if (workspace.projectDocument().isDirty())
-          notice = "Save or undo project changes before closing.";
-        else
-          showSettings_ = false;
+      if (ImGui::BeginTable("project-settings-footer", 2,
+                            ImGuiTableFlags_SizingStretchProp)) {
+        ImGui::TableSetupColumn("History", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Actions", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::BeginDisabled(!workspace.projectDocument().canUndo());
+        if (ImGui::Button("Undo")) {
+          std::string error;
+          notice = workspace.projectUndo(error) ? "Undid project edit" : error;
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::BeginDisabled(!workspace.projectDocument().canRedo());
+        if (ImGui::Button("Redo")) {
+          std::string error;
+          notice = workspace.projectRedo(error) ? "Redid project edit" : error;
+        }
+        ImGui::EndDisabled();
+        ImGui::TableNextColumn();
+        ImGui::BeginDisabled(!workspace.projectDocument().isDirty());
+        if (ImGui::Button("Save Project")) {
+          std::string error;
+          notice = workspace.saveProject(error) ? "Project saved" : error;
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        if (ImGui::Button("Close")) {
+          if (workspace.projectDocument().isDirty())
+            notice = "Save or undo project changes before closing.";
+          else
+            showSettings_ = false;
+        }
+        ImGui::EndTable();
       }
     }
     ImGui::End();
   }
 
   if (showCreateProject_) {
-    ImGui::SetNextWindowSize({520.0F, 310.0F}, ImGuiCond_Appearing);
-    if (ImGui::Begin("Create Project", nullptr,
-                     ImGuiWindowFlags_NoSavedSettings)) {
+    prepareEditorDialog(CreateProjectLayout);
+    if (ImGui::Begin("Create Project")) {
+      ImGui::BeginChild("create-project-content", {}, ImGuiChildFlags_None,
+                        ImGuiWindowFlags_AlwaysVerticalScrollbar);
       Diagnostics catalogDiagnostics;
       cli::project::ProjectTemplateCatalog catalog(
           std::filesystem::path(DEMI_SOURCE_DIR) / "templates");
@@ -309,19 +445,43 @@ void EditorProjectPanel::draw(EditorWorkspace &workspace, std::string &notice) {
       if (selectedTemplate_.empty() && !templates.empty())
         selectedTemplate_ = templates.front().id;
       ImGui::TextUnformatted("Create from an engine project template");
-      ImGui::SetNextItemWidth(-1.0F);
-      ImGui::InputTextWithHint(
-          "##new-project-destination", "/absolute/path/to/project",
-          projectDestination_.data(), projectDestination_.size());
-      ImGui::SetNextItemWidth(-1.0F);
-      ImGui::InputTextWithHint("##new-project-name", "Project name",
-                               projectName_.data(), projectName_.size());
-      if (ImGui::BeginCombo("Template", selectedTemplate_.c_str())) {
-        for (const auto &item : templates)
-          if (ImGui::Selectable(item.title.c_str(),
-                                selectedTemplate_ == item.id))
-            selectedTemplate_ = item.id;
-        ImGui::EndCombo();
+      if (ImGui::BeginTable("create-project-form", 2,
+                            ImGuiTableFlags_SizingStretchProp)) {
+        ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed,
+                                ImGui::GetFontSize() * 9.0F);
+        ImGui::TableSetupColumn("Control", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("Location");
+        ImGui::TableNextColumn();
+        ImGui::SetNextItemWidth(-1.0F);
+        ImGui::InputTextWithHint(
+            "##new-project-destination", "/absolute/path/to/project",
+            projectDestination_.data(), projectDestination_.size());
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("Name");
+        ImGui::TableNextColumn();
+        ImGui::SetNextItemWidth(-1.0F);
+        ImGui::InputTextWithHint("##new-project-name", "Project name",
+                                 projectName_.data(), projectName_.size());
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("Template");
+        ImGui::TableNextColumn();
+        ImGui::SetNextItemWidth(-1.0F);
+        if (ImGui::BeginCombo("##new-project-template",
+                              selectedTemplate_.c_str())) {
+          for (const auto &item : templates)
+            if (ImGui::Selectable(item.title.c_str(),
+                                  selectedTemplate_ == item.id))
+              selectedTemplate_ = item.id;
+          ImGui::EndCombo();
+        }
+        ImGui::EndTable();
       }
       if (!catalogDiagnostics.empty())
         ImGui::TextColored({0.95F, 0.34F, 0.38F, 1.0F}, "%s",
@@ -331,7 +491,7 @@ void EditorProjectPanel::draw(EditorWorkspace &workspace, std::string &notice) {
                              projectName_[0] != '\0' &&
                              !selectedTemplate_.empty();
       ImGui::BeginDisabled(!canCreate);
-      if (ImGui::Button("Create Project", {150.0F, 30.0F})) {
+      if (ImGui::Button("Create Project")) {
         auto projectTemplate =
             catalog.find(selectedTemplate_, catalogDiagnostics);
         if (projectTemplate) {
@@ -352,8 +512,9 @@ void EditorProjectPanel::draw(EditorWorkspace &workspace, std::string &notice) {
       }
       ImGui::EndDisabled();
       ImGui::SameLine();
-      if (ImGui::Button("Cancel", {90.0F, 30.0F}))
+      if (ImGui::Button("Cancel"))
         showCreateProject_ = false;
+      ImGui::EndChild();
     }
     ImGui::End();
   }

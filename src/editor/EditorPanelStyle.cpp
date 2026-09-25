@@ -27,6 +27,17 @@ bool beginEditorPanel(const char *id, const ImVec2 initialPosition,
   return ImGui::Begin(id, open, DockablePanelFlags | additionalFlags);
 }
 
+void prepareEditorDialog(const EditorDialogLayoutSpec spec) {
+  const ImGuiViewport *viewport = ImGui::GetMainViewport();
+  const EditorDialogLayout layout = editorDialogLayout(
+      {viewport->WorkSize.x, viewport->WorkSize.y}, ImGui::GetFontSize(), spec);
+  ImGui::SetNextWindowSize({layout.initial.width, layout.initial.height},
+                           ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSizeConstraints(
+      {layout.minimum.width, layout.minimum.height},
+      {layout.maximum.width, layout.maximum.height});
+}
+
 void beginEditorShellPanel(const char *id, const ImVec2 position,
                            const ImVec2 size,
                            const ImGuiWindowFlags additionalFlags) {

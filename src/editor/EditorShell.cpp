@@ -67,6 +67,7 @@ void drawStageTabs(EditorWorkspace &workspace, bool &showHudView,
 
 void drawMenu(EditorWorkspace &workspace, const ImVec2 size,
               bool &exitRequested, EditorProjectPanel &projectPanel,
+              EditorAssetsPanel &assetsPanel,
               EditorAnimationMachinePanel &animationPanel,
               EditorBuildPanel &buildPanel, EditorAboutPanel &aboutPanel,
               EditorDockingWorkspace &dockingWorkspace, bool &showSettings,
@@ -78,10 +79,30 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size,
     if (ImGui::BeginMenu("File")) {
       if (ImGui::MenuItem("New project..."))
         projectPanel.openCreateProject();
+      if (ImGui::BeginMenu("New document")) {
+        for (const auto &[label, kind] : {
+                 std::pair{"2D scene...", EditorSourceKind::Scene2D},
+                 std::pair{"3D scene...", EditorSourceKind::Scene3D},
+                 std::pair{"HUD...", EditorSourceKind::Hud},
+                 std::pair{"2D entity prefab...", EditorSourceKind::Prefab2D},
+                 std::pair{"3D entity prefab...", EditorSourceKind::Prefab},
+                 std::pair{"UI prefab...", EditorSourceKind::UiPrefab},
+                 std::pair{"Lua behaviour...", EditorSourceKind::Lua}}) {
+          if (ImGui::MenuItem(label)) {
+            dockingWorkspace.visibility().assets = true;
+            assetsPanel.openCreate(kind);
+          }
+        }
+        ImGui::EndMenu();
+      }
       if (ImGui::MenuItem("Project settings..."))
         projectPanel.openSettings();
       ImGui::Separator();
-      if (ImGui::MenuItem("Save active document", "Ctrl+S", false,
+      if (ImGui::MenuItem("Save all", "Ctrl+S", false, workspace.hasUnsavedChanges())) {
+        std::string error;
+        notice = workspace.saveAll(error) ? "Authored documents saved" : error;
+      }
+      if (ImGui::MenuItem("Save active document", nullptr, false,
                           workspace.activeDocumentDirty())) {
         std::string error;
         notice = workspace.save(error) ? "Document saved" : error;
@@ -121,6 +142,29 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size,
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Scene")) {
+      if (ImGui::BeginMenu("Add prefab instance")) {
+        bool found = false;
+        for (const auto &source : workspace.sources()) {
+          if (!isPrefabFile(source))
+            continue;
+          found = true;
+          const std::string label = source.lexically_relative(
+              workspace.project().project.projectDirectory / "prefabs").generic_string();
+          if (ImGui::MenuItem(label.c_str())) {
+            std::string error;
+            notice = workspace.instantiatePrefab(source, error) ? "Prefab instance added" : error;
+          }
+        }
+        if (!found)
+          ImGui::TextDisabled("Create an entity prefab first.");
+        ImGui::EndMenu();
+      }
+      const auto selected = workspace.selectedEntityId();
+      if (ImGui::MenuItem("Create prefab from selection...", nullptr, false,
+                          !selected.empty() && workspace.sceneDocument().entity(selected))) {
+        dockingWorkspace.visibility().assets = true;
+        assetsPanel.openCreate(EditorSourceKind::PrefabFromSelection, std::string(selected));
+      }
       if (ImGui::BeginMenu("HUD",!workspace.isPrefabDocument())) {
         std::string error;
         if (ImGui::MenuItem("None")) notice=workspace.setSceneHud({},error)?"HUD detached":error;
@@ -295,15 +339,7 @@ void EditorShell::draw(const int width, const int height,
   if (!input.WantTextInput && input.KeyCtrl &&
       ImGui::IsKeyPressed(ImGuiKey_S, false)) {
     std::string error;
-    if (workspace_.hudDirty() && !workspace_.saveHud(error))
-      notice_ = error;
-    else if (workspace_.sceneDocument().isDirty() && !workspace_.save(error))
-      notice_ = error;
-    else if (workspace_.projectDocument().isDirty() &&
-             !workspace_.saveProject(error))
-      notice_ = error;
-    else
-      notice_ = "Authored documents saved";
+    notice_ = workspace_.saveAll(error) ? "Authored documents saved" : error;
   }
   if (!input.WantTextInput && input.KeyCtrl &&
       ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
@@ -343,6 +379,7 @@ void EditorShell::draw(const int width, const int height,
   const EditorProjectOperationSnapshot projectOperation =
       buildPanel_.operation();
   drawMenu(workspace_, {screenWidth, menuHeight}, exitRequested_, projectPanel_,
+           assetsPanel_,
            animationMachinePanel_, buildPanel_, aboutPanel_, dockingWorkspace_,
            showSettings_, notice_);
   const auto previousEditor=preferences_.codeEditor;

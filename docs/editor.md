@@ -1,7 +1,49 @@
 # Editor
 
-The experimental editor is a native desktop workspace over DemiEngine's
-existing project, scene, component, source, and validation contracts.
+The editor is a native desktop authoring workspace over DemiEngine's shared
+project, scene, component, asset and validation services. Gameplay scripts use
+an external code editor; supported scene, HUD and prefab workflows do not
+require hand-editing their JSON files.
+
+## Building a game in the editor
+
+1. Use **File → New project** to choose a starter. **File → New document**
+   creates a 2D/3D scene, HUD, entity prefab, UI prefab or Lua behaviour. These
+   actions are also in **Assets → Create**.
+2. Add objects through the Hierarchy, then configure them in the Inspector.
+   Defaults are editable immediately; changing one authors that field. Reset
+   removes the authored value or prefab override. Hover a property label for
+   its origin and help; overridden labels are purple. Search narrows the list.
+   Preset-inherited components are also editable without expanding the preset
+   into source defaults. **Unpack preset** makes them independent components
+   when you want to remove or restructure them; Undo restores the compact source.
+3. Use **Scene → Create prefab from selection** to copy an authored hierarchy
+   into a reusable prefab. The original remains in the scene. Choose a prefab
+   in **Scene → Add prefab instance**, use its Assets action, or drag it onto
+   **Scene** in the Hierarchy. Instances support property overrides, duplication,
+   removal and Undo/Redo. Double-click the source to edit the shared prefab.
+4. Create a HUD and add controls under the selected parent. The Inspector groups
+   Layout, Appearance, Content and Interaction; dock/anchor/stack presets provide
+   common layouts. The root exposes canvas dimensions. UI prefabs appear in the
+   Add UI Element menu. The hierarchy supports duplicating and moving authored
+   subtrees; expanded prefab children are edited in their source instead.
+5. Attach the HUD through **Scene → HUD**. Choose the built game's **Start scene**
+   in Project Settings. This is independent of which scene is currently open.
+6. Create/attach a Lua behaviour and double-click its file to edit gameplay code.
+   **Ctrl+S / File → Save all** saves open authored documents and project settings.
+   Play runs an isolated world; **Build → Build Project** packages the saved game.
+
+Settings, build and asset dialogs are resizable, use font-relative defaults and
+fit the available work area. Existing dock layouts are retained; choose
+**View → Reset Workspace** to get the wider Inspector and bottom Assets layout.
+The 3D Scene view starts with an overview of scene geometry. Frame Selected
+uses transformed geometry bounds; Align to Camera remains an explicit action.
+
+`demi-editor-game-authoring-tests` exercises the shared editor commands from a
+new project through scene/prefab/HUD creation, Save/reopen, keyboard-controlled
+Play and Linux packaging. Only gameplay Lua is written directly in that probe.
+This is an acceptance path for these workflows, not a claim that every engine
+or CLI capability has a complete visual editor.
 
 ## Authoring and input
 
@@ -71,8 +113,9 @@ directly, without shell evaluation. Lua stubs are exported to `.demi/lua`; a new
 and may need that path added manually. Install the Lua Language Server extension
 in the chosen editor for completion and documentation.
 
-MeshRenderer's raw vertex, normal and UV arrays are under **Advanced geometry
-buffers**. Ordinary model use does not require editing them. Field help explains
+MeshRenderer's LOD/culling settings and raw vertex, normal and UV arrays are under
+**Advanced fields**. Searching still finds advanced properties. Ordinary model
+use does not require editing them. Field help explains
 the model, texture, material, primitive and buffer controls.
 
 **Effects → Fracture Debris 3D** adds optional non-colliding impact chips to a
@@ -87,8 +130,8 @@ Masonry previews share runtime atlas/relief descriptors. Generated cells select
 their source region and stay out of the authored hierarchy and saved document.
 Prefab studio lighting can still make colors look different from scene lighting.
 
-Remaining gaps include deferred visuals for custom fracture models and editor
-access to every CLI authoring operation. The
+Remaining gaps include editor access to every CLI authoring operation and
+dedicated visual tools for some specialized assets. The
 shared renderer supports opt-in directional shadow maps; point/spot shadows
 and cascades remain pending. See [rendering controls](rendering-and-effects.md#real-time-directional-shadows).
 
@@ -464,8 +507,9 @@ scene or add another renderer.
   mouse position/delta/wheel, buttons, and movement/modifier keys.
 - [x] Add focused orbit, pan, zoom, and fly controls with frame-rate-independent
   movement and predictable focus capture/release.
-- [x] Use the first enabled authored camera only to initialize the editor camera
-  or through an explicit “Align view to camera” action.
+- [x] Initialize an independent overview of enabled scene geometry. Keep
+  “Align view to camera” explicit so first-person gameplay cameras do not trap
+  the authoring view inside an object.
 - [x] Add frame-selected and reset-view actions.
 - [x] Preserve camera state through ordinary scene edits and viewport resize,
   but reset it deterministically when opening another project.

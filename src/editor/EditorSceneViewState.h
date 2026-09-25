@@ -12,6 +12,8 @@ struct World;
 
 namespace demi::editor {
 
+struct EditorBounds3D;
+
 enum class EditorProjection { Perspective, Orthographic };
 enum class EditorTransformSpace { Local, World };
 
@@ -53,6 +55,7 @@ public:
   void update(const EditorViewportInput &input);
   [[nodiscard]] bool frameEntity(const runtime::World &world,
                                  std::string_view entityId);
+  [[nodiscard]] bool frameScene(const runtime::World &world);
   [[nodiscard]] bool alignToFirstCamera(const runtime::World &world);
 
   [[nodiscard]] EditorSceneViewCamera camera() const;
@@ -77,6 +80,7 @@ public:
   bool studioLighting = false;
 
 private:
+  void frameBounds(const EditorBounds3D &bounds);
   void updateOrientation();
 
   runtime::Camera3DComponent cameraSettings_;

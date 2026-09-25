@@ -11,7 +11,7 @@
 #include "demi/runtime/scene/ComponentRegistry.h"
 #include "demi/runtime/scene/ProjectBuildSettings.h"
 #include "demi/runtime/scene/ProjectBuildValidation.h"
-#include "demi/runtime/scene/SceneEntityParser.h"
+#include "demi/runtime/scene/EntityPresets.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/runtime/ui/UiPrefabResolver.h"
 
@@ -587,11 +587,23 @@ void validatePhysics3D(Diagnostics &diagnostics,
 Diagnostics validateSceneDocument(const std::filesystem::path &scenePath,
                                   const nlohmann::json &document) {
   Diagnostics diagnostics;
-  const runtime::composition::ExpansionResult expansion =
+  runtime::composition::ExpansionResult expansion =
       runtime::composition::expandScene(scenePath, document);
   diagnostics.insert(diagnostics.end(), expansion.diagnostics.begin(),
                      expansion.diagnostics.end());
   if (expansion.document) {
+    // Validate the same effective components the runtime uses. Retain the
+    // preset marker here so unknown preset names still receive diagnostics.
+    if (auto entities = expansion.document->find("entities");
+        entities != expansion.document->end() && entities->is_array()) {
+      for (auto &entity : *entities) {
+        if (!entity.is_object() || !entity.contains("preset"))
+          continue;
+        const auto preset = entity["preset"];
+        entity = runtime::scene_loading::expandEntityPreset(entity);
+        entity["preset"] = preset;
+      }
+    }
     validateSceneComponents(diagnostics, scenePath, expansion.document->dump());
     validateDuplicateEntityIds(diagnostics, scenePath, *expansion.document);
     validateTransformHierarchy(diagnostics, scenePath, *expansion.document,

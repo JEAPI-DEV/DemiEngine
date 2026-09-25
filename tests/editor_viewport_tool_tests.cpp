@@ -59,6 +59,8 @@ int main() {
   world.entities.push_back(cube("duplicate", 3.0F));
   editor::EditorSceneViewState sceneView;
   sceneView.reset(world);
+  // Picking/gizmo assertions below use the fixture camera, not the overview.
+  assert(sceneView.alignToFirstCamera(world));
   const runtime::Vec2 viewport{800.0F, 600.0F};
 
   {

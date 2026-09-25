@@ -28,6 +28,7 @@ public:
                                         std::string &error);
   [[nodiscard]] bool addScene(std::string id, std::filesystem::path path,
                               std::string &error);
+  [[nodiscard]] bool setMainScene(std::string_view id, std::string &error);
   [[nodiscard]] bool setInputActions(nlohmann::json actions,
                                      std::string &error);
   [[nodiscard]] bool setInputPresets(std::vector<std::string> presets,

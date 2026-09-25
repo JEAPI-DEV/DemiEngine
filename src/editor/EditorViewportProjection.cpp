@@ -1,9 +1,7 @@
 #include "editor/EditorViewportProjection.h"
-#include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 
-#include "demi/runtime/physics/ColliderAsset3D.h"
-#include "demi/runtime/scene/Transform3DHierarchy.h"
-#include "demi/runtime/scene/components/EngineComponents.h"
+#include "editor/EditorEntityBounds3D.h"
+
 #include "demi/runtime/scene/model/World.h"
 
 #include <algorithm>
@@ -171,66 +169,17 @@ std::optional<std::string> pickSceneEntity3D(
   std::optional<std::string> nearest;
 
   for (const runtime::Entity &entity : world.entities) {
-    if (!entity.enabled ||
-        !entity.hasComponent<runtime::Transform3DComponent>())
+    if (!entity.enabled)
       continue;
-    const auto transform = runtime::resolveWorldTransform3D(world, entity);
-    if (!transform)
+    const auto bounds = editorEntityBounds3D(world, entity);
+    if (!bounds)
       continue;
-    runtime::Vec3 minimum{-0.2F, -0.2F, -0.2F};
-    runtime::Vec3 maximum{0.2F, 0.2F, 0.2F};
-    const auto *instances = entity.component<runtime::MeshInstances3DComponent>();
-    if (const auto box = runtime::resolvedBoxCollider3D(world, entity); !instances && box) {
-      const runtime::Vec3 half{box->size.x * 0.5F, box->size.y * 0.5F,
-                               box->size.z * 0.5F};
-      minimum = subtract(box->offset, half);
-      maximum = add(box->offset, half);
-    } else if (const auto *sphere =
-                   entity.component<runtime::SphereCollider3DComponent>(); !instances && sphere) {
-      const runtime::Vec3 radius{sphere->radius, sphere->radius,
-                                 sphere->radius};
-      minimum = subtract(sphere->offset, radius);
-      maximum = add(sphere->offset, radius);
-    } else if (const auto *capsule =
-                   entity.component<runtime::CapsuleCollider3DComponent>(); !instances && capsule) {
-      const runtime::Vec3 half{capsule->radius, capsule->height * 0.5F,
-                               capsule->radius};
-      minimum = subtract(capsule->offset, half);
-      maximum = add(capsule->offset, half);
-    } else if (const auto *convex =
-                   entity.component<runtime::ConvexCollider3DComponent>();
-               !instances && convex != nullptr && !convex->points.empty()) {
-      minimum = add(convex->points.front(), convex->offset);
-      maximum = minimum;
-      for (const runtime::Vec3 point : convex->points) {
-        const runtime::Vec3 value = add(point, convex->offset);
-        minimum = {std::min(minimum.x, value.x), std::min(minimum.y, value.y),
-                   std::min(minimum.z, value.z)};
-        maximum = {std::max(maximum.x, value.x), std::max(maximum.y, value.y),
-                   std::max(maximum.z, value.z)};
-      }
-    } else if (const auto *mesh =
-                   entity.component<runtime::MeshRendererComponent>()) {
-      minimum = mesh->hasBounds ? mesh->boundsMin
-                                : runtime::Vec3{-0.5F, -0.5F, -0.5F};
-      maximum =
-          mesh->hasBounds ? mesh->boundsMax : runtime::Vec3{0.5F, 0.5F, 0.5F};
-      minimum = {minimum.x * mesh->size.x, minimum.y * mesh->size.y,
-                 minimum.z * mesh->size.z};
-      maximum = {maximum.x * mesh->size.x, maximum.y * mesh->size.y,
-                 maximum.z * mesh->size.z};
-      if (minimum.x > maximum.x)
-        std::swap(minimum.x, maximum.x);
-      if (minimum.y > maximum.y)
-        std::swap(minimum.y, maximum.y);
-      if (minimum.z > maximum.z)
-        std::swap(minimum.z, maximum.z);
-    }
     const auto considerTransform = [&](const runtime::WorldTransform3D &pose) {
       const Ray local{
           .origin = runtime::inverseTransformPoint3D(pose, ray.origin),
           .direction = runtime::inverseTransformVector3D(pose, ray.direction)};
-      const auto distance = rayBox(local, minimum, maximum);
+      const auto distance =
+          rayBox(local, bounds->local.minimum, bounds->local.maximum);
       if (distance && *distance > camera.projection.nearClip &&
           *distance < nearestDistance) {
         nearestDistance = *distance;
@@ -238,13 +187,8 @@ std::optional<std::string> pickSceneEntity3D(
       }
     };
 
-    if (instances) {
-      for (const auto &[instanceId, localTransform] : instances->transforms) {
-        considerTransform(runtime::composeWorldTransform3D(*transform, localTransform));
-      }
-    } else {
-      considerTransform(*transform);
-    }
+    for (const runtime::WorldTransform3D &transform : bounds->worldTransforms)
+      considerTransform(transform);
   }
   return nearest;
 }

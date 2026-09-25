@@ -1,4 +1,5 @@
 #include "editor/EditorInspectorModel.h"
+#include "editor/EditorSceneDocument.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -93,5 +94,76 @@ int main() {
       runtime::scene_loading::componentSchema(*descriptor);
   assert(schema["properties"]["position"].contains("default"));
   assert(schema["properties"]["position"]["x-demi-editor-label"] == "Position");
+
+  assert(editorPropertyMatchesSearch("position", *descriptor, *field));
+  assert(editorPropertyMatchesSearch("transform", *descriptor, *field));
+  assert(!editorPropertyMatchesSearch("collider", *descriptor, *field));
+
+  const nlohmann::json emptyTransform = nlohmann::json::object();
+  const auto canonical =
+      editorPropertyPresentation(*descriptor, *field, emptyTransform, false,
+                                 false);
+  assert(canonical.hasValue);
+  assert(canonical.value == nlohmann::json({0.0, 0.0, 0.0}));
+  assert(canonical.origin == EditorPropertyOrigin::Default);
+  assert(!canonical.requiresExplicitAdd);
+  assert(!canonical.canReset);
+
+  const nlohmann::json authoredTransform = {
+      {"position", {7.0, 8.0, 9.0}}};
+  const auto authored = editorPropertyPresentation(
+      *descriptor, *field, authoredTransform, false, true);
+  assert(authored.origin == EditorPropertyOrigin::Authored);
+  assert(authored.canReset);
+
+  const auto inherited = editorPropertyPresentation(
+      *descriptor, *field, authoredTransform, true, false);
+  assert(inherited.origin == EditorPropertyOrigin::Inherited);
+  assert(inherited.value == nlohmann::json({7.0, 8.0, 9.0}));
+  assert(!inherited.canReset);
+
+  const auto overridden = editorPropertyPresentation(
+      *descriptor, *field, authoredTransform, true, true);
+  assert(overridden.origin == EditorPropertyOrigin::Override);
+  assert(overridden.canReset);
+
+  const auto *animator =
+      runtime::scene_loading::findComponentDescriptor("SpriteAnimator2D");
+  assert(animator != nullptr);
+  const auto atlas = std::ranges::find(
+      animator->fields, "atlas", &runtime::ComponentFieldDescriptor::name);
+  assert(atlas != animator->fields.end());
+  const auto absentAtlas = editorPropertyPresentation(
+      *animator, *atlas, nlohmann::json::object(), false, false);
+  assert(!absentAtlas.hasValue);
+  assert(absentAtlas.requiresExplicitAdd);
+  assert(absentAtlas.origin == EditorPropertyOrigin::Missing);
+  assert(editorPropertyOriginLabel(absentAtlas.origin) == "Not set");
+  const auto absentInheritedAtlas = editorPropertyPresentation(
+      *animator, *atlas, nlohmann::json::object(), true, false);
+  assert(absentInheritedAtlas.origin == EditorPropertyOrigin::Missing);
+
+  EditorSceneDocument document;
+  std::string error;
+  const auto defaultScenePath =
+      std::filesystem::path(__FILE__).parent_path().parent_path() /
+      "examples/destruction_weapons_3d_lab/scenes/main.scene.json";
+  assert(document.open(defaultScenePath, error));
+  const SceneValueTarget defaultPosition{
+      .entityId = "world_stream",
+      .component = "Transform3D",
+      .field = "position"};
+  const nlohmann::json *emptyComponent =
+      document.component("world_stream", "Transform3D");
+  assert(emptyComponent != nullptr && !emptyComponent->contains("position"));
+  const auto editableDefault = editorPropertyPresentation(
+      *descriptor, *field, *emptyComponent, false, false);
+  assert(editableDefault.origin == EditorPropertyOrigin::Default);
+  assert(document.setValue(defaultPosition, {2.0, 3.0, 4.0}, false, error));
+  assert(document.component("world_stream", "Transform3D")->at("position") ==
+         nlohmann::json({2.0, 3.0, 4.0}));
+  assert(document.removeValue(defaultPosition, error));
+  assert(!document.component("world_stream", "Transform3D")
+              ->contains("position"));
   return 0;
 }

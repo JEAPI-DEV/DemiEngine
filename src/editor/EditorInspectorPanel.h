@@ -13,6 +13,7 @@ class EditorWorkspace;
 
 struct EditorInspectorPanelState {
   std::array<char, 128> componentSearch{};
+  std::array<char, 128> propertySearch{};
   std::optional<std::filesystem::path> openRequest;
   std::string pendingComponentEntity;
   std::string pendingComponent;

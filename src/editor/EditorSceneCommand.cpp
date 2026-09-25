@@ -3,6 +3,21 @@
 #include <type_traits>
 
 namespace demi::editor {
+namespace {
+void applyValue(nlohmann::json &document, const SetValueCommand &command, bool forward) {
+  if (!forward && command.createdComponent) {
+    if (auto *entity = findEntity(document, command.target.entityId)) {
+      if (command.createdComponentsContainer)
+        entity->erase("components");
+      else
+        (*entity)["components"].erase(command.target.component);
+    }
+    return;
+  }
+  (void)assignValueInDocument(document, command.target,
+                              forward ? command.after : command.before);
+}
+} // namespace
 
 void applySceneCommand(nlohmann::json &document, const SceneCommand &command,
                        const bool forward) {
@@ -15,17 +30,15 @@ void applySceneCommand(nlohmann::json &document, const SceneCommand &command,
           if (value) document["hud"] = *value;
           else document.erase("hud");
         } else if constexpr (std::is_same_v<Command, SetValueCommand>) {
-          (void)assignValueInDocument(document, typed.target,
-                                      forward ? typed.after : typed.before);
+          applyValue(document, typed, forward);
         } else if constexpr (std::is_same_v<Command, SetValuesCommand>) {
           if (forward) {
             for (const SetValueCommand &value : typed.values)
-              (void)assignValueInDocument(document, value.target, value.after);
+              applyValue(document, value, true);
           } else {
             for (auto value = typed.values.rbegin();
                  value != typed.values.rend(); ++value)
-              (void)assignValueInDocument(document, value->target,
-                                          value->before);
+              applyValue(document, *value, false);
           }
         } else if constexpr (std::is_same_v<Command, InsertEntityCommand>) {
           nlohmann::json *entities = entitiesArray(document);
@@ -70,6 +83,13 @@ void applySceneCommand(nlohmann::json &document, const SceneCommand &command,
           }
         } else if constexpr (std::is_same_v<Command, EntityHierarchyCommand>) {
           document["entities"] = forward ? typed.after : typed.before;
+          if (typed.instancesBefore || typed.instancesAfter) {
+            const auto &instances = forward ? typed.instancesAfter : typed.instancesBefore;
+            if (instances)
+              document["instances"] = *instances;
+            else
+              document.erase("instances");
+          }
         } else if constexpr (std::is_same_v<Command, ReparentCommand>) {
           nlohmann::json *entity = findEntity(document, typed.entityId);
           nlohmann::json *transform =

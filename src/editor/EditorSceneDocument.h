@@ -53,8 +53,11 @@ public:
 
   [[nodiscard]] bool createEntity(std::string &error,
                                   std::optional<std::string> parent = {});
+  [[nodiscard]] bool instantiatePrefab(std::string_view reference,
+                                       std::string &error);
   [[nodiscard]] bool createPresetEntity(std::string_view preset,
                                         std::string &error);
+  [[nodiscard]] bool unpackPreset(std::string_view id, std::string &error);
   [[nodiscard]] bool deleteEntity(std::string_view id, std::string &error);
   [[nodiscard]] bool deleteEntities(std::span<const std::string> ids,
                                     std::string &error);

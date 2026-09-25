@@ -59,10 +59,11 @@ buildSceneWorld(const ProjectData &project, const std::string &sceneId,
   World world = scene_loading::parseSceneWorld(scenePath, *expansion.document);
   world.activeSceneId = sceneId;
   world.loadedSceneIds.insert(sceneId);
+  const composition::PrefabOriginIndex prefabOrigins(sceneJson);
   for (Entity &entity : world.entities) {
     entity.sceneOwner = sceneId;
     if (const auto origin =
-            composition::prefabEntityOrigin(sceneJson, entity.id)) {
+            prefabOrigins.find(entity.id)) {
       entity.prefabInstance = origin->instanceId;
       entity.prefabLocalId = origin->localEntityId;
     }

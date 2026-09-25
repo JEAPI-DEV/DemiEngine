@@ -97,6 +97,8 @@ else()
     src/editor/EditorEntityHierarchy.cpp
     src/editor/EditorScenePreview.cpp
     src/editor/EditorSourceCreation.cpp
+    src/editor/EditorPrefabAuthoring.cpp
+    src/editor/EditorEntityBounds3D.cpp
     src/editor/EditorCodeEditor.cpp
     src/editor/EditorSceneView2DState.cpp
     src/editor/EditorSceneViewState.cpp

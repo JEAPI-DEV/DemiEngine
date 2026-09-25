@@ -40,6 +40,12 @@ public:
                                        std::string &error);
   [[nodiscard]] bool openPrefabDocument(const std::filesystem::path &path,
                                         std::string &error);
+  [[nodiscard]] bool instantiatePrefab(const std::filesystem::path &path,
+                                        std::string &error);
+  [[nodiscard]] bool removePrefabInstance(std::string_view expandedEntityId,
+                                          std::string &error);
+  [[nodiscard]] bool duplicatePrefabInstance(std::string_view expandedEntityId,
+                                             std::string &error);
   [[nodiscard]] bool isPrefabDocument() const { return editingPrefab_; }
   [[nodiscard]] const std::filesystem::path &lastScenePath() const {
     return lastScenePath_;
@@ -71,6 +77,9 @@ public:
                                      std::string &error);
   [[nodiscard]] bool removeProjectScene(std::string_view id,
                                         std::string &error);
+  [[nodiscard]] bool setProjectMainScene(std::string_view id, std::string &error) {
+    return projectDocument_.setMainScene(id, error);
+  }
   [[nodiscard]] bool setProjectInputActions(nlohmann::json actions,
                                             std::string &error) {
     return projectDocument_.setInputActions(std::move(actions), error);
@@ -119,6 +128,7 @@ public:
                                   std::optional<std::string> parent = {});
   [[nodiscard]] bool createPresetEntity(std::string_view preset,
                                         std::string &error);
+  [[nodiscard]] bool unpackPreset(std::string_view id, std::string &error);
   [[nodiscard]] bool deleteEntity(std::string_view id, std::string &error);
   [[nodiscard]] bool deleteEntities(std::vector<std::string> ids,
                                     std::string &error);
@@ -145,6 +155,13 @@ public:
                                                    std::string &error);
   [[nodiscard]] bool deleteSelectedIsoGridCell(std::string &error);
   [[nodiscard]] bool createHudNode(std::string_view type, std::string &error);
+  [[nodiscard]] bool createHudPrefabInstance(std::string_view reference, std::string &error);
+  [[nodiscard]] bool setHudNodeAnchors(std::string_view id, runtime::Vec2 minimum,
+                                      runtime::Vec2 maximum, std::string &error);
+  [[nodiscard]] bool setHudCanvasSize(runtime::Vec2 size, std::string &error);
+  [[nodiscard]] bool reparentHudNode(std::string_view id, std::string_view parent,
+                                     std::string &error);
+  [[nodiscard]] bool duplicateHudNode(std::string_view id, std::string &error);
   [[nodiscard]] bool deleteSelectedHudNode(std::string &error);
   [[nodiscard]] bool setHudNodeField(std::string_view id,
                                      std::string_view field,

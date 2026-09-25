@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 
 namespace demi::runtime::composition {
 
@@ -22,6 +23,17 @@ struct ExpansionResult {
 struct PrefabEntityOrigin {
   std::string instanceId;
   std::string localEntityId;
+};
+
+// Build once per source document when resolving many expanded entities.
+// Lifetime is local to loading/editing; no cross-document cache invalidation.
+class PrefabOriginIndex {
+public:
+  explicit PrefabOriginIndex(const nlohmann::json &ownerDocument);
+  [[nodiscard]] std::optional<PrefabEntityOrigin> find(std::string_view expandedEntityId) const;
+
+private:
+  std::unordered_set<std::string> instances_;
 };
 
 [[nodiscard]] std::optional<PrefabEntityOrigin>

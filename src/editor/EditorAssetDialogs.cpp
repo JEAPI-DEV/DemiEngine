@@ -1,4 +1,5 @@
 #include "editor/EditorAssetDialogs.h"
+#include "editor/EditorPanelStyle.h"
 
 #include "editor/EditorAssetDrop.h"
 #include "editor/EditorWorkspace.h"
@@ -63,22 +64,54 @@ bool EditorAssetDialogs::openEditGroup(const std::filesystem::path &path,
 
 void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
   if (showNewSource_) {
-    ImGui::SetNextWindowSize({490,180},ImGuiCond_Appearing);
-    if (ImGui::Begin("Create project source",&showNewSource_,ImGuiWindowFlags_NoDocking)) {
-      ImGui::TextWrapped("Name without extension; subfolders such as chapter/level_01 are supported.");
-      ImGui::InputText("Name",sourceName_.data(),sourceName_.size());
-      if (ImGui::Button("Create")) {
-        std::filesystem::path created;std::string error;
-        if (createEditorSource(workspace,sourceKind_,sourceName_.data(),created,error)) {
-          createdSource_=created;showNewSource_=false;notice="Created "+created.filename().string();
-        } else notice=error;
+    prepareEditorDialog({.preferredEm = {48, 22}, .minimumEm = {30, 16}});
+    if (ImGui::Begin("New document", &showNewSource_,
+                     ImGuiWindowFlags_NoDocking)) {
+      ImGui::TextWrapped("Choose a name for the new document.");
+      if (sourceKind_ == EditorSourceKind::PrefabFromSelection)
+        ImGui::TextWrapped("Copy hierarchy '%s' into a reusable prefab. The "
+                           "original stays unchanged.",
+                           sourceSelection_.c_str());
+      ImGui::TextDisabled(
+          "No extension needed. Use chapter/level_01 for subfolders.");
+      ImGui::Spacing();
+      ImGui::TextUnformatted("Name");
+      ImGui::SetNextItemWidth(-1.0F);
+      const bool entered = ImGui::InputText(
+          "##source-name", sourceName_.data(), sourceName_.size(),
+          ImGuiInputTextFlags_EnterReturnsTrue);
+      ImGui::Spacing();
+      ImGui::BeginDisabled(sourceName_[0] == '\0');
+      const bool create =
+          ImGui::Button(sourceKind_ == EditorSourceKind::PrefabFromSelection
+                            ? "Create prefab copy"
+                            : "Create and open");
+      ImGui::EndDisabled();
+      if ((create || entered) && sourceName_[0] != '\0') {
+        std::filesystem::path created;
+        std::string error;
+        if (createEditorSource(workspace, sourceKind_, sourceName_.data(),
+                               created, error, sourceSelection_)) {
+          createdSource_ = created;
+          opensCreatedSource_ =
+              sourceKind_ != EditorSourceKind::PrefabFromSelection;
+          showNewSource_ = false;
+          notice = "Created " + created.filename().string();
+        } else {
+          sourceError_ = error;
+          notice = error;
+        }
       }
-      ImGui::TextWrapped("%s",notice.c_str());
+      ImGui::SameLine();
+      if (ImGui::Button("Cancel"))
+        showNewSource_ = false;
+      if (!sourceError_.empty())
+        ImGui::TextWrapped("%s", sourceError_.c_str());
     }
     ImGui::End();
   }
   if (showNewFolder_) {
-    ImGui::SetNextWindowSize({440.0F, 200.0F}, ImGuiCond_Appearing);
+    prepareEditorDialog({.preferredEm = {36, 18}, .minimumEm = {26, 13}});
     if (ImGui::Begin("New Folder", &showNewFolder_,
                      ImGuiWindowFlags_NoSavedSettings)) {
       const std::string parent = folderParent_.empty()
@@ -134,7 +167,7 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
     }
   }
   if (showImport_) {
-    ImGui::SetNextWindowSize({520.0F, 285.0F}, ImGuiCond_Appearing);
+    prepareEditorDialog({.preferredEm = {48, 28}, .minimumEm = {32, 18}});
     if (ImGui::Begin("Import Asset", &showImport_,
                      ImGuiWindowFlags_NoSavedSettings)) {
       ImGui::TextWrapped("The source is copied into the project and registered "
@@ -178,7 +211,7 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
   }
 
   if (showGenerateCollider_) {
-    ImGui::SetNextWindowSize({560.0F, 390.0F}, ImGuiCond_Appearing);
+    prepareEditorDialog({.preferredEm = {48, 36}, .minimumEm = {32, 24}});
     if (ImGui::Begin("Generate Collider Asset", &showGenerateCollider_,
                      ImGuiWindowFlags_NoSavedSettings)) {
       ImGui::TextWrapped("Generate a collider from the selected model using "
@@ -205,9 +238,9 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
       if (colliderRecommendationBody_ != colliderBody_) {
         colliderRecommendationBody_ = colliderBody_;
         colliderRecommendationError_.clear();
-        colliderRecommendation_ = workspace.recommendCollider(
-            colliderModelManifest_, colliderBody_,
-            colliderRecommendationError_);
+        colliderRecommendation_ =
+            workspace.recommendCollider(colliderModelManifest_, colliderBody_,
+                                        colliderRecommendationError_);
         if (colliderRecommendation_)
           colliderDetail_ = colliderRecommendation_->detail;
       }
@@ -234,15 +267,14 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
             "unsafe mesh collider for them.");
       }
       const std::string currentId = colliderId_.data();
-      const bool replacing = colliderReplacementHash_ &&
-                             colliderReplacementId_ == currentId;
+      const bool replacing =
+          colliderReplacementHash_ && colliderReplacementId_ == currentId;
       if (replacing)
         ImGui::TextWrapped(
             "A generated collider already uses this ID. Replace only the "
             "version inspected when this warning appeared?");
       ImGui::BeginDisabled(!canGenerate || currentId.empty());
-      if (ImGui::Button(replacing ? "Replace" : "Generate",
-                        {100.0F, 30.0F})) {
+      if (ImGui::Button(replacing ? "Replace" : "Generate", {100.0F, 30.0F})) {
         std::string error;
         std::optional<std::string> existingHash;
         auto created = workspace.generateColliderAsset(
@@ -278,7 +310,7 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
   }
 
   if (showCreateGroup_) {
-    ImGui::SetNextWindowSize({560.0F, 520.0F}, ImGuiCond_Appearing);
+    prepareEditorDialog({.preferredEm = {48, 40}, .minimumEm = {32, 26}});
     if (ImGui::Begin("Create Asset Group", &showCreateGroup_,
                      ImGuiWindowFlags_NoSavedSettings)) {
       ImGui::SetNextItemWidth(-1.0F);
@@ -325,7 +357,7 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
   }
 
   if (showEditGroup_) {
-    ImGui::SetNextWindowSize({560.0F, 520.0F}, ImGuiCond_Appearing);
+    prepareEditorDialog({.preferredEm = {48, 40}, .minimumEm = {32, 26}});
     if (ImGui::Begin("Edit Asset Group", &showEditGroup_,
                      ImGuiWindowFlags_NoSavedSettings)) {
       if (!groupDocument_) {

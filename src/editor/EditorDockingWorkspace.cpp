@@ -110,15 +110,16 @@ void EditorDockingWorkspace::buildDefaultLayout(const unsigned int dockspaceId,
   ImGuiID left = 0;
   ImGuiID right = 0;
   ImGuiID bottom = 0;
-  left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left,
-                                     EditorDefaultLayout::HierarchyRatio,
-                                     nullptr, &center);
+  const float inspectorFraction = EditorDefaultLayout::InspectorRatio *
+                                   (1.0F - EditorDefaultLayout::HierarchyRatio);
   right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right,
-                                      EditorDefaultLayout::InspectorRatio,
+                                      inspectorFraction,
                                       nullptr, &center);
   bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down,
                                        EditorDefaultLayout::BottomRatio,
                                        nullptr, &center);
+  left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left,
+      EditorDefaultLayout::HierarchyRatio / (1.0F - inspectorFraction), nullptr, &center);
   ImGuiID bottomLeft = 0;
   ImGuiID bottomRight = bottom;
   bottomLeft = ImGui::DockBuilderSplitNode(bottomRight, ImGuiDir_Left,
