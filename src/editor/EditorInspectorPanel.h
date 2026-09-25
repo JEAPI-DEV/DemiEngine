@@ -1,4 +1,5 @@
 #pragma once
+#include "editor/EditorStructuredValue.h"
 
 #include <array>
 #include <string>
@@ -12,6 +13,7 @@ namespace demi::editor {
 class EditorWorkspace;
 
 struct EditorInspectorPanelState {
+  StructuredValueState structuredValues;
   std::array<char, 128> componentSearch{};
   std::array<char, 128> propertySearch{};
   std::optional<std::filesystem::path> openRequest;

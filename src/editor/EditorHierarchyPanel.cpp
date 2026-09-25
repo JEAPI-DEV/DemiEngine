@@ -1,6 +1,7 @@
 #include "editor/EditorHierarchyPanel.h"
 
 #include "editor/EditorChrome.h"
+#include "editor/EditorDragDropPayloads.h"
 #include "editor/EditorHudHierarchy.h"
 #include "editor/EditorIsoGridCell.h"
 #include "editor/EditorPanelStyle.h"
@@ -11,6 +12,7 @@
 #include "demi/runtime/scene/components/2dcomponents/IsoGridComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/IsoTransformComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/Transform2DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/PrefabPlacement3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 
 #include <algorithm>
@@ -23,7 +25,6 @@
 namespace demi::editor {
 namespace {
 
-constexpr const char *EntityPayload = "DEMI_SCENE_ENTITY";
 constexpr const char *HudNodePayload = "DEMI_HUD_NODE";
 
 bool containsCaseInsensitive(const std::string_view value,
@@ -96,14 +97,16 @@ void acceptEntityDrop(std::optional<HierarchyAction> &pending,
   if (!ImGui::BeginDragDropTarget())
     return;
   if (!parentId) {
-    if (const auto *payload = ImGui::AcceptDragDropPayload("DEMI_PREFAB_SOURCE");
+    if (const auto *payload =
+            ImGui::AcceptDragDropPayload(EditorPrefabSourcePayload);
         payload && payload->Data && payload->DataSize > 1) {
       pending = HierarchyAction{.kind = HierarchyAction::Kind::PlacePrefab,
           .prefabSource = std::string(static_cast<const char *>(payload->Data),
                                      static_cast<std::size_t>(payload->DataSize - 1))};
     }
   }
-  if (const ImGuiPayload *payload = ImGui::AcceptDragDropPayload(EntityPayload);
+  if (const ImGuiPayload *payload =
+          ImGui::AcceptDragDropPayload(EditorSceneEntityPayload);
       payload != nullptr && payload->Data != nullptr && payload->DataSize > 1) {
     const auto *data = static_cast<const char *>(payload->Data);
     std::string entityId(data, static_cast<std::size_t>(payload->DataSize - 1));
@@ -390,8 +393,19 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
                              ImGuiTreeNodeFlags_DefaultOpen;
   if (!entityHasChildren)
     flags |= ImGuiTreeNodeFlags_Leaf;
-  if (workspace.isEntitySelected(entity.id))
+  const bool selected = workspace.isEntitySelected(entity.id);
+  if (selected)
     flags |= ImGuiTreeNodeFlags_Selected;
+  const bool prefabRow = !entity.prefabInstance.empty() ||
+                         entity.hasComponent<
+                             runtime::PrefabPlacement3DComponent>();
+  if (prefabRow && !selected) {
+    const ImVec2 rowMin = ImGui::GetCursorScreenPos();
+    const ImVec2 rowMax{rowMin.x + ImGui::GetContentRegionAvail().x,
+                        rowMin.y + ImGui::GetFrameHeight()};
+    ImGui::GetWindowDrawList()->AddRectFilled(
+        rowMin, rowMax, IM_COL32(35, 67, 99, 105), 2.0F);
+  }
   if (!entity.enabled)
     ImGui::PushStyleColor(ImGuiCol_Text,
                           ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
@@ -421,11 +435,13 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
       workspace.selectEntity(entity.id);
   }
 
-  if (ImGui::BeginDragDropSource()) {
-    ImGui::SetDragDropPayload(EntityPayload, entity.id.c_str(),
+  const bool authored = workspace.sceneDocument().entity(entity.id) != nullptr;
+  if (authored && ImGui::BeginDragDropSource()) {
+    ImGui::SetDragDropPayload(EditorSceneEntityPayload, entity.id.c_str(),
                               entity.id.size() + 1);
     ImGui::TextUnformatted(entity.name.c_str());
-    ImGui::TextDisabled("Drop on an entity to parent, or Scene for root");
+    ImGui::TextDisabled("Drop on an entity to parent, Scene for root,");
+    ImGui::TextDisabled("or Assets to create a prefab copy");
     ImGui::EndDragDropSource();
   }
   acceptEntityDrop(pending, entity.id);

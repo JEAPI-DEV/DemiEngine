@@ -525,6 +525,12 @@ September 25 authoring-workbench pass (native ImGui, existing runtime services):
 
 Implemented fixes to retain and regression-test:
 
+- [ ] Qualify the follow-up authoring interactions: aligned vector fields,
+  prefab-to-Viewport placement in one Undo step, Hierarchy-to-Assets prefab
+  copies with safe naming, editable full-width structured properties, distinct
+  document icons and blue prefab hierarchy rows. Exercise actual ImGui gestures,
+  data-key deletion on prefab save/reopen, and source/instance isolation.
+
 - [x] Add/remove native and Lua components on prefab instances, including nested
   instances inside prefab tabs. Store local component overrides through reversible
   document commands; expose Revert, removed-component Restore and shared-source

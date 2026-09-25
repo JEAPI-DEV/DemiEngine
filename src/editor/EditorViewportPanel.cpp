@@ -1,8 +1,10 @@
 #include "editor/EditorViewportPanel.h"
 
 #include "editor/EditorHudCanvas.h"
+#include "editor/EditorDragDropPayloads.h"
 #include "editor/EditorIsoGridCell.h"
 #include "editor/EditorPanelStyle.h"
+#include "editor/EditorPrefabPlacement.h"
 #include "editor/EditorViewportOverlay2D.h"
 #include "editor/EditorViewportProjection.h"
 #include "editor/EditorWorkspace.h"
@@ -14,6 +16,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <filesystem>
+#include <optional>
 #include <string>
 
 namespace demi::editor {
@@ -71,6 +75,9 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
   const float canvasWidth = std::max(available.x, 0.0F);
   const float canvasHeight = std::max(available.y, 0.0F);
   const ImVec2 canvasMax{canvasMin.x + canvasWidth, canvasMin.y + canvasHeight};
+  std::optional<std::filesystem::path> droppedPrefab;
+  std::optional<runtime::Vec2> dropPosition2D;
+  std::optional<runtime::Vec3> dropPosition3D;
   viewportArea = {};
   if (canvasWidth >= 1.0F && canvasHeight >= 1.0F) {
     viewportArea = {
@@ -90,6 +97,40 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                    flipVertically ? ImVec2{1.0F, 0.0F} : ImVec2{1.0F, 1.0F});
     } else {
       ImGui::InvisibleButton("viewport-canvas", {canvasWidth, canvasHeight});
+    }
+    const bool acceptsPrefabDrop =
+        !hudOnly && !workspace.isPrefabDocument() &&
+        workspace.activeDocument() == EditorWorkspaceDocument::Scene;
+    if (acceptsPrefabDrop && ImGui::BeginDragDropTarget()) {
+      if (const ImGuiPayload *payload =
+              ImGui::AcceptDragDropPayload(EditorPrefabSourcePayload);
+          payload != nullptr && payload->IsDelivery()) {
+        const auto *data = static_cast<const char *>(payload->Data);
+        const bool valid = data != nullptr && payload->DataSize > 1 &&
+                           data[payload->DataSize - 1] == '\0';
+        if (!valid) {
+          notice = "The prefab drag payload is invalid.";
+        } else {
+          droppedPrefab = std::filesystem::path(std::string(
+              data, static_cast<std::size_t>(payload->DataSize - 1)));
+          const runtime::Vec2 viewportPosition{
+              ImGui::GetIO().MousePos.x - canvasMin.x,
+              ImGui::GetIO().MousePos.y - canvasMin.y};
+          const runtime::Vec2 viewportSize{canvasWidth, canvasHeight};
+          if (is2D) {
+            dropPosition2D = prefabDropWorldPosition2D(
+                workspace.sceneView2D().camera(), viewportPosition,
+                viewportSize);
+          } else {
+            dropPosition3D = prefabDropWorldPosition3D(
+                workspace.sceneView().camera(), viewportPosition,
+                viewportSize);
+            if (!dropPosition3D)
+              notice = "The cursor ray does not intersect the 3D ground plane.";
+          }
+        }
+      }
+      ImGui::EndDragDropTarget();
     }
   }
   ImDrawList *draw = ImGui::GetWindowDrawList();
@@ -340,6 +381,17 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
       if (!cancelled)
         notice = std::move(interactionError);
     }
+  }
+  // Rebuilding the preview replaces runtime entities and HUD projections. Do
+  // it only after this frame has finished consuming pointers into that state.
+  if (droppedPrefab && (dropPosition2D || dropPosition3D)) {
+    std::string error;
+    const bool placed = dropPosition2D
+                            ? workspace.instantiatePrefab(
+                                  *droppedPrefab, *dropPosition2D, error)
+                            : workspace.instantiatePrefab(
+                                  *droppedPrefab, *dropPosition3D, error);
+    notice = placed ? "Prefab instance placed" : std::move(error);
   }
   if (!embedded)
     ImGui::End();

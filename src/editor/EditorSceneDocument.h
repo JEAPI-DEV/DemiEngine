@@ -55,6 +55,11 @@ public:
                                   std::optional<std::string> parent = {});
   [[nodiscard]] bool instantiatePrefab(std::string_view reference,
                                        std::string &error);
+  // Non-empty overrides are stored on the inserted instance as part of the
+  // same reversible command; an empty object preserves the compact source.
+  [[nodiscard]] bool instantiatePrefab(std::string_view reference,
+                                       nlohmann::json overrides,
+                                       std::string &error);
   [[nodiscard]] bool createPresetEntity(std::string_view preset,
                                         std::string &error);
   [[nodiscard]] bool unpackPreset(std::string_view id, std::string &error);

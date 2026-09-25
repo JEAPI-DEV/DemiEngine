@@ -87,6 +87,26 @@ int main() {
   assert(document.entity(instanceId)->contains("overrides"));
   assert(document.save(error));
 
+  // A positioned instance is authored as one insertion command, including its
+  // initial transform override. One Undo therefore removes the whole drop.
+  const json beforePositionedInstance = document.json();
+  json placement = json::object();
+  placement["root"]["components"]["Transform3D"]["position"] =
+      {8.0, 1.0, -3.0};
+  assert(document.instantiatePrefab("prefab://crate", placement, error));
+  const std::string positionedId(document.lastChangedEntityId());
+  assert(document.entity(positionedId)
+             ->at("overrides")
+             .at("root")
+             .at("components")
+             .at("Transform3D")
+             .at("position") == json({8.0, 1.0, -3.0}));
+  assert(document.undo(error));
+  assert(document.json() == beforePositionedInstance);
+  assert(document.redo(error));
+  assert(document.entity(positionedId) != nullptr);
+  assert(document.undo(error));
+
   EditorSceneDocument reopened;
   assert(reopened.open(scenePath, error));
   assert(reopened.entity(instanceId) != nullptr);

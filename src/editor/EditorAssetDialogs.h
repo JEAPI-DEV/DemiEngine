@@ -25,13 +25,9 @@ public:
   void openNewFolder(std::filesystem::path relativeParent);
   void openGenerateCollider(std::filesystem::path modelManifest,
                             std::string_view modelId);
-  void openNewSource(EditorSourceKind kind, std::string selectedEntity = {}) {
-    sourceKind_ = kind;
-    sourceSelection_ = std::move(selectedEntity);
-    sourceName_.fill(0);
-    sourceError_.clear();
-    showNewSource_ = true;
-  }
+  void openNewSource(EditorSourceKind kind, std::string selectedEntity = {},
+                     std::filesystem::path destinationDirectory = {},
+                     std::string_view suggestedName = {});
   std::optional<std::filesystem::path> takeCreatedSource() {
     return std::exchange(createdSource_, std::nullopt);
   }
@@ -51,7 +47,9 @@ private:
   bool showNewSource_ = false;
   std::array<char, 192> sourceName_{};
   std::string sourceSelection_;
+  std::filesystem::path sourceDirectory_;
   std::string sourceError_;
+  bool focusSourceName_ = false;
   std::optional<std::filesystem::path> createdSource_;
   bool opensCreatedSource_ = true;
   std::array<char, 256> folderName_{};

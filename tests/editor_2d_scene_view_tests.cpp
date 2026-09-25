@@ -2,6 +2,7 @@
 #include "editor/EditorIsoGridCellDocument.h"
 #include "editor/EditorIsoScene2D.h"
 #include "editor/EditorSceneDomain.h"
+#include "editor/EditorPrefabPlacement.h"
 #include "editor/EditorViewportOverlay2D.h"
 #include "editor/EditorViewportProjection2D.h"
 #include "editor/EditorWorkspace.h"
@@ -79,6 +80,9 @@ int main() {
   const runtime::Vec2 unprojected =
       editor::unprojectScenePoint2D(sceneView.camera(), projected, viewport);
   assert(close(unprojected.x, 3.0F) && close(unprojected.y, -2.0F));
+  const runtime::Vec2 dropPosition = editor::prefabDropWorldPosition2D(
+      sceneView.camera(), projected, viewport);
+  assert(close(dropPosition.x, 3.0F) && close(dropPosition.y, -2.0F));
 
   sceneView.reset(world);
   assert(editor::pickSceneEntity2D(world, sceneView.camera(), {400.0F, 300.0F},

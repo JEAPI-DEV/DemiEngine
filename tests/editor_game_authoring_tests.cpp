@@ -106,14 +106,31 @@ return Player
             error);
     require(workspace.sceneDocument().entity(actor) != nullptr,
             "Export replaced the source actor");
-    require(workspace.instantiatePrefab(prefab, error), error);
+    const auto beforePrefabDrop = workspace.sceneDocument().json();
+    require(workspace.instantiatePrefab(
+                prefab, demi::runtime::Vec2{60.0F, 20.0F}, error),
+            error);
     const std::string instanceActor(workspace.selectedEntityId());
     require(instanceActor != actor && !instanceActor.empty(),
             "Prefab placement was not selected");
+    const auto *placedActor = demi::runtime::findEntity(
+        workspace.project().world, instanceActor);
+    require(placedActor != nullptr &&
+                placedActor->component<
+                    demi::runtime::Transform2DComponent>() != nullptr &&
+                placedActor->component<demi::runtime::Transform2DComponent>()
+                        ->position.x == 60.0F &&
+                placedActor->component<demi::runtime::Transform2DComponent>()
+                        ->position.y == 20.0F,
+            "2D prefab drop did not use the cursor world position");
+    require(workspace.undo(error), error);
+    require(workspace.sceneDocument().json() == beforePrefabDrop,
+            "Prefab drop Undo did not remove insertion and placement together");
+    require(workspace.redo(error), error);
     require(workspace.editValue({.entityId = instanceActor,
                                  .component = "Transform2D",
                                  .field = "position"},
-                                {60, 20}, false, error),
+                                {65, 25}, false, error),
             error);
     require(workspace.undo(error) && workspace.redo(error), error);
     require(workspace.duplicatePrefabInstance(instanceActor, error), error);

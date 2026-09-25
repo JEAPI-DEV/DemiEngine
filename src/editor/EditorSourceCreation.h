@@ -19,5 +19,6 @@ enum class EditorSourceKind {
 bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
                         const std::string &name, std::filesystem::path &created,
                         std::string &error,
-                        std::string_view selectedEntity = {});
+                        std::string_view selectedEntity = {},
+                        std::filesystem::path destinationDirectory = {});
 } // namespace demi::editor

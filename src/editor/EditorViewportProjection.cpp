@@ -161,6 +161,21 @@ runtime::Vec2 projectSceneDirection3D(
           -dot(worldDirection, basis.up)};
 }
 
+std::optional<runtime::Vec3>
+intersectSceneGroundPlane3D(const EditorSceneViewCamera &camera,
+                            const runtime::Vec2 viewportPosition,
+                            const runtime::Vec2 viewportSize) {
+  if (viewportSize.x <= 0.0F || viewportSize.y <= 0.0F)
+    return std::nullopt;
+  const Ray ray = cameraRay(camera, viewportPosition, viewportSize);
+  if (std::abs(ray.direction.y) <= 0.000001F)
+    return std::nullopt;
+  const float distance = -ray.origin.y / ray.direction.y;
+  if (distance < 0.0F)
+    return std::nullopt;
+  return add(ray.origin, multiply(ray.direction, distance));
+}
+
 std::optional<std::string> pickSceneEntity3D(
     const runtime::World &world, const EditorSceneViewCamera &camera,
     const runtime::Vec2 viewportPosition, const runtime::Vec2 viewportSize) {

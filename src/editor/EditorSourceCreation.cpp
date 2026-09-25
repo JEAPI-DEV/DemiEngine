@@ -10,7 +10,8 @@
 namespace demi::editor {
 bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
                         const std::string &name, std::filesystem::path &created,
-                        std::string &error, std::string_view selectedEntity) {
+                        std::string &error, std::string_view selectedEntity,
+                        std::filesystem::path destinationDirectory) {
   try {
     if (name.empty() || name.size() > 180 ||
         !std::ranges::all_of(name,
@@ -51,20 +52,49 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
                                              : ".prefab.json";
     const auto root = std::filesystem::weakly_canonical(
         workspace.project().project.projectDirectory);
+    std::filesystem::path sourceDirectory(folder);
+    std::filesystem::path qualifiedName(name);
+    if (!destinationDirectory.empty()) {
+      destinationDirectory = destinationDirectory.lexically_normal();
+      const auto withinSourceDirectory =
+          destinationDirectory.lexically_relative(sourceDirectory);
+      if (asset || destinationDirectory.is_absolute() ||
+          withinSourceDirectory.empty() ||
+          withinSourceDirectory.is_absolute() ||
+          *withinSourceDirectory.begin() == "..") {
+        error = "The destination must stay inside the source type's authored "
+                "folder.";
+        return false;
+      }
+      sourceDirectory = destinationDirectory;
+      if (withinSourceDirectory != ".")
+        qualifiedName = withinSourceDirectory / qualifiedName;
+    }
     const auto relative =
-        asset ? std::filesystem::path(folder) / name /
+        asset ? sourceDirectory / name /
                     (std::filesystem::path(name).filename().string() + suffix)
-              : std::filesystem::path(folder) / (name + suffix);
+              : sourceDirectory / (name + suffix);
     const auto target = std::filesystem::weakly_canonical(root / relative);
     const auto within = target.lexically_relative(root);
     if (within.empty() || within.is_absolute() || *within.begin() == "..") {
       error = "Source path leaves the project.";
       return false;
     }
+    std::error_code existenceError;
+    if (std::filesystem::exists(target, existenceError)) {
+      error = "A source with this name already exists; choose another name.";
+      return false;
+    }
+    if (existenceError) {
+      error = "Could not inspect the source destination: " +
+              existenceError.message();
+      return false;
+    }
     nlohmann::json document{{"format_version", 1}};
     const std::string assetId =
         std::string("asset://") +
-        (kind == EditorSourceKind::Material ? "materials/" : "data/") + name;
+        (kind == EditorSourceKind::Material ? "materials/" : "data/") +
+        qualifiedName.generic_string();
     if (asset) {
       const auto registry = loadAssetRegistry(root);
       const auto manifest =
@@ -78,7 +108,7 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
     if (kind == EditorSourceKind::PrefabFromSelection) {
       const auto prefab =
           makeEntityPrefab(workspace.sceneDocument().json(), selectedEntity,
-                           "prefab://" + name, error);
+                           "prefab://" + qualifiedName.generic_string(), error);
       if (!prefab)
         return false;
       document = *prefab;
@@ -99,12 +129,13 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
                           {"anchor_max", {1, 1}},
                           {"children", nlohmann::json::array()}};
       if (kind == EditorSourceKind::UiPrefab)
-        document["id"] = "ui-prefab://" + name;
+        document["id"] = "ui-prefab://" + qualifiedName.generic_string();
       else
         document["canvas_size"] = {960, 540};
     } else {
-      document["id"] = (scene ? "scene://" : "prefab://") + name;
-      document["name"] = name;
+      document["id"] = (scene ? "scene://" : "prefab://") +
+                       qualifiedName.generic_string();
+      document["name"] = qualifiedName.generic_string();
       document["entities"] = nlohmann::json::array();
       if (kind == EditorSourceKind::Scene3D) {
         document["entities"].push_back(
@@ -153,7 +184,8 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
       created = imported.manifestPath;
     }
     if (scene &&
-        (!workspace.addProjectScene("scene://" + name, relative, error) ||
+        (!workspace.addProjectScene(
+             "scene://" + qualifiedName.generic_string(), relative, error) ||
          !workspace.saveProject(error))) {
       error = "Created " + target.string() +
               ", but scene registration failed: " + error;

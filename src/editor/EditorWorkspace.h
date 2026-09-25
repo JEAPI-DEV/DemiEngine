@@ -42,6 +42,12 @@ public:
                                         std::string &error);
   [[nodiscard]] bool instantiatePrefab(const std::filesystem::path &path,
                                         std::string &error);
+  [[nodiscard]] bool instantiatePrefab(const std::filesystem::path &path,
+                                       runtime::Vec2 worldPosition,
+                                       std::string &error);
+  [[nodiscard]] bool instantiatePrefab(const std::filesystem::path &path,
+                                       runtime::Vec3 worldPosition,
+                                       std::string &error);
   [[nodiscard]] bool removePrefabInstance(std::string_view expandedEntityId,
                                           std::string &error);
   [[nodiscard]] bool duplicatePrefabInstance(std::string_view expandedEntityId,

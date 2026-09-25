@@ -6,6 +6,20 @@
   target_compile_definitions(demi-editor-game-authoring-tests PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-editor-prefab-authoring-tests tests/editor_prefab_authoring_tests.cpp)
   add_executable(demi-editor-prefab-components-tests tests/editor_prefab_components_tests.cpp)
+  add_executable(demi-editor-structured-value-tests tests/editor_structured_value_tests.cpp)
+  add_executable(demi-editor-drag-authoring-tests tests/editor_drag_authoring_tests.cpp)
+  target_link_libraries(demi-editor-drag-authoring-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-drag-authoring-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-drag-authoring-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
+  target_link_libraries(demi-editor-structured-value-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-structured-value-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-structured-value-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
   target_link_libraries(demi-editor-prefab-components-tests PRIVATE demi-editor-ui)
   target_include_directories(demi-editor-prefab-components-tests PRIVATE
     "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"

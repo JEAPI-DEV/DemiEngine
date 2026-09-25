@@ -23,6 +23,8 @@ enum class EditorIcon {
   Hud,
   Folder,
   File,
+  Scene,
+  Prefab,
   Add,
   Settings
 };

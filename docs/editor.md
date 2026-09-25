@@ -28,6 +28,15 @@ require hand-editing their JSON files.
    property on an instance-added component keeps the component attached.
    **Open source prefab** opens the shared source, where edits affect every
    instance using it. Double-clicking its asset opens the same source document.
+   Dragging a prefab asset onto the active scene Viewport places it at the cursor:
+   the 2D authoring plane, the isometric grid, or the 3D ground plane. 3D placement
+   retains the prefab's authored height above the ground. Dropping inserts and
+   positions it in one Undo step without moving the editor camera.
+   Drag an authored Hierarchy entity onto the Assets background or a `prefabs/`
+   folder to create a prefab copy. Confirm its name in the dialog; existing files
+   are never overwritten. Drops elsewhere in the asset grid default to `prefabs/`.
+   Scene, prefab and HUD files have distinct icons; prefab hierarchy rows have a
+   blue tint, while selection keeps the normal highlight.
 4. Create a HUD and add controls under the selected parent. The Inspector groups
    Layout, Appearance, Content and Interaction; dock/anchor/stack presets provide
    common layouts. The root exposes canvas dimensions. UI prefabs appear in the
@@ -44,6 +53,21 @@ fit the available work area. Existing dock layouts are retained; choose
 **View → Reset Workspace** to get the wider Inspector and bottom Assets layout.
 The 3D Scene view starts with an overview of scene geometry. Frame Selected
 uses transformed geometry bounds; Align to Camera remains an explicit action.
+
+### Structured properties
+
+Gameplay Data, material properties, and other reflected object/array fields
+use full-width collection editors. **Add field** asks for a name and type;
+**Edit** renames a field or changes its type. Changing type replaces its value.
+Numbers, text and booleans are editable directly. Objects and arrays can nest;
+array items support **Up**, **Down**, and **Remove**. Duplicate names are rejected.
+Collections are paged for display, not limited in authored size or nesting depth.
+These edits use the document's validation, Undo/Redo and save paths. The same
+collection widget is used for structured Lua properties.
+
+Object-valued property edits on prefab instances use exact-field overrides,
+so removing keys and retaining literal null values survives reload. Hand-authored
+nested prefab overrides retain their existing merge semantics.
 
 `demi-editor-game-authoring-tests` exercises the shared editor commands from a
 new project through scene/prefab/HUD creation, Save/reopen, keyboard-controlled

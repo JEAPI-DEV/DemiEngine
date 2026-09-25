@@ -37,7 +37,7 @@
     {"id":"player","components":{
       "Transform3D":{"position":[-4.175,0.92,2.3]},
       "CapsuleCollider3D":{"radius":0.3,"height":1.8,"layer":"player"},
-      "CharacterController3D":{"step_height":0.2},
+      "CharacterController3D":{"step_height":0.2, "gravity": -5.0},
       "GameplayData":{"values":{}},
       "LuaScript":{"module":"script://scripts/player.lua"}
     },"children":[

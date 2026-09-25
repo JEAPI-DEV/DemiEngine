@@ -26,6 +26,19 @@ std::string colliderIdForModel(const std::string_view modelId) {
 
 } // namespace
 
+void EditorAssetDialogs::openNewSource(
+    const EditorSourceKind kind, std::string selectedEntity,
+    std::filesystem::path destinationDirectory,
+    const std::string_view suggestedName) {
+  sourceKind_ = kind;
+  sourceSelection_ = std::move(selectedEntity);
+  sourceDirectory_ = std::move(destinationDirectory);
+  setBuffer(sourceName_, suggestedName);
+  sourceError_.clear();
+  showNewSource_ = true;
+  focusSourceName_ = true;
+}
+
 void EditorAssetDialogs::openNewFolder(std::filesystem::path relativeParent) {
   folderParent_ = std::move(relativeParent);
   folderName_.fill('\0');
@@ -72,11 +85,18 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
         ImGui::TextWrapped("Copy hierarchy '%s' into a reusable prefab. The "
                            "original stays unchanged.",
                            sourceSelection_.c_str());
+      if (!sourceDirectory_.empty())
+        ImGui::TextDisabled("Create in: %s",
+                            sourceDirectory_.generic_string().c_str());
       ImGui::TextDisabled(
           "No extension needed. Use chapter/level_01 for subfolders.");
       ImGui::Spacing();
       ImGui::TextUnformatted("Name");
       ImGui::SetNextItemWidth(-1.0F);
+      if (focusSourceName_) {
+        ImGui::SetKeyboardFocusHere();
+        focusSourceName_ = false;
+      }
       const bool entered = ImGui::InputText(
           "##source-name", sourceName_.data(), sourceName_.size(),
           ImGuiInputTextFlags_EnterReturnsTrue);
@@ -91,7 +111,8 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
         std::filesystem::path created;
         std::string error;
         if (createEditorSource(workspace, sourceKind_, sourceName_.data(),
-                               created, error, sourceSelection_)) {
+                               created, error, sourceSelection_,
+                               sourceDirectory_)) {
           createdSource_ = created;
           opensCreatedSource_ =
               sourceKind_ != EditorSourceKind::PrefabFromSelection;

@@ -1,4 +1,5 @@
 #include "editor/EditorViewportProjection.h"
+#include "editor/EditorPrefabPlacement.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "editor/EditorViewportTool.h"
 #include "editor/EditorWorkspace.h"
@@ -59,6 +60,10 @@ int main() {
   world.entities.push_back(cube("duplicate", 3.0F));
   editor::EditorSceneViewState sceneView;
   sceneView.reset(world);
+  const auto dropPosition = editor::prefabDropWorldPosition3D(
+      sceneView.camera(), {400.0F, 300.0F}, {800.0F, 600.0F});
+  assert(dropPosition.has_value());
+  assert(std::abs(dropPosition->y) < 0.001F);
   // Picking/gizmo assertions below use the fixture camera, not the overview.
   assert(sceneView.alignToFirstCamera(world));
   const runtime::Vec2 viewport{800.0F, 600.0F};

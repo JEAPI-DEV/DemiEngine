@@ -37,6 +37,29 @@ int main() {
   const auto scene = created;
   assert(workspace.openSceneDocument(scene, error));
   assert(workspace.sceneDocument().json()["id"] == "scene://levels/first");
+  const auto unchangedScene = workspace.sceneDocument().json();
+  assert(createEditorSource(workspace, EditorSourceKind::PrefabFromSelection,
+                            "camera_copy", created, error, "camera",
+                            "prefabs/props"));
+  assert(created == root / "prefabs/props/camera_copy.prefab.json");
+  {
+    std::ifstream source(created);
+    const auto prefab = nlohmann::json::parse(source);
+    assert(prefab["id"] == "prefab://props/camera_copy");
+    assert(prefab["entities"][0]["id"] == "camera");
+  }
+  assert(workspace.sceneDocument().json() == unchangedScene);
+  assert(!workspace.sceneDocument().canUndo());
+  assert(!createEditorSource(workspace,
+                             EditorSourceKind::PrefabFromSelection,
+                             "camera_copy", created, error, "camera",
+                             "prefabs/props"));
+  assert(error.find("already exists") != std::string::npos);
+  assert(!createEditorSource(workspace,
+                             EditorSourceKind::PrefabFromSelection,
+                             "outside", created, error, "camera", "scenes"));
+  assert(workspace.sceneDocument().json() == unchangedScene);
+  assert(!workspace.sceneDocument().canUndo());
   assert(!createEditorSource(workspace, EditorSourceKind::Scene3D,
                              "levels/first", created, error));
   assert(!createEditorSource(workspace, EditorSourceKind::Lua, "../escape",

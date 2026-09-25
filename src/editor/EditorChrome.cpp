@@ -181,6 +181,38 @@ void drawEditorGlyph(ImDrawList &draw, const EditorIcon icon,
     draw.AddLine(point(center, 1.0F, -3.0F, scale),
                  point(center, 6.0F, -3.0F, scale), color, thickness);
     break;
+  case EditorIcon::Scene:
+    draw.AddRect(point(center, -8.0F, -7.0F, scale),
+                 point(center, 8.0F, 7.0F, scale), color, 1.0F, thickness,
+                 ImDrawFlags_None);
+    draw.AddCircleFilled(point(center, 4.0F, -3.5F, scale), 1.6F * scale,
+                         color);
+    draw.AddTriangle(point(center, -7.0F, 5.5F, scale),
+                     point(center, -2.0F, -1.5F, scale),
+                     point(center, 2.0F, 5.5F, scale), color, thickness);
+    draw.AddTriangle(point(center, -1.0F, 5.5F, scale),
+                     point(center, 3.0F, 0.0F, scale),
+                     point(center, 7.0F, 5.5F, scale), color, thickness);
+    break;
+  case EditorIcon::Prefab:
+    draw.AddRect(point(center, -3.5F, -8.0F, scale),
+                 point(center, 3.5F, -3.0F, scale), color, 1.0F, thickness,
+                 ImDrawFlags_None);
+    draw.AddLine(point(center, 0.0F, -3.0F, scale),
+                 point(center, 0.0F, 1.0F, scale), color, thickness);
+    draw.AddLine(point(center, -5.0F, 1.0F, scale),
+                 point(center, 5.0F, 1.0F, scale), color, thickness);
+    draw.AddLine(point(center, -5.0F, 1.0F, scale),
+                 point(center, -5.0F, 3.0F, scale), color, thickness);
+    draw.AddLine(point(center, 5.0F, 1.0F, scale),
+                 point(center, 5.0F, 3.0F, scale), color, thickness);
+    draw.AddRect(point(center, -8.0F, 3.0F, scale),
+                 point(center, -2.0F, 8.0F, scale), color, 1.0F, thickness,
+                 ImDrawFlags_None);
+    draw.AddRect(point(center, 2.0F, 3.0F, scale),
+                 point(center, 8.0F, 8.0F, scale), color, 1.0F, thickness,
+                 ImDrawFlags_None);
+    break;
   case EditorIcon::Add:
     draw.AddLine(point(center, -7.0F, 0.0F, scale),
                  point(center, 7.0F, 0.0F, scale), color, thickness);

@@ -446,9 +446,20 @@ bool EditorSceneDocument::createEntity(std::string &error,
 
 bool EditorSceneDocument::instantiatePrefab(const std::string_view reference,
                                             std::string &error) {
+  return instantiatePrefab(reference, nlohmann::json::object(), error);
+}
+
+bool EditorSceneDocument::instantiatePrefab(const std::string_view reference,
+                                            nlohmann::json overrides,
+                                            std::string &error) {
   constexpr std::string_view Prefix = "prefab://";
   if (!reference.starts_with(Prefix) || reference.size() == Prefix.size()) {
     error = "Prefab instances require a prefab:// reference.";
+    reject({}, error);
+    return false;
+  }
+  if (!overrides.is_object()) {
+    error = "Prefab instance overrides must be an object.";
     reject({}, error);
     return false;
   }
@@ -466,10 +477,12 @@ bool EditorSceneDocument::instantiatePrefab(const std::string_view reference,
   if (base.empty())
     base = "prefab_instance";
   const std::string id = uniqueEntityId(document_, base);
+  nlohmann::json instance{{"id", id}, {"prefab", std::string(reference)}};
+  if (!overrides.empty())
+    instance["overrides"] = std::move(overrides);
   return stageAndCommit(
-      InsertEntityCommand{
-          .index = entities->size(),
-          .entity = {{"id", id}, {"prefab", std::string(reference)}}},
+      InsertEntityCommand{.index = entities->size(),
+                          .entity = std::move(instance)},
       error);
 }
 

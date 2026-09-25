@@ -160,7 +160,8 @@ void drawScriptProperties(EditorWorkspace &workspace,
                           const nlohmann::json &component,
                           const EditorLuaComponentMetadata &metadata,
                           std::string &notice, const bool prefabEntity,
-                          const std::string_view query) {
+                          const std::string_view query,
+                          StructuredValueState &structuredState) {
   if (!metadata.description.empty())
     ImGui::TextWrapped("%s", metadata.description.c_str());
   nlohmann::json properties =
@@ -190,6 +191,7 @@ void drawScriptProperties(EditorWorkspace &workspace,
     ImGui::TableSetColumnIndex(1);
     ImGui::TextWrapped("%s", metadata.module.c_str());
   }
+  ImGui::EndTable();
   for (const auto &[name, definition] : metadata.propertySchema.items()) {
     if (!definition.is_object())
       continue;
@@ -219,8 +221,20 @@ void drawScriptProperties(EditorWorkspace &workspace,
     else if (hasDefault)
       origin = EditorPropertyOrigin::Default;
     ImGui::PushID(name.c_str());
-    ImGui::TableNextRow();
-    ImGui::TableSetColumnIndex(0);
+    const bool collection = type == "object" || type == "array" ||
+                            (value.is_structured() && type != "vec2" &&
+                             type != "vec3" && type != "color");
+    if (!collection && !beginPropertyTable("##script-properties")) {
+      ImGui::PopID();
+      continue;
+    }
+    if (!collection) {
+      ImGui::TableNextRow();
+      ImGui::TableSetColumnIndex(0);
+    } else {
+      ImGui::Spacing();
+      ImGui::Separator();
+    }
     drawPropertyLabel(label, origin);
     const std::string description = definition.value("description", "");
     if (!description.empty()) {
@@ -229,12 +243,15 @@ void drawScriptProperties(EditorWorkspace &workspace,
       if (ImGui::IsItemHovered())
         ImGui::SetTooltip("%s", description.c_str());
     }
-    ImGui::TableSetColumnIndex(1);
+    if (!collection)
+      ImGui::TableSetColumnIndex(1);
     if (!hasValue) {
       if (ImGui::Button("Add value")) {
         properties[name] = initialScriptPropertyValue(type, definition);
         (void)commit(workspace, propertiesTarget, properties, notice);
       }
+      if (!collection)
+        ImGui::EndTable();
       ImGui::PopID();
       continue;
     }
@@ -295,7 +312,7 @@ void drawScriptProperties(EditorWorkspace &workspace,
           value.push_back(edited[index]);
       }
     } else if (value.is_structured()) {
-      structured = drawStructuredValue(value);
+      structured = drawStructuredValue(value, structuredState);
       changed = structured->changed;
     } else {
       ImGui::TextDisabled("%s", value.dump().c_str());
@@ -314,14 +331,16 @@ void drawScriptProperties(EditorWorkspace &workspace,
       finishEdit(workspace);
     }
     if (structured && structured->finished) workspace.endContinuousEdit();
-    ImGui::TableSetColumnIndex(2);
+    if (!collection)
+      ImGui::TableSetColumnIndex(2);
     if (!prefabEntity && hasAuthoredValue && ImGui::SmallButton("Reset")) {
       properties.erase(name);
       (void)commit(workspace, propertiesTarget, properties, notice);
     }
+    if (!collection)
+      ImGui::EndTable();
     ImGui::PopID();
   }
-  ImGui::EndTable();
 }
 
 void drawInlineIssue(const EditorWorkspace &workspace,
@@ -452,7 +471,6 @@ bool drawVectorEditor(const ComponentFieldDescriptor *field,
   const float available = ImGui::GetContentRegionAvail().x;
   const float axisWidth = available / static_cast<float>(count);
   const bool stackAxes = axisWidth < ImGui::GetFontSize() * 2.4F;
-  const bool inlineAxisLabels = axisWidth >= ImGui::GetFontSize() * 5.0F;
   if (stackAxes) {
     if (!ImGui::BeginTable("##vector-axes", 2,
                            ImGuiTableFlags_SizingStretchProp))
@@ -463,6 +481,7 @@ bool drawVectorEditor(const ComponentFieldDescriptor *field,
     for (int index = 0; index < count; ++index) {
       ImGui::TableNextRow();
       ImGui::TableSetColumnIndex(0);
+      ImGui::AlignTextToFramePadding();
       ImGui::TextColored(AxisColors[index], "%s", AxisLabels[index]);
       ImGui::TableSetColumnIndex(1);
       ImGui::PushID(index);
@@ -476,12 +495,16 @@ bool drawVectorEditor(const ComponentFieldDescriptor *field,
     if (!ImGui::BeginTable("##vector-axes", count,
                            ImGuiTableFlags_SizingStretchSame))
       return false;
+    ImGui::TableNextRow();
     for (int index = 0; index < count; ++index) {
-      ImGui::TableNextColumn();
-      ImGui::PushID(index);
+      ImGui::TableSetColumnIndex(index);
+      ImGui::AlignTextToFramePadding();
       ImGui::TextColored(AxisColors[index], "%s", AxisLabels[index]);
-      if (inlineAxisLabels)
-        ImGui::SameLine();
+    }
+    ImGui::TableNextRow();
+    for (int index = 0; index < count; ++index) {
+      ImGui::TableSetColumnIndex(index);
+      ImGui::PushID(index);
       ImGui::SetNextItemWidth(-1.0F);
       changed |= ImGui::InputFloat("##axis", &values[index], 0.0F, 0.0F,
                                    "%.5g");
@@ -555,13 +578,14 @@ bool drawAllowedString(EditorWorkspace &workspace,
 bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
                     const ComponentFieldDescriptor &field,
                     const nlohmann::json &value, std::string &notice,
+                    StructuredValueState &structuredState,
                     const std::vector<SceneValueTarget> *targets = nullptr,
                     const bool mixed = false) {
   (void)mixed;
   if (runtime::scene_loading::componentFieldEditorReadOnly(field)) {
     if (value.is_structured()) {
       auto preview = value;
-      (void)drawStructuredValue(preview, 0, true);
+      (void)drawStructuredValue(preview, structuredState, 0, true);
     } else ImGui::TextWrapped("%s", value.dump().c_str());
     return true;
   }
@@ -660,7 +684,7 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
       vectorSize = 2;
     else if (field.type == ComponentFieldType::Vec3Array)
       vectorSize = 3;
-    const auto edit = drawStructuredValue(replacement, vectorSize);
+    const auto edit = drawStructuredValue(replacement, structuredState, vectorSize);
     bool accepted = true;
     if (edit.changed) {
       std::string error;
@@ -689,7 +713,8 @@ void drawComponentFields(EditorWorkspace &workspace,
                          nlohmann::json component,
                          const ComponentDescriptor &descriptor,
                          std::string &notice, const bool prefabEntity,
-                         const std::string_view query) {
+                         const std::string_view query,
+                         StructuredValueState &structuredState) {
   // Field commits may replace the scene document and preview world. Keep this
   // component snapshot alive until every row for the frame has been drawn.
   if (!descriptor.editor.help.empty()) {
@@ -706,8 +731,6 @@ void drawComponentFields(EditorWorkspace &workspace,
       ImGui::GetStateStorage()->SetBool(key, showAdvanced);
     }
   }
-  if (!beginPropertyTable("##component-properties"))
-    return;
   for (const ComponentFieldDescriptor &field : descriptor.fields) {
     if (field.editor.advanced && !showAdvanced && query.empty())
       continue;
@@ -721,13 +744,26 @@ void drawComponentFields(EditorWorkspace &workspace,
         editorPropertyPresentation(descriptor, field, component, prefabEntity,
                                    workspace.hasExplicitValue(target));
     ImGui::PushID(field.name.data());
-    ImGui::TableNextRow();
-    ImGui::TableSetColumnIndex(0);
+    const bool collection = field.type == ComponentFieldType::Object ||
+                            field.type == ComponentFieldType::Vec2Array ||
+                            field.type == ComponentFieldType::Vec3Array;
+    if (!collection && !beginPropertyTable("##component-properties")) {
+      ImGui::PopID();
+      continue;
+    }
+    if (!collection) {
+      ImGui::TableNextRow();
+      ImGui::TableSetColumnIndex(0);
+    } else {
+      ImGui::Spacing();
+      ImGui::Separator();
+    }
     const std::string label =
         runtime::scene_loading::componentFieldEditorLabel(field);
     drawPropertyLabel(label, presentation.origin, &field);
 
-    ImGui::TableSetColumnIndex(1);
+    if (!collection)
+      ImGui::TableSetColumnIndex(1);
     if (presentation.requiresExplicitAdd) {
       if (runtime::scene_loading::componentFieldEditorReadOnly(field)) {
         ImGui::TextDisabled("No authored value");
@@ -737,11 +773,12 @@ void drawComponentFields(EditorWorkspace &workspace,
       }
     } else {
       ImGui::SetNextItemWidth(-1.0F);
-      (void)drawFieldValue(workspace, target, field, presentation.value, notice);
+      (void)drawFieldValue(workspace, target, field, presentation.value, notice, structuredState);
     }
     drawInlineIssue(workspace, target);
 
-    ImGui::TableSetColumnIndex(2);
+    if (!collection)
+      ImGui::TableSetColumnIndex(2);
     if (presentation.canReset) {
       if (ImGui::SmallButton("Reset")) {
         std::string error;
@@ -752,13 +789,15 @@ void drawComponentFields(EditorWorkspace &workspace,
                                 : "Optional field reset to its default";
       }
     }
+    if (!collection)
+      ImGui::EndTable();
     ImGui::PopID();
   }
-  ImGui::EndTable();
 }
 
 void drawMultiSelection(EditorWorkspace &workspace, std::string &notice,
-                        const std::string_view query) {
+                        const std::string_view query,
+                        StructuredValueState &structuredState) {
   ImGui::Text("%zu entities selected", workspace.selectedEntityIds().size());
   ImGui::TextDisabled(
       "Only authored fields common to every selection are shown.");
@@ -804,7 +843,7 @@ void drawMultiSelection(EditorWorkspace &workspace, std::string &notice,
     ImGui::TableSetColumnIndex(1);
     ImGui::SetNextItemWidth(-1.0F);
     (void)drawFieldValue(workspace, common.targets.front(), *common.field,
-                         common.value, notice, &common.targets, common.mixed);
+                         common.value, notice, structuredState, &common.targets, common.mixed);
     if (common.mixed && ImGui::IsItemHovered())
       ImGui::SetTooltip(
           "The selected entities have different values. Editing applies one "
@@ -959,7 +998,7 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
   const std::string_view propertyQuery(state.propertySearch.data());
   ImGui::Separator();
   if (workspace.selectedEntityIds().size() > 1) {
-    drawMultiSelection(workspace, notice, propertyQuery);
+    drawMultiSelection(workspace, notice, propertyQuery, state.structuredValues);
     ImGui::End();
     return;
   }
@@ -1153,12 +1192,12 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
       drawInlineIssue(workspace, {.entityId = selectedId, .component = name});
       if (luaMetadata != nullptr)
         drawScriptProperties(workspace, selectedId, component, *luaMetadata,
-                             notice, prefabEntity, propertyQuery);
+                             notice, prefabEntity, propertyQuery, state.structuredValues);
       else if (descriptor == nullptr || descriptor->fields.empty())
         drawGenericComponent(component, name, propertyQuery);
       else
         drawComponentFields(workspace, selectedId, name, component,
-                            *descriptor, notice, prefabEntity, propertyQuery);
+                            *descriptor, notice, prefabEntity, propertyQuery, state.structuredValues);
       ImGui::PopID();
     }
   }

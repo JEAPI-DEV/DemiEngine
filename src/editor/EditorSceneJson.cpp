@@ -211,6 +211,25 @@ bool assignValueInDocument(nlohmann::json &document,
     if (!overrides.is_object())
       overrides = nlohmann::json::object();
     const std::string flattened = flattenedOverrideKey(target);
+    if (value && value->is_object()) {
+      // A property editor supplies a complete object, not a merge patch.
+      // Use the existing exact-field override form so deleted keys and literal
+      // null data survive composition and save/reload.
+      auto local = overrides.find(target.prefabEntityId);
+      if (local != overrides.end() && local->is_object()) {
+        nlohmann::json *container = &*local;
+        if (!target.component.empty()) {
+          auto components = container->find("components");
+          container = components != container->end() && components->is_object()
+                          ? findComponent(*local, target.component) : nullptr;
+        }
+        if (container != nullptr && container->is_object())
+          container->erase(target.field);
+      }
+      overrides[flattened] = *value;
+      pruneEmptyPrefabOverride(*instance, target);
+      return true;
+    }
     if (overrides.contains(flattened)) {
       if (value)
         overrides[flattened] = *value;

@@ -1,11 +1,67 @@
 #include "editor/EditorWorkspace.h"
 
+#include "editor/EditorPrefabPlacement.h"
+
 #include "demi/filesystem/ProjectPaths.h"
-#include "demi/runtime/scene/composition/PrefabResolver.h"
 
 #include <algorithm>
+#include <optional>
+#include <string_view>
+#include <utility>
 
 namespace demi::editor {
+namespace {
+
+struct ResolvedPrefabSource {
+  std::filesystem::path path;
+  std::string reference;
+};
+
+std::optional<ResolvedPrefabSource>
+resolvePrefabSource(const std::filesystem::path &projectDirectory,
+                    const std::filesystem::path &path, std::string &error) {
+  std::error_code filesystemError;
+  const auto root = std::filesystem::weakly_canonical(
+      projectDirectory / "prefabs", filesystemError);
+  if (filesystemError) {
+    error = "Could not resolve the project prefab folder: " +
+            filesystemError.message();
+    return std::nullopt;
+  }
+  const auto source = std::filesystem::weakly_canonical(path, filesystemError);
+  if (filesystemError) {
+    error = "Could not resolve the prefab source: " +
+            filesystemError.message();
+    return std::nullopt;
+  }
+  const auto relative = source.lexically_relative(root);
+  if (!isPrefabFile(source) || relative.empty() || relative.is_absolute() ||
+      *relative.begin() == "..") {
+    error = "Choose an entity prefab from this project's prefabs folder.";
+    return std::nullopt;
+  }
+  std::string reference = relative.generic_string();
+  reference.resize(reference.size() - std::string_view(".prefab.json").size());
+  return ResolvedPrefabSource{.path = source,
+                              .reference = "prefab://" + reference};
+}
+
+void selectPrefabInstance(EditorWorkspace &workspace, const bool frame) {
+  const std::string instanceId(workspace.sceneDocument().lastChangedEntityId());
+  const auto instance = std::ranges::find_if(
+      workspace.project().world.entities,
+      [&instanceId](const runtime::Entity &entity) {
+        return entity.prefabInstance == instanceId;
+      });
+  if (instance == workspace.project().world.entities.end())
+    return;
+  workspace.selectEntity(instance->id);
+  if (frame)
+    (void)workspace.sceneView().frameEntity(workspace.project().world,
+                                            instance->id);
+}
+
+} // namespace
 
 bool EditorWorkspace::instantiatePrefab(const std::filesystem::path &path,
                                         std::string &error) {
@@ -13,34 +69,74 @@ bool EditorWorkspace::instantiatePrefab(const std::filesystem::path &path,
     error = "Open a scene or entity prefab before placing an entity prefab.";
     return false;
   }
-  const auto root = std::filesystem::weakly_canonical(
-      project_->project.projectDirectory / "prefabs");
-  const auto source = std::filesystem::weakly_canonical(path);
-  const auto relative = source.lexically_relative(root);
-  if (!isPrefabFile(source) || relative.empty() || relative.is_absolute() ||
-      *relative.begin() == "..") {
-    error = "Choose an entity prefab from this project's prefabs folder.";
+  const auto source =
+      resolvePrefabSource(project_->project.projectDirectory, path, error);
+  if (!source)
     return false;
-  }
-  std::string reference = relative.generic_string();
-  reference.resize(reference.size() - std::string_view(".prefab.json").size());
-  reference = "prefab://" + reference;
   if (!mutateAndRebuild(
-          [&reference](EditorSceneDocument &document, std::string &failure) {
-            return document.instantiatePrefab(reference, failure);
+          [&source](EditorSceneDocument &document, std::string &failure) {
+            return document.instantiatePrefab(source->reference, failure);
           },
           error))
     return false;
 
-  const std::string instanceId(sceneDocument_.lastChangedEntityId());
-  const auto instance = std::ranges::find_if(
-      project_->world.entities, [&instanceId](const runtime::Entity &entity) {
-        return entity.prefabInstance == instanceId;
-      });
-  if (instance != project_->world.entities.end()) {
-    selectEntity(instance->id);
-    (void)sceneView_.frameEntity(project_->world, instance->id);
+  selectPrefabInstance(*this, true);
+  return true;
+}
+
+bool EditorWorkspace::instantiatePrefab(const std::filesystem::path &path,
+                                        const runtime::Vec2 worldPosition,
+                                        std::string &error) {
+  if (!project_ || activeDocument_ != EditorWorkspaceDocument::Scene) {
+    error = "Open a scene before placing an entity prefab.";
+    return false;
   }
+  const auto source =
+      resolvePrefabSource(project_->project.projectDirectory, path, error);
+  if (!source)
+    return false;
+  auto overrides = prefabPlacementOverrides(source->path, project_->world,
+                                             worldPosition, error);
+  if (!overrides)
+    return false;
+  if (!mutateAndRebuild(
+          [&source, &overrides](EditorSceneDocument &document,
+                                std::string &failure) {
+            return document.instantiatePrefab(source->reference,
+                                              std::move(*overrides), failure);
+          },
+          error))
+    return false;
+
+  selectPrefabInstance(*this, false);
+  return true;
+}
+
+bool EditorWorkspace::instantiatePrefab(const std::filesystem::path &path,
+                                        const runtime::Vec3 worldPosition,
+                                        std::string &error) {
+  if (!project_ || activeDocument_ != EditorWorkspaceDocument::Scene) {
+    error = "Open a scene before placing an entity prefab.";
+    return false;
+  }
+  const auto source =
+      resolvePrefabSource(project_->project.projectDirectory, path, error);
+  if (!source)
+    return false;
+  auto overrides =
+      prefabPlacementOverrides(source->path, worldPosition, error);
+  if (!overrides)
+    return false;
+  if (!mutateAndRebuild(
+          [&source, &overrides](EditorSceneDocument &document,
+                                std::string &failure) {
+            return document.instantiatePrefab(source->reference,
+                                              std::move(*overrides), failure);
+          },
+          error))
+    return false;
+
+  selectPrefabInstance(*this, false);
   return true;
 }
 

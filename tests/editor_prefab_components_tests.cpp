@@ -7,6 +7,7 @@
 #include <imgui_internal.h>
 
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -48,7 +49,6 @@ void checkInspector(demi::editor::EditorWorkspace &workspace) {
   io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
   demi::editor::EditorInspectorPanelState state;
   std::string notice;
-  ImVec2 addPosition;
   ImVec2 menuPosition;
   for (int frame = 0; frame < 3; ++frame) {
     ImGui::NewFrame();
@@ -60,9 +60,6 @@ void checkInspector(demi::editor::EditorWorkspace &workspace) {
     const std::string labels = ImGui::GetCurrentContext()->LogBuffer.c_str();
     require(labels.find("Add Component") != std::string::npos,
             "Prefab Add Component is not available");
-    addPosition = {window->Pos.x + window->Size.x * 0.5F,
-                   window->DC.CursorPosPrevLine.y +
-                       ImGui::GetFrameHeight() * 0.5F};
     const ImGuiID componentId = ImHashStr("Transform3D", 0, window->ID);
     const ImGuiID tableId = ImHashStr("##component-header", 0, componentId);
     const auto *table = ImGui::GetCurrentContext()->Tables.GetByKey(tableId);
@@ -73,12 +70,32 @@ void checkInspector(demi::editor::EditorWorkspace &workspace) {
     ImGui::LogFinish();
     ImGui::Render();
   }
-  io.AddMousePosEvent(addPosition.x, addPosition.y);
+  // Activate each actual axis input and compare the text caret baselines.
+  // This catches first-column baseline drift in nested property tables.
+  auto *inspector = ImGui::FindWindowByName("Inspector");
+  const ImGuiID component = ImHashStr("Transform3D", 0, inspector->ID);
+  const ImGuiID field = ImHashStr("position", 0, component);
+  const ImGuiID properties = ImHashStr("##component-properties", 0, field);
+  const ImGuiID axes = ImHashStr("##vector-axes", 0, properties);
+  float baseline = 0;
+  for (int axis = 0; axis < 3; ++axis) {
+    const ImGuiID axisSeed = ImHashData(&axis, sizeof(axis), axes);
+    const ImGuiID input = ImHashStr("##axis", 0, axisSeed);
+    ImGui::ActivateItemByID(input);
+    ImGui::NewFrame();
+    demi::editor::drawInspectorPanel(workspace, {0, 0}, {420, 2300}, state, notice);
+    ImGui::Render();
+    auto *context = ImGui::GetCurrentContext();
+    require(context->InputTextState.ID == input, "Axis input not reached");
+    const float currentBaseline = context->PlatformImeData.InputPos.y;
+    if (axis == 0)
+      baseline = currentBaseline;
+    else
+      require(std::abs(currentBaseline - baseline) < 0.1F, "Vector inputs are misaligned");
+  }
+  ImGui::ClearActiveID();
+  ImGui::ActivateItemByID(ImGui::FindWindowByName("Inspector")->GetID("##add-component"));
   for (int frame = 0; frame < 3; ++frame) {
-    if (frame == 1)
-      io.AddMouseButtonEvent(0, true);
-    if (frame == 2)
-      io.AddMouseButtonEvent(0, false);
     ImGui::NewFrame();
     demi::editor::drawInspectorPanel(workspace, {0, 0}, {420, 2300}, state,
                                      notice);
@@ -120,7 +137,8 @@ int main() {
     })");
     const std::string source = R"({
       "format_version":1,"id":"prefab://body",
-      "entities":[{"id":"body","preset":"static_box_3d","components":{"Transform3D":{},"MeshRenderer":{"shape":"cube"}}}]
+      "entities":[{"id":"body","preset":"static_box_3d","components":{"Transform3D":{},"MeshRenderer":{"shape":"cube"},
+        "GameplayData":{"values":{"health":100,"obsolete":true,"nested":{"old":1}}}}}]
     })";
     write(root / "prefabs/body.prefab.json", source);
     write(root / "prefabs/wrapper.prefab.json", R"({
@@ -138,6 +156,20 @@ int main() {
     EditorWorkspace workspace;
     std::string error;
     require(workspace.open(root, error), error);
+    const SceneValueTarget dataTarget{.entityId="a/inner/body", .component="GameplayData", .field="values"};
+    const json editedData{{"health", 80}, {"nested", {{"new", nullptr}}}, {"items", json::array({1, true, "item"})}};
+    const auto beforeData = workspace.sceneDocument().json();
+    require(workspace.editValue(dataTarget, editedData, false, error), error);
+    require(workspace.save(error), error);
+    require(workspace.open(root, error), error);
+    const auto *loadedData = demi::runtime::findEntity(workspace.project().world, "a/inner/body");
+    require(json::parse(loadedData->serializedComponents.at("GameplayData")).at("values") == editedData,
+            "Prefab object replacement merged deleted keys or lost null data");
+    require(workspace.removeValue(dataTarget, error), error);
+    require(workspace.sceneDocument().json() == beforeData, "Reset object override did not restore source shape");
+    require(workspace.undo(error), error);
+    require(workspace.redo(error), error);
+    require(workspace.save(error), error);
     const auto original = workspace.sceneDocument().json();
     require(workspace.addComponent("a/inner/body", "Dentable3D", error), error);
     require(hasComponent(workspace, "a/inner/body", "Dentable3D"),

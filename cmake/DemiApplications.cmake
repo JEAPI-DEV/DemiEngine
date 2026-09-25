@@ -93,6 +93,7 @@ else()
     src/editor/EditorSceneCommand.cpp
     src/editor/EditorSceneDocument.cpp
     src/editor/EditorPrefabComponentCommands.cpp
+    src/editor/EditorPrefabPlacement.cpp
     src/editor/EditorSceneDomain.cpp
     src/editor/EditorSceneJson.cpp
     src/editor/EditorEntityHierarchy.cpp
@@ -167,6 +168,7 @@ else()
     "${imgui_docking_SOURCE_DIR}/imgui_draw.cpp"
     "${imgui_docking_SOURCE_DIR}/imgui_tables.cpp"
     "${imgui_docking_SOURCE_DIR}/imgui_widgets.cpp"
+    "${imgui_docking_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp"
     "${bgfx_SOURCE_DIR}/bgfx/examples/common/imgui/imgui.cpp")
   target_include_directories(demi-editor-ui PUBLIC src PRIVATE
     "${DEMI_IMGUI_DOCKING_OVERLAY}"

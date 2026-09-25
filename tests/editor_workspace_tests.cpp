@@ -116,6 +116,33 @@ int main() {
                  "Transform3D"))
              .at("position") == originalPosition);
 
+  // Viewport placement keeps the prefab's authored height above the ground,
+  // records insertion and placement as one command, and leaves the editor
+  // camera untouched.
+  const auto beforeDrop = prefabWorkspace.sceneDocument().json();
+  const auto cameraBeforeDrop = prefabWorkspace.sceneView().camera();
+  assert(prefabWorkspace.instantiatePrefab(
+      root / "examples/minimal_3d/prefabs/obstacle.prefab.json",
+      demi::runtime::Vec3{4.0F, 0.0F, -2.0F}, error));
+  const std::string droppedObstacle(prefabWorkspace.selectedEntityId());
+  const auto *obstacle = demi::runtime::findEntity(
+      prefabWorkspace.project().world, droppedObstacle);
+  assert(obstacle != nullptr);
+  const auto *obstacleTransform =
+      obstacle->component<demi::runtime::Transform3DComponent>();
+  assert(obstacleTransform != nullptr && obstacleTransform->position.x == 4.0F &&
+         obstacleTransform->position.y == 1.0F &&
+         obstacleTransform->position.z == -2.0F);
+  const auto cameraAfterDrop = prefabWorkspace.sceneView().camera();
+  assert(cameraAfterDrop.position.x == cameraBeforeDrop.position.x &&
+         cameraAfterDrop.position.y == cameraBeforeDrop.position.y &&
+         cameraAfterDrop.position.z == cameraBeforeDrop.position.z &&
+         cameraAfterDrop.forward.x == cameraBeforeDrop.forward.x &&
+         cameraAfterDrop.forward.y == cameraBeforeDrop.forward.y &&
+         cameraAfterDrop.forward.z == cameraBeforeDrop.forward.z);
+  assert(prefabWorkspace.undo(error));
+  assert(prefabWorkspace.sceneDocument().json() == beforeDrop);
+
   // Scene assets replace the authored scene document, while independently
   // opened HUDs retain their own tab and do not replace the scene's HUD.
   demi::editor::EditorWorkspace androidWorkspace;

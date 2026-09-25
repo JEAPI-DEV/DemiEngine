@@ -21,6 +21,13 @@ projectScenePoint3D(const EditorSceneViewCamera &camera,
 projectSceneDirection3D(const EditorSceneViewCamera &camera,
                         runtime::Vec3 worldDirection);
 
+// Returns the cursor ray intersection with the 3D authoring ground plane
+// (Y = 0), or nullopt when the ray is parallel or points away from it.
+[[nodiscard]] std::optional<runtime::Vec3>
+intersectSceneGroundPlane3D(const EditorSceneViewCamera &camera,
+                            runtime::Vec2 viewportPosition,
+                            runtime::Vec2 viewportSize);
+
 [[nodiscard]] std::optional<std::string>
 pickSceneEntity3D(const runtime::World &world,
                   const EditorSceneViewCamera &camera,
