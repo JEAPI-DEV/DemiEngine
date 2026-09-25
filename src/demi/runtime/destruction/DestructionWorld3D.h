@@ -5,6 +5,7 @@
 #include <string>
 #include <nlohmann/json.hpp>
 #include "demi/runtime/destruction/DestructionImpact3D.h"
+#include "demi/runtime/destruction/CosmeticDebris3D.h"
 
 namespace demi::runtime {
 struct World;
@@ -24,6 +25,8 @@ public:
   DestructionWorld3D(const DestructionWorld3D &) = delete;
   DestructionWorld3D &operator=(const DestructionWorld3D &) = delete;
   void prune(World &world);
+  void updateCosmetics(const World &world, float dt) { cosmetics_.update(world, dt); }
+  std::vector<CosmeticFragment3D> cosmeticFragments() const { return cosmetics_.snapshot(); }
   // Called only after native synchronization and before simulation.
   bool update(World &world, PhysicsWorld3D &physics);
   bool damagePart(const std::string &entity, const std::string &part,
@@ -40,5 +43,6 @@ public:
 private:
   struct Impl;
   std::unique_ptr<Impl> impl_;
+  CosmeticDebris3D cosmetics_;
 };
 } // namespace demi::runtime

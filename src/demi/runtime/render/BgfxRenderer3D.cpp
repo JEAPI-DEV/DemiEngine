@@ -1,4 +1,6 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
+#include "demi/runtime/destruction/DestructionWorld3D.h"
+#include "demi/runtime/destruction/DetachedFragmentFade3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 
@@ -326,6 +328,8 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
     return false;
   }
   SceneVisibility3D visibility;
+  auto cosmeticFragments = !shadowPass && frame.updateContent && world.destruction3D
+      ? world.destruction3D->cosmeticFragments() : std::vector<CosmeticFragment3D>{};
   if (frame.updateContent) {
     const auto extractionStarted = std::chrono::steady_clock::now();
     visibility = extractVisibleMeshes3D(world, frame, &extractionJobs_);
@@ -338,6 +342,11 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
   }
   if (frame.updateContent && !prepareAnimatedMeshes(visibility.meshes, frame, error))
     return false;
+  const bool hasFadingMeshes=std::ranges::any_of(visibility.meshes,[](const VisibleMesh3D &v){return v.entity->hasComponent<FragmentOpacity3D>();});
+  if(hasFadingMeshes) std::stable_sort(visibility.meshes.begin(),visibility.meshes.end(),[&](const auto &a,const auto &b) {
+    const auto depth=[&](const auto &v) {return (v.transform.position.x-frame.position.x)*frame.forward.x+(v.transform.position.y-frame.position.y)*frame.forward.y+(v.transform.position.z-frame.position.z)*frame.forward.z;};
+    return depth(a)>depth(b);
+  });
   if (frame.updateContent &&
       !primitives_.begin(
           View3DConfig{
@@ -359,6 +368,7 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
               .clearDepth = frame.camera.clearMode != "none",
               .frameBuffer =
                   offscreen ? sourceTarget.frameBuffer : FrameBufferHandle{},
+              .sequential = !cosmeticFragments.empty() || hasFadingMeshes,
           },
           error))
     return false;
@@ -443,8 +453,11 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
   std::uint32_t distanceCulled = 0;
   std::uint32_t mediumLodMeshes = 0;
   std::uint32_t lowLodMeshes = 0;
+  for(int fadingPass=0;fadingPass<(hasFadingMeshes?2:1);++fadingPass) {
   if (frame.updateContent)
     for (const VisibleMesh3D &visible : visibility.meshes) {
+      const auto *fade=visible.entity->component<FragmentOpacity3D>();
+      if(bool(fade)!=bool(fadingPass) || (fade && shadowPass)) continue;
       const Entity &entity = *visible.entity;
       const auto *mesh = entity.component<MeshRendererComponent>();
       const auto dents = entityMeshDents3D(entity);
@@ -462,7 +475,7 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
       lowLodMeshes += lod.level == 2 ? 1U : 0U;
       const std::uint32_t color = packVertexColorRgba8(mesh->color);
       const std::array<float, 4> entityTint{mesh->color.r, mesh->color.g,
-                                            mesh->color.b, mesh->color.a};
+                                            mesh->color.b, mesh->color.a*(fade?fade->value:1.F)};
       const MaterialBinding *material = materials_.find(mesh->material);
       const ProgramHandle program = !shadowPass && material != nullptr && material->program
                                         ? material->program
@@ -475,6 +488,7 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
                           .cull = CullMode::None,
                           .topology = PrimitiveTopology::Triangles,
                           .writeDepth = true};
+      if(fade) {state.blend=BlendMode::Alpha;state.writeDepth=false;}
       if(shadowPass && (state.blend!=BlendMode::Opaque || !state.writeDepth))continue;
       if (frame.camera.debugMode == "overdraw") {
         state.blend = BlendMode::Additive;
@@ -514,7 +528,7 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
         if(textureId.empty() && material)textureId=material->albedoTexture;
         const auto texture=textures_.find(textureId);
         const auto resolved=texture.handle?texture.handle:whiteTexture_;
-        if(!material) {
+        if(!material && !fade) {
           const auto key="relief:"+std::to_string(reinterpret_cast<std::uintptr_t>(gpu))+":"+
               std::to_string(color)+":"+std::to_string(resolved.index)+":"+std::to_string(resolved.generation);
           auto &[groupMesh,groupTexture,groupTint,groupUnlit,transforms]=instanceGroups[key];
@@ -627,7 +641,7 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
             ++bufferedDraws;
             bufferedTriangles += gpuSkin->indexCount()/3;
           }
-        } else if (player == nullptr && material == nullptr && dents.empty()) {
+        } else if (player == nullptr && material == nullptr && dents.empty() && !fade) {
           const std::string groupKey =
               selectedModel + "\n" + mesh->material + "\n" +
               std::to_string(color) + "\n" +
@@ -675,7 +689,7 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
         const TextureView2D texture = textures_.find(textureId);
         const TextureHandle resolvedTexture =
             texture.handle ? texture.handle : whiteTexture_;
-        if (material == nullptr) {
+        if (material == nullptr && !fade) {
           const std::string groupKey =
               "primitive\n" + mesh->shape + "\n" + std::to_string(color) +
               "\n" + std::to_string(resolvedTexture.index) + ":" +
@@ -704,7 +718,7 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
         return false;
       }
     }
-  if (frame.updateContent) {
+  if (frame.updateContent && !fadingPass) {
     DrawState state{.blend = BlendMode::Opaque,
                     .depthTest = DepthTest::Less,
                     .cull = CullMode::None,
@@ -748,6 +762,10 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
                            static_cast<std::uint32_t>(group.transforms.size());
     }
   }
+  }
+  if (!cosmeticFragments.empty() && !drawCosmeticDebris(cosmeticFragments, frame,
+      lightingUniforms, defaultMeshProgram, bufferedDraws, bufferedTriangles, error)) return false;
+  if (!shadowPass) RuntimeProfiler::setGauge("Renderer3D.cosmetic_fragments", cosmeticFragments.size());
   if (frame.updateContent && !shadowPass)
     particles_.update(world, deltaSeconds);
   const auto particleData = frame.updateContent && !shadowPass

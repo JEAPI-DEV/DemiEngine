@@ -270,6 +270,7 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/BgfxRenderer3D.cpp
   src/demi/runtime/render/BgfxRenderer3DAssets.cpp
   src/demi/runtime/render/BgfxRenderer3DAnimation.cpp
+  src/demi/runtime/render/BgfxRenderer3DDebris.cpp
   src/demi/runtime/render/BgfxRenderer3DModelLod.cpp
   src/demi/runtime/render/bgfx3d/DebugGeometry3D.cpp
   src/demi/runtime/render/bgfx3d/GpuMesh3D.cpp

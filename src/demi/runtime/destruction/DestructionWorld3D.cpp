@@ -1,4 +1,5 @@
 #include "demi/runtime/destruction/DestructionWorld3D.h"
+#include "demi/runtime/destruction/DetachedFragmentFade3D.h"
 #include "demi/runtime/destruction/DeferredFractureVisuals3D.h"
 #include "demi/runtime/destruction/ColliderFractureFamily3D.h"
 #include "demi/runtime/destruction/DestructionCheckpoint3D.h"
@@ -203,6 +204,56 @@ struct DestructionWorld3D::Impl {
         group.retired = true;
         group.body.clear();
       }
+    assembly.privateAssets.swap(privateAssets);
+    return true;
+  }
+
+  bool fadeDetached(World &world, PhysicsWorld3D &physics, Assembly &assembly) {
+    const auto *root=findEntity(world,assembly.state.root);
+    const auto *config=root?root->component<Destructible3DComponent>():nullptr;
+    if(!config || config->fadingParts.empty()) return false;
+    World candidate;
+    candidate.entities=world.entities;
+    candidate.colliderAssets3D=world.colliderAssets3D;
+    std::vector<std::string> removedBodies;
+    auto privateAssets=assembly.privateAssets;
+    for(const auto &group:assembly.groups) {
+      if(group.retired || group.group.anchored || group.body==assembly.state.root) continue;
+      if(!std::ranges::all_of(group.group.chunks,[&](const std::string &part){return config->fadingParts.contains(part);})) continue;
+      float lifetime=0,fade=0;
+      for(const auto &part:group.group.chunks) {
+        const auto settings=config->fadingParts.at(part);
+        lifetime=std::max(lifetime,settings.first);fade=std::max(fade,settings.second);
+      }
+      auto *body=findEntity(candidate,group.body);
+      require(body && body->component<ModelCollider3DComponent>(),"Fading body unavailable");
+      const auto asset=body->component<ModelCollider3DComponent>()->asset;
+      const auto motion=physics.motionSnapshot(group.body);
+      require(bool(motion),"Fading body motion unavailable");
+      const auto pose=resolveWorldTransform3D(candidate,*body);
+      require(bool(pose),"Fading body pose unavailable");
+      body->removeComponent<Rigidbody3DComponent>();
+      body->removeComponent<ModelCollider3DComponent>();
+      body->serializedComponents.erase("Rigidbody3D");body->serializedComponents.erase("ModelCollider3D");
+      body->setComponent(DetachedFragmentFade3D{.lifetime=lifetime,.fade=fade,.velocity=motion->velocity,
+        .angularVelocity=motion->angularVelocity,.center=motion->center,.localCenter=inverseTransformPoint3D(*pose,motion->center)});
+      candidate.colliderAssets3D.erase(asset);privateAssets.erase(asset);
+      std::set<std::string> descendants{group.body};
+      for(bool changed=true;changed;) {
+        changed=false;
+        for(const auto &e:candidate.entities) if(const auto *t=e.component<Transform3DComponent>();t && descendants.contains(t->parent))
+          changed=descendants.insert(e.id).second || changed;
+      }
+      for(auto &e:candidate.entities) if(e.id!=group.body && descendants.contains(e.id))
+        e.setComponent(FragmentOpacity3D{.body=group.body});
+      removedBodies.push_back(group.body);
+    }
+    if(removedBodies.empty()) return false;
+    std::string error;
+    require(physics.replaceBodies(world,candidate,removedBodies,{},error),error);
+    for(auto &group:assembly.groups) if(std::ranges::find(removedBodies,group.body)!=removedBodies.end()) {
+      group.retired=true;group.body.clear();
+    }
     assembly.privateAssets.swap(privateAssets);
     return true;
   }
@@ -536,6 +587,7 @@ bool DestructionWorld3D::update(World &world, PhysicsWorld3D &physics) {
           (void)physics.addImpulseAtPosition(group->body, impulse.impulse,
                                              impulse.point);
       }
+      changed=impl_->fadeDetached(world,physics,assembly) || changed;
       if (assembly.retireRequested)
         changed = impl_->retire(world,physics,assembly) || changed;
       assembly.state.status = "applied";
@@ -574,7 +626,7 @@ bool DestructionWorld3D::damagePart(const std::string &entity,
       std::ranges::find_if(assembly->groups, [&](const GroupBody &group) {
         return contains(group.group, part);
       });
-  if (owner == assembly->groups.end() ||
+  if (owner == assembly->groups.end() || owner->retired ||
       (entity != assembly->state.root && entity != owner->body)) {
     error = "Part does not belong to this body";
     return false;
@@ -683,6 +735,7 @@ bool DestructionWorld3D::restore(const std::string &entity,
     assembly->pending = saved.bonds;
     assembly->pendingAnchors = saved.anchors;
     assembly->restore = std::move(saved);
+    cosmetics_.clear(assembly->state.root);
     assembly->state.status = "queued";
     return true;
   } catch (const std::exception &exception) {
@@ -849,6 +902,23 @@ bool DestructionWorld3D::impact(World &world, PhysicsWorld3D &physics,
       error = "No destructible bonds, anchors or movable fragments in impact "
               "radius";
       return false;
+    }
+    // Decoration follows accepted contact, not the eventual structural split.
+    // Cosmetic allocation failure must not turn accepted gameplay into failure.
+    for (const auto &[rootId, proposal] : proposals) {
+      if (hit.impulse == 0 && (hit.energy == 0 ||
+          (proposal.bondWeights.empty() && proposal.anchorWeights.empty()))) continue;
+      const auto *root = findEntity(world, rootId);
+      const auto *settings = root ? root->component<FractureDebris3DComponent>() : nullptr;
+      if (!settings || proposal.contacts.empty()) continue;
+      const auto nearest = std::ranges::min_element(proposal.contacts, {},
+          [](const auto &entry) { return entry.second.hit.distance; });
+      try {
+        cosmetics_.emit(rootId, proposal.assembly->key, *settings,
+                        nearest->second.hit.point, nearest->second.hit.normal);
+      } catch (const std::bad_alloc &) {
+        RuntimeProfiler::record("Destruction3D.cosmetic_allocation_failed", 0);
+      }
     }
     return true;
   } catch (const std::exception &exception) {

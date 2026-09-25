@@ -40,6 +40,10 @@ void Fracture3DComponent::parse(const nlohmann::json &json, Entity &entity) {
       throw std::invalid_argument(
           "Fracture3D.interior_color requires normalized RGBA");
   value.interiorMaterial = json.value("interior_material", "");
+  value.debrisLifetime=json.value("debris_lifetime",0.F);
+  value.debrisFade=json.value("debris_fade",1.F);
+  if(!std::isfinite(value.debrisLifetime) || value.debrisLifetime<0 || !std::isfinite(value.debrisFade) || value.debrisFade<0)
+    throw std::invalid_argument("Fracture debris lifetime/fade must be finite and nonnegative");
   entity.setComponent(std::move(value));
 }
 nlohmann::json Fracture3DComponent::defaults() {
@@ -49,6 +53,6 @@ nlohmann::json Fracture3DComponent::defaults() {
           {"anchor_below", nullptr},
           {"density", nullptr},
           {"interior_color", {0.35, 0.33, 0.30, 1}},
-          {"interior_material", ""}};
+          {"interior_material", ""},{"debris_lifetime",0},{"debris_fade",1}};
 }
 } // namespace demi::runtime

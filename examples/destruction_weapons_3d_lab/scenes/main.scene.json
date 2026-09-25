@@ -12,7 +12,7 @@
         "Transform3D":{"position":[-2.8,0,0]},"PrefabPlacement3D":{"prefab":"prefab://doorway"}
       }},
       {"id":"b","name":"Right destructible wall","components":{
-        "Transform3D":{"position":[2.8,0,0]},"PrefabPlacement3D":{"prefab":"prefab://doorway"}
+        "Transform3D":{"position":[2.8,0,0]},"PrefabPlacement3D":{"prefab":"prefab://fading_doorway","root":"wall/assembly"}
       }}
     ]},
     {"id":"sun","components":{"DirectionalLight":{"direction":[-0.4,-1,-0.6],"intensity":1.1,"casts_shadows":true}}},

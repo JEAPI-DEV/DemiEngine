@@ -26,8 +26,9 @@ local Destruction3D = {}
 ---shared, not multiplied per fragment. energy_per_health converts joules to
 ---authored bond-health units. Impulses apply at contacts after successful commit.
 ---Requires the first physics step; returns queued acceptance, not completion.
----At least one of energy/impulse must be positive. Queue limit: 512 part impulses
----per assembly. No occlusion/shielding or ordinary non-destructible body blast.
+---At least one of energy/impulse must be positive. No occlusion/shielding or
+---ordinary non-destructible body blast. Optional FractureDebris3D emits cosmetic
+---chips on accepted contacts, independently of the later structural commit.
 ---@param options Destruction3DImpact
 ---@return boolean accepted
 ---@return string error

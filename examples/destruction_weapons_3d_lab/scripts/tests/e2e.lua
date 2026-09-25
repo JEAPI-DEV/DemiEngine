@@ -28,7 +28,7 @@ return { tests = {{ name="weapons, streamed damage checkpoints and debris cleanu
   Test.expect(not Entity.exists("a/__preview/assembly"),"Editor preview geometry leaked into Play")
   Test.expect(type(stats().contacts)=="number","Player script must initialize its weapon state")
   Test.expect(Destruction.state("a/assembly").bodies==1,"Doorway A must attach")
-  Test.expect(Destruction.state("b/assembly").bodies==1,"Doorway B must attach")
+  Test.expect(Destruction.state("b/wall/assembly").bodies==1,"Doorway B must attach")
   Test.expect(not Entity.find("Masonry cell shard "),
     "Intact masonry must not create live brick shard entities")
   Test.touch("hammer")
@@ -48,7 +48,7 @@ return { tests = {{ name="weapons, streamed damage checkpoints and debris cleanu
     "Hammer HUD must confirm native completion instead of remaining queued")
   Test.wait(0.4)
   Test.expect(stats().contacts==1,"Idle/recovery must not keep dealing damage")
-  Test.expect(Destruction.state("b/assembly").revision==0,"Other prefab must stay intact")
+  Test.expect(Destruction.state("b/wall/assembly").revision==0,"Other prefab must stay intact")
 
   reset_scene()
   local door=Entity.find("Steel door shard ")
@@ -84,7 +84,7 @@ return { tests = {{ name="weapons, streamed damage checkpoints and debris cleanu
     if hit.entity_id==owner then collision=true end
   end
   Test.expect(collision,"Released steel door must retain native collision")
-  Test.expect(Destruction.state("b/assembly").revision==0,"Out-of-range second doorway received damage")
+  Test.expect(Destruction.state("b/wall/assembly").revision==0,"Out-of-range second doorway received damage")
   reset_scene()
   Test.expect(Destruction.state("a/assembly").bodies==1 and #Entity.query({tags={"weapon_rocket"}})==0,
     "Reset must restore the prefab and retire projectile state")
@@ -129,17 +129,33 @@ return { tests = {{ name="weapons, streamed damage checkpoints and debris cleanu
   Transform.set_position("player",0,1,100)
   for attempt=1,80 do
     Test.wait(0.05)
-    if not Entity.exists("a/assembly") and not Entity.exists("b/assembly") then break end
+    if not Entity.exists("a/assembly") and not Entity.exists("b/wall/assembly") then break end
   end
-  Test.expect(not Entity.exists("a/assembly") and not Entity.exists("b/assembly"),"Distant walls did not unload")
+  Test.expect(not Entity.exists("a/assembly") and not Entity.exists("b/wall/assembly"),"Distant walls did not unload")
   Test.expect(Destruction.state("a/assembly").status=="unattached","Unloaded wall retained native ownership")
   Transform.set_position("player",-4.175,.92,2.3)
   for attempt=1,100 do
     Test.wait(0.05)
-    if Destruction.state("a/assembly").status=="applied" and Destruction.state("b/assembly").status=="ready" then break end
+    if Destruction.state("a/assembly").status=="applied" and Destruction.state("b/wall/assembly").status=="ready" then break end
   end
   local returned=Destruction.state("a/assembly")
   Test.expect(returned.status=="applied", "Checkpoint restoration failed: "..returned.error)
   Test.expect(returned.bodies==remaining and not Entity.exists(door),"Streaming resurrected missing debris or reset damage")
-  Test.expect(Destruction.state("b/assembly").revision==0,"Pristine wall did not return pristine")
+  Test.expect(Destruction.state("b/wall/assembly").revision==0,"Pristine wall did not return pristine")
+  local right="b/wall/assembly"
+  local brick=Physics.raycast(1.425,1.6,1,0,0,-1,2)
+  Test.expect(brick and brick.collider_part_id,"Right masonry was not hittable")
+  local mapping=Entity.get(right,"Destructible3D","parts")
+  local visual=mapping and mapping[brick.collider_part_id]
+  Test.expect(visual~=nil,"Right brick has no authored visual mapping")
+  local accepted,issue=Destruction.damage_part(right,brick.collider_part_id,100)
+  Test.expect(accepted,issue)
+  Test.wait(0.15)
+  Test.expect(Entity.exists(visual),"Real detached brick disappeared before its fade")
+  local detached=Entity.parent(visual)
+  Test.expect(detached and not Body.state(detached),"Fading brick retained a physics body")
+  Test.wait(3.1)
+  Test.expect(not Entity.exists(visual),"Faded brick was not removed")
+  local doorHit=Physics.raycast(2.8,1.2,1,0,0,-1,2)
+  Test.expect(doorHit~=nil,"Right door incorrectly disappeared with masonry")
 end }} }

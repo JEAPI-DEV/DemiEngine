@@ -1,6 +1,160 @@
 {
   "additionalProperties": false,
   "properties": {
+    "FractureDebris3D": {
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "default": [
+            0.65,
+            0.45,
+            0.3,
+            1
+          ],
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "x-demi-editor-label": "Color",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "count": {
+          "default": 12,
+          "minimum": 0,
+          "type": "integer",
+          "x-demi-editor-help": "Cosmetic chips per accepted spatial impact. Zero disables emission.",
+          "x-demi-editor-label": "Count",
+          "x-demi-editor-step": 1,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "fade_duration": {
+          "default": 1,
+          "minimum": 0,
+          "type": "number",
+          "x-demi-editor-help": "Opacity fades during the final seconds of lifetime. Zero means immediate removal at expiry.",
+          "x-demi-editor-label": "Fade Duration",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "gravity": {
+          "default": [
+            0,
+            -9.81,
+            0
+          ],
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array",
+          "x-demi-editor-label": "Gravity",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "lifetime": {
+          "default": 3,
+          "minimum": 0,
+          "type": "number",
+          "x-demi-editor-help": "Seconds before cosmetic chips disappear. Zero disables emission.",
+          "x-demi-editor-label": "Lifetime",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "max_fragments": {
+          "default": 128,
+          "minimum": 0,
+          "type": "integer",
+          "x-demi-editor-help": "Live cosmetic chip budget for this emitter. Oldest chips are replaced; structural debris is never affected.",
+          "x-demi-editor-label": "Max Fragments",
+          "x-demi-editor-step": 1,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "model": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-help": "Optional shared chip model. Omit for built-in cuboid chips; no generated asset is required.",
+          "x-demi-editor-label": "Model",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        },
+        "render_layer": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-label": "Render Layer",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "seed": {
+          "default": 1,
+          "minimum": 0,
+          "type": "integer",
+          "x-demi-editor-label": "Seed",
+          "x-demi-editor-step": 1,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "size": {
+          "default": [
+            0.12,
+            0.05,
+            0.08
+          ],
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array",
+          "x-demi-editor-help": "Base chip dimensions in metres, varied deterministically per fragment.",
+          "x-demi-editor-label": "Size",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "speed": {
+          "default": 2,
+          "minimum": 0,
+          "type": "number",
+          "x-demi-editor-label": "Speed",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "spin": {
+          "default": 180,
+          "minimum": 0,
+          "type": "number",
+          "x-demi-editor-help": "Maximum angular speed in degrees per second per axis.",
+          "x-demi-editor-label": "Spin",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "texture": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-label": "Texture",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        }
+      },
+      "type": "object"
+    },
     "PrefabPlacement3D": {
       "additionalProperties": false,
       "properties": {
@@ -887,6 +1041,15 @@
     "Destructible3D": {
       "additionalProperties": false,
       "properties": {
+        "fading_parts": {
+          "default": {},
+          "type": "object",
+          "x-demi-editor-label": "Fading Parts",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "deferred_visuals": {
           "default": {},
           "type": "object",
@@ -1266,6 +1429,26 @@
     "Fracture3D": {
       "additionalProperties": false,
       "properties": {
+        "debris_lifetime": {
+          "default": 0,
+          "minimum": 0,
+          "type": "number",
+          "x-demi-editor-help": "Zero keeps physical rubble. Positive seconds makes detached chunks non-colliding and fades them before removal. Mixed chunks stay physical.",
+          "x-demi-editor-label": "Debris Lifetime",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "debris_fade": {
+          "default": 1,
+          "minimum": 0,
+          "type": "number",
+          "x-demi-editor-help": "Fade duration at the end of debris lifetime, in seconds.",
+          "x-demi-editor-label": "Debris Fade",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "anchor_below": {
           "default": null,
           "type": "number",
@@ -1566,6 +1749,25 @@
     "Masonry3D": {
       "additionalProperties": false,
       "properties": {
+        "debris_lifetime": {
+          "default": 0,
+          "minimum": 0,
+          "type": "number",
+          "x-demi-editor-help": "Zero keeps physical rubble. Positive seconds makes detached masonry non-colliding and fades it before removal.",
+          "x-demi-editor-label": "Debris Lifetime",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "debris_fade": {
+          "default": 1,
+          "minimum": 0,
+          "type": "number",
+          "x-demi-editor-label": "Debris Fade",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "anchor_below": {
           "default": null,
           "type": "number",

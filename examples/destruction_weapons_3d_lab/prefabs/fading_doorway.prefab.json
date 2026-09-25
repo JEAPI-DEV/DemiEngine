@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "id": "prefab://fading_doorway",
+  "name": "Doorway with fading detached masonry",
+  "entities": [
+    {
+      "id": "wall",
+      "prefab": "prefab://doorway",
+      "overrides": {
+        "left_jamb": { "components": { "Masonry3D": { "debris_lifetime": 3, "debris_fade": 1 } } },
+        "right_jamb": { "components": { "Masonry3D": { "debris_lifetime": 3, "debris_fade": 1 } } },
+        "lintel": { "components": { "Masonry3D": { "debris_lifetime": 3, "debris_fade": 1 } } }
+      }
+    }
+  ]
+}

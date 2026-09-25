@@ -56,6 +56,10 @@ void Masonry3DComponent::parse(const nlohmann::json &json, Entity &entity) {
         "variants, and relief inside the box");
   value.density = json.value("density", 1800.F);
   value.bondHealth = json.value("bond_health", .5F);
+  value.debrisLifetime=json.value("debris_lifetime",0.F);
+  value.debrisFade=json.value("debris_fade",1.F);
+  if(!std::isfinite(value.debrisLifetime) || value.debrisLifetime<0 || !std::isfinite(value.debrisFade) || value.debrisFade<0)
+    throw std::invalid_argument("Invalid masonry debris lifetime/fade");
   if (!std::isfinite(value.density) || value.density < .001F ||
       value.density > 1000000 || !std::isfinite(value.bondHealth) ||
       value.bondHealth < .000001F || value.bondHealth > 1e30F)
@@ -78,6 +82,6 @@ nlohmann::json Masonry3DComponent::defaults() {
           {"texture", ""},
           {"density", 1800},
           {"bond_health", .5},
-          {"anchor_below", nullptr}};
+          {"anchor_below", nullptr},{"debris_lifetime",0},{"debris_fade",1}};
 }
 } // namespace demi::runtime

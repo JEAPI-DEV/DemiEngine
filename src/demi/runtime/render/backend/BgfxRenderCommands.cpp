@@ -241,6 +241,7 @@ public:
 
     bgfx::setViewRect(view.id, view.x, view.y, view.width, view.height);
     std::uint16_t clearFlags = BGFX_CLEAR_NONE;
+    bgfx::setViewMode(view.id, view.sequential ? bgfx::ViewMode::Sequential : bgfx::ViewMode::Default);
     if (view.clearColor)
       clearFlags |= BGFX_CLEAR_COLOR;
     if (view.clearDepth)

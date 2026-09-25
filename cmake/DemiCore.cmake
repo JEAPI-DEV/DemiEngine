@@ -86,6 +86,8 @@ add_library(demi-core STATIC
   src/demi/runtime/isometric/GridPathfinder.cpp
   src/demi/runtime/isometric/PlacementRules.cpp
   src/demi/runtime/isometric/IsoWorldQueries.cpp
+  src/demi/runtime/destruction/CosmeticDebris3D.cpp
+  src/demi/runtime/destruction/DetachedFragmentFade3D.cpp
   src/demi/runtime/isometric/IsoGridApi.cpp
   src/demi/runtime/navigation/NavigationGrid2D.cpp
   src/demi/runtime/network/NetworkContract.cpp

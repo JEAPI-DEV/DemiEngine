@@ -1,6 +1,7 @@
 #include "demi/schema/PrefabPlacementValidation.h"
 #include "demi/runtime/scene/composition/EntityHierarchy.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
+#include <algorithm>
 #include <fstream>
 #include <map>
 #include <nlohmann/json.hpp>
@@ -18,8 +19,28 @@ PrefabRoots readRoots(const std::filesystem::path &path) {
   try {
     std::ifstream input(path);
     const auto prefab = nlohmann::json::parse(input);
-    for (const auto &entity :
-         runtime::composition::flattenEntityHierarchy(prefab.at("entities"))) {
+    auto entities = runtime::composition::flattenEntityHierarchy(
+        prefab.value("entities", nlohmann::json::array()));
+    bool nested = prefab.contains("instances") ||
+                  std::ranges::any_of(entities, [](const auto &e) {
+                    return e.contains("prefab");
+                  });
+    if (nested) {
+      const auto expanded = runtime::composition::expandScene(
+          path,
+          {{"format_version", 1},
+           {"id", "scene://placement-validation"},
+           {"instances", {{{"id", "preview"}, {"prefab", prefab.at("id")}}}}},
+          false);
+      if (!expanded.document || hasErrors(expanded.diagnostics)) {
+        result.error = expanded.diagnostics.empty()
+                           ? "Could not expand prefab roots"
+                           : expanded.diagnostics.front().message;
+        return result;
+      }
+      entities = expanded.document->at("entities");
+    }
+    for (const auto &entity : entities) {
       if (!entity.contains("components") || !entity["components"].is_object())
         continue;
       const auto &components = entity["components"];
@@ -29,7 +50,8 @@ PrefabRoots readRoots(const std::filesystem::path &path) {
       const auto parent = transform->find("parent");
       if (parent == transform->end() || parent->is_null() ||
           (parent->is_string() && parent->get<std::string>().empty()))
-        result.ids.push_back(entity.at("id").get<std::string>());
+        result.ids.push_back(entity.at("id").get<std::string>().substr(
+            nested ? std::string("preview/").size() : 0));
     }
   } catch (const std::exception &error) {
     result.error = error.what();

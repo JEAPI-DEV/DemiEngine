@@ -1,4 +1,5 @@
 #include "demi/runtime/destruction/DestructionWorld3D.h"
+#include "demi/runtime/destruction/DetachedFragmentFade3D.h"
 #include "demi/runtime/physics/PhysicsWorld3D.h"
 #include "demi/runtime/scene/SceneFlow.h"
 #include "demi/runtime/scene/SceneLoader.h"
@@ -416,6 +417,57 @@ void impactAcrossAssemblies() {
          "Target filter affected another assembly");
 }
 
+void realFragmentFading() {
+  auto world=fixture();
+  findEntity(world,"root")->component<Destructible3DComponent>()->fadingParts["right"]={3,1};
+  auto &physics=ensurePhysicsWorld3D(world);
+  physics.step(world,1.F/60,{0,0,0});
+  std::string error;
+  expect(!findEntity(world,"visual_right")->hasComponent<FragmentOpacity3D>(),"Intact visual fades");
+  expect(world.destruction3D->damagePart("root","right",2,error),error);
+  physics.step(world,1.F/60,{0,0,0});
+  auto *visual=findEntity(world,"visual_right");
+  expect(visual && visual->hasComponent<FragmentOpacity3D>(),"Detached real visual missing fade");
+  const auto body=visual->component<FragmentOpacity3D>()->body;
+  expect(!physics.velocity(body) && !findEntity(world,body)->hasComponent<Rigidbody3DComponent>(),"Fading fragment retained collision/body");
+  expect(findEntity(world,"visual_left") && !findEntity(world,"visual_left")->hasComponent<FragmentOpacity3D>(),"Physical neighbor began fading");
+  const auto saved=world.destruction3D->checkpoint(world,"root",error);
+  expect(!saved.is_null(),error);
+  updateDetachedFragmentFades3D(world,2.5F,{});
+  expect(std::abs(findEntity(world,"visual_right")->component<FragmentOpacity3D>()->value-.5F)<1e-5F,"Real shard did not fade");
+  updateDetachedFragmentFades3D(world,1,{});
+  expect(!findEntity(world,"visual_right") && !findEntity(world,body),"Expired real shard leaked");
+  auto restored=fixture();
+  findEntity(restored,"root")->component<Destructible3DComponent>()->fadingParts["right"]={3,1};
+  auto &native=ensurePhysicsWorld3D(restored);native.step(restored,1.F/60,{0,0,0});
+  expect(restored.destruction3D->restore("root",saved,error),error);
+  native.step(restored,1.F/60,{0,0,0});
+  expect(!findEntity(restored,"visual_right"),"Checkpoint respawned disposable geometry");
+}
+
+void cosmeticImpactEffects() {
+  auto world=fixture();
+  findEntity(world,"root")->setComponent(FractureDebris3DComponent{.count=4,.maxFragments=6});
+  auto &physics=ensurePhysicsWorld3D(world);
+  physics.step(world,1.F/60,{0,0,0});
+  const auto entities=world.entities.size();
+  const auto overlaps=physics.overlapSphere({1.49F,4,0},.06F,{}, {},true).size();
+  std::size_t affected=0;
+  std::string error;
+  DestructionImpact3D hit{.position={1.49F,4,0},.radius=.06F,.energy=1,.entity="root"};
+  expect(world.destruction3D->impact(world,physics,hit,affected,error),error);
+  expect(world.destruction3D->cosmeticFragments().size()==4,"Accepted hit emitted no cosmetic chips");
+  expect(world.entities.size()==entities && physics.overlapSphere(hit.position,hit.radius,{}, {},true).size()==overlaps,
+         "Cosmetic chips created entities or colliders");
+  hit.radius=-1;
+  expect(!world.destruction3D->impact(world,physics,hit,affected,error),"Invalid impact accepted");
+  expect(world.destruction3D->cosmeticFragments().size()==4,"Rejected impact emitted chips");
+  physics.step(world,1.F/60,{0,0,0});
+  expect(world.destruction3D->state("root").status=="applied","Decoration changed structural commit");
+  world.destruction3D->updateCosmetics(world,4);
+  expect(world.destruction3D->cosmeticFragments().empty(),"Cosmetic expiry failed");
+}
+
 void impactQueueGrowth() {
   auto world = fixture();
   auto &physics = ensurePhysicsWorld3D(world);
@@ -781,6 +833,8 @@ int main() {
     impactStrengthAndFalloff();
     impactAcrossAssemblies();
     impactQueueGrowth();
+    cosmeticImpactEffects();
+    realFragmentFading();
     manyImpactAssemblies();
     sharedImpulseBudget();
     invalidAttachments();

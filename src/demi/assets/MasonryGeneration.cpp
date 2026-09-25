@@ -81,7 +81,7 @@ J expandMasonry(const J &entities, bool preview,
                   {"texture", wall.texture}};
         J fracture = {{"pieces", 1},
                       {"density", wall.density},
-                      {"bond_health", wall.bondHealth}};
+                      {"bond_health", wall.bondHealth},{"debris_lifetime",wall.debrisLifetime},{"debris_fade",wall.debrisFade}};
         if (!models.empty()) {
           mesh.erase("shape");
           mesh["model"] = models[(row * wall.columns + col) % models.size()];

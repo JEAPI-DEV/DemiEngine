@@ -34,6 +34,8 @@ public:
 
   [[nodiscard]] bool setVelocity(const std::string &entityId, Vec3 velocity);
   [[nodiscard]] std::optional<Vec3> velocity(const std::string &entityId) const;
+  struct MotionSnapshot { Vec3 center, velocity, angularVelocity; };
+  [[nodiscard]] std::optional<MotionSnapshot> motionSnapshot(const std::string &entityId) const;
   [[nodiscard]] bool addForce(const std::string &entityId, Vec3 force);
   [[nodiscard]] bool addImpulse(const std::string &entityId, Vec3 impulse);
   [[nodiscard]] bool addImpulseAtPosition(const std::string &entityId, Vec3 impulse, Vec3 position);

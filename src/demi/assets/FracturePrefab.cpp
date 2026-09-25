@@ -120,7 +120,7 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
     for (const auto &[key, value] : options.items())
       require(key == "pieces" || key == "bond_health" ||
                   key == "anchor_below" || key == "interior_color" ||
-                  key == "interior_material" || key == "density" || key == "collider",
+                  key == "interior_material" || key == "density" || key == "collider" || key=="debris_lifetime" || key=="debris_fade",
               "Unknown object fracture setting: " + key);
     if (options.contains("density")) {
       const auto density = options["density"].get<double>();
@@ -266,7 +266,7 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
   }
   std::ranges::sort(chunks, {}, [](const Chunk &c) { return c.solid.id; });
   J parts = J::array(), anchors = J::array(), bonds = J::array(),
-    mapping = J::object(), output = J::array(), sources = J::object();
+    mapping = J::object(), output = J::array(), sources = J::object(), fading=J::object();
   double densityMass = 0;
   for (const auto &chunk : chunks) {
     const auto &id = chunk.solid.id;
@@ -285,6 +285,10 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
         anchors.push_back(id);
     }
     mapping[id] = id;
+    const float lifetime=chunk.options.value("debris_lifetime",0.F);
+    const float fade=chunk.options.value("debris_fade",1.F);
+    require(std::isfinite(lifetime) && lifetime>=0 && std::isfinite(fade) && fade>=0,"Invalid fracture debris lifetime/fade");
+    if(lifetime>0) fading[id]={{"lifetime",lifetime},{"fade",fade}};
     if (chunk.options.value("collider", "source") == "box") {
       output.push_back({{"id", id}, {"name", chunk.name + " shard "},
                        {"components", {{"Transform3D", chunk.visualTransform},
@@ -342,7 +346,7 @@ J compileFracturePrefab(const std::filesystem::path &project, const J &entities,
       {"ModelCollider3D", {{"inline_geometry", collider}}},
       {"Rigidbody3D",
        {{"body_type", anchors.empty() ? "dynamic" : "static"}, {"mass", mass}}},
-      {"Destructible3D", {{"parts", mapping}, {"max_bodies", maxBodies}}}};
+      {"Destructible3D", {{"parts", mapping}, {"max_bodies", maxBodies},{"fading_parts",fading}}}};
   output.insert(output.begin(),
                 J{{"id", "body"}, {"components", rootComponents}});
   return {{"entities", output},

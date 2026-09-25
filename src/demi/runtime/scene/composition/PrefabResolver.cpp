@@ -276,6 +276,10 @@ public:
             !item["id"].is_string()) {
           continue;
         }
+        if(item.contains("prefab")) {
+          for(auto &nested:expandInstance(canonical,item,prefix)) items.push_back(std::move(nested));
+          continue;
+        }
         const std::string local = item["id"].get<std::string>();
         item["id"] = ids.at(local);
         remapEntityReferences(item, ids);

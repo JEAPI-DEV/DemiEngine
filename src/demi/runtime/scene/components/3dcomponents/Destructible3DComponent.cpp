@@ -58,9 +58,18 @@ void Destructible3DComponent::parse(const nlohmann::json &json,
     }
     value.deferredVisuals=std::make_shared<const nlohmann::json>(groups);
   }
+  auto &parsed=value;
+  const auto fading=json.value("fading_parts",nlohmann::json::object());
+  if(!fading.is_object()) throw std::invalid_argument("fading_parts must be an object");
+  for(const auto &[part,settings]:fading.items()) {
+    const float lifetime=settings.at("lifetime").get<float>(), fade=settings.at("fade").get<float>();
+    if(!parsed.parts.contains(part) || !std::isfinite(lifetime) || lifetime<=0 || !std::isfinite(fade) || fade<0)
+      throw std::invalid_argument("Invalid fading part");
+    parsed.fadingParts.emplace(part,std::pair{lifetime,fade});
+  }
   entity.setComponent(std::move(value));
 }
 nlohmann::json Destructible3DComponent::defaults() {
-  return {{"parts", nlohmann::json::object()}, {"deferred_visuals", nlohmann::json::object()}, {"max_bodies", 64}, {"energy_per_health", 1000}, {"seed", 1}, {"generator_version", 1}};
+  return {{"parts", nlohmann::json::object()}, {"fading_parts", nlohmann::json::object()}, {"deferred_visuals", nlohmann::json::object()}, {"max_bodies", 64}, {"energy_per_health", 1000}, {"seed", 1}, {"generator_version", 1}};
 }
 } // namespace demi::runtime

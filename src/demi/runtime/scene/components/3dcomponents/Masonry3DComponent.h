@@ -93,7 +93,9 @@ struct Masonry3DComponent {
                                false,
                                true,
                                true,
-                               true}};
+                               true},
+      ComponentFieldDescriptor{"debris_lifetime", ComponentFieldType::Number, false, true, {}, 0, true}.withHelp("Zero keeps physical rubble. Positive seconds makes detached masonry non-colliding and fades it before removal."),
+      ComponentFieldDescriptor{"debris_fade", ComponentFieldType::Number, false, true, {}, 0, true}};
   static constexpr ComponentEditorMetadata editor{"Physics 3D", "Masonry 3D"};
   static void parse(const nlohmann::json &, Entity &);
   static nlohmann::json defaults();
@@ -106,5 +108,6 @@ struct Masonry3DComponent {
   Vec2 textureGrid{8, 14};
   float density = 1800, bondHealth = .5F;
   std::optional<float> anchorBelow;
+  float debrisLifetime=0,debrisFade=1;
 };
 } // namespace demi::runtime

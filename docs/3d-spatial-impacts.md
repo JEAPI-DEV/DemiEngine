@@ -79,6 +79,9 @@ Android qualification remain open.
 
 ## Demo and remaining work
 
+Optional [cosmetic mesh debris](cosmetic-debris-3d.md) can accompany accepted
+impacts. These fading chips have no collision and do not replace physical rubble.
+
 `demi run --project examples/fracture_prefab_lab`: LMB issues a small directional
 strike; RMB issues a larger radial blast; R resets. Both walls use one ordinary
 component-authored prefab. The Lua probe only supplies impact parameters and

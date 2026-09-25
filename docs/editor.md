@@ -36,6 +36,10 @@ MeshRenderer's raw vertex, normal and UV arrays are under **Advanced geometry
 buffers**. Ordinary model use does not require editing them. Field help explains
 the model, texture, material, primitive and buffer controls.
 
+**Effects → Fracture Debris 3D** adds optional non-colliding impact chips to a
+destructible root. The Inspector exposes count, lifetime, fade and appearance;
+see [cosmetic debris](cosmetic-debris-3d.md) for ownership and cleanup behavior.
+
 3D Viewport and Game View rendering defaults to 4× MSAA. Use the scene's
 `Environment3D` **MSAA Samples** dropdown to select `0` (off), `2`, `4`, `8`, or
 `16`. This is the same scene setting used by standalone Play.

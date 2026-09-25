@@ -1,4 +1,9 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
+#include "demi/runtime/destruction/DestructionWorld3D.h"
+#include "demi/runtime/destruction/DetachedFragmentFade3D.h"
+#include "demi/runtime/physics/PhysicsWorld3D.h"
+#include "demi/runtime/scene/SceneLoader.h"
+#include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
@@ -28,6 +33,7 @@ public:
   explicit TextureCapture(RenderCommands &target) : target_(target) {}
   std::vector<TextureHandle> textures;
   std::vector<DrawState> bufferedStates;
+  std::vector<float> bufferedAlpha;
   std::vector<std::array<float, 16>> bufferedTransforms;
   std::vector<View2DConfig> views2D;
   std::vector<View3DConfig> views3D;
@@ -49,6 +55,7 @@ public:
     for(const auto &texture:draw.textures) if(texture.stage==1)shadowTextures[draw.viewId]=texture.texture;
     textures.push_back(draw.texture);
     bufferedStates.push_back(draw.state);
+    bufferedAlpha.push_back(draw.uniforms.empty()?1.F:draw.uniforms.front().values[3]);
     bufferedTransforms.push_back(draw.transform);
     return target_.submit(draw, error);
   }
@@ -603,6 +610,57 @@ int main() {
   assert(cache.get(relief,{1,1,.115F},error) && cache.size()==256);
   cache.clear();
 
+  {
+    auto project=loadProject(std::filesystem::path(DEMI_SOURCE_DIR)/"examples/destruction_3d_lab/demi.project.json",error);
+    assert(project);
+    auto &debrisWorld=project->world;
+    FractureDebris3DComponent effect;
+    effect.count=4; effect.lifetime=2; effect.fadeDuration=1;
+    effect.speed=0; effect.gravity={};
+    findEntity(debrisWorld,"arch")->setComponent(effect);
+    auto &physics=ensurePhysicsWorld3D(debrisWorld);
+    physics.step(debrisWorld,1.F/60);
+    std::size_t affected=0;
+    assert(debrisWorld.destruction3D->impact(debrisWorld,physics,
+      {.position={-1.5F,1.5F,.49F},.radius=.2F,.energy=1,.entity="arch"},affected,error));
+    assert(debrisWorld.destruction3D->cosmeticFragments().size()==4);
+    debrisWorld.destruction3D->updateCosmetics(debrisWorld,1.5F);
+    capture.bufferedStates.clear(); capture.bufferedAlpha.clear();
+    assert(renderer.renderFrame(debrisWorld,frame,.016F,error));
+    assert(capture.views3D.back().sequential);
+    assert(capture.bufferedStates.size()>=4);
+    for(std::size_t i=capture.bufferedStates.size()-4;i<capture.bufferedStates.size();++i) {
+      assert(capture.bufferedStates[i].blend==BlendMode::Alpha && !capture.bufferedStates[i].writeDepth);
+      assert(std::abs(capture.bufferedAlpha[i]-.5F)<1e-5F);
+    }
+    (void)graphics.endFrame();
+    debrisWorld.destruction3D->updateCosmetics(debrisWorld,1);
+    assert(renderer.renderFrame(debrisWorld,frame,.016F,error));
+    assert(!capture.views3D.back().sequential);
+    (void)graphics.endFrame();
+  }
+  for(int kind=0;kind<3;++kind) {
+    World fading;
+    Entity fragment;fragment.id="actual_fragment";
+    fragment.setComponent(Transform3DComponent{});
+    MeshRendererComponent mesh;
+    mesh.color={1,1,1,1};
+    if(kind==1) mesh.model="asset://models/lod_high";
+    fragment.setComponent(mesh);
+    if(kind==2) {
+      SurfaceRelief3DComponent surface;surface.tiles={2,2};
+      fragment.setComponent(surface);
+    }
+    fragment.setComponent(FragmentOpacity3D{.value=.5F});
+    fading.entities.push_back(fragment);
+    capture.bufferedStates.clear();capture.bufferedAlpha.clear();
+    assert(renderer.renderFrame(fading,frame,.016F,error));
+    assert(capture.views3D.back().sequential);
+    assert(!capture.bufferedStates.empty());
+    assert(capture.bufferedStates.back().blend==BlendMode::Alpha && !capture.bufferedStates.back().writeDepth);
+    assert(std::abs(capture.bufferedAlpha.back()-.5F)<1e-5F);
+    (void)graphics.endFrame();
+  }
   renderer.shutdown();
   renderer.shutdown();
   commands.reset();

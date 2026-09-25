@@ -47,6 +47,7 @@ struct View3DConfig {
   bool clearColor = true;
   bool clearDepth = true;
   FrameBufferHandle frameBuffer;
+  bool sequential = false;
 };
 
 enum class DepthTest { Disabled, Less, LessEqual, Always };

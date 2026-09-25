@@ -6,6 +6,7 @@
 #include "demi/runtime/physics/JoltLifetime.h"
 #include "demi/runtime/physics/JoltBodyBatch3D.h"
 #include "demi/runtime/destruction/DestructionWorld3D.h"
+#include "demi/runtime/destruction/DetachedFragmentFade3D.h"
 #include "demi/runtime/physics/PhysicsContactPhases3D.h"
 #include "demi/runtime/physics/SpatialQuery3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
@@ -815,7 +816,11 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
   // Native slots may be reused; validate the generation and current step before
   // reading each snapshot. Contacts never retain entity/component pointers.
   ++impl_->frameEpoch;
-  if (world.destruction3D) world.destruction3D->prune(world);
+  if (world.destruction3D) {
+    world.destruction3D->prune(world);
+    world.destruction3D->updateCosmetics(world, fixedDt);
+    updateDetachedFragmentFades3D(world,fixedDt,gravity);
+  }
 
   {
     ProfileScope scope("Physics3D.sync_bodies");
@@ -1361,6 +1366,12 @@ PhysicsWorld3D::velocity(const std::string &entityId) const {
                        found->second.body))};
 }
 
+std::optional<PhysicsWorld3D::MotionSnapshot> PhysicsWorld3D::motionSnapshot(const std::string &id) const {
+  const auto found=impl_->bodies.find(id);
+  if(found==impl_->bodies.end()) return std::nullopt;
+  auto &b=impl_->physics.GetBodyInterface();
+  return MotionSnapshot{demi(b.GetCenterOfMassPosition(found->second.body)),demi(b.GetLinearVelocity(found->second.body)),demi(b.GetAngularVelocity(found->second.body))};
+}
 bool PhysicsWorld3D::addForce(const std::string &entityId, const Vec3 force) {
   const auto found = impl_->bodies.find(entityId);
   if (found == impl_->bodies.end())

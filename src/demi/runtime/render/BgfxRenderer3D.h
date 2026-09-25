@@ -1,4 +1,5 @@
 #pragma once
+#include "demi/runtime/destruction/CosmeticDebris3D.h"
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/GltfSkinnedModel.h"
@@ -64,6 +65,8 @@ public:
   }
 
 private:
+  bool drawCosmeticDebris(std::vector<CosmeticFragment3D> &, const BgfxCameraFrame3D &,
+      std::span<const DrawUniformValue>, ProgramHandle, std::uint32_t &, std::uint32_t &, std::string &);
   bool renderView(const World &, const BgfxCameraFrame3D &, float, std::string &, bool shadowPass);
   struct ModelLodSelection {
     const std::string *model = nullptr;

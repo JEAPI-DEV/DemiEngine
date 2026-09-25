@@ -310,20 +310,32 @@ September 25 impact-path follow-up: removed additional 8192-query-result,
 32-affected-assembly, and 512-queued-impulse caps discovered while tracing debris
 integration. Proposal validation remains transactional. The existing one-family
 per-step scheduler remains; fair scheduling, allocation budgets, and burst
-performance are still open. Cosmetic mesh debris itself is not implemented yet.
+performance are still open.
 
 ##### 1. Optional cosmetic fracture debris
 
-- [ ] Add an engine-native cosmetic mesh-fragment mode, selectable through
+User clarification: the demonstration must fade actual detached masonry on the
+right, retain physical rubble on the left, and keep both doors physical. Impact
+chips alone do not meet this requirement. Implemented per-source
+`Fracture3D`/`Masonry3D.debris_lifetime` and `debris_fade`; zero lifetime preserves
+physical behavior. Mixed physical/fading clusters remain physical. Right-hand
+prefab overrides select masonry only; fake impact chips were removed from it.
+Native checks cover collision removal, expiry, retained neighbors and checkpoint
+holes; renderer checks cover alpha for primitive/model/relief geometry.
+The weapon-range E2E passes at 1080p Vulkan: a real right-hand brick remains
+visible without a body, expires after its lifetime, and leaves the right door
+hittable. Existing left-wall/physical-door and streaming checks still pass.
+
+- [x] Add an engine-native cosmetic mesh-fragment mode, selectable through
   authored components/recipes and the Inspector. It must not require bespoke
   cleanup scripts for every destructible object.
-- [ ] Spawn visible fragments on damage with initial velocity and spin. Cosmetic
+- [x] Spawn visible fragments on damage with initial velocity and spin. Cosmetic
   fragments have no collider or physics body, fade in opacity over a configurable
   interval, and disappear after a configurable lifetime of a few seconds.
-- [ ] Keep cosmetic fragments distinct from physical rubble. Do not silently
+- [x] Keep cosmetic fragments distinct from physical rubble. Do not silently
   remove collision, fade, or delete supporting pieces, dangerous doors, or
   persistent gameplay objects. Physical debris remains available independently.
-- [ ] Bound retained cosmetic resources through documented, configurable budgets
+- [x] Bound retained cosmetic resources through documented, configurable budgets
   and cleanup/reuse. Do not introduce arbitrary authoring caps to make the demo
   pass. Define overflow, reset, scene unload, and save/restore behavior.
 - [ ] Acceptance: demonstrate a hit shedding recognizable mesh fragments that
@@ -332,6 +344,17 @@ performance are still open. Cosmetic mesh debris itself is not implemented yet.
   physical debris. Verify transparent rendering in Game View and standalone Play.
 
 Existing `retireDebris` behavior is not completion of this feature.
+
+Implemented as the optional [FractureDebris3D component](docs/cosmetic-debris-3d.md).
+Accepted spatial impacts emit decorative chips, including hits whose later
+structural split may fail. Direct part damage and support failures do not emit
+them automatically. Chips use separate storage (no entities or physics bodies),
+shared cuboid/custom-model geometry, and a per-emitter oldest-first budget.
+They are not saved. Lifecycle, collision-query isolation, alpha/depth submission,
+and the 1080p Vulkan weapon-range gameplay test pass. Live Game View appearance
+review remains open, so the full visual acceptance item is not checked yet.
+Further coverage: custom model/texture visual review, joint sorting with other
+transparent effects, material-specific emission, and large-burst profiling.
 
 ##### 2. Lazy fracture activation and cooked data
 

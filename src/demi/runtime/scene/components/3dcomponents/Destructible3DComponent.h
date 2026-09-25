@@ -13,6 +13,7 @@ struct Destructible3DComponent {
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
   static constexpr std::array fields{
       ComponentFieldDescriptor{"parts", ComponentFieldType::Object, false, false},
+      ComponentFieldDescriptor{"fading_parts", ComponentFieldType::Object, false, false},
       ComponentFieldDescriptor{"deferred_visuals", ComponentFieldType::Object, false, false},
       ComponentFieldDescriptor{"energy_per_health", ComponentFieldType::Number, false, true, {}, 0.000001, true, false, true, true, false, 1e12, true},
       ComponentFieldDescriptor{"seed", ComponentFieldType::Integer, false, true, {}, 0, true, false, true, true, false, 4294967295.0, true},
@@ -35,6 +36,7 @@ struct Destructible3DComponent {
   static void parse(const nlohmann::json &, Entity &);
   static nlohmann::json defaults();
   std::map<std::string, std::string> parts;
+  std::map<std::string, std::pair<float,float>> fadingParts;
   // Cooked visual templates, shared across transactional world copies.
   std::shared_ptr<const nlohmann::json> deferredVisuals;
   int maxBodies = 64;

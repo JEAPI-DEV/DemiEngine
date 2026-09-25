@@ -1,5 +1,7 @@
 # Native test executables. Test registration lives in dedicated modules.
   add_executable(demi-project-discovery-tests tests/project_discovery_tests.cpp)
+  add_executable(demi-cosmetic-debris3d-tests tests/cosmetic_debris3d_tests.cpp)
+  target_link_libraries(demi-cosmetic-debris3d-tests PRIVATE demi-runtime-lib)
   target_link_libraries(demi-project-discovery-tests PRIVATE demi-editor-model)
   add_executable(demi-fracture-prefab-tests tests/fracture_prefab_tests.cpp)
   target_link_libraries(demi-fracture-prefab-tests PRIVATE demi-runtime-lib demi-editor-model)
@@ -321,7 +323,7 @@
   add_executable(demi-mesh-geometry3d-tests tests/mesh_geometry3d_tests.cpp)
   target_link_libraries(demi-mesh-geometry3d-tests PRIVATE demi-render3d-bgfx)
   add_executable(demi-bgfx-renderer3d-tests tests/bgfx_renderer3d_tests.cpp)
-  target_link_libraries(demi-bgfx-renderer3d-tests PRIVATE demi-render3d-bgfx)
+  target_link_libraries(demi-bgfx-renderer3d-tests PRIVATE demi-render3d-bgfx demi-runtime-lib)
   target_compile_definitions(demi-bgfx-renderer3d-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-bgfx-scene-extraction-tests
