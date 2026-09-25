@@ -20,8 +20,14 @@ require hand-editing their JSON files.
 3. Use **Scene → Create prefab from selection** to copy an authored hierarchy
    into a reusable prefab. The original remains in the scene. Choose a prefab
    in **Scene → Add prefab instance**, use its Assets action, or drag it onto
-   **Scene** in the Hierarchy. Instances support property overrides, duplication,
-   removal and Undo/Redo. Double-click the source to edit the shared prefab.
+   **Scene** in the Hierarchy. Instances support property overrides, component
+   additions/removals, duplication and Undo/Redo, including nested instances in
+   a prefab tab. **Add Component** affects only that instance in the current
+   document. Each component's **…** menu removes it or reverts its overrides;
+   **Removed components → Restore** restores inherited components. Resetting a
+   property on an instance-added component keeps the component attached.
+   **Open source prefab** opens the shared source, where edits affect every
+   instance using it. Double-clicking its asset opens the same source document.
 4. Create a HUD and add controls under the selected parent. The Inspector groups
    Layout, Appearance, Content and Interaction; dock/anchor/stack presets provide
    common layouts. The root exposes canvas dimensions. UI prefabs appear in the

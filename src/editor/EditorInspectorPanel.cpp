@@ -976,7 +976,21 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
                        selected->prefabInstance.c_str());
     ImGui::SameLine();
     ImGui::TextDisabled("· %s", selected->prefabLocalId.c_str());
-    ImGui::TextDisabled("Edits below are stored as scene overrides.");
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+    ImGui::TextWrapped(
+        "Changes below affect only this instance in the current document. "
+        "Open the shared source prefab to change every instance.");
+    ImGui::PopStyleColor();
+    if (ImGui::Button("Open source prefab")) {
+      const auto path = workspace.prefabSourcePath(selectedId);
+      if (path)
+        state.openRequest = *path;
+      else
+        notice = "Could not resolve the source prefab for this instance.";
+      ImGui::End();
+      return;
+    }
     ImGui::Separator();
   }
   if (entity == nullptr) {
@@ -1074,40 +1088,60 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
                             {0.16F, 0.16F, 0.19F, 1.0F});
       ImGui::PushStyleColor(ImGuiCol_HeaderActive, {0.19F, 0.17F, 0.24F, 1.0F});
       bool componentOpen = false;
-      if (ImGui::BeginTable("##component-header", prefabEntity ? 1 : 2,
+      bool componentMenuRequested = false;
+      if (ImGui::BeginTable("##component-header", 2,
                             ImGuiTableFlags_SizingStretchProp)) {
         ImGui::TableSetupColumn("Component",
                                 ImGuiTableColumnFlags_WidthStretch);
-        if (!prefabEntity)
-          ImGui::TableSetupColumn(
-              "Actions", ImGuiTableColumnFlags_WidthFixed,
-              ImGui::CalcTextSize("...").x +
-                  ImGui::GetStyle().FramePadding.x * 2.0F);
+        ImGui::TableSetupColumn("Actions", ImGuiTableColumnFlags_WidthFixed,
+                                ImGui::CalcTextSize("...").x +
+                                    ImGui::GetStyle().FramePadding.x * 2.0F);
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
         componentOpen = ImGui::CollapsingHeader(
             title, ImGuiTreeNodeFlags_DefaultOpen);
-        if (!prefabEntity) {
-          ImGui::TableSetColumnIndex(1);
-          if (ImGui::SmallButton("..."))
-            ImGui::OpenPopup("component-menu");
-        }
+        ImGui::TableSetColumnIndex(1);
+        if (ImGui::SmallButton("..."))
+          componentMenuRequested = true;
         ImGui::EndTable();
       }
       ImGui::PopStyleColor(3);
+      if (componentMenuRequested)
+        ImGui::OpenPopup("component-menu");
       bool removeRequested = false;
-      if (!prefabEntity && ImGui::BeginPopup("component-menu")) {
+      bool revertRequested = false;
+      if (ImGui::BeginPopup("component-menu")) {
         const bool inheritedFromPreset = presetComponents.contains(name);
-        removeRequested = ImGui::MenuItem("Remove component", nullptr, false, !inheritedFromPreset);
-        if (inheritedFromPreset)
+        if (prefabEntity) {
+          revertRequested = ImGui::MenuItem("Revert component overrides");
+          ImGui::Separator();
+        }
+        removeRequested =
+            ImGui::MenuItem(prefabEntity ? "Remove component from this instance"
+                                         : "Remove component",
+                            nullptr, false, !inheritedFromPreset);
+        if (!prefabEntity && inheritedFromPreset)
           ImGui::TextDisabled("Unpack the preset to remove its components.");
         ImGui::EndPopup();
+      }
+      if (revertRequested) {
+        std::string error;
+        const bool reverted =
+            workspace.revertComponentOverride(selectedId, name, error);
+        notice =
+            reverted ? "Component reverted to the shared prefab source" : error;
+        ImGui::PopID();
+        ImGui::End();
+        return;
       }
       if (removeRequested) {
         std::string error;
         const bool removed =
             workspace.removeComponent(selectedId, name, error);
-        notice = removed ? "Component removed" : error;
+        notice = removed
+                     ? (prefabEntity ? "Component removed from this instance"
+                                     : "Component removed")
+                     : error;
         ImGui::PopID();
         ImGui::End();
         return;
@@ -1132,12 +1166,46 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
     ImGui::TextDisabled("No matching properties.");
 
   if (prefabEntity) {
-    ImGui::Spacing();
-    ImGui::TextDisabled(
-        "Add or remove components in the prefab source. Scene instances can "
-        "override component values.");
-    ImGui::End();
-    return;
+    const std::vector<std::string> removedComponents =
+        workspace.removedComponentOverrides(selectedId);
+    if (!removedComponents.empty()) {
+      ImGui::Spacing();
+      ImGui::SeparatorText("Removed components");
+      std::string restoreComponent;
+      if (ImGui::BeginTable("##removed-components", 2,
+                            ImGuiTableFlags_SizingStretchProp)) {
+        ImGui::TableSetupColumn("Component",
+                                ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed,
+                                ImGui::CalcTextSize("Restore").x +
+                                    ImGui::GetStyle().FramePadding.x * 2.0F);
+        for (const std::string &name : removedComponents) {
+          const ComponentDescriptor *descriptor =
+              runtime::scene_loading::findComponentDescriptor(name);
+          const char *displayName = descriptor != nullptr
+                                        ? descriptor->editor.displayName.data()
+                                        : name.c_str();
+          ImGui::TableNextRow();
+          ImGui::TableSetColumnIndex(0);
+          ImGui::TextUnformatted(displayName);
+          ImGui::TableSetColumnIndex(1);
+          ImGui::PushID(name.c_str());
+          if (ImGui::SmallButton("Restore"))
+            restoreComponent = name;
+          ImGui::PopID();
+        }
+        ImGui::EndTable();
+      }
+      if (!restoreComponent.empty()) {
+        std::string error;
+        const bool restored = workspace.revertComponentOverride(
+            selectedId, restoreComponent, error);
+        notice = restored ? "Component restored from the shared prefab source"
+                          : error;
+        ImGui::End();
+        return;
+      }
+    }
   }
 
   ImGui::Spacing();
@@ -1174,7 +1242,9 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
           std::string error;
           const bool added =
               workspace.addComponent(selectedId, descriptor.name, error);
-          notice = added ? "Component added" : error;
+          notice = added ? (prefabEntity ? "Component added to this instance"
+                                         : "Component added")
+                         : error;
         } else {
           state.pendingComponentEntity = selectedId;
           state.pendingComponent = descriptor.name;
@@ -1217,7 +1287,10 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
           std::string error;
           const bool added =
               workspace.addScriptComponent(selectedId, metadata, error);
-          notice = added ? metadata.displayName + " added" : error;
+          notice =
+              added ? metadata.displayName +
+                          (prefabEntity ? " added to this instance" : " added")
+                    : error;
           if (hasLuaScript)
             ImGui::EndDisabled();
           ImGui::EndCombo();
@@ -1281,13 +1354,17 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
             const bool added = workspace.addComponent(
                 selectedId, pendingDescriptor->name,
                 {{std::string(pendingField->name), reference.id}}, error);
-            notice = added ? "Component added" : error;
+            notice = added ? (prefabEntity ? "Component added to this instance"
+                                           : "Component added")
+                           : error;
             if (added) {
               state.pendingComponentEntity.clear();
               state.pendingComponent.clear();
               state.pendingReferenceField.clear();
             }
-            break;
+            ImGui::EndCombo();
+            ImGui::End();
+            return;
           }
           ImGui::EndCombo();
         }

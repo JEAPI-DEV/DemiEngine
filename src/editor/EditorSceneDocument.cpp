@@ -255,6 +255,12 @@ bool EditorSceneDocument::setValue(SceneValueTarget target,
                                      ? std::nullopt
                                      : std::optional<nlohmann::json>(*current),
                        .after = std::move(replacement)};
+  if (target.isPrefabOverride()) {
+    const auto *instance =
+        findPrefabInstance(document_, target.prefabInstanceId);
+    if (instance && instance->contains("overrides"))
+      next.prefabOverridesBefore = instance->at("overrides");
+  }
   if (!target.isPrefabOverride() && !target.component.empty()) {
     const auto *owner = entity(target.entityId);
     next.createdComponent = owner && component(target.entityId, target.component) == nullptr;
@@ -333,6 +339,12 @@ bool EditorSceneDocument::setValues(std::vector<SceneValueTarget> targets,
     }
     command.values.push_back(
         {.target = target, .before = *current, .after = std::move(normalized)});
+    if (target.isPrefabOverride()) {
+      const auto *instance =
+          findPrefabInstance(document_, target.prefabInstanceId);
+      if (instance && instance->contains("overrides"))
+        command.values.back().prefabOverridesBefore = instance->at("overrides");
+    }
   }
   return stageAndCommit(std::move(command), error);
 }
@@ -373,10 +385,23 @@ bool EditorSceneDocument::removeValue(SceneValueTarget target,
     reject(target, error);
     return false;
   }
-  return stageAndCommit(SetValueCommand{.target = std::move(target),
-                                        .before = *current,
-                                        .after = std::nullopt},
-                        error);
+  SetValueCommand command{
+      .target = target, .before = *current, .after = std::nullopt};
+  if (target.isPrefabOverride()) {
+    const auto *instance =
+        findPrefabInstance(document_, target.prefabInstanceId);
+    if (instance && instance->contains("overrides"))
+      command.prefabOverridesBefore = instance->at("overrides");
+    if (!target.component.empty()) {
+      // Resetting the last property of a locally added component must not
+      // remove the component. Resolve inheritance only for this user action.
+      const auto inherited = prefabInheritsComponent(target, error);
+      if (!inherited)
+        return false;
+      command.preserveEmptyPrefabComponent = !*inherited;
+    }
+  }
+  return stageAndCommit(std::move(command), error);
 }
 
 bool EditorSceneDocument::createEntity(std::string &error,

@@ -3,6 +3,7 @@ add_test(NAME demi-prefab-origin-index-tests COMMAND demi-prefab-origin-index-te
 add_test(NAME demi-editor-game-authoring-tests COMMAND demi-editor-game-authoring-tests $<TARGET_FILE:demi-runtime>)
 set_tests_properties(demi-editor-game-authoring-tests PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1" TIMEOUT 60)
 add_test(NAME demi-editor-prefab-authoring-tests COMMAND demi-editor-prefab-authoring-tests)
+add_test(NAME demi-editor-prefab-components-tests COMMAND demi-editor-prefab-components-tests)
 add_test(NAME demi-editor-entity-bounds3d-tests COMMAND demi-editor-entity-bounds3d-tests)
 add_test(NAME demi-editor-dialog-layout-tests COMMAND demi-editor-dialog-layout-tests)
 add_test(NAME demi-editor-settings-layout-tests COMMAND demi-editor-settings-layout-tests)

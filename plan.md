@@ -525,6 +525,17 @@ September 25 authoring-workbench pass (native ImGui, existing runtime services):
 
 Implemented fixes to retain and regression-test:
 
+- [x] Add/remove native and Lua components on prefab instances, including nested
+  instances inside prefab tabs. Store local component overrides through reversible
+  document commands; expose Revert, removed-component Restore and shared-source
+  navigation. Keep property Reset/Undo from deleting locally added components.
+  The shared resolver honors removal of preset-provided components without
+  unpacking or changing the source prefab. Regression coverage includes sibling
+  isolation, nested source navigation, validation rollback and Save/reopen.
+  Release qualification: 328/328 tests pass sequentially, including real ImGui
+  clicks on Add Component and component-action popups. The destruction weapon
+  example validates all 87 reachable files without diagnostics.
+
 - [x] Game View relative mouse capture, Ctrl+D release, focus-loss release, and
   recapture on returning to the view.
   Follow-up: captured mouse/wheel/text/gameplay keys no longer reach editor

@@ -5,6 +5,13 @@
   target_link_libraries(demi-editor-game-authoring-tests PRIVATE demi-editor-model demi-cli-support)
   target_compile_definitions(demi-editor-game-authoring-tests PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-editor-prefab-authoring-tests tests/editor_prefab_authoring_tests.cpp)
+  add_executable(demi-editor-prefab-components-tests tests/editor_prefab_components_tests.cpp)
+  target_link_libraries(demi-editor-prefab-components-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-prefab-components-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-prefab-components-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
   target_link_libraries(demi-editor-prefab-authoring-tests PRIVATE demi-editor-model)
   add_executable(demi-editor-entity-bounds3d-tests tests/editor_entity_bounds3d_tests.cpp)
   target_link_libraries(demi-editor-entity-bounds3d-tests PRIVATE demi-editor-model)

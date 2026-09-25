@@ -93,6 +93,16 @@ void pruneEmptyPrefabOverride(nlohmann::json &instance,
 
 } // namespace
 
+nlohmann::json *findPrefabInstance(nlohmann::json &document,
+                                   const std::string_view id) {
+  return findInstance(document, id);
+}
+
+const nlohmann::json *findPrefabInstance(const nlohmann::json &document,
+                                         const std::string_view id) {
+  return findInstance(document, id);
+}
+
 nlohmann::json *findEntity(nlohmann::json &document,
                            const std::string_view id) {
   auto entities = document.find("entities");

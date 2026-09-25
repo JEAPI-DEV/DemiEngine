@@ -40,6 +40,11 @@ nlohmann::json *findEntity(nlohmann::json &document, std::string_view id);
 const nlohmann::json *findEntity(const nlohmann::json &document,
                                  std::string_view id);
 
+nlohmann::json *findPrefabInstance(nlohmann::json &document,
+                                   std::string_view id);
+const nlohmann::json *findPrefabInstance(const nlohmann::json &document,
+                                         std::string_view id);
+
 nlohmann::json *entitiesArray(nlohmann::json &document);
 const nlohmann::json *entitiesArray(const nlohmann::json &document);
 

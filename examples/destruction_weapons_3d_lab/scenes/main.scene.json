@@ -10,7 +10,8 @@
     },"children":[
       {"id":"a","name":"Left destructible wall","components":{
         "Transform3D":{"position":[-2.8,0,0]},"PrefabPlacement3D":{"prefab":"prefab://doorway"}
-      }},
+      },
+      "enabled": true},
       {"id":"b","name":"Right destructible wall","components":{
         "Transform3D":{"position":[2.8,0,0]},"PrefabPlacement3D":{"prefab":"prefab://fading_doorway","root":"wall/assembly"}
       }}
@@ -23,7 +24,8 @@
       "BoxCollider3D":{"size":[120,1,120]},
       "MeshRenderer":{"color":[1,1,1,1],"texture":"asset://kenney/prototype/dark/texture_01",
         "vertices":[[-60,0.5,60],[60,0.5,60],[60,0.5,-60],[-60,0.5,60],[60,0.5,-60],[-60,0.5,-60]],
-        "uvs":[[0,60],[60,60],[60,0],[0,60],[60,0],[0,0]]}
+        "uvs":[[0,60],[60,60],[60,0],[0,60],[60,0],[0,0]]},
+      "Rigidbody3D": {}
     }},
     {"id":"backstop","preset":"static_box_3d","components":{
       "Transform3D":{"position":[0,2,-6]},

@@ -5,6 +5,16 @@
 namespace demi::editor {
 namespace {
 void applyValue(nlohmann::json &document, const SetValueCommand &command, bool forward) {
+  if (!forward && command.target.isPrefabOverride()) {
+    if (auto *instance =
+            findPrefabInstance(document, command.target.prefabInstanceId)) {
+      if (command.prefabOverridesBefore)
+        (*instance)["overrides"] = *command.prefabOverridesBefore;
+      else
+        instance->erase("overrides");
+    }
+    return;
+  }
   if (!forward && command.createdComponent) {
     if (auto *entity = findEntity(document, command.target.entityId)) {
       if (command.createdComponentsContainer)
@@ -16,6 +26,16 @@ void applyValue(nlohmann::json &document, const SetValueCommand &command, bool f
   }
   (void)assignValueInDocument(document, command.target,
                               forward ? command.after : command.before);
+  if (forward && command.preserveEmptyPrefabComponent) {
+    auto *instance =
+        findPrefabInstance(document, command.target.prefabInstanceId);
+    if (instance != nullptr) {
+      auto &component = (*instance)["overrides"][command.target.prefabEntityId]
+                                   ["components"][command.target.component];
+      if (component.is_null())
+        component = nlohmann::json::object();
+    }
+  }
 }
 } // namespace
 
@@ -102,6 +122,16 @@ void applySceneCommand(nlohmann::json &document, const SceneCommand &command,
             (*transform)["parent"] = *parent;
           else
             transform->erase("parent");
+        } else if constexpr (std::is_same_v<Command,
+                                            SetPrefabOverridesCommand>) {
+          auto *instance = findPrefabInstance(document, typed.instanceId);
+          if (instance == nullptr)
+            return;
+          const auto &value = forward ? typed.after : typed.before;
+          if (value)
+            (*instance)["overrides"] = *value;
+          else
+            instance->erase("overrides");
         } else if constexpr (std::is_same_v<Command, AddComponentCommand>) {
           nlohmann::json *entity = findEntity(document, typed.entityId);
           if (entity == nullptr)

@@ -150,6 +150,13 @@ public:
   [[nodiscard]] bool removeComponent(std::string_view id,
                                      std::string_view componentName,
                                      std::string &error);
+  [[nodiscard]] bool revertComponentOverride(std::string_view id,
+                                             std::string_view componentName,
+                                             std::string &error);
+  [[nodiscard]] std::optional<std::filesystem::path>
+  prefabSourcePath(std::string_view id) const;
+  [[nodiscard]] std::vector<std::string>
+  removedComponentOverrides(std::string_view id) const;
   [[nodiscard]] bool moveSelectedIsoGridCell(int x, int y, std::string &error);
   [[nodiscard]] bool setSelectedIsoGridCellTexture(std::string texture,
                                                    std::string &error);

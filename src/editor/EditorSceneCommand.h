@@ -17,6 +17,10 @@ struct SetValueCommand {
   std::optional<nlohmann::json> after;
   bool createdComponent = false;
   bool createdComponentsContainer = false;
+  // Field undo must preserve an instance-added empty component, and retain
+  // the exact dotted/nested override shape rather than reconstructing it.
+  std::optional<nlohmann::json> prefabOverridesBefore;
+  bool preserveEmptyPrefabComponent = false;
 };
 
 struct SetValuesCommand {
@@ -73,6 +77,15 @@ struct AddComponentCommand {
   nlohmann::json component;
 };
 
+// Snapshot only the owning instance's overrides, preserving their source shape
+// exactly across undo, including dotted property overrides.
+struct SetPrefabOverridesCommand {
+  std::string entityId;
+  std::string instanceId;
+  std::optional<nlohmann::json> before;
+  std::optional<nlohmann::json> after;
+};
+
 struct RemoveComponentCommand {
   std::string entityId;
   std::string componentName;
@@ -84,9 +97,11 @@ struct RemoveComponentCommand {
 // against their owning document revision and never depend on live pointers or
 // selection.
 using SceneCommand =
-    std::variant<SetValueCommand, SetValuesCommand, SetSceneHudCommand, InsertEntityCommand,
-                 RemoveEntitiesCommand, DuplicateEntityCommand,
-                 ReparentCommand, EntityHierarchyCommand, AddComponentCommand, RemoveComponentCommand>;
+    std::variant<SetValueCommand, SetValuesCommand, SetSceneHudCommand,
+                 InsertEntityCommand, RemoveEntitiesCommand,
+                 DuplicateEntityCommand, ReparentCommand,
+                 EntityHierarchyCommand, AddComponentCommand,
+                 RemoveComponentCommand, SetPrefabOverridesCommand>;
 
 // Applies `command` forward onto `document`, or reverts it when `forward` is
 // false. Purely structural: no validation is performed here.

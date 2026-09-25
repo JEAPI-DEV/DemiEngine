@@ -92,6 +92,7 @@ else()
     src/editor/EditorRecoveryStore.cpp
     src/editor/EditorSceneCommand.cpp
     src/editor/EditorSceneDocument.cpp
+    src/editor/EditorPrefabComponentCommands.cpp
     src/editor/EditorSceneDomain.cpp
     src/editor/EditorSceneJson.cpp
     src/editor/EditorEntityHierarchy.cpp
@@ -110,6 +111,7 @@ else()
     src/editor/EditorViewportTool.cpp
     src/editor/EditorViewportTool2D.cpp
     src/editor/EditorWorkspace.cpp
+    src/editor/EditorWorkspaceComponents.cpp
     src/editor/EditorWorkspacePrefab.cpp
     src/editor/EditorWorkspaceLayout.cpp
     src/editor/EditorWorkspaceAssets.cpp)

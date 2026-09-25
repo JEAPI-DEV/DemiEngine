@@ -1,7 +1,8 @@
 #include "demi/runtime/scene/composition/PrefabResolver.h"
-#include "demi/runtime/scene/composition/EntityHierarchy.h"
 #include "demi/assets/FractureAuthoring.h"
 #include "demi/assets/MasonryGeneration.h"
+#include "demi/runtime/scene/EntityPresets.h"
+#include "demi/runtime/scene/composition/EntityHierarchy.h"
 
 #include <algorithm>
 #include <fstream>
@@ -468,6 +469,16 @@ private:
       if (overrideValue.is_null()) {
         entities.erase(target);
       } else if (overrideValue.is_object()) {
+        // A removal must also remove preset-provided components. Materialize
+        // only in the composed output; the source keeps its compact preset.
+        const auto components = overrideValue.find("components");
+        if (target->contains("preset") && components != overrideValue.end() &&
+            components->is_object() &&
+            std::ranges::any_of(*components, [](const Json &value) {
+              return value.is_null();
+            })) {
+          *target = scene_loading::expandEntityPreset(*target);
+        }
         *target = mergeOverride(std::move(*target), overrideValue);
         (*target)["id"] = targetId;
       } else {

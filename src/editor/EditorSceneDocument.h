@@ -79,6 +79,16 @@ public:
                                      std::string_view componentName,
                                      std::string &error);
 
+  // Object adds/configures a component, JSON null removes it, nullopt reverts
+  // this component's local overrides to the prefab source.
+  [[nodiscard]] bool
+  setPrefabComponentOverride(const SceneValueTarget &target,
+                             std::optional<nlohmann::json> value,
+                             std::string &error);
+  [[nodiscard]] std::optional<bool>
+  prefabInheritsComponent(const SceneValueTarget &target,
+                          std::string &error) const;
+
   [[nodiscard]] bool undo(std::string &error);
   [[nodiscard]] bool redo(std::string &error);
 
