@@ -251,6 +251,8 @@ void LuaCoreBindingModule::install(LuaScriptHost& host, lua_State* state) const 
   application.set_function("max_fps", [&host] { return host.maxFps(); });
   application.set_function("set_mouse_captured", [&host](bool captured) { host.setMouseCaptured(captured); });
   application.set_function("mouse_captured", [&host] { return host.mouseCaptured(); });
+  application.set_function("set_mouse_visible", [&host](bool visible) { host.setMouseVisible(visible); });
+  application.set_function("mouse_visible", [&host] { return host.mouseVisible(); });
   application.set_function("safe_area", [&host] {
       const auto value = host.applicationServices().safeArea();
       return std::tuple{value.left, value.top, value.right, value.bottom};

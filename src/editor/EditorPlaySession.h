@@ -66,6 +66,7 @@ public:
   [[nodiscard]] std::uint64_t fixedTickCount() const;
   [[nodiscard]] float interpolationAlpha() const;
   [[nodiscard]] bool mouseCaptured() const;
+  [[nodiscard]] bool mouseVisible() const;
   void releaseMouseCapture();
   [[nodiscard]] EditorProfilerSnapshot profilerSnapshot() const;
   void setGpuTiming(EditorGpuTimingSample sample);

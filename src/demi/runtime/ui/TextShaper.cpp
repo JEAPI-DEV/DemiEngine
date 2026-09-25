@@ -7,6 +7,7 @@
 #include <utf8proc.h>
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <limits>
 #include <unordered_set>
@@ -46,7 +47,18 @@ HbFont makeFont(const TextFontFace &source, const float fontSize) {
     return {};
   HbFont font(hb_font_create(face.get()));
   hb_ot_font_set_funcs(font.get());
-  const int scale = std::max(1, static_cast<int>(std::lround(fontSize * 64.0F)));
+  std::vector<hb_variation_t> variations;
+  for(const auto &[tag,value]:source.variations)
+    variations.push_back({hb_tag_from_string(tag.data(),static_cast<int>(tag.size())),value});
+  if(!variations.empty()) hb_font_set_variations(font.get(),variations.data(),static_cast<unsigned int>(variations.size()));
+  // Match FreeType's REAL_DIM sizing: fontSize is ascent + descent, not EM.
+  const auto units=hb_face_get_upem(face.get());
+  hb_font_set_scale(font.get(),static_cast<int>(units),static_cast<int>(units));
+  hb_font_extents_t extents{};
+  const double height=hb_font_get_h_extents(font.get(),&extents)
+      ? double(extents.ascender)-extents.descender : double(units);
+  const double sized=height>0 ? fontSize*64.0*units/height : fontSize*64.0;
+  const int scale = static_cast<int>(std::clamp(std::round(sized),1.0,double(std::numeric_limits<int>::max())));
   hb_font_set_scale(font.get(), scale, scale);
   return font;
 }
@@ -101,7 +113,7 @@ std::size_t fontIndexFor(const FontResolver &fonts,
 
 bool FontResolver::add(std::string id, const std::span<const std::byte> data,
                        const std::uint64_t revision, std::string &error,
-                       const bool pixelated) {
+                       const bool pixelated, const FontVariations &variations) {
   if (id.empty() || data.empty()) {
     error = "A fallback font requires a non-empty ID and font data.";
     return false;
@@ -113,10 +125,12 @@ bool FontResolver::add(std::string id, const std::span<const std::byte> data,
     return false;
   }
   auto bytes = std::make_shared<std::vector<std::byte>>(data.begin(), data.end());
+  FontRasterizer probeRaster;
+  if(!probeRaster.open(data,variations,error)) return false;
   TextFontFace probe{.id = id,
                      .data = bytes,
                      .revision = revision,
-                     .pixelated = pixelated};
+                     .pixelated = pixelated,.variations=variations};
   if (!makeFont(probe, 16.0F)) {
     error = "Invalid OpenType font data for: " + id;
     return false;
@@ -224,6 +238,10 @@ std::uint64_t FontResolver::revision() const {
     for (const unsigned char byte : font.id) {
       value ^= byte;
       value *= 1099511628211ULL;
+    }
+    for(const auto &[tag,coordinate]:font.variations) {
+      for(unsigned char byte:tag) {value^=byte;value*=1099511628211ULL;}
+      value^=std::bit_cast<std::uint32_t>(coordinate);value*=1099511628211ULL;
     }
   }
   return value;

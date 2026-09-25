@@ -96,6 +96,11 @@
   target_compile_definitions(demi-editor-imgui-input-tests PRIVATE
     IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
   target_link_libraries(demi-editor-imgui-input-tests PRIVATE demi-editor-ui)
+  add_executable(demi-variable-font-tests tests/variable_font_tests.cpp)
+  target_link_libraries(demi-variable-font-tests PRIVATE demi-editor-ui demi-graphics-bgfx)
+  target_include_directories(demi-variable-font-tests PRIVATE "${imgui_docking_SOURCE_DIR}")
+  target_compile_definitions(demi-variable-font-tests PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
   add_executable(demi-editor-diagnostics-profiler-tests
     tests/editor_diagnostics_profiler_tests.cpp)
   target_link_libraries(demi-editor-diagnostics-profiler-tests
@@ -459,7 +464,8 @@
   # optimized test executables; the linked engine libraries remain Release.
   foreach(target demi-bgfx-renderer3d-tests demi-gltf-skinned-model-tests demi-runtime-profiler-tests demi-gpu-mesh3d-tests demi-gpu-skinning3d-tests
                  demi-package-manager-tests demi-asset-streaming-tests demi-asset-pipeline-tests demi-editor-asset-workflow-tests demi-texture-library2d-tests demi-editor-workspace-tests demi-editor-imgui-input-tests
-                 demi-project-watch-reload-tests demi-project-build-settings-tests demi-editor-diagnostics-profiler-tests)
+                 demi-project-watch-reload-tests demi-project-build-settings-tests demi-editor-diagnostics-profiler-tests demi-font-atlas2d-tests
+                 demi-ui-canvas-renderer-tests demi-bgfx-renderer2d-tests)
     if(MSVC)
       target_compile_options(${target} PRIVATE /UNDEBUG)
     else()

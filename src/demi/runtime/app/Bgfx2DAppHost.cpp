@@ -109,6 +109,9 @@ bool Bgfx2DAppHost::setWindowMode(const std::string_view mode,
 bool Bgfx2DAppHost::setMouseCaptured(const bool captured, std::string &error) {
   return context_.setMouseCaptured(captured, error);
 }
+bool Bgfx2DAppHost::setMouseVisible(bool visible,std::string &error) {
+  return context_.setMouseVisible(visible,error);
+}
 
 bool Bgfx2DAppHost::requestFrameRate(const float framesPerSecond) {
   return context_.requestFrameRate(framesPerSecond);

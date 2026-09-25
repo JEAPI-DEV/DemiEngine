@@ -1,12 +1,10 @@
 #include "demi/assets/GeneratedAtlasCooker.h"
+#include "demi/assets/FontAssetSettings.h"
 
 #include <bimg/decode.h>
 #include <bx/allocator.h>
 #include <bx/file.h>
 
-#define STBTT_STATIC
-#define STB_TRUETYPE_IMPLEMENTATION
-#include <stb_truetype.h>
 
 #include <algorithm>
 #include <array>
@@ -371,13 +369,11 @@ GeneratedAtlasCookResult cookFontAtlas(const AssetManifest &asset,
           asset.sourcePath);
     return result;
   }
-  stbtt_fontinfo font{};
-  if (!stbtt_InitFont(&font, bytes.data(),
-                      stbtt_GetFontOffsetForIndex(bytes.data(), 0))) {
-    error(result, "FONT_SOURCE_INVALID", "Font source is not valid TTF/OTF.",
-          asset.sourcePath);
-    return result;
-  }
+  runtime::ui::FontRasterizer font;std::string fontError;
+  try {
+    if(!font.open(std::as_bytes(std::span(bytes)),fontAssetVariations(asset),fontError))
+      throw std::invalid_argument(fontError);
+  } catch(const std::exception &e) {error(result,"FONT_SOURCE_INVALID",e.what(),asset.sourcePath);return result;}
   const nlohmann::json settings =
       nlohmann::json::parse(asset.settingsJson, nullptr, false);
   if (!settings.is_object()) {
@@ -398,29 +394,22 @@ GeneratedAtlasCookResult cookFontAtlas(const AssetManifest &asset,
   const auto codepoints = glyphCodepoints(settings, result, asset.manifestPath);
   if (hasErrors(result.diagnostics) || codepoints.empty())
     return result;
-  const float scale = stbtt_ScaleForPixelHeight(&font, pixelHeight);
   std::vector<std::array<unsigned, 3>> cursors;
   std::vector<Image> pages;
   nlohmann::json glyphs = nlohmann::json::array();
   for (const unsigned codepoint : codepoints) {
-    int width = 0;
-    int height = 0;
-    int xOffset = 0;
-    int yOffset = 0;
-    unsigned char *bitmap =
-        stbtt_GetCodepointBitmap(&font, 0, scale, static_cast<int>(codepoint),
-                                 &width, &height, &xOffset, &yOffset);
-    int advance = 0;
-    int bearing = 0;
-    stbtt_GetCodepointHMetrics(&font, static_cast<int>(codepoint), &advance,
-                               &bearing);
+    runtime::ui::RasterizedGlyph raster;
+    if(!font.rasterize(font.glyphIndex(codepoint),pixelHeight,raster,fontError)) {
+      error(result,"FONT_GLYPH_INVALID",fontError,asset.sourcePath);return result;
+    }
+    const int width=raster.width,height=raster.height,xOffset=raster.left,yOffset=raster.top;
+    const auto *bitmap=raster.coverage.empty()?nullptr:raster.coverage.data();
     const unsigned glyphWidth = static_cast<unsigned>(std::max(width, 1));
     const unsigned glyphHeight = static_cast<unsigned>(std::max(height, 1));
     const Placement placement =
         place(glyphWidth, glyphHeight, pageSize, pageSize, padding, cursors,
               result, asset.manifestPath);
     if (hasErrors(result.diagnostics)) {
-      stbtt_FreeBitmap(bitmap, nullptr);
       return result;
     }
     while (pages.size() <= placement.page)
@@ -442,7 +431,6 @@ GeneratedAtlasCookResult cookFontAtlas(const AssetManifest &asset,
         glyph.rgba[index * 4U + 3U] = bitmap[index];
       }
       blitWithBleed(pages[placement.page], glyph, placement, 0);
-      stbtt_FreeBitmap(bitmap, nullptr);
     }
     glyphs.push_back(
         {{"codepoint", codepoint},
@@ -451,7 +439,7 @@ GeneratedAtlasCookResult cookFontAtlas(const AssetManifest &asset,
           {placement.x, placement.y, static_cast<unsigned>(std::max(width, 0)),
            static_cast<unsigned>(std::max(height, 0))}},
          {"offset", {xOffset, yOffset}},
-         {"advance", advance * scale}});
+         {"advance", raster.advance}});
   }
   nlohmann::json pageNames = nlohmann::json::array();
   for (std::size_t page = 0; page < pages.size(); ++page) {

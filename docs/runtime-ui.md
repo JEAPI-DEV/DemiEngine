@@ -166,11 +166,45 @@ hover/drag state, text editing, runtime children, and active tweens before the
 new key is exposed. `Hud.clear_recycled_rows` releases the owned pool.
 
 Project fonts are ordinary `Font2D` assets imported from TTF or OTF files.
-They are loaded in stable asset-ID order after the default pixel font and are
+Inter Medium (`wght: 500`) is the bundled engine default, rendered directly from
+the variable font with smooth glyph coverage and linear atlas filtering.
+It is embedded in the runtime, so projects do not
+need to ship or preload a separate default font asset. Its license is retained
+in `fonts/Inter/OFL.txt`. The embedded source is
+`fonts/Inter/Inter-VariableFont_opsz,wght.ttf`; Inter's `static/` folder is not
+required. No static font instance is generated during the build.
+Project fonts are loaded in stable asset-ID order after Inter and are
 selected per node with `"font": "asset://fonts/body"`; `Hud.set_font` can
 change that selection at runtime. If the selected font lacks a glyph, shaping
 falls back through the other loaded fonts. Missing glyphs produce explicit diagnostics, while
 the GPU atlas grows on demand within a bounded page budget.
+
+Font assets can select any axis exposed by their source font:
+
+```json
+"settings": {
+  "variations": { "wght": 700, "opsz": 24 }
+}
+```
+
+The same settings work for `Font2D` and generated `FontAtlas2D` assets. Omitted
+axes use the font's own defaults. Unknown axes, non-finite coordinates and values
+outside the font's declared ranges are errors; static fonts cannot accept
+variation coordinates. There are no hardcoded Inter-only axis ranges.
+
+HarfBuzz shapes with the selected coordinates; the shared FreeType rasterizer
+uses those coordinates for outlines and metrics. Runtime and cooked atlases use
+that same rasterizer. Each loaded font ID is an immutable variation instance,
+so regular and bold faces can coexist without sharing incorrect cached glyphs.
+Variation coordinates also contribute to layout-cache identity. Select a font ID
+with `Hud.set_font` to switch styles at runtime; changing an instance's axes
+in place is not currently a Lua operation. Reloading fonts rebuilds their caches.
+
+The editor's primary font uses an ImGui adapter over this shared rasterizer.
+The bgfx bridge's existing auxiliary icon/mono fonts still use its stb loader.
+The build fetches pinned FreeType source for desktop and Android; it does not
+depend on a font-conversion script or a system FreeType installation. See
+[FreeType's variation API](https://freetype.org/freetype2/docs/reference/ft2-multiple_masters.html).
 
 Text nodes support `text_wrap` (`none`, `word`, or `grapheme`),
 `text_alignment`, `text_vertical_alignment`, `line_spacing`, `max_lines`, and

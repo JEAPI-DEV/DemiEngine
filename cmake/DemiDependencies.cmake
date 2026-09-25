@@ -124,6 +124,19 @@ FetchContent_Declare(harfbuzz
 )
 FetchContent_MakeAvailable(harfbuzz)
 
+# FreeType handles variable-font outlines at runtime on desktop and Android.
+# Keep shaping in HarfBuzz; avoid a circular optional FreeType/HarfBuzz link.
+set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
+FetchContent_Declare(freetype
+  URL https://codeload.github.com/freetype/freetype/tar.gz/0a0221a1347e2f1e07c395263540026e9a0aa7c7
+  URL_HASH SHA256=11cd478953fc1d382f20a233b8e2aed6c31b47cbf0568c4bdb3334bcc1550698
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_MakeAvailable(freetype)
+
 set(SB_CONFIG_UNITY ON CACHE BOOL "" FORCE)
 set(BUILD_GENERATOR OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(sheenbidi

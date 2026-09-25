@@ -72,10 +72,13 @@ public:
                                         std::string &error) = 0;
   [[nodiscard]] virtual runtime::InputState gameInput(EditorViewportArea area,
                                                       bool focused) const = 0;
+  [[nodiscard]] virtual bool gamePointerInside(EditorViewportArea area) const = 0;
   [[nodiscard]] virtual std::uint16_t gameTextureIndex() const = 0;
   [[nodiscard]] virtual float deltaSeconds() const = 0;
   [[nodiscard]] virtual bool setViewportInputCaptured(bool captured,
-                                                      std::string &error) = 0;
+                                                      std::string &error,
+                                                      bool exclusiveGame=false,
+                                                      bool cursorVisible=true) = 0;
   virtual void endFrame() = 0;
   [[nodiscard]] virtual bool shouldClose() const = 0;
   virtual void acknowledgeCloseRequest() = 0;

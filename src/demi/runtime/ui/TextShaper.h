@@ -1,4 +1,5 @@
 #pragma once
+#include "demi/runtime/ui/FontRasterizer.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -20,6 +21,7 @@ struct TextFontFace {
   bool pixelated = false;
   float ascentRatio = 0.8F;
   float descentRatio = 0.2F;
+  FontVariations variations;
 };
 
 struct MissingGlyphDiagnostic {
@@ -31,7 +33,7 @@ class FontResolver {
 public:
   [[nodiscard]] bool add(std::string id, std::span<const std::byte> data,
                          std::uint64_t revision, std::string &error,
-                         bool pixelated = false);
+                         bool pixelated = false, const FontVariations &variations = {});
   void clear();
   [[nodiscard]] const TextFontFace *font(std::size_t index) const;
   [[nodiscard]] const TextFontFace *font(std::string_view id) const;

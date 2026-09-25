@@ -1,4 +1,5 @@
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/FontAssetSettings.h"
 #include "demi/assets/ColliderShapeAsset.h"
 #include "demi/filesystem/ProjectPaths.h"
 
@@ -494,6 +495,10 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
           validateModelAnimationSettings(settings, asset.manifestPath);
       diagnostics.insert(diagnostics.end(), animationDiagnostics.begin(),
                          animationDiagnostics.end());
+    }
+    if (asset.type == "Font2D" || asset.type == "FontAtlas2D") {
+      const auto issues=assets::validateFontAssetSettings(asset);
+      diagnostics.insert(diagnostics.end(),issues.begin(),issues.end());
     }
     if (asset.type == "AudioClip") {
       const nlohmann::json settings =

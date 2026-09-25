@@ -104,14 +104,18 @@ void LuaScriptHost::setMouseCaptured(const bool captured) {
     return;
   }
   mouseCaptured_ = captured;
-  mouseCapturedDirty_ = true;
+  cursorStateDirty_ = true;
 }
 
 bool LuaScriptHost::mouseCaptured() const { return mouseCaptured_; }
+void LuaScriptHost::setMouseVisible(bool visible) {
+  if(mouseVisible_!=visible) {mouseVisible_=visible;cursorStateDirty_=true;}
+}
+bool LuaScriptHost::mouseVisible() const {return mouseVisible_;}
 
-bool LuaScriptHost::mouseCapturedDirty() const { return mouseCapturedDirty_; }
+bool LuaScriptHost::cursorStateDirty() const { return cursorStateDirty_; }
 
-void LuaScriptHost::clearMouseCapturedDirty() { mouseCapturedDirty_ = false; }
+void LuaScriptHost::clearCursorStateDirty() { cursorStateDirty_ = false; }
 
 void LuaScriptHost::setPhysicsEnabled(const bool enabled) {
   physicsEnabled_ = enabled;

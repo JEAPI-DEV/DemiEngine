@@ -128,6 +128,8 @@ else()
     CONTENT "#include \"${imgui_docking_SOURCE_DIR}/imgui_internal.h\"\n")
 
   add_library(demi-editor-ui STATIC
+    src/editor/EditorFontLoader.cpp
+    src/editor/EditorInputOwnership.cpp
     src/editor/EditorAboutPanel.cpp
     src/editor/EditorAnimationMachinePanel.cpp
     src/editor/EditorAssetDialogs.cpp
@@ -172,8 +174,8 @@ else()
     "${bgfx_SOURCE_DIR}/bgfx/3rdparty"
     "${bgfx_SOURCE_DIR}/bx/include")
   target_compile_features(demi-editor-ui PUBLIC cxx_std_20)
-  # The engine font atlas already owns stb_truetype's implementation. The bgfx
-  # sample wrapper only needs its declarations when linked with runtime UI.
+  # StbFontCompatibility owns stb's implementation for the bgfx bridge's
+  # auxiliary fonts. Primary editor/runtime text uses our FreeType rasterizer.
   target_compile_definitions(demi-editor-ui PRIVATE
     USE_LOCAL_STB=0
     IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")

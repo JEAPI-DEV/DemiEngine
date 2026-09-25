@@ -25,6 +25,7 @@ private:
   std::string root_;
   std::shared_ptr<const nlohmann::json> templates_;
   std::map<std::string, std::string> regions_;
+  std::map<std::string, std::string> leafOwners_;
   std::set<std::string> refined_;
 };
 } // namespace demi::runtime

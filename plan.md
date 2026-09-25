@@ -266,8 +266,8 @@ all-device, full-game or thermal-soak qualification.
   assignment, implicit-root HUD edits, prefab-open feedback, and Ctrl+D release.
 - Built-in masonry now has compact intact regional visuals and deferred leaf
   entities. Regions refine only when Blast assigns their bricks to different
-  bodies. Other regions/walls remain compact. Source-model fracture and custom
-  masonry models still need this path, as do deeper spatial hierarchy and
+  bodies. Other regions/walls remain compact. Custom masonry models still need
+  this path, as do deeper spatial hierarchy and
   on-demand metadata loading.
 - Masonry preview now shares cell meshes, atlas coordinates and relief settings
   with runtime. Picking redirects to the source region; edits rebuild the
@@ -363,6 +363,13 @@ transparent effects, material-specific emission, and large-burst profiling.
 - [ ] Extend this behavior to source-model fractures, custom masonry models,
   nested prefabs, and overrides. Complete their cache coverage without changing
   authored identity or requiring separate developer-managed shard assets.
+  Component-authored multi-piece source meshes now retain an intact renderer
+  until their parts separate. Exterior and interior shard templates stay dormant;
+  interior visuals follow their primary shard. Imported GLB, standalone roots,
+  nested prefab/transform override, rejected split, checkpoint restore and cooked
+  loading tests pass. Two imported instances start with four live entities.
+  This extends visual activation, not template-cache eligibility. Custom masonry
+  model aggregation, legacy recipe activation and broader cache coverage remain.
 - [ ] Reduce cold shard-template and structural metadata costs through spatial
   hierarchy and demand loading. Deferring live entities alone does not solve
   large-world memory usage. Preserve authoritative support/connectivity data.
@@ -379,6 +386,11 @@ Implemented fixes to retain and regression-test:
 
 - [x] Game View relative mouse capture, Ctrl+D release, focus-loss release, and
   recapture on returning to the view.
+  Follow-up: captured mouse/wheel/text/gameplay keys no longer reach editor
+  widgets. Held-input release gating prevents accidental panel clicks after
+  Ctrl+D. Scripts retain `Application.set_mouse_captured`; independent
+  `set_mouse_visible`/`mouse_visible` are now available in embedded and standalone
+  runs. Editor escape/focus policies override requested cursor state safely.
 - [x] Double-click Lua opens a configurable external editor; project stubs and
   Lua Language Server configuration support completion/documentation.
 - [x] Double-click prefab and Open source prefab open the source document, with

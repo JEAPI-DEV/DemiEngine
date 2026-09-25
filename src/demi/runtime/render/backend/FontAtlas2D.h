@@ -32,7 +32,8 @@ public:
   [[nodiscard]] bool initializeBuiltin(float pixelHeight, std::string &error);
   [[nodiscard]] bool addFallback(std::string id,
                                  std::span<const std::byte> ttfData,
-                                 std::uint64_t revision, std::string &error);
+                                 std::uint64_t revision, std::string &error,
+                                 const ui::FontVariations &variations = {});
   void shutdown();
 
   [[nodiscard]] TextMetrics2D measure(std::string_view text,
@@ -86,7 +87,7 @@ private:
   [[nodiscard]] bool initializeResolver(std::string id,
                                         std::span<const std::byte> ttfData,
                                         float pixelHeight, bool pixelated,
-                                        std::string &error);
+                                        std::string &error, const ui::FontVariations &variations = {});
   [[nodiscard]] bool createPage(bool pixelated, std::string &error) const;
   [[nodiscard]] const Glyph *ensureGlyph(std::size_t fontIndex,
                                          std::uint32_t glyphId,
@@ -99,6 +100,7 @@ private:
   ui::TextShaper shaper_;
   mutable std::vector<Page> pages_;
   mutable std::unordered_map<std::uint64_t, Glyph> glyphs_;
+  mutable std::unordered_map<std::size_t,std::unique_ptr<ui::FontRasterizer>> rasterizers_;
   float pixelHeight_ = 0.0F;
   std::size_t maxPages_ = 8;
 };

@@ -14,9 +14,16 @@ function Application.set_max_fps(max_fps) end
 ---@return integer max_fps
 function Application.max_fps() end
 ---@param captured boolean
+---Requests relative mouse capture. Captured cursors are hidden regardless of visibility.
+---Editor Ctrl+D and focus loss temporarily override the request.
 function Application.set_mouse_captured(captured) end
 ---@return boolean captured
 function Application.mouse_captured() end
+---@param visible boolean
+---Sets requested cursor visibility while uncaptured. Does not change capture.
+function Application.set_mouse_visible(visible) end
+---@return boolean visible Requested visibility, not the editor/platform override.
+function Application.mouse_visible() end
 ---@return number left
 ---@return number top
 ---@return number right

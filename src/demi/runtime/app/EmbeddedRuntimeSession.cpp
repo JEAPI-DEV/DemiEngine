@@ -68,6 +68,9 @@ EmbeddedRuntimeSession::~EmbeddedRuntimeSession() { stop(); }
 bool EmbeddedRuntimeSession::mouseCaptured() const {
   return state_ && state_->running && !state_->paused && state_->lua.mouseCaptured();
 }
+bool EmbeddedRuntimeSession::mouseVisible() const {
+  return !state_ || !state_->running || state_->paused || state_->lua.mouseVisible();
+}
 void EmbeddedRuntimeSession::releaseMouseCapture() {
   if (state_) state_->lua.setMouseCaptured(false);
 }

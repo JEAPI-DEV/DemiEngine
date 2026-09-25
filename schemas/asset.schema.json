@@ -31,6 +31,12 @@
       "type": "object",
       "additionalProperties": true,
       "properties": {
+        "variations": {
+          "type": "object",
+          "description": "Font variation axis coordinates, validated against the source font at load/cook time.",
+          "propertyNames": {"minLength": 4, "maxLength": 4},
+          "additionalProperties": {"type": "number"}
+        },
         "filter": {
           "type": "string",
           "enum": ["nearest", "bilinear", "trilinear"]

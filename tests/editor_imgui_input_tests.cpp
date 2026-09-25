@@ -1,4 +1,5 @@
 #include "editor/EditorImGuiInput.h"
+#include "editor/EditorInputOwnership.h"
 #include "editor/EditorStructuredValue.h"
 #include <nlohmann/json.hpp>
 
@@ -79,6 +80,46 @@ int main() {
   io.AddMouseButtonEvent(0,false);
   assert(draw(object,0,false).changed);
   assert(object.contains("new_field") && object["new_field"].is_null());
+  {
+    demi::editor::EditorInputOwnership ownership;
+    demi::runtime::InputState raw;
+    raw.mousePosition={45,45};raw.mouseDelta={400,500};raw.mouseScroll={0,2};
+    raw.mouseButtonsDown={"left"};raw.mouseButtonsPressed={"left"};
+    raw.keysDown={"left ctrl","s","d"};raw.keysPressed={"s","d"};raw.textEntered="hidden input";
+    const auto captured=ownership.route(raw,true);
+    assert(captured.changed && captured.exclusive && captured.input.mouseButtonsDown.empty());
+    assert(captured.input.mouseDelta.x==0 && captured.input.mouseScroll.y==0 && captured.input.textEntered.empty());
+    assert(!captured.input.keysPressed.contains("s") && captured.input.keysPressed.contains("d"));
+    assert(captured.input.keysDown.contains("left ctrl"));
+    const auto released=ownership.route(raw,false);
+    assert(released.changed && released.input.mouseButtonsDown.empty() && released.input.keysDown.empty());
+    assert(released.input.textEntered.empty());
+    raw={};ownership.route(raw,false);
+    raw.mouseButtonsDown={"left"};raw.mouseButtonsPressed={"left"};
+    assert(ownership.route(raw,false).input.mouseButtonsDown.contains("left"));
+
+    demi::editor::EditorInputOwnership clickOwnership;
+    const auto buttonFrame=[&](bool exclusive,bool down) {
+      demi::runtime::InputState pointer;pointer.mousePosition={45,45};
+      if(down)pointer.mouseButtonsDown.insert("left");
+      auto routed=clickOwnership.route(pointer,exclusive);
+      if(routed.changed){io.ClearInputKeys();io.ClearInputMouse();}
+      io.AddMousePosEvent(exclusive?-3.4e38F:45,exclusive?-3.4e38F:45);
+      io.AddMouseButtonEvent(0,routed.input.mouseButtonsDown.contains("left"));
+      ImGui::NewFrame();
+      ImGui::SetNextWindowPos({0,0});ImGui::SetNextWindowSize({200,200});
+      ImGui::Begin("capture-test",nullptr,ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize);
+      ImGui::SetCursorScreenPos({20,20});
+      const bool clicked=ImGui::Button("editor control",{100,60});
+      ImGui::End();ImGui::EndFrame();return clicked;
+    };
+    assert(!buttonFrame(false,false));
+    assert(!buttonFrame(true,true));
+    assert(!buttonFrame(false,true)); // No held-button replay into editor.
+    assert(!buttonFrame(false,false));
+    assert(!buttonFrame(false,true));
+    assert(buttonFrame(false,false));
+  }
   ImGui::DestroyContext();
   return 0;
 }

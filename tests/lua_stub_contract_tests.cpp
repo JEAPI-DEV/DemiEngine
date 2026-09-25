@@ -271,6 +271,8 @@ int main(int argc, char **argv) {
            "Application.set_max_fps",
            "Application.mouse_captured",
            "Application.set_mouse_captured",
+           "Application.mouse_visible",
+           "Application.set_mouse_visible",
            "Physics.set_enabled",
            "Sprite2D.set_color",
            "Input.is_pressed",

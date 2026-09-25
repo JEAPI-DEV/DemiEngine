@@ -3,6 +3,9 @@
 #include "editor/EditorImGuiInput.h"
 #include "editor/EditorRecoveryStore.h"
 #include "editor/EditorUiHost.h"
+#include "editor/EditorInputOwnership.h"
+#include "editor/EditorFontLoader.h"
+#include "demi/runtime/render/backend/DefaultFont.h"
 #include "editor/EditorViewportRenderer.h"
 #include "editor/EditorWorkspaceLayout.h"
 
@@ -81,6 +84,18 @@ public:
     const float fontSize = editorFontSize(frame.logicalDpi);
     imguiCreate(fontSize);
     ImGuiIO &io = ImGui::GetIO();
+    const auto fontData = runtime::render::defaultFontData();
+    ImFontConfig fontConfig;
+    fontConfig.FontDataOwnedByAtlas = false;
+    fontConfig.FontLoader = fontLoader_.loader();
+    io.FontDefault = io.Fonts->AddFontFromMemoryTTF(
+        const_cast<std::byte *>(fontData.data()), static_cast<int>(fontData.size()),
+        fontSize, &fontConfig);
+    if (!io.FontDefault) {
+      error = "Could not initialize the bundled Inter editor font.";
+      shutdownGraphics();
+      return false;
+    }
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     const EditorLayoutPreparation layout = dockingState_.prepareLayout();
     workspaceDiagnostic_ = layout.diagnostic;
@@ -178,22 +193,28 @@ public:
       return false;
 
     graphics_.beginFrame(0x111318ff);
+    auto routed=inputOwnership_.route(input_,exclusiveGame_ && frame.focused);
+    if(routed.changed) {
+      ImGui::GetIO().ClearInputKeys();
+      ImGui::GetIO().ClearInputMouse();
+    }
+    const auto &editorInput=routed.input;
     std::uint8_t buttons = 0;
-    if (input_.mouseButtonsDown.contains("left"))
+    if (editorInput.mouseButtonsDown.contains("left"))
       buttons |= IMGUI_MBUT_LEFT;
-    if (input_.mouseButtonsDown.contains("right"))
+    if (editorInput.mouseButtonsDown.contains("right"))
       buttons |= IMGUI_MBUT_RIGHT;
-    if (input_.mouseButtonsDown.contains("middle"))
+    if (editorInput.mouseButtonsDown.contains("middle"))
       buttons |= IMGUI_MBUT_MIDDLE;
     // The bgfx sample wrapper's scroll parameter is a cumulative integer.
     // Demi's platform input is a per-frame float delta, so submit it through
     // ImGui's native queue and keep the legacy wrapper channel fixed at zero.
-    submitEditorImGuiInput(input_);
+    submitEditorImGuiInput(editorInput);
     ImGui::GetIO().AddFocusEvent(frame.focused);
     ImGui::GetIO().DisplayFramebufferScale = {uiScale_, uiScale_};
     imguiBeginFrame(
-        static_cast<std::int32_t>(input_.mousePosition.x / uiScale_),
-        static_cast<std::int32_t>(input_.mousePosition.y / uiScale_), buttons,
+        routed.exclusive ? INT32_MIN : static_cast<std::int32_t>(editorInput.mousePosition.x / uiScale_),
+        routed.exclusive ? INT32_MIN : static_cast<std::int32_t>(editorInput.mousePosition.y / uiScale_), buttons,
         0, static_cast<std::uint16_t>(std::clamp(width(), 1, 65535)),
         static_cast<std::uint16_t>(std::clamp(height(), 1, 65535)), -1,
         ImGuiViewId);
@@ -278,11 +299,12 @@ public:
 
   runtime::InputState gameInput(const EditorViewportArea area,
                                 const bool focused) const override {
-    if (!focused || !platform_->frameState().focused)
+    if (!focused || !platform_->frameState().focused || (exclusiveGame_ && !mouseCaptured_))
       return {};
     runtime::InputState result = input_;
     result.mousePosition.x = result.mousePosition.x / uiScale_ - area.x;
     result.mousePosition.y = result.mousePosition.y / uiScale_ - area.y;
+    if(exclusiveGame_ && mouseCaptured_) result.mousePosition={area.width*.5F,area.height*.5F};
     result.mouseDelta.x /= uiScale_;
     result.mouseDelta.y /= uiScale_;
     return result;
@@ -291,20 +313,30 @@ public:
   std::uint16_t gameTextureIndex() const override {
     return gameRenderer_->textureIndex();
   }
+  bool gamePointerInside(EditorViewportArea area) const override {
+    if(!platform_->frameState().focused || !area.width || !area.height) return false;
+    if(exclusiveGame_ && mouseCaptured_) return true;
+    const auto x=input_.mousePosition.x/uiScale_-area.x;
+    const auto y=input_.mousePosition.y/uiScale_-area.y;
+    return x>=0 && y>=0 && x<area.width && y<area.height;
+  }
 
   float deltaSeconds() const override {
     return platform_ == nullptr ? 0.0F : platform_->frameState().deltaSeconds;
   }
 
   bool setViewportInputCaptured(const bool captured,
-                                std::string &error) override {
+                                std::string &error,bool exclusiveGame,
+                                bool cursorVisible) override {
     const bool effective=captured && platform_->frameState().focused;
-    if (effective == mouseCaptured_)
-      return true;
-    if (!platform_->setMouseCaptured(effective, error))
+    if (effective != mouseCaptured_ && !platform_->setMouseCaptured(effective, error)) {
+      // Keep GUI input quarantined if native capture failed; Ctrl+D can recover.
+      if(effective && exclusiveGame) exclusiveGame_=true;
       return false;
+    }
     mouseCaptured_ = effective;
-    return true;
+    exclusiveGame_ = exclusiveGame && effective;
+    return platform_->setMouseVisible(!effective && (!platform_->frameState().focused || cursorVisible),error);
   }
 
   void endFrame() override {
@@ -366,6 +398,7 @@ private:
             .height = scaled(area.height)};
   }
   float uiScale_ = 1.0F;
+  EditorFontLoader fontLoader_{runtime::render::defaultFontVariations()};
   void shutdownGraphics() {
     viewportRenderer_.reset();
     commands_.reset();
@@ -392,6 +425,8 @@ private:
   std::string workspaceDiagnostic_;
   bool initialized_ = false;
   bool mouseCaptured_ = false;
+  bool exclusiveGame_ = false;
+  EditorInputOwnership inputOwnership_;
 };
 
 } // namespace

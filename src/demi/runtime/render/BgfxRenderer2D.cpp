@@ -1,4 +1,5 @@
 #include "demi/runtime/render/BgfxRenderer2D.h"
+#include "demi/assets/FontAssetSettings.h"
 
 #include "demi/runtime/render/ParticleSystem2D.h"
 #include "demi/runtime/render/backend/RenderAssetLoading.h"
@@ -89,8 +90,11 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
         revision *= 1099511628211ULL;
       }
       std::string error;
+      ui::FontVariations variations;
+      try { variations=assets::fontAssetVariations(asset); }
+      catch(const std::exception &e) {diagnostics.push_back(asset.id+": "+e.what());success=false;continue;}
       if (bytes.empty() ||
-          !font_.addFallback(asset.id, bytes, revision, error)) {
+          !font_.addFallback(asset.id, bytes, revision, error,variations)) {
         diagnostics.push_back(
             asset.id + ": " +
             (error.empty() ? "could not read source" : error));

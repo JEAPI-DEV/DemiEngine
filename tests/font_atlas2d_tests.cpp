@@ -1,5 +1,6 @@
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/render/backend/FontAtlas2D.h"
+#include "demi/runtime/render/backend/DefaultFont.h"
 #include "demi/runtime/ui/TextLayoutEngine.h"
 
 #include <cassert>
@@ -45,6 +46,9 @@ int main() {
 
   assert(!font.initialize({}, 32.0F, error));
   assert(font.initializeBuiltin(32.0F, error));
+  assert(font.fonts().font(0)->id == "default-inter");
+  assert(!font.fonts().font(0)->pixelated);
+  assert(font.fonts().font(0)->variations.at("wght")==500);
   assert(font.texture());
   const TextMetrics2D oneLine = font.measure("Hello", 1.0F);
   const TextMetrics2D twoLines = font.measure("Hello\nworld", 2.0F);
@@ -118,7 +122,14 @@ int main() {
   assert(canvas.initialize(error));
   assert(canvas.begin(0, 320, 180, 0, error));
   assert(font.draw(canvas, selectedFont, 4.0F, 18.0F, 0xffffffffU));
-  assert(font.pageCount() >= 2);
+  // Inter and explicitly selected smooth fonts can share one atlas page.
+  assert(font.pageCount() == 1);
+  const auto previousGlyphs=font.glyphCount();
+  assert(font.addFallback("inter-bold",defaultFontData(),1,error,{{"wght",700}}));
+  const auto bold=font.shape("M",1,demi::runtime::ui::TextDirection::Auto,{},"inter-bold");
+  assert(bold.runs.front().glyphs.front().fontIndex==2);
+  assert(font.draw(canvas,bold,4,18,0xffffffffU));
+  assert(font.glyphCount()>previousGlyphs); // Same glyph, distinct variation face.
   assert(font.draw(canvas, "ASCII and UTF-8: \xc3\xa9", 4.0F, 36.0F,
                    0xffffffffU));
   assert(font.draw(canvas, font.shape("Scaled", 2.0F), 4.0F, 72.0F,

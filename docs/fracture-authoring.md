@@ -136,6 +136,23 @@ transport, not normal authoring fields.
 
 ## Current limits
 
+Component-authored meshes with multiple pieces now retain their source renderer
+while all their pieces share one body. Their generated outer and interior
+surfaces remain deferred until the source splits across bodies. The source
+entity keeps its identity and gameplay components when its intact renderer is
+removed. A standalone assembly/mesh gets an internal `root-id/intact` visual;
+that ID must not collide with an authored entity.
+
+Nested prefabs and overrides use this activation path too. Rejected splits do
+not publish shard entities; checkpoint restoration refines only affected
+sources. This does not change template-cache eligibility, unload cold geometry,
+or add further subdivision after the first source-level refinement. Legacy
+top-level fracture recipes and custom masonry models still use eager visuals.
+
+Intact models use the authored renderer; generated shards retain the existing
+fracture material/normal limitations below. This change does not establish
+appearance parity for embedded materials or smooth shading.
+
 Box primitives, inline triangle meshes and closed convex static glTF/GLB geometry
 are supported. Open, concave, skinned and overly complex inputs fail explicitly.
 Seeded convex plane bisection generates closed interior faces and contact-derived

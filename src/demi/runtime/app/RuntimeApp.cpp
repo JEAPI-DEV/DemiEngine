@@ -859,11 +859,13 @@ int runProject(const RuntimeOptions &options) {
           std::cerr << "Window mode update failed: " << modeError << '\n';
         luaHost.clearWindowModeDirty();
       }
-      if (luaHost.mouseCapturedDirty()) {
+      if (luaHost.cursorStateDirty()) {
         std::string captureError;
         if (!appHost.setMouseCaptured(luaHost.mouseCaptured(), captureError))
           std::cerr << "Mouse capture update failed: " << captureError << '\n';
-        luaHost.clearMouseCapturedDirty();
+        if (!appHost.setMouseVisible(luaHost.mouseVisible(), captureError))
+          std::cerr << "Mouse visibility update failed: " << captureError << '\n';
+        luaHost.clearCursorStateDirty();
       }
 
       const auto renderStart = std::chrono::steady_clock::now();
@@ -1134,11 +1136,13 @@ int runProject(const RuntimeOptions &options) {
           std::cerr << "Window mode update failed: " << modeError << '\n';
         luaHost.clearWindowModeDirty();
       }
-      if (luaHost.mouseCapturedDirty()) {
+      if (luaHost.cursorStateDirty()) {
         std::string captureError;
         if (!appHost.setMouseCaptured(luaHost.mouseCaptured(), captureError))
           std::cerr << "Mouse capture update failed: " << captureError << '\n';
-        luaHost.clearMouseCapturedDirty();
+        if (!appHost.setMouseVisible(luaHost.mouseVisible(), captureError))
+          std::cerr << "Mouse visibility update failed: " << captureError << '\n';
+        luaHost.clearCursorStateDirty();
       }
 
       std::vector<render::BgfxCameraFrame3D> cameraFrames;

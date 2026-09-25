@@ -16,6 +16,7 @@ namespace demi::editor {
 bool EditorPlaySession::mouseCaptured() const {
   return embedded_ && embedded_->mouseCaptured();
 }
+bool EditorPlaySession::mouseVisible() const {return !embedded_ || embedded_->mouseVisible();}
 void EditorPlaySession::releaseMouseCapture() {
   if (embedded_) embedded_->releaseMouseCapture();
 }

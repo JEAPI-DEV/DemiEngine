@@ -38,6 +38,7 @@ public:
   [[nodiscard]] bool isPaused() const;
   [[nodiscard]] bool quitRequested() const;
   [[nodiscard]] bool mouseCaptured() const;
+  [[nodiscard]] bool mouseVisible() const;
   void releaseMouseCapture();
   [[nodiscard]] const World *world() const;
   [[nodiscard]] World *world();

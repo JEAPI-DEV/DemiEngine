@@ -195,7 +195,8 @@ endforeach()
 
 add_library(demi-graphics-bgfx STATIC
   ${DEMI_BGFX_BUILTIN_SHADER_HEADERS}
-  "${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/DefaultPixelFont.h"
+  "${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/InterFontData.h"
+  src/demi/runtime/render/backend/DefaultFont.cpp
   src/demi/runtime/render/backend/GraphicsDevice.cpp
   src/demi/runtime/render/backend/BgfxGraphicsDevice.cpp
   src/demi/runtime/render/backend/BgfxProfileCallback.cpp
@@ -205,6 +206,7 @@ add_library(demi-graphics-bgfx STATIC
   src/demi/runtime/render/backend/CookedShaderLibrary.cpp
   src/demi/runtime/render/backend/Canvas2D.cpp
   src/demi/runtime/render/backend/FontAtlas2D.cpp
+  src/demi/runtime/render/backend/StbFontCompatibility.cpp
   src/demi/runtime/render/backend/GifDecoder2D.cpp
   src/demi/runtime/render/backend/ImageDecoder2D.cpp
   src/demi/runtime/render/backend/ImageMipmaps2D.cpp
@@ -214,14 +216,14 @@ add_library(demi-graphics-bgfx STATIC
 )
 add_custom_command(
   OUTPUT
-    "${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/DefaultPixelFont.h"
+    "${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/InterFontData.h"
   COMMAND "${CMAKE_COMMAND}"
-    -DINPUT=${CMAKE_SOURCE_DIR}/fonts/Pixelify_Sans/static/PixelifySans-Regular.ttf
-    -DOUTPUT=${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/DefaultPixelFont.h
-    -DSYMBOL=DefaultPixelFontData
+    -DINPUT=${CMAKE_SOURCE_DIR}/fonts/Inter/Inter-VariableFont_opsz,wght.ttf
+    -DOUTPUT=${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/InterFontData.h
+    -DSYMBOL=InterFontData
     -P "${CMAKE_SOURCE_DIR}/cmake/EmbedBinary.cmake"
   DEPENDS
-    "${CMAKE_SOURCE_DIR}/fonts/Pixelify_Sans/static/PixelifySans-Regular.ttf"
+    "${CMAKE_SOURCE_DIR}/fonts/Inter/Inter-VariableFont_opsz,wght.ttf"
     "${CMAKE_SOURCE_DIR}/cmake/EmbedBinary.cmake"
   VERBATIM)
 target_include_directories(demi-graphics-bgfx PUBLIC src)

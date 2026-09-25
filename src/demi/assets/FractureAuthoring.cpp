@@ -170,6 +170,40 @@ J compileEntityFractures(const std::filesystem::path &project,
           "mass", double(runtime::Rigidbody3DComponent{}.mass));
     const auto generatedData = compileFracturePrefab(project, inputs, settings);
     auto compiled = generatedData["entities"];
+    std::map<std::string, std::size_t> sourceLeafCounts;
+    for (const auto &generated : compiled) {
+      if (generated.at("id") != "body")
+        continue;
+      for (const auto &[part, visual] :
+           generated.at("components").at("Destructible3D").at("parts").items())
+        ++sourceLeafCounts[generatedData.at("generation").at("sources")
+                               .at(visual.get<std::string>()).get<std::string>()];
+    }
+    std::map<std::string, std::string> sourceRegions, regionSources;
+    std::map<std::string, J> intactSources;
+    for (const auto &[sourceLocal, count] : sourceLeafCounts) {
+      const auto sourceId = instancePrefix.empty()
+                                ? sourceLocal
+                                : instancePrefix + "/" + sourceLocal;
+      if (count < 2 || generatedIds.contains(sourceId))
+        continue;
+      const auto region = sourceId == rootId ? rootId + "/intact" : sourceId;
+      require(region == sourceId || !indices.contains(region),
+              "Intact fracture visual ID collision: " + region);
+      sourceRegions[sourceId] = region;
+      regionSources[region] = sourceId;
+      J intact = entities[indices.at(sourceId)];
+      if (sourceId == rootId) {
+        intact = {{"id", region},
+                  {"components",
+                   {{"MeshRenderer", intact["components"]["MeshRenderer"]}}}};
+        for (const char *field : {"enabled", "layer", "persistent"})
+          if (entities[rootIndex].contains(field))
+            intact[field] = entities[rootIndex][field];
+      }
+      intact["components"].erase("Fracture3D");
+      intactSources[region] = std::move(intact);
+    }
     std::map<std::string, std::string> remap{{"body", rootId}};
     for (const auto &generated : compiled) {
       const auto id = generated["id"].get<std::string>();
@@ -257,11 +291,19 @@ J compileEntityFractures(const std::filesystem::path &project,
         generated["layer"] = source["layer"];
       if (!source.value("enabled", true))
         generated["enabled"] = false;
-      const auto region=parent(source);
-      if(generatedIds.contains(sourceId) && masonryRegions.contains(region)) {
-        if(!deferred.contains(region))deferred[region]=J::array();
+      const auto region = parent(source);
+      if (sourceRegions.contains(sourceId)) {
+        const auto &sourceRegion = sourceRegions.at(sourceId);
+        if (!deferred.contains(sourceRegion))
+          deferred[sourceRegion] = J::array();
+        deferred[sourceRegion].push_back(std::move(generated));
+      } else if (generatedIds.contains(sourceId) &&
+                 masonryRegions.contains(region)) {
+        if (!deferred.contains(region))
+          deferred[region] = J::array();
         deferred[region].push_back(std::move(generated));
-      } else output.push_back(std::move(generated));
+      } else
+        output.push_back(std::move(generated));
     }
     if(!deferred.empty()) {
       // Cook one intact regional surface and retain leaf descriptions as cold
@@ -273,19 +315,32 @@ J compileEntityFractures(const std::filesystem::path &project,
         require(bool(entity),error);
         localWorld.entities.push_back(std::move(*entity));
       }
-      for(const auto &[region,templates]:deferred.items()) {
-        auto intact=masonryIntactVisual(masonryRegions.at(region));
-        const auto local=std::ranges::find(localWorld.entities,localId(region),&runtime::Entity::id);
-        require(local!=localWorld.entities.end(),"Missing masonry region transform");
-        const auto pose=runtime::resolveWorldTransform3D(localWorld,*local);
-        require(bool(pose),"Invalid masonry region transform");
-        intact["components"]["Transform3D"]={{"parent",rootId},
-          {"position",{pose->position.x,pose->position.y,pose->position.z}},
-          {"rotation",{pose->rotation.x,pose->rotation.y,pose->rotation.z}},
-          {"scale",{pose->scale.x,pose->scale.y,pose->scale.z}}};
-        output[indices.at(region)]=std::move(intact);
+      for (const auto &[region, templates] : deferred.items()) {
+        auto intact = intactSources.contains(region)
+                          ? intactSources.at(region)
+                          : masonryIntactVisual(masonryRegions.at(region));
+        const auto source =
+            regionSources.contains(region) ? regionSources.at(region) : region;
+        const auto local = std::ranges::find(
+            localWorld.entities, localId(source), &runtime::Entity::id);
+        require(local != localWorld.entities.end(),
+                "Missing deferred source transform");
+        const auto pose = runtime::resolveWorldTransform3D(localWorld, *local);
+        require(bool(pose), "Invalid deferred source transform");
+        intact["components"]["Transform3D"] = {
+            {"parent", rootId},
+            {"position",
+             {pose->position.x, pose->position.y, pose->position.z}},
+            {"rotation",
+             {pose->rotation.x, pose->rotation.y, pose->rotation.z}},
+            {"scale", {pose->scale.x, pose->scale.y, pose->scale.z}}};
+        if (indices.contains(region))
+          output[indices.at(region)] = std::move(intact);
+        else
+          output.push_back(std::move(intact));
       }
-      output[rootIndex]["components"]["Destructible3D"]["deferred_visuals"]=std::move(deferred);
+      output[rootIndex]["components"]["Destructible3D"]["deferred_visuals"] =
+          std::move(deferred);
     }
   }
   std::erase_if(output.get_ref<J::array_t &>(), [&](const J &entity) {

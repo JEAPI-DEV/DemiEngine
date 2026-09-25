@@ -5,6 +5,11 @@ existing project, scene, component, source, and validation contracts.
 
 ## Authoring and input
 
+The editor uses Inter Medium (weight 500), selected at runtime from the bundled
+variable font through the shared FreeType rasterizer used by game text.
+UI scaling still controls its displayed size. Explicit project `Font2D` choices
+remain unchanged.
+
 The Assets **Create** menu creates 2D/3D scenes, HUDs, entity prefabs, UI prefabs,
 Lua components, materials, and data assets. Materials and data assets are
 registered through the shared asset importer and open in their specialized
@@ -21,6 +26,29 @@ game input; click Game View to resume. Switching away or losing window focus
 releases capture. Runtime Inspector values are read-only; stop Play to author.
 Focus and Ctrl+D suspend host capture without clearing the game's requested
 mouse mode, so returning to Game View can resume relative mouse input.
+While the game owns relative capture, editor panels receive no pointer, wheel,
+text, or gameplay-key input. Ctrl+D remains available. Held buttons/keys must be
+released before they can interact with editor controls after capture ends.
+The game receives relative motion and a logical pointer at the Game View center.
+Scene View navigation uses its own input path and is not muted by this policy.
+
+Scripts use the existing `demi.application` service:
+
+```lua
+local Application = require("demi.application")
+Application.set_mouse_captured(true) -- Relative camera input; cursor is hidden.
+
+-- Open a pointer-driven menu:
+Application.set_mouse_captured(false)
+Application.set_mouse_visible(true)
+```
+
+`set_mouse_visible(false)` can hide an uncaptured cursor for a custom pointer.
+`mouse_captured()` and `mouse_visible()` report script requests; relative capture
+always hides the native cursor. The editor overrides these requests when input
+is detached, Play is paused/stopped, or the window loses focus. Uncaptured cursor
+hiding applies only over Game View, not over the surrounding editor panels.
+Both capture and visibility also work in standalone 2D and 3D runs.
 The scene Viewport does not draw the gameplay HUD; use HUD authoring or Game
 View for it. Procedural terrain created by gameplay scripts appears during Play,
 not in the authored scene Viewport.

@@ -102,9 +102,11 @@ render-resource overhead; the full surface detail and support graph remain in
 memory. It is not a large-map frame-rate qualification.
 
 This is a two-level visual hierarchy over Blast's support partition. Arbitrary
-source-model fracture, custom `Masonry3D.models`, deeper spatial refinement and
-on-demand loading of fracture metadata remain open. Those paths retain their
-existing eager visuals.
+custom `Masonry3D.models`, deeper spatial refinement and on-demand loading of
+fracture metadata remain open. Custom masonry models retain eager visuals.
+Component-authored multi-piece source meshes now have a similar intact-to-shard
+transition, including deferred interior surfaces; see
+[fracture authoring](fracture-authoring.md). Legacy recipe visuals remain eager.
 
 ## Proximity and lifetime policy
 

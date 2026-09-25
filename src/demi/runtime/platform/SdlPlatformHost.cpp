@@ -551,6 +551,12 @@ public:
     return false;
   }
 
+  bool setMouseVisible(bool visible,std::string &error) override {
+    visible=visible && !SDL_GetWindowRelativeMouseMode(window_);
+    if(visible?SDL_ShowCursor():SDL_HideCursor()) return true;
+    error=SDL_GetError();return false;
+  }
+
   bool requestFrameRate(const float framesPerSecond) override {
 #if defined(__ANDROID__)
     return requestAndroidFrameRate(std::max(framesPerSecond, 0.0F));

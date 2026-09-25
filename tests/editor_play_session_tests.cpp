@@ -44,8 +44,15 @@ int main() {
     assert(session.state() == demi::editor::EditorPlayState::Running);
     assert(session.executeLuaConsole("require('demi.application').set_mouse_captured(true)").succeeded);
     assert(session.mouseCaptured());
+    assert(session.executeLuaConsole("require('demi.application').set_mouse_visible(false)").succeeded);
+    assert(!session.mouseVisible() && session.mouseCaptured());
     session.releaseMouseCapture();
     assert(!session.mouseCaptured());
+    assert(!session.mouseVisible());
+    assert(session.executeLuaConsole("require('demi.application').set_mouse_visible(true)").succeeded);
+    assert(session.mouseVisible() && !session.mouseCaptured());
+    const auto visible=session.executeLuaConsole("require('demi.application').mouse_visible()");
+    assert(visible.succeeded && visible.values.front()=="true");
     assert(session.runtimeWorld() != nullptr);
     const auto console = session.executeLuaConsole("1 + 2");
     assert(console.succeeded && console.values.size() == 1 &&

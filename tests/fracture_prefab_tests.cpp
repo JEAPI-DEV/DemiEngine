@@ -113,8 +113,119 @@ void importedModel(const std::filesystem::path &root) {
         "Open imported mesh was silently approximated");
 }
 
+void lazyImportedSources(const std::filesystem::path &root) {
+  std::filesystem::create_directories(root);
+  writeTetraGlb(root / "tetra.glb", true);
+  const auto imported = assets::importAsset({.projectDirectory = root,
+                                             .source = root / "tetra.glb",
+                                             .id = "asset://tetra"});
+  check(!hasErrors(imported.diagnostics), "Lazy source import failed");
+  write(root / "prefabs/solid.prefab.json",
+        J::parse(R"({"format_version":1,"id":"prefab://solid","entities":[
+    {"id":"solid","components":{"Transform3D":{"position":[0,2,0]},
+    "MeshRenderer":{"model":"asset://tetra","size":[1,1,1],"color":[0.5,0.5,0.5,1]},"Destructible3D":{},
+    "Fracture3D":{"pieces":4,"anchor_below":0.001}}}]})"));
+  write(root / "prefabs/nested.prefab.json",
+        J::parse(R"({"format_version":1,"id":"prefab://nested","entities":[
+    {"id":"n","prefab":"prefab://solid","overrides":{"solid.Transform3D.position":[5,2,0]}}]})"));
+  write(root / "demi.project.json",
+        {{"format_version", 1},
+         {"name", "Lazy models"},
+         {"main_scene", "scene://test/main"},
+         {"scenes", {{{"id", "scene://test/main"}}}}});
+  write(
+      root / "scenes/main.scene.json",
+      J::parse(
+          R"({"format_version":1,"id":"scene://test/main","entities":[],"instances":[
+    {"id":"a","prefab":"prefab://solid"},{"id":"b","prefab":"prefab://nested"}]})"));
+  std::string error;
+  auto loaded = loadProject(root / "demi.project.json", error);
+  check(bool(loaded), error);
+  auto &world = loaded->world;
+  check(world.entities.size() == 4,
+        "Intact imported sources allocated live shards");
+  check(findEntity(world, "a/solid/intact")
+                ->component<MeshRendererComponent>()
+                ->model == "asset://tetra",
+        "Intact source lost its model");
+  check(findEntity(world, "b/n/solid")
+                ->component<Transform3DComponent>()
+                ->position.x == 5,
+        "Nested source override was lost");
+  const auto mapping =
+      findEntity(world, "a/solid")->component<Destructible3DComponent>()->parts;
+  const auto templates = *findEntity(world, "a/solid")
+                              ->component<Destructible3DComponent>()
+                              ->deferredVisuals;
+  check(templates.at("a/solid/intact").size() > mapping.size(),
+        "Interior surfaces are not in the deferred templates");
+  auto &physics = ensurePhysicsWorld3D(world);
+  physics.step(world, 1.F / 60, {});
+  check(world.destruction3D->state("a/solid").status == "ready",
+        world.destruction3D->state("a/solid").error);
+  findEntity(world, "a/solid")
+      ->component<Destructible3DComponent>()
+      ->maxBodies = 1;
+  check(world.destruction3D->damagePart("a/solid", mapping.begin()->first, 100,
+                                        error),
+        error);
+  physics.step(world, 1.F / 60, {});
+  check(world.destruction3D->state("a/solid").status == "failed" &&
+            world.entities.size() == 4,
+        "Rejected source split leaked shard entities");
+  findEntity(world, "a/solid")
+      ->component<Destructible3DComponent>()
+      ->maxBodies = 64;
+  check(world.destruction3D->damagePart("a/solid", mapping.begin()->first, 100,
+                                        error),
+        error);
+  physics.step(world, 1.F / 60, {});
+  check(world.destruction3D->state("a/solid").status == "applied",
+        world.destruction3D->state("a/solid").error);
+  check(!findEntity(world, "a/solid/intact")
+             ->hasComponent<MeshRendererComponent>(),
+        "Broken source was still drawn intact");
+  check(findEntity(world, "b/n/solid/intact")
+            ->hasComponent<MeshRendererComponent>(),
+        "Untouched nested source was expanded");
+  for (const auto &item : templates.at("a/solid/intact")) {
+    const auto *visual = findEntity(world, item.at("id").get<std::string>());
+    check(visual && visual->hasComponent<MeshRendererComponent>(),
+          "Missing exterior/interior shard surface");
+    const auto originalParent =
+        item.at("components").at("Transform3D").at("parent").get<std::string>();
+    if (originalParent != "a/solid")
+      check(visual->component<Transform3DComponent>()->parent == originalParent,
+            "Interior surface lost its owning shard");
+  }
+  const auto saved = world.destruction3D->checkpoint(world, "a/solid", error);
+  check(!saved.is_null(), error);
+  auto restored = loadProject(root / "demi.project.json", error);
+  check(bool(restored), error);
+  auto &native = ensurePhysicsWorld3D(restored->world);
+  native.step(restored->world, 1.F / 60, {});
+  check(restored->world.destruction3D->restore("a/solid", saved, error), error);
+  native.step(restored->world, 1.F / 60, {});
+  check(restored->world.destruction3D->state("a/solid").status == "applied",
+        restored->world.destruction3D->state("a/solid").error);
+  check(findEntity(restored->world, "b/n/solid/intact")
+            ->hasComponent<MeshRendererComponent>(),
+        "Restore expanded unrelated source");
+  const auto cooked = root / "build/cooked";
+  check(
+      !hasErrors(assets::cookProject({.projectFile = root / "demi.project.json",
+                                      .outputDirectory = cooked,
+                                      .platform = "linux"})),
+      "Lazy model cook failed");
+  auto shipping = loadProject(cooked / "demi.project.json", error);
+  check(bool(shipping), error);
+  check(shipping->world.entities.size() == 4,
+        "Cooked lazy models expanded eagerly");
+}
+
 void componentAuthoring(const std::filesystem::path &root) {
-  const auto prefab = J::parse(R"({"format_version":1,"id":"prefab://wall","entities":[
+  const auto prefab =
+      J::parse(R"({"format_version":1,"id":"prefab://wall","entities":[
     {"id":"wall","components":{"Transform3D":{"position":[3,0,0]},"Destructible3D":{"energy_per_health":2500},
       "Rigidbody3D":{"body_type":"static","mass":50,"friction":0.7}},"children":[
       {"id":"block","components":{"Transform3D":{"position":[0,2,0]},
@@ -150,8 +261,9 @@ void componentAuthoring(const std::filesystem::path &root) {
         "Fracture compilation lost the authored energy scale");
   check((*baked.document)["entities"][1]["id"] == "block" &&
         (*baked.document)["entities"][1]["components"].contains("GameplayData") &&
-        !(*baked.document)["entities"][1]["components"].contains("MeshRenderer"),
-        "Source identity/behavior lost or source mesh rendered twice");
+        (*baked.document)["entities"][1]["components"].contains("MeshRenderer") &&
+        (*baked.document)["entities"].size()==2,
+        "Intact source identity/behavior lost or live shards were created");
   std::string error;
   auto loaded = loadProject(root / "demi.project.json", error);
   check(bool(loaded), error);
@@ -169,6 +281,8 @@ void componentAuthoring(const std::filesystem::path &root) {
   physics.step(world, 1.0F/60);
   check(world.destruction3D->state("a/wall").revision == 1 && world.destruction3D->state("b/wall").revision == 0,
         "Component instances shared damage or failed to split");
+  check(!findEntity(world,"a/block")->hasComponent<MeshRendererComponent>() &&
+        findEntity(world,"b/block")->hasComponent<MeshRendererComponent>(),"Source visual transition affected the wrong instance");
   {
     editor::EditorWorkspace workspace;
     check(workspace.open(root / "demi.project.json", error), error);
@@ -575,6 +689,7 @@ int main() {
   try {
     test(root);
     componentAuthoring(root / "components");
+    lazyImportedSources(root / "lazy-models");
     densityAuthoring(root / "components");
     masonryStreamingAuthoring(root / "masonry");
   } catch (const std::exception &e) {

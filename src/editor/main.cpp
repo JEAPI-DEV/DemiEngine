@@ -161,7 +161,11 @@ int main(const int argc, char **argv) {
       if (!advanced)
         shell.setNotice("Play session failed: " + error);
     }
-    if (!ui->setViewportInputCaptured(shell.viewportInputCaptured(), error)) {
+    const bool gameOwnsPointer=shell.showingGameView() && shell.gameViewFocused() && shell.playSession().isEmbedded();
+    const bool overGame=ui->gamePointerInside(shell.gameArea());
+    if (!ui->setViewportInputCaptured(shell.viewportInputCaptured(), error,
+        gameOwnsPointer && shell.playSession().mouseCaptured(),
+        !gameOwnsPointer || !overGame || shell.playSession().mouseVisible())) {
       shell.setNotice("Viewport input capture failed: " + error);
     }
     bool rendered = true;

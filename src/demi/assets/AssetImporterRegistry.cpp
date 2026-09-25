@@ -190,7 +190,9 @@ AssetImporterRegistry createBuiltinImporterRegistry() {
   add(descriptor("svg", {".svg"}, {"Icon2D", "SvgTexture2D"}));
   add(descriptor("gif", {".gif"}, {"GifAnimation2D"}));
   add(descriptor("audio", {".wav", ".ogg", ".mp3", ".flac"}, {"AudioClip"}));
-  add(descriptor("font", {".ttf", ".otf"}, {"Font2D", "FontAtlas2D"}));
+  auto font=descriptor("font", {".ttf", ".otf"}, {"Font2D", "FontAtlas2D"});
+  font.settingsSchema=R"({"type":"object","properties":{"variations":{"type":"object","propertyNames":{"minLength":4,"maxLength":4},"additionalProperties":{"type":"number"}}}})";
+  add(std::move(font));
   add(descriptor("gltf-model", {".gltf", ".glb"}, {"Model3D"}));
   add(descriptor("collider-generator", {".gltf", ".glb"}, {"Collider3D"}));
   add(descriptor("model", {".obj", ".iqm", ".m3d"}, {"Model3D"}));

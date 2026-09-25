@@ -575,9 +575,11 @@ public:
   void setMaxFps(int maxFps);
   [[nodiscard]] int maxFps() const;
   void setMouseCaptured(bool captured);
+  void setMouseVisible(bool visible);
+  [[nodiscard]] bool mouseVisible() const;
   [[nodiscard]] bool mouseCaptured() const;
-  [[nodiscard]] bool mouseCapturedDirty() const;
-  void clearMouseCapturedDirty();
+  [[nodiscard]] bool cursorStateDirty() const;
+  void clearCursorStateDirty();
   void setPhysicsEnabled(bool enabled);
   [[nodiscard]] bool physicsEnabled() const;
   void setHotReloadEnabled(bool enabled);
@@ -736,7 +738,8 @@ private:
   bool windowModeDirty_ = false;
   int maxFps_ = 0;
   bool mouseCaptured_ = false;
-  bool mouseCapturedDirty_ = false;
+  bool mouseVisible_ = true;
+  bool cursorStateDirty_ = false;
   bool physicsEnabled_ = true;
   bool paused_ = false;
   float timeScale_ = 1.0F;

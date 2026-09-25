@@ -2,12 +2,14 @@
 add_library(demi-core STATIC
   # Shared instrumentation must be usable without linking the application loop.
   src/demi/runtime/profiling/RuntimeProfiler.cpp
+  src/demi/runtime/ui/FontRasterizer.cpp
   src/demi/runtime/geometry/MeshDeformation3D.cpp
   src/demi/runtime/geometry/MeshRefinement3D.cpp
   src/demi/runtime/geometry/MeshImpact3D.cpp
   src/demi/capabilities/CapabilityManifest.cpp
   src/demi/capabilities/PlatformCapabilities.cpp
   src/demi/assets/AssetRegistry.cpp
+  src/demi/assets/FontAssetSettings.cpp
   src/demi/assets/AssetHash.cpp
   src/demi/assets/DataAsset.cpp
   src/demi/assets/DataDocument.cpp
@@ -104,7 +106,7 @@ target_include_directories(demi-core PRIVATE
 
 target_compile_features(demi-core PUBLIC cxx_std_20)
 target_link_libraries(demi-core PUBLIC nlohmann_json::nlohmann_json box2d
-  utf8proc harfbuzz SheenBidi::SheenBidi mbedcrypto bimg_decode bimg
+  utf8proc harfbuzz freetype SheenBidi::SheenBidi mbedcrypto bimg_decode bimg
   yaml-cpp::yaml-cpp)
 set(DEMI_HOST_SHADERC "" CACHE FILEPATH
   "Existing host shaderc executable to reuse instead of building shaderc")

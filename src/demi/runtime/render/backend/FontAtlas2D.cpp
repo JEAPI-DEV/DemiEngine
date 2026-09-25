@@ -1,9 +1,7 @@
 #include "demi/runtime/render/backend/FontAtlas2D.h"
 
-#include "demi/runtime/render/DefaultPixelFont.h"
+#include "demi/runtime/render/backend/DefaultFont.h"
 
-#define STB_TRUETYPE_IMPLEMENTATION
-#include <stb_truetype.h>
 
 #include <algorithm>
 #include <cmath>
@@ -27,13 +25,13 @@ bool FontAtlas2D::initializeResolver(std::string id,
                                      const std::span<const std::byte> ttfData,
                                      const float pixelHeight,
                                      const bool pixelated,
-                                     std::string &error) {
+                                     std::string &error, const ui::FontVariations &variations) {
   if (!std::isfinite(pixelHeight) || pixelHeight <= 0.0F) {
     error = "Font atlas requires a positive finite pixel height.";
     return false;
   }
   shutdown();
-  if (!fonts_.add(std::move(id), ttfData, 1, error, pixelated))
+  if (!fonts_.add(std::move(id), ttfData, 1, error, pixelated, variations))
     return false;
   pixelHeight_ = pixelHeight;
   if (!createPage(pixelated, error)) {
@@ -54,9 +52,8 @@ bool FontAtlas2D::initializeResolver(std::string id,
 
 bool FontAtlas2D::initializeDefault(const float pixelHeight,
                                     std::string &error) {
-  return initializeResolver("default-pixel",
-                            std::as_bytes(std::span(DefaultPixelFontData)),
-                            pixelHeight, true, error);
+  return initializeResolver("default-inter", defaultFontData(),
+                            pixelHeight, false, error, defaultFontVariations());
 }
 
 bool FontAtlas2D::initializeBuiltin(const float pixelHeight,
@@ -67,8 +64,8 @@ bool FontAtlas2D::initializeBuiltin(const float pixelHeight,
 bool FontAtlas2D::addFallback(std::string id,
                               const std::span<const std::byte> ttfData,
                               const std::uint64_t revision,
-                              std::string &error) {
-  return fonts_.add(std::move(id), ttfData, revision, error, false);
+                              std::string &error, const ui::FontVariations &variations) {
+  return fonts_.add(std::move(id), ttfData, revision, error, false, variations);
 }
 
 bool FontAtlas2D::setMaxPages(const std::size_t value, std::string &error) {
@@ -82,6 +79,7 @@ bool FontAtlas2D::setMaxPages(const std::size_t value, std::string &error) {
 }
 
 void FontAtlas2D::shutdown() {
+  rasterizers_.clear();
   for (const auto &page : pages_)
     if (page.texture)
       resources_.destroy(page.texture);
@@ -128,24 +126,19 @@ FontAtlas2D::ensureGlyph(const std::size_t fontIndex,
     error = "Shaped glyph refers to an unavailable fallback font.";
     return nullptr;
   }
-  stbtt_fontinfo info{};
-  const auto *bytes = reinterpret_cast<const unsigned char *>(face->data->data());
-  if (!stbtt_InitFont(&info, bytes, stbtt_GetFontOffsetForIndex(bytes, 0))) {
-    error = "Fallback font data became invalid while building its atlas.";
-    return nullptr;
+  auto &rasterizer=rasterizers_[fontIndex];
+  if(!rasterizer) {
+    auto candidate=std::make_unique<ui::FontRasterizer>();
+    if(!candidate->open(*face->data,face->variations,error)) return nullptr;
+    rasterizer=std::move(candidate);
   }
-  const float rasterScale = stbtt_ScaleForPixelHeight(&info, pixelHeight_);
-  int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
-  stbtt_GetGlyphBitmapBox(&info, static_cast<int>(glyphId), rasterScale,
-                          rasterScale, &x0, &y0, &x1, &y1);
-  int advance = 0, bearing = 0;
-  stbtt_GetGlyphHMetrics(&info, static_cast<int>(glyphId), &advance, &bearing);
-  const std::uint16_t width = static_cast<std::uint16_t>(std::max(x1 - x0, 0));
-  const std::uint16_t height = static_cast<std::uint16_t>(std::max(y1 - y0, 0));
-  if (width + 2U >= AtlasSize || height + 2U >= AtlasSize) {
+  ui::RasterizedGlyph bitmap;
+  if(!rasterizer->rasterize(glyphId,pixelHeight_,bitmap,error)) return nullptr;
+  if (bitmap.width + 2 >= AtlasSize || bitmap.height + 2 >= AtlasSize) {
     error = "A rasterized font glyph exceeds the atlas page size.";
     return nullptr;
   }
+  const auto width=static_cast<std::uint16_t>(bitmap.width),height=static_cast<std::uint16_t>(bitmap.height);
   std::size_t pageIndex = pages_.size();
   for (std::size_t offset = 0; offset < pages_.size(); ++offset) {
     const std::size_t candidateIndex = pages_.size() - offset - 1;
@@ -180,9 +173,7 @@ FontAtlas2D::ensureGlyph(const std::size_t fontIndex,
   page->rowHeight = std::max(page->rowHeight, height);
 
   if (width > 0 && height > 0) {
-    std::vector<unsigned char> alpha(static_cast<std::size_t>(width) * height);
-    stbtt_MakeGlyphBitmap(&info, alpha.data(), width, height, width, rasterScale,
-                          rasterScale, static_cast<int>(glyphId));
+    const auto &alpha=bitmap.coverage;
     std::vector<std::byte> rgba(alpha.size() * 4U);
     for (std::size_t index = 0; index < alpha.size(); ++index) {
       const unsigned char coverage =
@@ -209,9 +200,9 @@ FontAtlas2D::ensureGlyph(const std::size_t fontIndex,
                  .y0 = atlasY / static_cast<float>(AtlasSize),
                  .x1 = (atlasX + width) / static_cast<float>(AtlasSize),
                  .y1 = (atlasY + height) / static_cast<float>(AtlasSize),
-                 .xOffset = static_cast<float>(x0),
-                 .yOffset = static_cast<float>(y0),
-                 .advance = advance * rasterScale,
+                 .xOffset = static_cast<float>(bitmap.left),
+                 .yOffset = static_cast<float>(bitmap.top),
+                 .advance = bitmap.advance,
                  .width = static_cast<float>(width),
                  .height = static_cast<float>(height)});
   return &inserted->second;

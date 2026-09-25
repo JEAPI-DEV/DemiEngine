@@ -21,6 +21,16 @@ void DeferredFractureVisuals3D::configure(
   for (const auto &[part, id] : config.parts)
     mapped.insert(id);
   for (const auto &[region, items] : templates_->items()) {
+    std::map<std::string, std::string> parents;
+    for (const auto &item : items) {
+      const auto id = item.at("id").get<std::string>();
+      if (!parents
+               .emplace(
+                   id,
+                   item.at("components").at("Transform3D").value("parent", ""))
+               .second)
+        throw std::runtime_error("Duplicate deferred visual: " + id);
+    }
     const auto *intact = findEntity(world, region);
     const auto *pose =
         intact ? intact->component<Transform3DComponent>() : nullptr;
@@ -31,11 +41,24 @@ void DeferredFractureVisuals3D::configure(
     for (const auto &item : items) {
       const auto id = item.at("id").get<std::string>();
       const auto &c = item.at("components");
-      if (!mapped.contains(id) || findEntity(world, id) ||
-          !c.contains("MeshRenderer") || !c.contains("Transform3D") ||
-          c["Transform3D"].value("parent", "") != root.id ||
-          item.value("persistent", false))
+      if (findEntity(world, id) || !c.contains("MeshRenderer") ||
+          !c.contains("Transform3D") || item.value("persistent", false))
         throw std::runtime_error("Invalid deferred leaf mapping: " + id);
+      auto leaf = id;
+      std::set<std::string> visited;
+      while (!mapped.contains(leaf)) {
+        if (!visited.insert(leaf).second || !parents.contains(leaf) ||
+            !parents.contains(parents.at(leaf)))
+          throw std::runtime_error(
+              "Deferred visual must descend from a mapped leaf: " + id);
+        leaf = parents.at(leaf);
+      }
+      if (!parents.contains(leaf) || parents.at(leaf) != root.id)
+        throw std::runtime_error(
+            "Deferred primary leaf must belong to assembly: " + leaf);
+      if (!leafOwners_.emplace(id, leaf).second)
+        throw std::runtime_error(
+            "Deferred visual belongs to multiple regions: " + id);
       regions_.emplace(id, region);
     }
   }
@@ -57,7 +80,8 @@ std::set<std::string> DeferredFractureVisuals3D::prepare(
       continue;
     std::set<std::string> parents;
     for (const auto &item : items)
-      parents.insert(owners.at(item.at("id").get<std::string>()));
+      parents.insert(
+          owners.at(leafOwners_.at(item.at("id").get<std::string>())));
     auto *intact = findEntity(candidate, region);
     if (parents.size() == 1 && !parents.begin()->empty()) {
       if (!intact)
@@ -78,7 +102,7 @@ std::set<std::string> DeferredFractureVisuals3D::prepare(
     }
     for (const auto &item : items) {
       const auto id = item.at("id").get<std::string>();
-      const auto &parent = owners.at(id);
+      const auto &parent = owners.at(leafOwners_.at(id));
       if (parent.empty())
         continue;
       if (findEntity(candidate, id))
@@ -88,7 +112,8 @@ std::set<std::string> DeferredFractureVisuals3D::prepare(
       if (!entity)
         throw std::runtime_error(error);
       entity->sceneOwner = sceneOwner;
-      entity->component<Transform3DComponent>()->parent = parent;
+      if (id == leafOwners_.at(id))
+        entity->component<Transform3DComponent>()->parent = parent;
       candidate.entities.push_back(std::move(*entity));
     }
     refined.insert(region);
