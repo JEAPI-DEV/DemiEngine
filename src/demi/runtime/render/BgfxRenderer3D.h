@@ -10,6 +10,7 @@
 #include "demi/runtime/render/backend/TextureLibrary2D.h"
 #include "demi/runtime/render/bgfx3d/BgfxCameraFrame3D.h"
 #include "demi/runtime/render/bgfx3d/DeformedMeshCache3D.h"
+#include "demi/runtime/render/bgfx3d/DirectionalShadow3D.h"
 #include "demi/runtime/render/bgfx3d/GpuMesh3D.h"
 #include "demi/runtime/render/bgfx3d/ReliefMeshCache3D.h"
 #include "demi/runtime/render/bgfx3d/GpuSkinnedMesh3D.h"
@@ -63,6 +64,7 @@ public:
   }
 
 private:
+  bool renderView(const World &, const BgfxCameraFrame3D &, float, std::string &, bool shadowPass);
   struct ModelLodSelection {
     const std::string *model = nullptr;
     bool isCulled = false;
@@ -75,7 +77,10 @@ private:
     RenderTargetHandles handles;
     std::uint16_t width = 1;
     std::uint16_t height = 1;
+    bool depth = true;
+    int requestedSamples = 1;
   };
+  bool setRenderTargetSamples(RenderTarget &, const std::string &id, int samples, std::string &error);
 
   struct CachedMesh {
     explicit CachedMesh(GpuResources &resources) : gpu(resources) {}
@@ -93,6 +98,7 @@ private:
       std::string &error);
 
   GpuResources &resources_;
+  DirectionalShadow3D shadows_;
   RenderCommands &commands_;
   PrimitiveCanvas3D primitives_;
   PostProcessRenderer3D postProcess_;

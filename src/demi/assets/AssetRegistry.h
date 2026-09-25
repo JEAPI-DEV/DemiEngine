@@ -43,7 +43,13 @@ struct AssetRegistry {
   std::filesystem::path projectDirectory;
   std::vector<AssetManifest> assets;
   Diagnostics diagnostics;
+  std::vector<std::filesystem::path> packageFiles;
 };
+
+// Authored sources plus explicitly locked package files, without traversing
+// internal tool or installation directories.
+[[nodiscard]] std::vector<std::filesystem::path>
+collectProjectSourceFiles(const AssetRegistry &registry);
 
 [[nodiscard]] std::optional<AssetManifest>
 loadAssetManifest(const std::filesystem::path &manifestPath,

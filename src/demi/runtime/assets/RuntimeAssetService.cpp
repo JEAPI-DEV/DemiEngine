@@ -129,7 +129,7 @@ bool RuntimeAssetService::configure(const ProjectData &project,
   groups_.clear();
   pendingLoads_.clear();
   for (const std::filesystem::path &path :
-       collectKnownSourceFiles(project.projectDirectory)) {
+       collectProjectSourceFiles(registry)) {
     if (!isAssetGroupFile(path))
       continue;
     const auto group = assets::loadAssetGroup(path, diagnostics);

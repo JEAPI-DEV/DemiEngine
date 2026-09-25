@@ -89,14 +89,23 @@ loadLockedPackageContent(const std::filesystem::path &projectDirectory,
     const auto root = projectDirectory /
                       (cooked ? "packages" : ".demi/packages") / packageName;
     if (!cooked) {
-      const auto installed =
-          packages::loadPackageManifest(root / packages::PackageManifestFilename);
+      auto installed = packages::loadPackageManifest(
+          root / packages::PackageManifestFilename);
+      if (!installed.manifest)
+        for (auto &diagnostic : installed.diagnostics)
+          if (diagnostic.suggestion.empty() &&
+              diagnostic.code == "PACKAGE_MANIFEST_READ_FAILED")
+            diagnostic.suggestion =
+                "Check this project's dependency installation. Restore missing "
+                "packages with demi package install --locked from the project "
+                "directory.";
       result.diagnostics.insert(result.diagnostics.end(),
                                 installed.diagnostics.begin(),
                                 installed.diagnostics.end());
-      if (!installed.manifest ||
-          packages::packageManifestJson(*installed.manifest).dump() !=
-              packages::packageManifestJson(release.manifest).dump()) {
+      if (!installed.manifest)
+        continue;
+      if (packages::packageManifestJson(*installed.manifest).dump() !=
+          packages::packageManifestJson(release.manifest).dump()) {
         error(result.diagnostics, "PACKAGE_CONTENT_LOCK_MISMATCH",
               "Installed package content does not match the verified lock.",
               root);

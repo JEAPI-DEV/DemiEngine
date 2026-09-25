@@ -65,6 +65,7 @@ void PostProcessRenderer3D::destroyScratchTarget() {
   scratch_ = {};
   scratchWidth_ = 0;
   scratchHeight_ = 0;
+  scratchSamples_ = 1;
 }
 
 void PostProcessRenderer3D::shutdown() {
@@ -85,28 +86,37 @@ void PostProcessRenderer3D::shutdown() {
   program_ = {};
 }
 
+void PostProcessRenderer3D::setMsaaSamples(int samples) {
+  // Turning AA off must retire its attachments even if no post pass follows.
+  if(scratch_.frameBuffer && scratchSamples_!=samples)destroyScratchTarget();
+}
+
 const RenderTargetHandles &PostProcessRenderer3D::scratchTarget(
-    const std::uint16_t width, const std::uint16_t height, std::string &error) {
+    const std::uint16_t width, const std::uint16_t height, std::string &error, int msaaSamples) {
   if (width == 0 || height == 0) {
     error = "Post-process target dimensions must be positive.";
     destroyScratchTarget();
     return scratch_;
   }
   if (scratch_.frameBuffer && scratchWidth_ == width &&
-      scratchHeight_ == height)
+      scratchHeight_ == height && scratchSamples_ == msaaSamples)
     return scratch_;
-  destroyScratchTarget();
-  scratch_ =
+  const auto replacement =
       resources_.createRenderTarget({.width = width,
                                      .height = height,
                                      .colorFormat = TextureFormat::RGBA8,
                                      .depth = true,
-                                     .debugName = "3D post-process scratch"},
+                                     .debugName = "3D scene resolve",
+                                     .msaaSamples = msaaSamples},
                                     error);
-  if (scratch_.frameBuffer && scratch_.color) {
+  if (replacement.frameBuffer && replacement.color) {
+    destroyScratchTarget();
+    scratch_=replacement;
     scratchWidth_ = width;
     scratchHeight_ = height;
+    scratchSamples_ = msaaSamples;
   } else {
+    // A failed replacement must not be mistaken for a valid new sample mode.
     destroyScratchTarget();
   }
   return scratch_;

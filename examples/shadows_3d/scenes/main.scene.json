@@ -1,0 +1,30 @@
+{
+  "format_version": 1,
+  "id": "scene://shadows_3d/main",
+  "name": "Moving directional shadows",
+  "entities": [
+    {"id": "camera", "components": {
+      "Transform3D": {"position": [9, 8, 12]},
+      "Camera3D": {"target_offset": [-9, -7, -12], "clear_color": [0.12, 0.15, 0.2, 1]}
+    }},
+    {"id": "sun", "components": {
+      "DirectionalLight": {"direction": [-0.6, -1, -0.4], "casts_shadows": true}
+    }},
+    {"id": "environment", "components": {
+      "Environment3D": {"ambient_intensity": 0.35, "shadow_distance": 15, "shadow_resolution": 1024, "shadow_bias": 0.015}
+    }},
+    {"id": "floor", "components": {
+      "Transform3D": {"position": [0, -0.25, 0]},
+      "MeshRenderer": {"shape": "cube", "size": [24, 0.5, 24], "color": [0.7, 0.72, 0.75, 1]}
+    }},
+    {"id": "moving", "components": {
+      "Transform3D": {"position": [-4.0, 2.5, 0.0]},
+      "MeshRenderer": {"shape": "cube", "size": [2, 2, 2], "color": [0.8, 0.28, 0.12, 1]},
+      "LuaScript": {"module": "script://scripts/moving.lua"}
+    }},
+    {"id": "pillar", "components": {
+      "Transform3D": {"position": [3, 1.5, -2]},
+      "MeshRenderer": {"shape": "cylinder", "size": [1, 3, 1], "color": [0.2, 0.4, 0.7, 1]}
+    }}
+  ]
+}

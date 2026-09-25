@@ -181,14 +181,15 @@ bool BgfxRenderer3D::prepareAnimatedMeshes(
     const auto *player = item.entity->component<AnimationPlayer3DComponent>();
     if (!player || !mesh || mesh->model.empty() || !mesh->vertices.empty())
       continue;
-    const Vec3 delta{item.transform.position.x - frame.position.x,
-                     item.transform.position.y - frame.position.y,
-                     item.transform.position.z - frame.position.z};
+    const auto lodPosition=frame.lodPosition.value_or(frame.position);
+    const Vec3 delta{item.transform.position.x - lodPosition.x,
+                     item.transform.position.y - lodPosition.y,
+                     item.transform.position.z - lodPosition.z};
     if (mesh->cullDistance > 0 &&
         delta.x * delta.x + delta.y * delta.y + delta.z * delta.z >=
             mesh->cullDistance * mesh->cullDistance)
       continue;
-    const auto lod=selectModelLod(*mesh, player, item.transform.position, frame.position,
+    const auto lod=selectModelLod(*mesh, player, item.transform.position, lodPosition,
                                   !entityMeshDents3D(*item.entity).empty());
     if (lod.isCulled) continue;
     const auto &selectedModel=*lod.model;

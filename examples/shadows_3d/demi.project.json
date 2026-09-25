@@ -1,0 +1,6 @@
+{
+  "format_version": 1,
+  "name": "Directional Shadows",
+  "main_scene": "scene://shadows_3d/main",
+  "scenes": [{"id": "scene://shadows_3d/main"}]
+}

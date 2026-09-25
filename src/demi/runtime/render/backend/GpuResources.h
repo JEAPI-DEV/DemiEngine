@@ -82,6 +82,7 @@ struct TextureCreateInfo {
   TextureFilter filter = TextureFilter::Linear;
   TextureWrap wrap = TextureWrap::Clamp;
   std::string debugName;
+  int msaaSamples = 1;
 };
 
 struct TextureUpdateInfo {
@@ -111,12 +112,16 @@ struct RenderTargetCreateInfo {
   TextureFormat colorFormat = TextureFormat::RGBA8;
   bool depth = true;
   std::string debugName;
+  TextureFilter filter = TextureFilter::Linear;
+  int msaaSamples = 1;
 };
 
 struct RenderTargetHandles {
   FrameBufferHandle frameBuffer;
   TextureHandle color;
   TextureHandle depth;
+  // Mode submitted to the backend, which may lower it for device support.
+  int msaaSamples = 1;
 };
 
 struct BufferSlice {
@@ -125,9 +130,16 @@ struct BufferSlice {
   std::uint32_t count = UINT32_MAX;
 };
 
+struct RenderDeviceLimits {
+  std::uint32_t maxTextureSize = UINT16_MAX;
+  std::uint32_t maxViews = UINT16_MAX;
+  bool originBottomLeft = false;
+};
+
 class GpuResources {
 public:
   virtual ~GpuResources() = default;
+  virtual RenderDeviceLimits limits() const { return {}; }
   GpuResources(const GpuResources &) = delete;
   GpuResources &operator=(const GpuResources &) = delete;
 

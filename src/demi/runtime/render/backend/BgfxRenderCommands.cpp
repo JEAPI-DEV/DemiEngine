@@ -127,6 +127,24 @@ void applyScissor(const ScissorRect scissor) {
     bgfx::setScissor(scissor.x, scissor.y, scissor.width, scissor.height);
 }
 
+bool bindExtraTextures(std::span<const DrawTextureBinding> bindings,
+                       BgfxResourceLookup &resources, std::string &error) {
+  const auto *caps=bgfx::getCaps();
+  std::array<bool,256> stages{};
+  for(const auto &binding:bindings) {
+    const auto texture=resources.bgfxTexture(binding.texture);
+    const auto sampler=resources.bgfxSampler(binding.sampler);
+    if(!bgfx::isValid(texture) || !bgfx::isValid(sampler) || binding.stage==0 || stages[binding.stage] ||
+       (caps && binding.stage>=caps->limits.maxTextureSamplers)) {
+      error="Invalid additional texture binding"; return false;
+    }
+    stages[binding.stage]=true;
+  }
+  for(const auto &binding:bindings)
+    bgfx::setTexture(binding.stage,resources.bgfxSampler(binding.sampler),resources.bgfxTexture(binding.texture));
+  return true;
+}
+
 bool validateUniforms(const std::span<const DrawUniformValue> uniforms,
                       BgfxResourceLookup &resources, std::string &error,
                       const char *drawName) {
@@ -313,6 +331,7 @@ public:
     if (!bindProgramAndTexture(draw.program, draw.texture, draw.sampler,
                                resources_, program, error, "Buffered draw"))
       return false;
+    if(!bindExtraTextures(draw.textures,resources_,error))return false;
 
     if (vertices.kind == BufferKind::DynamicVertex)
       bgfx::setVertexBuffer(0, bgfx::DynamicVertexBufferHandle{vertices.index},
@@ -358,6 +377,7 @@ public:
     if (!bindProgramAndTexture(draw.program, draw.texture, draw.sampler,
                                resources_, program, error, "Instanced draw"))
       return false;
+    if(!bindExtraTextures(draw.textures,resources_,error))return false;
 
     bgfx::InstanceDataBuffer instances;
     bgfx::allocInstanceDataBuffer(&instances, instanceCount, TransformStride);

@@ -1,4 +1,5 @@
 # Unit, subsystem, CLI, and networking test registration.
+add_test(NAME demi-project-discovery-tests COMMAND demi-project-discovery-tests)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 add_test(NAME demi-android-crowd-benchmark-tests
   COMMAND "${Python3_EXECUTABLE}"

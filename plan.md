@@ -254,6 +254,9 @@ all-device, full-game or thermal-soak qualification.
 
 #### September 24 editor and scale audit
 
+- Project discovery excludes internal tool worktrees from validation, the asset
+  browser, cooking, and source watching. Locked package content remains explicit;
+  repeated validation errors are deduplicated and Console tooltips show full paths.
 - Removed the engine's 256-cell/part/chunk, 2,048-bond and 256-body authoring
   caps. Representation checks remain; Jolt still limits each convex hull to
   256 points. This is not qualification for arbitrarily large simulations.
@@ -270,8 +273,19 @@ all-device, full-game or thermal-soak qualification.
   with runtime. Picking redirects to the source region; edits rebuild the
   transient cells. Tests compare runtime/preview descriptors and exercise Undo.
 - Materials and data assets can now be created and registered in the editor.
-- Still required: nested/model/override cache coverage, runtime shadow maps,
-  and a complete CLI/editor authoring parity audit.
+- Runtime directional shadow maps now update from current geometry, including
+  detached masonry. Quality controls use Environment3D; the pass is opt-in.
+  Desktop Vulkan visual checks cover a moving caster at 1080p. Cascades,
+  point/spot shadows, custom vertex deformation, and Android qualification remain
+  open; this does not close the broader rendering milestone.
+- 3D MSAA defaults to 4× and is controlled by `Environment3D.msaa_samples`
+  (`0`, `2`, `4`, `8`, `16`). The shared path covers editor images, native
+  backbuffers, camera targets, render scaling and post-processing. Shadow maps
+  keep their single-sample depth encoding. Higher modes carry memory/bandwidth
+  cost; previous performance qualifications have not been rerun at this new
+  default quality setting.
+- Still required: nested/model/override cache coverage and a complete CLI/editor
+  authoring parity audit.
 - Lazy-activation acceptance: two intact walls must have no live leaf shard
   entities; damaging one must not instantiate leaves of the other. Preserve
   raycast part IDs, mass, checkpoint restore, retirement and prefab release.
@@ -282,6 +296,112 @@ all-device, full-game or thermal-soak qualification.
   scope; no large-map FPS gate is claimed by this change.
 - Blast's hierarchical visible chunks are the relevant starting point:
   https://docs.omniverse.nvidia.com/kit/docs/blast-sdk/latest/docs/api/api_ll_users_guide.html
+
+#### September 25 follow-up: destruction and editor completion checklist
+
+This checklist tracks the user's full issue list. Completing one example or
+subsystem does not close the remaining items. Keep each item's status and test
+evidence current when resuming work. GPU timing is deferred at the user's request.
+
+Implementation order: cosmetic debris, broader lazy fracture activation, then
+the editor/CLI authoring audit. Rendering gaps remain tracked separately below.
+
+September 25 impact-path follow-up: removed additional 8192-query-result,
+32-affected-assembly, and 512-queued-impulse caps discovered while tracing debris
+integration. Proposal validation remains transactional. The existing one-family
+per-step scheduler remains; fair scheduling, allocation budgets, and burst
+performance are still open. Cosmetic mesh debris itself is not implemented yet.
+
+##### 1. Optional cosmetic fracture debris
+
+- [ ] Add an engine-native cosmetic mesh-fragment mode, selectable through
+  authored components/recipes and the Inspector. It must not require bespoke
+  cleanup scripts for every destructible object.
+- [ ] Spawn visible fragments on damage with initial velocity and spin. Cosmetic
+  fragments have no collider or physics body, fade in opacity over a configurable
+  interval, and disappear after a configurable lifetime of a few seconds.
+- [ ] Keep cosmetic fragments distinct from physical rubble. Do not silently
+  remove collision, fade, or delete supporting pieces, dangerous doors, or
+  persistent gameplay objects. Physical debris remains available independently.
+- [ ] Bound retained cosmetic resources through documented, configurable budgets
+  and cleanup/reuse. Do not introduce arbitrary authoring caps to make the demo
+  pass. Define overflow, reset, scene unload, and save/restore behavior.
+- [ ] Acceptance: demonstrate a hit shedding recognizable mesh fragments that
+  visibly fade, never block the player or raycasts, and release their resources.
+  Test repeated impacts, zero/short lifetimes, cleanup, and preservation of nearby
+  physical debris. Verify transparent rendering in Game View and standalone Play.
+
+Existing `retireDebris` behavior is not completion of this feature.
+
+##### 2. Lazy fracture activation and cooked data
+
+- [x] Built-in masonry uses combined intact region visuals and deferred leaf
+  entities; unrelated walls and unsplit regions remain compact.
+- [ ] Extend this behavior to source-model fractures, custom masonry models,
+  nested prefabs, and overrides. Complete their cache coverage without changing
+  authored identity or requiring separate developer-managed shard assets.
+- [ ] Reduce cold shard-template and structural metadata costs through spatial
+  hierarchy and demand loading. Deferring live entities alone does not solve
+  large-world memory usage. Preserve authoritative support/connectivity data.
+- [x] Cook expands masonry into build output; transient editor previews do not
+  serialize generated bricks into authored scenes or prefabs.
+- [ ] Acceptance: repeat the two-wall and neighboring-region tests for every
+  supported input path. Preserve hit IDs, mass, collision, rollback, checkpoint
+  restore, retirement, and unloading. Measure intact and damaged entity counts,
+  memory, activation latency, and frame-time spikes with many wall instances.
+
+##### 3. Editor authoring completion
+
+Implemented fixes to retain and regression-test:
+
+- [x] Game View relative mouse capture, Ctrl+D release, focus-loss release, and
+  recapture on returning to the view.
+- [x] Double-click Lua opens a configurable external editor; project stubs and
+  Lua Language Server configuration support completion/documentation.
+- [x] Double-click prefab and Open source prefab open the source document, with
+  visible feedback when opening fails or unsaved changes prevent switching.
+- [x] Create scenes, HUDs, entity/UI prefabs, Lua components, materials, and data
+  assets; register new scenes/assets through the shared services.
+- [x] HUDs have an isolated stage; gameplay HUDs are excluded from scene Viewport.
+  Implicit-root HUD edits use the normal document/Undo path instead of snapping
+  back. Runtime inspection remains read-only.
+- [x] Mesh Renderer help and advanced-buffer separation simplify ordinary model
+  use. This is not a visual mesh or UV editor.
+
+Remaining work:
+
+- [ ] Inventory public CLI/code authoring workflows and map each to an editor
+  action, shared service, and test. Track missing workflows individually; do not
+  claim complete parity from the current Create menu alone.
+- [ ] Complete missing creation/editing workflows, including their validation,
+  Save/reopen, Undo/Redo, conflict handling, and useful error messages. For mesh
+  and UV data, distinguish model-import settings from editable geometry and
+  runtime-only buffers; make unsupported operations explicit.
+- [ ] Verify HUD tab visibility and stray labels such as `ui_root`, scene/HUD/
+  prefab switching, nested UI prefabs, and persistence after restart. The known
+  implicit-root fix does not establish correctness for every HUD authoring path.
+- [ ] Acceptance: assemble and save a small playable project through editor
+  workflows, including scene/HUD/prefab creation, asset assignment, script
+  attachment, Play, and build. External script/model editors are allowed; manual
+  JSON or CLI repair must not be required for supported editor workflows.
+
+##### 4. Rendering parity and scale safeguards
+
+- [x] Built-in masonry previews share runtime atlas and relief descriptors.
+- [ ] Verify texture/material parity for nested prefabs, overrides, imported
+  models, and custom fracture inputs, including Save/reopen and Play transitions.
+- [x] Directional shadows update from current geometry, including detached pieces.
+- [ ] Track point/spot shadows, cascades, custom-deformation shadow correctness,
+  and platform qualification in the rendering milestone. Directional-light
+  support does not close the full real-time-shadow requirement.
+- [x] Removed the cited 256-cell/part/chunk/body and 2,048-bond authoring caps;
+  cache retention budgets are configurable rather than visible-content limits.
+- [ ] Keep remaining representation/backend limits documented and distinguish
+  them from tunable resource budgets. Explain any proposed new hard restriction
+  before adopting it. Audit height-map size/decoding paths alongside custom-model
+  cache coverage so old limits do not survive in an alternate path.
+- [ ] Qualify larger workloads with measured memory and frame times. Removing
+  caps alone is not evidence of large-game readiness.
 
 #### Required developer workflow and current gap
 

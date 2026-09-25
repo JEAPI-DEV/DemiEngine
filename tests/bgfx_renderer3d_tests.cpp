@@ -4,6 +4,7 @@
 #include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/BoxCollider3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Environment3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/DirectionalLightComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/ParticleEmitter3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
@@ -30,6 +31,8 @@ public:
   std::vector<std::array<float, 16>> bufferedTransforms;
   std::vector<View2DConfig> views2D;
   std::vector<View3DConfig> views3D;
+  std::map<std::uint16_t,std::vector<std::array<float,16>>> transformsByView;
+  std::map<std::uint16_t,TextureHandle> shadowTextures;
   bool configureView2D(const View2DConfig &view, std::string &error) override {
     views2D.push_back(view);
     return target_.configureView2D(view, error);
@@ -42,12 +45,16 @@ public:
     return target_.submit(draw, error);
   }
   bool submit(const BufferedDraw &draw, std::string &error) override {
+    transformsByView[draw.viewId].push_back(draw.transform);
+    for(const auto &texture:draw.textures) if(texture.stage==1)shadowTextures[draw.viewId]=texture.texture;
     textures.push_back(draw.texture);
     bufferedStates.push_back(draw.state);
     bufferedTransforms.push_back(draw.transform);
     return target_.submit(draw, error);
   }
   bool submit(const InstancedBufferedDraw &draw, std::string &error) override {
+    for(const auto &transform:draw.transforms)transformsByView[draw.viewId].push_back(transform);
+    for(const auto &texture:draw.textures)if(texture.stage==1)shadowTextures[draw.viewId]=texture.texture;
     textures.push_back(draw.texture);
     return target_.submit(draw, error);
   }
@@ -158,6 +165,35 @@ int main() {
   const std::uint32_t batchesWithoutDebugGeometry =
       renderer.statistics().batches;
   static_cast<void>(graphics.endFrame());
+  assert(collectSceneLighting3D(world,{}).msaaSamples==4);
+  assert(capture.views3D.back().frameBuffer);
+  const auto defaultAaTarget=capture.views3D.back().frameBuffer;
+  auto nativeFrame=frame;nativeFrame.destinationSamples=4;nativeFrame.camera.renderHud=false;
+  capture.views3D.clear();capture.views2D.clear();
+  assert(renderer.renderFrame(world,nativeFrame,.016F,error));
+  auto overlayCamera=nativeFrame;overlayCamera.viewId+=CameraViewCount3D;
+  overlayCamera.camera.clearMode="depth";
+  assert(renderer.renderFrame(world,overlayCamera,.016F,error));
+  assert(capture.views3D.size()==2 && !capture.views3D[0].frameBuffer && !capture.views3D[1].frameBuffer);
+  assert(!capture.views3D[1].clearColor && capture.views3D[1].clearDepth);
+  assert(capture.views2D.empty()); // Camera stacks keep the shared native color/depth surface.
+  static_cast<void>(graphics.endFrame());
+  Entity quality;quality.id="quality";
+  quality.setComponent(Environment3DComponent{.msaaSamples=0});
+  world.entities.push_back(std::move(quality));
+  capture.views3D.clear();capture.views2D.clear();
+  assert(renderer.renderFrame(world,frame,.016F,error));
+  assert(!capture.views3D.back().frameBuffer);
+  assert(!resources->destroy(defaultAaTarget)); // Disabled AA releases its attachments.
+  assert(std::ranges::none_of(capture.views2D,[&](const auto &view){return view.id==frame.viewId+2;}));
+  static_cast<void>(graphics.endFrame());
+  world.entities.back().component<Environment3DComponent>()->msaaSamples=8;
+  capture.views3D.clear();capture.views2D.clear();
+  assert(renderer.renderFrame(world,frame,.016F,error));
+  assert(capture.views3D.back().frameBuffer && capture.views3D.back().frameBuffer!=defaultAaTarget);
+  assert(std::ranges::any_of(capture.views2D,[&](const auto &view){return view.id==frame.viewId+2;}));
+  static_cast<void>(graphics.endFrame());
+  world.entities.pop_back();
   {
     World skyWorld;
     Entity environment;
@@ -272,6 +308,57 @@ int main() {
   assert(resources->destroy(embeddedTarget.depth));
   assert(resources->destroy(embeddedTarget.color));
 
+  Entity sun;sun.id="shadow-sun";
+  sun.setComponent(DirectionalLightComponent{.castsShadows=true});
+  world.entities.push_back(std::move(sun));
+  capture.views3D.clear();capture.transformsByView.clear();capture.shadowTextures.clear();
+  assert(renderer.renderFrame(world,frame,.016F,error));
+  assert(capture.views3D.size()==2 && capture.views3D[0].frameBuffer && capture.views3D[1].frameBuffer);
+  assert(capture.views3D[0].frameBuffer!=capture.views3D[1].frameBuffer);
+  assert(capture.views3D[0].id==frame.viewId && capture.views3D[1].id==frame.viewId+1);
+  assert(capture.views3D[0].width==1024 && !capture.views3D[0].perspective);
+  assert(capture.views3D[0].clearColor && capture.views3D[0].clearDepth && capture.views3D[0].clearRgba==0xffffffffU);
+  assert(capture.shadowTextures[frame.viewId]!=capture.shadowTextures[frame.viewId+1]);
+  const auto firstShadowTexture=capture.shadowTextures[frame.viewId+1];
+  const auto secondTarget=resources->createRenderTarget({.width=320,.height=180,.debugName="second shadow camera"},error);
+  auto secondCamera=frame;secondCamera.cameraId="second";secondCamera.viewId=CameraViewCount3D;
+  secondCamera.frameBuffer=secondTarget.frameBuffer;
+  assert(renderer.renderFrame(world,secondCamera,.016F,error));
+  assert(capture.shadowTextures[secondCamera.viewId+1]!=firstShadowTexture);
+  assert(capture.views3D.back().frameBuffer!=secondTarget.frameBuffer);
+  assert(std::ranges::any_of(capture.views2D,[&](const auto &v){return v.frameBuffer==secondTarget.frameBuffer && v.id==secondCamera.viewId+3;}));
+  const auto previousShadow=capture.transformsByView[frame.viewId];
+  assert(!previousShadow.empty());
+  static_cast<void>(graphics.endFrame());
+  assert(resources->destroy(secondTarget.frameBuffer));
+  assert(resources->destroy(secondTarget.depth));
+  assert(resources->destroy(secondTarget.color));
+  world.entities.front().component<Transform3DComponent>()->position.x+=.5F;
+  capture.transformsByView.clear();
+  assert(renderer.renderFrame(world,frame,.016F,error));
+  assert(capture.transformsByView[frame.viewId]!=previousShadow);
+  static_cast<void>(graphics.endFrame());
+  world.entities.front().component<Transform3DComponent>()->position.x-=.5F;
+  Entity shadowSettings;shadowSettings.id="shadow-settings";
+  shadowSettings.setComponent(Environment3DComponent{.maxShadowLights=0});
+  world.entities.push_back(std::move(shadowSettings));
+  capture.views3D.clear();
+  assert(renderer.renderFrame(world,frame,.016F,error));
+  assert(capture.views3D.size()==1);
+  static_cast<void>(graphics.endFrame());
+  world.entities.back().component<Environment3DComponent>()->maxShadowLights=1;
+  world.entities.back().component<Environment3DComponent>()->shadowResolution=512;
+  capture.views3D.clear();
+  assert(renderer.renderFrame(world,frame,.016F,error));
+  assert(capture.views3D.size()==2 && capture.views3D[0].width==512);
+  static_cast<void>(graphics.endFrame());
+  world.entities.pop_back();
+  world.entities.pop_back();
+  capture.views3D.clear();
+  assert(renderer.renderFrame(world,frame,.016F,error));
+  assert(capture.views3D.size()==1);
+  static_cast<void>(graphics.endFrame());
+
   BgfxCameraFrame3D targetFrame = frame;
   targetFrame.cameraId = "minimap";
   targetFrame.camera.renderTarget = "asset://targets/test";
@@ -283,6 +370,16 @@ int main() {
   targetFrame.updateContent = false;
   assert(renderer.renderFrame(world, targetFrame, 0.016F, error));
   static_cast<void>(graphics.endFrame());
+  Entity targetQuality;targetQuality.id="target-quality";
+  targetQuality.setComponent(Environment3DComponent{.msaaSamples=0});
+  world.entities.push_back(std::move(targetQuality));
+  targetFrame.updateContent=true;
+  assert(renderer.renderFrame(world,targetFrame,.016F,error));
+  static_cast<void>(graphics.endFrame());
+  world.entities.back().component<Environment3DComponent>()->msaaSamples=8;
+  assert(renderer.renderFrame(world,targetFrame,.016F,error));
+  static_cast<void>(graphics.endFrame());
+  world.entities.pop_back();
 
   BgfxCameraFrame3D missingTargetFrame = targetFrame;
   missingTargetFrame.camera.renderTarget = "asset://targets/missing";

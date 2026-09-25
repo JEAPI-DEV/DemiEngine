@@ -416,7 +416,7 @@ void impactAcrossAssemblies() {
          "Target filter affected another assembly");
 }
 
-void impactQueueLimit() {
+void impactQueueGrowth() {
   auto world = fixture();
   auto &physics = ensurePhysicsWorld3D(world);
   physics.step(world, 1.0F / 60, {0, 0, 0});
@@ -427,17 +427,54 @@ void impactQueueLimit() {
                              .entity = "root"};
   std::size_t affected;
   std::string error;
-  for (int i = 0; i < 512; ++i)
+  for (int i = 0; i < 513; ++i)
     expect(world.destruction3D->impact(world, physics, impact, affected, error),
            error);
-  expect(
-      !world.destruction3D->impact(world, physics, impact, affected, error) &&
-          affected == 0,
-      "Unbounded part impulse queue accepted");
   physics.step(world, 1.0F / 60, {0, 0, 0});
   expect(world.destruction3D->state("root").revision == 1 &&
              world.destruction3D->state("root").status == "applied",
-         "Queue rejection discarded an earlier accepted batch");
+         "Growing impulse queue discarded accepted work");
+}
+
+void manyImpactAssemblies() {
+  auto world = fixture();
+  for (int index = 1; index < 40; ++index) {
+    auto source = fixture();
+    const auto prefix = "copy_" + std::to_string(index) + "_";
+    for (auto &entity : source.entities) {
+      if (entity.id == "floor")
+        continue;
+      entity.id = prefix + entity.id;
+      if (auto *transform = entity.component<Transform3DComponent>()) {
+        if (transform->parent.empty())
+          transform->position.x += index * 4.0F;
+        else
+          transform->parent = prefix + transform->parent;
+      }
+      if (auto *config = entity.component<Destructible3DComponent>())
+        for (auto &[part, visual] : config->parts)
+          visual = prefix + visual;
+      world.entities.push_back(std::move(entity));
+    }
+  }
+  auto &physics = ensurePhysicsWorld3D(world);
+  physics.step(world, 1.0F / 60, {0, 0, 0});
+  std::string error;
+  std::size_t affected = 0;
+  expect(world.destruction3D->impact(
+             world, physics,
+             {.position = {78, 4, 0}, .radius = 100, .energy = 1},
+             affected, error), error);
+  expect(affected == 40, "Impact silently dropped assemblies beyond 32");
+  // The current scheduler commits one family per step, in stable ID order.
+  for (int step = 0; step < 40; ++step)
+    physics.step(world, 1.0F / 60, {0, 0, 0});
+  for (int index = 0; index < 40; ++index) {
+    const auto id = index == 0 ? "root" : "copy_" + std::to_string(index) + "_root";
+    const auto state = world.destruction3D->state(id);
+    expect(state.revision == 1 && state.status == "applied" && state.bodies == 1,
+           "Multi-assembly impact lost work or multiplied damage: " + id);
+  }
 }
 
 void sharedImpulseBudget() {
@@ -743,7 +780,8 @@ int main() {
     repeatedSleepingFragmentHits(true);
     impactStrengthAndFalloff();
     impactAcrossAssemblies();
-    impactQueueLimit();
+    impactQueueGrowth();
+    manyImpactAssemblies();
     sharedImpulseBudget();
     invalidAttachments();
     detachedFoundation();

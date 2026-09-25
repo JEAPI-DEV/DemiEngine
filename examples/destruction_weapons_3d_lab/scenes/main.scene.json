@@ -15,8 +15,8 @@
         "Transform3D":{"position":[2.8,0,0]},"PrefabPlacement3D":{"prefab":"prefab://doorway"}
       }}
     ]},
-    {"id":"sun","components":{"DirectionalLight":{"direction":[-0.4,-1,-0.6],"intensity":1.1}}},
-    {"id":"environment","components":{"Environment3D":{"sky_texture":"asset://environment/evening_sky","ambient_color":[0.35,0.4,0.5,1],"ambient_intensity":0.5}}},
+    {"id":"sun","components":{"DirectionalLight":{"direction":[-0.4,-1,-0.6],"intensity":1.1,"casts_shadows":true}}},
+    {"id":"environment","components":{"Environment3D":{"sky_texture":"asset://environment/evening_sky","ambient_color":[0.35,0.4,0.5,1],"ambient_intensity":0.5,"shadow_distance":18,"shadow_resolution":2048}}},
     {"id":"training_sensor","preset":"trigger_sphere_3d","radius":0.3,"components":{"Transform3D":{"position":[-4.175,1.6,1]}}},
     {"id":"floor","preset":"static_box_3d","components":{
       "Transform3D":{"position":[0,-0.5,0]},

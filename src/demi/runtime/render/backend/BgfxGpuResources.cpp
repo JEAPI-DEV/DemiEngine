@@ -32,6 +32,7 @@
 #include <vs_ocornut_imgui.bin.h>
 
 #include <array>
+#include <algorithm>
 #include <vs_demi_sky_glsl.h>
 #include <vs_demi_sky_essl.h>
 #include <vs_demi_sky_spv.h>
@@ -139,8 +140,19 @@ bgfx::TextureFormat::Enum textureFormat(const TextureFormat format) {
   return bgfx::TextureFormat::RGBA8;
 }
 
+std::uint64_t renderTargetFlags(int samples) {
+  switch(samples) {
+  case 0: case 1: return BGFX_TEXTURE_RT;
+  case 2: return BGFX_TEXTURE_RT_MSAA_X2;
+  case 4: return BGFX_TEXTURE_RT_MSAA_X4;
+  case 8: return BGFX_TEXTURE_RT_MSAA_X8;
+  case 16: return BGFX_TEXTURE_RT_MSAA_X16;
+  default: return 0;
+  }
+}
+
 std::uint64_t textureFlags(const TextureCreateInfo &info) {
-  std::uint64_t flags = info.renderTarget ? BGFX_TEXTURE_RT : BGFX_TEXTURE_NONE;
+  std::uint64_t flags = info.renderTarget ? renderTargetFlags(info.msaaSamples) : BGFX_TEXTURE_NONE;
   if (info.filter == TextureFilter::Nearest)
     flags |= BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT |
              BGFX_SAMPLER_MIP_POINT;
@@ -172,6 +184,10 @@ struct BufferValue {
 class BgfxGpuResources final : public GpuResources, public BgfxResourceLookup {
 public:
   ~BgfxGpuResources() override { clear(); }
+  RenderDeviceLimits limits() const override {
+    const auto *caps=bgfx::getCaps();
+    return caps?RenderDeviceLimits{caps->limits.maxTextureSize,caps->limits.maxViews,caps->originBottomLeft}:RenderDeviceLimits{};
+  }
 
   std::string_view shaderBackend() const override {
     switch (bgfx::getRendererType()) {
@@ -190,9 +206,17 @@ public:
 
   TextureHandle createTexture(const TextureCreateInfo &info,
                               std::string &error) override {
+    if(!renderTargetFlags(info.msaaSamples) ||
+       (info.msaaSamples>1 && (!info.renderTarget || info.generateMipmaps || !info.data.empty()))) {
+      error="MSAA requires a render target and 1, 2, 4, 8 or 16 samples (0 disables it).";
+      return {};
+    }
     if (info.width == 0 || info.height == 0) {
       error = "Texture dimensions must be positive.";
       return {};
+    }
+    if(info.renderTarget && !bgfx::isTextureValid(0,false,1,textureFormat(info.format),textureFlags(info))) {
+      error="Render-target format or MSAA mode is unsupported";return {};
     }
     const bgfx::TextureHandle texture = bgfx::createTexture2D(
         info.width, info.height, info.generateMipmaps, 1,
@@ -419,13 +443,26 @@ public:
 
   RenderTargetHandles createRenderTarget(const RenderTargetCreateInfo &info,
                                          std::string &error) override {
+    if(!renderTargetFlags(info.msaaSamples) || info.width==0 || info.height==0) {
+      error="Invalid render-target dimensions or MSAA sample count";return {};
+    }
+    int samples=std::max(info.msaaSamples,1);
+    const auto supported=[&](int count) {
+      const auto flags=renderTargetFlags(count);
+      return bgfx::isTextureValid(0,false,1,textureFormat(info.colorFormat),flags) &&
+        (!info.depth || bgfx::isTextureValid(0,false,1,bgfx::TextureFormat::D24S8,flags | BGFX_TEXTURE_RT_WRITE_ONLY));
+    };
+    if(samples>1 && !supported(samples))samples=1;
+    if(!supported(samples)) {error="Render-target color/depth formats are unsupported by this device";return {};}
     TextureCreateInfo colorInfo{.width = info.width,
                                 .height = info.height,
                                 .format = info.colorFormat,
                                 .data = {},
                                 .renderTarget = true,
                                 .generateMipmaps = false,
-                                .debugName = info.debugName + ".color"};
+                                .filter = info.filter,
+                                .debugName = info.debugName + ".color",
+                                .msaaSamples = samples};
     const TextureHandle color = createTexture(colorInfo, error);
     if (!color)
       return {};
@@ -438,7 +475,8 @@ public:
     if (info.depth) {
       const bgfx::TextureHandle depth =
           bgfx::createTexture2D(info.width, info.height, false, 1,
-                                bgfx::TextureFormat::D24S8, BGFX_TEXTURE_RT);
+                                bgfx::TextureFormat::D24S8,
+                                renderTargetFlags(samples) | (samples>1?BGFX_TEXTURE_RT_WRITE_ONLY:0));
       if (!bgfx::isValid(depth)) {
         destroy(color);
         error = "bgfx could not create render-target depth texture.";
@@ -460,7 +498,8 @@ public:
     }
     return {.frameBuffer = frameBuffers_.insert(frameBuffer.idx),
             .color = color,
-            .depth = depthHandle};
+            .depth = depthHandle,
+            .msaaSamples = samples};
   }
 
   bool destroy(const TextureHandle handle) override {

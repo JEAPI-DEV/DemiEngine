@@ -11,6 +11,7 @@
 #include <string>
 
 namespace demi::runtime::render {
+inline constexpr std::uint16_t CameraViewCount3D = 5;
 
 struct BgfxCameraFrame3D {
   std::string cameraId;
@@ -28,6 +29,9 @@ struct BgfxCameraFrame3D {
   FrameBufferHandle frameBuffer;
   bool updateContent = true;
   std::optional<SceneLighting3D> lightingOverride;
+  std::optional<Vec3> lodPosition;
+  // Native host backbuffer/target sample mode; editor images default to 1.
+  int destinationSamples = 1;
 };
 
 } // namespace demi::runtime::render

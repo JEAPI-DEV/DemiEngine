@@ -29,6 +29,6 @@ struct EditorGpuTimingSample {
 buildEditorGpuTimingSample(std::int64_t timerFrequency,
                            const std::vector<EditorGpuViewCounters> &views,
                            std::uint16_t firstGameView = 8,
-                           std::uint16_t lastGameView = 11);
+                           std::uint16_t lastGameView = 12);
 
 } // namespace demi::editor

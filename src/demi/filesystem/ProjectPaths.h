@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <vector>
+#include <string_view>
 
 namespace demi {
 
@@ -18,6 +19,9 @@ namespace demi {
 [[nodiscard]] bool isInputReplayFile(const std::filesystem::path &path);
 [[nodiscard]] bool isPackageManifestFile(const std::filesystem::path &path);
 [[nodiscard]] bool isAssetGroupFile(const std::filesystem::path &path);
+// Implicit source discovery excludes tool state and generated output. Explicit
+// file paths and lock-declared package content are loaded separately.
+[[nodiscard]] bool isInternalProjectDirectory(std::string_view name);
 [[nodiscard]] std::vector<std::filesystem::path>
 collectKnownSourceFiles(const std::filesystem::path &root);
 

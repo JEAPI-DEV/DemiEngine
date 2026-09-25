@@ -37,7 +37,7 @@ public:
   [[nodiscard]] bool initialize(const BgfxAppContextConfig &config,
                                 std::string &error);
   void shutdown();
-  [[nodiscard]] bool beginFrame(std::string &error);
+  [[nodiscard]] bool beginFrame(std::string &error, int msaaSamples = 1);
   void endFrame();
 
   void poll(InputState &input);

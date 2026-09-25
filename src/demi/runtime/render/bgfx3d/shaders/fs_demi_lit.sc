@@ -3,6 +3,12 @@ $input v_color0, v_normal, v_texcoord0, v_worldPos
 #include "bgfx_shader.sh"
 
 SAMPLER2D(s_texColor, 0);
+SAMPLER2D(s_shadowMap, 1);
+uniform vec4 u_shadowX;
+uniform vec4 u_shadowY;
+uniform vec4 u_shadowZ;
+// x: disabled=0, receiver=1, depth pass=-1; y: bias; z: texel; w: flip V.
+uniform vec4 u_shadowParams;
 uniform vec4 u_lightDirection;
 uniform vec4 u_lightColor;
 uniform vec4 u_ambientColor;
@@ -41,14 +47,55 @@ void main()
     if (albedo.a < u_alphaCutoff.x)
         discard;
 
+    vec4 worldPosition = vec4(v_worldPos, 1.0);
+    float shadowDepth = dot(u_shadowZ, worldPosition);
+    if (u_shadowParams.x < -0.5)
+    {
+        vec4 packedDepth = fract(clamp(shadowDepth, 0.0, 0.999999) *
+                                 vec4(1.0, 255.0, 65025.0, 16581375.0));
+        gl_FragColor = packedDepth - packedDepth.yzww *
+                      vec4(1.0/255.0, 1.0/255.0, 1.0/255.0, 0.0);
+        return;
+    }
+
     float normalLength = length(v_normal);
     vec3 normal = v_normal / max(normalLength, 0.0001);
     vec3 directionalVector = -u_lightDirection.xyz;
     vec3 directionalDirection = directionalVector /
                                 max(length(directionalVector), 0.0001);
     float diffuse = max(dot(normal, directionalDirection), 0.0);
+    float visibility = 1.0;
+    if (u_shadowParams.x > 0.5)
+    {
+        vec2 shadowUv = vec2(dot(u_shadowX, worldPosition), dot(u_shadowY, worldPosition));
+        if (u_shadowParams.w > 0.5) shadowUv.y = 1.0 - shadowUv.y;
+        // Compare each PCF tap against the receiver plane at that texel,
+        // rather than against the depth at the centre of a sloped footprint.
+        vec2 uvDx = dFdx(shadowUv);
+        vec2 uvDy = dFdy(shadowUv);
+        vec2 depthDerivative = vec2(dFdx(shadowDepth), dFdy(shadowDepth));
+        float determinant = uvDx.x * uvDy.y - uvDx.y * uvDy.x;
+        vec2 depthGradient = vec2(0.0);
+        if (abs(determinant) > 0.000000000001)
+            depthGradient = vec2(uvDy.y * depthDerivative.x - uvDx.y * depthDerivative.y,
+                                 uvDx.x * depthDerivative.y - uvDy.x * depthDerivative.x) / determinant;
+        if (shadowUv.x >= 0.0 && shadowUv.x <= 1.0 &&
+            shadowUv.y >= 0.0 && shadowUv.y <= 1.0 && shadowDepth >= 0.0 && shadowDepth <= 1.0)
+        {
+            visibility = 0.0;
+            float compareDepth = shadowDepth - u_shadowParams.y * (2.0 - diffuse);
+            for (int y = -1; y <= 1; ++y)
+                for (int x = -1; x <= 1; ++x)
+                {
+                    vec2 tap = (floor(shadowUv / u_shadowParams.z) + vec2(float(x),float(y)) + 0.5) * u_shadowParams.z;
+                    vec4 encoded = texture2D(s_shadowMap, tap);
+                    float stored = dot(encoded, vec4(1.0, 1.0/255.0, 1.0/65025.0, 1.0/16581375.0));
+                    visibility += step(compareDepth + dot(depthGradient, tap - shadowUv), stored) / 9.0;
+                }
+        }
+    }
     vec3 lighting = u_ambientColor.rgb +
-                    u_lightColor.rgb * diffuse * u_lightDirection.w;
+                    u_lightColor.rgb * diffuse * u_lightDirection.w * visibility;
 #ifndef DEMI_DIRECTIONAL_ONLY
     for (int ii = 0; ii < 4; ++ii)
     {

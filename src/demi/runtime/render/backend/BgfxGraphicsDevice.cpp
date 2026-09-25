@@ -158,6 +158,7 @@ bool BgfxGraphicsDevice::initialize(const GraphicsDeviceConfig &config,
   gpuSamples_.reset();
   lastCpuEnd_ = 0;
   vsync_ = config.vsync;
+  msaaSamples_ = 1;
   width_ = config.width;
   height_ = config.height;
   rendererName_ = bgfx::getRendererName(bgfx::getRendererType());
@@ -238,6 +239,7 @@ void BgfxGraphicsDevice::beginFrame(const std::uint32_t rgba) {
   if (!initialized_)
     return;
   bgfx::setViewRect(MainView, 0, 0, bgfx::BackbufferRatio::Equal);
+  bgfx::setViewFrameBuffer(MainView, BGFX_INVALID_HANDLE);
   bgfx::setViewClear(MainView, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, rgba, 1.0F,
                      0);
   bgfx::touch(MainView);
@@ -301,8 +303,29 @@ std::uint32_t BgfxGraphicsDevice::endFrame() {
   return frame;
 }
 
+bool BgfxGraphicsDevice::setMsaaSamples(int samples,std::string &error) {
+  if(!initialized_) {error="Graphics device is not initialized";return false;}
+  if(samples==0)samples=1;
+  if(samples!=1 && samples!=2 && samples!=4 && samples!=8 && samples!=16) {
+    error="Unsupported MSAA sample count";return false;
+  }
+  if(msaaSamples_!=samples) {
+    msaaSamples_=samples;
+    if(!noop_)bgfx::reset(width_,height_,resetFlags());
+  }
+  error.clear();return true;
+}
+
 std::uint32_t BgfxGraphicsDevice::resetFlags() const {
-  return vsync_ ? BGFX_RESET_VSYNC : BGFX_RESET_NONE;
+  auto flags=vsync_ ? BGFX_RESET_VSYNC : BGFX_RESET_NONE;
+  switch(msaaSamples_) {
+  case 2: flags|=BGFX_RESET_MSAA_X2;break;
+  case 4: flags|=BGFX_RESET_MSAA_X4;break;
+  case 8: flags|=BGFX_RESET_MSAA_X8;break;
+  case 16: flags|=BGFX_RESET_MSAA_X16;break;
+  default: break;
+  }
+  return flags;
 }
 
 } // namespace demi::runtime::render

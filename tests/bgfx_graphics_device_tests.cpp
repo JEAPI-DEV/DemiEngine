@@ -81,6 +81,9 @@ bool noopLifecycleIsSafe() {
       return false;
     if (!device.resize(128, 72, error))
       return false;
+    for(int samples:{0,2,4,8,16,4})
+      if(!device.setMsaaSamples(samples,error))return false;
+    if(device.setMsaaSamples(3,error))return false;
     device.beginFrame(0x000000ffU);
     (void)device.endFrame();
 
@@ -89,6 +92,7 @@ bool noopLifecycleIsSafe() {
       return false;
 
     device.shutdown();
+    if(device.setMsaaSamples(4,error))return false;
     if (device.frameTimings().gpuMilliseconds ||
         device.frameTimings().width != 0)
       return false;

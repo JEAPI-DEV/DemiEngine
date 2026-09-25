@@ -116,14 +116,72 @@ This corrects the existing forward color path: light colors remain linear
 coefficients, the combined base-color convention is retained, bright output can
 still clip on the LDR target, and post effects still operate on the encoded
 scene image. Imported material-factor
-color spaces, linear texture filtering/blending, HDR tone mapping and visual
-shadow qualification remain separate work.
+color spaces, linear texture filtering/blending and HDR tone mapping remain
+separate work.
 
-`Environment3D` owns ambient light, fog, shadow distance/resolution, and the
-maximum number of shadow-casting lights. `DirectionalLight`, `PointLight`, and
-`SpotLight` support color, intensity, masks, and bounded shadow participation.
-The lightweight forward path evaluates at most four lights per camera and
-honors the environment shadow-pass budget.
+### Anti-aliasing
+
+3D scenes use **4× MSAA by default**, including standalone rendering, the editor
+Viewport and embedded Game View. This also applies when there is no
+`Environment3D` entity.
+
+Set `Environment3D.msaa_samples` to `0` (off), `2`, `4`, `8`, or `16`:
+
+```json
+"Environment3D": {"msaa_samples": 8}
+```
+
+The Inspector offers these values as a dropdown. Author the field if it is
+currently showing its default. Settings take effect on subsequent rendered
+frames; no restart is needed. Named camera targets change sample mode on their
+next content update, preserving the previous image until then.
+
+Standalone cameras share a multisampled backbuffer. Editor images and scaled
+or post-processed scenes use multisampled color/depth attachments and resolve
+the color image before presentation. Shadow maps remain single-sampled and use
+their own filtering. 2D-only scenes keep their existing rendering path.
+
+More samples use more GPU memory and bandwidth. Hardware may use fewer samples
+than requested; formats without multisample support fall back to single-sample
+rendering. Profiler gauges `Renderer3D.msaa_requested` and
+`Renderer3D.msaa_backend_request` show the requested/submitted modes, not a
+measurement of the driver's final sample count.
+
+MSAA smooths geometry edges. It does not add polygons, increase texture detail,
+or raise shadow-map resolution. `Camera3D.render_scale` still controls scene
+resolution independently.
+
+### Real-time directional shadows
+
+Set `DirectionalLight.casts_shadows: true` to render a shadow map whenever the
+camera content updates. Moving objects and detached masonry use their current
+geometry and transforms. The shared renderer supports this in standalone Play,
+Game View, and the scene Viewport.
+
+`Environment3D` controls map quality:
+
+- `shadow_resolution`: square map size, default 1024. Unsupported device sizes
+  fail with a diagnostic; values are not silently clamped to 4096.
+- `shadow_distance`: coverage radius in metres around a point ahead of the
+  camera, default 80. Smaller coverage gives more detail at the same resolution.
+- `shadow_bias`: depth offset in metres, default 0.02. Filtering adjusts samples
+  for the receiving surface's slope to reduce self-shadow striping.
+- `max_shadow_lights: 0` or `shadow_distance: 0` disables the pass.
+
+The current implementation shadows the selected directional light, matching
+the existing single-directional-light shading path. Larger light budgets do
+not add point/spot shadow maps. Those requests produce validation warnings.
+Maps use 3×3 filtered comparisons and independent per-camera targets. Geometry
+outside the camera view can cast into it when inside the shadow volume.
+
+Opaque meshes and alpha-cutout materials cast shadows. Transparent shadow casting,
+custom vertex-shader deformation, cascades and point/spot shadows are not
+implemented. Custom fragment shaders need their own receiver support. Shadows
+add a geometry pass; they are opt-in and remain off by default.
+
+Try [the moving-shadow example](../examples/shadows_3d/README.md). Directional
+shadows are also enabled in the destruction weapon lab. Visual checks cover
+desktop Vulkan at 1080p; Android shadow qualification remains open.
 
 ### Panorama sky background
 
@@ -173,7 +231,8 @@ world objects with distance and render-mask filtering.
 - `Renderer3D.stats.triangles`
 - `Renderer3D.stats.particles`
 - `Renderer3D.stats.lights`
-- `Renderer3D.stats.shadow_passes`
+- `Renderer3D.directional_shadow` (CPU preparation/submission scope)
+- `Renderer3D.shadow_batches` (most recently rendered camera's shadow draws)
 - `Renderer3D.stats.render_target_bytes`
 
 Keep mobile particle budgets and camera target sizes conservative. A minimap

@@ -9,6 +9,11 @@
 namespace demi::runtime::render {
 
 struct SceneLighting3D {
+  int msaaSamples = 4;
+  bool castsShadows = false;
+  int shadowResolution = 1024;
+  float shadowDistance = 80.F, shadowBias = .02F;
+  int shadowBudget = 1;
   std::string skyTexture;
   std::size_t reliefCacheMeshes = 256;
   std::size_t reliefImageCacheBytes = 64U*1024U*1024U;

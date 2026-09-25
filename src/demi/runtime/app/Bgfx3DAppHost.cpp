@@ -3,6 +3,7 @@
 #include "demi/runtime/assets/RegistryAssetResourceLoader.h"
 
 #include <utility>
+#include <algorithm>
 
 namespace demi::runtime {
 
@@ -135,13 +136,15 @@ bool Bgfx3DAppHost::renderFrames(
     error = "The bgfx 3D application host is not initialized.";
     return false;
   }
-  if (!context_.beginFrame(error))
+  const int samples=std::max(render::collectSceneLighting3D(world,{}).msaaSamples,1);
+  if (!context_.beginFrame(error,samples))
     return false;
   bool rendered = !cameras.empty();
   frameStatistics_.reset();
   frameExtractionMilliseconds_ = 0.0;
   cameraScheduler_.beginFrame();
   for (render::BgfxCameraFrame3D current : cameras) {
+    if(!current.frameBuffer)current.destinationSamples=samples;
     if (current.viewportWidth == 0)
       current.viewportWidth = context_.viewportWidth();
     if (current.viewportHeight == 0)

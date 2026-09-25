@@ -25,6 +25,7 @@ public:
                             std::string &error) override;
   [[nodiscard]] bool updateNativeWindow(NativeWindowHandle handle,
                                         std::string &error);
+  [[nodiscard]] bool setMsaaSamples(int samples, std::string &error);
   void beginFrame(std::uint32_t rgba) override;
   [[nodiscard]] std::uint32_t endFrame() override;
   [[nodiscard]] GraphicsFrameTimings frameTimings() const override {
@@ -42,6 +43,7 @@ private:
   bool initialized_ = false;
   bool noop_ = false;
   bool vsync_ = true;
+  int msaaSamples_ = 1;
   std::uint32_t width_ = 1;
   std::uint32_t height_ = 1;
   std::string rendererName_;

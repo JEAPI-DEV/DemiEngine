@@ -66,10 +66,11 @@ Anchored groups absorb their impulse share without moving. A failed split applie
 neither its proposed damage nor its queued impulses; root removal cancels its work.
 
 Limits: radius 0.001–1000, energy 0–1e12, impulse 0–1e9; position/direction axes
-must be finite and within +/-1e6. A call rejects more than 8192 collider query
-results or 32 affected assemblies. An assembly holds at most 512 queued part
-impulses. Rejection leaves earlier accepted work intact. Native query collection
-precedes these result caps; they are not a worst-case frame-time guarantee.
+must be finite and within +/-1e6. Query results, affected assemblies, and queued
+part impulses no longer have the former 8192/32/512 count caps. Proposal storage
+grows with the affected content. Failed proposal preparation leaves earlier
+accepted work intact. Large bursts can still consume substantial CPU time and
+memory; removing these caps is not a frame-time or memory guarantee.
 
 `Destruction3D.impact` profiles selection/allocation and `Destruction3D.update`
 profiles the fixed-step processing. The current scheduler processes one queued
@@ -85,7 +86,8 @@ displays status—no part-name selection or manual post-split impulses.
 
 Tests cover edge hits, radius misses, transform handling, cumulative resistance,
 falloff, multi-assembly energy sharing, target filtering, isolated foundation
-release, impulse-only hits, off-center torque, queue limits and rollback.
+release, impulse-only hits, off-center torque, queue growth and rollback.
+Regression checks cover 40 affected assemblies and 513 queued impulses.
 Repeated full hammer-energy hits also exercise detached blocks after they settle
 and sleep, including heavy bodies. Exhausted bonds do not prevent later impulses;
 applied impulse does not guarantee large displacement against friction, remaining

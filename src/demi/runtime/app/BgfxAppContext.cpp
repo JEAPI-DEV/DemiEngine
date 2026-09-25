@@ -143,7 +143,7 @@ void BgfxAppContext::shutdown() {
   initialized_ = false;
 }
 
-bool BgfxAppContext::beginFrame(std::string &error) {
+bool BgfxAppContext::beginFrame(std::string &error,int msaaSamples) {
   if (!initialized_) {
     error = "The bgfx application context is not initialized.";
     return false;
@@ -181,6 +181,7 @@ bool BgfxAppContext::beginFrame(std::string &error) {
   }
   renderWidth_ = width;
   renderHeight_ = height;
+  if(!graphics_.setMsaaSamples(msaaSamples,error))return false;
   graphics_.beginFrame(0x000000ffU);
   frameBuildStart_ = std::chrono::steady_clock::now();
   frameOpen_ = true;

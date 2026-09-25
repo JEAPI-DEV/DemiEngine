@@ -1,4 +1,5 @@
 #include "editor/EditorProjectFolders.h"
+#include "demi/filesystem/ProjectPaths.h"
 
 #include <algorithm>
 #include <cctype>
@@ -6,8 +7,7 @@
 namespace demi::editor {
 
 bool isEditorInternalDirectory(const std::string_view name) {
-  return name == "generated" || name == "build" || name == ".demi" ||
-         name == ".git";
+  return isInternalProjectDirectory(name);
 }
 
 bool createEditorProjectFolder(const std::filesystem::path &projectDirectory,

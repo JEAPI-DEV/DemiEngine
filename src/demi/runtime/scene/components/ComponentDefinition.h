@@ -40,6 +40,9 @@ struct ComponentFieldEditorMetadata {
 };
 
 struct ComponentFieldDescriptor {
+  [[nodiscard]] constexpr ComponentFieldDescriptor withIntegerChoices(std::span<const int> values) const {
+    auto result=*this; result.allowedIntegers=values; return result;
+  }
   [[nodiscard]] constexpr ComponentFieldDescriptor withHelp(std::string_view text) const {
     auto result=*this; result.editor.help=text; return result;
   }
@@ -97,6 +100,7 @@ struct ComponentFieldDescriptor {
   bool required = false;
   bool editorVisible = true;
   std::span<const std::string_view> allowedValues{};
+  std::span<const int> allowedIntegers{};
   double minimum = 0.0;
   bool hasMinimum = false;
   bool replicated = false;

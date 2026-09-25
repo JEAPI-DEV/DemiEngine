@@ -5,6 +5,11 @@
 
 namespace demi {
 
+bool isInternalProjectDirectory(const std::string_view name) {
+  return name.starts_with('.') || name == "build" || name == "generated" ||
+         name == "node_modules" || name == "__pycache__";
+}
+
 bool hasExtension(const std::filesystem::path &path, const char *extension) {
   return path.extension() == extension;
 }
@@ -72,8 +77,14 @@ collectKnownSourceFiles(const std::filesystem::path &root) {
     return files;
   }
 
-  for (const std::filesystem::directory_entry &entry :
-       std::filesystem::recursive_directory_iterator(root)) {
+  for (std::filesystem::recursive_directory_iterator iterator(root), end;
+       iterator != end; ++iterator) {
+    const auto &entry = *iterator;
+    if (entry.is_directory() &&
+        isInternalProjectDirectory(entry.path().filename().string())) {
+      iterator.disable_recursion_pending();
+      continue;
+    }
     if (!entry.is_regular_file()) {
       continue;
     }

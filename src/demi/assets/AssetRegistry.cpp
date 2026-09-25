@@ -1,5 +1,6 @@
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/ColliderShapeAsset.h"
+#include "demi/filesystem/ProjectPaths.h"
 
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetImporter.h"
@@ -230,8 +231,17 @@ loadAuthoredAssetRegistry(const std::filesystem::path &projectDirectory) {
   const auto assetsDirectory = projectDirectory / "assets";
   if (!std::filesystem::exists(assetsDirectory))
     return registry;
-  for (const auto &entry :
-       std::filesystem::recursive_directory_iterator(assetsDirectory)) {
+  for (std::filesystem::recursive_directory_iterator iterator(assetsDirectory),
+       end;
+       iterator != end; ++iterator) {
+    const auto &entry = *iterator;
+    // Registered assets/generated manifests are still used by atlas importers.
+    // Exclude tool state without dropping those explicit asset registrations.
+    if (entry.is_directory() && entry.path().filename() != "generated" &&
+        isInternalProjectDirectory(entry.path().filename().string())) {
+      iterator.disable_recursion_pending();
+      continue;
+    }
     if (!entry.is_regular_file() ||
         !entry.path().filename().string().ends_with(".asset.json"))
       continue;
@@ -255,8 +265,23 @@ AssetRegistry loadAssetRegistry(const std::filesystem::path &projectDirectory) {
                               content.diagnostics.end());
   registry.assets.insert(registry.assets.end(), content.assets.begin(),
                          content.assets.end());
+  registry.packageFiles = content.files;
   std::ranges::sort(registry.assets, {}, &AssetManifest::id);
   return registry;
+}
+
+std::vector<std::filesystem::path>
+collectProjectSourceFiles(const AssetRegistry &registry) {
+  auto files = collectKnownSourceFiles(registry.projectDirectory);
+  for (const auto &asset : registry.assets)
+    files.push_back(asset.manifestPath);
+  for (const auto &file : registry.packageFiles) {
+    const auto sources = collectKnownSourceFiles(file);
+    files.insert(files.end(), sources.begin(), sources.end());
+  }
+  std::ranges::sort(files);
+  files.erase(std::unique(files.begin(), files.end()), files.end());
+  return files;
 }
 
 const AssetManifest *findAsset(const AssetRegistry &registry,

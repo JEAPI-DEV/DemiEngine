@@ -70,6 +70,12 @@ struct DrawUniformValue {
   std::uint16_t count = 1;
 };
 
+struct DrawTextureBinding {
+  std::uint8_t stage = 1;
+  TextureHandle texture;
+  SamplerHandle sampler;
+};
+
 struct TransientDraw {
   std::uint16_t viewId = 0;
   std::span<const std::byte> vertices;
@@ -97,6 +103,7 @@ struct BufferedDraw {
                                   0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F,
                                   0.0F, 0.0F, 0.0F, 1.0F};
   std::span<const DrawUniformValue> uniforms;
+  std::span<const DrawTextureBinding> textures;
 };
 
 struct InstancedBufferedDraw {
@@ -110,6 +117,7 @@ struct InstancedBufferedDraw {
   ScissorRect scissor;
   std::span<const std::array<float, 16>> transforms;
   std::span<const DrawUniformValue> uniforms;
+  std::span<const DrawTextureBinding> textures;
 };
 
 class RenderCommands {

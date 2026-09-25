@@ -1,4 +1,5 @@
 #include "demi/runtime/app/ReloadCoordinator.h"
+#include "demi/filesystem/ProjectPaths.h"
 
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
@@ -85,8 +86,8 @@ ReloadCoordinator::process(const platform::ProjectFileChangeBatch &batch) {
       const std::string first =
           relative.empty() ? std::string{} : (*relative.begin()).string();
       if (iterator->is_directory() &&
-          (first == "build" || first == "generated" || first == ".git" ||
-           first == ".demi" || first == "saves")) {
+          (first == "saves" ||
+           isInternalProjectDirectory(iterator->path().filename().string()))) {
         iterator.disable_recursion_pending();
       }
       if (!iterator->is_regular_file() ||

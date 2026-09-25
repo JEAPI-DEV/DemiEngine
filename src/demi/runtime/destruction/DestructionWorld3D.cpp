@@ -734,8 +734,6 @@ bool DestructionWorld3D::impact(World &world, PhysicsWorld3D &physics,
     double impulseWeight = 0, energyWeight = 0;
     const auto contacts =
         physics.overlapSphere(hit.position, hit.radius, {}, {}, true);
-    require(contacts.size() <= 8192,
-            "Impact query exceeds 8192 collider parts; reduce radius");
     for (const auto &contact : contacts) {
       if (contact.colliderPartId.empty() || contact.isTrigger)
         continue;
@@ -757,8 +755,6 @@ bool DestructionWorld3D::impact(World &world, PhysicsWorld3D &physics,
       if (weight <= 0)
         continue;
       auto &proposal = proposals[assembly->state.root];
-      require(proposals.size() <= 32,
-              "Impact exceeds 32 affected assemblies; reduce radius");
       proposal.assembly = assembly;
       proposal.energyPerHealth = config->energyPerHealth;
       if (proposal.contacts
@@ -817,8 +813,6 @@ bool DestructionWorld3D::impact(World &world, PhysicsWorld3D &physics,
       accumulate(p.anchors, p.anchorWeights);
       if (hit.impulse > 0)
         for (const auto &[part, contact] : p.contacts) {
-          require(p.impulses.size() < 512,
-                  "Impact queue exceeds 512 part impulses for one assembly");
           const auto *body = findEntity(world, contact.hit.entityId);
           const auto transform =
               body ? resolveWorldTransform3D(world, *body) : std::nullopt;

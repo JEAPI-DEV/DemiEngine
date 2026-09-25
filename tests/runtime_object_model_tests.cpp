@@ -29,6 +29,23 @@ int main() {
     return 1;
   }
   std::string error;
+  const auto *environment=demi::runtime::scene_loading::findComponentDescriptor("Environment3D");
+  const auto qualitySchema=demi::runtime::scene_loading::componentSchema(*environment);
+  if(qualitySchema["properties"]["msaa_samples"]["default"]!=4 ||
+     qualitySchema["properties"]["msaa_samples"]["enum"]!=nlohmann::json::array({0,2,4,8,16})) {
+    std::cerr<<"MSAA defaults/choices do not match the authored contract.\n";return 1;
+  }
+  for(int samples:{0,2,4,8,16}) {
+    const nlohmann::json component{{"msaa_samples",samples}};
+    if(!demi::runtime::scene_loading::validateComponent(*environment,component).empty() ||
+       !RuntimeObjectModel::buildEntity({{"id","quality"},{"components",{{"Environment3D",component}}}},error)) {
+      std::cerr<<"Valid MSAA mode rejected: "<<error<<'\n';return 1;
+    }
+  }
+  for(const nlohmann::json value:{nlohmann::json(-1),nlohmann::json(1),nlohmann::json(3),nlohmann::json(4.5),nlohmann::json("4")})
+    if(RuntimeObjectModel::buildEntity({{"id","bad-quality"},{"components",{{"Environment3D",{{"msaa_samples",value}}}}}},error)) {
+      std::cerr<<"Invalid MSAA value accepted.\n";return 1;
+    }
   auto parent = RuntimeObjectModel::buildEntity(
       nlohmann::json::parse(R"({
         "id": "parent",

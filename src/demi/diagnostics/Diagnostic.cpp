@@ -1,10 +1,25 @@
 #include "demi/diagnostics/Diagnostic.h"
 
+#include <algorithm>
 #include <ostream>
+#include <set>
+#include <tuple>
 
 namespace demi {
 
-const char* toString(const Severity severity) {
+void deduplicateDiagnostics(Diagnostics &diagnostics) {
+  std::set<std::tuple<Severity, std::string, std::string, int, int, std::string,
+                      std::string>>
+      seen;
+  std::erase_if(diagnostics, [&](const Diagnostic &diagnostic) {
+    return !seen.emplace(diagnostic.severity, diagnostic.code, diagnostic.path,
+                         diagnostic.line, diagnostic.column, diagnostic.message,
+                         diagnostic.suggestion)
+                .second;
+  });
+}
+
+const char *toString(const Severity severity) {
   switch (severity) {
   case Severity::Info:
     return "info";
@@ -16,8 +31,8 @@ const char* toString(const Severity severity) {
   return "unknown";
 }
 
-bool hasErrors(const Diagnostics& diagnostics) {
-  for (const Diagnostic& diagnostic : diagnostics) {
+bool hasErrors(const Diagnostics &diagnostics) {
+  for (const Diagnostic &diagnostic : diagnostics) {
     if (diagnostic.severity == Severity::Error) {
       return true;
     }
@@ -27,7 +42,7 @@ bool hasErrors(const Diagnostics& diagnostics) {
 
 namespace {
 
-void printJsonString(std::ostream& out, const std::string& value) {
+void printJsonString(std::ostream &out, const std::string &value) {
   out << '"';
   for (const char c : value) {
     switch (c) {
@@ -56,14 +71,15 @@ void printJsonString(std::ostream& out, const std::string& value) {
 
 } // namespace
 
-void printDiagnosticsText(std::ostream& out, const Diagnostics& diagnostics) {
+void printDiagnosticsText(std::ostream &out, const Diagnostics &diagnostics) {
   if (diagnostics.empty()) {
     out << "No diagnostics.\n";
     return;
   }
 
-  for (const Diagnostic& diagnostic : diagnostics) {
-    out << toString(diagnostic.severity) << " " << diagnostic.code << ": " << diagnostic.message;
+  for (const Diagnostic &diagnostic : diagnostics) {
+    out << toString(diagnostic.severity) << " " << diagnostic.code << ": "
+        << diagnostic.message;
     if (!diagnostic.path.empty()) {
       out << " (" << diagnostic.path;
       if (diagnostic.line > 0) {
@@ -82,10 +98,10 @@ void printDiagnosticsText(std::ostream& out, const Diagnostics& diagnostics) {
   }
 }
 
-void printDiagnosticsJson(std::ostream& out, const Diagnostics& diagnostics) {
+void printDiagnosticsJson(std::ostream &out, const Diagnostics &diagnostics) {
   out << "{\"diagnostics\":[";
   for (std::size_t i = 0; i < diagnostics.size(); ++i) {
-    const Diagnostic& diagnostic = diagnostics[i];
+    const Diagnostic &diagnostic = diagnostics[i];
     if (i != 0) {
       out << ',';
     }

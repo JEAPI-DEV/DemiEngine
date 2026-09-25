@@ -18,8 +18,9 @@ public:
 
   [[nodiscard]] bool initialize(std::string &error);
   void shutdown();
+  void setMsaaSamples(int samples);
   [[nodiscard]] const RenderTargetHandles &
-  scratchTarget(std::uint16_t width, std::uint16_t height, std::string &error);
+  scratchTarget(std::uint16_t width, std::uint16_t height, std::string &error, int msaaSamples = 1);
   [[nodiscard]] bool present(const BgfxCameraFrame3D &frame,
                              TextureHandle source,
                              FrameBufferHandle destination, std::string &error);
@@ -38,6 +39,7 @@ private:
   RenderTargetHandles scratch_;
   std::uint16_t scratchWidth_ = 0;
   std::uint16_t scratchHeight_ = 0;
+  int scratchSamples_ = 1;
 };
 
 [[nodiscard]] bool hasPostProcessEffects(

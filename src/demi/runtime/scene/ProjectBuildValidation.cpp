@@ -143,10 +143,10 @@ bool skippedFeatureScanRoot(const std::filesystem::path &relative) {
   if (relative.empty())
     return false;
   const std::string first = relative.begin()->string();
-  return first == "assets" || first == "build" || first == "generated" ||
-         first == ".git" || first == ".demi" || first == ".gradle" ||
-         first == ".cxx" || first == "__pycache__" || first == "saves" ||
-         first == "tests";
+  return first == "assets" || first == "saves" || first == "tests" ||
+         std::ranges::any_of(relative, [](const auto &part) {
+           return isInternalProjectDirectory(part.string());
+         });
 }
 
 bool sceneDocumentFile(const std::filesystem::path &path) {

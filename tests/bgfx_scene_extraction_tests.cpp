@@ -6,6 +6,9 @@
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/WorldText3DComponent.h"
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 
 using namespace demi::runtime;
@@ -43,6 +46,7 @@ int main() {
   maskedLight.setComponent(
       DirectionalLightComponent{.color = {1.0F, 0.0F, 0.0F, 1.0F},
                                 .intensity = 3.0F,
+                                .castsShadows = true,
                                 .renderMask = "foreground"});
   world.entities.push_back(std::move(maskedLight));
 
@@ -50,9 +54,11 @@ int main() {
       collectSceneLighting3D(world, "background");
   assert(background.ambient[0] == 0.2F);
   assert(background.direction[3] == 0.0F);
+  assert(!background.castsShadows);
   const SceneLighting3D foreground =
       collectSceneLighting3D(world, "foreground");
   assert(foreground.direction[3] == 3.0F);
+  assert(foreground.castsShadows && foreground.shadowResolution==1024);
   assert(foreground.directionalColor[0] == 1.0F);
 
   // The shader has a documented four-light budget. Extra lights must be

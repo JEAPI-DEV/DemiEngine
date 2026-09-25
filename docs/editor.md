@@ -36,13 +36,18 @@ MeshRenderer's raw vertex, normal and UV arrays are under **Advanced geometry
 buffers**. Ordinary model use does not require editing them. Field help explains
 the model, texture, material, primitive and buffer controls.
 
+3D Viewport and Game View rendering defaults to 4× MSAA. Use the scene's
+`Environment3D` **MSAA Samples** dropdown to select `0` (off), `2`, `4`, `8`, or
+`16`. This is the same scene setting used by standalone Play.
+
 Masonry previews share runtime atlas/relief descriptors. Generated cells select
 their source region and stay out of the authored hierarchy and saved document.
 Prefab studio lighting can still make colors look different from scene lighting.
 
-Remaining gaps include damage-local shard
-activation, and editor access to every CLI authoring operation. The current
-lighting shader has no shadow-map pass; real-time cast shadows remain pending.
+Remaining gaps include deferred visuals for custom fracture models and editor
+access to every CLI authoring operation. The
+shared renderer supports opt-in directional shadow maps; point/spot shadows
+and cascades remain pending. See [rendering controls](rendering-and-effects.md#real-time-directional-shadows).
 
 ```sh
 cmake --build --preset linux-debug
@@ -175,7 +180,12 @@ into logical editor space so picking and gizmos remain aligned.
   plus deterministic Git-derived build iteration, and the official repository
   link. CI can override the numeric iteration at configure time.
 - The Console displays diagnostics from the same `validatePath` service used by
-  the CLI. Rejected authored edits also appear beside their Inspector target
+  the CLI. Project discovery skips dot-directories (including tool worktrees),
+  `build`, `generated`, `node_modules`, and `__pycache__`. Installed packages
+  are checked through the project's lockfile, not a scan of hidden folders.
+  Hover a diagnostic to read its full message, path, and suggested remedy.
+  Identical validation diagnostics appear once; distinct locations remain separate.
+  Rejected authored edits also appear beside their Inspector target
   and in the Console through one document issue.
 - Console diagnostics and build results share searchable severity filters,
   copyable source locations, and stable entity/component/field navigation when

@@ -1,4 +1,5 @@
 #include "demi/runtime/platform/ProjectFileWatcher.h"
+#include "demi/filesystem/ProjectPaths.h"
 
 #include <algorithm>
 
@@ -9,8 +10,10 @@ bool ignored(const std::filesystem::path &relative) {
   if (relative.empty())
     return true;
   const std::string first = (*relative.begin()).string();
-  return first == "build" || first == "generated" || first == ".git" ||
-         first == ".demi" || first == "saves";
+  return first == "saves" ||
+         std::ranges::any_of(relative, [](const auto &part) {
+           return isInternalProjectDirectory(part.string());
+         });
 }
 
 } // namespace
@@ -30,7 +33,9 @@ ProjectFileWatcher::scan() const {
   std::filesystem::recursive_directory_iterator iterator(
       projectDirectory_,
       std::filesystem::directory_options::skip_permission_denied, error);
-  for (const auto &entry : iterator) {
+  const std::filesystem::recursive_directory_iterator end;
+  for (; iterator != end; iterator.increment(error)) {
+    const auto &entry = *iterator;
     if (error) {
       error.clear();
       continue;

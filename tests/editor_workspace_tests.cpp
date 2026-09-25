@@ -221,6 +221,18 @@ int main() {
 
   {
     using namespace demi::runtime;
+    demi::editor::EditorWorkspace quality;
+    assert(quality.open(root / "examples/shadows_3d",error));
+    const auto original=quality.sceneDocument().json();
+    assert(quality.editValue({.entityId="environment",.component="Environment3D",.field="msaa_samples"},8,false,error));
+    assert(findEntity(quality.project().world,"environment")->component<Environment3DComponent>()->msaaSamples==8);
+    assert(!quality.editValue({.entityId="environment",.component="Environment3D",.field="msaa_samples"},3,false,error));
+    assert(quality.undo(error));
+    assert(quality.sceneDocument().json()==original);
+    assert(findEntity(quality.project().world,"environment")->component<Environment3DComponent>()->msaaSamples==4);
+  }
+  {
+    using namespace demi::runtime;
     demi::editor::EditorWorkspace placements;
     assert(placements.open(root / "examples/destruction_weapons_3d_lab", error));
     const auto authored = placements.sceneDocument().json().dump();

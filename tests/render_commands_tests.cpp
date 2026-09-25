@@ -4,6 +4,9 @@
 #include "demi/runtime/render/backend/RenderCommands.h"
 
 #include <array>
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -140,6 +143,20 @@ int main() {
       .transforms = transforms,
   };
   assert(commands->submit(instanced, error));
+  const auto extraSampler=resources->createSampler("s_extra",error);
+  std::array<DrawTextureBinding,1> extra{{{.stage=1,.texture=texture,.sampler=extraSampler}}};
+  auto textured=buffered;textured.textures=extra;
+  auto texturedInstances=instanced;texturedInstances.textures=extra;
+  assert(commands->submit(textured,error) && commands->submit(texturedInstances,error));
+  extra[0].stage=0;
+  assert(!commands->submit(textured,error));
+  extra[0].stage=1;
+  const std::array<DrawTextureBinding,2> duplicate{extra[0],extra[0]};
+  textured.textures=duplicate;
+  assert(!commands->submit(textured,error));
+  textured.textures=extra;
+  assert(resources->destroy(extraSampler));
+  assert(!commands->submit(textured,error) && !commands->submit(texturedInstances,error));
   InstancedBufferedDraw noInstances = instanced;
   noInstances.transforms = {};
   assert(!commands->submit(noInstances, error));

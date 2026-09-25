@@ -2,6 +2,9 @@
 #include "demi/runtime/render/backend/GpuResources.h"
 
 #include <array>
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <cstddef>
 #include <string>
@@ -118,6 +121,22 @@ int main() {
   assert(target.frameBuffer);
   assert(target.color);
   assert(target.depth);
+  assert(target.msaaSamples==1);
+  for(int samples:{0,1,2,4,8,16}) {
+    const auto multisample=resources->createRenderTarget({.width=32,.height=32,.debugName="MSAA target",.msaaSamples=samples},error);
+    assert(multisample.frameBuffer && multisample.color && multisample.depth);
+    assert(multisample.msaaSamples==1 || multisample.msaaSamples==samples);
+    assert(resources->destroy(multisample.frameBuffer));
+    assert(resources->destroy(multisample.color));
+    assert(resources->destroy(multisample.depth));
+  }
+  assert(!resources->createRenderTarget({.msaaSamples=3},error).frameBuffer);
+  assert(!resources->createRenderTarget({.msaaSamples=-1},error).frameBuffer);
+  assert(!resources->createTexture({.msaaSamples=4},error));
+  const auto colorOnly=resources->createRenderTarget({.width=16,.height=16,.depth=false,.msaaSamples=4},error);
+  assert(colorOnly.frameBuffer && colorOnly.color && !colorOnly.depth);
+  assert(resources->destroy(colorOnly.frameBuffer));
+  assert(resources->destroy(colorOnly.color));
 
   assert(resources->destroy(indexBuffer));
   assert(!resources->destroy(indexBuffer));

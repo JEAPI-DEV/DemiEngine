@@ -1155,7 +1155,7 @@ int runProject(const RuntimeOptions &options) {
                                 .viewportY = 0,
                                 .viewportWidth = 0,
                                 .viewportHeight = 0,
-                                .viewId = 0,
+                                .viewId = 1,
                                 .frameBuffer = {}});
       } else {
         cameraFrames.reserve(cameraEntities.size());
@@ -1181,7 +1181,9 @@ int runProject(const RuntimeOptions &options) {
           cameraFrame.viewportHeight = static_cast<std::uint16_t>(
               std::clamp(camera.viewportHeight * frameState.height, 1.0F,
                          static_cast<float>(UINT16_MAX)));
-          cameraFrame.viewId = static_cast<std::uint16_t>(index * 4U);
+          // View zero clears the swapchain, even when cameras draw to MSAA
+          // surfaces or cover only part of the window.
+          cameraFrame.viewId = static_cast<std::uint16_t>(1U + index * render::CameraViewCount3D);
           if (const auto transform =
                   resolveWorldTransform3D(loaded.world, cameraEntity)) {
             cameraFrame.position = transform->position;

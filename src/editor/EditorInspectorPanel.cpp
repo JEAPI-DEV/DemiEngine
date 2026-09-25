@@ -308,7 +308,16 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
   }
   case ComponentFieldType::Integer: {
     std::int64_t edited = value.get<std::int64_t>();
-    changed = ImGui::InputScalar("##value", ImGuiDataType_S64, &edited);
+    if(!field.allowedIntegers.empty()) {
+      const auto label=std::to_string(edited);
+      if(ImGui::BeginCombo("##value",label.c_str())) {
+        for(int option:field.allowedIntegers)
+          if(ImGui::Selectable(std::to_string(option).c_str(),edited==option)) {
+            edited=option;changed=true;
+          }
+        ImGui::EndCombo();
+      }
+    } else changed = ImGui::InputScalar("##value", ImGuiDataType_S64, &edited);
     if (changed)
       clampNumericValue(edited, field);
     replacement = edited;

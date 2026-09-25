@@ -141,6 +141,9 @@ validateComponent(const ComponentDescriptor &descriptor,
       errors.push_back(
           {.field = iterator.key(), .message = "has an unsupported value"});
     }
+    if(!field->allowedIntegers.empty() && iterator.value().is_number() &&
+       std::ranges::none_of(field->allowedIntegers,[&](int value){return iterator.value().get<double>()==value;}))
+      errors.push_back({.field=iterator.key(),.message="has an unsupported integer choice"});
   }
   for (const ComponentFieldDescriptor &field : descriptor.fields) {
     if (field.required && !json.contains(field.name)) {
@@ -165,7 +168,7 @@ nlohmann::json componentFieldDefault(
   case ComponentFieldType::Boolean:
     return false;
   case ComponentFieldType::Integer:
-    return 0;
+    return field.allowedIntegers.empty() ? 0 : field.allowedIntegers.front();
   case ComponentFieldType::Number:
     return 0.0;
   case ComponentFieldType::String:
@@ -272,6 +275,8 @@ nlohmann::json componentSchema(const ComponentDescriptor &descriptor) {
       property["maximum"] = field.maximum;
     if (!field.allowedValues.empty())
       property["enum"] = field.allowedValues;
+    if (!field.allowedIntegers.empty())
+      property["enum"] = field.allowedIntegers;
     if (field.replicated)
       property["x-demi-replicated"] = true;
     property["x-demi-lua-readable"] = field.luaReadable;

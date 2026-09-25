@@ -1175,10 +1175,29 @@
         },
         "max_shadow_lights": {
           "default": 1,
-          "maximum": 4.0,
+          "maximum": 2147483647.0,
           "minimum": 0.0,
           "type": "integer",
+          "x-demi-editor-help": "Zero disables shadows. The current renderer supports one directional shadow map per camera.",
           "x-demi-editor-label": "Max Shadow Lights",
+          "x-demi-editor-step": 1.0,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "msaa_samples": {
+          "default": 4,
+          "enum": [
+            0,
+            2,
+            4,
+            8,
+            16
+          ],
+          "maximum": 16.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-demi-editor-help": "3D edge anti-aliasing: 0 off, 2, 4 (default), 8 or 16 samples. Device support may lower the request.",
+          "x-demi-editor-label": "Msaa Samples",
           "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
@@ -1201,10 +1220,21 @@
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
+        "shadow_bias": {
+          "default": 0.019999999552965164,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-help": "Depth offset in metres. Large values detach shadows from their casters.",
+          "x-demi-editor-label": "Shadow Bias",
+          "x-demi-editor-step": 0.001,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "shadow_distance": {
           "default": 80.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-help": "Shadow coverage radius in metres. Zero disables the pass.",
           "x-demi-editor-label": "Shadow Distance",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -1212,9 +1242,10 @@
         },
         "shadow_resolution": {
           "default": 1024,
-          "maximum": 4096.0,
-          "minimum": 128.0,
+          "maximum": 65535.0,
+          "minimum": 1.0,
           "type": "integer",
+          "x-demi-editor-help": "Square map resolution. The rendering device's texture limits apply.",
           "x-demi-editor-label": "Shadow Resolution",
           "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,

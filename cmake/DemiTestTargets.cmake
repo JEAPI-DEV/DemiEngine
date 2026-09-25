@@ -1,4 +1,6 @@
 # Native test executables. Test registration lives in dedicated modules.
+  add_executable(demi-project-discovery-tests tests/project_discovery_tests.cpp)
+  target_link_libraries(demi-project-discovery-tests PRIVATE demi-editor-model)
   add_executable(demi-fracture-prefab-tests tests/fracture_prefab_tests.cpp)
   target_link_libraries(demi-fracture-prefab-tests PRIVATE demi-runtime-lib demi-editor-model)
   add_executable(demi-blast-family3d-tests tests/blast_family3d_tests.cpp)
@@ -454,7 +456,8 @@
   # These tests use assert for checks and fixture setup. Keep those calls in
   # optimized test executables; the linked engine libraries remain Release.
   foreach(target demi-bgfx-renderer3d-tests demi-gltf-skinned-model-tests demi-runtime-profiler-tests demi-gpu-mesh3d-tests demi-gpu-skinning3d-tests
-                 demi-package-manager-tests demi-asset-streaming-tests demi-asset-pipeline-tests demi-editor-asset-workflow-tests demi-texture-library2d-tests demi-editor-workspace-tests demi-editor-imgui-input-tests)
+                 demi-package-manager-tests demi-asset-streaming-tests demi-asset-pipeline-tests demi-editor-asset-workflow-tests demi-texture-library2d-tests demi-editor-workspace-tests demi-editor-imgui-input-tests
+                 demi-project-watch-reload-tests demi-project-build-settings-tests demi-editor-diagnostics-profiler-tests)
     if(MSVC)
       target_compile_options(${target} PRIVATE /UNDEBUG)
     else()

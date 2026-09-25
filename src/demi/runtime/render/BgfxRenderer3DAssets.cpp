@@ -10,9 +10,25 @@
 
 namespace demi::runtime::render {
 
+bool BgfxRenderer3D::setRenderTargetSamples(RenderTarget &target,
+    const std::string &id,int samples,std::string &error) {
+  if(target.requestedSamples==samples)return true;
+  const auto replacement=resources_.createRenderTarget({.width=target.width,
+      .height=target.height,.depth=target.depth,.debugName=id,.msaaSamples=samples},error);
+  if(!replacement.frameBuffer || !replacement.color)return false;
+  overlay_.setExternalTexture(id,{.handle=replacement.color,.width=target.width,.height=target.height});
+  if(target.handles.frameBuffer)resources_.destroy(target.handles.frameBuffer);
+  if(target.handles.depth)resources_.destroy(target.handles.depth);
+  if(target.handles.color)resources_.destroy(target.handles.color);
+  target.handles=replacement;
+  target.requestedSamples=samples;
+  return true;
+}
+
 bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
                                 std::vector<std::string> &diagnostics) {
   textures_.clear();
+  shadows_.clearTargets();
   // A pose cache must not outlive the model data it was sampled from.
   std::erase_if(dynamicMeshes_, [](const auto &entry) {
     return !entry.second->animationModel.empty();
@@ -72,7 +88,8 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
             RenderTarget{.handles = handles,
                          .width = static_cast<std::uint16_t>(descriptor->width),
                          .height =
-                             static_cast<std::uint16_t>(descriptor->height)});
+                             static_cast<std::uint16_t>(descriptor->height),
+                         .depth = descriptor->depth});
         overlay_.setExternalTexture(
             asset.id,
             {.handle = handles.color,

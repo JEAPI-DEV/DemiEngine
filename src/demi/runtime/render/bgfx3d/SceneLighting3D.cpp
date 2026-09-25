@@ -30,9 +30,14 @@ SceneLighting3D collectSceneLighting3D(const World &world,
     if (!entity.enabled)
       continue;
     if (const auto *environment = entity.component<Environment3DComponent>()) {
+      lighting.msaaSamples=environment->msaaSamples;
       lighting.skyTexture = environment->skyTexture;
       lighting.reliefCacheMeshes=environment->reliefCacheMeshes;
       lighting.reliefImageCacheBytes=environment->reliefImageCacheBytes;
+      lighting.shadowDistance=environment->shadowDistance;
+      lighting.shadowResolution=environment->shadowResolution;
+      lighting.shadowBias=environment->shadowBias;
+      lighting.shadowBudget=environment->maxShadowLights;
       lighting.ambient = {
           environment->ambientColor.r * environment->ambientIntensity,
           environment->ambientColor.g * environment->ambientIntensity,
@@ -45,6 +50,7 @@ SceneLighting3D collectSceneLighting3D(const World &world,
         matchesMask(renderMask, directional->renderMask)) {
       lighting.direction = {directional->direction.x, directional->direction.y,
                             directional->direction.z, directional->intensity};
+      lighting.castsShadows=directional->castsShadows && directional->intensity>0;
       lighting.directionalColor = {directional->color.r, directional->color.g,
                                    directional->color.b, 1.0F};
       hasAuthoredLighting = true;

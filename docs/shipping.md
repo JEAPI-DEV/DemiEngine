@@ -4,6 +4,14 @@ Project-owned release metadata belongs in the `build` object of
 `demi.project.json`. The editor Build window edits the same data used by the
 CLI and Gradle packager.
 
+Automatic source discovery and cooking skip dot-directories, `build`,
+`generated`, `node_modules`, and `__pycache__`. Tool worktrees inside a project
+are not game source. Installed package content is resolved explicitly from the
+lockfile; missing or modified packages still produce validation errors. An
+explicit file or directory passed to `demi validate` remains inspectable.
+Registered manifests in `assets/generated` remain loadable for existing atlas
+import workflows; these are resolved through the asset registry.
+
 ## Platform capability checks
 
 `demi validate --platform linux|linux_server|android` cross-checks reachable

@@ -10,6 +10,7 @@
 #include "demi/assets/GeneratedAtlasCooker.h"
 #include "demi/assets/PackageContent.h"
 #include "demi/assets/RenderAsset.h"
+#include "demi/filesystem/ProjectPaths.h"
 #include "demi/schema/Validation.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 
@@ -41,9 +42,11 @@ bool skippedRoot(const std::filesystem::path &relative) {
   // belongs to the project?". Test fixtures and authoring artifacts are
   // excluded: replays/ are CLI fixtures passed via --input-replay; tools/
   // and report.csv are authoring artifacts, not runtime data.
-  return first == "assets" || first == "build" || first == "generated" ||
-         first == ".git" || first == ".demi" || first == "saves" ||
-         first == "tests" || first == "replays" || first == "tools";
+  return first == "assets" || first == "saves" || first == "tests" ||
+         first == "replays" || first == "tools" ||
+         std::ranges::any_of(relative, [](const auto &part) {
+           return isInternalProjectDirectory(part.string());
+         });
 }
 
 bool skippedFile(const std::filesystem::path &relative) {
@@ -116,6 +119,11 @@ void addAssetGroupFiles(const std::filesystem::path &projectDirectory,
                              .path = assetsDirectory.string(),
                              .suggestion = {}});
       return;
+    }
+    if (iterator->is_directory() &&
+        isInternalProjectDirectory(iterator->path().filename().string())) {
+      iterator.disable_recursion_pending();
+      continue;
     }
     if (iterator->is_regular_file() &&
         iterator->path().filename().string().ends_with(".asset-group.json"))

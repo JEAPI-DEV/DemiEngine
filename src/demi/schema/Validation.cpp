@@ -390,6 +390,13 @@ void validatePhysics3D(Diagnostics &diagnostics,
     const std::string id = entity.value("id", "ent_unknown");
     const auto &components = entity["components"];
     const auto body = components.find("Rigidbody3D");
+    for(const char *lightType:{"PointLight","SpotLight"}) {
+      const auto light=components.find(lightType);
+      if(light!=components.end() && light->is_object() && light->contains("casts_shadows") && (*light)["casts_shadows"]==true)
+        diagnostics.push_back({.severity=Severity::Warning,.code="SHADOW_LIGHT_TYPE_UNSUPPORTED",
+          .message=std::string(lightType)+" shadows are not rendered; only directional shadow maps are supported.",
+          .path=path.string(),.suggestion="Use DirectionalLight.casts_shadows for real-time shadows."});
+    }
     if (const auto environment = components.find("Environment3D");
         environment != components.end() && environment->is_object()) {
       const auto sky = environment->find("sky_texture");
@@ -641,8 +648,14 @@ ValidationSummary validatePath(const std::filesystem::path &path) {
     return summary;
   }
 
-  const std::vector<std::filesystem::path> files =
-      collectKnownSourceFiles(path);
+  const auto projectDirectory = findProjectDirectory(path);
+  const auto registry =
+      projectDirectory
+          ? std::optional<AssetRegistry>(loadAssetRegistry(*projectDirectory))
+          : std::nullopt;
+  const auto files = registry && path == *projectDirectory
+                         ? collectProjectSourceFiles(*registry)
+                         : collectKnownSourceFiles(path);
   if (files.empty()) {
     summary.diagnostics.push_back(Diagnostic{
         .severity = Severity::Warning,
@@ -672,14 +685,15 @@ ValidationSummary validatePath(const std::filesystem::path &path) {
                                fileDiagnostics.begin(), fileDiagnostics.end());
   }
 
-  if (const auto projectDirectory = findProjectDirectory(path)) {
+  if (registry) {
     const Diagnostics assetDiagnostics =
-        validateAssetRegistry(loadAssetRegistry(*projectDirectory));
+        validateAssetRegistry(*registry);
     summary.diagnostics.insert(summary.diagnostics.end(),
                                assetDiagnostics.begin(),
                                assetDiagnostics.end());
   }
 
+  deduplicateDiagnostics(summary.diagnostics);
   return summary;
 }
 
@@ -793,8 +807,8 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
                .suggestion = "Use assets: [\"asset://ui/logo\"]."});
         } else {
           std::set<std::string> groupIds;
-          for (const auto &source :
-               collectKnownSourceFiles(path.parent_path())) {
+          for (const auto &source : collectProjectSourceFiles(
+                   loadAssetRegistry(path.parent_path()))) {
             if (!isAssetGroupFile(source))
               continue;
             if (const auto group = assets::loadAssetGroup(source))

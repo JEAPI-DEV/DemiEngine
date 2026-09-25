@@ -26,6 +26,9 @@ using Diagnostics = std::vector<Diagnostic>;
 
 [[nodiscard]] const char *toString(Severity severity);
 [[nodiscard]] bool hasErrors(const Diagnostics &diagnostics);
+// Preserve discovery order and distinct source locations while removing exact
+// repeats collected through several validation paths.
+void deduplicateDiagnostics(Diagnostics &diagnostics);
 
 void printDiagnosticsText(std::ostream &out, const Diagnostics &diagnostics);
 void printDiagnosticsJson(std::ostream &out, const Diagnostics &diagnostics);

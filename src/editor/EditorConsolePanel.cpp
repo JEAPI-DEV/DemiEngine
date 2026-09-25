@@ -154,6 +154,7 @@ void EditorConsolePanel::draw(EditorWorkspace &workspace,
       for (std::size_t index = 0; index < records.size(); ++index) {
         const Diagnostic &diagnostic = records[index].diagnostic;
         ImGui::PushID(static_cast<int>(index));
+        ImGui::BeginGroup();
         ImGui::TextColored(diagnosticColor(diagnostic.severity), "%s",
                            diagnostic.code.c_str());
         ImGui::SameLine();
@@ -184,8 +185,19 @@ void EditorConsolePanel::draw(EditorWorkspace &workspace,
                                     : "." + records[index].field);
           }
         }
-        if (!diagnostic.suggestion.empty() && ImGui::IsItemHovered())
-          ImGui::SetTooltip("%s", diagnostic.suggestion.c_str());
+        ImGui::EndGroup();
+        if (ImGui::IsItemHovered()) {
+          ImGui::BeginTooltip();
+          ImGui::PushTextWrapPos(ImGui::GetFontSize() * 48.F);
+          ImGui::TextUnformatted(diagnostic.code.c_str());
+          ImGui::TextUnformatted(diagnostic.message.c_str());
+          if (!diagnostic.path.empty())
+            ImGui::TextUnformatted(diagnostic.path.c_str());
+          if (!diagnostic.suggestion.empty())
+            ImGui::TextUnformatted(diagnostic.suggestion.c_str());
+          ImGui::PopTextWrapPos();
+          ImGui::EndTooltip();
+        }
         ImGui::PopID();
       }
       const auto runtimeLogs = playSession.runtimeLogs();
