@@ -4,7 +4,6 @@ if(ANDROID)
   target_link_libraries(demi_android PRIVATE demi-runtime-lib SDL3::SDL3-static)
   target_link_libraries(demi_android PRIVATE android log OpenSLES EGL GLESv2)
 else()
-  find_package(CURL REQUIRED)
   add_library(demi-cli-support STATIC
     src/cli/LuaStubExport.cpp
     src/cli/build/BuildService.cpp

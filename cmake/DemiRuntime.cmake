@@ -44,6 +44,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/network/DtlsTransport.cpp
   src/demi/runtime/network/GameNetworkSession.cpp
   src/demi/runtime/network/HttpClient.cpp
+  src/demi/runtime/network/HttpTransfer.cpp
   src/demi/runtime/network/NetworkMessageGateway.cpp
   src/demi/runtime/network/NetworkFaultSimulator.cpp
   src/demi/runtime/network/NetworkOwnershipRegistry.cpp
@@ -128,6 +129,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/navigation/LuaNavigation2DBindings.cpp
   src/demi/runtime/scripting/text/RegexMatcher.cpp
   src/demi/runtime/scripting/bindings/LuaJsonBridge.cpp
+  src/demi/runtime/scripting/bindings/LuaHttpBindings.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkBindings.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkQueryHistoryBindings.cpp
   src/demi/runtime/scripting/bindings/LuaNetworkSessionBindings.cpp
@@ -150,7 +152,9 @@ function(configure_demi_runtime target with_renderer)
   target_include_directories(${target} PUBLIC src
     "${DEMI_RENDER_GENERATED_INCLUDE_DIR}")
   target_compile_features(${target} PUBLIC cxx_std_20)
-  target_link_libraries(${target} PRIVATE box2d Jolt miniaudio nlohmann_json::nlohmann_json mbedtls mbedx509 mbedcrypto sol2::sol2)
+  target_link_libraries(${target} PRIVATE box2d Jolt miniaudio
+    nlohmann_json::nlohmann_json mbedtls mbedx509 mbedcrypto sol2::sol2
+    CURL::libcurl Threads::Threads)
   target_compile_definitions(${target} PRIVATE
     DEMI_HAS_BOX2D=1
     DEMI_HAS_JOLT=1

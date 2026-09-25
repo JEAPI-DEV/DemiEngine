@@ -159,6 +159,7 @@ FetchContent_Declare(mbedtls
   GIT_TAG v3.6.2
 )
 FetchContent_MakeAvailable(mbedtls)
+include(DemiHttp)
 
 FetchContent_Declare(lua
   GIT_REPOSITORY https://github.com/lua/lua.git
