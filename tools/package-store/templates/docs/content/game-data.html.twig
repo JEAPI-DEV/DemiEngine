@@ -1,0 +1,94 @@
+<h1>Game data</h1>
+<p><code>DataAsset</code> holds versioned JSON game content — items, quests, dialogue, balance tables. <code>DataSchema</code> constrains that content so mistakes fail validation with an exact JSON pointer instead of breaking at runtime.</p>
+
+<h2>Author a schema</h2>
+<p>A schema is itself an asset. Example <code>assets/schemas/item.data.json</code> declared as a <code>DataSchema</code> manifest:</p>
+<pre><code>{
+  "format_version": 1,
+  "type": "object",
+  "required": ["id", "name", "damage"],
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "damage": { "type": "number", "minimum": 0, "maximum": 999 },
+    "rarity": { "type": "string", "enum": ["common", "rare", "epic"] },
+    "icon": { "type": "string", "reference": "asset" },
+    "prefab": { "type": "string", "reference": "prefab" }
+  }
+}</code></pre>
+<p>Supported constraints:</p>
+<ul>
+  <li><code>type</code> — <code>object</code>, <code>array</code>, <code>string</code>, <code>number</code>, <code>integer</code>, <code>boolean</code>.</li>
+  <li><code>required</code> — field names that must be present.</li>
+  <li><code>properties</code> / <code>items</code> — describe object fields and array elements.</li>
+  <li><code>enum</code> — allowed values.</li>
+  <li><code>minimum</code> / <code>maximum</code> — numeric bounds.</li>
+  <li><code>reference</code> — <code>asset</code>, <code>prefab</code>, or <code>scene</code>. Validates that the URI resolves, so typos fail at authoring time.</li>
+</ul>
+
+<h2>Author data assets</h2>
+<p>Source JSON requires <code>format_version: 1</code>. The manifest links the source to its schema:</p>
+<pre><code>{
+  "format_version": 1,
+  "id": "asset://items/iron_sword",
+  "type": "DataAsset",
+  "source": "iron_sword.json",
+  "importer": "json_data",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:...",
+  "dependencies": ["asset://schemas/item"],
+  "settings": {
+    "schema": "asset://schemas/item",
+    "content_type": "item",
+    "tags": ["shop:forest", "tier:1"]
+  }
+}</code></pre>
+<p><code>content_type</code> and <code>tags</code> are query keys — group items, quests, or dialogue lines by type and tag without scanning every asset.</p>
+
+<h2>Read data from Lua</h2>
+<pre><code>local Data = require("demi.data")
+
+local sword, err = Data.load("asset://items/iron_sword")
+if not sword then
+    -- err is a table: err.code, err.message, err.path
+    print("load failed:", err.code, err.message, err.path)
+    return
+end
+
+-- sword is a plain Lua table matching the JSON document:
+print(sword.name, sword.damage)   -- "Iron Sword"  12
+print(sword.rarity or "common")   -- optional field → nil when absent</code></pre>
+<p><code>Data.load</code> returns the parsed table on success (<code>value, nil</code>) or <code>nil, error</code>. The error table always has <code>code</code>, <code>message</code>, and <code>path</code> (the JSON pointer to the offending field when validation failed). Values are detached snapshots — copy them if you plan to mutate.</p>
+<pre><code>local results = Data.query({ content_type = "item", tags = { "shop:forest" } })
+print(#results)                   -- 0 when nothing matches
+for _, item in ipairs(results) do
+    print(item.name, item.damage)
+end</code></pre>
+<p><code>Data.query</code> returns an array of loaded documents matching the content type and tags (an item must include every requested tag). Empty array means “no matches”, not an error.</p>
+<table>
+  <thead><tr><th>Call</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>Data.revision(uri)</code></td><td>Integer revision counter — changes on every reload. Compare it to detect updates.</td></tr>
+    <tr><td><code>Data.kind(value)</code></td><td>String type name of a loaded value (“object”, “array”, “string”, …).</td></tr>
+    <tr><td><code>Data.is_null(value)</code></td><td><code>true</code> when the value is the JSON-null sentinel.</td></tr>
+    <tr><td><code>Data.null</code></td><td>The sentinel itself. Use it when you need to round-trip a JSON <code>null</code>: <code>optional = value or Data.null</code>.</td></tr>
+    <tr><td><code>Data.parse_yaml(text, source)</code></td><td><code>value, nil</code> or <code>nil, error</code> — converts a YAML string into the same table shape.</td></tr>
+  </tbody>
+</table>
+
+<h2>Hot reload</h2>
+<p>Watched data changes reload at frame boundaries and emit <code>data_asset_reloaded</code>:</p>
+<pre><code>Events.subscribe("data_asset_reloaded", function(e)
+    -- e.id, e.old_revision, e.new_revision, e.affected_dependents
+    print(e.id, "now at revision", e.new_revision)
+end)</code></pre>
+<p>An invalid document keeps the previous revision and prints diagnostics, so a bad edit cannot break a running game.</p>
+
+<h2>Gameplay data packages</h2>
+<p>Optional pure-Lua packages provide flags, conditions, inventories, quests, and dialogue helpers on top of <code>DataAsset</code>. Install them like any other package and require their public modules.</p>
+
+<h2>Next</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'assets'}) }}">Assets &amp; streaming</a> for import and group loading</li>
+  <li><a href="{{ path('docs_page', {slug: 'scripting'}) }}">Lua scripting</a> for property schemas</li>
+</ul>

@@ -1,0 +1,148 @@
+<h1>Assets &amp; packages</h1>
+<p>Games are mostly content: images, models, sounds, data files. In DemiEngine that content is managed as <strong>assets</strong> (files the game loads by stable ID) and <strong>packages</strong> (reusable bundles of scripts and assets other projects can depend on). This page covers the <code>demi asset</code> and <code>demi package</code> command groups, using the sample game "Skyforge" at <code>games/my_game</code>.</p>
+
+<h2>What an asset is</h2>
+<p>An <strong>asset</strong> is one piece of game content plus a small JSON <strong>manifest</strong> that names it. The manifest lives at <code>assets/&lt;name&gt;.asset.json</code> and gives the asset a stable ID like <code>asset://textures/brick</code>. Scenes and scripts reference that ID, never a file path, so the file behind it can be reimported or re-exported without rewriting the game.</p>
+<p>Why manifests instead of raw paths? Because IDs survive reimports, cooking, and packaging. A scene that says <code>asset://ui/theme</code> keeps working when the theme source file is replaced by a newer export from your art tool.</p>
+
+<h2>Inspect an asset</h2>
+<p>Before debugging a missing texture, ask the engine what it knows about the asset:</p>
+<pre><code>./build/linux-debug/demi asset inspect assets/textures/brick.asset.json \
+  --project games/my_game --id asset://textures/brick</code></pre>
+<ul>
+  <li><code>asset inspect</code> — validates the manifest and prints a summary: ID, type, source path, and settings.</li>
+  <li><code>--project games/my_game</code> — the project the asset belongs to.</li>
+  <li><code>--id asset://textures/brick</code> — the asset ID to resolve inside the manifest when one manifest covers several exports.</li>
+</ul>
+<p>Exits <code>0</code> when the manifest is valid, <code>1</code> when validation reports errors.</p>
+<pre><code>./build/linux-debug/demi asset deps assets/textures/brick.asset.json \
+  --project games/my_game --id asset://textures/brick</code></pre>
+<ul>
+  <li><code>asset deps</code> — lists the source files this asset depends on. Returns one path per line, so it is easy to use in a build script to decide whether a reimport is needed.</li>
+</ul>
+
+<h2>Import and reimport</h2>
+<p><strong>Import</strong> takes a source file from anywhere on disk (an art export, a WAV, a glTF model), copies it into the project's asset area, and writes the manifest that registers it.</p>
+<pre><code>./build/linux-debug/demi asset import ~/art/brick.png \
+  --project games/my_game --id asset://textures/brick</code></pre>
+<ul>
+  <li><code>asset import &lt;source&gt;</code> — the file to bring in.</li>
+  <li><code>--id asset://textures/brick</code> — the stable ID the new manifest will declare.</li>
+  <li><code>--importer &lt;id&gt;</code> — optional; names the importer when the file type alone is ambiguous (for example a model that could be static or skinned).</li>
+</ul>
+<p>Returns <code>0</code> and prints the manifest path on success. When the source file changes later, refresh the registered output:</p>
+<pre><code>./build/linux-debug/demi asset reimport assets/textures/brick.asset.json \
+  --project games/my_game --id asset://textures/brick</code></pre>
+<ul>
+  <li><code>asset reimport</code> — regenerates the asset output, updates the source hash and metadata, and leaves the asset ID unchanged.</li>
+</ul>
+<p>Content produced by another tool already inside the project can be registered without a copy:</p>
+<pre><code>./build/linux-debug/demi asset register-generated assets/textures/brick_atlas.png \
+  --project games/my_game --id asset://textures/brick_atlas</code></pre>
+<ul>
+  <li><code>asset register-generated &lt;source&gt;</code> — registers a tool-generated source under <code>assets/</code> so it becomes a first-class asset.</li>
+</ul>
+
+<h2>Colliders, packs, and budgets</h2>
+<p>Three specialized asset commands cover physics shapes, portable packs, and performance checks:</p>
+<pre><code>./build/linux-debug/demi asset collider assets/models/crate.asset.json \
+  --project games/my_game --id asset://colliders/crate</code></pre>
+<ul>
+  <li><code>asset collider</code> — generates a collider asset from a model asset, so physics uses the authored shape instead of a rough box.</li>
+</ul>
+<pre><code>./build/linux-debug/demi asset export --project games/my_game \
+  --output skyforge_props.demipack</code></pre>
+<ul>
+  <li><code>asset export --output file.demipack</code> — writes a portable asset pack: a single file other projects can import.</li>
+</ul>
+<pre><code>./build/linux-debug/demi asset import-package skyforge_props.demipack \
+  --project games/my_game</code></pre>
+<ul>
+  <li><code>asset import-package file.demipack</code> — verifies the pack and imports its assets into the project. Returns <code>1</code> if verification fails.</li>
+</ul>
+<pre><code>./build/linux-debug/demi asset budget games/my_game --platform android</code></pre>
+<ul>
+  <li><code>asset budget</code> — reports current usage against the project's performance budgets.</li>
+  <li><code>--platform android|linux</code> — which platform's budget profile to measure against.</li>
+</ul>
+<p>Budgets are declared in the project file and are covered in <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a>.</p>
+
+<h2>What a package is</h2>
+<p>A <strong>package</strong> is a versioned, reusable unit of game code and content: Lua modules, scenes, prefabs, and assets that several games can share. Packages exist so "health bars", "third-person movement", or "prototype textures" are written once and depended on, instead of copied between projects. Installing packages is covered on <a href="{{ path('docs_page', {slug: 'installing-packages'}) }}">Installing packages</a>; publishing your own is on <a href="{{ path('docs_page', {slug: 'publishing-packages'}) }}">Publishing packages</a>.</p>
+
+<h2>Add and remove dependencies</h2>
+<p>Dependencies are declared in the project file and managed with the package commands:</p>
+<pre><code>./build/linux-debug/demi package add demi.gameplay.health@^1.0.0 \
+  --project games/my_game</code></pre>
+<ul>
+  <li><code>package add name@constraint</code> — resolves the name against the registry and records the constraint as a direct dependency.</li>
+  <li><code>name@constraint</code> — for example <code>demi.gameplay.health@^1.0.0</code>, meaning "any 1.x release at 1.0.0 or newer".</li>
+</ul>
+<p>Resolves and records the dependency, updates <code>demi.packages.lock.json</code> with the pinned version, and exits <code>0</code>.</p>
+<pre><code>./build/linux-debug/demi package remove demi.gameplay.health \
+  --project games/my_game</code></pre>
+<ul>
+  <li><code>package remove name</code> — removes the named direct dependency and re-resolves the lock file.</li>
+</ul>
+
+<h2>Install, update, and inspect</h2>
+<pre><code>./build/linux-debug/demi package install --project games/my_game</code></pre>
+<ul>
+  <li><code>package install</code> — installs every resolved package into <code>.demi/packages</code>, a derived folder that is safe to delete and regenerate.</li>
+  <li><code>--locked</code> — installs exactly the versions in <code>demi.packages.lock.json</code> and fails instead of re-resolving. Use this in continuous integration.</li>
+  <li><code>--offline</code> — installs from the local cache only; no network access. Returns <code>1</code> if a needed version is not cached.</li>
+  <li><code>--dry-run</code> — prints the install plan and exits without writing anything.</li>
+</ul>
+<pre><code>./build/linux-debug/demi package update demi.gameplay.health \
+  --project games/my_game</code></pre>
+<ul>
+  <li><code>package update [name]</code> — re-resolves within the declared constraints. With a name, updates that package only; without one, updates every package.</li>
+</ul>
+<pre><code>./build/linux-debug/demi package list --project games/my_game
+./build/linux-debug/demi package outdated --project games/my_game --format json</code></pre>
+<ul>
+  <li><code>package list</code> — prints the resolved versions currently installed.</li>
+  <li><code>package outdated</code> — prints resolved versions that have a newer release satisfying the constraint.</li>
+  <li><code>--format json</code> — same information as a JSON document for scripts and editors.</li>
+</ul>
+<p>Both return the listing on standard output and exit <code>0</code> when the project's dependency state is consistent.</p>
+
+<h2>Test a package</h2>
+<p>Packages can ship their own tests so consumers can trust an upgrade:</p>
+<pre><code>./build/linux-debug/demi package test packages/skyforge-kit</code></pre>
+<ul>
+  <li><code>package test [dir]</code> — runs the declared Lua package tests in the given package directory (default: the current directory).</li>
+  <li>Returns <code>0</code> when all tests pass, <code>1</code> when any test fails.</li>
+</ul>
+
+<h2>Publish a package</h2>
+<pre><code>./build/linux-debug/demi package publish packages/skyforge-kit \
+  --registry https://demiengine.de</code></pre>
+<ul>
+  <li><code>package publish [dir]</code> — packages the directory and uploads a release to the registry.</li>
+  <li><code>--registry &lt;url-or-path&gt;</code> — where to publish. <code>https://demiengine.de</code> is the public store.</li>
+</ul>
+<p>Releases are immutable once published: a version number is a promise that its content will not change. The full workflow, including the audited package content roots, is documented on <a href="{{ path('docs_page', {slug: 'publishing-packages'}) }}">Publishing packages</a>.</p>
+
+<h2>Command map</h2>
+<table>
+  <thead><tr><th>Goal</th><th>Command</th></tr></thead>
+  <tbody>
+    <tr><td>Summarize an asset</td><td><code>demi asset inspect &lt;manifest&gt; --project p --id asset://…</code></td></tr>
+    <tr><td>List asset sources</td><td><code>demi asset deps &lt;manifest&gt; --project p --id asset://…</code></td></tr>
+    <tr><td>Bring a file in</td><td><code>demi asset import &lt;source&gt; --project p --id asset://…</code></td></tr>
+    <tr><td>Refresh after art changes</td><td><code>demi asset reimport &lt;manifest&gt; --project p --id asset://…</code></td></tr>
+    <tr><td>Register tool output</td><td><code>demi asset register-generated &lt;source&gt; --project p --id asset://…</code></td></tr>
+    <tr><td>Make a physics shape</td><td><code>demi asset collider &lt;model.asset.json&gt; --id asset://…</code></td></tr>
+    <tr><td>Share assets as a pack</td><td><code>demi asset export --output file.demipack</code></td></tr>
+    <tr><td>Consume an asset pack</td><td><code>demi asset import-package file.demipack --project p</code></td></tr>
+    <tr><td>Check budget usage</td><td><code>demi asset budget p --platform android|linux</code></td></tr>
+    <tr><td>Add a dependency</td><td><code>demi package add name@constraint</code></td></tr>
+    <tr><td>Install resolved packages</td><td><code>demi package install [--locked] [--offline] [--dry-run]</code></td></tr>
+    <tr><td>Upgrade within constraints</td><td><code>demi package update [name]</code></td></tr>
+    <tr><td>See resolved and outdated versions</td><td><code>demi package list|outdated [--format json]</code></td></tr>
+    <tr><td>Run package tests</td><td><code>demi package test [dir]</code></td></tr>
+    <tr><td>Ship a release</td><td><code>demi package publish [dir] --registry &lt;url&gt;</code></td></tr>
+  </tbody>
+</table>
+<p>See also <a href="{{ path('docs_page', {slug: 'installing-packages'}) }}">Installing packages</a>, <a href="{{ path('docs_page', {slug: 'publishing-packages'}) }}">Publishing packages</a>, and the <a href="{{ path('docs_page', {slug: 'cli'}) }}">CLI reference</a>.</p>

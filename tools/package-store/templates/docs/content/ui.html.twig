@@ -1,0 +1,172 @@
+<h1>UI &amp; HUD</h1>
+<p>Runtime UI is a retained tree authored in <code>*.hud.json</code> documents. You describe the layout once; scripts mutate text, values, and visibility at runtime. The editor HUD stage edits the same tree the runtime renders.</p>
+
+<h2>Document shape</h2>
+<pre><code>{
+  "format_version": 1,
+  "canvas_size": [1280, 720],
+  "theme": "ui/themes/dark.json",
+  "localization_file": "ui/strings.json",
+  "variables": { "game_title": "Skyforge" },
+  "action_map": { "confirm": "menu_accept" },
+  "action_effects": {
+    "menu_accept": { "focus": "start" }
+  },
+  "root": {
+    "id": "menu",
+    "type": "container",
+    "dock": "fill",
+    "stack": "column",
+    "pad": 24,
+    "gap": 12,
+    "children": [
+      { "id": "title", "type": "label", "text": "${game_title}", "font_size": 32 },
+      { "id": "start", "type": "button", "text": "Start", "action": "confirm" },
+      { "id": "options", "type": "button", "text": "Options", "action": "confirm" }
+    ]
+  }
+}</code></pre>
+<p>Walkthrough: <code>canvas_size</code> is the design resolution every position and size is measured against. <code>root</code> is a full-screen column with 24 units of padding and 12 units between children. The title interpolates <code>${game_title}</code> from the top-level <code>variables</code> map. The button <code>action</code> names an input action, and <code>action_effects</code> can move focus or show nodes when that action fires.</p>
+<p>You can omit <code>root</code> and write top-level <code>children</code> instead — an implicit fill container is inserted. Prefer <code>dock</code>, <code>stack</code>, <code>pad</code>, and <code>at</code> before raw anchors.</p>
+
+<h2>Node types</h2>
+<table>
+  <thead><tr><th>Type</th><th>Role</th><th>Useful fields</th></tr></thead>
+  <tbody>
+    <tr><td><code>container</code>, <code>panel</code></td><td>Layout and grouping</td><td><code>stack</code>, <code>gap</code>, <code>alignment</code>, <code>columns</code></td></tr>
+    <tr><td><code>label</code>, <code>text</code></td><td>Static / editable text</td><td><code>text</code>, <code>font_size</code>, <code>text_wrap</code>, <code>text_alignment</code></td></tr>
+    <tr><td><code>image</code></td><td>Texture display</td><td><code>texture</code> (<code>asset://…</code>), animation frames</td></tr>
+    <tr><td><code>button</code>, <code>toggle</code>, <code>slider</code>, <code>text_input</code></td><td>Interactive controls</td><td><code>action</code>, <code>disabled</code>, <code>focusable</code>, <code>placeholder</code></td></tr>
+    <tr><td><code>scroll</code>, <code>list</code>, <code>progress</code></td><td>Scrolling, lists, progress</td><td>children / value</td></tr>
+    <tr><td><code>modal</code></td><td>Focus-trapping dialog</td><td>children</td></tr>
+    <tr><td><code>virtual_button</code>, <code>virtual_stick</code></td><td>Touch controls</td><td><code>control</code> (publishes <code>virtual:*</code>)</td></tr>
+  </tbody>
+</table>
+
+<h2>Layout</h2>
+<ul>
+  <li>Every node accepts <code>anchor_min</code>/<code>anchor_max</code>, <code>margin</code>, <code>padding</code>, <code>min_size</code>, <code>max_size</code>.</li>
+  <li><code>stack</code> is <code>row</code>, <code>column</code>, or <code>grid</code>, with <code>alignment</code> (<code>start|center|end|stretch</code>), <code>gap</code>, and <code>columns</code>.</li>
+  <li><code>dock</code> pins a node: <code>fill|top|bottom|left|right|center</code>.</li>
+  <li><code>at</code> places a node at an explicit canvas point; <code>size</code> sets its extent in canvas units.</li>
+  <li>Safe areas protect readable and interactive content by default. Set <code>respect_safe_area: false</code> only for intentional edge-to-edge backgrounds.</li>
+</ul>
+<p>Colors accept a <code>[r, g, b, a]</code> array (0…1) or a hex string like <code>#1b1c27cc</code>.</p>
+
+<h2>Text, fonts, and localization</h2>
+<ul>
+  <li><code>"font": "asset://fonts/body"</code> picks a <code>Font2D</code> asset. The default is embedded Inter Variable.</li>
+  <li><code>text_wrap</code>: <code>none|word|grapheme</code>. <code>text_overflow</code>: <code>visible|clip|ellipsis</code>.</li>
+  <li><code>text_alignment</code> / <code>text_vertical_alignment</code>: <code>start|center|end</code>. <code>max_lines</code> caps the block.</li>
+  <li>Rich text tags: <code>[color]</code>, <code>[em]</code>, <code>[strong]</code>, <code>[link]</code>, <code>[icon]</code>.</li>
+  <li><code>${name}</code> in <code>text</code> interpolates a variable. Locale strings come from <code>localization_file</code>.</li>
+</ul>
+<pre><code>local Hud = require("demi.hud")
+Hud.set_variable("game_title", "Skyforge II")
+Hud.set_locale("de")             -- switch strings
+Hud.set_pseudo_locale("en-XA")   -- pseudo-localization for layout QA</code></pre>
+<p><code>Hud.has_variable(name)</code> returns a boolean; <code>Hud.get_variable(name)</code> returns the string or <code>nil</code>; <code>Hud.reset_variables()</code> restores the authored defaults.</p>
+
+<h2>Themes</h2>
+<p>A theme document supplies <code>styles</code> and an optional <code>action_map</code>. A localization file supplies a <code>localization</code> object. Values written on the node itself win over the theme. Reference a style with <code>"style": "menu_button"</code>.</p>
+
+<h2>Mutating UI from Lua</h2>
+<p>Layout stays authored. Scripts change content and state through <code>demi.hud</code>:</p>
+<pre><code>local Hud = require("demi.hud")
+
+Hud.set_text("title", "Ready?")           -- label/text content
+print(Hud.get_text("seed_input"))         -- read a text_input
+
+Hud.set_font("title", "asset://fonts/head")
+Hud.set_font_size("title", 40)
+Hud.set_color("title", { 1, 1, 1, 1 })
+Hud.set_background_color("panel", "#1b1c27cc")
+
+Hud.set_value("health_bar", 0.75)         -- progress/slider 0…1
+Hud.set_checked("toggle_music", true)     -- toggle state
+Hud.set_disabled("start", false)          -- enable a button
+Hud.set_visible("hint", false)            -- show/hide
+Hud.set_opacity("fade", 0.5)              -- 0…1
+Hud.set_image("portrait", "asset://ui/hero")
+Hud.set_position("popup", 120, 80)        -- canvas units
+Hud.set_size("popup", 480, 260)
+
+Hud.focus_next()                          -- move keyboard/gamepad focus
+local focused = Hud.focused()             -- node ID or nil</code></pre>
+<p>Every setter takes a node ID first. <code>Hud.find(id)</code> returns a generation-checked handle (or <code>nil</code> if the node is gone) — use it when you create and destroy nodes at runtime so stale handles fail cleanly.</p>
+
+<h2>Runtime-created UI</h2>
+<pre><code>local node = Hud.create("menu", {
+    type = "button",
+    text = "Continue",
+    action = "confirm",
+})
+print(node)                     -- handle for the new node
+
+local copy = Hud.clone(node)    -- duplicate, returns the clone
+Hud.reparent(copy, "other_panel")
+local kids = Hud.children("list")   -- array of child handles
+Hud.clear_children("list")
+Hud.remove(node)                -- delete a runtime node</code></pre>
+<p><code>Hud.create</code> builds a node from the same definition shape as authored HUD JSON and returns its handle. Keep handles in locals if you will mutate the node later.</p>
+
+<h2>UI prefabs</h2>
+<p>Reusable subtrees live as <code>*.ui.prefab.json</code> with typed parameters (<code>string</code>, <code>number</code>, <code>integer</code>, <code>boolean</code>, <code>array</code>, <code>object</code>):</p>
+<pre><code>{
+  "id": "confirm",
+  "prefab": "ui-prefab://controls/menu_button",
+  "arguments": { "label": "Confirm" },
+  "overrides": { "button": { "style": "primary" } }
+}</code></pre>
+<p><code>arguments</code> fills the prefab’s declared parameters; <code>overrides</code> merges into named descendants. Expanded descendant IDs use dotted paths (<code>confirm.hint</code>). Unknown parameters, type mismatches, unresolved <code>${…}</code> markers, reference cycles, and duplicate IDs fail validation with a clear diagnostic.</p>
+
+<h2>Virtualization</h2>
+<p>For long inventories and chat logs, only build what is visible:</p>
+<pre><code>local range = Hud.visible_range("scroll")
+-- range.y, range.height → first visible row and how many are on screen
+
+local layout = Hud.virtual_layout({ width = 1280, height = 720 })
+-- layout.visible_range, layout.set_extent, layout.item_offset,
+-- layout.item_count, layout.total_extent
+
+Hud.recycle_rows("list")        -- return off-screen rows to the pool
+Hud.clear_recycled_rows("list") -- empty the pool</code></pre>
+<p><code>virtual_layout</code> returns a table telling you which items fit in the viewport and their pixel extent, so you can place rows without measuring text yourself.</p>
+
+<h2>Tweens and reduced motion</h2>
+<pre><code>Hud.tween("fade", "opacity", 0.0, 0.35)  -- node, property, target, seconds
+Hud.tween("panel", "y", 120, 0.25)
+Hud.cancel_tween("fade")
+Hud.set_reduced_motion(true)             -- honor accessibility preference</code></pre>
+<p>Animatable properties: <code>opacity</code>, <code>x</code>, <code>y</code>, <code>scale</code>.</p>
+
+<h2>Events</h2>
+<pre><code>function Menu:on_ui_event(e)
+    -- e.type, e.id, e.related_id, e.action, e.text, e.source,
+    -- e.pointer_id, e.x, e.y, e.delta_x, e.delta_y,
+    -- e.value, e.checked, e.cancelled
+    if e.type == "press" and e.id == "start" then
+        print("start pressed by", e.source)  -- "pointer", "key", "gamepad", …
+    end
+end
+
+function Menu:on_ui_value_changed(e)
+    print(e.id, e.value, e.checked)
+end
+
+function Menu:on_ui_submit(e)
+    print(e.id, e.text)   -- current text_input contents
+end</code></pre>
+<p>Event types: <code>value_changed</code>, <code>focus_gained</code>, <code>focus_lost</code>, <code>submit</code>, <code>cancel</code>, <code>pointer_enter</code>, <code>pointer_exit</code>, <code>press</code>, <code>release</code>, <code>drag_start</code>, <code>drag</code>, <code>drag_end</code>, <code>drop</code>, <code>scroll</code>.</p>
+<p>Only the fields relevant to the type are filled — check <code>e.type</code> first. You can also subscribe globally with <code>Events.subscribe("ui_event", …)</code> and <code>Events.subscribe("ui_submit", …)</code>.</p>
+
+<h2>Accessibility</h2>
+<pre><code>local snapshot = Hud.accessibility_snapshot()
+-- array of { role, id, parent, label, description, value, states, bounds }</code></pre>
+<p>Node fields: <code>accessibility_label</code>, <code>accessibility_description</code>, <code>accessibility_hidden</code>. Focus is shared across Tab, arrows, D-pad, and pointer; modals trap focus until closed.</p>
+
+<h2>Next</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'input'}) }}">Input</a> for virtual controls and action mapping</li>
+  <li><a href="{{ path('docs_page', {slug: 'examples'}) }}">Examples tour</a> — <code>ui_showcase</code>, <code>main_menu_*</code></li>
+</ul>

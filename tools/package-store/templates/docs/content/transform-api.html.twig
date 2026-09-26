@@ -1,0 +1,79 @@
+<h1>Transform API</h1>
+<p>Every entity that appears in the world has a transform: where it sits, how it is turned, and how large it is. Two modules cover this — <code>demi.transform3d</code> for 3D and 2.5D games, <code>demi.transform2d</code> for flat sprites and tiles.</p>
+
+<h2>What a transform is</h2>
+<p>A transform is position + rotation + scale, in that order of usefulness. Position is a point in space, rotation is an orientation, scale is a size multiplier. Each value is either <strong>local</strong> (relative to the parent entity) or <strong>world</strong> (absolute in the scene). Local is what you edit; world is what you ask for when you need a screen position.</p>
+<p>Rotations in both modules are <strong>radians</strong>. If you think in degrees, convert with <code>math.rad(degrees)</code>.</p>
+
+<h2>Transform3D</h2>
+<pre><code>local Transform3D = require("demi.transform3d")
+
+local x, y, z = Transform3D.get_position("skyforge_player")
+-- x, y, z: local position scalars (all nil when the entity has no transform)
+
+Transform3D.set_position("skyforge_player", x + 1, y, z)
+Transform3D.add_position("skyforge_player", 0, 0, -2)   -- relative move</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Takes</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>Transform3D.get_position(id)</code></td><td>Entity handle or ID</td><td>Three scalars <code>x, y, z</code> in <strong>local</strong> space, or three <code>nil</code>s when there is no transform</td></tr>
+    <tr><td><code>Transform3D.set_position(id, x, y, z)</code></td><td>Handle plus three scalars</td><td>Nothing</td></tr>
+    <tr><td><code>Transform3D.add_position(id, dx, dy, dz)</code></td><td>Handle plus three scalars</td><td>Nothing — moves relative to the current local position</td></tr>
+    <tr><td><code>Transform3D.get_rotation(id)</code></td><td>Handle</td><td>Three Euler scalars in <strong>radians</strong>, or three <code>nil</code>s</td></tr>
+    <tr><td><code>Transform3D.set_rotation(id, rx, ry, rz)</code></td><td>Handle plus Euler radians</td><td>Nothing</td></tr>
+    <tr><td><code>Transform3D.get_scale(id)</code></td><td>Handle</td><td>Three scalars <code>x, y, z</code>, or three <code>nil</code>s</td></tr>
+    <tr><td><code>Transform3D.set_scale(id, sx, sy, sz)</code></td><td>Handle plus three scalars</td><td>Nothing</td></tr>
+  </tbody>
+</table>
+<p>Getters return one scalar per coordinate as separate Lua results. Assign exactly three names. If the entity has no transform, each result is <code>nil</code> — check <code>if x == nil then return end</code> before doing arithmetic on the values.</p>
+
+<h2>Directions and facing</h2>
+<p>Turning an entity and asking which way it points are different operations. The direction helpers always return <strong>world-space unit vectors</strong> (length 1) so you can scale them into movement.</p>
+<pre><code>local Transform3D = require("demi.transform3d")
+
+Transform3D.look_at("skyforge_turret", 10, 0, 4)   -- face a world point
+
+local fx, fy, fz = Transform3D.forward("skyforge_turret")
+local rx, ry, rz = Transform3D.right("skyforge_turret")
+local ux, uy, uz = Transform3D.up("skyforge_turret")</code></pre>
+<ul>
+  <li><code>Transform3D.look_at(id, x, y, z)</code> — rotates the entity to face the given world point. Returns nothing.</li>
+  <li><code>Transform3D.forward(id)</code> / <code>Transform3D.right(id)</code> / <code>Transform3D.up(id)</code> → three scalars of a world-space unit vector, or three <code>nil</code>s when there is no transform.</li>
+</ul>
+<p>A typical Skyforge turret turns with <code>look_at</code>, then fires along <code>forward</code>. Multiply the forward vector by a speed to get a velocity.</p>
+
+<h2>Transform2D</h2>
+<p>The 2D module is the same idea with one fewer coordinate. Positions are <code>x, y</code>, rotation is a single angle in radians, scale is <code>x, y</code>.</p>
+<pre><code>local Transform2D = require("demi.transform2d")
+
+local x, y = Transform2D.get_position("skyforge_ship")
+local r = Transform2D.get_rotation("skyforge_ship")   -- radians
+local sx, sy = Transform2D.get_scale("skyforge_ship")
+
+Transform2D.set_position("skyforge_ship", x + 4, y)
+Transform2D.set_rotation("skyforge_ship", math.rad(90))
+Transform2D.set_scale("skyforge_ship", 2, 2)</code></pre>
+<ul>
+  <li><code>Transform2D.get_position(id)</code> → two scalars <code>x, y</code>, or two <code>nil</code>s.</li>
+  <li><code>Transform2D.get_rotation(id)</code> → one scalar in radians, or <code>nil</code>.</li>
+  <li><code>Transform2D.get_scale(id)</code> → two scalars, or two <code>nil</code>s.</li>
+  <li>Matching <code>set_position</code>, <code>set_rotation</code>, <code>set_scale</code> write those values and return nothing.</li>
+</ul>
+<p>Rotation is one number, not a table. 90 degrees is <code>math.rad(90)</code>, which is about <code>1.5708</code>.</p>
+
+<h2>Local versus world</h2>
+<p>Setters on both modules write <strong>local</strong> space. If a rune is parented under the Skyforge player, moving the rune 1 unit in <code>x</code> moves it 1 unit relative to the player, not 1 unit in the level. For a world-space read of an entity's location use <code>Entity.world_position</code> from <a href="{{ path('docs_page', {slug: 'entity-api'}) }}">Entity API</a>; for placing things at world points, unparent first or convert yourself.</p>
+<pre><code>local Entity = require("demi.entity")
+local Transform3D = require("demi.transform3d")
+
+local rune = Entity.find("skyforge_rune")
+local lx, ly, lz = Transform3D.get_position(rune)      -- local
+local wx, wy, wz = Entity.world_position(rune)         -- world</code></pre>
+<p>Both calls return three scalars (or three <code>nil</code>s). Use local values when animating something that should ride along with its parent, and world values when spawning effects at a visible location.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'entity-api'}) }}">Entity API</a> — parenting and handles.</li>
+  <li><a href="{{ path('docs_page', {slug: 'math-debug-api'}) }}">Math &amp; debug</a> — vector helpers for the direction numbers these calls return.</li>
+  <li><a href="{{ path('docs_page', {slug: 'script-lifecycle'}) }}">Script lifecycle</a> — moving entities every frame from <code>on_update</code>.</li>
+</ul>

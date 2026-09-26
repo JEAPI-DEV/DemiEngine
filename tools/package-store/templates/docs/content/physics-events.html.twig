@@ -1,0 +1,162 @@
+<h1>Physics events</h1>
+<p>Physics events report what the simulation just did: bodies meeting, touching, and separating. This page explains the enter/stay/exit lifecycle, the difference between trigger and collision streams, and every payload field you receive in Lua.</p>
+
+<h2>What a physics event is</h2>
+<p>Collisions happen at simulation speed, between steps of your script. Instead of polling every pair every frame, the simulation reports its contacts as named events your script can subscribe to.</p>
+<p>That makes gameplay code small: subscribe once to <code>physics_collision_enter</code>, and every first touch anywhere in the scene reaches the same handler. No per-entity watcher, no manual overlap bookkeeping.</p>
+
+<h2>The enter, stay, and exit lifecycle</h2>
+<p>Every solid contact and every trigger overlap has a three-step life:</p>
+<ol>
+  <li><strong>Enter</strong> — the two shapes just started touching. Fire the one-shot reaction here: damage, sound, a spark.</li>
+  <li><strong>Stay</strong> — they were touching last step and still are. Use it for grinding damage, charging meters, sustained dialogue zones.</li>
+  <li><strong>Exit</strong> — they were touching and are no longer. Clear state here: end a damage-over-time, close a door.</li>
+</ol>
+<p>Enter and exit always balance. A body that is destroyed while inside a trigger receives the matching exit so you never keep stale “inside” flags.</p>
+
+<h2>Trigger events versus collision events</h2>
+<p>Two parallel streams exist, chosen by the collider’s <code>is_trigger</code> flag.</p>
+<table>
+  <thead><tr><th>Stream</th><th>Emitted when</th><th>Blocks movement</th></tr></thead>
+  <tbody>
+    <tr><td><code>physics_collision_enter/stay/exit</code></td><td>Two solid 2D colliders touch</td><td>Yes</td></tr>
+    <tr><td><code>physics_trigger_enter/stay/exit</code></td><td>A 2D trigger overlaps anything its filter accepts</td><td>No</td></tr>
+    <tr><td><code>physics3d_collision_enter/stay/exit</code></td><td>Two solid 3D colliders touch</td><td>Yes</td></tr>
+    <tr><td><code>physics3d_trigger_enter/stay/exit</code></td><td>A 3D trigger overlaps an accepted shape (character controllers report here too)</td><td>No</td></tr>
+    <tr><td><code>physics_contact</code></td><td>A 2D body with <code>report_contacts</code> has contact points to share</td><td>Yes (contact of a solid pair)</td></tr>
+    <tr><td><code>physics3d_contact</code></td><td>A 3D body with <code>report_contacts</code> has contact points to share</td><td>Yes (contact of a solid pair)</td></tr>
+  </tbody>
+</table>
+<p>Triggers are for regions you want noticed (checkpoints, pickup ranges, sensor fields). Collisions are for physical meetings that push back (landings, bumps, walls).</p>
+<p>Both streams obey <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">layer filters</a>. If a trigger never fires, check <code>mask_bits</code> on both shapes before anything else.</p>
+
+<h2>Contact points and report_contacts</h2>
+<p>Enter/stay/exit tell you who met. Sometimes you also need where — to spawn a spark, dent a hull, or play a surface-specific thud.</p>
+<p>Set <code>report_contacts: true</code> on the <a href="{{ path('docs_page', {slug: 'rigidbodies'}) }}">rigidbody</a> that should share its contacts. The simulation then emits <code>physics_contact</code> (2D) or <code>physics3d_contact</code> (3D) with the extracted contact points. Collision events fire either way; only the point-level stream is opt-in, because collecting exact contact points is extra work you should only pay when you use it.</p>
+<pre><code>local Events = require("demi.events")
+
+Events.subscribe("physics_contact", function(e)
+    -- e.self_id, e.other_id, e.point, e.normal
+    -- spawn a spark at e.point
+end)</code></pre>
+<ul>
+  <li><code>Events.subscribe(name, handler)</code> registers <code>handler</code> for that event name and returns a subscription value you can keep.</li>
+  <li><code>handler</code> receives one payload table per event and returns nothing.</li>
+  <li>Without <code>report_contacts: true</code> on the body, this handler never runs for that body.</li>
+</ul>
+
+<h2>2D payload fields</h2>
+<p>2D payloads keep <code>point</code> and <code>normal</code> as nested 2-value tables.</p>
+<table>
+  <thead><tr><th>Field</th><th>Type</th><th>Present on</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>self_id</code></td><td>entity id</td><td>all</td><td>The body whose contact is being reported.</td></tr>
+    <tr><td><code>other_id</code></td><td>entity id</td><td>all</td><td>The other body in the pair.</td></tr>
+    <tr><td><code>point</code></td><td><code>{ x, y }</code></td><td>collision, contact</td><td>World position of the touch.</td></tr>
+    <tr><td><code>normal</code></td><td><code>{ x, y }</code></td><td>collision, contact</td><td>Unit direction away from the surface.</td></tr>
+  </tbody>
+</table>
+<p>Trigger payloads carry <code>self_id</code> and <code>other_id</code> — enough to know who entered the region. Contact payloads add the exact <code>point</code> and <code>normal</code>.</p>
+<pre><code>local Events = require("demi.events")
+
+Events.subscribe("physics_trigger_enter", function(e)
+    -- e.self_id  the trigger entity
+    -- e.other_id the entity that walked in
+    if e.other_id == player_id then
+        print("player entered the zone")
+    end
+end)
+
+Events.subscribe("physics_collision_enter", function(e)
+    -- e.self_id, e.other_id, e.point {x, y}, e.normal {x, y}
+end)
+
+Events.subscribe("physics_collision_stay", function(e) end)
+Events.subscribe("physics_collision_exit", function(e) end)
+
+Events.subscribe("physics_trigger_stay", function(e) end)
+Events.subscribe("physics_trigger_exit", function(e) end)</code></pre>
+<ul>
+  <li>Each handler receives exactly one payload table and returns nothing.</li>
+  <li><code>self_id</code> and <code>other_id</code> always arrive, so one handler can filter by the entity it cares about.</li>
+  <li><code>point</code> and <code>normal</code> arrive on collision and contact streams as <code>{ x, y }</code> tables.</li>
+</ul>
+
+<h2>3D payload fields</h2>
+<p>3D collision and contact payloads are <strong>flattened</strong>: instead of nested tables, each coordinate is its own top-level number. That keeps the payload easy to spread across logs and network messages.</p>
+<table>
+  <thead><tr><th>Field</th><th>Type</th><th>Present on</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>self_id</code></td><td>entity id</td><td>all</td><td>Body whose contact is reported.</td></tr>
+    <tr><td><code>other_id</code></td><td>entity id</td><td>all</td><td>The other body in the pair.</td></tr>
+    <tr><td><code>point_x</code>, <code>point_y</code>, <code>point_z</code></td><td>numbers</td><td>collision, contact</td><td>World contact position.</td></tr>
+    <tr><td><code>normal_x</code>, <code>normal_y</code>, <code>normal_z</code></td><td>numbers</td><td>collision, contact</td><td>Outward surface direction.</td></tr>
+  </tbody>
+</table>
+<p>Trigger payloads (<code>physics3d_trigger_*</code>) carry <code>self_id</code> and <code>other_id</code> only.</p>
+<pre><code>local Events = require("demi.events")
+
+Events.subscribe("physics3d_collision_enter", function(e)
+    -- e.self_id, e.other_id
+    -- e.point_x, e.point_y, e.point_z
+    -- e.normal_x, e.normal_y, e.normal_z
+    local impact = { x = e.point_x, y = e.point_y, z = e.point_z }
+end)
+
+Events.subscribe("physics3d_trigger_enter", function(e)
+    -- e.self_id, e.other_id
+end)
+
+Events.subscribe("physics3d_contact", function(e)
+    -- same flattened point_x..normal_z fields as collision
+end)</code></pre>
+<ul>
+  <li>Flattened fields are plain numbers; assemble vectors only when a call needs them.</li>
+  <li><code>physics3d_contact</code> uses the same flattened shape as <code>physics3d_collision_*</code>.</li>
+  <li>Missing <code>report_contacts</code> means no <code>physics3d_contact</code> events for that body, while collision events still arrive.</li>
+</ul>
+
+<h2>Subscribing in practice</h2>
+<p>A Skyforge landing zone that announces arrivals and tracks who is parked:</p>
+<pre><code>local Events = require("demi.events")
+
+local parked = {}
+
+Events.subscribe("physics_trigger_enter", function(e)
+    if e.self_id == zone_id then
+        parked[e.other_id] = true
+    end
+end)
+
+Events.subscribe("physics_trigger_exit", function(e)
+    if e.self_id == zone_id then
+        parked[e.other_id] = nil
+    end
+end)</code></pre>
+<ul>
+  <li>Enter adds the ship to a lookup table keyed by <code>other_id</code>; exit removes it.</li>
+  <li>Filtering on <code>self_id == zone_id</code> keeps other triggers from polluting the set.</li>
+  <li>Stay is unused here because the set already knows the current members.</li>
+</ul>
+<p>A hull that sparks and dents only when hit hard:</p>
+<pre><code>local Events = require("demi.events")
+local Deform = require("demi.mesh.deformation")
+
+Events.subscribe("physics3d_contact", function(e)
+    if e.self_id ~= hull_id then return end
+    Deform.impact(hull_id, e.point_x, e.point_y, e.point_z, 0.4)
+end)</code></pre>
+<ul>
+  <li>The handler reads the flattened contact point and applies a cosmetic dent at that position.</li>
+  <li><code>Deform.impact</code> returns nothing; visible damage is on the mesh.</li>
+  <li>Requires <code>report_contacts: true</code> on the hull’s <a href="{{ path('docs_page', {slug: 'rigidbodies'}) }}">rigidbody</a> and a <a href="{{ path('docs_page', {slug: 'models-and-meshes'}) }}">dentable mesh</a>.</li>
+</ul>
+
+<h2>Choosing the right reaction</h2>
+<ul>
+  <li><strong>enter</strong> for one-shot gameplay: first damage, pickup, unlock.</li>
+  <li><strong>stay</strong> for continuous pressure: healing beams, magnet pull, grinding.</li>
+  <li><strong>exit</strong> for cleanup that must always run.</li>
+  <li><strong>contact</strong> when the exact hit position matters and <code>report_contacts</code> is enabled.</li>
+  <li>For “is anything there right now?” questions without waiting for a frame, prefer <a href="{{ path('docs_page', {slug: 'physics-queries'}) }}">Queries</a>.</li>
+</ul>

@@ -1,0 +1,56 @@
+{% extends 'base.html.twig' %}
+{% block title %}{{ page.title }} — DemiEngine docs{% endblock %}
+{% block description %}{{ page.summary }}{% endblock %}
+{% block styles %}<link rel="stylesheet" href="/docs.css?v=1">{% endblock %}
+{% block body %}
+<div class="docs-shell">
+  <aside class="docs-sidebar">
+    <a class="docs-all" href="{{ path('docs') }}">← All documentation</a>
+    <nav aria-label="Documentation">
+      {% for section in nav %}
+      <div>
+        <h3>{{ section.title }}</h3>
+        <ul>
+          {% for item in section.pages %}
+          <li class="docs-nav-parent"><a href="{{ path('docs_page', {slug: item.slug}) }}"{% if item.active %} aria-current="page"{% endif %}>{{ item.title }}</a>
+            {% if item.children %}
+            <ul class="docs-nav-children">
+              {% for child in item.children %}
+              <li><a href="{{ path('docs_page', {slug: child.slug}) }}"{% if child.active %} aria-current="page"{% endif %}>{{ child.title }}</a></li>
+              {% endfor %}
+            </ul>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
+    </nav>
+  </aside>
+  <article class="docs-article">
+    <div class="docs-breadcrumb">
+      {% if parent %}<a href="{{ path('docs_page', {slug: parent.slug}) }}">{{ parent.title }}</a> · {% endif %}
+      {{ page.section }}
+    </div>
+    {% if children %}
+    <section class="docs-subpages" aria-label="In this guide">
+      <h2 class="docs-subpages-title">In this guide</h2>
+      <ul>
+        {% for child in children %}
+        <li><a href="{{ path('docs_page', {slug: child.slug}) }}"><strong>{{ child.title }}</strong><span>{{ child.summary }}</span></a></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+    <p class="lead">{{ page.summary }}</p>
+    {% include 'docs/content/' ~ page.slug ~ '.html.twig' %}
+    {% if neighbors.prev or neighbors.next %}
+    <nav class="docs-pager" aria-label="Previous and next">
+      {% if neighbors.prev %}<a class="prev" href="{{ path('docs_page', {slug: neighbors.prev.slug}) }}"><span>Previous</span><strong>{{ neighbors.prev.title }}</strong></a>{% endif %}
+      {% if neighbors.next %}<a class="next" href="{{ path('docs_page', {slug: neighbors.next.slug}) }}"><span>Next</span><strong>{{ neighbors.next.title }}</strong></a>{% endif %}
+    </nav>
+    {% endif %}
+    <p class="docs-footer-note">Found an issue or missing topic? The full engine sources and markdown notes live in the <a href="https://github.com/JEAPI-DEV/DemiEngine">DemiEngine repository</a>.</p>
+  </article>
+</div>
+{% endblock %}

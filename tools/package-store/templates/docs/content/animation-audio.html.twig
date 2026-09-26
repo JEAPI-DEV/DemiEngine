@@ -1,0 +1,120 @@
+<h1>Animation &amp; audio</h1>
+<p>One animation state machine drives sprites and skeletal clips. Audio is a runtime API with buses, snapshots, streaming, and spatial voices.</p>
+
+<h2>Animation state machines</h2>
+<pre><code>{
+  "initial_state": "idle",
+  "speed": 1.0,
+  "root_motion": false,
+  "pause_policy": "pause",
+  "states": {
+    "idle": { "model_clip_name": "Idle", "duration": 1.0, "loop": true },
+    "run":  { "sprite_clip": "run", "loop": true,
+              "events": [{ "time": 0.4, "name": "footstep" }] }
+  },
+  "blend_spaces": [
+    { "name": "locomotion", "parameter_x": "speed",
+      "points": [{ "x": 0, "state": "idle" }, { "x": 1, "state": "run" }] }
+  ],
+  "layers": [
+    { "state": "aim", "weight": 0.5, "additive": true, "mask": ["spine", "arm_l"] }
+  ],
+  "transitions": [
+    { "from": "idle", "to": "run", "condition": "speed &gt; 0.1", "blend_duration": 0.15 },
+    { "from": "jump", "to": "idle", "condition": "finished" }
+  ]
+}</code></pre>
+<ul>
+  <li>A state plays a model clip (<code>model_clip_name</code>) or a sprite clip (<code>sprite_clip</code>).</li>
+  <li><code>events</code> fire at normalized <code>time</code> (0…1) inside the state — listen for <code>animation_event</code>.</li>
+  <li><code>blend_spaces</code> interpolate between states by a numeric parameter.</li>
+  <li><code>layers</code> stack or add poses over a bone <code>mask</code>.</li>
+  <li><code>transitions</code> switch when a <code>condition</code> matches (for example <code>finished</code> or <code>speed &gt; 0.1</code>) and blend over <code>blend_duration</code> seconds.</li>
+  <li><code>pause_policy</code> is <code>pause</code> (freeze while the game is paused) or <code>continue</code>.</li>
+</ul>
+<pre><code>local Animation = require("demi.animation")
+
+Animation.set_number(id, "speed", 0.8)     -- feed a parameter
+Animation.set_bool(id, "grounded", true)
+Animation.trigger(id, "jump")              -- one-shot trigger
+
+print(Animation.state(id))                 -- current state name, or nil
+Animation.play(id, "idle")                 -- force a state
+Animation.set_speed(id, 1.25)              -- playback rate
+local t = Animation.normalized_time(id)    -- 0…1 inside the current state
+Animation.transition(id, "run")            -- request a switch now
+Animation.set_layer_weight(id, 2, 0.3)     -- blend a layer
+Animation.set_root_motion(id, true)</code></pre>
+<p><code>animation_event</code> payloads carry <code>entity_id</code>, <code>state</code>, and <code>name</code>, so one handler can service footstep, hit, and reload timings.</p>
+
+<h2>Sprite sheets</h2>
+<p>For simple frame animation, <code>SpriteAnimator2D</code> is enough (see <a href="{{ path('docs_page', {slug: 'gameplay-2d'}) }}">2D &amp; isometric</a>). Model clip lists live in the asset <code>settings.animations.clips</code> with <code>name</code> and <code>skeleton</code>. Root motion is off unless enabled and uses evenly spaced <code>root_motion_track</code> samples.</p>
+
+<h2>Two-bone IK</h2>
+<pre><code>local Animation = require("demi.animation")
+
+local solved = Animation.solve_two_bone_2d({
+    root = hip, target = foot, pole = knee,
+    upper_length = 0.4, lower_length = 0.4,
+})
+if solved.reached then
+    -- solved.joint          → knee position
+    -- solved.end_position   → achieved end position
+else
+    -- target is out of range; the chain is stretched toward it
+end</code></pre>
+<p>Use <code>Animation.set_bone_segment</code> / <code>clear_bone_segments</code> to drive procedural leg visuals (see <code>procedural_spider_3d</code>).</p>
+
+<h2>Audio buses</h2>
+<p>The default bus tree is <code>master</code> → <code>music</code>, <code>sfx</code>, <code>voice</code>, <code>ui</code>.</p>
+<pre><code>local Audio = require("demi.audio")
+
+Audio.set_bus_volume("music", 0.6)     -- 0…1
+print(Audio.get_bus_volume("music"))
+Audio.set_bus_muted("ui", true)
+Audio.set_bus_paused("voice", true)
+
+Audio.define_snapshot("quiet", { music = 0.2, sfx = 0.5 })
+Audio.transition_snapshot("quiet", 0.4)  -- fade over 0.4 seconds</code></pre>
+<p>A snapshot captures a set of bus levels you can jump or fade to — pause menus, underwater, and so on.</p>
+
+<h2>Playing sounds</h2>
+<pre><code>local handle = Audio.play("asset://audio/boom", {
+    bus = "sfx",
+    loop = false,
+    streaming = false,
+    volume = 0.9,
+    pitch = 1.0,
+    pan = 0.0,
+    spatial = "3d",            -- "none" | "2d" | "3d"
+    x = 2, y = 0, z = 4,       -- world position for spatial playback
+    min_distance = 1.5,
+    max_distance = 30,
+    rolloff = "linear",
+    doppler = 1.0,
+    delay = 0.0,
+    fade_in = 0.05,
+    concurrency_group = "impacts",
+    max_voices = 8,
+    voice_stealing = "oldest", -- "reject" | "oldest" | "quietest"
+    pause_with_game = true,
+})
+Audio.stop(handle)             -- silence and release the voice</code></pre>
+<p><code>Audio.play</code> returns a voice handle (or <code>nil</code> if the asset is missing). Pass it to <code>Audio.stop</code>. <code>voice_stealing</code> decides what happens when <code>max_voices</code> is reached: reject the new sound, steal the oldest, or steal the quietest. <code>Audio.crossfade(old, new, seconds)</code> fades between two handles.</p>
+<p>Mark long music and ambience clips with <code>settings.streaming</code> on the <code>AudioClip</code> asset so they are not fully decoded into memory.</p>
+
+<h2>Entity-attached sources</h2>
+<pre><code>{
+  "AudioSource": {
+    "clip": "asset://audio/engine_loop",
+    "bus": "sfx",
+    "loop": true,
+    "spatial": "3d",
+    "autoplay": true
+  },
+  "AudioListener": {}
+}</code></pre>
+<pre><code>local Source = require("demi.audio.source")
+Source.play(id)    -- start the source on this entity
+Source.stop(id)    -- stop it</code></pre>
+<p><code>AudioSource</code> keeps the sound attached to the entity’s transform. Place one <code>AudioListener</code> in the scene (usually the camera or player).</p>

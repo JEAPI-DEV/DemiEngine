@@ -1,0 +1,68 @@
+<h1>Capabilities</h1>
+<p>DemiEngine is alpha/beta. This page is the honest support matrix — do not infer production support from an example alone.</p>
+
+<h2>Stable</h2>
+<ul>
+  <li>Versioned JSON projects, scenes, prefabs, HUD trees, assets, data, and saves</li>
+  <li>Lua lifecycle scripts, explicit service imports, editor property annotations, events, timers, hot reload, modular LuaLS stubs</li>
+  <li>Contextual input actions for keyboard, mouse, gamepads, touch, gestures, and virtual controls; deterministic input replay</li>
+  <li>2D rendering: sprites, cameras, animation, tilemaps, materials, startup-loaded game shaders, particles, masks, nine-slice, debug overlays</li>
+  <li>Box2D physics: multiple collider shapes, contacts, queries, joints, CCD, kinematic movement, matching debug drawing</li>
+  <li>2D navigation and reusable controllers</li>
+  <li>Retained tree UI: anchors, layout containers, focus/navigation, themes, localization, UI prefabs, text editing, virtualization, accessibility snapshots</li>
+  <li>Schema-backed immutable game data</li>
+  <li>Audio mixing, buses, snapshots, scheduling, streaming, spatial voices, entity-attached sources</li>
+  <li>Deterministic asset importing, dependency validation, portable <code>.demipack</code> archives, locked <code>.demipkg</code> packages, cooking</li>
+  <li>Linux cooking/packaging and runtime bundles</li>
+  <li>Profiling, CSV reports, deterministic replay, headless smoke tests, capability gates</li>
+  <li>Shared component metadata driving serialization and Inspector</li>
+</ul>
+
+<h2>Experimental</h2>
+<ul>
+  <li>Lightweight 3D: glTF models and skeletal clips, Vulkan GPU skinning with CPU fallback, instancing, culling, model/visual animation LOD, crowd probes</li>
+  <li>Jolt rigid bodies, compound colliders, spatial queries, character movement, collider assets, collider generation from models</li>
+  <li>Component-based fracture authoring and native Blast/Jolt impacts, masonry, proximity activation, debris cleanup, destruction checkpoints</li>
+  <li>Mesh denting, height-map surface relief, textured materials, local and directional lights, tone-mapped panorama skies, mipmaps, particles, post effects</li>
+  <li>Native editor with scene/HUD/prefab stages, hierarchy, Inspector, Undo/Redo, embedded Play, asset folders, diagnostics, profiling</li>
+  <li>Host-authoritative networking with contracts, ownership, late-join state, reconnect primitives, dedicated server</li>
+  <li>Async HTTP/HTTPS with verified TLS</li>
+  <li>Android APK/AAB build and signing (feature and device qualification stays scoped)</li>
+  <li>Video and cutscene playback on media-enabled builds</li>
+  <li>Production text/dynamic UI and the 3D animation adapter</li>
+</ul>
+<div class="docs-note"><strong>Not delivered yet</strong><p>HDR, metallic/roughness PBR, environment reflections, and local reflection probes are roadmap work, not current rendering features.</p></div>
+
+<h2>Planned</h2>
+<ul>
+  <li>Android cooking integration</li>
+  <li>Professional desktop 3D expansion (HDR/PBR/reflections, large-world workflows, structural stress)</li>
+  <li>Broader production qualification across devices</li>
+</ul>
+
+<h2>Platform notes</h2>
+<table>
+  <thead><tr><th>Area</th><th>Linux desktop</th><th>Android</th></tr></thead>
+  <tbody>
+    <tr><td>Rendering</td><td>bgfx Vulkan-first (GL available)</td><td>Vulkan / GLES, surface lifecycle safe</td></tr>
+    <tr><td>Physics</td><td>Box2D + Jolt</td><td>Box2D + Jolt</td></tr>
+    <tr><td>Audio</td><td>miniaudio</td><td>miniaudio, suspend/resume aware</td></tr>
+    <tr><td>Networking</td><td>ENet optional, HTTP/TLS</td><td>Requires INTERNET permission</td></tr>
+    <tr><td>Media</td><td>FFmpeg optional</td><td>FFmpeg optional, scoped</td></tr>
+    <tr><td>Editor</td><td>Native ImGui workspace</td><td>— (author on desktop)</td></tr>
+    <tr><td>Shipping</td><td><code>build linux</code></td><td><code>build apk</code> / <code>build aab</code></td></tr>
+  </tbody>
+</table>
+
+<h2>Compatibility policy</h2>
+<ul>
+  <li>During alpha/beta, breaking changes are allowed without deprecation. Examples, templates, packages, schemas, stubs, tests, and docs migrate in the same change.</li>
+  <li>Breaking changes keep one current way to do each job; examples, templates, packages, schemas, stubs, tests, and docs migrate with the change.</li>
+  <li>Every durable document keeps <code>format_version</code>. Unsupported versions are rejected with clear diagnostics.</li>
+  <li>Unknown components are errors unless registered extensions own them.</li>
+  <li>Saves are never silently deleted; incompatible saves keep clear diagnostics and migrations where possible.</li>
+  <li>Compatibility guarantees begin with the first explicitly designated production release.</li>
+</ul>
+
+<h2>Measure, do not assume</h2>
+<p>Benchmark reports record specific runs (hardware, resolution, build configuration, workload). They do not establish a general capacity guarantee for every scene or device. Use <code>demi run --profiler</code> and the qualification examples for comparable numbers.</p>

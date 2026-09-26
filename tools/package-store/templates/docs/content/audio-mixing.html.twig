@@ -1,0 +1,110 @@
+<h1>Audio mixing</h1>
+<p>Sound in DemiEngine runs through a mixer with named <strong>buses</strong>, so music, effects, voice, and UI can be balanced separately. Scripts play one-shots and loops through <code>demi.audio</code>, or attach playback to an entity with <code>demi.audio.source</code>.</p>
+
+<h2>What a bus is</h2>
+<p>A bus is a volume lane. Every sound you play is routed into one, and the lanes sum upward. The default tree is <code>master</code> at the top with <code>music</code>, <code>sfx</code>, <code>voice</code>, and <code>ui</code> underneath. Turning down <code>music</code> leaves footsteps and dialogue alone; turning down <code>master</code> quiets everything.</p>
+<pre><code>local Audio = require("demi.audio")
+
+Audio.play("asset://audio/skyforge_rune_collect", {
+    bus = "sfx",
+    volume = 0.8,
+})</code></pre>
+<p><code>Audio.play(uri, options)</code> starts a sound from an audio asset URI. The options table says how it plays (fields below). The call returns nothing — playback state is not polled; sounds simply run and finish.</p>
+
+<h2>Play options</h2>
+<table>
+  <thead><tr><th>Option</th><th>Type</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>bus</code></td><td>string</td><td>Mixer lane: <code>music</code>, <code>sfx</code>, <code>voice</code>, <code>ui</code> (under <code>master</code>)</td></tr>
+    <tr><td><code>loop</code></td><td>boolean</td><td>Repeat until stopped</td></tr>
+    <tr><td><code>streaming</code></td><td>boolean</td><td>Stream from disk instead of keeping the whole clip resident (music and ambience)</td></tr>
+    <tr><td><code>volume</code></td><td>number</td><td>Per-sound loudness multiplier</td></tr>
+    <tr><td><code>pitch</code></td><td>number</td><td>Playback rate multiplier (1 = normal)</td></tr>
+    <tr><td><code>pan</code></td><td>number</td><td>Stereo placement for non-spatial sounds</td></tr>
+    <tr><td><code>spatial</code></td><td>string</td><td><code>none</code>, <code>2d</code>, or <code>3d</code> — how the sound sits in the world</td></tr>
+    <tr><td><code>x</code> / <code>y</code> / <code>z</code></td><td>numbers</td><td>World position for spatial sounds (scalars, like transforms)</td></tr>
+    <tr><td><code>min_distance</code> / <code>max_distance</code></td><td>numbers</td><td>Range where a 3D sound is loudest / inaudible</td></tr>
+    <tr><td><code>rolloff</code></td><td>number</td><td>How fast volume falls off with distance</td></tr>
+    <tr><td><code>doppler</code></td><td>number</td><td>Amount of pitch shift from relative motion</td></tr>
+    <tr><td><code>delay</code></td><td>number</td><td>Seconds to wait before the sound starts</td></tr>
+    <tr><td><code>fade_in</code></td><td>number</td><td>Seconds to ramp volume up at the start</td></tr>
+    <tr><td><code>concurrency_group</code></td><td>string</td><td>Pool name limiting how many similar sounds play at once</td></tr>
+    <tr><td><code>max_voices</code></td><td>number</td><td>Cap for that concurrency group</td></tr>
+    <tr><td><code>voice_stealing</code></td><td>string</td><td>What to drop when the cap is hit: <code>reject</code> (refuse the new sound), <code>oldest</code>, or <code>quietest</code></td></tr>
+    <tr><td><code>pause_with_game</code></td><td>boolean</td><td>Whether <code>Time.set_paused</code> also pauses this sound</td></tr>
+  </tbody>
+</table>
+<p>All distances and times are numbers in the usual units (world units and seconds). Omitted options use the asset's authored defaults — there is no need to repeat every field.</p>
+<pre><code>local Audio = require("demi.audio")
+
+Audio.play("asset://audio/skyforge_wind", {
+    bus = "music",
+    loop = true,
+    streaming = true,
+    spatial = "3d",
+    x = 0, y = 0, z = -12,
+    min_distance = 4,
+    max_distance = 40,
+    fade_in = 2,
+    pause_with_game = true,
+})
+
+Audio.play("asset://audio/skyforge_step", {
+    bus = "sfx",
+    spatial = "2d",
+    concurrency_group = "steps",
+    max_voices = 3,
+    voice_stealing = "oldest",
+})</code></pre>
+<p>The first call is looping streamed wind in 3D at a world position, fading in over two seconds and pausing with the game clock. The second is a 2D footstep limited to three simultaneous voices: a fourth step steals the oldest one. Sounds with <code>spatial = "none"</code> ignore position and distance entirely.</p>
+
+<h2>Snapshots and transitions</h2>
+<p>A snapshot is a saved mix — bus volumes for a moment like “underwater” or “low health”. Switching between snapshots can be instant or gradual.</p>
+<pre><code>local Audio = require("demi.audio")
+
+Audio.define_snapshot("skyforge_low_health", {
+    master = 1.0,
+    music = 0.4,
+    sfx = 0.9,
+    voice = 1.0,
+    ui = 1.0,
+})
+
+Audio.transition_snapshot("skyforge_low_health", 0.5)  -- blend over 0.5 s
+Audio.crossfade("skyforge_normal", "skyforge_low_health", 1.2)
+Audio.stop()   -- stop all playback</code></pre>
+<ul>
+  <li><code>Audio.define_snapshot(name, buses)</code> — saves a bus-volume table under <code>name</code>. Returns nothing.</li>
+  <li><code>Audio.transition_snapshot(name, seconds)</code> — blends the live mix toward that snapshot. Returns nothing.</li>
+  <li><code>Audio.crossfade(from, to, seconds)</code> — blends between two defined snapshots. Returns nothing.</li>
+  <li><code>Audio.stop()</code> — stops everything currently playing. Returns nothing.</li>
+</ul>
+<p>Snapshot tables map bus names to volume numbers. Define them once at startup (in <code>on_start</code> or <code>on_create</code> of an audio director script) and switch during play.</p>
+
+<h2>Entity-attached playback</h2>
+<p>Attaching sound to an entity means it follows the entity and obeys its position, which is what 3D world sounds need.</p>
+<pre><code>local AudioSource = require("demi.audio.source")
+
+AudioSource.play("skyforge_rune", "asset://audio/skyforge_hum", {
+    bus = "sfx",
+    loop = true,
+    spatial = "3d",
+})
+AudioSource.stop("skyforge_rune")   -- stop whatever this entity is playing</code></pre>
+<ul>
+  <li><code>AudioSource.play(entity, uri, options)</code> — starts a sound on an entity. Options are the same table as <code>Audio.play</code>; position comes from the entity. Returns nothing.</li>
+  <li><code>AudioSource.stop(entity)</code> — stops that entity's playback. Returns nothing.</li>
+</ul>
+<p>For the listening side of 3D audio, an <code>AudioListener</code> component marks the entity the mixer hears from — usually the player or the camera. Only one listener matters at a time.</p>
+<pre><code>local Entity = require("demi.entity")
+
+Entity.add_component(Entity.find("skyforge_player"), "AudioListener", {})
+-- from then on, 3D sounds are mixed relative to the player's position</code></pre>
+<p><code>Entity.add_component(id, "AudioListener", fields)</code> attaches the listener; the fields table can be empty. After that, <code>min_distance</code>, <code>max_distance</code>, <code>rolloff</code>, and <code>doppler</code> on spatial sounds are measured against the listener's position.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'state-machines'}) }}">State machines</a> — animation markers that trigger footsteps.</li>
+  <li><a href="{{ path('docs_page', {slug: 'importers'}) }}">Importers</a> — bringing WAV/OGG/MP3/FLAC sources into <code>asset://</code>.</li>
+  <li><a href="{{ path('docs_page', {slug: 'assets-time-api'}) }}">Assets, time &amp; timers</a> — loading long music tracks before you play them.</li>
+</ul>

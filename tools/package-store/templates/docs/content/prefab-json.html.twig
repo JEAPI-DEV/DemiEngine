@@ -1,0 +1,186 @@
+<h1>Prefab files</h1>
+<p>A <strong>prefab</strong> is a saved, reusable piece of a game world. It holds a small group of entities — a player character, a door, a pickup — and lets you place that whole group into any scene by name. This page explains what a prefab document contains, how instance IDs are built, and exactly how overrides change prefab contents.</p>
+
+<h2>What a prefab is and why reuse matters</h2>
+<p>Imagine you design a player character once: a body sprite, a collider, a script. If every level copies those entities by hand, every fix has to be repeated in every file, and the copies drift apart. A prefab is the single source. Levels place <em>instances</em> of it; editing the prefab updates every placement.</p>
+<p>Prefabs also nest: a house prefab can place wall prefabs inside itself. The result is a tree of reusable parts instead of one enormous flat list.</p>
+<p>Like every DemiEngine document, a prefab file starts with <code>format_version</code>.</p>
+
+<h2>The document</h2>
+<pre><code>{
+  "format_version": 1,
+  "id": "prefab://characters/player",
+  "entities": [
+    {
+      "id": "body",
+      "components": {
+        "Transform2D": { "position": [0, 0] },
+        "Sprite2D": { "texture": "asset://textures/hero" },
+        "Collider2D": { "shape": "box", "size": [0.8, 1.2] }
+      },
+      "children": [
+        {
+          "id": "shadow",
+          "components": {
+            "Transform2D": { "position": [0, -0.1] }
+          }
+        }
+      ]
+    }
+  ]
+}</code></pre>
+<p>Field by field:</p>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>format_version</code></td><td>Always required. Documents without it are rejected.</td></tr>
+    <tr><td><code>id</code></td><td>The prefab's stable identity as a <code>prefab://</code> URI. <code>prefab://characters/player</code> maps to <code>prefabs/characters/player.prefab.json</code>.</td></tr>
+    <tr><td><code>entities</code></td><td>The entities this prefab contributes. Same shape as scene entities: <code>id</code>, <code>name</code>, <code>enabled</code>, <code>persistent</code>, <code>tags</code>, <code>layer</code>, <code>components</code>, <code>children</code>.</td></tr>
+    <tr><td><code>instances</code></td><td>Optional. Ready-made placements of other prefabs inside this one (see nesting below).</td></tr>
+  </tbody>
+</table>
+<p>A document may contain <code>entities</code>, <code>instances</code>, or both. Entity fields behave exactly as in scenes — see <a href="{{ path('docs_page', {slug: 'scene-json'}) }}">Scene files</a> for the entity and component contract.</p>
+
+<h2>ID expansion: how instance names are built</h2>
+<p>When a prefab is placed, its entity IDs are prefixed with the instance ID. This keeps two copies of the same prefab from colliding in one scene.</p>
+<p>Worked example. The prefab above has a local entity called <code>body</code>. A scene places it like this:</p>
+<pre><code>"instances": [
+  {
+    "id": "player",
+    "prefab": "prefab://characters/player"
+  }
+]</code></pre>
+<p>Expansion rule: <strong>instance ID + "/" + local entity ID</strong>.</p>
+<table>
+  <thead><tr><th>Prefab-local ID</th><th>Instance ID</th><th>Resulting scene ID</th></tr></thead>
+  <tbody>
+    <tr><td><code>body</code></td><td><code>player</code></td><td><code>player/body</code></td></tr>
+    <tr><td><code>shadow</code> (child of body)</td><td><code>player</code></td><td><code>player/shadow</code></td></tr>
+    <tr><td><code>body</code></td><td><code>enemy_a</code></td><td><code>enemy_a/body</code></td></tr>
+  </tbody>
+</table>
+<p>So the instance named <code>player</code> turns the local <code>body</code> into <code>player/body</code> in the running scene. Two instances of the same prefab can live side by side — <code>player/body</code> and <code>enemy_a/body</code> — without clashing.</p>
+
+<h2>Nested instances and deeper IDs</h2>
+<p>Prefabs can place other prefabs. Suppose <code>prefab://props/wall</code> has a local entity <code>wall</code>, and a house prefab places it:</p>
+<pre><code>{
+  "format_version": 1,
+  "id": "prefab://props/house",
+  "entities": [
+    {
+      "id": "floor",
+      "components": { "Transform2D": { "position": [0, 0] } }
+    }
+  ],
+  "instances": [
+    {
+      "id": "wall",
+      "prefab": "prefab://props/wall"
+    }
+  ]
+}</code></pre>
+<p>Inside the house prefab, that nested instance already expands to <code>wall/wall</code> ("instance <code>wall</code>" + local <code>wall</code>). When a scene then places the house:</p>
+<pre><code>"instances": [
+  { "id": "house", "prefab": "prefab://props/house" }
+]</code></pre>
+<p>the prefix chain continues outward:</p>
+<table>
+  <thead><tr><th>Source</th><th>ID at that level</th><th>Final scene ID</th></tr></thead>
+  <tbody>
+    <tr><td>house prefab entity <code>floor</code></td><td><code>floor</code></td><td><code>house/floor</code></td></tr>
+    <tr><td>wall prefab entity <code>wall</code> placed as instance <code>wall</code> inside house</td><td><code>wall/wall</code></td><td><code>house/wall/wall</code></td></tr>
+  </tbody>
+</table>
+<p>Each nesting level adds one prefix segment. Read the final ID from right to left to see which copy you have: <code>house/wall/wall</code> is "the <code>wall</code> entity of the <code>wall</code> placement inside <code>house</code>".</p>
+
+<h2>Overrides</h2>
+<p>An <code>overrides</code> object on an instance adjusts the expanded result without editing the prefab. It is written next to the instance's <code>prefab</code> field:</p>
+<pre><code>"instances": [
+  {
+    "id": "player",
+    "prefab": "prefab://characters/player",
+    "overrides": {
+      "body.Transform2D.position": [3, 2],
+      "body.Sprite2D": { "tint": [1, 0.5, 0.5] }
+    }
+  }
+]</code></pre>
+<p>Keys address prefab content; values describe how much to change. The rules are mechanical:</p>
+<table>
+  <thead><tr><th>Case</th><th>What happens</th><th>Example override</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Field absent</td>
+      <td>Nothing is touched. The expanded entity inherits the prefab's value.</td>
+      <td>No <code>rotation</code> key → the prefab's <code>rotation</code> is kept.</td>
+    </tr>
+    <tr>
+      <td>Object value</td>
+      <td>Merged recursively: keys in the override are applied, all other keys keep their prefab values.</td>
+      <td><code>"body.Transform2D": {"position": [3, 2]}</code> changes only <code>position</code>; <code>scale</code> stays as authored in the prefab.</td>
+    </tr>
+    <tr>
+      <td>Array value</td>
+      <td>Replaces the whole array. Elements are not merged one by one.</td>
+      <td><code>"body.Transform2D.scale": [2, 2]</code> replaces the full scale pair.</td>
+    </tr>
+    <tr>
+      <td><code>null</code> value</td>
+      <td>Removes that field from the expanded result.</td>
+      <td><code>"body.Sprite2D.texture": null</code> drops the texture field entirely.</td>
+    </tr>
+    <tr>
+      <td>Dotted key</td>
+      <td>Sets exactly one field along the path <code>entity.Component.field</code>.</td>
+      <td><code>"body.Transform2D.position": [3, 2]</code> writes only that position.</td>
+    </tr>
+  </tbody>
+</table>
+<p>Reading the example override block: <code>body.Transform2D.position</code> is a dotted key — it points at the <code>position</code> field of <code>Transform2D</code> on the prefab entity <code>body</code> and sets it to <code>[3, 2]</code>. The key <code>body.Sprite2D</code> is an object value: it merges the listed field into the existing <code>Sprite2D</code> component, leaving unlisted fields alone.</p>
+<p>Use overrides for per-placement differences (start position, difficulty tint, starting health). When two placements need the same change, prefer editing the prefab or making a second prefab.</p>
+
+<h2>Children versus <code>parent</code></h2>
+<p>Inside a prefab, organize entities with the <code>children</code> array whenever they share the same kind of transform and form one visual unit. The body/shadow example above does this: the shadow follows the body automatically, and no field has to name anyone.</p>
+<p>An explicit <code>parent</code> field is for links nesting cannot express — most often pointing one entity at an entity in another prefab or another domain (for example, a 2D interface element that follows a 3D object). Rules of thumb:</p>
+<ul>
+  <li>Same-domain, visually attached parts → <code>children</code>.</li>
+  <li>Cross-prefab or cross-domain relationships → explicit <code>parent</code>, referring to the other entity's stable ID.</li>
+</ul>
+<p>Keeping ordinary relationships in <code>children</code> keeps documents readable and local: you see the whole unit in one block instead of hunting for IDs.</p>
+
+<h2>Validation errors</h2>
+<p>The loader refuses some shapes because they cannot produce a correct world. Know these limits:</p>
+<table>
+  <thead><tr><th>Error</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Nested prefab cycles</td>
+      <td>If prefab A instances B and B (directly or through more levels) instances A, expansion never ends. Any cycle is an error — the load fails with the chain of prefabs involved.</td>
+    </tr>
+    <tr>
+      <td>Mixed domains in one hierarchy</td>
+      <td>A <code>children</code> tree (or transform parent chain) must stay within one transform domain. A 3D entity cannot be a transform-child of a 2D entity. Use explicit <code>parent</code> only where the engine allows a cross-domain link.</td>
+    </tr>
+    <tr>
+      <td>Hierarchy depth over 128</td>
+      <td>Instance and <code>children</code> nesting is capped at 128 levels deep. This bounds expansion work and catches runaway self-nesting that is not a literal cycle.</td>
+    </tr>
+    <tr>
+      <td>Unknown prefab URI</td>
+      <td>An <code>instances[].prefab</code> value that does not resolve to a prefab file is an error at validate time.</td>
+    </tr>
+    <tr>
+      <td>Duplicate IDs after expansion</td>
+      <td>If two expanded entities end up with the same ID, the placement is ambiguous and is rejected.</td>
+    </tr>
+  </tbody>
+</table>
+<p>Run the validator from the project root to catch all of these before launch:</p>
+<pre><code>./build/linux-debug/demi validate games/my_game</code></pre>
+
+<h2>Where prefabs fit</h2>
+<ul>
+  <li>Scenes place prefabs: <a href="{{ path('docs_page', {slug: 'scene-json'}) }}">Scene files</a>.</li>
+  <li>Textures and other referenced files are declared in <a href="{{ path('docs_page', {slug: 'asset-json'}) }}">Asset manifests</a>.</li>
+  <li>Behavior attached to prefab entities comes from scripts and the contracts described in <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a>.</li>
+</ul>

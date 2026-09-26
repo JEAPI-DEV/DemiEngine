@@ -178,11 +178,29 @@ if ((new Catalog())->find('demi.gameplay.events')) {
 }
 foreach (['/'=>200,'/packages/'=>200,'/health'=>200,'/v1/catalog'=>200,'/packages/?q=missingzzz'=>200,
     '/licenses/BSD-3-Clause'=>200,'/licenses/MIT'=>200,'/licenses/Apache-2.0'=>200,'/licenses/CC0-1.0'=>200,'/licenses/missing'=>404,
-    '/packages/not.present'=>404,'/v1/packages/not.present'=>404,'/publishing'=>200] as $url=>$expected) {
+    '/packages/not.present'=>404,'/v1/packages/not.present'=>404,'/publishing'=>200,
+    '/docs'=>200,'/docs/getting-started'=>200,'/docs/core-concepts'=>200,'/docs/project-format'=>200,
+    '/docs/cli'=>200,'/docs/editor'=>200,'/docs/scripting'=>200,'/docs/lua-api'=>200,'/docs/input'=>200,
+    '/docs/ui'=>200,'/docs/gameplay-2d'=>200,'/docs/gameplay-3d'=>200,'/docs/physics'=>200,
+    '/docs/animation-audio'=>200,'/docs/assets'=>200,'/docs/game-data'=>200,'/docs/networking'=>200,
+    '/docs/packages'=>200,'/docs/testing'=>200,'/docs/shipping'=>200,'/docs/capabilities'=>200,
+    '/docs/examples'=>200,'/docs/not.present'=>404] as $url=>$expected) {
     $request = Request::create($url);
     $response = $kernel->handle($request);
     check($response->getStatusCode()===$expected,$url.' status');
     check($response->headers->has('Content-Security-Policy'),$url.' headers');
     $kernel->terminate($request,$response);
 }
+foreach (App\Docs::pages() as $page) {
+    $request = Request::create('/docs/'.$page['slug']);
+    $response = $kernel->handle($request);
+    check(str_contains($response->getContent(),'class="docs-article"'),'/docs/'.$page['slug'].' renders article');
+    check(str_contains($response->getContent(),'class="docs-sidebar"'),'/docs/'.$page['slug'].' renders sidebar');
+    $kernel->terminate($request,$response);
+}
+$home = $kernel->handle(Request::create('/'));
+check(str_contains($home->getContent(),'class="engine-features"'),'homepage feature grid');
+check(str_contains($home->getContent(),'href="/docs/getting-started"'),'homepage links in-site docs');
+check(str_contains($home->getContent(),'href="/docs"'),'footer and hero link docs hub');
+$kernel->terminate(Request::create('/'),$home);
 echo "$checks checks passed.\n";

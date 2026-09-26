@@ -1,0 +1,140 @@
+<h1>demi.project.json</h1>
+<p>The project file is the root of every DemiEngine game. It names the game, lists its scenes, and holds the settings that apply everywhere: input, physics, timing, performance, debug overlays, and build metadata.</p>
+
+<h2>Minimal project</h2>
+<pre><code>{
+  "format_version": 1,
+  "name": "My Game",
+  "scenes": [
+    { "id": "scene://game/main", "path": "scenes/main.scene.json" }
+  ]
+}</code></pre>
+<p>That is enough to validate and run. Everything below is optional and can be added when you need it.</p>
+
+<h2>Identity and scenes</h2>
+<pre><code>{
+  "format_version": 1,
+  "name": "Skyforge",
+  "main_scene": "scene://game/main",
+  "scenes": [
+    { "id": "scene://game/main" },
+    { "id": "scene://game/menu", "path": "scenes/menu.scene.json" }
+  ]
+}</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>format_version</code></td><td>Always required. Documents without it are rejected.</td></tr>
+    <tr><td><code>name</code></td><td>Human-readable game name. Used in the editor and generated desktop entry.</td></tr>
+    <tr><td><code>main_scene</code></td><td>Scene URI launched when you run the game without a scene override.</td></tr>
+    <tr><td><code>scenes</code></td><td>Every scene the game owns. Each entry has an <code>id</code> (<code>scene://…</code>) and an optional <code>path</code>.</td></tr>
+  </tbody>
+</table>
+<p>When <code>path</code> is omitted, the file location is inferred from the ID: <code>scene://game/main</code> → <code>scenes/main.scene.json</code>. An explicit path always wins. The scene list is what the editor registers and what <code>demi validate</code> reaches.</p>
+
+<h2>Packages and registry</h2>
+<pre><code>{
+  "package_registry": "https://demiengine.de",
+  "packages": {
+    "demi.gameplay.health": "^1.0.0",
+    "kenney.textures.prototype": "^1.0.0"
+  }
+}</code></pre>
+<ul>
+  <li><code>package_registry</code> — where <code>demi package add</code> resolves packages from.</li>
+  <li><code>packages</code> — direct dependencies with semver constraints. Resolved versions are pinned in <code>demi.packages.lock.json</code>.</li>
+</ul>
+<p>See <a href="{{ path('docs_page', {slug: 'installing-packages'}) }}">Installing packages</a>.</p>
+
+<h2>Startup assets</h2>
+<pre><code>"assets": [
+  "asset://ui/theme",
+  "asset-group://startup"
+]</code></pre>
+<p>This array is <strong>startup preload only</strong>. Items listed here are loaded before the first scene runs. Everything else loads on demand in Lua or with the scene that references it. Listing a large folder here will not implicitly load its contents — use an <a href="{{ path('docs_page', {slug: 'asset-groups'}) }}">asset group</a> when you want a batched load.</p>
+
+<h2>Input</h2>
+<pre><code>"input": {
+  "presets": ["wasd_arrows", "confirm"],
+  "actions": {
+    "jump": {
+      "type": "button",
+      "context": "gameplay",
+      "bindings": [{ "input": "key:space" }]
+    }
+  }
+}</code></pre>
+<p><code>presets</code> pull in ready-made action sets. <code>actions</code> declares your own. Each action has a name, a <code>type</code>, a <code>context</code>, and a list of <code>bindings</code> — the physical inputs that feed it.</p>
+<p>Bindings are covered in full on <a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a>: what <code>vector</code> does, how deadzones work, and what a virtual input is.</p>
+
+<h2>Physics layers</h2>
+<pre><code>"physics": {
+  "layers": ["default", "player", "enemy", "world"]
+}</code></pre>
+<p>Names a collision matrix of up to 16 layers. Colliders pick one of these names, and bodies decide which layers they collide with. Details: <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">Physics layers</a>.</p>
+
+<h2>Simulation</h2>
+<pre><code>"simulation": {
+  "fixed_timestep": 0.016666667,
+  "random_seed": 1,
+  "maximum_fixed_steps_per_frame": 4
+}</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Default</th><th>Why it exists</th></tr></thead>
+  <tbody>
+    <tr><td><code>fixed_timestep</code></td><td><code>0.016666667</code> (1/60 s)</td><td>Physics and <code>on_fixed_update</code> run at this step regardless of frame rate, so results are reproducible.</td></tr>
+    <tr><td><code>random_seed</code></td><td><code>1</code></td><td>Seeds the deterministic RNG. Two runs with the same seed and inputs produce the same rolls.</td></tr>
+    <tr><td><code>maximum_fixed_steps_per_frame</code></td><td><code>4</code> (max 16)</td><td>Safety valve: if a frame takes a long time, at most this many catch-up steps run before the game slows down instead of spiraling.</td></tr>
+  </tbody>
+</table>
+<p>Why specify it? Because you want replays, E2E tests, and network prediction to match. The defaults are fine for most games; change the timestep only if you need a different simulation rate. See <a href="{{ path('docs_page', {slug: 'simulation-and-seeds'}) }}">Simulation &amp; seeds</a>.</p>
+
+<h2>Display</h2>
+<pre><code>"display": {
+  "vsync": true
+}</code></pre>
+<p><code>vsync</code> caps presentation to the monitor refresh. Frame limiting and vsync are coordinated — you do not need a separate sleep.</p>
+
+<h2>Performance budgets</h2>
+<pre><code>"performance_budgets": {
+  "maximum_frame_ms": 16.7,
+  "maximum_draw_calls": 800,
+  "maximum_resident_assets": 256
+}</code></pre>
+<p>Budgets are targets you measure against, not automatic quality knobs. They never change what the game renders. Their value:</p>
+<ul>
+  <li><code>demi asset budget</code> reports current usage against each limit.</li>
+  <li>Profiling sessions and qualification runs compare numbers to a declared intent instead of “it felt fine”.</li>
+  <li>CI or playtests can fail when a level blows the budget you set for it.</li>
+</ul>
+<p>Full list and workflow: <a href="{{ path('docs_page', {slug: 'performance-budgets'}) }}">Performance budgets</a>.</p>
+
+<h2>Debug overlays</h2>
+<pre><code>"debug": {
+  "colliders": false,
+  "contacts": false,
+  "grid": false,
+  "entity_ids": false,
+  "draw_order": false,
+  "ui_bounds": false,
+  "profiler_hud": false
+}</code></pre>
+<p>Set a flag to <code>true</code> during development to draw that overlay. Override at run time with <code>--debug-overlays colliders,contacts</code>. Ship with all flags <code>false</code>.</p>
+
+<h2>Network contract</h2>
+<pre><code>"network_contract": "asset://network/arena_contract"</code></pre>
+<p>Points at the <code>NetworkContract</code> asset that defines multiplayer rules. Required only for networked games. See <a href="{{ path('docs_page', {slug: 'sessions-and-contracts'}) }}">Sessions &amp; contracts</a>.</p>
+
+<h2>Build metadata</h2>
+<pre><code>"build": {
+  "application_id": "com.example.skyforge",
+  "display_name": "Skyforge",
+  "executable_name": "skyforge",
+  "version_name": "0.1.0",
+  "version_code": 1,
+  "icon": "asset://branding/icon",
+  "splash": "asset://branding/splash",
+  "window": { "width": 1280, "height": 720, "mode": "windowed" },
+  "android": { "orientation": "landscape", "permissions": [] }
+}</code></pre>
+<p><code>application_id</code> is required before packaging (reverse-DNS form). Details: <a href="{{ path('docs_page', {slug: 'build-and-platform'}) }}">Build &amp; platform settings</a>.</p>

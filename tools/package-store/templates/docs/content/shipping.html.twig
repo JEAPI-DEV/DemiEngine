@@ -1,0 +1,79 @@
+<h1>Shipping &amp; builds</h1>
+<p>Validate the exact target, cook deterministic content, and package a transactional artifact. Release signing values come only from environment or CI secret references.</p>
+
+<h2>Release metadata</h2>
+<p>Set <code>build</code> in <code>demi.project.json</code>:</p>
+<pre><code>"build": {
+  "application_id": "com.example.mygame",
+  "display_name": "My Game",
+  "executable_name": "my-game",
+  "version_name": "0.1.0",
+  "version_code": 1,
+  "icon": "asset://branding/icon",
+  "splash": "asset://branding/splash",
+  "window": { "width": 1280, "height": 720, "mode": "borderless" },
+  "android": {
+    "orientation": "landscape",
+    "permissions": ["android.permission.INTERNET"]
+  }
+}</code></pre>
+<ul>
+  <li>Icons and splash screens: PNG, JPEG, WebP, or SVG (SVG rasterized host-side via <code>rsvg-convert</code>).</li>
+  <li>Discovery skips dot-directories, <code>build</code>, <code>generated</code>, <code>node_modules</code>, and <code>__pycache__</code>.</li>
+  <li>Android networking requires the explicit <code>android.permission.INTERNET</code> permission.</li>
+</ul>
+
+<h2>Validate the shipping target</h2>
+<pre><code>./build/linux-debug/demi validate games/my_game --platform linux
+./build/linux-debug/demi validate games/my_game --platform android</code></pre>
+<p>Platform capability errors have stable codes:</p>
+<table>
+  <thead><tr><th>Code</th><th>Cause</th></tr></thead>
+  <tbody>
+    <tr><td><code>PROJECT_BUILD_FEATURE_MEDIA_UNSUPPORTED</code></td><td>FFmpeg missing</td></tr>
+    <tr><td><code>PROJECT_BUILD_FEATURE_NETWORK_UNSUPPORTED</code></td><td>ENet missing</td></tr>
+    <tr><td><code>PROJECT_BUILD_FEATURE_SVG_UNSUPPORTED</code></td><td>Runtime SVG unavailable</td></tr>
+    <tr><td><code>PROJECT_BUILD_PERMISSION_NETWORK_MISSING</code></td><td>Android INTERNET permission not declared</td></tr>
+    <tr><td><code>BUILD_PACKAGE_CONTENT_UNEXPECTED</code></td><td>Package contains non-audited paths</td></tr>
+  </tbody>
+</table>
+<p><code>demi doctor</code> adds <code>DOCTOR_OPTIONAL_FEATURE_MISSING</code> warnings. Do not silence platform capability diagnostics — Android lacks some optional desktop capabilities.</p>
+
+<h2>Cook</h2>
+<pre><code>./build/linux-debug/demi cook --project games/my_game --platform linux</code></pre>
+<p>Output: <code>generated/cooked/&lt;platform&gt;</code> + <code>cook.manifest.json</code> with every included path and hash. Cooking is deterministic across machines with the same sources and toolchain inputs.</p>
+
+<h2>Linux bundle</h2>
+<pre><code>./build/linux-debug/demi build linux --project games/my_game</code></pre>
+<p>Produces an executable + launcher, cooked content, freedesktop entry, icon, attributions, and <code>build-report.json</code>.</p>
+<p>Runtime writable locations:</p>
+<ul>
+  <li>Saves: <code>$XDG_DATA_HOME/&lt;game&gt;/</code> (fallback <code>$HOME/.local/share/&lt;game&gt;</code>)</li>
+  <li>Caches: <code>$XDG_CACHE_HOME/&lt;game&gt;/</code> (fallback <code>$HOME/.cache/&lt;game&gt;</code>)</li>
+</ul>
+
+<h2>Android APK / AAB</h2>
+<pre><code>./build/linux-debug/demi build apk --project games/my_game
+./build/linux-debug/demi build apk --project games/my_game --configuration release
+./build/linux-debug/demi build aab --project games/my_game</code></pre>
+<p>Artifacts land in <code>&lt;project&gt;/build/android/</code> with <code>*.build-report.json</code>.</p>
+<p>Release signing is environment-only:</p>
+<pre><code>export DEMI_ANDROID_KEYSTORE=/secure/path/release.keystore
+export DEMI_ANDROID_KEYSTORE_PASSWORD=...
+export DEMI_ANDROID_KEY_ALIAS=...
+export DEMI_ANDROID_KEY_PASSWORD=...</code></pre>
+<div class="docs-note"><strong>Secrets</strong><p>Signing values must never enter source, command output, reports, or packaged content. Use CI secret references in pipelines.</p></div>
+<p>Run on a device without a full rebuild when nothing changed:</p>
+<pre><code>./build/linux-debug/demi run android --project games/my_game --serial &lt;device&gt;</code></pre>
+
+<h2>Package content audit</h2>
+<p>Release packages may contain only audited cooked roots: <code>assets/</code>, <code>certs/</code>, <code>packages/</code>, <code>scenes/</code>, <code>scripts/</code>, plus <code>demi.project.json</code>, <code>demi.packages.lock.json</code>, and <code>cook.manifest.json</code>. Unexpected content fails with <code>BUILD_PACKAGE_CONTENT_UNEXPECTED</code>. Do not bypass the audit or copy arbitrary project directories into a release.</p>
+
+<h2>Transactional packaging</h2>
+<p>A failed or cancelled build leaves the previous artifact intact and never publishes a partial staging directory. Verify with <code>build-report.json</code> after every release build.</p>
+
+<h2>Capability gates</h2>
+<pre><code>./build/linux-debug/demi capabilities export --output capabilities.json
+./build/linux-debug/demi capabilities check --baseline capabilities.json --format json
+./build/linux-debug/demi capabilities verify-gates</code></pre>
+<p>Use these to detect accidental capability regressions in CI. See <a href="{{ path('docs_page', {slug: 'capabilities'}) }}">Capabilities</a> for the support matrix.</p>

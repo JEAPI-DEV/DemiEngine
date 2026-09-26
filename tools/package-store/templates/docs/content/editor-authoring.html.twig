@@ -1,0 +1,76 @@
+<h1>Authoring scenes &amp; HUDs</h1>
+<p><strong>Authoring</strong> is the act of composing what the game contains: which objects exist in a level, how they are arranged, and what the player sees on screen. In the DemiEngine editor, authoring happens in two integrated stages — scene documents for game worlds and HUD documents for interfaces — with one shared selection model, one undo history per document, and saves that keep your JSON diffs small. This page walks the workflow on the sample game "Skyforge" at <code>games/my_game</code>.</p>
+
+<h2>Switching documents</h2>
+<p>The workspace registers the project's scenes and HUDs from <code>demi.project.json</code> and the conventional source folders. Opening a document is one click:</p>
+<ul>
+  <li>Click a registered <strong>scene source</strong> — the active stage switches to that scene. The hierarchy, viewport, Inspector, diagnostics, and undo history all target the scene document.</li>
+  <li>Click a <strong>HUD source</strong> — the HUD stage opens with the same hierarchy, viewport, selection, Inspector, undo/redo, save, diagnostics, and recovery paths as the scene stage.</li>
+  <li>Click a <strong>prefab source</strong> — the prefab stage opens for that reusable entity composition.</li>
+</ul>
+<p>There is no second, modal interface editor and no separate HUD preview model: one workspace, one editing contract, three document kinds. Document shapes are described in <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a>.</p>
+
+<h2>Building a scene</h2>
+<p>A <strong>scene</strong> is one file describing everything that loads together — a level, a menu screen, an arena. In the editor you assemble it like this:</p>
+<ol>
+  <li>Select the scene in the project sources so the scene stage is active.</li>
+  <li>Add entities from the hierarchy panel. Each entity gets a <strong>stable ID</strong> that scripts, saves, and tests can rely on forever.</li>
+  <li>Nest entities under their owner in the hierarchy. A weapon under a character's hand is a child; the tree mirrors the authored <code>children</code> array in JSON.</li>
+  <li>Add components in the Inspector — a transform, a sprite or model, a collider and body, a script.</li>
+  <li>Fill component fields. Omitted fields use canonical defaults; typed values become explicit in the document.</li>
+  <li>Place prefab instances when a composition repeats across levels.</li>
+  <li>Save. The editor patches the source file with a small diff.</li>
+</ol>
+<p>Why stable IDs? Because tests target nodes and entities by ID, saves refer to them, and network contracts name them. A stable ID is durable identity; a row number in a file is not.</p>
+
+<h2>Building a HUD</h2>
+<p>A <strong>HUD</strong> document is a tree of interface nodes: panels, labels, buttons, virtual sticks, and containers. The HUD stage is the same editor experience pointed at an interface tree instead of a world:</p>
+<ol>
+  <li>Open the HUD source. The HUD stage shows the interface in the viewport at its design resolution.</li>
+  <li>Compose nodes in the hierarchy. Layout conventions (omitted root, fill containers, <code>dock</code>, <code>stack</code>, <code>pad</code>, <code>at</code>) place nodes without hand-written anchors everywhere.</li>
+  <li>Edit node fields in the Inspector: type defaults, style defaults, hex colors, actions for interactive controls.</li>
+  <li>Keep readable and interactive content inside the safe area. Set <code>respect_safe_area: false</code> only for intentional edge-to-edge backgrounds, and keep controls clear of cutouts.</li>
+  <li>Save — the same small-diff, atomic save as scenes.</li>
+</ol>
+<p>Interactive nodes (buttons, toggles, sliders, text inputs, virtual controls) connect to named input actions. Those actions are declared in the project file; see <a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a> for how <code>virtual:</code> inputs fill them.</p>
+
+<h2>Mutations are commands</h2>
+<p>Every edit in the editor is a <strong>command</strong>: a named change with a known inverse. That design is what makes editing safe:</p>
+<ul>
+  <li><strong>Reversible</strong> — undo and redo walk the command history per document.</li>
+  <li><strong>Validated</strong> — a command that would produce an invalid document is rejected before it lands, with a diagnostic in the diagnostics panel.</li>
+  <li><strong>Keyed by stable IDs</strong> — commands target entities and nodes by ID, not by tree position. Rearranging the hierarchy does not break the undo history.</li>
+</ul>
+<p>When a change needs the preview to rebuild (for example, expanding a prefab instance) and the rebuild fails, the editor <strong>restores the document and the history</strong> to the last good state. You never keep a half-applied edit that the runtime cannot load.</p>
+
+<h2>Editing prefab instances</h2>
+<p>A <strong>prefab</strong> is a reusable template of entities. Scenes place it with an <strong>instance</strong> entry and a small <code>overrides</code> map instead of copying the whole tree into every level.</p>
+<ul>
+  <li>In the scene stage, an instance appears in the hierarchy as its expanded children, with overrides marked on the fields they set.</li>
+  <li>Editing an overridden field records an override on the instance; editing a non-overridden field can be pushed back to the prefab document in the prefab stage.</li>
+  <li>Override rules: absent fields inherit, objects merge, arrays replace, <code>null</code> removes, and a dotted key sets one nested field (for example <code>"body.Transform2D.position"</code>).</li>
+</ul>
+<p>The prefab stage edits the template itself, with the same Inspector, undo, and save behavior.</p>
+
+<h2>How saves keep diffs small</h2>
+<p>Editor saves must look good in review. The rules:</p>
+<ul>
+  <li>Save <strong>patches source with small diffs</strong> — only the values you changed are rewritten.</li>
+  <li><strong>Float noise is normalized</strong> so <code>0.30000000000000004</code> does not pollute the file; neighboring multiline style and key order stay stable.</li>
+  <li>Saves are <strong>atomic and conflict-aware</strong>: the write either completes fully or leaves the previous file intact, and an external change to the file on disk is detected instead of silently overwritten.</li>
+</ul>
+<p>Human-authored source stays human-readable. Generated content never becomes the authored identity.</p>
+
+<h2>Recovery</h2>
+<p>If the editor or the machine stops unexpectedly, the recovery path restores unsaved document state the next time the workspace opens the project. Recovery data is per-user, like dock layout, and never ships inside a package or a build artifact.</p>
+
+<h2>From authoring to proof</h2>
+<table>
+  <thead><tr><th>After authoring…</th><th>Do this</th></tr></thead>
+  <tbody>
+    <tr><td>Check the document and its references</td><td>Read the diagnostics panel, or run the checks in <a href="{{ path('docs_page', {slug: 'cli-build-and-test'}) }}">Build, cook &amp; test</a></td></tr>
+    <tr><td>Try the level interactively</td><td><a href="{{ path('docs_page', {slug: 'editor-play-mode'}) }}">Play mode</a></td></tr>
+    <tr><td>Lock behavior with tests</td><td><a href="{{ path('docs_page', {slug: 'e2e-tests'}) }}">E2E tests</a> targeting your stable node and scene IDs</td></tr>
+    <tr><td>Arrange panels and stage switching</td><td><a href="{{ path('docs_page', {slug: 'editor-workspace'}) }}">Workspace &amp; panels</a></td></tr>
+  </tbody>
+</table>

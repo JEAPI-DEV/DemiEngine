@@ -1,0 +1,180 @@
+<h1>Layout</h1>
+<p>Layout decides where every HUD node sits and how big it is. DemiEngine measures everything in <strong>canvas units</strong> from a design resolution you choose, then scales to the real screen. You describe intent — “bar on top”, “column with gaps”, “corner badge” — and the runtime resolves positions. This page explains each placement tool and when to reach for it.</p>
+
+<h2>Canvas units</h2>
+<p>A HUD document declares a design size:</p>
+<pre><code>{
+  "format_version": 1,
+  "canvas_size": [1280, 720],
+  "children": []
+}</code></pre>
+<ul>
+  <li><code>canvas_size</code> is <code>[width, height]</code> in design units. Every position, size, gap, and margin is measured against it.</li>
+  <li>A 1280×720 canvas on a 2560×1440 screen renders at 2× — a 140-unit button becomes 280 physical pixels.</li>
+  <li>Aspect ratio is preserved with letterboxing or safe-area padding rather than stretching, so layout does not shear on phones.</li>
+</ul>
+<p>Why units instead of pixels: one authoring pass works for desktop, tablet, and phone. A 24-unit gap is the same visual proportion everywhere.</p>
+
+<h2>dock</h2>
+<p><code>dock</code> pins a node to an edge or fills its parent. Values: <code>fill</code>, <code>top</code>, <code>bottom</code>, <code>left</code>, <code>right</code>, <code>center</code>.</p>
+<h3>fill</h3>
+<pre><code>{
+  "id": "hud_root",
+  "type": "container",
+  "dock": "fill",
+  "children": []
+}</code></pre>
+<p>Stretches the node to cover its parent completely. Use it for backgrounds and full-screen stacks.</p>
+<h3>top bar</h3>
+<pre><code>{
+  "id": "top_bar",
+  "type": "panel",
+  "dock": "top",
+  "size": [1280, 64],
+  "background_color": "#10121ccc",
+  "children": []
+}</code></pre>
+<p>Pins the panel to the top edge of its parent. Its height comes from <code>size</code>; the width matches the parent. Docked siblings share the remaining space: a <code>top</code> bar, then a <code>fill</code> body, gives a classic screen layout.</p>
+<h3>side panel</h3>
+<pre><code>{
+  "id": "score_panel",
+  "type": "panel",
+  "dock": "right",
+  "size": [320, 720],
+  "stack": "column",
+  "pad": 16,
+  "gap": 8,
+  "children": []
+}</code></pre>
+<p>Pins to the right edge with width 320. A <code>left</code> or <code>bottom</code> dock works the same on that edge. <code>center</code> places the node centered in its parent at its own size — useful for dialogs.</p>
+<p>Read the dock order as: edges claim space first, then <code>fill</code> takes what is left. Skyforge’s play screen is one <code>fill</code> root, a <code>top</code> bar for score, and a <code>right</code> panel for the minimap.</p>
+
+<h2>stack</h2>
+<p><code>stack</code> lays children in a run. Values: <code>row</code>, <code>column</code>, <code>grid</code>.</p>
+<h3>row and column</h3>
+<pre><code>{
+  "id": "toolbar",
+  "type": "container",
+  "stack": "row",
+  "gap": 8,
+  "alignment": "center",
+  "children": []
+}
+
+{
+  "id": "menu",
+  "type": "container",
+  "stack": "column",
+  "gap": 12,
+  "alignment": "stretch",
+  "children": []
+}</code></pre>
+<ul>
+  <li><code>stack</code> — direction children flow. <code>row</code> is left to right, <code>column</code> is top to bottom.</li>
+  <li><code>gap</code> — empty canvas units between children.</li>
+  <li><code>alignment</code> — how children sit across the flow: <code>start</code>, <code>center</code>, <code>end</code>, or <code>stretch</code> (children fill the cross axis).</li>
+</ul>
+<h3>grid</h3>
+<pre><code>{
+  "id": "ability_grid",
+  "type": "container",
+  "stack": "grid",
+  "columns": 4,
+  "gap": 6,
+  "children": []
+}</code></pre>
+<ul>
+  <li><code>columns</code> — how many cells per row before wrapping. Required for <code>grid</code>.</li>
+  <li><code>gap</code> applies between both rows and columns.</li>
+</ul>
+<p>The grid fills cells left to right, top to bottom. Skyforge’s skill bar is a 4-column grid of 64-unit icons.</p>
+
+<h2>anchors and margin for corners</h2>
+<p>For a badge that hugs a corner at a fixed size, anchor a point of the node to a point of its parent and offset with <code>margin</code>.</p>
+<pre><code>{
+  "id": "fps_badge",
+  "type": "label",
+  "text": "60 FPS",
+  "anchor_min": [1, 1],
+  "anchor_max": [1, 1],
+  "margin": [-140, -48, 16, 16],
+  "size": [124, 32]
+}</code></pre>
+<ul>
+  <li><code>anchor_min</code> / <code>anchor_max</code> — each is <code>[x, y]</code> in 0…1 of the parent’s box. <code>[0, 0]</code> is the top-left, <code>[1, 1]</code> is the bottom-right. When min equals max, the node anchors to one point; when they differ, the node stretches between the two points.</li>
+  <li><code>margin</code> — <code>[left, top, right, bottom]</code> offsets from the anchor, in canvas units. Negative pulls inward from the corner as above.</li>
+  <li><code>size</code> — width and height in canvas units when the node is not stretched.</li>
+</ul>
+<p>Corner recipes: top-left <code>anchor_min/max [0, 0]</code> with positive margins; top-right <code>[1, 0]</code>; bottom-left <code>[0, 1]</code>; bottom-right <code>[1, 1]</code>. Prefer <code>dock</code> when the node owns a whole edge — anchors are for small items at a point.</p>
+
+<h2>pad, padding, margin</h2>
+<p>Three similar words, three different boxes:</p>
+<table>
+  <thead><tr><th>Field</th><th>Applies to</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>pad</code></td><td>a container</td><td>Shorthand: one number for equal inner space on all four sides. Keeps children away from the container’s edge.</td></tr>
+    <tr><td><code>padding</code></td><td>a container</td><td>Full form inner space: a number, or <code>[left, top, right, bottom]</code>. Same effect as <code>pad</code> with per-side control.</td></tr>
+    <tr><td><code>margin</code></td><td>any node</td><td>Outer space between this node and its parent or siblings (with anchors it offsets from the anchor point).</td></tr>
+  </tbody>
+</table>
+<pre><code>{
+  "id": "card",
+  "type": "panel",
+  "padding": [16, 24, 16, 24],
+  "margin": 12,
+  "children": []
+}</code></pre>
+<p>This card sits 12 units away from its neighbours and keeps 16/24 units of air inside around its children.</p>
+
+<h2>min_size and max_size</h2>
+<pre><code>{
+  "id": "tooltip",
+  "type": "panel",
+  "min_size": [160, 48],
+  "max_size": [360, 240],
+  "children": []
+}</code></pre>
+<ul>
+  <li><code>min_size</code> — <code>[width, height]</code> the node never shrinks below. Stops tiny text from collapsing.</li>
+  <li><code>max_size</code> — <code>[width, height]</code> the node never grows beyond. Stops a long label from crossing the screen.</li>
+</ul>
+<p>The layout resolves a preferred size from content, then clamps it into the min/max range.</p>
+
+<h2>at for absolute placement</h2>
+<p><code>at</code> places a node at an explicit canvas point instead of flowing it. Use it for overlays that must not shift with siblings.</p>
+<pre><code>{
+  "id": "crosshair",
+  "type": "image",
+  "texture": "asset://ui/crosshair",
+  "at": [640, 360],
+  "size": [32, 32]
+}</code></pre>
+<ul>
+  <li><code>at</code> — <code>[x, y]</code> of the node’s placement point in canvas units, measured from the parent’s top-left.</li>
+  <li><code>size</code> — the node’s extent in canvas units.</li>
+</ul>
+<p>This crosshair sits at the exact center of a 1280×720 canvas. Prefer <code>dock</code> and <code>stack</code> for anything that shares space with siblings — <code>at</code> is for single fixed points.</p>
+
+<h2>Safe areas</h2>
+<p>Phone notches, rounded corners, and home bars cover parts of the screen. A <strong>safe area</strong> is the region free of those obstructions. DemiEngine respects it by default so text and buttons stay reachable.</p>
+<pre><code>{
+  "id": "sky_bg",
+  "type": "image",
+  "texture": "asset://ui/sky",
+  "dock": "fill",
+  "respect_safe_area": false,
+  "children": []
+}</code></pre>
+<ul>
+  <li><code>respect_safe_area</code> — boolean, default <code>true</code>. The node lays out inside the safe rectangle.</li>
+  <li>Set <code>respect_safe_area: false</code> only for intentional edge-to-edge work: full-screen backgrounds, letterbox fills, decorative art that may run under a notch.</li>
+  <li>Keep readable text and interactive controls inside the safe area even on an edge-to-edge parent — a button under the home bar cannot be tapped.</li>
+</ul>
+<p>Skyforge’s practice: the sky gradient image is <code>respect_safe_area: false</code>; the health bar, buttons, and labels stay on their safe defaults.</p>
+
+<h2>Next</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'hud-nodes'}) }}">HUD nodes</a> — every node type and its fields.</li>
+  <li><a href="{{ path('docs_page', {slug: 'hud-text-and-theme'}) }}">Text, theme &amp; locale</a> — fonts, wrapping, styles.</li>
+  <li><a href="{{ path('docs_page', {slug: 'ui'}) }}">UI &amp; HUD</a> — the overview page.</li>
+</ul>

@@ -1,0 +1,196 @@
+<h1>Lights &amp; camera</h1>
+<p>Lights make 3D art readable; the camera decides what the player sees and where a click lands in the world. This page covers the three light types, the environment and post effects, cosmetic denting, camera conversions, and transform directions.</p>
+
+<h2>Why lights exist</h2>
+<p>Without lights, a 3D scene is flat grey: triangles have no shade, no highlight, no sense of depth. A <strong>light</strong> is a component that tells the renderer where illumination comes from. Three types cover almost every scene, each matching a real-world source.</p>
+
+<h2>The three light types</h2>
+<table>
+  <thead><tr><th>Component</th><th>What it imitates</th><th>Use it for</th></tr></thead>
+  <tbody>
+    <tr><td><code>DirectionalLight</code></td><td>Distant sun — parallel rays across the whole scene</td><td>Key sunlight on Skyforge exterior decks; one per scene is usually enough.</td></tr>
+    <tr><td><code>PointLight</code></td><td>Bare bulb — shines outward in all directions from a point</td><td>Lamps, consoles, explosion flashes, warning beacons.</td></tr>
+    <tr><td><code>SpotLight</code></td><td>Flashlight — a cone in one direction</td><td>Searchlights, doorways, hangar bay floods, aiming lights.</td></tr>
+  </tbody>
+</table>
+<pre><code>{
+  "DirectionalLight": {
+    "color": [1, 0.95, 0.85],
+    "intensity": 1.2,
+    "shadows": true
+  }
+}
+
+{
+  "PointLight": {
+    "color": [0.4, 0.8, 1],
+    "intensity": 2.0,
+    "range": 8
+  }
+}
+
+{
+  "SpotLight": {
+    "color": [1, 1, 1],
+    "intensity": 3.0,
+    "range": 20,
+    "inner_cone_degrees": 15,
+    "outer_cone_degrees": 35
+  }
+}</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>color</code></td><td>RGB of the emitted light, each 0 to 1.</td></tr>
+    <tr><td><code>intensity</code></td><td>Brightness multiplier. Start near 1 and adjust.</td></tr>
+    <tr><td><code>range</code></td><td>How far the light reaches, in world units. Point and spot only.</td></tr>
+    <tr><td><code>shadows</code></td><td>Whether the light casts shadows (directional).</td></tr>
+    <tr><td><code>inner_cone_degrees</code> / <code>outer_cone_degrees</code></td><td>Full brightness inside the inner cone, fading to nothing at the outer cone. Spot only.</td></tr>
+  </tbody>
+</table>
+<p>Practical pairing: one <code>DirectionalLight</code> as the sun, <code>PointLight</code> for each practical lamp near play, and <code>SpotLight</code> only where a cone is part of the design. Too many live lights cost frame time — budget a handful of shadow-casting lights and reuse <code>PointLight</code> ranges that match the room.</p>
+
+<h2>Environment3D</h2>
+<p>Lights alone leave the sky black and reflections empty. <code>Environment3D</code> sets the scene-wide backdrop: a panorama image wrapped around the world, tone-mapped so bright skies and dark interiors stay readable.</p>
+<pre><code>{
+  "Environment3D": {
+    "panorama": "asset://textures/orbit_sky",
+    "intensity": 1.0
+  }
+}</code></pre>
+<ul>
+  <li><code>panorama</code> is the asset URI of an equirectangular sky image.</li>
+  <li><code>intensity</code> scales how much the sky contributes to ambient light.</li>
+  <li>Place one <code>Environment3D</code> in the scene. Outdoors in Skyforge uses an orbital panorama; interiors can use a darker studio image.</li>
+</ul>
+
+<h2>PostProcessStack</h2>
+<p>Post-processing is the final grade applied to the whole rendered image after the scene is drawn — bloom on neon signs, color grading for a cold station mood, vignette to focus the center.</p>
+<pre><code>{
+  "PostProcessStack": {
+    "bloom": { "intensity": 0.4, "threshold": 0.9 },
+    "color_grade": { "saturation": 1.05, "contrast": 1.1 },
+    "vignette": 0.15
+  }
+}</code></pre>
+<ul>
+  <li><code>bloom</code> glows on bright pixels; <code>intensity</code> is strength, <code>threshold</code> is brightness cutoff.</li>
+  <li><code>color_grade</code> adjusts <code>saturation</code> and <code>contrast</code> of the final image.</li>
+  <li><code>vignette</code> darkens the corners, 0 to 1.</li>
+  <li>Keep effects subtle — a heavy grade fights readability of <a href="{{ path('docs_page', {slug: 'models-and-meshes'}) }}">models</a> and UI.</li>
+</ul>
+
+<h2>Denting meshes</h2>
+<p>Some impact should leave a mark without splitting an object apart. <code>Dentable3D</code> opts a mesh into cosmetic deformation: hull plating that bows where a drone struck, cargo pods that bruise on hard landings.</p>
+<pre><code>{
+  "Dentable3D": {}
+}</code></pre>
+<p>Drive dents from Lua with <code>demi.mesh.deformation</code>:</p>
+<pre><code>local Deform = require("demi.mesh.deformation")
+
+Deform.dent(id, x, y, z, radius, depth)
+Deform.impact(id, x, y, z, strength)
+Deform.reset(id)</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>dent</code></td><td><code>id</code>, world point <code>x, y, z</code>, <code>radius</code>, <code>depth</code></td><td>Nothing. Pushes vertices inward at that point across the given radius.</td></tr>
+    <tr><td><code>impact</code></td><td><code>id</code>, world point <code>x, y, z</code>, <code>strength</code></td><td>Nothing. Dent helper with falloff — good for collision reactions.</td></tr>
+    <tr><td><code>reset</code></td><td><code>id</code></td><td>Nothing. Restores the original mesh, discarding all dents.</td></tr>
+  </tbody>
+</table>
+<p>Denting is visual only. Pair it with <a href="{{ path('docs_page', {slug: 'physics-events'}) }}">physics contact points</a> for placement and with <a href="{{ path('docs_page', {slug: 'destruction'}) }}">Destruction</a> when the object should eventually break.</p>
+
+<h2>Camera3D conversions</h2>
+<p>The camera turns 3D positions into 2D screen pixels and back. UI markers, mouse picking, and off-screen arrows all depend on those conversions.</p>
+<p>The screen coordinate system has its origin at the <strong>top-left</strong>, with <strong>+Y pointing down</strong>. That matches how mouse and touch positions are reported, so picking code needs no flipping.</p>
+<p>Every conversion takes the viewport size explicitly:</p>
+<pre><code>local Camera3D = require("demi.camera3d")
+
+local hit = Camera3D.screen_ray(id, mx, my, view_w, view_h)
+local sx, sy = Camera3D.world_to_screen(id, x, y, z, view_w, view_h)
+local wx, wy, wz = Camera3D.screen_to_world(id, sx, sy, view_w, view_h)</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>screen_ray</code></td><td>camera id, pixel <code>mx, my</code>, viewport <code>view_w, view_h</code></td><td>Physics hit table (<code>entity_id</code>, <code>point</code> <code>{x,y,z}</code>, <code>distance</code>, …) or <code>nil</code> when the ray hits nothing.</td></tr>
+    <tr><td><code>world_to_screen</code></td><td>camera id, world <code>x, y, z</code>, viewport <code>view_w, view_h</code></td><td>Two scalars <code>sx, sy</code> in screen pixels, or <code>nil</code> when the point is behind the camera.</td></tr>
+    <tr><td><code>screen_to_world</code></td><td>camera id, pixel <code>sx, sy</code>, viewport <code>view_w, view_h</code></td><td>Three scalars <code>wx, wy, wz</code> — a world point along the view ray.</td></tr>
+  </tbody>
+</table>
+<p>Why the viewport size is explicit: a camera does not know whether it renders to the full window, an editor game view, or a smaller preview panel. Passing <code>view_w, view_h</code> keeps conversions correct in every host — the main window in play mode and a docked viewport in the editor behave the same.</p>
+<p>Picking a cargo crate with the mouse:</p>
+<pre><code>local Camera3D = require("demi.camera3d")
+
+local hit = Camera3D.screen_ray(camera_id, mx, my, view_w, view_h)
+if hit then
+    -- hit.entity_id   what was clicked
+    -- hit.point       { x, y, z } world contact position
+    -- hit.distance    world units from the camera
+end</code></pre>
+<ul>
+  <li><code>mx, my</code> are mouse pixels with the origin top-left.</li>
+  <li><code>hit</code> is a physics hit table or <code>nil</code> when the click is empty space.</li>
+  <li>The cast respects <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">layer filters</a> like any other query.</li>
+</ul>
+<p>Placing a nameplate above a docked ship:</p>
+<pre><code>local Camera3D = require("demi.camera3d")
+
+local sx, sy = Camera3D.world_to_screen(camera_id, px, py, pz, view_w, view_h)
+if sx then
+    -- sx, sy → pixels for the label anchor
+end</code></pre>
+<ul>
+  <li><code>sx</code> and <code>sy</code> are pixel coordinates with +Y down.</li>
+  <li><code>nil</code> is returned when the point is behind the camera — always test before drawing UI at the result.</li>
+</ul>
+<p>Camera framing fields are ordinary authored data: perspective uses a field of view in degrees; orthographic uses <code>orthographic_size</code> as the full visible height in world units.</p>
+
+<h2>Transform3D directions</h2>
+<p>Cameras, lights, and characters constantly need “which way am I facing?”. <code>demi.transform3d</code> answers in world space:</p>
+<pre><code>local T = require("demi.transform3d")
+
+local x, y, z = T.get_position(id)
+local rx, ry, rz = T.get_rotation(id)
+local sx, sy, sz = T.get_scale(id)
+
+T.set_position(id, x, y, z)
+T.set_rotation(id, rx, ry, rz)     -- Euler radians
+T.set_scale(id, sx, sy, sz)
+T.add_position(id, dx, dy, dz)
+
+local fx, fy, fz = T.forward(id)
+local rxx, ryy, rzz = T.right(id)
+local ux, uy, uz = T.up(id)
+
+T.look_at(id, tx, ty, tz)</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>get_position</code> / <code>get_rotation</code> / <code>get_scale</code></td><td><code>id</code></td><td>Three local-space scalars. Each coordinate is <code>nil</code> when the entity or component is missing.</td></tr>
+    <tr><td><code>set_position</code> / <code>set_rotation</code> / <code>set_scale</code></td><td><code>id</code> plus three scalars</td><td>Nothing. Writes local-space values; rotation is Euler radians.</td></tr>
+    <tr><td><code>add_position</code></td><td><code>id</code>, delta <code>dx, dy, dz</code></td><td>Nothing. Offsets the current local position.</td></tr>
+    <tr><td><code>forward</code> / <code>right</code> / <code>up</code></td><td><code>id</code></td><td>Three world-space unit-vector components, or <code>nil</code> per component when missing.</td></tr>
+    <tr><td><code>look_at</code></td><td><code>id</code>, target <code>tx, ty, tz</code> in world space</td><td>Nothing. Rotates the entity to face the point, resolving the parent chain first.</td></tr>
+  </tbody>
+</table>
+<p>A spotlight that tracks the player:</p>
+<pre><code>local T = require("demi.transform3d")
+
+local px, py, pz = T.get_position(player_id)
+T.look_at(spot_id, px, py, pz)</code></pre>
+<ul>
+  <li><code>get_position</code> returns the player’s local position scalars.</li>
+  <li><code>look_at</code> aims the spotlight at that point and returns nothing.</li>
+  <li>Hierarchy is respected, so a spotlight parented to a moving gantry still aims correctly.</li>
+</ul>
+<p>Getters return separate numbers and <code>nil</code> per coordinate when the entity or component is missing — guard before arithmetic.</p>
+
+<h2>Scene setup checklist</h2>
+<ul>
+  <li>One <code>DirectionalLight</code> for the key sun, one <code>Environment3D</code> for the sky and ambient.</li>
+  <li><code>PointLight</code> and <code>SpotLight</code> only where the design calls for them.</li>
+  <li>One <code>PostProcessStack</code> with restrained settings.</li>
+  <li>One camera; conversions always take the real viewport size.</li>
+  <li><code>Transform3D.look_at</code> for aiming, world vectors for facing checks.</li>
+</ul>

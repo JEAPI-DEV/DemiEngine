@@ -1,0 +1,181 @@
+<h1>Destruction</h1>
+<p>Destruction lets authored objects break into pieces when hit hard enough. This page explains how to author a breakable, how to apply damage at runtime, what <code>state</code> reports, and how to snapshot, restore, and clean up debris.</p>
+
+<h2>What destruction is</h2>
+<p>A crate that simply vanishes when shot feels cheap. Real breakage leaves chunks that fall, scatter, and settle. DemiEngine destruction takes an ordinary prefab, describes how it should split, and then breaks it live when impacts accumulate.</p>
+<p>The point is to keep authoring simple: model and place the object as usual, add a few description components, and gameplay code calls <code>impact</code> or <code>damage_part</code>. The system handles fragments, contacts, and debris from there.</p>
+
+<h2>Authoring workflow</h2>
+<p>Three layers build a breakable, in order.</p>
+<ol>
+  <li><strong>Prefab</strong> — the intact object as you normally build it: <a href="{{ path('docs_page', {slug: 'models-and-meshes'}) }}">meshes</a> for the visual, <a href="{{ path('docs_page', {slug: 'colliders'}) }}">colliders</a> for the solid shell.</li>
+  <li><strong>Fracture description</strong> — how each mesh splits. Two components cover the common cases.</li>
+  <li><strong>Assembly</strong> — the component that owns the intact object and performs the split at runtime.</li>
+</ol>
+
+<h3>Fracture3D</h3>
+<p><code>Fracture3D</code> sits on mesh children and describes how that mesh should split under load.</p>
+<pre><code>{
+  "Fracture3D": {
+    "chunk_count": 12,
+    "min_impact_energy": 6.0
+  }
+}</code></pre>
+<ul>
+  <li><code>chunk_count</code> is how many pieces the mesh prefers to split into when broken.</li>
+  <li><code>min_impact_energy</code> is the impact energy threshold this mesh needs before it fractures at all.</li>
+  <li>Place it on the mesh child, not the root — the root carries the assembly.</li>
+</ul>
+
+<h3>Masonry3D</h3>
+<p><code>Masonry3D</code> describes repeated brickwork: walls, stacks, and tiled panels that should crumble brick by brick.</p>
+<pre><code>{
+  "Masonry3D": {
+    "rows": 6,
+    "columns": 4,
+    "material_density": 1.8
+  }
+}</code></pre>
+<ul>
+  <li><code>rows</code> and <code>columns</code> are the brick grid covering the mesh.</li>
+  <li><code>material_density</code> scales how heavy each brick is when it becomes debris.</li>
+  <li>Use masonry for Skyforge cargo walls and station bulkheads; use <code>Fracture3D</code> for irregular props like generators.</li>
+</ul>
+
+<h3>Destructible3D</h3>
+<p><code>Destructible3D</code> sits on the prefab root and owns the intact assembly until damage splits it.</p>
+<pre><code>{
+  "Destructible3D": {
+    "integrity": 100
+  }
+}</code></pre>
+<ul>
+  <li><code>integrity</code> is the starting durability of the whole assembly. Damage subtracts from it; at zero the object breaks apart.</li>
+  <li>Fracture and masonry children supply the pieces the assembly creates.</li>
+  <li>The intact object keeps its normal collider until it splits, so it still blocks and lands like a solid prop.</li>
+</ul>
+
+<h3>FractureDebris3D</h3>
+<p><code>FractureDebris3D</code> covers the cosmetic scraps that should not live forever: chips, dust-scale shards, small bounce pieces.</p>
+<pre><code>{
+  "FractureDebris3D": {
+    "lifetime": 8.0
+  }
+}</code></pre>
+<ul>
+  <li><code>lifetime</code> is how many seconds a debris piece stays before it is retired automatically.</li>
+  <li>Debris is visual cleanup, not a gameplay body — it will not be something a script must track.</li>
+</ul>
+
+<h2>Applying damage at runtime</h2>
+<p>Gameplay decides when something is hit. Two Lua calls cover point impacts and targeted parts.</p>
+<pre><code>local Destruction = require("demi.physics.destruction3d")
+
+Destruction.impact(id, x, y, z, nx, ny, nz, energy)
+Destruction.damage_part(id, part, amount)
+
+local state = Destruction.state(id)</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>impact</code></td><td><code>id</code>, hit point <code>x, y, z</code>, direction <code>nx, ny, nz</code>, <code>energy</code></td><td>Nothing. Applies a directional impact at a point. Fragments near the hit may separate when energy exceeds their threshold.</td></tr>
+    <tr><td><code>damage_part</code></td><td><code>id</code>, part name or id, <code>amount</code></td><td>Nothing. Subtracts durability from one named part of the assembly.</td></tr>
+    <tr><td><code>state</code></td><td><code>id</code></td><td>Table of live integrity and fragment information (see below), or <code>nil</code> when the assembly is missing.</td></tr>
+  </tbody>
+</table>
+<p>Driving destruction from a physics contact — a Skyforge freighter clip that crumples a cargo wall:</p>
+<pre><code>local Events = require("demi.events")
+local Destruction = require("demi.physics.destruction3d")
+
+Events.subscribe("physics3d_contact", function(e)
+    if e.other_id ~= wall_id then return end
+    -- e.point_x, e.point_y, e.point_z
+    -- e.normal_x, e.normal_y, e.normal_z
+    Destruction.impact(wall_id, e.point_x, e.point_y, e.point_z,
+                       e.normal_x, e.normal_y, e.normal_z, 12.0)
+end)</code></pre>
+<ul>
+  <li>The contact event supplies the flattened hit point and normal.</li>
+  <li><code>impact</code> feeds those values and an energy of 12.0 into the assembly and returns nothing.</li>
+  <li>Low-energy bumps leave the wall intact; only hits above each mesh’s <code>min_impact_energy</code> split pieces free.</li>
+</ul>
+<p>Targeting one joint when a boss exposes a weak point:</p>
+<pre><code>local Destruction = require("demi.physics.destruction3d")
+
+Destruction.damage_part(id, "joint_l", 25)</code></pre>
+<ul>
+  <li><code>id</code> is the assembly entity.</li>
+  <li><code>"joint_l"</code> names the part to wound.</li>
+  <li><code>25</code> is the durability to subtract. The call returns nothing; visible change appears when the part or the whole assembly gives out.</li>
+</ul>
+
+<h2>Reading state</h2>
+<pre><code>local state = Destruction.state(id)
+-- state → table:
+--   integrity            remaining durability number
+--   max_integrity        starting durability number
+--   broken               boolean, assembly has split
+--   fragments            array of active fragment ids
+--   fragment_count       number of entries in fragments</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>integrity</code></td><td>How much durability remains. Reaches 0 when the assembly can no longer hold.</td></tr>
+    <tr><td><code>max_integrity</code></td><td>Starting durability for ratio displays (health bars on breakable doors).</td></tr>
+    <tr><td><code>broken</code></td><td><code>true</code> once the assembly has split apart.</td></tr>
+    <tr><td><code>fragments</code></td><td>Array of fragment ids currently active in the world.</td></tr>
+    <tr><td><code>fragment_count</code></td><td>Length of <code>fragments</code>, for cheap HUD counters.</td></tr>
+  </tbody>
+</table>
+<p>Guard with <code>if state then</code> — the table is <code>nil</code> when the entity has no destruction assembly. Use <code>integrity</code> and <code>max_integrity</code> to draw a damage bar; use <code>broken</code> to switch gameplay logic from “wall” to “rubble path”.</p>
+
+<h2>Checkpoint and restore</h2>
+<p>Practice modes, retries, and network rollback all need to undo damage. Two calls snapshot and rewind a destructible without respawning the prefab.</p>
+<pre><code>local Destruction = require("demi.physics.destruction3d")
+
+Destruction.checkpoint(id)
+Destruction.restore(id)</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>checkpoint</code></td><td><code>id</code></td><td>Nothing. Snapshots the current damage: which fragments are detached and how much integrity remains.</td></tr>
+    <tr><td><code>restore</code></td><td><code>id</code></td><td>Nothing. Returns the assembly to the last checkpoint.</td></tr>
+  </tbody>
+</table>
+<p>A Skyforge range scenario that resets the target wall between attempts:</p>
+<pre><code>local Destruction = require("demi.physics.destruction3d")
+
+function begin_attempt(wall_id)
+    Destruction.restore(wall_id)      -- back to the checkpoint
+end
+
+function record_practice_state(wall_id)
+    Destruction.checkpoint(wall_id)   -- snapshot after setup
+end</code></pre>
+<ul>
+  <li><code>checkpoint</code> is called once after setup so the pristine state is saved.</li>
+  <li><code>restore</code> is called at the start of each attempt and returns nothing.</li>
+  <li>Calling <code>checkpoint</code> again replaces the snapshot with the current state — useful for saving mid-fight damage as the new baseline.</li>
+</ul>
+
+<h2>Debris cleanup</h2>
+<p>Long fights leave scraps everywhere. Cosmetic debris retires itself after its <code>lifetime</code>, and gameplay can sweep early when the area is clear.</p>
+<pre><code>local Destruction = require("demi.physics.destruction3d")
+
+Destruction.retire_debris(id)</code></pre>
+<ul>
+  <li><code>id</code> is the assembly whose cosmetic debris should go away.</li>
+  <li>The call returns nothing. Debris pieces stop rendering and stop colliding.</li>
+  <li>Gameplay fragments — the chunks a player can stand on — are not retired by this call; they are real pieces until you handle them yourself.</li>
+</ul>
+<p>Call <code>retire_debris</code> when the camera leaves the room, after a round ends, or whenever <code>state.fragment_count</code> grows past your budget.</p>
+
+<h2>Putting it together</h2>
+<ul>
+  <li>Author the intact prefab normally, add <code>Fracture3D</code> or <code>Masonry3D</code> on mesh children, <code>Destructible3D</code> on the root, <code>FractureDebris3D</code> where scraps should vanish on their own.</li>
+  <li>Feed hits with <code>impact</code> from <a href="{{ path('docs_page', {slug: 'physics-events'}) }}">contact points</a>, or <code>damage_part</code> from scripted weak points.</li>
+  <li>Read <code>state</code> for HUD and gameplay switches.</li>
+  <li><code>checkpoint</code> before action, <code>restore</code> on retries.</li>
+  <li><code>retire_debris</code> when the spectacle has settled.</li>
+</ul>
+<p>Cosmetic dents that should not break the object belong in <a href="{{ path('docs_page', {slug: 'lights-and-camera-3d'}) }}">Lights &amp; camera</a> denting. The pieces that become physical bodies are ordinary dynamic shapes described in <a href="{{ path('docs_page', {slug: 'rigidbodies'}) }}">Rigidbodies</a>.</p>

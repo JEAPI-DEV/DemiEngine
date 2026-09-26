@@ -1,0 +1,220 @@
+<h1>HUD files</h1>
+<p>A <strong>HUD</strong> (heads-up display) is the interface drawn on top of the game: health bars, score, menus, touch controls. In DemiEngine it is a separate JSON document — a tree of interface nodes — saved as <code>*.hud.json</code>. Scenes attach one; the file itself never contains gameplay objects. This page walks through every part of a HUD document.</p>
+
+<h2>What a HUD document is</h2>
+<p>Think of the HUD as a page layout, not a level. Its nodes are containers, labels, buttons, and similar controls arranged in screen space. Nodes can be interactive (buttons respond to clicks and to input actions) or decorative (labels and images). The document describes structure, appearance, and which input actions the controls feed.</p>
+<p>Like every DemiEngine document, a HUD file starts with <code>format_version</code>.</p>
+
+<h2>Canvas size and units</h2>
+<pre><code>"canvas_size": [1280, 720]</code></pre>
+<ul>
+  <li><code>canvas_size</code> is <code>[width, height]</code> in interface units — the design resolution the layout is authored against.</li>
+  <li>Positions, sizes, gaps, and padding in the file are in these units. On a real screen the whole canvas is scaled to fit, so a layout designed at 1280×720 works on other resolutions without rewriting numbers.</li>
+  <li>Pick the resolution you design at and stay consistent across your HUD documents.</li>
+</ul>
+<p>Because everything is in canvas units, a label at <code>[100, 40]</code> is 100 units from the left and 40 from the top of that design rectangle, whatever the player's screen is.</p>
+
+<h2>A minimal menu, field by field</h2>
+<p>This HUD is a centered title and one button:</p>
+<pre><code>{
+  "format_version": 1,
+  "canvas_size": [1280, 720],
+  "root": {
+    "id": "menu",
+    "type": "container",
+    "dock": "fill",
+    "children": [
+      {
+        "id": "title",
+        "type": "label",
+        "text": "Skyforge",
+        "font_size": 48,
+        "alignment": "center"
+      },
+      {
+        "id": "start_button",
+        "type": "button",
+        "text": "Start",
+        "action": "confirm",
+        "size": [240, 64]
+      }
+    ]
+  }
+}</code></pre>
+<p>What each field does:</p>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>format_version</code></td><td>Always required. Documents without it are rejected.</td></tr>
+    <tr><td><code>canvas_size</code></td><td>Design resolution <code>[width, height]</code> in interface units.</td></tr>
+    <tr><td><code>root</code></td><td>The single top node of the tree. Everything else is nested under it.</td></tr>
+    <tr><td><code>id</code></td><td>Stable node identity. Tests and scripts address nodes by ID (for example, to press <code>start_button</code> without knowing screen coordinates).</td></tr>
+    <tr><td><code>type</code></td><td>What kind of node this is. Here <code>container</code> (layout only), <code>label</code> (text display), and <code>button</code> (pressable control).</td></tr>
+    <tr><td><code>dock: "fill"</code></td><td>Stretch this node across its parent's available space. Other values: <code>top</code>, <code>bottom</code>, <code>left</code>, <code>right</code>, <code>center</code>.</td></tr>
+    <tr><td><code>children</code></td><td>Nested nodes, laid out by this node's layout settings.</td></tr>
+    <tr><td><code>text</code></td><td>The string a label or button shows.</td></tr>
+    <tr><td><code>font_size</code></td><td>Text size in canvas units.</td></tr>
+    <tr><td><code>alignment</code></td><td>Where content sits inside the node: <code>start</code>, <code>center</code>, <code>end</code>, or <code>stretch</code>.</td></tr>
+    <tr><td><code>action</code></td><td>Input action this control feeds. Pressing the button is the same as pressing the <code>confirm</code> action.</td></tr>
+    <tr><td><code>size</code></td><td>Explicit <code>[width, height]</code> when the node should not auto-size.</td></tr>
+  </tbody>
+</table>
+
+<h2>Node types</h2>
+<p>The <code>type</code> field selects the node's behavior:</p>
+<table>
+  <thead><tr><th>Type</th><th>Role</th></tr></thead>
+  <tbody>
+    <tr><td><code>container</code></td><td>Pure layout box. Invisible; holds children.</td></tr>
+    <tr><td><code>panel</code></td><td>Styled background box that can hold children.</td></tr>
+    <tr><td><code>label</code></td><td>Static text display.</td></tr>
+    <tr><td><code>text</code></td><td>Text block (longer copy than a short label).</td></tr>
+    <tr><td><code>image</code></td><td>A picture from a texture asset.</td></tr>
+    <tr><td><code>button</code></td><td>Pressable control with text.</td></tr>
+    <tr><td><code>toggle</code></td><td>On/off switch.</td></tr>
+    <tr><td><code>slider</code></td><td>Value dragged along a range.</td></tr>
+    <tr><td><code>text_input</code></td><td>Editable text field with a <code>placeholder</code>.</td></tr>
+    <tr><td><code>scroll</code></td><td>Scrollable region.</td></tr>
+    <tr><td><code>list</code></td><td>Repeated rows container.</td></tr>
+    <tr><td><code>progress</code></td><td>Progress bar (health, loading).</td></tr>
+    <tr><td><code>modal</code></td><td>Overlay dialog that takes focus.</td></tr>
+    <tr><td><code>virtual_button</code></td><td>Touch button that feeds an input action.</td></tr>
+    <tr><td><code>virtual_stick</code></td><td>Touch stick that feeds a 2D input action.</td></tr>
+  </tbody>
+</table>
+<p>Interactive types (<code>button</code>, <code>toggle</code>, <code>slider</code>, <code>text_input</code>, <code>virtual_button</code>, <code>virtual_stick</code>) connect to named actions. See <a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a> for how actions and <code>virtual:</code> inputs are declared.</p>
+
+<h2>Layout fields</h2>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>dock</code></td><td>Attach to an edge of the parent: <code>fill</code>, <code>top</code>, <code>bottom</code>, <code>left</code>, <code>right</code>, <code>center</code>.</td></tr>
+    <tr><td><code>stack</code></td><td>Arrange children in a line: <code>row</code>, <code>column</code>, or <code>grid</code>.</td></tr>
+    <tr><td><code>columns</code></td><td>For <code>stack: "grid"</code>, how many columns the grid has.</td></tr>
+    <tr><td><code>gap</code></td><td>Space between stacked children, in canvas units.</td></tr>
+    <tr><td><code>pad</code></td><td>Shorthand: uniform inner spacing on all sides.</td></tr>
+    <tr><td><code>padding</code></td><td>Inner spacing, per side when one number is not enough.</td></tr>
+    <tr><td><code>margin</code></td><td>Outer spacing around the node.</td></tr>
+    <tr><td><code>at</code></td><td>Place the node at an explicit point instead of docking/stacking.</td></tr>
+    <tr><td><code>position</code> / <code>size</code></td><td>Explicit rectangle in canvas units.</td></tr>
+    <tr><td><code>anchor_min</code> / <code>anchor_max</code></td><td>Anchor points (0…1 of the parent) that <code>position</code> and <code>size</code> are relative to.</td></tr>
+    <tr><td><code>min_size</code> / <code>max_size</code></td><td>Clamp the computed size into a range.</td></tr>
+    <tr><td><code>alignment</code></td><td>Where content sits in the node: <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>.</td></tr>
+  </tbody>
+</table>
+<p>Prefer <code>dock</code>, <code>stack</code>, <code>pad</code>, and <code>at</code> before falling back to raw anchors and pixel rectangles — the shorthand stays readable when the canvas changes.</p>
+
+<h2>Appearance fields</h2>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>color</code></td><td>RGBA array with components 0…1 (<code>[1, 0.5, 0, 1]</code>) or a hex string (<code>#FF8000</code>, <code>#FF8000FF</code>).</td></tr>
+    <tr><td><code>font</code></td><td>Font to draw text with, as an <code>asset://</code> URI (for example <code>asset://fonts/ui</code>).</td></tr>
+    <tr><td><code>font_size</code></td><td>Text size in canvas units.</td></tr>
+    <tr><td><code>text</code></td><td>String shown by labels, text blocks, and text buttons.</td></tr>
+    <tr><td><code>placeholder</code></td><td>Hint string shown by <code>text_input</code> while empty.</td></tr>
+    <tr><td><code>texture</code></td><td>Image asset for <code>image</code> nodes and some controls, as <code>asset://…</code>.</td></tr>
+    <tr><td><code>style</code></td><td>Named visual style applied to the node, layered with theme defaults.</td></tr>
+    <tr><td><code>visible</code></td><td>Whether the node is shown.</td></tr>
+    <tr><td><code>disabled</code></td><td>Whether the control accepts input.</td></tr>
+    <tr><td><code>focusable</code></td><td>Whether keyboard/gamepad focus can land on this node.</td></tr>
+    <tr><td><code>control</code></td><td>Extra control-specific settings (slider range and the like).</td></tr>
+    <tr><td><code>accessibility_label</code> / <code>accessibility_description</code> / <code>accessibility_hidden</code></td><td>Screen-reader text and visibility.</td></tr>
+  </tbody>
+</table>
+
+<h2>Variables: <code>${name}</code></h2>
+<p>Text fields can contain placeholders written as <code>${name}</code>. At run time each placeholder is replaced with the value of the HUD variable <code>name</code>. Declare variables in the document:</p>
+<pre><code>"variables": {
+  "player_name": "Skyforge Scout",
+  "score": 0
+},
+"root": {
+  "id": "hud_root",
+  "type": "container",
+  "children": [
+    {
+      "id": "score_label",
+      "type": "label",
+      "text": "${player_name} — score ${score}"
+    }
+  ]
+}</code></pre>
+<ul>
+  <li><code>variables</code> is a name → starting value map. Any node's <code>text</code> may interpolate with <code>${…}</code>.</li>
+  <li>The label above displays <code>Skyforge Scout — score 0</code> with those defaults. When a script updates <code>score</code>, the label shows the new value.</li>
+  <li>Use variables for anything that changes during play: counters, names, status words. Keep fixed copy as plain text.</li>
+</ul>
+
+<h2>Theme and localization</h2>
+<pre><code>"theme": "asset://ui/theme",
+"localization_file": "asset://text/strings"</code></pre>
+<ul>
+  <li><code>theme</code> points at a theme asset (<code>asset://…</code>) that supplies default colors, fonts, and styles. Node-level fields still win where you set them explicitly.</li>
+  <li><code>localization_file</code> points at the translation data used for text strings. Combined with <code>locales</code>, it lets one HUD show several languages.</li>
+  <li><code>locales</code> lists the language codes the game offers.</li>
+</ul>
+
+<h2>action_map and action_effects</h2>
+<p>Controls do not talk to gameplay directly; they feed named input actions, and optionally play an effect when they fire.</p>
+<pre><code>"action_map": {
+  "start_button": "confirm",
+  "move_stick": "move"
+},
+"action_effects": {
+  "start_button": { "type": "click" }
+}</code></pre>
+<ul>
+  <li><code>action_map</code> — control node ID → action name. Pressing <code>start_button</code> is the same as the <code>confirm</code> action; dragging <code>move_stick</code> fills the <code>move</code> action. The action itself must exist in the project's input setup.</li>
+  <li><code>action_effects</code> — optional feedback per control (here, a click effect on <code>start_button</code>), so touch and mouse presses feel physical.</li>
+  <li>The <code>action</code> field on a node is shorthand for adding that node to <code>action_map</code>.</li>
+</ul>
+<p>Action names must match the project's input declarations. See <a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a> and <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a>.</p>
+
+<h2><code>root</code> versus top-level <code>children</code></h2>
+<p>There are two equivalent ways to write the top of the tree:</p>
+<pre><code>"root": {
+  "id": "screen",
+  "type": "container",
+  "children": [ … ]
+}</code></pre>
+<p>or, without naming a root node:</p>
+<pre><code>"children": [
+  { "id": "title", "type": "label", "text": "Skyforge" },
+  { "id": "start_button", "type": "button", "text": "Start" }
+]</code></pre>
+<ul>
+  <li>With <code>root</code>, you own the outermost node: give it an ID, a type, and layout fields that govern the whole screen.</li>
+  <li>With top-level <code>children</code>, the engine supplies an implicit fill root and your nodes become its children.</li>
+  <li>Use <code>root</code> when the screen needs one named outer container (for modal management or full-screen styling); use top-level <code>children</code> for small, simple screens.</li>
+</ul>
+<p>Each node may also use <code>prefab</code>, <code>arguments</code>, and <code>overrides</code> to place a reusable interface prefab instead of inlining every child. The override rules match prefab overrides: absent fields inherit, objects merge, arrays replace, <code>null</code> removes, and dotted keys set one field. See <a href="{{ path('docs_page', {slug: 'prefab-json'}) }}">Prefab files</a>.</p>
+
+<h2>Safe areas</h2>
+<pre><code>"respect_safe_area": true</code></pre>
+<p>A <strong>safe area</strong> is the part of the screen guaranteed to be unobstructed — cutouts, rounded corners, and system bars on phones sit outside it.</p>
+<ul>
+  <li><code>respect_safe_area</code> defaults to <code>true</code>. Readable text and interactive controls are then laid out inside the safe region.</li>
+  <li>Set <code>respect_safe_area: false</code> only for intentional edge-to-edge work: full-screen backgrounds, immersive art, or compositions that are meant to run to the glass.</li>
+  <li>When you go edge-to-edge, keep important buttons and readable text clear of cutouts yourself — the document is promising the engine you have handled that.</li>
+</ul>
+
+<h2>Node field quick reference</h2>
+<pre><code>{
+  "id": "health_bar",
+  "type": "progress",
+  "visible": true,
+  "disabled": false,
+  "focusable": false,
+  "color": "#3CFF6A",
+  "dock": "top",
+  "size": [400, 16],
+  "margin": 12,
+  "min_size": [120, 8],
+  "max_size": [800, 24],
+  "accessibility_label": "Health",
+  "respect_safe_area": true,
+  "children": []
+}</code></pre>
+<p>That node is a progress bar pinned to the top of its parent, 400×16 design units, with outer margin 12, clamped between 120×8 and 800×24, drawn in the given green, named for screen readers, and kept inside the safe area. Not every field is required — omit anything you do not need.</p>
+<p>Saves and live game data are separate from HUD files; runtime state is written to platform user-data, never into the HUD document. See <a href="{{ path('docs_page', {slug: 'game-data'}) }}">Game data &amp; saves</a>.</p>

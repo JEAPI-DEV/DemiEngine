@@ -1,0 +1,109 @@
+<h1>Testing &amp; debugging</h1>
+<p>Project E2E tests run through the real runtime. Deterministic replay, profiler reports, and debug overlays make regressions visible before they ship.</p>
+
+<h2>E2E tests</h2>
+<p>Tests live at <code>scripts/tests/e2e.lua</code> and return a list of named tests. Each test is a function that runs like a coroutine, so you can yield on waits and scene loads:</p>
+<pre><code>local Test = require("demi.test")
+
+local tests = {}
+
+tests[#tests + 1] = {
+    name = "menu_starts_game",
+    func = function()
+        Test.expect_scene("scene://game/menu", 5)   -- wait up to 5s
+        Test.touch("start")                          -- tap the HUD node
+        Test.expect_scene("scene://game/main", 5)
+        Test.expect(Test.node_center("hud/health") ~= nil, "health widget exists")
+    end,
+}
+
+return { tests = tests }</code></pre>
+<p>The file must return <code>{ tests = tests }</code>. The harness runs each entry in order and prints a summary.</p>
+
+<h2>Test API</h2>
+<table>
+  <thead><tr><th>Call</th><th>Behavior</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>Test.touch(node_id)</code></td><td>Taps an interactive HUD node by stable ID — survives resolution, DPI, and safe-area changes</td><td>—</td></tr>
+    <tr><td><code>Test.tap(x, y)</code></td><td>Taps a canvas point</td><td>—</td></tr>
+    <tr><td><code>Test.swipe(from, to, duration?)</code></td><td>Drag between two points</td><td>—</td></tr>
+    <tr><td><code>Test.swipe_xy(x1, y1, x2, y2, duration?)</code></td><td>Drag between coordinates</td><td>—</td></tr>
+    <tr><td><code>Test.wait(seconds)</code></td><td>Waits (yields) for the given time</td><td>—</td></tr>
+    <tr><td><code>Test.expect_scene(scene_id, timeout?)</code></td><td>Waits until the scene is active, up to the timeout</td><td>—</td></tr>
+    <tr><td><code>Test.expect(condition, message)</code></td><td>Asserts a condition; fails the test with <code>message</code> when false</td><td>—</td></tr>
+    <tr><td><code>Test.node_center(node_id)</code></td><td>Center point of a HUD node</td><td><code>{x, y}</code> or <code>nil</code></td></tr>
+  </tbody>
+</table>
+<p>The harness prints one line per test and a final summary:</p>
+<pre><code>[test] PASS menu_starts_game.
+[test] FAIL menu_starts_game: scene never activated.
+[test] SUMMARY passed=3 failed=1.</code></pre>
+<p>Prefer stable HUD node IDs and scene IDs over screen coordinates so tests survive resolution and orientation changes. Keep tests deterministic and bounded by explicit timeouts.</p>
+
+<h2>Run tests</h2>
+<pre><code># Desktop E2E through the real runtime
+./build/linux-debug/demi test linux --project games/my_game
+
+# Device E2E (attached physical Android device via adb)
+./build/linux-debug/demi test android --project games/my_game --serial &lt;device&gt;
+
+# E2E during a normal launch
+./build/linux-debug/demi run --project games/my_game --e2e-tests
+
+# Headless one-frame smoke
+DEMI_HEADLESS=1 ./build/linux-debug/demi test --project games/my_game/demi.project.json</code></pre>
+<p>Android qualification records <code>lua_tests</code> in <code>build/android/qualification/qualification.json</code>.</p>
+
+<h2>Deterministic input replay</h2>
+<pre><code>./build/linux-debug/demi run --project games/my_game \
+  --input-replay fixtures/smoke.replay.json</code></pre>
+<p>Recorded action frames re-apply through the authored context filter. The project fixed timestep must match the fixture. Use replays as CI smoke tests and for bug reproduction.</p>
+
+<h2>Profiler</h2>
+<pre><code>./build/linux-debug/demi run linux --project games/my_game --profiler
+
+./build/linux-debug/demi run linux --project games/my_game \
+  --profile-report report.csv --profile-frames frames.csv</code></pre>
+<p><code>--profile-report</code> writes aggregate scope totals; <code>--profile-frames</code> writes per-frame rows. Profile a repeatable scene and keep the CSV with the change that motivated it.</p>
+<pre><code>local Profile = require("demi.profile")
+
+Profile.scope("ai_update", function()
+    updateAI()
+end)
+-- The scope appears in profiler reports as "ai_update".</code></pre>
+
+<h2>Debug overlays</h2>
+<pre><code>./build/linux-debug/demi run --project games/my_game \
+  --debug-overlays colliders,contacts,grid,entity_ids,draw_order,ui_bounds,profiler</code></pre>
+<p>Or set the matching project <code>debug</code> flags. Overlay geometry matches the authored simulation shapes.</p>
+
+<h2>Saves</h2>
+<pre><code>local Save = require("demi.save")
+
+Save.write("slot1", { level = 3, gold = 120 })
+local data = Save.read("slot1")     -- table, or nil on failure
+if data then print(data.level, data.gold) end
+
+Save.set_number("slot1", "gold", 150)
+print(Save.get_number("slot1", "gold", 0))   -- value or the default
+
+Save.register_migration(2, function(old)
+    old.level = old.level or 1
+    return old
+end)
+
+print(Save.metadata("slot1"))      -- version, timestamps, size
+print(Save.last_error())           -- string or nil
+print(Save.exists("slot1"))        -- boolean
+Save.delete("slot1")</code></pre>
+<ul>
+  <li>Slots survive install, upgrade, and rollback. Migrations run when the stored version is older than the current one.</li>
+  <li><code>write_state</code> / <code>read_state</code> handle structured state blobs alongside slot values.</li>
+  <li>Inspect a save on disk: <code>demi save inspect saves/slot1.save.json</code>.</li>
+</ul>
+
+<h2>Validation in CI</h2>
+<pre><code>./build/linux-debug/demi validate examples/minimal_3d
+./build/linux-debug/demi validate examples/minimal_2d_android --platform android
+./build/linux-debug/demi script check games/my_game/scripts/player.lua</code></pre>
+<p>Exit code <code>1</code> means validation or test failure — fail the pipeline on it.</p>

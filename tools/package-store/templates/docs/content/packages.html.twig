@@ -1,0 +1,70 @@
+<h1>Packages</h1>
+<p>Packages are reusable, versioned building blocks: Lua gameplay modules and/or assets. Everything in the <a href="{{ path('catalog') }}">DemiEngine package catalog</a> is free. Games install packages into the project; the game never contacts a registry at runtime.</p>
+
+<h2>What a package contains</h2>
+<pre><code>{
+  "format_version": 1,
+  "name": "demi.gameplay.health",
+  "version": "1.0.0",
+  "engine": ">=0.1.0",
+  "dependencies": { "demi.gameplay.events": "^1.0.0" },
+  "public_modules": ["demi.gameplay.health"],
+  "files": [
+    "scripts/runtime/demi/gameplay/health.lua",
+    "assets/schemas/health.data.json"
+  ]
+}</code></pre>
+<ul>
+  <li><strong>Package name</strong> is the installation identity.</li>
+  <li><strong>Public modules</strong> are the import surface — one package can export several.</li>
+  <li><strong>Files</strong> (with <code>asset_manifests</code> and <code>engine_extensions</code> subsets) are the audited content list.</li>
+  <li>Never import another package's private module path.</li>
+</ul>
+
+<h2>Install packages</h2>
+<pre><code>cd games/my_game
+demi package add demi.gameplay.health@1.0.0
+demi package add kenney.textures.prototype@1.0.0
+demi package install
+demi package list
+demi package outdated</code></pre>
+<p>Project <code>packages</code> holds constraints; <code>demi.packages.lock.json</code> pins resolved versions. Installs land in <code>.demi/packages</code> (derived data — do not commit or hand-edit).</p>
+<p>Cook reads only the lockfile and <code>.demi/packages</code>. Package asset IDs merge into the shared registry without copying.</p>
+
+<h2>Use package modules</h2>
+<pre><code>local Health = require("demi.gameplay.health")
+local health = Health.new({ max = 100 })
+health:damage(15)</code></pre>
+<p>Installed package modules follow the same explicit-require rules as engine services. Editor stubs come from the package's public module metadata.</p>
+
+<h2>Available package families</h2>
+<table>
+  <thead><tr><th>Family</th><th>Modules</th></tr></thead>
+  <tbody>
+    <tr><td>Gameplay</td><td><code>demi.gameplay.core</code>, <code>health</code>, <code>controllers</code>, <code>projectiles</code>, <code>interactions</code>, <code>inventory</code>, <code>encounters</code>, <code>camera</code>, <code>traversal</code>, <code>third_person</code>, <code>destruction</code></td></tr>
+    <tr><td>UI</td><td><code>demi.ui.language_file</code>, <code>demi.ui.localization</code></td></tr>
+    <tr><td>Networking</td><td><code>demi.network.lobby</code></td></tr>
+    <tr><td>Assets</td><td><code>kenney.textures.prototype</code> — 78 CC0 prototype textures</td></tr>
+  </tbody>
+</table>
+<p>Browse descriptions, versions, and install commands on each package page in the <a href="{{ path('catalog') }}">catalog</a>.</p>
+
+<h2>Test a package</h2>
+<pre><code>demi package test packages/my_package
+demi package test packages/my_package --format json</code></pre>
+<p>Declared Lua tests run in the same runtime used by games.</p>
+
+<h2>Publish a package</h2>
+<ol>
+  <li>Build a <code>.demipkg</code> with audited content roots (<code>assets/</code>, <code>certs/</code>, <code>packages/</code>, <code>scenes/</code>, <code>scripts/</code>, plus project/lock/cook manifests).</li>
+  <li>Publish to a registry: <code>demi package publish --registry https://demiengine.de</code>, or use the <a href="{{ path('publishing') }}">publishing page</a> / <code>bin/publish.py</code> for the public store.</li>
+</ol>
+<p>Releases are immutable. Listing metadata (title, description, tags, images) can be updated later without touching archive bytes.</p>
+
+<h2>Design rules</h2>
+<ul>
+  <li>Gameplay rules belong in Lua or reusable packages, so the engine stays a general mechanism.</li>
+  <li>Package dependencies use manifests and locks with declared visibility.</li>
+  <li>Keep module names stable across releases so games do not need rewrites on every update.</li>
+  <li>When a public API changes, update examples, docs, tests, and stubs together.</li>
+</ul>

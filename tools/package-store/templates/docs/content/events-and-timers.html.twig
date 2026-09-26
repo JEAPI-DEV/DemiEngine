@@ -1,0 +1,111 @@
+<h1>Events &amp; timers</h1>
+<p>Not everything happens on a frame boundary: a button gets pressed, a collision lands, two seconds pass, a scene finishes loading. Events deliver named messages to interested scripts; timers run a function later or repeatedly. Together they keep scripts from polling.</p>
+
+<h2>What an event is</h2>
+<p>An event is a name plus a payload table. Any script can <strong>subscribe</strong> a handler to a name, any script can <strong>emit</strong> a name, and every subscriber runs when it fires. One event can have many subscribers; each gets the same payload.</p>
+<pre><code>local Events = require("demi.events")
+
+local token = Events.subscribe("skyforge_rune_collected", function(payload)
+    -- payload: the table the emitter passed (fields are up to the emitter)
+    Debug.log("collected by " .. tostring(payload.by))
+end)</code></pre>
+<p><code>Events.subscribe(name, handler)</code> registers <code>handler</code> for <code>name</code> and returns an opaque <strong>token</strong>. Keep the token if you will unsubscribe later; otherwise discard it. The handler receives exactly one argument: the payload table (possibly empty, never <code>nil</code>).</p>
+<pre><code>Events.unsubscribe(token)   -- remove one subscription; safe to call twice
+
+Events.emit("skyforge_rune_collected", { by = self.id })
+-- runs every handler subscribed to that name, each with the same payload table</code></pre>
+<ul>
+  <li><code>Events.unsubscribe(token)</code> — removes the subscription the token came from. Returns nothing.</li>
+  <li><code>Events.emit(name, payload)</code> — fires <code>name</code> with a payload table. Returns nothing. Handlers run in subscription order before the emit call returns.</li>
+</ul>
+<p>Payload tables can be empty (<code>Events.emit("ui_closed", {})</code>) when the name alone is the message. Do not reuse and mutate a payload table after emitting — handlers may hold onto it.</p>
+
+<h2>Engine events</h2>
+<p>The engine emits these names through the same subscribe mechanism. Payload fields depend on the event; each handler should read the fields it needs and ignore the rest.</p>
+<table>
+  <thead><tr><th>Name</th><th>When</th></tr></thead>
+  <tbody>
+    <tr><td><code>physics_*</code> / <code>physics3d_*</code></td><td>2D and 3D contact and query callbacks (names carry the contact kind)</td></tr>
+    <tr><td><code>animation_event</code> / <code>sprite_animation</code> / <code>animation_collision</code></td><td>Clip markers, sprite frame changes, and animation-driven collision toggles</td></tr>
+    <tr><td><code>scene_*</code></td><td><code>scene_loaded</code>, <code>scene_unloading</code>, <code>scene_unloaded</code>, <code>active_scene_changed</code></td></tr>
+    <tr><td><code>ui_event</code> / <code>ui_submit</code></td><td>HUD interactions and form submits (also delivered to <code>on_ui_event</code> / <code>on_ui_submit</code> on the owning script)</td></tr>
+    <tr><td><code>application_focus</code> / <code>application_blur</code> / <code>application_suspend</code> / <code>application_resume</code></td><td>Window and app lifecycle</td></tr>
+    <tr><td><code>data_asset_reloaded</code></td><td>A data document was reloaded during development</td></tr>
+  </tbody>
+</table>
+<pre><code>local Events = require("demi.events")
+
+Events.subscribe("scene_unloading", function(payload)
+    -- payload.scene: URI string of the scene about to unload
+end)
+
+Events.subscribe("application_suspend", function(payload)
+    Save.write_state("profile1", build_state())
+end)</code></pre>
+<p>Scene events carry the scene URI; application events carry little or no payload (an empty table). For the exact payload of a physics or animation event, read the fields in the handler and log them once — the name always tells you the family, the table tells you who and where.</p>
+
+<h2>A caller-owned event queue</h2>
+<p>Sometimes you want to collect events during a tick and handle them at one safe moment (for example, between physics and rendering). The <code>demi.gameplay.events</code> package is a caller-owned queue: your code pushes into it and calls <code>flush()</code> when it is ready to run handlers.</p>
+<pre><code>local GameplayEvents = require("demi.gameplay.events")
+
+GameplayEvents.subscribe("skyforge_wave_cleared", handler)
+GameplayEvents.emit("skyforge_wave_cleared", { wave = 2 })
+GameplayEvents.flush()   -- runs queued handlers now</code></pre>
+<ul>
+  <li><code>subscribe</code> / <code>emit</code> — same meanings as <code>demi.events</code>, but <code>emit</code> queues rather than running immediately.</li>
+  <li><code>flush()</code> — runs everything queued so far, in order. Returns nothing.</li>
+</ul>
+<p>Use <code>demi.events</code> for direct delivery and <code>demi.gameplay.events</code> when you need ordering control over when handlers run. Both are plain tables of functions; neither is global.</p>
+
+<h2>Timers</h2>
+<p>A timer runs a function after a delay or on a repeating interval. Time is game time in <strong>seconds</strong>, so pausing the game pauses timers.</p>
+<pre><code>local Timer = require("demi.timer")
+
+Timer.delay(1.0, function()
+    Debug.log("fuse lit")
+end)
+
+local handle = Timer.after(3, function()
+    Entity.destroy(self.id)
+end)
+
+local beat = Timer.every(0.25, function()
+    Hud.set_variable("pulse", math.floor(Time.time * 4) % 2)
+end)
+
+Timer.cancel(handle)   -- stop one scheduled call
+Timer.cancel(beat)</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Meaning</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>Timer.delay(secs, fn)</code></td><td>Run once after <code>secs</code></td><td>Nothing (fire-and-forget)</td></tr>
+    <tr><td><code>Timer.after(secs, fn)</code></td><td>Run once after <code>secs</code></td><td>Cancel handle</td></tr>
+    <tr><td><code>Timer.every(secs, fn)</code></td><td>Run every <code>secs</code> until cancelled</td><td>Cancel handle</td></tr>
+    <tr><td><code>Timer.cancel(handle)</code></td><td>Stop a pending timer</td><td>Nothing; unknown or spent handles are ignored</td></tr>
+  </tbody>
+</table>
+<p>Prefer <code>after</code> over <code>delay</code> whenever you might change your mind (enemy spawn waves, dialogue beats): the handle makes cancellation possible. The callback takes no arguments; close over what it needs.</p>
+
+<h2>Pausing and scaling time</h2>
+<p><code>demi.time</code> exposes the clock as fields and two control pairs. Values are seconds.</p>
+<pre><code>local Time = require("demi.time")
+
+Time.set_paused(true)       -- freeze gameplay time
+print(Time.is_paused())     -- true
+
+Time.set_scale(0.5)         -- half speed
+print(Time.get_scale())     -- 0.5</code></pre>
+<ul>
+  <li><code>Time.delta_time</code> / <code>Time.unscaled_delta_time</code> — per-frame seconds, scaled and unscaled.</li>
+  <li><code>Time.time</code> / <code>Time.fixed_time</code> / <code>Time.frame_count</code> — totals since start.</li>
+  <li><code>Time.set_paused(on)</code> / <code>Time.is_paused()</code> — pause control and query (boolean).</li>
+  <li><code>Time.set_scale(s)</code> / <code>Time.get_scale()</code> — multiplier control and query (number).</li>
+</ul>
+<p>Menus that must animate while the game is paused read <code>Time.unscaled_delta_time</code>. Gameplay movement reads <code>Time.delta_time</code>. More clock detail lives in <a href="{{ path('docs_page', {slug: 'assets-time-api'}) }}">Assets, time &amp; timers</a>.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'script-lifecycle'}) }}">Script lifecycle</a> — hooks versus subscriptions.</li>
+  <li><a href="{{ path('docs_page', {slug: 'hud-api'}) }}">HUD API</a> — nodes that raise <code>ui_event</code>.</li>
+  <li><a href="{{ path('docs_page', {slug: 'state-machines'}) }}">State machines</a> — clip markers that raise animation events.</li>
+</ul>

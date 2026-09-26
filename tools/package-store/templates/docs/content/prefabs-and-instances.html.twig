@@ -1,0 +1,143 @@
+<h1>Prefabs &amp; instances</h1>
+<p>Most games place the same kind of object many times: a doorway in every wall, an enemy in every wave, a pickup in every room. A <strong>prefab</strong> is a saved composition of entities that you edit once and place anywhere. Each placement is an <strong>instance</strong> — a live copy that follows the prefab unless you deliberately change it. This page shows why prefabs exist, how to place one in a scene, how overrides work, and how IDs expand.</p>
+
+<h2>Why prefabs exist</h2>
+<p>Without prefabs you would copy an entity block into every scene and edit every copy when the design changes. Prefabs give you:</p>
+<ul>
+  <li><strong>Reuse</strong> — define a doorway once and place it in any scene.</li>
+  <li><strong>Edit once</strong> — change the prefab document and every instance that does not override that field picks up the new value.</li>
+  <li><strong>Local variation</strong> — per-instance overrides cover the cases that really differ, like one door starting locked.</li>
+</ul>
+<p>A prefab is its own file under <code>prefabs/</code> with a <code>prefab://</code> identity, for example <code>prefab://doorway</code>. Full document shape: <a href="{{ path('docs_page', {slug: 'prefab-json'}) }}">Prefab files</a>.</p>
+
+<h2>A prefab document</h2>
+<pre><code>{
+  "format_version": 1,
+  "id": "prefab://characters/player",
+  "entities": [
+    {
+      "id": "body",
+      "components": {
+        "Transform3D": { "position": [0, 0, 0] },
+        "CharacterController3D": { "slope_limit_degrees": 45 }
+      },
+      "children": [
+        {
+          "id": "visual",
+          "components": {
+            "MeshRenderer": { "model": "asset://models/hero" }
+          }
+        }
+      ]
+    }
+  ]
+}</code></pre>
+<ul>
+  <li><code>format_version</code> — the document format number. Present on every durable document.</li>
+  <li><code>id</code> — the stable prefab identity, <code>prefab://characters/player</code>. Scenes reference this, never the file path.</li>
+  <li><code>entities</code> — the root entities of the composition. Here one root, <code>body</code>, with a transform, a character controller, and a child <code>visual</code> that renders the hero model.</li>
+  <li>Field values inside <code>components</code> behave exactly as in a scene: omitted fields use component defaults (see <a href="{{ path('docs_page', {slug: 'entities-and-components'}) }}">Entities &amp; components</a>).</li>
+</ul>
+
+<h2>Placing an instance in a scene</h2>
+<p>Scenes list prefab placements in an <code>instances</code> array next to their own <code>entities</code>:</p>
+<pre><code>{
+  "format_version": 1,
+  "id": "scene://game/main",
+  "entities": [
+    {
+      "id": "player",
+      "prefab": "prefab://characters/player",
+      "overrides": {
+        "body": {
+          "components": {
+            "Transform3D": { "position": [2, 0, 0] }
+          }
+        }
+      }
+    }
+  ]
+}</code></pre>
+<ul>
+  <li><code>id: "player"</code> — the instance identity inside this scene. This is the name scripts and tests use.</li>
+  <li><code>prefab: "prefab://characters/player"</code> — which prefab to place. A URI reference, not a path.</li>
+  <li><code>overrides</code> — a map of per-instance changes keyed by the prefab's local entity IDs. Here <code>body</code> gets a different start position.</li>
+</ul>
+<p>Scene files may also group placements in an <code>instances</code> array; the semantics are the same. Details: <a href="{{ path('docs_page', {slug: 'scene-json'}) }}">Scene files</a>.</p>
+
+<h2>How overrides combine</h2>
+<p>Overrides are layered on top of the prefab document. Each field follows one rule, and knowing the rule tells you exactly what the instance will contain:</p>
+<table>
+  <thead><tr><th>Override value</th><th>Result</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Inherit</strong> — field absent from the override</td>
+      <td>The prefab's value is used unchanged.</td>
+      <td>Override only <code>position</code>; <code>CharacterController3D.slope_limit_degrees</code> stays <code>45</code>.</td>
+    </tr>
+    <tr>
+      <td><strong>Merge</strong> — object values</td>
+      <td>Keys combine recursively; override keys win per key, other prefab keys survive.</td>
+      <td>Override <code>components.Transform3D.position</code>; prefab's <code>Transform3D.rotation</code> is kept.</td>
+    </tr>
+    <tr>
+      <td><strong>Replace</strong> — array values</td>
+      <td>The override array replaces the prefab array as a whole.</td>
+      <td>Override <code>tags: ["boss"]</code>; the prefab's <code>tags</code> list is gone, not appended to.</td>
+    </tr>
+    <tr>
+      <td><strong>Remove</strong> — <code>null</code></td>
+      <td>The field, component, or entity is deleted from this instance.</td>
+      <td><code>"visual": null</code> removes the child entity from this instance only.</td>
+    </tr>
+    <tr>
+      <td><strong>Single field</strong> — dotted keys</td>
+      <td>A dotted key sets exactly one nested field without writing the surrounding objects.</td>
+      <td><code>"body.Transform3D.position": [2, 0, 0]</code> sets only that field.</td>
+    </tr>
+  </tbody>
+</table>
+<p>Worked example. Prefab <code>body</code> has <code>position [0, 0, 0]</code>, <code>slope_limit_degrees 45</code>, and the instance override is:</p>
+<pre><code>"overrides": {
+  "body": {
+    "components": {
+      "Transform3D": { "position": [2, 0, 0] },
+      "MeshRenderer": null
+    },
+    "tags": ["boss"]
+  }
+}</code></pre>
+<ul>
+  <li><code>Transform3D.position</code> → <code>[2, 0, 0]</code> — merged in, replacing the prefab's position.</li>
+  <li><code>Transform3D.rotation</code> and any other transform fields — inherited from the prefab because they are absent from the override.</li>
+  <li><code>CharacterController3D</code> — inherited entirely; the merge touched other components only.</li>
+  <li><code>MeshRenderer</code> — removed from this instance because the override value is <code>null</code>.</li>
+  <li><code>tags</code> → <code>["boss"]</code> — replaced as a whole because it is an array.</li>
+</ul>
+
+<h2>How IDs expand</h2>
+<p>When a prefab is instantiated, every entity ID inside it is prefixed with the instance ID so copies never collide. Local ID <code>body</code> under instance <code>player</code> becomes <code>player/body</code>; local <code>visual</code> becomes <code>player/visual</code>. Override keys use the <strong>local</strong> name (<code>body</code>), while runtime lookups use the <strong>expanded</strong> name (<code>player/body</code>). Expansion is identity bookkeeping only — nested children in the prefab are still ordinary hierarchy, not a separate ID syntax.</p>
+
+<h2>Nested prefabs</h2>
+<p>A prefab may place other prefabs, so compositions stay modular: a <code>prefab://characters/hero</code> can contain an instance of <code>prefab://weapons/sword</code>. Override and ID expansion rules apply level by level, and the expanded IDs keep accumulating prefixes so every leaf stays unique. A prefab that eventually contains itself is a cycle; validation rejects it and reports the chain of files involved so you can break the loop.</p>
+
+<h2>Creating instances at runtime</h2>
+<p>Placing prefabs in a scene covers designed layouts. When gameplay needs an object mid-run — a dropped item, a spawned enemy — Lua can instantiate a prefab directly:</p>
+<pre><code>local Prefab = require("demi.prefab")
+
+local id = Prefab.instantiate("prefab://characters/player", {
+    position = { 2, 0, 0 }
+})</code></pre>
+<ul>
+  <li><code>require("demi.prefab")</code> — imports the prefab service; the call returns its function table.</li>
+  <li><code>Prefab.instantiate(uri, overrides)</code> — places a prefab at runtime. <code>uri</code> is the <code>prefab://</code> identity; <code>overrides</code> is optional and follows the same combine rules as authored overrides.</li>
+  <li>Returns <code>id</code> — the expanded root entity ID of the new instance (a string), which you pass to other APIs to find and control the object.</li>
+</ul>
+<p>Return shapes, options for nested IDs, and cleanup are covered in <a href="{{ path('docs_page', {slug: 'scene-and-prefab-api'}) }}">Scene &amp; prefab API</a>.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'prefab-json'}) }}">Prefab files</a> — the complete prefab document format.</li>
+  <li><a href="{{ path('docs_page', {slug: 'scene-and-prefab-api'}) }}">Scene &amp; prefab API</a> — loading scenes and instantiating from Lua.</li>
+  <li><a href="{{ path('docs_page', {slug: 'entities-and-components'}) }}">Entities &amp; components</a> — what every prefab is built from.</li>
+</ul>

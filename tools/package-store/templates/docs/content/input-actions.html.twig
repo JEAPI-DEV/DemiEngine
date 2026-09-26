@@ -1,0 +1,171 @@
+<h1>Actions explained</h1>
+<p>An <strong>action</strong> is a named logical control — “jump”, “move”, “fire” — that gameplay code reads. It exists so your scripts never care which key, stick, trigger, or on-screen button produced the signal. You declare actions once in the project file, devices fill them through bindings, and Lua queries the action by name. This page explains the three action types and every query you can make.</p>
+
+<h2>Why actions instead of keys</h2>
+<p>If gameplay read “the space key”, every player without a keyboard would be stuck, and a remap would mean editing scripts. An action decouples intent from hardware: the project says <code>jump</code> is a button, bindings say Space and gamepad A fill it, and the script asks only “was jump pressed?”. The same script serves keyboard, gamepad, and a phone touch pad. How devices attach is covered in <a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a>.</p>
+
+<h2>Declaring an action</h2>
+<pre><code>"input": {
+  "actions": {
+    "jump": { "type": "button",  "context": "gameplay", "bindings": [] },
+    "aim":  { "type": "axis1d",  "context": "gameplay", "bindings": [] },
+    "move": { "type": "vector2", "context": "gameplay", "bindings": [] }
+  }
+}</code></pre>
+<p>Each entry in <code>input.actions</code> is one action keyed by its name. Fields:</p>
+<ul>
+  <li><code>type</code> — the shape of the value: <code>button</code>, <code>axis1d</code>, or <code>vector2</code>. Required.</li>
+  <li><code>context</code> — which action group this belongs to. Defaults to <code>gameplay</code>. Only enabled contexts respond.</li>
+  <li><code>player</code> — optional local player slot (<code>0</code>, <code>1</code>, …) for shared-screen games.</li>
+  <li><code>bindings</code> — the list of physical inputs that feed this action. May be empty while you prototype.</li>
+</ul>
+
+<h2>Button, axis1d, vector2</h2>
+<h3>button</h3>
+<p>A button is either pressed or not. Use it for jump, fire, confirm, pause — anything with a single moment of intent.</p>
+<pre><code>"jump": {
+  "type": "button",
+  "context": "gameplay",
+  "bindings": [
+    { "input": "key:space" },
+    { "input": "gamepad:a" },
+    { "input": "virtual:jump" }
+  ]
+}</code></pre>
+<p>This declares <code>jump</code> as a button filled by the keyboard space bar, the gamepad A face button, and an on-screen virtual button named <code>jump</code>. In Lua the action reports 0 or 1 through <code>Input.value</code> and true/false through the pressed queries.</p>
+<h3>axis1d</h3>
+<p>An axis1d is one number, usually from −1 to 1. Use it for throttle, steering trim, zoom, or any “how far” control.</p>
+<pre><code>"accelerate": {
+  "type": "axis1d",
+  "context": "gameplay",
+  "bindings": [
+    { "input": "key:w", "scale": 1 },
+    { "input": "key:s", "scale": -1 },
+    { "input": "gamepad:axis:trigger_right", "scale": 1 }
+  ]
+}</code></pre>
+<p>Here W pushes the axis positive, S pushes it negative, and the right trigger reports how hard it is pulled. <code>Input.value("accelerate")</code> returns the combined number — a trigger can return <code>0.37</code> while a key returns <code>1</code> or <code>0</code>.</p>
+<h3>vector2</h3>
+<p>A vector2 is two numbers — an x/y direction. Use it for movement, aiming, or cursor nudge.</p>
+<pre><code>"move": {
+  "type": "vector2",
+  "context": "gameplay",
+  "bindings": [
+    { "input": "key:w", "vector": [0, 1] },
+    { "input": "key:s", "vector": [0, -1] },
+    { "input": "key:a", "vector": [-1, 0] },
+    { "input": "key:d", "vector": [1, 0] },
+    { "input": "gamepad:stick:left", "deadzone": 0.18, "normalize": true },
+    { "input": "virtual:move", "normalize": true }
+  ]
+}</code></pre>
+<p>Keys are on/off, so each key binding carries a <code>vector</code> direction. The left stick already has an x/y, and the on-screen stick publishes one. All active contributions are summed into the action’s current value.</p>
+
+<h2>Full query script</h2>
+<p>Below is one complete Skyforge player controller using every action type. Read the comments as the contract for each call.</p>
+<pre><code>local Input = require("demi.input")
+local Transform2D = require("demi.transform2d")
+
+function Player:on_create()
+    self.speed = 220
+end
+
+function Player:on_update(dt)
+    -- button timing: true on one frame each
+    if Input.pressed("jump") then
+        self:start_jump()
+    end
+    if Input.released("fire") then
+        self:cooldown()
+    end
+
+    -- button state: true every frame while held
+    if Input.down("fire") then
+        self:shoot()
+    end
+
+    -- axis1d: one number
+    local throttle = Input.value("accelerate")
+
+    -- vector2: two numbers, clamped to the unit circle
+    local x, y = Input.vector("move")
+
+    -- unclamped variant when speed should scale with tilt
+    local rx, ry = Input.raw_vector("move")
+
+    local pos = Transform2D.position(self.entity)
+    Transform2D.set_position(self.entity,
+        pos.x + x * self.speed * throttle * dt,
+        pos.y + y * self.speed * throttle * dt)
+end</code></pre>
+<ul>
+  <li><code>require("demi.input")</code> imports the input service; nothing is global.</li>
+  <li><code>Input.pressed("jump")</code> returns <code>true</code> only on the frame the action went down, else <code>false</code>.</li>
+  <li><code>Input.down("fire")</code> returns <code>true</code> every frame while the action is held.</li>
+  <li><code>Input.released("fire")</code> returns <code>true</code> only on the frame the action came up.</li>
+  <li><code>Input.value("accelerate")</code> returns one number: <code>0</code> or <code>1</code> for buttons, −1…1 for axes.</li>
+  <li><code>Input.vector("move")</code> returns <code>x, y</code> clamped to a unit circle — safe to feed straight into movement.</li>
+  <li><code>Input.raw_vector("move")</code> returns <code>x, y</code> unclamped, so a full diagonal can exceed length 1.</li>
+</ul>
+
+<h2>pressed, down, released across frames</h2>
+<p>These three queries describe the same hold over time. Imagine a player taps the fire button: it goes down on frame 10 and up on frame 14.</p>
+<table>
+  <thead><tr><th>Frame</th><th><code>pressed</code></th><th><code>down</code></th><th><code>released</code></th></tr></thead>
+  <tbody>
+    <tr><td>9 (before)</td><td><code>false</code></td><td><code>false</code></td><td><code>false</code></td></tr>
+    <tr><td>10 (goes down)</td><td><code>true</code></td><td><code>true</code></td><td><code>false</code></td></tr>
+    <tr><td>11–13 (held)</td><td><code>false</code></td><td><code>true</code></td><td><code>false</code></td></tr>
+    <tr><td>14 (comes up)</td><td><code>false</code></td><td><code>false</code></td><td><code>true</code></td></tr>
+    <tr><td>15 (after)</td><td><code>false</code></td><td><code>false</code></td><td><code>false</code></td></tr>
+  </tbody>
+</table>
+<p>In prose: <code>pressed</code> is the start edge, <code>down</code> is the whole hold, <code>released</code> is the end edge. Each is a single boolean. If the action’s context is disabled, all three read as <code>false</code> — the action looks released. If you need the same edge in two places in one frame, call the query once and store the boolean.</p>
+
+<h2>value, vector, raw_vector, source</h2>
+<p>These return the action’s current magnitude or direction rather than a press state.</p>
+<pre><code>local v = Input.value("accelerate")
+local x, y = Input.vector("move")
+local rx, ry = Input.raw_vector("move")
+local src = Input.source("jump")</code></pre>
+<p>Return examples for a Skyforge frame where the left stick is held halfway up-right and the player also holds D:</p>
+<table>
+  <thead><tr><th>Call</th><th>Returns</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>Input.value("accelerate")</code></td><td><code>0.37</code></td><td>Right trigger is a little under halfway.</td></tr>
+    <tr><td><code>Input.value("jump")</code></td><td><code>0</code> or <code>1</code></td><td>Buttons report 0 or 1.</td></tr>
+    <tr><td><code>Input.vector("move")</code></td><td><code>0.71, 0.71</code></td><td>Diagonal, clamped to unit length.</td></tr>
+    <tr><td><code>Input.raw_vector("move")</code></td><td><code>1.2, 0.5</code></td><td>Sum of contributions, not clamped.</td></tr>
+    <tr><td><code>Input.source("jump")</code></td><td><code>"key:space"</code></td><td>Name of the binding that is currently driving the action.</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li><code>value</code> is how hard the control is pressed. Use it for throttle and zoom.</li>
+  <li><code>vector</code> is the normalized direction. Use it for movement so diagonals are not faster than straights.</li>
+  <li><code>raw_vector</code> keeps the unclamped sum. Use it when stick tilt should scale speed.</li>
+  <li><code>source</code> returns a binding name string such as <code>"key:space"</code>, <code>"gamepad:a"</code>, or <code>"virtual:jump"</code>. Use it for “press [key] to jump” prompts.</li>
+</ul>
+
+<h2>Input.axis for quick axis pairs</h2>
+<p>When two buttons should act like a one-dimensional axis and you do not want a full <code>axis1d</code> declaration, use <code>Input.axis</code>:</p>
+<pre><code>local turn = Input.axis("turn_left", "turn_right")</code></pre>
+<ul>
+  <li>The first argument is the negative-side action name, the second is the positive-side action name. Both are usually <code>button</code> actions.</li>
+  <li>The return is <code>positive − negative</code> as one number: <code>-1</code>, <code>0</code>, or <code>1</code>.</li>
+  <li>If both are held, the result is <code>0</code> — they cancel, matching two opposed keys on a vector.</li>
+</ul>
+
+<h2>Raw key helpers</h2>
+<p>For debug overlays and editor tools you can bypass actions and read hardware directly:</p>
+<pre><code>if Input.key_down("left_shift") then end
+if Input.key_pressed("f1") then end
+if Input.key_released("f1") then end</code></pre>
+<p>Each takes a key name and returns a boolean with the same timing as the action queries. These do not respect contexts and do not remap — keep them out of normal gameplay so rebinding still works.</p>
+
+<h2>Next</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a> — every binding field, presets, deadzones.</li>
+  <li><a href="{{ path('docs_page', {slug: 'contexts-and-rebinding'}) }}">Contexts &amp; rebinding</a> — menus, remaps, saved bindings.</li>
+  <li><a href="{{ path('docs_page', {slug: 'virtual-and-touch'}) }}">Virtual &amp; touch input</a> — on-screen controls and touches.</li>
+  <li><a href="{{ path('docs_page', {slug: 'input'}) }}">Input</a> — the overview page.</li>
+</ul>

@@ -1,0 +1,150 @@
+<h1>API conventions</h1>
+<p>Every engine service is a plain Lua table you import with <code>require</code>. This page explains how those tables are shaped, how results come back, how failures are reported, and which units the numbers use — read it once before diving into the individual APIs.</p>
+
+<h2>What a service module is</h2>
+<p>A service module is a small table of functions grouped by job (entities, transforms, audio, and so on). You import it into a local and call through that local. There are no engine globals: if you forget the <code>require</code>, the name is simply <code>nil</code> and the call fails loudly instead of silently doing something else.</p>
+<pre><code>local Entity = require("demi.entity")
+local Transform3D = require("demi.transform3d")
+
+local id = Entity.find("skyforge_player")
+local x, y, z = Transform3D.get_position(id)</code></pre>
+<p><code>require("demi.entity")</code> returns the entity service table. <code>Entity.find("skyforge_player")</code> looks up an authored entity by its stable ID and returns its live handle, or <code>nil</code> when no entity has that name. <code>Transform3D.get_position(id)</code> returns three scalar numbers (the entity's local position) or three <code>nil</code> values when the entity has no transform. The local names (<code>Entity</code>, <code>Transform3D</code>) are yours to choose; the <code>"demi.…"</code> strings are the contract.</p>
+
+<h2>Vector annotations</h2>
+<p>When an API documents a vector type it uses the names <code>Vec2</code> and <code>Vec3</code>. Those are annotations for readers and editor tooling, not Lua classes: a <code>Vec3</code> is just three numbers. How you hold them depends on the call:</p>
+<ul>
+  <li>Transform getters and setters pass coordinates as <strong>separate scalar arguments and returns</strong>: <code>local x, y, z = Transform3D.get_position(id)</code>.</li>
+  <li>Vectors embedded inside tables (spawn options, hit results, color-style fields) are <strong>fixed-length numeric arrays</strong>: <code>{ x, y }</code> or <code>{ x, y, z }</code>. Lua arrays start at index 1, so read them as <code>v[1]</code>, <code>v[2]</code>, <code>v[3]</code>.</li>
+</ul>
+<pre><code>local crate = Entity.spawn("skyforge_crate", {
+    position = { 4, 2, 0 },   -- Vec3 as a 3-number array
+    velocity = { 1, 0, 0 },
+})
+
+local px, py, pz = Transform3D.get_position(crate)  -- three scalars</code></pre>
+<p><code>Entity.spawn(name, options)</code> takes the entity name and an optional options table. <code>position</code> and <code>velocity</code> are <code>Vec3</code> numeric arrays (<code>index 1 = x</code>, <code>2 = y</code>, <code>3 = z</code>). The call returns the new entity handle, or <code>nil</code> if the name is unknown. The follow-up getter returns three scalars, not a table.</p>
+
+<h2>How results come back</h2>
+<table>
+  <thead><tr><th>Shape</th><th>Where it is used</th><th>How to read it</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>local x, y, z = …</code></td>
+      <td>Transform position, rotation, scale</td>
+      <td>One scalar per coordinate. If the entity has no transform, each coordinate is <code>nil</code> — check one of them before doing arithmetic.</td>
+    </tr>
+    <tr>
+      <td><code>{ x, y }</code> / <code>{ x, y, z }</code></td>
+      <td>Vectors inside tables (hits, spawn options, sizes)</td>
+      <td>Numeric arrays of fixed length. Index from 1. A field documented as a vector is never a string like <code>"1,2,3"</code>.</td>
+    </tr>
+    <tr>
+      <td><code>value, nil</code> or <code>nil, err</code></td>
+      <td><code>Data.load</code>, <code>Data.parse_yaml</code>, HTTP requests</td>
+      <td>Check the first result. Success is <code>value, nil</code>. Failure is <code>nil</code> plus an error table (shape below).</td>
+    </tr>
+    <tr>
+      <td><code>nil</code></td>
+      <td>Missing entity, unknown HUD node, missed raycast</td>
+      <td>A single <code>nil</code> means “nothing found”. Guard with <code>if hit then … end</code> before reading fields.</td>
+    </tr>
+    <tr>
+      <td><code>{}</code> (empty table)</td>
+      <td>Bulk queries, children lists, path results from <code>Navigation2D</code></td>
+      <td>An empty array means “the query ran and found nothing”, not an error. Iterate with <code>ipairs</code>.</td>
+    </tr>
+  </tbody>
+</table>
+<p>Two pathfinding calls illustrate the split between <code>nil</code> and empty tables. <code>Grid.path</code> returns a path table on success and a single <code>nil</code> (plus a diagnostic you can log) when no path exists. <code>Navigation2D.path</code> always returns a table of waypoints — empty when nothing was found — and a diagnostic. Treat <code>nil</code> as “no result object”, and an empty table as “a result with zero items”.</p>
+<pre><code>local Grid = require("demi.grid")
+local Navigation2D = require("demi.navigation2d")
+
+local gridPath = Grid.path("skyforge_astar", { 0, 0 }, { 5, 5 })
+-- gridPath: array of {x, y} waypoints, or nil when unreachable (a diagnostic is logged)
+
+local navPath = Navigation2D.path("skyforge_nav", { 0, 0 }, { 5, 5 })
+-- navPath: always a table of waypoints (possibly empty) plus a diagnostic</code></pre>
+<p><code>Grid.path(gridId, from, to)</code> takes grid coordinates as two-element arrays and returns either an array of waypoints or <code>nil</code>. <code>Navigation2D.path(navId, from, to)</code> returns a (possibly empty) waypoint array and a diagnostic table you can pass to <code>Debug.log</code>.</p>
+
+<h2>Error shapes</h2>
+<p>Calls that can fail for content reasons (bad data, missing files, network trouble) return <code>nil</code> plus a small error table instead of raising. The standard shape is:</p>
+<pre><code>local Data = require("demi.data")
+
+local value, err = Data.load("asset://data/skyforge_enemies")
+if err then
+    -- err.code    : short machine string, e.g. "not_found" or "schema_mismatch"
+    -- err.message : human-readable sentence
+    -- err.path    : JSON pointer into the document, or the URI
+end</code></pre>
+<p><code>Data.load(uri)</code> returns <code>value, nil</code> on success. On failure it returns <code>nil</code> and an error table with three string fields: <code>code</code> (stable, safe to branch on), <code>message</code> (safe to show or log), and <code>path</code> (where in the document the problem is, as a JSON pointer such as <code>/stats/0/hp</code>, or the requested URI when the whole document is missing).</p>
+
+<h2>JSON null</h2>
+<p>JSON has a real <code>null</code> value that is different from “field missing”. Lua only has <code>nil</code>, which also means “table key absent”, so DemiEngine exposes a sentinel instead:</p>
+<pre><code>local Data = require("demi.data")
+
+local value = Data.load("asset://data/skyforge_enemies")
+print(Data.kind(value[1].nickname))   -- "null" when the field is JSON null
+print(Data.is_null(value[1].nickname)) -- true
+
+local written = { nickname = Data.null }</code></pre>
+<p><code>Data.null</code> is the single sentinel value for JSON <code>null</code>. <code>Data.kind(value)</code> returns a string (<code>"null"</code>, <code>"number"</code>, <code>"string"</code>, <code>"boolean"</code>, <code>"array"</code>, <code>"object"</code>) describing what a loaded value is. <code>Data.is_null(value)</code> returns <code>true</code> only for the sentinel. Assign <code>Data.null</code> when you want to write a real null back out.</p>
+
+<h2>Units</h2>
+<ul>
+  <li><code>Transform2D</code> rotation and <code>Transform3D</code> Euler rotation: <strong>radians</strong>.</li>
+  <li>Angular velocity on rigidbodies: <strong>radians per second</strong>.</li>
+  <li>Camera field of view: <strong>degrees</strong>.</li>
+  <li>All <code>Time</code> values (<code>delta_time</code>, <code>fixed_time</code>, <code>time</code>): <strong>seconds</strong>.</li>
+  <li>HUD positions and sizes: <strong>canvas units</strong> from the HUD document <code>canvas_size</code>, not raw screen pixels.</li>
+</ul>
+
+<h2>Module map</h2>
+<p>Group services by the job they do. Names with dots are single modules — <code>require("demi.physics.rigidbody3d")</code> is one require for one table.</p>
+<table>
+  <thead><tr><th>Module</th><th>Use it for</th></tr></thead>
+  <tbody>
+    <tr><td><code>demi.application</code></td><td>Window mode, FPS cap, mouse capture and visibility, safe area, DPI, UI scale, orientation, keyboard, clipboard, focus/suspend state, user and cache paths, permissions</td></tr>
+    <tr><td><code>demi.entity</code></td><td>Finding, creating, spawning, cloning, destroying entities; components; queries; parenting — see <a href="{{ path('docs_page', {slug: 'entity-api'}) }}">Entity API</a></td></tr>
+    <tr><td><code>demi.scene</code> / <code>demi.prefab</code></td><td>Scene prepare/activate and prefab instances — see <a href="{{ path('docs_page', {slug: 'scene-and-prefab-api'}) }}">Scene &amp; prefab API</a></td></tr>
+    <tr><td><code>demi.input</code></td><td>Action queries, contexts, rebinding, touch, gamepads</td></tr>
+    <tr><td><code>demi.transform2d</code> / <code>demi.transform3d</code></td><td>Position, rotation, scale; 3D directions and <code>look_at</code> — see <a href="{{ path('docs_page', {slug: 'transform-api'}) }}">Transform API</a></td></tr>
+    <tr><td><code>demi.sprite2d</code> / <code>demi.tilemap2d</code></td><td>Sprite draw state and animation; tile reads and overrides</td></tr>
+    <tr><td><code>demi.animation</code></td><td>State machine parameters, clips, layers, root motion — see <a href="{{ path('docs_page', {slug: 'state-machines'}) }}">State machines</a></td></tr>
+    <tr><td><code>demi.camera3d</code></td><td>Screen rays and world/screen conversion</td></tr>
+    <tr><td><code>demi.hud</code></td><td>UI nodes, text, variables, tweens, virtualization — see <a href="{{ path('docs_page', {slug: 'hud-api'}) }}">HUD API</a></td></tr>
+    <tr><td><code>demi.events</code></td><td>Subscribing and emitting events — see <a href="{{ path('docs_page', {slug: 'events-and-timers'}) }}">Events &amp; timers</a></td></tr>
+    <tr><td><code>demi.data</code> / <code>demi.save</code></td><td>Game data documents and save slots — see <a href="{{ path('docs_page', {slug: 'data-and-save-api'}) }}">Data &amp; save API</a></td></tr>
+    <tr><td><code>demi.assets</code></td><td>Async load/unload of <code>asset://</code> resources — see <a href="{{ path('docs_page', {slug: 'assets-time-api'}) }}">Assets, time &amp; timers</a></td></tr>
+    <tr><td><code>demi.time</code> / <code>demi.timer</code></td><td>Frame time, pause, time scale; delays and repeats</td></tr>
+    <tr><td><code>demi.debug</code> / <code>demi.profile</code></td><td>On-screen debug lines; scoped performance timers — see <a href="{{ path('docs_page', {slug: 'math-debug-api'}) }}">Math &amp; debug</a></td></tr>
+    <tr><td><code>demi.text</code> / <code>demi.regex</code></td><td>Grapheme-safe text helpers; ECMAScript pattern matching</td></tr>
+    <tr><td><code>demi.grid</code> / <code>demi.navigation2d</code></td><td>Isometric placement; 2D pathfinding</td></tr>
+    <tr><td><code>demi.video</code> / <code>demi.cutscene</code></td><td>Video playback and cutscene sequencing</td></tr>
+    <tr><td><code>demi.test</code></td><td>E2E helpers — see <a href="{{ path('docs_page', {slug: 'e2e-tests'}) }}">E2E tests</a></td></tr>
+    <tr><td><code>demi.network</code></td><td>Low-level transport — see <a href="{{ path('docs_page', {slug: 'sessions-and-contracts'}) }}">Sessions &amp; contracts</a></td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>Namespaced module</th><th>Use it for</th></tr></thead>
+  <tbody>
+    <tr><td><code>demi.physics.rigidbody2d</code> / <code>demi.physics.rigidbody3d</code></td><td>Velocities, forces, impulses, sleep, kinematic movement</td></tr>
+    <tr><td><code>demi.physics.query2d</code> / <code>demi.physics.query3d</code></td><td>Raycasts, shape casts, overlap checks</td></tr>
+    <tr><td><code>demi.physics.character_controller3d</code></td><td>Character velocity, jump, grounded state</td></tr>
+    <tr><td><code>demi.physics.destruction3d</code></td><td>Impacts, part damage, checkpoints</td></tr>
+    <tr><td><code>demi.network.session</code></td><td>Host-authoritative multiplayer sessions</td></tr>
+    <tr><td><code>demi.network.http</code></td><td>Async HTTP/HTTPS calls — see <a href="{{ path('docs_page', {slug: 'http-and-tls'}) }}">HTTP &amp; TLS</a></td></tr>
+    <tr><td><code>demi.network.tls.client</code> / <code>demi.network.tls.server</code></td><td>Verified TLS sockets</td></tr>
+    <tr><td><code>demi.network.crypto</code></td><td>Random tokens, password hashing, constant-time compare</td></tr>
+    <tr><td><code>demi.audio</code> / <code>demi.audio.source</code></td><td>Buses, snapshots, one-shots; entity-attached playback — see <a href="{{ path('docs_page', {slug: 'audio-mixing'}) }}">Audio mixing</a></td></tr>
+    <tr><td><code>demi.math.vector2</code> / <code>demi.math.vector3</code> / <code>demi.math.scalar</code> / <code>demi.math.random</code></td><td>Vector math, easing, seeded randomness</td></tr>
+    <tr><td><code>demi.mesh.procedural</code> / <code>demi.mesh.deformation</code></td><td>Procedural meshes; deformation</td></tr>
+    <tr><td><code>demi.voxel.world</code></td><td>Chunked voxel sections and meshes</td></tr>
+  </tbody>
+</table>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'script-lifecycle'}) }}">Script lifecycle</a> — how a Lua module becomes a running instance.</li>
+  <li><a href="{{ path('docs_page', {slug: 'entity-api'}) }}">Entity API</a> — finding and spawning the objects a Skyforge script drives.</li>
+  <li><a href="{{ path('docs_page', {slug: 'data-schemas'}) }}">Data schemas</a> — declaring the shape of loaded game data.</li>
+</ul>

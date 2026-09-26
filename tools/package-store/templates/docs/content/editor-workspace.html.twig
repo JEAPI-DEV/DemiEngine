@@ -1,0 +1,73 @@
+<h1>Workspace &amp; panels</h1>
+<p>The <strong>editor</strong> is a native application window where you build a DemiEngine game by looking at it: a tree of the objects in your level, a live picture of the scene, and a form for the properties of whatever you selected. It exists because arranging levels and interfaces in JSON alone is slow and error-prone, while an editor that shares the engine's own loaders and validation stays honest about what the game will actually do.</p>
+
+<h2>Opening the workspace</h2>
+<pre><code>./build/linux-debug/demi editor --project games/my_game</code></pre>
+<ul>
+  <li><code>editor</code> — launches the native editor application.</li>
+  <li><code>--project games/my_game</code> — which project to open. The sample game "Skyforge" lives at <code>games/my_game</code>.</li>
+</ul>
+<p>The editor is a <strong>docking workspace</strong>: a single window whose panels tile, stack, and rearrange like tabs in a browser. Drag a panel's title to dock it beside or below another. The dock layout is per-user state stored under the platform data directory — it never enters the project folder, generated content, packages, undo history, or a shipped build. Deleting your local settings restores the default layout; your game files are untouched.</p>
+<p>Interface scale is adjustable in the editor settings, so the same workspace works on a small laptop screen and a high-density display.</p>
+
+<h2>The panels</h2>
+<p>Five panels cover the daily job. Each is a window inside the dock with a stable identity, so its position survives restarts.</p>
+
+<h3>Hierarchy</h3>
+<p>The <strong>hierarchy</strong> is a tree of everything in the active document: scene entities, HUD nodes, or prefab entities. It answers "what exists?" and "what is inside what?".</p>
+<ul>
+  <li>Rows are keyed by <strong>stable IDs</strong>, the same IDs your JSON documents and scripts use. Renaming a display label never changes an ID.</li>
+  <li>Children nest under their owner. Visually meaningful local structure — a weapon under a hand, a label under a button — is authored as a <code>children</code> array and shown nested here.</li>
+  <li>Selection is shared with the viewport and the Inspector: click a row to select it everywhere.</li>
+</ul>
+
+<h3>Inspector</h3>
+<p>The <strong>Inspector</strong> is a form for the selected object. It answers "what are its properties?".</p>
+<ul>
+  <li>It lists each <strong>component</strong> on the object and that component's fields — transforms, sprites, bodies, lights, and so on.</li>
+  <li>For Lua scripts with <code>@demi_component</code> and <code>@demi_property</code> annotations, it also shows the script's typed properties so gameplay data is editable without opening the script.</li>
+  <li>Controls let you <strong>add</strong> and <strong>remove</strong> components. Field edits are applied through the same typed value model the runtime uses.</li>
+  <li>Omitted fields show their canonical component defaults; values you type become explicit in the document.</li>
+</ul>
+
+<h3>Viewport</h3>
+<p>The <strong>viewport</strong> is the live picture of the active stage — the scene, the HUD, or the prefab. It answers "what does it look like?".</p>
+<ul>
+  <li>Scene and HUD views render to GPU targets displayed as images inside the panel, so they composite correctly with docking. You can freely drag the panel without display glitches.</li>
+  <li>Click objects to select them; the hierarchy and Inspector follow.</li>
+  <li>Debug overlays (colliders, contacts, grid, entity IDs, draw order, UI bounds, profiler) can be toggled for this view.</li>
+</ul>
+
+<h3>Diagnostics</h3>
+<p>The <strong>diagnostics</strong> panel lists validation problems in the active document and everything it references. It uses the <strong>same diagnostic codes</strong> as <code>demi validate</code> on the command line, so a code you see here can be grepped in build logs and continuous integration output. Selecting a diagnostic jumps to the offending object.</p>
+
+<h3>Profiler</h3>
+<p>The <strong>profiler</strong> panel shows frame timing while the game runs in play mode: total frame time and per-scope costs. It is the in-editor view of the same measurement data as the command-line profiler. Use it to find the slow part, then confirm with the reports described in <a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a>.</p>
+
+<h2>Stages: scene, HUD, and prefab</h2>
+<p>The workspace edits three kinds of documents, called <strong>stages</strong>. Each stage reuses the same hierarchy, viewport, selection, Inspector, undo/redo, save, diagnostics, and recovery paths — there is one editing model, not three.</p>
+<table>
+  <thead><tr><th>Stage</th><th>Document</th><th>What you author</th></tr></thead>
+  <tbody>
+    <tr><td>Scene</td><td><code>*.scene.json</code></td><td>Entities, components, prefab instances — a level or screen of the game.</td></tr>
+    <tr><td>HUD</td><td><code>*.hud.json</code></td><td>Interface node trees — buttons, panels, labels, virtual controls.</td></tr>
+    <tr><td>Prefab</td><td><code>*.prefab.json</code></td><td>Reusable entity compositions placed by scenes and other prefabs.</td></tr>
+  </tbody>
+</table>
+<p>Scene and HUD editing are integrated workspace documents: there is no separate modal editor for interfaces. Switching stages keeps the panel arrangement and your selection conventions, so working on a menu HUD feels like working on a level. Authoring flow is covered on <a href="{{ path('docs_page', {slug: 'editor-authoring'}) }}">Authoring scenes &amp; HUDs</a>.</p>
+
+<h2>Shared rules with the CLI</h2>
+<p>The editor is not a second engine. It uses the same loaders, metadata, diagnostics, importer, build service, cook, and package paths as <code>demi</code> commands:</p>
+<ul>
+  <li>A document the Inspector accepts is a document <a href="{{ path('docs_page', {slug: 'cli-build-and-test'}) }}">Build, cook &amp; test</a> will validate.</li>
+  <li>Asset IDs and URI references behave the same here and in Lua (<code>asset://</code>, <code>prefab://</code>, <code>scene://</code>, <code>ui-prefab://</code>, <code>script://</code>).</li>
+  <li>Saves patch source JSON with small diffs and preserve formatting — the file on disk after an editor save is reviewable.</li>
+</ul>
+
+<h2>What the editor does not do to your data</h2>
+<ul>
+  <li>Dock layout and panel visibility are per-user and never stored in the project.</li>
+  <li>Play mode runs in an isolated runtime world and must not mutate authored scene data (see <a href="{{ path('docs_page', {slug: 'editor-play-mode'}) }}">Play mode</a>).</li>
+  <li>Saves are atomic and conflict-aware: a failed write leaves the previous file intact.</li>
+</ul>
+<p>Continue with <a href="{{ path('docs_page', {slug: 'editor-authoring'}) }}">Authoring scenes &amp; HUDs</a> for the editing workflow, or <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a> for the document roots the workspace organizes.</p>

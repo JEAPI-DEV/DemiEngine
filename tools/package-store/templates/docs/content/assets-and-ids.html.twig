@@ -1,0 +1,105 @@
+<h1>Assets &amp; stable IDs</h1>
+<p>Games are made of files that are not JSON or Lua: images, models, sounds, fonts. DemiEngine calls these <strong>assets</strong>, and every asset has a permanent name — a URI — that scenes and scripts use to refer to it. This page explains what an asset is, lists every URI scheme and its conventional file path, and shows why those names are designed to stay stable.</p>
+
+<h2>What an asset is</h2>
+<p>An asset is an imported resource plus the settings that describe how to use it. On disk it is two things under <code>assets/</code>:</p>
+<ul>
+  <li><strong>A source file</strong> — the original material you added to the project, such as <code>brick.png</code> or <code>hero.glb</code>.</li>
+  <li><strong>A manifest</strong> — a small <code>*.asset.json</code> document that gives the asset its URI identity, names its type, points at the source, and records import settings.</li>
+</ul>
+<p>The manifest is what the game references. Moving or renaming the source file is safe as long as the manifest still points at it — the URI everyone else uses does not change.</p>
+
+<h2>URI schemes and conventional paths</h2>
+<p>Every durable thing in a project has a URI identity. The scheme says what kind of thing it is, and the rest of the URI maps to a conventional file path so tools can find the file without a separate registry:</p>
+<table>
+  <thead><tr><th>URI</th><th>Conventional path</th><th>What it names</th></tr></thead>
+  <tbody>
+    <tr><td><code>scene://namespace/main</code></td><td><code>scenes/main.scene.json</code></td><td>A scene — a set of entities loaded together.</td></tr>
+    <tr><td><code>prefab://characters/player</code></td><td><code>prefabs/characters/player.prefab.json</code></td><td>A prefab — a reusable entity composition.</td></tr>
+    <tr><td><code>ui-prefab://controls/menu_button</code></td><td><code>ui/controls/menu_button.ui.prefab.json</code></td><td>A UI prefab — a reusable HUD subtree.</td></tr>
+    <tr><td><code>asset://textures/brick</code></td><td><code>assets/textures/brick.asset.json</code></td><td>An asset — an imported resource such as a texture, model, or sound.</td></tr>
+    <tr><td><code>asset-group://level_one</code></td><td><code>assets/level_one.asset-group.json</code></td><td>An asset group — a batch of assets loadable together.</td></tr>
+    <tr><td><code>script://scripts/player.lua</code></td><td><code>scripts/player.lua</code></td><td>A script — a Lua gameplay file.</td></tr>
+  </tbody>
+</table>
+<p>Path inference works the same way for every scheme: the URI <code>scene://namespace/main</code> becomes <code>scenes/main.scene.json</code>, <code>prefab://characters/player</code> becomes <code>prefabs/characters/player.prefab.json</code>, <code>asset://textures/brick</code> becomes <code>assets/textures/brick.asset.json</code>, and so on down the table. Project scene entries may omit <code>path</code> when the conventional path can be inferred from the scene ID; an explicit <code>path</code> remains valid when you need one. The mapping is also summarized in <a href="{{ path('docs_page', {slug: 'core-concepts'}) }}">Core concepts</a>.</p>
+
+<h2>Why IDs are stable</h2>
+<p>Scenes, scripts, and packages reference assets by URI, never by file path or list position. That identity is the point:</p>
+<ul>
+  <li><strong>References survive file moves</strong> — reorganizing folders or renaming the source file does not break the fifty places that use the brick texture, because they say <code>asset://textures/brick</code>, not a path.</li>
+  <li><strong>References survive reordering</strong> — nothing refers to "the third asset". Identity is a name, not a slot.</li>
+  <li><strong>Saves and tests stay valid</strong> — a save file or a test that names <code>scene://game/main</code> keeps working after unrelated files move.</li>
+</ul>
+<p>The practical rule: choose an asset ID once and treat it like a public name. Renaming a URI is a real rename that every reference must follow; renaming a file behind the same URI is not.</p>
+
+<h2>A manifest at a glance</h2>
+<pre><code>{
+  "format_version": 1,
+  "id": "asset://textures/brick",
+  "type": "Texture2D",
+  "source": "brick.png",
+  "importer": "texture",
+  "settings": {
+    "filter": "nearest",
+    "wrap": "clamp"
+  }
+}</code></pre>
+<ul>
+  <li><code>format_version</code> — the document format number; required on every manifest.</li>
+  <li><code>id</code> — the stable URI this asset is known by. Matches the manifest's conventional path.</li>
+  <li><code>type</code> — what kind of resource this is (<code>Texture2D</code>, <code>Model3D</code>, <code>AudioClip</code>, and so on). The type decides which fields matter and which components can use it.</li>
+  <li><code>source</code> — the imported source file, relative to the manifest.</li>
+  <li><code>importer</code> — which import pipeline reads the source (<code>texture</code>, <code>model</code>, <code>audio</code>, …).</li>
+  <li><code>settings</code> — import and runtime options for the type. For textures: <code>filter</code> (<code>nearest|bilinear|trilinear</code>) and <code>wrap</code> (<code>repeat|clamp|mirror</code>), plus optional per-platform overrides.</li>
+</ul>
+<p>Importing a file writes this manifest for you:</p>
+<pre><code>./build/linux-debug/demi asset import assets/textures/brick.png \
+  --project games/my_game --id asset://textures/brick</code></pre>
+<ul>
+  <li><code>asset import</code> — copies the source into the project and writes its <code>*.asset.json</code> manifest.</li>
+  <li><code>assets/textures/brick.png</code> — the source file to import.</li>
+  <li><code>--project games/my_game</code> — the project that will own the asset.</li>
+  <li><code>--id asset://textures/brick</code> — the stable identity to assign. This is the name the rest of the game will use.</li>
+</ul>
+<p>Every manifest field, importer list, and settings schema is documented in <a href="{{ path('docs_page', {slug: 'asset-json'}) }}">Asset manifests</a>. Loading and grouping at runtime is covered in <a href="{{ path('docs_page', {slug: 'assets'}) }}">Assets &amp; streaming</a>.</p>
+
+<h2>Referencing assets from components</h2>
+<p>Components point at assets by URI in their fields. The asset supplies the resource; the component supplies the gameplay meaning:</p>
+<pre><code>{
+  "id": "wall",
+  "components": {
+    "Transform2D": { "position": [3, 0] },
+    "Sprite": {
+      "texture": "asset://textures/brick",
+      "size": [2, 2]
+    },
+    "Rigidbody2D": {
+      "body_type": "static",
+      "collider": { "shape": "box", "size": [2, 2], "layer": "world" }
+    }
+  }
+}</code></pre>
+<ul>
+  <li><code>Sprite.texture</code> — an asset URI naming the image to draw. Returns nothing itself; the sprite draws that resource each frame.</li>
+  <li><code>Sprite.size</code> — how large the sprite is drawn, in world units.</li>
+  <li><code>Rigidbody2D.body_type</code> — <code>"static"</code> means the wall does not move. Colliders use the authored box shape, not the texture.</li>
+  <li><code>Rigidbody2D.collider</code> — the collision shape with its physics <code>layer</code> name. Nothing here comes from the asset.</li>
+</ul>
+<p>Note what the asset does <strong>not</strong> carry: the brick texture has no health, no collision, no rules. A model asset is just as inert. Those belong on the entity that uses the asset — a <code>Sprite</code> to draw it, a collider to block movement, a <code>LuaScript</code> for behavior — and that combination is exactly what a prefab saves for reuse (<a href="{{ path('docs_page', {slug: 'prefabs-and-instances'}) }}">Prefabs &amp; instances</a>).</p>
+<p>From Lua, the same URIs address assets at runtime:</p>
+<pre><code>local Assets = require("demi.assets")
+
+Assets.load("asset://textures/brick")</code></pre>
+<ul>
+  <li><code>require("demi.assets")</code> — imports the asset service; returns its function table.</li>
+  <li><code>Assets.load(uri)</code> — starts a non-blocking load of the named asset. Returns nothing immediately; progress is queried separately.</li>
+</ul>
+<p>The full call set is in <a href="{{ path('docs_page', {slug: 'assets-time-api'}) }}">Assets, time &amp; timers</a>.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'asset-json'}) }}">Asset manifests</a> — every manifest field and type.</li>
+  <li><a href="{{ path('docs_page', {slug: 'assets'}) }}">Assets &amp; streaming</a> — import, groups, budgets, and cooking.</li>
+  <li><a href="{{ path('docs_page', {slug: 'source-vs-generated'}) }}">Source vs generated</a> — where sources live and what import produces.</li>
+</ul>

@@ -1,0 +1,117 @@
+<h1>Entity API</h1>
+<p>An entity is one “thing” in the game world — the Skyforge player, a floating rune, a trigger volume. Entities are created from authored scene data or spawned at runtime, and every other API works through the handle this module hands out.</p>
+
+<h2>What an entity is</h2>
+<p>An entity is a stable identity plus a bag of components (transform, sprite, rigidbody, script, and so on). The authored ID is the name you wrote in the scene document; the handle is the live value scripts pass around. One name, one handle — names never change during play, handles are just how you address the live instance.</p>
+<pre><code>local Entity = require("demi.entity")
+
+local player = Entity.find("skyforge_player")   -- handle, or nil if the scene has no such entity
+if player == nil then
+    return
+end</code></pre>
+<p><code>Entity.find(name)</code> takes the authored entity ID and returns the handle used by every other call, or <code>nil</code> when nothing matches. Store the handle in a local; looking it up every frame works but is wasted work.</p>
+
+<h2>Finding and checking</h2>
+<pre><code>local Entity = require("demi.entity")
+
+local id = Entity.find("skyforge_rune")
+print(Entity.exists(id))        -- true while the entity is alive</code></pre>
+<ul>
+  <li><code>Entity.find(name)</code> → handle or <code>nil</code>.</li>
+  <li><code>Entity.exists(id)</code> → <code>true</code> while the entity is alive, <code>false</code> after it is destroyed (or for a stale/unknown handle).</li>
+</ul>
+<p>Always check <code>find</code> for <code>nil</code> before using the handle. After <code>destroy</code>, treat the handle as dead and stop calling other APIs with it.</p>
+
+<h2>Creating and removing entities</h2>
+<pre><code>local Entity = require("demi.entity")
+
+local box = Entity.spawn("skyforge_crate", {
+    position = { 4, 2, 0 },     -- Vec3 world position (optional)
+    velocity = { 1, 0, 0 },     -- Vec3 initial velocity (optional)
+})
+-- box: new entity handle, or nil when the name is unknown
+
+Entity.destroy(box)
+Entity.destroy_many({ box })    -- takes an array of handles</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Takes</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>Entity.create(name, options)</code></td><td>New entity name plus optional component/config table</td><td>New handle, or <code>nil</code> if creation failed</td></tr>
+    <tr><td><code>Entity.spawn(name, options)</code></td><td>Name of a spawnable entity plus <code>position</code>/<code>velocity</code> as <code>{x,y,z}</code> arrays</td><td>New handle, or <code>nil</code> if the name is unknown</td></tr>
+    <tr><td><code>Entity.replace(id, name, options)</code></td><td>Existing handle, replacement name, options</td><td>Replacement handle, or <code>nil</code></td></tr>
+    <tr><td><code>Entity.clone(id, options)</code></td><td>Existing handle, optional override options</td><td>New handle for the copy, or <code>nil</code></td></tr>
+    <tr><td><code>Entity.destroy(id)</code></td><td>One handle</td><td>Nothing</td></tr>
+    <tr><td><code>Entity.destroy_many(ids)</code></td><td>Array of handles</td><td>Nothing</td></tr>
+  </tbody>
+</table>
+<p><code>Entity.spawn</code> is for simple single entities. Prefab instances — multi-entity templates with children — use <a href="{{ path('docs_page', {slug: 'scene-and-prefab-api'}) }}">Prefab.instantiate</a> instead. Mixing the two up is the most common mistake: <code>spawn</code> gives you one entity, <code>instantiate</code> gives you a root handle for a whole tree.</p>
+
+<h2>Enabling and disabling</h2>
+<pre><code>Entity.set_enabled(id, false)   -- hide and stop simulating
+print(Entity.is_enabled(id))    -- false</code></pre>
+<ul>
+  <li><code>Entity.set_enabled(id, enabled)</code> — takes a boolean; returns nothing.</li>
+  <li><code>Entity.is_enabled(id)</code> → boolean. A disabled entity still exists (<code>exists</code> is <code>true</code>) but is skipped by update and rendering.</li>
+</ul>
+
+<h2>Components</h2>
+<p>A component is one piece of behaviour or data on an entity: a transform, a sprite, a collider, a Lua script. Scripts read and tweak components; they do not replace the component system.</p>
+<pre><code>local Entity = require("demi.entity")
+
+local id = Entity.find("skyforge_rune")
+
+print(Entity.has_component(id, "Sprite2D"))     -- true or false
+Entity.add_component(id, "Light3D", { intensity = 2 })
+Entity.remove_component(id, "Light3D")
+
+Entity.set_field(id, "Sprite2D", "color", { 1, 0.4, 0.4, 1 })
+-- writes one field; every other field of that component is left alone</code></pre>
+<ul>
+  <li><code>Entity.add_component(id, name, fields)</code> — attaches a component with optional initial field values. Returns nothing meaningful; check <code>has_component</code> afterwards if you need certainty.</li>
+  <li><code>Entity.remove_component(id, name)</code> — detaches the component. Returns nothing.</li>
+  <li><code>Entity.has_component(id, name)</code> → boolean.</li>
+  <li><code>Entity.set_field(id, component, field, value)</code> — writes one field on one component and leaves the rest of that component unchanged. This is the right tool for runtime tweaks.</li>
+</ul>
+
+<h2>Reading configured values</h2>
+<pre><code>local config = Entity.get_config(id)
+-- config: table of component name → configured field table, or nil when the entity is unknown</code></pre>
+<p><code>Entity.get_config(id)</code> returns the <strong>last configured</strong> component values — what the scene or a script set up — not the live simulation state. For live state use the owning system (<code>demi.physics.rigidbody3d</code>, <code>demi.physics.character_controller3d</code>, and so on). Reading <code>get_config</code> and expecting a moving platform's current velocity is the wrong tool.</p>
+
+<h2>Querying</h2>
+<pre><code>local Entity = require("demi.entity")
+
+local enemies = Entity.query({ tag = "enemy", enabled = true })
+-- enemies: array of handles (possibly empty)
+
+for _, id in ipairs(enemies) do
+    Entity.set_enabled(id, false)
+end</code></pre>
+<p><code>Entity.query(filter)</code> takes a filter table (<code>tag</code>, <code>enabled</code>, and similar keys) and <strong>always</strong> returns an array of handles — empty when nothing matches, never <code>nil</code>. Use <code>#enemies</code> to count and <code>ipairs</code> to iterate.</p>
+
+<h2>Parenting and positions</h2>
+<p>Entities form a tree. Child local positions are relative to their parent; world positions are what you see on screen. Stable IDs, not pointers, describe the relationship.</p>
+<pre><code>local Entity = require("demi.entity")
+
+local rune = Entity.find("skyforge_rune")
+Entity.set_parent(rune, Entity.find("skyforge_player"))
+
+print(Entity.parent(rune))          -- parent handle, or nil when at scene root
+local kids = Entity.children(rune)  -- array of child handles (possibly empty)
+
+local lx, ly, lz = Entity.local_position(rune)   -- 3 scalars, or nils if no transform
+local wx, wy, wz = Entity.world_position(rune)   -- 3 scalars, or nils if no transform</code></pre>
+<ul>
+  <li><code>Entity.set_parent(id, parentOrNil)</code> — reparents; pass <code>nil</code> to detach to the scene root. Returns nothing.</li>
+  <li><code>Entity.parent(id)</code> → parent handle or <code>nil</code> (root).</li>
+  <li><code>Entity.children(id)</code> → array of handles, empty when there are none.</li>
+  <li><code>Entity.local_position(id)</code> / <code>Entity.world_position(id)</code> → three scalars <code>x, y, z</code>, or three <code>nil</code>s when the entity has no transform.</li>
+</ul>
+<p>For setting rotation, scale, or directions, use <a href="{{ path('docs_page', {slug: 'transform-api'}) }}">Transform API</a>. Entity position helpers here are the quick read/write pair for places and parenting.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'transform-api'}) }}">Transform API</a> — rotation, scale, facing directions.</li>
+  <li><a href="{{ path('docs_page', {slug: 'scene-and-prefab-api'}) }}">Scene &amp; prefab API</a> — spawning multi-entity templates.</li>
+  <li><a href="{{ path('docs_page', {slug: 'script-properties'}) }}">Script properties</a> — exposing entity fields to the editor.</li>
+</ul>

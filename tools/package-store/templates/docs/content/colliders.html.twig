@@ -1,0 +1,140 @@
+<h1>Colliders</h1>
+<p>A collider is the shape the physics simulation actually sees. This page explains what a collider carries besides geometry, walks through every 2D and 3D shape, and shows how triggers, materials, and filters fit together.</p>
+
+<h2>What a collider is</h2>
+<p>Drawn art is not enough for collisions. A hero sprite may be 64 pixels wide but should only be blocked by a narrow 20 pixel core; a crate model’s visible mesh may be far too detailed to test against. A <strong>collider</strong> is a simple proxy shape attached to an entity that the simulation uses for contact tests.</p>
+<p>Each collider bundles three jobs:</p>
+<ul>
+  <li><strong>Shape</strong> — a box, circle, capsule, polygon, edge, sphere, or convex hull with a size and an <code>offset</code> from the entity origin.</li>
+  <li><strong>Material</strong> — <code>friction</code>, <code>restitution</code>, and (in 2D) <code>density</code>, which decide how the contact feels.</li>
+  <li><strong>Filter</strong> — <code>layer</code>, <code>category_bits</code>, and <code>mask_bits</code>, which decide who is allowed to touch whom. Full rules live in <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">Physics layers</a>.</li>
+</ul>
+<p>A collider without a <a href="{{ path('docs_page', {slug: 'rigidbodies'}) }}">rigidbody</a> is a static obstacle. Adding a rigidbody is what makes the shape move.</p>
+
+<h2>2D shapes</h2>
+<p>2D colliders live on the XY plane and work for flat games and isometric play alike.</p>
+<table>
+  <thead><tr><th>Component</th><th>Shape</th><th>Primary fields</th><th>Good for</th></tr></thead>
+  <tbody>
+    <tr><td><code>BoxCollider2D</code></td><td>Axis-aligned rectangle</td><td><code>size</code> <code>[w, h]</code></td><td>Crates, walls, UI hit frames.</td></tr>
+    <tr><td><code>CircleCollider2D</code></td><td>Circle</td><td><code>radius</code></td><td>Pickups, projectiles, round enemies.</td></tr>
+    <tr><td><code>CapsuleCollider2D</code></td><td>Stadium (rectangle with round caps)</td><td><code>height</code>, <code>radius</code></td><td>Standing characters that should slide around corners.</td></tr>
+    <tr><td><code>PolygonCollider2D</code></td><td>Custom convex outline</td><td><code>points</code> <code>[[x, y], ...]</code></td><td>Wedge ramps, diagonal architecture.</td></tr>
+    <tr><td><code>EdgeCollider2D</code></td><td>Open chain of segments</td><td><code>points</code>, <code>loop</code></td><td>Terrain outlines and one-way ledges. Set <code>loop: true</code> to close the chain into a solid outline.</td></tr>
+  </tbody>
+</table>
+<p>Every 2D collider also accepts these shared fields:</p>
+<pre><code>{
+  "CircleCollider2D": {
+    "radius": 0.4,
+    "offset": [0, 0.1],
+    "is_trigger": false,
+    "layer": "player",
+    "friction": 0.4,
+    "restitution": 0.1,
+    "density": 1.0,
+    "category_bits": 1,
+    "mask_bits": 65535
+  }
+}</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th><th>Returns / effect</th></tr></thead>
+  <tbody>
+    <tr><td><code>radius</code> / <code>size</code> / <code>height</code> / <code>points</code></td><td>Shape-specific geometry listed in the table above.</td><td>Defines the proxy volume.</td></tr>
+    <tr><td><code>offset</code></td><td>Shifts the shape away from the entity origin, in local units <code>[x, y]</code>.</td><td>Keeps feet-aligned sprites centered without moving the art.</td></tr>
+    <tr><td><code>is_trigger</code></td><td>Turns the shape into a sensor.</td><td>Reports overlaps as trigger events and never blocks movement.</td></tr>
+    <tr><td><code>layer</code></td><td>Name from project <code>physics.layers</code>.</td><td>Sets which filter bit this shape occupies.</td></tr>
+    <tr><td><code>friction</code></td><td>Resistance to sliding at the contact.</td><td><code>0</code> icy, <code>1</code> grippy.</td></tr>
+    <tr><td><code>restitution</code></td><td>Bounciness at the contact.</td><td><code>0</code> thud, near <code>1</code> ping.</td></tr>
+    <tr><td><code>density</code></td><td>Mass per area for dynamic bodies.</td><td>Heavier at the same size means harder to push.</td></tr>
+    <tr><td><code>category_bits</code></td><td>“I belong to these layers.”</td><td>Usually left to the <code>layer</code> name.</td></tr>
+    <tr><td><code>mask_bits</code></td><td>“I collide with these layers.”</td><td><code>65535</code> accepts all 16 layers.</td></tr>
+  </tbody>
+</table>
+
+<h2>3D shapes</h2>
+<p>3D colliders use the same filter and material ideas, with one strict rule: <strong>exactly one collider per entity</strong>.</p>
+<table>
+  <thead><tr><th>Component</th><th>Shape</th><th>Primary fields</th><th>Good for</th></tr></thead>
+  <tbody>
+    <tr><td><code>BoxCollider3D</code></td><td>Box</td><td><code>size</code> <code>[x, y, z]</code></td><td>Crates, walls, room shells.</td></tr>
+    <tr><td><code>SphereCollider3D</code></td><td>Sphere</td><td><code>radius</code></td><td>Pickup orbs, cannonballs, trigger volumes.</td></tr>
+    <tr><td><code>CapsuleCollider3D</code></td><td>Capsule</td><td><code>radius</code>, <code>height</code></td><td>Standing characters and columns.</td></tr>
+    <tr><td><code>ConvexCollider3D</code></td><td>Convex hull from a model</td><td>model reference</td><td>Sloped rocks and props that must stay movable.</td></tr>
+    <tr><td><code>ModelCollider3D</code></td><td>Static triangle mesh</td><td>model reference</td><td>Stationary level geometry only.</td></tr>
+  </tbody>
+</table>
+<p>Shared fields match the 2D list minus <code>density</code>: <code>offset</code> <code>[x, y, z]</code>, <code>is_trigger</code>, <code>layer</code>, <code>friction</code>, <code>restitution</code>, <code>category_bits</code>, <code>mask_bits</code>.</p>
+<pre><code>{
+  "Rigidbody3D": { "body_type": "dynamic", "mass": 40 },
+  "CapsuleCollider3D": {
+    "radius": 0.35,
+    "height": 1.7,
+    "offset": [0, 0.85, 0],
+    "is_trigger": false,
+    "layer": "player",
+    "friction": 0.3,
+    "restitution": 0.0
+  }
+}</code></pre>
+<ul>
+  <li><code>radius</code> and <code>height</code> define the capsule. The <code>height</code> is the full extent including both caps; invalid combinations (height shorter than the caps) are rejected at validation.</li>
+  <li><code>offset</code> <code>[0, 0.85, 0]</code> lifts the capsule so its base sits at the entity origin — the usual way to keep feet on the floor.</li>
+  <li><code>is_trigger</code>, <code>layer</code>, <code>friction</code>, and <code>restitution</code> behave exactly like the 2D fields.</li>
+</ul>
+
+<h2>One collider per entity, and why</h2>
+<p>Validation rejects a second 3D collider on the same entity. The reason is that one entity is one simulated body, and a body has one shape. Stacking two shapes would silently change mass, contact ordering, and how forces resolve.</p>
+<p>When you need a complex outline — a Skyforge hangar with wings, crates, and a crane all blocking as one object — use a compound collider asset instead of stacking components. Generate one with the CLI:</p>
+<pre><code>./build/linux-debug/demi asset collider games/skyforge/assets/models/hangar \
+  --output games/skyforge/assets/colliders/hangar.collider.json</code></pre>
+<p>That command writes a <code>Collider3D</code> asset describing the compound hulls. Reference the asset from a single <code>ModelCollider3D</code> (static) or convex setup on the entity. The entity still has one collider component; the asset supplies the many sub-shapes inside it.</p>
+<p>Two more validation rules protect you from silent misconfiguration:</p>
+<ul>
+  <li>A moving body cannot use <code>ModelCollider3D</code>. Triangle meshes are static-only; use a convex hull for movers.</li>
+  <li>A moving body needs a collider of its own. A mover with no shape would fall through the world with nothing to hit.</li>
+</ul>
+
+<h2>Triggers versus solid colliders</h2>
+<p>A <strong>solid</strong> collider blocks movement and generates collision events. A <strong>trigger</strong> (<code>is_trigger: true</code>) never blocks anything; it only notices overlap and generates trigger events.</p>
+<table>
+  <thead><tr><th></th><th>Solid</th><th>Trigger</th></tr></thead>
+  <tbody>
+    <tr><td>Blocks movement</td><td>Yes</td><td>No</td></tr>
+    <tr><td>Events</td><td><code>physics_collision_*</code> / <code>physics3d_collision_*</code></td><td><code>physics_trigger_*</code> / <code>physics3d_trigger_*</code></td></tr>
+    <tr><td>Use for</td><td>Floors, walls, crates, heroes</td><td>Pickup radii, checkpoints, damage zones, dialogue volumes</td></tr>
+  </tbody>
+</table>
+<p>In Skyforge, the landing pad is solid so ships rest on it; the pad’s wider trigger ring announces arrivals without stopping the ship.</p>
+
+<h2>Friction, restitution, and density</h2>
+<p>These three describe how a contact behaves after the shapes meet.</p>
+<ul>
+  <li><strong>Friction</strong> resists sliding. Both bodies contribute, so an icy crate on a rubber floor still slides less than on ice. Use low friction for floating debris, high friction for tires.</li>
+  <li><strong>Restitution</strong> is bounciness. A dropped tool with <code>restitution: 0</code> lands with a thud. A data-sphere with <code>restitution: 0.8</code> pings around the hangar.</li>
+  <li><strong>Density</strong> (2D only) converts shape area into mass for dynamic bodies. A large low-density panel is easy to shove; a small high-density slug is not.</li>
+</ul>
+<p>3D mass lives on the <a href="{{ path('docs_page', {slug: 'rigidbodies'}) }}">Rigidbody3D</a> instead, so 3D colliders skip <code>density</code>.</p>
+
+<h2>Offset: shape without moving art</h2>
+<p>The entity origin is often at the feet or the center of a sprite, while the collision shape wants to sit somewhere else. <code>offset</code> is a local-space shift applied to the shape only:</p>
+<pre><code>{
+  "BoxCollider2D": {
+    "size": [0.6, 1.2],
+    "offset": [0, 0.6]
+  }
+}</code></pre>
+<ul>
+  <li><code>size</code> <code>[0.6, 1.2]</code> is the box width and height in world units.</li>
+  <li><code>offset</code> <code>[0, 0.6]</code> lifts the box half its height so the bottom sits on the entity origin (the feet).</li>
+  <li>The sprite, shadow, and gameplay position stay at the origin; only the collision shape moves. Nothing is returned — this is authored data.</li>
+</ul>
+
+<h2>Picking shapes</h2>
+<ul>
+  <li>Prefer the simplest shape that blocks correctly. Circles and boxes are cheaper and more predictable than polygons.</li>
+  <li>Use capsules for characters: they slide around corners without catching on edges.</li>
+  <li>Use edges for terrain outlines that things should roll along, not inside.</li>
+  <li>Never fake a sphere as a box for convenience — queries and debug drawing show the authored shape, and players feel the difference.</li>
+</ul>
+<p>Once shapes are in place, decide who meets whom in <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">Physics layers</a>, then react to contacts with <a href="{{ path('docs_page', {slug: 'physics-events'}) }}">Physics events</a> or probe the world with <a href="{{ path('docs_page', {slug: 'physics-queries'}) }}">Queries</a>.</p>

@@ -1,0 +1,161 @@
+<h1>Queries</h1>
+<p>A query asks the physics simulation a question without spawning anything: “what is along this line?”, “what sits inside this circle?”, “is anything under my feet?”. This page shows when to use each query type and every field a hit returns.</p>
+
+<h2>What a query is</h2>
+<p>Gameplay constantly needs to know about space before it acts. A turret must know whether a wall blocks its view. A hero must know whether it is standing on ground before allowing a jump. A pickup must know which loot lies within reach.</p>
+<p>You could answer any of those with a trigger volume and an event, but that means extra entities and state to clean up. A <strong>query</strong> is a one-shot question answered immediately: pass positions and sizes, get back a hit (or nothing). Nothing is spawned, nothing persists, and it is safe to call every frame.</p>
+<p>Queries respect the same <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">layer filters</a> as real contacts, so a ray that ignores pickups can be authored with <code>mask_bits</code> rather than extra checks in Lua.</p>
+
+<h2>Raycast, overlap, and shape cast</h2>
+<p>Three families of questions cover almost every need.</p>
+<table>
+  <thead><tr><th>Family</th><th>Question</th><th>Everyday uses</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Raycast</strong></td><td>What does this straight line hit first?</td><td>Line of sight, laser sights, mouse picking, sniper traces.</td></tr>
+    <tr><td><strong>Overlap</strong></td><td>What is already inside this region?</td><td>Pickup radius, blast area, “is this tile occupied?”, crowd gathering.</td></tr>
+    <tr><td><strong>Shape cast</strong></td><td>What would this moving shape hit on the way?</td><td>Ground check with a sphere, dash safety, projectile width sweeps.</td></tr>
+  </tbody>
+</table>
+<p>Use a ray when you only need the first blocker. Use overlap when you need everyone inside an area. Use a cast when the moving object has real width and a thin ray would miss the wall it scrapes.</p>
+
+<h2>2D queries</h2>
+<p>The 2D module is <code>demi.physics.query2d</code>. All positions are world-space <code>x, y</code>.</p>
+<pre><code>local Q2 = require("demi.physics.query2d")
+
+local hit = Q2.raycast(x1, y1, x2, y2, { include_triggers = false })
+if hit then
+    print(hit.entity_id, hit.distance)
+end
+
+local one = Q2.overlap_circle(x, y, radius)
+local all = Q2.overlap_circle_all(x, y, radius)
+local box  = Q2.overlap_box(x, y, half_w, half_h)
+local many = Q2.overlap_box_all(x, y, half_w, half_h)
+
+local touching = Q2.has_contact(a, b)
+local points   = Q2.contacts(a, b)</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>raycast</code></td><td>start <code>x1, y1</code>, end <code>x2, y2</code>, options table (optional)</td><td>One hit table, or <code>nil</code> when the line hits nothing.</td></tr>
+    <tr><td><code>overlap_box</code></td><td>center <code>x, y</code>, half extents <code>half_w, half_h</code></td><td>The first hit, or <code>nil</code>.</td></tr>
+    <tr><td><code>overlap_circle</code></td><td>center <code>x, y</code>, <code>radius</code></td><td>The first hit, or <code>nil</code>.</td></tr>
+    <tr><td><code>overlap_box_all</code> / <code>overlap_circle_all</code></td><td>Same as above</td><td>An array of hits. Empty array when nothing is found — never <code>nil</code>.</td></tr>
+    <tr><td><code>contacts</code></td><td>two entity ids <code>a</code>, <code>b</code></td><td>Array of current contact points between them, empty when apart.</td></tr>
+    <tr><td><code>has_contact</code></td><td>two entity ids <code>a</code>, <code>b</code></td><td><code>true</code> when the pair is touching, otherwise <code>false</code>.</td></tr>
+  </tbody>
+</table>
+<p>Pass <code>{ include_triggers = true }</code> as the last raycast argument when trigger volumes should count as hits. Omit it and triggers are skipped.</p>
+
+<h3>2D hit fields</h3>
+<table>
+  <thead><tr><th>Field</th><th>Type</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>entity_id</code></td><td>entity id</td><td>The entity whose collider was hit.</td></tr>
+    <tr><td><code>layer</code></td><td>string</td><td>Layer name of the hit collider.</td></tr>
+    <tr><td><code>point</code></td><td><code>{ x, y }</code></td><td>World position of the contact or intersection.</td></tr>
+    <tr><td><code>normal</code></td><td><code>{ x, y }</code></td><td>Unit vector pointing away from the surface — use it for bounce and alignment.</td></tr>
+    <tr><td><code>distance</code></td><td>number</td><td>Distance along the ray or cast to the hit, in world units.</td></tr>
+    <tr><td><code>fraction</code></td><td>number</td><td>How far along the query the hit is, from 0 (start) to 1 (end).</td></tr>
+  </tbody>
+</table>
+
+<h3>Everyday 2D patterns</h3>
+<p>Line of sight for a Skyforge patrol drone — does a wall sit between the drone and the intruder?</p>
+<pre><code>local Q2 = require("demi.physics.query2d")
+
+local hit = Q2.raycast(dx, dy, px, py, { include_triggers = false })
+if hit and hit.entity_id ~= player_id then
+    -- a wall (or something else) blocks the view
+end</code></pre>
+<ul>
+  <li>The ray starts at the drone and ends at the player.</li>
+  <li><code>hit</code> is the first solid collider along the line, or <code>nil</code> when the path is clear.</li>
+  <li>Comparing <code>hit.entity_id</code> to the player tells you whether the player was the first thing in the way.</li>
+</ul>
+<p>Pickup radius — grab every shard in range:</p>
+<pre><code>local shards = Q2.overlap_circle_all(x, y, 1.25)
+for _, h in ipairs(shards) do
+    -- h.entity_id, h.point {x, y}
+end</code></pre>
+<ul>
+  <li><code>overlap_circle_all</code> returns every overlapping hit as an array of hit tables (fields in the table above).</li>
+  <li>An empty array means nothing was in range; <code>ipairs</code> simply does nothing.</li>
+</ul>
+<p>Ground check before a jump:</p>
+<pre><code>local ground = Q2.raycast(x, y, x, y - 0.2, { include_triggers = false })
+local can_jump = ground ~= nil</code></pre>
+<ul>
+  <li>The tiny downward ray asks “is solid ground within 0.2 units below me?”</li>
+  <li><code>can_jump</code> becomes <code>true</code> when something was hit, <code>false</code> when the result was <code>nil</code>.</li>
+</ul>
+
+<h2>3D queries</h2>
+<p>The 3D module is <code>demi.physics.query3d</code>. Rays are defined by an origin and a direction, not two points.</p>
+<pre><code>local Q3 = require("demi.physics.query3d")
+
+local hit = Q3.raycast(ox, oy, oz, dx, dy, dz, max_distance)
+if hit then
+    print(hit.entity_id, hit.distance)
+end
+
+local one = Q3.overlap_sphere(x, y, z, radius)
+local all = Q3.overlap_sphere_all(x, y, z, radius)
+local boxes = Q3.overlap_box_all(x, y, z, half_x, half_y, half_z)
+local cast = Q3.sphere_cast(x1, y1, z1, x2, y2, z2, radius)</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>raycast</code></td><td>origin <code>ox, oy, oz</code>, direction <code>dx, dy, dz</code>, <code>max_distance</code></td><td>Hit table or <code>nil</code>.</td></tr>
+    <tr><td><code>overlap_sphere</code></td><td>center <code>x, y, z</code>, <code>radius</code></td><td>First hit or <code>nil</code>.</td></tr>
+    <tr><td><code>overlap_sphere_all</code></td><td>center and <code>radius</code></td><td>Array of hits, empty when none.</td></tr>
+    <tr><td><code>overlap_box_all</code></td><td>center <code>x, y, z</code>, half extents <code>half_x, half_y, half_z</code></td><td>Array of hits, empty when none.</td></tr>
+    <tr><td><code>sphere_cast</code></td><td>start <code>x1, y1, z1</code>, end <code>x2, y2, z2</code>, <code>radius</code></td><td>Hit table or <code>nil</code>. Sweeps the sphere along the segment.</td></tr>
+  </tbody>
+</table>
+
+<h3>3D hit fields</h3>
+<table>
+  <thead><tr><th>Field</th><th>Type</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>entity_id</code></td><td>entity id</td><td>Entity whose collider was hit.</td></tr>
+    <tr><td><code>layer</code></td><td>string</td><td>Layer name of the hit collider.</td></tr>
+    <tr><td><code>point</code></td><td><code>{ x, y, z }</code></td><td>World position of the hit.</td></tr>
+    <tr><td><code>normal</code></td><td><code>{ x, y, z }</code></td><td>Outward surface direction at the hit.</td></tr>
+    <tr><td><code>distance</code></td><td>number</td><td>World units from the query origin to the hit.</td></tr>
+    <tr><td><code>fraction</code></td><td>number</td><td>Progress along the query, 0 to 1.</td></tr>
+  </tbody>
+</table>
+<p>Unlike 2D, <code>point</code> and <code>normal</code> are 3-component tables. A camera-driven pick in Skyforge looks like this:</p>
+<pre><code>local Q3 = require("demi.physics.query3d")
+local Camera3D = require("demi.camera3d")
+
+local hit = Camera3D.screen_ray(camera_id, mx, my, view_w, view_h)
+if hit then
+    -- hit.entity_id, hit.point {x, y, z}, hit.distance
+end</code></pre>
+<ul>
+  <li><code>screen_ray</code> builds a world ray from a mouse position and casts it for you.</li>
+  <li>It returns the same hit shape as <code>query3d.raycast</code>, or <code>nil</code> when the click is empty sky.</li>
+</ul>
+
+<h2>Nil versus empty array</h2>
+<p>This distinction saves a class of bugs. Single-result queries and <code>nil</code> go together; list queries and empty arrays go together.</p>
+<table>
+  <thead><tr><th>Result</th><th>When</th><th>How to check</th></tr></thead>
+  <tbody>
+    <tr><td><code>nil</code></td><td><code>raycast</code>, <code>overlap_box</code>, <code>overlap_circle</code>, <code>overlap_sphere</code>, <code>sphere_cast</code> found nothing</td><td><code>if hit then ... end</code> before reading <code>hit.*</code></td></tr>
+    <tr><td><code>false</code></td><td><code>has_contact</code> pair is not touching</td><td>Plain boolean test</td></tr>
+    <tr><td>Empty array</td><td><code>overlap_*_all</code> or <code>contacts</code> found nothing</td><td><code>#list == 0</code> or simply loop with <code>ipairs</code></td></tr>
+  </tbody>
+</table>
+<p>Always guard single-hit results before reading fields: <code>hit.entity_id</code> on a <code>nil</code> hit raises an error, while iterating an empty array is harmless.</p>
+
+<h2>Practical tips</h2>
+<ul>
+  <li>Queries are cheap enough for per-frame checks like ground tests, but do not cast hundreds of long rays every step if one area query answers the same question.</li>
+  <li>Set <code>include_triggers</code> deliberately. Line of sight that counts trigger volumes as walls is a common surprise.</li>
+  <li>Use <code>fraction</code> to lerp effects along a laser path and <code>normal</code> to orient decals and bounce particles.</li>
+  <li>Layer filters decide who is visible to a query — tune them in <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">Physics layers</a> instead of filtering results by hand.</li>
+</ul>
+<p>Queries are immediate; lasting contacts are better served by <a href="{{ path('docs_page', {slug: 'physics-events'}) }}">Physics events</a>. Shapes being tested are described in <a href="{{ path('docs_page', {slug: 'colliders'}) }}">Colliders</a>.</p>

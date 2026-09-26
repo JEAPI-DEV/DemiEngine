@@ -1,0 +1,81 @@
+<h1>Physics layers</h1>
+<p>Layers decide <strong>which bodies collide with which</strong>. Without them, everything hits everything. With them, players pass through pickups, bullets ignore their own team, and triggers only notice the objects you care about.</p>
+
+<h2>Declare the names</h2>
+<pre><code>"physics": {
+  "layers": ["default", "player", "enemy", "world", "pickup", "trigger"]
+}</code></pre>
+<p>This is the project-wide collision matrix. Rules:</p>
+<ul>
+  <li>Order matters: the first name is layer 0, the second is layer 1, and so on (up to 16).</li>
+  <li>Names must be unique.</li>
+  <li>Every collider picks exactly one of these names via its <code>layer</code> field.</li>
+</ul>
+<p>If you omit <code>physics.layers</code>, everything sits on a single implicit <code>default</code> layer and all bodies collide with each other.</p>
+
+<h2>How filtering works</h2>
+<p>Each collider has two bitmasks:</p>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>category_bits</code></td><td>“I belong to these layers.” Usually left alone — the <code>layer</code> name already sets this.</td></tr>
+    <tr><td><code>mask_bits</code></td><td>“I collide with these layers.” The filter you care about.</td></tr>
+  </tbody>
+</table>
+<p>A contact is generated only when <strong>both</strong> bodies accept each other:</p>
+<pre><code>colliderA.mask_bits  includes colliderB.layer
+colliderB.mask_bits  includes colliderA.layer</code></pre>
+<p>If either side says no, the pair is ignored — no collision, no trigger, no contact event.</p>
+
+<h2>Bits without the math</h2>
+<p>Layer 0 is bit 1, layer 1 is bit 2, layer 2 is bit 4, layer 3 is bit 8, and so on. <code>65535</code> is “all 16 layers”. For most games you can use:</p>
+<pre><code>{
+  "layer": "player",
+  "mask_bits": 65535
+}</code></pre>
+<p>…and only narrow <code>mask_bits</code> when you need an exception. Named helpers in your own Lua can keep bit math out of scenes:</p>
+<pre><code>-- collide with world(3) + enemy(2) = 8 + 4 = 12
+{ "layer": "player", "mask_bits": 12 }</code></pre>
+
+<h2>Worked example</h2>
+<p>Layers:</p>
+<pre><code>"physics": { "layers": ["default", "player", "enemy", "world", "pickup"] }</code></pre>
+<table>
+  <thead><tr><th>Body</th><th><code>layer</code></th><th><code>mask_bits</code></th><th>Collides with</th></tr></thead>
+  <tbody>
+    <tr><td>Player</td><td><code>player</code></td><td><code>65535</code></td><td>Everything (world, enemies, pickups)</td></tr>
+    <tr><td>Enemy</td><td><code>enemy</code></td><td>world + player</td><td>World and player, not other enemies</td></tr>
+    <tr><td>Bullet</td><td><code>enemy</code></td><td>world + player</td><td>Same as enemy — enemy bullets hit the player</td></tr>
+    <tr><td>Wall</td><td><code>world</code></td><td><code>65535</code></td><td>Everything solid</td></tr>
+    <tr><td>Coin</td><td><code>pickup</code></td><td>player only</td><td>Player only</td></tr>
+  </tbody>
+</table>
+<p>Enemies walk through each other because both sides exclude <code>enemy</code>. Coins never bounce off walls because they only accept <code>player</code>.</p>
+
+<h2>Triggers and layers</h2>
+<pre><code>{
+  "CircleCollider2D": {
+    "radius": 1.5,
+    "is_trigger": true,
+    "layer": "pickup",
+    "mask_bits": 65535
+  }
+}</code></pre>
+<p>A trigger uses the same filtering. It generates <code>physics_trigger_enter/stay/exit</code> instead of solid collision. A pickup area that should only notice the player sets <code>mask_bits</code> to the player bit.</p>
+
+<h2>2D and 3D share the matrix</h2>
+<p>The same <code>physics.layers</code> list serves Box2D and Jolt. A 3D collider’s <code>layer</code> field takes the same names. Keep one list per project so 2D HUD hit areas and 3D world bodies agree.</p>
+
+<h2>Debugging filters</h2>
+<pre><code>./build/linux-debug/demi run --project games/my_game \
+  --debug-overlays colliders,contacts</code></pre>
+<p>Colliders draw in their layer. If two shapes overlap and no contact appears, check <code>mask_bits</code> on both sides — that is the usual cause.</p>
+
+<h2>Choosing layers</h2>
+<ul>
+  <li>Start with <code>default</code>, <code>player</code>, <code>enemy</code>, <code>world</code>.</li>
+  <li>Add <code>pickup</code>, <code>trigger</code>, <code>debris</code>, <code>ragdoll</code> as needed.</li>
+  <li>Prefer a few broad layers over one layer per entity type.</li>
+  <li>Remember the 16-layer ceiling when designing large games.</li>
+</ul>
+<p>See <a href="{{ path('docs_page', {slug: 'colliders'}) }}">Colliders</a> and <a href="{{ path('docs_page', {slug: 'physics-events'}) }}">Physics events</a> for what to do once contacts happen.</p>

@@ -1,0 +1,144 @@
+<h1>Prediction</h1>
+<p>In a networked game, information takes time to travel. If a player's shot only appears after the server confirms it, the game feels sluggish. <strong>Prediction</strong> is the technique of simulating the local result immediately — moving the player, firing the weapon — and correcting later when the authoritative state arrives. <strong>Query history</strong> is its companion: a short memory of past simulation state so a late message can be checked against the world as it was, not as it is now. This page covers both APIs in <code>demi.network.session</code>, building on <a href="{{ path('docs_page', {slug: 'sessions-and-contracts'}) }}">Sessions &amp; contracts</a>.</p>
+
+<h2>Why prediction exists</h2>
+<p>Authority stays with the server: the server's state is the truth. But waiting a full round trip for every input makes controls feel heavy. With prediction:</p>
+<ul>
+  <li>The local player's input is applied immediately to the local simulation.</li>
+  <li>Inputs are also sent to the server as messages declared in the contract.</li>
+  <li>When an authoritative state snapshot arrives, the client compares and, if needed, reconciles.</li>
+  <li>Remote entities interpolate toward received states and stop extrapolating after a limit.</li>
+</ul>
+<p>The result is responsive local control with server authority preserved. Prediction is optional; games that do not need it never enable it.</p>
+
+<h2>Configuring prediction</h2>
+<p>Call <code>configure</code> once during startup with the queue and smoothing limits your game needs:</p>
+<pre><code>local Session = require("demi.network.session")
+
+Session.configure({
+    input_queue_capacity = 128,
+    input_future_window = 8,
+    input_head_of_line_timeout = 0.25,
+    input_max_per_tick = 4,
+    snapshot_buffer = 32,
+    interpolation_delay = 0.1,
+    extrapolation_limit = 0.25,
+    prediction_history_limit = 32,
+    prediction_visual_decay = 0.15
+})</code></pre>
+<ul>
+  <li><code>input_queue_capacity</code> — how many predicted input frames may wait in the queue before old ones are dropped.</li>
+  <li><code>input_future_window</code> — how many ticks ahead of the last confirmed tick inputs may be scheduled.</li>
+  <li><code>input_head_of_line_timeout</code> — seconds to wait for a missing input before skipping ahead, so one lost packet cannot stall the stream.</li>
+  <li><code>input_max_per_tick</code> — maximum input frames applied in one simulation tick.</li>
+  <li><code>snapshot_buffer</code> — how many authoritative state snapshots to retain for reconciliation.</li>
+  <li><code>interpolation_delay</code> — seconds remote entities render behind the latest state, smoothing jerky arrivals.</li>
+  <li><code>extrapolation_limit</code> — seconds a remote entity may keep moving on its last known state before freezing instead of guessing.</li>
+  <li><code>prediction_history_limit</code> — how many local prediction states to keep for rollback comparison.</li>
+  <li><code>prediction_visual_decay</code> — seconds over which a visual correction blends, so a snapped-back position does not pop.</li>
+</ul>
+<p><code>configure</code> returns nothing; invalid values are rejected with diagnostics before the session starts.</p>
+
+<h2>Enabling prediction for an entity</h2>
+<p>Prediction is per entity. <code>enable_prediction</code> registers how that entity's inputs are named, what its state looks like, and how to apply one tick of input:</p>
+<pre><code>Session.enable_prediction({
+    network_id = network_id,
+    input_message = "player_input",
+    state = function()
+        local t = Transform3D.position(self.id)
+        return { x = t.x, y = t.y, z = t.z }
+    end,
+    apply = function(input, dt)
+        Character.move(self.id, input.x, input.y, dt)
+    end
+})</code></pre>
+<ul>
+  <li><code>network_id</code> — the replicated entity's network ID from <code>Session.spawn</code>.</li>
+  <li><code>input_message</code> — the contract message name that carries this entity's inputs.</li>
+  <li><code>state</code> — a function returning the entity's predicted state as a plain table (numbers and arrays).</li>
+  <li><code>apply</code> — a function that applies one input table for <code>dt</code> seconds. This is what gets replayed during rollback.</li>
+</ul>
+<p>Returns nothing. Call it after the entity is spawned and bound to a local entity.</p>
+
+<h2>The predict and reconcile cycle</h2>
+<pre><code>local input = { x = 1, y = 0, jump = false }
+Session.predict_input(network_id, input)</code></pre>
+<ul>
+  <li><code>Session.predict_input(network_id, input)</code> — queues one input frame for immediate local application and for sending to the server. Returns nothing.</li>
+</ul>
+<pre><code>for _, input in ipairs(Session.take_inputs(network_id)) do
+    apply(input.value, input.dt)   -- input.value, input.dt
+end</code></pre>
+<ul>
+  <li><code>Session.take_inputs(network_id)</code> — returns the array of input frames ready to apply this tick.</li>
+  <li>Each entry has <code>value</code> (the input table) and <code>dt</code> (seconds to simulate). Apply them in order.</li>
+</ul>
+<pre><code>Session.publish_snapshot(network_id, state_table)</code></pre>
+<ul>
+  <li><code>Session.publish_snapshot(network_id, state)</code> — host side: records and sends an authoritative state snapshot for that entity. Returns nothing.</li>
+</ul>
+<pre><code>local state = Session.prediction_state(network_id)  -- table or nil</code></pre>
+<ul>
+  <li><code>Session.prediction_state(network_id)</code> — returns the current predicted state table for the entity, or <code>nil</code> when prediction is not enabled for it.</li>
+</ul>
+<pre><code>local dx, dy = Session.prediction_visual_offset(network_id)</code></pre>
+<ul>
+  <li><code>Session.prediction_visual_offset(network_id)</code> — returns the two current visual smoothing offsets (numbers) between the predicted and reconciled positions. Add them to the drawn position instead of teleporting the mesh.</li>
+</ul>
+<pre><code>local remote = Session.remote_state(network_id)  -- table or nil</code></pre>
+<ul>
+  <li><code>Session.remote_state(network_id)</code> — returns the latest interpolated remote state table for an entity this peer does not own, or <code>nil</code> when nothing has arrived yet.</li>
+</ul>
+<pre><code>local d = Session.prediction_diagnostics()</code></pre>
+<ul>
+  <li><code>Session.prediction_diagnostics()</code> — returns a table of counters describing queue depth, rollback count, and correction magnitudes. Use it to tune the configure values.</li>
+</ul>
+<pre><code>Session.reset_prediction(network_id)</code></pre>
+<ul>
+  <li><code>Session.reset_prediction(network_id)</code> — clears the prediction history for one entity, for example after a respawn. Returns nothing.</li>
+</ul>
+
+<h2>Query history: rewinding questions</h2>
+<p>Some questions are about the past: "would that shot have hit at the tick the player fired?". <strong>Query history</strong> keeps a ring buffer of simulation snapshots so such questions are answered against the state of that tick. It exists because authoritative messages arrive late, and fairness requires checking hits at fire time rather than at arrival time.</p>
+<pre><code>Session.configure({
+    query_history_capacity = 128,
+    query_history_max_entities = 64,
+    query_history_rewind_ticks = 32
+})</code></pre>
+<ul>
+  <li><code>query_history_capacity</code> — how many ticks of snapshots to retain.</li>
+  <li><code>query_history_max_entities</code> — how many entities are tracked per snapshot.</li>
+  <li><code>query_history_rewind_ticks</code> — how many ticks a query may rewind; older ticks are refused rather than guessed.</li>
+</ul>
+<pre><code>Session.record_query_snapshot(tick)</code></pre>
+<ul>
+  <li><code>Session.record_query_snapshot(tick)</code> — stores the current simulation state under the given integer tick. Call once per fixed step for entities you want rewound.</li>
+</ul>
+<pre><code>local hit = Session.historical_raycast(tick, x0, y0, z0, x1, y1, z1)
+if hit then
+    -- hit.entity, hit.x, hit.y, hit.z, hit.distance
+end</code></pre>
+<ul>
+  <li><code>Session.historical_raycast(tick, ...)</code> — casts a ray through the recorded state of <code>tick</code>.</li>
+  <li>Returns a hit table (<code>entity</code>, hit point coordinates, and <code>distance</code>) or <code>nil</code> when the ray missed or the tick is outside the retained window.</li>
+</ul>
+<pre><code>local d = Session.query_history_diagnostics()
+Session.clear_query_history()</code></pre>
+<ul>
+  <li><code>Session.query_history_diagnostics()</code> — returns a table of counters: recorded ticks, rewinds performed, and refused out-of-window queries.</li>
+  <li><code>Session.clear_query_history()</code> — drops every recorded snapshot. Returns nothing. Use on scene change or match restart.</li>
+</ul>
+
+<h2>Tuning and determinism</h2>
+<table>
+  <thead><tr><th>Symptom</th><th>What to adjust</th></tr></thead>
+  <tbody>
+    <tr><td>Local movement feels fine, remote players stutter</td><td>Raise <code>interpolation_delay</code> slightly, or check packet loss with <code>diagnostics()</code> counters.</td></tr>
+    <tr><td>Remote players freeze at edges</td><td>Raise <code>extrapolation_limit</code>, accepting longer guessing.</td></tr>
+    <tr><td>Frequent visible snap-backs</td><td>Raise <code>prediction_history_limit</code> and <code>prediction_visual_decay</code> so corrections blend.</td></tr>
+    <tr><td>Inputs stall behind one lost packet</td><td>Lower <code>input_head_of_line_timeout</code>.</td></tr>
+    <tr><td>Hit checks disagree across peers</td><td>Record snapshots every tick and keep <code>query_history_rewind_ticks</code> above your maximum latency window.</td></tr>
+  </tbody>
+</table>
+<p>Prediction assumes the deterministic simulation described in <a href="{{ path('docs_page', {slug: 'simulation-and-seeds'}) }}">Simulation &amp; seeds</a>: the same fixed timestep and seed on every peer, and the same input sequence replayed during rollback. Without that, corrections grow without bound.</p>
+<p>Contract rules for who may send inputs and state live in <a href="{{ path('docs_page', {slug: 'sessions-and-contracts'}) }}">Sessions &amp; contracts</a>.</p>

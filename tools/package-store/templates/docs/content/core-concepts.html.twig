@@ -1,0 +1,74 @@
+<h1>Core concepts</h1>
+<p>DemiEngine games are readable, versioned documents. The editor and the CLI read the same source; nothing required to ship a game lives in editor-only state.</p>
+
+<h2>Concept map</h2>
+<table>
+  <thead><tr><th>Concept</th><th>Purpose</th><th>Identity</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Project</strong></td><td>Game-wide settings, scene list, input, physics layers, build metadata</td><td><code>demi.project.json</code></td></tr>
+    <tr><td><strong>Scene</strong></td><td>A set of entities loaded together</td><td><code>scene://game/main</code></td></tr>
+    <tr><td><strong>Entity</strong></td><td>An object with a stable ID and components</td><td><code>player</code>, <code>wall_north</code></td></tr>
+    <tr><td><strong>Component</strong></td><td>Data describing one capability on an entity</td><td><code>Transform3D</code>, <code>MeshRenderer</code>, <code>Sprite</code></td></tr>
+    <tr><td><strong>Prefab</strong></td><td>Reusable entity composition with per-instance overrides</td><td><code>prefab://doorway</code></td></tr>
+    <tr><td><strong>HUD / UI prefab</strong></td><td>Screen-space interface tree / reusable UI subtree</td><td><code>*.hud.json</code>, <code>ui-prefab://button</code></td></tr>
+    <tr><td><strong>Asset</strong></td><td>Imported resource referenced by stable identity</td><td><code>asset://textures/brick</code></td></tr>
+    <tr><td><strong>Package</strong></td><td>Installable Lua modules or assets shared across projects</td><td><code>demi.gameplay.health</code></td></tr>
+    <tr><td><strong>Script</strong></td><td>Lua gameplay attached to an entity</td><td><code>script://scripts/player.lua</code></td></tr>
+  </tbody>
+</table>
+
+<h2>Stable identity and URIs</h2>
+<p>Every durable document keeps <code>format_version</code>. References use URI schemes, never array positions or editor-only handles:</p>
+<ul>
+  <li><code>scene://namespace/main</code> → <code>scenes/main.scene.json</code></li>
+  <li><code>prefab://characters/player</code> → <code>prefabs/characters/player.prefab.json</code></li>
+  <li><code>ui-prefab://controls/menu_button</code> → <code>ui/controls/menu_button.ui.prefab.json</code></li>
+  <li><code>asset://textures/brick</code> → <code>assets/textures/brick.asset.json</code></li>
+  <li><code>asset-group://level_one</code> → <code>assets/level_one.asset-group.json</code></li>
+  <li><code>script://scripts/player.lua</code> → <code>scripts/player.lua</code></li>
+</ul>
+<p>Project scene entries may omit <code>path</code> when the conventional path can be inferred from the scene ID. Explicit paths remain valid.</p>
+
+<h2>Entities and hierarchy</h2>
+<p>Entities carry a stable document-wide ID, optional name/tags/layer, and a <code>components</code> object. Prefer <code>children</code> arrays for visually meaningful local hierarchies:</p>
+<pre><code>{
+  "id": "house",
+  "components": { "Transform3D": { "position": [0, 0, 0] } },
+  "children": [
+    { "id": "roof", "components": { "Transform3D": { "position": [0, 2, 0] } } }
+  ]
+}</code></pre>
+<p>IDs stay document-wide; nesting is not an ID namespace. Keep explicit transform <code>parent</code> for cross-prefab or cross-scene relationships that cannot be nested in the authored document.</p>
+<div class="docs-note"><strong>Hierarchy rule</strong><p>Transform parents must share a dimensional domain: <code>Transform2D</code>, <code>Transform3D</code>, or <code>IsoTransform</code>. Mixed domains and conflicting explicit parents are validation errors. Maximum nesting depth is 128.</p></div>
+
+<h2>Components, not frameworks</h2>
+<p>A component is authored JSON data for one capability on an entity. Examples: <code>Sprite</code>, <code>SpriteAnimator2D</code>, <code>Tilemap2D</code>, <code>Camera2D</code>, <code>Rigidbody2D</code>, <code>MeshRenderer</code>, <code>AnimationPlayer3D</code>, <code>CharacterController3D</code>, <code>Fracture3D</code>, <code>AudioSource</code>, <code>LuaScript</code>.</p>
+<p>Fields you omit use the component’s defaults, so newly authored JSON stays short. Write only the values that differ from the default. Existing explicit values are preserved as-is.</p>
+<p>Assets contain resources; entities use them. A model asset does not itself have health, collision, or game logic. Add those components or scripts to the entity that renders the model, then save the composition as a prefab.</p>
+
+<h2>Lua gameplay</h2>
+<p>Gameplay rules live in Lua. Import the services you need and call them through the returned table:</p>
+<pre><code>local Input = require("demi.input")
+local Transform3D = require("demi.transform3d")
+
+local x, y = Input.vector("move")          -- -1 … 1 per axis
+local px, py, pz = Transform3D.get_position("player")</code></pre>
+<p>Optional gameplay packages install Lua modules under dotted namespaces such as <code>demi.gameplay.health</code> or <code>demi.network.session</code>.</p>
+<p>See <a href="{{ path('docs_page', {slug: 'scripting'}) }}">Lua scripting</a> and the <a href="{{ path('docs_page', {slug: 'lua-api'}) }}">Lua API reference</a>.</p>
+
+<h2>Source, generated, and writable data</h2>
+<ul>
+  <li><strong>Source</strong> — scenes, prefabs, scripts, asset manifests, data, project files. You edit these.</li>
+  <li><strong>Generated</strong> — cook output, imported generated sources, fracture geometry, installed packages under <code>.demi/</code>. Never hand-edit; never commit build outputs.</li>
+  <li><strong>Writable</strong> — game saves and caches use platform user-data/cache directories, never the application or cooked source directory.</li>
+</ul>
+
+<h2>Determinism</h2>
+<p>Simulation uses a project-fixed timestep (default <code>1/60</code>) with a capped number of fixed steps per frame. Randomness is seeded from the project. Physics contacts are dispatched in a stable order. Input can be recorded and replayed. These rules make runs, replays, and E2E tests comparable.</p>
+
+<h2>Where to continue</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'project-format'}) }}">Project &amp; file formats</a> — concrete JSON shapes.</li>
+  <li><a href="{{ path('docs_page', {slug: 'capabilities'}) }}">Capabilities</a> — what is stable versus experimental.</li>
+  <li><a href="{{ path('docs_page', {slug: 'packages'}) }}">Packages</a> — reusable gameplay and assets.</li>
+</ul>

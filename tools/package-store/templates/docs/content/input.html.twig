@@ -1,0 +1,116 @@
+<h1>Input</h1>
+<p>Input is action-based and contextual. Keyboard, mouse, gamepads, touch, gestures, and HUD virtual controls all feed the same action queries, so gameplay code never cares which device produced the signal.</p>
+
+<h2>Declare actions in the project</h2>
+<pre><code>"input": {
+  "presets": ["wasd_arrows", "confirm", "gamepad_confirm", "move_3d"],
+  "actions": {
+    "move": {
+      "type": "vector2",
+      "context": "gameplay",
+      "bindings": [
+        { "input": "key:a", "vector": [-1, 0] },
+        { "input": "key:d", "vector": [1, 0] },
+        { "input": "gamepad:stick:left", "deadzone": 0.18 },
+        { "input": "virtual:move" }
+      ]
+    },
+    "jump": {
+      "type": "button",
+      "context": "gameplay",
+      "bindings": [
+        { "input": "key:space" },
+        { "input": "gamepad:a" }
+      ]
+    }
+  }
+}</code></pre>
+<p>Each action is a named logical control. Bindings list the physical inputs that feed it:</p>
+<ul>
+  <li><code>type</code> is <code>button</code> (pressed or not), <code>axis1d</code> (one scalar −1…1), or <code>vector2</code> (two scalars).</li>
+  <li><code>context</code> groups actions so menus can disable gameplay without touching scripts. Defaults to <code>gameplay</code>.</li>
+  <li><code>vector</code> on a key binding maps a key to a direction (used for WASD).</li>
+  <li><code>deadzone</code> (0…0.99) ignores small stick deflection.</li>
+  <li><code>scale</code> (−1…1) and <code>invert</code> flip or shrink an axis.</li>
+  <li><code>normalize</code> clamps combined bindings to a unit vector.</li>
+  <li><code>player</code> routes the binding to a local player slot.</li>
+</ul>
+<p>Prefer the input presets — <code>wasd_arrows</code>, <code>confirm</code>, <code>gamepad_confirm</code>, <code>move_3d</code> — and override only what you need.</p>
+
+<h2>Device names</h2>
+<table>
+  <thead><tr><th>Pattern</th><th>Examples</th></tr></thead>
+  <tbody>
+    <tr><td><code>key:&lt;key&gt;</code></td><td><code>key:w</code>, <code>key:space</code>, <code>key:left_shift</code></td></tr>
+    <tr><td><code>mouse:&lt;button&gt;</code></td><td><code>mouse:left</code>, <code>mouse:right</code>, <code>mouse:middle</code></td></tr>
+    <tr><td><code>gamepad:&lt;button&gt;</code></td><td><code>gamepad:a</code>, <code>gamepad:start</code></td></tr>
+    <tr><td><code>gamepad:axis:&lt;axis&gt;</code></td><td><code>gamepad:axis:trigger_left</code></td></tr>
+    <tr><td><code>gamepad:stick:left|right</code></td><td>2D stick, respects <code>deadzone</code></td></tr>
+    <tr><td><code>virtual:&lt;control&gt;</code></td><td><code>virtual:move</code>, <code>virtual:move:x</code>, <code>virtual:fire</code></td></tr>
+  </tbody>
+</table>
+<p>Names are case-insensitive. HUD <code>virtual_button</code> and <code>virtual_stick</code> nodes publish <code>virtual:&lt;control&gt;</code> bindings.</p>
+
+<h2>Action queries</h2>
+<pre><code>local Input = require("demi.input")
+
+if Input.pressed("jump") then
+    -- true only on the frame the action went down
+end
+if Input.down("fire") then
+    -- true every frame while held
+end
+if Input.released("fire") then
+    -- true only on the frame it came up
+end</code></pre>
+<p>All three return a plain boolean. Call them once per frame and store the result if you need it in several places.</p>
+<pre><code>local strength = Input.value("accelerate")  -- 0.0 … 1.0 (axis1d)
+local x, y = Input.vector("move")           -- two scalars, clamped to a unit circle
+local rx, ry = Input.raw_vector("move")     -- two scalars, unclamped
+local source = Input.source("jump")         -- "key:space", "gamepad:a", …</code></pre>
+<ul>
+  <li><code>value</code> is how hard an analog control is pressed; buttons report 0 or 1.</li>
+  <li><code>vector</code> is safe to feed straight into movement (already normalized).</li>
+  <li><code>raw_vector</code> keeps the unnormalized values when you want speed to scale with stick deflection.</li>
+  <li><code>source</code> names the binding that produced the current value — useful for “press [key]” prompts.</li>
+</ul>
+<p>Raw key helpers bypass actions and read hardware directly. Use them for debug tools and editors:</p>
+<pre><code>if Input.key_down("left_shift") then end
+if Input.key_pressed("f1") then end
+if Input.key_released("f1") then end</code></pre>
+<p><code>Input.axis(negative, positive)</code> returns <code>positive − negative</code> as −1, 0, or 1 — handy for quick axis pairs without declaring a vector2 action.</p>
+
+<h2>Contexts</h2>
+<pre><code>Input.enable_context("menu")      -- menu actions become live
+Input.disable_context("gameplay") -- gameplay actions go silent
+if Input.context_enabled("gameplay") then end</code></pre>
+<p>Only actions whose <code>context</code> is currently enabled respond. An empty enabled set means every action reads as released. This is how a modal menu takes over without editing gameplay scripts.</p>
+
+<h2>Gamepads, rebinding, and persistence</h2>
+<pre><code>Input.assign_gamepad(1, 0)          -- device index 1 → player 0
+local count = Input.gamepad_count()  -- how many are connected
+
+Input.rebind("jump", "key:e", 0)     -- action, new device name, player
+Input.save_bindings("input/bindings.json")
+local ok = Input.load_bindings("input/bindings.json")  -- true when loaded</code></pre>
+<p><code>save_bindings</code> and <code>load_bindings</code> use paths relative to <code>Application.user_data_path()</code>, so player remaps survive updates and never write into the game install.</p>
+
+<h2>Touch and gestures</h2>
+<pre><code>for _, t in ipairs(Input.touches()) do
+    -- t.id, t.phase ("began"|"moved"|"ended"|"cancelled"),
+    -- t.position {x, y}, t.delta {x, y}, t.pressure
+end
+
+for _, g in ipairs(Input.gestures()) do
+    -- g.type ("tap"|"double-tap"|"long-press"|"drag"|"pinch"|"rotate")
+    -- plus type-specific fields (from/to, distance, angle, …)
+end
+
+print(Input.touch_count())</code></pre>
+<p>Both return arrays (empty when nothing happened this frame). Related helpers: <code>Input.mouse_down</code>, <code>mouse_position</code>, <code>mouse_delta</code>, <code>mouse_world_position</code>, <code>viewport_size</code>, <code>ui_pointer_captured</code> (true when a HUD control owns the pointer), <code>text_entered</code>, <code>set_text_input_active</code>.</p>
+
+<h2>Deterministic replay</h2>
+<p>Replay fixtures record action frames and re-apply them through the authored context filter. Enabled recorded actions take precedence over physical bindings. The project fixed timestep must match the fixture.</p>
+<pre><code>./build/linux-debug/demi run --project games/my_game \
+  --input-replay fixtures/smoke.replay.json</code></pre>
+<p>See <a href="{{ path('docs_page', {slug: 'testing'}) }}">Testing &amp; debugging</a> for E2E-driven input and replay workflows.</p>

@@ -16,7 +16,16 @@ const assert = require('node:assert/strict');
   assert.equal(await page.getByRole('link',{name:'Example instructions',exact:false}).count(),1);
   assert.equal(await page.locator('.home-preview img').getAttribute('src'),'/images/destruction-lab.png');
   assert.match(await page.locator('.engine-status').textContent(),/What comes next/);
-  assert.ok(await page.locator('a[href$="/docs/lua-modules.md"]').count());
+  assert.ok(await page.locator('.engine-features').count());
+  assert.equal(await page.locator('.feature-grid article').count(),12);
+  assert.ok(await page.locator('a[href="/docs/lua-api"]').count());
+  await page.goto(origin+'/docs');
+  assert.match(await page.locator('h1').textContent(),/Learn the engine/);
+  assert.equal(await page.locator('.docs-toc-section').count(),4);
+  await page.goto(origin+'/docs/getting-started');
+  assert.match(await page.locator('.docs-article h1').textContent(),/Getting started/);
+  assert.ok(await page.locator('.docs-sidebar a[aria-current="page"]').count());
+  assert.equal(await page.request.get(origin+'/docs/not.present').then(r=>r.status()),404);
   for (const width of [1440, 768, 390]) {
     await page.setViewportSize({width,height:1000});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth > innerWidth),false);

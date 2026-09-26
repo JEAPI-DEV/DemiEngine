@@ -1,0 +1,101 @@
+<h1>Scene &amp; prefab API</h1>
+<p>Scenes are the big chunks of your game — a Skyforge level, a town, a boss arena. Prefabs are reusable object templates you place many times. This page covers loading scenes without stalling the game and instantiating prefabs from scripts.</p>
+
+<h2>What scenes and prefabs are</h2>
+<p>A <strong>scene</strong> is one authored document (<code>*.scene.json</code>) with a set of entities. Games switch scenes to move between areas. A <strong>prefab</strong> is a saved entity tree (a weapon, a crate stack, an enemy kit) you can instantiate as many times as you need. Scenes reference prefabs; prefabs do not load scenes.</p>
+<p>Scene URIs look like <code>scene://game/skyforge_outpost</code>. Prefab URIs look like <code>prefab://props/skyforge_rune</code>. Both are stable IDs, never file paths.</p>
+
+<h2>Two-phase scene loading</h2>
+<p>Loading a big level from disk in one step would freeze the frame. DemiEngine splits it in two: <strong>prepare</strong> (load in the background, show a progress number) and <strong>activate</strong> (swap it in at a frame boundary so the swap never tears a frame in half).</p>
+<pre><code>local Scene = require("demi.scene")
+
+Scene.prepare("scene://game/skyforge_outpost")   -- starts background load
+
+function Game:on_update()
+    local p = Scene.progress()        -- 0.0 … 1.0
+    if Scene.is_prepared() then
+        Scene.activate()              -- swap at the next frame boundary
+    end
+end</code></pre>
+<p><code>Scene.prepare(uri, additive?)</code> begins loading. Pass <code>true</code> as the second argument to load additively on top of the current scene instead of replacing it. <code>Scene.progress()</code> returns a number from <code>0</code> to <code>1</code>. <code>Scene.is_prepared()</code> returns a boolean that is <code>true</code> when the load finished and the scene is waiting to go live. <code>Scene.activate()</code> commits the swap at the next frame boundary and returns nothing.</p>
+
+<h2>Scene calls</h2>
+<table>
+  <thead><tr><th>Call</th><th>Takes</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>Scene.load(uri)</code></td><td>Scene URI</td><td>Starts an immediate load. For progress UI prefer <code>prepare</code>/<code>activate</code>.</td></tr>
+    <tr><td><code>Scene.reload()</code></td><td>Nothing</td><td>Reloads the current scene from its document.</td></tr>
+    <tr><td><code>Scene.prepare(uri, additive?)</code></td><td>Scene URI, optional boolean</td><td>Starts a background load.</td></tr>
+    <tr><td><code>Scene.cancel()</code></td><td>Nothing</td><td>Aborts a pending prepare.</td></tr>
+    <tr><td><code>Scene.progress()</code></td><td>Nothing</td><td>Number <code>0</code>…<code>1</code> for the pending prepare.</td></tr>
+    <tr><td><code>Scene.is_prepared()</code></td><td>Nothing</td><td>Boolean, <code>true</code> when ready to activate.</td></tr>
+    <tr><td><code>Scene.activate()</code></td><td>Nothing</td><td>Commits the prepared scene at the frame boundary.</td></tr>
+    <tr><td><code>Scene.unload(uri)</code></td><td>Scene URI</td><td>Removes a scene (useful for additive layers).</td></tr>
+    <tr><td><code>Scene.set_persistent(id, on)</code></td><td>Entity handle, boolean</td><td>Marks an entity to survive scene switches.</td></tr>
+    <tr><td><code>Scene.active()</code></td><td>Nothing</td><td>URI string of the live scene.</td></tr>
+    <tr><td><code>Scene.error()</code></td><td>Nothing</td><td>Error message string, or <code>nil</code> when the last load succeeded.</td></tr>
+  </tbody>
+</table>
+<p>Always check <code>Scene.error()</code> after a load attempt. It is <code>nil</code> on success and a human-readable string on failure — a missing document, a bad reference, a schema mismatch.</p>
+
+<h2>Scene events</h2>
+<p>Other scripts often need to know when the world changed. These engine events fire through <a href="{{ path('docs_page', {slug: 'events-and-timers'}) }}">Events</a>:</p>
+<ul>
+  <li><code>scene_loaded</code> — a scene finished loading and is live.</li>
+  <li><code>scene_unloading</code> — a scene is about to go away (last chance to read its entities).</li>
+  <li><code>scene_unloaded</code> — a scene is gone.</li>
+  <li><code>active_scene_changed</code> — the active scene URI changed (including after <code>activate</code>).</li>
+</ul>
+<pre><code>local Events = require("demi.events")
+
+local token = Events.subscribe("scene_loaded", function(payload)
+    -- payload.scene: URI string of the scene that loaded
+end)</code></pre>
+<p><code>Events.subscribe(name, handler)</code> registers the handler and returns an opaque token. The handler receives one payload table; for <code>scene_loaded</code> that table has a <code>scene</code> field with the URI string. Store the token if you plan to <code>Events.unsubscribe(token)</code> later.</p>
+
+<h2>Instantiating prefabs</h2>
+<p>A prefab instance is a whole entity tree. The call returns the <strong>root</strong> handle; children are addressed as strings of the form <code>"instanceId/localId"</code>, where <code>localId</code> is the child's authored ID inside the prefab.</p>
+<pre><code>local Prefab = require("demi.prefab")
+
+local root = Prefab.instantiate("prefab://props/skyforge_rune", {
+    id = "rune_a",                 -- optional instance id
+    position = { 3, 0, 8 },        -- optional Vec3 world position
+    overrides = { lit = true },    -- optional field overrides
+    pooled = true,                 -- optional instance pooling
+})
+-- root: root entity handle, or nil on failure
+
+local child = root .. "/glow"     -- "rune_a/glow" style instanceId/localId</code></pre>
+<table>
+  <thead><tr><th>Option</th><th>Type</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>id</code></td><td>string</td><td>Instance ID for this copy. Child handles read as <code>"&lt;id&gt;/&lt;localId&gt;"</code>.</td></tr>
+    <tr><td><code>position</code></td><td><code>{x,y,z}</code></td><td>World position for the root (3-number array).</td></tr>
+    <tr><td><code>overrides</code></td><td>table</td><td>Field values applied on top of the prefab's authored values.</td></tr>
+    <tr><td><code>pooled</code></td><td>boolean</td><td>Reuse released instances instead of rebuilding the tree.</td></tr>
+  </tbody>
+</table>
+<p><code>Prefab.instantiate(prefabUri, options)</code> returns the root handle, or <code>nil</code> if the prefab is unknown or the options are invalid. Children are never returned as an array from this call — they live under the root and are addressed by their <code>"instanceId/localId"</code> strings.</p>
+<pre><code>local Prefab = require("demi.prefab")
+
+Prefab.release(root)                  -- return a pooled instance (or destroy a non-pooled one)
+print(Prefab.pooled_count("prefab://props/skyforge_rune"))  -- number of idle pooled instances
+
+local spots = Prefab.placements(Entity.find("skyforge_altar"))
+-- spots: array of placement tables for instances under that ancestor (possibly empty)
+
+Prefab.set_template_cache_capacity(8) -- how many prepared templates to keep warm</code></pre>
+<ul>
+  <li><code>Prefab.release(root)</code> — returns a pooled instance to the pool, or destroys a non-pooled one. Returns nothing.</li>
+  <li><code>Prefab.pooled_count(prefabUri)</code> → number of idle instances currently pooled for that prefab (may be <code>0</code>).</li>
+  <li><code>Prefab.placements(ancestor)</code> → array of placement records for prefab instances under the given ancestor; empty array when there are none, never <code>nil</code>.</li>
+  <li><code>Prefab.set_template_cache_capacity(n)</code> — keeps up to <code>n</code> decoded templates ready for fast instantiation. Returns nothing.</li>
+</ul>
+<p>Pooling matters for projectiles and pickups: instantiate once, <code>release</code> when done, instantiate again to reuse the tree without a rebuild.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'entity-api'}) }}">Entity API</a> — handles, queries, and parenting.</li>
+  <li><a href="{{ path('docs_page', {slug: 'asset-groups'}) }}">Asset groups &amp; streaming</a> — preloading a level's assets before <code>activate</code>.</li>
+  <li><a href="{{ path('docs_page', {slug: 'events-and-timers'}) }}">Events &amp; timers</a> — reacting to scene changes.</li>
+</ul>

@@ -1,0 +1,193 @@
+<h1>Asset manifests</h1>
+<p>An <strong>asset manifest</strong> is a small JSON file that gives one game resource a stable identity and records how it should be imported. Textures, fonts, sounds, models, and data files are all referenced the same way — by an <code>asset://</code> URI — and the manifest is what stands behind that name. This page explains what a manifest contains and how its settings shape each kind of asset.</p>
+
+<h2>What a manifest is</h2>
+<p>Two jobs, one file:</p>
+<ul>
+  <li><strong>Identity</strong> — the <code>id</code> is the name the rest of the game uses. Scene components, HUD nodes, and scripts say <code>asset://textures/brick</code>; nobody embeds a file path. If you move the source image on disk, the name does not change.</li>
+  <li><strong>Import settings</strong> — how the source file is turned into a runtime resource: filtering, wrapping, compression, quality, font axes, and so on. These are authored decisions, not guesses made at load time.</li>
+</ul>
+<p>Manifest files are named <code>*.asset.json</code> and live under the project's <code>assets/</code> tree. Every manifest starts with <code>format_version</code>.</p>
+<p>URI convention: <code>asset://textures/brick</code> points at <code>assets/textures/brick.asset.json</code>. The engine references assets by URI only — see <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a> for how project-level references work.</p>
+
+<h2>A minimal texture manifest</h2>
+<pre><code>{
+  "format_version": 1,
+  "id": "asset://textures/brick",
+  "type": "Texture2D",
+  "source": "assets/textures/brick.png",
+  "settings": {
+    "filter": "nearest",
+    "wrap": "repeat"
+  }
+}</code></pre>
+<p>Field by field:</p>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>format_version</code></td><td>Always required. Documents without it are rejected.</td></tr>
+    <tr><td><code>id</code></td><td>The asset URI. <code>asset://textures/brick</code> maps to this file at <code>assets/textures/brick.asset.json</code>.</td></tr>
+    <tr><td><code>type</code></td><td>What kind of resource this is (here <code>Texture2D</code>). The type decides which importer runs and which <code>settings</code> apply.</td></tr>
+    <tr><td><code>source</code></td><td>Path to the original file being imported (here a PNG). Relative paths are resolved inside the project.</td></tr>
+    <tr><td><code>settings</code></td><td>Type-specific import options. For textures: <code>filter</code> chooses the sampling sharpness (<code>nearest</code> for crisp pixels, <code>bilinear</code>, <code>trilinear</code> for smooth scaling), <code>wrap</code> chooses what happens at the edges (<code>repeat</code>, <code>clamp</code>, <code>mirror</code>).</td></tr>
+  </tbody>
+</table>
+<p>That is the whole contract: name it, type it, point at the file, describe how to treat it.</p>
+
+<h2>Asset types</h2>
+<p><code>type</code> selects one of these resource kinds:</p>
+<table>
+  <thead><tr><th>Type</th><th>Holds</th></tr></thead>
+  <tbody>
+    <tr><td><code>Texture2D</code></td><td>A 2D image.</td></tr>
+    <tr><td><code>TextureAtlas2D</code></td><td>Several sprites packed into one image.</td></tr>
+    <tr><td><code>SpriteMetadata2D</code></td><td>Slicing information for sprites inside a texture.</td></tr>
+    <tr><td><code>Font2D</code></td><td>A font face.</td></tr>
+    <tr><td><code>FontAtlas2D</code></td><td>Rasterized glyphs ready to draw.</td></tr>
+    <tr><td><code>Model3D</code></td><td>A 3D model, with optional animation clips.</td></tr>
+    <tr><td><code>Collider3D</code></td><td>A 3D collision shape.</td></tr>
+    <tr><td><code>AudioClip</code></td><td>A sound or music file.</td></tr>
+    <tr><td><code>VideoClip</code></td><td>A video file.</td></tr>
+    <tr><td><code>DataAsset</code></td><td>Structured game data (tables, configs) with a content type and tags.</td></tr>
+    <tr><td><code>DataSchema</code></td><td>A schema describing the shape of data.</td></tr>
+    <tr><td><code>NetworkContract</code></td><td>The message/component contract for networked play.</td></tr>
+    <tr><td><code>Material</code></td><td>Surface appearance settings.</td></tr>
+    <tr><td><code>Shader</code></td><td>A shader program.</td></tr>
+    <tr><td><code>RenderTarget</code></td><td>A GPU surface drawn into at run time.</td></tr>
+    <tr><td><code>Tilemap2D</code></td><td>A tiled 2D level layout.</td></tr>
+    <tr><td><code>Icon2D</code></td><td>An application icon source.</td></tr>
+    <tr><td><code>SvgTexture2D</code></td><td>A vector image rasterized to a texture.</td></tr>
+    <tr><td><code>GifAnimation2D</code></td><td>An animated GIF.</td></tr>
+    <tr><td><code>ImageAnimation2D</code></td><td>An image sequence animation.</td></tr>
+  </tbody>
+</table>
+
+<h2>Change tracking: <code>source_hash</code> and <code>dependencies</code></h2>
+<pre><code>"source_hash": "fnv1a64:0x8c31a9d2e01b44f7",
+"dependencies": [
+  "asset://textures/hero_mask"
+]</code></pre>
+<ul>
+  <li><code>source_hash</code> is a fingerprint of the source file (written as <code>fnv1a64:…</code>). It tracks changes: when the file on disk differs from the recorded hash, the asset is re-imported. You do not edit this value by hand; it is recorded for you.</li>
+  <li><code>dependencies</code> lists other assets this one needs. If a dependency is re-imported, this asset is updated too, so nothing stale is served.</li>
+</ul>
+<p>Together they answer one user-facing question: "has anything this asset depends on changed since last import?" If yes, the next build or cook refreshes it automatically.</p>
+
+<h2>Settings by kind</h2>
+<p>The <code>settings</code> object changes meaning with <code>type</code>. Common fields:</p>
+
+<h3>Textures</h3>
+<pre><code>"settings": {
+  "filter": "bilinear",
+  "wrap": "clamp",
+  "mipmaps": true,
+  "compression": "quality",
+  "quality": 0.9
+}</code></pre>
+<ul>
+  <li><code>filter</code> — <code>nearest</code>, <code>bilinear</code>, or <code>trilinear</code>. Pixel art usually wants <code>nearest</code>.</li>
+  <li><code>wrap</code> — <code>repeat</code>, <code>clamp</code>, or <code>mirror</code> at the edges.</li>
+  <li><code>mipmaps</code> — build smaller copies for distant/scaled rendering.</li>
+  <li><code>compression</code> / <code>quality</code> — how much the file is squeezed in exchange for size.</li>
+</ul>
+
+<h3>Audio</h3>
+<pre><code>"settings": {
+  "streaming": true
+}</code></pre>
+<ul>
+  <li><code>streaming</code> — play long files from disk in chunks instead of loading them entirely into memory. Good for music; short effects usually stay fully loaded.</li>
+</ul>
+
+<h3>Fonts</h3>
+<pre><code>"settings": {
+  "glyph_ranges": ["latin", "symbols"],
+  "variations": { "weight": 500 }
+}</code></pre>
+<ul>
+  <li><code>glyph_ranges</code> — which character sets to rasterize. Only include what your text needs; every extra glyph costs atlas space.</li>
+  <li><code>variations</code> — variable-font axes (weight, width, …) as named numbers.</li>
+</ul>
+
+<h3>Data assets</h3>
+<pre><code>"settings": {
+  "schema": "asset://data/loot_schema",
+  "content_type": "application/json",
+  "tags": ["loot", "economy"]
+}</code></pre>
+<ul>
+  <li><code>schema</code> — an optional <code>asset://</code> reference to a <code>DataSchema</code> the content is checked against.</li>
+  <li><code>content_type</code> — what kind of data the file holds.</li>
+  <li><code>tags</code> — free-form labels for querying and tooling.</li>
+</ul>
+
+<h3>Models</h3>
+<pre><code>"settings": {
+  "animations": {
+    "clips": {
+      "idle": { "start_frame": 0, "end_frame": 24 },
+      "run":  { "start_frame": 25, "end_frame": 48 }
+    }
+  }
+}</code></pre>
+<ul>
+  <li><code>animations.clips</code> — names frame ranges inside the source animation so gameplay can request <code>idle</code> or <code>run</code> by name.</li>
+</ul>
+
+<h2>Platform overrides</h2>
+<p>Some resources must look or load differently per platform:</p>
+<pre><code>"settings": {
+  "filter": "bilinear",
+  "platform_overrides": {
+    "linux": { "compression": "none" },
+    "linux_server": { "quality": 0.5 },
+    "android": { "compression": "size", "mipmaps": true }
+  }
+}</code></pre>
+<ul>
+  <li><code>platform_overrides</code> keys are <code>linux</code>, <code>linux_server</code>, and <code>android</code>.</li>
+  <li>Each entry lists setting fields that replace the base values when cooking for that platform. Android might trade quality for size; a headless server build might drop expensive options.</li>
+  <li>Fields you do not override keep their top-level <code>settings</code> values.</li>
+</ul>
+
+<h2>Importer metadata, license, and attribution</h2>
+<pre><code>"importer": "texture2d",
+"importer_version": 1,
+"license": "CC0-1.0",
+"attribution": "Brick texture by A. Artist",
+"generated_output": "generated/assets/textures/brick"</code></pre>
+<ul>
+  <li><code>importer</code> / <code>importer_version</code> — which import path handled this asset and its revision. Recorded automatically when the asset is imported.</li>
+  <li><code>license</code> — the license of the source file. Required for anything you did not make yourself.</li>
+  <li><code>attribution</code> — credit text for the author. Ship it with the game when the license asks for it.</li>
+  <li><code>generated_output</code> — where the imported result is written during a build. Generated files are build output, not authored source; do not edit them.</li>
+</ul>
+
+<h2>Asset groups</h2>
+<p>Assets are loaded one by one on purpose — a texture only loads when something asks for it. When you <em>do</em> want a batch (everything a level needs, loaded together), you write an <strong>asset group</strong> in a separate <code>*.asset-group.json</code> document:</p>
+<pre><code>{
+  "format_version": 1,
+  "id": "asset-group://level_one",
+  "roots": [
+    "asset://textures/brick",
+    "scene://game/level_one"
+  ],
+  "budget": {
+    "resident_mb": 128,
+    "upload_ms_per_frame": 2,
+    "decoded_mb": 256
+  }
+}</code></pre>
+<ul>
+  <li><code>id</code> is an <code>asset-group://</code> URI: <code>asset-group://level_one</code> maps to <code>assets/level_one.asset-group.json</code>.</li>
+  <li><code>roots</code> lists what the group covers — individual <code>asset://</code> entries and/or whole <code>scene://</code> entries.</li>
+  <li><code>budget</code> states the limits you intend to stay under: <code>resident_mb</code> (memory held after load), <code>upload_ms_per_frame</code> (how much upload work per frame), <code>decoded_mb</code> (optional decoded-size ceiling).</li>
+</ul>
+<p>Groups do not change what individual assets mean; they only batch loading and unloading. The project's <code>assets</code> array is startup preload only. Full workflow: <a href="{{ path('docs_page', {slug: 'asset-groups'}) }}">Asset groups &amp; streaming</a>, and budgets on <a href="{{ path('docs_page', {slug: 'performance-budgets'}) }}">Performance budgets</a>.</p>
+
+<h2>Where manifests are used</h2>
+<ul>
+  <li>Scenes and prefabs reference textures, fonts, and models by <code>asset://</code> URI: <a href="{{ path('docs_page', {slug: 'scene-json'}) }}">Scene files</a>, <a href="{{ path('docs_page', {slug: 'prefab-json'}) }}">Prefab files</a>.</li>
+  <li>HUD nodes take fonts and textures the same way: <a href="{{ path('docs_page', {slug: 'hud-json'}) }}">HUD files</a>.</li>
+  <li>Build metadata uses icon and splash assets: <a href="{{ path('docs_page', {slug: 'build-and-platform'}) }}">Build &amp; platform settings</a>.</li>
+</ul>

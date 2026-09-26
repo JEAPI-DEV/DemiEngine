@@ -1,0 +1,149 @@
+<h1>E2E tests</h1>
+<p>An <strong>end-to-end test</strong> plays your game automatically and checks that it behaves: this button opens that scene, that enemy dies when hit, the HUD updates when health changes. E2E tests exist so regressions are caught by a command in seconds, instead of by a player after release. DemiEngine E2E tests are Lua scripts run through the real runtime — the same loader, input, and rendering path a player uses. This page explains how to write and run them, using "Skyforge" at <code>games/my_game</code>.</p>
+
+<h2>Where tests live</h2>
+<p>Project tests live in one file:</p>
+<pre><code>games/my_game/scripts/tests/e2e.lua</code></pre>
+<p>That file returns a table with a <code>tests</code> array. Each entry is one test: a <code>name</code> and a <code>func</code>:</p>
+<pre><code>local Test = require("demi.test")
+
+local tests = {
+    {
+        name = "menu_opens_game",
+        func = function()
+            Test.expect_scene("scene://game/menu")
+            Test.touch("btn_play")
+            Test.expect_scene("scene://game/main", 5.0)
+        end
+    },
+    {
+        name = "player_health_bar_follows",
+        func = function()
+            Test.expect(Test.node_center("health_bar") ~= nil, "health bar exists")
+        end
+    }
+}
+
+return { tests = tests }</code></pre>
+<ul>
+  <li><code>require("demi.test")</code> — imports the test helper table. Available only in test runs.</li>
+  <li><code>tests</code> — the array of test entries the runner executes in order.</li>
+  <li><code>name</code> — the string printed in the <code>PASS</code>/<code>FAIL</code> marker line.</li>
+  <li><code>func</code> — the function that performs the test using <code>Test</code> calls. It returns nothing; assertions decide pass or fail.</li>
+  <li><code>return { tests = tests }</code> — what the file must return for the runner to find the suite.</li>
+</ul>
+
+<h2>The Test helpers</h2>
+<p>Every helper is stable-ID first: prefer names over coordinates so tests survive resolution, orientation, DPI, and safe-area changes.</p>
+
+<h3>Touch and gestures</h3>
+<pre><code>Test.touch("btn_play")</code></pre>
+<ul>
+  <li><code>Test.touch(node_id)</code> — activates the HUD node with that stable ID as if a player tapped it. Returns nothing.</li>
+</ul>
+<pre><code>Test.tap(320, 240)</code></pre>
+<ul>
+  <li><code>Test.tap(x, y)</code> — taps a screen position in canvas coordinates. Use only when no node ID exists.</li>
+</ul>
+<pre><code>Test.swipe("virtual_stick", 1, 0)
+Test.swipe_xy(300, 200, 360, 200)</code></pre>
+<ul>
+  <li><code>Test.swipe(node_id, dx, dy)</code> — drags on the HUD node with that ID by the given delta. Returns nothing.</li>
+  <li><code>Test.swipe_xy(x0, y0, x1, y1)</code> — drags between two screen coordinates.</li>
+</ul>
+
+<h3>Waiting and measuring</h3>
+<pre><code>Test.wait(0.5)</code></pre>
+<ul>
+  <li><code>Test.wait(seconds)</code> — advances game time by the given number of seconds. Bounded and deterministic; prefer it over wall-clock sleeps.</li>
+</ul>
+<pre><code>Test.expect_scene("scene://game/main", 5.0)</code></pre>
+<ul>
+  <li><code>Test.expect_scene(scene_id, timeout?)</code> — waits until the named scene is active. The optional <code>timeout</code> is a maximum wait in seconds; without it, the suite's default bound applies. Fails the test if the scene does not appear in time.</li>
+</ul>
+<pre><code>Test.expect(health &gt; 0, "player is still alive")</code></pre>
+<ul>
+  <li><code>Test.expect(condition, message)</code> — asserts that <code>condition</code> is true. On failure it reports <code>message</code> in the test output. Returns nothing.</li>
+</ul>
+<pre><code>local center = Test.node_center("btn_play")  -- {x, y} or nil</code></pre>
+<ul>
+  <li><code>Test.node_center(node_id)</code> — returns a table with <code>x</code> and <code>y</code> (numbers) for the HUD node's center, or <code>nil</code> when no such node exists.</li>
+</ul>
+
+<h2>Output markers</h2>
+<p>Every run prints line-oriented markers so logs and continuous integration can parse the outcome:</p>
+<pre><code>[test] PASS menu_opens_game
+[test] FAIL player_health_bar_follows
+[test] SUMMARY passed=1 failed=1</code></pre>
+<ul>
+  <li><code>[test] PASS name</code> — one line per test that succeeded.</li>
+  <li><code>[test] FAIL name</code> — one line per test that failed.</li>
+  <li><code>[test] SUMMARY passed=N failed=M</code> — the final line of every run, always printed even when something crashed.</li>
+</ul>
+<p>The command exits <code>0</code> when <code>failed=0</code> and <code>1</code> when any test failed.</p>
+
+<h2>Running tests</h2>
+<p>Four runners cover the same suite at different levels of realism:</p>
+<pre><code>./build/linux-debug/demi test linux --project games/my_game</code></pre>
+<ul>
+  <li><code>test linux --project p</code> — desktop end-to-end through the real runtime on this machine.</li>
+</ul>
+<pre><code>./build/linux-debug/demi test android --project games/my_game --serial &lt;device&gt;</code></pre>
+<ul>
+  <li><code>test android --project p --serial d</code> — device end-to-end via adb on a connected physical device. Android qualification uses real hardware; do not assume an emulator is available.</li>
+</ul>
+<pre><code>./build/linux-debug/demi run --project games/my_game --e2e-tests</code></pre>
+<ul>
+  <li><code>run --e2e-tests</code> — runs the project E2E scripts during a normal launch. Useful when you want the test pass and a playable window in one command.</li>
+</ul>
+<pre><code>DEMI_HEADLESS=1 ./build/linux-debug/demi test --project games/my_game</code></pre>
+<ul>
+  <li><code>DEMI_HEADLESS=1</code> — runs with no visible window. The fastest signal in a loop or on a build machine.</li>
+</ul>
+<p>Related command details are in <a href="{{ path('docs_page', {slug: 'cli-build-and-test'}) }}">Build, cook &amp; test</a>.</p>
+
+<h2>Writing tests that survive change</h2>
+<ul>
+  <li><strong>Prefer stable node IDs.</strong> <code>Test.touch("btn_play")</code> outlives a redesign that moves the button; <code>Test.tap(10, 10)</code> does not.</li>
+  <li><strong>Bound every wait.</strong> Pass a timeout to <code>expect_scene</code> and keep <code>wait</code> calls short. A test must finish, pass or fail.</li>
+  <li><strong>Stay independent.</strong> Each test should start from a known scene or state so one failure does not cascade into false failures.</li>
+  <li><strong>Assert meaning, not pixels.</strong> "The scene opened" and "health is above zero" are stable claims; "the pixel at 300,200 is red" is not.</li>
+  <li><strong>Use deterministic simulation.</strong> The fixed timestep and random seed of <a href="{{ path('docs_page', {slug: 'simulation-and-seeds'}) }}">Simulation &amp; seeds</a> make runs reproducible; tests should not need luck.</li>
+</ul>
+
+<h2>A Skyforge example</h2>
+<pre><code>local Test = require("demi.test")
+
+local tests = {
+    {
+        name = "arena_loads",
+        func = function()
+            Test.expect_scene("scene://game/arena", 5.0)
+        end
+    },
+    {
+        name = "fire_button_moves_hud",
+        func = function()
+            local before = Test.node_center("ammo_label")
+            Test.expect(before ~= nil, "ammo label is placed")
+            Test.touch("btn_fire")
+            Test.wait(0.2)
+        end
+    },
+    {
+        name = "score_screen_returns",
+        func = function()
+            Test.touch("btn_menu")
+            Test.expect_scene("scene://game/menu", 5.0)
+        end
+    }
+}
+
+return { tests = tests }</code></pre>
+<ul>
+  <li>The suite has three named tests executed in order: load the arena, fire through the HUD, and return to the menu.</li>
+  <li><code>expect_scene</code> fails the test if the scene is not active within 5 seconds.</li>
+  <li><code>node_center</code> returns <code>{x, y}</code> or <code>nil</code>; the test asserts the label exists before touching the fire button.</li>
+  <li>The run ends with <code>[test] SUMMARY passed=N failed=M</code> and the matching exit code.</li>
+</ul>
+<p>When a test fails in the field, capture it as an input recording and replay it locally — see <a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a>.</p>

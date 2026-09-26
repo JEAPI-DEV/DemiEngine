@@ -1,0 +1,217 @@
+<h1>Project &amp; file formats</h1>
+<p>Every durable document is JSON and keeps <code>format_version</code>. Unknown formats are rejected with clear diagnostics rather than silently ignored.</p>
+<div class="docs-note"><strong>Common questions</strong><p>“What is a binding and what does <code>vector</code> mean?” → <a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a>. “What is a virtual input?” → same page and <a href="{{ path('docs_page', {slug: 'virtual-and-touch'}) }}">Virtual &amp; touch input</a>. “What do physics layers do?” → <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">Physics layers</a>. “Why specify simulation settings?” → <a href="{{ path('docs_page', {slug: 'simulation-and-seeds'}) }}">Simulation &amp; seeds</a>. “What use are performance budgets?” → <a href="{{ path('docs_page', {slug: 'performance-budgets'}) }}">Performance budgets</a>.</p></div>
+
+<h2>Project — <code>demi.project.json</code></h2>
+<p>Required fields: <code>format_version</code>, <code>name</code>, <code>scenes</code>.</p>
+<pre><code>{
+  "format_version": 1,
+  "name": "My Game",
+  "main_scene": "scene://game/main",
+  "scenes": [
+    { "id": "scene://game/main", "path": "scenes/main.scene.json" }
+  ],
+  "assets": ["asset-group://startup"],
+  "packages": { "demi.gameplay.health": "^1.0.0" },
+  "package_registry": "https://demiengine.de",
+  "network_contract": "asset://network/arena_contract",
+  "input": {
+    "presets": ["wasd_arrows", "confirm", "gamepad_confirm"],
+    "actions": {
+      "move": {
+        "type": "vector2",
+        "context": "gameplay",
+        "bindings": [
+          { "input": "key:a", "vector": [-1, 0] },
+          { "input": "gamepad:stick:left", "deadzone": 0.18 },
+          { "input": "virtual:move" }
+        ]
+      }
+    }
+  },
+  "physics": { "layers": ["default", "player", "enemy", "world"] },
+  "simulation": {
+    "fixed_timestep": 0.016666667,
+    "random_seed": 1,
+    "maximum_fixed_steps_per_frame": 4
+  },
+  "display": { "vsync": true },
+  "performance_budgets": {
+    "maximum_frame_ms": 16.7,
+    "maximum_draw_calls": 800,
+    "maximum_resident_assets": 256
+  },
+  "debug": {
+    "colliders": false,
+    "contacts": false,
+    "grid": false,
+    "entity_ids": false,
+    "profiler_hud": false
+  },
+  "build": {
+    "application_id": "com.example.mygame",
+    "display_name": "My Game",
+    "executable_name": "my-game",
+    "version_name": "0.1.0",
+    "version_code": 1,
+    "icon": "asset://branding/icon",
+    "splash": "asset://branding/splash",
+    "window": { "width": 1280, "height": 720, "mode": "windowed" },
+    "android": { "orientation": "landscape", "permissions": [] }
+  }
+}</code></pre>
+<ul>
+  <li><code>assets</code> is <strong>startup preload only</strong>. It must not cause every project asset to load automatically.</li>
+  <li>Scene entries may omit <code>path</code> when it can be inferred from the scene ID.</li>
+  <li><code>physics.layers</code> is a named collision matrix (maximum 16 names, stable bit order).</li>
+  <li><code>performance_budgets</code> is project data for measurement; it never silently changes quality.</li>
+  <li><code>build.application_id</code> uses reverse-DNS form and is required before packaging.</li>
+</ul>
+
+<h2>Scene — <code>*.scene.json</code></h2>
+<p>Required: <code>format_version</code>, <code>id</code> (<code>scene://…</code>), and entity or instance content.</p>
+<pre><code>{
+  "format_version": 1,
+  "id": "scene://game/main",
+  "name": "Main",
+  "hud": "main.hud.json",
+  "entities": [
+    {
+      "id": "player",
+      "name": "Player",
+      "tags": ["hero"],
+      "components": {
+        "Transform2D": { "position": [4, 8] },
+        "Sprite": { "texture": "asset://sprites/player" },
+        "LuaScript": {
+          "module": "script://scripts/player.lua",
+          "properties": { "speed": 6.0 }
+        }
+      },
+      "children": [
+        { "id": "player/sword", "components": { "Sprite": { "texture": "asset://sprites/sword" } } }
+      ]
+    }
+  ],
+  "instances": [
+    {
+      "id": "doorway",
+      "prefab": "prefab://doorway",
+      "overrides": {
+        "frame": { "components": { "Transform2D": { "position": [12, 0] } } }
+      }
+    }
+  ]
+}</code></pre>
+<p>Optional entity fields: <code>enabled</code> (default true), <code>persistent</code> (default false), <code>layer</code>, <code>preset</code>/<code>size</code>/<code>radius</code>/<code>texture</code> shorthand expanded before parse.</p>
+
+<h2>Prefab — <code>*.prefab.json</code></h2>
+<p>Required: <code>format_version</code>, <code>id</code> (<code>prefab://…</code>), and at least one of <code>entities</code> / <code>instances</code>.</p>
+<pre><code>{
+  "format_version": 1,
+  "id": "prefab://characters/player",
+  "entities": [
+    {
+      "id": "body",
+      "components": {
+        "Transform3D": { "position": [0, 0, 0] },
+        "CharacterController3D": { "slope_limit_degrees": 45 }
+      },
+      "children": [
+        { "id": "visual", "components": { "MeshRenderer": { "model": "asset://models/hero" } } }
+      ]
+    }
+  ]
+}</code></pre>
+<p>Instance expansion prefixes IDs: local <code>body</code> with instance ID <code>player</code> becomes <code>player/body</code>. Nested prefab cycles are errors with a file chain. Override semantics:</p>
+<ul>
+  <li>absent field inherits;</li>
+  <li>objects merge recursively;</li>
+  <li>arrays replace;</li>
+  <li><code>null</code> removes a field, component, or entity;</li>
+  <li>dotted keys such as <code>body.Transform2D.position</code> set a single field.</li>
+</ul>
+
+<h2>HUD — <code>*.hud.json</code></h2>
+<p>Required: <code>format_version</code> and a <code>root</code> node (or top-level <code>children</code> when the root is omitted). Sizes use <code>canvas_size</code> units.</p>
+<pre><code>{
+  "format_version": 1,
+  "canvas_size": [1280, 720],
+  "respect_safe_area": true,
+  "root": {
+    "id": "menu",
+    "type": "container",
+    "stack": "column",
+    "dock": "fill",
+    "gap": 12,
+    "children": [
+      { "id": "title", "type": "label", "text": "${game_title}", "font_size": 32 },
+      {
+        "id": "start",
+        "type": "button",
+        "text": "Start",
+        "action": "confirm",
+        "prefab": "ui-prefab://controls/menu_button",
+        "arguments": { "label": "Start" }
+      }
+    ]
+  }
+}</code></pre>
+<p>Node types include <code>container</code>, <code>panel</code>, <code>label</code>, <code>text</code>, <code>image</code>, <code>button</code>, <code>toggle</code>, <code>slider</code>, <code>text_input</code>, <code>scroll</code>, <code>list</code>, <code>progress</code>, <code>modal</code>, <code>virtual_button</code>, and <code>virtual_stick</code>. Prefer <code>dock</code>, <code>stack</code>, <code>pad</code>, and <code>at</code> before raw anchors.</p>
+
+<h2>UI prefab — <code>*.ui.prefab.json</code></h2>
+<pre><code>{
+  "format_version": 1,
+  "id": "ui-prefab://controls/menu_button",
+  "parameters": {
+    "label": { "type": "string", "default": "Continue" }
+  },
+  "root": {
+    "id": "button",
+    "type": "button",
+    "text": "${label}"
+  }
+}</code></pre>
+<p>Instances use <code>{"prefab": "ui-prefab://menu_button", "arguments": {...}, "overrides": {...}}</code>. Expanded descendant IDs use <code>confirm.hint</code> style paths.</p>
+
+<h2>Asset manifest — <code>*.asset.json</code></h2>
+<pre><code>{
+  "format_version": 1,
+  "id": "asset://textures/brick",
+  "type": "Texture2D",
+  "source": "brick.png",
+  "importer": "texture",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:...",
+  "dependencies": [],
+  "settings": {
+    "filter": "nearest",
+    "wrap": "clamp",
+    "mipmaps": false,
+    "platform_overrides": {
+      "android": { "compression": "astc" }
+    }
+  },
+  "license": "CC0-1.0",
+  "attribution": "Kenney"
+}</code></pre>
+<p>Asset types: <code>Texture2D</code>, <code>TextureAtlas2D</code>, <code>SpriteMetadata2D</code>, <code>Font2D</code>, <code>FontAtlas2D</code>, <code>Model3D</code>, <code>Collider3D</code>, <code>AudioClip</code>, <code>VideoClip</code>, <code>DataAsset</code>, <code>DataSchema</code>, <code>NetworkContract</code>, <code>Material</code>, <code>Shader</code>, <code>RenderTarget</code>, <code>Tilemap2D</code>, <code>Icon2D</code>, <code>SvgTexture2D</code>, <code>GifAnimation2D</code>, <code>ImageAnimation2D</code>.</p>
+<p>Asset groups (<code>*.asset-group.json</code>) declare addressable roots and streaming budgets:</p>
+<pre><code>{
+  "format_version": 1,
+  "id": "asset-group://level_one",
+  "roots": ["asset://levels/one", "scene://game/level_one"],
+  "budget": { "resident_mb": 192, "decoded_mb": 384, "upload_ms_per_frame": 3 }
+}</code></pre>
+
+<h2>Tilemap — <code>*.tilemap.json</code></h2>
+<p>Versioned tile data referenced by a <code>Tilemap2D</code> asset: <code>tile_size</code>, <code>map_size</code>, <code>tilesets</code> (<code>first_tile</code>, <code>animations</code>), <code>object_layers</code>, and flat row-major <code>layers</code> with <code>parallax</code>, <code>opacity</code>, <code>collision</code>, <code>collision_layer</code>, <code>navigation_blocked</code>, and <code>navigation_cost</code>. Tile ID 0 is empty; positive IDs are global one-based; row 0 is the top row.</p>
+
+<h2>Saves — <code>*.save.json</code></h2>
+<p>Slot-based JSON saves with schema validation and optional migrations. Saves live in the platform user-data directory (<code>$XDG_DATA_HOME/&lt;game&gt;</code> on Linux), never in the project source tree. Slots survive install, upgrade, and rollback.</p>
+
+<h2>Packages</h2>
+<p>Project <code>packages</code> declares constraints; <code>demi.packages.lock.json</code> pins resolved versions. Package archives are <code>.demipkg</code> files with audited content roots. Portable asset bundles are <code>.demipack</code> containers (versioned JSON index + sorted file data with checksums).</p>
+
+<h2>Cook output</h2>
+<p><code>demi cook</code> writes <code>generated/cooked/&lt;platform&gt;</code> plus <code>cook.manifest.json</code> listing every included path and hash. Cook keys come from importer identity, settings, source hashes, platform, and package provenance — not timestamps.</p>

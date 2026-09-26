@@ -1,0 +1,109 @@
+<h1>UI prefabs</h1>
+<p>A <strong>UI prefab</strong> is a saved piece of HUD tree you can drop in many times with different contents — one button design for every menu, one row design for every inventory slot. It exists so repeated UI is authored once and instantiated with parameters instead of copied by hand. This page builds a parameterized prefab and shows every way an instance can fill and adjust it.</p>
+
+<h2>Why reusable UI</h2>
+<p>Skyforge has dozens of menu buttons and hundreds of inventory rows. Copying the same panel JSON into each place means every style tweak is a hundred edits. A prefab holds the shape once; each instance supplies its own label, icon, and one-off overrides. Update the prefab and every instance follows.</p>
+
+<h2>The prefab document</h2>
+<p>Prefabs live in <code>*.ui.prefab.json</code> files. Here is a complete menu-button prefab:</p>
+<pre><code>{
+  "format_version": 1,
+  "id": "ui-prefab://controls/menu_button",
+  "parameters": {
+    "label":   { "type": "string",  "default": "Continue" },
+    "hint":    { "type": "string",  "default": "" },
+    "enabled": { "type": "boolean", "default": true },
+    "pad":     { "type": "integer", "default": 12 }
+  },
+  "root": {
+    "type": "panel",
+    "stack": "column",
+    "padding": "${pad}",
+    "gap": 4,
+    "children": [
+      { "id": "button", "type": "button", "text": "${label}", "action": "ui_ok", "disabled": "${enabled}" },
+      { "id": "hint",   "type": "label",  "text": "${hint}", "font_size": 14, "accessibility_hidden": true }
+    ]
+  }
+}</code></pre>
+<ul>
+  <li><code>format_version</code> — always present in authored documents. Required.</li>
+  <li><code>id</code> — the prefab’s stable identity as a <code>ui-prefab://</code> URI. Required.</li>
+  <li><code>parameters</code> — map of parameter name to <code>{type, default}</code>. Types: <code>string</code>, <code>number</code>, <code>integer</code>, <code>boolean</code>, <code>array</code>, <code>object</code>. Omitted parameters fall back to their <code>default</code>.</li>
+  <li><code>root</code> — the subtree that gets expanded. Its <code>${name}</code> markers are filled from the arguments at instantiation.</li>
+</ul>
+<p>Read it as: “this prefab is a column panel with a button and a small hint label; the caller supplies the label text, an optional hint, whether the button is enabled, and the padding.”</p>
+
+<h2>Instancing with arguments and overrides</h2>
+<p>A HUD references the prefab in a node position and passes two optional maps:</p>
+<pre><code>{
+  "id": "confirm",
+  "prefab": "ui-prefab://controls/menu_button",
+  "arguments": { "label": "Confirm", "hint": "A / Enter" },
+  "overrides": { "button": { "style": "primary" } }
+}
+
+{
+  "id": "back",
+  "prefab": "ui-prefab://controls/menu_button",
+  "arguments": { "label": "Back", "enabled": false }
+}</code></pre>
+<ul>
+  <li><code>id</code> — the instance’s id in the hosting HUD. Required and document-unique.</li>
+  <li><code>prefab</code> — the <code>ui-prefab://</code> URI to expand. Required.</li>
+  <li><code>arguments</code> — map of parameter name to value. Every value must match the declared <code>type</code>. Omitted names use the parameter <code>default</code>. This is how <code>${label}</code>, <code>${hint}</code>, <code>${enabled}</code>, and <code>${pad}</code> get filled.</li>
+  <li><code>overrides</code> — map of descendant name to a patch of node fields, merged after expansion. Use it for one-off appearance that does not deserve a parameter.</li>
+</ul>
+<p>The first instance expands to a “Confirm” button with the hint “A / Enter” and the <code>primary</code> style on the inner button. The second is a disabled “Back” button with the default hint (empty) and default padding 12.</p>
+
+<h2>Descendant ID expansion</h2>
+<p>When a prefab expands, descendant ids are prefixed with the instance id and a dot, so two instances never collide:</p>
+<table>
+  <thead><tr><th>Prefab node</th><th>In instance <code>confirm</code></th><th>In instance <code>back</code></th></tr></thead>
+  <tbody>
+    <tr><td>root (unnamed)</td><td><code>confirm</code></td><td><code>back</code></td></tr>
+    <tr><td><code>button</code></td><td><code>confirm.button</code></td><td><code>back.button</code></td></tr>
+    <tr><td><code>hint</code></td><td><code>confirm.hint</code></td><td><code>back.hint</code></td></tr>
+  </tbody>
+</table>
+<p>Scripts address them through the dotted path — or through a handle:</p>
+<pre><code>local Hud = require("demi.hud")
+
+Hud.set_text("confirm.hint", "Tap to confirm")
+local btn = Hud.find("back.button")
+if btn then
+    Hud.set_disabled(btn, false)
+end</code></pre>
+<ul>
+  <li><code>"confirm.hint"</code> is the <code>hint</code> label inside the <code>confirm</code> instance. <code>Hud.set_text</code> takes the id and the new string; returns nothing.</li>
+  <li><code>Hud.find("back.button")</code> returns that button’s handle, or <code>nil</code> if the instance is gone. Generation checking keeps stale handles safe (see <a href="{{ path('docs_page', {slug: 'hud-from-lua'}) }}">HUD from Lua</a>).</li>
+</ul>
+<p>The instance id itself addresses the expanded root, so <code>Hud.set_visible("confirm", false)</code> hides the whole group.</p>
+
+<h2>Type errors and validation failures</h2>
+<p>Expansion is checked at load time. Each failure names the instance and the problem:</p>
+<table>
+  <thead><tr><th>Problem</th><th>Example</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Unknown parameter</td><td><code>"arguments": { "colour": "red" }</code></td><td>Validation error: no parameter named <code>colour</code>.</td></tr>
+    <tr><td>Type mismatch</td><td><code>"arguments": { "enabled": "yes" }</code> where <code>enabled</code> is <code>boolean</code></td><td>Validation error: expected <code>boolean</code>, got string.</td></tr>
+    <tr><td>Missing required value</td><td>A parameter with no <code>default</code> and no argument</td><td>Validation error: no value for the parameter.</td></tr>
+    <tr><td>Unresolved <code>${…}</code></td><td><code>${label}</code> in <code>root</code> with no matching parameter</td><td>Validation error: unresolved marker.</td></tr>
+    <tr><td>Reference cycle</td><td>Prefab A instances prefab B which instances A</td><td>Validation error: reference cycle.</td></tr>
+    <tr><td>Duplicate id</td><td>An expanded <code>confirm.hint</code> colliding with an authored node of that id</td><td>Validation error: duplicate id.</td></tr>
+    <tr><td>Unknown prefab URI</td><td><code>"prefab": "ui-prefab://controls/nope"</code></td><td>Validation error: unresolved prefab reference.</td></tr>
+  </tbody>
+</table>
+<p>Check a project and every reachable source from the CLI:</p>
+<pre><code>./build/linux-debug/demi validate games/skyforge</code></pre>
+<p>This validates the project and all reachable sources, including prefab expansion. Fix every reported instance before shipping — a HUD that fails validation does not load.</p>
+
+<h2>Nested prefabs</h2>
+<p>A prefab may instance other prefabs in its <code>root</code>, using the same <code>id</code>/<code>prefab</code>/<code>arguments</code>/<code>overrides</code> shape. Ids chain with dots (<code>confirm.icon.badge</code>), and cycles are rejected as above. Keep nesting shallow — one level of composition covers most menus and rows.</p>
+
+<h2>Next</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'hud-nodes'}) }}">HUD nodes</a> — every node type and its fields.</li>
+  <li><a href="{{ path('docs_page', {slug: 'hud-from-lua'}) }}">HUD from Lua</a> — addressing nodes and runtime creation.</li>
+  <li><a href="{{ path('docs_page', {slug: 'ui'}) }}">UI &amp; HUD</a> — the overview page.</li>
+</ul>

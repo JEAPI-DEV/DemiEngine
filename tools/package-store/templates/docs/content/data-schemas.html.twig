@@ -1,0 +1,139 @@
+<h1>Data schemas</h1>
+<p>Games carry lots of structured data: item tables, level configs, character stats, localization strings. A <strong>data schema</strong> is a machine-checkable description of what one of those documents is allowed to contain. Schemas exist so a typo in a JSON file is caught at load time with a precise error, instead of becoming a mysterious bug in the middle of a fight. This page covers declaring schemas, loading and querying data from Lua, and the reload events that keep live data fresh — using the sample game "Skyforge" at <code>games/my_game</code>.</p>
+
+<h2>What a DataSchema asset is</h2>
+<p>A <strong>DataSchema</strong> is an asset whose manifest settings describe the shape of a data document. The schema is referenced by a <strong>data asset</strong> (the JSON content itself). Validation then checks every load against the schema, and errors report the exact <strong>JSON pointer path</strong> of the offending field (for example <code>/items/2/price</code>).</p>
+<p>Why an asset and not a comment in the file? Because assets have stable IDs, are validated with everything else, and travel with the project through cook and package — the guarantee survives shipping.</p>
+
+<h2>Schema constraints</h2>
+<p>A schema is a JSON document listing constraints. Each constraint narrows what a valid value may be:</p>
+<table>
+  <thead><tr><th>Constraint</th><th>What it checks</th></tr></thead>
+  <tbody>
+    <tr><td><code>type</code></td><td>The JSON kind of the value: <code>object</code>, <code>array</code>, <code>string</code>, <code>number</code>, <code>integer</code>, or <code>boolean</code>.</td></tr>
+    <tr><td><code>required</code></td><td>Field names that must be present on an object.</td></tr>
+    <tr><td><code>properties</code></td><td>Nested schema per object field.</td></tr>
+    <tr><td><code>items</code></td><td>Schema every element of an array must satisfy.</td></tr>
+    <tr><td><code>enum</code></td><td>The exact set of allowed values.</td></tr>
+    <tr><td><code>minimum</code></td><td>Smallest allowed number.</td></tr>
+    <tr><td><code>maximum</code></td><td>Largest allowed number.</td></tr>
+    <tr><td><code>reference</code></td><td>Requires a URI of kind <code>asset</code>, <code>prefab</code>, or <code>scene</code> and validates that the URI resolves in the project.</td></tr>
+  </tbody>
+</table>
+<p>Here is a schema for Skyforge item rows:</p>
+<pre><code>{
+  "format_version": 1,
+  "type": "object",
+  "required": ["id", "name", "price"],
+  "properties": {
+    "id":    { "type": "string" },
+    "name":  { "type": "string" },
+    "price": { "type": "integer", "minimum": 0 },
+    "rarity": { "type": "string", "enum": ["common", "rare", "epic"] },
+    "icon":  { "type": "string", "reference": "asset" }
+  }
+}</code></pre>
+<ul>
+  <li><code>format_version</code> — always required; documents without it are rejected.</li>
+  <li><code>type: "object"</code> — the data document is a JSON object.</li>
+  <li><code>required</code> — <code>id</code>, <code>name</code>, and <code>price</code> must exist or the load fails with a JSON pointer error.</li>
+  <li><code>properties</code> — one nested constraint per field: strings for <code>id</code> and <code>name</code>, a non-negative integer for <code>price</code>, an enum for <code>rarity</code>, and an asset URI for <code>icon</code>.</li>
+  <li><code>reference: "asset"</code> — <code>icon</code> must be an <code>asset://</code> URI that actually resolves; a dangling reference is a validation error.</li>
+</ul>
+
+<h2>The data asset manifest</h2>
+<p>The JSON content is declared as a data asset. Its manifest settings carry three data-specific fields:</p>
+<pre><code>{
+  "format_version": 1,
+  "id": "asset://data/items",
+  "source": "assets/data/items.json",
+  "settings": {
+    "schema": "asset://schemas/item_row",
+    "content_type": "application/vnd.demi.items+json",
+    "tags": ["items", "economy"]
+  }
+}</code></pre>
+<ul>
+  <li><code>settings.schema</code> — the DataSchema asset ID validating this document.</li>
+  <li><code>settings.content_type</code> — a type label scripts use to find documents of this kind.</li>
+  <li><code>settings.tags</code> — free-form labels for grouping and queries.</li>
+  <li><code>source</code> — the JSON file to load. Source data documents use <code>format_version: 1</code> at their root.</li>
+</ul>
+<p>Validation errors for the content report the JSON pointer path inside the source file, so "price is not an integer at <code>/items/2/price</code>" is enough to jump straight to the row.</p>
+
+<h2>Loading data from Lua</h2>
+<p>The <code>Data</code> service loads and queries data assets. Import it explicitly, like every engine service:</p>
+<pre><code>local Data = require("demi.data")
+
+local items, err = Data.load("asset://data/items")</code></pre>
+<ul>
+  <li><code>require("demi.data")</code> — imports the data service table.</li>
+  <li><code>Data.load(id)</code> — loads the data asset with the given <code>asset://</code> ID and validates it against its schema.</li>
+  <li>On success it returns <code>value</code>, <code>nil</code> — the parsed document as a Lua table, and no error.</li>
+  <li>On failure it returns <code>nil</code>, <code>{code, message, path}</code> — a stable error code, a human-readable message, and the JSON pointer path of the offending value.</li>
+</ul>
+<p>Handle both shapes explicitly:</p>
+<pre><code>local items, err = Data.load("asset://data/items")
+if err then
+    print(err.code, err.message, err.path)  -- stable code, text, JSON pointer
+    return
+end
+print(items[1].name)                        -- first row's name field</code></pre>
+<ul>
+  <li><code>err.code</code> — stable diagnostic code, the same family as validation output.</li>
+  <li><code>err.message</code> — human-readable explanation.</li>
+  <li><code>err.path</code> — JSON pointer path to the invalid value.</li>
+  <li><code>items[1].name</code> — ordinary table access over the loaded document; nested objects and arrays arrive as Lua tables.</li>
+</ul>
+
+<h2>Querying by content type and tags</h2>
+<p>When many data assets share a schema, query them instead of loading by hand:</p>
+<pre><code>local rows = Data.query({ content_type = "application/vnd.demi.items+json",
+                          tags = { "items" } })</code></pre>
+<ul>
+  <li><code>content_type</code> — matches <code>settings.content_type</code> from each data asset manifest.</li>
+  <li><code>tags</code> — a Lua array of tags; a document matches when it carries them.</li>
+  <li><code>Data.query(...)</code> returns an array of matching loaded documents (tables). An empty array means nothing matched.</li>
+</ul>
+<p>Lua array-like tables round-trip as numeric arrays across JSON and network bridges, so list-shaped data stays list-shaped.</p>
+
+<h2>Reading values safely</h2>
+<p>Every loaded value answers four small questions that keep gameplay code defensive:</p>
+<pre><code>local price = items[1].price
+print(Data.revision(items[1]))   -- integer revision of the loaded document
+print(Data.kind(price))          -- "number", "string", "boolean", "object", "array", "null"
+print(Data.is_null(price))       -- true only for explicit JSON null
+print(Data.null())               -- an explicit JSON null value</code></pre>
+<ul>
+  <li><code>Data.revision(value)</code> — the document revision this value came from. Returns an integer.</li>
+  <li><code>Data.kind(value)</code> — the JSON kind of the value as a string.</li>
+  <li><code>Data.is_null(value)</code> — returns <code>true</code> when the value is an explicit JSON <code>null</code>, distinguishing "null" from "missing".</li>
+  <li><code>Data.null()</code> — returns the explicit null value, for writing fields that must round-trip as JSON <code>null</code>.</li>
+</ul>
+
+<h2>Reload events</h2>
+<p>During development, data files change while the game runs (watch mode and hot reload). Instead of polling the disk, subscribe to the reload event:</p>
+<pre><code>local Events = require("demi.events")
+
+Events.on("data_asset_reloaded", function(e)
+    -- e.id, e.old_revision, e.new_revision, e.affected_dependents
+    print(e.id, e.old_revision, e.new_revision)
+    for _, dependent in ipairs(e.affected_dependents) do
+        print("refresh:", dependent)
+    end
+end)</code></pre>
+<ul>
+  <li><code>data_asset_reloaded</code> — fires after a data asset's source changed and revalidated successfully.</li>
+  <li><code>e.id</code> — the <code>asset://</code> ID of the reloaded document.</li>
+  <li><code>e.old_revision</code> / <code>e.new_revision</code> — integer revisions before and after the reload.</li>
+  <li><code>e.affected_dependents</code> — an array of IDs (as strings) that reference the reloaded document, so cascading refreshes can be scoped instead of global.</li>
+</ul>
+<p>A reload that fails validation is rejected and does not raise the event; the previously loaded valid revision stays in effect, with diagnostics reported in the usual format.</p>
+
+<h2>Where data lives at runtime</h2>
+<ul>
+  <li>Authored source documents live under the project (for example <code>games/my_game/assets/data/</code>) and are validated like every other source.</li>
+  <li>Cooked copies live in generated content at ship time; scripts keep addressing them by <code>asset://</code> ID.</li>
+  <li>Player-written values (saves) are separate: they go to platform user-data, never into data assets. The save API is covered in <a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a>.</li>
+</ul>
+<p>See also <a href="{{ path('docs_page', {slug: 'cli-assets-and-packages'}) }}">Assets &amp; packages</a> for import and dependency commands, and <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a> for startup preload behavior.</p>

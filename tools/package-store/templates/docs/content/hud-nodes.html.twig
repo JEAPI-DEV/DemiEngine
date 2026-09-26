@@ -1,0 +1,243 @@
+<h1>HUD nodes</h1>
+<p>A <strong>node</strong> is one element in a HUD tree — a panel, a label, a button. You author nodes in a <code>*.hud.json</code> document; the runtime draws the tree and scripts mutate it. This page lists every node type, what it renders, and the fields it accepts.</p>
+
+<h2>How a node is written</h2>
+<pre><code>{
+  "id": "health_bar",
+  "type": "progress",
+  "value": 1.0
+}</code></pre>
+<ul>
+  <li><code>id</code> — stable name used by scripts and events. Document-wide and unique.</li>
+  <li><code>type</code> — which node kind to build. Required.</li>
+  <li>Every other field depends on the type. Shared layout fields are covered in <a href="{{ path('docs_page', {slug: 'hud-layout'}) }}">Layout</a>.</li>
+</ul>
+
+<h2>container</h2>
+<p>Groups children and arranges them. Renders nothing itself — it is a box for layout.</p>
+<pre><code>{
+  "id": "toolbar",
+  "type": "container",
+  "stack": "row",
+  "gap": 8,
+  "children": []
+}</code></pre>
+<p>Renders an invisible region whose children flow in a row with 8 units between them.</p>
+
+<h2>panel</h2>
+<p>A visible grouped box with a background color. Use it for cards, bars, and dialogs.</p>
+<pre><code>{
+  "id": "card",
+  "type": "panel",
+  "background_color": "#1b1c27cc",
+  "pad": 16,
+  "children": []
+}</code></pre>
+<p>Renders a filled rectangle behind its children. <code>background_color</code> accepts <code>[r, g, b, a]</code> (0…1) or a hex string.</p>
+
+<h2>label</h2>
+<p>Read-only text. The most common node in Skyforge’s HUD.</p>
+<pre><code>{
+  "id": "score",
+  "type": "label",
+  "text": "Score: ${score}",
+  "font_size": 24
+}</code></pre>
+<p>Renders one text line (or a wrapped block). <code>text</code> supports <code>${variable}</code> interpolation. Text styling lives in <a href="{{ path('docs_page', {slug: 'hud-text-and-theme'}) }}">Text, theme &amp; locale</a>.</p>
+
+<h2>text</h2>
+<p>Display text with the same rendering as <code>label</code>, intended where content is long or updated heavily (chat, logs, tooltips).</p>
+<pre><code>{
+  "id": "chat_log",
+  "type": "text",
+  "text": "",
+  "text_wrap": "word",
+  "max_lines": 8
+}</code></pre>
+<p>Renders a multi-line text block. Same fields as <code>label</code>; pick either — the rendering contract is shared.</p>
+
+<h2>image</h2>
+<p>A texture rectangle. Portraits, icons, backgrounds.</p>
+<pre><code>{
+  "id": "portrait",
+  "type": "image",
+  "texture": "asset://ui/hero",
+  "size": [128, 128]
+}</code></pre>
+<ul>
+  <li><code>texture</code> — an <code>asset://</code> URI pointing at an imported image asset. Required for the image to show.</li>
+  <li><code>size</code> — canvas units. The texture is fitted inside this box.</li>
+</ul>
+<p>Renders the referenced texture. Swap it at runtime with <code>Hud.set_image(id, uri)</code>.</p>
+
+<h2>button</h2>
+<p>A pressable control with a text caption. Interactive.</p>
+<pre><code>{
+  "id": "start",
+  "type": "button",
+  "text": "Launch",
+  "action": "ui_ok",
+  "disabled": false,
+  "focusable": true
+}</code></pre>
+<ul>
+  <li><code>text</code> — the caption rendered on the button.</li>
+  <li><code>action</code> — input action name that activates this button (gamepad A, Enter, a virtual button). Optional; pointer clicks always work.</li>
+  <li><code>disabled</code> — boolean. A disabled button renders dimmed and does not accept input.</li>
+  <li><code>focusable</code> — boolean. Whether keyboard/gamepad focus can land here.</li>
+</ul>
+<p>Renders a labeled button. Presses arrive as UI events; see <a href="{{ path('docs_page', {slug: 'hud-from-lua'}) }}">HUD from Lua</a>.</p>
+
+<h2>toggle</h2>
+<p>A boolean switch — music on/off, invert-y.</p>
+<pre><code>{
+  "id": "toggle_music",
+  "type": "toggle",
+  "text": "Music",
+  "checked": true,
+  "action": "ui_ok"
+}</code></pre>
+<ul>
+  <li><code>checked</code> — boolean start state.</li>
+  <li><code>action</code> — activates the toggle like a button.</li>
+  <li><code>disabled</code>, <code>focusable</code> — same meaning as button.</li>
+</ul>
+<p>Renders a checkbox-style switch. Read and write with <code>Hud.set_checked</code> / the value-changed event.</p>
+
+<h2>slider</h2>
+<p>A draggable 0…1 value — volume, brightness.</p>
+<pre><code>{
+  "id": "volume",
+  "type": "slider",
+  "value": 0.8,
+  "min_size": [200, 32]
+}</code></pre>
+<ul>
+  <li><code>value</code> — start position from 0 to 1.</li>
+  <li><code>disabled</code>, <code>focusable</code> — same meaning as button.</li>
+</ul>
+<p>Renders a track and knob. Dragging emits <code>value_changed</code>; <code>Hud.set_value(id, n)</code> moves it from scripts.</p>
+
+<h2>text_input</h2>
+<p>An editable text field — player name, seed entry.</p>
+<pre><code>{
+  "id": "seed_input",
+  "type": "text_input",
+  "text": "",
+  "placeholder": "World seed",
+  "action": "ui_ok"
+}</code></pre>
+<ul>
+  <li><code>text</code> — current contents.</li>
+  <li><code>placeholder</code> — hint shown while empty.</li>
+  <li><code>action</code> — activates the field (focuses it) from a pad or key.</li>
+  <li><code>disabled</code>, <code>focusable</code> — same meaning as button.</li>
+</ul>
+<p>Renders an editable line. Read with <code>Hud.get_text(id)</code>; raise the on-screen keyboard with <code>Input.set_text_input_active</code> (see <a href="{{ path('docs_page', {slug: 'virtual-and-touch'}) }}">Virtual &amp; touch input</a>).</p>
+
+<h2>scroll</h2>
+<p>A viewport over larger content. Children draw inside; the user drags to pan.</p>
+<pre><code>{
+  "id": "scroll",
+  "type": "scroll",
+  "children": []
+}</code></pre>
+<p>Renders a clipped region that scrolls when content is taller or wider than the box. Combine with long lists and <code>Hud.visible_range</code>.</p>
+
+<h2>list</h2>
+<p>A stacked collection of rows — inventory, lobby players, chat.</p>
+<pre><code>{
+  "id": "inventory_list",
+  "type": "list",
+  "stack": "column",
+  "gap": 4,
+  "children": []
+}</code></pre>
+<p>Renders a vertical (or configured) run of child rows. For very long lists see virtualization in <a href="{{ path('docs_page', {slug: 'hud-from-lua'}) }}">HUD from Lua</a>.</p>
+
+<h2>progress</h2>
+<p>A 0…1 meter — health, load bar, cooldown.</p>
+<pre><code>{
+  "id": "health_bar",
+  "type": "progress",
+  "value": 1.0
+}</code></pre>
+<ul>
+  <li><code>value</code> — filled fraction from 0 to 1. Start value; update with <code>Hud.set_value("health_bar", 0.75)</code>.</li>
+</ul>
+<p>Renders a track filled to the current value. It is display-only — it never accepts input.</p>
+
+<h2>modal</h2>
+<p>A dialog that traps focus while it is open — confirm quit, level complete.</p>
+<pre><code>{
+  "id": "quit_dialog",
+  "type": "modal",
+  "visible": false,
+  "children": [
+    { "id": "quit_text", "type": "label", "text": "Quit Skyforge?" },
+    { "id": "quit_yes", "type": "button", "text": "Yes", "action": "ui_ok" },
+    { "id": "quit_no",  "type": "button", "text": "No",  "action": "ui_cancel" }
+  ]
+}</code></pre>
+<ul>
+  <li><code>visible</code> — boolean. Keep dialogs hidden until needed.</li>
+  <li><code>children</code> — the dialog body.</li>
+</ul>
+<p>Renders its children as a dialog layer and holds Tab, arrows, and D-pad focus inside until closed. Show it with <code>Hud.set_visible("quit_dialog", true)</code>.</p>
+
+<h2>virtual_button</h2>
+<p>An on-screen button that publishes a virtual input (see <a href="{{ path('docs_page', {slug: 'virtual-and-touch'}) }}">Virtual &amp; touch input</a>).</p>
+<pre><code>{
+  "id": "jump_btn",
+  "type": "virtual_button",
+  "control": "jump",
+  "size": [140, 140]
+}</code></pre>
+<ul>
+  <li><code>control</code> — name published as <code>virtual:jump</code> while pressed. Required.</li>
+</ul>
+<p>Renders a round pressable control. Bound actions read as pressed while a finger is down.</p>
+
+<h2>virtual_stick</h2>
+<p>An on-screen analog stick that publishes a virtual input.</p>
+<pre><code>{
+  "id": "move_stick",
+  "type": "virtual_stick",
+  "control": "move",
+  "size": [220, 220]
+}</code></pre>
+<ul>
+  <li><code>control</code> — publishes <code>virtual:move</code> (both axes), <code>virtual:move:x</code>, or <code>virtual:move:y</code>. Required.</li>
+</ul>
+<p>Renders a base and knob. Dragging the knob drives the bound <code>vector2</code> action.</p>
+
+<h2>Interactive fields</h2>
+<p>Interactive nodes — button, toggle, slider, text_input, virtual controls — share these fields:</p>
+<table>
+  <thead><tr><th>Field</th><th>Type</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>action</code></td><td>string</td><td>Input action name that activates the control from keyboard, gamepad, or a virtual button.</td></tr>
+    <tr><td><code>disabled</code></td><td>boolean</td><td><code>true</code> blocks all input and dims the control.</td></tr>
+    <tr><td><code>focusable</code></td><td>boolean</td><td>Whether Tab, arrows, and D-pad can focus the control. Defaults to interactive types being focusable.</td></tr>
+  </tbody>
+</table>
+
+<h2>Accessibility fields</h2>
+<p>Every node accepts:</p>
+<table>
+  <thead><tr><th>Field</th><th>Type</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>accessibility_label</code></td><td>string</td><td>Spoken name of the control, e.g. “Jump”.</td></tr>
+    <tr><td><code>accessibility_description</code></td><td>string</td><td>Longer spoken hint, e.g. “Leaps over gaps”.</td></tr>
+    <tr><td><code>accessibility_hidden</code></td><td>boolean</td><td>Hides decorative nodes from assistive technology.</td></tr>
+  </tbody>
+</table>
+<p>Give every interactive control a label. Mark purely decorative images <code>accessibility_hidden</code>. Focus is shared across Tab, arrows, D-pad, and pointer; a <code>modal</code> traps it until closed.</p>
+
+<h2>Next</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'hud-layout'}) }}">Layout</a> — dock, stack, anchors, safe areas.</li>
+  <li><a href="{{ path('docs_page', {slug: 'hud-text-and-theme'}) }}">Text, theme &amp; locale</a> — fonts, variables, styles.</li>
+  <li><a href="{{ path('docs_page', {slug: 'hud-from-lua'}) }}">HUD from Lua</a> — setters and events.</li>
+  <li><a href="{{ path('docs_page', {slug: 'ui'}) }}">UI &amp; HUD</a> — the overview page.</li>
+</ul>

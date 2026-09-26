@@ -1,0 +1,105 @@
+<h1>Script lifecycle</h1>
+<p>A Lua script is a small module of functions the engine calls at known moments — when its entity is created, every frame, when physics ticks, when it is destroyed. This page explains what a script module is, who <code>self</code> is, and what each hook is for.</p>
+
+<h2>What a script module is</h2>
+<p>A script is a Lua file under your project's <code>scripts/</code> folder, referenced from a scene as <code>script://…</code>. The file <strong>returns a table of hook functions</strong>. The engine creates one instance of that table per entity that uses the script, then calls the hooks at the right times.</p>
+<pre><code>local Entity = require("demi.entity")
+local Transform3D = require("demi.transform3d")
+
+local SkyforgeRune = {}
+
+function SkyforgeRune:on_create()
+    Debug.log("rune created: " .. self.id)
+end
+
+return SkyforgeRune</code></pre>
+<p>The returned table is the script definition. <code>on_create</code> is one hook on it. The engine instantiates a copy per entity, so upvalues (locals declared at the top of the file) are shared per script instance and safe for per-entity state you declare inside hooks on <code>self</code>. Nothing runs until the scene (or a prefab) attaches the script to an entity.</p>
+
+<h2>self and self.id</h2>
+<p>Inside every hook, <code>self</code> is the script instance. <code>self.id</code> is the entity this instance belongs to. Use <code>self</code> to store per-entity state (counters, flags, targets) and <code>self.id</code> with the entity and transform APIs.</p>
+<pre><code>local Transform3D = require("demi.transform3d")
+
+function SkyforgeRune:on_create()
+    self.pulses = 0            -- per-entity state
+end
+
+function SkyforgeRune:on_update(dt)
+    self.pulses = self.pulses + 1
+    Transform3D.add_position(self.id, 0, dt * 0.2, 0)  -- float upward
+end</code></pre>
+<ul>
+  <li><code>self</code> — the script instance table (hooks plus whatever fields you set).</li>
+  <li><code>self.id</code> — entity handle for this instance; pass it to <code>Entity</code>, <code>Transform3D</code>, <code>Animation</code>, and friends.</li>
+</ul>
+<p>Two runes in the same scene mean two instances, each with its own <code>self.pulses</code>. Never put per-entity state in a local outside the returned table and expect it to split per entity.</p>
+
+<h2>The hooks</h2>
+<table>
+  <thead><tr><th>Hook</th><th>When it runs</th><th>Arguments</th></tr></thead>
+  <tbody>
+    <tr><td><code>on_create</code></td><td>Once, when the instance is built and its properties are in place</td><td>None</td></tr>
+    <tr><td><code>on_start</code></td><td>Once, after every instance in the scene has been created</td><td>None</td></tr>
+    <tr><td><code>on_update(dt)</code></td><td>Every rendered frame</td><td><code>dt</code>: scaled seconds since the last frame</td></tr>
+    <tr><td><code>on_fixed_update(fixed_dt)</code></td><td>Every fixed simulation tick</td><td><code>fixed_dt</code>: fixed seconds for this tick</td></tr>
+    <tr><td><code>on_destroy</code></td><td>Once, when the entity is being removed</td><td>None</td></tr>
+    <tr><td><code>on_ui_event(payload)</code></td><td>When a HUD node this script owns fires an interaction event</td><td>One payload table (node ID, event name)</td></tr>
+    <tr><td><code>on_ui_value_changed(payload)</code></td><td>When a HUD value (slider, toggle) changes</td><td>One payload table (node ID, new value)</td></tr>
+    <tr><td><code>on_ui_submit(payload)</code></td><td>When a form-style HUD submit happens</td><td>One payload table</td></tr>
+  </tbody>
+</table>
+<p>Only define the hooks you need. A rendering-only script can be just <code>on_update</code>. Physics movement belongs in <code>on_fixed_update</code> so it stays in step with the simulation; visual smoothing belongs in <code>on_update</code>.</p>
+
+<h2>A full Skyforge example</h2>
+<pre><code>local Transform3D = require("demi.transform3d")
+local Input = require("demi.input")
+local Time = require("demi.time")
+
+local SkyforgeHoverRune = {}
+
+function SkyforgeHoverRune:on_create()
+    self.base_y = select(2, Transform3D.get_position(self.id))
+    self.t = 0
+end
+
+function SkyforgeHoverRune:on_start()
+    -- safe place to look up other entities: every instance exists now
+end
+
+function SkyforgeHoverRune:on_update(dt)
+    self.t = self.t + dt
+    local x, _, z = Transform3D.get_position(self.id)
+    local y = self.base_y + math.sin(self.t * 2) * 0.15
+    Transform3D.set_position(self.id, x, y, z)
+end
+
+function SkyforgeHoverRune:on_destroy()
+    self.t = nil
+end
+
+return SkyforgeHoverRune</code></pre>
+<p><code>on_create</code> reads the starting <code>y</code> and zeroes a timer. <code>on_start</code> is empty here but is the first safe moment to resolve other entities by name. <code>on_update</code> receives <code>dt</code> in scaled seconds (pause and <code>time_scale</code> affect it), computes a bobbing height with <code>math.sin</code>, and writes position back — all three coordinates, because <code>set_position</code> replaces the whole local position. <code>on_destroy</code> clears state; it runs before the entity goes away, so <code>self.id</code> is still valid inside it.</p>
+<p>When a hook takes an argument, assign exactly that many names: <code>function S:on_update(dt)</code> takes one, <code>function S:on_fixed_update(fixed_dt)</code> takes one. For the UI hooks the argument is a single payload table — read <code>payload.node</code> and <code>payload.event</code> rather than expecting multiple returns.</p>
+
+<h2>Attaching a script to an entity</h2>
+<p>A scene entity carries a <code>LuaScript</code> component that names the module and its property overrides:</p>
+<pre><code>{
+  "id": "skyforge_rune",
+  "LuaScript": {
+    "module": "script://scripts/hover_rune.lua",
+    "properties": {
+      "speed": 8.5
+    }
+  }
+}</code></pre>
+<ul>
+  <li><code>module</code> — the <code>script://</code> URI of the Lua file. It must return a hook table.</li>
+  <li><code>properties</code> — values installed on the instance <strong>before</strong> <code>on_create</code> runs, so the first hook already sees them.</li>
+</ul>
+<p>Invalid property overrides reject scene activation — the load fails with a clear error instead of starting with half a script. If you reload a script during development and the new version does not parse, the previous instance keeps running. Property declaration is covered in <a href="{{ path('docs_page', {slug: 'script-properties'}) }}">Script properties</a>.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'script-properties'}) }}">Script properties</a> — exposing fields to the editor.</li>
+  <li><a href="{{ path('docs_page', {slug: 'events-and-timers'}) }}">Events &amp; timers</a> — reacting to things that do not happen on a frame boundary.</li>
+  <li><a href="{{ path('docs_page', {slug: 'api-conventions'}) }}">API conventions</a> — how the calls used above return values.</li>
+</ul>

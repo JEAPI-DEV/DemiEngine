@@ -1,0 +1,65 @@
+<h1>Source vs generated</h1>
+<p>A DemiEngine project contains three kinds of data, and knowing which is which tells you what to edit, what to commit, and what to ignore. This page defines the three buckets, maps them onto the project's folders, and explains why game saves deliberately live outside the project tree.</p>
+
+<h2>The three buckets</h2>
+<ul>
+  <li><strong>Source</strong> — the documents and files you author: scenes, prefabs, scripts, asset manifests and their sources, game data, and project files. These are the game. You edit them, you review them, you commit them.</li>
+  <li><strong>Generated</strong> — output produced by tools from source: cook output under <code>generated/</code>, installed package contents under <code>.demi/</code>, and derived geometry such as fracture data. Never hand-edit these; regenerate them instead.</li>
+  <li><strong>Writable</strong> — data the running game creates for the player: saves and caches. These live in the platform user-data and cache directories and never inside the project.</li>
+</ul>
+
+<h2>Folder map</h2>
+<table>
+  <thead><tr><th>Path</th><th>Bucket</th><th>Commit?</th></tr></thead>
+  <tbody>
+    <tr><td><code>demi.project.json</code></td><td>Source</td><td>Yes</td></tr>
+    <tr><td><code>scenes/</code></td><td>Source</td><td>Yes</td></tr>
+    <tr><td><code>prefabs/</code></td><td>Source</td><td>Yes</td></tr>
+    <tr><td><code>hud/</code></td><td>Source</td><td>Yes</td></tr>
+    <tr><td><code>scripts/</code></td><td>Source</td><td>Yes</td></tr>
+    <tr><td><code>assets/</code> (<code>*.asset.json</code> and sources)</td><td>Source</td><td>Yes</td></tr>
+    <tr><td><code>data/</code></td><td>Source</td><td>Yes</td></tr>
+    <tr><td><code>demi.packages.lock.json</code></td><td>Source</td><td>Yes</td></tr>
+    <tr><td><code>generated/</code> (cook output, derived files)</td><td>Generated</td><td>No</td></tr>
+    <tr><td><code>.demi/</code> (installed packages, LuaLS stubs)</td><td>Generated</td><td>No</td></tr>
+    <tr><td>Build outputs and packages (<code>build/</code>, APKs, AABs, cooked bundles)</td><td>Generated</td><td>No</td></tr>
+    <tr><td>Game saves and caches (platform user-data)</td><td>Writable</td><td>No</td></tr>
+  </tbody>
+</table>
+<p>A generated tree from a new project is described in <a href="{{ path('docs_page', {slug: 'first-project'}) }}">Your first project</a>; the source document shapes are in <a href="{{ path('docs_page', {slug: 'project-format'}) }}">Project &amp; file formats</a>.</p>
+
+<h2>What to commit and what to ignore</h2>
+<p>Commit every source file. Reviews then show real design changes — a moved entity, a new asset, a retuned value — as small diffs in readable JSON.</p>
+<p>Ignore generated and writable paths in version control. They are reproducible from source or per-player, so committing them would only add noise and merge conflicts. Typical ignore rules cover <code>generated/</code>, <code>.demi/</code>, build output directories, and packaged artifacts such as <code>*.apk</code>, <code>*.aab</code>, and cooked bundles.</p>
+<p>Two habits keep the split clean:</p>
+<ul>
+  <li>Never hand-edit anything under <code>generated/</code> or <code>.demi/</code>. Your changes would be overwritten the next time a tool runs. Fix the source and let the tool produce new output.</li>
+  <li>Never write gameplay content into generated folders. If a tool seems to want that, the content belongs in <code>scenes/</code>, <code>data/</code>, or <code>assets/</code> first.</li>
+</ul>
+
+<h2>Why saves never live in the project tree</h2>
+<p>Saves are per-player runtime data, not game content. They are written to the platform user-data directory — on Linux <code>$XDG_DATA_HOME/&lt;game&gt;</code>, falling back to the usual per-user data location — and caches use the matching cache directory. Keeping them out of the project tree matters for three reasons:</p>
+<ul>
+  <li><strong>Updates stay safe</strong> — installing a new build of the game replaces content, not player progress. Saves that lived beside the content would be overwritten or deleted with it.</li>
+  <li><strong>Packaging stays honest</strong> — a shipped package must contain the audited game content and nothing else. Player files mixed into the source tree risk being packed into a release or blocked by the content audit.</li>
+  <li><strong>Multiple users stay separate</strong> — two accounts on one machine must not share or clobber one another's progress. Per-user directories give each player their own slots.</li>
+</ul>
+<p>Read and write slots through the save API rather than raw file paths; that is what routes them to the right directory on every platform. See <a href="{{ path('docs_page', {slug: 'data-and-save-api'}) }}">Data &amp; save API</a>. Save document shape and migrations are described with the other formats in <a href="{{ path('docs_page', {slug: 'project-format'}) }}">Project &amp; file formats</a>.</p>
+
+<h2>How cooking creates generated/</h2>
+<p>Cooking is the step that turns source into runtime-ready content. You ask for a platform, and the engine validates the project and every reachable source, then writes cooked output under <code>generated/cooked/&lt;platform&gt;</code> together with a <code>cook.manifest.json</code> listing every included path and hash:</p>
+<pre><code>./build/linux-debug/demi cook --project games/my_game --platform linux</code></pre>
+<ul>
+  <li><code>cook</code> — validates and cooks platform content.</li>
+  <li><code>--project games/my_game</code> — the project to cook.</li>
+  <li><code>--platform linux</code> — which platform to cook for. Output lands under <code>generated/cooked/linux</code>.</li>
+</ul>
+<p>The manifest's hashes make the output checkable and rebuilds incremental: content that did not change is not redone. That is also why you never edit cooked files — they are derived from source by a deterministic step, and the next cook would replace them. The pipeline and hash inputs are described in <a href="{{ path('docs_page', {slug: 'cooking'}) }}">Cooking</a>.</p>
+<p>Release builds reuse the same cooked content. <a href="{{ path('docs_page', {slug: 'shipping'}) }}">Shipping &amp; builds</a> covers packaging a cooked project into a Linux bundle or an Android APK/AAB, and the <a href="{{ path('docs_page', {slug: 'cli-build-and-test'}) }}">Build, cook &amp; test</a> page lists every related command.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'cooking'}) }}">Cooking</a> — what cook produces and how rebuilds stay fast.</li>
+  <li><a href="{{ path('docs_page', {slug: 'data-and-save-api'}) }}">Data &amp; save API</a> — reading and writing saves from Lua.</li>
+  <li><a href="{{ path('docs_page', {slug: 'assets-and-ids'}) }}">Assets &amp; stable IDs</a> — what lives in <code>assets/</code> and how it is named.</li>
+</ul>

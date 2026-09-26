@@ -1,0 +1,159 @@
+<h1>Input bindings</h1>
+<p>A <strong>binding</strong> is one line that says “when this physical input happens, feed that action”. Actions are the names your gameplay code reads; bindings are how devices fill them. This page explains every binding field from the ground up.</p>
+
+<h2>Actions first</h2>
+<p>Before bindings, declare the action they feed:</p>
+<pre><code>"input": {
+  "actions": {
+    "move":  { "type": "vector2", "context": "gameplay", "bindings": [] },
+    "jump":  { "type": "button",  "context": "gameplay", "bindings": [] }
+  }
+}</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>type</code></td><td><code>button</code> (pressed or not), <code>axis1d</code> (one number −1…1), or <code>vector2</code> (two numbers).</td></tr>
+    <tr><td><code>context</code></td><td>Which action group this belongs to. Only enabled contexts respond. Defaults to <code>gameplay</code>.</td></tr>
+    <tr><td><code>player</code></td><td>Optional local player slot (0, 1, …) for shared-screen games.</td></tr>
+    <tr><td><code>bindings</code></td><td>List of physical inputs. The action’s value is the combination of everything currently active in this list.</td></tr>
+  </tbody>
+</table>
+
+<h2>What a binding looks like</h2>
+<pre><code>"bindings": [
+  { "input": "key:a", "vector": [-1, 0] },
+  { "input": "key:d", "vector": [ 1, 0] },
+  { "input": "gamepad:stick:left", "deadzone": 0.18 },
+  { "input": "virtual:move" }
+]</code></pre>
+<p>Each object is one binding. The only required field is <code>input</code>, which names the device control. The rest tune how it contributes.</p>
+
+<h2>The <code>input</code> field</h2>
+<table>
+  <thead><tr><th>Pattern</th><th>What it matches</th></tr></thead>
+  <tbody>
+    <tr><td><code>key:a</code>, <code>key:space</code>, <code>key:left_shift</code></td><td>A keyboard key. Names are case-insensitive.</td></tr>
+    <tr><td><code>mouse:left</code>, <code>mouse:right</code>, <code>mouse:middle</code></td><td>A mouse button.</td></tr>
+    <tr><td><code>gamepad:a</code>, <code>gamepad:start</code></td><td>A gamepad face/dash button.</td></tr>
+    <tr><td><code>gamepad:axis:trigger_left</code></td><td>An analog trigger or stick axis.</td></tr>
+    <tr><td><code>gamepad:stick:left</code> / <code>gamepad:stick:right</code></td><td>A full 2D stick (x and y together).</td></tr>
+    <tr><td><code>virtual:move</code>, <code>virtual:fire</code></td><td>An on-screen HUD control (see below).</td></tr>
+    <tr><td><code>virtual:move:x</code> / <code>virtual:move:y</code></td><td>One axis of an on-screen stick.</td></tr>
+  </tbody>
+</table>
+
+<h2>What <code>vector</code> does</h2>
+<pre><code>{ "input": "key:a", "vector": [-1, 0] }</code></pre>
+<p>A key is a button: it is pressed or not. A <code>vector2</code> action needs a direction. <code>vector</code> assigns one.</p>
+<ul>
+  <li><code>[-1, 0]</code> means “while this key is held, contribute left on the x axis”.</li>
+  <li><code>[1, 0]</code> is right, <code>[0, 1]</code> is up, <code>[0, -1]</code> is down.</li>
+  <li>Values outside −1…1 are scaled; most bindings use 0 and ±1.</li>
+</ul>
+<p>The action’s value is the sum of all active bindings, then optionally clamped. With A and D both bound as above:</p>
+<table>
+  <thead><tr><th>Keys held</th><th><code>Input.vector("move")</code></th></tr></thead>
+  <tbody>
+    <tr><td>none</td><td><code>0, 0</code></td></tr>
+    <tr><td>A</td><td><code>-1, 0</code></td></tr>
+    <tr><td>D</td><td><code>1, 0</code></td></tr>
+    <tr><td>A + D</td><td><code>0, 0</code> (they cancel)</td></tr>
+    <tr><td>W (<code>vector: [0, 1]</code>) + D</td><td><code>1, 1</code>, normalized to about <code>0.71, 0.71</code> when <code>normalize</code> is on</td></tr>
+  </tbody>
+</table>
+<p>Without <code>vector</code>, a key bound to a <code>vector2</code> action contributes nothing useful — give every key a direction, or bind a stick that already has one.</p>
+<p>For <code>button</code> and <code>axis1d</code> actions you usually omit <code>vector</code> and use <code>scale</code> / <code>invert</code> instead.</p>
+
+<h2>Other binding fields</h2>
+<table>
+  <thead><tr><th>Field</th><th>What it does</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td><code>scale</code></td><td>Multiplies the binding’s contribution. Range −1…1. Use <code>-1</code> to flip an axis.</td><td><code>{"input": "gamepad:axis:trigger_right", "scale": 0.5}</code></td></tr>
+    <tr><td><code>invert</code></td><td>Flips the sign. Same idea as <code>scale: -1</code>, clearer for sticks.</td><td><code>{"input": "gamepad:stick:left", "invert": true}</code></td></tr>
+    <tr><td><code>deadzone</code></td><td>Ignores small deflection so a worn stick does not drift. 0…0.99.</td><td><code>{"input": "gamepad:stick:left", "deadzone": 0.18}</code></td></tr>
+    <tr><td><code>normalize</code></td><td>Clamp the combined action to a unit vector so diagonals are not faster.</td><td><code>{"input": "gamepad:stick:left", "normalize": true}</code></td></tr>
+    <tr><td><code>player</code></td><td>Routes this binding to a specific local player.</td><td><code>{"input": "key:w", "player": 0}</code></td></tr>
+    <tr><td><code>vector</code></td><td>Direction this key contributes to a <code>vector2</code> action.</td><td><code>{"input": "key:a", "vector": [-1, 0]}</code></td></tr>
+  </tbody>
+</table>
+
+<h2>Deadzone, step by step</h2>
+<pre><code>{ "input": "gamepad:stick:left", "deadzone": 0.18 }</code></pre>
+<ol>
+  <li>The stick reports a raw value from 0 (center) to 1 (fully tilted) on each axis.</li>
+  <li>Values below <code>0.18</code> are treated as 0 — that is the deadzone.</li>
+  <li>Values above are rescaled so a slight tilt past the deadzone starts near 0 and full tilt reaches 1.</li>
+</ol>
+<p>Use 0.15–0.25 for analog sticks, 0.05 for triggers, and none for digital buttons. Too large and the stick feels unresponsive; too small and the character creeps.</p>
+
+<h2>What a virtual input is</h2>
+<pre><code>{ "input": "virtual:move" }</code></pre>
+<p>A <strong>virtual input</strong> is an on-screen control — a touch stick or button drawn by the HUD. It is not a device driver input. You author it in the HUD document:</p>
+<pre><code>{
+  "id": "move_stick",
+  "type": "virtual_stick",
+  "control": "move"
+}</code></pre>
+<p>The <code>control</code> name becomes the binding target <code>virtual:move</code>. When a player drags that stick, the action receives the same kind of value a physical stick would. Face buttons work the same way:</p>
+<pre><code>{ "id": "jump_btn", "type": "virtual_button", "control": "jump" }</code></pre>
+<p>This is how one gameplay script serves keyboard, gamepad, and phone. Details: <a href="{{ path('docs_page', {slug: 'virtual-and-touch'}) }}">Virtual &amp; touch input</a>.</p>
+
+<h2>Presets</h2>
+<pre><code>"input": {
+  "presets": ["wasd_arrows", "confirm", "gamepad_confirm", "move_3d"]
+}</code></pre>
+<table>
+  <thead><tr><th>Preset</th><th>Installs</th></tr></thead>
+  <tbody>
+    <tr><td><code>wasd_arrows</code></td><td>A <code>move</code> vector2 action from WASD and arrow keys.</td></tr>
+    <tr><td><code>confirm</code></td><td>UI accept/cancel from keyboard (Enter, Space, Escape).</td></tr>
+    <tr><td><code>gamepad_confirm</code></td><td>UI accept/cancel from gamepad (A, B).</td></tr>
+    <tr><td><code>move_3d</code></td><td>3D locomotion: move and look separated.</td></tr>
+  </tbody>
+</table>
+<p>Presets are starting points. Declare your own action with the same name and it overrides the preset’s definition field by field.</p>
+
+<h2>Reading the result in Lua</h2>
+<pre><code>local Input = require("demi.input")
+
+function Player:on_update(dt)
+    local x, y = Input.vector("move")   -- the combined binding value
+    if Input.pressed("jump") then
+        -- jump is a button action; pressed is true this frame only
+    end
+end</code></pre>
+<p><code>Input.vector</code> returns two numbers. <code>Input.pressed/down/released</code> return booleans. See <a href="{{ path('docs_page', {slug: 'input-actions'}) }}">Actions explained</a> for the full query set.</p>
+
+<h2>Worked example</h2>
+<pre><code>"input": {
+  "presets": ["confirm"],
+  "actions": {
+    "move": {
+      "type": "vector2",
+      "context": "gameplay",
+      "bindings": [
+        { "input": "key:w", "vector": [0, 1] },
+        { "input": "key:s", "vector": [0, -1] },
+        { "input": "key:a", "vector": [-1, 0] },
+        { "input": "key:d", "vector": [1, 0] },
+        { "input": "key:up", "vector": [0, 1] },
+        { "input": "key:down", "vector": [0, -1] },
+        { "input": "key:left", "vector": [-1, 0] },
+        { "input": "key:right", "vector": [1, 0] },
+        { "input": "gamepad:stick:left", "deadzone": 0.18, "normalize": true },
+        { "input": "virtual:move", "normalize": true }
+      ]
+    },
+    "fire": {
+      "type": "button",
+      "context": "gameplay",
+      "bindings": [
+        { "input": "mouse:left" },
+        { "input": "key:space" },
+        { "input": "gamepad:axis:trigger_right", "scale": 1 },
+        { "input": "virtual:fire" }
+      ]
+    }
+  }
+}</code></pre>
+<p>Read this as: “<code>move</code> is a 2D direction filled by WASD, arrows, the left stick, and the on-screen stick. <code>fire</code> is a button filled by the mouse, Space, the right trigger, and the on-screen button.”</p>

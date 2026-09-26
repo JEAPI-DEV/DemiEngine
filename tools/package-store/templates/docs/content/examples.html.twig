@@ -1,0 +1,75 @@
+<h1>Examples tour</h1>
+<p>Twenty-six checked-in example projects double as executable engine probes. If several examples repeat the same workaround, that is evidence of a missing engine feature.</p>
+<p>Run any example:</p>
+<pre><code>./build/linux-debug/demi validate examples/minimal_3d
+./build/linux-debug/demi run --project examples/minimal_3d/demi.project.json</code></pre>
+
+<h2>Start small</h2>
+<table>
+  <thead><tr><th>Project</th><th>Shows</th></tr></thead>
+  <tbody>
+    <tr><td><code>minimal_3d</code></td><td>Smallest 3D scene: model, camera, light, Lua entry script</td></tr>
+    <tr><td><code>minimal_voxel</code></td><td>Voxel world sections and procedural mesh building</td></tr>
+    <tr><td><code>minimal_2d_android</code></td><td>2D game packaged for Android with saves and certs</td></tr>
+    <tr><td><code>minimal_2d_android_server</code></td><td>Dedicated server + Android client + TLS test endpoints</td></tr>
+    <tr><td><code>production_2d_foundation</code></td><td>Production-shaped 2D base: scenes, HUD, input, saves</td></tr>
+  </tbody>
+</table>
+
+<h2>2D, isometric, and UI</h2>
+<table>
+  <thead><tr><th>Project</th><th>Shows</th></tr></thead>
+  <tbody>
+    <tr><td><code>fighting_game_2d</code></td><td>Animation-timed collision, input buffers, command recognition</td></tr>
+    <tr><td><code>isometric_base_builder</code></td><td>Isometric grid placement, tilemaps, buildable entities</td></tr>
+    <tr><td><code>chess</code></td><td>Turn-based UI-heavy game with data-driven pieces</td></tr>
+    <tr><td><code>physics_2d_galton_board</code></td><td>2D Box2D stacking, contacts, deterministic simulation</td></tr>
+    <tr><td><code>ui_showcase</code></td><td>Responsive HUD: layout, themes, focus, virtualization</td></tr>
+    <tr><td><code>main_menu_animated</code></td><td>Animated menus with tweens and action maps</td></tr>
+    <tr><td><code>main_menu_gif</code></td><td>GIF/image animation in menus</td></tr>
+    <tr><td><code>main_menu_lang</code></td><td>Locale switching and localization files</td></tr>
+  </tbody>
+</table>
+
+<h2>3D systems</h2>
+<table>
+  <thead><tr><th>Project</th><th>Shows</th></tr></thead>
+  <tbody>
+    <tr><td><code>animation_3d</code></td><td>Crowd animation (1,024–2,000 characters), GPU skinning, LOD</td></tr>
+    <tr><td><code>third_person_foundation</code></td><td>Third-person controller, orbit camera, character movement</td></tr>
+    <tr><td><code>souls_boss_arena</code></td><td>Combat loop with health, hitboxes, and animation states</td></tr>
+    <tr><td><code>procedural_spider_3d</code></td><td>Two-bone IK legs and procedural bone segments</td></tr>
+    <tr><td><code>physics_3d_galton_board</code></td><td>Jolt stacking and contact determinism</td></tr>
+    <tr><td><code>shadows_3d</code></td><td>Directional lights and shadow budgets</td></tr>
+    <tr><td><code>performance_3d_lab</code></td><td>Repeatable load probes and profiler reports</td></tr>
+  </tbody>
+</table>
+
+<h2>Destruction</h2>
+<table>
+  <thead><tr><th>Project</th><th>Shows</th></tr></thead>
+  <tbody>
+    <tr><td><code>destruction_3d_lab</code></td><td>Fracture authoring, masonry, impacts, debris cleanup</td></tr>
+    <tr><td><code>destruction_weapons_3d_lab</code></td><td>Hammer timing, swept rockets, native impact adapters</td></tr>
+    <tr><td><code>fracture_prefab_lab</code></td><td>Fracture components on ordinary prefabs</td></tr>
+  </tbody>
+</table>
+
+<h2>Platform, data, and ops</h2>
+<table>
+  <thead><tr><th>Project</th><th>Shows</th></tr></thead>
+  <tbody>
+    <tr><td><code>asset_streaming_showcase</code></td><td>Addressable groups, budgets, load/unload cycles</td></tr>
+    <tr><td><code>saves_simulation_debugging</code></td><td>Save slots, migrations, debug overlays, replays</td></tr>
+    <tr><td><code>multiplayer_ffa_shooter</code></td><td>Host-authoritative sessions, contracts, prediction</td></tr>
+  </tbody>
+</table>
+
+<h2>Using examples as probes</h2>
+<ul>
+  <li>Validate before running: <code>demi validate examples/&lt;name&gt;</code>.</li>
+  <li>Compare expanded documents: <code>demi scene diff</code>, <code>demi scene expand</code>.</li>
+  <li>Profile with the example's own scene to get comparable numbers.</li>
+  <li>Android-qualify with a physical device: <code>demi test android --project examples/minimal_2d_android --serial &lt;device&gt;</code>.</li>
+</ul>
+<p>When an example needs a package (health, destruction weapons, Kenney textures), install it first with <code>demi package install</code> from that project directory.</p>

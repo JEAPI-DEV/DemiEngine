@@ -1,0 +1,176 @@
+<h1>Text, theme &amp; locale</h1>
+<p>This page covers how HUD text is drawn, where its words come from, and how one theme styles a whole tree. <strong>Fonts</strong> shape the letters, <strong>variables</strong> fill in changing values, <strong>rich text</strong> adds inline emphasis, a <strong>theme</strong> supplies shared styles, and <strong>localization</strong> swaps languages. Together they keep Skyforge’s HUD readable in every language without per-node rewrites.</p>
+
+<h2>Fonts</h2>
+<p>A font is a <code>Font2D</code> asset. Reference it by URI on any text-bearing node:</p>
+<pre><code>{
+  "id": "title",
+  "type": "label",
+  "text": "Skyforge",
+  "font": "asset://fonts/head",
+  "font_size": 48
+}</code></pre>
+<ul>
+  <li><code>font</code> — an <code>asset://</code> URI naming a <code>Font2D</code> asset. Optional; the default is the embedded Inter Variable face.</li>
+  <li><code>font_size</code> — height in canvas units. Scales with the canvas like every other dimension.</li>
+</ul>
+<p>Change them at runtime with <code>Hud.set_font(id, uri)</code> and <code>Hud.set_font_size(id, n)</code>; see <a href="{{ path('docs_page', {slug: 'hud-from-lua'}) }}">HUD from Lua</a>.</p>
+
+<h2>Wrapping, alignment, overflow</h2>
+<p>Long text needs a policy: how it breaks, where it sits in its box, and what happens when it still does not fit.</p>
+<pre><code>{
+  "id": "objective",
+  "type": "text",
+  "text": "Hold the forge until the gate seals.",
+  "text_wrap": "word",
+  "text_alignment": "start",
+  "text_vertical_alignment": "center",
+  "line_spacing": 4,
+  "max_lines": 3,
+  "text_overflow": "ellipsis",
+  "size": [420, 96]
+}</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Values</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>text_wrap</code></td><td><code>none</code>, <code>word</code>, <code>grapheme</code></td><td>Never break; break at word boundaries; break between any two characters (for narrow CJK columns).</td></tr>
+    <tr><td><code>text_alignment</code></td><td><code>start</code>, <code>center</code>, <code>end</code></td><td>Horizontal placement of each line in the box.</td></tr>
+    <tr><td><code>text_vertical_alignment</code></td><td><code>start</code>, <code>center</code>, <code>end</code></td><td>Where the text block sits vertically in the box.</td></tr>
+    <tr><td><code>line_spacing</code></td><td>number</td><td>Extra canvas units between lines.</td></tr>
+    <tr><td><code>max_lines</code></td><td>number</td><td>Caps how many lines are drawn.</td></tr>
+    <tr><td><code>text_overflow</code></td><td><code>visible</code>, <code>clip</code>, <code>ellipsis</code></td><td>Draw past the box; cut at the box edge; cut with “…”.</td></tr>
+  </tbody>
+</table>
+<p>The example renders up to three wrapped lines, centered vertically, left-aligned, and elides with “…” if the objective text still overflows.</p>
+
+<h2>${variables} interpolation</h2>
+<p>Text can reference named variables. At draw time each <code>${name}</code> is replaced with the variable’s current value.</p>
+<pre><code>{
+  "id": "score",
+  "type": "label",
+  "text": "Score: ${score}"
+}
+
+"variables": { "game_title": "Skyforge", "score": "0" }</code></pre>
+<ul>
+  <li>Top-level <code>variables</code> in the HUD document (or theme) maps names to strings — the authored defaults.</li>
+  <li>Node <code>text</code> may mix literal words and <code>${name}</code> markers anywhere in the string.</li>
+  <li>Interpolation happens when text is displayed, so one node definition can show changing values.</li>
+</ul>
+<pre><code>local Hud = require("demi.hud")
+
+Hud.set_variable("score", "1200")
+Hud.set_variables({ score = "1300", game_title = "Skyforge II" })
+local has = Hud.has_variable("score")      -- boolean
+local v = Hud.get_variable("score")        -- string or nil
+Hud.reset_variables()                      -- restore authored defaults</code></pre>
+<ul>
+  <li><code>Hud.set_variable(name, value)</code> sets one value (a string). No return value.</li>
+  <li><code>Hud.set_variables(table)</code> sets several at once. No return value.</li>
+  <li><code>Hud.has_variable(name)</code> returns a boolean.</li>
+  <li><code>Hud.get_variable(name)</code> returns the current string, or <code>nil</code> when the name is unknown.</li>
+  <li><code>Hud.reset_variables()</code> restores every variable to its authored default. No return value.</li>
+</ul>
+<p>The score label redraws with the new number — no need to rebuild the node.</p>
+
+<h2>Rich text tags</h2>
+<p>Inside any <code>text</code> or <code>label</code> you can mark up parts of the string:</p>
+<pre><code>{
+  "id": "tip",
+  "type": "label",
+  "text": "[strong]Forge tip:[/strong] hold [em]guard[/em] near the [color=#ffd27a]core[/color]."
+}</code></pre>
+<table>
+  <thead><tr><th>Tag</th><th>Renders</th></tr></thead>
+  <tbody>
+    <tr><td><code>[color=…][/color]</code></td><td>Tinted text. The color is hex, like <code>#ffd27a</code>.</td></tr>
+    <tr><td><code>[em][/em]</code></td><td>Emphasized (italic) text.</td></tr>
+    <tr><td><code>[strong][/strong]</code></td><td>Strong (bold) text.</td></tr>
+    <tr><td><code>[link=…][/link]</code></td><td>Styled link region for tappable help entries.</td></tr>
+    <tr><td><code>[icon=…][/icon]</code></td><td>Inline icon from a named image.</td></tr>
+  </tbody>
+</table>
+<p>Tags are literal text in the <code>text</code> field and are not drawn. Everything outside them renders in the node’s normal style.</p>
+
+<h2>Theme styles</h2>
+<p>A <strong>theme</strong> is a JSON document of reusable styles. Reference one from the HUD and apply it per node with <code>style</code>.</p>
+<pre><code>{
+  "format_version": 1,
+  "styles": {
+    "menu_button": {
+      "font_size": 28,
+      "color": "#f2f4ff",
+      "background_color": "#2a2f45ff",
+      "padding": [24, 12, 24, 12],
+      "min_size": [280, 52]
+    },
+    "title": {
+      "font": "asset://fonts/head",
+      "font_size": 48,
+      "color": "#ffffff"
+    }
+  },
+  "action_map": { "confirm": "ui_ok" }
+}</code></pre>
+<ul>
+  <li><code>styles</code> — map of style name to shared node fields (fonts, colors, padding, sizes — any appearance field).</li>
+  <li><code>action_map</code> — optional map from an input action name to a UI action name, so the same button works from keyboard and pad.</li>
+</ul>
+<p>Applying a style:</p>
+<pre><code>{
+  "theme": "ui/themes/dark.json",
+  "children": [
+    { "id": "title", "type": "label", "text": "${game_title}", "style": "title" },
+    { "id": "start", "type": "button", "text": "Start", "style": "menu_button", "action": "ui_ok" }
+  ]
+}</code></pre>
+<ul>
+  <li>Top-level <code>theme</code> names the theme file path, relative to the project.</li>
+  <li><code>style</code> on a node copies that style’s fields onto the node.</li>
+  <li>A field written on the node itself wins over the style. The <code>start</code> button above would keep its own <code>text</code> even if <code>menu_button</code> defined one.</li>
+</ul>
+<p>Why themes: one change to <code>menu_button</code> restyles every menu button in Skyforge. Individual exceptions stay readable on the node.</p>
+
+<h2>Localization</h2>
+<p>A <strong>localization file</strong> supplies translated strings. The HUD references it once and keys pull from it per locale.</p>
+<pre><code>{
+  "localization": {
+    "start_game": { "en": "Start", "de": "Starten", "ja": "スタート" },
+    "quit":       { "en": "Quit",  "de": "Beenden", "ja": "やめる" }
+  }
+}</code></pre>
+<pre><code>{
+  "localization_file": "ui/strings.json",
+  "locales": ["en", "de", "ja"],
+  "children": [
+    { "id": "start", "type": "button", "text": "${start_game}", "style": "menu_button" }
+  ]
+}</code></pre>
+<ul>
+  <li>The file is one <code>localization</code> object mapping string keys to per-locale values.</li>
+  <li><code>localization_file</code> on the HUD names that file path.</li>
+  <li><code>locales</code> lists the language codes the game ships.</li>
+  <li>Nodes reference strings through <code>${key}</code> like any variable; the active locale picks the language.</li>
+</ul>
+<pre><code>local Hud = require("demi.hud")
+
+Hud.set_locale("de")             -- switch all strings to German</code></pre>
+<ul>
+  <li><code>Hud.set_locale(code)</code> switches every localized string to that locale code. No return value. Untranslated keys fall back to the first listed locale.</li>
+</ul>
+
+<h2>Pseudo-locale QA</h2>
+<p>Translated text is often longer than English. <strong>Pseudo-localization</strong> expands and accented-izes strings so layout bugs show up before real translations arrive.</p>
+<pre><code>Hud.set_pseudo_locale("en-XA")   -- stress-test layout with fake translations</code></pre>
+<ul>
+  <li><code>Hud.set_pseudo_locale(code)</code> switches to a pseudo-locale build of the current strings. No return value.</li>
+  <li>Strings render accented and padded (English “Start” becomes something like “[Šţàŕţ—]”), so truncation, wrapping, and <code>max_lines</code> are visible immediately.</li>
+  <li>Run Skyforge’s menu in pseudo-locale before each release; fix anything that clips or overflows.</li>
+</ul>
+
+<h2>Next</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'hud-nodes'}) }}">HUD nodes</a> — every node type and its fields.</li>
+  <li><a href="{{ path('docs_page', {slug: 'hud-from-lua'}) }}">HUD from Lua</a> — setters and events.</li>
+  <li><a href="{{ path('docs_page', {slug: 'hud-layout'}) }}">Layout</a> — dock, stack, anchors, safe areas.</li>
+</ul>

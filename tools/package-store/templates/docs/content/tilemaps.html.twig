@@ -1,0 +1,188 @@
+<h1>Tilemaps</h1>
+<p>A tilemap is a level built from a grid of small repeated pieces. This page explains what a tilemap is for, how to author a <code>*.tilemap.json</code> asset field by field, and how to read and edit tiles from Lua.</p>
+
+<h2>What a tilemap is</h2>
+<p>Hand-placing every floor piece of a Skyforge station would take forever and produce heavy scenes. A <strong>tilemap</strong> stores the level as a grid of tile IDs. Each ID selects a small image from a tileset — one floor plate, one wall corner, one hazard grate — and the renderer draws the grid in one pass.</p>
+<p>Tilemaps exist for three reasons:</p>
+<ul>
+  <li><strong>Speed of authoring</strong> — paint rooms instead of instancing hundreds of objects.</li>
+  <li><strong>Cheap rendering</strong> — many tiles from few textures.</li>
+  <li><strong>Built-in gameplay layers</strong> — the same grid can carry collision, walkability, and spawn markers.</li>
+</ul>
+<p>The authored document is a <code>*.tilemap.json</code> asset. A scene then places it with a <code>Tilemap2D</code> component.</p>
+
+<h2>Tile size and map size</h2>
+<pre><code>{
+  "format_version": 1,
+  "tile_size": [32, 32],
+  "map_size": [40, 24]
+}</code></pre>
+<ul>
+  <li><code>format_version</code> identifies the document format. Keep it on every authored file.</li>
+  <li><code>tile_size</code> is <code>[w, h]</code> of one tile in texture pixels. Square tiles <code>[32, 32]</code> are the common case.</li>
+  <li><code>map_size</code> is <code>[columns, rows]</code> of the grid. A 40×24 map holds 960 cells.</li>
+</ul>
+<p>World size comes later from the scene component’s <code>pixels_per_unit</code>, so one tilemap asset can appear at different scales.</p>
+
+<h2>Tilesets and tile IDs</h2>
+<p>A tileset is a texture plus the ID range it owns.</p>
+<pre><code>"tilesets": [
+  {
+    "texture": "asset://tiles/station",
+    "first_tile": 1,
+    "animations": {
+      "17": { "frames": [17, 18, 19], "fps": 6 },
+      "23": { "frames": [23, 24], "fps": 4, "loop": true }
+    }
+  }
+]</code></pre>
+<ul>
+  <li><code>texture</code> is the image the tiles sample.</li>
+  <li><code>first_tile</code> is the first global ID covered by this set. Later sets continue from the previous range.</li>
+  <li><code>animations</code> optionally cycles frames for a tile ID (blinking hazard lights, scrolling vents). Each entry lists <code>frames</code>, <code>fps</code>, and optional <code>loop</code>.</li>
+</ul>
+<p>Tile ID rules, once and for all:</p>
+<table>
+  <thead><tr><th>Rule</th><th>Detail</th></tr></thead>
+  <tbody>
+    <tr><td>0 is empty</td><td>A cell holding <code>0</code> draws nothing.</td></tr>
+    <tr><td>Positive IDs are global</td><td>IDs count from 1 upward across all tilesets, one-based.</td></tr>
+    <tr><td>Row 0 is the top</td><td>Map rows are stored top to bottom; row <code>map_size[1] - 1</code> is the floor row.</td></tr>
+    <tr><td>Storage is row-major</td><td>Each layer’s <code>tiles</code> array lists row 0 left to right, then row 1, and so on.</td></tr>
+  </tbody>
+</table>
+
+<h2>Layers</h2>
+<p>Layers stack back to front and each one can carry gameplay flags.</p>
+<pre><code>"layers": [
+  {
+    "name": "floor",
+    "parallax": 1.0,
+    "opacity": 1.0,
+    "collision": false,
+    "tiles": [0, 1, 1, 0, /* ... row-major ... */]
+  },
+  {
+    "name": "walls",
+    "parallax": 1.0,
+    "opacity": 1.0,
+    "collision": true,
+    "collision_layer": "world",
+    "navigation_blocked": true,
+    "navigation_cost": 0,
+    "tiles": [0, 0, 17, 0]
+  }
+]</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>name</code></td><td>Layer label used for debugging and object association.</td></tr>
+    <tr><td><code>parallax</code></td><td>Scroll factor relative to the camera. <code>1.0</code> moves with the world; less drifts slower for backgrounds.</td></tr>
+    <tr><td><code>opacity</code></td><td>Layer alpha, 0 to 1. Dim a background layer under a dialog.</td></tr>
+    <tr><td><code>collision</code></td><td>When <code>true</code>, solid tiles on this layer generate collision shapes.</td></tr>
+    <tr><td><code>collision_layer</code></td><td>Physics layer name the generated shapes use (see <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">Physics layers</a>). Only meaningful with <code>collision: true</code>.</td></tr>
+    <tr><td><code>navigation_blocked</code></td><td>When <code>true</code>, solid tiles on this layer mark navigation cells unwalkable.</td></tr>
+    <tr><td><code>navigation_cost</code></td><td>Extra cost applied to cells covered by this layer. Higher values make paths avoid the area. <code>0</code> leaves cost unchanged.</td></tr>
+    <tr><td><code>tiles</code></td><td>Flat row-major array of tile IDs, <code>map_size[0] * map_size[1]</code> entries.</td></tr>
+  </tbody>
+</table>
+<p>Collision and navigation flags let one painted grid drive both physics and pathfinding. A Skyforge maintenance floor paints a <code>navigation_cost</code> grating layer so bots prefer the dry route without blocking walking entirely.</p>
+
+<h2>Object layers</h2>
+<p>Not everything is a repeated tile. Spawns, triggers, and lights are single markers with positions and extra data — those live in <code>object_layers</code>.</p>
+<pre><code>"object_layers": [
+  {
+    "name": "spawns",
+    "objects": [
+      {
+        "id": "spawn_a",
+        "type": "player_start",
+        "x": 4,
+        "y": 10,
+        "properties": { "facing": "east", "team": "crew" }
+      }
+    ]
+  }
+]</code></pre>
+<ul>
+  <li><code>name</code> groups the markers so Lua can request one set at a time.</li>
+  <li><code>id</code> is the stable object id.</li>
+  <li><code>type</code> is your gameplay category — anything you read in script.</li>
+  <li><code>x</code> and <code>y</code> are positions in tile units on the map grid.</li>
+  <li><code>properties</code> is an open string-to-value table for facing, team, patrol path, and similar data.</li>
+</ul>
+
+<h2>Placing a tilemap in a scene</h2>
+<pre><code>{
+  "Tilemap2D": {
+    "asset": "asset://maps/station_deck",
+    "pixels_per_unit": 32
+  },
+  "Transform2D": { "position": [0, 0] }
+}</code></pre>
+<ul>
+  <li><code>asset</code> is the <code>*.tilemap.json</code> URI.</li>
+  <li><code>pixels_per_unit</code> converts texture pixels to world units. With 32 pixel tiles and 32 pixels per unit, one tile is 1×1 world unit.</li>
+  <li>The map origin is at <code>Transform2D.position</code>, and that point is the <strong>lower-left</strong> corner of the grid. The map extends right and up from there.</li>
+</ul>
+
+<h2>Reading and editing tiles from Lua</h2>
+<pre><code>local Tilemap2D = require("demi.tilemap2d")
+
+local id = Tilemap2D.get_tile(map, x, y)
+Tilemap2D.set_tile(map, x, y, 17)
+Tilemap2D.clear_overrides(map)
+
+local objects = Tilemap2D.objects(map, "spawns")
+Tilemap2D.bake_navigation(map)</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>get_tile</code></td><td>map entity <code>map</code>, cell <code>x</code>, <code>y</code></td><td>Tile ID number at that cell. <code>0</code> is empty.</td></tr>
+    <tr><td><code>set_tile</code></td><td><code>map</code>, <code>x</code>, <code>y</code>, new tile ID</td><td>Nothing. Writes a runtime override on top of the authored tiles.</td></tr>
+    <tr><td><code>clear_overrides</code></td><td><code>map</code></td><td>Nothing. Restores every cell to the authored asset data.</td></tr>
+    <tr><td><code>objects</code></td><td><code>map</code>, object layer name</td><td>Array of <code>{ id, type, x, y, properties }</code> from that layer. Empty array when the layer has no objects.</td></tr>
+    <tr><td><code>bake_navigation</code></td><td><code>map</code></td><td>Nothing. Rebuilds walkability after tiles change so paths follow the edit.</td></tr>
+  </tbody>
+</table>
+<p>A Skyforge script that paints blast doors shut and reopens them:</p>
+<pre><code>local Tilemap2D = require("demi.tilemap2d")
+
+function close_door(map, cx, cy)
+    Tilemap2D.set_tile(map, cx, cy, 17)      -- solid door tile
+    Tilemap2D.bake_navigation(map)           -- paths now avoid the door
+end
+
+function open_door(map, cx, cy)
+    Tilemap2D.set_tile(map, cx, cy, 1)       -- floor tile
+    Tilemap2D.bake_navigation(map)
+end</code></pre>
+<ul>
+  <li><code>set_tile</code> changes one cell for the running game only; the asset on disk is untouched.</li>
+  <li><code>bake_navigation</code> is called after each edit so bot paths respect the new layout. It returns nothing.</li>
+  <li><code>clear_overrides</code> is the escape hatch when a level reset should restore the authored map.</li>
+</ul>
+<p>Reading spawn markers on level start:</p>
+<pre><code>local Tilemap2D = require("demi.tilemap2d")
+
+local spawns = Tilemap2D.objects(map, "spawns")
+for _, obj in ipairs(spawns) do
+    -- obj.id         "spawn_a"
+    -- obj.type       "player_start"
+    -- obj.x, obj.y   tile coordinates
+    -- obj.properties { facing = "east", team = "crew" }
+end</code></pre>
+<ul>
+  <li><code>objects</code> returns an array of object tables; <code>ipairs</code> walks every marker.</li>
+  <li><code>x</code> and <code>y</code> are in tile units. Convert through the grid helpers on an isometric map (see <a href="{{ path('docs_page', {slug: 'isometric-grid'}) }}">Isometric grid</a>).</li>
+  <li>Missing layers return an empty array, so level-start code needs no existence checks.</li>
+</ul>
+
+<h2>Tips</h2>
+<ul>
+  <li>Keep decorative layers (<code>collision: false</code>) separate from gameplay layers so art changes never break collision.</li>
+  <li>Name <code>collision_layer</code> after physics layer names the project already declares.</li>
+  <li>Store one-way platforms and hazards on their own layer with distinct <code>collision_layer</code> values for easy filtering.</li>
+  <li>Use object layers for anything you want named and searched; tiles are for repetition.</li>
+</ul>
+<p>Tile art is ordinary <a href="{{ path('docs_page', {slug: 'sprites-and-animation'}) }}">sprite</a> texture work. Placement on an isometric diamond grid is covered in <a href="{{ path('docs_page', {slug: 'isometric-grid'}) }}">Isometric grid</a>.</p>

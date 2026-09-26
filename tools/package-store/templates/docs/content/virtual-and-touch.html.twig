@@ -1,0 +1,160 @@
+<h1>Virtual &amp; touch input</h1>
+<p>Phones and tablets have no keyboard. <strong>Virtual input</strong> is how a HUD control — an on-screen stick or button — feeds the same actions a keyboard would. <strong>Touch input</strong> is the raw finger data underneath: positions, drags, and gestures. Together they let one Skyforge gameplay script serve desktop and mobile unchanged.</p>
+
+<h2>The virtual pipeline end to end</h2>
+<p>Three pieces connect a fingertip to a gameplay action:</p>
+<ol>
+  <li>A HUD node of type <code>virtual_button</code> or <code>virtual_stick</code> is drawn on screen and names a <code>control</code>.</li>
+  <li>That name becomes the binding target <code>virtual:&lt;control&gt;</code> in the project’s action bindings.</li>
+  <li>When the player touches the control, the action’s queries return exactly as they would for a physical device.</li>
+</ol>
+<pre><code>-- HUD (hud.json) — the on-screen stick
+{ "id": "move_stick", "type": "virtual_stick", "control": "move" }
+
+-- Project (demi.project.json) — the action binding
+{ "input": "virtual:move", "normalize": true }
+
+-- Lua — unchanged gameplay code
+local x, y = Input.vector("move")</code></pre>
+<p>Field meanings: <code>control</code> is the name the stick publishes; <code>"input": "virtual:move"</code> is the binding that listens for it; <code>Input.vector("move")</code> returns the same <code>x, y</code> pair a left stick would produce. Nothing in the script knows a finger was involved.</p>
+
+<h2>Authoring virtual_button</h2>
+<pre><code>{
+  "id": "jump_btn",
+  "type": "virtual_button",
+  "control": "jump",
+  "dock": "bottom",
+  "at": [1100, 560],
+  "size": [140, 140],
+  "accessibility_label": "Jump"
+}</code></pre>
+<ul>
+  <li><code>type</code> — <code>virtual_button</code>. Renders a pressable on-screen button.</li>
+  <li><code>control</code> — name published as <code>virtual:jump</code> while the button is held. Required.</li>
+  <li><code>dock</code>, <code>at</code>, <code>size</code> — placement in canvas units, like any other node (see <a href="{{ path('docs_page', {slug: 'hud-layout'}) }}">Layout</a>).</li>
+  <li><code>accessibility_label</code> — spoken name for screen readers.</li>
+</ul>
+<p>While a finger is down on the button, bound actions read as pressed. On lift, they read as released — the same timing as a keyboard key.</p>
+
+<h2>Authoring virtual_stick</h2>
+<pre><code>{
+  "id": "move_stick",
+  "type": "virtual_stick",
+  "control": "move",
+  "dock": "bottom",
+  "at": [180, 540],
+  "size": [220, 220]
+}</code></pre>
+<ul>
+  <li><code>control</code> — publishes <code>virtual:move</code> as a two-axis value from the knob’s deflection.</li>
+  <li>Binding <code>virtual:move</code> feeds a <code>vector2</code> action. Binding <code>virtual:move:x</code> or <code>virtual:move:y</code> feeds one axis of the stick into an <code>axis1d</code> action.</li>
+  <li>Deflection is relative to the stick’s size; a full drag to the rim reports about length 1 before any <code>normalize</code>.</li>
+</ul>
+<pre><code>"move": {
+  "type": "vector2",
+  "bindings": [
+    { "input": "key:w", "vector": [0, 1] },
+    { "input": "key:s", "vector": [0, -1] },
+    { "input": "key:a", "vector": [-1, 0] },
+    { "input": "key:d", "vector": [1, 0] },
+    { "input": "gamepad:stick:left", "deadzone": 0.18 },
+    { "input": "virtual:move", "normalize": true }
+  ]
+}</code></pre>
+<p>This move action is filled by WASD, the left stick, and the on-screen stick at once. Whichever device is active wins for that frame.</p>
+
+<h2>Reading touches</h2>
+<p>Touches are the raw fingers on the screen. Use them for world panning or custom gestures when an action is not the right shape.</p>
+<pre><code>local Input = require("demi.input")
+
+function World:on_update(dt)
+    for _, t in ipairs(Input.touches()) do
+        print(t.id, t.phase, t.position.x, t.position.y)
+    end
+    print(Input.touch_count())
+end</code></pre>
+<ul>
+  <li><code>Input.touches()</code> returns an array of touch tables for this frame (empty when nothing is touching).</li>
+  <li><code>Input.touch_count()</code> returns how many touches are active right now, as a number.</li>
+</ul>
+<p>Each touch table has these fields:</p>
+<table>
+  <thead><tr><th>Field</th><th>Type</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>id</code></td><td>number</td><td>Stable identifier for this finger for the life of the touch.</td></tr>
+    <tr><td><code>phase</code></td><td>string</td><td><code>began</code> (finger down), <code>moved</code>, <code>ended</code> (lifted cleanly), <code>cancelled</code> (interrupted, e.g. by a system dialog).</td></tr>
+    <tr><td><code>position</code></td><td><code>{x, y}</code></td><td>Current position in canvas units.</td></tr>
+    <tr><td><code>delta</code></td><td><code>{x, y}</code></td><td>Change since the previous frame for this touch.</td></tr>
+    <tr><td><code>pressure</code></td><td>number</td><td>How hard the finger presses, 0…1. Often 0 or 1 on devices without pressure sensing.</td></tr>
+  </tbody>
+</table>
+<p>A one-finger drag reads as one <code>began</code>, several <code>moved</code> rows with the same <code>id</code>, then one <code>ended</code>. A second finger gets a different <code>id</code> so you can track both at once.</p>
+
+<h2>Reading gestures</h2>
+<p>Gestures are recognized multi-touch shapes. They arrive as a list per frame, separate from touches, so you can react to a tap without writing a recognizer.</p>
+<pre><code>for _, g in ipairs(Input.gestures()) do
+    if g.type == "tap" then
+        print("tapped at", g.position.x, g.position.y)
+    elseif g.type == "pinch" then
+        print("pinch scale", g.distance)
+    end
+end</code></pre>
+<ul>
+  <li><code>Input.gestures()</code> returns an array of gesture tables (empty when no gesture completed this frame).</li>
+</ul>
+<p>Common fields, then the type-specific ones:</p>
+<table>
+  <thead><tr><th>Field</th><th>Present on</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>type</code></td><td>all</td><td><code>tap</code>, <code>double-tap</code>, <code>long-press</code>, <code>drag</code>, <code>pinch</code>, or <code>rotate</code>.</td></tr>
+    <tr><td><code>position</code></td><td>tap, double-tap, long-press</td><td><code>{x, y}</code> where the gesture happened, in canvas units.</td></tr>
+    <tr><td><code>from</code>, <code>to</code></td><td>drag</td><td><code>{x, y}</code> start and end points of the drag.</td></tr>
+    <tr><td><code>delta</code></td><td>drag</td><td><code>{x, y}</code> movement from start to end.</td></tr>
+    <tr><td><code>distance</code></td><td>pinch</td><td>Current distance between the two fingers, in canvas units.</td></tr>
+    <tr><td><code>angle</code></td><td>rotate</td><td>Rotation between the two fingers, in radians.</td></tr>
+  </tbody>
+</table>
+<p>Use <code>tap</code> for select, <code>drag</code> for panning, <code>pinch</code> for zoom, and <code>rotate</code> for camera roll in Skyforge’s map screen.</p>
+
+<h2>Pointer helpers around touch and mouse</h2>
+<pre><code>local x, y = Input.mouse_position()
+local dx, dy = Input.mouse_delta()
+local down = Input.mouse_down("mouse:left")
+local wx, wy = Input.mouse_world_position()
+local vw, vh = Input.viewport_size()
+local captured = Input.ui_pointer_captured()</code></pre>
+<ul>
+  <li><code>Input.mouse_position()</code> returns <code>x, y</code> of the mouse or the primary touch in canvas units.</li>
+  <li><code>Input.mouse_delta()</code> returns <code>dx, dy</code> since last frame.</li>
+  <li><code>Input.mouse_down(button)</code> returns a boolean for a mouse button name.</li>
+  <li><code>Input.mouse_world_position()</code> returns <code>x, y</code> projected into the scene, for clicking world objects.</li>
+  <li><code>Input.viewport_size()</code> returns <code>width, height</code> of the render surface in canvas units.</li>
+  <li><code>Input.ui_pointer_captured()</code> returns <code>true</code> when a HUD control currently owns the pointer — a virtual stick being dragged, a slider, a scroll area. Check it before treating a press as a world click.</li>
+</ul>
+
+<h2>Text input</h2>
+<p>On-screen keyboards appear only when you ask for them:</p>
+<pre><code>Input.set_text_input_active(true)   -- show the keyboard for this field
+local typed = Input.text_entered()  -- string appended this frame, or ""
+-- later, when the player leaves the field:
+Input.set_text_input_active(false)  -- hide the keyboard</code></pre>
+<ul>
+  <li><code>Input.set_text_input_active(flag)</code> takes a boolean and raises or lowers the platform text input. Pair it with focusing a <code>text_input</code> node.</li>
+  <li><code>Input.text_entered()</code> returns the characters typed this frame as a string (empty string when nothing arrived).</li>
+</ul>
+
+<h2>Mobile tips for Skyforge</h2>
+<ul>
+  <li>Keep virtual controls at least 120 canvas units across so thumbs hit them reliably.</li>
+  <li>Place sticks and buttons inside the safe area; see <a href="{{ path('docs_page', {slug: 'hud-layout'}) }}">Layout</a> for when to disable it.</li>
+  <li>Always offer a gamepad path too: <code>virtual:*</code> bindings sit beside <code>gamepad:*</code> bindings on the same action, so a Bluetooth pad works with no extra code.</li>
+  <li>Use <code>Input.ui_pointer_captured()</code> so dragging the move stick never also pans the camera.</li>
+  <li>Prefer actions and virtual controls over raw touches for anything players remap. Touches are for bespoke gestures like the map screen.</li>
+</ul>
+
+<h2>Next</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'hud-nodes'}) }}">HUD nodes</a> — every node type including virtual controls.</li>
+  <li><a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a> — binding fields and presets.</li>
+  <li><a href="{{ path('docs_page', {slug: 'input-actions'}) }}">Actions explained</a> — queries and action types.</li>
+</ul>

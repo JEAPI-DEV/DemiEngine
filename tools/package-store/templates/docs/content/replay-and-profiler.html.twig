@@ -1,0 +1,118 @@
+<h1>Replay &amp; profiler</h1>
+<p>Two tools answer the hard questions of game development. <strong>Replay</strong> answers "how do I make this bug happen again?" by re-sending a recorded input stream through the deterministic simulation. The <strong>profiler</strong> answers "where does the frame time go?" by measuring named scopes while the game runs. Together with <strong>saves</strong> — player progress written outside the project — they are how you reproduce, measure, and persist game state. Examples use "Skyforge" at <code>games/my_game</code> and the CLI at <code>./build/linux-debug/demi</code>.</p>
+
+<h2>What an input replay is</h2>
+<p>A <strong>replay file</strong> is a recording of what the player did: every input frame with its tick and values. Because DemiEngine simulation is deterministic (fixed timestep plus a seeded generator), replaying the same inputs in the same build reproduces the same run. Replays exist so a bug report becomes a file you can rerun in seconds.</p>
+<p>Record fixtures the way your game records input for tests or debugging, then play them back:</p>
+<pre><code>./build/linux-debug/demi run --project games/my_game \
+  --input-replay fixtures/bug123.replay.json</code></pre>
+<ul>
+  <li><code>run --project games/my_game</code> — launches Skyforge normally.</li>
+  <li><code>--input-replay file</code> — replaces live device input with the recorded frames in <code>fixtures/bug123.replay.json</code>.</li>
+</ul>
+<p>The replay drives the game to the end of the recording and exits like a normal run. Use <code>--max-frames</code> to bound it, and <code>DEMI_HEADLESS=1</code> to replay without a window.</p>
+
+<h2>Fixed timestep must match</h2>
+<p>A replay is recorded against one simulation rate. If the project's <code>fixed_timestep</code> differs from the fixture's, frames no longer line up and the run diverges — the engine cannot guess how to retarget ticks. The rule:</p>
+<ul>
+  <li>Keep the project's <code>simulation.fixed_timestep</code> equal to the timestep the fixture was recorded with.</li>
+  <li>Treat a timestep change as a new recording: re-record fixtures after changing it.</li>
+</ul>
+<p>Details of the fixed step and the random seed are in <a href="{{ path('docs_page', {slug: 'simulation-and-seeds'}) }}">Simulation &amp; seeds</a>.</p>
+
+<h2>Profiling a run</h2>
+<p>The <strong>profiler</strong> measures how long each named part of the frame takes — input, scripts, physics, render submission, and your own scopes. It exists because "the game feels slow" is not fixable and "physics costs 11 ms in <code>arena_step</code>" is.</p>
+<pre><code>./build/linux-debug/demi run linux --project games/my_game --profiler</code></pre>
+<ul>
+  <li><code>run linux --project p</code> — desktop launch of Skyforge.</li>
+  <li><code>--profiler</code> — prints slow-frame details to the console while the game runs: frames that exceeded the budget, with their scope breakdown.</li>
+</ul>
+<p>For numbers you can compare and archive, write reports:</p>
+<pre><code>./build/linux-debug/demi run linux --project games/my_game --profiler \
+  --profile-report report.csv --profile-frames frames.csv</code></pre>
+<ul>
+  <li><code>--profile-report r.csv</code> — writes an aggregate report: one row per named scope with totals and call counts for the session.</li>
+  <li><code>--profile-frames f.csv</code> — writes per-frame scope totals: one row per frame per scope, for plotting frame-time over time.</li>
+</ul>
+<p>Both files are plain CSV and open in any spreadsheet or graphing tool. Returns <code>0</code> after a clean run; the reports are written as the game closes.</p>
+
+<h2>Adding your own scopes</h2>
+<p>Engine scopes cover the frame skeleton. Wrap your own heavy work to see it in the same reports:</p>
+<pre><code>local Profile = require("demi.profiler")
+
+function Game:on_update(dt)
+    Profile.scope("crowd_steering", function()
+        Crowd.step(self.crowd, dt)
+    end)
+end</code></pre>
+<ul>
+  <li><code>require("demi.profiler")</code> — imports the profiler service table.</li>
+  <li><code>Profile.scope(name, fn)</code> — runs the function <code>fn</code> and records its duration under <code>name</code> in every profile report. Returns whatever <code>fn</code> returns.</li>
+</ul>
+<p>Give scopes names you will recognize in a CSV a month from now: <code>crowd_steering</code>, not <code>tmp1</code>.</p>
+
+<h2>Debug overlays</h2>
+<p><strong>Debug overlays</strong> draw development-only information over the game so you can see simulation state while profiling or replaying:</p>
+<pre><code>./build/linux-debug/demi run --project games/my_game \
+  --debug-overlays colliders,contacts,grid,entity_ids,draw_order,ui_bounds,profiler</code></pre>
+<ul>
+  <li><code>--debug-overlays names</code> — comma-separated overlay names, overriding the project's debug flags for this run.</li>
+  <li><code>colliders</code> — drawn collision shapes.</li>
+  <li><code>contacts</code> — current contact points and normals.</li>
+  <li><code>grid</code> — the world grid.</li>
+  <li><code>entity_ids</code> — stable entity IDs next to objects.</li>
+  <li><code>draw_order</code> — rendering order of transparent and sorted draws.</li>
+  <li><code>ui_bounds</code> — HUD node rectangles.</li>
+  <li><code>profiler</code> — the in-game profiler HUD.</li>
+</ul>
+<p>Ship with all overlay flags <code>false</code> in the project; overlays are development aids, not player features. The same names toggle in the editor viewport (see <a href="{{ path('docs_page', {slug: 'editor-workspace'}) }}">Workspace &amp; panels</a>).</p>
+
+<h2>Saves</h2>
+<p>A <strong>save</strong> is player progress in a named <strong>slot</strong>, written to platform user-data — never into the project or cooked content. Saves exist so a quit and relaunch continues where the player stopped, and so tests can start from a known state.</p>
+<pre><code>local Save = require("demi.save")
+
+Save.write("slot1", { level = 3, gold = 120 })
+local data = Save.read("slot1")   -- table or nil</code></pre>
+<ul>
+  <li><code>Save.write(slot, table)</code> — writes the whole table to the named slot. Returns a boolean success flag.</li>
+  <li><code>Save.read(slot)</code> — returns the saved table, or <code>nil</code> when the slot is empty or unreadable.</li>
+</ul>
+<pre><code>Save.set_number("slot1", "gold", 150)
+print(Save.get_number("slot1", "gold", 0))  -- 150; 0 is the default</code></pre>
+<ul>
+  <li><code>Save.set_number(slot, key, default)</code> — writes one numeric field in the slot.</li>
+  <li><code>Save.get_number(slot, key, default)</code> — returns the stored number, or <code>default</code> when the key is missing.</li>
+</ul>
+<pre><code>Save.register_migration(2, function(old_table)
+    old_table.coins = old_table.gold
+    old_table.gold = nil
+    return old_table
+end)</code></pre>
+<ul>
+  <li><code>Save.register_migration(version, fn)</code> — registers an upgrade function for saves from the previous format version. <code>fn</code> receives the old table and returns the migrated table. Migrations run in order when an older save is loaded.</li>
+</ul>
+<pre><code>local meta = Save.metadata("slot1")     -- table of save metadata
+local err  = Save.last_error()          -- string or nil
+local here = Save.exists("slot1")       -- boolean
+Save.delete("slot1")                    -- remove the slot</code></pre>
+<ul>
+  <li><code>Save.metadata(slot)</code> — returns a metadata table for the slot (size and timestamps), or <code>nil</code>.</li>
+  <li><code>Save.last_error()</code> — returns the last save error message as a string, or <code>nil</code> when the last operation succeeded.</li>
+  <li><code>Save.exists(slot)</code> — returns a boolean.</li>
+  <li><code>Save.delete(slot)</code> — removes the slot. Returns a boolean success flag.</li>
+</ul>
+<p>Inspect a save file from the command line when something looks wrong:</p>
+<pre><code>./build/linux-debug/demi save inspect saves/slot1.json</code></pre>
+<ul>
+  <li><code>save inspect</code> — validates and summarizes the save document. Returns <code>0</code> when valid, <code>1</code> when the file is corrupt.</li>
+</ul>
+
+<h2>A practical workflow</h2>
+<ol>
+  <li>Reproduce with a replay fixture and <code>--input-replay</code>; keep the fixture's timestep equal to the project's.</li>
+  <li>Turn on the overlays that show the subsystem you suspect (<code>contacts</code> for physics, <code>draw_order</code> for sorting).</li>
+  <li>Profile with <code>--profile-report</code> and <code>--profile-frames</code>; wrap hot code in <code>Profile.scope</code> until the cost has a name.</li>
+  <li>Fix, replay again, and compare the two CSV reports.</li>
+  <li>Lock the behavior in with <a href="{{ path('docs_page', {slug: 'e2e-tests'}) }}">E2E tests</a>.</li>
+</ol>
+<p>Related pages: <a href="{{ path('docs_page', {slug: 'cli-build-and-test'}) }}">Build, cook &amp; test</a> for the command surface, and <a href="{{ path('docs_page', {slug: 'editor-play-mode'}) }}">Play mode</a> for the in-editor profiler panel.</p>

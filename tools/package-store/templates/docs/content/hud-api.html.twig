@@ -1,0 +1,150 @@
+<h1>HUD API</h1>
+<p>HUD stands for heads-up display: the on-screen interface layer — health bars, score, menus, touch buttons. In DemiEngine the HUD is an authored document of named nodes that scripts can find, update, animate, and query for tests.</p>
+
+<h2>What a HUD node is</h2>
+<p>A HUD is a tree of nodes (labels, bars, buttons, panels). Every node has a stable ID from the authored document, so scripts address nodes by name instead of hunting through a hierarchy. The <code>demi.hud</code> module is how a script finds a node and changes what the player sees.</p>
+<pre><code>local Hud = require("demi.hud")
+
+local bar = Hud.find("skyforge_health_bar")   -- node handle, or nil if the ID is unknown</code></pre>
+<p><code>Hud.find(id)</code> takes the authored node ID and returns a handle for later calls, or <code>nil</code> when no node has that ID. Keep the handle; every other call accepts it.</p>
+
+<h2>Creating and structuring nodes</h2>
+<pre><code>local Hud = require("demi.hud")
+
+local panel = Hud.find("skyforge_menu")
+local row = Hud.create(panel, {
+    type = "stack",                -- node type
+    id = "skyforge_row_1",         -- stable ID for later find()
+    -- plus type-specific fields: text, style, dock, …
+})
+-- row: new node handle, or nil if the definition is invalid
+
+Hud.clone(row)                    -- duplicate a node (returns the new handle, or nil)
+Hud.reparent(row, Hud.find("skyforge_other_panel"))
+Hud.clear_children(panel)
+local kids = Hud.children(panel)  -- array of child handles (possibly empty)
+Hud.remove(row)</code></pre>
+<ul>
+  <li><code>Hud.create(parent, def)</code> — creates a node under <code>parent</code> from a definition table. Returns the handle, or <code>nil</code> when the definition is invalid.</li>
+  <li><code>Hud.clone(node)</code> → copy handle, or <code>nil</code>.</li>
+  <li><code>Hud.remove(node)</code> — deletes the node and its subtree. Returns nothing.</li>
+  <li><code>Hud.reparent(node, newParent)</code> — moves a node. Returns nothing.</li>
+  <li><code>Hud.clear_children(node)</code> — removes all children. Returns nothing.</li>
+  <li><code>Hud.children(node)</code> → array of child handles; empty when there are none, never <code>nil</code>.</li>
+</ul>
+
+<h2>Content and appearance</h2>
+<pre><code>local Hud = require("demi.hud")
+
+Hud.set_text("skyforge_score", "0")
+print(Hud.get_text("skyforge_score"))    -- "0"
+
+Hud.set_font("skyforge_score", "asset://fonts/skyforge_ui")
+Hud.set_font_size("skyforge_score", 18)
+Hud.set_color("skyforge_score", { 1, 1, 1, 1 })
+Hud.set_background_color("skyforge_score", { 0, 0, 0, 0.5 })
+Hud.set_image("skyforge_portrait", "asset://textures/skyforge_ace")
+Hud.set_opacity("skyforge_score", 0.8)</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Takes</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>Hud.set_text(node, text)</code></td><td>Handle/ID, string</td><td>Nothing</td></tr>
+    <tr><td><code>Hud.get_text(node)</code></td><td>Handle/ID</td><td>String, or <code>nil</code> when the node is missing or has no text</td></tr>
+    <tr><td><code>Hud.set_font(node, uri)</code></td><td>Handle/ID, <code>asset://</code> font URI</td><td>Nothing</td></tr>
+    <tr><td><code>Hud.set_font_size(node, size)</code></td><td>Handle/ID, number in canvas units</td><td>Nothing</td></tr>
+    <tr><td><code>Hud.set_color(node, rgba)</code></td><td>Handle/ID, 4-number array <code>{r,g,b,a}</code> 0…1</td><td>Nothing</td></tr>
+    <tr><td><code>Hud.set_background_color(node, rgba)</code></td><td>Handle/ID, 4-number array</td><td>Nothing</td></tr>
+    <tr><td><code>Hud.set_image(node, uri)</code></td><td>Handle/ID, texture URI</td><td>Nothing</td></tr>
+    <tr><td><code>Hud.set_opacity(node, alpha)</code></td><td>Handle/ID, number 0…1</td><td>Nothing</td></tr>
+  </tbody>
+</table>
+<p>Colors are RGBA arrays of numbers from 0 to 1 (index 1 = red, 2 = green, 3 = blue, 4 = alpha). Sizes and positions use the HUD document's <code>canvas_size</code> units, not raw screen pixels.</p>
+<pre><code>Hud.set_value("skyforge_health_bar", 0.75)   -- progress-style nodes: 0…1 (or the node's range)
+Hud.set_checked("skyforge_mute_toggle", true)
+Hud.set_disabled("skyforge_play_button", true)
+Hud.set_visible("skyforge_warning", false)
+Hud.set_position("skyforge_banner", 40, 12)
+Hud.set_size("skyforge_banner", 200, 48)</code></pre>
+<ul>
+  <li><code>Hud.set_value(node, number)</code> — fills sliders and progress bars. Returns nothing.</li>
+  <li><code>Hud.set_checked(node, boolean)</code> — checkbox/toggle state.</li>
+  <li><code>Hud.set_disabled(node, boolean)</code> — blocks interaction and can grey out the look.</li>
+  <li><code>Hud.set_visible(node, boolean)</code> — shows or hides without destroying the node.</li>
+  <li><code>Hud.set_position(node, x, y)</code> / <code>Hud.set_size(node, w, h)</code> — canvas-unit layout overrides. Return nothing.</li>
+</ul>
+
+<h2>Focus</h2>
+<pre><code>Hud.focus_next()
+print(Hud.focused())    -- focused node ID string, or nil when nothing has focus</code></pre>
+<p><code>Hud.focus_next()</code> moves keyboard/controller focus to the next focusable node and returns nothing. <code>Hud.focused()</code> returns the focused node's ID string, or <code>nil</code>. Use these for menu navigation on gamepad and keyboard.</p>
+
+<h2>Variables and localization</h2>
+<p>Variables are named values that text nodes can interpolate, so one script write updates every label bound to that name.</p>
+<pre><code>local Hud = require("demi.hud")
+
+Hud.set_variable("score", 1200)
+Hud.set_variables({ wave = 3, lives = 2 })
+print(Hud.has_variable("score"))       -- true
+print(Hud.get_variable("score"))       -- 1200, or nil when unset
+
+Hud.reset_variables()                  -- back to authored defaults
+
+Hud.set_locale("de")
+Hud.set_pseudo_locale(true)            -- stretch text to spot overflow</code></pre>
+<ul>
+  <li><code>Hud.set_variable(name, value)</code> / <code>Hud.set_variables(table)</code> — assign one or many. Return nothing.</li>
+  <li><code>Hud.has_variable(name)</code> → boolean.</li>
+  <li><code>Hud.get_variable(name)</code> → the value, or <code>nil</code> when unset.</li>
+  <li><code>Hud.reset_variables()</code> — restores authored defaults.</li>
+  <li><code>Hud.set_locale(tag)</code> / <code>Hud.set_pseudo_locale(on)</code> — language selection and layout stress-testing.</li>
+</ul>
+
+<h2>Tweens and motion</h2>
+<p>A tween animates one property over time. Supported properties: <code>opacity</code>, <code>x</code>, <code>y</code>, <code>scale</code>.</p>
+<pre><code>local Hud = require("demi.hud")
+
+Hud.tween("skyforge_banner", "opacity", 0, 0.4)   -- fade out over 0.4 seconds
+Hud.cancel_tween("skyforge_banner")               -- stop mid-flight
+Hud.set_reduced_motion(true)                      -- honour accessibility preference</code></pre>
+<ul>
+  <li><code>Hud.tween(node, property, target, duration)</code> — animates <code>opacity</code>, <code>x</code>, <code>y</code>, or <code>scale</code> toward <code>target</code> over <code>duration</code> seconds. Returns nothing.</li>
+  <li><code>Hud.cancel_tween(node)</code> — stops tweens on that node.</li>
+  <li><code>Hud.set_reduced_motion(on)</code> — respects players who prefer fewer animations.</li>
+</ul>
+
+<h2>Virtualized lists</h2>
+<p>Long lists (a Skyforge server browser with hundreds of rows) should only build the rows on screen. Virtualization helpers report which rows are visible and recycle off-screen ones.</p>
+<pre><code>local Hud = require("demi.hud")
+
+print(Hud.visible_range("skyforge_server_list"))   -- {first, last} indices, or nil
+
+local layout = Hud.virtual_layout("skyforge_server_list", 400)
+-- layout: {
+--   visible_range = { first, last },
+--   set_extent    = number,   -- how many rows one screen shows
+--   item_offset   = number,   -- index of the first materialized row
+--   item_count    = number,   -- rows currently materialized
+--   total_extent  = number,   -- full list height in canvas units
+-- }
+
+Hud.recycle_rows("skyforge_server_list")
+Hud.clear_recycled_rows("skyforge_server_list")
+print(Hud.canvas_size("skyforge_server_list"))     -- {width, height} in canvas units</code></pre>
+<ul>
+  <li><code>Hud.visible_range(node)</code> → <code>{first, last}</code> index pair, or <code>nil</code> when the node is not a virtualized list.</li>
+  <li><code>Hud.virtual_layout(node, extents)</code> → the layout table described above (all fields numeric).</li>
+  <li><code>Hud.recycle_rows(node)</code> / <code>Hud.clear_recycled_rows(node)</code> — manage the recycled row pool.</li>
+  <li><code>Hud.canvas_size(node)</code> → <code>{width, height}</code> numbers in canvas units.</li>
+</ul>
+
+<h2>Accessibility snapshot</h2>
+<pre><code>local nodes = Hud.accessibility_snapshot("skyforge_root")
+-- nodes: array of { id, role, label, value, focused } tables (possibly empty)</code></pre>
+<p><code>Hud.accessibility_snapshot(node)</code> walks the subtree and returns an array of plain tables describing what a screen reader should announce. Each entry has string fields <code>id</code>, <code>role</code>, <code>label</code> (may be empty), <code>value</code>, and a boolean <code>focused</code>. The array is empty when the subtree has no accessible content — never <code>nil</code>.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'events-and-timers'}) }}">Events &amp; timers</a> — wiring buttons with <code>ui_event</code> and <code>ui_submit</code>.</li>
+  <li><a href="{{ path('docs_page', {slug: 'e2e-tests'}) }}">E2E tests</a> — driving HUD nodes from tests with <code>Test.touch</code>.</li>
+  <li><a href="{{ path('docs_page', {slug: 'script-lifecycle'}) }}">Script lifecycle</a> — the hooks that receive UI events.</li>
+</ul>

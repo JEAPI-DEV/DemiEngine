@@ -1,0 +1,134 @@
+<h1>Sessions &amp; contracts</h1>
+<p><strong>Multiplayer</strong> means several machines run copies of the same game and agree on what is happening. A <strong>session</strong> is one such agreement: who is connected, which scene is running, which seed is active, and which entities each player controls. A <strong>network contract</strong> is the written rule set for that session — which messages exist, who may send them, and what happens on disconnect. Contracts exist so authority is policy the engine enforces, not a habit individual scripts might forget. This page covers both, on the sample game "Skyforge" at <code>games/my_game</code>.</p>
+
+<h2>What a NetworkContract asset is</h2>
+<p>A <strong>NetworkContract</strong> is an asset declaring the multiplayer rules of a game. The project points at it from <code>demi.project.json</code>:</p>
+<pre><code>"network_contract": "asset://network/arena_contract"</code></pre>
+<ul>
+  <li><code>network_contract</code> — the <code>asset://</code> ID of the contract asset. Required only for networked games.</li>
+</ul>
+<p>Every peer computes a <strong>contract hash</strong> from the contract content. The hash is checked at session setup: peers running different rules cannot join the same session, so a mismatch is rejected before any gameplay message flows.</p>
+
+<h2>Policy: who may do what</h2>
+<p>The contract answers three policy questions in advance:</p>
+<table>
+  <thead><tr><th>Policy</th><th>Allowed values</th><th>What it decides</th></tr></thead>
+  <tbody>
+    <tr><td>senders / writers</td><td><code>server</code>, <code>owner</code>, <code>all</code></td><td>Who may send a given message or write a given piece of state. <code>server</code> is the host alone; <code>owner</code> is the controlling peer of one entity; <code>all</code> is every connected peer.</td></tr>
+    <tr><td>disconnect</td><td><code>despawn</code>, <code>return_to_server</code>, <code>transfer_by_game_policy</code></td><td>What happens to a player's entities when they leave: destroy them, hand control back to the server, or let game code decide.</td></tr>
+    <tr><td>message targets</td><td><code>owned_entity</code>, <code>entity</code>, <code>none</code></td><td>Which entity a message may address: only an entity the sender owns, any entity, or no entity at all (session-level messages).</td></tr>
+  </tbody>
+</table>
+<p>Validation rejects messages that violate these rules before Lua ever sees them. That is the point: cheats and bugs that send "damage that enemy" are stopped at the boundary.</p>
+
+<h2>Session phases</h2>
+<p>A session moves through named <strong>phases</strong>. Phases exist so scripts can ask "may I spawn yet?" without guessing:</p>
+<table>
+  <thead><tr><th>Phase</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>closed</code></td><td>No session. The transport is idle.</td></tr>
+    <tr><td><code>connected</code></td><td>A transport link exists; handshake not finished.</td></tr>
+    <tr><td><code>authenticated</code></td><td>Identity and contract hash accepted.</td></tr>
+    <tr><td><code>ready</code></td><td>Scene and seed distributed; waiting to start.</td></tr>
+    <tr><td><code>active</code></td><td>Gameplay messages flow; entities simulate.</td></tr>
+    <tr><td><code>reconnecting</code></td><td>A dropped peer is being recovered within the disconnect policy.</td></tr>
+  </tbody>
+</table>
+<p>The normal path is <code>closed → connected → authenticated → ready → active</code>, with <code>reconnecting</code> entered from <code>active</code> when a link drops.</p>
+
+<h2>Hosting and connecting</h2>
+<p>Import the session service explicitly and either host or connect:</p>
+<pre><code>local Session = require("demi.network.session")
+
+local ok = Session.host(7777)
+if ok then
+    Session.start_session({ scene_id = "scene://game/arena", seed = 42 })
+end</code></pre>
+<ul>
+  <li><code>require("demi.network.session")</code> — imports the session service table.</li>
+  <li><code>Session.host(port)</code> — opens a server socket on the given UDP/TCP port. Returns a boolean: <code>true</code> when the socket is open.</li>
+  <li><code>Session.start_session({scene_id, seed})</code> — host only. Starts a session on the named scene with the deterministic simulation seed (see <a href="{{ path('docs_page', {slug: 'simulation-and-seeds'}) }}">Simulation &amp; seeds</a>). Returns a boolean.</li>
+</ul>
+<pre><code>local ok = Session.connect("192.168.1.10", 7777)
+print(Session.is_connected())   -- true once the transport link is up</code></pre>
+<ul>
+  <li><code>Session.connect(host, port)</code> — starts connecting a client to a host. Returns a boolean for "connection attempt started".</li>
+  <li><code>Session.is_connected()</code> — returns <code>true</code> while a transport link exists, <code>false</code> otherwise.</li>
+  <li><code>Session.is_host()</code> — returns <code>true</code> on the server peer, <code>false</code> on clients.</li>
+  <li><code>Session.sender_id()</code> — returns this peer's sender ID (an integer), assigned during the handshake.</li>
+  <li><code>Session.current_session()</code> — returns the current session table or <code>nil</code> when none is active.</li>
+</ul>
+
+<h2>Receiving validated messages</h2>
+<p>Incoming traffic is checked <strong>before</strong> it reaches Lua: header, protocol version, contract hash, epoch, sequence, size, message structure, finite numbers, payload schema, sender identity, destination, ownership generation, and rate limits. Only messages that pass arrive in the event queue.</p>
+<pre><code>function Game:on_update(dt)
+    for _, msg in ipairs(Session.process_events()) do
+        -- msg.name, msg.sender_id, msg.data
+        self:handle(msg.name, msg.sender_id, msg.data)
+    end
+end</code></pre>
+<ul>
+  <li><code>Session.process_events()</code> — drains one frame's network events and returns an array of validated message tables.</li>
+  <li><code>msg.name</code> — the declared message name from the contract.</li>
+  <li><code>msg.sender_id</code> — integer ID of the sending peer.</li>
+  <li><code>msg.data</code> — the validated payload as a Lua table. Array-like payloads round-trip as numeric arrays.</li>
+</ul>
+<p>Tests and game code consume the same queues. Poll state in tests when gameplay legitimately drains connection events.</p>
+
+<h2>Entities, IDs, and ownership</h2>
+<p>The <strong>server</strong> issues entity network IDs and ownership generations. A generation counter exists so a recycled ID can never be confused with a previous owner's entity.</p>
+<pre><code>local network_id = Session.spawn("prefab://enemy/drone", entity_id, owner_id)
+print(network_id)   -- integer network ID (host only)</code></pre>
+<ul>
+  <li><code>Session.spawn(prefab_key, entity_id, owner)</code> — host only. Spawns a replicated entity from the prefab key, binds it to the local entity ID, and assigns an owner. Returns the integer network ID.</li>
+</ul>
+<pre><code>Session.transfer(network_id, new_owner_id)   -- move ownership
+Session.despawn(network_id)                  -- remove the replicated entity</code></pre>
+<ul>
+  <li><code>Session.transfer</code> — reassigns ownership to <code>new_owner_id</code> and advances the ownership generation.</li>
+  <li><code>Session.despawn</code> — removes the replicated entity from the session.</li>
+</ul>
+<pre><code>if Session.has_authority(network_id) then
+    -- this peer decides that entity's state
+end
+local owner = Session.owner(network_id)                       -- integer owner ID or nil
+local nid   = Session.network_id_for_owner(owner_id)          -- integer network ID or nil
+Session.bind_local_entity(network_id, local_entity_id)        -- map network ID to a scene entity</code></pre>
+<ul>
+  <li><code>Session.has_authority(network_id)</code> — returns a boolean: <code>true</code> when this peer may simulate and publish that entity.</li>
+  <li><code>Session.owner(network_id)</code> — returns the integer owner ID, or <code>nil</code> for an unknown entity.</li>
+  <li><code>Session.network_id_for_owner(owner_id)</code> — returns the first network ID that owner controls, or <code>nil</code>.</li>
+  <li><code>Session.bind_local_entity(network_id, local_entity_id)</code> — links a network ID to a local scene entity so updates apply to the right object.</li>
+</ul>
+<p>Late joiners receive retained spawn state: every still-live replicated entity is re-spawned for them from the session's spawn record, so a new client sees the arena as it is, not as it was at match start.</p>
+
+<h2>Sending messages</h2>
+<pre><code>local ok = Session.send("fire", { x = 3, y = 1 }, { target = "owned_entity" })</code></pre>
+<ul>
+  <li><code>Session.send(name, data, options)</code> — queues a message declared in the contract.</li>
+  <li><code>name</code> — the message name from the contract.</li>
+  <li><code>data</code> — the payload table. It must satisfy the contract's schema and contain only finite numbers.</li>
+  <li><code>options.target</code> — optional destination policy: <code>"owned_entity"</code>, <code>"entity"</code>, or <code>"none"</code>, matching the contract's message target rules.</li>
+  <li>Returns <code>ok</code> — a boolean. <code>false</code> means the send was rejected by policy or rate limits.</li>
+</ul>
+
+<h2>Watching session health</h2>
+<pre><code>local d = Session.diagnostics()
+print(d.phase, d.epoch, d.contract_hash)
+for name, count in pairs(d.counters) do
+    print(name, count)
+end</code></pre>
+<ul>
+  <li><code>Session.diagnostics()</code> — returns a table with <code>phase</code> (the current session phase), <code>epoch</code> (the current session epoch integer), <code>contract_hash</code> (the hash string checked at setup), and <code>counters</code> (a table of named integer counts such as sent, received, and rejected messages).</li>
+</ul>
+<p>Counters grow whenever messages are accepted or rejected, so a rising rejection count is a policy or version mismatch worth investigating before it becomes a player complaint.</p>
+
+<h2>Keeping time in sync</h2>
+<p>Replicated entities advance through the session service at the simulation rate:</p>
+<pre><code>function Game:on_fixed_update(fixed_dt)
+    Session.update_entity(network_id, fixed_dt)
+end</code></pre>
+<ul>
+  <li><code>Session.update_entity(network_id, dt)</code> — advances one replicated entity by <code>dt</code> seconds of simulation time (the fixed step). Used on entities this peer does not author, so remote positions interpolate toward the latest received state.</li>
+</ul>
+<p>Smoothing and rewinding remote entities are the job of <a href="{{ path('docs_page', {slug: 'prediction'}) }}">Prediction</a>. TLS and custom transports are covered in <a href="{{ path('docs_page', {slug: 'http-and-tls'}) }}">HTTP &amp; TLS</a>.</p>

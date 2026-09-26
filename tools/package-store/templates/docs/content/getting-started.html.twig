@@ -1,0 +1,59 @@
+<h1>Getting started</h1>
+<p>DemiEngine is a Linux-first C++20 engine for deterministic, text-authored games. Projects are versioned JSON, gameplay is Lua 5.4, and the <code>demi</code> CLI is the primary authoring, validation, testing, and packaging tool.</p>
+
+<h2>1. Build the engine</h2>
+<p>Configure and build the debug preset from the repository root:</p>
+<pre><code>cmake --preset linux-debug
+cmake --build --preset linux-debug</code></pre>
+<p>The CLI lands at <code>./build/linux-debug/demi</code>. Confirm it is alive:</p>
+<pre><code>./build/linux-debug/demi --help</code></pre>
+
+<h2>2. Create a project</h2>
+<p>List the checked-in starter templates, then generate a project. <code>demi new</code> never overwrites a destination: it writes into a temporary sibling, validates the complete project, and only then renames the directory into place.</p>
+<pre><code>./build/linux-debug/demi new --list
+./build/linux-debug/demi new games/my_game --template platformer --name "My Game"</code></pre>
+<p>Add <code>--dry-run</code> to inspect the file list without writing anything.</p>
+<p>A generated project contains source JSON, a Lua entry script, a deterministic smoke replay, and project-local LuaLS stubs for editor autocomplete.</p>
+
+<h2>3. Check your environment</h2>
+<pre><code>./build/linux-debug/demi doctor --project games/my_game/demi.project.json
+./build/linux-debug/demi doctor --project games/my_game/demi.project.json \
+  --platform android --format json</code></pre>
+<p>Doctor diagnostics use stable codes and the same text or JSON diagnostic format as validation. Android checks include Java, SDK, and NDK discovery.</p>
+
+<h2>4. Run the development loop</h2>
+<pre><code>cd games/my_game
+../../build/linux-debug/demi dev</code></pre>
+<p><code>demi dev</code> finds the nearest <code>demi.project.json</code>, runs environment and project checks, and starts the runtime with watch mode enabled. Pass <code>--project</code> when invoking it from outside the project tree.</p>
+<div class="docs-note"><strong>Hot reload</strong><p>Edit Lua, scene, HUD, data, and asset files while the game keeps running. Changes are prepared at frame boundaries and replace the live world only when valid. Invalid edits print diagnostics and the last good world stays active. Build output, saves, <code>.git</code>, and generated files are not watched.</p></div>
+<p>On an attached Android device the same flow is <code>demi run android --watch</code>.</p>
+
+<h2>5. Validate and smoke-test</h2>
+<p>Validate a project and every reachable source:</p>
+<pre><code>./build/linux-debug/demi validate examples/minimal_3d</code></pre>
+<p>One-frame headless smoke test:</p>
+<pre><code>DEMI_HEADLESS=1 ./build/linux-debug/demi test \
+  --project games/my_game/demi.project.json</code></pre>
+<p>Desktop E2E through the real runtime:</p>
+<pre><code>./build/linux-debug/demi test linux --project games/my_game</code></pre>
+
+<h2>What is in a project?</h2>
+<pre><code>my_game/
+├── demi.project.json        # project, scenes, input, physics, build metadata
+├── scenes/                  # *.scene.json
+├── prefabs/                 # *.prefab.json
+├── hud/                     # *.hud.json and UI prefabs
+├── scripts/                 # Lua gameplay; scripts/tests/e2e.lua
+├── assets/                  # *.asset.json + imported sources
+├── data/                    # schema-backed game data
+├── demi.packages.lock.json  # resolved package versions
+└── .demi/                   # derived packages + IDE metadata</code></pre>
+<p>Read <a href="{{ path('docs_page', {slug: 'project-format'}) }}">Project &amp; file formats</a> for the document shapes, or jump straight into <a href="{{ path('docs_page', {slug: 'scripting'}) }}">Lua scripting</a>.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'core-concepts'}) }}">Core concepts</a> — the project/scene/entity/asset model.</li>
+  <li><a href="{{ path('docs_page', {slug: 'cli'}) }}">CLI reference</a> — every command, including cook and package.</li>
+  <li><a href="{{ path('docs_page', {slug: 'editor'}) }}">Editor</a> — the native scene/HUD workspace.</li>
+  <li><a href="{{ path('docs_page', {slug: 'examples'}) }}">Examples tour</a> — 26 runnable sample projects.</li>
+</ul>

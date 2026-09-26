@@ -1,0 +1,151 @@
+<h1>2D &amp; isometric</h1>
+<p>The 2D stack is the production focus: sprites, cameras, animation, tilemaps, materials, particles, masks, nine-slice, and isometric placement.</p>
+
+<h2>Sprites</h2>
+<pre><code>{
+  "Sprite": {
+    "texture": "asset://sprites/hero",
+    "source_rect": [0, 0, 32, 32],
+    "size": [1, 1],
+    "pivot": [0.5, 0],
+    "flip_x": false,
+    "color": [1, 1, 1, 1],
+    "layer": "characters",
+    "sorting_order": 10,
+    "material": "asset://materials/additive",
+    "nine_slice": [[2, 2], [2, 2]],
+    "mask_offset": [0, 0],
+    "mask_size": [1, 1]
+  }
+}</code></pre>
+<ul>
+  <li><code>source_rect</code> is <code>[x, y, w, h]</code> in pixels or normalized units, taken from the texture.</li>
+  <li><code>size</code> is world extent; <code>pivot</code> is the origin inside the sprite (0.5 centers X).</li>
+  <li><code>nine_slice</code> is <code>[[left, top], [right, bottom]]</code> border widths for stretchable panels.</li>
+  <li><code>mask_offset</code> / <code>mask_size</code> clip the sprite — useful for health bars and portrait frames.</li>
+  <li>Draw order: <code>sorting_order</code>, then <code>layer</code> name, then isometric depth.</li>
+  <li>Transparent sprites need alpha in the source (PNG recommended).</li>
+</ul>
+<pre><code>local Sprite2D = require("demi.sprite2d")
+
+Sprite2D.set_color(id, { 1, 0.4, 0.4, 1 })   -- RGBA 0…1
+Sprite2D.set_flip(id, true, false)           -- flip_x, flip_y
+Sprite2D.set_size(id, 1.5, 1.5)
+Sprite2D.set_layer(id, "characters")
+Sprite2D.set_sorting_order(id, 20)
+Sprite2D.set_material(id, "asset://materials/additive")
+
+Sprite2D.play_animation(id, "run")
+Sprite2D.pause_animation(id)
+Sprite2D.resume_animation(id)
+local clip = Sprite2D.current_animation(id)  -- clip name or nil</code></pre>
+
+<h2>Sprite animation</h2>
+<pre><code>{
+  "SpriteAnimator2D": {
+    "frame_size": [32, 32],
+    "clips": {
+      "idle": { "start_frame": 0, "frame_count": 4, "fps": 8 },
+      "run":  { "start_frame": 4, "frame_count": 6, "fps": 12,
+                "events": [{ "time": 0.5, "name": "footstep" }] }
+    }
+  }
+}</code></pre>
+<p>Frames count left-to-right across the sheet. A clip event fires <code>sprite_animation</code> when playback crosses <code>time</code> (normalized 0…1 within the clip):</p>
+<pre><code>Events.subscribe("sprite_animation", function(e)
+    -- e.entity_id, e.clip, e.name, e.frame
+    if e.name == "footstep" then Audio.play("asset://audio/step") end
+end)</code></pre>
+<p>Alternatively declare an <code>atlas</code> to generate one clip per row:</p>
+<pre><code>{
+  "SpriteAnimator2D": {
+    "atlas": {
+      "columns": 8, "rows": 3,
+      "row_names": ["idle", "run", "jump"],
+      "fps": 12, "loop": true
+    }
+  }
+}</code></pre>
+<p>Explicit <code>clips</code> override the generated rows.</p>
+
+<h2>Animation state machines</h2>
+<p><code>AnimationStateMachine</code> drives sprites and 3D clips with named states, parameters, and transitions. Details live in <a href="{{ path('docs_page', {slug: 'animation-audio'}) }}">Animation &amp; audio</a>.</p>
+<pre><code>local Animation = require("demi.animation")
+
+Animation.set_number(id, "speed", 1.2)     -- parameter used by transitions
+Animation.set_bool(id, "grounded", true)
+Animation.trigger(id, "jump")              -- one-shot transition trigger
+local state = Animation.state(id)          -- current state name, or nil</code></pre>
+
+<h2>Animation-timed collision</h2>
+<p><code>AnimationCollision2D</code> defines named receiver volumes and state-time overlap windows. When a window is active and a receiver overlaps something, it emits <code>animation_collision</code>:</p>
+<pre><code>Events.subscribe("animation_collision", function(e)
+    -- e.source_id, e.target_id, e.window, e.receiver
+end)</code></pre>
+<p>The event is neutral — apply damage or knockback in your own script or with a gameplay package.</p>
+
+<h2>Camera2D</h2>
+<pre><code>{
+  "Camera2D": {
+    "target": "player",
+    "follow_speed": 4.0,
+    "follow_offset": [0, 1],
+    "bounds_min": [0, 0],
+    "bounds_max": [40, 24]
+  }
+}</code></pre>
+<p><code>target</code> is an entity ID. <code>follow_speed</code> of <code>0</code> snaps instantly; higher values ease toward the target. Bounds clamp the camera to the level.</p>
+
+<h2>Tilemaps</h2>
+<p>Author <code>*.tilemap.json</code> through a <code>Tilemap2D</code> asset, then place a <code>Tilemap2D</code> component with <code>asset</code> and <code>pixels_per_unit</code>. The map origin is at <code>Transform2D.position</code> (lower-left).</p>
+<pre><code>local Tilemap2D = require("demi.tilemap2d")
+
+local id = Tilemap2D.get_tile(map, x, y)   -- tile ID (0 = empty)
+Tilemap2D.set_tile(map, x, y, 17)          -- runtime override
+Tilemap2D.clear_overrides(map)             -- restore authored tiles
+
+local objects = Tilemap2D.objects(map, "spawns")
+-- array of { id, type, x, y, properties } from the object layer
+
+Tilemap2D.bake_navigation(map)             -- rebuild walkability after edits</code></pre>
+<p>Layers may carry <code>collision</code>, <code>collision_layer</code>, <code>navigation_blocked</code>, <code>navigation_cost</code>, <code>parallax</code>, and <code>opacity</code>. Tile ID 0 is empty; positive IDs are global one-based; row 0 is the top row.</p>
+
+<h2>Isometric placement</h2>
+<p><code>IsoTransform</code> and <code>IsoGrid</code> handle isometric/2.5D placement. The <code>demi.grid</code> module exposes the placement grid:</p>
+<pre><code>local Grid = require("demi.grid")
+
+print(Grid.available(grid))                -- boolean, grid is configured
+
+local wx, wy = Grid.tile_to_world(grid, tx, ty)
+local tx, ty = Grid.world_to_tile(grid, wx, wy)
+local tile = Grid.get_tile(grid, tx, ty)   -- tile ID or 0
+local occupant = Grid.entity_at(grid, tx, ty)  -- entity handle or nil
+
+if Grid.can_place(grid, tx, ty) then       -- boolean
+    Grid.set_preview(grid, tx, ty, 17)     -- ghost preview
+end
+Grid.clear_preview(grid)
+
+local path, diagnostic = Grid.path(grid, from, to)
+-- path is an array of {x, y}, or nil with a diagnostic table</code></pre>
+
+<h2>2D physics and navigation</h2>
+<p>Bodies, colliders, joints, and queries are covered in <a href="{{ path('docs_page', {slug: 'physics'}) }}">Physics</a>. Grid pathfinding:</p>
+<pre><code>local Nav = require("demi.navigation2d")
+
+Nav.configure(grid, { diagonal = true })
+Nav.set_blocked(grid, 3, 4, true)     -- mark a cell unwalkable
+Nav.set_cost(grid, 5, 5, 2.0)         -- higher cost = avoided
+
+local path, diagnostic = Nav.path(grid, from, to)
+-- path is an array of {x, y} world points, empty on failure
+-- diagnostic explains why (when provided)
+
+print(Nav.available(grid))            -- boolean
+local cx, cy = Nav.world_to_cell(grid, wx, wy)
+local wx, wy = Nav.cell_to_world(grid, cx, cy)
+Nav.clear(grid)</code></pre>
+<p>Reusable Lua controllers ship as packages: <code>demi.character_controller_2d</code>, <code>demi.top_down_controller_2d</code>, <code>demi.click_move_controller_2d</code>.</p>
+
+<h2>Particles and masks</h2>
+<p><code>ParticleEmitter2D</code> provides gameplay-driven 2D particles. Sprite masking clips a sprite to a sub-rectangle (health bars, minimaps, portraits). Nine-slice panels stretch without distorting borders. Debug overlays <code>draw_order</code>, <code>grid</code>, and <code>ui_bounds</code> show sorting and layout.</p>

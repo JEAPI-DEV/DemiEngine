@@ -1,0 +1,49 @@
+<h1>Editor</h1>
+<p>The native editor is a workspace over the same source documents the CLI and runtime use. Scene and HUD editing are integrated workspace documents — there is no second unsynchronized preview model and no modal JSON-only HUD editor.</p>
+
+<h2>Launch</h2>
+<pre><code>./build/linux-debug/demi editor --project games/my_game</code></pre>
+<p>Without <code>--project</code>, the editor opens a start dialog for recent and discovered projects.</p>
+
+<h2>Workspace</h2>
+<p>Docking uses the pinned Dear ImGui docking branch in the main native window. <code>EditorDockingWorkspace</code> owns the dock graph and default layout; panels use stable window IDs and derive rendering/input rectangles from their live content region.</p>
+<div class="docs-grid">
+  <article><h3>Scene stage</h3><p>Click a registered scene source to switch the active scene. Edit hierarchy, transforms, and components.</p></article>
+  <article><h3>HUD stage</h3><p>Click a HUD source to open the HUD stage with the same hierarchy, viewport, selection, Inspector, Undo/Redo, Save, diagnostics, and recovery paths.</p></article>
+  <article><h3>Prefab stage</h3><p>Edit reusable entity compositions and UI prefabs with per-instance overrides.</p></article>
+  <article><h3>Asset folders</h3><p>Browse imported assets, manifests, and dependencies.</p></article>
+</div>
+
+<h2>Core panels</h2>
+<ul>
+  <li><strong>Hierarchy</strong> — stable-ID entity tree with <code>children</code> nesting. Drag to reparent within the same transform domain.</li>
+  <li><strong>Inspector</strong> — edit component fields and Lua script properties. Add or remove components per entity.</li>
+  <li><strong>Viewport</strong> — authored Scene/HUD and embedded Game views render to GPU targets displayed as ImGui images. Docked viewports never write directly into the backbuffer (dock-node backgrounds composite later).</li>
+  <li><strong>Diagnostics</strong> — the same validation codes as <code>demi validate</code>.</li>
+  <li><strong>Profiler</strong> — live frame-time and subsystem scopes during Play.</li>
+</ul>
+
+<h2>Commands and safety</h2>
+<ul>
+  <li>Scene mutations are command-like, reversible, validated, and keyed by stable IDs.</li>
+  <li>Undo/Redo covers scene, HUD, and prefab edits.</li>
+  <li>Failed preview rebuilds restore the document and history.</li>
+  <li>Saves patch source with small diffs and normalize float noise without reformatting the document.</li>
+  <li>Atomic/conflict-aware save behavior is required; never trade small reviewable diffs for whole-document serialization.</li>
+</ul>
+
+<h2>Play mode</h2>
+<p>Play owns an isolated runtime world. Hierarchy, debug, and profiler state from Play must not silently mutate authored scene data. Stop Play to return to the authored document.</p>
+
+<h2>Dock layout and UI scaling</h2>
+<p>Dock layout and panel visibility are per-user state under the platform data directory. They never enter a project, generated content, packages, authored undo history, or runtime state. Editor UI scaling is adjustable for high-DPI displays.</p>
+
+<h2>Editor and CLI share services</h2>
+<p>The editor uses the same loaders, metadata, diagnostics, importer, <code>BuildService</code>, cook, and package paths as the CLI/runtime. If the editor accepts a document, <code>demi validate</code> accepts it too.</p>
+
+<h2>Continue</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'project-format'}) }}">Project &amp; file formats</a></li>
+  <li><a href="{{ path('docs_page', {slug: 'ui'}) }}">UI &amp; HUD</a> for HUD stage details</li>
+  <li><a href="{{ path('docs_page', {slug: 'testing'}) }}">Testing &amp; debugging</a></li>
+</ul>

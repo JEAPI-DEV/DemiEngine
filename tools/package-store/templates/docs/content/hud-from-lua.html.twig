@@ -1,0 +1,177 @@
+<h1>HUD from Lua</h1>
+<p>Layout is authored in JSON and stays fixed; scripts change content and state while the game runs. This page is the working reference for that: how to address nodes safely, every setter and what it returns, how UI events arrive, how to animate with tweens, and how to build and recycle nodes at runtime.</p>
+
+<h2>find and handles</h2>
+<p>Every call takes either a node <code>id</code> string or a <strong>handle</strong> — a checked reference returned by <code>find</code> and <code>create</code>.</p>
+<pre><code>local Hud = require("demi.hud")
+
+local node = Hud.find("health_bar")   -- handle, or nil if missing
+if node then
+    Hud.set_value(node, 1.0)
+end</code></pre>
+<ul>
+  <li><code>Hud.find(id)</code> looks up an authored or runtime node by id. Returns a generation-checked handle, or <code>nil</code> when no such node exists.</li>
+  <li>A <strong>stale handle</strong> is a handle kept after the node was removed. Generation checking means calls on a stale handle fail cleanly (they do nothing or return nil) instead of touching a reused slot. Always re-<code>find</code> or use the new handle after <code>remove</code> / <code>clear_children</code>.</li>
+  <li>Passing the id string every frame is fine for simple games; keep handles when you create and destroy nodes.</li>
+</ul>
+
+<h2>Setters</h2>
+<p>Each setter takes the node (id or handle) first. Unless noted, setters return nothing.</p>
+<table>
+  <thead><tr><th>Call</th><th>Effect</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>Hud.set_text(node, s)</code></td><td>Sets label/text/text_input content.</td><td>nothing</td></tr>
+    <tr><td><code>Hud.get_text(node)</code></td><td>Reads current text.</td><td>string</td></tr>
+    <tr><td><code>Hud.set_font(node, uri)</code></td><td>Switches the <code>Font2D</code> asset (<code>asset://…</code>).</td><td>nothing</td></tr>
+    <tr><td><code>Hud.set_font_size(node, n)</code></td><td>Sets text height in canvas units.</td><td>nothing</td></tr>
+    <tr><td><code>Hud.set_color(node, c)</code></td><td>Sets text/foreground color (array or hex string).</td><td>nothing</td></tr>
+    <tr><td><code>Hud.set_background_color(node, c)</code></td><td>Sets the node’s background color.</td><td>nothing</td></tr>
+    <tr><td><code>Hud.set_value(node, n)</code></td><td>Sets progress/slider value, 0…1.</td><td>nothing</td></tr>
+    <tr><td><code>Hud.set_checked(node, b)</code></td><td>Sets toggle state.</td><td>nothing</td></tr>
+    <tr><td><code>Hud.set_disabled(node, b)</code></td><td>Enables or blocks input on the control.</td><td>nothing</td></tr>
+    <tr><td><code>Hud.set_visible(node, b)</code></td><td>Shows or hides the node.</td><td>nothing</td></tr>
+    <tr><td><code>Hud.set_opacity(node, n)</code></td><td>Sets alpha 0…1.</td><td>nothing</td></tr>
+    <tr><td><code>Hud.set_image(node, uri)</code></td><td>Swaps an image’s texture asset.</td><td>nothing</td></tr>
+    <tr><td><code>Hud.set_position(node, x, y)</code></td><td>Moves the node in canvas units.</td><td>nothing</td></tr>
+    <tr><td><code>Hud.set_size(node, w, h)</code></td><td>Resizes the node in canvas units.</td><td>nothing</td></tr>
+    <tr><td><code>Hud.focus_next()</code></td><td>Moves keyboard/gamepad focus to the next control.</td><td>nothing</td></tr>
+    <tr><td><code>Hud.focused()</code></td><td>Which node has focus.</td><td>node id string or <code>nil</code></td></tr>
+  </tbody>
+</table>
+<pre><code>local Hud = require("demi.hud")
+
+Hud.set_text("score", "Score: 1200")
+print(Hud.get_text("seed_input"))     -- e.g. "sky-01"
+Hud.set_value("health_bar", 0.75)
+Hud.set_disabled("start", false)
+Hud.set_visible("hint", false)
+Hud.set_opacity("fade", 0.5)
+print(Hud.focused())                  -- "start" or nil</code></pre>
+<p>All of these take an id string or a <code>find</code> handle as the first argument. <code>Hud.get_text</code> and <code>Hud.focused</code> are the two readers; everything else writes.</p>
+
+<h2>UI event handlers</h2>
+<p>HUD interaction arrives as methods on your script — no polling needed.</p>
+<pre><code>function Menu:on_ui_event(e)
+    if e.type == "press" and e.id == "start" then
+        Scene.load("scene://levels/forge")
+    end
+end
+
+function Menu:on_ui_value_changed(e)
+    if e.id == "volume" then
+        Audio.set_bus_volume("music", e.value)
+    end
+end
+
+function Menu:on_ui_submit(e)
+    if e.id == "seed_input" then
+        print("seed:", e.text)
+    end
+end</code></pre>
+<ul>
+  <li><code>on_ui_event(e)</code> — receives every interaction as one payload table.</li>
+  <li><code>on_ui_value_changed(e)</code> — convenience for slider/toggle changes.</li>
+  <li><code>on_ui_submit(e)</code> — fired when a text input submits (Enter or equivalent).</li>
+</ul>
+<p>Payload fields — only those relevant to the event type are filled:</p>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>type</code></td><td>Which event: see the list below.</td></tr>
+    <tr><td><code>id</code></td><td>Node id that fired.</td></tr>
+    <tr><td><code>related_id</code></td><td>The other node in a pair (drag source → drop target).</td></tr>
+    <tr><td><code>action</code></td><td>UI action name, if the event came from an action binding.</td></tr>
+    <tr><td><code>text</code></td><td>Current text of a text_input (notably on <code>submit</code>).</td></tr>
+    <tr><td><code>source</code></td><td>What caused it: <code>pointer</code>, <code>key</code>, <code>gamepad</code>, …</td></tr>
+    <tr><td><code>pointer_id</code></td><td>Which pointer/finger, for multi-touch drags.</td></tr>
+    <tr><td><code>x</code>, <code>y</code></td><td>Pointer position in canvas units.</td></tr>
+    <tr><td><code>delta_x</code>, <code>delta_y</code></td><td>Pointer movement this step (drag/scroll).</td></tr>
+    <tr><td><code>value</code></td><td>Numeric value (slider/progress).</td></tr>
+    <tr><td><code>checked</code></td><td>Toggle state.</td></tr>
+    <tr><td><code>cancelled</code></td><td>Boolean — the gesture was interrupted.</td></tr>
+  </tbody>
+</table>
+<p>Event types: <code>value_changed</code>, <code>focus_gained</code>, <code>focus_lost</code>, <code>submit</code>, <code>cancel</code>, <code>pointer_enter</code>, <code>pointer_exit</code>, <code>press</code>, <code>release</code>, <code>drag_start</code>, <code>drag</code>, <code>drag_end</code>, <code>drop</code>, <code>scroll</code>.</p>
+<p>Always branch on <code>e.type</code> first — a <code>press</code> has no <code>value</code>, and a <code>scroll</code> has no <code>checked</code>. The same stream is also available to subscribers: <code>Events.subscribe("ui_event", …)</code> and <code>Events.subscribe("ui_submit", …)</code>.</p>
+
+<h2>Tweens</h2>
+<p>A tween animates one property over time. Use them for fades and slides instead of per-frame setters.</p>
+<pre><code>Hud.tween("fade", "opacity", 0.0, 0.35)  -- node, property, target, seconds
+Hud.tween("panel", "y", 120, 0.25)
+Hud.cancel_tween("fade")
+Hud.set_reduced_motion(true)</code></pre>
+<ul>
+  <li><code>Hud.tween(node, property, target, duration)</code> animates <code>property</code> to <code>target</code> over <code>duration</code> seconds. Animatable properties: <code>opacity</code>, <code>x</code>, <code>y</code>, <code>scale</code>. Returns nothing.</li>
+  <li><code>Hud.cancel_tween(node)</code> stops any tween on that node. Returns nothing.</li>
+  <li><code>Hud.set_reduced_motion(flag)</code> takes a boolean and honors the player’s accessibility preference — with it on, tweens jump to their end state instead of animating.</li>
+</ul>
+<p>The fade line takes the node’s opacity to 0 over 0.35 seconds. Call <code>set_reduced_motion</code> from your options screen and keep honoring it.</p>
+
+<h2>Runtime create, clone, remove, reparent</h2>
+<p>Nodes can be built while the game runs — inventory rows, chat lines, score popups. The definition shape matches authored HUD JSON.</p>
+<pre><code>local Hud = require("demi.hud")
+
+function Inventory:refresh(items)
+    Hud.clear_children("list")
+
+    for _, item in ipairs(items) do
+        local row = Hud.create("list", {
+            type = "panel",
+            stack = "row",
+            gap = 8,
+            children = {
+                { type = "image", texture = item.icon, size = [32, 32] },
+                { type = "label", text = item.name },
+            },
+        })
+
+        local copy = Hud.clone(row)          -- duplicate the row
+        Hud.reparent(copy, "compare_panel")  -- move the clone elsewhere
+    end
+end
+
+local kids = Hud.children("list")   -- array of child handles
+Hud.remove(kids[1])                 -- delete one row</code></pre>
+<ul>
+  <li><code>Hud.create(parent, def)</code> builds a node from a definition table under <code>parent</code> (id or handle). Returns the new node’s handle.</li>
+  <li><code>Hud.clone(node)</code> duplicates a node and its subtree. Returns the clone’s handle.</li>
+  <li><code>Hud.reparent(node, parent)</code> moves a node under a new parent. Returns nothing.</li>
+  <li><code>Hud.children(node)</code> returns an array of child handles.</li>
+  <li><code>Hud.clear_children(node)</code> removes every child. Returns nothing. Handles to those children become stale.</li>
+  <li><code>Hud.remove(node)</code> deletes a runtime node. Returns nothing. Its handle becomes stale.</li>
+</ul>
+<p>This spawn-list pattern rebuilds the rows from data each refresh. Keep the returned handles if you will mutate rows later; otherwise ids from your data are enough to <code>find</code> them again.</p>
+
+<h2>Virtualization for long lists</h2>
+<p>A chat log or inventory with hundreds of rows should not build hundreds of nodes. Virtualization builds only what the scroll region shows.</p>
+<pre><code>local range = Hud.visible_range("scroll")
+print(range.y, range.height)   -- first visible row, how many fit
+
+local layout = Hud.virtual_layout({ width = 1280, height = 720 })
+-- layout.visible_range, layout.set_extent, layout.item_offset,
+-- layout.item_count, layout.total_extent
+
+Hud.recycle_rows("list")         -- return off-screen rows to the pool
+Hud.clear_recycled_rows("list")  -- empty the pool</code></pre>
+<ul>
+  <li><code>Hud.visible_range(node)</code> returns a table describing the visible window: <code>y</code> is the first visible row index, <code>height</code> is how many rows fit.</li>
+  <li><code>Hud.virtual_layout(size)</code> takes a <code>{width, height}</code> table and returns a layout table: <code>visible_range</code> (which items fit), <code>set_extent</code> (extent of the built set), <code>item_offset</code> (scroll offset of the first item), <code>item_count</code> (how many items are materialized), <code>total_extent</code> (full scrollable extent).</li>
+  <li><code>Hud.recycle_rows(node)</code> returns off-screen rows to an internal pool so scrolling reuses them. Returns nothing.</li>
+  <li><code>Hud.clear_recycled_rows(node)</code> empties that pool (for a full rebuild). Returns nothing.</li>
+</ul>
+<p>Typical loop: on scroll, ask <code>virtual_layout</code> for the visible window, update only those rows’ text and images from your data array, then <code>recycle_rows</code>. Skyforge’s 500-line combat log stays smooth because at most a dozen rows exist at once.</p>
+
+<h2>Accessibility snapshot</h2>
+<pre><code>local snapshot = Hud.accessibility_snapshot()</code></pre>
+<ul>
+  <li><code>Hud.accessibility_snapshot()</code> returns an array of tables, one per exposed node: <code>role</code>, <code>id</code>, <code>parent</code>, <code>label</code>, <code>description</code>, <code>value</code>, <code>states</code>, <code>bounds</code>.</li>
+</ul>
+<p>Use it in tests to assert labels and states, and to verify modal focus traps. Authoring fields are covered in <a href="{{ path('docs_page', {slug: 'hud-nodes'}) }}">HUD nodes</a>.</p>
+
+<h2>Next</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'ui-prefabs'}) }}">UI prefabs</a> — parameterized reusable subtrees.</li>
+  <li><a href="{{ path('docs_page', {slug: 'hud-nodes'}) }}">HUD nodes</a> — every node type and its fields.</li>
+  <li><a href="{{ path('docs_page', {slug: 'hud-text-and-theme'}) }}">Text, theme &amp; locale</a> — variables and styles.</li>
+  <li><a href="{{ path('docs_page', {slug: 'ui'}) }}">UI &amp; HUD</a> — the overview page.</li>
+</ul>

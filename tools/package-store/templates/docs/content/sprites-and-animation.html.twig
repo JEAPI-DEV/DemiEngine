@@ -1,0 +1,198 @@
+<h1>Sprites &amp; animation</h1>
+<p>A sprite is a textured rectangle drawn in the world. This page explains what sprites are, every field you can set, how to stretch panels with nine-slice and clip art with masks, and how to play frame animation.</p>
+
+<h2>What a sprite is</h2>
+<p>Flat art in a game — heroes, tiles, crates, portraits — is drawn as a <strong>sprite</strong>: a rectangle that samples an image (the texture) and is placed in the world by the entity’s transform. The sprite decides which part of the image shows, how large it is in world units, and when it is drawn relative to other art.</p>
+<p>Sprites exist because full 3D models would be wasteful for flat art, and because one texture can carry many frames (a sprite sheet) that animation can page through. In Skyforge, station signs, cargo icons, and 2D drones are all sprites.</p>
+
+<h2>Sprite fields</h2>
+<pre><code>{
+  "Sprite": {
+    "texture": "asset://sprites/hero",
+    "source_rect": [0, 0, 32, 32],
+    "size": [1, 1],
+    "pivot": [0.5, 0],
+    "flip_x": false,
+    "flip_y": false,
+    "color": [1, 1, 1, 1],
+    "layer": "characters",
+    "sorting_order": 10,
+    "material": "asset://materials/additive",
+    "nine_slice": [[2, 2], [2, 2]],
+    "mask_offset": [0, 0],
+    "mask_size": [1, 1]
+  }
+}</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th><th>Typical value</th></tr></thead>
+  <tbody>
+    <tr><td><code>texture</code></td><td>Asset URI of the image to sample.</td><td><code>asset://sprites/hero</code></td></tr>
+    <tr><td><code>source_rect</code></td><td><code>[x, y, w, h]</code> rectangle taken from the texture, in pixels or normalized units. Use it to pick one frame out of a sheet.</td><td><code>[0, 0, 32, 32]</code></td></tr>
+    <tr><td><code>size</code></td><td><code>[w, h]</code> the sprite occupies in world units.</td><td><code>[1, 1]</code></td></tr>
+    <tr><td><code>pivot</code></td><td>Where the entity origin sits inside the sprite, <code>[0..1, 0..1]</code> of the sprite extent. <code>[0.5, 0]</code> is bottom-center — ideal for characters standing on the floor.</td><td><code>[0.5, 0.5]</code></td></tr>
+    <tr><td><code>flip_x</code> / <code>flip_y</code></td><td>Mirror the art horizontally or vertically.</td><td>Flip X for facing left</td></tr>
+    <tr><td><code>color</code></td><td>RGBA tint and alpha, each 0 to 1.</td><td><code>[1, 1, 1, 1]</code></td></tr>
+    <tr><td><code>layer</code></td><td>Render layer name, part of the draw-order chain.</td><td><code>characters</code></td></tr>
+    <tr><td><code>sorting_order</code></td><td>Integer order inside the layer. Higher draws later (on top).</td><td><code>10</code></td></tr>
+    <tr><td><code>material</code></td><td>Optional material asset for custom blending (additive glow, outline).</td><td><code>asset://materials/additive</code></td></tr>
+    <tr><td><code>nine_slice</code></td><td><code>[[left, top], [right, bottom]]</code> border widths for stretchable panels.</td><td><code>[[2, 2], [2, 2]]</code></td></tr>
+    <tr><td><code>mask_offset</code> / <code>mask_size</code></td><td>Clip the sprite to a sub-rectangle (see below).</td><td><code>[0, 0]</code> / <code>[1, 1]</code></td></tr>
+  </tbody>
+</table>
+<p>Transparent art needs alpha in the source image (PNG recommended). Opaque backgrounds look like boxes in play.</p>
+
+<h2>Sprites from Lua</h2>
+<pre><code>local Sprite2D = require("demi.sprite2d")
+
+Sprite2D.set_color(id, { 1, 0.4, 0.4, 1 })
+Sprite2D.set_flip(id, true, false)
+Sprite2D.set_size(id, 1.5, 1.5)
+Sprite2D.set_layer(id, "characters")
+Sprite2D.set_sorting_order(id, 20)
+Sprite2D.set_material(id, "asset://materials/additive")
+
+Sprite2D.play_animation(id, "run")
+Sprite2D.pause_animation(id)
+Sprite2D.resume_animation(id)
+local clip = Sprite2D.current_animation(id)</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>set_color</code></td><td><code>id</code>, RGBA table <code>{r, g, b, a}</code> 0 to 1</td><td>Nothing. Multiplies the sprite tint and alpha.</td></tr>
+    <tr><td><code>set_flip</code></td><td><code>id</code>, <code>flip_x</code>, <code>flip_y</code> booleans</td><td>Nothing. Mirrors the art.</td></tr>
+    <tr><td><code>set_size</code></td><td><code>id</code>, <code>width</code>, <code>height</code> world units</td><td>Nothing. Rescales the quad.</td></tr>
+    <tr><td><code>set_layer</code></td><td><code>id</code>, layer name</td><td>Nothing. Moves the sprite in the draw-order chain.</td></tr>
+    <tr><td><code>set_sorting_order</code></td><td><code>id</code>, integer</td><td>Nothing. Changes order within the layer.</td></tr>
+    <tr><td><code>set_material</code></td><td><code>id</code>, material asset URI</td><td>Nothing. Applies the material; pass <code>nil</code> to clear.</td></tr>
+    <tr><td><code>play_animation</code></td><td><code>id</code>, clip name</td><td>Nothing. Starts that clip from the beginning.</td></tr>
+    <tr><td><code>pause_animation</code> / <code>resume_animation</code></td><td><code>id</code></td><td>Nothing. Freezes or continues the current clip.</td></tr>
+    <tr><td><code>current_animation</code></td><td><code>id</code></td><td>Current clip name as a string, or <code>nil</code> when no clip is playing.</td></tr>
+  </tbody>
+</table>
+
+<h2>Nine-slice panels</h2>
+<p>A dialog frame drawn as one stretched image warps its rounded corners into smears. <strong>Nine-slice</strong> splits the art into nine regions — four corners kept unscaled, four edges stretched in one direction, one center stretched in both — so borders stay crisp at any size.</p>
+<pre><code>{
+  "Sprite": {
+    "texture": "asset://ui/panel",
+    "size": [4, 1.2],
+    "nine_slice": [[8, 8], [8, 8]]
+  }
+}</code></pre>
+<ul>
+  <li><code>size</code> <code>[4, 1.2]</code> is the stretched world extent of the panel.</li>
+  <li><code>nine_slice</code> <code>[[8, 8], [8, 8]]</code> gives left/top and right/bottom border widths in texture pixels.</li>
+  <li>Corner patches stay 8×8 pixels; edges and the center stretch to fill the rest. Nothing is returned — this is authored data.</li>
+</ul>
+<p>Use nine-slice for Skyforge dialog frames, inventory slots, and any UI panel whose size is not fixed.</p>
+
+<h2>Masks</h2>
+<p><code>mask_offset</code> and <code>mask_size</code> crop the sprite to a sub-rectangle of its own extent. Shrinking <code>mask_size</code> on X reveals less of a bar from the left — perfect for health bars without a separate shader.</p>
+<pre><code>{
+  "Sprite": {
+    "texture": "asset://ui/health_bar",
+    "size": [2, 0.25],
+    "mask_offset": [0, 0],
+    "mask_size": [1, 1]
+  }
+}</code></pre>
+<ul>
+  <li><code>mask_offset</code> <code>[0, 0]</code> anchors the visible window at the sprite’s lower-left.</li>
+  <li><code>mask_size</code> <code>[1, 1]</code> shows the full sprite; set <code>[0.6, 1]</code> to show 60% of the width.</li>
+  <li>Both values are fractions of the sprite extent (0 to 1). Drive them from gameplay to animate the fill.</li>
+</ul>
+<p>Use masks for health and fuel bars, portrait frames, minimap windows, and tutorial progress strips.</p>
+
+<h2>Frame animation: clips</h2>
+<p><code>SpriteAnimator2D</code> pages through frames of the sprite’s texture. The explicit <code>clips</code> form names each animation and points at a run of frames.</p>
+<pre><code>{
+  "SpriteAnimator2D": {
+    "frame_size": [32, 32],
+    "clips": {
+      "idle": { "start_frame": 0, "frame_count": 4, "fps": 8, "loop": true },
+      "run":  { "start_frame": 4, "frame_count": 6, "fps": 12, "loop": true,
+                "events": [{ "time": 0.5, "name": "footstep" }] }
+    }
+  }
+}</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>frame_size</code></td><td><code>[w, h]</code> of one frame in texture pixels.</td></tr>
+    <tr><td><code>clips</code></td><td>Map of clip name to clip settings.</td></tr>
+    <tr><td><code>start_frame</code></td><td>First frame index of the clip. Frames count left-to-right across the sheet, row by row.</td></tr>
+    <tr><td><code>frame_count</code></td><td>How many frames the clip plays.</td></tr>
+    <tr><td><code>fps</code></td><td>Playback rate in frames per second.</td></tr>
+    <tr><td><code>loop</code></td><td>Optional. <code>true</code> repeats the clip; omitted clips stop on the last frame.</td></tr>
+    <tr><td><code>events</code></td><td>Optional list of <code>{ time, name }</code> markers (see below).</td></tr>
+  </tbody>
+</table>
+
+<h2>Frame animation: atlas</h2>
+<p>When the sheet is a strict grid and every row is one animation, the <code>atlas</code> form writes the clip table for you.</p>
+<pre><code>{
+  "SpriteAnimator2D": {
+    "atlas": {
+      "columns": 8,
+      "rows": 3,
+      "row_names": ["idle", "run", "jump"],
+      "fps": 12,
+      "loop": true
+    }
+  }
+}</code></pre>
+<ul>
+  <li><code>columns</code> and <code>rows</code> describe the grid of frames in the texture.</li>
+  <li><code>row_names</code> names each generated clip — row 0 becomes <code>idle</code>, row 1 <code>run</code>, and so on.</li>
+  <li><code>fps</code> and <code>loop</code> apply to every generated clip.</li>
+  <li>Explicit <code>clips</code> entries override generated rows with the same name when both are present.</li>
+</ul>
+<p>Choose <code>clips</code> when frames come from several places or need different rates. Choose <code>atlas</code> when the sheet is a uniform grid of named rows.</p>
+
+<h2>Frame events</h2>
+<p>Footsteps, dust puffs, and hit sparks must fire on the right frame, not on a timer in gameplay code. Clip <code>events</code> mark normalized times inside a clip.</p>
+<pre><code>local Events = require("demi.events")
+
+Events.subscribe("sprite_animation", function(e)
+    -- e.entity_id  the animated sprite
+    -- e.clip       clip name that fired
+    -- e.name       event name, for example "footstep"
+    -- e.frame      frame index at the time of the event
+    if e.name == "footstep" then
+        local Audio = require("demi.audio")
+        Audio.play("asset://audio/step", { bus = "sfx" })
+    end
+end)</code></pre>
+<ul>
+  <li><code>Events.subscribe</code> registers the handler and returns a subscription value; the handler receives one payload table.</li>
+  <li><code>time</code> in the clip definition is 0 to 1 across the clip. <code>0.5</code> on a 6-frame clip fires as playback crosses the middle.</li>
+  <li>The payload’s <code>entity_id</code>, <code>clip</code>, <code>name</code>, and <code>frame</code> let one handler service many markers.</li>
+</ul>
+
+<h2>Sorting order and layers</h2>
+<p>Overlapping sprites need a predictable draw order. DemiEngine sorts in three passes:</p>
+<ol>
+  <li><code>sorting_order</code> (integer, higher on top)</li>
+  <li><code>layer</code> name</li>
+  <li>Isometric depth (for iso placement, see <a href="{{ path('docs_page', {slug: 'isometric-grid'}) }}">Isometric grid</a>)</li>
+</ol>
+<p>Practical setup for a 2D game:</p>
+<table>
+  <thead><tr><th>Layer</th><th>Contents</th></tr></thead>
+  <tbody>
+    <tr><td><code>background</code></td><td>Parallax sky, distant stations</td></tr>
+    <tr><td><code>world</code></td><td><a href="{{ path('docs_page', {slug: 'tilemaps'}) }}">Tilemap</a> tiles and props</td></tr>
+    <tr><td><code>characters</code></td><td>Heroes, drones, crates</td></tr>
+    <tr><td><code>effects</code></td><td>Particles, flashes</td></tr>
+    <tr><td><code>ui</code></td><td>Bars and markers drawn in world space</td></tr>
+  </tbody>
+</table>
+<p>Keep layers few and use <code>sorting_order</code> inside a layer for local details (a held item above the character). Debug overlay <code>draw_order</code> shows the resolved chain when something hides behind the wrong art.</p>
+
+<h2>Going further</h2>
+<ul>
+  <li>Sprites pair naturally with <a href="{{ path('docs_page', {slug: 'tilemaps'}) }}">Tilemaps</a> for large levels.</li>
+  <li>Parameter-driven clip switching with transitions lives in <a href="{{ path('docs_page', {slug: 'state-machines'}) }}">State machines</a>.</li>
+  <li>Footstep markers are the usual place to trigger sounds from <a href="{{ path('docs_page', {slug: 'audio-mixing'}) }}">Audio mixing</a>.</li>
+  <li>Attack frames that should deal damage use timed collision windows instead of frame events alone.</li>
+</ul>

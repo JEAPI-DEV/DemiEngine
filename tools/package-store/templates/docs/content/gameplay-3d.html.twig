@@ -1,0 +1,129 @@
+<h1>3D gameplay</h1>
+<p>Lightweight 3D covers glTF models, GPU skinning, Jolt physics, characters, localized destruction, denting, lights, and panorama skies.</p>
+
+<h2>Models and meshes</h2>
+<pre><code>{
+  "Transform3D": { "position": [0, 0, 0], "rotation_euler": [0, 0, 0] },
+  "MeshRenderer": {
+    "model": "asset://models/hero",
+    "medium_lod_model": "asset://models/hero_med",
+    "low_lod_model": "asset://models/hero_low"
+  }
+}</code></pre>
+<ul>
+  <li>Import glTF/GLB (also OBJ, IQM, M3D) as <code>Model3D</code> assets.</li>
+  <li>LOD models are separate authored models that share clip names and durations.</li>
+  <li><code>MeshInstances3D</code> draws many copies of one model efficiently.</li>
+  <li><code>WorldText3D</code> places world-space labels.</li>
+  <li><code>demi.mesh.procedural</code> and <code>demi.voxel.world</code> build runtime geometry.</li>
+</ul>
+<pre><code>local Proc = require("demi.mesh.procedural")
+local mesh = Proc.create()
+Proc.apply(entity_id, mesh)   -- attach a built mesh to an entity</code></pre>
+<p>The builder (<code>mesh:clear()</code>, <code>reserve</code>, <code>add_vertex</code>, <code>add_quad</code>, <code>add_voxel_blocks</code>, <code>add_voxel_heightfield</code>) accumulates geometry that <code>Proc.apply</code> uploads.</p>
+
+<h2>Skeletal animation</h2>
+<p><code>AnimationPlayer3D</code> plays skeletal clips declared in the model asset’s <code>settings.animations.clips</code>. Visual LOD holds poses beyond <code>visual_update_distance</code> and refreshes at <code>visual_update_rate</code>.</p>
+<p>Vulkan GPU skinning is applied automatically for supported models. Set <code>DEMI_GPU_SKINNING=0</code> to force the CPU path while profiling.</p>
+<p>Procedural leg IK:</p>
+<pre><code>local Animation = require("demi.animation")
+
+local solved = Animation.solve_two_bone_3d({
+    root = hip, target = footTarget, pole = kneeHint,
+    upper_length = 0.45, lower_length = 0.45,
+})
+-- solved.joint          → knee position {x, y, z}
+-- solved.end_position   → solved foot position {x, y, z}
+-- solved.reached        → boolean, false when the target is out of range
+
+Animation.set_bone_segment(id, "leg_l", {
+    start = hip, tail = foot, pole = kneeHint,
+})
+Animation.clear_bone_segments(id)</code></pre>
+
+<h2>Characters</h2>
+<pre><code>{
+  "CharacterController3D": {
+    "slope_limit_degrees": 45,
+    "step_height": 0.35,
+    "skin_width": 0.02,
+    "gravity": -18.0
+  },
+  "BoxCollider3D": { "size": [0.6, 1.8, 0.6], "offset": [0, 0.9, 0] }
+}</code></pre>
+<pre><code>local Character = require("demi.physics.character_controller3d")
+
+Character.set_velocity(id, vx, vy, vz)   -- desired motion this step
+Character.jump(id)                       -- apply the jump impulse
+
+local state = Character.state(id)
+-- state.grounded   boolean
+-- state.velocity   {x, y, z}
+-- state.normal     {x, y, z} ground normal</code></pre>
+<ul>
+  <li>Requires exactly one non-trigger primitive/convex collider on the same root, and no <code>Rigidbody3D</code>.</li>
+  <li>Handles slopes up to <code>slope_limit_degrees</code>, steps up to <code>step_height</code>, and wall slide.</li>
+  <li>Inherits velocity from moving platforms.</li>
+  <li>Coyote time and jump buffering are gameplay — implement them in your script using <code>state.grounded</code>.</li>
+</ul>
+
+<h2>Camera3D</h2>
+<pre><code>local Camera3D = require("demi.camera3d")
+
+local hit = Camera3D.screen_ray(id, mx, my, viewport_w, viewport_h)
+if hit then
+    -- hit.entity_id, hit.point {x,y,z}, hit.distance
+end
+
+local sx, sy = Camera3D.world_to_screen(id, x, y, z, viewport_w, viewport_h)
+-- sx, sy in screen pixels (top-left origin), or nil if behind the camera
+
+local wx, wy, wz = Camera3D.screen_to_world(id, sx, sy, viewport_w, viewport_h)</code></pre>
+<p>Always pass the viewport size — the camera does not assume a resolution. Screen coordinates have the origin top-left with +Y down. <code>orthographic_size</code> is the full visible height; FOV is in degrees. <code>Transform3D.look_at</code> resolves the parent chain before aiming.</p>
+<p>Third-person and orbit cameras ship in the <code>demi.gameplay.third_person</code> package.</p>
+
+<h2>Lights, environment, and effects</h2>
+<ul>
+  <li><code>DirectionalLight</code>, <code>PointLight</code>, <code>SpotLight</code> — local and directional lighting.</li>
+  <li><code>Environment3D</code> — tone-mapped panorama skies.</li>
+  <li><code>PostProcessStack</code> — post effects.</li>
+  <li><code>ParticleEmitter3D</code> — 3D particles.</li>
+  <li><code>SurfaceRelief3D</code> — height-map surface relief.</li>
+  <li><code>Dentable3D</code> — opt-in mesh denting.</li>
+</ul>
+<pre><code>local Deform = require("demi.mesh.deformation")
+
+Deform.dent(id, x, y, z, radius, depth)   -- push vertices inward at a point
+Deform.impact(id, x, y, z, strength)      -- dent helper with falloff
+Deform.reset(id)                          -- restore the original mesh</code></pre>
+<p>Denting is visual only — combine it with destruction or gameplay events for physical consequences.</p>
+
+<h2>Destruction</h2>
+<p>Author fracture on ordinary prefabs. Native Blast/Jolt handles impacts and connected fragments.</p>
+<ul>
+  <li><code>Fracture3D</code> on mesh children describes how a mesh splits.</li>
+  <li><code>Masonry3D</code> describes repeated brickwork with material density.</li>
+  <li><code>Destructible3D</code> owns the assembly and runtime splitting.</li>
+  <li><code>FractureDebris3D</code> covers cosmetic debris cleanup.</li>
+</ul>
+<pre><code>local Destruction = require("demi.physics.destruction3d")
+
+Destruction.impact(id, x, y, z, nx, ny, nz, energy)
+Destruction.damage_part(id, part, amount)
+
+local state = Destruction.state(id)
+-- table of remaining integrity and active fragments
+
+Destruction.checkpoint(id)     -- snapshot current damage
+Destruction.restore(id)        -- return to the checkpoint
+Destruction.retire_debris(id)  -- clean up cosmetic debris</code></pre>
+<p>Optional gameplay packages add weapons and proximity streaming. Runnable labs: <code>destruction_3d_lab</code>, <code>destruction_weapons_3d_lab</code>, <code>fracture_prefab_lab</code>.</p>
+
+<h2>Transforms</h2>
+<pre><code>local T = require("demi.transform3d")
+local x, y, z = T.get_position(id)     -- local-space scalars
+T.set_rotation(id, rx, ry, rz)         -- Euler radians
+T.set_scale(id, sx, sy, sz)
+local fx, fy, fz = T.forward(id)       -- world-space unit vector
+T.look_at(id, tx, ty, tz)              -- aim at a world point</code></pre>
+<p>Getters return separate numbers and <code>nil</code> per coordinate when the entity or component is missing.</p>

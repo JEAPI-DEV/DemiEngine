@@ -1,0 +1,147 @@
+<h1>Physics</h1>
+<p>Two deterministic backends: Box2D for 2D and Jolt for 3D. Colliders always match the authored shape — a capsule simulates as a capsule. Simulation runs at the project fixed timestep.</p>
+
+<h2>2D bodies and colliders</h2>
+<pre><code>{
+  "Rigidbody2D": {
+    "body_type": "dynamic",
+    "ccd": true,
+    "linear_damping": 0.05,
+    "lock_rotation": true,
+    "report_contacts": true
+  },
+  "BoxCollider2D": {
+    "size": [1, 1],
+    "offset": [0, 0],
+    "is_trigger": false,
+    "layer": "player",
+    "friction": 0.4,
+    "restitution": 0.1,
+    "density": 1.0,
+    "category_bits": 1,
+    "mask_bits": 65535
+  }
+}</code></pre>
+<p>Colliders: <code>BoxCollider2D</code>, <code>CircleCollider2D</code>, <code>CapsuleCollider2D</code>, <code>PolygonCollider2D</code>, <code>EdgeCollider2D</code> (open chain; set <code>loop: true</code> to close it).</p>
+<ul>
+  <li><code>body_type</code>: <code>dynamic</code> (simulated), <code>kinematic</code> (moved by script, pushes dynamics), <code>static</code> (never moves).</li>
+  <li><code>is_trigger: true</code> reports overlaps without resolving collision.</li>
+  <li><code>layer</code> names a bit from project <code>physics.layers</code> (maximum 16). <code>category_bits</code> / <code>mask_bits</code> refine which layers collide.</li>
+  <li><code>report_contacts: true</code> extracts contact points into <code>physics_contact</code> events. Collision events fire either way.</li>
+  <li>Joints: <code>Joint2D</code> (revolute, prismatic, weld, rope, motor) and <code>DistanceJoint2D</code> (spring-distance).</li>
+</ul>
+<pre><code>local Body = require("demi.physics.rigidbody2d")
+
+local vx, vy = Body.get_velocity(id)      -- two scalars (0, 0 when missing)
+Body.set_velocity(id, 2, 0)
+Body.set_velocity_x(id, 0)
+Body.add_impulse(id, 0, 8)                -- instant kick
+Body.add_force(id, 0, -20)                -- continuous (apply each fixed step)
+Body.add_torque(id, 1.5)
+Body.set_angular_velocity(id, 0)
+Body.set_awake(id, true)                  -- wake a sleeping body
+Body.set_enabled(id, false)               -- temporarily disable simulation
+Body.set_continuous(id, true)             -- CCD on/off
+Body.set_report_contacts(id, true)
+
+Body.move_kinematic(id, 3, 4, 0, 0.0167)  -- x, y, angle, fixed_dt
+Body.move_and_slide(id, vx, vy, 0.0167)   -- kinematic slide, resolves overlap</code></pre>
+<p><code>get_velocity</code> returns two scalars. <code>move_and_slide</code> is the kinematic movement helper: it moves the body and slides along obstacles using the authored collider shape, and is meant to run inside <code>on_fixed_update</code>.</p>
+
+<h2>3D bodies and colliders</h2>
+<p>Each entity carries exactly one 3D collider:</p>
+<ul>
+  <li><code>BoxCollider3D</code>, <code>SphereCollider3D</code>, <code>CapsuleCollider3D</code>, <code>ConvexCollider3D</code> — movable shapes.</li>
+  <li><code>ModelCollider3D</code> — triangle mesh for static geometry. For compounds, generate a <code>Collider3D</code> asset with <code>demi asset collider</code>.</li>
+</ul>
+<pre><code>{
+  "Rigidbody3D": {
+    "body_type": "dynamic",
+    "mass": 12.5,
+    "ccd": true,
+    "friction": 0.6,
+    "restitution": 0.05,
+    "report_contacts": true
+  },
+  "CapsuleCollider3D": { "radius": 0.35, "height": 1.7, "offset": [0, 0.85, 0] }
+}</code></pre>
+<p>Validation rejects a second collider on one entity, a moving triangle mesh, invalid capsule dimensions, underspecified hulls, a moving body without a collider, and a moving body under a moving parent.</p>
+<pre><code>local Body = require("demi.physics.rigidbody3d")
+
+local vx, vy, vz = Body.get_velocity(id)   -- 3 scalars (nils when missing)
+Body.set_velocity(id, 1, 0, 0)
+Body.add_force(id, 0, 40, 0)
+Body.add_impulse(id, 0, 12, 0)
+Body.add_torque(id, 0, 2, 0)
+
+local state = Body.state(id)
+-- state.body_type   "static" | "kinematic" | "dynamic"
+-- state.mass        number
+-- state.linear_velocity    {x, y, z}
+-- state.angular_velocity   {x, y, z}
+-- state.sleeping, state.ccd, state.report_contacts  booleans
+
+Body.move_kinematic(id, x, y, z, rx, ry, rz, fixed_dt)  -- Euler radians
+Body.set_continuous(id, true)
+Body.set_report_contacts(id, true)
+Body.set_awake(id, true)
+Body.set_enabled(id, true)</code></pre>
+<p><code>state</code> returns a table of live simulation values (not the authored config) — use it for HUD readouts and gameplay checks. <code>get_velocity</code> is the lighter scalar form. <code>solver_velocity_steps</code> / <code>solver_position_steps</code> on the component accept 0–128; 0 means backend default.</p>
+
+<h2>Queries</h2>
+<pre><code>local Q2 = require("demi.physics.query2d")
+
+local hit = Q2.raycast(x1, y1, x2, y2, { include_triggers = false })
+if hit then
+    -- hit.entity_id, hit.layer, hit.point {x, y},
+    -- hit.normal {x, y}, hit.distance, hit.fraction
+    print(hit.entity_id, hit.fraction)
+end
+
+local overlaps = Q2.overlap_circle_all(x, y, radius)  -- array of hits, may be empty
+for _, h in ipairs(overlaps) do print(h.entity_id) end
+
+local one = Q2.overlap_box(x, y, hx, hy)       -- first hit or nil
+local touching = Q2.has_contact(a, b)          -- boolean
+local points = Q2.contacts(a, b)               -- contact-point array</code></pre>
+<p>A missed raycast returns <code>nil</code> — always guard before reading <code>hit.*</code>. Overlap queries return arrays so you can process every candidate; they are empty, not <code>nil</code>, when nothing is found.</p>
+<pre><code>local Q3 = require("demi.physics.query3d")
+
+local hit3 = Q3.raycast(ox, oy, oz, dx, dy, dz, max_distance)
+if hit3 then
+    -- hit3.point {x, y, z}, hit3.normal {x, y, z}
+    -- hit3.entity_id, hit3.distance, hit3.fraction
+end
+
+local nearest = Q3.overlap_sphere(x, y, z, radius)        -- first or nil
+local all = Q3.overlap_sphere_all(x, y, z, radius)        -- array
+local boxes = Q3.overlap_box_all(x, y, z, hx, hy, hz)     -- array
+local cast = Q3.sphere_cast(x1, y1, z1, x2, y2, z2, r)    -- hit or nil</code></pre>
+<p>Pass <code>{ include_triggers = true }</code> when triggers should count. 3D hit tables embed <code>point</code> and <code>normal</code> as 3-float arrays.</p>
+
+<h2>Events</h2>
+<table>
+  <thead><tr><th>Event</th><th>When</th><th>Payload highlights</th></tr></thead>
+  <tbody>
+    <tr><td><code>physics_collision_enter/stay/exit</code></td><td>2D solid contacts</td><td><code>self_id</code>, <code>other_id</code>, <code>point</code>, <code>normal</code></td></tr>
+    <tr><td><code>physics_trigger_enter/stay/exit</code></td><td>2D triggers</td><td><code>self_id</code>, <code>other_id</code></td></tr>
+    <tr><td><code>physics_contact</code></td><td>Extracted 2D contact points</td><td>Contact manifold details</td></tr>
+    <tr><td><code>physics3d_collision_enter/stay/exit</code></td><td>3D solid contacts</td><td>Flattened <code>point_x</code>…<code>normal_z</code></td></tr>
+    <tr><td><code>physics3d_trigger_*</code></td><td>3D triggers (character controllers fire these too)</td><td><code>self_id</code>, <code>other_id</code></td></tr>
+    <tr><td><code>physics3d_contact</code></td><td>Extracted 3D contact points</td><td>Manifold details</td></tr>
+  </tbody>
+</table>
+<p>Subscribe with <code>Events.subscribe("physics_collision_enter", handler)</code>. The handler receives one payload table.</p>
+
+<h2>Determinism</h2>
+<ul>
+  <li>Simulation runs at the project fixed timestep only — apply forces inside <code>on_fixed_update</code>.</li>
+  <li>Jolt uses a capped worker pool in deterministic mode.</li>
+  <li>Contacts dispatch in a stable entity-pair order.</li>
+  <li>Replay comparisons are tolerance-based (floating-point contacts are not bit-identical across machines).</li>
+</ul>
+
+<h2>Debug drawing</h2>
+<pre><code>./build/linux-debug/demi run --project games/my_game \
+  --debug-overlays colliders,contacts</code></pre>
+<p>Or set project <code>debug.colliders</code> / <code>debug.contacts</code>. Overlay geometry matches the authored simulation shapes.</p>

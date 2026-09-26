@@ -1,0 +1,84 @@
+<h1>Your first project</h1>
+<p>A DemiEngine project is a folder of versioned JSON documents, Lua scripts, and art sources that describe one game. You do not create that folder by hand: the <code>demi new</code> command generates a complete, valid project from a starter template. This page shows how to pick a template, create the example project "My Game" at <code>games/my_game</code>, and understand every folder the command writes.</p>
+
+<h2>List the starter templates</h2>
+<p>A template is a ready-made project skeleton — scenes, scripts, and settings that already run. List what is available:</p>
+<pre><code>./build/linux-debug/demi new --list</code></pre>
+<ul>
+  <li><code>./build/linux-debug/demi</code> — the engine CLI you built earlier (see <a href="{{ path('docs_page', {slug: 'install-and-build'}) }}">Install &amp; build</a>).</li>
+  <li><code>new --list</code> — prints the template IDs and short descriptions, then exits. Nothing is written to disk.</li>
+</ul>
+<p>Each line names a template ID you pass to <code>--template</code> on the next command. The <code>platformer</code> template is a small 2D game with a player scene and Lua gameplay — a good first choice.</p>
+
+<h2>Create the project</h2>
+<p>Generate "My Game" into <code>games/my_game</code> from the platformer template:</p>
+<pre><code>./build/linux-debug/demi new games/my_game --template platformer --name "My Game"</code></pre>
+<ul>
+  <li><code>new games/my_game</code> — destination directory for the new project. It must not already contain a project.</li>
+  <li><code>--template platformer</code> — the template ID from <code>--list</code>.</li>
+  <li><code>--name "My Game"</code> — the human-readable game name stored in <code>demi.project.json</code>.</li>
+</ul>
+<p>On success the command prints the created project path and a short summary of the files it wrote. It returns exit code <code>0</code>.</p>
+<p>Preview the exact file list without writing anything:</p>
+<pre><code>./build/linux-debug/demi new games/my_game --template platformer --name "My Game" --dry-run</code></pre>
+<ul>
+  <li><code>--dry-run</code> — runs the same planning and validation steps, prints what would be created, and leaves the disk untouched.</li>
+</ul>
+
+<h2>What transactional generation means for you</h2>
+<p><code>demi new</code> is transactional. The command first writes the whole project into a temporary sibling directory, then validates every generated file, and only then renames that directory to its final name. Two practical consequences:</p>
+<ul>
+  <li><strong>Safe</strong> — if anything fails part-way, the destination never appears in a half-written state. You either get a complete, valid project or no project at all.</li>
+  <li><strong>Never overwrites</strong> — if the destination already exists, generation refuses to touch it. Your existing work cannot be replaced by accident.</li>
+</ul>
+<p>Because validation runs before the rename, a project that appears on disk is already known to load.</p>
+
+<h2>What is in the generated tree</h2>
+<pre><code>my_game/
+├── demi.project.json
+├── demi.packages.lock.json
+├── scenes/
+├── prefabs/
+├── hud/
+├── scripts/
+├── assets/
+├── data/
+└── .demi/</code></pre>
+<p>Each folder has one job. Know what belongs where and editing stays simple:</p>
+<table>
+  <thead><tr><th>Path</th><th>What belongs there</th></tr></thead>
+  <tbody>
+    <tr><td><code>demi.project.json</code></td><td>The project document: game name, scene list, input bindings, physics layers, simulation settings, build metadata.</td></tr>
+    <tr><td><code>demi.packages.lock.json</code></td><td>The resolved versions of installed packages. Updated by package commands; review it like any other source file.</td></tr>
+    <tr><td><code>scenes/</code></td><td>Scene files (<code>*.scene.json</code>) — the entities that make up a level or screen. The template includes a main scene plus smoke-test content.</td></tr>
+    <tr><td><code>prefabs/</code></td><td>Prefab files (<code>*.prefab.json</code>) — reusable object compositions such as a doorway or a character.</td></tr>
+    <tr><td><code>hud/</code></td><td>HUD documents (<code>*.hud.json</code>) and UI prefabs — on-screen interface trees like menus and health bars.</td></tr>
+    <tr><td><code>scripts/</code></td><td>Lua gameplay files. The template ships an entry script and a project E2E test at <code>scripts/tests/e2e.lua</code>.</td></tr>
+    <tr><td><code>assets/</code></td><td>Imported sources (images, models, audio) and their <code>*.asset.json</code> manifests.</td></tr>
+    <tr><td><code>data/</code></td><td>Schema-backed game data — items, quests, balance tables, and similar content records.</td></tr>
+    <tr><td><code>.demi/</code></td><td>Derived tooling state: installed package contents and project-local LuaLS stubs for editor autocomplete. Safe to regenerate.</td></tr>
+  </tbody>
+</table>
+<p>Alongside those folders the template writes a Lua entry script that starts the game, a deterministic smoke replay used by headless tests, and project-local Lua language stubs under <code>.demi/</code> so editors can autocomplete the engine API.</p>
+<p>For a deeper look at which of these you edit and which are produced by tools, see <a href="{{ path('docs_page', {slug: 'source-vs-generated'}) }}">Source vs generated</a>. Document shapes are covered in <a href="{{ path('docs_page', {slug: 'project-format'}) }}">Project &amp; file formats</a>.</p>
+
+<h2>Open the project in an editor</h2>
+<p>Two kinds of editing apply, and you will use both:</p>
+<ul>
+  <li><strong>Code and JSON</strong> — open the <code>games/my_game</code> folder in any text or code editor. Point the editor's Lua language server at the stubs under <code>.demi/lua</code> (or run <code>./build/linux-debug/demi lua-stubs generate</code> to refresh them) so engine calls autocomplete and type-check.</li>
+  <li><strong>Visual scene and HUD work</strong> — launch the native editor on the project:
+    <pre><code>./build/linux-debug/demi editor --project games/my_game</code></pre>
+  </li>
+</ul>
+<ul>
+  <li><code>editor</code> — opens the visual workspace for scenes, HUDs, and prefabs.</li>
+  <li><code>--project games/my_game</code> — the project directory (or its <code>demi.project.json</code>) to load. The editor reads and writes the same JSON files you see in the text editor.</li>
+</ul>
+<p>Both approaches edit the same source documents. Nothing required to ship the game lives only inside the visual editor.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'development-loop'}) }}">The development loop</a> — run the game, watch files, and iterate.</li>
+  <li><a href="{{ path('docs_page', {slug: 'entities-and-components'}) }}">Entities &amp; components</a> — what a scene is actually made of.</li>
+  <li><a href="{{ path('docs_page', {slug: 'editor'}) }}">Editor</a> — the visual workspace in detail.</li>
+</ul>

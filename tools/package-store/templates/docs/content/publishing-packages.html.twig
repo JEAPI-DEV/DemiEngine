@@ -1,0 +1,96 @@
+<h1>Publishing packages</h1>
+<p><strong>Publishing</strong> means releasing a reusable package so other DemiEngine projects can depend on it by name and version. Publishing exists to turn "we copy these scripts between games" into "we depend on a versioned release", with an audit of exactly which files ship. This page covers preparing a package, the audited content rules, the release workflow, and how the public store at demiengine.de hosts your work. Examples use "Skyforge" at <code>games/my_game</code>.</p>
+
+<h2>Before you publish</h2>
+<p>A publishable package is a directory with a valid manifest (see <a href="{{ path('docs_page', {slug: 'installing-packages'}) }}">Installing packages</a> for the field reference), its declared files, and passing tests:</p>
+<pre><code>packages/skyforge-kit/
+  demi.package.json
+  scripts/
+  scenes/
+  assets/
+  certs/
+  packages/</code></pre>
+<ul>
+  <li><code>demi.package.json</code> — the manifest: <code>format_version</code>, <code>name</code>, <code>version</code>, <code>engine</code>, <code>dependencies</code>, <code>public_modules</code>, <code>files</code>.</li>
+  <li>Each directory below it holds one kind of shippable content. Only audited roots are allowed (see the audit table).</li>
+</ul>
+<p>Prove the package before releasing:</p>
+<pre><code>./build/linux-debug/demi package test packages/skyforge-kit</code></pre>
+<ul>
+  <li><code>package test [dir]</code> — runs the package's declared Lua tests. Returns <code>0</code> when every test passed, <code>1</code> when any failed.</li>
+</ul>
+<pre><code>./build/linux-debug/demi validate packages/skyforge-kit</code></pre>
+<ul>
+  <li><code>validate [path]</code> — validates the package source and everything it references. Returns <code>1</code> on validation errors.</li>
+</ul>
+<p>Both must pass before the version number is spent.</p>
+
+<h2>What may ship: the content audit</h2>
+<p>Every release is <strong>audited</strong> before it becomes a <code>.demipack</code>. The audit exists so a package cannot smuggle build output, editor state, or arbitrary folders into other people's projects. Only these roots are allowed:</p>
+<table>
+  <thead><tr><th>Root</th><th>What belongs there</th></tr></thead>
+  <tbody>
+    <tr><td><code>assets/</code></td><td>Asset manifests and their sources (images, models, data files).</td></tr>
+    <tr><td><code>certs/</code></td><td>Certificate material the package declares it needs.</td></tr>
+    <tr><td><code>packages/</code></td><td>Declared package dependencies' content, when vendored.</td></tr>
+    <tr><td><code>scenes/</code></td><td>Scene documents.</td></tr>
+    <tr><td><code>scripts/</code></td><td>Lua gameplay and module sources.</td></tr>
+    <tr><td><code>demi.project.json</code></td><td>The project root document, when the package is a full project.</td></tr>
+    <tr><td><code>demi.packages.lock.json</code></td><td>The pinned dependency lock.</td></tr>
+    <tr><td><code>cook.manifest.json</code></td><td>The cooked-content manifest with paths and hashes.</td></tr>
+  </tbody>
+</table>
+<p>Anything outside those roots is rejected with <code>BUILD_PACKAGE_CONTENT_UNEXPECTED</code>. Generated output that is not declared by <code>cook.manifest.json</code> does not belong in a release; consumers cook or verify from the manifest instead of trusting loose files.</p>
+
+<h2>Creating the release artifact</h2>
+<p>The release artifact is a <code>.demipack</code> — a single audited file other projects install:</p>
+<pre><code>./build/linux-debug/demi package publish packages/skyforge-kit \
+  --registry https://demiengine.de</code></pre>
+<ul>
+  <li><code>package publish [dir]</code> — audits the package directory, builds the <code>.demipack</code>, and uploads it to the registry. The default directory is the current one.</li>
+  <li><code>--registry &lt;url-or-path&gt;</code> — where to publish. <code>https://demiengine.de</code> is the public store; a local path works for a private registry.</li>
+  <li>Returns <code>0</code> when the release is registered, <code>1</code> when validation or the audit fails.</li>
+</ul>
+<p>The same command is the consumer-side pack flow in reverse: exporting and importing packs is covered in <a href="{{ path('docs_page', {slug: 'cli-assets-and-packages'}) }}">Assets &amp; packages</a>.</p>
+
+<h2>Releases are immutable</h2>
+<p>Once a version is published, its content <strong>never changes</strong>. That immutability is the contract consumers rely on: version <code>1.2.0</code> means the same bytes to everyone, forever, and the lock file hash keeps proving it. To change anything, publish a new version:</p>
+<ol>
+  <li>Fix or extend the package source.</li>
+  <li>Raise <code>version</code> in the manifest (patch for fixes, minor for additions, major for breaking API changes).</li>
+  <li>Run <code>package test</code> and <code>validate</code> again.</li>
+  <li>Publish the new version.</li>
+</ol>
+<p>Consumers pick the change up with <code>demi package update</code> inside their declared constraints, exactly as described in <a href="{{ path('docs_page', {slug: 'installing-packages'}) }}">Installing packages</a>.</p>
+
+<h2>The store at demiengine.de</h2>
+<p>The public package store is <strong>demiengine.de</strong>. It serves three audiences:</p>
+<ul>
+  <li><strong>Consumers</strong> — browse the catalog, read what a package provides, and copy the <code>package add</code> line for their project.</li>
+  <li><strong>Publishers</strong> — use the publishing page to upload a <code>.demipack</code>, set the release notes, and see which versions exist.</li>
+  <li><strong>Tooling</strong> — the same registry endpoint answers <code>package add</code>, <code>install</code>, <code>update</code>, and <code>outdated</code>.</li>
+</ul>
+<p>Two entry points exist for publishing:</p>
+<table>
+  <thead><tr><th>Entry point</th><th>Use it when</th></tr></thead>
+  <tbody>
+    <tr><td>Publishing page on demiengine.de</td><td>You want a guided upload in the browser with release notes.</td></tr>
+    <tr><td><code>bin/publish.py</code></td><td>You are publishing from a script or continuous integration and want one command.</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li><code>bin/publish.py</code> — the store's command-line publisher. It wraps the same audited upload as <code>demi package publish</code>, so a browser upload and a scripted upload produce identical, immutable releases.</li>
+</ul>
+<p>Registry credentials, if your registry requires them, come from environment configuration — never from files inside the package or the repository.</p>
+
+<h2>A complete release checklist</h2>
+<ol>
+  <li>Manifest fields filled: <code>format_version</code>, <code>name</code>, <code>version</code>, <code>engine</code>, <code>dependencies</code>, <code>public_modules</code>, <code>files</code>.</li>
+  <li>Only audited roots are present (<code>assets/</code>, <code>certs/</code>, <code>packages/</code>, <code>scenes/</code>, <code>scripts/</code>, plus the three manifest files).</li>
+  <li><code>demi package test</code> passes.</li>
+  <li><code>demi validate</code> passes for the package.</li>
+  <li>Version raised and release notes written.</li>
+  <li><code>demi package publish --registry https://demiengine.de</code> (or the publishing page, or <code>bin/publish.py</code>) completes.</li>
+  <li>A fresh project installs the release and requires one public module successfully.</li>
+</ol>
+<p>Related pages: <a href="{{ path('docs_page', {slug: 'installing-packages'}) }}">Installing packages</a> for the consumer side, and <a href="{{ path('docs_page', {slug: 'cli-build-and-test'}) }}">Build, cook &amp; test</a> for validation and packaging commands.</p>

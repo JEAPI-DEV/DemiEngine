@@ -1,0 +1,181 @@
+<h1>Networking &amp; HTTP</h1>
+<p>Multiplayer is host-authoritative: the host owns spawning, ownership, and message validation. HTTP/HTTPS is available separately for REST backends and is async so gameplay never blocks.</p>
+
+<h2>Network contract</h2>
+<p>Declare a contract asset in the project:</p>
+<pre><code>"network_contract": "asset://network/arena_contract"</code></pre>
+<p>The <code>NetworkContract</code> asset is the single source of network rules: which prefabs the server may spawn, who may write which fields, message names and directions, size and rate limits, and payload schemas. Both sides hash the contract at session setup and refuse to start on mismatch.</p>
+<table>
+  <thead><tr><th>Policy</th><th>Values</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td>Senders / writers</td><td><code>server</code>, <code>owner</code>, <code>all</code></td><td>Who may spawn or write a replicated field</td></tr>
+    <tr><td>Disconnect</td><td><code>despawn</code>, <code>return_to_server</code>, <code>transfer_by_game_policy</code></td><td>What happens to that player’s entities</td></tr>
+    <tr><td>Message targets</td><td><code>owned_entity</code>, <code>entity</code>, <code>none</code></td><td>What the message is addressed to</td></tr>
+  </tbody>
+</table>
+
+<h2>Session flow</h2>
+<pre><code>local NetworkSession = require("demi.network.session")
+
+-- Host:
+NetworkSession.host(39420)                       -- returns true or nil, err
+NetworkSession.start_session({
+    scene_id = "scene://game",
+    seed     = 42,
+})
+
+-- Client:
+NetworkSession.connect("127.0.0.1", 39420)       -- returns true or nil, err</code></pre>
+<p>Once running, pump the session every frame:</p>
+<pre><code>function Game:on_update(dt)
+    local events = NetworkSession.process_events()
+    -- events is an array of validated contract messages
+    for _, e in ipairs(events) do
+        print(e.name, e.sender_id)
+    end
+
+    NetworkSession.update_entity(network_id, dt)
+end</code></pre>
+<p><code>process_events</code> returns the validated messages received since the last call (empty array when idle). Invalid or unauthorized traffic is rejected before Lua sees it. <code>update_entity</code> captures the contract-declared replicated fields for one entity.</p>
+<p>Lifecycle phases: <code>closed</code> → <code>connected</code> → <code>authenticated</code> → <code>ready</code> → <code>active</code>, plus <code>reconnecting</code>. Query status with:</p>
+<pre><code>local d = NetworkSession.diagnostics()
+-- d.phase, d.epoch, d.contract_hash, plus send/receive counters
+
+print(NetworkSession.is_connected())   -- boolean
+print(NetworkSession.is_host())        -- boolean
+print(NetworkSession.sender_id())      -- this peer’s ID
+print(NetworkSession.current_session())-- session info table or nil</code></pre>
+
+<h2>Authority and spawning</h2>
+<pre><code>-- Host only:
+local id = NetworkSession.spawn(prefab_key, entity_id, owner)
+NetworkSession.transfer(network_id, new_owner)
+NetworkSession.despawn(network_id)
+
+if NetworkSession.has_authority(network_id) then
+    -- safe to apply local gameplay for this entity
+end
+
+local owner = NetworkSession.owner(network_id)
+local nid = NetworkSession.network_id_for_owner(owner_id)
+NetworkSession.bind_local_entity(entity_id, network_id)</code></pre>
+<p><code>spawn</code> creates a contract-declared prefab on every peer and returns the network ID. <code>transfer</code> hands authority to another player. <code>has_authority</code> is the gate every gameplay write should check. Late joiners automatically receive retained spawn state.</p>
+
+<h2>Messages</h2>
+<pre><code>local ok = NetworkSession.send("fire", { x = 1, y = 2 }, { target = "server" })
+-- ok is true when the message passed contract checks and was queued</code></pre>
+<p>Only contract-declared message names are accepted. The payload table must match the declared schema (finite numbers, allowed shape, size limits). The validation pipeline checks header, protocol, contract hash, epoch, sequence, size, structure, schema, sender, destination, ownership generation, and rate before delivery.</p>
+
+<h2>Prediction and reconciliation</h2>
+<p>Optional, for responsive movement on remote entities:</p>
+<pre><code>NetworkSession.configure({
+    input_queue_capacity = 64,
+    input_future_window = 8,
+    input_head_of_line_timeout = 0.5,
+    input_max_per_tick = 8,
+    snapshot_buffer = 32,
+    interpolation_delay = 0.1,
+    extrapolation_limit = 0.25,
+    prediction_history_limit = 128,
+    prediction_visual_decay = 0.2,
+})
+
+NetworkSession.enable_prediction({
+    network_id = nid,
+    input_message = "input",   -- contract message carrying inputs
+    state = function()          -- return the state to replicate
+        return { x = px, y = py }
+    end,
+    apply = function(state)     -- push an authoritative state
+        Transform2D.set_position(nid, state.x, state.y)
+    end,
+})</code></pre>
+<p>Related calls and what they return:</p>
+<table>
+  <thead><tr><th>Call</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>NetworkSession.publish_snapshot()</code></td><td>Publishes the current predicted state to the host.</td></tr>
+    <tr><td><code>NetworkSession.predict_input(...)</code></td><td>Applies one predicted input locally.</td></tr>
+    <tr><td><code>NetworkSession.take_inputs()</code></td><td>Queued input array since the last call.</td></tr>
+    <tr><td><code>NetworkSession.prediction_state(nid)</code></td><td>Current predicted state table, or <code>nil</code>.</td></tr>
+    <tr><td><code>NetworkSession.prediction_visual_offset(nid)</code></td><td>Interpolation offset to apply visually.</td></tr>
+    <tr><td><code>NetworkSession.remote_state(nid)</code></td><td>Last authoritative state table.</td></tr>
+    <tr><td><code>NetworkSession.prediction_diagnostics()</code></td><td>Counters for corrections and queue depth.</td></tr>
+    <tr><td><code>NetworkSession.reset_prediction(nid)</code></td><td>Clears history after a teleport.</td></tr>
+  </tbody>
+</table>
+<p>Historical 2D queries rewind the world for lag-compensated hits:</p>
+<pre><code>NetworkSession.configure({
+    query_history_capacity = 64,
+    query_history_max_entities = 128,
+    query_history_rewind_ticks = 8,
+})
+NetworkSession.record_query_snapshot()
+local hit = NetworkSession.historical_raycast(tick, x1, y1, x2, y2)  -- hit or nil</code></pre>
+
+<h2>Low-level transport</h2>
+<pre><code>local Network = require("demi.network")
+
+print(Network.available())          -- true when transport is compiled in
+Network.host(port)                   -- ENet
+Network.host_dtls(port)              -- DTLS
+Network.connect(host, port)
+Network.send(peer, bytes, reliable)  -- raw bytes payload
+local events = Network.events()      -- connection-event array</code></pre>
+<p>Use this layer for custom protocols. Most games want <code>demi.network.session</code> instead.</p>
+
+<h2>TLS</h2>
+<pre><code>local TlsServer = require("demi.network.tls.server")
+local TlsClient = require("demi.network.tls.client")
+
+TlsServer.listen(port, cert_pem, key_pem)
+local ok = TlsClient.connect(host, port, { ca_certificate_pem = ca })
+if not ok then print(TlsClient.error()) end
+
+TlsClient.send(handle, payload)
+local events = TlsClient.events()    -- receive queue
+print(TlsClient.is_connected())      -- boolean</code></pre>
+<p>TLS always verifies the certificate chain and hostname.</p>
+<p><code>demi.network.crypto</code> provides <code>random_token()</code>, <code>password_hash()</code>, and <code>secure_equals(a, b)</code> for constant-time comparison.</p>
+
+<h2>HTTP / HTTPS</h2>
+<pre><code>local Http = require("demi.network.http")
+
+local request, err = Http.post("https://api.example.com/login", {
+    json = { user = "hero" },          -- JSON body + Content-Type
+    headers = { ["X-Trace"] = "1" },
+    timeout_ms = 10000,
+    connect_timeout_ms = 2000,
+    max_response_bytes = 1024 * 1024,
+})
+if not request then
+    print("could not start request:", err)
+    return
+end</code></pre>
+<p><code>Http.get</code>, <code>Http.post</code>, and <code>Http.request</code> (for PUT/PATCH/DELETE/HEAD) return a request handle immediately, or <code>nil, error</code> when the call could not be started. Poll the handle:</p>
+<pre><code>function Game:on_update()
+    if not request:done() then return end
+
+    local response = request:response()
+    if response.ok then
+        -- status 200–299
+        print(response.status)
+        print(response.body)               -- raw string
+        local data = response.json         -- parsed table, or nil + response.json_error
+        if data then print(data.user) end
+    else
+        print(response.status, response.error, response.error_code)
+    end
+end</code></pre>
+<ul>
+  <li><code>request:done()</code> — boolean, true when finished (success or failure).</li>
+  <li><code>request:response()</code> — response table while done, <code>nil</code> while pending.</li>
+  <li><code>request:cancel()</code> — abort; garbage collection also cancels.</li>
+  <li>Response fields: <code>ok</code>, <code>status</code>, <code>body</code>, <code>error</code>, <code>error_code</code>, <code>json</code>, <code>json_error</code>, <code>headers</code> (lowercase names, array values).</li>
+  <li>Use either <code>json</code> or <code>body</code> on the request, not both.</li>
+  <li>Redirects come back as 3xx — follow them yourself if you want to.</li>
+  <li>Android builds need <code>android.permission.INTERNET</code> in the project <code>build.android.permissions</code>.</li>
+</ul>
+
+<h2>Dedicated server</h2>
+<p>A windowless dedicated server runs the same project data and Lua gameplay. See <code>minimal_2d_android_server</code> in the <a href="{{ path('docs_page', {slug: 'examples'}) }}">examples tour</a>.</p>

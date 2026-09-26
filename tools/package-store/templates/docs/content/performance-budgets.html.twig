@@ -1,0 +1,80 @@
+<h1>Performance budgets</h1>
+<p>A performance budget is a number you commit to: “this game will use at most this much”. DemiEngine does not enforce it and never changes quality to hit it. It gives you a measuring stick.</p>
+
+<h2>What problem this solves</h2>
+<p>“It runs fine on my machine” is not a plan. Budgets turn feel into data:</p>
+<ul>
+  <li>A level designer knows the triangle cap before placing the 400th crate.</li>
+  <li>A CI job can fail when a change doubles draw calls.</li>
+  <li>A qualification run has a declared intent to compare against.</li>
+</ul>
+<p>Without budgets, regressions hide until a player complains on a low-end phone.</p>
+
+<h2>Declare budgets</h2>
+<pre><code>"performance_budgets": {
+  "maximum_frame_ms": 16.7,
+  "maximum_draw_calls": 800,
+  "maximum_resident_assets": 256,
+  "maximum_visible_instances": 4000,
+  "maximum_unique_meshes": 120,
+  "maximum_triangles": 500000,
+  "maximum_texture_memory_mb": 256,
+  "maximum_lights": 8,
+  "maximum_shadow_lights": 2,
+  "maximum_transparent_draws": 200
+}</code></pre>
+
+<h2>What each number means</h2>
+<table>
+  <thead><tr><th>Field</th><th>Unit</th><th>What it measures</th></tr></thead>
+  <tbody>
+    <tr><td><code>maximum_frame_ms</code></td><td>milliseconds</td><td>Whole frame time. 16.7 ms is 60 FPS; 8.3 ms is 120 FPS.</td></tr>
+    <tr><td><code>maximum_draw_calls</code></td><td>count</td><td>Render submissions per frame. Each is CPU + driver overhead.</td></tr>
+    <tr><td><code>maximum_resident_assets</code></td><td>count</td><td>Assets kept loaded at once. Drives memory and load stalls.</td></tr>
+    <tr><td><code>maximum_visible_instances</code></td><td>count</td><td>Drawn model instances after culling.</td></tr>
+    <tr><td><code>maximum_unique_meshes</code></td><td>count</td><td>Distinct meshes submitted. High values break batching.</td></tr>
+    <tr><td><code>maximum_triangles</code></td><td>count</td><td>Triangles submitted per frame.</td></tr>
+    <tr><td><code>maximum_texture_memory_mb</code></td><td>MiB</td><td>GPU texture memory.</td></tr>
+    <tr><td><code>maximum_lights</code></td><td>count</td><td>Lights affecting the frame.</td></tr>
+    <tr><td><code>maximum_shadow_lights</code></td><td>count</td><td>Lights allowed to cast shadows — the expensive ones.</td></tr>
+    <tr><td><code>maximum_transparent_draws</code></td><td>count</td><td>Transparent/unsorted draws, which are hard to batch.</td></tr>
+  </tbody>
+</table>
+<p>Set only the fields you care about. Missing fields are simply not budgeted.</p>
+
+<h2>How to use the numbers</h2>
+<h3>1. Pick targets per platform</h3>
+<p>Desktop 1080p and Android mid-range are different games. Use different project files or different values in CI profiles. A starting point for a 60 FPS 2D game:</p>
+<pre><code>"performance_budgets": {
+  "maximum_frame_ms": 16.7,
+  "maximum_draw_calls": 300,
+  "maximum_resident_assets": 128,
+  "maximum_texture_memory_mb": 128
+}</code></pre>
+<h3>2. Measure against them</h3>
+<pre><code>./build/linux-debug/demi asset budget games/my_game/demi.project.json --platform linux</code></pre>
+<p>This reports current usage versus each declared limit, so you see headroom or overflow before shipping.</p>
+<h3>3. Profile the overage</h3>
+<pre><code>./build/linux-debug/demi run linux --project games/my_game \
+  --profiler --profile-report report.csv</code></pre>
+<p>Budgets tell you <em>that</em> you overflowed; the profiler tells you <em>where</em>. See <a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a>.</p>
+<h3>4. Put it in the pipeline</h3>
+<pre><code>./build/linux-debug/demi asset budget project/demi.project.json --platform android
+# fail the job when the command reports overflow</code></pre>
+<p>Combine with a deterministic scene load and a profile CSV so every merge request has a number to compare.</p>
+
+<h2>What budgets do <em>not</em> do</h2>
+<ul>
+  <li>They never lower quality, hide objects, or change resolution.</li>
+  <li>They never block a build. Exceeding one is a measurement, not a compile error.</li>
+  <li>They are project data, not device auto-detection. You decide the intent per target.</li>
+</ul>
+
+<h2>Choosing sensible caps</h2>
+<ol>
+  <li>Build the heaviest scene you expect to ship.</li>
+  <li>Measure it on your weakest target device.</li>
+  <li>Leave 20–30% headroom for polish and late content.</li>
+  <li>Round the number and write it down in the project file.</li>
+</ol>
+<p>Budgets are most useful early. Setting them after the game is done only documents the overrun.</p>

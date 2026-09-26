@@ -1,0 +1,72 @@
+<h1>Asset groups &amp; streaming</h1>
+<p>Loading one file at a time works until a whole Skyforge level arrives at once. An <strong>asset group</strong> is a named set of assets and scenes loaded together under a memory and time budget, so a level fill never stalls a frame or blows the platform's memory.</p>
+
+<h2>What a group is</h2>
+<p>A group is an authored document listing <strong>roots</strong> (what to load) and a <strong>budget</strong> (how much memory and per-frame upload time the load may use). Roots are <code>asset://</code> or <code>scene://</code> URIs. Loading a <code>scene://</code> root pulls in everything that scene references, so one entry can represent a whole level.</p>
+<pre><code>{
+  "format_version": 1,
+  "id": "asset-group://skyforge_outpost",
+  "roots": [
+    "asset://levels/skyforge_outpost",
+    "scene://game/skyforge_outpost"
+  ],
+  "budget": {
+    "resident_mb": 192,
+    "decoded_mb": 384,
+    "upload_ms_per_frame": 3
+  }
+}</code></pre>
+<ul>
+  <li><code>format_version</code> — required on every authored document.</li>
+  <li><code>id</code> — stable group ID.</li>
+  <li><code>roots</code> — array of <code>asset://</code> and <code>scene://</code> URIs to resolve and load as one batch.</li>
+  <li><code>budget.resident_mb</code> — cap in megabytes on memory kept resident.</li>
+  <li><code>budget.decoded_mb</code> — cap in megabytes on decoded (pre-upload) memory.</li>
+  <li><code>budget.upload_ms_per_frame</code> — milliseconds of GPU upload work allowed per frame.</li>
+</ul>
+<p>The budget is the reason groups exist: <code>upload_ms_per_frame</code> spreads texture uploads across frames so play stays smooth while the level fills in, and the megabyte caps keep a rich scene inside what the platform can hold.</p>
+
+<h2>Startup preload versus on-demand</h2>
+<p>The project document's <code>assets</code> array is <strong>startup preload only</strong> — the few things needed before the first frame (the title font, a placeholder). It does not load every project asset automatically. Everything else loads when a group asks for it, when its scene loads, or when script code calls <code>Assets.load</code>.</p>
+<pre><code>{
+  "format_version": 1,
+  "id": "project://skyforge",
+  "assets": [
+    "asset://fonts/skyforge_ui",
+    "asset://textures/skyforge_placeholder"
+  ]
+}</code></pre>
+<p>Only these two load at startup. A weapon texture referenced by a prefab loads when that prefab's scene loads. Keeping the startup array tiny is how Skyforge reaches its first frame quickly.</p>
+
+<h2>Scene transitions</h2>
+<p>When a scene URI appears as a group root, a scene transition loads that scene and its references <strong>atomically</strong> — either the whole set is ready and the scene activates, or the load fails cleanly and the current scene stays. There is no half-populated level.</p>
+<pre><code>local Scene = require("demi.scene")
+
+Scene.prepare("scene://game/skyforge_outpost")  -- resolves the scene:// root and its group
+
+function Game:on_update()
+    if Scene.is_prepared() then
+        Scene.activate()   -- swap only when every root is ready
+    end
+end</code></pre>
+<p><code>Scene.prepare</code> / <code>Scene.is_prepared</code> / <code>Scene.activate</code> follow the two-phase pattern from <a href="{{ path('docs_page', {slug: 'scene-and-prefab-api'}) }}">Scene &amp; prefab API</a>. The group budget applies to the batch, so a heavy level degrades into slower fills instead of a frozen frame or a failed allocation.</p>
+
+<h2>Loading a group from script</h2>
+<p>Individual assets still load through <code>demi.assets</code>; groups are the authored batch unit. Use <code>Assets.load</code> for one-offs and the group/scene path for level-sized sets.</p>
+<pre><code>local Assets = require("demi.assets")
+
+Assets.load("asset://audio/skyforge_theme")   -- one asset, non-blocking
+
+function Game:on_update()
+    if not Assets.is_ready("asset://audio/skyforge_theme") then
+        local p = Assets.progress("asset://audio/skyforge_theme")  -- 0 … 1
+    end
+end</code></pre>
+<p><code>Assets.load(uri)</code> starts a request and returns nothing. <code>Assets.is_ready(uri)</code> returns a boolean. <code>Assets.progress(uri)</code> returns a 0…1 number across the stages <code>resolve</code> → <code>read</code> → <code>decode</code> → <code>upload</code> → <code>ready</code> (or <code>failed</code> / <code>cancelled</code>). The full load API is in <a href="{{ path('docs_page', {slug: 'assets-time-api'}) }}">Assets, time &amp; timers</a>.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'importers'}) }}">Importers</a> — getting sources into <code>asset://</code> IDs first.</li>
+  <li><a href="{{ path('docs_page', {slug: 'cooking'}) }}">Cooking</a> — turning the group's assets into platform output.</li>
+  <li><a href="{{ path('docs_page', {slug: 'scene-and-prefab-api'}) }}">Scene &amp; prefab API</a> — prepare/activate across a level change.</li>
+</ul>

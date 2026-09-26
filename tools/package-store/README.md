@@ -1,7 +1,8 @@
 # DemiEngine Package Store
 
 Symfony 7.4 LTS + Twig, served at https://demiengine.de.
-The engine homepage is at / and the searchable catalog is at /packages/.
+The engine homepage is at /, the searchable catalog is at /packages/, and the
+user documentation is at /docs and /docs/{slug}.
 A responsive, free-only catalog and the existing engine's HTTP package registry.
 Catalog presentation is stored separately from immutable engine manifests.
 
@@ -22,6 +23,22 @@ Or from the engine root:
 
 Install Composer dependencies before starting the container. The PHP development
 server is only for local review; production uses the supplied Nginx/FPM configs.
+
+## Documentation
+
+The /docs section hosts the structured user documentation. Pages are registered
+in `src/Docs.php` (slug, title, section, summary) and rendered from
+`templates/docs/content/{slug}.html.twig` through `templates/docs/page.html.twig`.
+The index at `/docs` groups pages into Start here / Create / Game systems / Ship
+and links learning paths. Navigation is shared through `base.html.twig`; docs
+styling lives in `public/docs.css`.
+
+When adding a page:
+
+1. Append its slug/title/summary to the right section in `src/Docs.php`.
+2. Add `templates/docs/content/{slug}.html.twig` with the page body.
+3. Extend `tests/verify-docs.php` expectations if the page needs special checks
+   (the default loop already asserts sidebar, article, pager, and current-nav).
 
 ## Listing metadata
 

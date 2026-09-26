@@ -1,0 +1,64 @@
+{% extends 'base.html.twig' %}
+{% block title %}Documentation — DemiEngine{% endblock %}
+{% block description %}Structured DemiEngine documentation: getting started, Lua scripting, UI, physics, networking, packages, and shipping.{% endblock %}
+{% block styles %}<link rel="stylesheet" href="/docs.css?v=1">{% endblock %}
+{% block body %}
+<section class="docs-hero">
+  <div class="eyebrow muted">DOCUMENTATION / {{ total }} GUIDES</div>
+  <h1>Learn the engine.<br>Ship the game.</h1>
+  <p class="lead">Everything DemiEngine can do, organized by the job you are trying to finish. Start with a runnable project, then go deep on scripting, UI, physics, networking, and release builds.</p>
+  <div class="home-actions">
+    <a class="button" href="{{ path('docs_page', {slug: 'getting-started'}) }}">Start building →</a>
+    <a class="button secondary" href="{{ path('docs_page', {slug: 'examples'}) }}">Browse examples →</a>
+  </div>
+</section>
+
+<section class="docs-path" aria-label="Learning paths">
+  <article>
+    <span class="feature-index">PATH / 01</span>
+    <h2>New to DemiEngine?</h2>
+    <p>Create a project from a template, run the development loop with hot reload, and learn the project/scene/entity model.</p>
+    <a href="{{ path('docs_page', {slug: 'getting-started'}) }}">Getting started →</a>
+    <a href="{{ path('docs_page', {slug: 'core-concepts'}) }}">Core concepts →</a>
+  </article>
+  <article>
+    <span class="feature-index">PATH / 02</span>
+    <h2>Authoring gameplay</h2>
+    <p>Script with Lua services, shape interfaces in the HUD tree, wire input actions, and reuse prefabs and packages.</p>
+    <a href="{{ path('docs_page', {slug: 'scripting'}) }}">Lua scripting →</a>
+    <a href="{{ path('docs_page', {slug: 'ui'}) }}">UI &amp; HUD →</a>
+  </article>
+  <article>
+    <span class="feature-index">PATH / 03</span>
+    <h2>Build and ship</h2>
+    <p>Validate every reachable source, run E2E tests, cook deterministic content, and package Linux or Android releases.</p>
+    <a href="{{ path('docs_page', {slug: 'testing'}) }}">Testing &amp; debugging →</a>
+    <a href="{{ path('docs_page', {slug: 'shipping'}) }}">Shipping &amp; builds →</a>
+  </article>
+</section>
+
+<section class="docs-toc" aria-labelledby="toc-title">
+  <h2 id="toc-title">All documentation</h2>
+  <div class="docs-toc-grid">
+    {% for section in sections %}
+    <div class="docs-toc-section">
+      <h3>{{ section.title }}</h3>
+      <ul>
+        {% for page in section.pages %}
+        <li><a href="{{ path('docs_page', {slug: page.slug}) }}"><strong>{{ page.title }}</strong><span>{{ page.summary }}</span></a>
+          {% if page.children is defined and page.children %}
+          <ul class="docs-toc-children">
+            {% for child in page.children %}
+            <li><a href="{{ path('docs_page', {slug: child.slug}) }}"><strong>{{ child.title }}</strong><span>{{ child.summary }}</span></a></li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="docs-footer-note">Looking for package publishing? Read the <a href="{{ path('publishing') }}">publishing guide</a>, or browse the <a href="{{ path('catalog') }}">free package catalog</a>.</p>
+</section>
+{% endblock %}

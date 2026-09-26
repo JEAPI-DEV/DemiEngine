@@ -1,0 +1,161 @@
+<h1>Isometric grid</h1>
+<p>Isometric games place objects on a diamond-shaped grid rather than a flat square one. This page explains what that placement means, how the grid converts tiles to world positions, and how to check, preview, and path across it.</p>
+
+<h2>What isometric placement is</h2>
+<p>In a top-down square grid, one tile is one square of floor. In an <strong>isometric</strong> view, the same logical tile is drawn as a diamond: the camera looks at the world from an angle, so “north-east” on the ground runs up-right on screen. Characters, crates, and walls still occupy integer tile cells — only the way cells map to world and screen positions changes.</p>
+<p>Isometric placement exists so a Skyforge station deck can read as 2.5D: sprites sort by depth, props line up on the diamond lattice, and gameplay still reasons in simple tile coordinates.</p>
+<p>Two components cooperate:</p>
+<ul>
+  <li><code>IsoTransform</code> places one entity on the diamond lattice and handles depth sorting for its <a href="{{ path('docs_page', {slug: 'sprites-and-animation'}) }}">sprite</a>.</li>
+  <li><code>IsoGrid</code> defines the lattice itself: tile size, origin, and which cells are occupied.</li>
+</ul>
+
+<h2>IsoTransform versus Transform2D</h2>
+<p>Ordinary <code>Transform2D</code> places an entity at a free world position <code>[x, y]</code> with any rotation and scale. That is right for floating HUD-adjacent props and parallax art.</p>
+<p><code>IsoTransform</code> places an entity at a tile and derives its world position from the grid. It is right for anything that should sit on the lattice: units, buildings, pickups on the deck.</p>
+<table>
+  <thead><tr><th></th><th><code>Transform2D</code></th><th><code>IsoTransform</code></th></tr></thead>
+  <tbody>
+    <tr><td>Position means</td><td>World units</td><td>Tile coordinates</td></tr>
+    <tr><td>Depth sorting</td><td>By <code>sorting_order</code> and layer</td><td>Also by isometric depth, so upper tiles draw behind lower ones</td></tr>
+    <tr><td>Use for</td><td>Free placement, cameras, effects</td><td>Anything standing on the grid</td></tr>
+  </tbody>
+</table>
+<p>Both still interact with the same sprite draw order: <code>sorting_order</code>, then layer name, then isometric depth.</p>
+
+<h2>Grid configuration</h2>
+<pre><code>{
+  "IsoGrid": {
+    "tile_width": 64,
+    "tile_height": 32,
+    "origin": [0, 0],
+    "size": [40, 40]
+  }
+}</code></pre>
+<ul>
+  <li><code>tile_width</code> is the full diamond width in world units.</li>
+  <li><code>tile_height</code> is the full diamond height in world units. The 2:1 ratio is the classic isometric diamond.</li>
+  <li><code>origin</code> is the world position of tile <code>(0, 0)</code>.</li>
+  <li><code>size</code> is <code>[columns, rows]</code> of cells the grid owns.</li>
+</ul>
+
+<h2>Tile and world conversion</h2>
+<p>Gameplay thinks in tiles; rendering and physics think in world units. The <code>demi.grid</code> module converts between them.</p>
+<pre><code>local Grid = require("demi.grid")
+
+print(Grid.available(grid))                    -- boolean
+
+local wx, wy = Grid.tile_to_world(grid, tx, ty)
+local tx, ty = Grid.world_to_tile(grid, wx, wy)
+
+local tile = Grid.get_tile(grid, tx, ty)
+local occupant = Grid.entity_at(grid, tx, ty)</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>available</code></td><td>grid id</td><td><code>true</code> when the grid is configured and ready, otherwise <code>false</code>.</td></tr>
+    <tr><td><code>tile_to_world</code></td><td>grid id, tile <code>tx</code>, <code>ty</code></td><td>Two scalars <code>wx, wy</code> — the world position of that tile’s center on the diamond.</td></tr>
+    <tr><td><code>world_to_tile</code></td><td>grid id, world <code>wx</code>, <code>wy</code></td><td>Two scalars <code>tx, ty</code> — the tile under that world point.</td></tr>
+    <tr><td><code>get_tile</code></td><td>grid id, <code>tx</code>, <code>ty</code></td><td>Tile ID number at the cell, or <code>0</code> when empty.</td></tr>
+    <tr><td><code>entity_at</code></td><td>grid id, <code>tx</code>, <code>ty</code></td><td>Entity handle occupying the cell, or <code>nil</code> when the cell is free.</td></tr>
+  </tbody>
+</table>
+<p>Placing a crate the player just bought in Skyforge’s market:</p>
+<pre><code>local Grid = require("demi.grid")
+
+local wx, wy = Grid.tile_to_world(grid, 12, 7)
+-- wx, wy → world position of tile (12, 7)
+
+local tx, ty = Grid.world_to_tile(grid, wx, wy)
+-- tx, ty → 12, 7 (round-trips back to the same cell)</code></pre>
+<ul>
+  <li><code>tile_to_world</code> returns two scalars suitable for a <code>Transform2D</code> position.</li>
+  <li><code>world_to_tile</code> returns two scalars in tile units, truncated to the cell that contains the point.</li>
+  <li>Use <code>tile_to_world</code> to spawn; use <code>world_to_tile</code> to interpret mouse clicks.</li>
+</ul>
+
+<h2>Placement checks and previews</h2>
+<p>Building games need to answer “may I build here?” before committing, and show a ghost while the player aims.</p>
+<pre><code>local Grid = require("demi.grid")
+
+if Grid.can_place(grid, tx, ty) then
+    Grid.set_preview(grid, tx, ty, 17)
+else
+    Grid.clear_preview(grid)
+end</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>can_place</code></td><td>grid id, <code>tx</code>, <code>ty</code></td><td><code>true</code> when the cell accepts a new occupant (in bounds, not blocked, unoccupied); otherwise <code>false</code>.</td></tr>
+    <tr><td><code>set_preview</code></td><td>grid id, <code>tx</code>, <code>ty</code>, tile ID to ghost</td><td>Nothing. Draws a translucent preview at the cell.</td></tr>
+    <tr><td><code>clear_preview</code></td><td>grid id</td><td>Nothing. Removes the ghost immediately.</td></tr>
+  </tbody>
+</table>
+<p>Clear the preview whenever the player cancels placement or the cursor leaves the grid so no ghost is left behind.</p>
+
+<h2>Grid paths</h2>
+<p>Units walking across the deck need routes around walls and other units.</p>
+<pre><code>local Grid = require("demi.grid")
+
+local path, diagnostic = Grid.path(grid, from, to)
+-- path       array of { x, y } world points, or nil on failure
+-- diagnostic table explaining why a path could not be built</code></pre>
+<ul>
+  <li><code>from</code> and <code>to</code> are tile or world endpoints accepted by the grid’s path request.</li>
+  <li><code>path</code> is an array of <code>{ x, y }</code> world points to walk in order, or <code>nil</code> when no route exists.</li>
+  <li><code>diagnostic</code> is a table describing the failure (blocked start, unreachable goal). Successful calls may return no diagnostic.</li>
+</ul>
+<p>Guard with <code>if path then</code> before iterating — a blocked corridor is a <code>nil</code> path, not an empty array.</p>
+
+<h2>Navigation2D</h2>
+<p>When you want more control than the built-in grid path — weighted shortcuts, dynamic obstacles, cell-level cost — use <code>demi.navigation2d</code> on top of the same lattice.</p>
+<pre><code>local Nav = require("demi.navigation2d")
+
+Nav.configure(grid, { diagonal = true })
+Nav.set_blocked(grid, 3, 4, true)
+Nav.set_cost(grid, 5, 5, 2.0)
+
+local path, diagnostic = Nav.path(grid, from, to)
+
+print(Nav.available(grid))
+local cx, cy = Nav.world_to_cell(grid, wx, wy)
+local wx2, wy2 = Nav.cell_to_world(grid, cx, cy)
+Nav.clear(grid)</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>configure</code></td><td>grid id, options table (<code>diagonal</code> allows diagonal steps)</td><td>Nothing. Sets up navigation for the grid.</td></tr>
+    <tr><td><code>set_blocked</code></td><td>grid id, <code>cx</code>, <code>cy</code>, boolean</td><td>Nothing. Marks a cell unwalkable (<code>true</code>) or walkable (<code>false</code>).</td></tr>
+    <tr><td><code>set_cost</code></td><td>grid id, <code>cx</code>, <code>cy</code>, cost number</td><td>Nothing. Raises or lowers how expensive the cell is to cross. Higher cost is avoided.</td></tr>
+    <tr><td><code>path</code></td><td>grid id, <code>from</code>, <code>to</code></td><td><code>path</code> array of <code>{ x, y }</code> world points (empty on failure) and a <code>diagnostic</code> table explaining why.</td></tr>
+    <tr><td><code>available</code></td><td>grid id</td><td><code>true</code> when navigation is configured, otherwise <code>false</code>.</td></tr>
+    <tr><td><code>world_to_cell</code> / <code>cell_to_world</code></td><td>grid id plus the opposite coordinates</td><td>Converted <code>cx, cy</code> or <code>wx, wy</code> scalars.</td></tr>
+    <tr><td><code>clear</code></td><td>grid id</td><td>Nothing. Drops blocked flags and costs back to defaults.</td></tr>
+  </tbody>
+</table>
+<p>Note the result difference: <code>Grid.path</code> returns <code>nil</code> when it fails; <code>Nav.path</code> returns an <strong>empty array</strong> plus a diagnostic. Both provide the failure reason in the diagnostic table.</p>
+<p>A Skyforge courier that avoids electrified tiles but will cross them slowly if there is no alternative:</p>
+<pre><code>local Nav = require("demi.navigation2d")
+
+Nav.set_cost(grid, 8, 3, 3.0)   -- electrified tile, expensive
+Nav.set_blocked(grid, 9, 3, true) -- collapsed deck, impossible
+
+local path = Nav.path(grid, start_pos, dropoff_pos)
+if #path == 0 then
+    -- no route; diagnostic says whether the goal is sealed off
+end</code></pre>
+<ul>
+  <li><code>set_cost</code> biases routing without sealing the tile; <code>set_blocked</code> removes it entirely.</li>
+  <li><code>path</code> returns an array of world points — empty when the goal cannot be reached.</li>
+  <li>Call <code>set_blocked</code> again and rebuild when doors move, or call <code>clear</code> to reset the whole layer of overrides.</li>
+</ul>
+
+<h2>Choosing tools</h2>
+<ul>
+  <li>One unit moving A to B on an open deck: <code>Grid.path</code>.</li>
+  <li>Fleets routing around dynamic hazards with costs: <code>Navigation2D</code>.</li>
+  <li>Build-mode ghosts: <code>can_place</code> + <code>set_preview</code>.</li>
+  <li>Mouse picking into tile coordinates: <code>world_to_tile</code>.</li>
+  <li>Depth-correct sprite stacking: <code>IsoTransform</code>.</li>
+</ul>
+<p>Level content itself comes from <a href="{{ path('docs_page', {slug: 'tilemaps'}) }}">Tilemaps</a>, and the art drawn on each cell is standard <a href="{{ path('docs_page', {slug: 'sprites-and-animation'}) }}">sprite</a> work.</p>

@@ -1,0 +1,136 @@
+<h1>State machines</h1>
+<p>Characters and props play animations through a state machine: a small graph of named states (idle, run, attack) with rules for moving between them. The <code>demi.animation</code> module drives that graph from scripts.</p>
+
+<h2>What a state machine is</h2>
+<p>A state machine is a set of <strong>states</strong>, each pointing at a clip to play, plus <strong>transitions</strong> that say when to switch. You do not scrub frames by hand: you set parameters (speed, a trigger), and the machine picks the state. One entity can also have several <strong>layers</strong> (upper body over lower body) with their own states and weights.</p>
+
+<h2>States</h2>
+<p>A state names a clip and can carry timed markers. In a 3D model the clip is <code>model_clip_name</code>; in a 2D sprite sheet it is <code>sprite_clip</code>.</p>
+<pre><code>{
+  "states": [
+    {
+      "name": "run",
+      "model_clip_name": "run_loop",
+      "events": [
+        { "time": 0.2, "name": "footstep_left" },
+        { "time": 0.7, "name": "footstep_right" }
+      ]
+    },
+    {
+      "name": "skyforge_slam",
+      "sprite_clip": "rune_slam"
+    }
+  ]
+}</code></pre>
+<ul>
+  <li><code>name</code> — stable state ID used by transitions and Lua.</li>
+  <li><code>model_clip_name</code> / <code>sprite_clip</code> — which clip this state plays (one or the other, depending on the entity).</li>
+  <li><code>events</code> — array of <code>{time, name}</code> markers. <code>time</code> is seconds into the clip; <code>name</code> is emitted as an animation event (see <a href="{{ path('docs_page', {slug: 'events-and-timers'}) }}">Events &amp; timers</a>) so a footstep can spawn dust exactly on the foot plant.</li>
+</ul>
+<p>Markers fire whether or not anyone listens. Subscribing to the event name is optional and separate from declaring the marker.</p>
+
+<h2>Blend spaces</h2>
+<p>A blend space mixes clips by one parameter — a run cycle that speeds up with a <code>speed</code> value instead of switching states.</p>
+<pre><code>{
+  "blend_spaces": [
+    {
+      "name": "locomotion",
+      "parameter_x": "speed",
+      "points": [
+        { "x": 0, "clip": "idle" },
+        { "x": 4, "clip": "walk" },
+        { "x": 9, "clip": "sprint" }
+      ]
+    }
+  ]
+}</code></pre>
+<ul>
+  <li><code>name</code> — blend-space ID.</li>
+  <li><code>parameter_x</code> — the parameter name sampled to pick the mix.</li>
+  <li><code>points</code> — sorted <code>{x, clip}</code> samples. The current parameter value interpolates between neighboring points.</li>
+</ul>
+<p>Set the parameter with <code>set_number</code> (below) and the machine blends for you.</p>
+
+<h2>Layers</h2>
+<p>Layers stack animations. A Skyforge mage can walk (layer <code>base</code>) while casting (layer <code>upper</code>), with the upper body masked to a set of bones.</p>
+<pre><code>{
+  "layers": [
+    {
+      "name": "upper",
+      "state": "cast",
+      "weight": 0.8,
+      "additive": false,
+      "mask_bones": ["spine", "chest", "arm_l", "arm_r"]
+    }
+  ]
+}</code></pre>
+<ul>
+  <li><code>name</code> — layer ID used by <code>set_layer_weight</code>.</li>
+  <li><code>state</code> — which state plays on this layer.</li>
+  <li><code>weight</code> — how much the layer contributes (0…1).</li>
+  <li><code>additive</code> — boolean; adds on top of lower layers instead of replacing.</li>
+  <li><code>mask_bones</code> — array of bone names the layer is limited to (empty/absent means the whole body).</li>
+</ul>
+
+<h2>Transitions</h2>
+<p>A transition moves from one state to another when its condition holds, optionally blending over a short time.</p>
+<pre><code>{
+  "transitions": [
+    { "from": "idle", "to": "run",  "condition": "speed > 0.1",        "blend_duration": 0.15 },
+    { "from": "run",  "to": "idle", "condition": "speed <= 0.1",       "blend_duration": 0.2 },
+    { "from": "run",  "to": "skyforge_slam", "condition": "finished",  "blend_duration": 0.05 }
+  ]
+}</code></pre>
+<ul>
+  <li><code>from</code> / <code>to</code> — state names.</li>
+  <li><code>condition</code> — either the word <code>finished</code> (the source clip reached its end) or a comparison such as <code>speed &gt; 0.1</code> against declared parameters.</li>
+  <li><code>blend_duration</code> — seconds to cross-fade between the two clips.</li>
+</ul>
+<p>Without <code>finished</code>, a one-shot attack never falls back to idle on its own. Pair one-shot states with a <code>finished</code> transition out.</p>
+
+<h2>Driving the machine from Lua</h2>
+<pre><code>local Animation = require("demi.animation")
+
+Animation.set_number(self.id, "speed", 2.5)       -- numeric parameter
+Animation.set_bool(self.id, "grounded", true)     -- boolean parameter
+Animation.trigger(self.id, "jump")                -- one-shot trigger
+
+Animation.play(self.id, "skyforge_slam")          -- force a state
+print(Animation.state(self.id))                   -- current state name, or nil
+
+Animation.set_speed(self.id, 1.25)                -- playback rate multiplier
+Animation.set_normalized_time(self.id, 0.5)       -- 0…1 position in the current clip</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Takes</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>Animation.set_number(id, name, value)</code></td><td>Entity, parameter name, number</td><td>Nothing</td></tr>
+    <tr><td><code>Animation.set_bool(id, name, value)</code></td><td>Entity, parameter name, boolean</td><td>Nothing</td></tr>
+    <tr><td><code>Animation.trigger(id, name)</code></td><td>Entity, trigger name</td><td>Nothing — arms a one-shot condition until consumed</td></tr>
+    <tr><td><code>Animation.play(id, state)</code></td><td>Entity, state name</td><td>Nothing — enters the state immediately</td></tr>
+    <tr><td><code>Animation.state(id)</code></td><td>Entity</td><td>Current state name string, or <code>nil</code> when unknown</td></tr>
+    <tr><td><code>Animation.set_speed(id, rate)</code></td><td>Entity, playback multiplier</td><td>Nothing</td></tr>
+    <tr><td><code>Animation.set_normalized_time(id, t)</code></td><td>Entity, number 0…1</td><td>Nothing — scrubs within the current clip</td></tr>
+    <tr><td><code>Animation.transition(id, from, to)</code></td><td>Entity, two state names</td><td>Nothing — forces one specific transition</td></tr>
+    <tr><td><code>Animation.set_layer_weight(id, layer, weight)</code></td><td>Entity, layer name, 0…1</td><td>Nothing</td></tr>
+    <tr><td><code>Animation.set_root_motion(id, on)</code></td><td>Entity, boolean</td><td>Nothing — lets the clip drive movement</td></tr>
+  </tbody>
+</table>
+<p>Parameters and triggers only make sense if the machine declares them; setting an unknown parameter is ignored. <code>Animation.state</code> returns a single <code>nil</code> for an entity with no machine — guard before concatenating it into strings.</p>
+<pre><code>local Animation = require("demi.animation")
+local Input = require("demi.input")
+
+function SkyforgeSlam:on_update(dt)
+    self.speed = self.speed or 0
+    Animation.set_number(self.id, "speed", self.speed)
+    if Input.pressed("attack") then
+        Animation.trigger(self.id, "slam")
+    end
+end</code></pre>
+<p><code>set_number</code> feeds blend spaces and comparison conditions; <code>trigger</code> arms a one-shot that a transition consumes; <code>play</code> bypasses conditions when you need a specific state right now. Prefer parameters and transitions — they keep timing in the authored graph instead of scattered through scripts.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'events-and-timers'}) }}">Events &amp; timers</a> — receiving clip markers and collision toggles.</li>
+  <li><a href="{{ path('docs_page', {slug: 'script-lifecycle'}) }}">Script lifecycle</a> — where to set parameters every frame.</li>
+  <li><a href="{{ path('docs_page', {slug: 'audio-mixing'}) }}">Audio mixing</a> — playing the sounds those markers trigger.</li>
+</ul>

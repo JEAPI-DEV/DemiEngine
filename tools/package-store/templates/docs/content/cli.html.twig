@@ -1,0 +1,108 @@
+<h1>CLI reference</h1>
+<p>The <code>demi</code> command line is the primary authoring, validation, testing, and packaging interface. It speaks the same diagnostics format as the editor.</p>
+<p>Paths below assume <code>./build/linux-debug/demi</code>. Add <code>--help</code> to any command for flags.</p>
+
+<h2>Create and develop</h2>
+<table>
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>demi new --list</code></td><td>List starter templates</td></tr>
+    <tr><td><code>demi new &lt;dir&gt; --template &lt;id&gt; --name "My Game"</code></td><td>Generate a validated project (transactional; <code>--dry-run</code> supported)</td></tr>
+    <tr><td><code>demi doctor --project &lt;path&gt;</code></td><td>Inspect local environment (add <code>--platform android</code>, <code>--format json</code>)</td></tr>
+    <tr><td><code>demi dev [--project &lt;path&gt;]</code></td><td>Development loop with watch mode and hot reload</td></tr>
+    <tr><td><code>demi editor [--project &lt;path&gt;]</code></td><td>Launch the native editor</td></tr>
+    <tr><td><code>demi run --project &lt;path&gt;</code></td><td>Run the game (headless with <code>DEMI_HEADLESS=1</code>, or <code>--max-frames N</code>)</td></tr>
+    <tr><td><code>demi run android --project &lt;path&gt; --serial &lt;device&gt;</code></td><td>Build/install/launch on a device; <code>--watch</code> for cooked hot reload</td></tr>
+  </tbody>
+</table>
+
+<h2>Validate and inspect</h2>
+<table>
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>demi validate [path]</code></td><td>Validate a project, scene, save, or directory (add <code>--platform android</code>)</td></tr>
+    <tr><td><code>demi scene list &lt;project&gt;</code></td><td>List scene references</td></tr>
+    <tr><td><code>demi scene inspect &lt;scene&gt;</code></td><td>Validate and summarize a scene</td></tr>
+    <tr><td><code>demi scene diff &lt;old&gt; &lt;new&gt;</code></td><td>Deterministic structural scene diff (expanded documents)</td></tr>
+    <tr><td><code>demi scene expand &lt;scene&gt;</code></td><td>Expand prefab instances</td></tr>
+    <tr><td><code>demi hud inspect &lt;hud.json&gt;</code></td><td>Summarize HUD (flags: <code>--safe-area</code>, <code>--reveal-hidden</code>, <code>--format</code>)</td></tr>
+    <tr><td><code>demi prefab inspect &lt;prefab&gt;</code></td><td>Summarize a prefab</td></tr>
+    <tr><td><code>demi save inspect &lt;save&gt;</code></td><td>Validate and summarize a save</td></tr>
+    <tr><td><code>demi script check &lt;script&gt;</code></td><td>Parse Lua with the embedded Lua 5.4 compiler and report diagnostics</td></tr>
+  </tbody>
+</table>
+
+<h2>Assets and data</h2>
+<table>
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>demi asset inspect &lt;asset&gt;</code></td><td>Validate and summarize an asset manifest</td></tr>
+    <tr><td><code>demi asset deps &lt;asset&gt;</code></td><td>List source-file dependencies</td></tr>
+    <tr><td><code>demi asset import &lt;source&gt; --project &lt;project&gt; --id asset://id</code></td><td>Copy a source into the project and write a manifest (disambiguate with <code>--importer</code>)</td></tr>
+    <tr><td><code>demi asset reimport &lt;asset&gt;</code></td><td>Refresh generated output, source hash, and metadata</td></tr>
+    <tr><td><code>demi asset register-generated &lt;source&gt; --id asset://id</code></td><td>Register a tool-generated source under <code>assets/</code></td></tr>
+    <tr><td><code>demi asset collider &lt;model.asset.json&gt; --id asset://…</code></td><td>Generate a collider asset from a model</td></tr>
+    <tr><td><code>demi asset export --output file.demipack</code></td><td>Export a portable asset pack</td></tr>
+    <tr><td><code>demi asset import-package file.demipack</code></td><td>Verify and import a pack</td></tr>
+    <tr><td><code>demi asset budget &lt;project&gt; --platform android|linux</code></td><td>Inspect performance budget usage</td></tr>
+  </tbody>
+</table>
+
+<h2>Packages</h2>
+<table>
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>demi package add name@constraint</code></td><td>Resolve and add a dependency</td></tr>
+    <tr><td><code>demi package remove name</code></td><td>Remove a direct dependency</td></tr>
+    <tr><td><code>demi package install [--locked] [--offline] [--dry-run]</code></td><td>Install resolved packages into <code>.demi/packages</code></td></tr>
+    <tr><td><code>demi package update [name]</code></td><td>Update every package, or one</td></tr>
+    <tr><td><code>demi package list|outdated [--format json]</code></td><td>Inspect resolved versions</td></tr>
+    <tr><td><code>demi package publish [dir] --registry &lt;url-or-path&gt;</code></td><td>Publish a package</td></tr>
+    <tr><td><code>demi package test [dir]</code></td><td>Run declared Lua package tests</td></tr>
+  </tbody>
+</table>
+<p>See <a href="{{ path('docs_page', {slug: 'packages'}) }}">Packages</a> and the <a href="{{ path('catalog') }}">free package catalog</a>.</p>
+
+<h2>Test, profile, and run</h2>
+<table>
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>demi test</code></td><td>Built-in scaffold checks</td></tr>
+    <tr><td><code>demi test linux --project &lt;project&gt;</code></td><td>Desktop E2E through the real runtime</td></tr>
+    <tr><td><code>demi test android --project &lt;project&gt; --serial &lt;device&gt;</code></td><td>Device E2E via adb (physical device)</td></tr>
+    <tr><td><code>demi run --project &lt;project&gt; --e2e-tests</code></td><td>Run project E2E scripts during launch</td></tr>
+    <tr><td><code>demi run … --profiler</code></td><td>Print slow-frame details</td></tr>
+    <tr><td><code>demi run … --profile-report report.csv</code></td><td>Aggregate profile report</td></tr>
+    <tr><td><code>demi run … --profile-frames frames.csv</code></td><td>Per-frame scope totals</td></tr>
+    <tr><td><code>demi run … --input-replay fixture.replay.json</code></td><td>Replay deterministic input frames</td></tr>
+    <tr><td><code>demi run … --debug-overlays colliders,contacts,grid,…</code></td><td>Override project debug overlays</td></tr>
+    <tr><td><code>demi run … --window-size WIDTHxHEIGHT</code></td><td>Initial desktop window size</td></tr>
+  </tbody>
+</table>
+
+<h2>Build, cook, and export</h2>
+<table>
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>demi cook --project &lt;project&gt; --platform linux</code></td><td>Validate and cook platform content</td></tr>
+    <tr><td><code>demi build linux --project &lt;project&gt;</code></td><td>Cook and package a Linux runtime bundle</td></tr>
+    <tr><td><code>demi build apk --project &lt;project&gt;</code></td><td>Package a debug APK (<code>--configuration release</code>, <code>--gradle</code>)</td></tr>
+    <tr><td><code>demi build aab --project &lt;project&gt;</code></td><td>Package an Android App Bundle</td></tr>
+    <tr><td><code>demi capabilities export</code></td><td>Export component/capability metadata</td></tr>
+    <tr><td><code>demi capabilities check [--baseline path]</code></td><td>Report capability deltas (text or JSON)</td></tr>
+    <tr><td><code>demi capabilities verify-gates</code></td><td>Validate the reference capability manifest</td></tr>
+    <tr><td><code>demi lua-stubs generate [directory]</code></td><td>Export LuaLS stubs (default <code>.demi/lua</code>)</td></tr>
+  </tbody>
+</table>
+
+<h2>Exit codes</h2>
+<table>
+  <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>0</code></td><td>Success</td></tr>
+    <tr><td><code>1</code></td><td>Validation or test failure</td></tr>
+    <tr><td><code>2</code></td><td>Usage error</td></tr>
+    <tr><td><code>3</code></td><td>Internal error</td></tr>
+  </tbody>
+</table>
+<p>Schema and capability exports are written atomically. Packaging is transactional: a failed or cancelled build leaves the previous artifact intact.</p>

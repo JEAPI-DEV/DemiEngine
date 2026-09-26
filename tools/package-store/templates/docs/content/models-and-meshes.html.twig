@@ -1,0 +1,129 @@
+<h1>Models &amp; meshes</h1>
+<p>A model is 3D art brought into the game as an asset. This page explains how to import one, how <code>MeshRenderer</code> draws it (including level-of-detail variants), how to instance many copies, and how to build geometry in code.</p>
+
+<h2>What a model is</h2>
+<p>A <strong>model</strong> is a bundle of triangles, optional skeleton, and optional animation clips produced by a 3D art tool. DemiEngine reads that bundle as a <code>Model3D</code> asset and a <code>MeshRenderer</code> component draws it at an entity’s transform.</p>
+<p>Models exist so characters, props, and stations can be authored once in a DCC tool and reused everywhere: same asset, many placed instances, one import pipeline.</p>
+
+<h2>Importing a model</h2>
+<p>Author in glTF or GLB — the standard interchange format for real-time 3D. The importer also accepts OBJ, IQM, and M3D.</p>
+<pre><code>./build/linux-debug/demi asset import games/skyforge/assets/models/drone.glb \
+  --output games/skyforge/assets/models/drone.asset.json</code></pre>
+<ul>
+  <li>The first path is the source file produced by your art tool.</li>
+  <li><code>--output</code> is the <code>*.asset.json</code> manifest DemiEngine cooks and references.</li>
+  <li>The command returns after writing the asset; validate the project with <code>./build/linux-debug/demi validate</code> to confirm every reference resolves.</li>
+</ul>
+<p>Skeletal clips live in the asset settings so the engine knows what the file contains:</p>
+<pre><code>{
+  "settings": {
+    "animations": {
+      "clips": [
+        { "name": "Idle", "skeleton": "Armature" },
+        { "name": "Fly",  "skeleton": "Armature" }
+      ]
+    }
+  }
+}</code></pre>
+<ul>
+  <li><code>clips</code> lists the animation clips to expose at runtime.</li>
+  <li><code>name</code> is the clip name scripts and state machines refer to (for example <code>play</code> requests).</li>
+  <li><code>skeleton</code> names the skeleton the clip drives. Clips must share names across level-of-detail models to blend correctly.</li>
+</ul>
+
+<h2>MeshRenderer</h2>
+<pre><code>{
+  "MeshRenderer": {
+    "model": "asset://models/drone",
+    "medium_lod_model": "asset://models/drone_med",
+    "low_lod_model": "asset://models/drone_low"
+  }
+}</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>model</code></td><td>The full-detail <code>Model3D</code> asset URI to draw.</td></tr>
+    <tr><td><code>medium_lod_model</code></td><td>Optional mid-distance model. Used when the camera is far enough that the full mesh is wasted.</td></tr>
+    <tr><td><code>low_lod_model</code></td><td>Optional far-distance model.</td></tr>
+  </tbody>
+</table>
+<p>Level of detail (LOD) keeps a deck full of crates cheap: near ones use <code>model</code>, distant ones use the reduced meshes. LOD variants are ordinary authored models — build them in your art tool with the same proportions and give them the <strong>same clip names and durations</strong> so animation keeps working when the swap happens.</p>
+<p>Skeletal playback is controlled by <code>AnimationPlayer3D</code> plus per-entity visual update settings:</p>
+<pre><code>{
+  "AnimationPlayer3D": {
+    "clip": "Fly",
+    "loop": true,
+    "visual_update_rate": 30,
+    "visual_update_distance": 40
+  }
+}</code></pre>
+<ul>
+  <li><code>clip</code> names a clip from the asset’s clip list.</li>
+  <li><code>loop</code> repeats the clip.</li>
+  <li><code>visual_update_rate</code> is how many times per second distant poses refresh. Lower rates save work on background crowds.</li>
+  <li><code>visual_update_distance</code> is the distance beyond which poses are held rather than refreshed every frame.</li>
+</ul>
+<p>GPU skinning is applied automatically when the platform supports it. Set the environment variable <code>DEMI_GPU_SKINNING=0</code> to force the CPU path while profiling.</p>
+<p>Clip switching and blend rules live in <a href="{{ path('docs_page', {slug: 'state-machines'}) }}">State machines</a>.</p>
+
+<h2>MeshInstances3D</h2>
+<p>A station corridor with two hundred identical pipes should not carry two hundred full renderers. <code>MeshInstances3D</code> draws many copies of one model from a single component.</p>
+<pre><code>{
+  "MeshInstances3D": {
+    "model": "asset://models/pipe",
+    "instances": [
+      { "position": [0, 0, 0],  "rotation_euler": [0, 0, 0], "scale": [1, 1, 1] },
+      { "position": [2, 0, 0],  "rotation_euler": [0, 0, 0], "scale": [1, 1, 1] },
+      { "position": [4, 0, 0],  "rotation_euler": [0, 0.4, 0], "scale": [1, 1, 1] }
+    ]
+  }
+}</code></pre>
+<ul>
+  <li><code>model</code> is the shared <code>Model3D</code> asset every instance draws.</li>
+  <li><code>instances</code> is a list of per-copy transforms.</li>
+  <li><code>position</code> is world offset, <code>rotation_euler</code> is rotation in radians, <code>scale</code> is non-uniform scale.</li>
+</ul>
+<p>Use <code>MeshInstances3D</code> for debris fields, rivet rows, and any repeated prop. Use a normal <code>MeshRenderer</code> when each copy needs its own animation or physics.</p>
+
+<h2>World text</h2>
+<p><code>WorldText3D</code> places a text label in the world — docking bay numbers, cargo tags, callouts over objectives. It behaves like a mesh for placement and depth, and takes its string and style from authored fields.</p>
+
+<h2>Procedural meshes</h2>
+<p>Some geometry is not worth exporting from a tool: debug hulls, generated floors, voxel caves. The <code>demi.mesh.procedural</code> module builds a mesh at runtime and attaches it to an entity.</p>
+<pre><code>local Proc = require("demi.mesh.procedural")
+
+local mesh = Proc.create()
+mesh:clear()
+mesh:add_vertex(x, y, z, nx, ny, nz, u, v)
+mesh:add_quad(a, b, c, d)
+mesh:add_voxel_blocks(blocks)
+mesh:add_voxel_heightfield(heights)
+
+Proc.apply(entity_id, mesh)</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>create</code></td><td>none</td><td>A new empty mesh builder handle.</td></tr>
+    <tr><td><code>clear</code></td><td>on the builder</td><td>Nothing. Empties accumulated geometry.</td></tr>
+    <tr><td><code>reserve</code></td><td>on the builder, expected counts</td><td>Nothing. Preallocates space for large builds.</td></tr>
+    <tr><td><code>add_vertex</code></td><td>position, normal, UV components</td><td>Nothing. Appends one vertex.</td></tr>
+    <tr><td><code>add_quad</code></td><td>four corner indices</td><td>Nothing. Appends a quad face.</td></tr>
+    <tr><td><code>add_voxel_blocks</code></td><td>block data</td><td>Nothing. Appends blocky voxel geometry.</td></tr>
+    <tr><td><code>add_voxel_heightfield</code></td><td>height samples</td><td>Nothing. Appends a heightfield surface.</td></tr>
+    <tr><td><code>apply</code></td><td>entity id, builder</td><td>Nothing. Uploads the built geometry so the entity draws it.</td></tr>
+  </tbody>
+</table>
+<p>Build, then apply. A cleared builder can be refilled and reapplied without creating a new handle.</p>
+
+<h2>Voxel worlds</h2>
+<p>For large editable block volumes — mining asteroids in Skyforge, cave systems, destructible terrain — use <code>demi.voxel.world</code>. It stores the volume of cells, lets scripts read and write them, and meshes the visible surface for drawing. Pair it with procedural mesh building when you need custom surfaces on top of the voxel data.</p>
+
+<h2>Picking the right tool</h2>
+<ul>
+  <li>Character or hero prop with animation: glTF <code>Model3D</code> + <code>MeshRenderer</code> + <code>AnimationPlayer3D</code>.</li>
+  <li>Hundreds of identical bolts: <code>MeshInstances3D</code>.</li>
+  <li>Generated floor or debug shape: <code>demi.mesh.procedural</code>.</li>
+  <li>Editable block volume: <code>demi.voxel.world</code>.</li>
+  <li>Label in space: <code>WorldText3D</code>.</li>
+</ul>
+<p>Characters that walk the world use <a href="{{ path('docs_page', {slug: 'characters-3d'}) }}">CharacterController3D</a>. Cameras and lighting that make models readable are covered in <a href="{{ path('docs_page', {slug: 'lights-and-camera-3d'}) }}">Lights &amp; camera</a>. Breakable props build on the same model setup — see <a href="{{ path('docs_page', {slug: 'destruction'}) }}">Destruction</a>.</p>

@@ -1,0 +1,194 @@
+<h1>Scene files</h1>
+<p>A <strong>scene</strong> is one place your game can be in: a level, a menu screen, a boss arena. It is a JSON file that lists the objects that exist there and how they are set up. When the game starts — or when you ask it to change levels — a scene file is what gets loaded and turned into a running world. This page explains every part of a scene document from the ground up.</p>
+
+<h2>What is in a scene</h2>
+<p>Three words cover almost everything:</p>
+<ul>
+  <li><strong>Entity</strong> — one thing in the world. A player, a crate, a light, a camera. An entity is an identity with a name and a list of abilities; it is not a picture or a physics body by itself.</li>
+  <li><strong>Component</strong> — one ability attached to an entity. A transform (where it is), a sprite (how it looks), a collider (what it bumps into), a script (what it does). An entity is a plain identity; components give it behavior.</li>
+  <li><strong>Scene</strong> — the file that holds a set of entities, plus optional ready-made copies (instances) and an optional heads-up display (the on-screen UI).</li>
+</ul>
+<p>Why split things this way? Because you reuse abilities. Ten crates can each have their own transform but share the same sprite component settings, and one player entity can combine a transform, a collider, and a script without any of those knowing about each other.</p>
+<p>Every scene document starts with <code>format_version</code>. Documents without it are rejected — the engine needs to know which shape of file it is reading.</p>
+
+<h2>A minimal scene</h2>
+<p>This is the smallest useful scene: one box sitting at the origin.</p>
+<pre><code>{
+  "format_version": 1,
+  "id": "scene://game/main",
+  "name": "Main",
+  "entities": [
+    {
+      "id": "crate",
+      "components": {
+        "Transform2D": { "position": [0, 0] }
+      }
+    }
+  ]
+}</code></pre>
+<p>What each field means:</p>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>format_version</code></td><td>Always required. Declares which document shape this file uses.</td></tr>
+    <tr><td><code>id</code></td><td>The scene's stable identity, written as a <code>scene://</code> URI. The project file and other documents refer to scenes by this ID, never by file path.</td></tr>
+    <tr><td><code>name</code></td><td>Human-readable label shown in the editor and tooling.</td></tr>
+    <tr><td><code>entities</code></td><td>The list of entities that exist in this scene. May be empty.</td></tr>
+  </tbody>
+</table>
+<p>The scene ID maps to a conventional file location: <code>scene://game/main</code> lives at <code>scenes/main.scene.json</code> inside the project (here, <code>games/my_game</code>). The project can also give the scene an explicit path. See <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a> for how scenes are registered.</p>
+
+<h2>Entities</h2>
+<p>Each entry in <code>entities</code> is one entity:</p>
+<pre><code>{
+  "id": "player",
+  "name": "Hero",
+  "enabled": true,
+  "persistent": false,
+  "tags": ["hero", "saveable"],
+  "layer": "player",
+  "components": {
+    "Transform2D": { "position": [2, 1] }
+  },
+  "children": []
+}</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Required</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>id</code></td><td>yes</td><td>Stable identity for this entity inside the document. Scripts, overrides, and parent links all use it. It must be unique in the scene.</td></tr>
+    <tr><td><code>name</code></td><td>no</td><td>Display label for editors and debugging. Does not affect gameplay.</td></tr>
+    <tr><td><code>enabled</code></td><td>no</td><td>Defaults to <code>true</code>. A disabled entity is kept in the scene but skipped while running — useful for temporarily switching things off without deleting them.</td></tr>
+    <tr><td><code>persistent</code></td><td>no</td><td>Defaults to <code>false</code>. A persistent entity survives when the game moves to another scene, instead of being torn down with the old one.</td></tr>
+    <tr><td><code>tags</code></td><td>no</td><td>A list of free-form labels. Gameplay code can search for "all entities tagged <code>enemy</code>" without knowing their IDs.</td></tr>
+    <tr><td><code>layer</code></td><td>no</td><td>Names a physics layer this entity belongs to, matching a name from the project's physics layers. See <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">Physics layers</a>.</td></tr>
+    <tr><td><code>components</code></td><td>no</td><td>An object whose keys are component names and whose values are that component's settings. See below.</td></tr>
+    <tr><td><code>children</code></td><td>no</td><td>Nested entities. See the hierarchy section.</td></tr>
+  </tbody>
+</table>
+
+<h2>Components</h2>
+<p><code>components</code> is a plain object, not a list. Each key names one component type; the value is that component's authored fields:</p>
+<pre><code>"components": {
+  "Transform2D": { "position": [4, 2], "rotation": 0, "scale": [1, 1] },
+  "Sprite2D": { "texture": "asset://textures/brick" },
+  "Collider2D": { "shape": "box", "size": [1, 1] }
+}</code></pre>
+<ul>
+  <li>Keys are component type names, such as <code>Transform2D</code>, <code>Sprite2D</code>, <code>Collider2D</code>, <code>RigidBody2D</code>, or <code>Script</code>.</li>
+  <li>Values hold only the fields you care about. Any field you leave out uses that component's normal default — you do not have to write every setting.</li>
+  <li>Reference fields use URI strings. A texture is <code>asset://textures/brick</code>, which points at <code>assets/textures/brick.asset.json</code>. See <a href="{{ path('docs_page', {slug: 'asset-json'}) }}">Asset manifests</a>.</li>
+</ul>
+<p>A component's fields belong to that component alone: one entity can carry a transform, a sprite, and a script, and each object is edited independently.</p>
+
+<h2>Children hierarchy</h2>
+<p>Entities can contain other entities in a <code>children</code> array. Children inherit the movement of their parent: when the parent moves, rotates, or scales, the children follow. This is how you build a character out of parts — a body with a weapon and a shadow attached.</p>
+<pre><code>{
+  "id": "player",
+  "components": {
+    "Transform2D": { "position": [2, 1] }
+  },
+  "children": [
+    {
+      "id": "body",
+      "components": {
+        "Transform2D": { "position": [0, 0] },
+        "Sprite2D": { "texture": "asset://textures/hero" }
+      },
+      "children": [
+        {
+          "id": "weapon",
+          "components": {
+            "Transform2D": { "position": [0.5, 0] }
+          }
+        }
+      ]
+    }
+  ]
+}</code></pre>
+<p>Reading this example:</p>
+<ul>
+  <li><code>player</code> is the root entity of this little tree.</li>
+  <li><code>body</code> is a child of <code>player</code>. Its position is local to the player: <code>[0, 0]</code> means "exactly where the player is".</li>
+  <li><code>weapon</code> is a child of <code>body</code>, half a unit to the right of the body. Move the player and the whole stack moves with it.</li>
+</ul>
+<p>Nesting is recursive — a child may have its own <code>children</code>. IDs stay unique across the whole document; nesting is not a naming scope.</p>
+<p><strong>Children versus <code>parent</code>.</strong> Prefer the <code>children</code> array whenever the objects share the same kind of transform and belong together visually. An explicit <code>parent</code> field on a component is for links that cannot be written as nesting — for example, pointing one prefab's transform at an entity outside it. Same-domain groups belong in <code>children</code>.</p>
+
+<h2>Instances and overrides</h2>
+<p>An <strong>instance</strong> places a prefab into the scene. A prefab is a reusable template of entities (see <a href="{{ path('docs_page', {slug: 'prefab-json'}) }}">Prefab files</a>). Instead of copying a hero's entity tree into every level, you write one small instance entry.</p>
+<pre><code>{
+  "format_version": 1,
+  "id": "scene://game/main",
+  "name": "Main",
+  "entities": [],
+  "instances": [
+    {
+      "id": "player",
+      "prefab": "prefab://characters/player",
+      "overrides": {
+        "body.Transform2D.position": [3, 2]
+      }
+    }
+  ]
+}</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>id</code></td><td>Name this placement in the scene. Prefab entity IDs are prefixed with it (see below).</td></tr>
+    <tr><td><code>prefab</code></td><td>Which prefab to place, as a <code>prefab://</code> URI.</td></tr>
+    <tr><td><code>overrides</code></td><td>Optional per-field changes applied after the prefab expands. Fields you do not override keep the prefab's values.</td></tr>
+  </tbody>
+</table>
+<p>After expansion, the instance above produces entities named <code>player</code> and <code>player/body</code> (and so on) inside the running scene. The override <code>"body.Transform2D.position"</code> targets one field on one prefab entity using a dotted key; everything else is inherited. Full override rules — merging objects, replacing arrays, removing with <code>null</code> — are written out on <a href="{{ path('docs_page', {slug: 'prefab-json'}) }}">Prefab files</a>.</p>
+
+<h2>Entity presets and shorthand</h2>
+<p>Presets are ready-made entity shapes. You name a preset and give only what differs; the engine expands it into a full entity before the scene is parsed.</p>
+<pre><code>{
+  "id": "wall",
+  "preset": "static_box_3d",
+  "size": [4, 1, 0.5]
+}</code></pre>
+<p>Available presets and their shorthand fields:</p>
+<table>
+  <thead><tr><th>Preset</th><th>What it creates</th><th>Shorthand</th></tr></thead>
+  <tbody>
+    <tr><td><code>static_box_3d</code></td><td>A solid 3D box that does not move.</td><td><code>size</code> — box dimensions.</td></tr>
+    <tr><td><code>trigger_sphere_3d</code></td><td>An invisible 3D sphere that reports overlaps.</td><td><code>radius</code> — sphere radius.</td></tr>
+    <tr><td><code>prop_2d</code></td><td>A flat 2D prop with a sprite.</td><td><code>texture</code> — <code>asset://</code> texture to show.</td></tr>
+    <tr><td><code>character_3d</code></td><td>A 3D character setup (body shape and movement pieces).</td><td><code>size</code>, <code>radius</code>, <code>texture</code>.</td></tr>
+  </tbody>
+</table>
+<p>Shorthand fields are conveniences: <code>size</code>, <code>radius</code>, and <code>texture</code> fill in the matching component fields for you. If you write an explicit component field yourself, your value wins over the preset's. Use presets when a shape is ordinary; write full components when you need fine control.</p>
+
+<h2>The <code>hud</code> field</h2>
+<p>A scene can name the on-screen UI that belongs with it:</p>
+<pre><code>"hud": "ui-prefab://screens/game_hud"</code></pre>
+<ul>
+  <li>The value is a <code>ui-prefab://</code> URI. <code>ui-prefab://screens/game_hud</code> points at <code>ui/screens/game_hud.ui.prefab.json</code>.</li>
+  <li>When the scene loads, that HUD document becomes the visible interface — health bars, menus, touch sticks.</li>
+  <li>Omit the field when the scene has no interface.</li>
+</ul>
+<p>HUD documents are trees of interface nodes in their own file format. See <a href="{{ path('docs_page', {slug: 'hud-json'}) }}">HUD files</a>.</p>
+
+<h2>Tags, layer, enabled, persistent in practice</h2>
+<pre><code>{
+  "id": "checkpoint",
+  "tags": ["checkpoint"],
+  "layer": "trigger",
+  "enabled": true,
+  "persistent": true,
+  "components": {
+    "Transform2D": { "position": [10, 0] }
+  }
+}</code></pre>
+<ul>
+  <li><strong>Tags</strong> group entities for queries: every entity tagged <code>checkpoint</code> can be found at once. Tags do nothing on their own.</li>
+  <li><strong>Layer</strong> assigns the entity to a named physics layer, so collision rules can say "the player collides with <code>world</code> but not with <code>trigger</code> solids".</li>
+  <li><strong>Enabled</strong> keeps the entity present but inactive. Flip it at runtime to turn something off and on again without rebuilding the scene.</li>
+  <li><strong>Persistent</strong> keeps the entity alive across a scene change. Use it sparingly — most entities belong to one scene.</li>
+</ul>
+
+<h2>Validating a scene</h2>
+<p>From the project root (<code>games/my_game</code>):</p>
+<pre><code>./build/linux-debug/demi validate games/my_game</code></pre>
+<p>Validation checks the scene and everything it references: prefab URIs, asset URIs, script paths, and child nesting. Fix reported errors before running. For deterministic runs and seeded simulation, see <a href="{{ path('docs_page', {slug: 'simulation-and-seeds'}) }}">Simulation &amp; seeds</a>.</p>

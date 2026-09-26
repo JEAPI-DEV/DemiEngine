@@ -1,0 +1,120 @@
+<h1>Linux bundles</h1>
+<p>A <strong>Linux bundle</strong> is a shippable desktop package: a game executable players can double-click, with cooked content, a desktop menu entry, an icon, and a report of exactly what was built. Bundling exists so "works in the editor" becomes "runs on a player's machine" as one audited, reproducible artifact. This page covers validation and capability codes for Linux, cooking, building, and where the running game writes data. Examples use "Skyforge" at <code>games/my_game</code>.</p>
+
+<h2>Validate the Linux target first</h2>
+<p><strong>Validation</strong> checks the project and everything it reaches against one platform's rules. Ask for Linux explicitly when you are about to ship a desktop build:</p>
+<pre><code>./build/linux-debug/demi validate games/my_game --platform linux</code></pre>
+<ul>
+  <li><code>validate [path]</code> — validates the project and all reachable source.</li>
+  <li><code>--platform linux</code> — applies Linux capability and content checks in addition to document shape checks.</li>
+  <li>Returns <code>0</code> when everything is valid, <code>1</code> when any validation error was reported.</li>
+</ul>
+<p>Problems come back as <strong>stable capability error codes</strong> so build logs and continuous integration can classify them without parsing prose:</p>
+<table>
+  <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>PROJECT_BUILD_FEATURE_MEDIA_UNSUPPORTED</code></td><td>The project needs media support (FFmpeg) that this build of the engine was compiled without.</td></tr>
+    <tr><td><code>PROJECT_BUILD_FEATURE_NETWORK_UNSUPPORTED</code></td><td>The project needs networking (ENet) that this build of the engine was compiled without.</td></tr>
+    <tr><td><code>PROJECT_BUILD_FEATURE_SVG_UNSUPPORTED</code></td><td>The project needs SVG support that this build of the engine was compiled without.</td></tr>
+    <tr><td><code>PROJECT_BUILD_PERMISSION_NETWORK_MISSING</code></td><td>A platform permission required by the project is not declared (Android <code>INTERNET</code> is the common case).</td></tr>
+    <tr><td><code>BUILD_PACKAGE_CONTENT_UNEXPECTED</code></td><td>Package content outside the audited roots was found and rejected.</td></tr>
+  </tbody>
+</table>
+<p>Environment checks add one more code, <code>DOCTOR_OPTIONAL_FEATURE_MISSING</code>, for optional features that do not block a run:</p>
+<pre><code>./build/linux-debug/demi doctor --project games/my_game --format json</code></pre>
+<ul>
+  <li><code>doctor --project p</code> — inspects the environment and the project and reports what is ready and what is missing.</li>
+  <li><code>--format json</code> — emits the report as JSON for editors and pipelines.</li>
+</ul>
+<p>Validate before packaging. A build never papers over a capability error; it fails with the code so you can fix the project or the toolchain deliberately.</p>
+
+<h2>Cook the content</h2>
+<p><strong>Cooking</strong> turns authored source — JSON documents, Lua scripts, imported assets — into the platform-ready form the runtime loads. Cooking exists so startup is fast and shipping content is a hashed, known set of files.</p>
+<pre><code>./build/linux-debug/demi cook --project games/my_game --platform linux</code></pre>
+<ul>
+  <li><code>cook --project p</code> — validates, then cooks every reachable source file.</li>
+  <li><code>--platform linux</code> — which platform profile to cook for.</li>
+</ul>
+<p>Output lands under <code>generated/cooked/&lt;platform&gt;</code> together with <code>cook.manifest.json</code>: every cooked path and its content hash. The manifest is what later audits and incremental builds compare against. Returns <code>0</code> when the cook completes and the manifest is consistent.</p>
+<p>Cooked output is generated content: never hand-edit it and never commit it. Re-run the cook instead.</p>
+
+<h2>Build the bundle</h2>
+<p><strong>Building</strong> wraps the cooked content and a Linux runtime into the artifact a player installs:</p>
+<pre><code>./build/linux-debug/demi build linux --project games/my_game</code></pre>
+<ul>
+  <li><code>build linux --project p</code> — cooks if needed, then packages the Linux runtime bundle.</li>
+  <li>Returns <code>0</code> on success, <code>1</code> when validation, cooking, or packaging fails.</li>
+</ul>
+<p>The bundle contains:</p>
+<table>
+  <thead><tr><th>Piece</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr><td>Executable and launcher</td><td>The game binary players start.</td></tr>
+    <tr><td>Cooked content</td><td>The platform content from <code>cook.manifest.json</code>, verified by hash.</td></tr>
+    <tr><td>Freedesktop entry</td><td>The <code>.desktop</code> menu entry for application launchers.</td></tr>
+    <tr><td>Icon</td><td>The application icon taken from the project's build metadata.</td></tr>
+    <tr><td>Attributions</td><td>Third-party attribution files for the libraries the runtime links.</td></tr>
+    <tr><td><code>build-report.json</code></td><td>A report of what was built: versions, content hashes, and configuration.</td></tr>
+  </tbody>
+</table>
+<p>Packaging is <strong>transactional</strong>. A failed or cancelled build leaves the previous artifact intact and never publishes a partial staging directory — the thing on disk is always a complete build or the previous complete build.</p>
+
+<h2>Package content audit</h2>
+<p>When content is packed for release, an <strong>audit</strong> checks every shipped file against the allowed roots. The audit exists so a release cannot accidentally include build output, editor state, or stray folders. The allowed roots are:</p>
+<ul>
+  <li><code>assets/</code> — asset manifests and sources.</li>
+  <li><code>certs/</code> — declared certificate material.</li>
+  <li><code>packages/</code> — vendored package content.</li>
+  <li><code>scenes/</code> — scene documents.</li>
+  <li><code>scripts/</code> — Lua sources.</li>
+  <li><code>demi.project.json</code> — the project root document.</li>
+  <li><code>demi.packages.lock.json</code> — the pinned dependency lock.</li>
+  <li><code>cook.manifest.json</code> — the cooked-content manifest with paths and hashes.</li>
+</ul>
+<p>Anything else is rejected with <code>BUILD_PACKAGE_CONTENT_UNEXPECTED</code>. The same roots apply when publishing packages (see <a href="{{ path('docs_page', {slug: 'publishing-packages'}) }}">Publishing packages</a>) and when building release artifacts.</p>
+
+<h2>Where the running game writes</h2>
+<p>A shipped bundle must not write next to its own executable — that folder may be read-only or shared. Instead, the runtime uses the platform's per-user directories, following the XDG base directory rules:</p>
+<table>
+  <thead><tr><th>Data</th><th>Primary location</th><th>Fallback</th></tr></thead>
+  <tbody>
+    <tr><td>Game saves</td><td><code>$XDG_DATA_HOME/&lt;game&gt;/</code></td><td><code>$HOME/.local/share/&lt;game&gt;/</code></td></tr>
+    <tr><td>Caches</td><td><code>$XDG_CACHE_HOME/&lt;game&gt;/</code></td><td><code>$HOME/.cache/&lt;game&gt;/</code></td></tr>
+  </tbody>
+</table>
+<ul>
+  <li><code>&lt;game&gt;</code> — the game's identity from the project build metadata.</li>
+  <li><code>$XDG_DATA_HOME</code> / <code>$XDG_CACHE_HOME</code> — environment variables from the XDG base directory specification; when unset, the fallbacks are used.</li>
+</ul>
+<p>Saves and caches are per-user state. They never enter the bundle, never enter packages, and never become authored source. The save API itself is described in <a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a>.</p>
+
+<h2>Build metadata used by the bundle</h2>
+<p>Identity and window settings come from the project file:</p>
+<pre><code>"build": {
+  "application_id": "com.example.skyforge",
+  "display_name": "Skyforge",
+  "executable_name": "skyforge",
+  "version_name": "0.1.0",
+  "version_code": 1,
+  "icon": "asset://branding/icon",
+  "window": { "width": 1280, "height": 720, "mode": "windowed" }
+}</code></pre>
+<ul>
+  <li><code>application_id</code> — reverse-DNS identity, required before packaging.</li>
+  <li><code>display_name</code> — the name in the desktop entry and window title.</li>
+  <li><code>executable_name</code> — the binary name inside the bundle.</li>
+  <li><code>version_name</code> / <code>version_code</code> — human and machine version numbers written into <code>build-report.json</code>.</li>
+  <li><code>icon</code> — the <code>asset://</code> ID of the application icon.</li>
+  <li><code>window</code> — initial desktop window size in pixels and <code>mode</code>: <code>windowed</code>, <code>borderless</code>, or <code>fullscreen</code>.</li>
+</ul>
+<p>The full project field list is on <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a>.</p>
+
+<h2>Before you hand the bundle to a player</h2>
+<ol>
+  <li><code>demi doctor --project games/my_game</code> — the machine can produce a desktop build.</li>
+  <li><code>demi validate games/my_game --platform linux</code> — no capability or content errors.</li>
+  <li><code>demi test linux --project games/my_game</code> — end-to-end tests pass (<a href="{{ path('docs_page', {slug: 'e2e-tests'}) }}">E2E tests</a>).</li>
+  <li><code>demi build linux --project games/my_game</code> — a fresh bundle and <code>build-report.json</code>.</li>
+  <li>Launch the bundle from a clean user account and confirm saves land under <code>$XDG_DATA_HOME</code>.</li>
+</ol>
+<p>Android packaging is covered in <a href="{{ path('docs_page', {slug: 'android-builds'}) }}">Android builds</a>; all build commands are listed in <a href="{{ path('docs_page', {slug: 'cli-build-and-test'}) }}">Build, cook &amp; test</a>.</p>

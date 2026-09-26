@@ -1,0 +1,60 @@
+<h1>Install &amp; build</h1>
+<p>Before you can create a game you need the engine itself. DemiEngine is a Linux-first C++20 program that you compile from source with CMake. This page walks through the tools you need, how to run the build, where the finished command-line program lands, and what to do when a dependency is missing.</p>
+
+<h2>What you are building</h2>
+<p>A game engine is a program plus libraries that load your game content and run it. DemiEngine ships that as a single command-line tool named <code>demi</code>. Every task — creating a project, running the game, validating files, testing, packaging — is a subcommand of that tool. Nothing else needs to be installed globally.</p>
+
+<h2>Prerequisites</h2>
+<p>You need three things on a Linux machine:</p>
+<ul>
+  <li><strong>Linux</strong> — the supported development platform. Builds and tests target Linux first.</li>
+  <li><strong>A C++20 toolchain</strong> — a compiler and standard library that understand C++20 (recent GCC or Clang). This turns the engine source code into the <code>demi</code> binary.</li>
+  <li><strong>CMake plus a build tool</strong> — CMake reads the project's build description and drives the compiler. Ninja is the usual companion, but Make works too.</li>
+</ul>
+<p>Confirm the tools are present before configuring:</p>
+<pre><code>cmake --version
+c++ --version</code></pre>
+<p><code>cmake --version</code> prints the CMake release. <code>c++ --version</code> prints your compiler release. If either command is missing, install the corresponding package from your distribution (typically <code>cmake</code>, <code>ninja-build</code>, and <code>g++</code> or <code>clang</code>).</p>
+
+<h2>Configure the build</h2>
+<p>The repository defines named build configurations called presets. A preset is a saved set of CMake options so you do not have to remember flags. Configure the Linux debug preset from the repository root:</p>
+<pre><code>cmake --preset linux-debug</code></pre>
+<ul>
+  <li><code>cmake</code> — the build configuration tool.</li>
+  <li><code>--preset linux-debug</code> — selects the checked-in <code>linux-debug</code> configuration. It sets the compiler mode to debug (fast builds, easy to inspect) and places output under <code>build/linux-debug/</code>.</li>
+</ul>
+<p>The command returns after generating build files. It does not compile anything yet. On success the last lines name the build directory and generator.</p>
+
+<h2>Compile the engine</h2>
+<pre><code>cmake --build --preset linux-debug</code></pre>
+<ul>
+  <li><code>cmake --build</code> — runs the build tool CMake configured.</li>
+  <li><code>--preset linux-debug</code> — builds the same preset you configured.</li>
+</ul>
+<p>This compiles the engine and links the CLI. The command returns when compilation finishes; a first build takes the longest. Later incremental builds only recompile what changed.</p>
+
+<h2>Locate the demi binary</h2>
+<p>The finished program is written to a predictable path inside the build directory:</p>
+<pre><code>./build/linux-debug/demi --help</code></pre>
+<ul>
+  <li><code>./build/linux-debug/demi</code> — the compiled CLI. Run it from the repository root as shown in all documentation examples.</li>
+  <li><code>--help</code> — prints the top-level command list and global options, then exits with code <code>0</code>.</li>
+</ul>
+<p>The help output is the fastest way to see every command group: <code>new</code>, <code>doctor</code>, <code>dev</code>, <code>editor</code>, <code>run</code>, <code>validate</code>, <code>asset</code>, <code>package</code>, <code>test</code>, <code>cook</code>, <code>build</code>, and more. Add <code>--help</code> to any subcommand for its own flags. Command details are covered in <a href="{{ path('docs_page', {slug: 'cli-create-and-dev'}) }}">Create &amp; develop</a>, <a href="{{ path('docs_page', {slug: 'cli-assets-and-packages'}) }}">Assets &amp; packages</a>, and <a href="{{ path('docs_page', {slug: 'cli-build-and-test'}) }}">Build, cook &amp; test</a>.</p>
+
+<h2>Troubleshooting missing dependencies</h2>
+<p>Most early failures come from the environment rather than the engine source. Check these first:</p>
+<ul>
+  <li><strong><code>cmake</code> not found</strong> — CMake is not installed or not on your <code>PATH</code>. Install it and reopen the terminal.</li>
+  <li><strong>Compiler errors about C++20 features</strong> — the compiler is too old. Install a newer GCC or Clang and re-run the configure step so CMake picks it up.</li>
+  <li><strong>Configure stops on a missing library</strong> — the message names the missing package. Install it with your distribution's package manager, then run <code>cmake --preset linux-debug</code> again.</li>
+  <li><strong>Build stops mid-compile</strong> — read the first error, not the last. Fix the reported file, then re-run <code>cmake --build --preset linux-debug</code>; only the changed parts rebuild.</li>
+</ul>
+<p>Once the binary exists, <a href="{{ path('docs_page', {slug: 'development-loop'}) }}">The development loop</a> shows how <code>demi doctor</code> reports anything else your machine is missing for a given target platform.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'first-project'}) }}">Your first project</a> — generate a game from a template and learn the folder layout.</li>
+  <li><a href="{{ path('docs_page', {slug: 'getting-started'}) }}">Getting started</a> — the short end-to-end tour.</li>
+  <li><a href="{{ path('docs_page', {slug: 'cli'}) }}">CLI reference</a> — every <code>demi</code> command in one place.</li>
+</ul>

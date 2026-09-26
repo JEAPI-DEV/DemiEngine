@@ -1,0 +1,73 @@
+<h1>Play mode</h1>
+<p><strong>Play mode</strong> runs your game inside the editor so you can try a level the moment you finish editing it. It exists to shorten the loop between "I placed a jump pad" and "the jump pad feels right" to a single button press. The rule that makes it trustworthy: play mode runs in an <strong>isolated runtime world</strong> and must never mutate the authored scene data you were editing.</p>
+
+<h2>Why isolation matters</h2>
+<p>When the game runs, scripts move entities, spawn enemies, change HUD values, and write saves. If that live state leaked into the document under edit, one test run would rewrite your level. Play mode therefore executes against a separate runtime world:</p>
+<ul>
+  <li>Entity positions, health values, spawned objects, and runtime hierarchy changes live only for the play session.</li>
+  <li>Runtime hierarchy, debug, and profiler state must not silently mutate authored scene data.</li>
+  <li>Stopping play restores the authored document exactly as it was — no undo cleanup required.</li>
+</ul>
+<p>Saves written by the running game go to platform user-data, never into the project or the document you have open. That separation is the same one shipping builds obey.</p>
+
+<h2>Entering and leaving play</h2>
+<p>Play mode is a toggle in the editor workspace (see <a href="{{ path('docs_page', {slug: 'editor-workspace'}) }}">Workspace &amp; panels</a>):</p>
+<ol>
+  <li>Open the scene (or HUD) you want to try.</li>
+  <li>Start play. The editor builds an isolated runtime world from the current document and begins executing scripts and simulation.</li>
+  <li>Interact in the viewport with keyboard, mouse, gamepad, or virtual controls — the same input actions your shipped game uses.</li>
+  <li>Stop play. The runtime world is discarded; the authored document is unchanged.</li>
+</ol>
+<p>Edits made while playing do not write through to the source document. Stop play, make the edit in authoring mode, and start play again to test the new state.</p>
+
+<h2>What runs during play</h2>
+<p>Play mode is the real runtime, not a preview approximation:</p>
+<ul>
+  <li>Script lifecycle runs as in a shipped game: <code>on_create</code>, <code>on_start</code>, <code>on_update</code>, <code>on_fixed_update</code>, <code>on_destroy</code>.</li>
+  <li>Physics steps at the project's fixed timestep, so what you feel in play mode is what players will feel. Deterministic settings are described in <a href="{{ path('docs_page', {slug: 'simulation-and-seeds'}) }}">Simulation &amp; seeds</a>.</li>
+  <li>Input is sampled from live devices through the project's actions and bindings (<a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a>).</li>
+  <li>HUD nodes respond to actions and display values your scripts set.</li>
+</ul>
+<p>Because play mode uses the same runtime as <code>demi run</code>, a bug that only reproduces in play mode is a real game bug, not an editor artifact.</p>
+
+<h2>Observing without interfering</h2>
+<p>While playing, the workspace panels become observation tools:</p>
+<table>
+  <thead><tr><th>Panel</th><th>During play</th></tr></thead>
+  <tbody>
+    <tr><td>Hierarchy</td><td>Shows the runtime world, including spawned entities. Read-only with respect to the authored document.</td></tr>
+    <tr><td>Inspector</td><td>Shows live component values as simulation updates them.</td></tr>
+    <tr><td>Viewport</td><td>Draws the running game with optional debug overlays: colliders, contacts, grid, entity IDs, draw order, UI bounds, profiler.</td></tr>
+    <tr><td>Diagnostics</td><td>Reports runtime and validation issues with the same stable codes as <code>demi validate</code>.</td></tr>
+    <tr><td>Profiler</td><td>Shows frame time and per-scope cost while the game runs.</td></tr>
+  </tbody>
+</table>
+<p>Debug overlays can also be forced for one launch outside the editor:</p>
+<pre><code>./build/linux-debug/demi run --project games/my_game \
+  --debug-overlays colliders,contacts</code></pre>
+<ul>
+  <li><code>run --project games/my_game</code> — launches Skyforge from the command line.</li>
+  <li><code>--debug-overlays colliders,contacts</code> — comma-separated overlay names for this run, overriding the project's debug flags.</li>
+</ul>
+<p>Returns <code>0</code> on a clean run.</p>
+
+<h2>Play mode versus demi run</h2>
+<table>
+  <thead><tr><th>Question</th><th>Play mode</th><th><code>demi run</code></th></tr></thead>
+  <tbody>
+    <tr><td>Where does it run?</td><td>Inside the editor window</td><td>As its own application</td></tr>
+    <tr><td>Best for</td><td>Fast iteration while authoring</td><td>Player-like sessions, replays, headless smoke runs</td></tr>
+    <tr><td>Isolation</td><td>Discarded runtime world; authored data untouched</td><td>Full game; saves go to platform user-data</td></tr>
+    <tr><td>Extra flags</td><td>Overlays and profiler in their panels</td><td><code>--max-frames</code>, <code>--input-replay</code>, <code>--e2e-tests</code>, <code>--profile-report</code>, and more</td></tr>
+  </tbody>
+</table>
+<p>Command-line launch details are in <a href="{{ path('docs_page', {slug: 'cli-create-and-dev'}) }}">Create &amp; develop</a>.</p>
+
+<h2>A practical loop</h2>
+<ol>
+  <li>Edit the scene in the authoring stage.</li>
+  <li>Play and try the change.</li>
+  <li>Watch the profiler panel if the frame time rose; the measurement workflow is in <a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a>.</li>
+  <li>Stop play, adjust, repeat.</li>
+  <li>When the behavior is right, lock it in with <a href="{{ path('docs_page', {slug: 'e2e-tests'}) }}">E2E tests</a> so it cannot regress silently.</li>
+</ol>

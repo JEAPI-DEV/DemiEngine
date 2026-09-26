@@ -1,0 +1,126 @@
+<h1>Android builds</h1>
+<p>An <strong>Android build</strong> turns a DemiEngine project into an installable phone or tablet package: a debug APK for development, or a release APK or App Bundle for a store. Android packaging exists so the same project you authored on the desktop runs on real mobile hardware with its own identity, permissions, orientation, and signing. This page covers the project settings, the build commands, signing, and on-device runs and tests. Examples use "Skyforge" at <code>games/my_game</code>.</p>
+
+<h2>Project settings for Android</h2>
+<p>Android builds read identity and platform options from <code>demi.project.json</code>. The same <code>build</code> block that feeds the <a href="{{ path('docs_page', {slug: 'linux-bundles'}) }}">Linux bundle</a> carries the mobile fields:</p>
+<pre><code>"build": {
+  "application_id": "com.example.skyforge",
+  "display_name": "Skyforge",
+  "version_name": "0.1.0",
+  "version_code": 1,
+  "icon": "asset://branding/icon",
+  "splash": "asset://branding/splash",
+  "window": { "width": 1280, "height": 720, "mode": "fullscreen" },
+  "android": { "orientation": "landscape", "permissions": [] }
+}</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>application_id</code></td><td>Reverse-DNS application identity (for example <code>com.example.skyforge</code>). Required before packaging; the package name of the APK is derived from it.</td></tr>
+    <tr><td><code>display_name</code></td><td>The launcher label and activity title.</td></tr>
+    <tr><td><code>version_name</code> / <code>version_code</code></td><td>Human version string and integer version code written into the Android manifest and the build report.</td></tr>
+    <tr><td><code>icon</code> / <code>splash</code></td><td><code>asset://</code> IDs of the launcher icon and startup splash image. Sources may be PNG, JPEG, WebP, or SVG.</td></tr>
+    <tr><td><code>window</code></td><td>Logical resolution <code>width</code> and <code>height</code> in pixels, and <code>mode</code>: <code>windowed</code>, <code>borderless</code>, or <code>fullscreen</code>. On phones, <code>fullscreen</code> is the usual choice.</td></tr>
+    <tr><td><code>android.orientation</code></td><td>Requested activity orientation, for example <code>landscape</code> or <code>portrait</code>.</td></tr>
+    <tr><td><code>android.permissions</code></td><td>Android permission strings the app needs, for example <code>android.permission.INTERNET</code> for networked games.</td></tr>
+  </tbody>
+</table>
+<p>Declare the INTERNET permission for any game that uses HTTP or sessions. Validation reports <code>PROJECT_BUILD_PERMISSION_NETWORK_MISSING</code> when networking is required and the permission is absent. HTTP usage is described in <a href="{{ path('docs_page', {slug: 'http-and-tls'}) }}">HTTP &amp; TLS</a>.</p>
+
+<h2>Validate the Android target</h2>
+<p>Android can do less than a desktop in some optional areas. Validate for this platform before building so capability problems are named instead of discovered on a device:</p>
+<pre><code>./build/linux-debug/demi validate games/my_game --platform android</code></pre>
+<ul>
+  <li><code>validate [path]</code> — validates the project and all reachable source.</li>
+  <li><code>--platform android</code> — adds Android capability and permission checks.</li>
+  <li>Returns <code>0</code> when valid, <code>1</code> on any validation error.</li>
+</ul>
+<table>
+  <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>PROJECT_BUILD_FEATURE_MEDIA_UNSUPPORTED</code></td><td>The project needs media support (FFmpeg) that this engine build lacks.</td></tr>
+    <tr><td><code>PROJECT_BUILD_FEATURE_NETWORK_UNSUPPORTED</code></td><td>The project needs networking (ENet) that this engine build lacks.</td></tr>
+    <tr><td><code>PROJECT_BUILD_FEATURE_SVG_UNSUPPORTED</code></td><td>The project needs SVG support that this engine build lacks (relevant to SVG icons and splash sources).</td></tr>
+    <tr><td><code>PROJECT_BUILD_PERMISSION_NETWORK_MISSING</code></td><td><code>android.permission.INTERNET</code> is required but not declared.</td></tr>
+    <tr><td><code>BUILD_PACKAGE_CONTENT_UNEXPECTED</code></td><td>Package content outside the audited roots was found and rejected.</td></tr>
+  </tbody>
+</table>
+<p>Check the host toolchain as well — Java, the Android SDK, and the NDK:</p>
+<pre><code>./build/linux-debug/demi doctor --project games/my_game \
+  --platform android --format json</code></pre>
+<ul>
+  <li><code>--platform android</code> — checks the Android toolchain and reports discovery paths.</li>
+  <li><code>--format json</code> — emits the report as JSON.</li>
+</ul>
+
+<h2>Building an APK</h2>
+<p>An <strong>APK</strong> is the installable Android package you sideload or distribute directly:</p>
+<pre><code>./build/linux-debug/demi build apk --project games/my_game</code></pre>
+<ul>
+  <li><code>build apk --project p</code> — cooks for Android and packages a debug APK.</li>
+  <li><code>--configuration release</code> — produces a release configuration build instead of debug.</li>
+  <li><code>--gradle</code> — invokes Gradle, optionally taking the Gradle wrapper path to use.</li>
+  <li>Returns <code>0</code> on success, <code>1</code> when validation, cooking, or packaging fails.</li>
+</ul>
+<p>Building an App Bundle for store upload:</p>
+<pre><code>./build/linux-debug/demi build aab --project games/my_game</code></pre>
+<ul>
+  <li><code>build aab --project p</code> — packages an Android App Bundle.</li>
+</ul>
+<p>Artifacts and reports are written under the project:</p>
+<ul>
+  <li><code>project/build/android/</code> — the built APK or AAB and its intermediates.</li>
+  <li><code>*.build-report.json</code> — the build report next to the artifact: versions, content hashes, and configuration.</li>
+</ul>
+<p>Packaging is <strong>transactional</strong>: a failed or cancelled build leaves the previous artifact intact and never publishes a partial staging directory.</p>
+
+<h2>Signing release builds</h2>
+<p><strong>Signing</strong> proves the APK comes from you and is required for store distribution and for upgrades to install over older versions. Signing values come <strong>only</strong> from the environment — never from the project, the repository, command output, or build reports:</p>
+<pre><code>export DEMI_ANDROID_KEYSTORE=/secure/path/release.keystore
+export DEMI_ANDROID_KEYSTORE_PASSWORD=...
+export DEMI_ANDROID_KEY_ALIAS=skyforge
+export DEMI_ANDROID_KEY_PASSWORD=...
+./build/linux-debug/demi build apk --project games/my_game --configuration release</code></pre>
+<ul>
+  <li><code>DEMI_ANDROID_KEYSTORE</code> — path to the keystore file holding the release key.</li>
+  <li><code>DEMI_ANDROID_KEYSTORE_PASSWORD</code> — keystore password.</li>
+  <li><code>DEMI_ANDROID_KEY_ALIAS</code> — which key inside the keystore to sign with.</li>
+  <li><code>DEMI_ANDROID_KEY_PASSWORD</code> — password for that key entry.</li>
+</ul>
+<p>Release signing values must never enter source, logs, reports, or packaged content. Debug builds use the platform's debug signing automatically and need none of these variables.</p>
+
+<h2>Running on a device</h2>
+<p>Development on hardware reuses a current APK whenever your inputs are unchanged, so the loop stays short:</p>
+<pre><code>./build/linux-debug/demi run android --project games/my_game \
+  --serial &lt;device&gt; --watch</code></pre>
+<ul>
+  <li><code>run android --project p</code> — builds, installs, and launches on the connected device.</li>
+  <li><code>--serial &lt;device&gt;</code> — which device to target (the adb serial of the attached phone or tablet).</li>
+  <li><code>--watch</code> — enables cooked-source hot reload to the device as you edit.</li>
+</ul>
+<p>End-to-end tests on the same hardware:</p>
+<pre><code>./build/linux-debug/demi test android --project games/my_game --serial &lt;device&gt;</code></pre>
+<ul>
+  <li><code>test android --project p --serial d</code> — runs the project's E2E scripts through the real runtime on the device via adb.</li>
+  <li>Returns <code>0</code> when every test passed, <code>1</code> when any failed; the run always ends with a <code>SUMMARY</code> marker.</li>
+</ul>
+<p>Android qualification uses a connected physical device. Test authoring (stable node IDs, bounded waits) is covered in <a href="{{ path('docs_page', {slug: 'e2e-tests'}) }}">E2E tests</a>.</p>
+
+<h2>Content audit and lifecycle notes</h2>
+<ul>
+  <li>Release packages are audited against the allowed roots — <code>assets/</code>, <code>certs/</code>, <code>packages/</code>, <code>scenes/</code>, <code>scripts/</code>, plus <code>demi.project.json</code>, <code>demi.packages.lock.json</code>, and <code>cook.manifest.json</code>. Anything else fails with <code>BUILD_PACKAGE_CONTENT_UNEXPECTED</code>.</li>
+  <li>The cooked Android content lives in the platform's cooked directory with its <code>cook.manifest.json</code>, the same cook pipeline as <a href="{{ path('docs_page', {slug: 'linux-bundles'}) }}">Linux bundles</a>.</li>
+  <li>Frame-rate hints, surface recreation, pause/resume, and native-window rebinding are handled by the runtime; game code keeps using the normal script lifecycle.</li>
+  <li>Saves and caches go to the platform user-data and cache directories on the device, never into the installed APK or the project.</li>
+</ul>
+
+<h2>Before you upload to a store</h2>
+<ol>
+  <li><code>application_id</code> is the reverse-DNS name you will keep forever.</li>
+  <li><code>demi doctor --platform android</code> and <code>demi validate --platform android</code> are clean.</li>
+  <li><code>demi test android --serial &lt;device&gt;</code> passes on real hardware.</li>
+  <li>Release signing variables are present in the environment and absent from logs.</li>
+  <li><code>demi build aab --project games/my_game</code> produced a fresh artifact and <code>*.build-report.json</code>.</li>
+  <li>The report's versions match <code>version_name</code> and <code>version_code</code> in the project.</li>
+</ol>
+<p>Related pages: <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a> for the full build block, <a href="{{ path('docs_page', {slug: 'cli-build-and-test'}) }}">Build, cook &amp; test</a> for every build command, and <a href="{{ path('docs_page', {slug: 'linux-bundles'}) }}">Linux bundles</a> for the desktop counterpart.</p>

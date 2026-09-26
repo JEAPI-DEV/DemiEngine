@@ -1,0 +1,107 @@
+<h1>Data &amp; save API</h1>
+<p>Games need two kinds of stored numbers: <strong>data</strong> (authored balance and content, read at runtime) and <strong>saves</strong> (player progress, written during play). Two modules cover them — <code>demi.data</code> and <code>demi.save</code>.</p>
+
+<h2>What game data is</h2>
+<p>Game data is authored JSON (or YAML) validated against a schema: enemy stats, item tables, dialogue lines. It ships with the game and is read-only during play. Loading it through <code>demi.data</code> means the shape is checked and errors tell you exactly which field is wrong.</p>
+<pre><code>local Data = require("demi.data")
+
+local value, err = Data.load("asset://data/skyforge_enemies")
+if err then
+    -- err.code    : short machine string ("not_found", "schema_mismatch", …)
+    -- err.message : human-readable sentence
+    -- err.path    : JSON pointer like "/stats/0/hp", or the URI
+    return
+end
+-- value: parsed document (table), ready to read</code></pre>
+<p><code>Data.load(uri)</code> takes an <code>asset://</code> URI and returns <code>value, nil</code> on success or <code>nil, err</code> on failure. The error is always a table with three string fields: <code>code</code>, <code>message</code>, and <code>path</code> (a JSON pointer to the offending field, or the whole URI when the document is missing). On success the second result is <code>nil</code> — you never get both a value and an error.</p>
+
+<h2>Inspecting loaded values</h2>
+<pre><code>local Data = require("demi.data")
+
+local hits = Data.query({ content_type = "application/x-skyforge-enemy", tags = { "balance" } })
+-- hits: array of URI strings (possibly empty)
+
+print(Data.revision("asset://data/skyforge_enemies"))  -- integer revision of the loaded document
+
+local first = Data.load("asset://data/skyforge_enemies")[1]
+print(Data.kind(first.nickname))       -- "null", "number", "string", "boolean", "array", "object"
+print(Data.is_null(first.nickname))    -- true only for JSON null</code></pre>
+<ul>
+  <li><code>Data.query(filter)</code> — takes <code>content_type</code> and/or <code>tags</code>; returns an array of matching document URIs (empty when none match, never <code>nil</code>).</li>
+  <li><code>Data.revision(uri)</code> → integer revision number for the document (for change detection).</li>
+  <li><code>Data.kind(value)</code> → string naming the JSON type of a loaded value.</li>
+  <li><code>Data.is_null(value)</code> → boolean, <code>true</code> only for the null sentinel.</li>
+  <li><code>Data.null</code> — the sentinel value for JSON <code>null</code>. Assign it when writing a real null.</li>
+</ul>
+<p>JSON <code>null</code> is not the same as a missing field. Lua's <code>nil</code> means “key absent”, so <code>Data.null</code> stands in for a present-but-null field. See <a href="{{ path('docs_page', {slug: 'api-conventions'}) }}">API conventions</a> for how this fits the rest of the API.</p>
+
+<h2>YAML text</h2>
+<pre><code>local Data = require("demi.data")
+
+local value, err = Data.parse_yaml("hp: 12\nname: Drone", "inline-example")
+if err then
+    -- err.code, err.message, err.path — same shape as Data.load errors
+    return
+end</code></pre>
+<p><code>Data.parse_yaml(text, source)</code> takes a YAML string plus a source label used in errors and returns <code>value, nil</code> or <code>nil, err</code> with the same <code>{code, message, path}</code> error table. Use it for YAML snippets that did not come from an asset URI.</p>
+
+<h2>What a save is</h2>
+<p>A save is player-owned state written to the platform user-data directory: settings, unlocked levels, a Skyforge campaign position. Saves are per-slot (several playthroughs or profiles) and survive restarts. Nothing under the install or cooked directory is ever written.</p>
+<p>Use the simple typed keys for one value at a time, and the structured calls when a whole table goes in at once.</p>
+<pre><code>local Save = require("demi.save")
+
+Save.set_number("profile1", "credits", 480)
+Save.set_string("profile1", "callsign", "Ace")
+
+print(Save.get_number("profile1", "credits", 0))    -- 480 (third argument is the default)
+print(Save.get_string("profile1", "callsign", ""))  -- "Ace"</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Takes</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>Save.set_number(slot, key, value)</code></td><td>Slot name, key, number</td><td>Nothing</td></tr>
+    <tr><td><code>Save.get_number(slot, key, default)</code></td><td>Slot, key, fallback number</td><td>Stored number, or <code>default</code> when missing</td></tr>
+    <tr><td><code>Save.set_string(slot, key, value)</code></td><td>Slot, key, string</td><td>Nothing</td></tr>
+    <tr><td><code>Save.get_string(slot, key, default)</code></td><td>Slot, key, fallback string</td><td>Stored string, or <code>default</code> when missing</td></tr>
+    <tr><td><code>Save.read(slot)</code></td><td>Slot name</td><td>Table of stored keys, or <code>nil</code> when the slot has never been written</td></tr>
+    <tr><td><code>Save.write(slot, table)</code></td><td>Slot, table of values</td><td>Nothing on success; check <code>Save.last_error()</code> after</td></tr>
+    <tr><td><code>Save.read_state(slot)</code></td><td>Slot name</td><td>Structured state table, or <code>nil</code></td></tr>
+    <tr><td><code>Save.write_state(slot, table)</code></td><td>Slot, state table</td><td>Nothing; errors go to <code>Save.last_error()</code></td></tr>
+  </tbody>
+</table>
+<p><code>read</code> returns a plain table of the slot's keys or <code>nil</code> for a slot that does not exist — <code>nil</code> is “no slot”, an empty table is “slot exists with no keys”. The pair <code>get_*</code>/<code>set_*</code> covers scalars; <code>read</code>/<code>write</code> covers whole tables; <code>read_state</code>/<code>write_state</code> covers structured game state trees.</p>
+<p>There is no error return on writes. After any write (or a suspicious read), ask for the last problem:</p>
+<pre><code>print(Save.last_error())          -- message string, or nil when the last call succeeded
+print(Save.exists("profile1"))    -- true when the slot has been written
+
+local meta = Save.metadata("profile1")
+-- meta: table with fields like version (number) and modified time; nil when the slot is missing</code></pre>
+<ul>
+  <li><code>Save.last_error()</code> → string message of the most recent failure, or <code>nil</code>.</li>
+  <li><code>Save.exists(slot)</code> → boolean.</li>
+  <li><code>Save.metadata(slot)</code> → table describing the slot (including its <code>version</code> number), or <code>nil</code> when missing.</li>
+</ul>
+
+<h2>Migrations and cleanup</h2>
+<p>When your save format changes, old saves must keep working. Register a migration per version bump; it runs on load for slots saved at older versions.</p>
+<pre><code>local Save = require("demi.save")
+
+Save.register_migration(2, function(state)
+    state.credits = state.credits or 0   -- fix up older shape
+    return state
+end)
+
+print(Save.version("profile1"))   -- integer version of the slot
+Save.delete("profile1")           -- remove the slot entirely</code></pre>
+<ul>
+  <li><code>Save.register_migration(version, fn)</code> — registers a function that upgrades state to <code>version</code>. The function receives the state table and returns the updated table. Returns nothing.</li>
+  <li><code>Save.version(slot)</code> → integer version stored with the slot.</li>
+  <li><code>Save.delete(slot)</code> — deletes the slot and its metadata. Returns nothing.</li>
+</ul>
+<p>Never silently delete an incompatible save. Migrate it, or report the problem and leave the file alone. The CLI can inspect a slot from a terminal with <code>./build/linux-debug/demi save inspect</code>.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'data-schemas'}) }}">Data schemas</a> — declaring what a data document must contain.</li>
+  <li><a href="{{ path('docs_page', {slug: 'assets-time-api'}) }}">Assets, time &amp; timers</a> — loading large data asynchronously.</li>
+  <li><a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a> — saving and inspecting runs.</li>
+</ul>

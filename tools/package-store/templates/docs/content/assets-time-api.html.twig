@@ -1,0 +1,118 @@
+<h1>Assets, time &amp; timers</h1>
+<p>Three small modules cover the everyday plumbing of a game loop: loading files without freezing the frame (<code>demi.assets</code>), reading the clock (<code>demi.time</code>), and scheduling work for later (<code>demi.timer</code>).</p>
+
+<h2>What an asset load is</h2>
+<p>An asset is a file the game needs at runtime — a Skyforge texture, a music track, a font. Loading is <strong>non-blocking</strong>: you ask, the engine works through stages in the background, and you poll until the asset is ready. That keeps a frame budget intact while a level fills in.</p>
+<pre><code>local Assets = require("demi.assets")
+
+Assets.load("asset://music/skyforge_theme")   -- starts a request; returns nothing</code></pre>
+<p><code>Assets.load(uri)</code> takes an <code>asset://</code> URI and starts loading. It returns nothing — readiness is queried separately. Loading the same URI twice while it is in flight is safe; the existing request is reused.</p>
+
+<h2>Load stages and readiness</h2>
+<p>Every request moves through named stages: <code>resolve</code> → <code>read</code> → <code>decode</code> → <code>upload</code> → <code>ready</code>. It can also end in <code>failed</code> or <code>cancelled</code>.</p>
+<pre><code>local Assets = require("demi.assets")
+
+function Game:on_update()
+    if Assets.is_ready("asset://music/skyforge_theme") then
+        Audio.play("asset://music/skyforge_theme")
+    else
+        local p = Assets.progress("asset://music/skyforge_theme")
+        -- p: number 0 … 1 across the stages above (0 when the URI is unknown)
+    end
+end</code></pre>
+<ul>
+  <li><code>Assets.is_ready(uri)</code> → boolean, <code>true</code> when the asset is resident and usable.</li>
+  <li><code>Assets.progress(uri)</code> → number from <code>0</code> to <code>1</code>, or <code>0</code> for an unknown URI.</li>
+</ul>
+<p>Poll <code>is_ready</code> from <code>on_update</code> and drive a loading bar from <code>progress</code>. Never call gameplay code that needs the asset before <code>is_ready</code> returns <code>true</code>.</p>
+
+<h2>Managing loaded assets</h2>
+<pre><code>local Assets = require("demi.assets")
+
+Assets.cancel("asset://music/skyforge_theme")   -- abort a pending request
+Assets.unload("asset://music/skyforge_theme")   -- free memory when done
+Assets.reload("asset://music/skyforge_theme")   -- pick up a changed source
+
+local body = Assets.text("asset://data/credits_roll")
+-- body: string contents of a text asset, or nil when missing/not text
+
+local report = Assets.memory_report()
+-- report: table of numeric totals (resident, decoded, peaks)</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Takes</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>Assets.cancel(uri)</code></td><td>URI</td><td>Nothing — in-flight work ends at stage <code>cancelled</code></td></tr>
+    <tr><td><code>Assets.unload(uri)</code></td><td>URI</td><td>Nothing — frees the asset; later use needs another <code>load</code></td></tr>
+    <tr><td><code>Assets.reload(uri)</code></td><td>URI</td><td>Nothing — re-resolves and re-uploads the asset</td></tr>
+    <tr><td><code>Assets.text(uri)</code></td><td>URI of a text asset</td><td>String, or <code>nil</code> when missing or not resident</td></tr>
+    <tr><td><code>Assets.memory_report()</code></td><td>Nothing</td><td>Table of numeric memory totals (current and peak)</td></tr>
+  </tbody>
+</table>
+<p><code>Assets.text</code> returns a single <code>nil</code> for “nothing to hand you” — missing URI, wrong kind, not loaded. That is different from an empty string, which means “loaded and blank”. For batched level streaming see <a href="{{ path('docs_page', {slug: 'asset-groups'}) }}">Asset groups &amp; streaming</a>.</p>
+
+<h2>What the clock is</h2>
+<p><code>demi.time</code> is a table of plain fields plus a few calls. All values are in <strong>seconds</strong>. Read the fields directly; there are no getters for them.</p>
+<pre><code>local Time = require("demi.time")
+
+function Game:on_update()
+    local dt = Time.delta_time            -- seconds since last frame (scaled)
+    local udt = Time.unscaled_delta_time  -- seconds since last frame, ignoring time scale
+    print(Time.time)                      -- total elapsed seconds since start
+    print(Time.fixed_time)                -- total simulated seconds at fixed step
+    print(Time.frame_count)               -- integer frames since start
+    print(Time.time_scale)                -- current scale multiplier (1 = normal)
+    print(Time.paused)                    -- true when the clock is paused
+end</code></pre>
+<table>
+  <thead><tr><th>Field or call</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>Time.delta_time</code></td><td>Number, seconds since the previous frame, affected by time scale</td></tr>
+    <tr><td><code>Time.unscaled_delta_time</code></td><td>Number, seconds since the previous frame, ignoring pause and scale (for UI)</td></tr>
+    <tr><td><code>Time.time</code></td><td>Number, total elapsed scaled seconds</td></tr>
+    <tr><td><code>Time.fixed_time</code></td><td>Number, total seconds simulated at the fixed step</td></tr>
+    <tr><td><code>Time.frame_count</code></td><td>Integer, frames since start</td></tr>
+    <tr><td><code>Time.time_scale</code></td><td>Number, current scale multiplier</td></tr>
+    <tr><td><code>Time.paused</code></td><td>Boolean, <code>true</code> while paused</td></tr>
+    <tr><td><code>Time.set_paused(on)</code> / <code>Time.is_paused()</code></td><td>Pause control; the call returns nothing, the query returns a boolean</td></tr>
+    <tr><td><code>Time.set_scale(s)</code> / <code>Time.get_scale()</code></td><td>Set/read the multiplier; <code>get_scale</code> returns a number</td></tr>
+  </tbody>
+</table>
+<p>Movement code should use <code>Time.delta_time</code> so speed is per-second and survives frame-rate changes. Pause menus and fade-outs that must keep moving use <code>Time.unscaled_delta_time</code>.</p>
+<pre><code>local Time = require("demi.time")
+
+Time.set_paused(true)        -- freeze gameplay
+Time.set_scale(0.3)          -- slow motion at 30%
+print(Time.get_scale())      -- 0.3</code></pre>
+
+<h2>Timers</h2>
+<p>Timers run a function later or repeatedly. Each scheduling call returns a handle you can cancel. Handles are opaque values — pass them back to <code>Timer.cancel</code>, do not read fields off them.</p>
+<pre><code>local Timer = require("demi.timer")
+
+Timer.delay(1.5, function()
+    Debug.log("Skyforge: intro beat")
+end)
+
+local later = Timer.after(3, function()
+    Debug.log("Skyforge: ambush")
+end)
+
+local beat = Timer.every(0.5, function()
+    Debug.log("tick")
+end)
+
+Timer.cancel(later)   -- stop a scheduled call before it fires
+Timer.cancel(beat)</code></pre>
+<ul>
+  <li><code>Timer.delay(secs, fn)</code> — runs <code>fn</code> once after <code>secs</code>. Returns nothing (fire-and-forget).</li>
+  <li><code>Timer.after(secs, fn)</code> — same, but returns a cancel handle.</li>
+  <li><code>Timer.every(secs, fn)</code> — runs <code>fn</code> every <code>secs</code> until cancelled. Returns a cancel handle.</li>
+  <li><code>Timer.cancel(handle)</code> — stops a pending timer. Cancelling an unknown or already-fired handle is safe and returns nothing.</li>
+</ul>
+<p>Timers use game time, so pausing the game pauses them. For one-shot effects prefer <code>after</code> (cancellable) over <code>delay</code> (fire-and-forget). Event payloads and subscribe/unsubscribe patterns are covered in <a href="{{ path('docs_page', {slug: 'events-and-timers'}) }}">Events &amp; timers</a>.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'asset-groups'}) }}">Asset groups &amp; streaming</a> — loading a whole level under a memory budget.</li>
+  <li><a href="{{ path('docs_page', {slug: 'importers'}) }}">Importers</a> — getting a source file into an <code>asset://</code> in the first place.</li>
+  <li><a href="{{ path('docs_page', {slug: 'script-lifecycle'}) }}">Script lifecycle</a> — which hook receives each frame's <code>dt</code>.</li>
+</ul>

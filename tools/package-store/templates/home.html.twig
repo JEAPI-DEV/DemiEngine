@@ -1,40 +1,58 @@
 {% extends 'base.html.twig' %}
 {% block title %}DemiEngine — Your game. Your engine.{% endblock %}
-{% block description %}A Linux-first, open-source C++20 engine with Lua gameplay, a native editor, free packages, and experimental 3D animation and destruction.{% endblock %}
-{% block styles %}<link rel="stylesheet" href="/home.css?v=1">{% endblock %}
+{% block description %}A Linux-first, open-source C++20 engine with Lua gameplay, a native editor, free packages, documented systems, and experimental 3D animation and destruction.{% endblock %}
+{% block styles %}<link rel="stylesheet" href="/home.css?v=2">{% endblock %}
 {% block body %}
 {% set source = 'https://github.com/JEAPI-DEV/DemiEngine/tree/main' %}
-{% set docs = 'https://github.com/JEAPI-DEV/DemiEngine/blob/improvements_to_gamedesign' %}
+{% set repo = 'https://github.com/JEAPI-DEV/DemiEngine' %}
 <section class="hero engine-hero" aria-labelledby="engine-title">
   <div class="hero-content">
     <div class="eyebrow"><span></span> OPEN SOURCE / LINUX FIRST</div>
     <h1 id="engine-title">Your game.<br><em>Your engine.</em></h1>
-    <p>Build with Lua. Shape scenes in the native editor. Keep the source in readable JSON. From 2D games to experimental 3D worlds you can break apart.</p>
+    <p>Build with Lua. Shape scenes in the native editor. Keep the source in readable JSON. From 2D games to experimental 3D worlds you can break apart — with documentation that matches the engine.</p>
     <div class="home-actions">
       <a class="button" href="{{ source }}">Get the engine ↗</a>
-      <a class="button secondary" href="{{ docs }}/docs/getting-started.md">Start building →</a>
+      <a class="button secondary" href="{{ path('docs_page', {slug: 'getting-started'}) }}">Start building →</a>
     </div>
-    <div class="engine-facts"><span>C++20 + Lua 5.4</span><span>Vulkan / bgfx</span><a href="{{ path('catalog') }}">{{ total }} free packages →</a></div>
+    <div class="engine-facts"><span>C++20 + Lua 5.4</span><span>Vulkan / bgfx</span><a href="{{ path('docs') }}">Documentation</a><a href="{{ path('catalog') }}">{{ total }} free packages →</a></div>
   </div>
   <figure class="home-preview">
     <div class="preview-title"><span class="preview-dot" aria-hidden="true"></span> DESTRUCTION WEAPON LAB <span>LIVE ENGINE CAPTURE</span></div>
     <img src="/images/destruction-lab.png" alt="DemiEngine's destruction lab: brick walls and a steel door, a hammer, tiled prototype surfaces and an evening sky." width="1280" height="720" fetchpriority="high">
-    <figcaption><span>Real gameplay. Editable scenes.</span><a href="{{ docs }}/examples/destruction_weapons_3d_lab/README.md">Example instructions ↗</a></figcaption>
+    <figcaption><span>Real gameplay. Editable scenes.</span><a href="{{ repo }}/tree/main/examples/destruction_weapons_3d_lab">Example instructions ↗</a></figcaption>
   </figure>
 </section>
 
 <section class="engine-workflow" aria-labelledby="workflow-title">
   <div class="engine-section-heading"><div class="eyebrow muted">THE WORKFLOW</div><h2 id="workflow-title">Build it. Inspect it. Make it yours.</h2><p>The editor and command line work with the same project files. No hidden editor-only game state.</p></div>
   <div class="workflow-grid">
-    <article><span class="feature-index">01 / AUTHOR</span><h3>A native workspace.</h3><p>Edit scenes, HUDs and prefabs. Use the Inspector, Undo/Redo, embedded Play and adjustable UI scaling.</p><a href="{{ docs }}/docs/editor.md">Explore the editor →</a></article>
-    <article><span class="feature-index">02 / PLAY</span><h3>Explicit Lua gameplay.</h3><p>Import the services you need. Add typed script properties and reuse packages for movement, combat, UI and networking.</p><a href="{{ docs }}/docs/lua-modules.md">Read the Lua guide →</a></article>
-    <article><span class="feature-index">03 / BREAK</span><h3>Destruction with a workflow.</h3><p>Author ordinary prefabs with fracture components. Jolt handles rigid bodies; Blast handles connected fragments. No NVIDIA GPU required.</p><a href="{{ docs }}/docs/fracture-authoring.md">Build a destructible wall →</a></article>
+    <article><span class="feature-index">01 / AUTHOR</span><h3>A native workspace.</h3><p>Edit scenes, HUDs and prefabs. Use the Inspector, Undo/Redo, embedded Play and adjustable UI scaling.</p><a href="{{ path('docs_page', {slug: 'editor'}) }}">Explore the editor →</a></article>
+    <article><span class="feature-index">02 / PLAY</span><h3>Explicit Lua gameplay.</h3><p>Import the services you need. Add typed script properties and reuse packages for movement, combat, UI and networking.</p><a href="{{ path('docs_page', {slug: 'scripting'}) }}">Read the Lua guide →</a></article>
+    <article><span class="feature-index">03 / BREAK</span><h3>Destruction with a workflow.</h3><p>Author ordinary prefabs with fracture components. Jolt handles rigid bodies; Blast handles connected fragments. No NVIDIA GPU required.</p><a href="{{ path('docs_page', {slug: 'gameplay-3d'}) }}">Build a destructible wall →</a></article>
+  </div>
+</section>
+
+<section class="engine-features" aria-labelledby="features-title">
+  <div class="engine-section-heading"><div class="eyebrow muted">ENGINE SYSTEMS</div><h2 id="features-title">Everything you need. Documented.</h2><p>Production-ready 2D and UI, lightweight experimental 3D, and the tooling to validate, test and ship on Linux and Android.</p></div>
+  <div class="feature-grid">
+    <article><span class="feature-index">01</span><h3>2D &amp; isometric</h3><p>Sprites, sheets, tilemaps, cameras, materials, particles, masks, nine-slice and isometric placement with depth sorting.</p><a href="{{ path('docs_page', {slug: 'gameplay-2d'}) }}">2D guide →</a></article>
+    <article><span class="feature-index">02</span><h3>Lightweight 3D</h3><p>glTF models, GPU skinning, instancing, LOD, lights, panorama skies, denting and localized Blast destruction.</p><a href="{{ path('docs_page', {slug: 'gameplay-3d'}) }}">3D guide →</a></article>
+    <article><span class="feature-index">03</span><h3>Physics</h3><p>Box2D and Jolt bodies, authored collider shapes, joints, CCD, kinematic movement, queries and contact events.</p><a href="{{ path('docs_page', {slug: 'physics'}) }}">Physics guide →</a></article>
+    <article><span class="feature-index">04</span><h3>UI &amp; HUD</h3><p>Retained trees, layout containers, themes, localization, UI prefabs, text editing, virtualization and accessibility.</p><a href="{{ path('docs_page', {slug: 'ui'}) }}">UI guide →</a></article>
+    <article><span class="feature-index">05</span><h3>Input</h3><p>Contextual actions for keyboard, mouse, gamepads, touch and virtual controls, plus deterministic replay.</p><a href="{{ path('docs_page', {slug: 'input'}) }}">Input guide →</a></article>
+    <article><span class="feature-index">06</span><h3>Animation &amp; audio</h3><p>State machines, blend spaces, timed events, two-bone IK, buses, snapshots, streaming and spatial voices.</p><a href="{{ path('docs_page', {slug: 'animation-audio'}) }}">Animation &amp; audio →</a></article>
+    <article><span class="feature-index">07</span><h3>Assets &amp; data</h3><p>Deterministic importers, addressable groups with budgets, cooking, portable packs and schema-backed game data.</p><a href="{{ path('docs_page', {slug: 'assets'}) }}">Assets guide →</a></article>
+    <article><span class="feature-index">08</span><h3>Networking &amp; HTTP</h3><p>Host-authoritative sessions with contracts and ownership, optional prediction, TLS and async REST calls.</p><a href="{{ path('docs_page', {slug: 'networking'}) }}">Networking guide →</a></article>
+    <article><span class="feature-index">09</span><h3>Editor &amp; CLI</h3><p>Native scene/HUD/prefab workspace sharing loaders and diagnostics with a complete authoring and packaging CLI.</p><a href="{{ path('docs_page', {slug: 'cli'}) }}">CLI reference →</a></article>
+    <article><span class="feature-index">10</span><h3>Testing</h3><p>E2E scripts through the real runtime, input replay, profiler CSV reports, debug overlays and save migrations.</p><a href="{{ path('docs_page', {slug: 'testing'}) }}">Testing guide →</a></article>
+    <article><span class="feature-index">11</span><h3>Shipping</h3><p>Cooked Linux bundles and Android APK/AAB builds with capability gates, content audits and transactional packaging.</p><a href="{{ path('docs_page', {slug: 'shipping'}) }}">Shipping guide →</a></article>
+    <article><span class="feature-index">12</span><h3>Free packages</h3><p>Gameplay modules and assets — health, projectiles, inventory, encounters, third-person, Kenney textures and more.</p><a href="{{ path('catalog') }}">Browse packages →</a></article>
   </div>
 </section>
 
 <section class="engine-proof" aria-labelledby="proof-title">
-  <div><div class="eyebrow">MEASURED, NOT ASSUMED</div><h2 id="proof-title">Put the engine<br>under load.</h2><p>The animation example can show 1,024 or 2,000 independently animated characters. Repeatable probes cover barrels, collisions and mixed workloads too.</p><a href="{{ docs }}/examples/animation_3d/README.md">Run the crowd demo →</a></div>
-  <div class="proof-result"><span class="proof-number">2,000</span><h3>animated characters</h3><p>Recorded desktop reference: 1080p, Vulkan, RTX 3070 Ti Laptop, Release build. Frame time p95: 15.34 ms.</p><p class="proof-note">A scoped animation workload, not 2,000 AI agents or a universal FPS promise. Results vary with hardware and scene complexity.</p><a href="{{ docs }}/docs/3d-milestone-2-qualification.md">Hardware, settings &amp; qualification results ↗</a></div>
+  <div><div class="eyebrow">MEASURED, NOT ASSUMED</div><h2 id="proof-title">Put the engine<br>under load.</h2><p>The animation example can show 1,024 or 2,000 independently animated characters. Repeatable probes cover barrels, collisions and mixed workloads too.</p><a href="{{ repo }}/tree/main/examples/animation_3d">Run the crowd demo →</a></div>
+  <div class="proof-result"><span class="proof-number">2,000</span><h3>animated characters</h3><p>Recorded desktop reference: 1080p, Vulkan, RTX 3070 Ti Laptop, Release build. Frame time p95: 15.34 ms.</p><p class="proof-note">A scoped animation workload, not 2,000 AI agents or a universal FPS promise. Results vary with hardware and scene complexity.</p><a href="{{ repo }}/blob/main/docs/3d-milestone-2-qualification.md">Hardware, settings &amp; qualification results ↗</a></div>
 </section>
 
 <section class="engine-packages" aria-labelledby="packages-title">
@@ -51,7 +69,7 @@
 <section class="engine-status" aria-labelledby="status-title">
   <div><div class="eyebrow muted">WHERE WE ARE</div><h2 id="status-title">An engine in active development.</h2></div>
   <div><h3>Available now</h3><p>Established 2D, isometric and UI workflows. Experimental 3D GPU skinning, Jolt physics, localized destruction, mesh denting and panorama backgrounds. Android support is qualified per feature and device.</p></div>
-  <div><h3>What comes next</h3><p>HDR and tone mapping, metallic/roughness PBR, environment reflections and local reflection probes. Structural stress, large-world workflows and broader production qualification remain open.</p><a href="{{ docs }}/plan.md">Follow the roadmap →</a></div>
+  <div><h3>What comes next</h3><p>HDR and tone mapping, metallic/roughness PBR, environment reflections and local reflection probes. Structural stress, large-world workflows and broader production qualification remain open.</p><a href="{{ repo }}/blob/main/plan.md">Follow the roadmap →</a></div>
 </section>
-<section class="engine-resources" aria-label="Development resources"><a href="{{ docs }}/README.md">Current README ↗</a><a href="{{ docs }}/docs/streamed-destruction.md">Streaming &amp; damage saves ↗</a><a href="{{ docs }}/docs/rendering-and-effects.md">Rendering status ↗</a><a href="{{ docs }}/docs/shipping.md">Linux &amp; Android shipping ↗</a><a href="/publishing">Publish a package →</a></section>
+<section class="engine-resources" aria-label="Development resources"><a href="{{ path('docs') }}">Documentation hub</a><a href="{{ path('docs_page', {slug: 'getting-started'}) }}">Getting started</a><a href="{{ path('docs_page', {slug: 'lua-api'}) }}">Lua API</a><a href="{{ path('docs_page', {slug: 'capabilities'}) }}">Capabilities</a><a href="{{ path('docs_page', {slug: 'examples'}) }}">Examples tour</a><a href="{{ path('docs_page', {slug: 'shipping'}) }}">Linux &amp; Android shipping</a><a href="/publishing">Publish a package →</a></section>
 {% endblock %}

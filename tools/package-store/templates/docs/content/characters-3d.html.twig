@@ -1,0 +1,177 @@
+<h1>Characters</h1>
+<p>A character controller is a mover built for walking, running, and jumping people and robots — not for crates. This page explains what <code>CharacterController3D</code> is, how it differs from a rigidbody, and every field and call you need to get a Skyforge pilot across a station deck.</p>
+
+<h2>What CharacterController3D is</h2>
+<p>Games need two very different kinds of moving objects. A crate should tumble, get shoved, and settle — the physics simulation owns it. A player should go exactly where the stick says, step over small ledges, stop at slopes that are too steep, and never tip over.</p>
+<p><strong>CharacterController3D</strong> is the second kind. It is a component that moves an entity every fixed step using the collider shape, while resolving the details that make movement feel good: ground detection, step climbing, slope limits, and wall slide. It is not a rigidbody — nothing knocks it around, and it does not fall in a physically simulated way beyond the gravity you configure.</p>
+<p>Use a character controller for players, bot pilots, and anything that should follow intent. Use a <a href="{{ path('docs_page', {slug: 'rigidbodies'}) }}">Rigidbody3D</a> for props that belong to the simulation.</p>
+
+<h2>When to use which</h2>
+<table>
+  <thead><tr><th>Need</th><th>CharacterController3D</th><th>Rigidbody3D</th></tr></thead>
+  <tbody>
+    <tr><td>Responsive stick/keyboard movement</td><td>Yes</td><td>Only with heavy tuning</td></tr>
+    <tr><td>Knockback, tumbling, stacking crates</td><td>No</td><td>Yes</td></tr>
+    <tr><td>Step up small ledges automatically</td><td>Yes</td><td>No</td></tr>
+    <tr><td>Slope limit (slide or stop on steep faces)</td><td>Yes</td><td>Friction only</td></tr>
+    <tr><td>Pushed around by explosions</td><td>No (react in gameplay)</td><td>Yes</td></tr>
+    <tr><td>Driven by forces and mass</td><td>No</td><td>Yes</td></tr>
+  </tbody>
+</table>
+<p>A hybrid is allowed: the player uses <code>CharacterController3D</code>, and the crate the player drops uses <code>Rigidbody3D</code>. They collide normally through their colliders.</p>
+
+<h2>Required collider setup</h2>
+<p>A character controller drives a shape — it does not carry one. Validation enforces this exact arrangement:</p>
+<ul>
+  <li><strong>Exactly one</strong> non-trigger collider on the same entity.</li>
+  <li>The collider must be a primitive or convex shape: box, sphere, capsule, or convex hull. Capsule is the usual pick.</li>
+  <li>No <code>Rigidbody3D</code> on that entity. A controller and a rigidbody on one body would fight over who moves it.</li>
+</ul>
+<pre><code>{
+  "CharacterController3D": {
+    "slope_limit_degrees": 45,
+    "step_height": 0.35,
+    "skin_width": 0.02,
+    "gravity": -18.0
+  },
+  "CapsuleCollider3D": {
+    "radius": 0.35,
+    "height": 1.7,
+    "offset": [0, 0.85, 0],
+    "is_trigger": false,
+    "layer": "player"
+  }
+}</code></pre>
+<ul>
+  <li>The <code>CapsuleCollider3D</code> is the capsule the controller sweeps through the world.</li>
+  <li><code>radius</code> and <code>height</code> size the capsule; <code>offset</code> <code>[0, 0.85, 0]</code> lifts it so the base sits at the entity origin (the feet).</li>
+  <li><code>is_trigger: false</code> is required — a trigger shape cannot block movement.</li>
+  <li><code>layer</code> participates in <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">layer filtering</a> like any other collider.</li>
+</ul>
+
+<h2>Controller fields</h2>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th><th>Typical value</th></tr></thead>
+  <tbody>
+    <tr><td><code>slope_limit_degrees</code></td><td>Steepest walkable slope. Steeper faces are slid down rather than climbed.</td><td><code>45</code></td></tr>
+    <tr><td><code>step_height</code></td><td>Maximum ledge height climbed without jumping, in world units.</td><td><code>0.35</code></td></tr>
+    <tr><td><code>skin_width</code></td><td>Small gap kept between the shape and obstacles. Prevents sticking in corners and jitter against walls.</td><td><code>0.02</code></td></tr>
+    <tr><td><code>gravity</code></td><td>Downward acceleration applied each step, world units per second squared. Negative pulls down.</td><td><code>-18.0</code></td></tr>
+  </tbody>
+</table>
+<p>Tuning notes:</p>
+<ul>
+  <li>A <code>skin_width</code> too small lets the capsule catch on seams; too large and the character floats visibly above floors.</li>
+  <li><code>step_height</code> above knee height makes stairs feel like ramps — usually not what you want.</li>
+  <li><code>gravity</code> is gameplay feel, not planetary truth. Raise its magnitude for snappier jumps.</li>
+</ul>
+
+<h2>Driving the controller from Lua</h2>
+<pre><code>local Character = require("demi.physics.character_controller3d")
+
+Character.set_velocity(id, vx, vy, vz)
+Character.jump(id)
+
+local state = Character.state(id)
+-- state → table:
+--   grounded          boolean
+--   velocity          { x, y, z }
+--   normal            { x, y, z }</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>set_velocity</code></td><td><code>id</code>, desired velocity <code>vx, vy, vz</code> this step</td><td>Nothing. The controller moves the character and resolves collision with the authored shape.</td></tr>
+    <tr><td><code>jump</code></td><td><code>id</code></td><td>Nothing. Applies the upward jump impulse if the character may leave the ground.</td></tr>
+    <tr><td><code>state</code></td><td><code>id</code></td><td>A table with <code>grounded</code>, <code>velocity</code> <code>{ x, y, z }</code>, and ground <code>normal</code> <code>{ x, y, z }</code>.</td></tr>
+  </tbody>
+</table>
+<p>A complete Skyforge pilot loop:</p>
+<pre><code>local Character = require("demi.physics.character_controller3d")
+local Input = require("demi.input")
+local T = require("demi.transform3d")
+
+function on_fixed_update(self_id, fixed_dt)
+    local state = Character.state(self_id)
+    -- state.grounded           on the floor or not
+    -- state.velocity           current { x, y, z }
+    -- state.normal             ground surface { x, y, z }
+
+    local mx, my = Input.vector("move")
+    -- mx, my → -1..1 stick/keyboard values
+
+    local speed = 4.0
+    Character.set_velocity(self_id, mx * speed, state.velocity.y, my * speed)
+
+    if state.grounded and Input.pressed("jump") then
+        Character.jump(self_id)
+        -- nothing returned; the controller leaves the ground next step
+    end
+end</code></pre>
+<ul>
+  <li><code>Character.state</code> is read every step so horizontal intent keeps the current vertical velocity (gravity and jump).</li>
+  <li><code>Input.vector("move")</code> returns two normalized scalars in -1..1.</li>
+  <li><code>Character.set_velocity</code> applies the desired motion and returns nothing.</li>
+  <li><code>Input.pressed("jump")</code> is <code>true</code> on the frame the action went down.</li>
+  <li><code>Character.jump</code> applies the impulse and returns nothing.</li>
+  <li>Everything runs in <code>on_fixed_update</code> so movement matches the simulation timestep.</li>
+</ul>
+<p>Details the controller handles for you:</p>
+<ul>
+  <li><strong>Wall slide</strong> — pushing into a wall moves along it instead of stopping dead.</li>
+  <li><strong>Moving platforms</strong> — standing on a kinematic platform inherits its motion for the step.</li>
+  <li><strong>Steps and slopes</strong> — ledges up to <code>step_height</code> are climbed; faces steeper than <code>slope_limit_degrees</code> are not.</li>
+</ul>
+<p>Trigger events still fire from the character’s shape, so zones notice the pilot (<a href="{{ path('docs_page', {slug: 'physics-events'}) }}">Physics events</a>).</p>
+
+<h2>Coyote time is game logic</h2>
+<p>Players expect to jump a moment after walking off a ledge. The controller reports only the literal truth: <code>grounded</code> is <code>true</code> on the floor and <code>false</code> in the air, from the first airborne step.</p>
+<p>Forgiving jump windows are your gameplay code, not a controller setting. Track how long the character has been ungrounded and allow a late jump inside a grace period:</p>
+<pre><code>local Character = require("demi.physics.character_controller3d")
+local Input = require("demi.input")
+
+local coyote = 0.12   -- seconds of grace after leaving a ledge
+local since_ground = 1.0
+
+function on_fixed_update(self_id, fixed_dt)
+    local state = Character.state(self_id)
+
+    if state.grounded then
+        since_ground = 0
+    else
+        since_ground = since_ground + fixed_dt
+    end
+
+    local may_jump = state.grounded or since_ground &lt;= coyote
+    if may_jump and Input.pressed("jump") then
+        Character.jump(self_id)
+        since_ground = coyote   -- consume the grace so it cannot double-fire
+    end
+end</code></pre>
+<ul>
+  <li><code>state.grounded</code> resets the grace timer to 0.</li>
+  <li><code>since_ground</code> accumulates <code>fixed_dt</code> while airborne.</li>
+  <li><code>may_jump</code> is <code>true</code> on the floor or within <code>coyote</code> seconds of leaving it.</li>
+  <li>Setting <code>since_ground = coyote</code> after jumping spends the grace so one leave-edge cannot trigger two jumps.</li>
+</ul>
+<p>The same pattern covers jump buffering (remember a press just before landing), double jumps, and variable jump height. All of it is script state built on the controller’s <code>grounded</code> and <code>velocity</code> readouts.</p>
+
+<h2>Character visuals</h2>
+<p>The controller only moves the entity. The body is a <a href="{{ path('docs_page', {slug: 'models-and-meshes'}) }}">model</a>, and locomotion animation is driven by a <a href="{{ path('docs_page', {slug: 'state-machines'}) }}">state machine</a> fed from the same velocity and <code>grounded</code> values:</p>
+<pre><code>local Animation = require("demi.animation")
+
+Animation.set_number(id, "speed", math.abs(mx) + math.abs(my))
+Animation.set_bool(id, "grounded", state.grounded)
+Animation.trigger(id, "jump")</code></pre>
+<ul>
+  <li><code>set_number</code>, <code>set_bool</code>, and <code>trigger</code> feed state-machine parameters and return nothing.</li>
+  <li>Blend spaces pick idle/run from <code>speed</code>; transitions react to <code>grounded</code>.</li>
+</ul>
+
+<h2>Checklist</h2>
+<ul>
+  <li>One non-trigger primitive or convex collider, no rigidbody.</li>
+  <li>Capsule sized to the character with <code>offset</code> lifting it to the feet.</li>
+  <li><code>slope_limit_degrees</code>, <code>step_height</code>, <code>skin_width</code>, and <code>gravity</code> tuned for the level’s stairs and ramps.</li>
+  <li>Movement applied in <code>on_fixed_update</code> through <code>set_velocity</code>.</li>
+  <li>Jump forgiveness and extras implemented in script from <code>state</code>.</li>
+</ul>

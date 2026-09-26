@@ -1,0 +1,76 @@
+<h1>Simulation &amp; seeds</h1>
+<p>DemiEngine separates <strong>rendering</strong> (however fast your GPU is) from <strong>simulation</strong> (a fixed step you control). That split is why replays match, tests are stable, and networking can rewind time.</p>
+
+<h2>Fixed timestep</h2>
+<pre><code>"simulation": {
+  "fixed_timestep": 0.016666667
+}</code></pre>
+<p><code>fixed_timestep</code> is the size of one simulation step, in seconds. The default <code>0.016666667</code> is 1/60 of a second — 60 steps per second of game time.</p>
+<p>What runs at this rate:</p>
+<ul>
+  <li><code>on_fixed_update(fixed_dt)</code> in every script</li>
+  <li>Physics integration (Box2D and Jolt)</li>
+  <li>Anything that must be reproducible across machines</li>
+</ul>
+<p>What runs per rendered frame:</p>
+<ul>
+  <li><code>on_update(dt)</code></li>
+  <li>Rendering, cameras, UI, audio triggers</li>
+</ul>
+<p>If the frame rate drops to 30 FPS, simulation still steps at 60 Hz — the game does not slow down. If a frame takes long enough to need several steps, they catch up. If it takes <em>too</em> long, the game slows down on purpose instead of freezing in a spiral of catch-up work.</p>
+
+<h2>Catch-up limit</h2>
+<pre><code>"maximum_fixed_steps_per_frame": 4</code></pre>
+<p>This is that safety valve (default 4, maximum 16). At 60 Hz, one frame should consume one step. If a hitch eats 200 ms, the engine would want 12 steps to catch up — it runs at most 4, then lets game time lag behind wall-clock time.</p>
+<p>Why cap it? Without a cap, a debugger breakpoint can trigger thousands of steps and lock the game in physics for minutes. Raise the cap only if you need strict wall-clock alignment and accept the hitch cost.</p>
+
+<h2>Why a fixed step matters</h2>
+<table>
+  <thead><tr><th>Without it</th><th>With it</th></tr></thead>
+  <tbody>
+    <tr><td>Physics depends on frame rate — 30 FPS and 144 FPS play differently</td><td>Same results at any frame rate</td></tr>
+    <tr><td>Replays drift and desync</td><td>Replays reproduce the run</td></tr>
+    <tr><td>E2E tests flake on slow CI machines</td><td>Tests pass or fail for real reasons</td></tr>
+    <tr><td>Network prediction has no common clock</td><td>Peers step in lockstep ticks</td></tr>
+  </tbody>
+</table>
+<p>Write movement and combat in <code>on_fixed_update</code>, and sample input in <code>on_update</code>. That keeps gameplay deterministic while input stays responsive.</p>
+<pre><code>function Player:on_update(dt)
+    self.move_x, self.move_y = Input.vector("move")  -- sample every frame
+end
+
+function Player:on_fixed_update(fixed_dt)
+    -- apply the last sampled input at the fixed rate
+    local body = require("demi.physics.rigidbody2d")
+    body.set_velocity(self.id, self.move_x * 6, self.move_y * 6)
+end</code></pre>
+
+<h2>Random seed</h2>
+<pre><code>"simulation": {
+  "random_seed": 42
+}</code></pre>
+<p>The project seed initializes the deterministic RNG (<code>demi.math.random</code>). Two runs of the same build with the same seed and the same input sequence produce the same rolls.</p>
+<pre><code>local Random = require("demi.math.random")
+
+print(Random.value())        -- 0.0 … 1.0, sequence follows the seed
+print(Random.range(2, 5))    -- float in [2, 5)
+print(Random.integer(1, 6))  -- integer in [1, 6]</code></pre>
+<p>Use the seeded generator for anything gameplay-visible: loot rolls, procedural layout, AI coin flips. <code>math.random</code> is fine for purely cosmetic choices you never need to reproduce.</p>
+
+<h2>Snapshots and replay</h2>
+<p>Because the sequence is deterministic, you can snapshot it:</p>
+<pre><code>local checkpoint = Random.state()   -- opaque token
+Random.restore(checkpoint)          -- rewind the sequence</code></pre>
+<p>Pair that with the input replay path and a save checkpoint, and you can rewind a run exactly. See <a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a>.</p>
+
+<h2>Changing the settings</h2>
+<table>
+  <thead><tr><th>Goal</th><th>Setting</th></tr></thead>
+  <tbody>
+    <tr><td>Smoother physics on high-refresh displays</td><td><code>fixed_timestep</code> at 1/120 (0.008333333). Costs twice the steps.</td></tr>
+    <tr><td>Heavier simulation, slower machines</td><td>1/30 (0.033333333). Coarser contacts.</td></tr>
+    <tr><td>Different daily challenge each run</td><td>Seed from the date at launch and store it in a save.</td></tr>
+    <tr><td>Identical CI replays</td><td>Keep the default seed and pin the input replay fixture.</td></tr>
+  </tbody>
+</table>
+<p>Change <code>fixed_timestep</code> rarely and treat it as a project-wide contract: input replay fixtures, network prediction, and existing saves assume the rate they were recorded at.</p>

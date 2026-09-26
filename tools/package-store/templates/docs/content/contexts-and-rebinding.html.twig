@@ -1,0 +1,138 @@
+<h1>Contexts &amp; rebinding</h1>
+<p>A <strong>context</strong> is a named group of actions that can be switched on and off together. It exists so a pause menu can silence gameplay without editing gameplay scripts. <strong>Rebinding</strong> is how a player changes which physical input feeds an action, and <strong>persistence</strong> saves those choices between runs. This page builds a pause menu, assigns gamepads, and stores a remap.</p>
+
+<h2>What a context is</h2>
+<p>Every action already declares a <code>context</code> (default <code>gameplay</code>). Only actions whose context is currently enabled respond to queries; the rest read as released. Two contexts cover most games:</p>
+<pre><code>"input": {
+  "actions": {
+    "move":  { "type": "vector2", "context": "gameplay", "bindings": [] },
+    "jump":  { "type": "button",  "context": "gameplay", "bindings": [] },
+    "ui_ok": { "type": "button",  "context": "menu",     "bindings": [] }
+  }
+}</code></pre>
+<ul>
+  <li><code>gameplay</code> — movement, combat, everything in the world.</li>
+  <li><code>menu</code> — navigation and confirm/cancel while a menu owns the screen.</li>
+  <li>You can name more contexts (<code>driving</code>, <code>typing</code>) and enable several at once.</li>
+</ul>
+
+<h2>Enabling and disabling</h2>
+<pre><code>local Input = require("demi.input")
+
+Input.enable_context("menu")
+Input.disable_context("gameplay")
+local live = Input.context_enabled("gameplay")  -- boolean</code></pre>
+<ul>
+  <li><code>Input.enable_context(name)</code> turns a group on. No return value.</li>
+  <li><code>Input.disable_context(name)</code> turns a group off. No return value.</li>
+  <li><code>Input.context_enabled(name)</code> returns <code>true</code> when the group is on, else <code>false</code>.</li>
+</ul>
+<p>One rule matters most: if the enabled set is empty, <strong>every</strong> action reads as released. That is the safe default when a cutscene or loading screen owns input.</p>
+
+<h2>Worked example: a pause menu</h2>
+<p>Skyforge pauses with Escape or gamepad Start. The menu should navigate with confirm/cancel while the ship cannot move or fire.</p>
+<pre><code>local Input = require("demi.input")
+
+function PauseMenu:on_open()
+    Input.disable_context("gameplay")
+    Input.enable_context("menu")
+    Hud.set_visible("pause_panel", true)
+end
+
+function PauseMenu:on_update(dt)
+    if Input.pressed("ui_cancel") then
+        self:on_close()
+    end
+end
+
+function PauseMenu:on_close()
+    Hud.set_visible("pause_panel", false)
+    Input.disable_context("menu")
+    Input.enable_context("gameplay")
+end</code></pre>
+<p>Walkthrough: <code>on_open</code> turns the <code>gameplay</code> context off so <code>move</code> and <code>jump</code> immediately read as released, then turns <code>menu</code> on so <code>ui_ok</code> and <code>ui_cancel</code> work. <code>on_close</code> reverses both calls. No gameplay script is touched — the controller simply sees zeros while paused.</p>
+
+<h2>Assigning gamepads to players</h2>
+<p>On shared screens each pad drives one player slot. Assignment is explicit:</p>
+<pre><code>local count = Input.gamepad_count()   -- number of connected pads
+Input.assign_gamepad(1, 0)            -- device index 1 feeds player 0</code></pre>
+<ul>
+  <li><code>Input.gamepad_count()</code> returns how many gamepads are connected right now, as a number.</li>
+  <li><code>Input.assign_gamepad(device, player)</code> maps a device index (0-based) to a local player slot. No return value.</li>
+  <li>Bindings and actions with a <code>player</code> field only respond to the device assigned to that slot.</li>
+</ul>
+
+<h2>Rebinding an action</h2>
+<p>Rebinding replaces the physical input that feeds one action for one player.</p>
+<pre><code>Input.rebind("jump", "key:e", 0)   -- action, new device name, player</code></pre>
+<ul>
+  <li>First argument is the action name.</li>
+  <li>Second is the binding <code>input</code> name — the same strings used in the project, like <code>key:e</code>, <code>gamepad:x</code>, or <code>virtual:jump</code>.</li>
+  <li>Third is the player slot the remap applies to.</li>
+  <li>No return value. From the next frame, <code>jump</code> responds to the new control.</li>
+</ul>
+<p>A small options screen can capture a key and apply it:</p>
+<pre><code>function Options:on_ui_event(e)
+    if e.type == "press" and e.id == "rebind_jump" then
+        self.waiting_for = "jump"
+    end
+end
+
+function Options:on_update(dt)
+    if not self.waiting_for then return end
+    if Input.key_pressed("e") then
+        Input.rebind(self.waiting_for, "key:e", 0)
+        Input.save_bindings("input/bindings.json")
+        self.waiting_for = nil
+    end
+end</code></pre>
+<p>The example waits for the E key with <code>Input.key_pressed</code>, rebinds the chosen action, and immediately saves. Use raw key helpers only while capturing a remap; gameplay keeps using actions.</p>
+
+<h2>Saving and loading bindings</h2>
+<p>Remaps should survive quitting. Persistence writes a small JSON file of current bindings.</p>
+<pre><code>local root = Application.user_data_path()
+Input.save_bindings("input/bindings.json")
+local ok = Input.load_bindings("input/bindings.json")  -- true when loaded</code></pre>
+<ul>
+  <li><code>Input.save_bindings(path)</code> writes the current bindings. No return value.</li>
+  <li><code>Input.load_bindings(path)</code> reads them back and returns <code>true</code> on success, <code>false</code> when the file is missing or unreadable.</li>
+  <li>Both paths are relative to <code>Application.user_data_path()</code> — the per-player writable directory, never the game install. A plain name like <code>input/bindings.json</code> becomes <code>&lt;user_data&gt;/input/bindings.json</code>.</li>
+</ul>
+<p>Load at startup and save when the player leaves the options screen:</p>
+<pre><code>function Game:on_create()
+    Input.load_bindings("input/bindings.json")
+end</code></pre>
+<p>The saved JSON mirrors the project’s binding shape: action names, their bindings, and the player slot each applies to. A typical file looks like this:</p>
+<pre><code>{
+  "actions": {
+    "jump": {
+      "bindings": [
+        { "input": "key:e" },
+        { "input": "gamepad:a" }
+      ]
+    },
+    "move": {
+      "bindings": [
+        { "input": "gamepad:stick:left", "deadzone": 0.18 }
+      ]
+    }
+  }
+}</code></pre>
+<p>Read it as: “<code>jump</code> is now fed by key E and gamepad A; <code>move</code> uses the left stick.” You can restore the authored defaults by deleting the file — <code>load_bindings</code> returns <code>false</code> and the project’s <code>input.actions</code> remain in force.</p>
+
+<h2>Replay and contexts</h2>
+<p>Input replay re-plays recorded action frames through the same context filter as live play. Two consequences:</p>
+<ul>
+  <li>A recorded action only applies while its context is enabled. If the fixture pauses into <code>menu</code>, gameplay rows in the file wait just as real input would.</li>
+  <li>When a recorded action is active it takes precedence over physical bindings, so a fixture runs the same on any machine.</li>
+</ul>
+<pre><code>./build/linux-debug/demi run --project games/skyforge \
+  --input-replay fixtures/smoke.replay.json</code></pre>
+<p>This runs Skyforge with a recorded input stream. Keep the project’s fixed timestep equal to the fixture’s so frames line up. More on the test workflow: <a href="{{ path('docs_page', {slug: 'testing'}) }}">Testing &amp; debugging</a>.</p>
+
+<h2>Next</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'input-actions'}) }}">Actions explained</a> — action types and queries.</li>
+  <li><a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a> — binding fields and presets.</li>
+  <li><a href="{{ path('docs_page', {slug: 'input'}) }}">Input</a> — the overview page.</li>
+</ul>

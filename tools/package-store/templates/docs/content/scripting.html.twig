@@ -1,0 +1,166 @@
+<h1>Lua scripting</h1>
+<p>Gameplay rules live in Lua 5.4. A script is a module that returns a table of lifecycle functions and fields. Attach it to an entity with the <code>LuaScript</code> component and it receives engine callbacks every frame.</p>
+
+<h2>A complete script</h2>
+<pre><code>local Input = require("demi.input")
+local Transform3D = require("demi.transform3d")
+
+local Player = {}
+
+function Player:on_create()
+    -- self.id is the entity this script is attached to.
+    -- self.speed already holds the authored property value.
+    self.jump_held = false
+end
+
+function Player:on_update(dt)
+    -- dt is seconds since the previous rendered frame.
+    local x, y = Input.vector("move")   -- -1 … 1 on each axis
+    local px, py, pz = Transform3D.get_position(self.id)
+    Transform3D.set_position(self.id,
+        px + x * self.speed * dt,
+        py,
+        pz + y * self.speed * dt)
+end
+
+function Player:on_fixed_update(fixed_dt)
+    -- fixed_dt is the project simulation step (default 1/60).
+    -- Put physics and other deterministic logic here.
+end
+
+function Player:on_destroy()
+    -- Release timers, subscriptions, and pooled entities.
+end
+
+return Player</code></pre>
+<p>Walkthrough: the file returns one table, <code>Player</code>. The engine instantiates it per entity and calls its methods. Inside every hook, <code>self</code> is that instance and <code>self.id</code> is the entity handle you pass to every other API. Properties written in the editor arrive as fields on <code>self</code> before <code>on_create</code> runs.</p>
+
+<h2>Lifecycle</h2>
+<table>
+  <thead><tr><th>Hook</th><th>When it runs</th><th>Typical use</th></tr></thead>
+  <tbody>
+    <tr><td><code>on_create()</code></td><td>Entity is created; properties are already set</td><td>Cached handles, initial state, subscriptions</td></tr>
+    <tr><td><code>on_start()</code></td><td>Scene activation finished</td><td>Cross-entity lookups that need the whole scene</td></tr>
+    <tr><td><code>on_update(dt)</code></td><td>Every rendered frame</td><td>Input sampling, presentation, camera follow</td></tr>
+    <tr><td><code>on_fixed_update(fixed_dt)</code></td><td>Every simulation step</td><td>Movement, combat resolution, anything that must stay deterministic</td></tr>
+    <tr><td><code>on_destroy()</code></td><td>Entity or scene is torn down</td><td>Cleanup</td></tr>
+    <tr><td><code>on_ui_event(e)</code></td><td>A UI node fires an event</td><td>Buttons, drags, focus changes</td></tr>
+    <tr><td><code>on_ui_value_changed(e)</code></td><td>Slider/toggle/text value changes</td><td>Settings, form fields</td></tr>
+    <tr><td><code>on_ui_submit(e)</code></td><td>Submit action</td><td>Confirm dialogs, text fields</td></tr>
+  </tbody>
+</table>
+<p><code>on_update</code> and <code>on_fixed_update</code> can both run zero or more times per frame. Sample input in <code>on_update</code>, apply it in <code>on_fixed_update</code>, so replays stay aligned with the fixed step.</p>
+
+<h2>Service imports</h2>
+<pre><code>local Input = require("demi.input")
+local Events = require("demi.events")
+local Health = require("demi.gameplay.health")  -- from an installed package</code></pre>
+<p>Each <code>require</code> returns the service table. Import only what the script needs. Engine services ship with the engine; package modules come from <a href="{{ path('docs_page', {slug: 'packages'}) }}">installed packages</a>.</p>
+
+<h2>Typed script properties</h2>
+<p>Annotations expose fields in the Inspector so designers can tune values without editing Lua:</p>
+<pre><code>---@demi_component
+---@display_name Player Controller
+---@category Gameplay
+---@description Moves the player with the move action.
+local Player = {}
+
+---@demi_property
+---@label Move Speed
+---@range 0 20
+Player.speed = 6.0
+
+---@demi_property
+---@options red, blue
+Player.team = "red"
+
+---@demi_property
+---@label Spawn Point
+Player.spawn_point = nil  -- entity reference
+
+return Player</code></pre>
+<table>
+  <thead><tr><th>Annotation</th><th>Effect</th></tr></thead>
+  <tbody>
+    <tr><td><code>@demi_component</code></td><td>Registers the script as a component. Display name defaults to the humanized filename; category defaults to <code>Scripting</code>.</td></tr>
+    <tr><td><code>@demi_property</code></td><td>Exposes the assignment below it as an editable property.</td></tr>
+    <tr><td><code>@label</code>, <code>@description</code></td><td>Inspector text.</td></tr>
+    <tr><td><code>@range min max</code></td><td>Slider bounds for numbers.</td></tr>
+    <tr><td><code>@options a, b, c</code></td><td>Dropdown choices for strings.</td></tr>
+    <tr><td><code>@category</code></td><td>Inspector grouping.</td></tr>
+  </tbody>
+</table>
+<p>Property types come from the Lua value: <code>boolean</code>, <code>number</code>, <code>integer</code>, <code>string</code>, <code>array</code>, <code>object</code>, <code>vec2</code>, <code>vec3</code>, <code>color</code>, plus <code>asset</code> and <code>entity</code> when annotated. Defaults install before <code>on_create</code> — read them there, do not reassign them.</p>
+<p>Scene or prefab overrides:</p>
+<pre><code>"LuaScript": {
+  "module": "script://scripts/player.lua",
+  "properties": { "speed": 8.5, "team": "blue" }
+}</code></pre>
+<p>An override that fails validation is rejected and the script does not activate. Under hot reload the previous valid instance keeps running.</p>
+<p>For stricter constraints, set a <code>property_schema</code> table on the returned module:</p>
+<pre><code>Player.property_schema = {
+    speed = { type = "number", default = 6.0, minimum = 0.0, maximum = 20.0 },
+    team  = { type = "enum", values = { "red", "blue" }, default = "red" },
+    model = { type = "asset", required = true },
+}
+return Player</code></pre>
+<p>Types: <code>boolean</code>, <code>number</code>, <code>integer</code>, <code>string</code>, <code>asset</code>, <code>entity</code>, <code>enum</code>, <code>array</code>, <code>object</code>, <code>vec2</code>, <code>vec3</code>, <code>color</code>. Invalid overrides reject activation the same way.</p>
+
+<h2>Events</h2>
+<pre><code>local Events = require("demi.events")
+
+local id = Events.subscribe("physics_collision_enter", function(e)
+    if e.other_id == "lava" then
+        Events.emit("player_died", { cause = "lava" })
+    end
+end)
+-- later:
+Events.unsubscribe(id)</code></pre>
+<p><code>Events.subscribe(event_name, handler)</code> returns an integer token. The handler receives one payload table and runs immediately when the event fires. <code>Events.emit</code> sends a game-defined payload to every subscriber of that name.</p>
+<p>Engine events you can subscribe to:</p>
+<ul>
+  <li><strong>Physics</strong> — <code>physics_collision_enter/stay/exit</code>, <code>physics_trigger_*</code>, <code>physics_contact</code>, <code>physics3d_*</code></li>
+  <li><strong>Animation</strong> — <code>animation_event</code>, <code>sprite_animation</code>, <code>animation_collision</code></li>
+  <li><strong>Scene</strong> — <code>scene_loaded</code>, <code>scene_unloading</code>, <code>scene_unloaded</code>, <code>active_scene_changed</code></li>
+  <li><strong>UI</strong> — <code>ui_event</code>, <code>ui_submit</code></li>
+  <li><strong>App</strong> — <code>application_focus</code>, <code>application_blur</code>, <code>application_suspend</code>, <code>application_resume</code></li>
+  <li><strong>Data</strong> — <code>data_asset_reloaded</code></li>
+</ul>
+<p>The optional <code>demi.gameplay.events</code> package is a caller-owned queue with an explicit <code>flush()</code> step — useful when you want to handle events at a controlled point in the frame.</p>
+
+<h2>Timers and time</h2>
+<pre><code>local Timer = require("demi.timer")
+local Time = require("demi.time")
+
+local handle = Timer.after(1.5, function()
+    print("one-shot after 1.5 seconds")
+end)
+local repeat_handle = Timer.every(0.25, function() end)
+Timer.delay(0.1, function() end)   -- runs next opportunity
+Timer.cancel(handle)               -- stop a pending timer
+
+print(Time.delta_time)             -- seconds, this frame
+print(Time.fixed_time)             -- seconds, simulation clock
+print(Time.frame_count)            -- integer frame index
+Time.set_paused(true)              -- freezes update hooks
+Time.set_scale(0.5)                -- slow motion</code></pre>
+<p><code>after</code>, <code>every</code>, and <code>delay</code> return a handle you can pass to <code>cancel</code>. Always cancel in <code>on_destroy</code> if the timer outlives the entity otherwise.</p>
+
+<h2>Editor stubs</h2>
+<p>Generate LuaLS/EmmyLua stubs for autocomplete:</p>
+<pre><code>./build/linux-debug/demi lua-stubs generate .demi/lua</code></pre>
+<p>Add <code>.demi/lua</code> to LuaLS <code>workspace.library</code>. The generated files describe signatures for the editor and are not loaded at runtime.</p>
+
+<h2>Hot reload behavior</h2>
+<ul>
+  <li>Edits are applied at frame boundaries, only after the new script compiles and validates.</li>
+  <li>A compile error or bad property override prints diagnostics and leaves the running instance untouched.</li>
+  <li>Instance fields on <code>self</code> reset on reload. Keep durable state in entity fields, game data, or saves.</li>
+</ul>
+
+<h2>Next</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'lua-api'}) }}">Lua API reference</a> — return shapes and every module.</li>
+  <li><a href="{{ path('docs_page', {slug: 'input'}) }}">Input</a> — actions and bindings.</li>
+  <li><a href="{{ path('docs_page', {slug: 'game-data'}) }}">Game data</a> — schema-backed content.</li>
+</ul>

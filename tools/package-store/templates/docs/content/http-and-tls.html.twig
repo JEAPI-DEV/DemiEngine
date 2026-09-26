@@ -1,0 +1,125 @@
+<h1>HTTP &amp; TLS</h1>
+<p>Games talk to the outside world: fetching a news panel, posting a high score, connecting to a service over an encrypted channel. <strong>HTTP</strong> is the standard request/response protocol for those calls. <strong>TLS</strong> is the encryption layer that makes them safe on public networks. DemiEngine provides both as Lua services so gameplay code can call a web API without stopping the game, and can encrypt peer connections when the session requires it. This page explains those APIs from the ground up.</p>
+
+<h2>Why asynchronous HTTP</h2>
+<p>A web request can take hundreds of milliseconds — an eternity in a frame budget. The HTTP service is therefore <strong>asynchronous</strong>: you start a request, the game keeps running, and you poll for completion. That design keeps the frame loop responsive and makes timeouts explicit instead of hanging the game.</p>
+
+<h2>Starting a request</h2>
+<p>Import the HTTP service and start a request with <code>get</code>, <code>post</code>, or the general <code>request</code> form:</p>
+<pre><code>local Http = require("demi.network.http")
+
+local req = Http.get("https://demiengine.de/api/news")</code></pre>
+<ul>
+  <li><code>require("demi.network.http")</code> — imports the HTTP service table.</li>
+  <li><code>Http.get(url)</code> — starts a GET request. Returns the request handle, or <code>nil</code>, <code>err</code> when the request could not even be started (bad URL, unsupported scheme, over the size caps).</li>
+</ul>
+<pre><code>local req = Http.post("https://demiengine.de/api/scores",
+    { json = { name = "Skyforge", score = 1200 } })</code></pre>
+<ul>
+  <li><code>Http.post(url, options)</code> — starts a POST request. <code>options.json</code> is a Lua table serialized as a JSON body (use <code>body</code> for a raw string instead — the two are exclusive).</li>
+</ul>
+<p>The general form accepts every option at once:</p>
+<pre><code>local req, err = Http.request({
+    url = "https://demiengine.de/api/news",
+    method = "GET",
+    headers = { ["accept"] = "application/json" },
+    json = nil,                  -- or body = "raw text"; never both
+    timeout_ms = 30000,
+    connect_timeout_ms = 5000,
+    max_response_bytes = 16 * 1024 * 1024,
+    max_header_bytes = 64 * 1024,
+    ca_certificate_pem = extra_ca_pem_text
+})</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>url</code></td><td>Full request URL, <code>http://</code> or <code>https://</code>.</td></tr>
+    <tr><td><code>method</code></td><td>HTTP method string such as <code>GET</code> or <code>POST</code>.</td></tr>
+    <tr><td><code>headers</code></td><td>Table of request header names and string values.</td></tr>
+    <tr><td><code>json</code></td><td>Lua table serialized as a JSON body. Mutually exclusive with <code>body</code>.</td></tr>
+    <tr><td><code>body</code></td><td>Raw string body. Mutually exclusive with <code>json</code>.</td></tr>
+    <tr><td><code>timeout_ms</code></td><td>Whole-request timeout in milliseconds. Default <code>30000</code>.</td></tr>
+    <tr><td><code>connect_timeout_ms</code></td><td>Connection setup timeout in milliseconds. Default <code>5000</code>.</td></tr>
+    <tr><td><code>max_response_bytes</code></td><td>Cap on response size. Default 16 MiB; larger responses fail instead of exhausting memory.</td></tr>
+    <tr><td><code>max_header_bytes</code></td><td>Cap on response header size. Default 64 KiB.</td></tr>
+    <tr><td><code>ca_certificate_pem</code></td><td>Optional PEM text of extra certificate authorities to trust for this request.</td></tr>
+  </tbody>
+</table>
+<p><code>Http.request(...)</code> returns <code>request</code>, <code>nil</code> on success (a handle and no error), or <code>nil</code>, <code>err</code> when the request cannot start. A started request is not a finished one — check it every frame.</p>
+
+<h2>Waiting for the response</h2>
+<pre><code>function Game:on_update(dt)
+    if not req then return end
+    if not req:done() then return end
+    local res = req:response()
+end</code></pre>
+<ul>
+  <li><code>req:done()</code> — returns a boolean: <code>true</code> when the request finished (successfully or not), <code>false</code> while it is in flight.</li>
+  <li><code>req:response()</code> — returns the response table once <code>done()</code> is <code>true</code>, or <code>nil</code> if no response is available.</li>
+  <li><code>req:cancel()</code> — abandons the request. Returns nothing; <code>done()</code> becomes <code>true</code> with a cancellation error.</li>
+</ul>
+<p>The response table:</p>
+<pre><code>local res = req:response()
+if res.ok then
+    print(res.status)           -- integer HTTP status
+    local data = res.json       -- decoded JSON table, or nil
+    for name, values in pairs(res.headers) do
+        print(name, values[1])  -- header names are lowercase; values are arrays
+    end
+else
+    print(res.status, res.error, res.error_code)
+    print(res.body)             -- raw response text, if any
+end</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>ok</code></td><td>Boolean, <code>true</code> when the status is in the success range 200–299.</td></tr>
+    <tr><td><code>status</code></td><td>Integer HTTP status code.</td></tr>
+    <tr><td><code>body</code></td><td>Raw response body as a string.</td></tr>
+    <tr><td><code>error</code></td><td>Error message string when the transport or parse failed.</td></tr>
+    <tr><td><code>error_code</code></td><td>Stable error code string for scripts to branch on.</td></tr>
+    <tr><td><code>json</code></td><td>Decoded JSON table when the body parsed, otherwise <code>nil</code>.</td></tr>
+    <tr><td><code>json_error</code></td><td>Parse error message when <code>json</code> is <code>nil</code> despite a body.</td></tr>
+    <tr><td><code>headers</code></td><td>Table of response headers: names lowercased, values arrays of strings.</td></tr>
+  </tbody>
+</table>
+
+<h2>HTTPS, redirects, and Android</h2>
+<ul>
+  <li><strong>HTTPS verifies the certificate chain and the hostname.</strong> A certificate that does not match the URL host fails with an error code instead of being accepted. Trust extra authorities with <code>ca_certificate_pem</code> when your service uses a private certificate.</li>
+  <li><strong>3xx redirects are not followed.</strong> The response arrives with its status and <code>Location</code> header so your code can decide to retry — the engine will not silently change the destination of a request.</li>
+  <li><strong>Android needs the INTERNET permission.</strong> Declare <code>android.permission.INTERNET</code> in the project's build settings or validation reports <code>PROJECT_BUILD_PERMISSION_NETWORK_MISSING</code>. See <a href="{{ path('docs_page', {slug: 'android-builds'}) }}">Android builds</a>.</li>
+</ul>
+
+<h2>TLS client and server</h2>
+<p><strong>TLS</strong> (Transport Layer Security) encrypts a byte stream between two peers and proves each side's identity with certificates. Use the TLS services when you speak a custom protocol that must be private, rather than HTTP.</p>
+<ul>
+  <li><code>demi.network.tls.client</code> — wraps an outbound connection in TLS: verify the server certificate and hostname, then exchange application bytes.</li>
+  <li><code>demi.network.tls.server</code> — accepts inbound TLS connections with your server certificate and key.</li>
+</ul>
+<p>Both follow the same idea as HTTP: start a handshake, poll until done, then read and write application data. Certificates are supplied as PEM text; private material is passed in at setup and never printed to logs.</p>
+
+<h2>Crypto helpers</h2>
+<p>Three small helpers cover the common secrets work of a networked game:</p>
+<pre><code>local crypto = require("demi.network.crypto")
+
+local token = crypto.random_token(32)             -- 32 random bytes as a string
+local hash  = crypto.password_hash("hunter2")     -- salted hash string
+local same  = crypto.secure_equals(hash, hash)    -- boolean</code></pre>
+<ul>
+  <li><code>crypto.random_token(n)</code> — returns <code>n</code> cryptographically random bytes as a string. Use for session tokens and nonces.</li>
+  <li><code>crypto.password_hash(password)</code> — returns a salted password hash string suitable for storage. Never store the password itself.</li>
+  <li><code>crypto.secure_equals(a, b)</code> — returns a boolean comparison that does not short-circuit on the first differing byte, so timing does not leak how much of a secret matched.</li>
+</ul>
+<p>Signing material, certificates, and credentials must never enter source, command output, or packaged content.</p>
+
+<h2>Low-level transport</h2>
+<p>Under the session layer sits a small transport API in <code>demi.network</code> for building custom protocols:</p>
+<ul>
+  <li><code>host(port)</code> — opens a UDP/TCP host socket and returns a handle.</li>
+  <li><code>host_dtls(...)</code> — opens a host socket wrapped in DTLS (datagram TLS) and returns a handle.</li>
+  <li><code>connect(host, port)</code> — starts a client connection and returns a handle.</li>
+  <li><code>send(...)</code> — queues bytes on a handle.</li>
+  <li><code>events()</code> — drains the transport event queue and returns an array of connect, data, and disconnect events.</li>
+</ul>
+<p>Most games never need this layer: <a href="{{ path('docs_page', {slug: 'sessions-and-contracts'}) }}">Sessions &amp; contracts</a> builds replication, validation, and ownership on top of it. Choose the low-level API only when the session model does not fit your protocol.</p>

@@ -1,0 +1,183 @@
+<h1>Rigidbodies</h1>
+<p>A rigidbody is the component that hands an entity over to the physics simulation so it can move, fall, slide, and respond to hits. This page explains what that means, when to use each body type, and how to drive motion from Lua in 2D and 3D.</p>
+
+<h2>What a rigidbody is</h2>
+<p>In a game, some things move because you set their position every frame (a menu icon, a cutscene prop). Others move because forces push them around (a crate that falls, a drone that drifts after a collision). A <strong>rigidbody</strong> is what marks an entity as the second kind: the simulation owns its motion.</p>
+<p>A rigidbody does not describe shape. Shape comes from a <a href="{{ path('docs_page', {slug: 'colliders'}) }}">collider</a> on the same entity. The rigidbody only answers “how does this thing move?” Keeping the two apart means the same body settings work with any shape, and a decorative shape can exist without any body at all.</p>
+<p>2D bodies simulate with Box2D and 3D bodies with Jolt. Both step at the project fixed timestep (default 1/60 of a second), which is the tick that runs <code>on_fixed_update</code>. Apply forces and impulses there so results stay identical across runs.</p>
+
+<h2>Body types: static, kinematic, dynamic</h2>
+<p>Every rigidbody picks one of three types. The type is the single most important setting you choose.</p>
+<table>
+  <thead><tr><th>Type</th><th>What it does</th><th>Use it for</th></tr></thead>
+  <tbody>
+    <tr><td><code>static</code></td><td>Never moves. Infinite mass. Other bodies collide with it and stop.</td><td>Walls, floors, level geometry, buildings in Skyforge stations.</td></tr>
+    <tr><td><code>kinematic</code></td><td>Moves only when you move it. It pushes dynamic bodies aside, but nothing pushes it back.</td><td>Moving platforms, elevators, scripted doors, hover-trains.</td></tr>
+    <tr><td><code>dynamic</code></td><td>Fully simulated. Gravity, forces, and collisions all move it.</td><td>Crates, ragdolls, projectiles, the player when using physics-driven motion.</td></tr>
+  </tbody>
+</table>
+<p>A quick rule: if the player script sets the position, the body is <code>kinematic</code>. If the simulation decides where it ends up, the body is <code>dynamic</code>. If it never moves, it is <code>static</code>.</p>
+
+<h2>2D rigidbody fields</h2>
+<pre><code>{
+  "Rigidbody2D": {
+    "body_type": "dynamic",
+    "ccd": true,
+    "linear_damping": 0.05,
+    "lock_rotation": true,
+    "report_contacts": true
+  }
+}</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th><th>Typical value</th></tr></thead>
+  <tbody>
+    <tr><td><code>body_type</code></td><td><code>static</code>, <code>kinematic</code>, or <code>dynamic</code>, as described above.</td><td><code>dynamic</code></td></tr>
+    <tr><td><code>ccd</code></td><td>Continuous collision detection. Fast small bodies are checked along their path instead of only at the end of a step, so they do not tunnel through thin walls.</td><td><code>true</code> for bullets and fast debris</td></tr>
+    <tr><td><code>linear_damping</code></td><td>How quickly straight-line speed bleeds away each step. <code>0</code> coasts forever; larger values stop sooner.</td><td><code>0.05</code> to <code>1.0</code></td></tr>
+    <tr><td><code>lock_rotation</code></td><td>Prevents the body from spinning. Keeps top-down heroes upright after side impacts.</td><td><code>true</code> for characters</td></tr>
+    <tr><td><code>report_contacts</code></td><td>Extracts contact points into <code>physics_contact</code> events so you can spawn sparks at the exact hit. Collision events fire either way.</td><td><code>true</code> when you need hit positions</td></tr>
+  </tbody>
+</table>
+
+<h2>3D rigidbody fields</h2>
+<pre><code>{
+  "Rigidbody3D": {
+    "body_type": "dynamic",
+    "mass": 12.5,
+    "ccd": true,
+    "friction": 0.6,
+    "restitution": 0.05,
+    "damping": 0.02,
+    "solver_velocity_steps": 0,
+    "solver_position_steps": 0,
+    "report_contacts": true
+  }
+}</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th><th>Typical value</th></tr></thead>
+  <tbody>
+    <tr><td><code>body_type</code></td><td><code>static</code>, <code>kinematic</code>, or <code>dynamic</code>.</td><td><code>dynamic</code></td></tr>
+    <tr><td><code>mass</code></td><td>How heavy the body is. Heavier bodies shove lighter ones further.</td><td>Player <code>80</code>, crate <code>15</code></td></tr>
+    <tr><td><code>ccd</code></td><td>Continuous collision detection for fast movers.</td><td><code>true</code> for projectiles</td></tr>
+    <tr><td><code>friction</code></td><td>How much the surface resists sliding. Combine with the collider’s own friction for the contact result.</td><td><code>0.5</code></td></tr>
+    <tr><td><code>restitution</code></td><td>Bounciness. <code>0</code> lands dead; <code>1</code> returns most of the impact speed.</td><td><code>0</code> for crates</td></tr>
+    <tr><td><code>damping</code></td><td>Linear and angular damping factor applied each step.</td><td><code>0.02</code></td></tr>
+    <tr><td><code>solver_velocity_steps</code> / <code>solver_position_steps</code></td><td>How much extra solving a step performs. Range 0–128; <code>0</code> means the engine default. Raise them only for stacks that jitter.</td><td><code>0</code></td></tr>
+    <tr><td><code>report_contacts</code></td><td>Same job as 2D: fill <code>physics3d_contact</code> with contact points.</td><td><code>true</code> for impact FX</td></tr>
+  </tbody>
+</table>
+
+<h2>Forces, impulses, and torque</h2>
+<p>Three ways exist to push a dynamic body, and they behave differently on purpose.</p>
+<table>
+  <thead><tr><th>Call</th><th>Effect</th><th>Use it for</th></tr></thead>
+  <tbody>
+    <tr><td><code>add_force</code></td><td>Adds to the force accumulator for this step. A gentle push that fades in as mass resists.</td><td>Hover thrusters, wind, continuous acceleration.</td></tr>
+    <tr><td><code>add_impulse</code></td><td>Instantly changes velocity by an amount scaled by mass. Immediate, not gradual.</td><td>Jumps, explosion kicks, projectile launch.</td></tr>
+    <tr><td><code>add_torque</code></td><td>Rotational counterpart of a force.</td><td>Spin a floating drone wreck.</td></tr>
+  </tbody>
+</table>
+<p>Rule of thumb: if the effect should accumulate over time, use a force every fixed step. If it should happen once and be over, use an impulse. In Skyforge, thruster lift is a force applied every step; a jump pad is a single impulse.</p>
+
+<h2>Damping and sleep</h2>
+<p><strong>Damping</strong> is friction with the air: each step multiplies velocity by a little less than one. Without damping, a crate shoved across a frictionless floor never stops. With <code>linear_damping</code> (2D) or <code>damping</code> (3D), it coasts to rest.</p>
+<p><strong>Sleep</strong> is an optimization the simulation applies to bodies that have come to rest. A sleeping body costs almost nothing until something touches it. The catch: a force applied to a sleeping body does nothing until the body is awake. Call <code>set_awake(id, true)</code> before <code>add_force</code> or <code>add_impulse</code> if the body may have settled.</p>
+
+<h2>Continuous collision detection</h2>
+<p>A simulation moves bodies in discrete steps. A bullet that travels 2 meters per step can end up on the far side of a 5 cm wall without any step ever reporting a hit — this is called tunneling. <code>ccd: true</code> makes the engine sweep the body along its path so the wall is hit. Enable it on fast, small bodies (bolts, shrapnel) and leave it off on slow, large ones where it is wasted work.</p>
+
+<h2>Moving kinematic bodies</h2>
+<p>Kinematic bodies do not react to pushes, so you move them yourself. Two helpers exist in 2D, both meant to run inside <code>on_fixed_update</code>.</p>
+<pre><code>local Body = require("demi.physics.rigidbody2d")
+
+-- Slide along walls using the authored collider shape
+Body.move_and_slide(id, vx, vy, fixed_dt)
+
+-- Absolute placement this step (x, y, angle in radians)
+Body.move_kinematic(id, 3.5, 4.0, 0, fixed_dt)</code></pre>
+<table>
+  <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr><td><code>move_and_slide</code></td><td><code>id</code>, desired velocity <code>vx, vy</code>, the fixed timestep <code>fixed_dt</code></td><td>Nothing. The body is moved and slides along anything solid it meets.</td></tr>
+    <tr><td><code>move_kinematic</code></td><td><code>id</code>, target <code>x, y</code>, <code>angle</code> radians, <code>fixed_dt</code></td><td>Nothing. The body is placed at the target over the step.</td></tr>
+  </tbody>
+</table>
+<p>Prefer <code>move_and_slide</code> for anything that can brush walls (players, hover carts). Use <code>move_kinematic</code> for rails and platforms that follow a known path and should never be blocked. The 3D equivalent is <code>move_kinematic(id, x, y, z, rx, ry, rz, fixed_dt)</code> with Euler rotation in radians.</p>
+
+<h2>Full 2D example</h2>
+<p>A Skyforge cargo crate that can be shoved, then settles and sleeps.</p>
+<pre><code>local Body = require("demi.physics.rigidbody2d")
+
+function on_fixed_update(self_id, fixed_dt)
+    local vx, vy = Body.get_velocity(self_id)
+    -- vx, vy → current speed in world units per second (0, 0 when missing)
+
+    if math.abs(vx) &lt; 0.05 and math.abs(vy) &lt; 0.05 then
+        Body.set_awake(self_id, false)
+    end
+end
+
+function on_start(self_id)
+    Body.set_continuous(self_id, true)      -- no tunneling at high shove speeds
+    Body.set_report_contacts(self_id, true) -- emit physics_contact with hit points
+    Body.set_velocity(self_id, 0, 0)        -- clear any editor preview motion
+end
+
+-- When the player shoves the crate:
+Body.set_awake(self_id, true)               -- wake before pushing
+Body.add_impulse(self_id, 4, 2)             -- instant kick: +4 x, +2 y
+Body.add_force(self_id, 0, -9.8)            -- gravity-like pull, reapply each step</code></pre>
+<ul>
+  <li><code>get_velocity(id)</code> returns two scalars, <code>x</code> and <code>y</code>, in world units per second. Missing bodies report <code>0, 0</code>.</li>
+  <li><code>set_velocity(id, x, y)</code> sets speed directly and returns nothing.</li>
+  <li><code>set_velocity_x</code> / <code>set_velocity_y</code> change one axis and leave the other alone.</li>
+  <li><code>add_impulse(id, x, y)</code> adds an instant kick and returns nothing.</li>
+  <li><code>add_force(id, x, y)</code> accumulates force for the current step and returns nothing.</li>
+  <li><code>add_torque(id, amount)</code> adds spin; <code>set_angular_velocity(id, w)</code> sets spin directly (radians per second).</li>
+  <li><code>set_awake(id, bool)</code>, <code>set_enabled(id, bool)</code>, <code>set_continuous(id, bool)</code>, and <code>set_report_contacts(id, bool)</code> toggle runtime flags and return nothing.</li>
+</ul>
+
+<h2>Full 3D example</h2>
+<p>A Skyforge supply pod that falls, reports impacts, and can be read back for a HUD.</p>
+<pre><code>local Body = require("demi.physics.rigidbody3d")
+
+function on_start(self_id)
+    Body.set_continuous(self_id, true)
+    Body.set_report_contacts(self_id, true)
+end
+
+function on_fixed_update(self_id, fixed_dt)
+    local vx, vy, vz = Body.get_velocity(self_id)
+    -- three scalars, or nil per axis when the body is missing
+
+    local state = Body.state(self_id)
+    -- state → table, or nil when the body is missing:
+    --   body_type            "static" | "kinematic" | "dynamic"
+    --   mass                 number
+    --   linear_velocity      { x, y, z }
+    --   angular_velocity     { x, y, z }
+    --   sleeping             boolean
+    --   ccd                  boolean
+    --   report_contacts      boolean
+
+    if state and state.sleeping then
+        Body.add_impulse(self_id, 0, 6, 0)  -- bounce it awake for a demo
+    end
+end</code></pre>
+<ul>
+  <li><code>get_velocity(id)</code> returns <code>x, y, z</code> scalars. Any missing axis comes back as <code>nil</code>, so guard before arithmetic.</li>
+  <li><code>set_velocity(id, x, y, z)</code> sets the linear velocity and returns nothing.</li>
+  <li><code>add_force</code> / <code>add_impulse</code> / <code>add_torque(id, x, y, z)</code> push, kick, or spin the body and return nothing.</li>
+  <li><code>state(id)</code> returns a table of live simulation values, not the authored file — read it for HUD readouts and gameplay checks.</li>
+  <li><code>move_kinematic(id, x, y, z, rx, ry, rz, fixed_dt)</code> places a kinematic body over one step, with Euler rotation in radians.</li>
+</ul>
+<p>3D validation rejects a moving body without a collider and a moving body parented under another moving body. Give every simulated entity its own <a href="{{ path('docs_page', {slug: 'colliders'}) }}">collider</a> and keep moving bodies at the root of their local hierarchy.</p>
+
+<h2>Choosing what to use</h2>
+<ul>
+  <li>Level shell and pillars: <code>static</code>, never touched again.</li>
+  <li>Elevator the script animates: <code>kinematic</code> plus <code>move_kinematic</code> or <code>move_and_slide</code>.</li>
+  <li>Anything gravity owns: <code>dynamic</code>, with <code>ccd</code> if it can go fast.</li>
+  <li>Hero that should not spin: <code>dynamic</code> with <code>lock_rotation: true</code> in 2D, or use <a href="{{ path('docs_page', {slug: 'characters-3d'}) }}">CharacterController3D</a> in 3D.</li>
+</ul>
+<p>Filtering who collides with whom is a separate concern — see <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">Physics layers</a>. Reading contacts and hits is covered in <a href="{{ path('docs_page', {slug: 'physics-events'}) }}">Physics events</a> and <a href="{{ path('docs_page', {slug: 'physics-queries'}) }}">Queries</a>.</p>

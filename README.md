@@ -1,8 +1,8 @@
 # DemiEngine
 
-[Website](https://demiengine.de/) · [Free package catalog](https://demiengine.de/packages/) ·
-[Getting started](docs/getting-started.md) · [Engine concepts](docs/engine-concepts.md) ·
-[Editor guide](docs/editor.md) ·
+[Website](https://demiengine.de/) · [Documentation](https://demiengine.de/docs) · [Free package catalog](https://demiengine.de/packages/) ·
+[Getting started](https://demiengine.de/docs/getting-started) · [Core concepts](https://demiengine.de/docs/core-concepts) ·
+[Editor guide](https://demiengine.de/docs/editor) ·
 [Roadmap](plan.md)
 
 DemiEngine is a Linux-first C++20 game engine for deterministic, text-authored

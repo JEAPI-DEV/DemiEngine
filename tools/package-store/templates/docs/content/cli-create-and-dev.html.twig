@@ -1,0 +1,117 @@
+<h1>Create &amp; develop</h1>
+<p>Every DemiEngine game starts as a <strong>project</strong>: a folder of JSON documents, Lua scripts, and assets that the engine can validate, run, and ship. This page explains how to create that folder and how to iterate on it every day, using the sample game "Skyforge" at <code>games/my_game</code>. Commands below run as <code>./build/linux-debug/demi</code>, the engine command line you built from source.</p>
+
+<h2>What the demi command is</h2>
+<p>The <code>demi</code> binary is the engine's control surface. Instead of hunting for GUI menus, you type what you want: create a project, check the machine, run the game, validate a scene, package a build. The same binary also launches the visual editor. That single entry point means scripts, continuous integration, and humans all speak the same language.</p>
+<pre><code>./build/linux-debug/demi --help</code></pre>
+<ul>
+  <li><code>--help</code> — prints the command groups and their flags. It works on any command and subcommand, for example <code>demi run --help</code> or <code>demi package install --help</code>.</li>
+  <li>No arguments and no project — lists usage and exits with code <code>2</code>, the usage error code.</li>
+</ul>
+<p>Exit codes are stable so shell scripts can branch on them: <code>0</code> success, <code>1</code> validation or test failure, <code>2</code> usage error, <code>3</code> internal error. Schema and capability exports are written atomically (a complete file or no change at all), and packaging is transactional (a failed or cancelled build leaves the previous artifact intact).</p>
+
+<h2>List starter templates</h2>
+<p>A <strong>template</strong> is a ready-made project skeleton: scenes, scripts, and settings that already validate and run. Templates exist so your first minutes are spent playing and editing, not assembling boilerplate.</p>
+<pre><code>./build/linux-debug/demi new --list</code></pre>
+<ul>
+  <li><code>new</code> — the project scaffolding command group.</li>
+  <li><code>--list</code> — prints every available template ID and a one-line description of each.</li>
+</ul>
+<p>Returns the list on standard output and exits <code>0</code>.</p>
+
+<h2>Create a project</h2>
+<p><code>demi new</code> writes a new project folder from a template. It is the only supported way to start a project, because it guarantees a layout the engine understands: a <code>demi.project.json</code> root, conventional scene and script paths, and a project that validates before you touch it.</p>
+<pre><code>./build/linux-debug/demi new games/my_game \
+  --template minimal_2d \
+  --name "Skyforge"</code></pre>
+<ul>
+  <li><code>games/my_game</code> — the directory to create. It must not already contain a project.</li>
+  <li><code>--template minimal_2d</code> — which skeleton to copy. Use an ID from <code>new --list</code>.</li>
+  <li><code>--name "Skyforge"</code> — the human-readable game name written into the project file and later into desktop entries and store listings.</li>
+</ul>
+<p>Preview the same command without writing anything:</p>
+<pre><code>./build/linux-debug/demi new games/my_game \
+  --template minimal_2d \
+  --name "Skyforge" \
+  --dry-run</code></pre>
+<ul>
+  <li><code>--dry-run</code> — prints the file list and settings the command would write, then exits without touching the disk. Returns <code>0</code> when the plan is valid.</li>
+</ul>
+<p>The real creation is <strong>transactional</strong> and <strong>never overwrites</strong> an existing project. If anything fails partway, no half-written folder is left behind. If the destination already has a project, the command refuses with exit code <code>1</code> rather than replacing your work.</p>
+
+<h2>Check the machine with demi doctor</h2>
+<p>A project can only run when the host machine has the tools and libraries that target needs. <strong>Doctor</strong> is an environment check: it inspects the project and the platform and reports what is ready and what is missing, using the same diagnostic codes as validation.</p>
+<pre><code>./build/linux-debug/demi doctor --project games/my_game</code></pre>
+<ul>
+  <li><code>doctor</code> — runs environment and project checks and prints a diagnostic report.</li>
+  <li><code>--project games/my_game</code> — which project to check. A directory or the <code>demi.project.json</code> path both work.</li>
+</ul>
+<p>Android targets need more host tooling (Java, the Android SDK and NDK). Ask for that platform explicitly and, if you want machine-readable output:</p>
+<pre><code>./build/linux-debug/demi doctor --project games/my_game \
+  --platform android --format json</code></pre>
+<ul>
+  <li><code>--platform android</code> — additionally checks the Android toolchain and reports where each tool was discovered.</li>
+  <li><code>--format json</code> — emits the report as JSON instead of text, for editors and automated pipelines.</li>
+</ul>
+<p>Doctor exits <code>0</code> when the environment is usable and non-zero when a blocking problem was found. Optional missing features are reported with the code <code>DOCTOR_OPTIONAL_FEATURE_MISSING</code> so you can tell "cannot run" apart from "cannot use one extra feature".</p>
+
+<h2>Iterate with demi dev</h2>
+<p><strong>Development mode</strong> is the loop you leave open while working: it checks the environment, starts the game, and watches your source files so edits appear in the running game without a restart. The point is a short cycle between "I typed something" and "I see it".</p>
+<pre><code>./build/linux-debug/demi dev --project games/my_game</code></pre>
+<ul>
+  <li><code>dev</code> — runs the doctor checks, then launches the game runtime with watch mode enabled.</li>
+  <li><code>--project games/my_game</code> — the project to develop. If you run from inside the project folder, the flag can be omitted and the nearest <code>demi.project.json</code> is used.</li>
+</ul>
+<p>When a watched file changes, the edit is prepared and swapped in at a frame boundary so the game never applies half a change. When an edit is invalid (bad JSON, unknown component, broken reference), the reload is rejected, diagnostics print, and the last good world keeps running — a typo never kills the session. Fix the file, save again, and the corrected version loads.</p>
+
+<h2>Open the visual editor</h2>
+<p>The <strong>editor</strong> is a native window where you arrange scenes, HUDs, and prefabs visually instead of only editing JSON. It shares the same loaders, validation, and diagnostics as the command line, so what the editor accepts is exactly what the CLI accepts.</p>
+<pre><code>./build/linux-debug/demi editor --project games/my_game</code></pre>
+<ul>
+  <li><code>editor</code> — launches the docking workspace for this project.</li>
+  <li><code>--project games/my_game</code> — which project to open.</li>
+</ul>
+<p>Panel layout and visibility are per-user state stored under the platform data directory; they never enter the project or a shipped build. Start with <a href="{{ path('docs_page', {slug: 'editor-workspace'}) }}">Workspace &amp; panels</a>, then <a href="{{ path('docs_page', {slug: 'editor-authoring'}) }}">Authoring scenes &amp; HUDs</a>.</p>
+
+<h2>Run the game with demi run</h2>
+<p><strong>Run</strong> launches the game the way a player would see it: window on screen, input live, rendering on the GPU. It is also the command used for automated smoke runs and replays.</p>
+<pre><code>./build/linux-debug/demi run --project games/my_game</code></pre>
+<ul>
+  <li><code>run</code> — launches the project's main scene (or the scene the project declares as <code>main_scene</code>).</li>
+  <li><code>--project games/my_game</code> — which project to run.</li>
+</ul>
+<p>Bound the run or remove the window as needed:</p>
+<pre><code>./build/linux-debug/demi run --project games/my_game --max-frames 30</code></pre>
+<pre><code>DEMI_HEADLESS=1 ./build/linux-debug/demi run --project games/my_game --max-frames 3</code></pre>
+<ul>
+  <li><code>--max-frames N</code> — runs exactly N frames and exits. Returns <code>0</code> if the run was clean.</li>
+  <li><code>DEMI_HEADLESS=1</code> — an environment variable that starts the runtime with no visible window. Ideal for quick "does it still boot?" checks and continuous integration.</li>
+</ul>
+<p>On desktop you can also force the initial window size and profile the session; those flags are covered in <a href="{{ path('docs_page', {slug: 'cli-build-and-test'}) }}">Build, cook &amp; test</a> and <a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a>.</p>
+
+<h2>Run on an attached phone</h2>
+<p>Android development reuses the same project. <code>demi run android</code> builds, installs, and launches on a connected physical device; it reuses a current APK when your inputs have not changed.</p>
+<pre><code>./build/linux-debug/demi run android --project games/my_game \
+  --serial &lt;device&gt; --watch</code></pre>
+<ul>
+  <li><code>run android</code> — builds the APK when needed, installs it, and launches it.</li>
+  <li><code>--project games/my_game</code> — the project to run.</li>
+  <li><code>--serial &lt;device&gt;</code> — which connected device to target (the adb serial).</li>
+  <li><code>--watch</code> — enables cooked-source hot reload to the device as you edit.</li>
+</ul>
+<p>Packaging details, signing, and capability checks live in <a href="{{ path('docs_page', {slug: 'android-builds'}) }}">Android builds</a>.</p>
+
+<h2>Command map for daily work</h2>
+<table>
+  <thead><tr><th>Goal</th><th>Command</th></tr></thead>
+  <tbody>
+    <tr><td>See available templates</td><td><code>demi new --list</code></td></tr>
+    <tr><td>Create Skyforge</td><td><code>demi new games/my_game --template &lt;id&gt; --name "Skyforge"</code></td></tr>
+    <tr><td>Check the machine</td><td><code>demi doctor --project games/my_game</code></td></tr>
+    <tr><td>Edit with live reload</td><td><code>demi dev --project games/my_game</code></td></tr>
+    <tr><td>Edit visually</td><td><code>demi editor --project games/my_game</code></td></tr>
+    <tr><td>Play on the desktop</td><td><code>demi run --project games/my_game</code></td></tr>
+    <tr><td>Play on a phone</td><td><code>demi run android --project games/my_game --serial &lt;device&gt;</code></td></tr>
+  </tbody>
+</table>
+<p>Next steps: manage content with <a href="{{ path('docs_page', {slug: 'cli-assets-and-packages'}) }}">Assets &amp; packages</a>, prove behavior with <a href="{{ path('docs_page', {slug: 'cli-build-and-test'}) }}">Build, cook &amp; test</a>, or see every flag on the <a href="{{ path('docs_page', {slug: 'cli'}) }}">CLI reference</a>.</p>

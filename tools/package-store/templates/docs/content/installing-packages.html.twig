@@ -1,0 +1,121 @@
+<h1>Installing packages</h1>
+<p>A <strong>package</strong> is a versioned, reusable unit of game code and content — Lua modules, scenes, prefabs, and assets that several games can share. Packages exist so common gameplay (health, inventory, camera) and common art (prototype textures) are written once and depended on, instead of copied between projects. This page explains how to add, install, update, and use packages in your own game, with examples on "Skyforge" at <code>games/my_game</code>.</p>
+
+<h2>What a package contains</h2>
+<p>Every package is a directory with a <strong>manifest</strong> describing what it is and what it needs:</p>
+<pre><code>{
+  "format_version": 1,
+  "name": "demi.gameplay.health",
+  "version": "1.2.0",
+  "engine": "^1.0.0",
+  "dependencies": {
+    "demi.ui.statbars": "^1.0.0"
+  },
+  "public_modules": ["demi.gameplay.health"],
+  "files": ["scripts/health.lua", "hud/health_bar.prefab.json"]
+}</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>format_version</code></td><td>Always required. Documents without it are rejected.</td></tr>
+    <tr><td><code>name</code></td><td>The package's identity in the registry, for example <code>demi.gameplay.health</code>.</td></tr>
+    <tr><td><code>version</code></td><td>The release version of this package, in semantic versioning form (<code>major.minor.patch</code>).</td></tr>
+    <tr><td><code>engine</code></td><td>The engine version range this package supports.</td></tr>
+    <tr><td><code>dependencies</code></td><td>Other packages this one needs, each with a version constraint.</td></tr>
+    <tr><td><code>public_modules</code></td><td>Module names other projects may <code>require</code>. Everything else in the package is private to it.</td></tr>
+    <tr><td><code>files</code></td><td>The files the package ships: scripts, scenes, prefabs, assets.</td></tr>
+  </tbody>
+</table>
+<p>Why <code>public_modules</code>? Because a package should hide its internals. You depend on its declared API surface; its helper files can change without breaking your game.</p>
+
+<h2>Declaring a dependency</h2>
+<p>Dependencies live in <code>demi.project.json</code> and are managed with the package commands:</p>
+<pre><code>"package_registry": "https://demiengine.de",
+"packages": {
+  "demi.gameplay.health": "^1.0.0",
+  "kenney.textures.prototype": "^1.0.0"
+}</code></pre>
+<ul>
+  <li><code>package_registry</code> — where package names are resolved.</li>
+  <li><code>packages</code> — direct dependencies with version constraints. <code>^1.0.0</code> means "any 1.x release at 1.0.0 or newer, below 2.0.0".</li>
+</ul>
+<p>Add one from the command line:</p>
+<pre><code>./build/linux-debug/demi package add demi.gameplay.health@^1.0.0 \
+  --project games/my_game</code></pre>
+<ul>
+  <li><code>package add name@constraint</code> — resolves the name against the registry and records the constraint as a direct dependency.</li>
+  <li>Returns <code>0</code> and updates the project's <code>packages</code> map and <code>demi.packages.lock.json</code>.</li>
+</ul>
+<p>Remove one with <code>demi package remove name</code>, which drops the direct dependency and re-resolves the lock file.</p>
+
+<h2>Installing into the project</h2>
+<p>Declaring a dependency records intent; <strong>installing</strong> places the resolved files where the game can load them.</p>
+<pre><code>./build/linux-debug/demi package install --project games/my_game</code></pre>
+<ul>
+  <li><code>package install</code> — resolves every dependency and installs the package files into <code>.demi/packages</code>.</li>
+  <li><code>--locked</code> — installs exactly the versions pinned in <code>demi.packages.lock.json</code> and fails rather than re-resolving. Use this in continuous integration so builds are reproducible.</li>
+  <li><code>--offline</code> — installs from the local cache only, with no network access. Returns <code>1</code> when a needed version is not cached.</li>
+  <li><code>--dry-run</code> — prints the install plan and exits without writing anything.</li>
+</ul>
+<p>Two files and one folder are involved:</p>
+<table>
+  <thead><tr><th>Path</th><th>Role</th></tr></thead>
+  <tbody>
+    <tr><td><code>demi.project.json</code></td><td>Declares <strong>what you want</strong>: names and constraints.</td></tr>
+    <tr><td><code>demi.packages.lock.json</code></td><td>Pins <strong>what you got</strong>: exact resolved versions and their hashes. Commit this file.</td></tr>
+    <tr><td><code>.demi/packages</code></td><td>A <strong>derived</strong> install folder. Safe to delete; <code>install</code> recreates it.</td></tr>
+  </tbody>
+</table>
+<p>Why pin a lock file? Because "it worked on my machine" is not a build. The lock file makes two installs of the same project byte-identical in dependency content.</p>
+
+<h2>Updating and inspecting versions</h2>
+<pre><code>./build/linux-debug/demi package update demi.gameplay.health \
+  --project games/my_game</code></pre>
+<ul>
+  <li><code>package update [name]</code> — re-resolves dependencies within their declared constraints and refreshes the lock file. With a name, updates that package only; with no name, updates every package.</li>
+</ul>
+<pre><code>./build/linux-debug/demi package list --project games/my_game
+./build/linux-debug/demi package outdated --project games/my_game --format json</code></pre>
+<ul>
+  <li><code>package list</code> — prints every resolved version currently installed.</li>
+  <li><code>package outdated</code> — prints resolved versions that have a newer release satisfying the constraint.</li>
+  <li><code>--format json</code> — the same listing as JSON for scripts and tools.</li>
+</ul>
+<p>Both exit <code>0</code> when the dependency state is consistent.</p>
+
+<h2>Using package modules from Lua</h2>
+<p>Installed packages are loaded through their <strong>public modules</strong>, named exactly as in the manifest:</p>
+<pre><code>local Health = require("demi.gameplay.health")
+
+Health.attach(self.id, { max = 100 })
+print(Health.current(self.id))   -- current hit points as a number</code></pre>
+<ul>
+  <li><code>require("demi.gameplay.health")</code> — loads the package's public module and returns its API table.</li>
+  <li>Call shapes depend on the package: each package documents its own functions and return values. The pattern is always "require the public module, call its functions, read its return values".</li>
+</ul>
+<p>Requiring a module that is not a declared public module fails with a clear error — the package's private files are not part of the contract.</p>
+<p>Engine services follow the same import style (<code>require("demi.input")</code>, <code>require("demi.transform3d")</code>, and so on); package modules simply live under their own namespace.</p>
+
+<h2>Package families</h2>
+<p>The public catalog organizes packages into families. Names say what they cover:</p>
+<table>
+  <thead><tr><th>Family</th><th>Examples</th><th>What you get</th></tr></thead>
+  <tbody>
+    <tr><td><code>demi.gameplay.*</code></td><td><code>health</code>, <code>controllers</code>, <code>projectiles</code>, <code>interactions</code>, <code>inventory</code>, <code>encounters</code>, <code>camera</code>, <code>traversal</code>, <code>third_person</code>, <code>destruction</code>, <code>core</code></td><td>Reusable gameplay systems as Lua modules and prefabs.</td></tr>
+    <tr><td><code>demi.ui.*</code></td><td>stat bars, menus, themes</td><td>HUD prefabs and UI helpers.</td></tr>
+    <tr><td><code>demi.network.lobby</code></td><td>lobby</td><td>Lobby and matchmaking flows for sessions.</td></tr>
+    <tr><td><code>kenney.textures.prototype</code></td><td>prototype textures</td><td>Placeholder art assets for grayboxing.</td></tr>
+  </tbody>
+</table>
+<p>Each family ships its own manifest, public modules, and tests. Run a package's tests before adopting a new version:</p>
+<pre><code>./build/linux-debug/demi package test .demi/packages/demi.gameplay.health</code></pre>
+<ul>
+  <li><code>package test [dir]</code> — runs the package's declared Lua tests. Returns <code>0</code> on success, <code>1</code> on failure.</li>
+</ul>
+
+<h2>Next steps</h2>
+<ul>
+  <li>Add packages to Skyforge and read the lock file after: the exact versions land there immediately.</li>
+  <li>Ship your own reusable system with <a href="{{ path('docs_page', {slug: 'publishing-packages'}) }}">Publishing packages</a>.</li>
+  <li>See every package command on the <a href="{{ path('docs_page', {slug: 'cli'}) }}">CLI reference</a>, and the asset side of content in <a href="{{ path('docs_page', {slug: 'cli-assets-and-packages'}) }}">Assets &amp; packages</a>.</li>
+</ul>

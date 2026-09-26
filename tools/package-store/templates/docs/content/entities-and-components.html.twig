@@ -1,0 +1,111 @@
+<h1>Entities &amp; components</h1>
+<p>Every object you see or interact with in a DemiEngine game is built from three ideas: a <strong>scene</strong> lists <strong>entities</strong>, and each entity carries <strong>components</strong>. This page explains each idea from scratch, walks a complete JSON example, and covers hierarchy and the small entity fields you will use every day.</p>
+
+<h2>A scene is a list of entities</h2>
+<p>A scene is one file describing everything that loads together — a level, a menu screen, an arena. Scenes live under <code>scenes/</code> as <code>*.scene.json</code> and are referenced by stable ID, for example <code>scene://game/main</code>. When the engine loads that scene, it creates every entity the file lists and runs their scripts. Full document shape: <a href="{{ path('docs_page', {slug: 'scene-json'}) }}">Scene files</a>.</p>
+
+<h2>An entity is an ID plus components</h2>
+<p>An entity is one object in the world: a player, a crate, a camera, a trigger volume. In JSON it is a small object with a stable <code>id</code> and a <code>components</code> map. The ID is how everything else refers to this object — scripts, tests, overrides, other entities. IDs are unique across the whole document.</p>
+
+<h2>A component is one capability's data</h2>
+<p>A component is a named block of data describing exactly one capability of an entity. Position is one component (<code>Transform2D</code> or <code>Transform3D</code>), drawing a picture is another (<code>Sprite</code> or <code>MeshRenderer</code>), taking damage from a script is another (<code>LuaScript</code>). An entity with no components does nothing; add only the capabilities it needs.</p>
+<p>Common components include <code>Sprite</code>, <code>SpriteAnimator2D</code>, <code>Tilemap2D</code>, <code>Camera2D</code>, <code>Rigidbody2D</code>, <code>MeshRenderer</code>, <code>AnimationPlayer3D</code>, <code>CharacterController3D</code>, <code>Fracture3D</code>, <code>AudioSource</code>, and <code>LuaScript</code>.</p>
+
+<h2>A full entity, walked field by field</h2>
+<pre><code>{
+  "id": "player",
+  "name": "Player",
+  "enabled": true,
+  "persistent": false,
+  "tags": ["hero", "damageable"],
+  "layer": "actors",
+  "components": {
+    "Transform2D": { "position": [4, 8] },
+    "Sprite": {
+      "texture": "asset://sprites/player",
+      "size": [1, 1]
+    },
+    "LuaScript": {
+      "module": "script://scripts/player.lua",
+      "properties": { "speed": 6.0 }
+    }
+  },
+  "children": []
+}</code></pre>
+<ul>
+  <li><code>id</code> (string, required) — the stable identity of this entity inside the document. Other files and scripts refer to it as <code>"player"</code>. Never derived from position in an array.</li>
+  <li><code>name</code> (string, optional) — a human-readable label shown in tools. Not used as identity.</li>
+  <li><code>enabled</code> (boolean, optional, default <code>true</code>) — when <code>false</code> the entity exists but is inactive: its components and scripts do not run until it is enabled.</li>
+  <li><code>persistent</code> (boolean, optional, default <code>false</code>) — when <code>true</code> the entity survives a scene change instead of being torn down with the old scene.</li>
+  <li><code>tags</code> (array of strings, optional) — free-form labels for grouping and queries, for example finding every <code>damageable</code> object.</li>
+  <li><code>layer</code> (string, optional) — a named grouping used for visibility and filtering rules alongside physics layers.</li>
+  <li><code>components</code> (object, required) — map of component name to that component's fields. Keys are component names; values are the fields that capability accepts.</li>
+  <li><code>children</code> (array, optional) — nested entities that move and exist with this one. Covered below.</li>
+</ul>
+<p>Inside <code>components</code>:</p>
+<ul>
+  <li><code>Transform2D.position</code> — <code>[x, y]</code> coordinates in world units. Omitting <code>Transform2D</code> places the entity at the origin of its 2D domain.</li>
+  <li><code>Sprite.texture</code> — an <a href="{{ path('docs_page', {slug: 'assets-and-ids'}) }}">asset URI</a> naming the image to draw. <code>Sprite.size</code> is the drawn extent in world units.</li>
+  <li><code>LuaScript.module</code> — a <code>script://</code> URI naming the Lua file attached to this entity. <code>LuaScript.properties</code> are typed values the script can read and tools can edit.</li>
+</ul>
+<p>Every entity needs a transform in one dimensional domain — <code>Transform2D</code>, <code>Transform3D</code>, or <code>IsoTransform</code> — because that is what places it in the world.</p>
+
+<h2>Hierarchy with children</h2>
+<p>Related objects should nest under their owner using <code>children</code>. A sword that follows the player is a child of the player; a roof is a child of the house. Children inherit their parent's placement, so moving the parent moves everything under it.</p>
+<pre><code>{
+  "id": "house",
+  "components": { "Transform3D": { "position": [0, 0, 0] } },
+  "children": [
+    {
+      "id": "house/roof",
+      "components": { "Transform3D": { "position": [0, 2, 0] } }
+    }
+  ]
+}</code></pre>
+<ul>
+  <li>Parent <code>house</code> — a <code>Transform3D</code> at the world origin.</li>
+  <li>Child <code>house/roof</code> — its own <code>Transform3D</code> with a local offset two units up. In world space the roof sits at <code>[0, 2, 0]</code> because the parent is at the origin; if the house moves, the roof moves with it.</li>
+</ul>
+<p>Hierarchy rules to keep in mind:</p>
+<ul>
+  <li><strong>Document-wide IDs</strong> — nesting is not a separate ID namespace. Every ID in the file must be unique, parent and child alike. The <code>house/roof</code> style is a naming convention, not a syntax the engine parses.</li>
+  <li><strong>Matching transform domains</strong> — a parent and its children must use the same domain: all <code>Transform2D</code>, all <code>Transform3D</code>, or all <code>IsoTransform</code>. Mixing domains is a validation error.</li>
+  <li><strong>Maximum depth 128</strong> — you may nest at most 128 levels of children. Deeper trees are rejected during validation.</li>
+  <li><strong>Explicit <code>parent</code> fields</strong> — the transform <code>parent</code> field is only for relationships that cannot be expressed by nesting, such as across prefabs or scenes. It also names a stable entity ID, and the same domain rule applies.</li>
+</ul>
+
+<h2>Omitted fields use defaults</h2>
+<p>You only write the fields that matter. Anything you leave out takes that component's default value, which keeps authored JSON short and readable. In the example above <code>Sprite</code> sets only <code>texture</code> and <code>size</code>; color, flip, and render-order fields are all at their defaults. Values you do write are kept exactly as authored.</p>
+
+<h2>Attaching gameplay with LuaScript</h2>
+<p>Components give an entity capabilities; a <code>LuaScript</code> component gives it behavior. The script file is a Lua module that imports engine services and defines lifecycle functions:</p>
+<pre><code>local Input = require("demi.input")
+local Transform2D = require("demi.transform2d")
+
+local speed = 6.0
+
+function on_create()
+    -- runs once when the entity is created
+end
+
+function on_update(dt)
+    local x, y = Input.vector("move")
+    local px, py = Transform2D.get_position("player")
+    Transform2D.set_position("player", px + x * speed * dt, py + y * speed * dt)
+end</code></pre>
+<ul>
+  <li><code>require("demi.input")</code> and <code>require("demi.transform2d")</code> — import engine services explicitly. Each returns a table of functions for that service.</li>
+  <li><code>on_create()</code> — lifecycle hook run once when the entity is created.</li>
+  <li><code>on_update(dt)</code> — lifecycle hook run every frame. <code>dt</code> is the frame time in seconds.</li>
+  <li><code>Input.vector("move")</code> — returns two numbers, the current movement axes in the range <code>-1</code> to <code>1</code>.</li>
+  <li><code>Transform2D.get_position("player")</code> — returns the entity's <code>x</code>, <code>y</code> world position. <code>Transform2D.set_position</code> writes it back.</li>
+  <li><code>speed</code> — a local value; the matching <code>properties.speed</code> field in JSON is how tools expose an editable value for it.</li>
+</ul>
+<p>Other lifecycle hooks are <code>on_start</code>, <code>on_fixed_update</code>, and <code>on_destroy</code>. The full pattern is in <a href="{{ path('docs_page', {slug: 'script-lifecycle'}) }}">Script lifecycle</a>.</p>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="{{ path('docs_page', {slug: 'prefabs-and-instances'}) }}">Prefabs &amp; instances</a> — reuse an entity composition across scenes.</li>
+  <li><a href="{{ path('docs_page', {slug: 'core-concepts'}) }}">Core concepts</a> — how scenes, assets, and packages fit together.</li>
+  <li><a href="{{ path('docs_page', {slug: 'entity-api'}) }}">Entity API</a> — finding and changing entities from Lua.</li>
+</ul>

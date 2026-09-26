@@ -1,0 +1,126 @@
+<h1>Build &amp; platform settings</h1>
+<p>Build metadata is the block of the project file that describes the game as a product: what it is called on a desktop, which identity it installs under on a phone, how big its window opens, and which device features it may use. This page explains each setting, why it exists, and what a finished package contains.</p>
+
+<h2>What build metadata is for</h2>
+<p>Gameplay files describe a world. Build metadata describes the <em>application</em> around it. Two jobs depend on it:</p>
+<ul>
+  <li><strong>Packaging</strong> — producing an installable desktop build or an Android APK needs a stable application identity, display strings, icons, and version numbers. Without them there is nothing to install under.</li>
+  <li><strong>Presentation and policy</strong> — window size and mode control how the desktop game appears; Android orientation and permissions declare what the app may do on a device.</li>
+</ul>
+<p>Everything lives under <code>build</code> in <code>demi.project.json</code>. See <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a> for the rest of the project file.</p>
+
+<h2>A complete <code>build</code> block</h2>
+<pre><code>"build": {
+  "application_id": "com.example.skyforge",
+  "display_name": "Skyforge",
+  "executable_name": "skyforge",
+  "version_name": "0.1.0",
+  "version_code": 1,
+  "icon": "asset://branding/icon",
+  "splash": "asset://branding/splash",
+  "window": {
+    "width": 1280,
+    "height": 720,
+    "mode": "windowed"
+  },
+  "android": {
+    "orientation": "landscape",
+    "permissions": ["android.permission.INTERNET"]
+  }
+}</code></pre>
+<p>Field by field:</p>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>application_id</code></td><td>The product's permanent identity in reverse-DNS form. Required before packaging.</td></tr>
+    <tr><td><code>display_name</code></td><td>Name people see: window title, desktop entry, installed app label.</td></tr>
+    <tr><td><code>executable_name</code></td><td>File name of the launched program (for example <code>skyforge</code>).</td></tr>
+    <tr><td><code>version_name</code></td><td>Human-readable version, typically semantic (<code>0.1.0</code>).</td></tr>
+    <tr><td><code>version_code</code></td><td>Integer version that increases with every release. Stores use it to order updates.</td></tr>
+    <tr><td><code>icon</code></td><td>App icon source, as an <code>asset://</code> URI.</td></tr>
+    <tr><td><code>splash</code></td><td>Startup image, as an <code>asset://</code> URI.</td></tr>
+    <tr><td><code>window</code></td><td>Desktop window size and mode (below).</td></tr>
+    <tr><td><code>android</code></td><td>Android orientation and permissions (below).</td></tr>
+  </tbody>
+</table>
+
+<h2><code>application_id</code> rules</h2>
+<p>The application ID is the one field that must never change after you ship: it is how operating systems recognize "this is the same app" across updates and how stores track installs and purchases.</p>
+<ul>
+  <li><strong>Reverse-DNS form.</strong> At least two dot-separated segments, owned-looking and stable: <code>com.example.skyforge</code>, <code>io.studio.mygame</code>. Segments are lowercase letters, digits, and underscores; each segment starts with a letter.</li>
+  <li><strong>Required for packaging.</strong> A missing or malformed <code>application_id</code> fails the packaging step.</li>
+  <li><strong>Unique.</strong> Two different products must not share an ID — the device treats them as one app and will overwrite each other.</li>
+  <li><strong>Not the display name.</strong> <code>display_name</code> is cosmetic and can change any time; <code>application_id</code> is identity and cannot.</li>
+</ul>
+<p>Example for the Skyforge sample in <code>games/my_game</code>: <code>application_id</code> is <code>com.example.skyforge</code>, while <code>display_name</code> is simply <code>Skyforge</code>.</p>
+
+<h2>Names and versions</h2>
+<pre><code>"display_name": "Skyforge",
+"executable_name": "skyforge",
+"version_name": "0.1.0",
+"version_code": 1</code></pre>
+<ul>
+  <li><code>display_name</code> — what users read. May contain spaces and capitalization.</li>
+  <li><code>executable_name</code> — what the shell runs. Keep it short and filesystem-safe: letters, digits, dashes. This is the name of the binary in a desktop package.</li>
+  <li><code>version_name</code> — the version you talk about in release notes.</li>
+  <li><code>version_code</code> — the version machines compare. Bump it by at least one for every published build, even for a hotfix; a store will refuse an update whose code is not higher than the installed one.</li>
+</ul>
+
+<h2>Icon and splash</h2>
+<pre><code>"icon": "asset://branding/icon",
+"splash": "asset://branding/splash"</code></pre>
+<ul>
+  <li>Both values are <code>asset://</code> URIs pointing at manifests of type <code>Icon2D</code> or an image type. See <a href="{{ path('docs_page', {slug: 'asset-json'}) }}">Asset manifests</a>.</li>
+  <li>Source images may be <strong>PNG, JPEG, WebP, or SVG</strong>. SVG is a good icon source because it scales to every required size cleanly.</li>
+  <li><code>icon</code> is shown as the desktop shortcut / installed app icon. Provide a square image; the platform crops and pads it into its own icon shapes.</li>
+  <li><code>splash</code> is shown while the game starts, especially on Android. Use a simple image that tolerates wide and tall crops.</li>
+</ul>
+
+<h2>Window modes</h2>
+<pre><code>"window": {
+  "width": 1280,
+  "height": 720,
+  "mode": "windowed"
+}</code></pre>
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>width</code> / <code>height</code></td><td>Initial window size in screen pixels for desktop platforms.</td></tr>
+    <tr><td><code>mode</code></td><td>One of <code>windowed</code> (a normal titled window), <code>borderless</code> (fills the screen without a title bar, easy to alt-tab), <code>fullscreen</code> (exclusive full screen).</td></tr>
+  </tbody>
+</table>
+<p>Choose <code>windowed</code> while developing — it is the easiest to debug. <code>borderless</code> is the usual shipping default on desktop because it behaves well with multi-monitor setups. <code>fullscreen</code> can give the display more control but is less forgiving when players alt-tab.</p>
+
+<h2>Android orientation and permissions</h2>
+<pre><code>"android": {
+  "orientation": "landscape",
+  "permissions": ["android.permission.INTERNET"]
+}</code></pre>
+<ul>
+  <li><code>orientation</code> — <code>landscape</code> or <code>portrait</code>. It locks the activity to that rotation so the HUD and camera never have to cope with an unexpected aspect. Pick the orientation your game is designed for.</li>
+  <li><code>permissions</code> — the Android permission strings this build declares, each written in the platform's dotted form, for example <code>android.permission.INTERNET</code>.</li>
+</ul>
+<p><strong>Why <code>android.permission.INTERNET</code> is explicit.</strong> On Android, network access is not granted by default. A game that never lists this permission cannot open sockets at all — no multiplayer, no asset fetch, no package store. Declaring it is a deliberate promise to the player: "this app uses the network." Declare only what you use; every extra permission is a question a careful player will ask.</p>
+<p>Multiplayer titles need this permission. Single-player Skyforge can ship with an empty list. Capability notes per platform: <a href="{{ path('docs_page', {slug: 'capabilities'}) }}">Platform capabilities</a>.</p>
+
+<h2>What lands in a package</h2>
+<p>When you package a build, the produced artifact is a self-contained game. It contains:</p>
+<ul>
+  <li>The executable named by <code>executable_name</code>.</li>
+  <li>The cooked game data: cooked scenes, prefabs, HUD documents, scripts, and imported assets — everything the game references, and nothing else from the project tree.</li>
+  <li>Branding: the icon and splash derived from the declared assets.</li>
+  <li>Platform metadata: application ID, display name, versions, orientation, and the exact permission list.</li>
+</ul>
+<p>What does <strong>not</strong> land in a package:</p>
+<ul>
+  <li>Authoring-only files and editor state.</li>
+  <li>Unreferenced project files — anything the game never reaches is left out.</li>
+  <li>Player saves. Saves are written at run time to the platform's user-data directory as <code>*.save.json</code>, never into the game install or the project tree. See <a href="{{ path('docs_page', {slug: 'game-data'}) }}">Game data &amp; saves</a>.</li>
+</ul>
+<p>Packaging is transactional: if a build fails or you cancel it, the previous artifact stays intact and no partial output is published.</p>
+
+<h2>Validating before you package</h2>
+<p>Always validate the exact target first. Android accepts less than desktop, and the validator will say so instead of failing at install time:</p>
+<pre><code>./build/linux-debug/demi validate games/my_game
+./build/linux-debug/demi validate games/my_game --platform android</code></pre>
+<p>The first command checks the project and all reachable sources for desktop; the second checks a shipping Android target and surfaces platform capability gaps. Fix every reported error, then package. Shipping workflow details: <a href="{{ path('docs_page', {slug: 'shipping'}) }}">Shipping</a>.</p>
