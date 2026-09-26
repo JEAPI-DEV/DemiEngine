@@ -65,16 +65,16 @@ demi save inspect saves/slot1.json</code></pre>
   <li><code>demi test</code> — runs built-in scaffold checks: the quick self-tests of the toolchain itself.</li>
   <li>Returns <code>0</code> on success, <code>1</code> on failure.</li>
 </ul>
-<pre><code>demi test linux --project games/my_game</code></pre>
+<pre><code>demi test linux</code></pre>
 <ul>
-  <li><code>test linux --project p</code> — desktop end-to-end tests through the real runtime window or headless path.</li>
+  <li><code>test linux</code> — desktop end-to-end tests through the real runtime window or headless path.</li>
 </ul>
-<pre><code>demi test android --project games/my_game --serial &lt;device&gt;</code></pre>
+<pre><code>demi test android --serial &lt;device&gt;</code></pre>
 <ul>
-  <li><code>test android --project p --serial d</code> — device end-to-end tests via adb on a connected physical device.</li>
+  <li><code>test android --serial d</code> — device end-to-end tests via adb on a connected physical device.</li>
   <li><code>--serial &lt;device&gt;</code> — which device to target.</li>
 </ul>
-<pre><code>DEMI_HEADLESS=1 demi test --project games/my_game</code></pre>
+<pre><code>DEMI_HEADLESS=1 demi test</code></pre>
 <ul>
   <li><code>DEMI_HEADLESS=1</code> — runs without a visible window. Returns <code>0</code> only when every test passed.</li>
 </ul>
@@ -82,24 +82,24 @@ demi save inspect saves/slot1.json</code></pre>
 
 <h2>Run with tests, replay, and profiling</h2>
 <p><code>demi run</code> accepts the same evidence-gathering flags, which is how you reproduce a bug report on your machine:</p>
-<pre><code>demi run --project games/my_game --e2e-tests</code></pre>
+<pre><code>demi run --e2e-tests</code></pre>
 <ul>
   <li><code>--e2e-tests</code> — runs the project E2E scripts during launch and reports pass/fail.</li>
 </ul>
-<pre><code>demi run --project games/my_game \
+<pre><code>demi run \
   --input-replay fixtures/bug123.replay.json</code></pre>
 <ul>
   <li><code>--input-replay file</code> — replays a recorded input stream instead of live input. The project's fixed timestep must match the fixture.</li>
 </ul>
-<pre><code>demi run linux --project games/my_game --profiler \
+<pre><code>demi run linux --profiler \
   --profile-report report.csv --profile-frames frames.csv</code></pre>
 <ul>
-  <li><code>run linux --project p</code> — desktop launch with the Linux runtime.</li>
+  <li><code>run linux</code> — desktop launch with the Linux runtime.</li>
   <li><code>--profiler</code> — prints slow-frame details while the game runs.</li>
   <li><code>--profile-report r.csv</code> — writes an aggregate scope report (totals per named scope).</li>
   <li><code>--profile-frames f.csv</code> — writes per-frame scope totals.</li>
 </ul>
-<pre><code>demi run --project games/my_game \
+<pre><code>demi run \
   --debug-overlays colliders,contacts --window-size 1280x720</code></pre>
 <ul>
   <li><code>--debug-overlays names</code> — comma-separated overlay names (<code>colliders</code>, <code>contacts</code>, <code>grid</code>, <code>entity_ids</code>, <code>draw_order</code>, <code>ui_bounds</code>, <code>profiler</code>) overriding the project settings for this run.</li>
@@ -109,24 +109,24 @@ demi save inspect saves/slot1.json</code></pre>
 
 <h2>Cook platform content</h2>
 <p><strong>Cooking</strong> converts authored source (JSON, scripts, imported assets) into the platform-ready form the runtime actually loads: compiled scripts, optimized textures, and a content manifest with hashes. Cooking exists so runtime startup is fast and so shipping content is a known, hashed set of files rather than loose source.</p>
-<pre><code>demi cook --project games/my_game --platform linux</code></pre>
+<pre><code>demi cook --platform linux</code></pre>
 <ul>
-  <li><code>cook --project p</code> — validates, then cooks all reachable source.</li>
+  <li><code>cook</code> — validates, then cooks all reachable source.</li>
   <li><code>--platform linux</code> — which platform to cook for.</li>
 </ul>
 <p>Writes cooked output under <code>generated/cooked/&lt;platform&gt;</code> plus <code>cook.manifest.json</code> listing every cooked path and its hash. Exits <code>0</code> when the cook is complete and consistent.</p>
 
 <h2>Build shippable artifacts</h2>
 <p><strong>Building</strong> wraps cooked content and a runtime into an artifact a player can install. Packaging is transactional: a failed or cancelled build leaves the previous artifact intact and never publishes a partial staging directory.</p>
-<pre><code>demi build linux --project games/my_game</code></pre>
+<pre><code>demi build linux</code></pre>
 <ul>
-  <li><code>build linux --project p</code> — cooks and packages a Linux runtime bundle: executable, launcher, cooked content, freedesktop entry, icon, attributions, and <code>build-report.json</code>.</li>
+  <li><code>build linux</code> — cooks and packages a Linux runtime bundle: executable, launcher, cooked content, freedesktop entry, icon, attributions, and <code>build-report.json</code>.</li>
 </ul>
-<pre><code>demi build apk --project games/my_game --configuration release</code></pre>
+<pre><code>demi build apk --configuration release</code></pre>
 <ul>
   <li><code>build apk</code> — packages an Android APK. Add <code>--configuration release</code> for a release build and <code>--gradle</code> to invoke Gradle with a specific wrapper.</li>
 </ul>
-<pre><code>demi build aab --project games/my_game</code></pre>
+<pre><code>demi build aab</code></pre>
 <ul>
   <li><code>build aab</code> — packages an Android App Bundle for store distribution.</li>
 </ul>

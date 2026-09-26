@@ -48,10 +48,9 @@
 
 <h2>How cooking creates generated/</h2>
 <p>Cooking is the step that turns source into runtime-ready content. You ask for a platform, and the engine validates the project and every reachable source, then writes cooked output under <code>generated/cooked/&lt;platform&gt;</code> together with a <code>cook.manifest.json</code> listing every included path and hash:</p>
-<pre><code>demi cook --project games/my_game --platform linux</code></pre>
+<pre><code>demi cook --platform linux</code></pre>
 <ul>
   <li><code>cook</code> — validates and cooks platform content.</li>
-  <li><code>--project games/my_game</code> — the project to cook.</li>
   <li><code>--platform linux</code> — which platform to cook for. Output lands under <code>generated/cooked/linux</code>.</li>
 </ul>
 <p>The manifest's hashes make the output checkable and rebuilds incremental: content that did not change is not redone. That is also why you never edit cooked files — they are derived from source by a deterministic step, and the next cook would replace them. The pipeline and hash inputs are described in <a href="{{ path('docs_page', {slug: 'cooking'}) }}">Cooking</a>.</p>

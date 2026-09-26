@@ -84,19 +84,19 @@ Test.swipe_xy(300, 200, 360, 200)</code></pre>
 
 <h2>Running tests</h2>
 <p>Four runners cover the same suite at different levels of realism:</p>
-<pre><code>demi test linux --project games/my_game</code></pre>
+<pre><code>demi test linux</code></pre>
 <ul>
-  <li><code>test linux --project p</code> — desktop end-to-end through the real runtime on this machine.</li>
+  <li><code>test linux</code> — desktop end-to-end through the real runtime on this machine.</li>
 </ul>
-<pre><code>demi test android --project games/my_game --serial &lt;device&gt;</code></pre>
+<pre><code>demi test android --serial &lt;device&gt;</code></pre>
 <ul>
-  <li><code>test android --project p --serial d</code> — device end-to-end via adb on a connected physical device. Android qualification uses real hardware; do not assume an emulator is available.</li>
+  <li><code>test android --serial d</code> — device end-to-end via adb on a connected physical device. Android qualification uses real hardware; do not assume an emulator is available.</li>
 </ul>
-<pre><code>demi run --project games/my_game --e2e-tests</code></pre>
+<pre><code>demi run --e2e-tests</code></pre>
 <ul>
   <li><code>run --e2e-tests</code> — runs the project E2E scripts during a normal launch. Useful when you want the test pass and a playable window in one command.</li>
 </ul>
-<pre><code>DEMI_HEADLESS=1 demi test --project games/my_game</code></pre>
+<pre><code>DEMI_HEADLESS=1 demi test</code></pre>
 <ul>
   <li><code>DEMI_HEADLESS=1</code> — runs with no visible window. The fastest signal in a loop or on a build machine.</li>
 </ul>

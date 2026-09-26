@@ -3,8 +3,8 @@
 
 <h2>What cooking is</h2>
 <p>Importing records what a source is; cooking produces what a platform runs. Output lives under <code>generated/cooked/&lt;platform&gt;</code> and is described by a <code>cook.manifest.json</code>. Nothing in that tree is hand-edited or committed — it is derived data, rebuilt whenever inputs change.</p>
-<pre><code>demi cook --project games/skyforge --platform linux</code></pre>
-<p><code>demi cook</code> takes <code>--project</code> for the project root and <code>--platform</code> for the target (for example <code>linux</code> or <code>android</code>). It writes cooked files under <code>generated/cooked/&lt;platform&gt;</code> and a <code>cook.manifest.json</code> describing every cooked output. Re-running is incremental: only inputs whose cook key changed are redone.</p>
+<pre><code>demi cook --platform linux</code></pre>
+<p><code>demi cook</code> takes <code>--platform</code> for the target (for example <code>linux</code> or <code>android</code>). It writes cooked files under <code>generated/cooked/&lt;platform&gt;</code> and a <code>cook.manifest.json</code> describing every cooked output. Re-running is incremental: only inputs whose cook key changed are redone.</p>
 
 <h2>Cook keys</h2>
 <p>Each asset's cook key is the fingerprint of everything that can change its output. If any part changes, that asset recooks; if none do, the previous output is reused.</p>
@@ -34,7 +34,7 @@
 
 <h2>When to cook</h2>
 <pre><code>demi validate games/skyforge
-demi cook --project games/skyforge --platform linux</code></pre>
+demi cook --platform linux</code></pre>
 <p>Validate the project first — <code>demi validate</code> checks the project and every reachable source and reports schema and reference errors. Cook only what you are about to run or ship. Playtesting on the same platform usually cooks implicitly through <code>demi run</code>; an explicit cook is for CI, packaging, and checking a clean rebuild. Package builds require a successful cook for their exact target, as described in <a href="{{ path('docs_page', {slug: 'linux-bundles'}) }}">Linux bundles</a> and <a href="{{ path('docs_page', {slug: 'android-builds'}) }}">Android builds</a>.</p>
 
 <h2>Determinism</h2>

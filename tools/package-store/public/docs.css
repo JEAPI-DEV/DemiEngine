@@ -27,6 +27,12 @@
     background: var(--blue)
 }
 
+.docs-hero .button.secondary {
+    background: #fff;
+    color: var(--ink);
+    border: 1px solid var(--line)
+}
+
 .docs-path {
     padding: 48px 7% 20px;
     display: grid;
@@ -148,38 +154,106 @@
     font-size: 12px;
     color: var(--blue);
     font-weight: 600;
-    margin-bottom: 22px
+    margin-bottom: 14px
+}
+
+.docs-nav-panel {
+    margin: 0
+}
+
+.docs-nav-summary {
+    display: none;
+    cursor: pointer;
+    list-style: none;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px 14px;
+    background: var(--paper);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink)
+}
+
+.docs-nav-summary::-webkit-details-marker {
+    display: none
+}
+
+.docs-nav-summary::after {
+    content: "▾";
+    float: right;
+    color: var(--muted)
+}
+
+.docs-nav-panel[open] .docs-nav-summary::after {
+    content: "▴"
 }
 
 .docs-sidebar nav {
     display: grid;
-    gap: 22px
+    gap: 18px
 }
 
-.docs-sidebar h3 {
+.docs-nav-section h3 {
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 1.4px;
     text-transform: uppercase;
     color: #7a8292;
-    margin: 0 0 8px
+    margin: 0 0 6px;
+    padding-left: 2px
 }
 
-.docs-sidebar ul {
+.docs-nav-tree,
+.docs-nav-children {
     list-style: none;
     margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 2px
+    padding: 0
 }
 
-.docs-sidebar a {
+.docs-nav-tree {
+    display: grid;
+    gap: 1px
+}
+
+.docs-nav-parent {
+    margin: 0 0 6px
+}
+
+.docs-nav-parent > a {
     display: block;
-    padding: 7px 10px;
+    padding: 6px 8px;
     border-radius: 4px;
     font-size: 13px;
-    color: #4a5464;
+    font-weight: 650;
+    color: var(--ink);
+    line-height: 1.35
+}
+
+.docs-nav-children {
+    margin: 1px 0 4px 9px;
+    padding-left: 12px;
+    border-left: 1px solid #d5dae3;
+    display: grid;
+    gap: 0
+}
+
+.docs-nav-children a {
+    position: relative;
+    display: block;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12.5px;
+    color: #5a6576;
     line-height: 1.4
+}
+
+.docs-nav-children a::before {
+    content: "";
+    position: absolute;
+    left: -12px;
+    top: 50%;
+    width: 9px;
+    border-top: 1px solid #d5dae3
 }
 
 .docs-sidebar a:hover {
@@ -191,6 +265,20 @@
     background: #eef2ff;
     color: var(--blue);
     font-weight: 600
+}
+
+.docs-nav-children a[aria-current="page"] {
+    background: #eef2ff
+}
+
+@media(min-width:1001px) {
+    .docs-nav-panel > .docs-nav-summary {
+        display: none
+    }
+
+    .docs-nav-panel:not([open]) > nav {
+        display: grid
+    }
 }
 
 .docs-article {
@@ -434,12 +522,21 @@
     .docs-sidebar {
         position: static;
         max-height: none;
-        border-bottom: 1px solid var(--line);
-        padding-bottom: 18px
+        padding: 0
+    }
+
+    .docs-nav-summary {
+        display: block
+    }
+
+    .docs-nav-panel:not([open]) > nav {
+        display: none
     }
 
     .docs-sidebar nav {
-        grid-template-columns: repeat(2, minmax(0, 1fr))
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        padding: 14px 4px 8px;
+        gap: 16px
     }
 }
 
@@ -466,7 +563,9 @@
     }
 
     .docs-sidebar nav {
-        grid-template-columns: 1fr
+        grid-template-columns: 1fr;
+        max-height: 55vh;
+        overflow: auto
     }
 
     .docs-article h2 {
@@ -504,21 +603,6 @@
         transition: none
     }
 }
-.docs-nav-parent > a {
-    font-weight: 600
-}
-
-.docs-nav-children {
-    margin: 2px 0 8px;
-    padding-left: 10px;
-    border-left: 1px solid var(--line)
-}
-
-.docs-nav-children a {
-    font-size: 12.5px;
-    padding: 5px 8px
-}
-
 .docs-subpages {
     margin: 0 0 28px;
     padding: 18px 20px;

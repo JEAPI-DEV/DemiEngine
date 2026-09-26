@@ -40,8 +40,8 @@
   <li><code>packages</code> — direct dependencies with version constraints. <code>^1.0.0</code> means "any 1.x release at 1.0.0 or newer, below 2.0.0".</li>
 </ul>
 <p>Add one from the command line:</p>
-<pre><code>demi package add demi.gameplay.health@^1.0.0 \
-  --project games/my_game</code></pre>
+<pre><code>demi package add demi.gameplay.health@^1.0.0
+ </code></pre>
 <ul>
   <li><code>package add name@constraint</code> — resolves the name against the registry and records the constraint as a direct dependency.</li>
   <li>Returns <code>0</code> and updates the project's <code>packages</code> map and <code>demi.packages.lock.json</code>.</li>
@@ -50,7 +50,7 @@
 
 <h2>Installing into the project</h2>
 <p>Declaring a dependency records intent; <strong>installing</strong> places the resolved files where the game can load them.</p>
-<pre><code>demi package install --project games/my_game</code></pre>
+<pre><code>demi package install</code></pre>
 <ul>
   <li><code>package install</code> — resolves every dependency and installs the package files into <code>.demi/packages</code>.</li>
   <li><code>--locked</code> — installs exactly the versions pinned in <code>demi.packages.lock.json</code> and fails rather than re-resolving. Use this in continuous integration so builds are reproducible.</li>
@@ -69,13 +69,13 @@
 <p>Why pin a lock file? Because "it worked on my machine" is not a build. The lock file makes two installs of the same project byte-identical in dependency content.</p>
 
 <h2>Updating and inspecting versions</h2>
-<pre><code>demi package update demi.gameplay.health \
-  --project games/my_game</code></pre>
+<pre><code>demi package update demi.gameplay.health
+ </code></pre>
 <ul>
   <li><code>package update [name]</code> — re-resolves dependencies within their declared constraints and refreshes the lock file. With a name, updates that package only; with no name, updates every package.</li>
 </ul>
-<pre><code>demi package list --project games/my_game
-demi package outdated --project games/my_game --format json</code></pre>
+<pre><code>demi package list
+demi package outdated --format json</code></pre>
 <ul>
   <li><code>package list</code> — prints every resolved version currently installed.</li>
   <li><code>package outdated</code> — prints resolved versions that have a newer release satisfying the constraint.</li>

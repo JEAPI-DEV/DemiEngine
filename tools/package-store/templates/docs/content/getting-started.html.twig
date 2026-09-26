@@ -16,15 +16,14 @@ demi new games/my_game --template platformer --name "My Game"</code></pre>
 <p>A generated project contains source JSON, a Lua entry script, a deterministic smoke replay, and project-local LuaLS stubs for editor autocomplete.</p>
 
 <h2>3. Check your environment</h2>
-<pre><code>demi doctor --project games/my_game/demi.project.json
-demi doctor --project games/my_game/demi.project.json \
-  --platform android --format json</code></pre>
+<pre><code>demi doctor
+demi doctor --platform android --format json</code></pre>
 <p>Doctor diagnostics use stable codes and the same text or JSON diagnostic format as validation. Android checks include Java, SDK, and NDK discovery.</p>
 
 <h2>4. Run the development loop</h2>
 <pre><code>cd games/my_game
 demi dev</code></pre>
-<p><code>demi dev</code> finds the nearest <code>demi.project.json</code>, runs environment and project checks, and starts the runtime with watch mode enabled. Pass <code>--project</code> when invoking it from outside the project tree.</p>
+<p><code>demi dev</code> finds the nearest <code>demi.project.json</code>, runs environment and project checks, and starts the runtime with watch mode enabled. Run it from inside the project folder. (Every command works that way; pass <code>--project</code> only when you invoke <code>demi</code> from outside.)</p>
 <div class="docs-note"><strong>Hot reload</strong><p>Edit Lua, scene, HUD, data, and asset files while the game keeps running. Changes are prepared at frame boundaries and replace the live world only when valid. Invalid edits print diagnostics and the last good world stays active. Build output, saves, <code>.git</code>, and generated files are not watched.</p></div>
 <p>On an attached Android device the same flow is <code>demi run android --watch</code>.</p>
 
@@ -32,10 +31,9 @@ demi dev</code></pre>
 <p>Validate a project and every reachable source:</p>
 <pre><code>demi validate examples/minimal_3d</code></pre>
 <p>One-frame headless smoke test:</p>
-<pre><code>DEMI_HEADLESS=1 demi test \
-  --project games/my_game/demi.project.json</code></pre>
+<pre><code>DEMI_HEADLESS=1 demi test</code></pre>
 <p>Desktop E2E through the real runtime:</p>
-<pre><code>demi test linux --project games/my_game</code></pre>
+<pre><code>demi test linux</code></pre>
 
 <h2>What is in a project?</h2>
 <pre><code>my_game/

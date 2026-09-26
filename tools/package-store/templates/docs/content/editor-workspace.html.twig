@@ -2,10 +2,9 @@
 <p>The <strong>editor</strong> is a native application window where you build a DemiEngine game by looking at it: a tree of the objects in your level, a live picture of the scene, and a form for the properties of whatever you selected. It exists because arranging levels and interfaces in JSON alone is slow and error-prone, while an editor that shares the engine's own loaders and validation stays honest about what the game will actually do.</p>
 
 <h2>Opening the workspace</h2>
-<pre><code>demi editor --project games/my_game</code></pre>
+<pre><code>demi editor</code></pre>
 <ul>
   <li><code>editor</code> — launches the native editor application.</li>
-  <li><code>--project games/my_game</code> — which project to open. The sample game "Skyforge" lives at <code>games/my_game</code>.</li>
 </ul>
 <p>The editor is a <strong>docking workspace</strong>: a single window whose panels tile, stack, and rearrange like tabs in a browser. Drag a panel's title to dock it beside or below another. The dock layout is per-user state stored under the platform data directory — it never enters the project folder, generated content, packages, undo history, or a shipped build. Deleting your local settings restores the default layout; your game files are untouched.</p>
 <p>Interface scale is adjustable in the editor settings, so the same workspace works on a small laptop screen and a high-density display.</p>

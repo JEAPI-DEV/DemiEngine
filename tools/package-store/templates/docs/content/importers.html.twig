@@ -4,9 +4,8 @@
 <h2>What importing does</h2>
 <p>Importing copies or references a source, writes a small <code>*.asset.json</code> manifest next to it, and records a content hash and dependencies. The manifest is the asset's identity — scenes and scripts reference the <code>asset://</code> ID, never the file path. When you edit the source, you reimport and the ID stays the same.</p>
 <pre><code>demi asset import assets/textures/skyforge_rune.png \
-  --project games/skyforge \
   --id asset://textures/skyforge_rune</code></pre>
-<p><code>demi asset import &lt;source&gt;</code> takes the source file path, <code>--project</code> for the project root, and <code>--id</code> for the stable <code>asset://</code> identity. It writes a <code>skyforge_rune.asset.json</code> manifest and records the import. If two importers can claim the same file, add <code>--importer &lt;id&gt;</code> to choose.</p>
+<p><code>demi asset import &lt;source&gt;</code> takes the source file path and <code>--id</code> for the stable <code>asset://</code> identity. It writes a manifest and records the import. If two importers can claim the same file, add <code>--importer &lt;id&gt;</code> to choose.</p>
 
 <h2>Supported sources</h2>
 <table>
@@ -43,10 +42,10 @@ demi asset deps asset://textures/skyforge_rune</code></pre>
 <h2>Carrying assets between projects</h2>
 <p>Assets move as a deterministic container with checksums, so both sides can verify nothing changed in transit.</p>
 <pre><code>demi asset export-package games/skyforge/packs/skyforge_runes.demipack
-demi asset import-package packs/skyforge_runes.demipack --project games/skyforge2</code></pre>
+demi asset import-package packs/skyforge_runes.demipack</code></pre>
 <ul>
   <li><code>asset export-package &lt;out.demipack&gt;</code> — writes a <code>.demipack</code> container: the selected assets plus checksums, in a stable order so two exports of the same content match.</li>
-  <li><code>asset import-package &lt;in.demipack&gt; --project …</code> — brings the contents into a project and verifies the checksums.</li>
+  <li><code>asset import-package &lt;in.demipack&gt;</code> — brings the contents into a project and verifies the checksums.</li>
 </ul>
 <p>A <code>.demipack</code> is not a full game package — it carries assets, not built games. For installable packages see <a href="{{ path('docs_page', {slug: 'installing-packages'}) }}">Installing packages</a>.</p>
 

@@ -2,8 +2,8 @@
 <p>The native editor is a workspace over the same source documents the CLI and runtime use. Scene and HUD editing are integrated workspace documents — there is no second unsynchronized preview model and no modal JSON-only HUD editor.</p>
 
 <h2>Launch</h2>
-<pre><code>demi editor --project games/my_game</code></pre>
-<p>Without <code>--project</code>, the editor opens a start dialog for recent and discovered projects.</p>
+<pre><code>demi editor</code></pre>
+<p>Launched with no project, the editor opens a start dialog for recent and discovered projects.</p>
 
 <h2>Workspace</h2>
 <p>Docking uses the pinned Dear ImGui docking branch in the main native window. <code>EditorDockingWorkspace</code> owns the dock graph and default layout; panels use stable window IDs and derive rendering/input rectangles from their live content region.</p>

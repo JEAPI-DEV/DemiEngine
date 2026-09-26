@@ -55,7 +55,7 @@
 <pre><code>demi asset budget games/my_game/demi.project.json --platform linux</code></pre>
 <p>This reports current usage versus each declared limit, so you see headroom or overflow before shipping.</p>
 <h3>3. Profile the overage</h3>
-<pre><code>demi run linux --project games/my_game \
+<pre><code>demi run linux \
   --profiler --profile-report report.csv</code></pre>
 <p>Budgets tell you <em>that</em> you overflowed; the profiler tells you <em>where</em>. See <a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a>.</p>
 <h3>4. Put it in the pipeline</h3>

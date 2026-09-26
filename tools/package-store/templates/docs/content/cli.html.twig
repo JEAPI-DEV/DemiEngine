@@ -8,11 +8,11 @@
   <tbody>
     <tr><td><code>demi new --list</code></td><td>List starter templates</td></tr>
     <tr><td><code>demi new &lt;dir&gt; --template &lt;id&gt; --name "My Game"</code></td><td>Generate a validated project (transactional; <code>--dry-run</code> supported)</td></tr>
-    <tr><td><code>demi doctor --project &lt;path&gt;</code></td><td>Inspect local environment (add <code>--platform android</code>, <code>--format json</code>)</td></tr>
-    <tr><td><code>demi dev [--project &lt;path&gt;]</code></td><td>Development loop with watch mode and hot reload</td></tr>
-    <tr><td><code>demi editor [--project &lt;path&gt;]</code></td><td>Launch the native editor</td></tr>
-    <tr><td><code>demi run --project &lt;path&gt;</code></td><td>Run the game (headless with <code>DEMI_HEADLESS=1</code>, or <code>--max-frames N</code>)</td></tr>
-    <tr><td><code>demi run android --project &lt;path&gt; --serial &lt;device&gt;</code></td><td>Build/install/launch on a device; <code>--watch</code> for cooked hot reload</td></tr>
+    <tr><td><code>demi doctor</code></td><td>Inspect local environment (add <code>--platform android</code>, <code>--format json</code>)</td></tr>
+    <tr><td><code>demi dev</code></td><td>Development loop with watch mode and hot reload</td></tr>
+    <tr><td><code>demi editor</code></td><td>Launch the native editor</td></tr>
+    <tr><td><code>demi run</code></td><td>Run the game (headless with <code>DEMI_HEADLESS=1</code>, or <code>--max-frames N</code>)</td></tr>
+    <tr><td><code>demi run android --serial &lt;device&gt;</code></td><td>Build/install/launch on a device; <code>--watch</code> for cooked hot reload</td></tr>
   </tbody>
 </table>
 
@@ -38,7 +38,7 @@
   <tbody>
     <tr><td><code>demi asset inspect &lt;asset&gt;</code></td><td>Validate and summarize an asset manifest</td></tr>
     <tr><td><code>demi asset deps &lt;asset&gt;</code></td><td>List source-file dependencies</td></tr>
-    <tr><td><code>demi asset import &lt;source&gt; --project &lt;project&gt; --id asset://id</code></td><td>Copy a source into the project and write a manifest (disambiguate with <code>--importer</code>)</td></tr>
+    <tr><td><code>demi asset import &lt;source&gt; --id asset://id</code></td><td>Copy a source into the project and write a manifest (disambiguate with <code>--importer</code>)</td></tr>
     <tr><td><code>demi asset reimport &lt;asset&gt;</code></td><td>Refresh generated output, source hash, and metadata</td></tr>
     <tr><td><code>demi asset register-generated &lt;source&gt; --id asset://id</code></td><td>Register a tool-generated source under <code>assets/</code></td></tr>
     <tr><td><code>demi asset collider &lt;model.asset.json&gt; --id asset://…</code></td><td>Generate a collider asset from a model</td></tr>
@@ -68,9 +68,9 @@
   <thead><tr><th>Command</th><th>What it does</th></tr></thead>
   <tbody>
     <tr><td><code>demi test</code></td><td>Built-in scaffold checks</td></tr>
-    <tr><td><code>demi test linux --project &lt;project&gt;</code></td><td>Desktop E2E through the real runtime</td></tr>
-    <tr><td><code>demi test android --project &lt;project&gt; --serial &lt;device&gt;</code></td><td>Device E2E via adb (physical device)</td></tr>
-    <tr><td><code>demi run --project &lt;project&gt; --e2e-tests</code></td><td>Run project E2E scripts during launch</td></tr>
+    <tr><td><code>demi test linux</code></td><td>Desktop E2E through the real runtime</td></tr>
+    <tr><td><code>demi test android --serial &lt;device&gt;</code></td><td>Device E2E via adb (physical device)</td></tr>
+    <tr><td><code>demi run --e2e-tests</code></td><td>Run project E2E scripts during launch</td></tr>
     <tr><td><code>demi run … --profiler</code></td><td>Print slow-frame details</td></tr>
     <tr><td><code>demi run … --profile-report report.csv</code></td><td>Aggregate profile report</td></tr>
     <tr><td><code>demi run … --profile-frames frames.csv</code></td><td>Per-frame scope totals</td></tr>
@@ -84,10 +84,10 @@
 <table>
   <thead><tr><th>Command</th><th>What it does</th></tr></thead>
   <tbody>
-    <tr><td><code>demi cook --project &lt;project&gt; --platform linux</code></td><td>Validate and cook platform content</td></tr>
-    <tr><td><code>demi build linux --project &lt;project&gt;</code></td><td>Cook and package a Linux runtime bundle</td></tr>
-    <tr><td><code>demi build apk --project &lt;project&gt;</code></td><td>Package a debug APK (<code>--configuration release</code>, <code>--gradle</code>)</td></tr>
-    <tr><td><code>demi build aab --project &lt;project&gt;</code></td><td>Package an Android App Bundle</td></tr>
+    <tr><td><code>demi cook --platform linux</code></td><td>Validate and cook platform content</td></tr>
+    <tr><td><code>demi build linux</code></td><td>Cook and package a Linux runtime bundle</td></tr>
+    <tr><td><code>demi build apk</code></td><td>Package a debug APK (<code>--configuration release</code>, <code>--gradle</code>)</td></tr>
+    <tr><td><code>demi build aab</code></td><td>Package an Android App Bundle</td></tr>
     <tr><td><code>demi capabilities export</code></td><td>Export component/capability metadata</td></tr>
     <tr><td><code>demi capabilities check [--baseline path]</code></td><td>Report capability deltas (text or JSON)</td></tr>
     <tr><td><code>demi capabilities verify-gates</code></td><td>Validate the reference capability manifest</td></tr>

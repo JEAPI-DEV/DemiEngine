@@ -46,7 +46,7 @@
   </tbody>
 </table>
 <p>Check the host toolchain as well — Java, the Android SDK, and the NDK:</p>
-<pre><code>demi doctor --project games/my_game \
+<pre><code>demi doctor \
   --platform android --format json</code></pre>
 <ul>
   <li><code>--platform android</code> — checks the Android toolchain and reports discovery paths.</li>
@@ -55,17 +55,17 @@
 
 <h2>Building an APK</h2>
 <p>An <strong>APK</strong> is the installable Android package you sideload or distribute directly:</p>
-<pre><code>demi build apk --project games/my_game</code></pre>
+<pre><code>demi build apk</code></pre>
 <ul>
-  <li><code>build apk --project p</code> — cooks for Android and packages a debug APK.</li>
+  <li><code>build apk</code> — cooks for Android and packages a debug APK.</li>
   <li><code>--configuration release</code> — produces a release configuration build instead of debug.</li>
   <li><code>--gradle</code> — invokes Gradle, optionally taking the Gradle wrapper path to use.</li>
   <li>Returns <code>0</code> on success, <code>1</code> when validation, cooking, or packaging fails.</li>
 </ul>
 <p>Building an App Bundle for store upload:</p>
-<pre><code>demi build aab --project games/my_game</code></pre>
+<pre><code>demi build aab</code></pre>
 <ul>
-  <li><code>build aab --project p</code> — packages an Android App Bundle.</li>
+  <li><code>build aab</code> — packages an Android App Bundle.</li>
 </ul>
 <p>Artifacts and reports are written under the project:</p>
 <ul>
@@ -80,7 +80,7 @@
 export DEMI_ANDROID_KEYSTORE_PASSWORD=...
 export DEMI_ANDROID_KEY_ALIAS=skyforge
 export DEMI_ANDROID_KEY_PASSWORD=...
-demi build apk --project games/my_game --configuration release</code></pre>
+demi build apk --configuration release</code></pre>
 <ul>
   <li><code>DEMI_ANDROID_KEYSTORE</code> — path to the keystore file holding the release key.</li>
   <li><code>DEMI_ANDROID_KEYSTORE_PASSWORD</code> — keystore password.</li>
@@ -91,17 +91,17 @@ demi build apk --project games/my_game --configuration release</code></pre>
 
 <h2>Running on a device</h2>
 <p>Development on hardware reuses a current APK whenever your inputs are unchanged, so the loop stays short:</p>
-<pre><code>demi run android --project games/my_game \
+<pre><code>demi run android \
   --serial &lt;device&gt; --watch</code></pre>
 <ul>
-  <li><code>run android --project p</code> — builds, installs, and launches on the connected device.</li>
+  <li><code>run android</code> — builds, installs, and launches on the connected device.</li>
   <li><code>--serial &lt;device&gt;</code> — which device to target (the adb serial of the attached phone or tablet).</li>
   <li><code>--watch</code> — enables cooked-source hot reload to the device as you edit.</li>
 </ul>
 <p>End-to-end tests on the same hardware:</p>
-<pre><code>demi test android --project games/my_game --serial &lt;device&gt;</code></pre>
+<pre><code>demi test android --serial &lt;device&gt;</code></pre>
 <ul>
-  <li><code>test android --project p --serial d</code> — runs the project's E2E scripts through the real runtime on the device via adb.</li>
+  <li><code>test android --serial d</code> — runs the project's E2E scripts through the real runtime on the device via adb.</li>
   <li>Returns <code>0</code> when every test passed, <code>1</code> when any failed; the run always ends with a <code>SUMMARY</code> marker.</li>
 </ul>
 <p>Android qualification uses a connected physical device. Test authoring (stable node IDs, bounded waits) is covered in <a href="{{ path('docs_page', {slug: 'e2e-tests'}) }}">E2E tests</a>.</p>
@@ -120,7 +120,7 @@ demi build apk --project games/my_game --configuration release</code></pre>
   <li><code>demi doctor --platform android</code> and <code>demi validate --platform android</code> are clean.</li>
   <li><code>demi test android --serial &lt;device&gt;</code> passes on real hardware.</li>
   <li>Release signing variables are present in the environment and absent from logs.</li>
-  <li><code>demi build aab --project games/my_game</code> produced a fresh artifact and <code>*.build-report.json</code>.</li>
+  <li><code>demi build aab</code> produced a fresh artifact and <code>*.build-report.json</code>.</li>
   <li>The report's versions match <code>version_name</code> and <code>version_code</code> in the project.</li>
 </ol>
 <p>Related pages: <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a> for the full build block, <a href="{{ path('docs_page', {slug: 'cli-build-and-test'}) }}">Build, cook &amp; test</a> for every build command, and <a href="{{ path('docs_page', {slug: 'linux-bundles'}) }}">Linux bundles</a> for the desktop counterpart.</p>

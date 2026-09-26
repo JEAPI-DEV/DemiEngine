@@ -2,7 +2,7 @@
 <p>Twenty-six checked-in example projects double as executable engine probes. If several examples repeat the same workaround, that is evidence of a missing engine feature.</p>
 <p>Run any example:</p>
 <pre><code>demi validate examples/minimal_3d
-demi run --project examples/minimal_3d/demi.project.json</code></pre>
+demi run</code></pre>
 
 <h2>Start small</h2>
 <table>
@@ -70,6 +70,6 @@ demi run --project examples/minimal_3d/demi.project.json</code></pre>
   <li>Validate before running: <code>demi validate examples/&lt;name&gt;</code>.</li>
   <li>Compare expanded documents: <code>demi scene diff</code>, <code>demi scene expand</code>.</li>
   <li>Profile with the example's own scene to get comparable numbers.</li>
-  <li>Android-qualify with a physical device: <code>demi test android --project examples/minimal_2d_android --serial &lt;device&gt;</code>.</li>
+  <li>Android-qualify with a physical device: <code>demi test android --serial &lt;device&gt;</code>.</li>
 </ul>
 <p>When an example needs a package (health, destruction weapons, Kenney textures), install it first with <code>demi package install</code> from that project directory.</p>

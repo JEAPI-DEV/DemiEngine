@@ -21,18 +21,18 @@
   </tbody>
 </table>
 <p>Environment checks add one more code, <code>DOCTOR_OPTIONAL_FEATURE_MISSING</code>, for optional features that do not block a run:</p>
-<pre><code>demi doctor --project games/my_game --format json</code></pre>
+<pre><code>demi doctor --format json</code></pre>
 <ul>
-  <li><code>doctor --project p</code> — inspects the environment and the project and reports what is ready and what is missing.</li>
+  <li><code>doctor</code> — inspects the environment and the project and reports what is ready and what is missing.</li>
   <li><code>--format json</code> — emits the report as JSON for editors and pipelines.</li>
 </ul>
 <p>Validate before packaging. A build never papers over a capability error; it fails with the code so you can fix the project or the toolchain deliberately.</p>
 
 <h2>Cook the content</h2>
 <p><strong>Cooking</strong> turns authored source — JSON documents, Lua scripts, imported assets — into the platform-ready form the runtime loads. Cooking exists so startup is fast and shipping content is a hashed, known set of files.</p>
-<pre><code>demi cook --project games/my_game --platform linux</code></pre>
+<pre><code>demi cook --platform linux</code></pre>
 <ul>
-  <li><code>cook --project p</code> — validates, then cooks every reachable source file.</li>
+  <li><code>cook</code> — validates, then cooks every reachable source file.</li>
   <li><code>--platform linux</code> — which platform profile to cook for.</li>
 </ul>
 <p>Output lands under <code>generated/cooked/&lt;platform&gt;</code> together with <code>cook.manifest.json</code>: every cooked path and its content hash. The manifest is what later audits and incremental builds compare against. Returns <code>0</code> when the cook completes and the manifest is consistent.</p>
@@ -40,9 +40,9 @@
 
 <h2>Build the bundle</h2>
 <p><strong>Building</strong> wraps the cooked content and a Linux runtime into the artifact a player installs:</p>
-<pre><code>demi build linux --project games/my_game</code></pre>
+<pre><code>demi build linux</code></pre>
 <ul>
-  <li><code>build linux --project p</code> — cooks if needed, then packages the Linux runtime bundle.</li>
+  <li><code>build linux</code> — cooks if needed, then packages the Linux runtime bundle.</li>
   <li>Returns <code>0</code> on success, <code>1</code> when validation, cooking, or packaging fails.</li>
 </ul>
 <p>The bundle contains:</p>
@@ -111,10 +111,10 @@
 
 <h2>Before you hand the bundle to a player</h2>
 <ol>
-  <li><code>demi doctor --project games/my_game</code> — the machine can produce a desktop build.</li>
+  <li><code>demi doctor</code> — the machine can produce a desktop build.</li>
   <li><code>demi validate games/my_game --platform linux</code> — no capability or content errors.</li>
-  <li><code>demi test linux --project games/my_game</code> — end-to-end tests pass (<a href="{{ path('docs_page', {slug: 'e2e-tests'}) }}">E2E tests</a>).</li>
-  <li><code>demi build linux --project games/my_game</code> — a fresh bundle and <code>build-report.json</code>.</li>
+  <li><code>demi test linux</code> — end-to-end tests pass (<a href="{{ path('docs_page', {slug: 'e2e-tests'}) }}">E2E tests</a>).</li>
+  <li><code>demi build linux</code> — a fresh bundle and <code>build-report.json</code>.</li>
   <li>Launch the bundle from a clean user account and confirm saves land under <code>$XDG_DATA_HOME</code>.</li>
 </ol>
 <p>Android packaging is covered in <a href="{{ path('docs_page', {slug: 'android-builds'}) }}">Android builds</a>; all build commands are listed in <a href="{{ path('docs_page', {slug: 'cli-build-and-test'}) }}">Build, cook &amp; test</a>.</p>

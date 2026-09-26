@@ -67,12 +67,12 @@
 <ul>
   <li><strong>Code and JSON</strong> — open the <code>games/my_game</code> folder in any text or code editor. Point the editor's Lua language server at the stubs under <code>.demi/lua</code> (or run <code>demi lua-stubs generate</code> to refresh them) so engine calls autocomplete and type-check.</li>
   <li><strong>Visual scene and HUD work</strong> — launch the native editor on the project:
-    <pre><code>demi editor --project games/my_game</code></pre>
+    <pre><code>demi editor</code></pre>
   </li>
 </ul>
 <ul>
   <li><code>editor</code> — opens the visual workspace for scenes, HUDs, and prefabs.</li>
-  <li><code>--project games/my_game</code> — the project directory (or its <code>demi.project.json</code>) to load. The editor reads and writes the same JSON files you see in the text editor.</li>
+  <li>The editor reads and writes the same JSON files you see in the text editor.</li>
 </ul>
 <p>Both approaches edit the same source documents. Nothing required to ship the game lives only inside the visual editor.</p>
 
