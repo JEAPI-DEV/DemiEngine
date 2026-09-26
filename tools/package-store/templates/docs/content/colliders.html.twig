@@ -86,7 +86,7 @@
 <h2>One collider per entity, and why</h2>
 <p>Validation rejects a second 3D collider on the same entity. The reason is that one entity is one simulated body, and a body has one shape. Stacking two shapes would silently change mass, contact ordering, and how forces resolve.</p>
 <p>When you need a complex outline — a Skyforge hangar with wings, crates, and a crane all blocking as one object — use a compound collider asset instead of stacking components. Generate one with the CLI:</p>
-<pre><code>./build/linux-debug/demi asset collider games/skyforge/assets/models/hangar \
+<pre><code>demi asset collider games/skyforge/assets/models/hangar \
   --output games/skyforge/assets/colliders/hangar.collider.json</code></pre>
 <p>That command writes a <code>Collider3D</code> asset describing the compound hulls. Reference the asset from a single <code>ModelCollider3D</code> (static) or convex setup on the entity. The entity still has one collider component; the asset supplies the many sub-shapes inside it.</p>
 <p>Two more validation rules protect you from silent misconfiguration:</p>

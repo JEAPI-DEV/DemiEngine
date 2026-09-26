@@ -126,7 +126,7 @@ end</code></pre>
   <li>A recorded action only applies while its context is enabled. If the fixture pauses into <code>menu</code>, gameplay rows in the file wait just as real input would.</li>
   <li>When a recorded action is active it takes precedence over physical bindings, so a fixture runs the same on any machine.</li>
 </ul>
-<pre><code>./build/linux-debug/demi run --project games/skyforge \
+<pre><code>demi run --project games/skyforge \
   --input-replay fixtures/smoke.replay.json</code></pre>
 <p>This runs Skyforge with a recorded input stream. Keep the project’s fixed timestep equal to the fixture’s so frames line up. More on the test workflow: <a href="{{ path('docs_page', {slug: 'testing'}) }}">Testing &amp; debugging</a>.</p>
 

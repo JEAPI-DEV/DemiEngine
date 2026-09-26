@@ -33,11 +33,11 @@ c++ --version</code></pre>
 </ul>
 <p>This compiles the engine and links the CLI. The command returns when compilation finishes; a first build takes the longest. Later incremental builds only recompile what changed.</p>
 
-<h2>Locate the demi binary</h2>
-<p>The finished program is written to a predictable path inside the build directory:</p>
-<pre><code>./build/linux-debug/demi --help</code></pre>
+<h2>Confirm the demi CLI</h2>
+<p>After the build finishes, the <code>demi</code> command is ready on your <code>PATH</code>:</p>
+<pre><code>demi --help</code></pre>
 <ul>
-  <li><code>./build/linux-debug/demi</code> — the compiled CLI. Run it from the repository root as shown in all documentation examples.</li>
+  <li><code>demi</code> — the engine CLI used for authoring, validation, testing, and packaging.</li>
   <li><code>--help</code> — prints the top-level command list and global options, then exits with code <code>0</code>.</li>
 </ul>
 <p>The help output is the fastest way to see every command group: <code>new</code>, <code>doctor</code>, <code>dev</code>, <code>editor</code>, <code>run</code>, <code>validate</code>, <code>asset</code>, <code>package</code>, <code>test</code>, <code>cook</code>, <code>build</code>, and more. Add <code>--help</code> to any subcommand for its own flags. Command details are covered in <a href="{{ path('docs_page', {slug: 'cli-create-and-dev'}) }}">Create &amp; develop</a>, <a href="{{ path('docs_page', {slug: 'cli-assets-and-packages'}) }}">Assets &amp; packages</a>, and <a href="{{ path('docs_page', {slug: 'cli-build-and-test'}) }}">Build, cook &amp; test</a>.</p>

@@ -1,15 +1,15 @@
 <h1>Build, cook &amp; test</h1>
-<p>Creating a game is step one. Step two is proving it is correct and getting it onto a player's machine. This page covers validation (checking documents before you trust them), cooking (turning source into platform-ready content), testing (running real gameplay checks), and building (producing a shippable artifact). Examples use "Skyforge" at <code>games/my_game</code> and the CLI at <code>./build/linux-debug/demi</code>.</p>
+<p>Creating a game is step one. Step two is proving it is correct and getting it onto a player's machine. This page covers validation (checking documents before you trust them), cooking (turning source into platform-ready content), testing (running real gameplay checks), and building (producing a shippable artifact). Examples use "Skyforge" at <code>games/my_game</code> and the CLI at <code>demi</code>.</p>
 
 <h2>Why validate before you run</h2>
 <p>A <strong>validation</strong> pass reads the project and everything it can reach — scenes, HUDs, prefabs, assets, saves, scripts — and reports problems with stable diagnostic codes. The point is to catch broken references and malformed documents before a player does, and to make "it works" a machine-checkable claim rather than a feeling. The editor shows the same codes as this command.</p>
-<pre><code>./build/linux-debug/demi validate games/my_game</code></pre>
+<pre><code>demi validate games/my_game</code></pre>
 <ul>
   <li><code>validate [path]</code> — validates a project, a single document, or a directory of source. Defaults to the current directory's project.</li>
   <li>Returns <code>0</code> when everything reachable is valid, <code>1</code> when any validation error was reported.</li>
 </ul>
 <p>Validate for a shipping target, because platforms differ in what they can support:</p>
-<pre><code>./build/linux-debug/demi validate games/my_game --platform android</code></pre>
+<pre><code>demi validate games/my_game --platform android</code></pre>
 <ul>
   <li><code>--platform android</code> — adds platform capability checks, for example missing permissions or unsupported features.</li>
 </ul>
@@ -17,19 +17,19 @@
 
 <h2>Inspect scenes, HUDs, prefabs, and saves</h2>
 <p><strong>Inspect</strong> commands summarize one document after validating it. They answer "what is actually in this file?" without opening a text editor.</p>
-<pre><code>./build/linux-debug/demi scene list games/my_game
-./build/linux-debug/demi scene inspect games/my_game/scenes/main.scene.json
-./build/linux-debug/demi scene expand games/my_game/scenes/main.scene.json</code></pre>
+<pre><code>demi scene list games/my_game
+demi scene inspect games/my_game/scenes/main.scene.json
+demi scene expand games/my_game/scenes/main.scene.json</code></pre>
 <ul>
   <li><code>scene list</code> — lists every scene reference the project registers. Returns one scene ID per line.</li>
   <li><code>scene inspect</code> — validates and summarizes a scene: entities, components, and references.</li>
   <li><code>scene expand</code> — prints the scene with every prefab instance expanded into concrete entities, exactly what the runtime will create.</li>
 </ul>
-<pre><code>./build/linux-debug/demi scene diff old/main.scene.json games/my_game/scenes/main.scene.json</code></pre>
+<pre><code>demi scene diff old/main.scene.json games/my_game/scenes/main.scene.json</code></pre>
 <ul>
   <li><code>scene diff &lt;old&gt; &lt;new&gt;</code> — a deterministic structural diff of two expanded scenes. Useful for review: "what did this edit actually change?"</li>
 </ul>
-<pre><code>./build/linux-debug/demi hud inspect games/my_game/hud/hud.json \
+<pre><code>demi hud inspect games/my_game/hud/hud.json \
   --safe-area 24,24,24,24 --reveal-hidden --format text</code></pre>
 <ul>
   <li><code>hud inspect</code> — validates and summarizes a HUD document.</li>
@@ -37,8 +37,8 @@
   <li><code>--reveal-hidden</code> — include nodes that are hidden in the summary.</li>
   <li><code>--format</code> — output format (<code>text</code> or <code>json</code>).</li>
 </ul>
-<pre><code>./build/linux-debug/demi prefab inspect games/my_game/prefabs/enemy.prefab.json
-./build/linux-debug/demi save inspect saves/slot1.json</code></pre>
+<pre><code>demi prefab inspect games/my_game/prefabs/enemy.prefab.json
+demi save inspect saves/slot1.json</code></pre>
 <ul>
   <li><code>prefab inspect</code> — validates and summarizes a prefab document.</li>
   <li><code>save inspect</code> — validates and summarizes a save file. Returns <code>1</code> if the save is corrupt.</li>
@@ -46,12 +46,12 @@
 
 <h2>Check Lua and generate editor stubs</h2>
 <p>Scripts are validated like any other source:</p>
-<pre><code>./build/linux-debug/demi script check games/my_game/scripts/player.lua</code></pre>
+<pre><code>demi script check games/my_game/scripts/player.lua</code></pre>
 <ul>
   <li><code>script check</code> — parses the Lua file with the engine's Lua 5.4 compiler and reports diagnostics with line numbers. Returns <code>1</code> on syntax errors.</li>
 </ul>
 <p>For editor completion and type hints of the public Lua API:</p>
-<pre><code>./build/linux-debug/demi lua-stubs generate games/my_game</code></pre>
+<pre><code>demi lua-stubs generate games/my_game</code></pre>
 <ul>
   <li><code>lua-stubs generate [dir]</code> — writes LuaLS stub files for the engine and installed package APIs.</li>
   <li><code>[dir]</code> — optional output directory. Defaults to <code>.demi/lua</code>, which LuaLS reads as <code>workspace.library</code>.</li>
@@ -60,21 +60,21 @@
 
 <h2>Run tests</h2>
 <p><strong>Testing</strong> means executing real gameplay through the real runtime and checking the results with assertions, not inspecting files. Project tests live in <code>scripts/tests/e2e.lua</code> and are written with the <code>Test</code> API — see <a href="{{ path('docs_page', {slug: 'e2e-tests'}) }}">E2E tests</a> for authoring them.</p>
-<pre><code>./build/linux-debug/demi test</code></pre>
+<pre><code>demi test</code></pre>
 <ul>
   <li><code>demi test</code> — runs built-in scaffold checks: the quick self-tests of the toolchain itself.</li>
   <li>Returns <code>0</code> on success, <code>1</code> on failure.</li>
 </ul>
-<pre><code>./build/linux-debug/demi test linux --project games/my_game</code></pre>
+<pre><code>demi test linux --project games/my_game</code></pre>
 <ul>
   <li><code>test linux --project p</code> — desktop end-to-end tests through the real runtime window or headless path.</li>
 </ul>
-<pre><code>./build/linux-debug/demi test android --project games/my_game --serial &lt;device&gt;</code></pre>
+<pre><code>demi test android --project games/my_game --serial &lt;device&gt;</code></pre>
 <ul>
   <li><code>test android --project p --serial d</code> — device end-to-end tests via adb on a connected physical device.</li>
   <li><code>--serial &lt;device&gt;</code> — which device to target.</li>
 </ul>
-<pre><code>DEMI_HEADLESS=1 ./build/linux-debug/demi test --project games/my_game</code></pre>
+<pre><code>DEMI_HEADLESS=1 demi test --project games/my_game</code></pre>
 <ul>
   <li><code>DEMI_HEADLESS=1</code> — runs without a visible window. Returns <code>0</code> only when every test passed.</li>
 </ul>
@@ -82,16 +82,16 @@
 
 <h2>Run with tests, replay, and profiling</h2>
 <p><code>demi run</code> accepts the same evidence-gathering flags, which is how you reproduce a bug report on your machine:</p>
-<pre><code>./build/linux-debug/demi run --project games/my_game --e2e-tests</code></pre>
+<pre><code>demi run --project games/my_game --e2e-tests</code></pre>
 <ul>
   <li><code>--e2e-tests</code> — runs the project E2E scripts during launch and reports pass/fail.</li>
 </ul>
-<pre><code>./build/linux-debug/demi run --project games/my_game \
+<pre><code>demi run --project games/my_game \
   --input-replay fixtures/bug123.replay.json</code></pre>
 <ul>
   <li><code>--input-replay file</code> — replays a recorded input stream instead of live input. The project's fixed timestep must match the fixture.</li>
 </ul>
-<pre><code>./build/linux-debug/demi run linux --project games/my_game --profiler \
+<pre><code>demi run linux --project games/my_game --profiler \
   --profile-report report.csv --profile-frames frames.csv</code></pre>
 <ul>
   <li><code>run linux --project p</code> — desktop launch with the Linux runtime.</li>
@@ -99,7 +99,7 @@
   <li><code>--profile-report r.csv</code> — writes an aggregate scope report (totals per named scope).</li>
   <li><code>--profile-frames f.csv</code> — writes per-frame scope totals.</li>
 </ul>
-<pre><code>./build/linux-debug/demi run --project games/my_game \
+<pre><code>demi run --project games/my_game \
   --debug-overlays colliders,contacts --window-size 1280x720</code></pre>
 <ul>
   <li><code>--debug-overlays names</code> — comma-separated overlay names (<code>colliders</code>, <code>contacts</code>, <code>grid</code>, <code>entity_ids</code>, <code>draw_order</code>, <code>ui_bounds</code>, <code>profiler</code>) overriding the project settings for this run.</li>
@@ -109,7 +109,7 @@
 
 <h2>Cook platform content</h2>
 <p><strong>Cooking</strong> converts authored source (JSON, scripts, imported assets) into the platform-ready form the runtime actually loads: compiled scripts, optimized textures, and a content manifest with hashes. Cooking exists so runtime startup is fast and so shipping content is a known, hashed set of files rather than loose source.</p>
-<pre><code>./build/linux-debug/demi cook --project games/my_game --platform linux</code></pre>
+<pre><code>demi cook --project games/my_game --platform linux</code></pre>
 <ul>
   <li><code>cook --project p</code> — validates, then cooks all reachable source.</li>
   <li><code>--platform linux</code> — which platform to cook for.</li>
@@ -118,15 +118,15 @@
 
 <h2>Build shippable artifacts</h2>
 <p><strong>Building</strong> wraps cooked content and a runtime into an artifact a player can install. Packaging is transactional: a failed or cancelled build leaves the previous artifact intact and never publishes a partial staging directory.</p>
-<pre><code>./build/linux-debug/demi build linux --project games/my_game</code></pre>
+<pre><code>demi build linux --project games/my_game</code></pre>
 <ul>
   <li><code>build linux --project p</code> — cooks and packages a Linux runtime bundle: executable, launcher, cooked content, freedesktop entry, icon, attributions, and <code>build-report.json</code>.</li>
 </ul>
-<pre><code>./build/linux-debug/demi build apk --project games/my_game --configuration release</code></pre>
+<pre><code>demi build apk --project games/my_game --configuration release</code></pre>
 <ul>
   <li><code>build apk</code> — packages an Android APK. Add <code>--configuration release</code> for a release build and <code>--gradle</code> to invoke Gradle with a specific wrapper.</li>
 </ul>
-<pre><code>./build/linux-debug/demi build aab --project games/my_game</code></pre>
+<pre><code>demi build aab --project games/my_game</code></pre>
 <ul>
   <li><code>build aab</code> — packages an Android App Bundle for store distribution.</li>
 </ul>
@@ -134,9 +134,9 @@
 
 <h2>Export capabilities</h2>
 <p><strong>Capabilities</strong> describe what the engine supports (components, features, platforms) as machine-readable metadata. Exporting them lets tooling and continuous integration detect accidental capability regressions.</p>
-<pre><code>./build/linux-debug/demi capabilities export
-./build/linux-debug/demi capabilities check --baseline capabilities-baseline.json --format json
-./build/linux-debug/demi capabilities verify-gates</code></pre>
+<pre><code>demi capabilities export
+demi capabilities check --baseline capabilities-baseline.json --format json
+demi capabilities verify-gates</code></pre>
 <ul>
   <li><code>capabilities export</code> — writes the current component and capability metadata. The export is atomic.</li>
   <li><code>capabilities check [--baseline path]</code> — reports deltas against a baseline document. <code>--format text|json</code> chooses the output shape.</li>

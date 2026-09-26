@@ -7,12 +7,12 @@
 
 <h2>Importing a model</h2>
 <p>Author in glTF or GLB — the standard interchange format for real-time 3D. The importer also accepts OBJ, IQM, and M3D.</p>
-<pre><code>./build/linux-debug/demi asset import games/skyforge/assets/models/drone.glb \
+<pre><code>demi asset import games/skyforge/assets/models/drone.glb \
   --output games/skyforge/assets/models/drone.asset.json</code></pre>
 <ul>
   <li>The first path is the source file produced by your art tool.</li>
   <li><code>--output</code> is the <code>*.asset.json</code> manifest DemiEngine cooks and references.</li>
-  <li>The command returns after writing the asset; validate the project with <code>./build/linux-debug/demi validate</code> to confirm every reference resolves.</li>
+  <li>The command returns after writing the asset; validate the project with <code>demi validate</code> to confirm every reference resolves.</li>
 </ul>
 <p>Skeletal clips live in the asset settings so the engine knows what the file contains:</p>
 <pre><code>{

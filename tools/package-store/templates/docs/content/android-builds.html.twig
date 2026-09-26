@@ -29,7 +29,7 @@
 
 <h2>Validate the Android target</h2>
 <p>Android can do less than a desktop in some optional areas. Validate for this platform before building so capability problems are named instead of discovered on a device:</p>
-<pre><code>./build/linux-debug/demi validate games/my_game --platform android</code></pre>
+<pre><code>demi validate games/my_game --platform android</code></pre>
 <ul>
   <li><code>validate [path]</code> — validates the project and all reachable source.</li>
   <li><code>--platform android</code> — adds Android capability and permission checks.</li>
@@ -46,7 +46,7 @@
   </tbody>
 </table>
 <p>Check the host toolchain as well — Java, the Android SDK, and the NDK:</p>
-<pre><code>./build/linux-debug/demi doctor --project games/my_game \
+<pre><code>demi doctor --project games/my_game \
   --platform android --format json</code></pre>
 <ul>
   <li><code>--platform android</code> — checks the Android toolchain and reports discovery paths.</li>
@@ -55,7 +55,7 @@
 
 <h2>Building an APK</h2>
 <p>An <strong>APK</strong> is the installable Android package you sideload or distribute directly:</p>
-<pre><code>./build/linux-debug/demi build apk --project games/my_game</code></pre>
+<pre><code>demi build apk --project games/my_game</code></pre>
 <ul>
   <li><code>build apk --project p</code> — cooks for Android and packages a debug APK.</li>
   <li><code>--configuration release</code> — produces a release configuration build instead of debug.</li>
@@ -63,7 +63,7 @@
   <li>Returns <code>0</code> on success, <code>1</code> when validation, cooking, or packaging fails.</li>
 </ul>
 <p>Building an App Bundle for store upload:</p>
-<pre><code>./build/linux-debug/demi build aab --project games/my_game</code></pre>
+<pre><code>demi build aab --project games/my_game</code></pre>
 <ul>
   <li><code>build aab --project p</code> — packages an Android App Bundle.</li>
 </ul>
@@ -80,7 +80,7 @@
 export DEMI_ANDROID_KEYSTORE_PASSWORD=...
 export DEMI_ANDROID_KEY_ALIAS=skyforge
 export DEMI_ANDROID_KEY_PASSWORD=...
-./build/linux-debug/demi build apk --project games/my_game --configuration release</code></pre>
+demi build apk --project games/my_game --configuration release</code></pre>
 <ul>
   <li><code>DEMI_ANDROID_KEYSTORE</code> — path to the keystore file holding the release key.</li>
   <li><code>DEMI_ANDROID_KEYSTORE_PASSWORD</code> — keystore password.</li>
@@ -91,7 +91,7 @@ export DEMI_ANDROID_KEY_PASSWORD=...
 
 <h2>Running on a device</h2>
 <p>Development on hardware reuses a current APK whenever your inputs are unchanged, so the loop stays short:</p>
-<pre><code>./build/linux-debug/demi run android --project games/my_game \
+<pre><code>demi run android --project games/my_game \
   --serial &lt;device&gt; --watch</code></pre>
 <ul>
   <li><code>run android --project p</code> — builds, installs, and launches on the connected device.</li>
@@ -99,7 +99,7 @@ export DEMI_ANDROID_KEY_PASSWORD=...
   <li><code>--watch</code> — enables cooked-source hot reload to the device as you edit.</li>
 </ul>
 <p>End-to-end tests on the same hardware:</p>
-<pre><code>./build/linux-debug/demi test android --project games/my_game --serial &lt;device&gt;</code></pre>
+<pre><code>demi test android --project games/my_game --serial &lt;device&gt;</code></pre>
 <ul>
   <li><code>test android --project p --serial d</code> — runs the project's E2E scripts through the real runtime on the device via adb.</li>
   <li>Returns <code>0</code> when every test passed, <code>1</code> when any failed; the run always ends with a <code>SUMMARY</code> marker.</li>

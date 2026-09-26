@@ -48,7 +48,7 @@
 
 <h2>How cooking creates generated/</h2>
 <p>Cooking is the step that turns source into runtime-ready content. You ask for a platform, and the engine validates the project and every reachable source, then writes cooked output under <code>generated/cooked/&lt;platform&gt;</code> together with a <code>cook.manifest.json</code> listing every included path and hash:</p>
-<pre><code>./build/linux-debug/demi cook --project games/my_game --platform linux</code></pre>
+<pre><code>demi cook --project games/my_game --platform linux</code></pre>
 <ul>
   <li><code>cook</code> — validates and cooks platform content.</li>
   <li><code>--project games/my_game</code> — the project to cook.</li>

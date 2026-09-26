@@ -3,16 +3,16 @@
 
 <h2>List the starter templates</h2>
 <p>A template is a ready-made project skeleton — scenes, scripts, and settings that already run. List what is available:</p>
-<pre><code>./build/linux-debug/demi new --list</code></pre>
+<pre><code>demi new --list</code></pre>
 <ul>
-  <li><code>./build/linux-debug/demi</code> — the engine CLI you built earlier (see <a href="{{ path('docs_page', {slug: 'install-and-build'}) }}">Install &amp; build</a>).</li>
+  <li><code>demi</code> — the engine CLI you built earlier (see <a href="{{ path('docs_page', {slug: 'install-and-build'}) }}">Install &amp; build</a>).</li>
   <li><code>new --list</code> — prints the template IDs and short descriptions, then exits. Nothing is written to disk.</li>
 </ul>
 <p>Each line names a template ID you pass to <code>--template</code> on the next command. The <code>platformer</code> template is a small 2D game with a player scene and Lua gameplay — a good first choice.</p>
 
 <h2>Create the project</h2>
 <p>Generate "My Game" into <code>games/my_game</code> from the platformer template:</p>
-<pre><code>./build/linux-debug/demi new games/my_game --template platformer --name "My Game"</code></pre>
+<pre><code>demi new games/my_game --template platformer --name "My Game"</code></pre>
 <ul>
   <li><code>new games/my_game</code> — destination directory for the new project. It must not already contain a project.</li>
   <li><code>--template platformer</code> — the template ID from <code>--list</code>.</li>
@@ -20,7 +20,7 @@
 </ul>
 <p>On success the command prints the created project path and a short summary of the files it wrote. It returns exit code <code>0</code>.</p>
 <p>Preview the exact file list without writing anything:</p>
-<pre><code>./build/linux-debug/demi new games/my_game --template platformer --name "My Game" --dry-run</code></pre>
+<pre><code>demi new games/my_game --template platformer --name "My Game" --dry-run</code></pre>
 <ul>
   <li><code>--dry-run</code> — runs the same planning and validation steps, prints what would be created, and leaves the disk untouched.</li>
 </ul>
@@ -65,9 +65,9 @@
 <h2>Open the project in an editor</h2>
 <p>Two kinds of editing apply, and you will use both:</p>
 <ul>
-  <li><strong>Code and JSON</strong> — open the <code>games/my_game</code> folder in any text or code editor. Point the editor's Lua language server at the stubs under <code>.demi/lua</code> (or run <code>./build/linux-debug/demi lua-stubs generate</code> to refresh them) so engine calls autocomplete and type-check.</li>
+  <li><strong>Code and JSON</strong> — open the <code>games/my_game</code> folder in any text or code editor. Point the editor's Lua language server at the stubs under <code>.demi/lua</code> (or run <code>demi lua-stubs generate</code> to refresh them) so engine calls autocomplete and type-check.</li>
   <li><strong>Visual scene and HUD work</strong> — launch the native editor on the project:
-    <pre><code>./build/linux-debug/demi editor --project games/my_game</code></pre>
+    <pre><code>demi editor --project games/my_game</code></pre>
   </li>
 </ul>
 <ul>

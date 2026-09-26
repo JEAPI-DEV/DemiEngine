@@ -142,6 +142,6 @@ local cast = Q3.sphere_cast(x1, y1, z1, x2, y2, z2, r)    -- hit or nil</code></
 </ul>
 
 <h2>Debug drawing</h2>
-<pre><code>./build/linux-debug/demi run --project games/my_game \
+<pre><code>demi run --project games/my_game \
   --debug-overlays colliders,contacts</code></pre>
 <p>Or set project <code>debug.colliders</code> / <code>debug.contacts</code>. Overlay geometry matches the authored simulation shapes.</p>

@@ -1,10 +1,10 @@
 <h1>Replay &amp; profiler</h1>
-<p>Two tools answer the hard questions of game development. <strong>Replay</strong> answers "how do I make this bug happen again?" by re-sending a recorded input stream through the deterministic simulation. The <strong>profiler</strong> answers "where does the frame time go?" by measuring named scopes while the game runs. Together with <strong>saves</strong> — player progress written outside the project — they are how you reproduce, measure, and persist game state. Examples use "Skyforge" at <code>games/my_game</code> and the CLI at <code>./build/linux-debug/demi</code>.</p>
+<p>Two tools answer the hard questions of game development. <strong>Replay</strong> answers "how do I make this bug happen again?" by re-sending a recorded input stream through the deterministic simulation. The <strong>profiler</strong> answers "where does the frame time go?" by measuring named scopes while the game runs. Together with <strong>saves</strong> — player progress written outside the project — they are how you reproduce, measure, and persist game state. Examples use "Skyforge" at <code>games/my_game</code> and the CLI at <code>demi</code>.</p>
 
 <h2>What an input replay is</h2>
 <p>A <strong>replay file</strong> is a recording of what the player did: every input frame with its tick and values. Because DemiEngine simulation is deterministic (fixed timestep plus a seeded generator), replaying the same inputs in the same build reproduces the same run. Replays exist so a bug report becomes a file you can rerun in seconds.</p>
 <p>Record fixtures the way your game records input for tests or debugging, then play them back:</p>
-<pre><code>./build/linux-debug/demi run --project games/my_game \
+<pre><code>demi run --project games/my_game \
   --input-replay fixtures/bug123.replay.json</code></pre>
 <ul>
   <li><code>run --project games/my_game</code> — launches Skyforge normally.</li>
@@ -22,13 +22,13 @@
 
 <h2>Profiling a run</h2>
 <p>The <strong>profiler</strong> measures how long each named part of the frame takes — input, scripts, physics, render submission, and your own scopes. It exists because "the game feels slow" is not fixable and "physics costs 11 ms in <code>arena_step</code>" is.</p>
-<pre><code>./build/linux-debug/demi run linux --project games/my_game --profiler</code></pre>
+<pre><code>demi run linux --project games/my_game --profiler</code></pre>
 <ul>
   <li><code>run linux --project p</code> — desktop launch of Skyforge.</li>
   <li><code>--profiler</code> — prints slow-frame details to the console while the game runs: frames that exceeded the budget, with their scope breakdown.</li>
 </ul>
 <p>For numbers you can compare and archive, write reports:</p>
-<pre><code>./build/linux-debug/demi run linux --project games/my_game --profiler \
+<pre><code>demi run linux --project games/my_game --profiler \
   --profile-report report.csv --profile-frames frames.csv</code></pre>
 <ul>
   <li><code>--profile-report r.csv</code> — writes an aggregate report: one row per named scope with totals and call counts for the session.</li>
@@ -53,7 +53,7 @@ end</code></pre>
 
 <h2>Debug overlays</h2>
 <p><strong>Debug overlays</strong> draw development-only information over the game so you can see simulation state while profiling or replaying:</p>
-<pre><code>./build/linux-debug/demi run --project games/my_game \
+<pre><code>demi run --project games/my_game \
   --debug-overlays colliders,contacts,grid,entity_ids,draw_order,ui_bounds,profiler</code></pre>
 <ul>
   <li><code>--debug-overlays names</code> — comma-separated overlay names, overriding the project's debug flags for this run.</li>
@@ -102,7 +102,7 @@ Save.delete("slot1")                    -- remove the slot</code></pre>
   <li><code>Save.delete(slot)</code> — removes the slot. Returns a boolean success flag.</li>
 </ul>
 <p>Inspect a save file from the command line when something looks wrong:</p>
-<pre><code>./build/linux-debug/demi save inspect saves/slot1.json</code></pre>
+<pre><code>demi save inspect saves/slot1.json</code></pre>
 <ul>
   <li><code>save inspect</code> — validates and summarizes the save document. Returns <code>0</code> when valid, <code>1</code> when the file is corrupt.</li>
 </ul>

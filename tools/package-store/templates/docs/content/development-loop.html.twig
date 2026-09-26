@@ -3,14 +3,14 @@
 
 <h2>Check the environment with demi doctor</h2>
 <p>Before running anything, ask the engine whether this machine can. <code>demi doctor</code> inspects your environment and the project and reports what is ready and what is missing:</p>
-<pre><code>./build/linux-debug/demi doctor --project games/my_game/demi.project.json</code></pre>
+<pre><code>demi doctor --project games/my_game/demi.project.json</code></pre>
 <ul>
   <li><code>doctor</code> — runs environment and project checks and prints a diagnostic report.</li>
   <li><code>--project games/my_game/demi.project.json</code> — which project to check. A directory path works too.</li>
 </ul>
 <p>The report covers toolchain and runtime requirements for the current platform, project readability, and anything the project needs at startup. Diagnostics use stable codes and the same text format as validation, so they are easy to grep in scripts.</p>
 <p>Android targets need more on the host machine. Ask for that platform explicitly:</p>
-<pre><code>./build/linux-debug/demi doctor --project games/my_game/demi.project.json \
+<pre><code>demi doctor --project games/my_game/demi.project.json \
   --platform android --format json</code></pre>
 <ul>
   <li><code>--platform android</code> — additionally checks the Android toolchain: Java, the Android SDK, and the NDK, including where they were discovered.</li>
@@ -26,14 +26,14 @@
   <li>Starts the game runtime with watch mode enabled.</li>
 </ol>
 <pre><code>cd games/my_game
-../../build/linux-debug/demi dev</code></pre>
+demi dev</code></pre>
 <ul>
   <li><code>cd games/my_game</code> — running from inside the project means no <code>--project</code> flag is needed.</li>
   <li><code>dev</code> — starts checks, then the game, then watches project files for changes.</li>
 </ul>
-<p>From outside the project tree pass the path explicitly: <code>./build/linux-debug/demi dev --project games/my_game</code>.</p>
+<p>From outside the project tree pass the path explicitly: <code>demi dev --project games/my_game</code>.</p>
 <p>On an attached Android device the same watch flow is:</p>
-<pre><code>./build/linux-debug/demi run android --project games/my_game \
+<pre><code>demi run android --project games/my_game \
   --serial &lt;device&gt; --watch</code></pre>
 <ul>
   <li><code>run android</code> — builds, installs, and launches on the device; a current APK is reused when inputs are unchanged.</li>
@@ -56,14 +56,14 @@
 <h2>Headless smoke versus desktop E2E</h2>
 <p>Two test levels sit next to <code>demi dev</code>. Use the cheap one constantly and the thorough one before you trust a change.</p>
 <h3>Headless smoke</h3>
-<pre><code>DEMI_HEADLESS=1 ./build/linux-debug/demi test --project games/my_game</code></pre>
+<pre><code>DEMI_HEADLESS=1 demi test --project games/my_game</code></pre>
 <ul>
   <li><code>DEMI_HEADLESS=1</code> — environment variable that runs without opening a window. Suitable for terminals and continuous integration.</li>
   <li><code>test --project games/my_game</code> — loads the project and runs its smoke checks, including the generated smoke replay, without a display.</li>
 </ul>
 <p>Return value <code>0</code> means the project loads and the smoke path completed. Exit code <code>1</code> means a validation or test failure; <code>2</code> is a usage error and <code>3</code> an internal error.</p>
 <h3>Desktop E2E</h3>
-<pre><code>./build/linux-debug/demi test linux --project games/my_game</code></pre>
+<pre><code>demi test linux --project games/my_game</code></pre>
 <ul>
   <li><code>test linux</code> — runs the project's end-to-end test script through the real desktop runtime, with rendering and input active.</li>
   <li><code>--project games/my_game</code> — the project whose <code>scripts/tests/e2e.lua</code> should run.</li>

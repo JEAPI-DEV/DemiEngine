@@ -42,27 +42,27 @@ return { tests = tests }</code></pre>
 
 <h2>Run tests</h2>
 <pre><code># Desktop E2E through the real runtime
-./build/linux-debug/demi test linux --project games/my_game
+demi test linux --project games/my_game
 
 # Device E2E (attached physical Android device via adb)
-./build/linux-debug/demi test android --project games/my_game --serial &lt;device&gt;
+demi test android --project games/my_game --serial &lt;device&gt;
 
 # E2E during a normal launch
-./build/linux-debug/demi run --project games/my_game --e2e-tests
+demi run --project games/my_game --e2e-tests
 
 # Headless one-frame smoke
-DEMI_HEADLESS=1 ./build/linux-debug/demi test --project games/my_game/demi.project.json</code></pre>
+DEMI_HEADLESS=1 demi test --project games/my_game/demi.project.json</code></pre>
 <p>Android qualification records <code>lua_tests</code> in <code>build/android/qualification/qualification.json</code>.</p>
 
 <h2>Deterministic input replay</h2>
-<pre><code>./build/linux-debug/demi run --project games/my_game \
+<pre><code>demi run --project games/my_game \
   --input-replay fixtures/smoke.replay.json</code></pre>
 <p>Recorded action frames re-apply through the authored context filter. The project fixed timestep must match the fixture. Use replays as CI smoke tests and for bug reproduction.</p>
 
 <h2>Profiler</h2>
-<pre><code>./build/linux-debug/demi run linux --project games/my_game --profiler
+<pre><code>demi run linux --project games/my_game --profiler
 
-./build/linux-debug/demi run linux --project games/my_game \
+demi run linux --project games/my_game \
   --profile-report report.csv --profile-frames frames.csv</code></pre>
 <p><code>--profile-report</code> writes aggregate scope totals; <code>--profile-frames</code> writes per-frame rows. Profile a repeatable scene and keep the CSV with the change that motivated it.</p>
 <pre><code>local Profile = require("demi.profile")
@@ -73,7 +73,7 @@ end)
 -- The scope appears in profiler reports as "ai_update".</code></pre>
 
 <h2>Debug overlays</h2>
-<pre><code>./build/linux-debug/demi run --project games/my_game \
+<pre><code>demi run --project games/my_game \
   --debug-overlays colliders,contacts,grid,entity_ids,draw_order,ui_bounds,profiler</code></pre>
 <p>Or set the matching project <code>debug</code> flags. Overlay geometry matches the authored simulation shapes.</p>
 
@@ -103,7 +103,7 @@ Save.delete("slot1")</code></pre>
 </ul>
 
 <h2>Validation in CI</h2>
-<pre><code>./build/linux-debug/demi validate examples/minimal_3d
-./build/linux-debug/demi validate examples/minimal_2d_android --platform android
-./build/linux-debug/demi script check games/my_game/scripts/player.lua</code></pre>
+<pre><code>demi validate examples/minimal_3d
+demi validate examples/minimal_2d_android --platform android
+demi script check games/my_game/scripts/player.lua</code></pre>
 <p>Exit code <code>1</code> means validation or test failure — fail the pipeline on it.</p>

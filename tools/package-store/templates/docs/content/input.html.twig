@@ -111,6 +111,6 @@ print(Input.touch_count())</code></pre>
 
 <h2>Deterministic replay</h2>
 <p>Replay fixtures record action frames and re-apply them through the authored context filter. Enabled recorded actions take precedence over physical bindings. The project fixed timestep must match the fixture.</p>
-<pre><code>./build/linux-debug/demi run --project games/my_game \
+<pre><code>demi run --project games/my_game \
   --input-replay fixtures/smoke.replay.json</code></pre>
 <p>See <a href="{{ path('docs_page', {slug: 'testing'}) }}">Testing &amp; debugging</a> for E2E-driven input and replay workflows.</p>

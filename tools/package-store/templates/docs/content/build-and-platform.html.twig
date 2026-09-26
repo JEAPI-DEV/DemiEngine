@@ -121,6 +121,6 @@
 
 <h2>Validating before you package</h2>
 <p>Always validate the exact target first. Android accepts less than desktop, and the validator will say so instead of failing at install time:</p>
-<pre><code>./build/linux-debug/demi validate games/my_game
-./build/linux-debug/demi validate games/my_game --platform android</code></pre>
+<pre><code>demi validate games/my_game
+demi validate games/my_game --platform android</code></pre>
 <p>The first command checks the project and all reachable sources for desktop; the second checks a shipping Android target and surfaces platform capability gaps. Fix every reported error, then package. Shipping workflow details: <a href="{{ path('docs_page', {slug: 'shipping'}) }}">Shipping</a>.</p>

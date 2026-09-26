@@ -2,11 +2,11 @@
 <p>Asset IDs are stable URIs you reference from scenes and scripts. Import records hashes and dependencies; cooking is keyed by content so rebuilds stay fast and deterministic.</p>
 
 <h2>Import a source</h2>
-<pre><code>./build/linux-debug/demi asset import assets/textures/brick.png \
+<pre><code>demi asset import assets/textures/brick.png \
   --project games/my_game --id asset://textures/brick</code></pre>
 <p>This copies the source into the project and writes a <code>*.asset.json</code> manifest. Supported importers: PNG, JPEG, BMP, TGA, QOI, SVG, GIF, WAV, OGG, MP3, FLAC, glTF/GLB, OBJ, IQM, M3D, MP4/WebM/MOV (media builds), JSON data, plus <code>text</code> (<code>.txt</code>, <code>.yaml</code>, <code>.yml</code>). When two importers could claim a source, pass <code>--importer &lt;id&gt;</code>.</p>
 <p>After editing the source file, refresh the manifest:</p>
-<pre><code>./build/linux-debug/demi asset reimport assets/textures/brick.asset.json</code></pre>
+<pre><code>demi asset reimport assets/textures/brick.asset.json</code></pre>
 <p>That recomputes <code>source_hash</code>, dependencies, and generated output. Tools that generate sources under <code>assets/</code> call <code>demi asset register-generated</code>.</p>
 
 <h2>Manifest settings</h2>
@@ -82,22 +82,22 @@ local report = Assets.memory_report()             -- resident/decoded totals</co
 <p>Scene transitions build an implicit group from the <code>scene://</code> root and activate atomically at a frame boundary. A failed reload keeps the previous resident version.</p>
 
 <h2>Cooking</h2>
-<pre><code>./build/linux-debug/demi cook --project games/my_game --platform linux</code></pre>
+<pre><code>demi cook --project games/my_game --platform linux</code></pre>
 <p>Output is <code>generated/cooked/&lt;platform&gt;</code> plus <code>cook.manifest.json</code> listing every included path and hash. Cache keys include importer identity and version, normalized settings, source hashes, platform, and package provenance — so a rebuild only redoes what changed.</p>
 
 <h2>Portable asset packs</h2>
-<pre><code>./build/linux-debug/demi asset export --project games/my_game \
+<pre><code>demi asset export --project games/my_game \
   --output brick_pack.demipack --asset asset://textures/brick
 
-./build/linux-debug/demi asset import-package brick_pack.demipack \
+demi asset import-package brick_pack.demipack \
   --project games/my_game</code></pre>
 <p><code>.demipack</code> is a deterministic container: versioned JSON index plus sorted file data with IDs, manifest paths, sizes, and checksums. Import rejects absolute paths, <code>..</code>, checksum failures, and implicit overwrites.</p>
 
 <h2>Collider assets</h2>
-<pre><code>./build/linux-debug/demi asset collider assets/models/crate.glb.asset.json \
+<pre><code>demi asset collider assets/models/crate.glb.asset.json \
   --project games/my_game --id asset://colliders/crate</code></pre>
 <p>Generates a <code>Collider3D</code> asset from a model for use as a static <code>ModelCollider3D</code>.</p>
 
 <h2>Performance budgets</h2>
-<pre><code>./build/linux-debug/demi asset budget games/my_game/demi.project.json --platform android</code></pre>
+<pre><code>demi asset budget games/my_game/demi.project.json --platform android</code></pre>
 <p>Reports usage against project <code>performance_budgets</code>: frame time, draw calls, resident assets, visible instances, unique meshes, triangles, texture memory, lights, shadow lights, and transparent draws.</p>

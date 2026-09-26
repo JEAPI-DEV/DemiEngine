@@ -15,11 +15,11 @@
   <li>Each directory below it holds one kind of shippable content. Only audited roots are allowed (see the audit table).</li>
 </ul>
 <p>Prove the package before releasing:</p>
-<pre><code>./build/linux-debug/demi package test packages/skyforge-kit</code></pre>
+<pre><code>demi package test packages/skyforge-kit</code></pre>
 <ul>
   <li><code>package test [dir]</code> — runs the package's declared Lua tests. Returns <code>0</code> when every test passed, <code>1</code> when any failed.</li>
 </ul>
-<pre><code>./build/linux-debug/demi validate packages/skyforge-kit</code></pre>
+<pre><code>demi validate packages/skyforge-kit</code></pre>
 <ul>
   <li><code>validate [path]</code> — validates the package source and everything it references. Returns <code>1</code> on validation errors.</li>
 </ul>
@@ -44,7 +44,7 @@
 
 <h2>Creating the release artifact</h2>
 <p>The release artifact is a <code>.demipack</code> — a single audited file other projects install:</p>
-<pre><code>./build/linux-debug/demi package publish packages/skyforge-kit \
+<pre><code>demi package publish packages/skyforge-kit \
   --registry https://demiengine.de</code></pre>
 <ul>
   <li><code>package publish [dir]</code> — audits the package directory, builds the <code>.demipack</code>, and uploads it to the registry. The default directory is the current one.</li>

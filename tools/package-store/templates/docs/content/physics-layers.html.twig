@@ -67,7 +67,7 @@ colliderB.mask_bits  includes colliderA.layer</code></pre>
 <p>The same <code>physics.layers</code> list serves Box2D and Jolt. A 3D collider’s <code>layer</code> field takes the same names. Keep one list per project so 2D HUD hit areas and 3D world bodies agree.</p>
 
 <h2>Debugging filters</h2>
-<pre><code>./build/linux-debug/demi run --project games/my_game \
+<pre><code>demi run --project games/my_game \
   --debug-overlays colliders,contacts</code></pre>
 <p>Colliders draw in their layer. If two shapes overlap and no contact appears, check <code>mask_bits</code> on both sides — that is the usual cause.</p>
 
