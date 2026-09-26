@@ -40,7 +40,7 @@
   "id": "confirm",
   "prefab": "ui-prefab://controls/menu_button",
   "arguments": { "label": "Confirm", "hint": "A / Enter" },
-  "overrides": { "button": { "style": "primary" } }
+  "overrides": { "style": "primary" }
 }
 
 {
@@ -52,9 +52,9 @@
   <li><code>id</code> — the instance’s id in the hosting HUD. Required and document-unique.</li>
   <li><code>prefab</code> — the <code>ui-prefab://</code> URI to expand. Required.</li>
   <li><code>arguments</code> — map of parameter name to value. Every value must match the declared <code>type</code>. Omitted names use the parameter <code>default</code>. This is how <code>${label}</code>, <code>${hint}</code>, <code>${enabled}</code>, and <code>${pad}</code> get filled.</li>
-  <li><code>overrides</code> — map of descendant name to a patch of node fields, merged after expansion. Use it for one-off appearance that does not deserve a parameter.</li>
+  <li><code>overrides</code> — map of field name to value, applied to the expanded root node. <code>id</code>, <code>children</code>, and <code>prefab</code> are reserved and rejected. Use it for one-off tweaks like the instance’s <code>action</code> or <code>style</code>.</li>
 </ul>
-<p>The first instance expands to a “Confirm” button with the hint “A / Enter” and the <code>primary</code> style on the inner button. The second is a disabled “Back” button with the default hint (empty) and default padding 12.</p>
+<p>The first instance expands to a “Confirm” button with the hint “A / Enter” and the <code>primary</code> style on the expanded root. The second is a disabled “Back” button with the default hint (empty) and default padding 12.</p>
 
 <h2>Descendant ID expansion</h2>
 <p>When a prefab expands, descendant ids are prefixed with the instance id and a dot, so two instances never collide:</p>
@@ -92,6 +92,7 @@ end</code></pre>
     <tr><td>Reference cycle</td><td>Prefab A instances prefab B which instances A</td><td>Validation error: reference cycle.</td></tr>
     <tr><td>Duplicate id</td><td>An expanded <code>confirm.hint</code> colliding with an authored node of that id</td><td>Validation error: duplicate id.</td></tr>
     <tr><td>Unknown prefab URI</td><td><code>"prefab": "ui-prefab://controls/nope"</code></td><td>Validation error: unresolved prefab reference.</td></tr>
+    <tr><td>Reserved override field</td><td><code>"overrides": { "children": [] }</code></td><td>Validation error: <code>id</code>, <code>children</code>, and <code>prefab</code> cannot be overridden.</td></tr>
   </tbody>
 </table>
 <p>Check a project and every reachable source from the CLI:</p>

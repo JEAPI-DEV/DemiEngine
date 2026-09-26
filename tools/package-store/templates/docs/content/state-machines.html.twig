@@ -96,26 +96,26 @@ Animation.set_bool(self.id, "grounded", true)     -- boolean parameter
 Animation.trigger(self.id, "jump")                -- one-shot trigger
 
 Animation.play(self.id, "skyforge_slam")          -- force a state
-print(Animation.state(self.id))                   -- current state name, or nil
+print(Animation.state(self.id))                   -- current state name, or ""
 
 Animation.set_speed(self.id, 1.25)                -- playback rate multiplier
-Animation.set_normalized_time(self.id, 0.5)       -- 0…1 position in the current clip</code></pre>
+local t = Animation.normalized_time(self.id)      -- 0…1 position in the current clip</code></pre>
 <table>
   <thead><tr><th>Call</th><th>Takes</th><th>Returns</th></tr></thead>
   <tbody>
-    <tr><td><code>Animation.set_number(id, name, value)</code></td><td>Entity, parameter name, number</td><td>Nothing</td></tr>
-    <tr><td><code>Animation.set_bool(id, name, value)</code></td><td>Entity, parameter name, boolean</td><td>Nothing</td></tr>
-    <tr><td><code>Animation.trigger(id, name)</code></td><td>Entity, trigger name</td><td>Nothing — arms a one-shot condition until consumed</td></tr>
-    <tr><td><code>Animation.play(id, state)</code></td><td>Entity, state name</td><td>Nothing — enters the state immediately</td></tr>
-    <tr><td><code>Animation.state(id)</code></td><td>Entity</td><td>Current state name string, or <code>nil</code> when unknown</td></tr>
-    <tr><td><code>Animation.set_speed(id, rate)</code></td><td>Entity, playback multiplier</td><td>Nothing</td></tr>
-    <tr><td><code>Animation.set_normalized_time(id, t)</code></td><td>Entity, number 0…1</td><td>Nothing — scrubs within the current clip</td></tr>
-    <tr><td><code>Animation.transition(id, from, to)</code></td><td>Entity, two state names</td><td>Nothing — forces one specific transition</td></tr>
-    <tr><td><code>Animation.set_layer_weight(id, layer, weight)</code></td><td>Entity, layer name, 0…1</td><td>Nothing</td></tr>
-    <tr><td><code>Animation.set_root_motion(id, on)</code></td><td>Entity, boolean</td><td>Nothing — lets the clip drive movement</td></tr>
+    <tr><td><code>Animation.set_number(id, name, value)</code></td><td>Entity, parameter name, number</td><td><code>true</code> when applied</td></tr>
+    <tr><td><code>Animation.set_bool(id, name, value)</code></td><td>Entity, parameter name, boolean</td><td><code>true</code> when applied</td></tr>
+    <tr><td><code>Animation.trigger(id, name)</code></td><td>Entity, trigger name</td><td><code>true</code> when armed — a one-shot condition until consumed</td></tr>
+    <tr><td><code>Animation.play(id, state)</code></td><td>Entity, state name</td><td><code>true</code> when entered immediately</td></tr>
+    <tr><td><code>Animation.state(id)</code></td><td>Entity</td><td>Current state name string; <code>""</code> when unavailable</td></tr>
+    <tr><td><code>Animation.set_speed(id, rate)</code></td><td>Entity, playback multiplier</td><td><code>true</code> when applied</td></tr>
+    <tr><td><code>Animation.normalized_time(id)</code></td><td>Entity</td><td>Number <code>0</code>…<code>1</code>: position within the current clip</td></tr>
+    <tr><td><code>Animation.transition(id)</code></td><td>Entity</td><td>Transition info table: <code>from</code>, <code>to</code>, <code>progress</code> (0…1), <code>active</code> boolean</td></tr>
+    <tr><td><code>Animation.set_layer_weight(id, layer, weight)</code></td><td>Entity, layer name, 0…1</td><td><code>true</code> when applied</td></tr>
+    <tr><td><code>Animation.set_root_motion(id, on)</code></td><td>Entity, boolean</td><td><code>true</code> when applied — lets the clip drive movement</td></tr>
   </tbody>
 </table>
-<p>Parameters and triggers only make sense if the machine declares them; setting an unknown parameter is ignored. <code>Animation.state</code> returns a single <code>nil</code> for an entity with no machine — guard before concatenating it into strings.</p>
+<p>Parameters and triggers only make sense if the machine declares them; setting an unknown parameter is ignored. <code>Animation.state</code> returns an empty string for an entity with no machine — guard before concatenating it into strings.</p>
 <pre><code>local Animation = require("demi.animation")
 local Input = require("demi.input")
 

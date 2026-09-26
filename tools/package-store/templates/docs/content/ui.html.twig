@@ -5,9 +5,9 @@
 <pre><code>{
   "format_version": 1,
   "canvas_size": [1280, 720],
-  "theme": "ui/themes/dark.json",
-  "localization_file": "ui/strings.json",
-  "variables": { "game_title": "Skyforge" },
+  "theme": "../ui/themes/dark.json",
+  "localization_file": "../ui/en.localization.json",
+  "variables": ["game_title"],
   "action_map": { "confirm": "menu_accept" },
   "action_effects": {
     "menu_accept": { "focus": "start" }
@@ -26,7 +26,7 @@
     ]
   }
 }</code></pre>
-<p>Walkthrough: <code>canvas_size</code> is the design resolution every position and size is measured against. <code>root</code> is a full-screen column with 24 units of padding and 12 units between children. The title interpolates <code>${game_title}</code> from the top-level <code>variables</code> map. The button <code>action</code> names an input action, and <code>action_effects</code> can move focus or show nodes when that action fires.</p>
+<p>Walkthrough: <code>canvas_size</code> is the design resolution every position and size is measured against. <code>theme</code> and <code>localization_file</code> are paths relative to the HUD file. <code>root</code> is a full-screen column with 24 units of padding and 12 units between children. The title interpolates <code>${game_title}</code>; the top-level <code>variables</code> array declares variable names — never values — and <code>Hud.set_variable</code> fills them at runtime. The button <code>action</code> names an input action, and <code>action_effects</code> can move focus or show/hide nodes (id arrays) when that action fires.</p>
 <p>You can omit <code>root</code> and write top-level <code>children</code> instead — an implicit fill container is inserted. Prefer <code>dock</code>, <code>stack</code>, <code>pad</code>, and <code>at</code> before raw anchors.</p>
 
 <h2>Node types</h2>
@@ -36,7 +36,7 @@
     <tr><td><code>container</code>, <code>panel</code></td><td>Layout and grouping</td><td><code>stack</code>, <code>gap</code>, <code>alignment</code>, <code>columns</code></td></tr>
     <tr><td><code>label</code>, <code>text</code></td><td>Static / editable text</td><td><code>text</code>, <code>font_size</code>, <code>text_wrap</code>, <code>text_alignment</code></td></tr>
     <tr><td><code>image</code></td><td>Texture display</td><td><code>texture</code> (<code>asset://…</code>), animation frames</td></tr>
-    <tr><td><code>button</code>, <code>toggle</code>, <code>slider</code>, <code>text_input</code></td><td>Interactive controls</td><td><code>action</code>, <code>disabled</code>, <code>focusable</code>, <code>placeholder</code></td></tr>
+    <tr><td><code>button</code>, <code>toggle</code>, <code>slider</code>, <code>text_input</code></td><td>Interactive controls</td><td><code>action</code>, <code>disabled</code>, <code>focusable</code>, <code>placeholder</code>; slider takes <code>minimum</code>/<code>maximum</code> (defaults 0 and 1)</td></tr>
     <tr><td><code>scroll</code>, <code>list</code>, <code>progress</code></td><td>Scrolling, lists, progress</td><td>children / value</td></tr>
     <tr><td><code>modal</code></td><td>Focus-trapping dialog</td><td>children</td></tr>
     <tr><td><code>virtual_button</code>, <code>virtual_stick</code></td><td>Touch controls</td><td><code>control</code> (publishes <code>virtual:*</code>)</td></tr>
@@ -59,13 +59,13 @@
   <li><code>text_wrap</code>: <code>none|word|grapheme</code>. <code>text_overflow</code>: <code>visible|clip|ellipsis</code>.</li>
   <li><code>text_alignment</code> / <code>text_vertical_alignment</code>: <code>start|center|end</code>. <code>max_lines</code> caps the block.</li>
   <li>Rich text tags: <code>[color]</code>, <code>[em]</code>, <code>[strong]</code>, <code>[link]</code>, <code>[icon]</code>.</li>
-  <li><code>${name}</code> in <code>text</code> interpolates a variable. Locale strings come from <code>localization_file</code>.</li>
+  <li><code>${name}</code> in <code>text</code> interpolates a native variable — a mechanism separate from localization. Localized strings are selected per node with <code>localization_key</code> and come from <code>localization_file</code> (or an embedded <code>locales</code> object).</li>
 </ul>
 <pre><code>local Hud = require("demi.hud")
 Hud.set_variable("game_title", "Skyforge II")
-Hud.set_locale("de")             -- switch strings
-Hud.set_pseudo_locale("en-XA")   -- pseudo-localization for layout QA</code></pre>
-<p><code>Hud.has_variable(name)</code> returns a boolean; <code>Hud.get_variable(name)</code> returns the string or <code>nil</code>; <code>Hud.reset_variables()</code> restores the authored defaults.</p>
+Hud.set_locale("de")             -- reapply localization keys in German
+Hud.set_pseudo_locale(true)      -- pseudo-localization for layout QA</code></pre>
+<p><code>Hud.has_variable(name)</code> returns a boolean; <code>Hud.get_variable(name)</code> returns the string or <code>nil</code>; <code>Hud.reset_variables()</code> clears runtime values, so unresolved names render as <code>${name}</code>.</p>
 
 <h2>Themes</h2>
 <p>A theme document supplies <code>styles</code> and an optional <code>action_map</code>. A localization file supplies a <code>localization</code> object. Values written on the node itself win over the theme. Reference a style with <code>"style": "menu_button"</code>.</p>
@@ -79,15 +79,15 @@ print(Hud.get_text("seed_input"))         -- read a text_input
 
 Hud.set_font("title", "asset://fonts/head")
 Hud.set_font_size("title", 40)
-Hud.set_color("title", { 1, 1, 1, 1 })
-Hud.set_background_color("panel", "#1b1c27cc")
+Hud.set_color("title", 1, 1, 1, 1)
+Hud.set_background_color("panel", 0.11, 0.11, 0.15, 0.8)
 
-Hud.set_value("health_bar", 0.75)         -- progress/slider 0…1
+Hud.set_value("health_bar", 0.75)         -- progress/slider within its range
 Hud.set_checked("toggle_music", true)     -- toggle state
 Hud.set_disabled("start", false)          -- enable a button
 Hud.set_visible("hint", false)            -- show/hide
 Hud.set_opacity("fade", 0.5)              -- 0…1
-Hud.set_image("portrait", "asset://ui/hero")
+Hud.set_image("portrait", "asset://ui/hero", 0, 0, 256, 256)
 Hud.set_position("popup", 120, 80)        -- canvas units
 Hud.set_size("popup", 480, 260)
 
@@ -97,18 +97,19 @@ local focused = Hud.focused()             -- node ID or nil</code></pre>
 
 <h2>Runtime-created UI</h2>
 <pre><code>local node = Hud.create("menu", {
+    id = "continue",
     type = "button",
     text = "Continue",
     action = "confirm",
 })
-print(node)                     -- handle for the new node
+print(node.id)                  -- handle for the new node
 
-local copy = Hud.clone(node)    -- duplicate, returns the clone
+local copy = Hud.clone(node, "continue_copy")  -- duplicate under a new root id
 Hud.reparent(copy, "other_panel")
-local kids = Hud.children("list")   -- array of child handles
-Hud.clear_children("list")
+local kids = Hud.children("menu")   -- array of child ids
+Hud.clear_children("menu")
 Hud.remove(node)                -- delete a runtime node</code></pre>
-<p><code>Hud.create</code> builds a node from the same definition shape as authored HUD JSON and returns its handle. Keep handles in locals if you will mutate the node later.</p>
+<p><code>Hud.create</code> builds a node from the same definition shape as authored HUD JSON and returns its handle plus an error string. Keep handles in locals if you will mutate the node later.</p>
 
 <h2>UI prefabs</h2>
 <p>Reusable subtrees live as <code>*.ui.prefab.json</code> with typed parameters (<code>string</code>, <code>number</code>, <code>integer</code>, <code>boolean</code>, <code>array</code>, <code>object</code>):</p>
@@ -116,29 +117,32 @@ Hud.remove(node)                -- delete a runtime node</code></pre>
   "id": "confirm",
   "prefab": "ui-prefab://controls/menu_button",
   "arguments": { "label": "Confirm" },
-  "overrides": { "button": { "style": "primary" } }
+  "overrides": { "style": "primary" }
 }</code></pre>
-<p><code>arguments</code> fills the prefab’s declared parameters; <code>overrides</code> merges into named descendants. Expanded descendant IDs use dotted paths (<code>confirm.hint</code>). Unknown parameters, type mismatches, unresolved <code>${…}</code> markers, reference cycles, and duplicate IDs fail validation with a clear diagnostic.</p>
+<p><code>arguments</code> fills the prefab’s declared parameters; <code>overrides</code> patches fields on the expanded root node (<code>id</code>, <code>children</code>, and <code>prefab</code> are reserved). Expanded descendant IDs use dotted paths (<code>confirm.hint</code>). Unknown parameters, type mismatches, unresolved <code>${…}</code> markers, missing files, reference cycles, reserved override fields, and duplicate IDs fail validation with a clear diagnostic.</p>
 
 <h2>Virtualization</h2>
 <p>For long inventories and chat logs, only build what is visible:</p>
-<pre><code>local range = Hud.visible_range("scroll")
--- range.y, range.height → first visible row and how many are on screen
+<pre><code>local first, count = Hud.visible_range(500, 48, 240, 480)
+-- first → one-based first visible row; count → live rows needed
 
-local layout = Hud.virtual_layout({ width = 1280, height = 720 })
--- layout.visible_range, layout.set_extent, layout.item_offset,
--- layout.item_count, layout.total_extent
+local layout = Hud.virtual_layout({ 48, 64, 48 })
+-- layout:visible_range(scroll_offset, viewport_extent, overscan?)
+-- layout:set_extent(index, extent), layout:item_offset(index),
+-- layout:item_count(), layout:total_extent()
 
-Hud.recycle_rows("list")        -- return off-screen rows to the pool
-Hud.clear_recycled_rows("list") -- empty the pool</code></pre>
-<p><code>virtual_layout</code> returns a table telling you which items fit in the viewport and their pixel extent, so you can place rows without measuring text yourself.</p>
+local rows = Hud.recycle_rows("inventory", template, keys, extents,
+                              scroll_offset, viewport_extent)
+Hud.clear_recycled_rows("inventory")  -- release the pool</code></pre>
+<p><code>visible_range(item_count, item_extent, scroll_offset, viewport_extent)</code> covers uniform rows. <code>virtual_layout(item_extents)</code> returns a layout object for rows with different heights; <code>recycle_rows(collection_id, row_template, keys, extents, scroll_offset, viewport_extent)</code> keeps only the visible range alive against a hidden template row and returns generation-checked row bindings. Details in <a href="{{ path('docs_page', {slug: 'hud-from-lua'}) }}">HUD from Lua</a>.</p>
 
 <h2>Tweens and reduced motion</h2>
-<pre><code>Hud.tween("fade", "opacity", 0.0, 0.35)  -- node, property, target, seconds
-Hud.tween("panel", "y", 120, 0.25)
-Hud.cancel_tween("fade")
-Hud.set_reduced_motion(true)             -- honor accessibility preference</code></pre>
-<p>Animatable properties: <code>opacity</code>, <code>x</code>, <code>y</code>, <code>scale</code>.</p>
+<pre><code>local fade = Hud.find("fade")
+local handle = Hud.tween(fade, "opacity", 0.0, 0.35)  -- handle, property, target, seconds
+Hud.tween(Hud.find("panel"), "y", 120, 0.25)
+Hud.cancel_tween(handle)     -- takes the tween handle
+Hud.set_reduced_motion(true) -- honor accessibility preference</code></pre>
+<p>Animatable properties: <code>opacity</code>, <code>x</code>, <code>y</code>, <code>scale</code>. <code>Hud.tween</code> returns the tween handle plus an error string; <code>Hud.cancel_tween</code> takes that handle.</p>
 
 <h2>Events</h2>
 <pre><code>function Menu:on_ui_event(e)
@@ -162,8 +166,10 @@ end</code></pre>
 
 <h2>Accessibility</h2>
 <pre><code>local snapshot = Hud.accessibility_snapshot()
--- array of { role, id, parent, label, description, value, states, bounds }</code></pre>
-<p>Node fields: <code>accessibility_label</code>, <code>accessibility_description</code>, <code>accessibility_hidden</code>. Focus is shared across Tab, arrows, D-pad, and pointer; modals trap focus until closed.</p>
+-- array of { id, parent, role, label, description, value_text,
+--            value, minimum, maximum, x, y, width, height,
+--            focused, disabled, checked, focusable, offscreen }</code></pre>
+<p><code>value</code> is numeric and <code>value_text</code> is its string form. Node fields: <code>accessibility_label</code>, <code>accessibility_description</code>, <code>accessibility_hidden</code>. Focus is shared across Tab, arrows, D-pad, and pointer; modals trap focus until closed.</p>
 
 <h2>Next</h2>
 <ul>

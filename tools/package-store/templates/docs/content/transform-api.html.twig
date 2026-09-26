@@ -17,12 +17,12 @@ Transform3D.add_position("skyforge_player", 0, 0, -2)   -- relative move</code><
   <thead><tr><th>Call</th><th>Takes</th><th>Returns</th></tr></thead>
   <tbody>
     <tr><td><code>Transform3D.get_position(id)</code></td><td>Entity handle or ID</td><td>Three scalars <code>x, y, z</code> in <strong>local</strong> space, or three <code>nil</code>s when there is no transform</td></tr>
-    <tr><td><code>Transform3D.set_position(id, x, y, z)</code></td><td>Handle plus three scalars</td><td>Nothing</td></tr>
-    <tr><td><code>Transform3D.add_position(id, dx, dy, dz)</code></td><td>Handle plus three scalars</td><td>Nothing — moves relative to the current local position</td></tr>
+    <tr><td><code>Transform3D.set_position(id, x, y, z)</code></td><td>Handle plus three scalars</td><td><code>true</code> when applied, <code>false</code> when the entity/component is missing</td></tr>
+    <tr><td><code>Transform3D.add_position(id, dx, dy, dz)</code></td><td>Handle plus three scalars</td><td><code>true</code> when applied — moves relative to the current local position</td></tr>
     <tr><td><code>Transform3D.get_rotation(id)</code></td><td>Handle</td><td>Three Euler scalars in <strong>radians</strong>, or three <code>nil</code>s</td></tr>
-    <tr><td><code>Transform3D.set_rotation(id, rx, ry, rz)</code></td><td>Handle plus Euler radians</td><td>Nothing</td></tr>
+    <tr><td><code>Transform3D.set_rotation(id, rx, ry, rz)</code></td><td>Handle plus Euler radians</td><td><code>true</code> when applied</td></tr>
     <tr><td><code>Transform3D.get_scale(id)</code></td><td>Handle</td><td>Three scalars <code>x, y, z</code>, or three <code>nil</code>s</td></tr>
-    <tr><td><code>Transform3D.set_scale(id, sx, sy, sz)</code></td><td>Handle plus three scalars</td><td>Nothing</td></tr>
+    <tr><td><code>Transform3D.set_scale(id, sx, sy, sz)</code></td><td>Handle plus three scalars</td><td><code>true</code> when applied</td></tr>
   </tbody>
 </table>
 <p>Getters return one scalar per coordinate as separate Lua results. Assign exactly three names. If the entity has no transform, each result is <code>nil</code> — check <code>if x == nil then return end</code> before doing arithmetic on the values.</p>
@@ -37,7 +37,7 @@ local fx, fy, fz = Transform3D.forward("skyforge_turret")
 local rx, ry, rz = Transform3D.right("skyforge_turret")
 local ux, uy, uz = Transform3D.up("skyforge_turret")</code></pre>
 <ul>
-  <li><code>Transform3D.look_at(id, x, y, z)</code> — rotates the entity to face the given world point. Returns nothing.</li>
+  <li><code>Transform3D.look_at(id, x, y, z)</code> — rotates the entity's <code>+Z</code> forward axis to face the given world point, compensating for parents. Returns <code>true</code> when applied, <code>false</code> (without mutation) when the transform chain cannot be resolved.</li>
   <li><code>Transform3D.forward(id)</code> / <code>Transform3D.right(id)</code> / <code>Transform3D.up(id)</code> → three scalars of a world-space unit vector, or three <code>nil</code>s when there is no transform.</li>
 </ul>
 <p>A typical Skyforge turret turns with <code>look_at</code>, then fires along <code>forward</code>. Multiply the forward vector by a speed to get a velocity.</p>
@@ -57,7 +57,7 @@ Transform2D.set_scale("skyforge_ship", 2, 2)</code></pre>
   <li><code>Transform2D.get_position(id)</code> → two scalars <code>x, y</code>, or two <code>nil</code>s.</li>
   <li><code>Transform2D.get_rotation(id)</code> → one scalar in radians, or <code>nil</code>.</li>
   <li><code>Transform2D.get_scale(id)</code> → two scalars, or two <code>nil</code>s.</li>
-  <li>Matching <code>set_position</code>, <code>set_rotation</code>, <code>set_scale</code> write those values and return nothing.</li>
+  <li>Matching <code>set_position</code>, <code>set_rotation</code>, <code>set_scale</code> write those values and return <code>true</code> when applied, <code>false</code> when the entity/component is missing.</li>
 </ul>
 <p>Rotation is one number, not a table. 90 degrees is <code>math.rad(90)</code>, which is about <code>1.5708</code>.</p>
 

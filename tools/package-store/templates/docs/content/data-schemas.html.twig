@@ -46,6 +46,7 @@
 <pre><code>{
   "format_version": 1,
   "id": "asset://data/items",
+  "type": "DataAsset",
   "source": "assets/data/items.json",
   "settings": {
     "schema": "asset://schemas/item_row",
@@ -54,6 +55,7 @@
   }
 }</code></pre>
 <ul>
+  <li><code>type</code> — required; must be <code>"DataAsset"</code> for a data document.</li>
   <li><code>settings.schema</code> — the DataSchema asset ID validating this document.</li>
   <li><code>settings.content_type</code> — a type label scripts use to find documents of this kind.</li>
   <li><code>settings.tags</code> — free-form labels for grouping and queries.</li>
@@ -93,29 +95,29 @@ print(items[1].name)                        -- first row's name field</code></pr
 <ul>
   <li><code>content_type</code> — matches <code>settings.content_type</code> from each data asset manifest.</li>
   <li><code>tags</code> — a Lua array of tags; a document matches when it carries them.</li>
-  <li><code>Data.query(...)</code> returns an array of matching loaded documents (tables). An empty array means nothing matched.</li>
+  <li><code>Data.query(...)</code> returns an array of matching documents as snapshot tables (not URIs). An empty array means nothing matched.</li>
 </ul>
 <p>Lua array-like tables round-trip as numeric arrays across JSON and network bridges, so list-shaped data stays list-shaped.</p>
 
 <h2>Reading values safely</h2>
-<p>Every loaded value answers four small questions that keep gameplay code defensive:</p>
+<p>Every loaded value answers a few small questions that keep gameplay code defensive:</p>
 <pre><code>local price = items[1].price
-print(Data.revision(items[1]))   -- integer revision of the loaded document
-print(Data.kind(price))          -- "number", "string", "boolean", "object", "array", "null"
-print(Data.is_null(price))       -- true only for explicit JSON null
-print(Data.null())               -- an explicit JSON null value</code></pre>
+print(Data.revision("asset://data/items"))  -- integer revision of the loaded asset
+print(Data.kind(price))                    -- "array", "object", "null", or nil for scalars
+print(Data.is_null(price))                 -- true only for explicit JSON null
+print(Data.null)                           -- the explicit JSON null sentinel value</code></pre>
 <ul>
-  <li><code>Data.revision(value)</code> — the document revision this value came from. Returns an integer.</li>
-  <li><code>Data.kind(value)</code> — the JSON kind of the value as a string.</li>
+  <li><code>Data.revision(id)</code> — the document revision of the loaded asset, given its <code>asset://</code> ID string. Returns an integer.</li>
+  <li><code>Data.kind(value)</code> — <code>"array"</code>, <code>"object"</code>, or <code>"null"</code> for those JSON kinds; <code>nil</code> for scalars (numbers, strings, booleans).</li>
   <li><code>Data.is_null(value)</code> — returns <code>true</code> when the value is an explicit JSON <code>null</code>, distinguishing "null" from "missing".</li>
-  <li><code>Data.null()</code> — returns the explicit null value, for writing fields that must round-trip as JSON <code>null</code>.</li>
+  <li><code>Data.null</code> — a sentinel <em>value</em> (not a function), for writing fields that must round-trip as JSON <code>null</code>.</li>
 </ul>
 
 <h2>Reload events</h2>
 <p>During development, data files change while the game runs (watch mode and hot reload). Instead of polling the disk, subscribe to the reload event:</p>
 <pre><code>local Events = require("demi.events")
 
-Events.on("data_asset_reloaded", function(e)
+Events.subscribe("data_asset_reloaded", function(e)
     -- e.id, e.old_revision, e.new_revision, e.affected_dependents
     print(e.id, e.old_revision, e.new_revision)
     for _, dependent in ipairs(e.affected_dependents) do

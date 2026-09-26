@@ -34,8 +34,8 @@
   <tbody>
     <tr><td><code>key:a</code>, <code>key:space</code>, <code>key:left_shift</code></td><td>A keyboard key. Names are case-insensitive.</td></tr>
     <tr><td><code>mouse:left</code>, <code>mouse:right</code>, <code>mouse:middle</code></td><td>A mouse button.</td></tr>
-    <tr><td><code>gamepad:a</code>, <code>gamepad:start</code></td><td>A gamepad face/dash button.</td></tr>
-    <tr><td><code>gamepad:axis:trigger_left</code></td><td>An analog trigger or stick axis.</td></tr>
+    <tr><td><code>gamepad:south</code>, <code>gamepad:start</code>, <code>gamepad:dpad_up</code></td><td>A gamepad button (south/east/west/north face, bumpers, stick clicks, D-pad, select/guide/start).</td></tr>
+    <tr><td><code>gamepad:axis:left_trigger</code></td><td>An analog axis: <code>left_x</code>, <code>left_y</code>, <code>right_x</code>, <code>right_y</code>, <code>left_trigger</code>, <code>right_trigger</code>.</td></tr>
     <tr><td><code>gamepad:stick:left</code> / <code>gamepad:stick:right</code></td><td>A full 2D stick (x and y together).</td></tr>
     <tr><td><code>virtual:move</code>, <code>virtual:fire</code></td><td>An on-screen HUD control (see below).</td></tr>
     <tr><td><code>virtual:move:x</code> / <code>virtual:move:y</code></td><td>One axis of an on-screen stick.</td></tr>
@@ -47,10 +47,10 @@
 <p>A key is a button: it is pressed or not. A <code>vector2</code> action needs a direction. <code>vector</code> assigns one.</p>
 <ul>
   <li><code>[-1, 0]</code> means “while this key is held, contribute left on the x axis”.</li>
-  <li><code>[1, 0]</code> is right, <code>[0, 1]</code> is up, <code>[0, -1]</code> is down.</li>
+  <li><code>[1, 0]</code> is right, <code>[0, -1]</code> is up, <code>[0, 1]</code> is down.</li>
   <li>Values outside −1…1 are scaled; most bindings use 0 and ±1.</li>
 </ul>
-<p>The action’s value is the sum of all active bindings, then optionally clamped. With A and D both bound as above:</p>
+<p>The action’s value is the sum of all active bindings. <code>Input.vector</code> then clamps the combined result to unit length; a binding’s own <code>normalize</code> flag normalizes only that binding’s contribution. With A and D both bound as above:</p>
 <table>
   <thead><tr><th>Keys held</th><th><code>Input.vector("move")</code></th></tr></thead>
   <tbody>
@@ -58,7 +58,7 @@
     <tr><td>A</td><td><code>-1, 0</code></td></tr>
     <tr><td>D</td><td><code>1, 0</code></td></tr>
     <tr><td>A + D</td><td><code>0, 0</code> (they cancel)</td></tr>
-    <tr><td>W (<code>vector: [0, 1]</code>) + D</td><td><code>1, 1</code>, normalized to about <code>0.71, 0.71</code> when <code>normalize</code> is on</td></tr>
+    <tr><td>W (<code>vector: [0, -1]</code>) + D</td><td><code>1, -1</code>, clamped by <code>Input.vector</code> to about <code>0.71, -0.71</code></td></tr>
   </tbody>
 </table>
 <p>Without <code>vector</code>, a key bound to a <code>vector2</code> action contributes nothing useful — give every key a direction, or bind a stick that already has one.</p>
@@ -68,10 +68,10 @@
 <table>
   <thead><tr><th>Field</th><th>What it does</th><th>Example</th></tr></thead>
   <tbody>
-    <tr><td><code>scale</code></td><td>Multiplies the binding’s contribution. Range −1…1. Use <code>-1</code> to flip an axis.</td><td><code>{"input": "gamepad:axis:trigger_right", "scale": 0.5}</code></td></tr>
+    <tr><td><code>scale</code></td><td>Multiplies the binding’s contribution. Range −1…1. Use <code>-1</code> to flip an axis.</td><td><code>{"input": "gamepad:axis:right_trigger", "scale": 0.5}</code></td></tr>
     <tr><td><code>invert</code></td><td>Flips the sign. Same idea as <code>scale: -1</code>, clearer for sticks.</td><td><code>{"input": "gamepad:stick:left", "invert": true}</code></td></tr>
     <tr><td><code>deadzone</code></td><td>Ignores small deflection so a worn stick does not drift. 0…0.99.</td><td><code>{"input": "gamepad:stick:left", "deadzone": 0.18}</code></td></tr>
-    <tr><td><code>normalize</code></td><td>Clamp the combined action to a unit vector so diagonals are not faster.</td><td><code>{"input": "gamepad:stick:left", "normalize": true}</code></td></tr>
+    <tr><td><code>normalize</code></td><td>Normalizes this binding’s own contribution to unit length. (<code>Input.vector</code> separately clamps the whole action.)</td><td><code>{"input": "gamepad:stick:left", "normalize": true}</code></td></tr>
     <tr><td><code>player</code></td><td>Routes this binding to a specific local player.</td><td><code>{"input": "key:w", "player": 0}</code></td></tr>
     <tr><td><code>vector</code></td><td>Direction this key contributes to a <code>vector2</code> action.</td><td><code>{"input": "key:a", "vector": [-1, 0]}</code></td></tr>
   </tbody>
@@ -105,10 +105,10 @@
 <table>
   <thead><tr><th>Preset</th><th>Installs</th></tr></thead>
   <tbody>
-    <tr><td><code>wasd_arrows</code></td><td>A <code>move</code> vector2 action from WASD and arrow keys.</td></tr>
-    <tr><td><code>confirm</code></td><td>UI accept/cancel from keyboard (Enter, Space, Escape).</td></tr>
-    <tr><td><code>gamepad_confirm</code></td><td>UI accept/cancel from gamepad (A, B).</td></tr>
-    <tr><td><code>move_3d</code></td><td>3D locomotion: move and look separated.</td></tr>
+    <tr><td><code>wasd_arrows</code></td><td>Two <code>axis1d</code> actions: <code>move_x</code> (A/Left −1, D/Right +1) and <code>move_y</code> (S/Down −1, W/Up +1).</td></tr>
+    <tr><td><code>confirm</code></td><td>A <code>confirm</code> button action from Space, Enter, and the gamepad south button.</td></tr>
+    <tr><td><code>gamepad_confirm</code></td><td>Installs the same <code>confirm</code> action (Space, Enter, gamepad south).</td></tr>
+    <tr><td><code>move_3d</code></td><td>Two <code>axis1d</code> actions: <code>move_right</code> (A −1, D +1) and <code>move_forward</code> (S −1, W +1).</td></tr>
   </tbody>
 </table>
 <p>Presets are starting points. Declare your own action with the same name and it overrides the preset’s definition field by field.</p>
@@ -132,12 +132,12 @@ end</code></pre>
       "type": "vector2",
       "context": "gameplay",
       "bindings": [
-        { "input": "key:w", "vector": [0, 1] },
-        { "input": "key:s", "vector": [0, -1] },
+        { "input": "key:w", "vector": [0, -1] },
+        { "input": "key:s", "vector": [0, 1] },
         { "input": "key:a", "vector": [-1, 0] },
         { "input": "key:d", "vector": [1, 0] },
-        { "input": "key:up", "vector": [0, 1] },
-        { "input": "key:down", "vector": [0, -1] },
+        { "input": "key:up", "vector": [0, -1] },
+        { "input": "key:down", "vector": [0, 1] },
         { "input": "key:left", "vector": [-1, 0] },
         { "input": "key:right", "vector": [1, 0] },
         { "input": "gamepad:stick:left", "deadzone": 0.18, "normalize": true },
@@ -150,10 +150,10 @@ end</code></pre>
       "bindings": [
         { "input": "mouse:left" },
         { "input": "key:space" },
-        { "input": "gamepad:axis:trigger_right", "scale": 1 },
+        { "input": "gamepad:right_bumper" },
         { "input": "virtual:fire" }
       ]
     }
   }
 }</code></pre>
-<p>Read this as: “<code>move</code> is a 2D direction filled by WASD, arrows, the left stick, and the on-screen stick. <code>fire</code> is a button filled by the mouse, Space, the right trigger, and the on-screen button.”</p>
+<p>Read this as: “<code>move</code> is a 2D direction filled by WASD, arrows, the left stick, and the on-screen stick. <code>fire</code> is a button filled by the mouse, Space, the right bumper, and the on-screen button.”</p>

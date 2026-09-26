@@ -29,7 +29,7 @@
 </ul>
 <pre><code>{
   "CharacterController3D": {
-    "slope_limit_degrees": 45,
+    "slope_limit": 45,
     "step_height": 0.35,
     "skin_width": 0.02,
     "gravity": -18.0
@@ -53,7 +53,7 @@
 <table>
   <thead><tr><th>Field</th><th>Meaning</th><th>Typical value</th></tr></thead>
   <tbody>
-    <tr><td><code>slope_limit_degrees</code></td><td>Steepest walkable slope. Steeper faces are slid down rather than climbed.</td><td><code>45</code></td></tr>
+    <tr><td><code>slope_limit</code></td><td>Steepest walkable slope in degrees. Steeper faces are slid down rather than climbed.</td><td><code>45</code></td></tr>
     <tr><td><code>step_height</code></td><td>Maximum ledge height climbed without jumping, in world units.</td><td><code>0.35</code></td></tr>
     <tr><td><code>skin_width</code></td><td>Small gap kept between the shape and obstacles. Prevents sticking in corners and jitter against walls.</td><td><code>0.02</code></td></tr>
     <tr><td><code>gravity</code></td><td>Downward acceleration applied each step, world units per second squared. Negative pulls down.</td><td><code>-18.0</code></td></tr>
@@ -119,7 +119,7 @@ end</code></pre>
 <ul>
   <li><strong>Wall slide</strong> — pushing into a wall moves along it instead of stopping dead.</li>
   <li><strong>Moving platforms</strong> — standing on a kinematic platform inherits its motion for the step.</li>
-  <li><strong>Steps and slopes</strong> — ledges up to <code>step_height</code> are climbed; faces steeper than <code>slope_limit_degrees</code> are not.</li>
+  <li><strong>Steps and slopes</strong> — ledges up to <code>step_height</code> are climbed; faces steeper than <code>slope_limit</code> are not.</li>
 </ul>
 <p>Trigger events still fire from the character’s shape, so zones notice the pilot (<a href="{{ path('docs_page', {slug: 'physics-events'}) }}">Physics events</a>).</p>
 
@@ -171,7 +171,7 @@ Animation.trigger(id, "jump")</code></pre>
 <ul>
   <li>One non-trigger primitive or convex collider, no rigidbody.</li>
   <li>Capsule sized to the character with <code>offset</code> lifting it to the feet.</li>
-  <li><code>slope_limit_degrees</code>, <code>step_height</code>, <code>skin_width</code>, and <code>gravity</code> tuned for the level’s stairs and ramps.</li>
+  <li><code>slope_limit</code>, <code>step_height</code>, <code>skin_width</code>, and <code>gravity</code> tuned for the level’s stairs and ramps.</li>
   <li>Movement applied in <code>on_fixed_update</code> through <code>set_velocity</code>.</li>
   <li>Jump forgiveness and extras implemented in script from <code>state</code>.</li>
 </ul>

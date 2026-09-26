@@ -20,7 +20,7 @@
       "context": "gameplay",
       "bindings": [
         { "input": "key:space" },
-        { "input": "gamepad:a" }
+        { "input": "gamepad:south" }
       ]
     }
   }
@@ -32,7 +32,7 @@
   <li><code>vector</code> on a key binding maps a key to a direction (used for WASD).</li>
   <li><code>deadzone</code> (0…0.99) ignores small stick deflection.</li>
   <li><code>scale</code> (−1…1) and <code>invert</code> flip or shrink an axis.</li>
-  <li><code>normalize</code> clamps combined bindings to a unit vector.</li>
+  <li><code>normalize</code> normalizes that binding’s own contribution to unit length.</li>
   <li><code>player</code> routes the binding to a local player slot.</li>
 </ul>
 <p>Prefer the input presets — <code>wasd_arrows</code>, <code>confirm</code>, <code>gamepad_confirm</code>, <code>move_3d</code> — and override only what you need.</p>
@@ -43,8 +43,8 @@
   <tbody>
     <tr><td><code>key:&lt;key&gt;</code></td><td><code>key:w</code>, <code>key:space</code>, <code>key:left_shift</code></td></tr>
     <tr><td><code>mouse:&lt;button&gt;</code></td><td><code>mouse:left</code>, <code>mouse:right</code>, <code>mouse:middle</code></td></tr>
-    <tr><td><code>gamepad:&lt;button&gt;</code></td><td><code>gamepad:a</code>, <code>gamepad:start</code></td></tr>
-    <tr><td><code>gamepad:axis:&lt;axis&gt;</code></td><td><code>gamepad:axis:trigger_left</code></td></tr>
+    <tr><td><code>gamepad:&lt;button&gt;</code></td><td><code>gamepad:south</code>, <code>gamepad:start</code>, <code>gamepad:dpad_up</code></td></tr>
+    <tr><td><code>gamepad:axis:&lt;axis&gt;</code></td><td><code>gamepad:axis:left_trigger</code>, <code>gamepad:axis:right_x</code></td></tr>
     <tr><td><code>gamepad:stick:left|right</code></td><td>2D stick, respects <code>deadzone</code></td></tr>
     <tr><td><code>virtual:&lt;control&gt;</code></td><td><code>virtual:move</code>, <code>virtual:move:x</code>, <code>virtual:fire</code></td></tr>
   </tbody>
@@ -64,10 +64,10 @@ if Input.released("fire") then
     -- true only on the frame it came up
 end</code></pre>
 <p>All three return a plain boolean. Call them once per frame and store the result if you need it in several places.</p>
-<pre><code>local strength = Input.value("accelerate")  -- 0.0 … 1.0 (axis1d)
+<pre><code>local strength = Input.value("accelerate")  -- −1 … 1 (axis1d)
 local x, y = Input.vector("move")           -- two scalars, clamped to a unit circle
 local rx, ry = Input.raw_vector("move")     -- two scalars, unclamped
-local source = Input.source("jump")         -- "key:space", "gamepad:a", …</code></pre>
+local source = Input.source("jump")         -- "key:space", "gamepad:south", …</code></pre>
 <ul>
   <li><code>value</code> is how hard an analog control is pressed; buttons report 0 or 1.</li>
   <li><code>vector</code> is safe to feed straight into movement (already normalized).</li>
@@ -78,7 +78,14 @@ local source = Input.source("jump")         -- "key:space", "gamepad:a", …</co
 <pre><code>if Input.key_down("left_shift") then end
 if Input.key_pressed("f1") then end
 if Input.key_released("f1") then end</code></pre>
-<p><code>Input.axis(negative, positive)</code> returns <code>positive − negative</code> as −1, 0, or 1 — handy for quick axis pairs without declaring a vector2 action.</p>
+<p>Need a one-dimensional value from two buttons? There is no <code>Input.axis</code> helper. Declare two <code>axis1d</code> actions, or check the buttons in Lua and combine them yourself:</p>
+<pre><code>"input": {
+  "actions": {
+    "turn_left":  { "type": "axis1d", "bindings": [ { "input": "key:a", "scale": 1 } ] },
+    "turn_right": { "type": "axis1d", "bindings": [ { "input": "key:d", "scale": 1 } ] }
+  }
+}</code></pre>
+<pre><code>local turn = Input.value("turn_right") - Input.value("turn_left")</code></pre>
 
 <h2>Contexts</h2>
 <pre><code>Input.enable_context("menu")      -- menu actions become live
@@ -87,23 +94,23 @@ if Input.context_enabled("gameplay") then end</code></pre>
 <p>Only actions whose <code>context</code> is currently enabled respond. An empty enabled set means every action reads as released. This is how a modal menu takes over without editing gameplay scripts.</p>
 
 <h2>Gamepads, rebinding, and persistence</h2>
-<pre><code>Input.assign_gamepad(1, 0)          -- device index 1 → player 0
+<pre><code>Input.assign_gamepad(1, 0)          -- device index 1 → player 0; true when applied
 local count = Input.gamepad_count()  -- how many are connected
 
-Input.rebind("jump", "key:e", 0)     -- action, new device name, player
-Input.save_bindings("input/bindings.json")
-local ok = Input.load_bindings("input/bindings.json")  -- true when loaded</code></pre>
-<p><code>save_bindings</code> and <code>load_bindings</code> use paths relative to <code>Application.user_data_path()</code>, so player remaps survive updates and never write into the game install.</p>
+Input.rebind("jump", 1, "key:e", 0)  -- action, binding index (one-based), new control, player
+local ok = Input.save_bindings("input/bindings.json")   -- true on success, plus an error string
+local ok = Input.load_bindings("input/bindings.json")   -- true when loaded</code></pre>
+<p><code>save_bindings</code> and <code>load_bindings</code> both return a success boolean and an error string. Relative paths resolve below <code>Application.user_data_path()</code>, so player remaps survive updates and never write into the game install; absolute paths are used as supplied.</p>
 
 <h2>Touch and gestures</h2>
 <pre><code>for _, t in ipairs(Input.touches()) do
-    -- t.id, t.phase ("began"|"moved"|"ended"|"cancelled"),
-    -- t.position {x, y}, t.delta {x, y}, t.pressure
+    -- t.id, t.phase ("began"|"moved"|"stationary"|"ended"|"cancelled"),
+    -- t.x, t.y, t.dx, t.dy, t.pressure
 end
 
 for _, g in ipairs(Input.gestures()) do
-    -- g.type ("tap"|"double-tap"|"long-press"|"drag"|"pinch"|"rotate")
-    -- plus type-specific fields (from/to, distance, angle, …)
+    -- g.type ("tap"|"double_tap"|"long_press"|"drag"|"pinch"|"rotate"),
+    -- g.pointer_id, g.x, g.y, g.dx, g.dy, g.value
 end
 
 print(Input.touch_count())</code></pre>

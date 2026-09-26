@@ -26,7 +26,7 @@
 <p>Both must pass before the version number is spent.</p>
 
 <h2>What may ship: the content audit</h2>
-<p>Every release is <strong>audited</strong> before it becomes a <code>.demipack</code>. The audit exists so a package cannot smuggle build output, editor state, or arbitrary folders into other people's projects. Only these roots are allowed:</p>
+<p>Every release is <strong>audited</strong> before it becomes a <code>.demipkg</code>. The audit exists so a package cannot smuggle build output, editor state, or arbitrary folders into other people's projects. Only these roots are allowed:</p>
 <table>
   <thead><tr><th>Root</th><th>What belongs there</th></tr></thead>
   <tbody>
@@ -43,11 +43,11 @@
 <p>Anything outside those roots is rejected with <code>BUILD_PACKAGE_CONTENT_UNEXPECTED</code>. Generated output that is not declared by <code>cook.manifest.json</code> does not belong in a release; consumers cook or verify from the manifest instead of trusting loose files.</p>
 
 <h2>Creating the release artifact</h2>
-<p>The release artifact is a <code>.demipack</code> — a single audited file other projects install:</p>
+<p>The release artifact is a <code>.demipkg</code> — a single audited file other projects install:</p>
 <pre><code>demi package publish packages/skyforge-kit \
   --registry https://demiengine.de</code></pre>
 <ul>
-  <li><code>package publish [dir]</code> — audits the package directory, builds the <code>.demipack</code>, and uploads it to the registry. The default directory is the current one.</li>
+  <li><code>package publish [dir]</code> — audits the package directory, builds the <code>.demipkg</code>, and uploads it to the registry. The default directory is the current one.</li>
   <li><code>--registry &lt;url-or-path&gt;</code> — where to publish. <code>https://demiengine.de</code> is the public store; a local path works for a private registry.</li>
   <li>Returns <code>0</code> when the release is registered, <code>1</code> when validation or the audit fails.</li>
 </ul>
@@ -67,7 +67,7 @@
 <p>The public package store is <strong>demiengine.de</strong>. It serves three audiences:</p>
 <ul>
   <li><strong>Consumers</strong> — browse the catalog, read what a package provides, and copy the <code>package add</code> line for their project.</li>
-  <li><strong>Publishers</strong> — use the publishing page to upload a <code>.demipack</code>, set the release notes, and see which versions exist.</li>
+  <li><strong>Publishers</strong> — use the publishing page to upload a <code>.demipkg</code>, set the release notes, and see which versions exist.</li>
   <li><strong>Tooling</strong> — the same registry endpoint answers <code>package add</code>, <code>install</code>, <code>update</code>, and <code>outdated</code>.</li>
 </ul>
 <p>Two entry points exist for publishing:</p>

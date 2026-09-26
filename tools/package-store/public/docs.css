@@ -676,3 +676,39 @@
         grid-template-columns: 1fr
     }
 }
+
+/* Syntax highlighting tokens (dark code blocks). */
+.tok-comment {
+    color: #7d8aa5;
+    font-style: italic
+}
+
+.tok-string {
+    color: #9fd48a
+}
+
+.tok-key {
+    color: #8fb8ff
+}
+
+.tok-number {
+    color: #f0b37e
+}
+
+.tok-keyword {
+    color: #c792ea
+}
+
+.tok-type {
+    color: #ffd479
+}
+
+.tok-api {
+    color: #82d8ff
+}
+
+@media(prefers-reduced-motion:reduce) {
+    .docs-nav-panel {
+        transition: none
+    }
+}

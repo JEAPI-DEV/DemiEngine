@@ -38,18 +38,21 @@
 
 <h2>Adding your own scopes</h2>
 <p>Engine scopes cover the frame skeleton. Wrap your own heavy work to see it in the same reports:</p>
-<pre><code>local Profile = require("demi.profiler")
+<pre><code>local Profile = require("demi.profile")
+local Entity = require("demi.entity")
 
 function Game:on_update(dt)
-    Profile.scope("crowd_steering", function()
-        Crowd.step(self.crowd, dt)
+    Profile.scope("skyforge_enemy_queries", function()
+        local enemies = Entity.query({ tags = { "enemy" } })
+        update_enemies(enemies, dt)
     end)
 end</code></pre>
 <ul>
-  <li><code>require("demi.profiler")</code> — imports the profiler service table.</li>
-  <li><code>Profile.scope(name, fn)</code> — runs the function <code>fn</code> and records its duration under <code>name</code> in every profile report. Returns whatever <code>fn</code> returns.</li>
+  <li><code>require("demi.profile")</code> — imports the profiling service table.</li>
+  <li><code>Profile.enabled()</code> → <code>true</code> while profiling is active.</li>
+  <li><code>Profile.scope(name, fn)</code> — runs the function <code>fn</code> and records its duration under <code>name</code> in every profile report. Returns <code>true</code> when the scope ran and was recorded.</li>
 </ul>
-<p>Give scopes names you will recognize in a CSV a month from now: <code>crowd_steering</code>, not <code>tmp1</code>.</p>
+<p>Give scopes names you will recognize in a CSV a month from now: <code>skyforge_enemy_queries</code>, not <code>tmp1</code>.</p>
 
 <h2>Debug overlays</h2>
 <p><strong>Debug overlays</strong> draw development-only information over the game so you can see simulation state while profiling or replaying:</p>
@@ -80,23 +83,23 @@ local data = Save.read("slot1")   -- table or nil</code></pre>
 <pre><code>Save.set_number("slot1", "gold", 150)
 print(Save.get_number("slot1", "gold", 0))  -- 150; 0 is the default</code></pre>
 <ul>
-  <li><code>Save.set_number(slot, key, default)</code> — writes one numeric field in the slot.</li>
+  <li><code>Save.set_number(slot, key, value)</code> — writes one numeric field in the slot; returns <code>true</code> on success.</li>
   <li><code>Save.get_number(slot, key, default)</code> — returns the stored number, or <code>default</code> when the key is missing.</li>
 </ul>
-<pre><code>Save.register_migration(2, function(old_table)
+<pre><code>Save.register_migration(2, 3, function(old_table, from_version, to_version)
     old_table.coins = old_table.gold
     old_table.gold = nil
     return old_table
 end)</code></pre>
 <ul>
-  <li><code>Save.register_migration(version, fn)</code> — registers an upgrade function for saves from the previous format version. <code>fn</code> receives the old table and returns the migrated table. Migrations run in order when an older save is loaded.</li>
+  <li><code>Save.register_migration(from_version, to_version, callback)</code> — registers an upgrade function for saves stored at <code>from_version</code>; it returns an integer migration ID. The callback receives the old table plus both versions and returns the migrated table. Migrations run in order when an older save is loaded.</li>
 </ul>
 <pre><code>local meta = Save.metadata("slot1")     -- table of save metadata
 local err  = Save.last_error()          -- string or nil
 local here = Save.exists("slot1")       -- boolean
 Save.delete("slot1")                    -- remove the slot</code></pre>
 <ul>
-  <li><code>Save.metadata(slot)</code> — returns a metadata table for the slot (size and timestamps), or <code>nil</code>.</li>
+  <li><code>Save.metadata(slot)</code> — returns a metadata table for the slot (autosave flag, sequence, reason), or <code>nil</code>.</li>
   <li><code>Save.last_error()</code> — returns the last save error message as a string, or <code>nil</code> when the last operation succeeded.</li>
   <li><code>Save.exists(slot)</code> — returns a boolean.</li>
   <li><code>Save.delete(slot)</code> — removes the slot. Returns a boolean success flag.</li>

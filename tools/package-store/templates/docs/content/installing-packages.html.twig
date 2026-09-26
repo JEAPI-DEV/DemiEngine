@@ -9,10 +9,10 @@
   "version": "1.2.0",
   "engine": "^1.0.0",
   "dependencies": {
-    "demi.ui.statbars": "^1.0.0"
+    "demi.gameplay.events": "^1.0.0"
   },
   "public_modules": ["demi.gameplay.health"],
-  "files": ["scripts/health.lua", "hud/health_bar.prefab.json"]
+  "files": ["scripts/demi/gameplay/health.lua"]
 }</code></pre>
 <table>
   <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
@@ -85,10 +85,12 @@ demi package outdated --format json</code></pre>
 
 <h2>Using package modules from Lua</h2>
 <p>Installed packages are loaded through their <strong>public modules</strong>, named exactly as in the manifest:</p>
-<pre><code>local Health = require("demi.gameplay.health")
+<pre><code>local GameplayEvents = require("demi.gameplay.events")
+local Health = require("demi.gameplay.health")
 
-Health.attach(self.id, { max = 100 })
-print(Health.current(self.id))   -- current hit points as a number</code></pre>
+local health = Health.new(GameplayEvents.new())
+health:add(self.id, 100)
+print(health:get(self.id).current)   -- current hit points as a number</code></pre>
 <ul>
   <li><code>require("demi.gameplay.health")</code> — loads the package's public module and returns its API table.</li>
   <li>Call shapes depend on the package: each package documents its own functions and return values. The pattern is always "require the public module, call its functions, read its return values".</li>
@@ -102,7 +104,7 @@ print(Health.current(self.id))   -- current hit points as a number</code></pre>
   <thead><tr><th>Family</th><th>Examples</th><th>What you get</th></tr></thead>
   <tbody>
     <tr><td><code>demi.gameplay.*</code></td><td><code>health</code>, <code>controllers</code>, <code>projectiles</code>, <code>interactions</code>, <code>inventory</code>, <code>encounters</code>, <code>camera</code>, <code>traversal</code>, <code>third_person</code>, <code>destruction</code>, <code>core</code></td><td>Reusable gameplay systems as Lua modules and prefabs.</td></tr>
-    <tr><td><code>demi.ui.*</code></td><td>stat bars, menus, themes</td><td>HUD prefabs and UI helpers.</td></tr>
+    <tr><td><code>demi.ui.*</code></td><td><code>language_file</code>, <code>localization</code></td><td>HUD language files and localization helpers.</td></tr>
     <tr><td><code>demi.network.lobby</code></td><td>lobby</td><td>Lobby and matchmaking flows for sessions.</td></tr>
     <tr><td><code>kenney.textures.prototype</code></td><td>prototype textures</td><td>Placeholder art assets for grayboxing.</td></tr>
   </tbody>

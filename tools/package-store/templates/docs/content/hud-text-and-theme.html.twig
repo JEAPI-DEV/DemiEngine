@@ -51,9 +51,9 @@
   "text": "Score: ${score}"
 }
 
-"variables": { "game_title": "Skyforge", "score": "0" }</code></pre>
+"variables": ["game_title", "score"]</code></pre>
 <ul>
-  <li>Top-level <code>variables</code> in the HUD document (or theme) maps names to strings — the authored defaults.</li>
+  <li>Top-level <code>variables</code> in the HUD document is an array of variable <em>names</em> — never a name→value map. Values are runtime strings set from Lua with <code>Hud.set_variable</code> / <code>Hud.set_variables</code>; unresolved names stay visible as <code>${name}</code>.</li>
   <li>Node <code>text</code> may mix literal words and <code>${name}</code> markers anywhere in the string.</li>
   <li>Interpolation happens when text is displayed, so one node definition can show changing values.</li>
 </ul>
@@ -63,13 +63,13 @@ Hud.set_variable("score", "1200")
 Hud.set_variables({ score = "1300", game_title = "Skyforge II" })
 local has = Hud.has_variable("score")      -- boolean
 local v = Hud.get_variable("score")        -- string or nil
-Hud.reset_variables()                      -- restore authored defaults</code></pre>
+Hud.reset_variables()                      -- clear runtime values</code></pre>
 <ul>
-  <li><code>Hud.set_variable(name, value)</code> sets one value (a string). No return value.</li>
-  <li><code>Hud.set_variables(table)</code> sets several at once. No return value.</li>
+  <li><code>Hud.set_variable(name, value)</code> sets one value (a string). Returns <code>true</code> when something changed, plus an error string.</li>
+  <li><code>Hud.set_variables(table)</code> sets several at once. Same return pair.</li>
   <li><code>Hud.has_variable(name)</code> returns a boolean.</li>
   <li><code>Hud.get_variable(name)</code> returns the current string, or <code>nil</code> when the name is unknown.</li>
-  <li><code>Hud.reset_variables()</code> restores every variable to its authored default. No return value.</li>
+  <li><code>Hud.reset_variables()</code> clears every runtime value; unresolved names render as <code>${name}</code>. No return value.</li>
 </ul>
 <p>The score label redraws with the new number — no need to rebuild the node.</p>
 
@@ -118,52 +118,64 @@ Hud.reset_variables()                      -- restore authored defaults</code></
 </ul>
 <p>Applying a style:</p>
 <pre><code>{
-  "theme": "ui/themes/dark.json",
+  "theme": "../ui/themes/dark.json",
   "children": [
     { "id": "title", "type": "label", "text": "${game_title}", "style": "title" },
     { "id": "start", "type": "button", "text": "Start", "style": "menu_button", "action": "ui_ok" }
   ]
 }</code></pre>
 <ul>
-  <li>Top-level <code>theme</code> names the theme file path, relative to the project.</li>
+  <li>Top-level <code>theme</code> names the theme file path, relative to the HUD file.</li>
   <li><code>style</code> on a node copies that style’s fields onto the node.</li>
   <li>A field written on the node itself wins over the style. The <code>start</code> button above would keep its own <code>text</code> even if <code>menu_button</code> defined one.</li>
 </ul>
 <p>Why themes: one change to <code>menu_button</code> restyles every menu button in Skyforge. Individual exceptions stay readable on the node.</p>
 
 <h2>Localization</h2>
-<p>A <strong>localization file</strong> supplies translated strings. The HUD references it once and keys pull from it per locale.</p>
+<p>A <strong>localization file</strong> supplies translated strings for one locale. The HUD references it once; each node pulls its string by key when the document loads.</p>
 <pre><code>{
+  "format_version": 1,
   "localization": {
-    "start_game": { "en": "Start", "de": "Starten", "ja": "スタート" },
-    "quit":       { "en": "Quit",  "de": "Beenden", "ja": "やめる" }
+    "play": "Spielen",
+    "quit": "Beenden"
   }
 }</code></pre>
 <pre><code>{
-  "localization_file": "ui/strings.json",
-  "locales": ["en", "de", "ja"],
+  "localization_file": "../ui/de.localization.json",
   "children": [
-    { "id": "start", "type": "button", "text": "${start_game}", "style": "menu_button" }
+    { "id": "start", "type": "button", "text": "Start", "localization_key": "play", "style": "menu_button" },
+    { "id": "seed", "type": "text_input", "placeholder_localization_key": "seed_hint" }
   ]
 }</code></pre>
 <ul>
-  <li>The file is one <code>localization</code> object mapping string keys to per-locale values.</li>
-  <li><code>localization_file</code> on the HUD names that file path.</li>
-  <li><code>locales</code> lists the language codes the game ships.</li>
-  <li>Nodes reference strings through <code>${key}</code> like any variable; the active locale picks the language.</li>
+  <li>The file holds a flat <code>localization</code> object mapping string keys to translated text — one file per locale, e.g. <code>en.localization.json</code> and <code>de.localization.json</code>.</li>
+  <li><code>localization_file</code> on the HUD names that file, relative to the HUD file.</li>
+  <li>A node’s <code>localization_key</code> (and <code>placeholder_localization_key</code> for text inputs) selects the string; its value replaces the node’s text (or placeholder) when the document loads.</li>
+  <li>For small string sets the HUD can instead embed a <code>locales</code> object plus a default <code>locale</code>:</li>
 </ul>
+<pre><code>{
+  "locale": "en",
+  "locales": {
+    "en": { "play": "Start", "quit": "Quit" },
+    "de": { "play": "Spielen", "quit": "Beenden" }
+  },
+  "children": [
+    { "id": "start", "type": "button", "text": "Start", "localization_key": "play" }
+  ]
+}</code></pre>
 <pre><code>local Hud = require("demi.hud")
 
-Hud.set_locale("de")             -- switch all strings to German</code></pre>
+Hud.set_locale("de")             -- reapply every localization key in German</code></pre>
 <ul>
-  <li><code>Hud.set_locale(code)</code> switches every localized string to that locale code. No return value. Untranslated keys fall back to the first listed locale.</li>
+  <li><code>Hud.set_locale(code)</code> reapplies every node’s localization key with that locale’s strings. Returns <code>true</code> when the locale applied, plus an error string; the last valid locale is kept on failure.</li>
+  <li><code>${name}</code> variables are a separate native-variable mechanism — they are interpolated, not localized.</li>
 </ul>
 
 <h2>Pseudo-locale QA</h2>
 <p>Translated text is often longer than English. <strong>Pseudo-localization</strong> expands and accented-izes strings so layout bugs show up before real translations arrive.</p>
-<pre><code>Hud.set_pseudo_locale("en-XA")   -- stress-test layout with fake translations</code></pre>
+<pre><code>Hud.set_pseudo_locale(true)      -- stress-test layout with fake translations</code></pre>
 <ul>
-  <li><code>Hud.set_pseudo_locale(code)</code> switches to a pseudo-locale build of the current strings. No return value.</li>
+  <li><code>Hud.set_pseudo_locale(enabled)</code> takes a boolean and switches displayed strings to a pseudo-locale build of the current strings. No return value.</li>
   <li>Strings render accented and padded (English “Start” becomes something like “[Šţàŕţ—]”), so truncation, wrapping, and <code>max_lines</code> are visible immediately.</li>
   <li>Run Skyforge’s menu in pseudo-locale before each release; fix anything that clips or overflows.</li>
 </ul>

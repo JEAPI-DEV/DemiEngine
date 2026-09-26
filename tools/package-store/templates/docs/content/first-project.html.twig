@@ -8,7 +8,20 @@
   <li><code>demi</code> — the engine CLI you built earlier (see <a href="{{ path('docs_page', {slug: 'install-and-build'}) }}">Install &amp; build</a>).</li>
   <li><code>new --list</code> — prints the template IDs and short descriptions, then exits. Nothing is written to disk.</li>
 </ul>
-<p>Each line names a template ID you pass to <code>--template</code> on the next command. The <code>platformer</code> template is a small 2D game with a player scene and Lua gameplay — a good first choice.</p>
+<p>Each line names a template ID you pass to <code>--template</code> on the next command:</p>
+<table>
+  <thead><tr><th>Template ID</th><th>Title</th></tr></thead>
+  <tbody>
+    <tr><td><code>blank-2d</code></td><td>Blank 2D</td></tr>
+    <tr><td><code>isometric</code></td><td>Isometric 2D</td></tr>
+    <tr><td><code>lightweight-3d</code></td><td>Lightweight 3D</td></tr>
+    <tr><td><code>networked</code></td><td>Networked Game</td></tr>
+    <tr><td><code>platformer</code></td><td>2D Platformer</td></tr>
+    <tr><td><code>top-down</code></td><td>Top-Down 2D</td></tr>
+    <tr><td><code>visual-novel</code></td><td>Visual Novel</td></tr>
+  </tbody>
+</table>
+<p>The <code>platformer</code> template is a small 2D game with a player scene and Lua gameplay — a good first choice.</p>
 
 <h2>Create the project</h2>
 <p>Generate "My Game" into <code>games/my_game</code> from the platformer template:</p>

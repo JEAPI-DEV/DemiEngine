@@ -9,14 +9,14 @@ local token = Events.subscribe("skyforge_rune_collected", function(payload)
     -- payload: the table the emitter passed (fields are up to the emitter)
     Debug.log("collected by " .. tostring(payload.by))
 end)</code></pre>
-<p><code>Events.subscribe(name, handler)</code> registers <code>handler</code> for <code>name</code> and returns an opaque <strong>token</strong>. Keep the token if you will unsubscribe later; otherwise discard it. The handler receives exactly one argument: the payload table (possibly empty, never <code>nil</code>).</p>
+<p><code>Events.subscribe(name, handler)</code> registers <code>handler</code> for <code>name</code> and returns an integer token. Keep the token if you will unsubscribe later; otherwise discard it. The handler receives exactly one argument: the payload table (possibly empty, never <code>nil</code>).</p>
 <pre><code>Events.unsubscribe(token)   -- remove one subscription; safe to call twice
 
 Events.emit("skyforge_rune_collected", { by = self.id })
 -- runs every handler subscribed to that name, each with the same payload table</code></pre>
 <ul>
-  <li><code>Events.unsubscribe(token)</code> — removes the subscription the token came from. Returns nothing.</li>
-  <li><code>Events.emit(name, payload)</code> — fires <code>name</code> with a payload table. Returns nothing. Handlers run in subscription order before the emit call returns.</li>
+  <li><code>Events.unsubscribe(token)</code> — removes the subscription the token came from. Returns <code>true</code> when a subscription was removed.</li>
+  <li><code>Events.emit(name, payload)</code> — fires <code>name</code> with a payload table. Returns the number of handlers delivered. Handlers run in subscription order before the emit call returns.</li>
 </ul>
 <p>Payload tables can be empty (<code>Events.emit("ui_closed", {})</code>) when the name alone is the message. Do not reuse and mutate a payload table after emitting — handlers may hold onto it.</p>
 
@@ -25,7 +25,12 @@ Events.emit("skyforge_rune_collected", { by = self.id })
 <table>
   <thead><tr><th>Name</th><th>When</th></tr></thead>
   <tbody>
-    <tr><td><code>physics_*</code> / <code>physics3d_*</code></td><td>2D and 3D contact and query callbacks (names carry the contact kind)</td></tr>
+    <tr><td><code>physics_collision_enter/stay/exit</code></td><td>A 2D solid contact began, keeps overlapping, or ended</td></tr>
+    <tr><td><code>physics_trigger_enter/stay/exit</code></td><td>A 2D trigger overlap began, keeps overlapping, or ended</td></tr>
+    <tr><td><code>physics_contact</code></td><td>Extracted 2D contact-point data (only when the collider reports contacts)</td></tr>
+    <tr><td><code>physics3d_collision_enter/stay/exit</code></td><td>The same contact lifecycle for 3D bodies</td></tr>
+    <tr><td><code>physics3d_trigger_enter/stay/exit</code></td><td>3D trigger overlaps (character controllers fire these too)</td></tr>
+    <tr><td><code>physics3d_contact</code></td><td>Extracted 3D contact-point data</td></tr>
     <tr><td><code>animation_event</code> / <code>sprite_animation</code> / <code>animation_collision</code></td><td>Clip markers, sprite frame changes, and animation-driven collision toggles</td></tr>
     <tr><td><code>scene_*</code></td><td><code>scene_loaded</code>, <code>scene_unloading</code>, <code>scene_unloaded</code>, <code>active_scene_changed</code></td></tr>
     <tr><td><code>ui_event</code> / <code>ui_submit</code></td><td>HUD interactions and form submits (also delivered to <code>on_ui_event</code> / <code>on_ui_submit</code> on the owning script)</td></tr>
@@ -78,13 +83,13 @@ Timer.cancel(beat)</code></pre>
 <table>
   <thead><tr><th>Call</th><th>Meaning</th><th>Returns</th></tr></thead>
   <tbody>
-    <tr><td><code>Timer.delay(secs, fn)</code></td><td>Run once after <code>secs</code></td><td>Nothing (fire-and-forget)</td></tr>
-    <tr><td><code>Timer.after(secs, fn)</code></td><td>Run once after <code>secs</code></td><td>Cancel handle</td></tr>
-    <tr><td><code>Timer.every(secs, fn)</code></td><td>Run every <code>secs</code> until cancelled</td><td>Cancel handle</td></tr>
-    <tr><td><code>Timer.cancel(handle)</code></td><td>Stop a pending timer</td><td>Nothing; unknown or spent handles are ignored</td></tr>
+    <tr><td><code>Timer.delay(secs, fn)</code></td><td>Run once after <code>secs</code></td><td>Integer timer ID</td></tr>
+    <tr><td><code>Timer.after(secs, fn)</code></td><td>Run once after <code>secs</code> (one-shot alias of <code>delay</code>)</td><td>Integer timer ID</td></tr>
+    <tr><td><code>Timer.every(secs, fn)</code></td><td>Run every <code>secs</code> until cancelled</td><td>Integer timer ID</td></tr>
+    <tr><td><code>Timer.cancel(timer_id)</code></td><td>Stop a pending timer</td><td><code>true</code> when cancelled; <code>false</code> for unknown or spent IDs</td></tr>
   </tbody>
 </table>
-<p>Prefer <code>after</code> over <code>delay</code> whenever you might change your mind (enemy spawn waves, dialogue beats): the handle makes cancellation possible. The callback takes no arguments; close over what it needs.</p>
+<p>Prefer <code>after</code> over <code>delay</code> whenever you might change your mind (enemy spawn waves, dialogue beats): the ID makes cancellation possible. The callback receives the timer ID as its one argument.</p>
 
 <h2>Pausing and scaling time</h2>
 <p><code>demi.time</code> exposes the clock as fields and two control pairs. Values are seconds.</p>

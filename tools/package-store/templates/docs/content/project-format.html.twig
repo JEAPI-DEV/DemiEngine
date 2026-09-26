@@ -29,7 +29,13 @@
       }
     }
   },
-  "physics": { "layers": ["default", "player", "enemy", "world"] },
+  "physics": {
+    "layers": {
+      "goal": ["player"],
+      "player": ["goal", "wall"],
+      "wall": ["player"]
+    }
+  },
   "simulation": {
     "fixed_timestep": 0.016666667,
     "random_seed": 1,
@@ -63,13 +69,13 @@
 <ul>
   <li><code>assets</code> is <strong>startup preload only</strong>. It must not cause every project asset to load automatically.</li>
   <li>Scene entries may omit <code>path</code> when it can be inferred from the scene ID.</li>
-  <li><code>physics.layers</code> is a named collision matrix (maximum 16 names, stable bit order).</li>
+  <li><code>physics.layers</code> is an object collision matrix (maximum 16 properties). Each key is a layer name; the value lists the layer names it collides with, and both sides must accept each other. The parser sorts layers by name — authored order does not assign bit indices.</li>
   <li><code>performance_budgets</code> is project data for measurement; it never silently changes quality.</li>
   <li><code>build.application_id</code> uses reverse-DNS form and is required before packaging.</li>
 </ul>
 
 <h2>Scene — <code>*.scene.json</code></h2>
-<p>Required: <code>format_version</code>, <code>id</code> (<code>scene://…</code>), and entity or instance content.</p>
+<p>Required: <code>format_version</code>, <code>id</code> (<code>scene://…</code>), and <code>entities</code> always (it may be empty; <code>instances</code> does not replace it).</p>
 <pre><code>{
   "format_version": 1,
   "id": "scene://game/main",
@@ -103,10 +109,10 @@
     }
   ]
 }</code></pre>
-<p>Optional entity fields: <code>enabled</code> (default true), <code>persistent</code> (default false), <code>layer</code>, <code>preset</code>/<code>size</code>/<code>radius</code>/<code>texture</code> shorthand expanded before parse.</p>
+<p>Optional entity fields: <code>enabled</code> (default true), <code>persistent</code> (default false), <code>layer</code>, <code>preset</code> shorthand expanded before parse: <code>static_box_3d</code> accepts <code>size</code>, <code>trigger_sphere_3d</code> accepts <code>radius</code>, <code>prop_2d</code> accepts <code>texture</code>, and <code>character_3d</code> accepts no shorthand (it only expands components).</p>
 
 <h2>Prefab — <code>*.prefab.json</code></h2>
-<p>Required: <code>format_version</code>, <code>id</code> (<code>prefab://…</code>), and at least one of <code>entities</code> / <code>instances</code>.</p>
+<p>Required: <code>format_version</code>, <code>id</code> (<code>prefab://…</code>), and at least one of <code>entities</code> / <code>instances</code> / <code>elements</code>.</p>
 <pre><code>{
   "format_version": 1,
   "id": "prefab://characters/player",
@@ -115,7 +121,7 @@
       "id": "body",
       "components": {
         "Transform3D": { "position": [0, 0, 0] },
-        "CharacterController3D": { "slope_limit_degrees": 45 }
+        "CharacterController3D": { "slope_limit": 45 }
       },
       "children": [
         { "id": "visual", "components": { "MeshRenderer": { "model": "asset://models/hero" } } }
@@ -137,7 +143,6 @@
 <pre><code>{
   "format_version": 1,
   "canvas_size": [1280, 720],
-  "respect_safe_area": true,
   "root": {
     "id": "menu",
     "type": "container",
@@ -180,7 +185,7 @@
   "id": "asset://textures/brick",
   "type": "Texture2D",
   "source": "brick.png",
-  "importer": "texture",
+  "importer": "image",
   "importer_version": 1,
   "source_hash": "fnv1a64:...",
   "dependencies": [],
@@ -195,7 +200,7 @@
   "license": "CC0-1.0",
   "attribution": "Kenney"
 }</code></pre>
-<p>Asset types: <code>Texture2D</code>, <code>TextureAtlas2D</code>, <code>SpriteMetadata2D</code>, <code>Font2D</code>, <code>FontAtlas2D</code>, <code>Model3D</code>, <code>Collider3D</code>, <code>AudioClip</code>, <code>VideoClip</code>, <code>DataAsset</code>, <code>DataSchema</code>, <code>NetworkContract</code>, <code>Material</code>, <code>Shader</code>, <code>RenderTarget</code>, <code>Tilemap2D</code>, <code>Icon2D</code>, <code>SvgTexture2D</code>, <code>GifAnimation2D</code>, <code>ImageAnimation2D</code>.</p>
+<p>Asset types: <code>Texture2D</code>, <code>TextureAtlas2D</code>, <code>SpriteMetadata2D</code>, <code>Font2D</code>, <code>FontAtlas2D</code>, <code>Model3D</code>, <code>Collider3D</code>, <code>AudioClip</code>, <code>VideoClip</code>, <code>Text</code>, <code>DataAsset</code>, <code>DataSchema</code>, <code>NetworkContract</code>, <code>Material</code>, <code>Shader</code>, <code>RenderTarget</code>, <code>Tilemap2D</code>, <code>Icon2D</code>, <code>SvgTexture2D</code>, <code>GifAnimation2D</code>, <code>ImageAnimation2D</code>.</p>
 <p>Asset groups (<code>*.asset-group.json</code>) declare addressable roots and streaming budgets:</p>
 <pre><code>{
   "format_version": 1,

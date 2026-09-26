@@ -61,7 +61,7 @@
 "version_code": 1</code></pre>
 <ul>
   <li><code>display_name</code> — what users read. May contain spaces and capitalization.</li>
-  <li><code>executable_name</code> — what the shell runs. Keep it short and filesystem-safe: letters, digits, dashes. This is the name of the binary in a desktop package.</li>
+  <li><code>executable_name</code> — what the shell runs. Lowercase letters, digits, underscores, and dashes only, starting with a letter or digit: <code>^[a-z0-9][a-z0-9_-]*$</code>. This is the name of the binary in a desktop package.</li>
   <li><code>version_name</code> — the version you talk about in release notes.</li>
   <li><code>version_code</code> — the version machines compare. Bump it by at least one for every published build, even for a hotfix; a store will refuse an update whose code is not higher than the installed one.</li>
 </ul>
@@ -97,7 +97,7 @@
   "permissions": ["android.permission.INTERNET"]
 }</code></pre>
 <ul>
-  <li><code>orientation</code> — <code>landscape</code> or <code>portrait</code>. It locks the activity to that rotation so the HUD and camera never have to cope with an unexpected aspect. Pick the orientation your game is designed for.</li>
+  <li><code>orientation</code> — one of <code>unspecified</code>, <code>portrait</code>, <code>landscape</code>, <code>portrait_sensor</code>, or <code>landscape_sensor</code>. A fixed value locks the activity to that rotation so the HUD and camera never have to cope with an unexpected aspect; the <code>*_sensor</code> values allow both directions of that axis. Pick the orientation your game is designed for.</li>
   <li><code>permissions</code> — the Android permission strings this build declares, each written in the platform's dotted form, for example <code>android.permission.INTERNET</code>.</li>
 </ul>
 <p><strong>Why <code>android.permission.INTERNET</code> is explicit.</strong> On Android, network access is not granted by default. A game that never lists this permission cannot open sockets at all — no multiplayer, no asset fetch, no package store. Declaring it is a deliberate promise to the player: "this app uses the network." Declare only what you use; every extra permission is a question a careful player will ask.</p>
@@ -107,14 +107,14 @@
 <p>When you package a build, the produced artifact is a self-contained game. It contains:</p>
 <ul>
   <li>The executable named by <code>executable_name</code>.</li>
-  <li>The cooked game data: cooked scenes, prefabs, HUD documents, scripts, and imported assets — everything the game references, and nothing else from the project tree.</li>
+  <li>The cooked game data: cooked scenes, prefabs, HUD documents, scripts, and imported assets from the audited content roots.</li>
   <li>Branding: the icon and splash derived from the declared assets.</li>
   <li>Platform metadata: application ID, display name, versions, orientation, and the exact permission list.</li>
 </ul>
 <p>What does <strong>not</strong> land in a package:</p>
 <ul>
   <li>Authoring-only files and editor state.</li>
-  <li>Unreferenced project files — anything the game never reaches is left out.</li>
+  <li>Anything outside the audited content roots — packaging is a root audit, not reachability pruning. Content outside those roots fails with <code>BUILD_PACKAGE_CONTENT_UNEXPECTED</code>, while unreferenced files inside an audited root still ship.</li>
   <li>Player saves. Saves are written at run time to the platform's user-data directory as <code>*.save.json</code>, never into the game install or the project tree. See <a href="{{ path('docs_page', {slug: 'game-data'}) }}">Game data &amp; saves</a>.</li>
 </ul>
 <p>Packaging is transactional: if a build fails or you cancel it, the previous artifact stays intact and no partial output is published.</p>

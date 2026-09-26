@@ -32,10 +32,14 @@ demi package outdated</code></pre>
 <p>Cook reads only the lockfile and <code>.demi/packages</code>. Package asset IDs merge into the shared registry without copying.</p>
 
 <h2>Use package modules</h2>
-<pre><code>local Health = require("demi.gameplay.health")
-local health = Health.new({ max = 100 })
-health:damage(15)</code></pre>
-<p>Installed package modules follow the same explicit-require rules as engine services. Editor stubs come from the package's public module metadata.</p>
+<pre><code>local GameplayEvents = require("demi.gameplay.events")
+local Health = require("demi.gameplay.health")
+
+local health = Health.new(GameplayEvents.new())
+health:add("player", 100)
+health:damage({ target = "player", amount = 15 })
+print(health:get("player").current)</code></pre>
+<p>Installed package modules follow the same explicit-require rules as engine services. <code>Health.new</code> takes the events bus as its first argument, so gameplay systems can subscribe to <code>damage_applied</code>, <code>health_changed</code>, and <code>entity_defeated</code>. Editor stubs come from the package's public module metadata.</p>
 
 <h2>Available package families</h2>
 <table>

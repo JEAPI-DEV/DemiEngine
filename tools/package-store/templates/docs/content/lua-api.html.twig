@@ -14,7 +14,7 @@ local x, y, z = Transform3D.get_position("player")</code></pre>
     </tr>
     <tr>
       <td><code>{x, y}</code> / <code>{x, y, z}</code></td>
-      <td>Embedded vectors in tables (hits, specs, spawn options)</td>
+      <td>Embedded vectors in tables (hits, specs, spawn options) and <code>demi.math.vector2</code>/<code>vector3</code> results</td>
       <td>Fixed-length numeric arrays. Index with <code>v[1]</code>, <code>v[2]</code>, <code>v[3]</code> (Lua arrays start at 1).</td>
     </tr>
     <tr>
@@ -98,17 +98,19 @@ if id and Entity.exists(id) then
     Entity.set_field(id, "Sprite", "color", { 1, 0.4, 0.4, 1 })
 end</code></pre>
 <p><code>Entity.find</code> takes the authored entity ID and returns the live handle used by every other call, or <code>nil</code> when nothing matches. <code>Entity.set_field(id, component, field, value)</code> writes one field and leaves the rest of that component unchanged — use it for runtime tweaks instead of rebuilding the component.</p>
-<pre><code>local box = Entity.spawn("crate", {
+<pre><code>local Entity = require("demi.entity")
+
+local ok, err = Entity.spawn("crate", {
     position = { 4, 2, 0 },    -- world position, 3 floats
     velocity = { 1, 0, 0 },    -- optional initial velocity
 })
-print(box)                     -- new entity handle
+-- ok: true when creation was queued; err: nil, or a diagnostic string
 
-local enemies = Entity.query({ tag = "enemy", enabled = true })
+local enemies = Entity.query({ tags = { "enemy" } })
 print(#enemies)                -- 0 when none match
 Entity.destroy_many(enemies)</code></pre>
-<p><code>Entity.spawn</code> creates an entity from a name plus optional <code>position</code> and <code>velocity</code> shorthand (a dense 2- or 3-float array of finite numbers). It returns the new handle. To spawn a prefab, use <code>Prefab.instantiate</code>; to give something a lifetime, schedule <code>Timer.after</code> and destroy it yourself.</p>
-<p><code>Entity.query</code> filters by <code>tag</code>, <code>enabled</code>, and similar keys and always returns an array — empty when nothing matches. Use <code>Entity.get_config(id)</code> to read the last configured component values; for live simulation state use the relevant system (<code>Rigidbody3D.state</code>, <code>CharacterController3D.state</code>, and so on).</p>
+<p><code>Entity.spawn</code> takes an entity ID plus optional <code>position</code> and <code>velocity</code> shorthand (dense 2- or 3-float arrays of finite numbers). It returns <code>true</code> when creation was queued, or <code>false</code> plus an error string; the entity appears at the next creation step, so use <code>Entity.find</code> afterwards for the handle. Prefab and <code>ttl</code> options are rejected — use <code>Prefab.instantiate</code> and <code>Timer.after</code> instead.</p>
+<p><code>Entity.query</code> filters by <code>tags</code>, <code>all</code>, <code>layer</code>, and <code>include_disabled</code>, and always returns an array — empty when nothing matches. Use <code>Entity.get_config(id, component, field)</code> to read one last-configured field value; for live simulation state use the relevant system (<code>Rigidbody3D.state</code>, <code>CharacterController3D.state</code>, and so on).</p>
 <p>Other helpers: <code>Entity.create</code>, <code>replace</code>, <code>clone</code>, <code>destroy</code>, <code>set_enabled</code>, <code>is_enabled</code>, <code>add_component</code>, <code>remove_component</code>, <code>has_component</code>, <code>set_parent</code>, <code>parent</code>, <code>children</code>, <code>local_position</code>, <code>world_position</code>.</p>
 
 <h2>Transforms</h2>
@@ -147,30 +149,29 @@ Prefab.release(instance)                 -- or release any child handle</code></
 <p><code>instantiate</code> expands the prefab and returns the root entity handle. Child IDs are the instance ID joined with the prefab-local ID (<code>wave_4_grunt_12/body</code>). <code>overrides</code> merges into the expanded entities by local ID: objects merge, arrays replace, and <code>null</code> removes a field. <code>pooled = true</code> keeps the entities in a pool on <code>release</code> instead of destroying them; <code>Prefab.pooled_count(id)</code> reports how many are waiting.</p>
 <pre><code>Scene.prepare("scene://game/level_two")   -- start loading
 -- …
-if Scene.is_prepared("scene://game/level_two") then
-    Scene.activate("scene://game/level_two")  -- switch at frame boundary
+if Scene.is_prepared() then
+    Scene.activate()                      -- switch at frame boundary
 end
-print(Scene.progress("scene://game/level_two"))  -- 0.0 … 1.0
-print(Scene.active())                           -- current scene URI
-print(Scene.error("scene://game/level_two"))    -- nil when healthy</code></pre>
-<p>Loading is two-phase: <code>prepare</code> reads and decodes without changing the live world, then <code>activate</code> swaps atomically at a frame boundary. Poll <code>progress</code> or <code>is_prepared</code> while a load screen is up. <code>Scene.load</code> is the one-step form; <code>reload</code> refreshes the current scene; <code>cancel</code> aborts a prepare; <code>unload</code> frees a prepared scene; <code>set_persistent(scene, true)</code> keeps it alive across switches.</p>
+print(Scene.progress())                   -- 0.0 … 1.0
+print(Scene.active())                     -- current scene URI
+print(Scene.error())                      -- empty string when healthy</code></pre>
+<p>Loading is two-phase: <code>prepare</code> reads and decodes without changing the live world, then <code>activate</code> swaps atomically at a frame boundary. Poll <code>progress</code> or <code>is_prepared</code> while a load screen is up — both take no arguments and describe the pending prepare. <code>Scene.load</code> is the one-step form; <code>reload</code> refreshes the current scene; <code>cancel</code> aborts a prepare; <code>unload</code> frees a prepared scene; <code>set_persistent(entity_id, true)</code> marks one entity to survive scene switches.</p>
 
 <h2>Math helpers</h2>
-<pre><code>local Vec3 = require("demi.math.vector3")
+<pre><code>local Vector3 = require("demi.math.vector3")
 local Random = require("demi.math.random")
 
-local ax, ay, az = 1, 0, 0
-local length = Vec3.length(ax, ay, az)          -- 1.0
-local nx, ny, nz = Vec3.normalized(3, 0, 0)     -- 1, 0, 0
-local cx, cy, cz = Vec3.cross(1, 0, 0, 0, 1, 0) -- 0, 0, 1
-local lx, ly, lz = Vec3.lerp(0, 0, 0, 10, 0, 0, 0.25) -- 2.5, 0, 0
+local length = Vector3.length({ 1, 0, 0 })               -- 1.0
+local n = Vector3.normalized({ 3, 0, 0 })                -- { 1, 0, 0 }
+local c = Vector3.cross({ 1, 0, 0 }, { 0, 1, 0 })        -- { 0, 0, 1 }
+local l = Vector3.lerp({ 0, 0, 0 }, { 10, 0, 0 }, 0.25)  -- { 2.5, 0, 0 }
 
 Random.seed(42)              -- deterministic sequence
 print(Random.value())        -- 0.0 … 1.0
 print(Random.integer(1, 6))  -- inclusive bounds
 local checkpoint = Random.state()
 Random.restore(checkpoint)   -- rewind the sequence</code></pre>
-<p>Vector functions take and return separate scalars, so you can chain them without allocating tables. <code>Random.state</code> snapshots the generator; <code>restore</code> rewinds it. Save both the seed and a state checkpoint when you need a replay to match.</p>
+<p>Vector functions take and return <code>Vec2</code>/<code>Vec3</code> numeric arrays — fixed-length tables indexed from 1 (<code>v[1]</code>, <code>v[2]</code>, <code>v[3]</code>); <code>length</code> and <code>dot</code> return a single number. <code>Random.state</code> snapshots the generator as an exact state string and <code>restore</code> rewinds it. Save both the seed and a state checkpoint when you need a replay to match.</p>
 
 <h2>Events</h2>
 <pre><code>local Events = require("demi.events")
@@ -180,7 +181,7 @@ local id = Events.subscribe("physics_collision_enter", function(e)
 end)
 Events.emit("player_died", { x = 1, y = 2 })  -- game-defined payload
 Events.unsubscribe(id)</code></pre>
-<p><code>subscribe</code> returns an integer token you pass back to <code>unsubscribe</code>. Handlers run immediately on <code>emit</code>. Engine event payloads are plain tables — the fields depend on the event (see the system pages).</p>
+<p><code>subscribe</code> returns an integer token you pass back to <code>unsubscribe</code> (which returns <code>true</code> when the token was removed). <code>emit</code> returns the number of handlers delivered. Handlers run immediately on <code>emit</code>. Engine event payloads are plain tables — the fields depend on the event (see the system pages).</p>
 
 <h2>Editor stubs</h2>
 <p>Generate LuaLS/EmmyLua stubs for autocomplete in your editor:</p>

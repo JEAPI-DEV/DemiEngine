@@ -9,7 +9,7 @@
 }</code></pre>
 <ul>
   <li><code>id</code> — stable name used by scripts and events. Document-wide and unique.</li>
-  <li><code>type</code> — which node kind to build. Required.</li>
+  <li><code>type</code> — which node kind to build. Optional; defaults to <code>container</code>.</li>
   <li>Every other field depends on the type. Shared layout fields are covered in <a href="{{ path('docs_page', {slug: 'hud-layout'}) }}">Layout</a>.</li>
 </ul>
 
@@ -68,7 +68,7 @@
   <li><code>texture</code> — an <code>asset://</code> URI pointing at an imported image asset. Required for the image to show.</li>
   <li><code>size</code> — canvas units. The texture is fitted inside this box.</li>
 </ul>
-<p>Renders the referenced texture. Swap it at runtime with <code>Hud.set_image(id, uri)</code>.</p>
+<p>Renders the referenced texture. Swap it at runtime with <code>Hud.set_image(id, texture, source_x, source_y, source_width, source_height)</code>.</p>
 
 <h2>button</h2>
 <p>A pressable control with a text caption. Interactive.</p>
@@ -82,7 +82,7 @@
 }</code></pre>
 <ul>
   <li><code>text</code> — the caption rendered on the button.</li>
-  <li><code>action</code> — input action name that activates this button (gamepad A, Enter, a virtual button). Optional; pointer clicks always work.</li>
+  <li><code>action</code> — input action name that activates this button (the gamepad south button, Enter, a virtual button). Optional; pointer clicks always work.</li>
   <li><code>disabled</code> — boolean. A disabled button renders dimmed and does not accept input.</li>
   <li><code>focusable</code> — boolean. Whether keyboard/gamepad focus can land here.</li>
 </ul>
@@ -105,7 +105,7 @@
 <p>Renders a checkbox-style switch. Read and write with <code>Hud.set_checked</code> / the value-changed event.</p>
 
 <h2>slider</h2>
-<p>A draggable 0…1 value — volume, brightness.</p>
+<p>A draggable value within a range — volume, brightness.</p>
 <pre><code>{
   "id": "volume",
   "type": "slider",
@@ -113,7 +113,8 @@
   "min_size": [200, 32]
 }</code></pre>
 <ul>
-  <li><code>value</code> — start position from 0 to 1.</li>
+  <li><code>value</code> — start position within <code>minimum</code>…<code>maximum</code>.</li>
+  <li><code>minimum</code> / <code>maximum</code> — the slider range; defaults 0 and 1.</li>
   <li><code>disabled</code>, <code>focusable</code> — same meaning as button.</li>
 </ul>
 <p>Renders a track and knob. Dragging emits <code>value_changed</code>; <code>Hud.set_value(id, n)</code> moves it from scripts.</p>
@@ -142,7 +143,7 @@
   "type": "scroll",
   "children": []
 }</code></pre>
-<p>Renders a clipped region that scrolls when content is taller or wider than the box. Combine with long lists and <code>Hud.visible_range</code>.</p>
+<p>Renders a clipped region that scrolls when content is taller or wider than the box. Combine with long lists and the virtualization helpers in <a href="{{ path('docs_page', {slug: 'hud-from-lua'}) }}">HUD from Lua</a>.</p>
 
 <h2>list</h2>
 <p>A stacked collection of rows — inventory, lobby players, chat.</p>

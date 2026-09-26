@@ -41,24 +41,25 @@ Session.configure({
 
 <h2>Enabling prediction for an entity</h2>
 <p>Prediction is per entity. <code>enable_prediction</code> registers how that entity's inputs are named, what its state looks like, and how to apply one tick of input:</p>
-<pre><code>Session.enable_prediction({
+<pre><code>local Character = require("demi.physics.character_controller3d")
+
+Session.enable_prediction({
     network_id = network_id,
     input_message = "player_input",
-    state = function()
-        local t = Transform3D.position(self.id)
-        return { x = t.x, y = t.y, z = t.z }
-    end,
-    apply = function(input, dt)
-        Character.move(self.id, input.x, input.y, dt)
+    state = { x = 0, y = 0, z = 0 },
+    apply = function(state, input)
+        Character.set_velocity(self.id, input.x, 0, input.y)
+        local x, y, z = Transform3D.get_position(self.id)
+        return { x = x, y = y, z = z }
     end
 })</code></pre>
 <ul>
   <li><code>network_id</code> — the replicated entity's network ID from <code>Session.spawn</code>.</li>
   <li><code>input_message</code> — the contract message name that carries this entity's inputs.</li>
-  <li><code>state</code> — a function returning the entity's predicted state as a plain table (numbers and arrays).</li>
-  <li><code>apply</code> — a function that applies one input table for <code>dt</code> seconds. This is what gets replayed during rollback.</li>
+  <li><code>state</code> — the entity's initial predicted controller state as a plain table (numbers and arrays).</li>
+  <li><code>apply(state, input)</code> — a deterministic function that applies one input table to the state and returns the new state. This is what gets replayed during rollback.</li>
 </ul>
-<p>Returns nothing. Call it after the entity is spawned and bound to a local entity.</p>
+<p>Returns <code>true</code> when prediction was enabled. Call it after the entity is spawned and bound to a local entity.</p>
 
 <h2>The predict and reconcile cycle</h2>
 <pre><code>local input = { x = 1, y = 0, jump = false }

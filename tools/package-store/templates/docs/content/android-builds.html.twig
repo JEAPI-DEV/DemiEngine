@@ -21,7 +21,7 @@
     <tr><td><code>version_name</code> / <code>version_code</code></td><td>Human version string and integer version code written into the Android manifest and the build report.</td></tr>
     <tr><td><code>icon</code> / <code>splash</code></td><td><code>asset://</code> IDs of the launcher icon and startup splash image. Sources may be PNG, JPEG, WebP, or SVG.</td></tr>
     <tr><td><code>window</code></td><td>Logical resolution <code>width</code> and <code>height</code> in pixels, and <code>mode</code>: <code>windowed</code>, <code>borderless</code>, or <code>fullscreen</code>. On phones, <code>fullscreen</code> is the usual choice.</td></tr>
-    <tr><td><code>android.orientation</code></td><td>Requested activity orientation, for example <code>landscape</code> or <code>portrait</code>.</td></tr>
+    <tr><td><code>android.orientation</code></td><td>Requested activity orientation: <code>unspecified</code>, <code>portrait</code>, <code>landscape</code>, <code>portrait_sensor</code>, or <code>landscape_sensor</code>.</td></tr>
     <tr><td><code>android.permissions</code></td><td>Android permission strings the app needs, for example <code>android.permission.INTERNET</code> for networked games.</td></tr>
   </tbody>
 </table>
@@ -40,7 +40,7 @@
   <tbody>
     <tr><td><code>PROJECT_BUILD_FEATURE_MEDIA_UNSUPPORTED</code></td><td>The project needs media support (FFmpeg) that this engine build lacks.</td></tr>
     <tr><td><code>PROJECT_BUILD_FEATURE_NETWORK_UNSUPPORTED</code></td><td>The project needs networking (ENet) that this engine build lacks.</td></tr>
-    <tr><td><code>PROJECT_BUILD_FEATURE_SVG_UNSUPPORTED</code></td><td>The project needs SVG support that this engine build lacks (relevant to SVG icons and splash sources).</td></tr>
+    <tr><td><code>PROJECT_BUILD_FEATURE_SVG_UNSUPPORTED</code></td><td>The project uses SVG as <em>runtime content</em> (SVG textures or icons referenced from scenes, HUDs, or Lua) that this engine build cannot decode. Branding-only SVG <code>icon</code>/<code>splash</code> sources never trigger this: packaging rasterizes or installs them host-side.</td></tr>
     <tr><td><code>PROJECT_BUILD_PERMISSION_NETWORK_MISSING</code></td><td><code>android.permission.INTERNET</code> is required but not declared.</td></tr>
     <tr><td><code>BUILD_PACKAGE_CONTENT_UNEXPECTED</code></td><td>Package content outside the audited roots was found and rejected.</td></tr>
   </tbody>

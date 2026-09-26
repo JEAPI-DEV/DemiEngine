@@ -45,11 +45,11 @@ return { tests = tests }</code></pre>
 <ul>
   <li><code>Test.tap(x, y)</code> — taps a screen position in canvas coordinates. Use only when no node ID exists.</li>
 </ul>
-<pre><code>Test.swipe("virtual_stick", 1, 0)
+<pre><code>Test.swipe("card_hand", "card_discard")
 Test.swipe_xy(300, 200, 360, 200)</code></pre>
 <ul>
-  <li><code>Test.swipe(node_id, dx, dy)</code> — drags on the HUD node with that ID by the given delta. Returns nothing.</li>
-  <li><code>Test.swipe_xy(x0, y0, x1, y1)</code> — drags between two screen coordinates.</li>
+  <li><code>Test.swipe(from_node_id, to_node_id, duration?)</code> — swipes between the two HUD node centers over the optional duration (default 0.4&nbsp;s). Returns nothing.</li>
+  <li><code>Test.swipe_xy(x0, y0, x1, y1, duration?)</code> — swipes between two canvas-space positions over the optional duration.</li>
 </ul>
 
 <h3>Waiting and measuring</h3>
@@ -65,9 +65,9 @@ Test.swipe_xy(300, 200, 360, 200)</code></pre>
 <ul>
   <li><code>Test.expect(condition, message)</code> — asserts that <code>condition</code> is true. On failure it reports <code>message</code> in the test output. Returns nothing.</li>
 </ul>
-<pre><code>local center = Test.node_center("btn_play")  -- {x, y} or nil</code></pre>
+<pre><code>local center = Test.node_center("btn_play")  -- { [1] = x, [2] = y } or nil</code></pre>
 <ul>
-  <li><code>Test.node_center(node_id)</code> — returns a table with <code>x</code> and <code>y</code> (numbers) for the HUD node's center, or <code>nil</code> when no such node exists.</li>
+  <li><code>Test.node_center(node_id)</code> — returns the node's center as a <code>Vec2</code> numeric array (index <code>[1]</code> is x, <code>[2]</code> is y), or <code>nil</code> when no such node exists.</li>
 </ul>
 
 <h2>Output markers</h2>
@@ -143,7 +143,7 @@ return { tests = tests }</code></pre>
 <ul>
   <li>The suite has three named tests executed in order: load the arena, fire through the HUD, and return to the menu.</li>
   <li><code>expect_scene</code> fails the test if the scene is not active within 5 seconds.</li>
-  <li><code>node_center</code> returns <code>{x, y}</code> or <code>nil</code>; the test asserts the label exists before touching the fire button.</li>
+  <li><code>node_center</code> returns a <code>Vec2</code> numeric array (<code>[1]</code>, <code>[2]</code>) or <code>nil</code>; the test asserts the label exists before touching the fire button.</li>
   <li>The run ends with <code>[test] SUMMARY passed=N failed=M</code> and the matching exit code.</li>
 </ul>
 <p>When a test fails in the field, capture it as an input recording and replay it locally — see <a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a>.</p>

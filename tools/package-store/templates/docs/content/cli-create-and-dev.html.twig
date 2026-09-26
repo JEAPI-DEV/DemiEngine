@@ -17,21 +17,33 @@
   <li><code>new</code> — the project scaffolding command group.</li>
   <li><code>--list</code> — prints every available template ID and a one-line description of each.</li>
 </ul>
-<p>Returns the list on standard output and exits <code>0</code>.</p>
+<p>Returns the list on standard output and exits <code>0</code>. The shipped templates are:</p>
+<table>
+  <thead><tr><th>Template ID</th><th>Title</th></tr></thead>
+  <tbody>
+    <tr><td><code>blank-2d</code></td><td>Blank 2D</td></tr>
+    <tr><td><code>isometric</code></td><td>Isometric 2D</td></tr>
+    <tr><td><code>lightweight-3d</code></td><td>Lightweight 3D</td></tr>
+    <tr><td><code>networked</code></td><td>Networked Game</td></tr>
+    <tr><td><code>platformer</code></td><td>2D Platformer</td></tr>
+    <tr><td><code>top-down</code></td><td>Top-Down 2D</td></tr>
+    <tr><td><code>visual-novel</code></td><td>Visual Novel</td></tr>
+  </tbody>
+</table>
 
 <h2>Create a project</h2>
 <p><code>demi new</code> writes a new project folder from a template. It is the only supported way to start a project, because it guarantees a layout the engine understands: a <code>demi.project.json</code> root, conventional scene and script paths, and a project that validates before you touch it.</p>
 <pre><code>demi new games/my_game \
-  --template minimal_2d \
+  --template platformer \
   --name "Skyforge"</code></pre>
 <ul>
   <li><code>games/my_game</code> — the directory to create. It must not already contain a project.</li>
-  <li><code>--template minimal_2d</code> — which skeleton to copy. Use an ID from <code>new --list</code>.</li>
+  <li><code>--template platformer</code> — which skeleton to copy. Use an ID from <code>new --list</code>.</li>
   <li><code>--name "Skyforge"</code> — the human-readable game name written into the project file and later into desktop entries and store listings.</li>
 </ul>
 <p>Preview the same command without writing anything:</p>
 <pre><code>demi new games/my_game \
-  --template minimal_2d \
+  --template platformer \
   --name "Skyforge" \
   --dry-run</code></pre>
 <ul>

@@ -18,7 +18,7 @@
   <tbody>
     <tr><td><code>BoxCollider2D</code></td><td>Axis-aligned rectangle</td><td><code>size</code> <code>[w, h]</code></td><td>Crates, walls, UI hit frames.</td></tr>
     <tr><td><code>CircleCollider2D</code></td><td>Circle</td><td><code>radius</code></td><td>Pickups, projectiles, round enemies.</td></tr>
-    <tr><td><code>CapsuleCollider2D</code></td><td>Stadium (rectangle with round caps)</td><td><code>height</code>, <code>radius</code></td><td>Standing characters that should slide around corners.</td></tr>
+    <tr><td><code>CapsuleCollider2D</code></td><td>Stadium (rectangle with round caps)</td><td><code>size</code> <code>[w, h]</code>, <code>offset</code></td><td>Standing characters that should slide around corners.</td></tr>
     <tr><td><code>PolygonCollider2D</code></td><td>Custom convex outline</td><td><code>points</code> <code>[[x, y], ...]</code></td><td>Wedge ramps, diagonal architecture.</td></tr>
     <tr><td><code>EdgeCollider2D</code></td><td>Open chain of segments</td><td><code>points</code>, <code>loop</code></td><td>Terrain outlines and one-way ledges. Set <code>loop: true</code> to close the chain into a solid outline.</td></tr>
   </tbody>

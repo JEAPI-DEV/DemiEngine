@@ -103,44 +103,45 @@ Hud.set_pseudo_locale(true)            -- stretch text to spot overflow</code></
 <p>A tween animates one property over time. Supported properties: <code>opacity</code>, <code>x</code>, <code>y</code>, <code>scale</code>.</p>
 <pre><code>local Hud = require("demi.hud")
 
-Hud.tween("skyforge_banner", "opacity", 0, 0.4)   -- fade out over 0.4 seconds
-Hud.cancel_tween("skyforge_banner")               -- stop mid-flight
-Hud.set_reduced_motion(true)                      -- honour accessibility preference</code></pre>
+local handle, err = Hud.tween(banner, "opacity", 0, 0.35)
+if not handle then print(err) end
+
+Hud.cancel_tween(handle)          -- stop mid-flight; returns true when cancelled
+Hud.set_reduced_motion(true)      -- honour accessibility preference</code></pre>
 <ul>
-  <li><code>Hud.tween(node, property, target, duration)</code> — animates <code>opacity</code>, <code>x</code>, <code>y</code>, or <code>scale</code> toward <code>target</code> over <code>duration</code> seconds. Returns nothing.</li>
-  <li><code>Hud.cancel_tween(node)</code> — stops tweens on that node.</li>
-  <li><code>Hud.set_reduced_motion(on)</code> — respects players who prefer fewer animations.</li>
+  <li><code>Hud.tween(node, property, target, duration)</code> → <code>integer handle, string error</code>. Animates <code>opacity</code>, <code>x</code>, <code>y</code>, or <code>scale</code> toward <code>target</code> over <code>duration</code> seconds. Tweens cancel themselves when the node is removed.</li>
+  <li><code>Hud.cancel_tween(handle)</code> → boolean.</li>
+  <li><code>Hud.set_reduced_motion(enabled)</code> — finishes presentation changes immediately for players who prefer fewer animations.</li>
 </ul>
 
 <h2>Virtualized lists</h2>
 <p>Long lists (a Skyforge server browser with hundreds of rows) should only build the rows on screen. Virtualization helpers report which rows are visible and recycle off-screen ones.</p>
 <pre><code>local Hud = require("demi.hud")
 
-print(Hud.visible_range("skyforge_server_list"))   -- {first, last} indices, or nil
+-- Which rows are on screen right now?
+local first, count = Hud.visible_range(500, 44, scroll_offset, viewport_height)
+-- first: one-based index of the first visible row
+-- count: how many live rows the viewport needs
 
-local layout = Hud.virtual_layout("skyforge_server_list", 400)
--- layout: {
---   visible_range = { first, last },
---   set_extent    = number,   -- how many rows one screen shows
---   item_offset   = number,   -- index of the first materialized row
---   item_count    = number,   -- rows currently materialized
---   total_extent  = number,   -- full list height in canvas units
--- }
+-- How tall is the whole list, and which rows fill it?
+local layout, err = Hud.virtual_layout(row_extents)  -- row_extents: array of numbers
+if layout then
+    -- layout fields per the HudVirtualLayout stub
+end
 
-Hud.recycle_rows("skyforge_server_list")
-Hud.clear_recycled_rows("skyforge_server_list")
-print(Hud.canvas_size("skyforge_server_list"))     -- {width, height} in canvas units</code></pre>
+-- Reuse hidden template rows for stable keys:
+local rows = Hud.recycle_rows("skyforge_server_list", row_template, keys, extents, scroll_offset, viewport_height)
+-- rows: array of { key, index, node, offset, extent, rebound }</code></pre>
 <ul>
-  <li><code>Hud.visible_range(node)</code> → <code>{first, last}</code> index pair, or <code>nil</code> when the node is not a virtualized list.</li>
-  <li><code>Hud.virtual_layout(node, extents)</code> → the layout table described above (all fields numeric).</li>
-  <li><code>Hud.recycle_rows(node)</code> / <code>Hud.clear_recycled_rows(node)</code> — manage the recycled row pool.</li>
-  <li><code>Hud.canvas_size(node)</code> → <code>{width, height}</code> numbers in canvas units.</li>
+  <li><code>Hud.visible_range(item_count, item_extent, scroll_offset, viewport_extent, overscan?)</code> → <code>integer first, integer count</code>. One-based logical index of the first visible row and how many live rows the screen needs.</li>
+  <li><code>Hud.virtual_layout(item_extents)</code> → <code>layout, error</code> — planning helper over per-row extents.</li>
+  <li><code>Hud.recycle_rows(collection_id, row_template, keys, extents, scroll_offset, viewport_extent)</code> → recycled rows with <code>key</code>, <code>index</code>, a live <code>node</code> handle, <code>offset</code>, <code>extent</code>, and <code>rebound</code> (true when the pool slot was reset for a new key).</li>
 </ul>
 
 <h2>Accessibility snapshot</h2>
-<pre><code>local nodes = Hud.accessibility_snapshot("skyforge_root")
--- nodes: array of { id, role, label, value, focused } tables (possibly empty)</code></pre>
-<p><code>Hud.accessibility_snapshot(node)</code> walks the subtree and returns an array of plain tables describing what a screen reader should announce. Each entry has string fields <code>id</code>, <code>role</code>, <code>label</code> (may be empty), <code>value</code>, and a boolean <code>focused</code>. The array is empty when the subtree has no accessible content — never <code>nil</code>.</p>
+<pre><code>local nodes = Hud.accessibility_snapshot()
+-- nodes: array of accessibility nodes (possibly empty, never nil)</code></pre>
+<p><code>Hud.accessibility_snapshot()</code> takes no arguments and describes the whole active document. Each entry carries <code>id</code>, <code>parent</code>, <code>role</code> (for example <code>button</code>, <code>slider</code>, <code>static_text</code>), <code>label</code>, <code>description</code>, numeric <code>value</code>/<code>minimum</code>/<code>maximum</code> plus display <code>value_text</code>, position and size (<code>x</code>, <code>y</code>, <code>width</code>, <code>height</code>), and state booleans (<code>focused</code>, <code>disabled</code>, <code>checked</code>, <code>focusable</code>, <code>offscreen</code>). The array is empty when nothing is announced — never <code>nil</code>.</p>
 
 <h2>Next steps</h2>
 <ul>

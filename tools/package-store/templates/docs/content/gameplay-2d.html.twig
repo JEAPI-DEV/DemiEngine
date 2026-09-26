@@ -5,7 +5,8 @@
 <pre><code>{
   "Sprite": {
     "texture": "asset://sprites/hero",
-    "source_rect": [0, 0, 32, 32],
+    "source_position": [0, 0],
+    "source_size": [32, 32],
     "size": [1, 1],
     "pivot": [0.5, 0],
     "flip_x": false,
@@ -19,7 +20,7 @@
   }
 }</code></pre>
 <ul>
-  <li><code>source_rect</code> is <code>[x, y, w, h]</code> in pixels or normalized units, taken from the texture.</li>
+  <li><code>source_position</code> and <code>source_size</code> take a sub-rectangle of the texture (<code>[x, y]</code> and <code>[w, h]</code>); set <code>source_normalized: true</code> to use 0…1 coordinates instead of pixels.</li>
   <li><code>size</code> is world extent; <code>pivot</code> is the origin inside the sprite (0.5 centers X).</li>
   <li><code>nine_slice</code> is <code>[[left, top], [right, bottom]]</code> border widths for stretchable panels.</li>
   <li><code>mask_offset</code> / <code>mask_size</code> clip the sprite — useful for health bars and portrait frames.</li>
@@ -28,7 +29,7 @@
 </ul>
 <pre><code>local Sprite2D = require("demi.sprite2d")
 
-Sprite2D.set_color(id, { 1, 0.4, 0.4, 1 })   -- RGBA 0…1
+Sprite2D.set_color(id, 1, 0.4, 0.4, 1)       -- RGBA scalars, 0…1
 Sprite2D.set_flip(id, true, false)           -- flip_x, flip_y
 Sprite2D.set_size(id, 1.5, 1.5)
 Sprite2D.set_layer(id, "characters")
@@ -38,7 +39,7 @@ Sprite2D.set_material(id, "asset://materials/additive")
 Sprite2D.play_animation(id, "run")
 Sprite2D.pause_animation(id)
 Sprite2D.resume_animation(id)
-local clip = Sprite2D.current_animation(id)  -- clip name or nil</code></pre>
+local clip = Sprite2D.current_animation(id)  -- current clip name ("" when none)</code></pre>
 
 <h2>Sprite animation</h2>
 <pre><code>{

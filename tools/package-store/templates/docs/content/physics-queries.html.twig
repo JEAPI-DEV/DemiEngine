@@ -19,33 +19,34 @@
 <p>Use a ray when you only need the first blocker. Use overlap when you need everyone inside an area. Use a cast when the moving object has real width and a thin ray would miss the wall it scrapes.</p>
 
 <h2>2D queries</h2>
-<p>The 2D module is <code>demi.physics.query2d</code>. All positions are world-space <code>x, y</code>.</p>
+<p>The 2D module is <code>demi.physics.query2d</code>. All positions are world-space <code>x, y</code>. Raycasts take an <strong>origin plus a direction and a distance</strong>, not two end points.</p>
 <pre><code>local Q2 = require("demi.physics.query2d")
 
-local hit = Q2.raycast(x1, y1, x2, y2, { include_triggers = false })
+-- Cast 8 units straight down from (2, 5):
+local hit = Q2.raycast(2, 5, 0, -1, 8)
 if hit then
     print(hit.entity_id, hit.distance)
 end
 
-local one = Q2.overlap_circle(x, y, radius)
-local all = Q2.overlap_circle_all(x, y, radius)
-local box  = Q2.overlap_box(x, y, half_w, half_h)
-local many = Q2.overlap_box_all(x, y, half_w, half_h)
+local touching_ids = Q2.overlap_circle(4, 0, 1.5)          -- array of entity IDs
+local shard_hits   = Q2.overlap_circle_all(4, 0, 1.5)      -- array of hit tables
+local box_occupied = Q2.overlap_box(0, 0, 2, 2)            -- boolean
 
-local touching = Q2.has_contact(a, b)
-local points   = Q2.contacts(a, b)</code></pre>
+local touching = Q2.has_contact("player")
+local points   = Q2.contacts("player")</code></pre>
 <table>
   <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
   <tbody>
-    <tr><td><code>raycast</code></td><td>start <code>x1, y1</code>, end <code>x2, y2</code>, options table (optional)</td><td>One hit table, or <code>nil</code> when the line hits nothing.</td></tr>
-    <tr><td><code>overlap_box</code></td><td>center <code>x, y</code>, half extents <code>half_w, half_h</code></td><td>The first hit, or <code>nil</code>.</td></tr>
-    <tr><td><code>overlap_circle</code></td><td>center <code>x, y</code>, <code>radius</code></td><td>The first hit, or <code>nil</code>.</td></tr>
-    <tr><td><code>overlap_box_all</code> / <code>overlap_circle_all</code></td><td>Same as above</td><td>An array of hits. Empty array when nothing is found — never <code>nil</code>.</td></tr>
-    <tr><td><code>contacts</code></td><td>two entity ids <code>a</code>, <code>b</code></td><td>Array of current contact points between them, empty when apart.</td></tr>
-    <tr><td><code>has_contact</code></td><td>two entity ids <code>a</code>, <code>b</code></td><td><code>true</code> when the pair is touching, otherwise <code>false</code>.</td></tr>
+    <tr><td><code>raycast</code></td><td>origin <code>x, y</code>, direction <code>dir_x, dir_y</code>, <code>distance</code>, then optional <code>layer</code> and <code>ignored_entity_id</code></td><td>One hit table, or <code>nil</code> when the ray hits nothing.</td></tr>
+    <tr><td><code>overlap_box</code></td><td>center <code>x, y</code>, size <code>width, height</code>, optional <code>ignored_entity_id</code></td><td><code>true</code> when anything overlaps the box, otherwise <code>false</code>.</td></tr>
+    <tr><td><code>overlap_circle</code></td><td>center <code>x, y</code>, <code>radius</code>, optional <code>layer</code> and <code>ignored_entity_id</code></td><td>Array of overlapping <strong>entity IDs</strong> (empty when none).</td></tr>
+    <tr><td><code>overlap_box_all</code></td><td>center <code>x, y</code>, size <code>width, height</code>, optional <code>layer</code> and <code>ignored_entity_id</code></td><td>Array of hit tables. Empty when nothing is found — never <code>nil</code>.</td></tr>
+    <tr><td><code>overlap_circle_all</code></td><td>Same optional arguments as <code>overlap_circle</code></td><td>Array of hit tables.</td></tr>
+    <tr><td><code>contacts</code></td><td>one entity id</td><td>Array of that entity’s current contacts (with phase <code>enter/stay/exit</code>), empty when apart.</td></tr>
+    <tr><td><code>has_contact</code></td><td>one entity id, optional filter table (<code>layer</code>, normal ranges, <code>include_triggers</code>)</td><td><code>true</code> when the entity currently touches a matching collider.</td></tr>
   </tbody>
 </table>
-<p>Pass <code>{ include_triggers = true }</code> as the last raycast argument when trigger volumes should count as hits. Omit it and triggers are skipped.</p>
+<p>Optional <code>layer</code> narrows a query to one <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">physics layer</a>; optional <code>ignored_entity_id</code> skips one entity (the caster itself, usually).</p>
 
 <h3>2D hit fields</h3>
 <table>
@@ -59,34 +60,39 @@ local points   = Q2.contacts(a, b)</code></pre>
     <tr><td><code>fraction</code></td><td>number</td><td>How far along the query the hit is, from 0 (start) to 1 (end).</td></tr>
   </tbody>
 </table>
+<p>3D hits additionally carry <code>collider_part_id</code> (stable part ID inside a compound collider, raycasts only) and <code>is_trigger</code>.</p>
 
 <h3>Everyday 2D patterns</h3>
 <p>Line of sight for a Skyforge patrol drone — does a wall sit between the drone and the intruder?</p>
 <pre><code>local Q2 = require("demi.physics.query2d")
 
-local hit = Q2.raycast(dx, dy, px, py, { include_triggers = false })
+local to_player_x, to_player_y = px - drone_x, py - drone_y
+local length = math.sqrt(to_player_x * to_player_x + to_player_y * to_player_y)
+local dir_x, dir_y = to_player_x / length, to_player_y / length
+
+local hit = Q2.raycast(drone_x, drone_y, dir_x, dir_y, length, nil, drone_id)
 if hit and hit.entity_id ~= player_id then
     -- a wall (or something else) blocks the view
 end</code></pre>
 <ul>
-  <li>The ray starts at the drone and ends at the player.</li>
-  <li><code>hit</code> is the first solid collider along the line, or <code>nil</code> when the path is clear.</li>
+  <li>Normalize the direction to the player and cast that far; <code>nil</code> means the path is clear.</li>
+  <li>The drone itself is skipped with <code>ignored_entity_id</code>, so it never blocks its own view.</li>
   <li>Comparing <code>hit.entity_id</code> to the player tells you whether the player was the first thing in the way.</li>
 </ul>
 <p>Pickup radius — grab every shard in range:</p>
 <pre><code>local shards = Q2.overlap_circle_all(x, y, 1.25)
 for _, h in ipairs(shards) do
-    -- h.entity_id, h.point {x, y}
+    -- h.entity_id, h.point, h.distance
 end</code></pre>
 <ul>
   <li><code>overlap_circle_all</code> returns every overlapping hit as an array of hit tables (fields in the table above).</li>
   <li>An empty array means nothing was in range; <code>ipairs</code> simply does nothing.</li>
 </ul>
 <p>Ground check before a jump:</p>
-<pre><code>local ground = Q2.raycast(x, y, x, y - 0.2, { include_triggers = false })
+<pre><code>local ground = Q2.raycast(x, y, 0, -1, 0.2)
 local can_jump = ground ~= nil</code></pre>
 <ul>
-  <li>The tiny downward ray asks “is solid ground within 0.2 units below me?”</li>
+  <li>The ray starts at the feet, points straight down (direction <code>0, -1</code>), and reaches 0.2 units.</li>
   <li><code>can_jump</code> becomes <code>true</code> when something was hit, <code>false</code> when the result was <code>nil</code>.</li>
 </ul>
 
@@ -99,20 +105,21 @@ if hit then
     print(hit.entity_id, hit.distance)
 end
 
-local one = Q3.overlap_sphere(x, y, z, radius)
-local all = Q3.overlap_sphere_all(x, y, z, radius)
-local boxes = Q3.overlap_box_all(x, y, z, half_x, half_y, half_z)
-local cast = Q3.sphere_cast(x1, y1, z1, x2, y2, z2, radius)</code></pre>
+local ids  = Q3.overlap_sphere(x, y, z, radius)          -- array of entity IDs
+local hits = Q3.overlap_sphere_all(x, y, z, radius)      -- array of hit tables
+local boxes = Q3.overlap_box_all(x, y, z, width, height, depth)
+local cast = Q3.sphere_cast(ox, oy, oz, radius, dir_x, dir_y, dir_z, distance)</code></pre>
 <table>
   <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
   <tbody>
-    <tr><td><code>raycast</code></td><td>origin <code>ox, oy, oz</code>, direction <code>dx, dy, dz</code>, <code>max_distance</code></td><td>Hit table or <code>nil</code>.</td></tr>
-    <tr><td><code>overlap_sphere</code></td><td>center <code>x, y, z</code>, <code>radius</code></td><td>First hit or <code>nil</code>.</td></tr>
-    <tr><td><code>overlap_sphere_all</code></td><td>center and <code>radius</code></td><td>Array of hits, empty when none.</td></tr>
-    <tr><td><code>overlap_box_all</code></td><td>center <code>x, y, z</code>, half extents <code>half_x, half_y, half_z</code></td><td>Array of hits, empty when none.</td></tr>
-    <tr><td><code>sphere_cast</code></td><td>start <code>x1, y1, z1</code>, end <code>x2, y2, z2</code>, <code>radius</code></td><td>Hit table or <code>nil</code>. Sweeps the sphere along the segment.</td></tr>
+    <tr><td><code>raycast</code></td><td>origin <code>ox, oy, oz</code>, direction <code>dx, dy, dz</code>, <code>distance</code>, optional <code>ignored_entity_id</code></td><td>Hit table or <code>nil</code>.</td></tr>
+    <tr><td><code>overlap_sphere</code></td><td>center <code>x, y, z</code>, <code>radius</code>, optional <code>ignored_entity_id</code></td><td>Array of overlapping <strong>entity IDs</strong>.</td></tr>
+    <tr><td><code>overlap_sphere_all</code></td><td>center, <code>radius</code>, optional <code>layer</code> and <code>ignored_entity_id</code></td><td>Array of hit tables, empty when none.</td></tr>
+    <tr><td><code>overlap_box_all</code></td><td>center <code>x, y, z</code>, size <code>width, height, depth</code>, optional <code>layer</code> and <code>ignored_entity_id</code></td><td>Array of hit tables, empty when none.</td></tr>
+    <tr><td><code>sphere_cast</code></td><td>origin, <code>radius</code>, direction <code>dir_x, dir_y, dir_z</code>, <code>distance</code>, then optional <code>layer</code>, <code>ignored_entity_id</code>, <code>include_triggers</code></td><td>Hit table or <code>nil</code>. Sweeps the sphere along the direction.</td></tr>
   </tbody>
 </table>
+<p>Only <code>sphere_cast</code> accepts <code>include_triggers</code> (default <code>true</code>; pass <code>false</code> to find the first solid collider beyond triggers). The 3D raycast’s optional final argument is an <code>ignored_entity_id</code>, not a layer filter.</p>
 
 <h3>3D hit fields</h3>
 <table>
@@ -144,8 +151,8 @@ end</code></pre>
 <table>
   <thead><tr><th>Result</th><th>When</th><th>How to check</th></tr></thead>
   <tbody>
-    <tr><td><code>nil</code></td><td><code>raycast</code>, <code>overlap_box</code>, <code>overlap_circle</code>, <code>overlap_sphere</code>, <code>sphere_cast</code> found nothing</td><td><code>if hit then ... end</code> before reading <code>hit.*</code></td></tr>
-    <tr><td><code>false</code></td><td><code>has_contact</code> pair is not touching</td><td>Plain boolean test</td></tr>
+    <tr><td><code>nil</code></td><td><code>raycast</code> or <code>sphere_cast</code> found nothing</td><td><code>if hit then ... end</code> before reading <code>hit.*</code></td></tr>
+    <tr><td><code>false</code></td><td><code>overlap_box</code> found nothing, or <code>has_contact</code> reports no touch</td><td>Plain boolean test</td></tr>
     <tr><td>Empty array</td><td><code>overlap_*_all</code> or <code>contacts</code> found nothing</td><td><code>#list == 0</code> or simply loop with <code>ipairs</code></td></tr>
   </tbody>
 </table>
@@ -154,7 +161,7 @@ end</code></pre>
 <h2>Practical tips</h2>
 <ul>
   <li>Queries are cheap enough for per-frame checks like ground tests, but do not cast hundreds of long rays every step if one area query answers the same question.</li>
-  <li>Set <code>include_triggers</code> deliberately. Line of sight that counts trigger volumes as walls is a common surprise.</li>
+  <li><code>include_triggers</code> only exists on 3D <code>sphere_cast</code> (default <code>true</code>). 2D raycasts and 3D raycasts always report whatever is first; filter by <code>hit.is_trigger</code> or <code>layer</code> when triggers should not count.</li>
   <li>Use <code>fraction</code> to lerp effects along a laser path and <code>normal</code> to orient decals and bounce particles.</li>
   <li>Layer filters decide who is visible to a query — tune them in <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">Physics layers</a> instead of filtering results by hand.</li>
 </ul>

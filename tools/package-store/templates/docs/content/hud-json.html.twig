@@ -48,8 +48,8 @@
     <tr><td><code>format_version</code></td><td>Always required. Documents without it are rejected.</td></tr>
     <tr><td><code>canvas_size</code></td><td>Design resolution <code>[width, height]</code> in interface units.</td></tr>
     <tr><td><code>root</code></td><td>The single top node of the tree. Everything else is nested under it.</td></tr>
-    <tr><td><code>id</code></td><td>Stable node identity. Tests and scripts address nodes by ID (for example, to press <code>start_button</code> without knowing screen coordinates).</td></tr>
-    <tr><td><code>type</code></td><td>What kind of node this is. Here <code>container</code> (layout only), <code>label</code> (text display), and <code>button</code> (pressable control).</td></tr>
+    <tr><td><code>id</code></td><td>Stable node identity — the only required node field. Tests and scripts address nodes by ID (for example, to press <code>start_button</code> without knowing screen coordinates).</td></tr>
+    <tr><td><code>type</code></td><td>Optional. What kind of node this is; defaults to <code>container</code>. Here <code>container</code> (layout only), <code>label</code> (text display), and <code>button</code> (pressable control).</td></tr>
     <tr><td><code>dock: "fill"</code></td><td>Stretch this node across its parent's available space. Other values: <code>top</code>, <code>bottom</code>, <code>left</code>, <code>right</code>, <code>center</code>.</td></tr>
     <tr><td><code>children</code></td><td>Nested nodes, laid out by this node's layout settings.</td></tr>
     <tr><td><code>text</code></td><td>The string a label or button shows.</td></tr>
@@ -61,7 +61,7 @@
 </table>
 
 <h2>Node types</h2>
-<p>The <code>type</code> field selects the node's behavior:</p>
+<p>The optional <code>type</code> field selects the node's behavior. Omit it and the node is a <code>container</code>:</p>
 <table>
   <thead><tr><th>Type</th><th>Role</th></tr></thead>
   <tbody>
@@ -118,20 +118,17 @@
     <tr><td><code>visible</code></td><td>Whether the node is shown.</td></tr>
     <tr><td><code>disabled</code></td><td>Whether the control accepts input.</td></tr>
     <tr><td><code>focusable</code></td><td>Whether keyboard/gamepad focus can land on this node.</td></tr>
-    <tr><td><code>control</code></td><td>Extra control-specific settings (slider range and the like).</td></tr>
+    <tr><td><code>control</code></td><td>A string naming the virtual input for <code>virtual_button</code> / <code>virtual_stick</code> nodes. The node feeds the project input bound to <code>virtual:&lt;control&gt;</code>.</td></tr>
+    <tr><td><code>minimum</code> / <code>maximum</code></td><td>Slider range endpoints (defaults <code>0</code> and <code>1</code>).</td></tr>
     <tr><td><code>accessibility_label</code> / <code>accessibility_description</code> / <code>accessibility_hidden</code></td><td>Screen-reader text and visibility.</td></tr>
   </tbody>
 </table>
 
 <h2>Variables: <code>${name}</code></h2>
-<p>Text fields can contain placeholders written as <code>${name}</code>. At run time each placeholder is replaced with the value of the HUD variable <code>name</code>. Declare variables in the document:</p>
-<pre><code>"variables": {
-  "player_name": "Skyforge Scout",
-  "score": 0
-},
+<p>Text fields can contain placeholders written as <code>${name}</code>. At run time each placeholder is replaced with the value of the HUD variable <code>name</code>. Declare the names the HUD uses:</p>
+<pre><code>"variables": ["score", "player_name"],
 "root": {
   "id": "hud_root",
-  "type": "container",
   "children": [
     {
       "id": "score_label",
@@ -141,32 +138,49 @@
   ]
 }</code></pre>
 <ul>
-  <li><code>variables</code> is a name → starting value map. Any node's <code>text</code> may interpolate with <code>${…}</code>.</li>
-  <li>The label above displays <code>Skyforge Scout — score 0</code> with those defaults. When a script updates <code>score</code>, the label shows the new value.</li>
+  <li><code>variables</code> is an <strong>array of names</strong>. It declares which runtime variables the HUD uses — for values set by scripts or by runtime-created UI — and <strong>never</strong> holds default values or translated text.</li>
+  <li>Writing <code>${name}</code> in a text field self-declares that name; the <code>variables</code> list is for names that runtime-created UI will use before any text references them.</li>
+  <li>The label above displays whatever the runtime has set for <code>player_name</code> and <code>score</code>. When a script updates <code>score</code>, the label shows the new value.</li>
   <li>Use variables for anything that changes during play: counters, names, status words. Keep fixed copy as plain text.</li>
 </ul>
 
 <h2>Theme and localization</h2>
-<pre><code>"theme": "asset://ui/theme",
-"localization_file": "asset://text/strings"</code></pre>
+<p>Two optional file references, both resolved <strong>relative to the HUD file</strong>:</p>
+<pre><code>"theme": "../ui/default.theme.json",
+"localization_file": "../ui/en.localization.json"</code></pre>
 <ul>
-  <li><code>theme</code> points at a theme asset (<code>asset://…</code>) that supplies default colors, fonts, and styles. Node-level fields still win where you set them explicitly.</li>
-  <li><code>localization_file</code> points at the translation data used for text strings. Combined with <code>locales</code>, it lets one HUD show several languages.</li>
-  <li><code>locales</code> lists the language codes the game offers.</li>
+  <li><code>theme</code> — a path to a theme JSON file relative to the HUD file (for example <code>examples/ui_showcase/scenes/main.hud.json</code> points at <code>../ui/default.theme.json</code>). It supplies default colors, fonts, and styles. Node-level fields still win where you set them explicitly.</li>
+  <li><code>localization_file</code> — a path to a localization file relative to the HUD file, one per locale (for example <code>en.localization.json</code>, <code>de.localization.json</code>). The file holds a flat key→string map under <code>localization</code>:</li>
 </ul>
+<pre><code>{
+  "format_version": 1,
+  "localization": {
+    "title": "Demi UI",
+    "play": "Play"
+  }
+}</code></pre>
+<p>Nodes pick their strings by key, and the localized value replaces the node's text at load:</p>
+<pre><code>{ "id": "play_button", "type": "button", "localization_key": "play" }</code></pre>
+<ul>
+  <li><code>localization_key</code> — replaces the node's <code>text</code> with the localized string for that key.</li>
+  <li><code>placeholder_localization_key</code> — the same for a <code>text_input</code> node's <code>placeholder</code>.</li>
+  <li>Keys that do not resolve leave the authored text untouched.</li>
+</ul>
+<p>A HUD document can also carry embedded translations. <code>locales</code> is an <strong>object keyed by locale</strong> whose values are key→string maps, and <code>locale</code> names the default:</p>
+<pre><code>"locales": { "de": { "play": "Spielen" } },
+"locale": "en"</code></pre>
+<p><code>Hud.set_locale("de")</code> switches languages at run time and reapplies every node's localization key; an invalid locale keeps the last valid one. Inline <code>localization</code> values declared directly in the HUD document take precedence over strings pulled from the localization file.</p>
+<p><code>${name}</code> variables are a separate mechanism (native values set with <code>Hud.set_variable</code>); they are not localized.</p>
 
 <h2>action_map and action_effects</h2>
-<p>Controls do not talk to gameplay directly; they feed named input actions, and optionally play an effect when they fire.</p>
-<pre><code>"action_map": {
-  "start_button": "confirm",
-  "move_stick": "move"
-},
+<p>Controls do not talk to gameplay directly; they feed named input actions, and optionally trigger effects when an action fires.</p>
+<pre><code>"action_map": { "confirm": "menu_accept" },
 "action_effects": {
-  "start_button": { "type": "click" }
+  "menu_accept": { "focus": "start" }
 }</code></pre>
 <ul>
-  <li><code>action_map</code> — control node ID → action name. Pressing <code>start_button</code> is the same as the <code>confirm</code> action; dragging <code>move_stick</code> fills the <code>move</code> action. The action itself must exist in the project's input setup.</li>
-  <li><code>action_effects</code> — optional feedback per control (here, a click effect on <code>start_button</code>), so touch and mouse presses feel physical.</li>
+  <li><code>action_map</code> — control node ID → action name. Pressing <code>confirm</code> is the same as the <code>menu_accept</code> action. The action itself must exist in the project's input setup.</li>
+  <li><code>action_effects</code> — keyed by <strong>action name</strong> (not node ID). Each value may set <code>show</code> (array of node IDs to reveal), <code>hide</code> (array of node IDs to hide), and/or <code>focus</code> (one node ID to focus). Here, firing <code>menu_accept</code> focuses the <code>start</code> node.</li>
   <li>The <code>action</code> field on a node is shorthand for adding that node to <code>action_map</code>.</li>
 </ul>
 <p>Action names must match the project's input declarations. See <a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a> and <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a>.</p>
@@ -191,12 +205,11 @@
 <p>Each node may also use <code>prefab</code>, <code>arguments</code>, and <code>overrides</code> to place a reusable interface prefab instead of inlining every child. The override rules match prefab overrides: absent fields inherit, objects merge, arrays replace, <code>null</code> removes, and dotted keys set one field. See <a href="{{ path('docs_page', {slug: 'prefab-json'}) }}">Prefab files</a>.</p>
 
 <h2>Safe areas</h2>
-<pre><code>"respect_safe_area": true</code></pre>
 <p>A <strong>safe area</strong> is the part of the screen guaranteed to be unobstructed — cutouts, rounded corners, and system bars on phones sit outside it.</p>
 <ul>
-  <li><code>respect_safe_area</code> defaults to <code>true</code>. Readable text and interactive controls are then laid out inside the safe region.</li>
-  <li>Set <code>respect_safe_area: false</code> only for intentional edge-to-edge work: full-screen backgrounds, immersive art, or compositions that are meant to run to the glass.</li>
-  <li>When you go edge-to-edge, keep important buttons and readable text clear of cutouts yourself — the document is promising the engine you have handled that.</li>
+  <li><code>respect_safe_area</code> is a <strong>per-node</strong> field and defaults to <code>true</code>. Readable text and interactive controls are then laid out inside the safe region.</li>
+  <li>Set <code>respect_safe_area: false</code> on a node only for intentional edge-to-edge work: full-screen backgrounds, immersive art, or compositions that are meant to run to the glass.</li>
+  <li>When you go edge-to-edge, keep important buttons and readable text clear of cutouts yourself — the node is promising the engine you have handled that.</li>
 </ul>
 
 <h2>Node field quick reference</h2>

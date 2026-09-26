@@ -7,17 +7,14 @@
 
 <h2>Inspect an asset</h2>
 <p>Before debugging a missing texture, ask the engine what it knows about the asset:</p>
-<pre><code>demi asset inspect assets/textures/brick.asset.json \
-  --id asset://textures/brick</code></pre>
+<pre><code>demi asset inspect assets/textures/brick.asset.json</code></pre>
 <ul>
-  <li><code>asset inspect</code> — validates the manifest and prints a summary: ID, type, source path, and settings.</li>
-  <li><code>--id asset://textures/brick</code> — the asset ID to resolve inside the manifest when one manifest covers several exports.</li>
+  <li><code>asset inspect</code> — takes the manifest path, validates it, and prints a summary: ID, type, importer, source path, and source hash.</li>
 </ul>
 <p>Exits <code>0</code> when the manifest is valid, <code>1</code> when validation reports errors.</p>
-<pre><code>demi asset deps assets/textures/brick.asset.json \
-  --id asset://textures/brick</code></pre>
+<pre><code>demi asset deps assets/textures/brick.asset.json</code></pre>
 <ul>
-  <li><code>asset deps</code> — lists the source files this asset depends on. Returns one path per line, so it is easy to use in a build script to decide whether a reimport is needed.</li>
+  <li><code>asset deps</code> — takes the manifest path and lists what this asset depends on: first the IDs of asset dependencies, then the source-file paths. One per line, so it is easy to use in a build script to decide whether a reimport is needed.</li>
 </ul>
 
 <h2>Import and reimport</h2>
@@ -30,10 +27,9 @@
   <li><code>--importer &lt;id&gt;</code> — optional; names the importer when the file type alone is ambiguous (for example a model that could be static or skinned).</li>
 </ul>
 <p>Returns <code>0</code> and prints the manifest path on success. When the source file changes later, refresh the registered output:</p>
-<pre><code>demi asset reimport assets/textures/brick.asset.json \
-  --id asset://textures/brick</code></pre>
+<pre><code>demi asset reimport assets/textures/brick.asset.json</code></pre>
 <ul>
-  <li><code>asset reimport</code> — regenerates the asset output, updates the source hash and metadata, and leaves the asset ID unchanged.</li>
+  <li><code>asset reimport</code> — takes the manifest path, regenerates the asset output, updates the source hash and metadata, and leaves the asset ID unchanged.</li>
 </ul>
 <p>Content produced by another tool already inside the project can be registered without a copy:</p>
 <pre><code>demi asset register-generated assets/textures/brick_atlas.png \
@@ -50,18 +46,19 @@
   <li><code>asset collider</code> — generates a collider asset from a model asset, so physics uses the authored shape instead of a rough box.</li>
 </ul>
 <pre><code>demi asset export \
-  --output skyforge_props.demipack</code></pre>
+  --output skyforge_props.demipack \
+  --asset asset://textures/brick</code></pre>
 <ul>
-  <li><code>asset export --output file.demipack</code> — writes a portable asset pack: a single file other projects can import.</li>
+  <li><code>asset export --output file.demipack --asset asset://id</code> — writes a portable asset pack: a single file other projects can import. At least one <code>--asset asset://id</code> is required; repeat the flag to export several assets. Without it the command exits with a usage error.</li>
 </ul>
 <pre><code>demi asset import-package skyforge_props.demipack
  </code></pre>
 <ul>
   <li><code>asset import-package file.demipack</code> — verifies the pack and imports its assets into the project. Returns <code>1</code> if verification fails.</li>
 </ul>
-<pre><code>demi asset budget games/my_game --platform android</code></pre>
+<pre><code>demi asset budget games/my_game/demi.project.json --platform android</code></pre>
 <ul>
-  <li><code>asset budget</code> — reports current usage against the project's performance budgets.</li>
+  <li><code>asset budget</code> — takes the project <em>file</em> (<code>demi.project.json</code>, not a directory) and reports 3D budget usage against the platform's profile.</li>
   <li><code>--platform android|linux</code> — which platform's budget profile to measure against.</li>
 </ul>
 <p>Budgets are declared in the project file and are covered in <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a>.</p>
@@ -127,15 +124,15 @@ demi package outdated --format json</code></pre>
 <table>
   <thead><tr><th>Goal</th><th>Command</th></tr></thead>
   <tbody>
-    <tr><td>Summarize an asset</td><td><code>demi asset inspect &lt;manifest&gt; --id asset://…</code></td></tr>
-    <tr><td>List asset sources</td><td><code>demi asset deps &lt;manifest&gt; --id asset://…</code></td></tr>
+    <tr><td>Summarize an asset</td><td><code>demi asset inspect &lt;manifest&gt;</code></td></tr>
+    <tr><td>List asset sources</td><td><code>demi asset deps &lt;manifest&gt;</code></td></tr>
     <tr><td>Bring a file in</td><td><code>demi asset import &lt;source&gt; --id asset://…</code></td></tr>
-    <tr><td>Refresh after art changes</td><td><code>demi asset reimport &lt;manifest&gt; --id asset://…</code></td></tr>
+    <tr><td>Refresh after art changes</td><td><code>demi asset reimport &lt;manifest&gt;</code></td></tr>
     <tr><td>Register tool output</td><td><code>demi asset register-generated &lt;source&gt; --id asset://…</code></td></tr>
     <tr><td>Make a physics shape</td><td><code>demi asset collider &lt;model.asset.json&gt; --id asset://…</code></td></tr>
-    <tr><td>Share assets as a pack</td><td><code>demi asset export --output file.demipack</code></td></tr>
+    <tr><td>Share assets as a pack</td><td><code>demi asset export --output file.demipack --asset asset://…</code></td></tr>
     <tr><td>Consume an asset pack</td><td><code>demi asset import-package file.demipack</code></td></tr>
-    <tr><td>Check budget usage</td><td><code>demi asset budget p --platform android|linux</code></td></tr>
+    <tr><td>Check budget usage</td><td><code>demi asset budget demi.project.json --platform android|linux</code></td></tr>
     <tr><td>Add a dependency</td><td><code>demi package add name@constraint</code></td></tr>
     <tr><td>Install resolved packages</td><td><code>demi package install [--locked] [--offline] [--dry-run]</code></td></tr>
     <tr><td>Upgrade within constraints</td><td><code>demi package update [name]</code></td></tr>

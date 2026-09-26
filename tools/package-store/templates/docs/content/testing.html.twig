@@ -26,12 +26,12 @@ return { tests = tests }</code></pre>
   <tbody>
     <tr><td><code>Test.touch(node_id)</code></td><td>Taps an interactive HUD node by stable ID — survives resolution, DPI, and safe-area changes</td><td>—</td></tr>
     <tr><td><code>Test.tap(x, y)</code></td><td>Taps a canvas point</td><td>—</td></tr>
-    <tr><td><code>Test.swipe(from, to, duration?)</code></td><td>Drag between two points</td><td>—</td></tr>
-    <tr><td><code>Test.swipe_xy(x1, y1, x2, y2, duration?)</code></td><td>Drag between coordinates</td><td>—</td></tr>
+    <tr><td><code>Test.swipe(from_node_id, to_node_id, duration?)</code></td><td>Swipe between two HUD node centers (default 0.4&nbsp;s)</td><td>—</td></tr>
+    <tr><td><code>Test.swipe_xy(x1, y1, x2, y2, duration?)</code></td><td>Swipe between two canvas-space positions</td><td>—</td></tr>
     <tr><td><code>Test.wait(seconds)</code></td><td>Waits (yields) for the given time</td><td>—</td></tr>
     <tr><td><code>Test.expect_scene(scene_id, timeout?)</code></td><td>Waits until the scene is active, up to the timeout</td><td>—</td></tr>
     <tr><td><code>Test.expect(condition, message)</code></td><td>Asserts a condition; fails the test with <code>message</code> when false</td><td>—</td></tr>
-    <tr><td><code>Test.node_center(node_id)</code></td><td>Center point of a HUD node</td><td><code>{x, y}</code> or <code>nil</code></td></tr>
+    <tr><td><code>Test.node_center(node_id)</code></td><td>Center point of a HUD node</td><td><code>Vec2</code> numeric array (<code>[1]</code>, <code>[2]</code>) or <code>nil</code></td></tr>
   </tbody>
 </table>
 <p>The harness prints one line per test and a final summary:</p>
@@ -87,12 +87,12 @@ if data then print(data.level, data.gold) end
 Save.set_number("slot1", "gold", 150)
 print(Save.get_number("slot1", "gold", 0))   -- value or the default
 
-Save.register_migration(2, function(old)
-    old.level = old.level or 1
-    return old
+Save.register_migration(2, 3, function(state, from_version, to_version)
+    state.level = state.level or 1
+    return state
 end)
 
-print(Save.metadata("slot1"))      -- version, timestamps, size
+print(Save.metadata("slot1"))      -- metadata table (autosave, sequence, reason)
 print(Save.last_error())           -- string or nil
 print(Save.exists("slot1"))        -- boolean
 Save.delete("slot1")</code></pre>

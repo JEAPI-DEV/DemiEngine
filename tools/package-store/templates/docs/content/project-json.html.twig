@@ -69,9 +69,13 @@
 
 <h2>Physics layers</h2>
 <pre><code>"physics": {
-  "layers": ["default", "player", "enemy", "world"]
+  "layers": {
+    "goal": ["player"],
+    "player": ["goal", "wall"],
+    "wall": ["player"]
+  }
 }</code></pre>
-<p>Names a collision matrix of up to 16 layers. Colliders pick one of these names, and bodies decide which layers they collide with. Details: <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">Physics layers</a>.</p>
+<p>An object collision matrix of up to 16 layers. Each key is a layer name; the value is the list of layer names it collides with. Both sides must accept each other. Colliders pick one of these names. Details: <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">Physics layers</a>.</p>
 
 <h2>Simulation</h2>
 <pre><code>"simulation": {

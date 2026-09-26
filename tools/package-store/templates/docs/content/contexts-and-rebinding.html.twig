@@ -58,18 +58,19 @@ end</code></pre>
 Input.assign_gamepad(1, 0)            -- device index 1 feeds player 0</code></pre>
 <ul>
   <li><code>Input.gamepad_count()</code> returns how many gamepads are connected right now, as a number.</li>
-  <li><code>Input.assign_gamepad(device, player)</code> maps a device index (0-based) to a local player slot. No return value.</li>
+  <li><code>Input.assign_gamepad(device, player)</code> maps a device index (0-based) to a local player slot and returns <code>true</code> when the assignment applied.</li>
   <li>Bindings and actions with a <code>player</code> field only respond to the device assigned to that slot.</li>
 </ul>
 
 <h2>Rebinding an action</h2>
-<p>Rebinding replaces the physical input that feeds one action for one player.</p>
-<pre><code>Input.rebind("jump", "key:e", 0)   -- action, new device name, player</code></pre>
+<p>Rebinding replaces the physical input that feeds one binding of an action for one player.</p>
+<pre><code>Input.rebind("jump", 1, "key:e", 0)  -- action, binding index (one-based), new control, player</code></pre>
 <ul>
   <li>First argument is the action name.</li>
-  <li>Second is the binding <code>input</code> name — the same strings used in the project, like <code>key:e</code>, <code>gamepad:x</code>, or <code>virtual:jump</code>.</li>
-  <li>Third is the player slot the remap applies to.</li>
-  <li>No return value. From the next frame, <code>jump</code> responds to the new control.</li>
+  <li>Second is the one-based index of the binding to replace within that action.</li>
+  <li>Third is the new control name — the same strings used in the project, like <code>key:e</code>, <code>gamepad:west</code>, or <code>virtual:jump</code>.</li>
+  <li>Fourth is the player slot the remap applies to (optional).</li>
+  <li>Returns <code>true</code> on success plus an error string on failure. From the next frame, <code>jump</code> responds to the new control.</li>
 </ul>
 <p>A small options screen can capture a key and apply it:</p>
 <pre><code>function Options:on_ui_event(e)
@@ -81,7 +82,7 @@ end
 function Options:on_update(dt)
     if not self.waiting_for then return end
     if Input.key_pressed("e") then
-        Input.rebind(self.waiting_for, "key:e", 0)
+        Input.rebind(self.waiting_for, 1, "key:e", 0)
         Input.save_bindings("input/bindings.json")
         self.waiting_for = nil
     end
@@ -94,9 +95,9 @@ end</code></pre>
 Input.save_bindings("input/bindings.json")
 local ok = Input.load_bindings("input/bindings.json")  -- true when loaded</code></pre>
 <ul>
-  <li><code>Input.save_bindings(path)</code> writes the current bindings. No return value.</li>
-  <li><code>Input.load_bindings(path)</code> reads them back and returns <code>true</code> on success, <code>false</code> when the file is missing or unreadable.</li>
-  <li>Both paths are relative to <code>Application.user_data_path()</code> — the per-player writable directory, never the game install. A plain name like <code>input/bindings.json</code> becomes <code>&lt;user_data&gt;/input/bindings.json</code>.</li>
+  <li><code>Input.save_bindings(path)</code> writes the current bindings and returns <code>true</code> on success plus an error string.</li>
+  <li><code>Input.load_bindings(path)</code> reads them back and returns <code>true</code> on success; <code>false</code> plus an error string when the file is missing or unreadable.</li>
+  <li>Relative paths resolve below <code>Application.user_data_path()</code> — the per-player writable directory, never the game install. A plain name like <code>input/bindings.json</code> becomes <code>&lt;user_data&gt;/input/bindings.json</code>. Absolute paths are used as supplied, and relative paths are rejected until user-data storage is configured.</li>
 </ul>
 <p>Load at startup and save when the player leaves the options screen:</p>
 <pre><code>function Game:on_create()
@@ -108,7 +109,7 @@ end</code></pre>
     "jump": {
       "bindings": [
         { "input": "key:e" },
-        { "input": "gamepad:a" }
+        { "input": "gamepad:south" }
       ]
     },
     "move": {
@@ -118,7 +119,7 @@ end</code></pre>
     }
   }
 }</code></pre>
-<p>Read it as: “<code>jump</code> is now fed by key E and gamepad A; <code>move</code> uses the left stick.” You can restore the authored defaults by deleting the file — <code>load_bindings</code> returns <code>false</code> and the project’s <code>input.actions</code> remain in force.</p>
+<p>Read it as: “<code>jump</code> is now fed by key E and the gamepad south button; <code>move</code> uses the left stick.” You can restore the authored defaults by deleting the file — <code>load_bindings</code> returns <code>false</code> and the project’s <code>input.actions</code> remain in force.</p>
 
 <h2>Replay and contexts</h2>
 <p>Input replay re-plays recorded action frames through the same context filter as live play. Two consequences:</p>

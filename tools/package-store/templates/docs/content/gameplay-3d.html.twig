@@ -44,7 +44,7 @@ Animation.clear_bone_segments(id)</code></pre>
 <h2>Characters</h2>
 <pre><code>{
   "CharacterController3D": {
-    "slope_limit_degrees": 45,
+    "slope_limit": 45,
     "step_height": 0.35,
     "skin_width": 0.02,
     "gravity": -18.0
@@ -62,7 +62,7 @@ local state = Character.state(id)
 -- state.normal     {x, y, z} ground normal</code></pre>
 <ul>
   <li>Requires exactly one non-trigger primitive/convex collider on the same root, and no <code>Rigidbody3D</code>.</li>
-  <li>Handles slopes up to <code>slope_limit_degrees</code>, steps up to <code>step_height</code>, and wall slide.</li>
+  <li>Handles slopes up to <code>slope_limit</code> (degrees), steps up to <code>step_height</code>, and wall slide.</li>
   <li>Inherits velocity from moving platforms.</li>
   <li>Coyote time and jump buffering are gameplay — implement them in your script using <code>state.grounded</code>.</li>
 </ul>

@@ -15,8 +15,8 @@
       "id": "body",
       "components": {
         "Transform2D": { "position": [0, 0] },
-        "Sprite2D": { "texture": "asset://textures/hero" },
-        "Collider2D": { "shape": "box", "size": [0.8, 1.2] }
+        "Sprite": { "texture": "asset://textures/hero" },
+        "BoxCollider2D": { "size": [0.8, 1.2] }
       },
       "children": [
         {
@@ -37,9 +37,10 @@
     <tr><td><code>id</code></td><td>The prefab's stable identity as a <code>prefab://</code> URI. <code>prefab://characters/player</code> maps to <code>prefabs/characters/player.prefab.json</code>.</td></tr>
     <tr><td><code>entities</code></td><td>The entities this prefab contributes. Same shape as scene entities: <code>id</code>, <code>name</code>, <code>enabled</code>, <code>persistent</code>, <code>tags</code>, <code>layer</code>, <code>components</code>, <code>children</code>.</td></tr>
     <tr><td><code>instances</code></td><td>Optional. Ready-made placements of other prefabs inside this one (see nesting below).</td></tr>
+    <tr><td><code>elements</code></td><td>Optional. Alternative content form accepted by the document schema.</td></tr>
   </tbody>
 </table>
-<p>A document may contain <code>entities</code>, <code>instances</code>, or both. Entity fields behave exactly as in scenes — see <a href="{{ path('docs_page', {slug: 'scene-json'}) }}">Scene files</a> for the entity and component contract.</p>
+<p>A document must contain at least one of <code>entities</code>, <code>instances</code>, or <code>elements</code>, and may combine them. Entity fields behave exactly as in scenes — see <a href="{{ path('docs_page', {slug: 'scene-json'}) }}">Scene files</a> for the entity and component contract.</p>
 
 <h2>ID expansion: how instance names are built</h2>
 <p>When a prefab is placed, its entity IDs are prefixed with the instance ID. This keeps two copies of the same prefab from colliding in one scene.</p>
@@ -101,7 +102,7 @@
     "prefab": "prefab://characters/player",
     "overrides": {
       "body.Transform2D.position": [3, 2],
-      "body.Sprite2D": { "tint": [1, 0.5, 0.5] }
+      "body.Sprite": { "tint": [1, 0.5, 0.5] }
     }
   }
 ]</code></pre>
@@ -127,7 +128,7 @@
     <tr>
       <td><code>null</code> value</td>
       <td>Removes that field from the expanded result.</td>
-      <td><code>"body.Sprite2D.texture": null</code> drops the texture field entirely.</td>
+      <td><code>"body.Sprite.texture": null</code> drops the texture field entirely.</td>
     </tr>
     <tr>
       <td>Dotted key</td>
@@ -136,7 +137,7 @@
     </tr>
   </tbody>
 </table>
-<p>Reading the example override block: <code>body.Transform2D.position</code> is a dotted key — it points at the <code>position</code> field of <code>Transform2D</code> on the prefab entity <code>body</code> and sets it to <code>[3, 2]</code>. The key <code>body.Sprite2D</code> is an object value: it merges the listed field into the existing <code>Sprite2D</code> component, leaving unlisted fields alone.</p>
+<p>Reading the example override block: <code>body.Transform2D.position</code> is a dotted key — it points at the <code>position</code> field of <code>Transform2D</code> on the prefab entity <code>body</code> and sets it to <code>[3, 2]</code>. The key <code>body.Sprite</code> is an object value: it merges the listed field into the existing <code>Sprite</code> component, leaving unlisted fields alone.</p>
 <p>Use overrides for per-placement differences (start position, difficulty tint, starting health). When two placements need the same change, prefer editing the prefab or making a second prefab.</p>
 
 <h2>Children versus <code>parent</code></h2>

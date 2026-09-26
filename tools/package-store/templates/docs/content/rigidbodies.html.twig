@@ -22,7 +22,7 @@
 <pre><code>{
   "Rigidbody2D": {
     "body_type": "dynamic",
-    "ccd": true,
+    "continuous": true,
     "linear_damping": 0.05,
     "lock_rotation": true,
     "report_contacts": true
@@ -32,7 +32,7 @@
   <thead><tr><th>Field</th><th>Meaning</th><th>Typical value</th></tr></thead>
   <tbody>
     <tr><td><code>body_type</code></td><td><code>static</code>, <code>kinematic</code>, or <code>dynamic</code>, as described above.</td><td><code>dynamic</code></td></tr>
-    <tr><td><code>ccd</code></td><td>Continuous collision detection. Fast small bodies are checked along their path instead of only at the end of a step, so they do not tunnel through thin walls.</td><td><code>true</code> for bullets and fast debris</td></tr>
+    <tr><td><code>continuous</code></td><td>Continuous collision detection. Fast small bodies are checked along their path instead of only at the end of a step, so they do not tunnel through thin walls.</td><td><code>true</code> for bullets and fast debris</td></tr>
     <tr><td><code>linear_damping</code></td><td>How quickly straight-line speed bleeds away each step. <code>0</code> coasts forever; larger values stop sooner.</td><td><code>0.05</code> to <code>1.0</code></td></tr>
     <tr><td><code>lock_rotation</code></td><td>Prevents the body from spinning. Keeps top-down heroes upright after side impacts.</td><td><code>true</code> for characters</td></tr>
     <tr><td><code>report_contacts</code></td><td>Extracts contact points into <code>physics_contact</code> events so you can spawn sparks at the exact hit. Collision events fire either way.</td><td><code>true</code> when you need hit positions</td></tr>
@@ -44,7 +44,7 @@
   "Rigidbody3D": {
     "body_type": "dynamic",
     "mass": 12.5,
-    "ccd": true,
+    "continuous": true,
     "friction": 0.6,
     "restitution": 0.05,
     "damping": 0.02,
@@ -58,7 +58,7 @@
   <tbody>
     <tr><td><code>body_type</code></td><td><code>static</code>, <code>kinematic</code>, or <code>dynamic</code>.</td><td><code>dynamic</code></td></tr>
     <tr><td><code>mass</code></td><td>How heavy the body is. Heavier bodies shove lighter ones further.</td><td>Player <code>80</code>, crate <code>15</code></td></tr>
-    <tr><td><code>ccd</code></td><td>Continuous collision detection for fast movers.</td><td><code>true</code> for projectiles</td></tr>
+    <tr><td><code>continuous</code></td><td>Continuous collision detection for fast movers.</td><td><code>true</code> for projectiles</td></tr>
     <tr><td><code>friction</code></td><td>How much the surface resists sliding. Combine with the collider’s own friction for the contact result.</td><td><code>0.5</code></td></tr>
     <tr><td><code>restitution</code></td><td>Bounciness. <code>0</code> lands dead; <code>1</code> returns most of the impact speed.</td><td><code>0</code> for crates</td></tr>
     <tr><td><code>damping</code></td><td>Linear and angular damping factor applied each step.</td><td><code>0.02</code></td></tr>
@@ -84,7 +84,7 @@
 <p><strong>Sleep</strong> is an optimization the simulation applies to bodies that have come to rest. A sleeping body costs almost nothing until something touches it. The catch: a force applied to a sleeping body does nothing until the body is awake. Call <code>set_awake(id, true)</code> before <code>add_force</code> or <code>add_impulse</code> if the body may have settled.</p>
 
 <h2>Continuous collision detection</h2>
-<p>A simulation moves bodies in discrete steps. A bullet that travels 2 meters per step can end up on the far side of a 5 cm wall without any step ever reporting a hit — this is called tunneling. <code>ccd: true</code> makes the engine sweep the body along its path so the wall is hit. Enable it on fast, small bodies (bolts, shrapnel) and leave it off on slow, large ones where it is wasted work.</p>
+<p>A simulation moves bodies in discrete steps. A bullet that travels 2 meters per step can end up on the far side of a 5 cm wall without any step ever reporting a hit — this is called tunneling. <code>continuous: true</code> makes the engine sweep the body along its path so the wall is hit. Enable it on fast, small bodies (bolts, shrapnel) and leave it off on slow, large ones where it is wasted work.</p>
 
 <h2>Moving kinematic bodies</h2>
 <p>Kinematic bodies do not react to pushes, so you move them yourself. Two helpers exist in 2D, both meant to run inside <code>on_fixed_update</code>.</p>
@@ -110,9 +110,9 @@ Body.move_kinematic(id, 3.5, 4.0, 0, fixed_dt)</code></pre>
 
 function on_fixed_update(self_id, fixed_dt)
     local vx, vy = Body.get_velocity(self_id)
-    -- vx, vy → current speed in world units per second (0, 0 when missing)
+    -- vx, vy → current speed in world units per second (nil per axis when missing)
 
-    if math.abs(vx) &lt; 0.05 and math.abs(vy) &lt; 0.05 then
+    if vx and math.abs(vx) &lt; 0.05 and math.abs(vy) &lt; 0.05 then
         Body.set_awake(self_id, false)
     end
 end
@@ -128,13 +128,13 @@ Body.set_awake(self_id, true)               -- wake before pushing
 Body.add_impulse(self_id, 4, 2)             -- instant kick: +4 x, +2 y
 Body.add_force(self_id, 0, -9.8)            -- gravity-like pull, reapply each step</code></pre>
 <ul>
-  <li><code>get_velocity(id)</code> returns two scalars, <code>x</code> and <code>y</code>, in world units per second. Missing bodies report <code>0, 0</code>.</li>
-  <li><code>set_velocity(id, x, y)</code> sets speed directly and returns nothing.</li>
-  <li><code>set_velocity_x</code> / <code>set_velocity_y</code> change one axis and leave the other alone.</li>
-  <li><code>add_impulse(id, x, y)</code> adds an instant kick and returns nothing.</li>
-  <li><code>add_force(id, x, y)</code> accumulates force for the current step and returns nothing.</li>
+  <li><code>get_velocity(id)</code> returns two scalars, <code>x</code> and <code>y</code>, in world units per second. Missing bodies report <code>nil</code> per axis.</li>
+  <li><code>set_velocity(id, x, y)</code> sets speed directly and returns <code>true</code> when applied.</li>
+  <li><code>set_velocity_x</code> / <code>set_velocity_y</code> change one axis and leave the other alone; each returns <code>true</code> when applied.</li>
+  <li><code>add_impulse(id, x, y)</code> adds an instant kick and returns <code>true</code> when applied.</li>
+  <li><code>add_force(id, x, y)</code> accumulates force for the current step and returns <code>true</code> when applied.</li>
   <li><code>add_torque(id, amount)</code> adds spin; <code>set_angular_velocity(id, w)</code> sets spin directly (radians per second).</li>
-  <li><code>set_awake(id, bool)</code>, <code>set_enabled(id, bool)</code>, <code>set_continuous(id, bool)</code>, and <code>set_report_contacts(id, bool)</code> toggle runtime flags and return nothing.</li>
+  <li><code>set_awake(id, bool)</code>, <code>set_enabled(id, bool)</code>, <code>set_continuous(id, bool)</code>, and <code>set_report_contacts(id, bool)</code> toggle runtime flags and return <code>true</code> when applied.</li>
 </ul>
 
 <h2>Full 3D example</h2>
@@ -154,20 +154,19 @@ function on_fixed_update(self_id, fixed_dt)
     -- state → table, or nil when the body is missing:
     --   body_type            "static" | "kinematic" | "dynamic"
     --   mass                 number
-    --   linear_velocity      { x, y, z }
+    --   use_gravity          boolean
+    --   enabled              boolean
+    --   velocity             { x, y, z }
     --   angular_velocity     { x, y, z }
-    --   sleeping             boolean
-    --   ccd                  boolean
-    --   report_contacts      boolean
 
-    if state and state.sleeping then
-        Body.add_impulse(self_id, 0, 6, 0)  -- bounce it awake for a demo
+    if state and state.velocity[1] == 0 then
+        Body.add_impulse(self_id, 0, 6, 0)  -- nudge it for a demo
     end
 end</code></pre>
 <ul>
   <li><code>get_velocity(id)</code> returns <code>x, y, z</code> scalars. Any missing axis comes back as <code>nil</code>, so guard before arithmetic.</li>
-  <li><code>set_velocity(id, x, y, z)</code> sets the linear velocity and returns nothing.</li>
-  <li><code>add_force</code> / <code>add_impulse</code> / <code>add_torque(id, x, y, z)</code> push, kick, or spin the body and return nothing.</li>
+  <li><code>set_velocity(id, x, y, z)</code> sets the linear velocity and returns <code>true</code> when applied.</li>
+  <li><code>add_force</code> / <code>add_impulse</code> / <code>add_torque(id, x, y, z)</code> push, kick, or spin the body and return <code>true</code> when applied.</li>
   <li><code>state(id)</code> returns a table of live simulation values, not the authored file — read it for HUD readouts and gameplay checks.</li>
   <li><code>move_kinematic(id, x, y, z, rx, ry, rz, fixed_dt)</code> places a kinematic body over one step, with Euler rotation in radians.</li>
 </ul>
@@ -177,7 +176,7 @@ end</code></pre>
 <ul>
   <li>Level shell and pillars: <code>static</code>, never touched again.</li>
   <li>Elevator the script animates: <code>kinematic</code> plus <code>move_kinematic</code> or <code>move_and_slide</code>.</li>
-  <li>Anything gravity owns: <code>dynamic</code>, with <code>ccd</code> if it can go fast.</li>
+  <li>Anything gravity owns: <code>dynamic</code>, with <code>continuous</code> if it can go fast.</li>
   <li>Hero that should not spin: <code>dynamic</code> with <code>lock_rotation: true</code> in 2D, or use <a href="{{ path('docs_page', {slug: 'characters-3d'}) }}">CharacterController3D</a> in 3D.</li>
 </ul>
 <p>Filtering who collides with whom is a separate concern — see <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">Physics layers</a>. Reading contacts and hits is covered in <a href="{{ path('docs_page', {slug: 'physics-events'}) }}">Physics events</a> and <a href="{{ path('docs_page', {slug: 'physics-queries'}) }}">Queries</a>.</p>

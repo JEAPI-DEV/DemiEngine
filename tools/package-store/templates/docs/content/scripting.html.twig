@@ -119,7 +119,7 @@ Events.unsubscribe(id)</code></pre>
 <p><code>Events.subscribe(event_name, handler)</code> returns an integer token. The handler receives one payload table and runs immediately when the event fires. <code>Events.emit</code> sends a game-defined payload to every subscriber of that name.</p>
 <p>Engine events you can subscribe to:</p>
 <ul>
-  <li><strong>Physics</strong> — <code>physics_collision_enter/stay/exit</code>, <code>physics_trigger_*</code>, <code>physics_contact</code>, <code>physics3d_*</code></li>
+  <li><strong>Physics</strong> — <code>physics_collision_enter/stay/exit</code>, <code>physics_trigger_enter/stay/exit</code>, <code>physics_contact</code>, and the 3D counterparts <code>physics3d_collision_enter/stay/exit</code>, <code>physics3d_trigger_enter/stay/exit</code>, <code>physics3d_contact</code></li>
   <li><strong>Animation</strong> — <code>animation_event</code>, <code>sprite_animation</code>, <code>animation_collision</code></li>
   <li><strong>Scene</strong> — <code>scene_loaded</code>, <code>scene_unloading</code>, <code>scene_unloaded</code>, <code>active_scene_changed</code></li>
   <li><strong>UI</strong> — <code>ui_event</code>, <code>ui_submit</code></li>

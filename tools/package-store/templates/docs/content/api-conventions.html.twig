@@ -22,7 +22,7 @@ local x, y, z = Transform3D.get_position(id)</code></pre>
 })
 
 local px, py, pz = Transform3D.get_position(crate)  -- three scalars</code></pre>
-<p><code>Entity.spawn(name, options)</code> takes the entity name and an optional options table. <code>position</code> and <code>velocity</code> are <code>Vec3</code> numeric arrays (<code>index 1 = x</code>, <code>2 = y</code>, <code>3 = z</code>). The call returns the new entity handle, or <code>nil</code> if the name is unknown. The follow-up getter returns three scalars, not a table.</p>
+<p><code>Entity.spawn(name, options)</code> takes the entity name and an optional options table. <code>position</code> and <code>velocity</code> are <code>Vec3</code> numeric arrays (<code>index 1 = x</code>, <code>2 = y</code>, <code>3 = z</code>). The call returns <code>true</code> when creation was queued, or <code>false</code> plus an error string on failure — the entity is created at the next creation step, not synchronously. The follow-up getter returns three scalars, not a table.</p>
 
 <h2>How results come back</h2>
 <table>
@@ -59,12 +59,12 @@ local px, py, pz = Transform3D.get_position(crate)  -- three scalars</code></pre
 <pre><code>local Grid = require("demi.grid")
 local Navigation2D = require("demi.navigation2d")
 
-local gridPath = Grid.path("skyforge_astar", { 0, 0 }, { 5, 5 })
--- gridPath: array of {x, y} waypoints, or nil when unreachable (a diagnostic is logged)
+local gridPath = Grid.path(0, 0, 5, 5)
+-- gridPath: array of {x, y} waypoints, or nil when unreachable (a diagnostic code is returned)
 
-local navPath = Navigation2D.path("skyforge_nav", { 0, 0 }, { 5, 5 })
+local navPath = Navigation2D.path(0, 0, 5, 5)
 -- navPath: always a table of waypoints (possibly empty) plus a diagnostic</code></pre>
-<p><code>Grid.path(gridId, from, to)</code> takes grid coordinates as two-element arrays and returns either an array of waypoints or <code>nil</code>. <code>Navigation2D.path(navId, from, to)</code> returns a (possibly empty) waypoint array and a diagnostic table you can pass to <code>Debug.log</code>.</p>
+<p><code>Grid.path(start_x, start_y, goal_x, goal_y)</code> takes four tile coordinates and returns either an array of waypoints or <code>nil</code> plus a diagnostic code. <code>Navigation2D.path(start_x, start_y, goal_x, goal_y, diagonal?)</code> returns a (possibly empty) waypoint array and a diagnostic string you can pass to <code>Debug.log</code>.</p>
 
 <h2>Error shapes</h2>
 <p>Calls that can fail for content reasons (bad data, missing files, network trouble) return <code>nil</code> plus a small error table instead of raising. The standard shape is:</p>
@@ -83,11 +83,11 @@ end</code></pre>
 <pre><code>local Data = require("demi.data")
 
 local value = Data.load("asset://data/skyforge_enemies")
-print(Data.kind(value[1].nickname))   -- "null" when the field is JSON null
-print(Data.is_null(value[1].nickname)) -- true
+print(Data.kind(value.nickname))   -- "null" when the field is JSON null
+print(Data.is_null(value.nickname)) -- true
 
 local written = { nickname = Data.null }</code></pre>
-<p><code>Data.null</code> is the single sentinel value for JSON <code>null</code>. <code>Data.kind(value)</code> returns a string (<code>"null"</code>, <code>"number"</code>, <code>"string"</code>, <code>"boolean"</code>, <code>"array"</code>, <code>"object"</code>) describing what a loaded value is. <code>Data.is_null(value)</code> returns <code>true</code> only for the sentinel. Assign <code>Data.null</code> when you want to write a real null back out.</p>
+<p><code>Data.null</code> is the single sentinel <em>value</em> for JSON <code>null</code> — a field of the <code>Data</code> table, not a function. <code>Data.kind(value)</code> returns <code>"array"</code>, <code>"object"</code>, or <code>"null"</code>, and <code>nil</code> for scalars (numbers, strings, booleans) or missing values. <code>Data.is_null(value)</code> returns <code>true</code> only for the sentinel. Assign <code>Data.null</code> when you want to write a real null back out.</p>
 
 <h2>Units</h2>
 <ul>

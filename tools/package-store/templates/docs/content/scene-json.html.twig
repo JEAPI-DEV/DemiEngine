@@ -33,7 +33,7 @@
     <tr><td><code>format_version</code></td><td>Always required. Declares which document shape this file uses.</td></tr>
     <tr><td><code>id</code></td><td>The scene's stable identity, written as a <code>scene://</code> URI. The project file and other documents refer to scenes by this ID, never by file path.</td></tr>
     <tr><td><code>name</code></td><td>Human-readable label shown in the editor and tooling.</td></tr>
-    <tr><td><code>entities</code></td><td>The list of entities that exist in this scene. May be empty.</td></tr>
+    <tr><td><code>entities</code></td><td>Required. The list of entities that exist in this scene. May be empty, but the field must be present — <code>instances</code> does not replace it.</td></tr>
   </tbody>
 </table>
 <p>The scene ID maps to a conventional file location: <code>scene://game/main</code> lives at <code>scenes/main.scene.json</code> inside the project (here, <code>games/my_game</code>). The project can also give the scene an explicit path. See <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a> for how scenes are registered.</p>
@@ -70,12 +70,13 @@
 <p><code>components</code> is a plain object, not a list. Each key names one component type; the value is that component's authored fields:</p>
 <pre><code>"components": {
   "Transform2D": { "position": [4, 2], "rotation": 0, "scale": [1, 1] },
-  "Sprite2D": { "texture": "asset://textures/brick" },
-  "Collider2D": { "shape": "box", "size": [1, 1] }
+  "Sprite": { "texture": "asset://textures/brick" },
+  "BoxCollider2D": { "size": [1, 1] }
 }</code></pre>
 <ul>
-  <li>Keys are component type names, such as <code>Transform2D</code>, <code>Sprite2D</code>, <code>Collider2D</code>, <code>RigidBody2D</code>, or <code>Script</code>.</li>
+  <li>Keys are component type names, such as <code>Transform2D</code>, <code>Sprite</code>, <code>BoxCollider2D</code>, <code>Rigidbody2D</code>, or <code>LuaScript</code>.</li>
   <li>Values hold only the fields you care about. Any field you leave out uses that component's normal default — you do not have to write every setting.</li>
+  <li>Collider shape comes from the component type (<code>BoxCollider2D</code>, <code>CircleCollider2D</code>, <code>CapsuleCollider2D</code>, …), not from a <code>shape</code> field. <code>Sprite</code> has its own <code>shape</code> field for masking (<code>rectangle</code>, <code>circle</code>, <code>triangle</code>); colliders do not.</li>
   <li>Reference fields use URI strings. A texture is <code>asset://textures/brick</code>, which points at <code>assets/textures/brick.asset.json</code>. See <a href="{{ path('docs_page', {slug: 'asset-json'}) }}">Asset manifests</a>.</li>
 </ul>
 <p>A component's fields belong to that component alone: one entity can carry a transform, a sprite, and a script, and each object is edited independently.</p>
@@ -92,7 +93,7 @@
       "id": "body",
       "components": {
         "Transform2D": { "position": [0, 0] },
-        "Sprite2D": { "texture": "asset://textures/hero" }
+        "Sprite": { "texture": "asset://textures/hero" }
       },
       "children": [
         {
@@ -155,20 +156,20 @@
     <tr><td><code>static_box_3d</code></td><td>A solid 3D box that does not move.</td><td><code>size</code> — box dimensions.</td></tr>
     <tr><td><code>trigger_sphere_3d</code></td><td>An invisible 3D sphere that reports overlaps.</td><td><code>radius</code> — sphere radius.</td></tr>
     <tr><td><code>prop_2d</code></td><td>A flat 2D prop with a sprite.</td><td><code>texture</code> — <code>asset://</code> texture to show.</td></tr>
-    <tr><td><code>character_3d</code></td><td>A 3D character setup (body shape and movement pieces).</td><td><code>size</code>, <code>radius</code>, <code>texture</code>.</td></tr>
+    <tr><td><code>character_3d</code></td><td>A 3D character setup (body shape and movement pieces).</td><td>None — it only expands components.</td></tr>
   </tbody>
 </table>
-<p>Shorthand fields are conveniences: <code>size</code>, <code>radius</code>, and <code>texture</code> fill in the matching component fields for you. If you write an explicit component field yourself, your value wins over the preset's. Use presets when a shape is ordinary; write full components when you need fine control.</p>
+<p>Shorthand fields are conveniences: <code>size</code>, <code>radius</code>, and <code>texture</code> fill in the matching component fields for the preset that accepts them. If you write an explicit component field yourself, your value wins over the preset's. Use presets when a shape is ordinary; write full components when you need fine control.</p>
 
 <h2>The <code>hud</code> field</h2>
 <p>A scene can name the on-screen UI that belongs with it:</p>
-<pre><code>"hud": "ui-prefab://screens/game_hud"</code></pre>
+<pre><code>"hud": "main.hud.json"</code></pre>
 <ul>
-  <li>The value is a <code>ui-prefab://</code> URI. <code>ui-prefab://screens/game_hud</code> points at <code>ui/screens/game_hud.ui.prefab.json</code>.</li>
+  <li>The value is a relative file path to a <code>*.hud.json</code> document, resolved beside the scene file. <code>"hud": "main.hud.json"</code> next to <code>scenes/main.scene.json</code> points at <code>scenes/main.hud.json</code>.</li>
   <li>When the scene loads, that HUD document becomes the visible interface — health bars, menus, touch sticks.</li>
   <li>Omit the field when the scene has no interface.</li>
 </ul>
-<p>HUD documents are trees of interface nodes in their own file format. See <a href="{{ path('docs_page', {slug: 'hud-json'}) }}">HUD files</a>.</p>
+<p>HUD documents are trees of interface nodes in their own file format. <code>ui-prefab://</code> URIs are a different thing: they name reusable UI prefab trees placed <em>inside</em> a HUD. See <a href="{{ path('docs_page', {slug: 'hud-json'}) }}">HUD files</a>.</p>
 
 <h2>Tags, layer, enabled, persistent in practice</h2>
 <pre><code>{

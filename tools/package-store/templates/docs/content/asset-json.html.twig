@@ -55,6 +55,7 @@
     <tr><td><code>Shader</code></td><td>A shader program.</td></tr>
     <tr><td><code>RenderTarget</code></td><td>A GPU surface drawn into at run time.</td></tr>
     <tr><td><code>Tilemap2D</code></td><td>A tiled 2D level layout.</td></tr>
+    <tr><td><code>Text</code></td><td>A plain text document (<code>.txt</code>, <code>.yaml</code>, <code>.yml</code>).</td></tr>
     <tr><td><code>Icon2D</code></td><td>An application icon source.</td></tr>
     <tr><td><code>SvgTexture2D</code></td><td>A vector image rasterized to a texture.</td></tr>
     <tr><td><code>GifAnimation2D</code></td><td>An animated GIF.</td></tr>
@@ -63,12 +64,12 @@
 </table>
 
 <h2>Change tracking: <code>source_hash</code> and <code>dependencies</code></h2>
-<pre><code>"source_hash": "fnv1a64:0x8c31a9d2e01b44f7",
+<pre><code>"source_hash": "fnv1a64:8c31a9d2e01b44f7",
 "dependencies": [
   "asset://textures/hero_mask"
 ]</code></pre>
 <ul>
-  <li><code>source_hash</code> is a fingerprint of the source file (written as <code>fnv1a64:…</code>). It tracks changes: when the file on disk differs from the recorded hash, the asset is re-imported. You do not edit this value by hand; it is recorded for you.</li>
+  <li><code>source_hash</code> is a fingerprint of the source file, written as <code>fnv1a64:</code> plus 16 hex digits (no <code>0x</code> prefix). It tracks changes: when the file on disk differs from the recorded hash, the asset is re-imported. You do not edit this value by hand; it is recorded for you.</li>
   <li><code>dependencies</code> lists other assets this one needs. If a dependency is re-imported, this asset is updated too, so nothing stale is served.</li>
 </ul>
 <p>Together they answer one user-facing question: "has anything this asset depends on changed since last import?" If yes, the next build or cook refreshes it automatically.</p>
@@ -82,13 +83,13 @@
   "wrap": "clamp",
   "mipmaps": true,
   "compression": "quality",
-  "quality": 0.9
+  "quality": 90
 }</code></pre>
 <ul>
   <li><code>filter</code> — <code>nearest</code>, <code>bilinear</code>, or <code>trilinear</code>. Pixel art usually wants <code>nearest</code>.</li>
   <li><code>wrap</code> — <code>repeat</code>, <code>clamp</code>, or <code>mirror</code> at the edges.</li>
   <li><code>mipmaps</code> — build smaller copies for distant/scaled rendering.</li>
-  <li><code>compression</code> / <code>quality</code> — how much the file is squeezed in exchange for size.</li>
+  <li><code>compression</code> / <code>quality</code> — how much the file is squeezed in exchange for size. <code>quality</code> is an integer from 0 to 100.</li>
 </ul>
 
 <h3>Audio</h3>
@@ -101,12 +102,12 @@
 
 <h3>Fonts</h3>
 <pre><code>"settings": {
-  "glyph_ranges": ["latin", "symbols"],
-  "variations": { "weight": 500 }
+  "glyph_ranges": ["U+0020-U+007E"],
+  "variations": { "wght": 700, "opsz": 24 }
 }</code></pre>
 <ul>
-  <li><code>glyph_ranges</code> — which character sets to rasterize. Only include what your text needs; every extra glyph costs atlas space.</li>
-  <li><code>variations</code> — variable-font axes (weight, width, …) as named numbers.</li>
+  <li><code>glyph_ranges</code> — Unicode ranges to rasterize, written like <code>"U+0020-U+007E"</code>. Only include what your text needs; every extra glyph costs atlas space.</li>
+  <li><code>variations</code> — variable-font axes as 4-character OpenType tags mapped to numbers (for example <code>wght</code> for weight, <code>opsz</code> for optical size).</li>
 </ul>
 
 <h3>Data assets</h3>
@@ -124,14 +125,14 @@
 <h3>Models</h3>
 <pre><code>"settings": {
   "animations": {
-    "clips": {
-      "idle": { "start_frame": 0, "end_frame": 24 },
-      "run":  { "start_frame": 25, "end_frame": 48 }
-    }
+    "clips": [
+      { "name": "Idle", "skeleton": "humanoid" },
+      { "name": "Run",  "skeleton": "humanoid" }
+    ]
   }
 }</code></pre>
 <ul>
-  <li><code>animations.clips</code> — names frame ranges inside the source animation so gameplay can request <code>idle</code> or <code>run</code> by name.</li>
+  <li><code>animations.clips</code> — an array of clip descriptors. Each entry names an animation clip and the skeleton it plays on, so gameplay can request <code>Idle</code> or <code>Run</code> by name.</li>
 </ul>
 
 <h2>Platform overrides</h2>
@@ -140,7 +141,7 @@
   "filter": "bilinear",
   "platform_overrides": {
     "linux": { "compression": "none" },
-    "linux_server": { "quality": 0.5 },
+    "linux_server": { "quality": 50 },
     "android": { "compression": "size", "mipmaps": true }
   }
 }</code></pre>
@@ -151,7 +152,7 @@
 </ul>
 
 <h2>Importer metadata, license, and attribution</h2>
-<pre><code>"importer": "texture2d",
+<pre><code>"importer": "image",
 "importer_version": 1,
 "license": "CC0-1.0",
 "attribution": "Brick texture by A. Artist",

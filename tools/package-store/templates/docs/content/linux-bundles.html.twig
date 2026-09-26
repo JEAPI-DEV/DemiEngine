@@ -102,7 +102,7 @@
 <ul>
   <li><code>application_id</code> — reverse-DNS identity, required before packaging.</li>
   <li><code>display_name</code> — the name in the desktop entry and window title.</li>
-  <li><code>executable_name</code> — the binary name inside the bundle.</li>
+  <li><code>executable_name</code> — the binary name inside the bundle; must match <code>^[a-z0-9][a-z0-9_-]*$</code>.</li>
   <li><code>version_name</code> / <code>version_code</code> — human and machine version numbers written into <code>build-report.json</code>.</li>
   <li><code>icon</code> — the <code>asset://</code> ID of the application icon.</li>
   <li><code>window</code> — initial desktop window size in pixels and <code>mode</code>: <code>windowed</code>, <code>borderless</code>, or <code>fullscreen</code>.</li>

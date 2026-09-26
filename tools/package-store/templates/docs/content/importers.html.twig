@@ -8,18 +8,23 @@
 <p><code>demi asset import &lt;source&gt;</code> takes the source file path and <code>--id</code> for the stable <code>asset://</code> identity. It writes a manifest and records the import. If two importers can claim the same file, add <code>--importer &lt;id&gt;</code> to choose.</p>
 
 <h2>Supported sources</h2>
+<p>Each importer has an ID (written to the manifest's <code>importer</code> field, or passed via <code>--importer</code> when two importers can claim the same extension):</p>
 <table>
-  <thead><tr><th>Kind</th><th>Extensions</th></tr></thead>
+  <thead><tr><th>Importer ID</th><th>Extensions</th><th>Asset types</th></tr></thead>
   <tbody>
-    <tr><td>Images</td><td>PNG, JPEG, BMP, TGA, QOI, SVG, GIF</td></tr>
-    <tr><td>Audio</td><td>WAV, OGG, MP3, FLAC</td></tr>
-    <tr><td>Models</td><td>glTF, GLB, OBJ, IQM, M3D</td></tr>
-    <tr><td>Video</td><td>MP4, WebM, MOV</td></tr>
-    <tr><td>Data</td><td>JSON</td></tr>
-    <tr><td>Text</td><td><code>text</code> importer for <code>.txt</code>, <code>.yaml</code>, <code>.yml</code></td></tr>
+    <tr><td><code>image</code></td><td>PNG, JPEG, BMP, TGA, QOI</td><td><code>Texture2D</code> and friends</td></tr>
+    <tr><td><code>svg</code></td><td><code>.svg</code></td><td><code>Icon2D</code>, <code>SvgTexture2D</code></td></tr>
+    <tr><td><code>gif</code></td><td><code>.gif</code></td><td><code>GifAnimation2D</code></td></tr>
+    <tr><td><code>audio</code></td><td>WAV, OGG, MP3, FLAC</td><td><code>AudioClip</code></td></tr>
+    <tr><td><code>font</code></td><td><code>.ttf</code>, <code>.otf</code></td><td><code>Font2D</code>, <code>FontAtlas2D</code></td></tr>
+    <tr><td><code>gltf-model</code></td><td><code>.gltf</code>, <code>.glb</code></td><td><code>Model3D</code></td></tr>
+    <tr><td><code>model</code></td><td><code>.obj</code>, <code>.iqm</code>, <code>.m3d</code></td><td><code>Model3D</code></td></tr>
+    <tr><td>Video</td><td>MP4, WebM, MOV</td><td><code>VideoClip</code></td></tr>
+    <tr><td>Data</td><td>JSON</td><td><code>DataAsset</code></td></tr>
+    <tr><td><code>text</code></td><td><code>.txt</code>, <code>.yaml</code>, <code>.yml</code></td><td><code>Text</code></td></tr>
   </tbody>
 </table>
-<p>Each family gets importer settings in the manifest (texture filtering, audio streaming, and so on — see <a href="{{ path('docs_page', {slug: 'asset-groups'}) }}">Asset groups &amp; streaming</a> for how they load). The importer ID and version become part of the cook key, so an importer upgrade produces fresh cooked output.</p>
+<p>SVG and GIF are separate importers, not flavors of the generic image path: an SVG becomes a vector-sourced <code>Icon2D</code> or <code>SvgTexture2D</code>, and an animated GIF becomes a <code>GifAnimation2D</code>. Each importer's settings live in the manifest (texture filtering, audio streaming, font variations — see <a href="{{ path('docs_page', {slug: 'asset-groups'}) }}">Asset groups &amp; streaming</a> for how they load). The importer ID and version become part of the cook key, so an importer upgrade produces fresh cooked output.</p>
 
 <h2>Working with manifests</h2>
 <pre><code>demi asset reimport assets/textures/skyforge_rune.asset.json

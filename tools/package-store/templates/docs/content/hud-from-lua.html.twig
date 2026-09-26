@@ -16,26 +16,26 @@ end</code></pre>
 </ul>
 
 <h2>Setters</h2>
-<p>Each setter takes the node (id or handle) first. Unless noted, setters return nothing.</p>
+<p>Each setter takes the node (id or handle) first and returns a success boolean.</p>
 <table>
   <thead><tr><th>Call</th><th>Effect</th><th>Returns</th></tr></thead>
   <tbody>
-    <tr><td><code>Hud.set_text(node, s)</code></td><td>Sets label/text/text_input content.</td><td>nothing</td></tr>
-    <tr><td><code>Hud.get_text(node)</code></td><td>Reads current text.</td><td>string</td></tr>
-    <tr><td><code>Hud.set_font(node, uri)</code></td><td>Switches the <code>Font2D</code> asset (<code>asset://…</code>).</td><td>nothing</td></tr>
-    <tr><td><code>Hud.set_font_size(node, n)</code></td><td>Sets text height in canvas units.</td><td>nothing</td></tr>
-    <tr><td><code>Hud.set_color(node, c)</code></td><td>Sets text/foreground color (array or hex string).</td><td>nothing</td></tr>
-    <tr><td><code>Hud.set_background_color(node, c)</code></td><td>Sets the node’s background color.</td><td>nothing</td></tr>
-    <tr><td><code>Hud.set_value(node, n)</code></td><td>Sets progress/slider value, 0…1.</td><td>nothing</td></tr>
-    <tr><td><code>Hud.set_checked(node, b)</code></td><td>Sets toggle state.</td><td>nothing</td></tr>
-    <tr><td><code>Hud.set_disabled(node, b)</code></td><td>Enables or blocks input on the control.</td><td>nothing</td></tr>
-    <tr><td><code>Hud.set_visible(node, b)</code></td><td>Shows or hides the node.</td><td>nothing</td></tr>
-    <tr><td><code>Hud.set_opacity(node, n)</code></td><td>Sets alpha 0…1.</td><td>nothing</td></tr>
-    <tr><td><code>Hud.set_image(node, uri)</code></td><td>Swaps an image’s texture asset.</td><td>nothing</td></tr>
-    <tr><td><code>Hud.set_position(node, x, y)</code></td><td>Moves the node in canvas units.</td><td>nothing</td></tr>
-    <tr><td><code>Hud.set_size(node, w, h)</code></td><td>Resizes the node in canvas units.</td><td>nothing</td></tr>
-    <tr><td><code>Hud.focus_next()</code></td><td>Moves keyboard/gamepad focus to the next control.</td><td>nothing</td></tr>
-    <tr><td><code>Hud.focused()</code></td><td>Which node has focus.</td><td>node id string or <code>nil</code></td></tr>
+    <tr><td><code>Hud.set_text(node, s)</code></td><td>Sets label/text/text_input content.</td><td>boolean</td></tr>
+    <tr><td><code>Hud.get_text(node)</code></td><td>Reads current text.</td><td>string, or <code>nil</code> for an unknown node</td></tr>
+    <tr><td><code>Hud.set_font(node, font)</code></td><td>Switches the <code>Font2D</code> asset (<code>asset://…</code>); an empty string restores automatic fallback.</td><td>boolean</td></tr>
+    <tr><td><code>Hud.set_font_size(node, n)</code></td><td>Sets text height in canvas units.</td><td>boolean</td></tr>
+    <tr><td><code>Hud.set_color(node, r, g, b, a?)</code></td><td>Sets text/foreground color (0…1 components).</td><td>boolean</td></tr>
+    <tr><td><code>Hud.set_background_color(node, r, g, b, a?)</code></td><td>Sets the node’s background color.</td><td>boolean</td></tr>
+    <tr><td><code>Hud.set_value(node, n)</code></td><td>Sets progress/slider value within its range.</td><td>boolean</td></tr>
+    <tr><td><code>Hud.set_checked(node, b)</code></td><td>Sets toggle state.</td><td>boolean</td></tr>
+    <tr><td><code>Hud.set_disabled(node, b)</code></td><td>Enables or blocks input on the control.</td><td>boolean</td></tr>
+    <tr><td><code>Hud.set_visible(node, b)</code></td><td>Shows or hides the node.</td><td>boolean</td></tr>
+    <tr><td><code>Hud.set_opacity(node, n)</code></td><td>Sets alpha 0…1.</td><td>boolean</td></tr>
+    <tr><td><code>Hud.set_image(node, texture, source_x, source_y, source_w, source_h)</code></td><td>Swaps an image’s texture and source rectangle.</td><td>boolean</td></tr>
+    <tr><td><code>Hud.set_position(node, x, y)</code></td><td>Moves the node in canvas units.</td><td>boolean</td></tr>
+    <tr><td><code>Hud.set_size(node, w, h)</code></td><td>Resizes the node in canvas units.</td><td>boolean</td></tr>
+    <tr><td><code>Hud.focus_next(reverse?)</code></td><td>Moves focus to the next control (previous when <code>reverse</code> is true).</td><td>boolean</td></tr>
+    <tr><td><code>Hud.focused()</code></td><td>Which node has focus.</td><td>focused node id string</td></tr>
   </tbody>
 </table>
 <pre><code>local Hud = require("demi.hud")
@@ -47,7 +47,7 @@ Hud.set_disabled("start", false)
 Hud.set_visible("hint", false)
 Hud.set_opacity("fade", 0.5)
 print(Hud.focused())                  -- "start" or nil</code></pre>
-<p>All of these take an id string or a <code>find</code> handle as the first argument. <code>Hud.get_text</code> and <code>Hud.focused</code> are the two readers; everything else writes.</p>
+<p>All of these take an id string or a <code>find</code> handle as the first argument. <code>Hud.get_text</code> and <code>Hud.focused</code> are the two readers; everything else writes and reports success with a boolean.</p>
 
 <h2>UI event handlers</h2>
 <p>HUD interaction arrives as methods on your script — no polling needed.</p>
@@ -96,14 +96,15 @@ end</code></pre>
 
 <h2>Tweens</h2>
 <p>A tween animates one property over time. Use them for fades and slides instead of per-frame setters.</p>
-<pre><code>Hud.tween("fade", "opacity", 0.0, 0.35)  -- node, property, target, seconds
-Hud.tween("panel", "y", 120, 0.25)
-Hud.cancel_tween("fade")
+<pre><code>local fade = Hud.find("fade")
+local handle = Hud.tween(fade, "opacity", 0.0, 0.35)  -- handle, property, target, seconds
+Hud.tween(Hud.find("panel"), "y", 120, 0.25)
+Hud.cancel_tween(handle)     -- takes the tween handle
 Hud.set_reduced_motion(true)</code></pre>
 <ul>
-  <li><code>Hud.tween(node, property, target, duration)</code> animates <code>property</code> to <code>target</code> over <code>duration</code> seconds. Animatable properties: <code>opacity</code>, <code>x</code>, <code>y</code>, <code>scale</code>. Returns nothing.</li>
-  <li><code>Hud.cancel_tween(node)</code> stops any tween on that node. Returns nothing.</li>
-  <li><code>Hud.set_reduced_motion(flag)</code> takes a boolean and honors the player’s accessibility preference — with it on, tweens jump to their end state instead of animating.</li>
+  <li><code>Hud.tween(node, property, target, duration)</code> animates <code>property</code> to <code>target</code> over <code>duration</code> seconds. The node is a <code>find</code>/<code>create</code> handle. Animatable properties: <code>opacity</code>, <code>x</code>, <code>y</code>, <code>scale</code>. Returns the tween handle plus an error string.</li>
+  <li><code>Hud.cancel_tween(handle)</code> stops the tween with that handle. Returns a boolean.</li>
+  <li><code>Hud.set_reduced_motion(flag)</code> takes a boolean and honors the player’s accessibility preference — with it on, presentation changes finish immediately instead of animating.</li>
 </ul>
 <p>The fade line takes the node’s opacity to 0 over 0.35 seconds. Call <code>set_reduced_motion</code> from your options screen and keep honoring it.</p>
 
@@ -114,8 +115,9 @@ Hud.set_reduced_motion(true)</code></pre>
 function Inventory:refresh(items)
     Hud.clear_children("list")
 
-    for _, item in ipairs(items) do
+    for i, item in ipairs(items) do
         local row = Hud.create("list", {
+            id = "row_" .. i,
             type = "panel",
             stack = "row",
             gap = 8,
@@ -125,48 +127,52 @@ function Inventory:refresh(items)
             },
         })
 
-        local copy = Hud.clone(row)          -- duplicate the row
-        Hud.reparent(copy, "compare_panel")  -- move the clone elsewhere
+        local copy = Hud.clone(row, "compare_" .. i, "compare_panel")
     end
 end
 
-local kids = Hud.children("list")   -- array of child handles
-Hud.remove(kids[1])                 -- delete one row</code></pre>
+local kids = Hud.children("list")   -- array of child ids
+local row = Hud.find(kids[1])       -- handle for the first row
+if row then
+    Hud.remove(row)                 -- delete one row
+end</code></pre>
 <ul>
-  <li><code>Hud.create(parent, def)</code> builds a node from a definition table under <code>parent</code> (id or handle). Returns the new node’s handle.</li>
-  <li><code>Hud.clone(node)</code> duplicates a node and its subtree. Returns the clone’s handle.</li>
-  <li><code>Hud.reparent(node, parent)</code> moves a node under a new parent. Returns nothing.</li>
-  <li><code>Hud.children(node)</code> returns an array of child handles.</li>
-  <li><code>Hud.clear_children(node)</code> removes every child. Returns nothing. Handles to those children become stale.</li>
-  <li><code>Hud.remove(node)</code> deletes a runtime node. Returns nothing. Its handle becomes stale.</li>
+  <li><code>Hud.create(parent, def)</code> builds a node from a definition table under <code>parent</code> (id string). Returns the new node’s handle plus an error string.</li>
+  <li><code>Hud.clone(source, new_root_id, parent?)</code> duplicates a node and its subtree, renaming the clone’s root to <code>new_root_id</code> and placing it under <code>parent</code> (or the source’s parent when omitted). Returns the clone’s handle plus an error string.</li>
+  <li><code>Hud.reparent(node, parent)</code> moves a node under a new parent. Returns ok plus an error string.</li>
+  <li><code>Hud.children(parent)</code> returns an array of child ids.</li>
+  <li><code>Hud.clear_children(parent)</code> removes every child. Returns ok. Handles to those children become stale.</li>
+  <li><code>Hud.remove(node)</code> deletes a runtime node. Returns ok. Its handle becomes stale.</li>
 </ul>
 <p>This spawn-list pattern rebuilds the rows from data each refresh. Keep the returned handles if you will mutate rows later; otherwise ids from your data are enough to <code>find</code> them again.</p>
 
 <h2>Virtualization for long lists</h2>
-<p>A chat log or inventory with hundreds of rows should not build hundreds of nodes. Virtualization builds only what the scroll region shows.</p>
-<pre><code>local range = Hud.visible_range("scroll")
-print(range.y, range.height)   -- first visible row, how many fit
+<p>A chat log or inventory with hundreds of rows should not build hundreds of nodes. Virtualization computes the visible range and keeps only those rows alive.</p>
+<pre><code>local first, count = Hud.visible_range(500, 48, 240, 480)
+-- first → one-based index of the first visible row; count → live rows needed
 
-local layout = Hud.virtual_layout({ width = 1280, height = 720 })
--- layout.visible_range, layout.set_extent, layout.item_offset,
--- layout.item_count, layout.total_extent
+local layout = Hud.virtual_layout({ 48, 64, 48 })
+-- layout:visible_range(scroll_offset, viewport_extent, overscan?)
+-- layout:set_extent(index, extent), layout:item_offset(index),
+-- layout:item_count(), layout:total_extent()
 
-Hud.recycle_rows("list")         -- return off-screen rows to the pool
-Hud.clear_recycled_rows("list")  -- empty the pool</code></pre>
+local rows = Hud.recycle_rows("inventory", template, keys, extents,
+                              scroll_offset, viewport_extent)
+Hud.clear_recycled_rows("inventory")  -- release the pool</code></pre>
 <ul>
-  <li><code>Hud.visible_range(node)</code> returns a table describing the visible window: <code>y</code> is the first visible row index, <code>height</code> is how many rows fit.</li>
-  <li><code>Hud.virtual_layout(size)</code> takes a <code>{width, height}</code> table and returns a layout table: <code>visible_range</code> (which items fit), <code>set_extent</code> (extent of the built set), <code>item_offset</code> (scroll offset of the first item), <code>item_count</code> (how many items are materialized), <code>total_extent</code> (full scrollable extent).</li>
-  <li><code>Hud.recycle_rows(node)</code> returns off-screen rows to an internal pool so scrolling reuses them. Returns nothing.</li>
-  <li><code>Hud.clear_recycled_rows(node)</code> empties that pool (for a full rebuild). Returns nothing.</li>
+  <li><code>Hud.visible_range(item_count, item_extent, scroll_offset, viewport_extent, overscan?)</code> covers uniform rows: it returns the one-based first visible item and how many live rows are needed.</li>
+  <li><code>Hud.virtual_layout(item_extents)</code> takes an array of row extents and returns a persistent layout object for rows with different heights: <code>visible_range(scroll_offset, viewport_extent, overscan?)</code> (one-based first item, live count, leading extent, total extent), <code>set_extent(index, extent)</code> (update one measured row), <code>item_offset(index)</code>, <code>item_count()</code>, and <code>total_extent()</code>.</li>
+  <li><code>Hud.recycle_rows(collection_id, row_template, keys, extents, scroll_offset, viewport_extent, overscan?)</code> combines that range with a hidden project-authored row template and returns generation-checked row bindings — each with <code>key</code>, <code>index</code>, <code>node</code>, <code>offset</code>, <code>extent</code>, and <code>rebound</code> — plus an error string.</li>
+  <li><code>Hud.clear_recycled_rows(collection_id)</code> releases that pool (for a full rebuild). Returns whether it was cleared.</li>
 </ul>
-<p>Typical loop: on scroll, ask <code>virtual_layout</code> for the visible window, update only those rows’ text and images from your data array, then <code>recycle_rows</code>. Skyforge’s 500-line combat log stays smooth because at most a dozen rows exist at once.</p>
+<p>Typical loop: on scroll, ask the layout for the visible window, populate only those rows’ text and images from your data array, and let <code>recycle_rows</code> reuse the pool. Skyforge’s 500-line combat log stays smooth because at most a dozen rows exist at once.</p>
 
 <h2>Accessibility snapshot</h2>
 <pre><code>local snapshot = Hud.accessibility_snapshot()</code></pre>
 <ul>
-  <li><code>Hud.accessibility_snapshot()</code> returns an array of tables, one per exposed node: <code>role</code>, <code>id</code>, <code>parent</code>, <code>label</code>, <code>description</code>, <code>value</code>, <code>states</code>, <code>bounds</code>.</li>
+  <li><code>Hud.accessibility_snapshot()</code> takes no arguments and returns an array of tables covering the whole document: <code>role</code>, <code>id</code>, <code>parent</code>, <code>label</code>, <code>description</code>, <code>value_text</code>, <code>value</code>, <code>minimum</code>, <code>maximum</code>, <code>x</code>, <code>y</code>, <code>width</code>, <code>height</code>, <code>focused</code>, <code>disabled</code>, <code>checked</code>, <code>focusable</code>, and <code>offscreen</code>.</li>
 </ul>
-<p>Use it in tests to assert labels and states, and to verify modal focus traps. Authoring fields are covered in <a href="{{ path('docs_page', {slug: 'hud-nodes'}) }}">HUD nodes</a>.</p>
+<p><code>value</code> is numeric and <code>value_text</code> is its string form. Use it in tests to assert labels and states, and to verify modal focus traps. Authoring fields are covered in <a href="{{ path('docs_page', {slug: 'hud-nodes'}) }}">HUD nodes</a>.</p>
 
 <h2>Next</h2>
 <ul>

@@ -18,18 +18,18 @@ end
 <h2>Inspecting loaded values</h2>
 <pre><code>local Data = require("demi.data")
 
-local hits = Data.query({ content_type = "application/x-skyforge-enemy", tags = { "balance" } })
--- hits: array of URI strings (possibly empty)
+local snapshots = Data.query({ content_type = "application/x-skyforge-enemy", tags = { "balance" } })
+-- snapshots: array of document tables (possibly empty), ordered by stable asset ID
 
 print(Data.revision("asset://data/skyforge_enemies"))  -- integer revision of the loaded document
 
-local first = Data.load("asset://data/skyforge_enemies")[1]
-print(Data.kind(first.nickname))       -- "null", "number", "string", "boolean", "array", "object"
-print(Data.is_null(first.nickname))    -- true only for JSON null</code></pre>
+local value = Data.load("asset://data/skyforge_enemies")
+print(Data.kind(value.nickname))       -- "null", "array", "object", or nil for scalars
+print(Data.is_null(value.nickname))    -- true only for JSON null</code></pre>
 <ul>
-  <li><code>Data.query(filter)</code> — takes <code>content_type</code> and/or <code>tags</code>; returns an array of matching document URIs (empty when none match, never <code>nil</code>).</li>
-  <li><code>Data.revision(uri)</code> → integer revision number for the document (for change detection).</li>
-  <li><code>Data.kind(value)</code> → string naming the JSON type of a loaded value.</li>
+  <li><code>Data.query(filter)</code> — takes <code>content_type</code> and/or <code>tags</code>; returns an array of document snapshot tables (one per matching asset, including scalar/null roots; empty when none match, never <code>nil</code>).</li>
+  <li><code>Data.revision(id)</code> → integer revision number for the document (for change detection).</li>
+  <li><code>Data.kind(value)</code> → <code>"array"</code>, <code>"object"</code>, or <code>"null"</code>; <code>nil</code> for scalars and missing values.</li>
   <li><code>Data.is_null(value)</code> → boolean, <code>true</code> only for the null sentinel.</li>
   <li><code>Data.null</code> — the sentinel value for JSON <code>null</code>. Assign it when writing a real null.</li>
 </ul>
@@ -58,44 +58,44 @@ print(Save.get_string("profile1", "callsign", ""))  -- "Ace"</code></pre>
 <table>
   <thead><tr><th>Call</th><th>Takes</th><th>Returns</th></tr></thead>
   <tbody>
-    <tr><td><code>Save.set_number(slot, key, value)</code></td><td>Slot name, key, number</td><td>Nothing</td></tr>
+    <tr><td><code>Save.set_number(slot, key, value)</code></td><td>Slot name, key, number</td><td><code>true</code> when written, <code>false</code> on failure (see <code>Save.last_error()</code>)</td></tr>
     <tr><td><code>Save.get_number(slot, key, default)</code></td><td>Slot, key, fallback number</td><td>Stored number, or <code>default</code> when missing</td></tr>
-    <tr><td><code>Save.set_string(slot, key, value)</code></td><td>Slot, key, string</td><td>Nothing</td></tr>
+    <tr><td><code>Save.set_string(slot, key, value)</code></td><td>Slot, key, string</td><td><code>true</code> when written, <code>false</code> on failure</td></tr>
     <tr><td><code>Save.get_string(slot, key, default)</code></td><td>Slot, key, fallback string</td><td>Stored string, or <code>default</code> when missing</td></tr>
     <tr><td><code>Save.read(slot)</code></td><td>Slot name</td><td>Table of stored keys, or <code>nil</code> when the slot has never been written</td></tr>
-    <tr><td><code>Save.write(slot, table)</code></td><td>Slot, table of values</td><td>Nothing on success; check <code>Save.last_error()</code> after</td></tr>
+    <tr><td><code>Save.write(slot, table, format_version?)</code></td><td>Slot, table of values, optional version</td><td><code>true</code> on success, <code>false</code> on failure; details via <code>Save.last_error()</code></td></tr>
     <tr><td><code>Save.read_state(slot)</code></td><td>Slot name</td><td>Structured state table, or <code>nil</code></td></tr>
-    <tr><td><code>Save.write_state(slot, table)</code></td><td>Slot, state table</td><td>Nothing; errors go to <code>Save.last_error()</code></td></tr>
+    <tr><td><code>Save.write_state(slot, state, options?)</code></td><td>Slot, state table, optional options (<code>format_version</code>, <code>autosave</code>, <code>sequence</code>, <code>reason</code>)</td><td><code>true</code> on success; errors go to <code>Save.last_error()</code></td></tr>
   </tbody>
 </table>
 <p><code>read</code> returns a plain table of the slot's keys or <code>nil</code> for a slot that does not exist — <code>nil</code> is “no slot”, an empty table is “slot exists with no keys”. The pair <code>get_*</code>/<code>set_*</code> covers scalars; <code>read</code>/<code>write</code> covers whole tables; <code>read_state</code>/<code>write_state</code> covers structured game state trees.</p>
-<p>There is no error return on writes. After any write (or a suspicious read), ask for the last problem:</p>
-<pre><code>print(Save.last_error())          -- message string, or nil when the last call succeeded
+<p>Writes return <code>true</code> on success and <code>false</code> on failure. After any failure (or a suspicious read), ask for the last problem:</p>
+<pre><code>print(Save.last_error())          -- message string; empty when the last call succeeded
 print(Save.exists("profile1"))    -- true when the slot has been written
 
 local meta = Save.metadata("profile1")
--- meta: table with fields like version (number) and modified time; nil when the slot is missing</code></pre>
+-- meta: { autosave, sequence, reason } for the slot, or nil when the slot is missing</code></pre>
 <ul>
-  <li><code>Save.last_error()</code> → string message of the most recent failure, or <code>nil</code>.</li>
+  <li><code>Save.last_error()</code> → string message of the most recent failure; empty when the last operation succeeded.</li>
   <li><code>Save.exists(slot)</code> → boolean.</li>
-  <li><code>Save.metadata(slot)</code> → table describing the slot (including its <code>version</code> number), or <code>nil</code> when missing.</li>
+  <li><code>Save.metadata(slot)</code> → table with <code>autosave</code>, <code>sequence</code>, and <code>reason</code> fields, or <code>nil</code> when missing.</li>
 </ul>
 
 <h2>Migrations and cleanup</h2>
 <p>When your save format changes, old saves must keep working. Register a migration per version bump; it runs on load for slots saved at older versions.</p>
 <pre><code>local Save = require("demi.save")
 
-Save.register_migration(2, function(state)
-    state.credits = state.credits or 0   -- fix up older shape
+Save.register_migration(1, 2, function(state, from_version, to_version)
+    state.credits = state.credits or 0   -- fix up the older shape
     return state
 end)
 
 print(Save.version("profile1"))   -- integer version of the slot
 Save.delete("profile1")           -- remove the slot entirely</code></pre>
 <ul>
-  <li><code>Save.register_migration(version, fn)</code> — registers a function that upgrades state to <code>version</code>. The function receives the state table and returns the updated table. Returns nothing.</li>
+  <li><code>Save.register_migration(from_version, to_version, fn)</code> — registers a function that upgrades state from <code>from_version</code> to <code>to_version</code>. The function receives the state table plus both versions and returns the updated table. Returns an integer migration ID.</li>
   <li><code>Save.version(slot)</code> → integer version stored with the slot.</li>
-  <li><code>Save.delete(slot)</code> — deletes the slot and its metadata. Returns nothing.</li>
+  <li><code>Save.delete(slot)</code> — deletes the slot and its metadata. Returns <code>true</code> when deleted.</li>
 </ul>
 <p>Never silently delete an incompatible save. Migrate it, or report the problem and leave the file alone. The CLI can inspect a slot from a terminal with <code>demi save inspect</code>.</p>
 

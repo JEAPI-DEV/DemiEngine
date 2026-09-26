@@ -9,7 +9,7 @@ Audio.play("asset://audio/skyforge_rune_collect", {
     bus = "sfx",
     volume = 0.8,
 })</code></pre>
-<p><code>Audio.play(uri, options)</code> starts a sound from an audio asset URI. The options table says how it plays (fields below). The call returns nothing — playback state is not polled; sounds simply run and finish.</p>
+<p><code>Audio.play(uri, options)</code> starts a sound from an audio asset URI. The options table says how it plays (fields below). It returns an integer <strong>handle</strong> for the playing voice (or <code>0</code>/<code>nil</code> when nothing could be started); pass the handle to <code>Audio.stop</code> when you need to end it early.</p>
 
 <h2>Play options</h2>
 <table>
@@ -63,7 +63,6 @@ Audio.play("asset://audio/skyforge_step", {
 <pre><code>local Audio = require("demi.audio")
 
 Audio.define_snapshot("skyforge_low_health", {
-    master = 1.0,
     music = 0.4,
     sfx = 0.9,
     voice = 1.0,
@@ -71,29 +70,28 @@ Audio.define_snapshot("skyforge_low_health", {
 })
 
 Audio.transition_snapshot("skyforge_low_health", 0.5)  -- blend over 0.5 s
-Audio.crossfade("skyforge_normal", "skyforge_low_health", 1.2)
-Audio.stop()   -- stop all playback</code></pre>
+
+-- swap the music track under the player with a crossfade:
+local music = Audio.play("asset://audio/skyforge_normal", { bus = "music" })
+local next = Audio.crossfade(music, "asset://audio/skyforge_low_health", 1.2)
+Audio.stop(music)   -- stop one voice by handle</code></pre>
 <ul>
   <li><code>Audio.define_snapshot(name, buses)</code> — saves a bus-volume table under <code>name</code>. Returns nothing.</li>
-  <li><code>Audio.transition_snapshot(name, seconds)</code> — blends the live mix toward that snapshot. Returns nothing.</li>
-  <li><code>Audio.crossfade(from, to, seconds)</code> — blends between two defined snapshots. Returns nothing.</li>
-  <li><code>Audio.stop()</code> — stops everything currently playing. Returns nothing.</li>
+  <li><code>Audio.transition_snapshot(name, seconds)</code> — blends the live mix toward that snapshot. Returns <code>true</code> when the transition started.</li>
+  <li><code>Audio.crossfade(from_handle, asset_id, duration, bus?, loop?, streaming?)</code> — starts <code>asset_id</code> and fades it in while fading the voice <code>from_handle</code> out. Returns the new voice handle.</li>
+  <li><code>Audio.stop(handle)</code> — stops one playing voice. Returns <code>true</code> when stopped.</li>
 </ul>
 <p>Snapshot tables map bus names to volume numbers. Define them once at startup (in <code>on_start</code> or <code>on_create</code> of an audio director script) and switch during play.</p>
 
 <h2>Entity-attached playback</h2>
-<p>Attaching sound to an entity means it follows the entity and obeys its position, which is what 3D world sounds need.</p>
+<p>An <code>AudioSource</code> component holds the clip and playback settings on the entity itself. Starting it makes the sound follow the entity and obey its position, which is what 3D world sounds need.</p>
 <pre><code>local AudioSource = require("demi.audio.source")
 
-AudioSource.play("skyforge_rune", "asset://audio/skyforge_hum", {
-    bus = "sfx",
-    loop = true,
-    spatial = "3d",
-})
-AudioSource.stop("skyforge_rune")   -- stop whatever this entity is playing</code></pre>
+local handle = AudioSource.play("skyforge_rune")   -- play the entity's attached source
+AudioSource.stop("skyforge_rune")                  -- stop whatever this entity is playing</code></pre>
 <ul>
-  <li><code>AudioSource.play(entity, uri, options)</code> — starts a sound on an entity. Options are the same table as <code>Audio.play</code>; position comes from the entity. Returns nothing.</li>
-  <li><code>AudioSource.stop(entity)</code> — stops that entity's playback. Returns nothing.</li>
+  <li><code>AudioSource.play(entity_id)</code> — starts the entity's <code>AudioSource</code> clip at the entity's position, using the component's bus/volume/spatial settings. Returns an integer handle (or <code>0</code> when the entity has no source to play).</li>
+  <li><code>AudioSource.stop(entity_id)</code> — stops that entity's playback. Returns <code>true</code> when stopped.</li>
 </ul>
 <p>For the listening side of 3D audio, an <code>AudioListener</code> component marks the entity the mixer hears from — usually the player or the camera. Only one listener matters at a time.</p>
 <pre><code>local Entity = require("demi.entity")

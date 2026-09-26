@@ -2,36 +2,36 @@
 <p>Small helpers for moving numbers around and for seeing what your script thinks it is doing. Four modules: <code>demi.math</code> (vector and scalar math plus seeded randomness), <code>demi.debug</code> (on-screen lines), <code>demi.profile</code> (timing scopes), and the text helpers in <code>demi.text</code> and <code>demi.regex</code>.</p>
 
 <h2>Why a math module</h2>
-<p>Lua has no built-in vector type. The math services take and return <strong>plain scalars</strong> so results drop straight into transform and physics calls without unpacking tables.</p>
+<p>Lua has no built-in vector type. The math services speak in <strong>Vec2/Vec3 numeric arrays</strong> — fixed-length tables indexed from 1 — and return single numbers for lengths and dot products, so results drop straight into specs and hit tables without repacking.</p>
 <pre><code>local Vector3 = require("demi.math.vector3")
 
-local x, y, z = Vector3.add(1, 2, 3, 0.5, 0, 0)
--- x, y, z: 1.5, 2, 3 — three scalars
+local sum = Vector3.add({ 1, 2, 3 }, { 0.5, 0, 0 })
+-- sum: { 1.5, 2, 3 } — a 3-number array
 
-local len = Vector3.length(3, 4, 0)        -- 5
-local nx, ny, nz = Vector3.normalized(0, 2, 0)  -- 0, 1, 0 (unit length)</code></pre>
+local len = Vector3.length({ 3, 4, 0 })            -- 5
+local n = Vector3.normalized({ 0, 2, 0 })          -- { 0, 1, 0 } (unit length)</code></pre>
 <table>
   <thead><tr><th>Call (<code>vector2</code> / <code>vector3</code>)</th><th>Takes</th><th>Returns</th></tr></thead>
   <tbody>
-    <tr><td><code>add</code></td><td>Two vectors as scalars</td><td>Component-wise sum, one scalar per axis</td></tr>
-    <tr><td><code>subtract</code></td><td>Two vectors as scalars</td><td>Component-wise difference</td></tr>
-    <tr><td><code>scale</code></td><td>Vector scalars plus one number</td><td>Vector multiplied by the number</td></tr>
-    <tr><td><code>length</code></td><td>One vector</td><td>Single number: the magnitude</td></tr>
-    <tr><td><code>normalized</code></td><td>One vector</td><td>Unit-length vector (same number of scalars out)</td></tr>
-    <tr><td><code>dot</code></td><td>Two vectors</td><td>Single number: the dot product</td></tr>
-    <tr><td><code>cross</code></td><td>Two vectors (<code>vector3</code> only)</td><td>Three scalars: the cross product</td></tr>
-    <tr><td><code>lerp</code></td><td>Two vectors and a <code>t</code> number 0…1</td><td>Interpolated vector as scalars</td></tr>
+    <tr><td><code>add</code></td><td>Two vector arrays</td><td>Component-wise sum as one array</td></tr>
+    <tr><td><code>subtract</code></td><td>Two vector arrays</td><td>Component-wise difference as one array</td></tr>
+    <tr><td><code>scale</code></td><td>One vector array plus one number</td><td>Scaled vector array</td></tr>
+    <tr><td><code>length</code></td><td>One vector array</td><td>Single number: the magnitude</td></tr>
+    <tr><td><code>normalized</code></td><td>One vector array</td><td>Unit-length vector array</td></tr>
+    <tr><td><code>dot</code></td><td>Two vector arrays</td><td>Single number: the dot product</td></tr>
+    <tr><td><code>cross</code></td><td>Two vector arrays (<code>vector3</code> only)</td><td>Cross product as one array</td></tr>
+    <tr><td><code>lerp</code></td><td>Two vector arrays and a <code>t</code> number 0…1</td><td>Interpolated vector array</td></tr>
   </tbody>
 </table>
-<p><code>vector2</code> takes and returns two scalars per vector; <code>vector3</code> takes and returns three. A 3D example: <code>Vector3.add(ax, ay, az, bx, by, bz)</code> returns three results. Nothing here returns a table.</p>
+<p><code>vector2</code> takes and returns two-number arrays; <code>vector3</code> takes and returns three-number arrays. A 3D example: <code>Vector3.add({ 1, 0, 0 }, { 0, 1, 0 })</code> returns <code>{ 1, 1, 0 }</code>. Read arrays with <code>v[1]</code>, <code>v[2]</code>, <code>v[3]</code> (Lua indexes from 1).</p>
 <pre><code>local Vector3 = require("demi.math.vector3")
 local Scalar = require("demi.math.scalar")
 
 local t = Scalar.smoothstep(0.2, 0.8, 0.5)   -- eased 0…1, clamped to the range
-local mx, my, mz = Vector3.lerp(0, 0, 0, 10, 0, 0, t)</code></pre>
+local m = Vector3.lerp({ 0, 0, 0 }, { 10, 0, 0 }, t)</code></pre>
 <ul>
   <li><code>Scalar.smoothstep(edge0, edge1, x)</code> → one number. Maps <code>x</code> into a smooth 0…1 ramp between the two edges, clamped outside them. Use it for eased fades and camera blends.</li>
-  <li><code>Vector3.lerp(a…, b…, t)</code> → interpolated vector as scalars; <code>t = 0</code> is <code>a</code>, <code>t = 1</code> is <code>b</code>.</li>
+  <li><code>Vector3.lerp(a, b, t)</code> → interpolated array; <code>t = 0</code> is <code>a</code>, <code>t = 1</code> is <code>b</code>.</li>
 </ul>
 
 <h2>Seeded randomness</h2>
@@ -39,16 +39,16 @@ local mx, my, mz = Vector3.lerp(0, 0, 0, 10, 0, 0, t)</code></pre>
 <pre><code>local Random = require("demi.math.random")
 
 Random.seed(20260926)           -- restart the sequence from a known seed
-local snap = Random.state()     -- opaque snapshot of the current position
+local snap = Random.state()     -- exact state string of the current position
 print(Random.value())           -- float in [0, 1)
-print(Random.range(-2, 2))      -- float in [-2, 2)
+print(Random.range(-2, 2))      -- float between -2 and 2
 print(Random.integer(1, 6))     -- integer in [1, 6] inclusive
 
-Random.restore(snap)            -- rewind to a saved snapshot</code></pre>
+Random.restore(snap)            -- rewind to a saved state</code></pre>
 <ul>
   <li><code>Random.seed(n)</code> — starts a new sequence from integer <code>n</code>. Returns nothing.</li>
-  <li><code>Random.state()</code> → opaque snapshot value for <code>restore</code>.</li>
-  <li><code>Random.restore(snapshot)</code> — rewinds to that snapshot. Returns nothing.</li>
+  <li><code>Random.state()</code> → exact unsigned 64-bit state <strong>string</strong>, safe to keep in JSON saves and pass to <code>restore</code>.</li>
+  <li><code>Random.restore(state)</code> — rewinds to that state string. Returns <code>true</code> when the state was accepted.</li>
   <li><code>Random.value()</code> → float in <code>[0, 1)</code>.</li>
   <li><code>Random.range(min, max)</code> → float between the two numbers.</li>
   <li><code>Random.integer(min, max)</code> → integer, both ends included.</li>
@@ -56,30 +56,30 @@ Random.restore(snap)            -- rewind to a saved snapshot</code></pre>
 <p>Snapshots let you branch (“roll both outcomes and pick one”) and still continue the main sequence. See <a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a> for whole-run reproduction.</p>
 
 <h2>On-screen debug output</h2>
-<p>While iterating on Skyforge you often want a number on screen without building UI. Debug lines are temporary developer text, not player-facing HUD.</p>
+<p>While iterating on Skyforge you often want information on screen without building UI. Debug output is temporary developer tooling, not player-facing HUD.</p>
 <pre><code>local Debug = require("demi.debug")
 
-Debug.log("wave 3, enemies left: 2")     -- log channel (console/overlay)
-Debug.line("fps cap hit")               -- one on-screen line
-Debug.clear_lines()                     -- wipe the on-screen overlay</code></pre>
+Debug.log("wave 3, enemies left: 2")   -- log channel (console/overlay)
+Debug.line(0, 0, 4, 2, 1, 0, 0, 1)     -- draw a world-space segment this frame
+Debug.clear_lines()                    -- wipe drawn segments</code></pre>
 <ul>
   <li><code>Debug.log(message)</code> — records a message to the log. Returns nothing.</li>
-  <li><code>Debug.line(message)</code> — draws one overlay line this frame. Returns nothing.</li>
-  <li><code>Debug.clear_lines()</code> — removes all overlay lines. Returns nothing.</li>
+  <li><code>Debug.line(x1, y1, x2, y2, r?, g?, b?, a?, width?)</code> — draws one line segment between two world points this frame; color channels and width are optional. Returns nothing.</li>
+  <li><code>Debug.clear_lines()</code> — removes drawn segments. Returns nothing.</li>
 </ul>
 
 <h2>Profiling scopes</h2>
 <p>When a frame stutters, measure instead of guessing. A scope wraps a function and reports how long it took.</p>
 <pre><code>local Profile = require("demi.profile")
 
-print(Profile.enabled)    -- true while profiling is active
+print(Profile.enabled())    -- true while profiling is active
 
 Profile.scope("skyforge_enemy_ai", function()
     update_all_enemies()
 end)</code></pre>
 <ul>
-  <li><code>Profile.enabled</code> — boolean field, <code>true</code> while profiling is on (CLI: <code>--profiler</code>).</li>
-  <li><code>Profile.scope(name, fn)</code> — runs <code>fn</code> and records its duration under <code>name</code>. Returns nothing.</li>
+  <li><code>Profile.enabled()</code> — function returning <code>true</code> while profiling is on (CLI: <code>--profiler</code>).</li>
+  <li><code>Profile.scope(name, fn)</code> — runs <code>fn</code> and records its duration under <code>name</code>. Returns <code>true</code> when the scope ran and was recorded.</li>
 </ul>
 <p>Aggregate and per-frame reports come from the CLI (<code>--profile-report</code>, <code>--profile-frames</code>); see <a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a>.</p>
 
@@ -89,24 +89,24 @@ end)</code></pre>
 local Regex = require("demi.regex")
 
 print(Text.grapheme_count("Skýforge"))            -- 7 visible characters
-local piece = Text.grapheme_slice("Skýforge", 0, 3)
--- piece: first 3 graphemes as a string
+local piece = Text.grapheme_slice("Skýforge", 1, 3)
+-- piece: first 3 graphemes as a string (one-based start index)
 
-local laid = Text.layout("Ready?", { width = 120 })
--- laid: table describing line breaks and measured size (numeric fields)
+local laid = Text.layout("Ready?", 120, 16)
+-- laid: table with width, height, grapheme_count, truncated, lines
 
 local rich = Text.parse_rich("[b]Ace[/b]")
--- rich: table of styled runs (plain text + flags)
+-- rich: { text, spans, diagnostics } describing styled runs
 
-print(Regex.is_valid("[0-9]+"))    -- true (pattern compiles)
-print(Regex.matches("[0-9]+", "wave 3"))   -- true</code></pre>
+print(Regex.is_valid("[0-9]+"))            -- true (pattern compiles)
+print(Regex.matches("wave 3", "[0-9]+"))   -- true</code></pre>
 <ul>
   <li><code>Text.grapheme_count(s)</code> → integer number of visible characters.</li>
-  <li><code>Text.grapheme_slice(s, start, count)</code> → string of that many graphemes from the start index, or a shorter string near the end.</li>
-  <li><code>Text.layout(s, options)</code> → table with line-break and size information (numbers and index lists).</li>
-  <li><code>Text.parse_rich(s)</code> → table of runs describing styled text.</li>
+  <li><code>Text.grapheme_slice(s, first, count)</code> → string of that many graphemes starting at the one-based <code>first</code> index, or <code>nil</code> when out of range.</li>
+  <li><code>Text.layout(s, width, font_size, max_lines?)</code> → table with <code>width</code>, <code>height</code>, <code>grapheme_count</code>, <code>truncated</code>, <code>valid_utf8</code>, and per-line <code>lines</code>.</li>
+  <li><code>Text.parse_rich(s, strict?)</code> → table with the plain <code>text</code>, styled <code>spans</code>, and <code>diagnostics</code>.</li>
   <li><code>Regex.is_valid(pattern)</code> → boolean, <code>false</code> for a pattern that does not compile.</li>
-  <li><code>Regex.matches(pattern, s)</code> → boolean. Patterns use ECMAScript regular-expression syntax.</li>
+  <li><code>Regex.matches(value, pattern, case_sensitive?)</code> → boolean; the value comes first, the pattern second. Patterns use ECMAScript regular-expression syntax.</li>
 </ul>
 
 <h2>Next steps</h2>

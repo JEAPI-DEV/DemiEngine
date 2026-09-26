@@ -19,7 +19,7 @@
       "id": "body",
       "components": {
         "Transform3D": { "position": [0, 0, 0] },
-        "CharacterController3D": { "slope_limit_degrees": 45 }
+        "CharacterController3D": { "slope_limit": 45 }
       },
       "children": [
         {
@@ -73,7 +73,7 @@
     <tr>
       <td><strong>Inherit</strong> — field absent from the override</td>
       <td>The prefab's value is used unchanged.</td>
-      <td>Override only <code>position</code>; <code>CharacterController3D.slope_limit_degrees</code> stays <code>45</code>.</td>
+      <td>Override only <code>position</code>; <code>CharacterController3D.slope_limit</code> stays <code>45</code>.</td>
     </tr>
     <tr>
       <td><strong>Merge</strong> — object values</td>
@@ -97,7 +97,7 @@
     </tr>
   </tbody>
 </table>
-<p>Worked example. Prefab <code>body</code> has <code>position [0, 0, 0]</code>, <code>slope_limit_degrees 45</code>, and the instance override is:</p>
+<p>Worked example. Prefab <code>body</code> has <code>position [0, 0, 0]</code>, <code>slope_limit 45</code>, and the instance override is:</p>
 <pre><code>"overrides": {
   "body": {
     "components": {

@@ -9,7 +9,8 @@
 <pre><code>{
   "Sprite": {
     "texture": "asset://sprites/hero",
-    "source_rect": [0, 0, 32, 32],
+    "source_position": [0, 0],
+    "source_size": [32, 32],
     "size": [1, 1],
     "pivot": [0.5, 0],
     "flip_x": false,
@@ -27,7 +28,8 @@
   <thead><tr><th>Field</th><th>Meaning</th><th>Typical value</th></tr></thead>
   <tbody>
     <tr><td><code>texture</code></td><td>Asset URI of the image to sample.</td><td><code>asset://sprites/hero</code></td></tr>
-    <tr><td><code>source_rect</code></td><td><code>[x, y, w, h]</code> rectangle taken from the texture, in pixels or normalized units. Use it to pick one frame out of a sheet.</td><td><code>[0, 0, 32, 32]</code></td></tr>
+    <tr><td><code>source_position</code> / <code>source_size</code></td><td>Sub-rectangle of the texture: <code>[x, y]</code> and <code>[w, h]</code>. Use them to pick one frame out of a sheet.</td><td><code>[0, 0]</code> / <code>[32, 32]</code></td></tr>
+    <tr><td><code>source_normalized</code></td><td>Interpret the source rectangle in 0…1 coordinates instead of pixels.</td><td><code>false</code></td></tr>
     <tr><td><code>size</code></td><td><code>[w, h]</code> the sprite occupies in world units.</td><td><code>[1, 1]</code></td></tr>
     <tr><td><code>pivot</code></td><td>Where the entity origin sits inside the sprite, <code>[0..1, 0..1]</code> of the sprite extent. <code>[0.5, 0]</code> is bottom-center — ideal for characters standing on the floor.</td><td><code>[0.5, 0.5]</code></td></tr>
     <tr><td><code>flip_x</code> / <code>flip_y</code></td><td>Mirror the art horizontally or vertically.</td><td>Flip X for facing left</td></tr>

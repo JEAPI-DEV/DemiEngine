@@ -36,15 +36,15 @@
 <table>
   <thead><tr><th>Command</th><th>What it does</th></tr></thead>
   <tbody>
-    <tr><td><code>demi asset inspect &lt;asset&gt;</code></td><td>Validate and summarize an asset manifest</td></tr>
-    <tr><td><code>demi asset deps &lt;asset&gt;</code></td><td>List source-file dependencies</td></tr>
+    <tr><td><code>demi asset inspect &lt;asset.asset.json&gt;</code></td><td>Validate and summarize an asset manifest</td></tr>
+    <tr><td><code>demi asset deps &lt;asset.asset.json&gt;</code></td><td>List dependency asset IDs, then source-file paths</td></tr>
     <tr><td><code>demi asset import &lt;source&gt; --id asset://id</code></td><td>Copy a source into the project and write a manifest (disambiguate with <code>--importer</code>)</td></tr>
-    <tr><td><code>demi asset reimport &lt;asset&gt;</code></td><td>Refresh generated output, source hash, and metadata</td></tr>
+    <tr><td><code>demi asset reimport &lt;asset.asset.json&gt;</code></td><td>Refresh generated output, source hash, and metadata</td></tr>
     <tr><td><code>demi asset register-generated &lt;source&gt; --id asset://id</code></td><td>Register a tool-generated source under <code>assets/</code></td></tr>
     <tr><td><code>demi asset collider &lt;model.asset.json&gt; --id asset://…</code></td><td>Generate a collider asset from a model</td></tr>
-    <tr><td><code>demi asset export --output file.demipack</code></td><td>Export a portable asset pack</td></tr>
+    <tr><td><code>demi asset export --output file.demipack --asset asset://id</code></td><td>Export a portable asset pack (repeat <code>--asset</code> for several assets; required)</td></tr>
     <tr><td><code>demi asset import-package file.demipack</code></td><td>Verify and import a pack</td></tr>
-    <tr><td><code>demi asset budget &lt;project&gt; --platform android|linux</code></td><td>Inspect performance budget usage</td></tr>
+    <tr><td><code>demi asset budget &lt;demi.project.json&gt; --platform android|linux</code></td><td>Inspect 3D performance budget usage</td></tr>
   </tbody>
 </table>
 

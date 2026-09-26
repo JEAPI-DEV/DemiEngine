@@ -1,40 +1,60 @@
 <h1>Script properties</h1>
-<p>Properties are the fields a script exposes to designers: jump height, walk speed, the sprite to show. They are declared in the script, edited in the scene document or editor Inspector, and installed on the instance before your first hook runs.</p>
+<p>Properties are the fields a script exposes to designers: jump height, walk speed, a projectile count. You declare them next to the fields in Lua, the editor Inspector picks them up, and scene or prefab documents override them per entity. Defaults install on the instance before your hooks run.</p>
 
 <h2>Why properties exist</h2>
-<p>Hardcoding numbers inside Lua means every balance tweak needs a programmer. Properties move those values out to the entity, where a designer can change “8.5” to “9.0” and press play. The script still reads them as ordinary fields on <code>self</code>.</p>
+<p>Hardcoding numbers inside Lua means every balance tweak needs a programmer. Properties move those values out to the entity, where a designer can change <code>8</code> to <code>16</code> and press play. The script still reads them as ordinary fields on <code>self</code>.</p>
 
 <h2>Declaring with annotations</h2>
-<p>Comments starting with <code>---@demi_component</code> and <code>---@demi_property</code> describe the component and each property. They are documentation the engine and editor read; they are not executed Lua.</p>
-<pre><code>---@demi_component SkyforgeHoverRune
----@demi_property speed number 8.5
----@demi_property label string "Rune"
----@demi_property glow boolean true
----@demi_property amplitude number 0.15 range 0 1
----@demi_property style enum "soft" options soft,bold,ancient
----@demi_property kind category "Motion"
----@demi_property description "A hovering collectible rune."
----@demi_property display_name "Hover Rune"
-
+<p>Comment lines starting with <code>---@demi_component</code> and <code>---@demi_property</code> describe the component and each property. They sit <strong>directly above</strong> the thing they describe: the component annotation above the module table, each property annotation above its assignment. They are read by the engine and editor, not executed.</p>
+<pre><code>---@demi_component
+---@display_name Hover Rune
+---@category Gameplay
+---@description A hovering collectible rune with a soft bob.
 local SkyforgeHoverRune = {}
 
-function SkyforgeHoverRune:on_create()
-    -- self.speed, self.label, self.glow, self.amplitude, self.style are ready here
+---@demi_property number
+---@range 0 1
+SkyforgeHoverRune.amplitude = 0.15
+
+---@demi_property string
+SkyforgeHoverRune.label = "Rune"
+
+---@demi_property boolean
+SkyforgeHoverRune.glow = true
+
+---@demi_property
+---@options soft, bold, ancient
+SkyforgeHoverRune.style = "soft"
+
+function SkyforgeHoverRune:on_start()
+    -- self.amplitude, self.label, self.glow, self.style are ready here
 end
 
 return SkyforgeHoverRune</code></pre>
-<table>
-  <thead><tr><th>Annotation</th><th>Meaning</th></tr></thead>
-  <tbody>
-    <tr><td><code>---@demi_component Name</code></td><td>Marks the script's component and its display identity</td></tr>
-    <tr><td><code>---@demi_property name type default …</code></td><td>Declares one property: name, type, default value, then optional metadata</td></tr>
-    <tr><td><code>label</code></td><td>Optional short label for the Inspector</td></tr>
-    <tr><td><code>range min max</code></td><td>Optional numeric bounds (as on <code>amplitude</code> above)</td></tr>
-    <tr><td><code>options a,b,c</code></td><td>Optional allowed values, mainly for enums</td></tr>
-    <tr><td><code>category</code> / <code>display_name</code> / <code>description</code></td><td>Optional grouping and help text; the editor infers sensible defaults when omitted</td></tr>
-  </tbody>
-</table>
-<p>Default values install onto the instance <strong>before</strong> <code>on_create</code>, so the first hook already sees final values. Metadata beyond the type and default is optional — declare only what improves the editing experience.</p>
+<p>How to read this:</p>
+<ul>
+  <li><code>---@demi_component</code> opts the file into the editor’s Add Component selector. <code>---@display_name</code>, <code>---@category</code>, and <code>---@description</code> are optional; the display name defaults to the humanized filename and the category to <code>Scripting</code>.</li>
+  <li><code>---@demi_property</code> exposes the assignment directly below it. The type after the tag is optional — <code>boolean</code>, <code>number</code>, <code>string</code>, and numeric tables are inferred from the assigned value. Write the type explicitly (<code>integer</code>, <code>asset</code>, <code>entity</code>, <code>enum</code>, <code>array</code>, <code>object</code>, <code>vec2</code>, <code>vec3</code>, <code>color</code>) when inference would be wrong or ambiguous, for example <code>integer</code> to reject fractional overrides or <code>asset</code> for an <code>asset://</code> string.</li>
+  <li>Extra lines tune the Inspector: <code>---@label Friendly Name</code>, <code>---@description Tooltip text</code>, <code>---@range minimum maximum</code>, <code>---@options a, b, c</code> for enums. A LuaLS <code>---@type</code> line may follow <code>---@demi_property</code>.</li>
+  <li>Defaults install before the first hook, so read them; do not assign them again inside <code>on_create</code> or <code>on_start</code> — that would replace the authored value.</li>
+</ul>
+<p>A real-world example, from the performance lab’s tower script:</p>
+<pre><code>---@demi_component
+local Tower = {}
+
+---@demi_property integer
+---@range 2 8
+Tower.columns = 8
+
+---@demi_property integer
+---@range 2 64
+Tower.levels = 16
+
+---@demi_property
+---@range 1 200
+Tower.projectile_mass = 60</code></pre>
+<p><code>columns</code> and <code>levels</code> are typed <code>integer</code> with slider ranges, so the Inspector renders constrained number boxes and rejects fractional overrides.</p>
+<div class="docs-note"><strong>One script per entity</strong><p>An entity supports a single Lua script, so the editor disables further Lua choices with an explanation. The component added to the scene is the standard <code>LuaScript</code>; the annotations only describe its module.</p></div>
 
 <h2>Property types</h2>
 <table>
@@ -43,7 +63,7 @@ return SkyforgeHoverRune</code></pre>
     <tr><td><code>boolean</code></td><td>True/false flag</td><td><code>true</code> or <code>false</code></td></tr>
     <tr><td><code>number</code> / <code>integer</code></td><td>Float or whole number</td><td>A Lua number; integers reject fractional overrides</td></tr>
     <tr><td><code>string</code></td><td>Text</td><td>Quoted string</td></tr>
-    <tr><td><code>asset</code></td><td>Reference to an asset</td><td>URI string such as <code>"asset://textures/skyforge_rune"</code></td></tr>
+    <tr><td><code>asset</code></td><td>Reference to an asset</td><td>URI string such as <code>"asset://models/barrel"</code></td></tr>
     <tr><td><code>entity</code></td><td>Reference to a scene entity</td><td>Entity ID string</td></tr>
     <tr><td><code>enum</code></td><td>One of a fixed set</td><td>One of the <code>options</code> values</td></tr>
     <tr><td><code>array</code></td><td>List of values</td><td>Lua array table</td></tr>
@@ -55,41 +75,42 @@ return SkyforgeHoverRune</code></pre>
 <p>Vectors and colors are embedded numeric arrays, exactly as in <a href="{{ path('docs_page', {slug: 'api-conventions'}) }}">API conventions</a>: index <code>1</code> is the first component. An enum default must be one of its <code>options</code>; anything else is invalid.</p>
 
 <h2>The property_schema table</h2>
-<p>Annotations are the friendly form. The same declarations can be a returned table named <code>property_schema</code> when you need to build the description in Lua:</p>
-<pre><code>local SkyforgeTurret = {}
+<p>Annotations are the friendly form. The same declarations can be a returned table named <code>property_schema</code> when you need to build the description in Lua, or when a module should validate properties without opting into the component selector:</p>
+<pre><code>local Player = {}
 
-SkyforgeTurret.property_schema = {
-    fire_rate = {
+Player.property_schema = {
+    speed = {
         type = "number",
-        default = 1.5,
-        minimum = 0.1,
-        maximum = 10,
-        required = true,
+        default = 6.0,
+        minimum = 0.0,
+        maximum = 20.0,
     },
-    mode = {
+    team = {
         type = "enum",
-        default = "burst",
-        values = { "single", "burst", "beam" },
+        values = { "red", "blue" },
+        default = "red",
     },
+    model = { type = "asset", required = true },
 }
 
-return SkyforgeTurret</code></pre>
+return Player</code></pre>
 <ul>
   <li><code>type</code> — one of the property types above (string).</li>
   <li><code>default</code> — value installed when the scene does not override it.</li>
-  <li><code>minimum</code> / <code>maximum</code> — numeric bounds.</li>
+  <li><code>minimum</code> / <code>maximum</code> — numeric bounds for <code>number</code> and <code>integer</code>.</li>
   <li><code>required</code> — boolean; when <code>true</code>, an override must be supplied.</li>
   <li><code>values</code> — allowed values for an <code>enum</code>, as an array of strings.</li>
 </ul>
-<p>Both forms describe the same contract. Whichever you use, the declared fields appear on <code>self</code> before <code>on_create</code>.</p>
+<p>Both forms describe the same contract: unknown properties, wrong types, invalid enum values, and out-of-range numbers reject script activation.</p>
 
 <h2>Setting properties from a scene</h2>
+<p>The owning scene or prefab supplies only overrides:</p>
 <pre><code>{
   "id": "skyforge_rune",
   "LuaScript": {
     "module": "script://scripts/hover_rune.lua",
     "properties": {
-      "speed": 8.5,
+      "amplitude": 0.3,
       "label": "Sky Rune",
       "style": "ancient"
     }
@@ -97,13 +118,13 @@ return SkyforgeTurret</code></pre>
 }</code></pre>
 <ul>
   <li><code>module</code> — the <code>script://</code> URI of the script file.</li>
-  <li><code>properties</code> — overrides merged onto the declared defaults. Omitted keys keep their declared defaults; there is no need to repeat every field.</li>
+  <li><code>properties</code> — overrides merged onto the declared defaults. Omitted keys keep their defaults; there is no need to repeat every field.</li>
 </ul>
-<p>Overrides are validated against the declaration at load time. An unknown key, a wrong type, or a value outside a range <strong>rejects activation</strong> — the scene load fails with an error naming the property, instead of starting with a half-configured script. During development, a hot reload that does not parse keeps the previous instance running so a typo does not erase live state.</p>
+<p>Overrides are validated against the declaration at load time. A violation <strong>rejects activation</strong> — the scene load fails with an error naming the property, instead of starting with a half-configured script. During development, a hot reload that fails validation keeps the previous instance running so a typo does not erase live state.</p>
 
 <h2>Next steps</h2>
 <ul>
   <li><a href="{{ path('docs_page', {slug: 'script-lifecycle'}) }}">Script lifecycle</a> — when each hook sees the installed properties.</li>
   <li><a href="{{ path('docs_page', {slug: 'data-schemas'}) }}">Data schemas</a> — the same idea for data documents.</li>
-  <li><a href="{{ path('docs_page', {slug: 'entity-api'}) }}">Entity API</a> — reading and writing fields at runtime with <code>set_field</code>.</li>
+  <li><a href="{{ path('docs_page', {slug: 'entity-api'}) }}">Entity API</a> — reading and writing fields at runtime.</li>
 </ul>

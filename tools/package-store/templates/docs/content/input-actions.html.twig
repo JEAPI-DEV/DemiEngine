@@ -2,7 +2,7 @@
 <p>An <strong>action</strong> is a named logical control — “jump”, “move”, “fire” — that gameplay code reads. It exists so your scripts never care which key, stick, trigger, or on-screen button produced the signal. You declare actions once in the project file, devices fill them through bindings, and Lua queries the action by name. This page explains the three action types and every query you can make.</p>
 
 <h2>Why actions instead of keys</h2>
-<p>If gameplay read “the space key”, every player without a keyboard would be stuck, and a remap would mean editing scripts. An action decouples intent from hardware: the project says <code>jump</code> is a button, bindings say Space and gamepad A fill it, and the script asks only “was jump pressed?”. The same script serves keyboard, gamepad, and a phone touch pad. How devices attach is covered in <a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a>.</p>
+<p>If gameplay read “the space key”, every player without a keyboard would be stuck, and a remap would mean editing scripts. An action decouples intent from hardware: the project says <code>jump</code> is a button, bindings say Space and the gamepad south button fill it, and the script asks only “was jump pressed?”. The same script serves keyboard, gamepad, and a phone touch pad. How devices attach is covered in <a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a>.</p>
 
 <h2>Declaring an action</h2>
 <pre><code>"input": {
@@ -28,11 +28,11 @@
   "context": "gameplay",
   "bindings": [
     { "input": "key:space" },
-    { "input": "gamepad:a" },
+    { "input": "gamepad:south" },
     { "input": "virtual:jump" }
   ]
 }</code></pre>
-<p>This declares <code>jump</code> as a button filled by the keyboard space bar, the gamepad A face button, and an on-screen virtual button named <code>jump</code>. In Lua the action reports 0 or 1 through <code>Input.value</code> and true/false through the pressed queries.</p>
+<p>This declares <code>jump</code> as a button filled by the keyboard space bar, the gamepad south face button, and an on-screen virtual button named <code>jump</code>. In Lua the action reports 0 or 1 through <code>Input.value</code> and true/false through the pressed queries.</p>
 <h3>axis1d</h3>
 <p>An axis1d is one number, usually from −1 to 1. Use it for throttle, steering trim, zoom, or any “how far” control.</p>
 <pre><code>"accelerate": {
@@ -41,7 +41,7 @@
   "bindings": [
     { "input": "key:w", "scale": 1 },
     { "input": "key:s", "scale": -1 },
-    { "input": "gamepad:axis:trigger_right", "scale": 1 }
+    { "input": "gamepad:axis:right_trigger", "scale": 1 }
   ]
 }</code></pre>
 <p>Here W pushes the axis positive, S pushes it negative, and the right trigger reports how hard it is pulled. <code>Input.value("accelerate")</code> returns the combined number — a trigger can return <code>0.37</code> while a key returns <code>1</code> or <code>0</code>.</p>
@@ -51,10 +51,10 @@
   "type": "vector2",
   "context": "gameplay",
   "bindings": [
-    { "input": "key:w", "vector": [0, 1] },
-    { "input": "key:s", "vector": [0, -1] },
     { "input": "key:a", "vector": [-1, 0] },
     { "input": "key:d", "vector": [1, 0] },
+    { "input": "key:w", "vector": [0, -1] },
+    { "input": "key:s", "vector": [0, 1] },
     { "input": "gamepad:stick:left", "deadzone": 0.18, "normalize": true },
     { "input": "virtual:move", "normalize": true }
   ]
@@ -143,16 +143,23 @@ local src = Input.source("jump")</code></pre>
   <li><code>value</code> is how hard the control is pressed. Use it for throttle and zoom.</li>
   <li><code>vector</code> is the normalized direction. Use it for movement so diagonals are not faster than straights.</li>
   <li><code>raw_vector</code> keeps the unclamped sum. Use it when stick tilt should scale speed.</li>
-  <li><code>source</code> returns a binding name string such as <code>"key:space"</code>, <code>"gamepad:a"</code>, or <code>"virtual:jump"</code>. Use it for “press [key] to jump” prompts.</li>
+  <li><code>source</code> returns a binding name string such as <code>"key:space"</code>, <code>"gamepad:south"</code>, or <code>"virtual:jump"</code>. Use it for “press [key] to jump” prompts.</li>
 </ul>
 
-<h2>Input.axis for quick axis pairs</h2>
-<p>When two buttons should act like a one-dimensional axis and you do not want a full <code>axis1d</code> declaration, use <code>Input.axis</code>:</p>
-<pre><code>local turn = Input.axis("turn_left", "turn_right")</code></pre>
+<h2>Two buttons acting as one axis</h2>
+<p>When two buttons should act like a one-dimensional axis, declare two actions and combine their values in Lua — there is no <code>Input.axis</code> helper:</p>
+<pre><code>"input": {
+  "actions": {
+    "turn_left":  { "type": "axis1d", "context": "gameplay", "bindings": [ { "input": "key:a", "scale": 1 } ] },
+    "turn_right": { "type": "axis1d", "context": "gameplay", "bindings": [ { "input": "key:d", "scale": 1 } ] }
+  }
+}</code></pre>
+<pre><code>local turn = Input.value("turn_right") - Input.value("turn_left")</code></pre>
 <ul>
-  <li>The first argument is the negative-side action name, the second is the positive-side action name. Both are usually <code>button</code> actions.</li>
-  <li>The return is <code>positive − negative</code> as one number: <code>-1</code>, <code>0</code>, or <code>1</code>.</li>
-  <li>If both are held, the result is <code>0</code> — they cancel, matching two opposed keys on a vector.</li>
+  <li>Each side is its own action; the Lua code subtracts the negative side from the positive side.</li>
+  <li>If both are held, the result is <code>0</code> — they cancel, matching two opposed keys on a vector binding.</li>
+  <li>For plain buttons you can also read them directly: <code>if Input.down("turn_left") then … end</code>.</li>
+  <li>For analog input, prefer one <code>axis1d</code> action fed by a stick or trigger so <code>Input.value</code> returns the combined strength directly.</li>
 </ul>
 
 <h2>Raw key helpers</h2>

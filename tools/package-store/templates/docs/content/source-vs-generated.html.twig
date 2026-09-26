@@ -13,9 +13,9 @@
   <thead><tr><th>Path</th><th>Bucket</th><th>Commit?</th></tr></thead>
   <tbody>
     <tr><td><code>demi.project.json</code></td><td>Source</td><td>Yes</td></tr>
-    <tr><td><code>scenes/</code></td><td>Source</td><td>Yes</td></tr>
+    <tr><td><code>scenes/</code> (including <code>*.hud.json</code> HUD files)</td><td>Source</td><td>Yes</td></tr>
     <tr><td><code>prefabs/</code></td><td>Source</td><td>Yes</td></tr>
-    <tr><td><code>hud/</code></td><td>Source</td><td>Yes</td></tr>
+    <tr><td><code>ui/</code> (UI prefabs)</td><td>Source</td><td>Yes</td></tr>
     <tr><td><code>scripts/</code></td><td>Source</td><td>Yes</td></tr>
     <tr><td><code>assets/</code> (<code>*.asset.json</code> and sources)</td><td>Source</td><td>Yes</td></tr>
     <tr><td><code>data/</code></td><td>Source</td><td>Yes</td></tr>
@@ -26,6 +26,7 @@
     <tr><td>Game saves and caches (platform user-data)</td><td>Writable</td><td>No</td></tr>
   </tbody>
 </table>
+<p>HUD documents conventionally live beside the scene that uses them (<code>scenes/*.hud.json</code>); reusable UI prefab trees live under <code>ui/</code>. A project may also keep HUD files in their own folder, but the examples put them next to scenes.</p>
 <p>A generated tree from a new project is described in <a href="{{ path('docs_page', {slug: 'first-project'}) }}">Your first project</a>; the source document shapes are in <a href="{{ path('docs_page', {slug: 'project-format'}) }}">Project &amp; file formats</a>.</p>
 
 <h2>What to commit and what to ignore</h2>

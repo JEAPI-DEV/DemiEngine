@@ -13,7 +13,7 @@ function SkyforgeRune:on_create()
 end
 
 return SkyforgeRune</code></pre>
-<p>The returned table is the script definition. <code>on_create</code> is one hook on it. The engine instantiates a copy per entity, so upvalues (locals declared at the top of the file) are shared per script instance and safe for per-entity state you declare inside hooks on <code>self</code>. Nothing runs until the scene (or a prefab) attaches the script to an entity.</p>
+<p>The returned table is the script definition. <code>on_create</code> is one hook on it; in practice most examples set up in <code>on_start</code>, and reserve <code>on_create</code> for state that must exist before anything else runs. The engine instantiates a copy per entity, so upvalues (locals declared at the top of the file) are shared per script instance and safe for per-entity state you declare inside hooks on <code>self</code>. Nothing runs until the scene (or a prefab) attaches the script to an entity.</p>
 
 <h2>self and self.id</h2>
 <p>Inside every hook, <code>self</code> is the script instance. <code>self.id</code> is the entity this instance belongs to. Use <code>self</code> to store per-entity state (counters, flags, targets) and <code>self.id</code> with the entity and transform APIs.</p>
@@ -38,7 +38,7 @@ end</code></pre>
   <thead><tr><th>Hook</th><th>When it runs</th><th>Arguments</th></tr></thead>
   <tbody>
     <tr><td><code>on_create</code></td><td>Once, when the instance is built and its properties are in place</td><td>None</td></tr>
-    <tr><td><code>on_start</code></td><td>Once, after every instance in the scene has been created</td><td>None</td></tr>
+    <tr><td><code>on_start</code></td><td>Once, after every instance in the scene has been created</td><td>Setup that needs the whole scene: cross-entity lookups, timers, subscriptions. Most scripts do their setup here.</td></tr>
     <tr><td><code>on_update(dt)</code></td><td>Every rendered frame</td><td><code>dt</code>: scaled seconds since the last frame</td></tr>
     <tr><td><code>on_fixed_update(fixed_dt)</code></td><td>Every fixed simulation tick</td><td><code>fixed_dt</code>: fixed seconds for this tick</td></tr>
     <tr><td><code>on_destroy</code></td><td>Once, when the entity is being removed</td><td>None</td></tr>

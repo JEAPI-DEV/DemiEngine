@@ -12,6 +12,16 @@ cmake --build --preset linux-debug</code></pre>
 <p>List the checked-in starter templates, then generate a project. <code>demi new</code> never overwrites a destination: it writes into a temporary sibling, validates the complete project, and only then renames the directory into place.</p>
 <pre><code>demi new --list
 demi new games/my_game --template platformer --name "My Game"</code></pre>
+<p>The templates are:</p>
+<ul>
+  <li><code>blank-2d</code> — Blank 2D</li>
+  <li><code>isometric</code> — Isometric 2D</li>
+  <li><code>lightweight-3d</code> — Lightweight 3D</li>
+  <li><code>networked</code> — Networked Game</li>
+  <li><code>platformer</code> — 2D Platformer</li>
+  <li><code>top-down</code> — Top-Down 2D</li>
+  <li><code>visual-novel</code> — Visual Novel</li>
+</ul>
 <p>Add <code>--dry-run</code> to inspect the file list without writing anything.</p>
 <p>A generated project contains source JSON, a Lua entry script, a deterministic smoke replay, and project-local LuaLS stubs for editor autocomplete.</p>
 

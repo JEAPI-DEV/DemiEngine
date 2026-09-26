@@ -39,7 +39,7 @@
   "id": "asset://textures/brick",
   "type": "Texture2D",
   "source": "brick.png",
-  "importer": "texture",
+  "importer": "image",
   "settings": {
     "filter": "nearest",
     "wrap": "clamp"
@@ -50,7 +50,7 @@
   <li><code>id</code> — the stable URI this asset is known by. Matches the manifest's conventional path.</li>
   <li><code>type</code> — what kind of resource this is (<code>Texture2D</code>, <code>Model3D</code>, <code>AudioClip</code>, and so on). The type decides which fields matter and which components can use it.</li>
   <li><code>source</code> — the imported source file, relative to the manifest.</li>
-  <li><code>importer</code> — which import pipeline reads the source (<code>texture</code>, <code>model</code>, <code>audio</code>, …).</li>
+  <li><code>importer</code> — which import pipeline reads the source (<code>image</code>, <code>gltf-model</code>, <code>model</code>, <code>audio</code>, <code>font</code>, …).</li>
   <li><code>settings</code> — import and runtime options for the type. For textures: <code>filter</code> (<code>nearest|bilinear|trilinear</code>) and <code>wrap</code> (<code>repeat|clamp|mirror</code>), plus optional per-platform overrides.</li>
 </ul>
 <p>Importing a file writes this manifest for you:</p>
@@ -74,17 +74,13 @@
       "texture": "asset://textures/brick",
       "size": [2, 2]
     },
-    "Rigidbody2D": {
-      "body_type": "static",
-      "collider": { "shape": "box", "size": [2, 2], "layer": "world" }
-    }
+    "BoxCollider2D": { "size": [2, 2], "layer": "world" }
   }
 }</code></pre>
 <ul>
   <li><code>Sprite.texture</code> — an asset URI naming the image to draw. Returns nothing itself; the sprite draws that resource each frame.</li>
   <li><code>Sprite.size</code> — how large the sprite is drawn, in world units.</li>
-  <li><code>Rigidbody2D.body_type</code> — <code>"static"</code> means the wall does not move. Colliders use the authored box shape, not the texture.</li>
-  <li><code>Rigidbody2D.collider</code> — the collision shape with its physics <code>layer</code> name. Nothing here comes from the asset.</li>
+  <li><code>BoxCollider2D</code> — the collision shape, sized to match the wall and sitting on the physics <code>layer</code> named <code>world</code>. Collider shape comes from the component type, not from the asset and not from a <code>shape</code> field.</li>
 </ul>
 <p>Note what the asset does <strong>not</strong> carry: the brick texture has no health, no collision, no rules. A model asset is just as inert. Those belong on the entity that uses the asset — a <code>Sprite</code> to draw it, a collider to block movement, a <code>LuaScript</code> for behavior — and that combination is exactly what a prefab saves for reuse (<a href="{{ path('docs_page', {slug: 'prefabs-and-instances'}) }}">Prefabs &amp; instances</a>).</p>
 <p>From Lua, the same URIs address assets at runtime:</p>

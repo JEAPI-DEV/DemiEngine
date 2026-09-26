@@ -18,6 +18,7 @@
   }
 }</code></pre>
 <ul>
+  <li><code>executable_name</code> must match <code>^[a-z0-9][a-z0-9_-]*$</code> — lowercase letters, digits, hyphens, or underscores, starting with a letter or digit.</li>
   <li>Icons and splash screens: PNG, JPEG, WebP, or SVG (SVG rasterized host-side via <code>rsvg-convert</code>).</li>
   <li>Discovery skips dot-directories, <code>build</code>, <code>generated</code>, <code>node_modules</code>, and <code>__pycache__</code>.</li>
   <li>Android networking requires the explicit <code>android.permission.INTERNET</code> permission.</li>

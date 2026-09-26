@@ -53,15 +53,15 @@ local x, y = Input.vector("move")</code></pre>
 <pre><code>"move": {
   "type": "vector2",
   "bindings": [
-    { "input": "key:w", "vector": [0, 1] },
-    { "input": "key:s", "vector": [0, -1] },
+    { "input": "key:w", "vector": [0, -1] },
+    { "input": "key:s", "vector": [0, 1] },
     { "input": "key:a", "vector": [-1, 0] },
     { "input": "key:d", "vector": [1, 0] },
     { "input": "gamepad:stick:left", "deadzone": 0.18 },
     { "input": "virtual:move", "normalize": true }
   ]
 }</code></pre>
-<p>This move action is filled by WASD, the left stick, and the on-screen stick at once. Whichever device is active wins for that frame.</p>
+<p>This move action is filled by WASD, the left stick, and the on-screen stick at once — active contributions are summed, and <code>Input.vector</code> clamps the combined result to unit length.</p>
 
 <h2>Reading touches</h2>
 <p>Touches are the raw fingers on the screen. Use them for world panning or custom gestures when an action is not the right shape.</p>
@@ -69,7 +69,7 @@ local x, y = Input.vector("move")</code></pre>
 
 function World:on_update(dt)
     for _, t in ipairs(Input.touches()) do
-        print(t.id, t.phase, t.position.x, t.position.y)
+        print(t.id, t.phase, t.x, t.y)
     end
     print(Input.touch_count())
 end</code></pre>
@@ -82,9 +82,9 @@ end</code></pre>
   <thead><tr><th>Field</th><th>Type</th><th>Meaning</th></tr></thead>
   <tbody>
     <tr><td><code>id</code></td><td>number</td><td>Stable identifier for this finger for the life of the touch.</td></tr>
-    <tr><td><code>phase</code></td><td>string</td><td><code>began</code> (finger down), <code>moved</code>, <code>ended</code> (lifted cleanly), <code>cancelled</code> (interrupted, e.g. by a system dialog).</td></tr>
-    <tr><td><code>position</code></td><td><code>{x, y}</code></td><td>Current position in canvas units.</td></tr>
-    <tr><td><code>delta</code></td><td><code>{x, y}</code></td><td>Change since the previous frame for this touch.</td></tr>
+    <tr><td><code>phase</code></td><td>string</td><td><code>began</code> (finger down), <code>moved</code>, <code>stationary</code> (held in place), <code>ended</code> (lifted cleanly), <code>cancelled</code> (interrupted, e.g. by a system dialog).</td></tr>
+    <tr><td><code>x</code>, <code>y</code></td><td>numbers</td><td>Current position in canvas units.</td></tr>
+    <tr><td><code>dx</code>, <code>dy</code></td><td>numbers</td><td>Change since the previous frame for this touch.</td></tr>
     <tr><td><code>pressure</code></td><td>number</td><td>How hard the finger presses, 0…1. Often 0 or 1 on devices without pressure sensing.</td></tr>
   </tbody>
 </table>
@@ -94,24 +94,23 @@ end</code></pre>
 <p>Gestures are recognized multi-touch shapes. They arrive as a list per frame, separate from touches, so you can react to a tap without writing a recognizer.</p>
 <pre><code>for _, g in ipairs(Input.gestures()) do
     if g.type == "tap" then
-        print("tapped at", g.position.x, g.position.y)
+        print("tapped at", g.x, g.y)
     elseif g.type == "pinch" then
-        print("pinch scale", g.distance)
+        print("pinch scale", g.value)
     end
 end</code></pre>
 <ul>
   <li><code>Input.gestures()</code> returns an array of gesture tables (empty when no gesture completed this frame).</li>
 </ul>
-<p>Common fields, then the type-specific ones:</p>
+<p>Every gesture table carries the same fields:</p>
 <table>
-  <thead><tr><th>Field</th><th>Present on</th><th>Meaning</th></tr></thead>
+  <thead><tr><th>Field</th><th>Type</th><th>Meaning</th></tr></thead>
   <tbody>
-    <tr><td><code>type</code></td><td>all</td><td><code>tap</code>, <code>double-tap</code>, <code>long-press</code>, <code>drag</code>, <code>pinch</code>, or <code>rotate</code>.</td></tr>
-    <tr><td><code>position</code></td><td>tap, double-tap, long-press</td><td><code>{x, y}</code> where the gesture happened, in canvas units.</td></tr>
-    <tr><td><code>from</code>, <code>to</code></td><td>drag</td><td><code>{x, y}</code> start and end points of the drag.</td></tr>
-    <tr><td><code>delta</code></td><td>drag</td><td><code>{x, y}</code> movement from start to end.</td></tr>
-    <tr><td><code>distance</code></td><td>pinch</td><td>Current distance between the two fingers, in canvas units.</td></tr>
-    <tr><td><code>angle</code></td><td>rotate</td><td>Rotation between the two fingers, in radians.</td></tr>
+    <tr><td><code>type</code></td><td>string</td><td><code>tap</code>, <code>double_tap</code>, <code>long_press</code>, <code>drag</code>, <code>pinch</code>, or <code>rotate</code>.</td></tr>
+    <tr><td><code>pointer_id</code></td><td>number</td><td>The pointer that produced the gesture.</td></tr>
+    <tr><td><code>x</code>, <code>y</code></td><td>numbers</td><td>Gesture position in canvas units.</td></tr>
+    <tr><td><code>dx</code>, <code>dy</code></td><td>numbers</td><td>Movement delta so far.</td></tr>
+    <tr><td><code>value</code></td><td>number</td><td>Numeric amount tied to the gesture — e.g. pinch scale or rotation.</td></tr>
   </tbody>
 </table>
 <p>Use <code>tap</code> for select, <code>drag</code> for panning, <code>pinch</code> for zoom, and <code>rotate</code> for camera roll in Skyforge’s map screen.</p>
@@ -119,7 +118,7 @@ end</code></pre>
 <h2>Pointer helpers around touch and mouse</h2>
 <pre><code>local x, y = Input.mouse_position()
 local dx, dy = Input.mouse_delta()
-local down = Input.mouse_down("mouse:left")
+local down = Input.mouse_down("left")
 local wx, wy = Input.mouse_world_position()
 local vw, vh = Input.viewport_size()
 local captured = Input.ui_pointer_captured()</code></pre>
@@ -129,7 +128,7 @@ local captured = Input.ui_pointer_captured()</code></pre>
   <li><code>Input.mouse_down(button)</code> returns a boolean for a mouse button name.</li>
   <li><code>Input.mouse_world_position()</code> returns <code>x, y</code> projected into the scene, for clicking world objects.</li>
   <li><code>Input.viewport_size()</code> returns <code>width, height</code> of the render surface in canvas units.</li>
-  <li><code>Input.ui_pointer_captured()</code> returns <code>true</code> when a HUD control currently owns the pointer — a virtual stick being dragged, a slider, a scroll area. Check it before treating a press as a world click.</li>
+  <li><code>Input.ui_pointer_captured()</code> returns <code>true</code> when a HUD control currently owns the pointer — a virtual stick being dragged, a slider, a scroll area. Pass an optional pointer id to check one specific finger. Check it before treating a press as a world click.</li>
 </ul>
 
 <h2>Text input</h2>
