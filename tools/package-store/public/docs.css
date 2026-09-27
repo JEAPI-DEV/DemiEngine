@@ -271,16 +271,6 @@
     background: #eef2ff
 }
 
-@media(min-width:1001px) {
-    .docs-nav-panel > .docs-nav-summary {
-        display: none
-    }
-
-    .docs-nav-panel:not([open]) > nav {
-        display: grid
-    }
-}
-
 .docs-article {
     min-width: 0;
     max-width: 820px

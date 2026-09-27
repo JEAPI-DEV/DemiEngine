@@ -1,13 +1,13 @@
 {% extends 'base.html.twig' %}
 {% block title %}{{ page.title }} — DemiEngine docs{% endblock %}
 {% block description %}{{ page.summary }}{% endblock %}
-{% block styles %}<link rel="stylesheet" href="/docs.css?v=5">{% endblock %}
-{% block scripts %}<script src="/docs.js?v=1" defer></script>{% endblock %}
+{% block styles %}<link rel="stylesheet" href="/docs.css?v=6">{% endblock %}
+{% block scripts %}<script src="/docs.js?v=3" defer></script>{% endblock %}
 {% block body %}
 <div class="docs-shell">
   <aside class="docs-sidebar">
     <a class="docs-all" href="{{ path('docs') }}">← All documentation</a>
-    <details class="docs-nav-panel">
+    <details class="docs-nav-panel" open>
       <summary class="docs-nav-summary">Browse documentation</summary>
       <nav aria-label="Documentation">
         {% for section in nav %}

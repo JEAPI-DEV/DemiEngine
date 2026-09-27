@@ -1,4 +1,4 @@
-/* Documentation enhancements: Lua/JSON highlighting and sidebar position memory. */
+/* Documentation enhancements: Lua/JSON highlighting and navigation state. */
 (function () {
   "use strict";
 
@@ -133,25 +133,50 @@
     });
   }
 
-  function restoreSidebarScroll() {
+  function restoreScroll(element, key) {
+    var saved = sessionStorage.getItem(key);
+    if (saved !== null) { element.scrollTop = parseInt(saved, 10) || 0; }
+  }
+
+  function rememberScroll(element, key) {
+    restoreScroll(element, key);
+    element.addEventListener("scroll", function () {
+      sessionStorage.setItem(key, String(element.scrollTop));
+    }, { passive: true });
+  }
+
+  function restoreNavigation() {
     var sidebar = document.querySelector(".docs-sidebar");
     if (!sidebar) { return; }
-    var saved = sessionStorage.getItem("docs-sidebar-scroll");
-    if (saved) { sidebar.scrollTop = parseInt(saved, 10) || 0; }
-    sidebar.addEventListener("scroll", function () {
-      sessionStorage.setItem("docs-sidebar-scroll", String(sidebar.scrollTop));
-    }, { passive: true });
-    var current = sidebar.querySelector('a[aria-current="page"]');
-    if (current && current.scrollIntoView) {
-      current.scrollIntoView({ block: "nearest" });
+
+    var panel = sidebar.querySelector(".docs-nav-panel");
+    var mobileNav = sidebar.querySelector(".docs-nav-panel > nav");
+    if (panel) {
+      var mobile = window.matchMedia("(max-width: 1000px)");
+      function applyPanelState() {
+        panel.open = !mobile.matches || sessionStorage.getItem("docs-nav-open") === "1";
+      }
+      applyPanelState();
+      mobile.addEventListener("change", applyPanelState);
+      panel.querySelector("summary").addEventListener("click", function () {
+        if (mobile.matches) {
+          sessionStorage.setItem("docs-nav-open", panel.open ? "0" : "1");
+        }
+      });
+      panel.addEventListener("toggle", function () {
+        if (panel.open && mobileNav) {
+          restoreScroll(mobileNav, "docs-mobile-nav-scroll");
+        }
+      });
     }
-    var panel = document.querySelector(".docs-nav-panel");
-    if (panel && current) { panel.setAttribute("open", ""); }
+
+    rememberScroll(sidebar, "docs-sidebar-scroll");
+    if (mobileNav) { rememberScroll(mobileNav, "docs-mobile-nav-scroll"); }
   }
 
   function init() {
     highlightAll();
-    restoreSidebarScroll();
+    restoreNavigation();
   }
 
   if (document.readyState === "loading") {
