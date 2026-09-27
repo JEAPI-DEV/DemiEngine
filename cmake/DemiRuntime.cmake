@@ -82,6 +82,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/LuaScriptHost.cpp
   src/demi/runtime/scripting/LuaScriptConsole.cpp
   src/demi/runtime/scripting/LuaBindingCleanup.cpp
+  src/demi/runtime/scripting/LuaGcTelemetry.cpp
   src/demi/runtime/scripting/annotations/HandleActionAnnotation.cpp
   src/demi/runtime/scripting/annotations/LuaAnnotationScanner.cpp
   src/demi/runtime/scripting/annotations/LuaModulePath.cpp

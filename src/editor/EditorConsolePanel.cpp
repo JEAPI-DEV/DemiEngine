@@ -2,6 +2,7 @@
 
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorPlaySession.h"
+#include "editor/EditorProfilerOverview.h"
 #include "editor/EditorWorkspace.h"
 
 #include <imgui.h>
@@ -89,17 +90,12 @@ int luaHistoryCallback(ImGuiInputTextCallbackData *data) {
   return 0;
 }
 
-const EditorProfilerRow *scope(const EditorProfilerSnapshot &snapshot,
-                               const std::string_view name) {
-  const auto found = std::ranges::find_if(
-      snapshot.rows, [&](const auto &row) { return row.entry.name == name; });
-  return found == snapshot.rows.end() ? nullptr : &*found;
-}
-
 void metric(const char *label, const EditorProfilerRow *row,
             const char *fallback = "--") {
   ImGui::TextDisabled("%s", label);
   ImGui::SameLine();
+  if (ImGui::GetContentRegionAvail().x < ImGui::GetFontSize() * 16.0F)
+    ImGui::NewLine();
   if (row == nullptr)
     ImGui::TextUnformatted(fallback);
   else
@@ -287,14 +283,16 @@ void EditorConsolePanel::draw(EditorWorkspace &workspace,
     } else {
       ImGui::Text("%zu frames%s", snapshot.frameCount,
                   snapshot.paused ? " · paused" : "");
-      ImGui::SameLine();
       if (snapshot.gpuTimingAvailable)
-        metric("GPU Game", scope(snapshot, "GPU.game_view"));
+        metric("GPU Game", editorProfilerTimedScope(snapshot, "GPU.game_view"));
       else
         ImGui::TextDisabled("GPU timing: unavailable on this backend");
-      metric("Update", scope(snapshot, "Frame.update"));
-      ImGui::SameLine(245.0F);
-      metric("Render submit", scope(snapshot, "Render.submit"));
+      metric("Update", editorProfilerTimedScope(snapshot, "Frame.update"));
+      metric("Render submit",
+             editorProfilerTimedScope(snapshot, "Render.submit"));
+
+      drawEditorProfilerOverview(snapshot);
+      ImGui::TextDisabled("Scopes & gauges");
 
       ImGui::SetNextItemWidth(std::max(120.0F, panelWidth - 190.0F));
       ImGui::InputTextWithHint("##profiler-filter", "Search scopes",
@@ -345,14 +343,31 @@ void EditorConsolePanel::draw(EditorWorkspace &workspace,
           ImGui::TableNextRow();
           ImGui::TableNextColumn();
           ImGui::TextUnformatted(row.entry.name.c_str());
+          if (row.entry.name == "Lua.gc_explicit" && ImGui::IsItemHovered())
+            ImGui::SetTooltip("Time spent servicing explicit Lua GC requests. "
+                              "Automatic collection can also run, but its "
+                              "cycle count is unavailable through Lua's "
+                              "public API.");
           ImGui::TableNextColumn();
-          ImGui::Text("%.3f", row.entry.latestMilliseconds);
+          if (row.entry.hasGauge)
+            ImGui::TextDisabled("N/A");
+          else
+            ImGui::Text("%.3f", row.entry.latestMilliseconds);
           ImGui::TableNextColumn();
-          ImGui::Text("%.3f", row.averageMilliseconds);
+          if (row.entry.hasGauge)
+            ImGui::TextDisabled("N/A");
+          else
+            ImGui::Text("%.3f", row.averageMilliseconds);
           ImGui::TableNextColumn();
-          ImGui::Text("%.3f", row.entry.p95Milliseconds);
+          if (row.entry.hasGauge)
+            ImGui::TextDisabled("N/A");
+          else
+            ImGui::Text("%.3f", row.entry.p95Milliseconds);
           ImGui::TableNextColumn();
-          ImGui::Text("%.3f", row.entry.maxMilliseconds);
+          if (row.entry.hasGauge)
+            ImGui::TextDisabled("N/A");
+          else
+            ImGui::Text("%.3f", row.entry.maxMilliseconds);
           ImGui::TableNextColumn();
           if (row.entry.hasGauge)
             ImGui::Text("%.0f", row.entry.gauge);

@@ -7,6 +7,13 @@
   add_executable(demi-editor-prefab-authoring-tests tests/editor_prefab_authoring_tests.cpp)
   add_executable(demi-editor-prefab-components-tests tests/editor_prefab_components_tests.cpp)
   add_executable(demi-editor-structured-value-tests tests/editor_structured_value_tests.cpp)
+  add_executable(demi-editor-profiler-overview-tests tests/editor_profiler_overview_tests.cpp)
+  target_link_libraries(demi-editor-profiler-overview-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-profiler-overview-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-profiler-overview-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
   add_executable(demi-editor-drag-authoring-tests tests/editor_drag_authoring_tests.cpp)
   target_link_libraries(demi-editor-drag-authoring-tests PRIVATE demi-editor-ui)
   target_include_directories(demi-editor-drag-authoring-tests PRIVATE
@@ -532,6 +539,15 @@
   add_executable(demi-game-save-document-tests tests/game_save_document_tests.cpp)
   target_link_libraries(demi-game-save-document-tests PRIVATE demi-runtime-lib)
   add_executable(demi-runtime-profiler-tests tests/runtime_profiler_tests.cpp)
+  add_executable(demi-process-resource-sampler-tests tests/process_resource_sampler_tests.cpp)
+  target_link_libraries(demi-process-resource-sampler-tests PRIVATE demi-core)
+  add_executable(demi-lua-gc-telemetry-tests tests/lua_gc_telemetry_tests.cpp)
+  target_link_libraries(demi-lua-gc-telemetry-tests PRIVATE demi-runtime-lib)
+  if(TARGET PkgConfig::LUA54)
+    target_link_libraries(demi-lua-gc-telemetry-tests PRIVATE PkgConfig::LUA54)
+  else()
+    target_link_libraries(demi-lua-gc-telemetry-tests PRIVATE lua54)
+  endif()
   add_executable(demi-frame-timing-tests tests/frame_timing_tests.cpp)
   target_link_libraries(demi-frame-timing-tests PRIVATE demi-runtime-lib)
   target_link_libraries(demi-runtime-profiler-tests PRIVATE demi-runtime-lib)

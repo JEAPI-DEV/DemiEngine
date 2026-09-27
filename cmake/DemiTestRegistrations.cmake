@@ -71,6 +71,7 @@ add_test(NAME demi-editor-imgui-input-tests
   COMMAND demi-editor-imgui-input-tests)
 add_test(NAME demi-editor-diagnostics-profiler-tests
   COMMAND demi-editor-diagnostics-profiler-tests)
+add_test(NAME demi-editor-profiler-overview-tests COMMAND demi-editor-profiler-overview-tests)
 add_test(NAME demi-editor-recovery-preferences-tests
   COMMAND demi-editor-recovery-preferences-tests)
 add_test(NAME demi-editor-workspace-layout-tests
@@ -288,6 +289,8 @@ add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)
 
   add_test(NAME demi-game-save-document-tests COMMAND demi-game-save-document-tests)
   add_test(NAME demi-runtime-profiler-tests COMMAND demi-runtime-profiler-tests)
+  add_test(NAME demi-process-resource-sampler-tests COMMAND demi-process-resource-sampler-tests)
+  add_test(NAME demi-lua-gc-telemetry-tests COMMAND demi-lua-gc-telemetry-tests)
   add_test(NAME demi-frame-timing-tests COMMAND demi-frame-timing-tests)
   add_test(NAME demi-visible-timing-summary-tests
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/visible_timing_summary_tests.py")

@@ -3,6 +3,7 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -47,5 +48,12 @@ editorProfilerCategory(std::string_view scope);
 filterEditorProfilerRows(const EditorProfilerSnapshot &snapshot,
                          std::string_view query,
                          EditorProfilerCategory category, bool allCategories);
+[[nodiscard]] std::optional<double>
+editorProfilerGauge(const EditorProfilerSnapshot &snapshot,
+                    std::string_view name);
+[[nodiscard]] const EditorProfilerRow *
+editorProfilerTimedScope(const EditorProfilerSnapshot &snapshot,
+                         std::string_view name);
+[[nodiscard]] std::string editorProfilerMiB(double bytes);
 
 } // namespace demi::editor

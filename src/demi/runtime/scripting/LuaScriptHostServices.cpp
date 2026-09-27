@@ -2,6 +2,7 @@
 #include "demi/runtime/scripting/LuaServiceModules.h"
 
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
+#include "demi/runtime/scripting/LuaGcTelemetry.h"
 #include "demi/runtime/diagnostics/DeviceLog.h"
 #include "demi/runtime/ui/TextEditingEngine.h"
 #include "demi/runtime/ui/TextLayoutEngine.h"
@@ -139,6 +140,7 @@ void LuaScriptHost::beginFrame(const float unscaledDeltaTime) {
   auto *state = static_cast<lua_State *>(state_);
   if (state == nullptr)
     return;
+  recordLuaGcTelemetryFrame(state);
   pushLuaService(state, "Time");
   if (lua_istable(state, -1)) {
     lua_pushnumber(state, deltaTime_);

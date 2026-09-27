@@ -47,18 +47,29 @@ int main() {
     assert(cacheCapacity.succeeded && cacheCapacity.values.front() == "true");
     const auto invalidCapacity = session.executeLuaConsole(
         "require('demi.prefab').set_template_cache_capacity(-1)");
-    assert(invalidCapacity.succeeded && invalidCapacity.values.front() == "false");
-    assert(session.executeLuaConsole("require('demi.application').set_mouse_captured(true)").succeeded);
+    assert(invalidCapacity.succeeded &&
+           invalidCapacity.values.front() == "false");
+    assert(session
+               .executeLuaConsole(
+                   "require('demi.application').set_mouse_captured(true)")
+               .succeeded);
     assert(session.mouseCaptured());
-    assert(session.executeLuaConsole("require('demi.application').set_mouse_visible(false)").succeeded);
+    assert(session
+               .executeLuaConsole(
+                   "require('demi.application').set_mouse_visible(false)")
+               .succeeded);
     assert(!session.mouseVisible() && session.mouseCaptured());
     session.releaseMouseCapture();
     assert(!session.mouseCaptured());
     assert(!session.mouseVisible());
-    assert(session.executeLuaConsole("require('demi.application').set_mouse_visible(true)").succeeded);
+    assert(session
+               .executeLuaConsole(
+                   "require('demi.application').set_mouse_visible(true)")
+               .succeeded);
     assert(session.mouseVisible() && !session.mouseCaptured());
-    const auto visible=session.executeLuaConsole("require('demi.application').mouse_visible()");
-    assert(visible.succeeded && visible.values.front()=="true");
+    const auto visible = session.executeLuaConsole(
+        "require('demi.application').mouse_visible()");
+    assert(visible.succeeded && visible.values.front() == "true");
     assert(session.runtimeWorld() != nullptr);
     const auto console = session.executeLuaConsole("1 + 2");
     assert(console.succeeded && console.values.size() == 1 &&
@@ -79,11 +90,29 @@ int main() {
     demi::runtime::InputState stepInput;
     stepInput.keysDown.insert("W");
     stepInput.mouseButtonsDown.insert("left");
+    assert(session.executeLuaConsole("collectgarbage('collect')").succeeded);
     assert(session.step(std::move(stepInput), 960, 540, error));
     assert(session.fixedTickCount() == beforeStep + 1);
     const auto profile = session.profilerSnapshot();
     assert(profile.attached && profile.frameCount >= 1 &&
            !profile.rows.empty());
+    const auto gauge = [&](const std::string &name) -> double {
+      const auto found =
+          std::ranges::find_if(profile.rows, [&](const auto &row) {
+            return row.entry.name == name && row.entry.hasGauge;
+          });
+      assert(found != profile.rows.end());
+      return found->entry.gauge;
+    };
+    assert(gauge("Lua.heap_bytes") > 0);
+    assert(gauge("Lua.heap_peak_sampled_bytes") >= gauge("Lua.heap_bytes"));
+    assert(gauge("Lua.gc_collect_requests") >= 1);
+    assert(gauge("Lua.gc_running") == 1);
+#if defined(__linux__)
+    assert(gauge("Process.resident_bytes") > 0);
+    assert(gauge("Process.peak_resident_bytes") >=
+           gauge("Process.resident_bytes"));
+#endif
     const auto debug = session.debugSnapshot();
     assert(debug.entities > 0 && debug.input.keysDown.size() == 1 &&
            debug.input.keysDown.front() == "W" &&
@@ -114,7 +143,8 @@ int main() {
     assert(performance.update({}, 1.0F / 60.0F, 960, 540, error));
     assert(performance.runtimeWorld()->entities.size() >= 250);
     performance.stop();
-    assert(demi::runtime::EmbeddedRuntimeSession::liveSessionCount() == baseline);
+    assert(demi::runtime::EmbeddedRuntimeSession::liveSessionCount() ==
+           baseline);
   }
   std::string isometricError;
   assert(isometric.startEmbedded(

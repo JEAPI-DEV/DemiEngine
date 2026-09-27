@@ -2,6 +2,7 @@
 add_library(demi-core STATIC
   # Shared instrumentation must be usable without linking the application loop.
   src/demi/runtime/profiling/RuntimeProfiler.cpp
+  src/demi/runtime/profiling/ProcessResourceSampler.cpp
   src/demi/runtime/math/VectorMath.cpp
   src/demi/runtime/ui/FontRasterizer.cpp
   src/demi/runtime/geometry/MeshDeformation3D.cpp

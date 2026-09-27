@@ -41,6 +41,7 @@
 <p>The <strong>diagnostics</strong> panel lists validation problems in the active document and everything it references. It uses the <strong>same diagnostic codes</strong> as <code>demi validate</code> on the command line, so a code you see here can be grepped in build logs and continuous integration output. Selecting a diagnostic jumps to the offending object.</p>
 
 <h3>Profiler</h3>
+<p>The resource overview separates <strong>Editor + Game</strong> process CPU/RAM from the Lua VM heap. Process CPU uses 100% per logical CPU, and peak RAM is a process-lifetime value. Lua heap usage can rise and fall as automatic garbage collection reclaims memory.</p>
 <p>The <strong>profiler</strong> panel shows frame timing while the game runs in play mode: total frame time and per-scope costs. It is the in-editor view of the same measurement data as the command-line profiler. Use it to find the slow part, then confirm with the reports described in <a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a>.</p>
 
 <h2>Stages: scene, HUD, and prefab</h2>

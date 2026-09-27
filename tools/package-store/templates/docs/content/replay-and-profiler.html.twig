@@ -24,7 +24,7 @@
 <p>The <strong>profiler</strong> measures how long each named part of the frame takes — input, scripts, physics, render submission, and your own scopes. It exists because "the game feels slow" is not fixable and "physics costs 11 ms in <code>arena_step</code>" is.</p>
 <pre><code>demi run linux --profiler</code></pre>
 <ul>
-  <li><code>run linux</code> — desktop launch of Skyforge.</li>
+  <li><code>run linux</code> — desktop launch of the selected project.</li>
   <li><code>--profiler</code> — prints slow-frame details to the console while the game runs: frames that exceeded the budget, with their scope breakdown.</li>
 </ul>
 <p>For numbers you can compare and archive, write reports:</p>
@@ -35,6 +35,19 @@
   <li><code>--profile-frames f.csv</code> — writes per-frame scope totals: one row per frame per scope, for plotting frame-time over time.</li>
 </ul>
 <p>Both files are plain CSV and open in any spreadsheet or graphing tool. Returns <code>0</code> after a clean run; the reports are written as the game closes.</p>
+
+<h2>CPU, memory and Lua garbage collection</h2>
+<p>During embedded Play, open <strong>Console → Profiler</strong> for the CPU, process RAM and Lua heap overview above the scope table. There is no GC overview card: explicit request counts do not measure automatic collection activity. Explicit GC metrics remain available in the detailed scope table and profiler reports. Resource values are measurements, not frame-duration scopes.</p>
+<ul>
+  <li><code>Process.cpu_percent</code> measures process CPU time across all threads. <strong>100% means one logical CPU fully occupied</strong>; parallel work can exceed 100%. It is not a sum of scope timings.</li>
+  <li><code>Process.resident_bytes</code> is physical memory resident for this process (RSS). <code>Process.peak_resident_bytes</code> is its OS-reported process-lifetime high-water mark. In embedded Play these include <strong>Editor + Game</strong>, not just game objects.</li>
+  <li>Process sampling runs approximately every 250 ms while profiling is active. CPU usage needs two samples. Unavailable measurements are shown as unavailable, not zero; paused Play retains its last measurements.</li>
+  <li><code>Lua.heap_bytes</code> reports the gameplay Lua VM's heap. <code>Lua.heap_peak_sampled_bytes</code> is the largest observed sample, so short-lived allocations between samples can exceed it. Lua memory is part of process RAM; do not add the values together.</li>
+  <li><code>Lua.gc_running</code> indicates whether Lua's collector is enabled. Lua automatically collects unreachable Lua objects unless a script explicitly stops collection.</li>
+  <li><code>Lua.gc_collect_requests</code> and <code>Lua.gc_step_requests</code> count explicit full-collection and incremental-step requests for the VM's lifetime, including the engine's full-collection request when clearing bindings. <code>Lua.gc_step_cycles</code> counts successful step calls that reported completing a cycle. <code>Lua.gc_explicit</code> measures explicit collection work while profiling is enabled.</li>
+</ul>
+<p><strong>These are not automatic GC cycle counts.</strong> Lua's public API does not expose those counters or total automatic-GC time. Heap changes alone cannot identify completed collections. The profiler does not stop the collector, change its mode, or force extra collections to obtain measurements. Ordinary C++ allocations use object lifetimes and RAII rather than Lua's collector.</p>
+<p>Process CPU and RAM sampling is implemented for Linux and Android; other platforms report unavailable values. Asset-residency and render-target counters describe particular resource categories, not a complete accounting of process or GPU memory.</p>
 
 <h2>Adding your own scopes</h2>
 <p>Engine scopes cover the frame skeleton. Wrap your own heavy work to see it in the same reports:</p>

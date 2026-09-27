@@ -5,6 +5,7 @@
 #include "demi/runtime/scene/components/EngineComponents.h"
 
 #include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/scripting/LuaGcTelemetry.h"
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
 
 #include <cstdlib>
@@ -40,6 +41,7 @@ bool LuaScriptHost::initialize(World &world, InputState &input,
     return false;
   }
   luaL_openlibs(state);
+  installLuaGcTelemetry(state);
   state_ = state;
   initializeE2ETestRunner();
   luaInstallRuntimeLogging(state, runtimeLog_);

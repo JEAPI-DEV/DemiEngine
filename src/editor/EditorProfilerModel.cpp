@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
+#include <iomanip>
+#include <sstream>
 
 namespace demi::editor {
 namespace {
@@ -59,6 +62,8 @@ EditorProfilerCategory editorProfilerCategory(const std::string_view scope) {
     return EditorProfilerCategory::Rendering;
   if (begins(scope, "Lua") || begins(scope, "Script"))
     return EditorProfilerCategory::Scripting;
+  if (begins(scope, "Process."))
+    return EditorProfilerCategory::Resources;
   if (begins(scope, "Physics"))
     return EditorProfilerCategory::Physics;
   if (begins(scope, "Animation"))
@@ -106,6 +111,36 @@ std::vector<EditorProfilerRow> filterEditorProfilerRows(
         containsCaseInsensitive(row.entry.name, query))
       rows.push_back(row);
   return rows;
+}
+
+std::optional<double>
+editorProfilerGauge(const EditorProfilerSnapshot &snapshot,
+                    const std::string_view name) {
+  const auto found = std::ranges::find_if(snapshot.rows, [&](const auto &row) {
+    return row.entry.name == name && row.entry.hasGauge;
+  });
+  if (found == snapshot.rows.end() || !std::isfinite(found->entry.gauge) ||
+      found->entry.gauge < 0.0)
+    return std::nullopt;
+  return found->entry.gauge;
+}
+
+const EditorProfilerRow *
+editorProfilerTimedScope(const EditorProfilerSnapshot &snapshot,
+                         const std::string_view name) {
+  const auto found = std::ranges::find_if(snapshot.rows, [&](const auto &row) {
+    return row.entry.name == name && !row.entry.hasGauge && row.entry.calls > 0;
+  });
+  return found == snapshot.rows.end() ? nullptr : &*found;
+}
+
+std::string editorProfilerMiB(const double bytes) {
+  if (!std::isfinite(bytes) || bytes < 0.0)
+    return "N/A";
+  std::ostringstream output;
+  output << std::fixed << std::setprecision(1) << bytes / (1024.0 * 1024.0)
+         << " MiB";
+  return output.str();
 }
 
 } // namespace demi::editor

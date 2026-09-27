@@ -1,4 +1,5 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/profiling/ProcessResourceSampler.h"
 
 #include <algorithm>
 #include <cmath>
@@ -28,6 +29,34 @@ std::unordered_map<std::string, ProfileEntry> currentFrameData;
 std::unordered_map<std::string, ProfileEntry> sessionData;
 std::size_t sessionFrames = 0;
 constexpr std::size_t MaximumSamples = 600;
+ProcessResourceSampler processResources;
+
+template <typename Value>
+void recordResourceGauge(const std::string &name,
+                         const std::optional<Value> &value) {
+  if (value) {
+    RuntimeProfiler::setGauge(name, static_cast<double>(*value));
+  } else {
+    // A failed platform read must not leave a stale value looking current.
+    currentFrameData.erase(name);
+    sessionData.erase(name);
+  }
+}
+
+void recordProcessResources() {
+  processResources.poll();
+  const auto &sample = processResources.snapshot();
+  recordResourceGauge("Process.cpu_percent", sample.cpuPercent);
+  recordResourceGauge("Process.resident_bytes", sample.rssBytes);
+  recordResourceGauge("Process.peak_resident_bytes", sample.peakRssBytes);
+  if (sample.sampledAt) {
+    const double age =
+        std::chrono::duration<double, std::milli>(
+            ProcessResourceSampler::Clock::now() - *sample.sampledAt)
+            .count();
+    RuntimeProfiler::setGauge("Process.sample_age_ms", std::max(0.0, age));
+  }
+}
 
 void updateEntry(ProfileEntry &entry, const double milliseconds) {
   entry.totalMilliseconds += milliseconds;
@@ -68,6 +97,8 @@ RuntimeProfiler::Entry publicEntry(const std::string &name,
 } // namespace
 
 void RuntimeProfiler::setEnabled(const bool enabled) {
+  if (enabled != profilerEnabled)
+    processResources.reset();
   profilerEnabled = enabled;
   if (!profilerEnabled) {
     currentFrameData.clear();
@@ -79,6 +110,7 @@ void RuntimeProfiler::setEnabled(const bool enabled) {
 bool RuntimeProfiler::enabled() { return profilerEnabled; }
 
 void RuntimeProfiler::resetSession() {
+  processResources.reset();
   currentFrameData.clear();
   sessionData.clear();
   sessionFrames = 0;
@@ -94,6 +126,7 @@ void RuntimeProfiler::beginFrame() {
   if (profilerEnabled) {
     currentFrameData.clear();
     ++sessionFrames;
+    recordProcessResources();
   }
 }
 
@@ -150,16 +183,19 @@ std::vector<RuntimeProfiler::Entry> RuntimeProfiler::frameEntries() {
 std::size_t RuntimeProfiler::frameCount() { return sessionFrames; }
 
 bool RuntimeProfiler::writeFrame(std::ostream &output, std::size_t frame) {
-  if (frame == 0) output << "frame,scope,total_ms,calls,gauge\n";
+  if (frame == 0)
+    output << "frame,scope,total_ms,calls,gauge\n";
   output << std::fixed << std::setprecision(6);
   for (const auto &entry : frameEntries()) {
     output << frame << ",\"";
     for (char character : entry.name) {
-      if (character == '"') output << '"';
+      if (character == '"')
+        output << '"';
       output << character;
     }
     output << "\"," << entry.totalMilliseconds << ',' << entry.calls << ',';
-    if (entry.hasGauge) output << entry.gauge;
+    if (entry.hasGauge)
+      output << entry.gauge;
     output << '\n';
   }
   return static_cast<bool>(output);
